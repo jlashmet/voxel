@@ -2,29 +2,31 @@
 
 ## Authoritative evidence
 - No captures/annotations exist; the acceptance contract is `issue.json` plus the original Mounting Force source.
-- `AGENTS.md` delegates coordinator SceneIssues to canonical `SceneIssues/README.md`; the user-requested `SceneIssues/feature-readme.md` is absent on this branch, so `SceneIssues/README.md` is the available repository workflow authority.
-- The canonical coordinator workflow requires current `origin/master` to be merged into the feature branch before further substantive implementation and again before final propagation if master advances. The current master-side and feature-side changes have no overlapping paths, so the pre-work merge should be conflict-free.
-- Pin legacy evidence to `jlashmet/mounting-force` commit `9491acd9efc3ad7413a13fd28f1686ed473b5672` (`agent/original-world-content-inventory`). Tree SHA `456d9596...` is not a commit and is not provenance by itself.
-- The retained `References/MountingForce/contracts/kentridge-opening-cutscene-contract.yaml` remains authoritative for the existing 31-line pub opening.
-- `Art/kentridge-awon-house.tmx` references missing `kentridge-awon-house-back-room.txt`; repository integration-gap policy therefore requires the explicit `Dialogue coming soon.` placeholder rather than invented Awon dialogue.
-- The resumed branch's source-trace notes are not trustworthy enough to implement from: direct reads at the pinned commit show `Art/kentridge-see-medrare.txt` has 4 entries (not 2) and `Art/medrare-to-church.txt` has 3 entries (not 1), while the cited `Code/MedrareFirstSpell.m` path does not exist at that commit.
-- Before any source change, re-locate the actual pinned map/choreography files and re-derive the opening state chain, exact dialogue payload/order, movement/attack/timing/camera/fade cues, and boundary to later Medrare content. Exact first-spell text/count must also be rechecked rather than inherited from stale notes.
+- `AGENTS.md` delegates coordinator SceneIssues to canonical `SceneIssues/README.md`. The user-requested `SceneIssues/feature-readme.md` is absent on both the feature branch and current `master`, so the canonical README is the available repository workflow authority.
+- Pin legacy evidence to `jlashmet/mounting-force` commit `9491acd9efc3ad7413a13fd28f1686ed473b5672` (`agent/original-world-content-inventory`). Do not substitute retained summaries/contracts when they conflict with this pinned source.
+- Preserve the existing source-backed Kentridge pub/Logan opening as the entry beat; this feature starts with the follow-on Awon/Medrare progression.
+- `Art/kentridge-awon-house.tmx` defines `kentridge-awon-house-back-room` as a `characterTalkedTo=Awon`, `scenePlayOnce=1` cutscene using `kentridge-awon-house-back-room.txt`. That text payload exists at the pinned commit and contains the exact 23-line Awon/Weldon/Steven/Madeline/Logan exchange; no placeholder is allowed for this beat.
+- `Art/kentridge.tmx` defines `kentridge-medrare-join` as `sceneFinished=kentridge-awon-house-back-room`, `sceneJoinParty=Medrare`, `scenePlayOnce=1`, `sceneRequireStep=1`, with text `kentridge-medrare-join.txt`. `Code/KentridgeMedrareJoin.m` adds the verified choreography: mark scene started, zoom to `0.5`, wait `1.5s`, have Medrare approach the player over `2s`, then invoke dialogue id `5000`. The mapped text payload is absent at the pinned commit, so its dialogue content is UNKNOWN and must not be invented.
+- `Art/medrare-house-lower.tmx` defines `medrare-first-spell` as play-once + require-step after `kentridge-awon-house-back-room`, with `addSpell=Flame,RPGPlayer`, and `medrare-to-church` as play-once after `medrare-first-spell`. Their referenced text payloads are absent at the pinned commit; preserve verified gates/actions only, with no invented dialogue.
+- The same Medrare-house map also contains a later `medrare-join` gated by `meet-king`; that later beat is outside this opening feature unless an acceptance criterion explicitly requires it.
 
 ## Discriminators / selected fix
-1. **General cutscene machinery missing** — currently unlikely. Existing shared cutscene steps cover waits, movement, dialogue, camera/control cues, and transitions; add shared behavior only if a proven pinned source cue cannot be represented.
-2. **Existing feature progression/content is source-faithful** — rejected. The resumed implementation and tests were authored against incorrect source counts/provenance and must be audited before promotion.
-3. **Awon dialogue should be reconstructed from story summaries** — rejected. The referenced text payload is absent; preserve only source-backed state/choreography and use the repository-standard placeholder.
-4. **Later Medrare content belongs here** — keep rejected unless the corrected pinned state-chain audit proves it is immediately connected to this opening feature.
+1. **General cutscene machinery missing** — currently unlikely. Existing shared steps already cover waits, movement, dialogue, camera/control cues, and transitions. Add shared behavior only for a source-proven cue that cannot otherwise be represented.
+2. **Resumed Michael/William/zombie progression is source-faithful** — rejected. It is unrelated to the pinned Kentridge Awon/Medrare chain and must be removed/replaced.
+3. **Awon dialogue is unavailable** — rejected. The exact pinned payload exists and must be preserved verbatim and in order.
+4. **Missing Medrare payloads should be reconstructed** — rejected. Missing source text is UNKNOWN; represent only source-proven gating/choreography/actions.
+5. **Later Medrare join after `meet-king` belongs here** — rejected as a later progression beat, distinct from the opening post-Awon arrival and first-spell/church chain.
 
 ## Implementation / regression
-- Merge current master into the feature branch before continuing implementation; if master advances later, merge it again before final propagation.
-- First establish a corrected source inventory from the pinned legacy commit: map event gates/flags, exact dialogue arrays, and actual choreography source path(s).
-- Update Kentridge opening content and campaign progression only after that inventory is proven. Preserve the existing pub opening and Awon placeholder semantics.
-- Bind staging semantically through existing Kentridge/Game cutscene APIs; do not hard-code legacy map coordinates in runtime code.
-- Update behavioral regressions to assert exact dialogue identity/order, source-backed progression/gating, key staging semantics, one-shot/re-entry, and persisted completed-state behavior.
-- Inspect all changed/shared paths for blast radius and steady-state cost. No per-frame discovery, hierarchy scans, polling, or unrelated scene work.
-- Before CI, re-read every acceptance criterion, finish every implementation/validation task, and move only this assignment `open -> pending` with required metadata.
-- Submit exactly one final targeted exact-SHA CI request via `ci-test/fixes/agent-1`; require focused regression plus built-player Kentridge scene validation. Do not edit `.github/test-request.json` on the feature branch.
+- Keep all changes scoped to this assignment. Preserve Logan opening behavior and existing unrelated campaign consumers.
+- Replace the branch's incorrect Kentridge progression content with exact Awon dialogue and source-backed Medrare arrival/first-spell/church actions/gates.
+- Preserve one-shot/re-entry semantics for Awon, Kentridge Medrare arrival, first-spell, and church continuation.
+- Represent the verified `Flame` grant through the narrowest existing campaign/cutscene state API; do not add polling or per-frame discovery.
+- Remove or narrow generic cutscene/runtime changes introduced solely for the rejected Michael/William chain.
+- Add focused behavioral regressions for exact Awon text/order, post-Awon Medrare gating/choreography, Flame grant, church gating, replay suppression, and preservation of the Logan entry beat.
+- Re-read every acceptance criterion after implementation and record any wording that cannot be made more specific because the pinned payload is absent.
+- Run the repository/workflow gates, move only this assignment `open -> pending`, then create exactly one final targeted exact-SHA CI request via `ci-test/fixes/agent-1`. Never edit `.github/test-request.json` on the feature branch.
+- After green exact-SHA CI, complete pending metadata, close only this assignment, set `status=fixed` and `resolvedUtc`, merge current `origin/master` into `fixes/agent-1`, and non-force propagate that exact branch head to `origin/master`, fetching/merging/retrying if master advances.
 
 ## Blast radius / cost
-Expected changes stay within Kentridge opening content/composition, focused campaign progression, focused tests, and this assignment metadata. Any generic cutscene primitive change requires a pinned source cue that existing APIs cannot express and a regression covering other consumers. Runtime acceptance requires no new steady-state allocations/search loops beyond the existing cutscene/event execution path.
+Expected product changes stay within Kentridge opening content/composition, the narrow campaign progression state needed for one-time completion/Flame grant, and focused tests. Any shared cutscene API change must be justified by a pinned source cue and checked against existing consumers. Runtime cost must remain event-driven and one-shot: no new update loops, hierarchy scans, polling, repeated allocations, or steady-state scene work.
