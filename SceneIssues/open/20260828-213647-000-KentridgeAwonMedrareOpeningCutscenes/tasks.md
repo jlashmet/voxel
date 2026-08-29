@@ -5,9 +5,9 @@
 - [x] Resume `fixes/agent-1` without resetting prior work and preserve the dedicated final-CI transport rule.
 - [x] Inspect the pinned Mounting Force commit `9491acd9efc3ad7413a13fd28f1686ed473b5672`; prefer pinned source over conflicting retained summaries/contracts.
 - [x] Verify the existing Kentridge pub opening/Logan prompt remains the source-backed entry beat.
-- [x] Recover `Art/kentridge-awon-house.tmx` and `kentridge-awon-house-back-room.txt`: Awon is talk-triggered, play-once, and the exact 23-line dialogue payload exists at the pinned commit.
+- [x] Recover `Art/kentridge-awon-house.tmx` and `kentridge-awon-house-back-room.txt`: Awon is talk-triggered, play-once, and the exact 22-line dialogue payload exists at the pinned commit.
 - [x] Recover distinct `kentridge-see-medrare` wiring from `Art/kentridge.tmx`: completed-Awon gate, play-once, `SceneCore`, separate from the custom join scene; confirm its text payload is absent and therefore UNKNOWN.
-- [x] Recover Kentridge Medrare join wiring: `Art/kentridge.tmx` gates `kentridge-medrare-join` on completed Awon, joins Medrare, is play-once + require-step; `Code/KentridgeMedrareJoin.m` restricts input/quitting, zooms to `0.5`, shows `Kentridge.JoinMedrare`, waits `1.5s`, approaches the player over `2s`, then invokes dialogue id `5000`.
+- [x] Recover Kentridge Medrare join wiring: `Art/kentridge.tmx` gates `kentridge-medrare-join` on completed Awon, joins Medrare, is play-once + require-step; `Code/KentridgeMedrareJoin.m` marks the scene started, zooms to `0.5`, waits `1.5s`, approaches the player over `2s`, then invokes dialogue id `5000`.
 - [x] Confirm `kentridge-medrare-join.txt` is absent at the pinned commit; its dialogue is UNKNOWN and must not be invented.
 - [x] Recover `Art/medrare-house-lower.tmx`: `medrare-first-spell` is play-once + require-step after completed Awon and grants `Flame` to `RPGPlayer`; `medrare-to-church` is play-once after first-spell completion.
 - [x] Confirm the pinned source does not contain the referenced `medrare-first-spell.txt` or `medrare-to-church.txt` payloads; do not invent replacement dialogue. Treat absent payload text as UNKNOWN while retaining verified gates/actions.
