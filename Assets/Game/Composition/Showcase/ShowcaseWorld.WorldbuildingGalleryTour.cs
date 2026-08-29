@@ -205,6 +205,8 @@ namespace VoxelEngine.Showcase
                 0x574247A2u,
                 requestedRooms: 8);
 
+            long townWritesStart = authoring.TotalVoxelsWritten;
+            var townTimer = System.Diagnostics.Stopwatch.StartNew();
             for (int i = 0; i < s_GalleryTownStyleIds.Length; i++)
             {
                 string styleId = s_GalleryTownStyleIds[i];
@@ -217,6 +219,13 @@ namespace VoxelEngine.Showcase
                     program,
                     in palette);
             }
+            townTimer.Stop();
+
+            long townWrites = authoring.TotalVoxelsWritten - townWritesStart;
+            UnityEngine.Debug.Log(
+                $"TOWNARCH_AUTHORING districts={s_GalleryTownStyleIds.Length} writes={townWrites} " +
+                $"elapsedMs={townTimer.Elapsed.TotalMilliseconds:0.###} totalWrites={authoring.TotalVoxelsWritten} " +
+                $"budget={authoring.WriteBudget} budgetExceeded={authoring.BudgetExceeded}");
         }
 
         private static int2 TownViewTargetXZ(int district, int view)
