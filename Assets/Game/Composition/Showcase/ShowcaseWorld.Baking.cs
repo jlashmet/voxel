@@ -21,6 +21,7 @@ namespace VoxelEngine.Showcase
         public void GenerateForBakeBlocking(int startupRadiusRegions)
         {
             EnsureFreshForBake();
+            using var farFieldCapture = FarField.SuppressCapture();
             int radius = math.clamp(startupRadiusRegions, 0, LoadRadiusRegions);
 
             // Queue the deterministic landmark footprint, then materialise every terrain region
