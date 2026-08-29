@@ -42,11 +42,11 @@
 - [x] Increase only validation-profile opening acceleration to 12x and trim evidence overhead while preserving normal gameplay/story semantics and CharacterMotor movement at `Time.timeScale=1`.
 
 ## Validation-driver work discovered by 33261744161
-- [ ] Focus each generic-settlement capture on representative actual generated building geometry instead of only the empty circulation/resident center.
-- [ ] Keep published-near-surface coverage as the renderer-readiness gate and replace redundant 2.4-second per-target dwell with only a minimal camera-settle floor.
-- [ ] Compress validation-only movement timing/distance where safe while retaining real production `CharacterMotor` motion, collision/streaming, and `Time.timeScale=1` evidence.
-- [ ] Reuse the southern-ridge resident/streaming location for the final macro-network overview where possible so the validation harness does not pay an unnecessary remote convergence cycle.
-- [ ] Self-review the evidence-driver-only diff and confirm planner, catalogue, streamer, story, gameplay timing, and macro physical semantics are unchanged.
+- [x] Focus each generic-settlement capture on representative actual generated building geometry instead of only the empty circulation/resident center.
+- [x] Keep published-near-surface coverage as the renderer-readiness gate and replace redundant 1.25-second per-target dwell with only a 0.35-second camera/stream invalidation floor.
+- [x] Compress validation-only movement timing modestly while retaining real production `CharacterMotor` motion, collision/streaming, and `Time.timeScale=1` evidence.
+- [x] Reuse the southern-ridge resident/streaming location for the final macro-network overview so the validation harness does not pay an unnecessary remote convergence cycle.
+- [x] Self-review the evidence-driver-only diff: implementation commit `752f8c17d414678c587bdfbfeb9cd636d338224f` changes 25 lines only; planner, catalogue, streamer, story, gameplay timing, and macro physical semantics are unchanged.
 - [ ] Run one fresh exact-SHA request on the existing `ci-test/fixes/agent-6`; require all seven target PNGs plus macro-road PNG, coverage-ready markers, visible four-town blockouts, readable lake/ridge/network, normal-time traversal, and clean runtime before closure.
 
 ## Behavioral regression
