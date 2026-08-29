@@ -21,6 +21,12 @@ namespace Game.WorldBuilder.Api
         internal InteractWithNpcTriggerSpec(NpcRef npc) => Npc = npc;
     }
 
+    public sealed class EnterSiteProximityTriggerSpec : IStoryTriggerSpec
+    {
+        public SiteRef Site { get; }
+        internal EnterSiteProximityTriggerSpec(SiteRef site) => Site = site;
+    }
+
     public sealed class CutsceneCompletedTriggerSpec : IStoryTriggerSpec
     {
         public CutsceneRef Cutscene { get; }
@@ -73,6 +79,8 @@ namespace Game.WorldBuilder.Api
     {
         public static IStoryTriggerSpec NewGame() => new NewGameTriggerSpec();
         public static InteractWithNpcTriggerSpec InteractWith(NpcRef npc) => new InteractWithNpcTriggerSpec(npc);
+        public static EnterSiteProximityTriggerSpec EnterSiteProximity(SiteRef site) =>
+            new EnterSiteProximityTriggerSpec(site);
         public static CutsceneCompletedTriggerSpec CutsceneCompleted(CutsceneRef cutscene) =>
             new CutsceneCompletedTriggerSpec(cutscene);
         public static QuestCompletedTriggerSpec QuestCompleted(QuestRef quest) =>
