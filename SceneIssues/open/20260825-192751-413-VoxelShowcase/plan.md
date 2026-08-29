@@ -18,5 +18,5 @@
 - Bound discovery-only water classification against its existing presentation deadline, checking every four bricks while keeping authoritative mutation invalidation immediate.
 
 ## Remaining gates
-- Integrated head compiles. Local policy 5/5, mirror slot/catalogue 21/21, and arena/no-geometry-readback 4/4 passed. The liveness harness entered PlayMode but exceeded the mandated 6 GB local ceiling before its first assertion, so it has no product verdict.
-- Compile and rerun the unchanged migration gate; verify water admission tail, moving p99, and startup fill. Keep the capture open until exact-SHA targeted CI and built-player gates are green.
+- Local policy 5/5, mirror slot/catalogue 21/21, arena/no-geometry-readback 4/4, and post-master water deadline contract 1/1 passed. Local full-scene PlayMode exceeded the mandated 6 GB ceiling before assertions, so it has no product verdict.
+- Rerun the unchanged migration gate when another CI transport is authorized; verify water admission tail, moving p99, and startup fill. Keep the capture open until exact-SHA targeted CI and built-player gates are green.
