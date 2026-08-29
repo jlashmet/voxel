@@ -16,8 +16,9 @@
 - `GpuVoxelBrickMirror` now compacts dirty payload slots into fixed 64-brick transfer batches. `VoxelBrickDirectoryUpdater.compute` scatters one contiguous transfer into the unchanged material/surface/boundary/metadata slot buffers before directory deltas and extraction consume them.
 - Recovery/admission budgets, slot mapping, Storage generations, live payload layout, extraction shaders, geometry arena, CPU topology, HLOD, water and performance thresholds are unchanged.
 - Cost/blast radius: fixed payload staging is 64 × 517 uints = 132,352 bytes GPU plus the same CPU staging. A full batch is one ~132 KB upload + one ~32.8k-thread scatter dispatch, replacing up to 256 fragmented `SetData` calls.
+- Feature is synchronized with `origin/master` `922565bedd104c1795a9d13c610d4d185b65754e` through merge `b38e8d68840372243219f17c89a1c0ccfa8398fe`; the master-only paths belonged to the separate reopened town-architecture assignment and did not overlap agent-2.
 
 ## Regression / remaining gates
 - `GpuSurfaceMirrorRecoveryLivenessTests.DemandRecoveryCannotBeStarvedByCoveredGpuWork`: exact 96 m recovery liveness.
 - `ShowcaseGpuMigrationTests.MovingShowcaseCompletesGpuSurfaceBuildsAndPreservesCoverage`: exact 210 m traversal, sustained GPU completions, zero eligible fallback/blocking completion, unchanged moving/stationary frame budgets and settled coverage.
-- Next: synchronize current `origin/master`, then one exact-head targeted CI + 45 s built-player replay. Only green exact-SHA gates permit pending/closed metadata and master push.
+- Next: one exact-head targeted CI + 45 s built-player replay. Only green exact-SHA gates permit pending/closed metadata and master push.
