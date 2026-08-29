@@ -24,12 +24,8 @@ namespace MountingForce.WorldGen.Voxel
                 Add(stageList, KentridgeTerraceSurfaceCorrectionCatalogue.Build(seed, settings, Allocator.Temp));
             }
 
-            // Legacy/non-Kentridge circulation keeps its established ordering. Organic Kentridge
-            // routes are intentionally emitted after parcel grading below: inferred public access
-            // reaches from the realized entrance through the plot shoulder, so grading must prepare
-            // the terrain first and the road must then reclaim its authored corridor.
-            if (!organicKentridge)
-                Add(stageList, KentridgeDirectedTownSurfaceCatalogue.Build(seed, settings, Allocator.Temp));
+            // This stage now selects inferred organic-route rasterization when Routes are present.
+            Add(stageList, KentridgeDirectedTownSurfaceCatalogue.Build(seed, settings, Allocator.Temp));
 
             if (isKentridge && !organicKentridge)
             {
@@ -42,16 +38,11 @@ namespace MountingForce.WorldGen.Voxel
             Add(stageList, KentridgeTerraceSupportCatalogue.Build(seed, settings, Allocator.Temp));
             Add(stageList, KentridgeVerticalPlacementAdapter.BuildPlotSurfaces(seed, settings, Allocator.Temp));
 
-            if (organicKentridge)
-                Add(stageList, KentridgeDirectedTownSurfaceCatalogue.Build(seed, settings, Allocator.Temp));
-
             if (isKentridge && !organicKentridge)
                 Add(stageList, KentridgeUrbanSidewalkCatalogue.Build(seed, settings, Allocator.Temp));
             if (!organicKentridge)
                 Add(stageList, KentridgeFrontagePathCatalogue.Build(seed, settings, Allocator.Temp));
 
-            // Piazza remains later than roads so the authored shared-space material still owns the
-            // market square where circulation enters it.
             Add(stageList, KentridgeMarketPiazzaCatalogue.Build(seed, settings, Allocator.Temp));
 
             if (isKentridge && !organicKentridge)

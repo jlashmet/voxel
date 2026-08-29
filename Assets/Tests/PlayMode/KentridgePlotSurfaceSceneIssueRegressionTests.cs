@@ -1,183 +1,161 @@
-using System;
 using MountingForce.WorldGen;
 using MountingForce.WorldGen.Content.Kentridge;
 using MountingForce.WorldGen.Voxel;
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
+using VoxelEngine.Storage.Api;
+using VoxelEngine.Storage.Runtime;
 using VoxelEngine.Structures.Api;
 using VoxelEngine.Structures.Runtime;
-using VoxelEngine.Structures.Runtime.Emitters;
 
 namespace VoxelEngine.Tests.PlayMode
 {
     public sealed class KentridgePlotSurfaceSceneIssueRegressionTests
     {
         private const uint VoxelShowcaseSeed = 1592594996u;
-        private const byte RoadMaterial = 13;
+        private const int CapturedMayorHouseSurfaceY = 221;
+        private const byte FoundationMaterial = 1;
 
-        // Corrected saved-camera ray envelope from experiment 015, in authored decimetres.
-        // The upper immutable circle contains the conspicuous rectangular grass tongue.
-        private const int UpperMarkedMinX = 910;
-        private const int UpperMarkedMaxX = 938;
-        private const int UpperMarkedMinZ = 286;
-        private const int UpperMarkedMaxZ = 304;
+        // Reconstructed from the immutable saved camera. Both samples are inside the marked
+        // Dirt/grass contacts and inside the rotated MayorHouse foundation footprint.
+        private static readonly int3 UpperMarkedProbe = new int3(934, CapturedMayorHouseSurfaceY + 1, 299);
+        private static readonly int3 LowerMarkedProbe = new int3(958, CapturedMayorHouseSurfaceY + 1, 306);
 
         [Test]
-        public void SceneIssue20260826132234356OrganicRoadWinsAfterPlotGrading()
+        public void SceneIssue20260826132234356FinalFoundationDoesNotOwnMarkedGroundBand()
         {
             SettlementPlan plan = KentridgeDefinition.Build(VoxelShowcaseSeed);
-            Assert.Greater(plan.Routes.Count, 0,
-                "The VoxelShowcase Kentridge plan must exercise the authored organic-route path.");
-
             VoxelWorldGenSettings settings = BuildSettings(plan);
-            FeatureCatalogue roads = KentridgeDirectedTownSurfaceCatalogue.Build(
+            FeatureCatalogue structures = KentridgeSharedStructureVoxelCatalogue.Build(
                 VoxelShowcaseSeed, settings, Allocator.Persistent);
             FeatureCatalogue combined = KentridgeCombinedVoxelCatalogue.Build(
                 VoxelShowcaseSeed, settings, Allocator.Persistent);
-            var primitives = new NativeList<Primitive>(4, Allocator.Persistent);
-            var anchors = new NativeList<ResolvedAnchor>(1, Allocator.Persistent);
+            var primitives = new NativeList<Primitive>(64, Allocator.Persistent);
+            var anchors = new NativeList<ResolvedAnchor>(8, Allocator.Persistent);
+            var table = new RegionTable(16, Allocator.Persistent);
+            var pool = new BrickPool(16384, Allocator.Persistent);
 
             try
             {
-                int organicDefinitions = 0;
-                bool markedEnvelopeCovered = false;
-                for (int definitionId = 0; definitionId < roads.Definitions.Length; definitionId++)
-                {
-                    FeatureDefinition definition = roads.Definitions[definitionId];
-                    string name = definition.Name.ToString();
-                    if (!name.StartsWith("kentridge-organic-route-", StringComparison.Ordinal))
-                        continue;
+                int roleId = (int)KentridgeRole.MayorHouse;
+                FeatureDefinition definition = structures.Definitions[roleId];
+                PlacementRule rule = structures.Rules[roleId];
+                Assert.AreEqual(roleId, rule.DefinitionId);
+                Assert.AreEqual(1, rule.ExplicitCount);
 
-                    organicDefinitions++;
-                    PlacementRule rule = roads.Rules[definitionId];
-                    Assert.Greater(rule.ExplicitCount, 0,
-                        "Every organic road-width definition must have production route stamps.");
+                ExplicitPlacement placement = structures.ExplicitPlacements[rule.ExplicitOffset];
+                Assert.AreEqual(
+                    CapturedMayorHouseSurfaceY - KentridgeDefinition.Theme.FoundationHeightDm,
+                    placement.Position.y,
+                    "Generated houses must sink by the compiler's full 7dm foundation depth; the old 5dm sink lifts the rectangular foundation two decimetres into the marked ground band.");
 
-                    int firstOp = definition.ProgramOffset;
-                    int secondOp = firstOp + ShapeOps.InstructionLength(ShapeOp.EmitCylinder);
-                    Assert.AreEqual(ShapeOp.EmitCylinder, (ShapeOp)roads.Program[firstOp],
-                        "Road clearance still uses an axis-aligned square stamp.");
-                    Assert.AreEqual(ShapeOp.EmitCylinder, (ShapeOp)roads.Program[secondOp],
-                        "Road surface still uses an axis-aligned square stamp, which creates right-angle Dirt/grass bites once the road owns the final corridor.");
+                EvaluationResult evaluation = FeatureGeneration.EvaluateInstance(
+                    in structures,
+                    VoxelShowcaseSeed,
+                    roleId,
+                    in definition,
+                    in placement,
+                    primitives,
+                    anchors);
+                Assert.AreEqual(EvaluationResult.Ok, evaluation);
 
-                    ExplicitPlacement firstPlacement = roads.ExplicitPlacements[rule.ExplicitOffset];
-                    ParameterSet parameters = FeatureGeneration.ResolveParameters(
-                        in roads, in definition, in firstPlacement,
-                        definitionId, firstPlacement.Position, VoxelShowcaseSeed);
-                    ulong instanceSeed = FeatureGeneration.InstanceSeed(
-                        VoxelShowcaseSeed, definitionId, firstPlacement.Position);
+                Primitive foundation = FindFoundation(primitives);
+                foundation.Bounds(out int3 foundationMin, out int3 foundationMax);
+                Assert.LessOrEqual(foundationMax.y, CapturedMayorHouseSurfaceY,
+                    "The generated foundation still protrudes above the authored plot surface.");
+                AssertHorizontalContains(foundationMin, foundationMax, UpperMarkedProbe,
+                    "Upper marked camera probe no longer exercises the production MayorHouse foundation owner.");
+                AssertHorizontalContains(foundationMin, foundationMax, LowerMarkedProbe,
+                    "Lower marked camera probe no longer exercises the production MayorHouse foundation owner.");
 
-                    primitives.Clear();
-                    anchors.Clear();
-                    EvaluationResult evaluation = ShapeProgram.Evaluate(
-                        in roads, definitionId, in parameters,
-                        firstPlacement.Position, firstPlacement.Orientation,
-                        VoxelShowcaseSeed, instanceSeed, primitives, anchors);
-                    Assert.AreEqual(EvaluationResult.Ok, evaluation);
-                    Assert.AreEqual(2, primitives.Length,
-                        "Organic road stamps should remain a bounded clear+surface pair.");
+                // Both saved-camera probes occupy the same region. Rasterize the final combined
+                // catalogue so this regression tests the exact winning writer consumed by VoxelShowcase,
+                // not an isolated plot/road/foundation program.
+                int3 region = new int3(
+                    UpperMarkedProbe.x / VoxelGrid.RegionVoxelEdge,
+                    UpperMarkedProbe.y / VoxelGrid.RegionVoxelEdge,
+                    UpperMarkedProbe.z / VoxelGrid.RegionVoxelEdge);
+                Assert.AreEqual(region.x, LowerMarkedProbe.x / VoxelGrid.RegionVoxelEdge);
+                Assert.AreEqual(region.y, LowerMarkedProbe.y / VoxelGrid.RegionVoxelEdge);
+                Assert.AreEqual(region.z, LowerMarkedProbe.z / VoxelGrid.RegionVoxelEdge);
 
-                    Primitive road = FindRoadSurface(primitives);
-                    Assert.AreEqual(PrimitiveShape.Cylinder, road.Shape,
-                        "The authored Showcase road surface must have a radial horizontal boundary.");
-                    Assert.AreEqual(1, road.Axis,
-                        "The road stamp must be a vertical cylinder so its X/Z edge is radial.");
+                var reads = new RegionReadSource(in table, in pool);
+                var mutations = new RegionMutationStore(in table, in pool);
+                FeatureGenerationReport report = FeatureGeneration.GenerateRegion(
+                    in combined, VoxelShowcaseSeed, region, reads, mutations);
+                Assert.Greater(report.VoxelsWritten, 0,
+                    "The regression must rasterize the final production Kentridge catalogue into authoritative storage.");
 
-                    int3 centre = new int3(
-                        road.A.x + road.Radius,
-                        road.A.y,
-                        road.A.z + road.Radius);
-                    int3 squareCorner = new int3(road.A.x, road.A.y, road.A.z);
-                    Assert.IsTrue(CylinderEmitter.Contains(in road, centre),
-                        "The rounded stamp must still own the route centre.");
-                    Assert.IsFalse(CylinderEmitter.Contains(in road, squareCorner),
-                        "The old square corner is still part of the road footprint.");
-
-                    int radius = definition.Footprint.x / 2;
-                    for (int p = 0; p < rule.ExplicitCount; p++)
-                    {
-                        ExplicitPlacement placement = roads.ExplicitPlacements[rule.ExplicitOffset + p];
-                        int centreX = placement.Position.x + radius;
-                        int centreZ = placement.Position.z + radius;
-                        if (CircleIntersectsMarkedEnvelope(centreX, centreZ, radius))
-                            markedEnvelopeCovered = true;
-                    }
-                }
-
-                Assert.Greater(organicDefinitions, 0,
-                    "The regression did not inspect the production organic circulation definitions used by VoxelShowcase.");
-                Assert.IsTrue(markedEnvelopeCovered,
-                    "No production organic route stamp reaches the corrected upper marked envelope; the ownership hypothesis must be re-localized instead of changing composition order.");
-
-                int lastPlot = -1;
-                int firstRoad = int.MaxValue;
-                int lastRoad = -1;
-                int piazza = -1;
-                for (int i = 0; i < combined.Definitions.Length; i++)
-                {
-                    string name = combined.Definitions[i].Name.ToString();
-                    if (name.StartsWith("kentridge-plot-", StringComparison.Ordinal))
-                        lastPlot = i;
-                    else if (name.StartsWith("kentridge-organic-route-", StringComparison.Ordinal))
-                    {
-                        firstRoad = Math.Min(firstRoad, i);
-                        lastRoad = i;
-                    }
-                    else if (string.Equals(name, "kentridge-market-piazza-hard-surface", StringComparison.Ordinal))
-                        piazza = i;
-                }
-
-                Assert.GreaterOrEqual(lastPlot, 0, "Combined production catalogue contains no plot grading stage.");
-                Assert.AreNotEqual(int.MaxValue, firstRoad, "Combined production catalogue contains no organic road stage.");
-                Assert.Greater(firstRoad, lastPlot,
-                    "Plot grading still runs after organic circulation and repaints the public road with rectangular Moss at the captured parcel edge.");
-                Assert.Greater(piazza, lastRoad,
-                    "Moving organic roads after plot grading must not let them overwrite the later authored market piazza.");
+                AssertFoundationAbsentAboveSurface(ref table, in pool, UpperMarkedProbe, "upper");
+                AssertFoundationAbsentAboveSurface(ref table, in pool, LowerMarkedProbe, "lower");
+                AssertFoundationPresentBelowSurface(ref table, in pool, UpperMarkedProbe, "upper");
+                AssertFoundationPresentBelowSurface(ref table, in pool, LowerMarkedProbe, "lower");
 
                 TestContext.WriteLine(
-                    $"SCENEISSUE_ROAD_OWNERSHIP seed={VoxelShowcaseSeed} routes={plan.Routes.Count} " +
-                    $"definitions={organicDefinitions} lastPlot={lastPlot} firstRoad={firstRoad} piazza={piazza} " +
-                    $"markedEnvelope=({UpperMarkedMinX}..{UpperMarkedMaxX},{UpperMarkedMinZ}..{UpperMarkedMaxZ})");
+                    $"SCENEISSUE_FINAL_FOUNDATION seed={VoxelShowcaseSeed} placementY={placement.Position.y} " +
+                    $"bounds=({foundationMin.x},{foundationMin.y},{foundationMin.z}).." +
+                    $"({foundationMax.x},{foundationMax.y},{foundationMax.z}) " +
+                    $"upper=({UpperMarkedProbe.x},{UpperMarkedProbe.y},{UpperMarkedProbe.z}) " +
+                    $"lower=({LowerMarkedProbe.x},{LowerMarkedProbe.y},{LowerMarkedProbe.z})");
             }
             finally
             {
+                pool.Dispose();
+                table.Dispose();
                 anchors.Dispose();
                 primitives.Dispose();
                 combined.Dispose();
-                roads.Dispose();
+                structures.Dispose();
             }
         }
 
-        private static bool CircleIntersectsMarkedEnvelope(int centreX, int centreZ, int radius)
-        {
-            int nearestX = math.clamp(centreX, UpperMarkedMinX, UpperMarkedMaxX);
-            int nearestZ = math.clamp(centreZ, UpperMarkedMinZ, UpperMarkedMaxZ);
-            int dx = centreX - nearestX;
-            int dz = centreZ - nearestZ;
-            return dx * dx + dz * dz <= radius * radius;
-        }
-
-        private static Primitive FindRoadSurface(NativeList<Primitive> primitives)
+        private static Primitive FindFoundation(NativeList<Primitive> primitives)
         {
             for (int i = 0; i < primitives.Length; i++)
             {
                 Primitive primitive = primitives[i];
-                if (primitive.Mode == PrimitiveMode.Fill && primitive.Material == RoadMaterial)
+                if (primitive.Mode == PrimitiveMode.Fill && primitive.Material == FoundationMaterial)
                     return primitive;
             }
 
-            Assert.Fail("Organic route stamp emitted no production road-surface primitive.");
+            Assert.Fail("MayorHouse emitted no production Foundation primitive.");
             return default;
+        }
+
+        private static void AssertHorizontalContains(
+            int3 min, int3 max, int3 point, string message)
+        {
+            Assert.IsTrue(
+                point.x >= min.x && point.x <= max.x && point.z >= min.z && point.z <= max.z,
+                message + $" bounds=({min.x},{min.z})..({max.x},{max.z}) point=({point.x},{point.z})");
+        }
+
+        private static void AssertFoundationAbsentAboveSurface(
+            ref RegionTable table, in BrickPool pool, int3 point, string label)
+        {
+            VoxelCell cell = VoxelAccess.GetCell(ref table, in pool, point);
+            Assert.AreNotEqual(FoundationMaterial, cell.BaseMaterialId,
+                $"The final combined catalogue still leaves Foundation material in the {label} marked ground band one voxel above the intended surface.");
+        }
+
+        private static void AssertFoundationPresentBelowSurface(
+            ref RegionTable table, in BrickPool pool, int3 abovePoint, string label)
+        {
+            int3 belowPoint = new int3(abovePoint.x, CapturedMayorHouseSurfaceY - 1, abovePoint.z);
+            VoxelCell cell = VoxelAccess.GetCell(ref table, in pool, belowPoint);
+            Assert.AreEqual(FoundationMaterial, cell.BaseMaterialId,
+                $"The {label} probe lost structural support below the house; the fix must sink the foundation, not remove it.");
         }
 
         private static VoxelWorldGenSettings BuildSettings(SettlementPlan plan)
         {
+            // Keep Foundation unique so authoritative-storage assertions distinguish it from walls.
             var materials = new VoxelMaterialMap(
-                foundationStone: 1, masonry: 1, darkMasonry: 6,
-                timber: 2, glass: 4, warmWindow: 15,
+                foundationStone: FoundationMaterial, masonry: 2, darkMasonry: 6,
+                timber: 3, glass: 4, warmWindow: 15,
                 roofTile: 8, slate: 7, cloth: 9,
-                moss: 14, water: 11, roadSurface: RoadMaterial);
+                moss: 14, water: 11, roadSurface: 13);
             return new VoxelWorldGenSettings(1, materials, plan);
         }
     }
