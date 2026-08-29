@@ -38,6 +38,7 @@ namespace VoxelEngine.Showcase
         public long UndergroundCavernVoxelsWritten { get; private set; }
         public float3 UndergroundCavernCentreMetres { get; private set; }
         public float3 UndergroundCavernEntranceMetres { get; private set; }
+        public float3[] UndergroundCavernTraversalWaypointsMetres { get; private set; } = Array.Empty<float3>();
 
         /// <summary>
         /// Authors the main showcase's deep cavern through the same generic structure session used
@@ -96,6 +97,8 @@ namespace VoxelEngine.Showcase
             UndergroundCavernCentreMetres =
                 ((float3)(result.CavernBounds.Min + result.CavernBounds.MaxExclusive) * 0.5f) * VoxelSize;
             UndergroundCavernEntranceMetres = (float3)caveRequest.EntranceWorldPosition * VoxelSize;
+            UndergroundCavernTraversalWaypointsMetres =
+                BuildUndergroundCavernTraversalMetres(traversal.TraversalWaypoints, in result);
 
             AppendUndergroundCavernLights(allLights);
 
@@ -229,6 +232,28 @@ namespace VoxelEngine.Showcase
             for (int z = first.z; z <= last.z; z++)
             for (int x = first.x; x <= last.x; x++)
                 regions.Add(new int3(x, y, z));
+        }
+
+        private static float3[] BuildUndergroundCavernTraversalMetres(
+            int3[] authoredWaypoints,
+            in UndergroundCavernRuinResult result)
+        {
+            int authoredCount = authoredWaypoints?.Length ?? 0;
+            var route = new float3[authoredCount + 2];
+            for (int i = 0; i < authoredCount; i++)
+                route[i] = (float3)authoredWaypoints[i] * VoxelSize;
+
+            int3 cavernFloor = new int3(
+                (result.CavernBounds.Min.x + result.CavernBounds.MaxExclusive.x) / 2,
+                result.CavernBounds.Min.y,
+                (result.CavernBounds.Min.z + result.CavernBounds.MaxExclusive.z) / 2);
+            int3 ruinFloor = new int3(
+                (result.RuinBounds.Min.x + result.RuinBounds.MaxExclusive.x) / 2,
+                result.RuinBounds.Min.y,
+                (result.RuinBounds.Min.z + result.RuinBounds.MaxExclusive.z) / 2);
+            route[authoredCount] = (float3)cavernFloor * VoxelSize;
+            route[authoredCount + 1] = (float3)ruinFloor * VoxelSize;
+            return route;
         }
 
         private static MineCaveLightRequest[] CombineUndergroundCavernLights(
