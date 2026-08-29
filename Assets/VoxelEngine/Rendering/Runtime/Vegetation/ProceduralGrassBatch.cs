@@ -72,9 +72,13 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
 
         internal void Draw(Material material)
         {
-            if (material == null) return;
+            if (material == null || _meshes.Count == 0) return;
+
+            // Wind is deformed entirely on the GPU from Unity's engine-managed shader time. There
+            // is no per-frame grass clock state to publish or allocate on the CPU draw path.
             for (int i = 0; i < _meshes.Count; i++)
-                Graphics.DrawMesh(_meshes[i], Matrix4x4.identity, material, 0);
+                Graphics.DrawMesh(
+                    _meshes[i], Matrix4x4.identity, material, 0, null, 0, null);
         }
 
         internal void Clear()
@@ -177,7 +181,7 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             // VegetationPlacement is authoritative about whether grass exists. Once a semantic
             // Grass instance reaches presentation, always render it; the seed may vary only the
             // local blade field inside that placement.
-            int bladesHere = BladeCountForSeed(instance.Seed);
+            int bladesHere = ProceduralGrassPresentation.BladeCountForSeed(instance.Seed);
 
             for (int blade = 0; blade < bladesHere; blade++)
             {
@@ -258,7 +262,7 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
         }
 
         internal static int BladeCountForSeed(uint seed) =>
-            Mathf.RoundToInt(Mathf.Lerp(5f, 15f, Random01(Hash(seed, 0xD1B54A35u))));
+            ProceduralGrassPresentation.BladeCountForSeed(seed);
 
         // Retained as a regression oracle for the old renderer-owned macro coverage decision. It is
         // intentionally not consulted by production geometry generation.

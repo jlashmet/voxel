@@ -64,7 +64,13 @@ namespace VoxelEngine.Vegetation.Api
             float strongest = 0f;
             for (int i = 0; i < VegetationCatalogue.Count; i++)
             {
-                VegetationProfile profile = VegetationCatalogue.Get(VegetationCatalogue.KindAt(i));
+                VegetationKind kind = VegetationCatalogue.KindAt(i);
+                if (!settings.Allows(kind))
+                {
+                    continue;
+                }
+
+                VegetationProfile profile = VegetationCatalogue.Get(kind);
                 float score = Score(sample, normal, profile, settings);
                 total += score;
                 strongest = math.max(strongest, score);
@@ -78,9 +84,17 @@ namespace VoxelEngine.Vegetation.Api
 
             float target = Random01(seed ^ 0x9E3779B9u) * total;
             float cumulative = 0f;
+            VegetationKind fallback = VegetationKind.Grass;
             for (int i = 0; i < VegetationCatalogue.Count; i++)
             {
-                VegetationProfile profile = VegetationCatalogue.Get(VegetationCatalogue.KindAt(i));
+                VegetationKind kind = VegetationCatalogue.KindAt(i);
+                if (!settings.Allows(kind))
+                {
+                    continue;
+                }
+
+                fallback = kind;
+                VegetationProfile profile = VegetationCatalogue.Get(kind);
                 cumulative += Score(sample, normal, profile, settings);
                 if (target <= cumulative)
                 {
@@ -90,7 +104,7 @@ namespace VoxelEngine.Vegetation.Api
             }
 
             suitability = strongest;
-            return VegetationCatalogue.KindAt(VegetationCatalogue.Count - 1);
+            return fallback;
         }
 
         private static float Score(
