@@ -120,6 +120,13 @@ namespace Game.WorldBuilder.Runtime
                     source: "Rossdam approach follows dry ground around the substantial lake"),
                 new TopDownWorldRouteRegionConstraintSpec(
                     KentridgeTopDownWorldLayout.SouthFightingArea,
+                    KentridgeTopDownWorldLayout.OrcVillage,
+                    SouthernRidge,
+                    TopDownWorldRouteRegionSolutionKind.GoAround,
+                    clearanceDm: 45,
+                    source: "modern 3D blockout: the verified Orc Village branch skirts the western shoulder of the Logan ridge; this is a routing solution, not legacy geography evidence"),
+                new TopDownWorldRouteRegionConstraintSpec(
+                    KentridgeTopDownWorldLayout.SouthFightingArea,
                     KentridgeTopDownWorldLayout.LoganApproach,
                     SouthernRidge,
                     TopDownWorldRouteRegionSolutionKind.DesignatedCrossing,
