@@ -22,5 +22,5 @@ Exact source `fb962fe2f055e1b31537e737a9c4493667fc5362` passed final run `332228
 ## Remaining gates
 - [x] Fresh exact-SHA targeted PlayMode + configured built-player validation.
 - [x] Complete pending metadata and move open -> pending.
-- [ ] Move pending -> closed with `resolvedUtc`.
+- [x] Move pending -> closed with `resolvedUtc`.
 - [ ] Merge latest `master`; non-force push the exact feature head to `master`.
