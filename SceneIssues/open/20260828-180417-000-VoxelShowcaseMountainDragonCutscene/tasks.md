@@ -6,6 +6,7 @@
 - [x] Confirm `GenerateForBakeBlocking` authors current source directly; default `ShowcaseStartupSource.Bake` on the editor baker is not the stale-image root cause.
 - [x] Add discovered required work here before implementation.
 - [ ] Add a durable bake-content/freshness invariant so a checked-in startup image that predates required authored landmarks fails validation instead of silently shipping without them.
+- [ ] Track the generated `ShowcaseWorld.manifest.txt` itself (not only its `.meta`) and validate that its content signature/hash describes the exact checked-in startup bake.
 - [ ] Recover/regenerate or safely refresh the checked-in VoxelShowcase startup bake from current authored WorldBuilder content without creating another CI transport.
 - [ ] Prove the checked-in startup bake contains production-realized mountain, switchback path, summit support, and dragon occupancy rather than relying only on primitive/catalogue assertions.
 - [ ] Move mountain dialogue presentation out of `MountainDragonShowcaseDriver.OnGUI` into a reusable shared cutscene presentation component; keep the showcase driver composition-only.
