@@ -7,7 +7,11 @@ namespace Game.Cutscenes.Content.Kentridge
     public static class KentridgeOpeningScript
     {
         public const int OriginalOpeningLineCount = 31;
+        public const int MedrareFirstSpellLineCount = 23;
+        public const int MedrareToChurchLineCount = 3;
         private const string OpeningCuePrefix = "kentridge.pub.opening.line-";
+        private const string MedrareFirstSpellCuePrefix = "kentridge.medrare.first-spell.line-";
+        private const string MedrareToChurchCuePrefix = "kentridge.medrare.to-church.line-";
 
         private static readonly string[] OriginalOpeningLines =
         {
@@ -44,32 +48,83 @@ namespace Game.Cutscenes.Content.Kentridge
             "Alright friends.  Lets head out!"
         };
 
-        private static readonly Dictionary<string, string> AdditionalLines = new Dictionary<string, string>
+        private static readonly string[] MedrareFirstSpellLines =
         {
-            { "destination-conversation.dialogue", "You made it. Tell me what you found on the road." },
-            { "kentridge.logan.opening.introduction", "You can call me Logan." },
-            { "kentridge.logan.opening.instructions", "Visit your father Awon first, then find Medrare before we continue with Kentridge." },
-            { "kentridge.awon.opening.tournament", "There's a tournament for adventurers in Kentridge. You should hear what they have planned." },
-            { "kentridge.medrare.opening.rumor", "Travelers have been talking about Logan and Kentridge. There may be more to those rumors than it seems." }
+            "Haugh!  What are you doing here?",
+            "I was walking around and decided to stop by.",
+            "Okay.",
+            "What are you doing?",
+            "I'm practicing my magic.",
+            "Oh ... right ...  it just kind of looks like you're staring at the wall.",
+            "It's all about concentration.",
+            "Can I see?",
+            "Well, sure.  It's fire magic.",
+            "My favorite kind!",
+            "All right.  Let's show her how it's done Logan.",
+            "Sure.",
+            "Medrare, can you hang that lantern on the hook there?",
+            "Of course!",
+            "All right.",
+            "Great.  Stand back.",
+            "Weldon, what are you doing?",
+            "Just a quick fire spell.",
+            "We're inside a wood house though.",
+            "Ahh.  Don't worry.",
+            "Weldon makes quick movements with his hands and fire shoots out at the lantern.",
+            "The lantern falls and shatters onto the floor.",
+            "Fire spreads across the floor."
         };
 
-        public static CutsceneCueId CueForOriginalLine(int oneBasedLineNumber)
+        private static readonly string[] MedrareToChurchLines =
         {
-            if (oneBasedLineNumber < 1 || oneBasedLineNumber > OriginalOpeningLineCount)
-                throw new ArgumentOutOfRangeException(nameof(oneBasedLineNumber));
-            return new CutsceneCueId(OpeningCuePrefix + oneBasedLineNumber.ToString("00"));
-        }
+            "Let's take it easy.  I'll meet you outside the church.",
+            "It is just south of the citadel.",
+            "Hurry up though, we need to talk to your father."
+        };
+
+        private static readonly Dictionary<string, string> AdditionalLines = new Dictionary<string, string>
+        {
+            { "destination-conversation.dialogue", "You made it. Tell me what you found on the road." }
+        };
+
+        public static CutsceneCueId CueForOriginalLine(int oneBasedLineNumber) =>
+            CueForLine(OpeningCuePrefix, oneBasedLineNumber, OriginalOpeningLineCount);
+
+        public static CutsceneCueId CueForMedrareFirstSpellLine(int oneBasedLineNumber) =>
+            CueForLine(MedrareFirstSpellCuePrefix, oneBasedLineNumber, MedrareFirstSpellLineCount);
+
+        public static CutsceneCueId CueForMedrareToChurchLine(int oneBasedLineNumber) =>
+            CueForLine(MedrareToChurchCuePrefix, oneBasedLineNumber, MedrareToChurchLineCount);
 
         public static string LineFor(CutsceneCueId cue)
         {
             string id = cue.Value ?? string.Empty;
-            if (id.StartsWith(OpeningCuePrefix, StringComparison.Ordinal))
+            if (TryLine(id, OpeningCuePrefix, OriginalOpeningLines, out string line)) return line;
+            if (TryLine(id, MedrareFirstSpellCuePrefix, MedrareFirstSpellLines, out line)) return line;
+            if (TryLine(id, MedrareToChurchCuePrefix, MedrareToChurchLines, out line)) return line;
+            return AdditionalLines.TryGetValue(id, out line) ? line : "[" + id + "]";
+        }
+
+        private static CutsceneCueId CueForLine(string prefix, int oneBasedLineNumber, int lineCount)
+        {
+            if (oneBasedLineNumber < 1 || oneBasedLineNumber > lineCount)
+                throw new ArgumentOutOfRangeException(nameof(oneBasedLineNumber));
+            return new CutsceneCueId(prefix + oneBasedLineNumber.ToString("00"));
+        }
+
+        private static bool TryLine(string id, string prefix, string[] lines, out string line)
+        {
+            if (id.StartsWith(prefix, StringComparison.Ordinal))
             {
-                string suffix = id.Substring(OpeningCuePrefix.Length);
-                if (int.TryParse(suffix, out int lineNumber) && lineNumber >= 1 && lineNumber <= OriginalOpeningLineCount)
-                    return OriginalOpeningLines[lineNumber - 1];
+                string suffix = id.Substring(prefix.Length);
+                if (int.TryParse(suffix, out int lineNumber) && lineNumber >= 1 && lineNumber <= lines.Length)
+                {
+                    line = lines[lineNumber - 1];
+                    return true;
+                }
             }
-            return AdditionalLines.TryGetValue(id, out string line) ? line : "[" + id + "]";
+            line = null;
+            return false;
         }
     }
 }
