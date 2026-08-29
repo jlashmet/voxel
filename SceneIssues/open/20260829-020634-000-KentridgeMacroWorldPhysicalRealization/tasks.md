@@ -27,7 +27,7 @@
 - [x] Confirm the source-backed route identity/topology and intended ridge semantics: Orc Village is the verified straight branch south of South Fighting Area I, while `southern-ridge` is explicitly a modern barrier across the Logan route and separates South Fighting Area I from Logan Approach. The Orc collision is an unintended west-edge graze, not a second pass.
 - [x] Add a focused regression proving the Orc Village hard route has an explicit `GoAround` solution targeting `southern-ridge`, stays outside the ridge travel margin, and remains physically walkable.
 - [x] Implement the narrowest authored route solution: skirt the west shoulder with the existing deterministic `GoAround` semantic; do not shrink the ridge, invent a second pass, weaken blocked-route rejection, or change generic obstacle rules.
-- [ ] Re-run the final exact-SHA production acceptance after the repair.
+- [x] Re-run the final exact-SHA production acceptance after the repair; later runs `33259572439` and `33260139560` were green for the focused acceptance.
 - [x] Blast-radius/cost intent: keep the repair in Kentridge macro physical intent + focused regression only; no planner/catalogue/water changes and no additional eager scene objects.
 
 ## Repair discovered by final CI run 33258816868
@@ -44,9 +44,9 @@
 - [x] Fix the first evidence-window gap so run `33260139560` emits all required named files within 60 seconds via validation-profile-only prewarm and compressed scheduling.
 - [x] Inspect all named frames from `33260139560` and reject them as closure evidence: Moordell/Rossdam/Fairy Village/Orc Village do not visibly show their settlement blockouts, Rossdam Lake is not readable as water, ridge/overview views are dominated by far terrain, and renderer logs show the remote screenshots were requested while `coverage=False` with transient missing-visible geometry.
 - [x] Discriminate timing vs missing content in `experiment-005-remote-evidence-convergence.md`: the earlier 2.4s Moordell frame visibly shows its grounded stone/roof blockout, proving the world content exists and the 0.95s captures are premature.
-- [ ] Accelerate only the `kentridge-macro-world` validation-profile opening timeline (not source content/state) so sufficient real time remains for convergence; restore the original `Time.timeScale` before CharacterMotor evidence and on teardown.
-- [ ] Keep named-region voxel prewarm, restore multi-second remote dwell, and capture each target only after `RenderingComposition.HasCompletePublishedNearSurfaceCoverage()` reports complete near coverage.
-- [ ] Preserve representative real CharacterMotor macro-road traversal at normal time scale and do not alter gameplay/story/worldgen/planner semantics.
+- [x] Accelerate only the `kentridge-macro-world` validation-profile opening timeline (not source content/state) so sufficient real time remains for convergence; restore the original `Time.timeScale` before CharacterMotor evidence and on teardown.
+- [x] Keep named-region voxel prewarm, restore multi-second remote dwell, and capture each target only after `RenderingComposition.HasCompletePublishedNearSurfaceCoverage()` reports complete near coverage.
+- [x] Preserve representative real CharacterMotor macro-road traversal at normal time scale and do not alter gameplay/story/worldgen/planner semantics.
 - [ ] Run a new exact-SHA final request and visually inspect every named settlement/geography/survey screenshot plus player/test logs before acceptance/closure.
 
 ## Behavioral regression
