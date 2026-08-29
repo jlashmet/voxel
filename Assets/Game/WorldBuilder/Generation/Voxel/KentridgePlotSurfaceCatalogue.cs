@@ -13,9 +13,10 @@ namespace MountingForce.WorldGen.Voxel
     /// Prepares deterministic, level building pads before Kentridge structures are rasterised.
     ///
     /// Organic Kentridge generated houses use the exact foundation rectangle resolved by the same
-    /// architecture form that the shared-house compiler consumes. This keeps grading under the
-    /// building instead of exposing an archetype-wide rectangular terrace beside it. Legacy layouts
-    /// and non-Kentridge settlements retain their established archetype pads.
+    /// architecture form that the shared-house compiler consumes. Their support volume remains a
+    /// rectangular Dirt grade, while the visible Moss cap is rounded at the corners so a house pad
+    /// meeting organic circulation cannot stamp a metre-scale right-angle grass tongue into the road.
+    /// Legacy layouts and bespoke/non-generated pads retain their established rectangular surface.
     /// </summary>
     public static class KentridgePlotSurfaceCatalogue
     {
@@ -25,6 +26,7 @@ namespace MountingForce.WorldGen.Voxel
         private const int ClearAboveDm = 56;
         private const int FootprintHeightDm = FillDepthDm + SurfaceThicknessDm + ClearAboveDm;
         private const int SharedHouseFrontInsetDm = 10;
+        private const int OrganicCapCornerRadiusDm = 12;
 
         private readonly struct PadRect
         {
@@ -88,8 +90,8 @@ namespace MountingForce.WorldGen.Voxel
                         || plot.Archetype == StructureArchetype.Well)
                         continue;
 
-                    PadRect pad = OrganicPadFor(plan, plot, seed);
-                    int[] program = PadProgram(pad, settings);
+                    PadRect pad = OrganicPadFor(plan, plot, seed, out bool generatedHouse);
+                    int[] program = PadProgram(pad, settings, generatedHouse);
                     entries.Add(new OrganicPadEntry(plot, pad, program));
                     programLength += program.Length;
                 }
@@ -180,7 +182,7 @@ namespace MountingForce.WorldGen.Voxel
             int programLength = 0;
             for (int i = 0; i < ArchetypeCount; i++)
             {
-                programs[i] = PadProgram(PadFor((StructureArchetype)i), settings);
+                programs[i] = PadProgram(PadFor((StructureArchetype)i), settings, false);
                 programLength += programs[i].Length;
             }
 
@@ -252,11 +254,13 @@ namespace MountingForce.WorldGen.Voxel
             return catalogue;
         }
 
-        private static PadRect OrganicPadFor(SettlementPlan plan, BuildingPlot plot, uint seed)
+        private static PadRect OrganicPadFor(
+            SettlementPlan plan, BuildingPlot plot, uint seed, out bool generatedHouse)
         {
             StructureIntent intent = KentridgeDefinition.StructureIntent(plot);
             StructureForm form = ArchitectureCompiler.Resolve(intent, plan.Theme, seed);
-            if (!form.IsGenerated)
+            generatedHouse = form.IsGenerated;
+            if (!generatedHouse)
                 return PadFor(plot.Archetype);
 
             Int3 envelope = SettlementFootprints.For(plan, plot.Archetype);
@@ -316,7 +320,8 @@ namespace MountingForce.WorldGen.Voxel
             }
         }
 
-        private static int[] PadProgram(PadRect core, VoxelWorldGenSettings settings)
+        private static int[] PadProgram(
+            PadRect core, VoxelWorldGenSettings settings, bool roundVisibleSurface)
         {
             int s = settings.VoxelsPerDecimetre;
             byte dirt = settings.Materials.Resolve(MaterialRole.RoadSurface);
@@ -327,11 +332,34 @@ namespace MountingForce.WorldGen.Voxel
             var b = new ProgramBuilder();
             b.Carve(core.X * s, topY, core.Z * s,
                     core.Width * s, ClearAboveDm * s, core.Depth * s);
+
+            if (!roundVisibleSurface)
+            {
+                b.Box(core.X * s, 0, core.Z * s,
+                      core.Width * s, subsoilHeight, core.Depth * s, dirt);
+                b.Box(core.X * s, subsoilHeight, core.Z * s,
+                      core.Width * s, SurfaceThicknessDm * s, core.Depth * s,
+                      groundCover);
+                return b.Finish();
+            }
+
+            // Keep the exact historical support elevation and rectangular foundation grade. Only
+            // material ownership at the visible surface changes: the full top voxel is Dirt first,
+            // then a rounded material-only pass restores Moss away from each rectangular corner.
+            // PaintSurface creates no occupancy, so structural support and clearance are unchanged.
             b.Box(core.X * s, 0, core.Z * s,
-                  core.Width * s, subsoilHeight, core.Depth * s, dirt);
-            b.Box(core.X * s, subsoilHeight, core.Z * s,
-                  core.Width * s, SurfaceThicknessDm * s, core.Depth * s,
-                  groundCover);
+                  core.Width * s, topY, core.Depth * s, dirt);
+
+            int surfaceY = topY - 1;
+            int radius = Math.Min(
+                OrganicCapCornerRadiusDm * s,
+                (Math.Min(core.Width * s, core.Depth * s) - 1) / 2);
+            int paintMinY = Math.Max(0, surfaceY - radius);
+            int paintHeight = (surfaceY - paintMinY) + radius + 1;
+            b.RoundedSurface(
+                core.X * s, paintMinY, core.Z * s,
+                core.Width * s, paintHeight, core.Depth * s,
+                radius, groundCover);
             return b.Finish();
         }
 
@@ -347,6 +375,13 @@ namespace MountingForce.WorldGen.Voxel
             public void Box(int x, int y, int z, int sx, int sy, int sz, byte material,
                             PrimitiveMode mode = PrimitiveMode.Fill) =>
                 Op(ShapeOp.EmitBox, x, y, z, sx, sy, sz, material, 0, 0, (int)mode);
+
+            public void RoundedSurface(
+                int x, int y, int z, int sx, int sy, int sz, int radius, byte material) =>
+                Op(ShapeOp.EmitRoundedBox,
+                   x, y, z, sx, sy, sz, radius,
+                   material, SurfaceStyles.MaterialDefault, Coatings.None,
+                   (int)PrimitiveMode.PaintSurface);
 
             public void Carve(int x, int y, int z, int sx, int sy, int sz) =>
                 Box(x, y, z, sx, sy, sz, 0, PrimitiveMode.Carve);
