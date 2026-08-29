@@ -15,6 +15,7 @@
 - [x] Check blast radius across WorldBuilder/terrain/story/cutscene consumers and quantify one-time world-build/bake cost plus steady-state trigger/presentation cost against existing budgets.
 - [x] Record the final-CI request contract discovered from run `33235920288`: SceneIssue `replay_seconds` must be 20-60; the 110-second request failed during request resolution before Unity or product tests started.
 - [x] Fix feature callsites that still used obsolete `TimedCutsceneDialogueRuntime(displayMilliseconds: ...)`; the shared runtime constructor names this argument `displayDurationMilliseconds`, and run `33236501834` exposed the compile break before bake/player validation.
+- [ ] Add `Game.Cutscenes.Api` to the `VoxelEngine.Showcase` SceneRuntime assembly references; run `33236605080` exposes CS0012 at `MountainDragonShowcaseDriver.overlay.Bind(_encounter)` because the shared presentation method exposes `IActiveCutsceneDialogue` from that API assembly.
 - [ ] Validate the checked-in startup bake contains the accepted mountain.
 - [ ] Run exact-SHA built-application VoxelShowcase validation with no startup/runtime exceptions.
 - [ ] Traverse the complete route through normal player movement without jumps/teleportation/impassable intersections.
