@@ -36,6 +36,11 @@ namespace VoxelEngine.Showcase
             // iteration poll could hit its guard before a perfectly healthy build completed.
             WaitForCastleDuringBake();
 
+            // Deep cavern/ruin content is authored through the same production structure session
+            // used after restore. Capturing it here lets the next refreshed startup image absorb
+            // the runtime-overlay cost without changing the feature's geometry or semantics.
+            GenerateUndergroundCavernRuinsBlocking();
+
             MaterialiseStartupDisc(RegionAt(SpawnPosition()), radius);
 
             if (_pendingFeatureRegions.Count != 0 || _featureBuild != null)
