@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Text;
 using Game.Composition.Materials;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -110,20 +111,30 @@ namespace VoxelEngine.Showcase.Editor
                         0.75f);
                 ShowcaseWorldBake bake = world.CaptureBake(startupRadius);
                 byte[] bytes = ShowcaseWorldBakeCodec.Serialize(bake);
+                string manifest = ShowcaseStartupBakeContract.CreateManifest(bytes);
 
                 string directory = Path.GetDirectoryName(OutputAssetPath);
                 if (string.IsNullOrEmpty(directory))
                     throw new InvalidOperationException("Invalid showcase bake output path.");
                 Directory.CreateDirectory(directory);
                 File.WriteAllBytes(OutputAssetPath, bytes);
+                File.WriteAllText(
+                    ShowcaseStartupBakeContract.ManifestAssetPath,
+                    manifest,
+                    new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
                 AssetDatabase.ImportAsset(OutputAssetPath, ImportAssetOptions.ForceUpdate);
+                AssetDatabase.ImportAsset(
+                    ShowcaseStartupBakeContract.ManifestAssetPath,
+                    ImportAssetOptions.ForceUpdate);
                 AssetDatabase.SaveAssets();
 
                 float mebibytes = bytes.Length / (1024f * 1024f);
                 Debug.Log(
                     $"Baked Voxel Showcase startup world: {bake.Regions.Count} regions, " +
                     $"{mebibytes:F1} MiB, seed 0x{bake.Seed:X8}, " +
-                    $"castle voxels {bake.CastleVoxels:N0}. Asset: {OutputAssetPath}");
+                    $"castle voxels {bake.CastleVoxels:N0}, content signature " +
+                    $"0x{ShowcaseStartupBakeContract.RequiredContentSignature:X8}. " +
+                    $"Asset: {OutputAssetPath}");
             }
             catch (Exception ex)
             {
