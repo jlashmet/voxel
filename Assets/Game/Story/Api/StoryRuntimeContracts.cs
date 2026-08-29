@@ -55,6 +55,10 @@ namespace Game.Story.Api
             new StoryEvent(StoryEventKind.SiteEntered, default, default, default, site);
     }
 
+    /// <summary>
+    /// Read-only story state queried while an event is being evaluated. Dispatch is event-atomic:
+    /// every condition for one incoming event observes this pre-effect state snapshot.
+    /// </summary>
     public interface IStoryStateView
     {
         bool IsObjectiveActive(ObjectiveRef objective);
@@ -63,6 +67,10 @@ namespace Game.Story.Api
         bool IsCutsceneCompleted(CutsceneRef cutscene);
     }
 
+    /// <summary>
+    /// Runtime integration seam. Story decides semantic effects; gameplay systems own how quests,
+    /// legacy objectives, and cutscenes are actually started.
+    /// </summary>
     public interface IStoryEffectSink
     {
         void StartObjective(ObjectiveRef objective);
