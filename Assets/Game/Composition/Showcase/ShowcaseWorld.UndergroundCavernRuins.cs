@@ -29,6 +29,7 @@ namespace VoxelEngine.Showcase
         private bool _undergroundCavernRuinsAuthored;
 
         public bool HasUndergroundCavernRuins => _undergroundCavernRuinsAuthored;
+        public byte UndergroundCavernRockMaterialId { get; private set; }
         public int UndergroundCavernTraversalDistance { get; private set; }
         public int UndergroundCavernStatueCount { get; private set; }
         public int UndergroundCavernStalactiteCount { get; private set; }
@@ -151,6 +152,7 @@ namespace VoxelEngine.Showcase
                 result.Destination.ExitFacing);
 
             _undergroundCavernRuinsAuthored = true;
+            UndergroundCavernRockMaterialId = cavePalette.Rock;
             UndergroundCavernTraversalDistance = result.Destination.TraversalDistance;
             UndergroundCavernStatueCount = result.StatueCount;
             UndergroundCavernStalactiteCount = result.StalactiteCount;
@@ -238,7 +240,7 @@ namespace VoxelEngine.Showcase
             palette = new CaveMaterialPalette
             {
                 Opening = GameMaterialIds.Empty,
-                Rock = GameMaterialIds.DarkStone,
+                Rock = GameMaterialIds.Stone,
                 Accent = GameMaterialIds.Crystal,
                 Decoration = GameMaterialIds.Moss,
                 Water = GameMaterialIds.Water,
