@@ -12,7 +12,9 @@
 - [x] Inspect failed final CI run `33234652795`: classify it as a product/branch compile failure, not infrastructure; no player build or screenshots were produced.
 - [x] Root-cause the compile failure: `Game.Kentridge.PlayableSlice.KentridgeDefinition` shadows the imported WorldGen definition and its compatibility facade did not forward `CountrysideEcology`.
 - [x] Inspect final CI run `33236269717` and its one permitted infrastructure retry: targeted PlayMode acceptance passes and the built player runs 60 seconds with zero assertions, but the visual replay gate rejects this ticket as having no replayable camera snapshot.
-- [x] Compare a known-good Kentridge SceneIssue capture: `poseAnchor` may be null, while the replayable player camera is identified by `FirstPerson-AIO/FirstPersonCharacter/Capsule/PlayerCamera`; this ticket has the matching camera snapshot filename/world pose but an empty `camera.hierarchyPath`.
+- [x] Compare a known-good historical Kentridge SceneIssue capture: `poseAnchor` may be null and older captures used `FirstPerson-AIO/FirstPersonCharacter/Capsule/PlayerCamera`; do not assume that historical hierarchy still exists in the current scene.
+- [x] Inspect failed final CI run `33240721951`: focused PlayMode acceptance passes and the real player reports 11,478 grass instances / 114,580 blades with zero excluded-surface grass, but visual replay arms and never pins.
+- [x] Discriminate replay hypotheses against the exact current scene: `Assets/Scenes/KentridgePlayableSlice.unity` contains a root `Kentridge Player Camera` tagged MainCamera, while the issue metadata targets the obsolete historical FirstPerson hierarchy. This is an assignment-local capture-metadata defect, not a reason to change production camera/harness code.
 
 ## Implementation
 - [x] Keep the existing additive per-region ecology policy with allowed vegetation, density, deterministic seed salt, sample spacing, route clearance, and slope controls.
@@ -24,7 +26,7 @@
 - [x] Keep denser undergrowth synthesis driven by the regional ecology profile.
 - [x] Preserve the existing shared grass wind path; no second animation system or Kentridge shader fork is introduced because source tracing shows the production time binding is present.
 - [x] Forward the authored WorldGen `CountrysideEcology` policy through the playable WorldBuilder compatibility facade so the local `KentridgeDefinition` shadow remains an intentional adapter rather than a duplicated policy owner.
-- [x] Repair only this assignment's recorded camera replay metadata by restoring the known Kentridge player-camera hierarchy identity; do not alter scene serialization or gameplay code for this replay defect.
+- [ ] Correct only this assignment's recorded camera replay metadata to the exact current `Kentridge Player Camera` hierarchy; do not alter scene serialization, gameplay code, or shared replay harness for this metadata defect.
 
 ## Regression coverage
 - [x] Prove Kentridge definition exposes the grass-only dense regional policy and empty tree/ambient-animal allowlists.
@@ -43,14 +45,14 @@
 - [x] Review current feature diff for assignment-only scope and confirm `.github/test-request.json` is absent from `fixes/agent-5` changes.
 - [x] Confirm the compile-seam correction is a single compatibility-property forwarder with no runtime allocation or renderer cost.
 - [x] Confirm the replay repair is assignment-local capture metadata only and has zero production runtime/rendering cost.
-- [ ] Record available built-player CPU/GPU/memory/build-time evidence against existing vegetation/rendering budgets, or explicitly document when the canonical harness exposes no corresponding budget metric.
+- [x] Record available canonical built-player cost evidence: the failed visual run still reached a stable real player and `fps.txt` reports `110.01` FPS; logs expose semantic-instance/blade/chunk topology above. The canonical artifact exposes no per-feature CPU-ms, GPU-ms, resident-memory, or build-time budget metric, so those unavailable dimensions are explicitly documented rather than invented.
 
 ## Workflow validation / artifacts
 - [ ] Run required canonical pre-merge validation scripts/checklists for the changed module set.
 - [ ] Refresh required validation hashes/reports and feature-local validation evidence.
 - [ ] Run focused EditMode behavioral regressions for Kentridge vegetation and procedural grass rendering.
 - [ ] Complete runtime blast-radius/cost report before closure.
-- [ ] Re-run the final focused PlayMode + exact built-player replay after the compatibility compile fix and camera metadata repair.
+- [ ] Re-run the final focused PlayMode + exact built-player replay after the camera metadata correction.
 - [ ] Validate that the exact built-player artifact actually photographs the meadow viewpoint rather than the opening interior/cutscene.
 
 ## Built-player visual gate
