@@ -1,23 +1,28 @@
 # Plan
 
 ## Reopen reason
-- The original ticket asked to hook the tuned ArchLookdev arch into Kentridge.
-- Prior closure proved catalogue/program behavior but its saved visual evidence came from `ArchLookdev` / `Hero Arch Camera`, not the production Kentridge playable slice.
-- The user loaded `KentridgePlayableSlice` and could not find or identify the result, so the visual acceptance gate was not actually satisfied.
+- Original ask: carry the tuned ArchLookdev hero arch into Kentridge.
+- Prior closure proved catalogue/program behavior, but durable visual evidence came from `ArchLookdev`, not the production `KentridgePlayableSlice`. The user could not find/read the result in Kentridge.
 
-## Required runtime discriminator
-1. Launch the exact built application for `Assets/Scenes/KentridgePlayableSlice.unity`.
-2. Starting from normal gameplay, locate at least one actual Kentridge landmark whose production WorldBuilder program uses the ArchLookdev-derived hero entrance treatment.
-3. Approach it at player height and confirm the arch is reachable, visible, correctly attached to the building, and visually recognizable as the segmented projecting hero arch rather than merely containing hidden/generated seam primitives.
-4. If no such arch can be found or read in normal gameplay, treat that as a product failure and fix the reusable Kentridge/WorldBuilder placement or presentation path. Do not place a showcase-only ArchLookdev object directly into the scene.
+## Evidence and hypotheses
+- The exact production slice builds `KentridgeCombinedVoxelCatalogue` from the deterministic `SettlementPlan`; landmark roles are therefore realized through the reusable WorldBuilder path, not scene-only objects.
+- Warehouse, mansion, and church entrance programs call `ArchitectureVoxelPatterns.FramedArchedOpening`.
+- That helper currently adds twelve zero-radius `PrimitiveMode.SurfaceDetail` / `MasonryJoint` capsules around a continuous arched frame. Existing regression checks those operations, so it can pass even if the player cannot visually read segmented stones.
+- The production slice already exposes deterministic landmark survey coordinates/frontage from `_kentridgePlan`, so the landmark itself is locatable.
 
-## Closure evidence
-- Add durable built-player screenshots captured **inside `KentridgePlayableSlice`**, not ArchLookdev.
-- At minimum include: (a) a wider shot showing recognizable Kentridge context/building and approach path; and (b) a closer player-height shot where the segmented voussoir/projecting arch treatment is plainly readable.
-- Record the landmark identity/location or deterministic semantic anchor so another reviewer can reproduce the walk-up.
-- Human visual inspection is mandatory. ArchLookdev screenshots, source inspection, catalogue assertions, primitive counts, or automated regressions alone cannot close the issue.
-- Keep or strengthen the production-path regression so the verified landmark remains generated through the reusable WorldBuilder architecture vocabulary.
+Competing hypotheses:
+1. **Presentation failure:** landmark placement/access is valid, but zero-radius surface-detail seams are too subtle at normal gameplay distance; the arch exists logically yet does not read like the projecting segmented ArchLookdev treatment.
+2. **Composition failure:** the treatment is visually adequate, but landmark frontage/public approach leaves it practically unreachable or hidden.
 
-## Blast radius / cost
-- Confirm any correction stays scoped to intended Kentridge landmark entrances and does not unintentionally apply the hero treatment to window-scale arches or unrelated settlements.
-- Report any generation/rendering cost change if production geometry or placement is modified.
+Smallest discriminator: load the exact playable scene, resolve one generated landmark entrance/frontage from the production settlement plan, physically move the production player host to its public approach, and inspect/frame it at player eye height. Verify the same generated program carries the hero segmentation.
+
+## Fix / regression
+- If hypothesis 1 wins, strengthen only `FramedArchedOpening` hero entrance decoration into durable shallow projecting voussoir geometry while preserving both opening carves; keep glazed/window arches unchanged.
+- If hypothesis 2 wins, correct only reusable Kentridge planning/access/presentation—never add a scene-local showcase object.
+- Add a PlayMode regression through `KentridgePlayableSlice` that proves a deterministic landmark hero entrance is generated, connected to public circulation, reachable by the production player host, and remains body-clear.
+
+## Gates
+1. Targeted PlayMode regression green.
+2. Exact built `Assets/Scenes/KentridgePlayableSlice.unity` replay at player height with durable wide-context and close arch screenshots.
+3. Confirm no window/unrelated-settlement spillover and report primitive/runtime cost delta.
+4. Final targeted exact-SHA CI on `ci-test/fixes/agent-5`; then pending/closed metadata and non-force master integration.
