@@ -1,19 +1,30 @@
 # Plan — reopened town-architecture extensibility
 
-## Baseline
-The prior feature is visually validated and remains the baseline: six distinct reference-driven town styles, shared detail assemblies, Rossdam fortification vocabulary, deterministic seeds, four structure roles, and an 18-view built-player audit.
+## Baseline / evidence
+The prior six-town gallery remains the accepted visual baseline. This reopened issue contains no new captured frames or marked regions; its quality review identifies architecture/extensibility as the defect. The six reference-driven identities, four-role contracts, deterministic seeds, detail vocabulary and wide/player/close evidence path remain required.
 
-## Serious gap
-The style layer is closed rather than extensible. `TownArchitectureProgram` exposes fixed style/form enums and validates them one-to-one; `WorldBuilderTownArchitecture` uses named `Resolve` and seed switches; voxel realization switches on the six silhouettes and dispatches to town-named methods. Adding a seventh ordinary town therefore requires edits across central API/runtime/backend code instead of defining a new composition from shared capabilities.
+## Competing hypotheses and runtime/source evidence
+1. **Style-definition coupling:** confirmed. `TownArchitectureProgram` rejected independent silhouette/roof composition through a one-to-one central switch.
+2. **Catalogue coupling:** confirmed. `WorldBuilderTownArchitecture` hard-coded six ids in `AllStyleIds`, `Resolve` and `CanonicalSeed` switches.
+3. **Voxel-backend coupling:** confirmed. production authoring switched on the six silhouettes and dispatched to six town-named methods.
+4. **Gallery-only limitation:** rejected as root cause. The gallery merely exposed the shared API/backend limitation; the fix therefore lives in shared WorldBuilder contracts/registry/voxel realization, while the proof town is gallery composition data.
 
-## Target architecture
-Make style registration/composition data-driven over reusable massing, roof, opening, facade, detail and landmark/prop strategies. A new town that uses existing capabilities should require only a program/style definition plus composition data. New code should be necessary only for genuinely new reusable capabilities.
+## Implemented architecture
+- `TownArchitectureDefinition` is a public immutable registry definition; style ids are arbitrary strings and the six historic constants are only stable baseline ids.
+- `TownArchitectureComposition` contains exactly one `TownArchitectureRoleRecipe` for each required structure role.
+- Each role composes reusable `TownArchitectureMassing`, roof/opening data and orthogonal `TownArchitectureDetailFeatures`; there is no silhouette-to-roof validity switch.
+- `WorldBuilderTownArchitecture` resolves and seeds dictionary-registered definitions instead of style-name switches.
+- `WorldBuilderTownArchitectureVoxelAuthoring` dispatches only on reusable massing/opening/detail capabilities. It contains no town id/name dispatch and preserves the established deterministic four-role anchors/footprint.
+- The exact gallery registers a seventh synthetic `river-trade-proof` definition that deliberately combines semantic/form data rejected by the former one-to-one gate, and mixes existing gabled stone/timber, balcony, awning, arch and buttress capabilities. Its material palette and placement are exhibit data only.
 
-## Discriminator / regression
-Create a seventh synthetic proof style combining existing capabilities in a way none of the six use. It must register through the public path without adding a new central switch case or town-named backend method, generate all four roles deterministically, and render distinctly in the built gallery.
+## Regression
+`VoxelEngine.Tests.PlayMode.TownArchitectureExtensibilityTests.RegisteredSeventhStyleComposesExistingCapabilitiesWithoutCentralDispatch` registers an arbitrary seventh id through the public registry, resolves canonical/custom seeds, verifies all four roles/details, runs the production voxel authorer twice for determinism, proves mixed reusable macro capabilities are physically distinct, and re-runs all six built-in definitions through that same production authoring path.
 
-## Visual gate
-Preserve the six accepted styles and re-check wide/player/close views. The current audit is clearly distinguishable by town, but some close facades are still blocky; extensibility work must not collapse visual identities or reduce detail.
+## Exact built-scene gate
+The canonical SceneIssue remains `Assets/Scenes/WorldbuildingGalleryShowcase.unity`. The capture-less production audit now derives its evidence count from `WorldbuildingGalleryTownDistrictCount`; seven districts therefore produce 21 named screenshots (wide/elevated, player facade, close detail for each town). Inspect all 21 for grounding/intersections/detail retention/distinctness and require `TOWNARCH_AUDIT result=PASS` with no startup/runtime exceptions.
+
+## Blast radius / cost
+Shared API/runtime/backend files change, so every consumer of town programs is in blast radius; registry search found no direct `new TownArchitectureProgram` callers outside the catalogue. Per-town realization still resolves one immutable program and emits four bounded role recipes inside the existing 164x132x78 public footprint. Registry lookup is once per district, not per voxel. The exact gallery adds one bounded district and increases stale-bake repair budget from 18M to 22M writes; final player logs must report actual `TOWNARCH_AUTHORING` writes/elapsed time plus `TOWNARCH_COST` allocation/residency evidence before closure.
 
 ## Remaining gates
-Refactor public contracts/registry/backend composition, add extensibility regression, render seven styles in exact built application, inspect evidence, measure cost/blast radius, then run exact-SHA CI and normal SceneIssue pending/closed workflow.
+Freeze one implementation SHA, run the exact focused PlayMode regression plus exact SceneIssue built-player replay through `ci-test/fixes/agent-7`, inspect NUnit/log/21-frame evidence and cost. Only after green exact-SHA gates update pending metadata, move open -> pending -> closed, merge current master into `fixes/agent-7`, and non-force fast-forward that exact merged head to master.
