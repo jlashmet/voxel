@@ -41,6 +41,13 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(delta.y, Is.LessThan(-70f),
                 "The cavern must remain substantially below the natural surface entrance.");
 
+            TestContext.WriteLine(
+                $"cavern writes={world.UndergroundCavernVoxelsWritten}; traversal={world.UndergroundCavernTraversalDistance}; " +
+                $"routeLights={world.UndergroundCavernRouteLightCount}; totalLights={world.UndergroundCavernLocalLightCount}; " +
+                $"mouthLobes={world.UndergroundCavernMouthOpeningCount}; directionChanges={world.UndergroundCavernDirectionChangeCount}; " +
+                $"statues={world.UndergroundCavernStatueCount}; stalactites={world.UndergroundCavernStalactiteCount}; " +
+                $"geologyCategories={world.UndergroundCavernGeologicalCategoryCount}; depthDeltaMetres={delta.y:F1}");
+
             int lights = world.UndergroundCavernLocalLightCount;
             long writes = world.UndergroundCavernVoxelsWritten;
             float3 centre = world.UndergroundCavernCentreMetres;
