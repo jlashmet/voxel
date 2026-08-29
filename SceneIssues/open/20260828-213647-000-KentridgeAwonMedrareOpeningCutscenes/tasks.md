@@ -2,31 +2,26 @@
 
 - [x] Read `AGENTS.md`, canonical `SceneIssues/README.md`, and target issue; confirm no capture frames/annotations exist.
 - [x] Confirm `SceneIssues/feature-readme.md` is absent on feature/master; use canonical `SceneIssues/README.md`.
-- [x] Resume `fixes/agent-1` without resetting prior work; preserve the dedicated final-CI transport rule.
+- [x] Resume `fixes/agent-1` without discarding prior work; recover the prior CI source parent `ab0f3ed7304adaae2b04e1474fea7eeafc7ff3aa` onto the feature branch by non-force fast-forward.
 - [x] Inspect pinned Mounting Force commit `9491acd9efc3ad7413a13fd28f1686ed473b5672` directly.
-- [x] Verify existing Kentridge pub/Logan opening remains the source-backed entry beat.
-- [x] Verify `Art/kentridge-awon-house.tmx`: talk to Awon, play once, text `kentridge-awon-house-back-room.txt`; recover the root-level exact 22-line payload.
-- [x] Verify distinct `kentridge-see-medrare` and `kentridge-medrare-join` objects in `Art/kentridge.tmx`, both gated directly by Awon; sighting is play-once spatial, join is play-once + require-step + `sceneJoinParty=Medrare`.
-- [x] Recover exact `Code/KentridgeMedrareJoin.m`: set scene started, zoom `0.5`, wait `1.5s`, Medrare approaches player over `2s`, invoke dialogue id `5000`.
-- [x] Confirm `kentridge-see-medrare.txt` and `kentridge-medrare-join.txt` are absent at pinned commit; do not invent their dialogue.
-- [x] Verify `Art/medrare-house-lower.tmx`: `medrare-first-spell` is play-once + require-step after Awon and grants `Flame` to `RPGPlayer`; `medrare-to-church` is play-once after first-spell.
-- [x] Confirm first-spell/church payloads are absent; retain verified gates/actions only.
-- [x] Identify later `medrare-join` after `meet-king` as out of scope.
-- [x] Reject resumed Michael/William/zombie content and incorrect claims that the recoverable Awon/root payload or join choreography were absent.
-- [x] Replace incorrect progression content with only directly verified Awon/Medrare dialogue/actions, retaining distinct sighting and join events.
-- [x] Author/wire the source-backed Medrare join into campaign progression without inventing a dependency between sighting and join.
-- [x] Preserve source one-shot/re-entry gates; completed beats do not replay.
-- [x] Implement durable Medrare party membership and `Flame` ownership through generic event-driven story/campaign state.
-- [x] Fix branch compile mismatch `SiteEntered` vs `SiteProximityEntered`.
-- [x] Add deterministic capture/restore state for completed cutscenes, Medrare membership, and Flame ownership.
-- [x] Remove the shared control-lock/transition/cue runtime expansion used only by rejected invented content; retain only story APIs now used by this feature.
-- [x] Rewrite stale regression to cover exact 22-line Awon identity/order/speakers, Logan preservation, missing-dialogue non-invention, distinct sighting/join gates, join choreography, party join, Flame grant, church gate, replay suppression, and production continuation restore.
-- [x] Verify feature diff adds no assets/packages/workflows/generated expansion and touches no other SceneIssue.
-- [x] Review blast radius/cost: changes are event-dispatch and small HashSet/snapshot work only; no polling, update loops, hierarchy scans, or steady-state scene cost.
-- [x] Re-read acceptance criteria; later Medrare payload dialogue remains UNKNOWN because those pinned text files are absent, so only proven identities/gates/actions are represented.
-- [ ] Run exact-SHA focused PlayMode regression and built-application `KentridgePlayableSlice` harness; both must be green before promotion.
-- [ ] After green exact-SHA gates, set pending metadata (`status`, `resolutionSummary`, `regressionTest`, `fixCommit`) and move only this assignment `open -> pending` in a bookkeeping commit.
-- [ ] Create exactly one final targeted-CI request on `ci-test/fixes/agent-1` for the exact feature SHA; never edit `.github/test-request.json` on feature.
-- [ ] Inspect exact-SHA CI logs/artifacts and confirm focused regressions plus built-application Kentridge validation are green.
-- [ ] Complete final metadata after green CI; move only this assignment `pending -> closed`, set `status=fixed` and `resolvedUtc`, finish every checkbox.
-- [ ] Re-fetch latest `origin/master`, merge into `fixes/agent-1` if needed, then non-force push exact feature head to `origin/master`; fetch/merge/retry if master advances.
+- [x] Preserve the existing source-backed Kentridge pub/Logan entry beat.
+- [x] Recover Awon wiring and exact 22-line payload from `Art/kentridge-awon-house.tmx` + `kentridge-awon-house-back-room.txt`.
+- [x] Recover distinct post-Awon `kentridge-see-medrare` and `kentridge-medrare-join` events; preserve join zoom `0.5`, wait `1.5s`, 2s Medrare approach, party join, and dialogue id `5000` identity.
+- [x] Recover `medrare-first-spell` one-shot Flame grant and `medrare-to-church` gate from `Art/medrare-house-lower.tmx`.
+- [x] Keep absent Medrare text payloads UNKNOWN; do not invent dialogue. Keep later post-`meet-king` Medrare join out of scope.
+- [x] Remove rejected Michael/William/zombie content and shared runtime expansion used only by it.
+- [x] Implement source one-shot/re-entry gating, persistent Medrare membership, one-time Flame ownership, and deterministic capture/restore through event-driven story/campaign state.
+- [x] Add focused regression for Logan preservation, exact Awon dialogue/speakers, distinct Medrare gates, join choreography, party join, Flame grant, church gate, replay suppression, and continuation restore.
+- [x] Inspect failed diagnostic CI request `96cccdb9f9c95f4c48d476cbbb2b0b3505c22127`; classify as product failure: test used nonexistent `RequireSite`/`Story.Cutscene` APIs and capture-less SceneIssue replay was rejected before the Kentridge fallback.
+- [x] Fix regression authoring to use existing `RegionHandle.Site` + `SiteHandle.Cutscene` APIs.
+- [ ] Fix the generic real-player harness so a capture-less Kentridge SceneIssue uses the harness default 1600x900 resolution while recorded-pose issues still require valid captured dimensions.
+- [x] Verify feature implementation has no unapproved assets/packages/generated expansion and no other SceneIssue changes.
+- [x] Review blast radius/cost: event dispatch + small HashSet/snapshot state only; no polling, update loops, hierarchy scans, or steady-state scene cost. Harness fix is validation-only startup parsing.
+- [x] Re-read acceptance criteria; unavailable pinned Medrare payload text remains explicitly unrecovered while all proven gates/actions are represented.
+- [ ] Refresh `origin/master` and ensure it is merged before the final exact-SHA request.
+- [ ] Create one fresh final post-fix targeted-CI request directly atop the exact feature SHA on `ci-test/fixes/agent-1`; do not edit `.github/test-request.json` on feature.
+- [ ] Confirm focused PlayMode regression and built-application `KentridgePlayableSlice` validation are both green from that exact request SHA; inspect logs/artifacts.
+- [ ] Set pending metadata (`status`, `resolutionSummary`, `regressionTest`, `fixCommit`) and move only this assignment `open -> pending` in a bookkeeping commit.
+- [ ] Complete final metadata, move only this assignment `pending -> closed`, set `status=fixed` + `resolvedUtc`, and finish every feature/closure checkbox.
+
+Post-close workflow: re-fetch current `origin/master`, merge it into `fixes/agent-1` if needed, then non-force push that exact feature head to `origin/master`; if master advances, fetch/merge/retry.
