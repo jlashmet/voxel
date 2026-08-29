@@ -67,6 +67,8 @@ namespace Game.Structures.Runtime
                         RequireBudget(stageName);
                         return false;
                     }
+                    if (_stages.Site)
+                        CastleLowerRiverWaterRepair.Repair(_authoring, in _plan);
                     break;
                 case 2:
                     stageName = "curtain walls";
