@@ -67,9 +67,10 @@ namespace VoxelEngine.Showcase
             UndergroundCavernRuinConfig ruinConfig = UndergroundCavernRuinConfig.DeepAncientRuin;
             UndergroundCavernTraversalProfile traversalProfile =
                 UndergroundCavernTraversalProfile.LongDescent;
-            // Put the temple against the far side of the large chamber instead of near its centre.
-            // This is a showcase parameter choice on the reusable ruin program, not bespoke geometry.
-            ruinConfig.RuinForwardOffset = 132;
+            // Put the temple near the far cavern wall while keeping its existing semantic statue
+            // bases aligned with the articulated facade finish. This remains a reusable-config
+            // parameter choice rather than showcase-authored geometry.
+            ruinConfig.RuinForwardOffset = 112;
             // Preserve the existing eight-light feature ceiling by spending the profile's sparse
             // route fixtures on the long descent and at most two inside the destination cavern.
             ruinConfig.LanternInstancesPerKind = 2;
@@ -102,15 +103,18 @@ namespace VoxelEngine.Showcase
                 throw new InvalidOperationException(
                     "Underground cavern/ruin authoring produced incomplete or poorly composed semantic output.");
 
-            UndergroundCavernTraversalEnhancementResult traversal =
-                UndergroundCavernTraversalEnhancement.Author(
+            // Naturalize the generic guaranteed-clearance core before route fixtures are authored.
+            // The naturalization helper skips dogleg host windows, then the traversal pass writes
+            // the curved doglegs and supported lantern geometry last so no fixture can be carved away.
+            UndergroundCavernRouteNaturalizationResult naturalization =
+                UndergroundCavernRouteNaturalization.Author(
                     authoring,
                     in caveRequest,
                     in caveConfig,
                     in cavePalette,
                     in traversalProfile);
-            UndergroundCavernRouteNaturalizationResult naturalization =
-                UndergroundCavernRouteNaturalization.Author(
+            UndergroundCavernTraversalEnhancementResult traversal =
+                UndergroundCavernTraversalEnhancement.Author(
                     authoring,
                     in caveRequest,
                     in caveConfig,
