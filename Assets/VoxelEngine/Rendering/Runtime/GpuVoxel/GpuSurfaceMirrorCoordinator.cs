@@ -13,8 +13,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
     /// The old path populated one mirror per surface worker by walking every brick in every chunk
     /// immediately before meshing. That multiplied both CPU traversal and voxel uploads by the
     /// number of overlapping chunks/workers. This coordinator instead mirrors Storage once: only
-    /// regions demanded by GPU chunk footprints are recovered, while later edits arrive through the
-    /// canonical change feed. GPU chunk extraction only asks whether its required regions are ready.
+    /// blocks demanded by GPU chunk footprints are recovered, while later edits arrive through the
+    /// canonical change feed. GPU chunk extraction only asks whether its exact block footprint is
+    /// ready.
     /// </summary>
     internal static class GpuSurfaceMirrorCoordinator
     {
@@ -24,16 +25,19 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private const long MinimumSharedMirrorBudgetBytes = 96L * 1024L * 1024L;
 
         // Recovery runs from worker admission on the frame path. Keep the slice deliberately small:
-        // the prior 2048-block global-resident sweep measured 0.65-0.77 s in VoxelShowcase. Demand
-        // recovery plus zero-copy region classification makes this a small bounded foreground slice.
+        // the prior 2048-block global-resident sweep measured 0.65-0.77 s in VoxelShowcase. Queueing
+        // exact demanded blocks makes every bounded slice advance a waiting chunk instead of scanning
+        // the other 262k blocks in a 512^3 Storage region first.
         private const int RecoveryBlocksPerFrame = 64;
         private const int ChangeRecordsPerFrame = 128;
 
-        private static readonly Queue<int3> s_RecoveryRegions = new();
-        private static readonly HashSet<int3> s_QueuedRecoveryRegions = new();
-        private static readonly HashSet<int3> s_ReadyRegions = new();
+        private static readonly Queue<int3> s_RecoveryBlocks = new();
+        private static readonly HashSet<int3> s_QueuedRecoveryBlocks = new();
+        private static readonly HashSet<int3> s_ReadyBlocks = new();
+        private static readonly Dictionary<int3, int> s_ReadyBlockCountsByRegion = new();
         private static readonly Dictionary<int3, ulong> s_RegionLastSolidChangeVersion = new();
         private static readonly List<VoxelChangeRecord> s_Changes = new(ChangeRecordsPerFrame);
+        private static readonly List<int3> s_BlockScratch = new(RecoveryBlocksPerFrame);
 
         private static GpuVoxelBrickMirror s_Mirror;
         private static IRegionReadSource s_Storage;
@@ -46,11 +50,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private static int s_LastPrepareFrame = -1;
         private static ulong s_LastPrepareWorldVersion;
         private static bool s_LastPrepareResult;
-
-        private static int3 s_RecoveryRegion;
-        private static int s_RecoveryBlockIndex;
-        private static bool s_RecoveryRegionOk;
-        private static bool s_HasRecoveryRegion;
 
         internal static GpuVoxelBrickMirror Acquire(long requestedBudgetBytes)
         {
@@ -115,9 +114,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             }
             if (!changesSynchronized) return false;
 
-            // Do not scan/recover every resident region. Covers queues only footprints that an
-            // eligible GPU build is actually waiting for, so far-away streaming cannot turn one
-            // admission slice into hundreds of milliseconds of unrelated Storage publication.
+            // Covers queues only exact blocks an eligible GPU build is actually waiting for. A
+            // bounded recovery slice therefore cannot be monopolized by unrelated blocks from the
+            // same very large Storage region.
             if (!RecoveryComplete)
             {
                 if (s_ActiveExtractions != 0) return false;
@@ -129,10 +128,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         }
 
         /// <summary>
-        /// True when every region sampled by the chunk is resident in the current mirror and no
-        /// solid-affecting change in those regions occurred after the caller's snapshot generation.
-        /// Missing resident regions are queued here so recovery follows actual GPU demand rather
-        /// than the world's resident-region table.
+        /// True when every storage block sampled by the chunk is resident in the current mirror and
+        /// no solid-affecting change in any covered region occurred after the caller's snapshot
+        /// generation. Missing resident blocks are queued here so recovery follows the exact GPU
+        /// footprint rather than the containing 512^3 Storage regions.
         /// </summary>
         internal static bool Covers(int3 brickCacheOrigin, int brickCacheEdge,
                                     ulong requiredGeneration)
@@ -141,23 +140,21 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (requiredGeneration < s_KnownRegionHistoryFromVersion) return false;
 
             bool covered = true;
+            int3 last = brickCacheOrigin + new int3(brickCacheEdge - 1);
             int shift = VoxelReadGrid.BlocksPerRegionEdgeLog2;
-            int3 first = brickCacheOrigin >> shift;
-            int3 last = (brickCacheOrigin + new int3(brickCacheEdge - 1)) >> shift;
-            for (int z = first.z; z <= last.z; z++)
-            for (int y = first.y; y <= last.y; y++)
-            for (int x = first.x; x <= last.x; x++)
+            for (int z = brickCacheOrigin.z; z <= last.z; z++)
+            for (int y = brickCacheOrigin.y; y <= last.y; y++)
+            for (int x = brickCacheOrigin.x; x <= last.x; x++)
             {
-                int3 region = new int3(x, y, z);
-                if (!s_ReadyRegions.Contains(region))
-                {
-                    covered = false;
-                    if (s_Storage.IsRegionResident(region)) QueueRecoveryRegion(region);
-                    continue;
-                }
+                int3 block = new int3(x, y, z);
+                int3 region = block >> shift;
                 if (s_RegionLastSolidChangeVersion.TryGetValue(region, out ulong changedAt)
                     && changedAt > requiredGeneration)
                     return false;
+
+                if (s_ReadyBlocks.Contains(block)) continue;
+                covered = false;
+                if (s_Storage.IsRegionResident(region)) QueueRecoveryBlock(block);
             }
             return covered;
         }
@@ -169,11 +166,12 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (s_ActiveExtractions > 0) s_ActiveExtractions--;
         }
 
-        internal static int ReadyRegionCount => s_ReadyRegions.Count;
+        // Retained for existing diagnostics. Readiness itself is block-granular now.
+        internal static int ReadyRegionCount => s_ReadyBlockCountsByRegion.Count;
+        internal static int ReadyBlockCount => s_ReadyBlocks.Count;
         internal static int ActiveExtractions => s_ActiveExtractions;
         internal static ulong MirroredVersion => s_MirroredVersion;
-        internal static bool RecoveryComplete =>
-            s_RecoveryRegions.Count == 0 && !s_HasRecoveryRegion;
+        internal static bool RecoveryComplete => s_QueuedRecoveryBlocks.Count == 0;
 
         private static void AttachWorld(IRegionReadSource storage, IVoxelChangeSource changes)
         {
@@ -235,85 +233,95 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 || change.Version > previous)
                 s_RegionLastSolidChangeVersion[region] = change.Version;
 
-            bool wasReady = s_ReadyRegions.Remove(region);
-            bool wasRecovering = IsRecoveryRequested(region);
-            if (!s_Storage.IsRegionResident(region))
+            bool resident = s_Storage.IsRegionResident(region);
+            if (!resident)
             {
-                CancelRecoveryRegion(region);
-                RemoveRegionLookup(region);
+                InvalidateRegion(region, requeueReadyBlocks: false);
                 return;
             }
 
-            // Regions that no GPU chunk has requested stay lazy. A change during an in-progress
-            // recovery restarts that region so blocks already traversed cannot belong to an older
-            // Storage generation than blocks still to come.
-            if (!wasReady)
-            {
-                if (wasRecovering) RestartRecoveryRegion(region);
-                return;
-            }
-
-            // Residency changes can replace the compact region backing wholesale, so a region that
-            // was already in the mirror needs a complete demand recovery before it is sampled again.
+            // Residency replacement can swap the compact backing wholesale. Invalidate only blocks
+            // this GPU mirror actually published, then requeue those exact demanded coordinates.
             if ((change.Kind & VoxelChangeKind.Residency) != 0)
             {
-                QueueRecoveryRegion(region);
+                InvalidateRegion(region, requeueReadyBlocks: true);
                 return;
             }
 
             int3 minBlock = change.MinVoxel >> VoxelReadGrid.BlockEdgeLog2;
             int3 maxBlock = (change.MaxVoxelExclusive - 1) >> VoxelReadGrid.BlockEdgeLog2;
-            bool ok = true;
-            for (int z = minBlock.z; z <= maxBlock.z; z++)
-            for (int y = minBlock.y; y <= maxBlock.y; y++)
-            for (int x = minBlock.x; x <= maxBlock.x; x++)
-                ok &= PublishPinnedBlock(new int3(x, y, z), change.Version);
+            s_BlockScratch.Clear();
+            foreach (int3 block in s_ReadyBlocks)
+            {
+                if (math.all(block >= minBlock) && math.all(block <= maxBlock))
+                    s_BlockScratch.Add(block);
+            }
 
-            if (ok) s_ReadyRegions.Add(region);
-            else QueueRecoveryRegion(region);
+            for (int i = 0; i < s_BlockScratch.Count; i++)
+            {
+                int3 block = s_BlockScratch[i];
+                UnmarkReadyBlock(block);
+                if (PublishPinnedBlock(block, change.Version)) MarkReadyBlock(block);
+                else QueueRecoveryBlock(block);
+            }
+            s_BlockScratch.Clear();
         }
 
         private static void BeginDemandRecovery(bool clearMirror)
         {
-            s_ReadyRegions.Clear();
-            s_RecoveryRegions.Clear();
-            s_QueuedRecoveryRegions.Clear();
-            s_HasRecoveryRegion = false;
-            s_RecoveryBlockIndex = 0;
-            s_RecoveryRegionOk = true;
+            s_ReadyBlocks.Clear();
+            s_ReadyBlockCountsByRegion.Clear();
+            s_RecoveryBlocks.Clear();
+            s_QueuedRecoveryBlocks.Clear();
+            s_BlockScratch.Clear();
             if (clearMirror) s_Mirror.Clear();
         }
 
-        private static bool IsRecoveryRequested(int3 region) =>
-            s_QueuedRecoveryRegions.Contains(region)
-            || s_HasRecoveryRegion && s_RecoveryRegion.Equals(region);
-
-        private static void QueueRecoveryRegion(int3 region)
+        private static void QueueRecoveryBlock(int3 block)
         {
-            s_ReadyRegions.Remove(region);
-            if (s_HasRecoveryRegion && s_RecoveryRegion.Equals(region)) return;
-            if (!s_QueuedRecoveryRegions.Add(region)) return;
-            s_RecoveryRegions.Enqueue(region);
+            UnmarkReadyBlock(block);
+            if (!s_QueuedRecoveryBlocks.Add(block)) return;
+            s_RecoveryBlocks.Enqueue(block);
         }
 
-        private static void RestartRecoveryRegion(int3 region)
+        private static void InvalidateRegion(int3 region, bool requeueReadyBlocks)
         {
-            if (s_HasRecoveryRegion && s_RecoveryRegion.Equals(region))
+            int shift = VoxelReadGrid.BlocksPerRegionEdgeLog2;
+            s_BlockScratch.Clear();
+            foreach (int3 block in s_ReadyBlocks)
             {
-                s_HasRecoveryRegion = false;
-                s_RecoveryBlockIndex = 0;
-                s_RecoveryRegionOk = true;
+                if (math.all((block >> shift) == region)) s_BlockScratch.Add(block);
             }
-            QueueRecoveryRegion(region);
+
+            bool requeue = requeueReadyBlocks && s_Storage.IsRegionResident(region);
+            for (int i = 0; i < s_BlockScratch.Count; i++)
+            {
+                int3 block = s_BlockScratch[i];
+                UnmarkReadyBlock(block);
+                s_Mirror.Remove(block);
+                if (requeue) QueueRecoveryBlock(block);
+            }
+            s_BlockScratch.Clear();
+
+            if (!requeue) CancelQueuedRegion(region);
         }
 
-        private static void CancelRecoveryRegion(int3 region)
+        private static void CancelQueuedRegion(int3 region)
         {
-            s_QueuedRecoveryRegions.Remove(region);
-            if (!s_HasRecoveryRegion || !s_RecoveryRegion.Equals(region)) return;
-            s_HasRecoveryRegion = false;
-            s_RecoveryBlockIndex = 0;
-            s_RecoveryRegionOk = true;
+            int shift = VoxelReadGrid.BlocksPerRegionEdgeLog2;
+            s_BlockScratch.Clear();
+            foreach (int3 block in s_QueuedRecoveryBlocks)
+            {
+                if (math.all((block >> shift) == region)) s_BlockScratch.Add(block);
+            }
+            for (int i = 0; i < s_BlockScratch.Count; i++)
+                s_QueuedRecoveryBlocks.Remove(s_BlockScratch[i]);
+            s_BlockScratch.Clear();
+
+            // Queue<T> cannot remove arbitrary entries. If every authoritative queued coordinate
+            // was cancelled, discard all physical stale entries now; otherwise ProcessRecovery skips
+            // cancelled entries without spending recovery budget on them.
+            if (s_QueuedRecoveryBlocks.Count == 0) s_RecoveryBlocks.Clear();
         }
 
         private static void ProcessRecovery()
@@ -321,64 +329,69 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (s_Storage == null) return;
 
             int remaining = RecoveryBlocksPerFrame;
-            while (remaining > 0)
+            int shift = VoxelReadGrid.BlocksPerRegionEdgeLog2;
+            ulong generation = s_Storage.Version;
+            bool hasView = false;
+            int3 viewRegion = default;
+            RegionReadView view = default;
+
+            while (remaining > 0 && s_RecoveryBlocks.Count > 0)
             {
-                if (!s_HasRecoveryRegion)
-                {
-                    while (s_RecoveryRegions.Count > 0)
-                    {
-                        int3 candidate = s_RecoveryRegions.Dequeue();
-                        // Cancelled/stale queue entries are left physically in Queue<T>; the set is
-                        // the authority and lets cancellation remain O(1).
-                        if (!s_QueuedRecoveryRegions.Remove(candidate)) continue;
-                        if (!s_Storage.IsRegionResident(candidate)) continue;
+                int3 worldBlock = s_RecoveryBlocks.Dequeue();
+                // Cancelled/stale queue entries stay physically in Queue<T>; the set is authoritative
+                // and lets cancellation remain O(1) without consuming the bounded recovery slice.
+                if (!s_QueuedRecoveryBlocks.Remove(worldBlock)) continue;
 
-                        s_RecoveryRegion = candidate;
-                        s_RecoveryBlockIndex = 0;
-                        s_RecoveryRegionOk = true;
-                        s_HasRecoveryRegion = true;
-                        break;
-                    }
-                    if (!s_HasRecoveryRegion) return;
-                }
-
-                if (!s_Storage.TryAcquireRegion(s_RecoveryRegion, out RegionReadView view))
+                int3 region = worldBlock >> shift;
+                if (!s_Storage.IsRegionResident(region))
                 {
-                    s_HasRecoveryRegion = false;
+                    s_Mirror.Remove(worldBlock);
                     continue;
                 }
 
-                ulong generation = s_Storage.Version;
-                if (view.Version != generation)
+                if (s_Storage.Version != generation)
                 {
-                    // Storage advanced between journal synchronization and this borrowed view.
-                    // Leave the region active; the next frame replays the journal then restarts or
-                    // resumes from a coherent current view.
+                    QueueRecoveryBlock(worldBlock);
                     return;
                 }
 
-                int edge = VoxelReadGrid.BlocksPerRegionEdge;
-                int total = VoxelReadGrid.BlocksPerRegion;
-                int3 regionOrigin = s_RecoveryRegion << VoxelReadGrid.BlocksPerRegionEdgeLog2;
-                while (remaining > 0 && s_RecoveryBlockIndex < total)
+                if (!hasView || !viewRegion.Equals(region))
                 {
-                    int index = s_RecoveryBlockIndex++;
-                    int x = index % edge;
-                    int yz = index / edge;
-                    int y = yz % edge;
-                    int z = yz / edge;
-                    int3 localBlock = new int3(x, y, z);
-                    int3 worldBlock = regionOrigin + localBlock;
-                    s_RecoveryRegionOk &= PublishRegionBlock(
-                        in view, worldBlock, localBlock, generation);
-                    remaining--;
+                    if (!s_Storage.TryAcquireRegion(region, out view)) continue;
+                    if (view.Version != generation)
+                    {
+                        QueueRecoveryBlock(worldBlock);
+                        return;
+                    }
+                    viewRegion = region;
+                    hasView = true;
                 }
 
-                if (s_RecoveryBlockIndex < total) return;
-                if (s_RecoveryRegionOk && s_Storage.IsRegionResident(s_RecoveryRegion))
-                    s_ReadyRegions.Add(s_RecoveryRegion);
-                s_HasRecoveryRegion = false;
+                int3 regionOrigin = region << shift;
+                int3 localBlock = worldBlock - regionOrigin;
+                bool published = PublishRegionBlock(in view, worldBlock, localBlock, generation);
+                remaining--;
+                if (published && s_Storage.IsRegionResident(region)) MarkReadyBlock(worldBlock);
             }
+        }
+
+        private static void MarkReadyBlock(int3 block)
+        {
+            if (!s_ReadyBlocks.Add(block)) return;
+            int3 region = block >> VoxelReadGrid.BlocksPerRegionEdgeLog2;
+            if (s_ReadyBlockCountsByRegion.TryGetValue(region, out int count))
+                s_ReadyBlockCountsByRegion[region] = count + 1;
+            else
+                s_ReadyBlockCountsByRegion[region] = 1;
+        }
+
+        private static void UnmarkReadyBlock(int3 block)
+        {
+            if (!s_ReadyBlocks.Remove(block)) return;
+            int3 region = block >> VoxelReadGrid.BlocksPerRegionEdgeLog2;
+            if (!s_ReadyBlockCountsByRegion.TryGetValue(region, out int count)) return;
+            if (count <= 1) s_ReadyBlockCountsByRegion.Remove(region);
+            else s_ReadyBlockCountsByRegion[region] = count - 1;
         }
 
         private static bool PublishRegionBlock(in RegionReadView view, int3 worldBlock,
@@ -431,9 +444,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                     or GpuBrickPublish.Stale)
                     return false;
 
-                // The shared world mirror is authoritative for its ready regions. Keep mixed slots
-                // stable until that coordinate changes/unloads; capacity pressure therefore causes
-                // explicit CPU fallback instead of recycling a slot an in-flight shader can read.
+                // The shared world mirror is authoritative for its ready demanded blocks. Keep mixed
+                // slots stable until that coordinate changes/unloads; capacity pressure therefore
+                // causes explicit CPU fallback instead of recycling a slot an in-flight shader reads.
                 if (block.Kind == VoxelReadBlockKind.Mixed) s_Mirror.Pin(worldBlock);
                 return true;
             }
@@ -441,16 +454,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             {
                 if (block.HasPinnedPayload) s_Storage.ReleasePinnedWorldBlock(block.Pin);
             }
-        }
-
-        private static void RemoveRegionLookup(int3 region)
-        {
-            int edge = VoxelReadGrid.BlocksPerRegionEdge;
-            int3 origin = region << VoxelReadGrid.BlocksPerRegionEdgeLog2;
-            for (int z = 0; z < edge; z++)
-            for (int y = 0; y < edge; y++)
-            for (int x = 0; x < edge; x++)
-                s_Mirror.Remove(origin + new int3(x, y, z));
         }
 
         private static void ResetWorld(bool disposeMirror)
@@ -464,14 +467,13 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             s_LastPrepareFrame = -1;
             s_LastPrepareWorldVersion = 0;
             s_LastPrepareResult = false;
-            s_RecoveryRegions.Clear();
-            s_QueuedRecoveryRegions.Clear();
-            s_ReadyRegions.Clear();
+            s_RecoveryBlocks.Clear();
+            s_QueuedRecoveryBlocks.Clear();
+            s_ReadyBlocks.Clear();
+            s_ReadyBlockCountsByRegion.Clear();
             s_RegionLastSolidChangeVersion.Clear();
             s_Changes.Clear();
-            s_HasRecoveryRegion = false;
-            s_RecoveryBlockIndex = 0;
-            s_RecoveryRegionOk = true;
+            s_BlockScratch.Clear();
 
             if (!disposeMirror || s_Mirror == null) return;
             s_Mirror.Dispose();
