@@ -43,7 +43,7 @@ namespace VoxelEngine.Tests.PlayMode
                     spec.Origin.y + endY,
                     rampWorldZ,
                     "switchback ramp " + level);
-                AssertHeadroom(
+                AssertSupportedFloorAndHeadroom(
                     bake,
                     snapshots,
                     new int3(rampWorldX, rampSurfaceY, rampWorldZ),
@@ -58,13 +58,14 @@ namespace VoxelEngine.Tests.PlayMode
                 int turnX = reverse
                     ? spec.PathMinLocalX
                     : spec.PathMinLocalX + spec.PathRun - spec.PathWidth;
-                int3 landing = spec.Origin + new int3(
-                    turnX + spec.PathWidth / 2,
-                    endY,
-                    zMin + zSize / 2);
-                Assert.That(ReadMaterial(bake, snapshots, landing), Is.EqualTo(PathMaterial),
-                    "Turn landing " + level + " must retain its walking floor.");
-                AssertHeadroom(bake, snapshots, landing, "turn landing " + level);
+                AssertLandingColumns(
+                    bake,
+                    snapshots,
+                    spec.Origin.x + turnX + spec.PathWidth / 2,
+                    spec.Origin.y + endY,
+                    spec.Origin.z + zMin,
+                    zSize,
+                    "turn landing " + level);
             }
 
             int finalStartY = spec.SwitchbackCount * spec.PathRise;
@@ -83,7 +84,7 @@ namespace VoxelEngine.Tests.PlayMode
                 spec.Origin.y + spec.MountainHeight,
                 finalWorldZ,
                 "final summit ascent");
-            AssertHeadroom(
+            AssertSupportedFloorAndHeadroom(
                 bake,
                 snapshots,
                 new int3(finalWorldX, finalSurfaceY, finalWorldZ),
@@ -95,7 +96,33 @@ namespace VoxelEngine.Tests.PlayMode
                 spec.SummitApproachWorldZ);
             Assert.That(ReadMaterial(bake, snapshots, summitApproach), Is.EqualTo(PathMaterial),
                 "Summit approach must retain its walking floor.");
-            AssertHeadroom(bake, snapshots, summitApproach, "summit approach");
+            AssertSupportedFloorAndHeadroom(bake, snapshots, summitApproach, "summit approach");
+        }
+
+        private static void AssertLandingColumns(
+            ShowcaseWorldBake bake,
+            Dictionary<int3, byte[]> snapshots,
+            int worldX,
+            int worldY,
+            int worldZMin,
+            int zSize,
+            string label)
+        {
+            // Prove the turn is not represented by one lucky midpoint voxel. Three separated
+            // interior columns must retain the authored floor and the complete player-clear band.
+            int[] numerators = { 1, 2, 3 };
+            for (int i = 0; i < numerators.Length; i++)
+            {
+                int worldZ = worldZMin + zSize * numerators[i] / 4;
+                int3 floor = new int3(worldX, worldY, worldZ);
+                Assert.That(ReadMaterial(bake, snapshots, floor), Is.EqualTo(PathMaterial),
+                    label + " must retain a continuous walking floor at " + floor + ".");
+                AssertHeadroom(bake, snapshots, floor, label + " column " + i);
+            }
+
+            int3 centre = new int3(worldX, worldY, worldZMin + zSize / 2);
+            Assert.That(ReadMaterial(bake, snapshots, centre - new int3(0, 1, 0)), Is.Not.EqualTo((byte)0),
+                label + " must remain physically supported beneath its centre walking column.");
         }
 
         private static int FindHighestPathVoxel(
@@ -115,6 +142,19 @@ namespace VoxelEngine.Tests.PlayMode
 
             Assert.Fail(label + " contains no authored path material in its expected vertical range.");
             return minWorldY;
+        }
+
+        private static void AssertSupportedFloorAndHeadroom(
+            ShowcaseWorldBake bake,
+            Dictionary<int3, byte[]> snapshots,
+            int3 floorVoxel,
+            string label)
+        {
+            Assert.That(ReadMaterial(bake, snapshots, floorVoxel), Is.EqualTo(PathMaterial),
+                label + " must retain its authored walking material at " + floorVoxel + ".");
+            Assert.That(ReadMaterial(bake, snapshots, floorVoxel - new int3(0, 1, 0)), Is.Not.EqualTo((byte)0),
+                label + " must remain physically occupied beneath its walking surface.");
+            AssertHeadroom(bake, snapshots, floorVoxel, label);
         }
 
         private static void AssertHeadroom(
