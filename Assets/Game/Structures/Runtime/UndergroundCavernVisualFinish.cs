@@ -1,5 +1,6 @@
 using System;
 using Game.Materials.Api;
+using Game.Structures.Api;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
