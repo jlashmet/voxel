@@ -52,7 +52,7 @@ namespace VoxelEngine.Showcase
             _blueprint = game.Build();
             _dialogue = new TimedCutsceneDialogueRuntime(
                 ResolveDialogue,
-                displayMilliseconds: 5000);
+                displayDurationMilliseconds: 5000);
             var presentation = new CutscenePresentationRouter(
                 ImmediateCutsceneCueRuntime.Instance,
                 _dialogue,
