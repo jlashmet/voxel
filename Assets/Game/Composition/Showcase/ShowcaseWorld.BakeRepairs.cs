@@ -2,6 +2,7 @@ using System;
 using Game.Structures.Runtime;
 using VoxelEngine.Composition;
 using VoxelEngine.Structures.Api;
+using GameCastlePlan = Game.Structures.Api.CastlePlan;
 
 namespace VoxelEngine.Showcase
 {
@@ -20,7 +21,11 @@ namespace VoxelEngine.Showcase
                 _storage.MaterialAuthoring,
                 BakedCastleSemanticRepairWriteBudget);
 
-            CastleLowerRiverWaterRepair.Repair(authoring, in _castlePlan);
+            // The showcase retains a compatibility wrapper around the game-owned plan. Convert
+            // through a local value so the reusable game authoring helper receives its canonical
+            // plan type by readonly reference rather than leaking the wrapper across the boundary.
+            GameCastlePlan gamePlan = _castlePlan.Value;
+            CastleLowerRiverWaterRepair.Repair(authoring, in gamePlan);
             if (authoring.BudgetExceeded)
                 throw new InvalidOperationException(
                     $"Baked showcase lower-river repair exceeded its " +
