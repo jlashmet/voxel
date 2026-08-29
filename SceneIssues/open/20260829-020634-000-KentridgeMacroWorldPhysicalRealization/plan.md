@@ -1,19 +1,24 @@
 # Plan
 
 ## Observed gap / acceptance
-- The existing Kentridge macro-world issue proves semantic topology and shows it in a debug overlay, but most remote destinations are still only neutral markers in the 3D world.
-- Closure requires the physical built world to realize every settlement node, continuous inter-settlement roads/trails, and large geographic forms that participate in routing.
-- The minimap/overlay is instrumentation only and cannot satisfy the visual gate.
+- `captures` is empty, so the note is the complete repro/acceptance contract and there are no marked poses to omit.
+- The current production macro path is semantic graph -> deterministic grid placement -> terrain-grounded Manhattan road paint + small neutral node markers. It proves topology, not a physical regional world.
+- Closure requires every settlement physically realized, continuous terrain-aware hard routes, reusable geographic-region intent/constraints, a substantial lake + ridge, geography-constrained routing, real CharacterMotor traversal, visual built-player evidence, and measured cost.
 
-## Architecture / likely owners
-- Extend the existing `TopDownWorldLayout` / `MountingForceTopDownWorldDefinition` through shared WorldBuilder composition; do not create a second scene-local graph.
-- Add reusable large-scale region/geography intent for water bodies, mountain/ridge barriers, valleys/passes, plains/meadows, forests/woodlands, extents/elevation, relationships, and route/placement constraints.
-- Make road solving terrain-aware and make settlement envelopes generate reusable blockouts. Existing detailed Kentridge/Hightown output must override/preserve richer content rather than being replaced.
-- Keep ecology species/density separate: this issue defines regional geography and exclusions that the vegetation policy can consume.
+## Competing hypotheses / discriminator
+1. **The existing voxel catalogue only needs larger markers and more road tiles.** Falsifier: if route/settlement placement cannot query water/barriers/slope or express crossings, scaling the current paint pass cannot satisfy blocked-route acceptance. Current code already supports this falsifier: `TopDownWorldVoxelCatalogue` samples only endpoint/tile ground height and does no obstacle/region solving.
+2. **The macro graph is sufficient; the missing seam is a reusable physical-plan layer between semantic layout and voxel emission.** Supported so far: the graph/planner/one-shot selection are reusable and authoritative, while physical realization is isolated in `TopDownWorldVoxelCatalogue` and can be generalized without a second graph.
+
+Next discriminator: inspect existing terrain/feature primitives, richer settlement generation ownership, Kentridge real-player harness, and device budgets. Reuse existing terrain/structure contracts where possible; only add new shared region/route/settlement physical-plan contracts where no equivalent exists.
+
+## Selected direction
+- Preserve `TopDownWorldLayout` / `MountingForceTopDownWorldDefinition` as topology authority.
+- Add reusable macro-region specs/relationships plus a deterministic physical planner that produces region plans, settlement blockout plans, and terrain-aware route plans with explicit crossing/pass semantics.
+- Keep Kentridge/Hightown richer generators authoritative; generic settlement blockouts fill only unrealized settlement envelopes.
+- Keep scene code limited to selecting semantic intent. Shared WorldBuilder generation emits terrain/roads/blockouts and exposes region queries for later ecology consumers.
 
 ## Validation gates
-- Behavioral regressions for deterministic macro-to-physical realization, every-settlement reachability, continuous roads, blockout non-overlap/grounding, geographic constraints, and rejection of an impossible blocked hard route without an explicit crossing/pass solution.
-- Exact-SHA built-player `KentridgePlayableSlice` with no startup/runtime exceptions.
-- Durable visual evidence for roads entering/leaving settlements; physical blockouts at every settlement node (including Moordell, Rossdam, Fairy Village, Orc Village); at least one substantial lake and one mountain/ridge; and a road visibly routed around/through/across constrained geography.
-- Representative real CharacterMotor traversal with collision and streaming active; elevated/survey evidence must show physical geography matching the semantic network.
-- Measure world-build, route-solving, CPU/GPU, memory, voxel/brick, streaming, and far-field cost against existing device budgets.
+- Production-path regression: deterministic physical plan, all-settlement realization/reachability, continuous route surfaces, non-overlap/grounding, geography-constrained route, blocked-route rejection, richer-settlement preservation.
+- Exact-SHA built-player `KentridgePlayableSlice` with durable settlement/road/lake/ridge/constrained-route/survey evidence and representative CharacterMotor traversal.
+- Measure planning/build counts and built-player CPU/GPU/memory/streaming/far-field cost against existing budgets; no budget weakening.
+- Maintain `tasks.md`; do not promote until every feature and acceptance checkbox is complete.
