@@ -8,7 +8,8 @@ namespace Game.Structures.Runtime
     /// Reusable route-shaping policy for a long authored cave. Positions are normalized to the
     /// configured primary-route length so callers can change segment count/length without copying
     /// showcase-specific segment indices. Bend geometry is expressed relative to each resolved
-    /// primary segment endpoint.
+    /// primary segment endpoint. Naturalization settings widen the rectangular guaranteed-clearance
+    /// core into an overlapping irregular void while leaving dogleg windows under dogleg ownership.
     /// </summary>
     public struct UndergroundCavernTraversalProfile
     {
@@ -18,6 +19,11 @@ namespace Game.Structures.Runtime
         public int[] BendSideOffsets;
         public int BendSideReach;
         public int BendRadius;
+        public int NaturalizationSpacing;
+        public int NaturalizationRadius;
+        public int NaturalizationRadiusVariation;
+        public int NaturalizationHeightVariation;
+        public int NaturalizationLateralJitter;
 
         public bool IsWellFormed =>
             BendPositionsPermille != null && BendPositionsPermille.Length >= 2 &&
@@ -25,6 +31,12 @@ namespace Game.Structures.Runtime
             BendForwardOffsets != null && BendSideOffsets != null &&
             BendForwardOffsets.Length >= 5 && BendForwardOffsets.Length == BendSideOffsets.Length &&
             BendSideReach >= 8 && BendRadius >= 6 &&
+            NaturalizationSpacing >= 8 && NaturalizationSpacing <= 32 &&
+            NaturalizationRadius >= 10 && NaturalizationRadius <= 32 &&
+            NaturalizationRadiusVariation >= 0 && NaturalizationRadiusVariation <= 10 &&
+            NaturalizationHeightVariation >= 0 && NaturalizationHeightVariation <= 24 &&
+            NaturalizationLateralJitter >= 0 && NaturalizationLateralJitter <= 12 &&
+            NaturalizationRadius - NaturalizationRadiusVariation >= 8 &&
             StrictlyIncreasingPermille(BendPositionsPermille) &&
             StrictlyIncreasingPermille(RouteLightPositionsPermille);
 
@@ -37,6 +49,11 @@ namespace Game.Structures.Runtime
                 BendSideOffsets = new[] { 0, 10, 22, 32, 30, 16, 2 },
                 BendSideReach = 32,
                 BendRadius = 16,
+                NaturalizationSpacing = 13,
+                NaturalizationRadius = 19,
+                NaturalizationRadiusVariation = 4,
+                NaturalizationHeightVariation = 12,
+                NaturalizationLateralJitter = 6,
             };
 
         public int[] ResolveBendSegments(in CaveConfig cave) =>
