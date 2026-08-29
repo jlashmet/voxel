@@ -211,9 +211,12 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             ThrowIfDisposed();
 
+            int coreExtentVoxels = _extractor.CellsPerAxis * request.SourceStep;
+            int3 coreMaxVoxelExclusive = request.ChunkOriginVoxel + new int3(coreExtentVoxels);
             if (!GpuSurfaceMirrorCoordinator.PrepareFromBridge(generation)
                 || !GpuSurfaceMirrorCoordinator.Covers(
-                    request.BrickCacheOrigin, _brickCacheEdge, generation))
+                    request.BrickCacheOrigin, _brickCacheEdge,
+                    request.ChunkOriginVoxel, coreMaxVoxelExclusive, generation))
             {
                 ChunksRefusedNoSlot++;
                 return false;
