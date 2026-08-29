@@ -27,7 +27,14 @@ namespace MountingForce.WorldGen.Voxel
             return DivideRounded(voxelHeight, _scale);
         }
 
-        public WorldRoadTerrainFlags FlagsAtDm(int xdm, int zdm) => WorldRoadTerrainFlags.None;
+        public WorldRoadTerrainFlags FlagsAtDm(int xdm, int zdm)
+        {
+            // TerrainQuery is currently the canonical production terrain authority available to
+            // WorldBuilder and exposes height/slope only; it has no water/reservation/barrier field
+            // to translate here. The road API still models those flags explicitly so a world owner
+            // that introduces such authority can route through it rather than inventing crossings.
+            return WorldRoadTerrainFlags.None;
+        }
 
         private static int DivideRounded(int value, int divisor)
         {
@@ -284,24 +291,38 @@ namespace MountingForce.WorldGen.Voxel
     }
 
     /// <summary>
-    /// Shared bounded voxel lowering for all resolved WorldBuilder roads. Overlapping route-local
-    /// stamps are emitted at no more than half carriageway width, which keeps bends/intersections
-    /// continuous without arbitrary-angle transforms or per-segment GameObjects. The outer graded
-    /// footprint is natural ground material, the inner core is road material, and every placement
-    /// height comes from the same WorldRoadInfluence queried by spatial consumers.
+    /// Lowers resolved WorldBuilder roads into the engine's generic terrain-corridor primitive.
+    /// Each bounded physical piece contains one analytic segment and one explicit placement, so
+    /// arbitrary headings and slopes do not require square stamps, band stacks, GameObjects or a
+    /// world-sized feature footprint. Terrain grading, shoulder material coverage and persisted
+    /// surface detail are all evaluated from the same corridor influence in the rasterizer.
     /// </summary>
     public static class WorldRoadNetworkVoxelCatalogue
     {
         private const int SurfaceThicknessDm = 4;
         private const int ClearAboveDm = 24;
-        private const int MaxAltitudeVoxels = 4096;
+        private const int MaxAltitudeVoxels = TerrainSampler.MaxHeight;
 
-        private readonly struct Stamp
+        private readonly struct CorridorPiece
         {
-            public readonly int Xdm;
-            public readonly int Zdm;
-            public readonly int Ydm;
-            public Stamp(int xdm, int zdm, int ydm) { Xdm = xdm; Zdm = zdm; Ydm = ydm; }
+            public readonly WorldRoadNetworkRoute Route;
+            public readonly ResolvedWorldRoadPoint A;
+            public readonly ResolvedWorldRoadPoint B;
+            public readonly int SegmentIndex;
+            public readonly int PieceIndex;
+
+            public CorridorPiece(WorldRoadNetworkRoute route,
+                ResolvedWorldRoadPoint a,
+                ResolvedWorldRoadPoint b,
+                int segmentIndex,
+                int pieceIndex)
+            {
+                Route = route;
+                A = a;
+                B = b;
+                SegmentIndex = segmentIndex;
+                PieceIndex = pieceIndex;
+            }
         }
 
         public static FeatureCatalogue Build(
@@ -315,52 +336,85 @@ namespace MountingForce.WorldGen.Voxel
                 return FeatureCatalogueBuilder.Allocate(0, 0, 0, 0, 0, 0, 0, 0, 0, allocator);
 
             int scale = settings.VoxelsPerDecimetre;
-            var stamps = new List<Stamp>[network.Routes.Count];
-            var programs = new int[network.Routes.Count][];
-            int placements = 0;
-            int programLength = 0;
-            for (int i = 0; i < network.Routes.Count; i++)
-            {
-                WorldRoadNetworkRoute route = network.Routes[i];
-                stamps[i] = Rasterize(route);
-                programs[i] = RoadProgram(route, settings);
-                placements += stamps[i].Count;
-                programLength += programs[i].Length;
-            }
+            if (scale < 1) throw new ArgumentOutOfRangeException(nameof(settings));
+            List<CorridorPiece> pieces = BuildPieces(network, scale);
+            if (pieces.Count > FeatureBudget.MaxDefinitions)
+                throw new InvalidOperationException(
+                    "Shared road lowering requires " + pieces.Count + " bounded corridor definitions, exceeding "
+                    + FeatureBudget.MaxDefinitions + ". Resolve/simplify the road graph instead of widening the global budget.");
 
+            int programLengthPerPiece = ShapeOps.InstructionLength(ShapeOp.EmitTerrainCorridor)
+                + ShapeOps.InstructionLength(ShapeOp.End);
             FeatureCatalogue catalogue = FeatureCatalogueBuilder.Allocate(
-                definitions: network.Routes.Count,
-                rules: network.Routes.Count,
+                definitions: pieces.Count,
+                rules: pieces.Count,
                 parameters: 0,
                 anchors: 0,
                 slots: 0,
-                programLength: programLength,
+                programLength: pieces.Count * programLengthPerPiece,
                 materials: 0,
-                explicitPlacements: placements,
+                explicitPlacements: pieces.Count,
                 overrides: 0,
                 allocator);
 
             try
             {
-                int placementOffset = 0;
+                byte roadMaterial = settings.Materials.Resolve(MaterialRole.RoadSurface);
                 int programOffset = 0;
-                for (int i = 0; i < network.Routes.Count; i++)
+                for (int i = 0; i < pieces.Count; i++)
                 {
-                    WorldRoadNetworkRoute route = network.Routes[i];
-                    int[] program = programs[i];
-                    for (int p = 0; p < program.Length; p++) catalogue.Program[programOffset + p] = program[p];
+                    CorridorPiece piece = pieces[i];
+                    WorldRoadProfile profile = piece.Route.Road.Intent.Profile;
+                    int core = profile.CoreRadiusDm * scale;
+                    int edgeVariation = profile.EdgeVariationDm * scale;
+                    int maximumOuter = (profile.CoreRadiusDm
+                        + profile.TransitionWidthDm
+                        + profile.EdgeVariationDm) * scale;
+                    int maximumCutFill = profile.MaximumCutFillDm * scale;
+                    int fillDepth = SurfaceThicknessDm * scale;
+                    int clearAbove = ClearAboveDm * scale;
 
-                    int gradeWidthDm = Math.Max(2, route.GradeRadiusDm * 2);
-                    int gradeWidth = gradeWidthDm * scale;
-                    int fill = SurfaceThicknessDm * scale;
-                    int clear = ClearAboveDm * scale;
+                    int3 worldA = new(piece.A.Xdm * scale, piece.A.Ydm * scale, piece.A.Zdm * scale);
+                    int3 worldB = new(piece.B.Xdm * scale, piece.B.Ydm * scale, piece.B.Zdm * scale);
+                    int3 origin = new(
+                        Math.Min(worldA.x, worldB.x) - maximumOuter,
+                        Math.Min(worldA.y, worldB.y) - maximumCutFill - fillDepth,
+                        Math.Min(worldA.z, worldB.z) - maximumOuter);
+                    int3 maximum = new(
+                        Math.Max(worldA.x, worldB.x) + maximumOuter,
+                        Math.Max(worldA.y, worldB.y) + maximumCutFill + clearAbove,
+                        Math.Max(worldA.z, worldB.z) + maximumOuter);
+                    int3 footprint = maximum - origin + 1;
+                    if (math.cmax(footprint) > FeatureBudget.MaxFootprintVoxels)
+                        throw new InvalidOperationException(
+                            "Bounded road piece '" + piece.Route.Id + "' exceeds the "
+                            + FeatureBudget.MaxFootprintVoxels + "-voxel feature footprint budget.");
+
+                    int3 localA = worldA - origin;
+                    int3 localB = worldB - origin;
+                    int[] program = RoadProgram(
+                        localA,
+                        localB,
+                        core,
+                        maximumOuter,
+                        maximumCutFill,
+                        fillDepth,
+                        clearAbove,
+                        edgeVariation,
+                        roadMaterial,
+                        piece.Route.Road.Intent.Seed,
+                        scale);
+                    for (int p = 0; p < program.Length; p++)
+                        catalogue.Program[programOffset + p] = program[p];
+
                     catalogue.Definitions[i] = new FeatureDefinition
                     {
-                        Name = new FixedString64Bytes(FeatureName(route.Id)),
+                        Name = new FixedString64Bytes(FeatureName(
+                            piece.Route.Id, piece.SegmentIndex, piece.PieceIndex)),
                         Kind = FeatureKind.Landform,
                         BasePlane = BasePlaneRule.FixedAltitude,
                         FixedAltitude = 0,
-                        Footprint = new int3(gradeWidth, fill + clear, gradeWidth),
+                        Footprint = footprint,
                         MaxSlope = 32,
                         Precedence = precedence,
                         ParameterOffset = 0,
@@ -373,25 +427,15 @@ namespace MountingForce.WorldGen.Voxel
                         ProgramLength = program.Length,
                         MaterialOffset = 0,
                         MaterialCount = 0,
-                        MaxPrimitives = route.MarkingPolicy == WorldRoadMarkingPolicy.None ? 3 : 4,
+                        MaxPrimitives = 1,
                     };
-
-                    int firstPlacement = placementOffset;
-                    List<Stamp> routeStamps = stamps[i];
-                    for (int p = 0; p < routeStamps.Count; p++)
+                    catalogue.ExplicitPlacements[i] = new ExplicitPlacement
                     {
-                        Stamp stamp = routeStamps[p];
-                        catalogue.ExplicitPlacements[placementOffset++] = new ExplicitPlacement
-                        {
-                            Position = new int3(
-                                stamp.Xdm * scale - gradeWidth / 2,
-                                stamp.Ydm * scale - fill,
-                                stamp.Zdm * scale - gradeWidth / 2),
-                            Orientation = 0,
-                            OverrideOffset = 0,
-                            OverrideCount = 0,
-                        };
-                    }
+                        Position = origin,
+                        Orientation = 0,
+                        OverrideOffset = 0,
+                        OverrideCount = 0,
+                    };
                     catalogue.Rules[i] = new PlacementRule
                     {
                         DefinitionId = i,
@@ -405,8 +449,8 @@ namespace MountingForce.WorldGen.Voxel
                         ClusterMin = 0,
                         ClusterMax = 0,
                         ExclusionMask = 0,
-                        ExplicitOffset = firstPlacement,
-                        ExplicitCount = placementOffset - firstPlacement,
+                        ExplicitOffset = i,
+                        ExplicitCount = 1,
                     };
                     programOffset += program.Length;
                 }
@@ -423,73 +467,103 @@ namespace MountingForce.WorldGen.Voxel
             }
         }
 
-        private static List<Stamp> Rasterize(WorldRoadNetworkRoute route)
+        private static List<CorridorPiece> BuildPieces(WorldRoadNetwork network, int scale)
         {
-            var result = new List<Stamp>(64);
-            var seen = new HashSet<long>();
-            var influence = new WorldRoadInfluence(route.Road);
-            int spacing = Math.Max(8, route.CarriagewayWidthDm / 2);
-            for (int segment = 0; segment + 1 < route.Road.Points.Count; segment++)
+            var result = new List<CorridorPiece>();
+            for (int routeIndex = 0; routeIndex < network.Routes.Count; routeIndex++)
             {
-                ResolvedWorldRoadPoint a = route.Road.Points[segment];
-                ResolvedWorldRoadPoint b = route.Road.Points[segment + 1];
-                int dx = b.Xdm - a.Xdm;
-                int dz = b.Zdm - a.Zdm;
-                int extent = Math.Max(Math.Abs(dx), Math.Abs(dz));
-                int steps = Math.Max(1, (extent + spacing - 1) / spacing);
-                int start = segment == 0 ? 0 : 1;
-                for (int step = start; step <= steps; step++)
+                WorldRoadNetworkRoute route = network.Routes[routeIndex];
+                WorldRoadProfile profile = route.Road.Intent.Profile;
+                int maximumOuter = (profile.CoreRadiusDm
+                    + profile.TransitionWidthDm
+                    + profile.EdgeVariationDm) * scale;
+                int horizontalBudget = FeatureBudget.MaxFootprintVoxels - maximumOuter * 2 - 1;
+                int verticalFootprint = (profile.MaximumCutFillDm * 2
+                    + SurfaceThicknessDm + ClearAboveDm) * scale + 1;
+                if (horizontalBudget < 1 || verticalFootprint > FeatureBudget.MaxFootprintVoxels)
+                    throw new InvalidOperationException(
+                        "Road profile '" + profile.Id + "' cannot fit the bounded terrain-corridor budget.");
+
+                for (int segment = 0; segment + 1 < route.Road.Points.Count; segment++)
                 {
-                    int x = a.Xdm + dx * step / steps;
-                    int z = a.Zdm + dz * step / steps;
-                    long key = ((long)x << 32) ^ (uint)z;
-                    if (!seen.Add(key)) continue;
-                    if (!influence.TrySample(x, z, out WorldRoadInfluenceSample sample))
-                        throw new InvalidOperationException("Resolved road influence did not cover its own centreline.");
-                    result.Add(new Stamp(x, z, sample.TargetHeightDm));
+                    ResolvedWorldRoadPoint a = route.Road.Points[segment];
+                    ResolvedWorldRoadPoint b = route.Road.Points[segment + 1];
+                    int extentVoxels = Math.Max(
+                        Math.Abs(b.Xdm - a.Xdm),
+                        Math.Abs(b.Zdm - a.Zdm)) * scale;
+                    int count = Math.Max(1, (extentVoxels + horizontalBudget - 1) / horizontalBudget);
+                    ResolvedWorldRoadPoint from = a;
+                    for (int piece = 0; piece < count; piece++)
+                    {
+                        ResolvedWorldRoadPoint to = piece + 1 == count
+                            ? b
+                            : Lerp(a, b, piece + 1, count);
+                        if (!from.Equals(to))
+                            result.Add(new CorridorPiece(route, from, to, segment, piece));
+                        from = to;
+                    }
                 }
             }
             return result;
         }
 
-        private static int[] RoadProgram(WorldRoadNetworkRoute route, VoxelWorldGenSettings settings)
+        private static ResolvedWorldRoadPoint Lerp(
+            ResolvedWorldRoadPoint a,
+            ResolvedWorldRoadPoint b,
+            int numerator,
+            int denominator)
         {
-            int scale = settings.VoxelsPerDecimetre;
-            int gradeWidth = Math.Max(2, route.GradeRadiusDm * 2) * scale;
-            int coreWidth = route.CarriagewayWidthDm * scale;
-            int fill = SurfaceThicknessDm * scale;
-            int clear = ClearAboveDm * scale;
-            int coreInset = (gradeWidth - coreWidth) / 2;
-            byte ground = settings.Materials.Resolve(MaterialRole.Moss);
-            byte road = settings.Materials.Resolve(MaterialRole.RoadSurface);
-            byte marking = settings.Materials.Resolve(MaterialRole.FoundationStone);
-            var code = new List<int>(48);
-            EmitBox(code, 0, fill, 0, gradeWidth, clear, gradeWidth, 0, PrimitiveMode.Carve);
-            EmitBox(code, 0, 0, 0, gradeWidth, fill, gradeWidth, ground, PrimitiveMode.Fill);
-            EmitBox(code, coreInset, 0, coreInset, coreWidth, fill, coreWidth, road, PrimitiveMode.Fill);
-            if (route.MarkingPolicy == WorldRoadMarkingPolicy.CentreMarkers)
-            {
-                int markerSize = Math.Max(1, Math.Min(2 * scale, coreWidth));
-                int markerInset = (gradeWidth - markerSize) / 2;
-                EmitBox(code, markerInset, 0, markerInset, markerSize, fill, markerSize, marking, PrimitiveMode.Fill);
-            }
+            return new ResolvedWorldRoadPoint(
+                a.Xdm + DivideRounded((long)(b.Xdm - a.Xdm) * numerator, denominator),
+                a.Ydm + DivideRounded((long)(b.Ydm - a.Ydm) * numerator, denominator),
+                a.Zdm + DivideRounded((long)(b.Zdm - a.Zdm) * numerator, denominator));
+        }
+
+        private static int[] RoadProgram(
+            int3 a,
+            int3 b,
+            int coreRadius,
+            int maximumOuterRadius,
+            int maximumCutFill,
+            int fillDepth,
+            int clearAbove,
+            int edgeVariation,
+            byte material,
+            uint seed,
+            int scale)
+        {
+            var code = new List<int>(20);
+            Emit(code, ShapeOp.EmitTerrainCorridor,
+                a.x, a.y, a.z,
+                b.x, b.y, b.z,
+                coreRadius,
+                maximumOuterRadius,
+                maximumCutFill,
+                fillDepth,
+                clearAbove,
+                edgeVariation,
+                material,
+                unchecked((int)seed),
+                scale);
             Emit(code, ShapeOp.End);
             return code.ToArray();
         }
 
-        private static string FeatureName(string id)
+        private static string FeatureName(string id, int segmentIndex, int pieceIndex)
         {
-            string value = "world-road-" + id;
-            return value.Length <= 63 ? value : value.Substring(0, 63);
+            string suffix = "-s" + segmentIndex + "p" + pieceIndex;
+            string prefix = "world-road-" + id;
+            int prefixLimit = Math.Max(0, 63 - suffix.Length);
+            if (prefix.Length > prefixLimit) prefix = prefix.Substring(0, prefixLimit);
+            return prefix + suffix;
         }
 
-        private static void EmitBox(
-            List<int> code,
-            int x, int y, int z,
-            int sx, int sy, int sz,
-            byte material,
-            PrimitiveMode mode)
-            => Emit(code, ShapeOp.EmitBox, x, y, z, sx, sy, sz, material, 0, 0, (int)mode);
+        private static int DivideRounded(long numerator, long denominator)
+        {
+            if (denominator <= 0) throw new ArgumentOutOfRangeException(nameof(denominator));
+            if (numerator >= 0) return (int)((numerator + denominator / 2) / denominator);
+            return (int)(-((-numerator + denominator / 2) / denominator));
+        }
 
         private static void Emit(List<int> code, ShapeOp op, params int[] operands)
         {
