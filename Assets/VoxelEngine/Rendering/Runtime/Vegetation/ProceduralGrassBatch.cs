@@ -20,29 +20,15 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
         private static readonly Color Medium = new Color(0.34f, 0.62f, 0.18f, 1f);
         private static readonly Color Fresh = new Color(0.49f, 0.76f, 0.25f, 1f);
         private static readonly Color Sunny = new Color(0.70f, 0.90f, 0.40f, 1f);
-        private static readonly int GrassTimeId = Shader.PropertyToID("_GrassTime");
-        private static readonly Func<float> DefaultGrassTimeSource = ReadDefaultGrassTime;
 
         private readonly Dictionary<Vector2Int, List<VegetationInstance>> _pending =
             new Dictionary<Vector2Int, List<VegetationInstance>>();
         private readonly List<Mesh> _meshes = new List<Mesh>();
-        private readonly MaterialPropertyBlock _drawProperties = new MaterialPropertyBlock();
-        private readonly Func<float> _grassTimeSource;
 
         internal int ChunkCount => _meshes.Count;
         internal int BladeCount { get; private set; }
         internal int VertexCount { get; private set; }
         internal int TriangleCount { get; private set; }
-        internal float LastSubmittedGrassTime => _drawProperties.GetFloat(GrassTimeId);
-
-        internal ProceduralGrassBatch() : this(DefaultGrassTimeSource)
-        {
-        }
-
-        internal ProceduralGrassBatch(Func<float> grassTimeSource)
-        {
-            _grassTimeSource = grassTimeSource ?? throw new ArgumentNullException(nameof(grassTimeSource));
-        }
 
         internal static bool IsGrass(VegetationKind kind) =>
             kind == VegetationKind.Grass || kind == VegetationKind.Nettle;
@@ -88,16 +74,11 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
         {
             if (material == null || _meshes.Count == 0) return;
 
-            // Graphics.DrawMesh queues work for later rendering. Per-draw state must therefore be
-            // snapshotted in a property block instead of relying on mutable shared material state.
-            // Ambient wind uses unscaled presentation time so dialogue/gameplay pausing cannot
-            // freeze the meadow. The block is retained by this batch: no per-frame allocation.
-            _drawProperties.Clear();
-            _drawProperties.SetFloat(GrassTimeId, _grassTimeSource());
-
+            // Wind is deformed entirely on the GPU from Unity's engine-managed shader time. There
+            // is no per-frame grass clock state to publish or allocate on the CPU draw path.
             for (int i = 0; i < _meshes.Count; i++)
                 Graphics.DrawMesh(
-                    _meshes[i], Matrix4x4.identity, material, 0, null, 0, _drawProperties);
+                    _meshes[i], Matrix4x4.identity, material, 0, null, 0, null);
         }
 
         internal void Clear()
@@ -128,8 +109,6 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
         private static Vector2Int ChunkKey(float x, float z) => new Vector2Int(
             Mathf.FloorToInt(x / ChunkSizeMetres),
             Mathf.FloorToInt(z / ChunkSizeMetres));
-
-        private static float ReadDefaultGrassTime() => Time.unscaledTime;
 
         private static Mesh BuildChunk(IReadOnlyList<VegetationInstance> grass, out int bladeCount)
         {
