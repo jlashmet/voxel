@@ -25,10 +25,10 @@ namespace Game.Kentridge.PlayableSlice
     {
         private const string ValidationProfile = "kentridge-macro-world";
         private const float OpeningEvidenceTimeScale = 12f;
-        private const float WalkEvidenceSeconds = 0.75f;
-        private const float RoadPrestreamSeconds = 0.75f;
-        private const float RoadWalkSeconds = 1f;
-        private const float TargetMinimumDwellSeconds = 1.25f;
+        private const float WalkEvidenceSeconds = 0.65f;
+        private const float RoadPrestreamSeconds = 0.50f;
+        private const float RoadWalkSeconds = 0.85f;
+        private const float TargetMinimumDwellSeconds = 0.35f;
         private const float TargetPostCaptureSeconds = 0.10f;
         private const float DmToMetres = 0.1f;
         private const uint Seed = 0x4B454E54u;
@@ -284,16 +284,17 @@ namespace Game.Kentridge.PlayableSlice
                 ridgeRoad = loganRoute.Tiles[i];
                 break;
             }
+            var ridgeCamera = new Int2(ridgeRoad.X - 320, ridgeRoad.Y - 300);
             targets.Add(new EvidenceTarget(
                 "southern-ridge-pass",
-                new Int2(ridgeRoad.X - 320, ridgeRoad.Y - 300),
+                ridgeCamera,
                 ridgeRoad,
                 cameraHeightMetres: 55f,
                 elevated: true));
 
             targets.Add(new EvidenceTarget(
                 "macro-network-overview",
-                new Int2(KentridgeDefinition.TownCentreDm.X, KentridgeDefinition.TownCentreDm.Y + 900),
+                ridgeCamera,
                 new Int2(KentridgeDefinition.TownCentreDm.X, KentridgeDefinition.TownCentreDm.Y + 250),
                 cameraHeightMetres: 105f,
                 elevated: true));
@@ -310,6 +311,14 @@ namespace Game.Kentridge.PlayableSlice
                 throw new InvalidOperationException(
                     "Macro evidence settlement '" + nodeId + "' does not expose the expected four blockout plots.");
 
+            TopDownWorldBuildingBlockoutPlan focusBuilding = settlement.Buildings[0];
+            for (var i = 1; i < settlement.Buildings.Count; i++)
+            {
+                if (settlement.Buildings[i].HeightDm <= focusBuilding.HeightDm) continue;
+                focusBuilding = settlement.Buildings[i];
+            }
+            Int2 focusDm = focusBuilding.CentreDm;
+
             var offsets = new[]
             {
                 new Int2(-SettlementSurveyOffsetDm, -SettlementSurveyOffsetDm),
@@ -318,7 +327,7 @@ namespace Game.Kentridge.PlayableSlice
                 new Int2(SettlementSurveyOffsetDm, SettlementSurveyOffsetDm)
             };
 
-            int focusGround = TerrainSampler.HeightAt(settlement.CentreDm.X, settlement.CentreDm.Y, Seed);
+            int focusGround = TerrainSampler.HeightAt(focusDm.X, focusDm.Y, Seed);
             Int2 bestCamera = new Int2(
                 settlement.CentreDm.X + offsets[0].X,
                 settlement.CentreDm.Y + offsets[0].Y);
@@ -340,7 +349,7 @@ namespace Game.Kentridge.PlayableSlice
             return new EvidenceTarget(
                 nodeId,
                 bestCamera,
-                settlement.CentreDm,
+                focusDm,
                 cameraHeightMetres: SettlementSurveyHeightMetres,
                 elevated: true);
         }
