@@ -138,12 +138,7 @@ namespace VoxelEngine.Showcase
             }
 
             GetTownView(normalized, out int district, out int view);
-            int2 targetXZ = TownViewTargetXZ(district, view);
-            int townApproach = view == 0 ? 130 : view == 1 ? 35 : 15;
-            int2 spawnXZ = targetXZ + new int2(0, -townApproach);
-            int eyeHeight = view == 0 ? 48 : 18;
-            int townY = TerrainQuery.HeightAt(spawnXZ.x, spawnXZ.y, Seed) + eyeHeight;
-            return new float3(spawnXZ.x, townY, spawnXZ.y) * VoxelSize;
+            return WorldbuildingGalleryTownAuditSpawnPosition(district, view);
         }
 
         public float3 WorldbuildingGalleryTourLookTarget(int index)
@@ -157,10 +152,7 @@ namespace VoxelEngine.Showcase
             }
 
             GetTownView(normalized, out int district, out int view);
-            int2 targetXZ = TownViewTargetXZ(district, view);
-            int lookHeight = view == 0 ? 34 : view == 1 ? 13 : 10;
-            int townY = TerrainQuery.HeightAt(targetXZ.x, targetXZ.y, Seed) + lookHeight;
-            return new float3(targetXZ.x, townY, targetXZ.y) * VoxelSize;
+            return WorldbuildingGalleryTownAuditLookTarget(district, view);
         }
 
         /// <summary>
@@ -211,25 +203,6 @@ namespace VoxelEngine.Showcase
                     $"Worldbuilding gallery guild expansion exceeded its {authoring.WriteBudget:N0}-write budget.");
 
             EnsureWorldbuildingGalleryTownArchitectureBlocking();
-        }
-
-        private int2 TownViewTargetXZ(int district, int view)
-        {
-            int2 centre = s_GalleryTownDistrictCentres[district];
-            if (view == 0) return centre;
-
-            // Rossdam acceptance is explicitly about reusable fortified construction. The near
-            // evidence views therefore inspect the gatehouse/landmark rather than a generic royal
-            // residence: 3.5 m and 1.5 m south of this target preserve player/close review distances.
-            if (s_GalleryTownStyleIds[district] == WorldBuilderTownArchitectureIds.Rossdam)
-            {
-                int2 landmark = WorldbuildingGalleryTownLandmarkOriginXZ(district);
-                return view == 1 ? landmark + new int2(0, -13) : landmark + new int2(-8, -13);
-            }
-
-            int2 residence = WorldbuildingGalleryTownResidenceOriginXZ(district);
-            // Front facade lies south of the residence centre. Close view biases toward the left framed opening.
-            return view == 1 ? residence + new int2(0, -17) : residence + new int2(-8, -17);
         }
 
         private static void GetTownView(int normalizedTourIndex, out int district, out int view)
