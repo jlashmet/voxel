@@ -52,6 +52,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private ulong _stageStorageGeneration;
         private bool _coverageRequested;
         private uint _coverageEpoch;
+        private int _coverageScanCursor;
+        private bool _coverageRoundIncomplete;
+        private bool _coverageReady;
         private int _lastCoveragePollFrame = -1;
         private int _writeVertexCapacity;
         private int _writeIndexCapacity;
@@ -304,17 +307,29 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             uint epoch = GpuSurfaceMirrorCoordinator.CoverageEpoch;
             if (!_coverageRequested || _coverageEpoch != epoch)
             {
+                if (_coverageRequested)
+                    ReleasePersistentCoverage(_staged);
                 GpuSurfaceMirrorCoordinator.RequestCoverage(
                     request.BrickCacheOrigin, _brickCacheEdge,
                     request.ChunkOriginVoxel, coreMaxVoxelExclusive);
                 _coverageRequested = true;
                 _coverageEpoch = epoch;
+                _coverageScanCursor = 0;
+                _coverageRoundIncomplete = false;
+                _coverageReady = false;
             }
             if (_lastCoveragePollFrame == Time.frameCount) return false;
             _lastCoveragePollFrame = Time.frameCount;
-            if (!GpuSurfaceMirrorCoordinator.Covers(
-                    request.BrickCacheOrigin, _brickCacheEdge,
-                    request.ChunkOriginVoxel, coreMaxVoxelExclusive, generation))
+            if (!_coverageReady)
+            {
+                if (!GpuSurfaceMirrorCoordinator.Covers(
+                        request.BrickCacheOrigin, _brickCacheEdge,
+                        request.ChunkOriginVoxel, coreMaxVoxelExclusive, generation,
+                        ref _coverageScanCursor, ref _coverageRoundIncomplete))
+                    return false;
+                _coverageReady = true;
+            }
+            if (!GpuSurfaceMirrorCoordinator.TryReserveExtractionDispatch(Time.frameCount))
                 return false;
 
             ConfigurePersistentLookupHeader();
@@ -456,6 +471,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (!_hasStaged && !_sharedExtractionActive && !_stageAdmissionPending
                 && _legacyPinnedBricks.Count == 0)
                 return;
+            if (_coverageRequested)
+                ReleasePersistentCoverage(_staged);
             _stageAdmissionPending = false;
             _stageStorageGeneration = 0;
             _coverageRequested = false;
@@ -469,6 +486,20 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 GpuSurfaceMirrorCoordinator.EndExtraction(
                     _staged.BrickCacheOrigin, _brickCacheEdge);
             }
+        }
+
+        private void ReleasePersistentCoverage(in GpuChunkExtraction request)
+        {
+            int coreExtentVoxels = _extractor.CellsPerAxis * request.SourceStep;
+            int3 coreMaxVoxelExclusive =
+                request.ChunkOriginVoxel + new int3(coreExtentVoxels);
+            GpuSurfaceMirrorCoordinator.ReleaseCoverage(
+                request.BrickCacheOrigin, _brickCacheEdge,
+                request.ChunkOriginVoxel, coreMaxVoxelExclusive);
+            _coverageRequested = false;
+            _coverageScanCursor = 0;
+            _coverageRoundIncomplete = false;
+            _coverageReady = false;
         }
 
         private void ThrowIfDisposed()

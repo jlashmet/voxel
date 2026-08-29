@@ -7,6 +7,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 using VoxelEngine.Rendering.Runtime;
+using VoxelEngine.Rendering.Runtime.GpuVoxel;
 using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 using VoxelEngine.Showcase;
 
@@ -334,7 +335,17 @@ namespace VoxelEngine.Tests.PlayMode
               + $"visible={last.VisibleSolidChunks} missing={last.MissingVisibleSolidChunks} "
               + $"dirty={last.SolidDirtyChunks} jobs={last.RunningSolidJobs} "
               + $"uploads={last.SolidMeshesAwaitingUpload}/{last.SolidPendingUploadBytes}B "
-              + $"gpu={last.GpuCompletedSolidBuilds}/{last.GpuFallbackSolidBuilds}.");
+              + $"gpu={last.GpuCompletedSolidBuilds}/{last.GpuFallbackSolidBuilds} "
+              + $"unsupported={last.GpuUnsupportedSolidBuilds} "
+              + $"countFailures={last.GpuCountFailureSolidBuilds} "
+              + $"writeFailures={last.GpuWriteFailureSolidBuilds} "
+              + $"arenaWaits={last.GpuArenaFullSolidBuilds} "
+              + $"gpuWaitSlices={last.GpuReadbackWaitSlices} "
+              + $"mirrorReady={GpuSurfaceMirrorCoordinator.ReadyBlockCount} "
+              + $"mirrorPending={GpuSurfaceMirrorCoordinator.PendingBlockCount} "
+              + $"mixed={GpuSurfaceMirrorCoordinator.ResidentMixedBrickCount}/"
+              + $"{GpuSurfaceMirrorCoordinator.MirrorSlotCapacity} "
+              + $"activeExtractions={GpuSurfaceMirrorCoordinator.ActiveExtractions}.");
         }
 
         private static string DescribeVisibilityFailure(
