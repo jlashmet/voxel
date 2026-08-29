@@ -4,13 +4,17 @@
 - [x] Trace current production owners for macro/top-down connectivity, WorldBuilder composition, Kentridge roads/streets, voxel density/surface generation, terrain material/coating, vegetation/ecology, and streaming/LOD.
 - [x] Inspect road behavior/history at `336cb6e63e19bc6039f3f89bb4d2056e2d0efb60` and slope-material safety at `8cd28a5ea7133a4012a17112375f70384bee79ec`.
 - [x] Record the discriminator result in `plan.md` and add discovered required work here.
+- [x] Re-inspect resumed implementation and discriminate semantic API completion from physical lowering completion: current lowering still uses overlapping square stamps and a hard Dirt/Moss boundary, so it does not yet satisfy the shared continuous-influence contract.
 
 ## Implementation
 - [ ] Make road/trail intent first-class on stable semantic world endpoints with reusable profile data and provenance/seed behavior.
 - [ ] Deterministically resolve logical connections to terrain-aware physical routes with grade/cut-fill constraints and explicit invalid-barrier handling.
+- [ ] Wire production terrain/crossing flags where the owning world data exposes water/reserved/barrier semantics; do not leave production resolution permanently hard-wired to `None` if those semantics are available.
 - [ ] Provide one compact, chunk-safe road influence consumed by terrain deformation, surface/shoulder presentation, and vegetation falloff.
 - [ ] Produce genuinely graded/walkable voxel roads through normal WorldBuilder generation without scene-local voxel edits or non-destructible cover meshes.
+- [ ] Replace overlapping square road stamps with a bounded generic terrain-corridor lowering whose physical rasterization evaluates distance/elevation per voxel column from the resolved segment.
 - [ ] Implement/reuse continuous primary+secondary terrain coverage for natural Dirt↔local-terrain shoulders while preserving exposed-top/slope material correctness.
+- [ ] Ensure the physical surface path consumes the same 0..31 influence scalar used by road/ecology sampling; a separate monotonic-influence unit assertion is not sufficient proof.
 - [ ] Keep semantic/resolved roads available to navigation/map/travel/NPC/encounter consumers.
 - [ ] Migrate equivalent Kentridge road generation to the shared primitive; do not duplicate the macro-world physical-realization ticket’s road graph/solver.
 - [ ] Migrate modern Kentridge `SettlementPlan.Routes` (the production planner emits zero legacy `Streets`) while retaining a compatibility adapter for authored legacy streets.
@@ -26,6 +30,7 @@
 - [ ] Non-flat routing respects maximum grade and cut/fill limits.
 - [ ] Impossible blocked routes reroute/reject or require explicit crossing/pass semantics.
 - [ ] Terrain and surface presentation consume the same influence.
+- [ ] Physical corridor rasterization proves continuous/monotonic shoulder detail without repeated square/band stamps and preserves local non-road material outside the core.
 - [ ] Shoulder coverage is continuous/monotonic and does not require discrete band stacks.
 - [ ] Replace the legacy `KentridgeRoadShoulderRegressionTests` assertion that requires ten Moss shoulder bands with a regression proving shared continuous influence/coverage and no repeated-band dependency.
 - [ ] Vegetation is suppressed in the core and recovers through the shoulder.
