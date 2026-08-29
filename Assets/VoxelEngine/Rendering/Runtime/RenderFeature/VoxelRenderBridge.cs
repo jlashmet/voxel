@@ -35,6 +35,16 @@ namespace VoxelEngine.Rendering.Runtime
     /// </summary>
     public static class VoxelRenderBridge
     {
+        private static Vector4[] s_baseLocalLights = Array.Empty<Vector4>();
+        private static Vector4[] s_baseLocalLightColours = Array.Empty<Vector4>();
+        private static Vector4[] s_localLights = Array.Empty<Vector4>();
+        private static Vector4[] s_localLightColours = Array.Empty<Vector4>();
+
+        static VoxelRenderBridge()
+        {
+            LocalLightContributorRegistry.Changed += RebuildLocalLights;
+        }
+
         /// <summary>Supplies the current world. Null when nothing is driving the engine.</summary>
         public static System.Func<VoxelWorldView> Source;
 
@@ -72,6 +82,10 @@ namespace VoxelEngine.Rendering.Runtime
         public static void ReleaseWorldResources()
         {
             s_WorldReleasing?.Invoke();
+            s_baseLocalLights = Array.Empty<Vector4>();
+            s_baseLocalLightColours = Array.Empty<Vector4>();
+            LocalLightContributorRegistry.Clear();
+            RebuildLocalLights();
             SurfaceMetrics = default;
         }
 
@@ -273,10 +287,37 @@ namespace VoxelEngine.Rendering.Runtime
 
         /// <summary>
         /// Presentation lights consumed directly by the voxel surface shader. xyz is world metres
-        /// and w is radius; matching colour xyz is linear tint and w is intensity.
+        /// and w is radius; matching colour xyz is linear tint and w is intensity. Assignments set
+        /// the caller-owned base layer; reusable feature contributors are composed separately.
         /// </summary>
-        public static Vector4[] LocalLights = System.Array.Empty<Vector4>();
-        public static Vector4[] LocalLightColours = System.Array.Empty<Vector4>();
+        public static Vector4[] LocalLights
+        {
+            get => s_localLights;
+            set
+            {
+                s_baseLocalLights = value ?? Array.Empty<Vector4>();
+                RebuildLocalLights();
+            }
+        }
+
+        public static Vector4[] LocalLightColours
+        {
+            get => s_localLightColours;
+            set
+            {
+                s_baseLocalLightColours = value ?? Array.Empty<Vector4>();
+                RebuildLocalLights();
+            }
+        }
+
+        private static void RebuildLocalLights()
+        {
+            LocalLightContributorRegistry.Compose(
+                s_baseLocalLights,
+                s_baseLocalLightColours,
+                out s_localLights,
+                out s_localLightColours);
+        }
 
         /// <summary>
         /// Camera-mounted spotlight consumed by the voxel surface shader.
