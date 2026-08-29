@@ -77,10 +77,10 @@ namespace Game.WorldBuilder.Runtime
                     KentridgeTopDownWorldLayout.SouthFightingArea,
                     KentridgeTopDownWorldLayout.LoganApproach,
                     halfExtentXDm: 420,
-                    halfExtentZDm: 270,
+                    halfExtentZDm: 120,
                     elevationDeltaDm: 110,
                     variationDm: 8,
-                    source: "first macro geography pass: substantial ridge barrier across the Logan route"),
+                    source: "first macro geography pass: substantial ridge barrier across the Logan route, bounded to keep the adjacent Orc settlement envelope buildable"),
                 new TopDownWorldRegionSpec(
                     SouthernPass,
                     "Southern Ridge Pass",
