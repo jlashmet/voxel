@@ -1,3 +1,4 @@
+using System.Reflection;
 using Game.WorldBuilder.Voxel;
 using NUnit.Framework;
 using Unity.Collections;
@@ -103,6 +104,36 @@ namespace VoxelEngine.Tests.PlayMode
             {
                 catalogue.Dispose();
             }
+        }
+
+        [Test]
+        public void OfflineBakeFarFieldSuppressionIsScopedAndRestored()
+        {
+            var store = new FarFieldStructureStore();
+            FieldInfo captureEnabled = typeof(FarFieldStructureStore).GetField(
+                "_captureEnabled",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+
+            Assert.That(captureEnabled, Is.Not.Null,
+                "The far-field store must retain an instance-scoped capture gate for offline baking.");
+            Assert.That(captureEnabled.GetValue(store), Is.True,
+                "Runtime far-field capture must be enabled by default.");
+
+            using (store.SuppressCapture())
+            {
+                Assert.That(captureEnabled.GetValue(store), Is.False,
+                    "Offline bake scope must suppress non-serialized far-field scans.");
+
+                using (store.SuppressCapture())
+                    Assert.That(captureEnabled.GetValue(store), Is.False,
+                        "Nested suppression must remain disabled until the outer scope exits.");
+
+                Assert.That(captureEnabled.GetValue(store), Is.False,
+                    "Disposing a nested scope must not re-enable an outer suppression scope.");
+            }
+
+            Assert.That(captureEnabled.GetValue(store), Is.True,
+                "Capture must be restored after offline generation so LoadBake/runtime rebuilding works.");
         }
     }
 }
