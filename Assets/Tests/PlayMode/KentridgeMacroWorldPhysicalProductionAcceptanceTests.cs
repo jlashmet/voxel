@@ -69,10 +69,56 @@ namespace VoxelEngine.Tests.PlayMode
                 if (waterCatalogue.IsCreated) waterCatalogue.Dispose();
             }
 
+            AssertProductionCompositionContainsMacro(layout, settings);
+
             TestContext.WriteLine(
                 "MACRO_PHYSICAL_ACCEPTANCE " +
+                $"routes={physical.Routes.Count} routeTiles={physical.RouteTileCount} " +
+                $"settlements={physical.Settlements.Count} buildings={physical.BuildingCount} " +
+                $"constrainedRoutes={physical.GeographyConstrainedRouteCount} solveSteps={physical.RouteSolveSteps} " +
                 $"maxRoadRiseVoxels={maximumRise} roadStepDm={TopDownWorldPhysicalPlanner.RouteTileStepDm} " +
                 $"waterDepthVoxels={TopDownWorldWaterBodyVoxelCatalogue.DepthVoxels(lake, settings.VoxelsPerDecimetre)}");
+        }
+
+        private static void AssertProductionCompositionContainsMacro(
+            TopDownWorldLayout layout,
+            VoxelWorldGenSettings settings)
+        {
+            TopDownWorldLayoutSelection.Select(
+                layout,
+                KentridgeDefinition.TownCentreDm.X,
+                KentridgeDefinition.TownCentreDm.Y,
+                MountingForceTopDownWorldDefinition.CellSizeDm);
+
+            FeatureCatalogue combined = default;
+            try
+            {
+                combined = KentridgeCombinedVoxelCatalogue.Build(Seed, settings, Allocator.Temp);
+                Assert.That(combined.IsCreated, Is.True);
+                Assert.That(ContainsDefinitionStarting(combined, "macro-road-"), Is.True,
+                    "The production Kentridge catalogue must consume the selected macro graph.");
+                Assert.That(ContainsDefinitionStarting(combined, "macro-town-building-moordell-"), Is.True);
+                Assert.That(ContainsDefinitionStarting(combined, "macro-town-building-rossdam-"), Is.True);
+                Assert.That(ContainsDefinitionStarting(combined, "macro-town-building-fairy-village-"), Is.True);
+                Assert.That(ContainsDefinitionStarting(combined, "macro-town-building-orc-village-"), Is.True);
+                Assert.That(ContainsDefinitionStarting(combined, "macro-region-ridge-"), Is.True);
+                Assert.That(
+                    ContainsDefinitionStarting(combined, TopDownWorldWaterBodyVoxelCatalogue.DefinitionPrefix),
+                    Is.True,
+                    "The production composition must include the carved water-body pass, not only region paint.");
+            }
+            finally
+            {
+                if (combined.IsCreated) combined.Dispose();
+            }
+        }
+
+        private static bool ContainsDefinitionStarting(FeatureCatalogue catalogue, string prefix)
+        {
+            for (var i = 0; i < catalogue.Definitions.Length; i++)
+                if (catalogue.Definitions[i].Name.ToString().StartsWith(prefix, StringComparison.Ordinal))
+                    return true;
+            return false;
         }
 
         private static int AssertStrictRoadRise(TopDownWorldPhysicalPlan physical, int scale)
