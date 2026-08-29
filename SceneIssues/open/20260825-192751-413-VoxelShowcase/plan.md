@@ -4,25 +4,30 @@
 - One capture/circle marks the top-left FPS telemetry; replay pose is `Showcase Camera` at `(77.953941,24.55005,-3.345814)`, FOV `70`.
 - Initial built-player evidence isolated a ~`0.65–0.77 s/frame` solid-admission stall while arena upload/water were negligible. Removing global resident-world mirror recovery eliminated that cost.
 - Region-demand recovery then failed because one 512³ Storage region contains 262,144 logical 8³ blocks; at 64 blocks/frame a demanded region needed 4,096 frames before readiness.
-- Exact-block recovery (`c3d06ab0…`, run `33232803150`) materially improved runtime: built-player ~194–200 FPS and solid admission ~2–4 ms. But editor traversal failed at frame 119 with `gpuCompleted=3`, `gpuFallback=0`, `gpuWaitSlices=1611`; the exact player plateaued at `27 drawn / 743 missing` from ~t28–t44. All three captures plus final verification visibly retain missing near/mid voxel surfaces.
+- Exact-block recovery materially improved runtime to ~`194–218 FPS` with solid admission around `~2 ms`, but exact-SHA run `33234469456` still stopped after three GPU completions. The player plateaued at `26 visible / 744 missing` for ~20 seconds while `jobs=12`, proving a liveness failure rather than slow frame execution.
+- The prior live-Storage-generation fix was exercised by that exact run and rejected: the plateau was unchanged.
 
 ## Competing hypotheses / discriminator
-- Original global recovery CPU stall: **fixed**; admission is now a few milliseconds, not ~700 ms.
-- Whole-region readiness: **fixed**; exact-block recovery produces early GPU completions and 27 visible draws.
-- GPU readback/watchdog as primary cause: rejected by stable ~200 FPS player and permanent admission/coverage plateau rather than an expanding GPU stall.
-- Raw 64-block/frame throughput alone: weak; finite exact footprints should keep converging, but telemetry and imagery become exactly flat for ~16 s.
-- **Supported current hypothesis:** a phase-9 GPU stage retains the Storage generation captured at handoff. Any covered-region edit makes `Covers(oldGeneration)` permanently false while the worker continues polling. `dirty=2050` in the failed traversal supplies the required invalidation pressure.
+- Original global recovery CPU stall: **fixed**; admission is now milliseconds, not ~700 ms.
+- Whole-region readiness: **fixed**; exact-block recovery produces early GPU completions without scanning the full 512³ Storage region.
+- Pending stage retains an obsolete Storage generation: **rejected by exact-SHA runtime evidence**; refreshing the live mirror generation did not change the three-completion plateau.
+- Storage/change-journal version-domain mismatch: **rejected by source evidence**; `RegionReadSource.Version` is exactly `_changes.CurrentVersion`.
+- Successful GPU write leaks the shared extraction lease: **rejected by source evidence**; phase 10 releases `_gpuExtraction` as soon as write polling leaves `Pending`.
+- **Supported current hypothesis: recovery admission starvation.** `PrepareFromBridge` processed only one bounded 64-block recovery slice but could still return admission-ready with a non-empty backlog. `Covers` could then discover more demand after that successful result was cached for the frame. Already-covered workers could reacquire the shared extraction lease while queued demand remained, and mirror mutation is prohibited whenever any extraction is active. With multiple workers, covered work can therefore leapfrog recovery indefinitely.
 
 ## Fix
-- Keep exact-block demand recovery, the 64-block/frame budget, shared persistent mirror, and region history safety.
-- While admission is pending, refresh only the mirror's live `Storage.Version` gate before `PrepareFromBridge`/`Covers`.
-- Preserve the cache's immutable renderer `_build.SourceVersion`; existing publication checks still reject any build superseded by relevant renderer invalidation. No eligible CPU fallback is introduced.
+- Preserve the shared persistent mirror, exact-block demand queue, journal replay, 64-block recovery slice, and the rule that mirror mutation never occurs while an extraction is active.
+- Report `PrepareFromBridge` ready only when both the mirrored world version is current **and** `RecoveryComplete` is true.
+- When `Covers` queues newly demanded blocks, invalidate the cached same-frame successful prepare result so later workers cannot bypass the new backlog.
+- Do not add CPU fallback, blocking GPU waits, new allocations, larger buffers, or wider recovery scans.
 
 ## Regression / acceptance
-- Behavioral regression `ShowcaseGpuMigrationTests.MovingShowcaseCompletesGpuSurfaceBuildsAndPreservesCoverage`: exact `VoxelShowcase`, 210 m traversal, >=8 GPU completions, zero eligible fallbacks, no holes/blocking completion, moving p95 `<18 ms`, p99 `<25 ms`, stationary p95 `<8 ms`.
-- Exact built-player replay must restore near geometry at the captured pose and eliminate persistent missing-chunk holes while retaining high-FPS headroom.
+- Focused behavioral regression `GpuSurfaceMirrorRecoveryLivenessTests.DemandRecoveryCannotBeStarvedByCoveredGpuWork`: exact `VoxelShowcase`, 96 m traversal, observes the shared mirror directly, requires demand recovery to be exercised and sustained GPU completion, and fails if a recovery backlog plus active extraction makes no ready-block/completion progress for 180 rendered frames.
+- End-to-end regression `ShowcaseGpuMigrationTests.MovingShowcaseCompletesGpuSurfaceBuildsAndPreservesCoverage`: exact `VoxelShowcase`, 210 m traversal, >=8 GPU completions, zero eligible fallbacks, no blocking completion, moving p95 `<18 ms`, p99 `<25 ms`, stationary settle with no missing chunks, stationary p95 `<8 ms`.
+- Exact built-player replay must restore near/mid geometry at the captured pose, eliminate the persistent missing-chunk plateau, and retain substantial high-FPS headroom.
 
 ## Blast radius / cost
-- Solid GPU mirror admission only; water, HLOD, visibility, Storage writes, collision, worldgen/content unchanged.
-- Shared mirror remains >=96 MiB and recovery remains capped at 64 demanded blocks/frame. The new work is one live-world/Storage-version read per pending stage retry; no per-frame allocation.
-- Closure requires green exact-SHA targeted CI plus green exact built-player evidence; no gate weakening.
+- Scope is only solid GPU mirror admission fairness. Water, HLOD algorithms, visibility policy, Storage writes, collision, world generation/content, shader layout, and geometry arena allocation are unchanged.
+- Recovery remains capped at 64 demanded blocks per preparation slice and journal replay at 128 records per slice; no per-frame allocation is introduced.
+- Expected tradeoff: while recovery is pending, already-covered compute work may intentionally idle for the bounded number of slices needed to drain demanded blocks. This converts an unbounded starvation failure into bounded admission latency; exact traversal/frame percentiles remain the cost gate.
+- Closure requires green exact-SHA targeted CI plus green exact built-player visual/runtime evidence; no gate weakening.
