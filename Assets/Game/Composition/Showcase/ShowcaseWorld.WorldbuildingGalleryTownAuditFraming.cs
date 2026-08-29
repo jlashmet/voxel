@@ -24,9 +24,8 @@ namespace VoxelEngine.Showcase
             if (styleId == WorldBuilderTownArchitectureIds.Rossdam)
             {
                 int2 landmark = WorldbuildingGalleryTownLandmarkOriginXZ(district);
-                // The gatehouse south face is z=-11 from the landmark. The player view targets the
-                // gate centre while approaching around the west side of the commerce footprint. The
-                // close view targets the left tower arrow-slit reveal without entering its buttress.
+                // Gatehouse south face is z=-11 from the landmark. The player view presents the
+                // complete gate; the close view centres the left-tower arrow-slit reveal.
                 return view == 1
                     ? landmark + new int2(0, -11)
                     : landmark + new int2(-21, -11);
@@ -58,12 +57,13 @@ namespace VoxelEngine.Showcase
             if (styleId == WorldBuilderTownArchitectureIds.Rossdam)
             {
                 int2 landmark = WorldbuildingGalleryTownLandmarkOriginXZ(district);
-                // Commerce occupies roughly x[-24,+24], z[-64,-28] from the landmark including its
-                // foundation. These positions keep the complete camera ray west/south of that volume
-                // until it has cleared the north edge, then converge on the gate / slit at 2-5 m.
+                // Rossdam's residence and commerce occupy the southern row through about z=-714.
+                // Put both evidence cameras in the east-west road corridor north of that row so the
+                // full FOV, not merely its centre ray, is clear of adjacent façades. The player view
+                // remains 2-5 m from the gate and the close view remains 0.5-2 m from the slit.
                 return view == 1
-                    ? landmark + new int2(-42, -37)
-                    : landmark + new int2(-36, -22);
+                    ? landmark + new int2(-42, -21)
+                    : landmark + new int2(-38, -19);
             }
 
             if (styleId == WorldBuilderTownArchitectureIds.FairyVillage)
@@ -95,7 +95,7 @@ namespace VoxelEngine.Showcase
 
             string styleId = s_GalleryTownStyleIds[district];
             if (styleId == WorldBuilderTownArchitectureIds.Rossdam)
-                return view == 1 ? 24 : 19;
+                return view == 1 ? 26 : 19;
             if (styleId == WorldBuilderTownArchitectureIds.FairyVillage)
                 return view == 1 ? 36 : 35;
             return view == 1 ? 13 : 10;
