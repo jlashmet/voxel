@@ -100,10 +100,12 @@ if frames:
     if not isinstance(width, int) or not isinstance(height, int) or width <= 0 or height <= 0:
         raise SystemExit('ERROR: scene issue has no valid captured screen dimensions')
 else:
-    # Capture-less architecture/feature issues have no pose resolution to preserve. Use the
-    # harness default while retaining strict recorded dimensions whenever a capture exists.
-    width = 1600
-    height = 900
+    # Feature/world issues can intentionally have no immutable recorded pose. Keep recorded-pose
+    # validation strict, but use the existing player default for capture-less built-scene evidence.
+    width = value.get('screenWidth') or 1600
+    height = value.get('screenHeight') or 900
+    if not isinstance(width, int) or not isinstance(height, int) or width <= 0 or height <= 0:
+        raise SystemExit('ERROR: capture-less scene issue has no valid validation screen dimensions')
 print(f'{scene}\t{width}\t{height}\t{len(frames)}')
 PY
 )"
@@ -431,6 +433,17 @@ if [[ -n "$SCENE_ISSUE" ]]; then
     echo "ERROR: scene-issue player never confirmed the recorded camera was pinned." >&2
     tail -80 "$PLAYER_LOG" >&2 || true
     exit 1
+  fi
+
+  if [[ "$SCENE" == "Assets/Scenes/WorldbuildingGalleryShowcase.unity" ]] && (( ISSUE_CAPTURE_COUNT == 0 )); then
+    AUDIT_DIR="$SHOTS_DIR/TownArchitectureAudit"
+    audit_shots="$(find "$AUDIT_DIR" -type f -name '*.png' -size +1k 2>/dev/null | wc -l | tr -d ' ')"
+    if (( audit_shots < 18 )) || ! grep -q 'TOWNARCH_AUDIT result=PASS' "$PLAYER_LOG" 2>/dev/null; then
+      echo "ERROR: capture-less town architecture audit did not produce all 18 built-player views (found $audit_shots)." >&2
+      tail -120 "$PLAYER_LOG" >&2 || true
+      exit 1
+    fi
+    echo "town architecture audit views: $audit_shots"
   fi
 
   FINAL_SHOT="$(find "$SHOTS_DIR" -type f -name '*.png' -size +1k | sort | tail -1)"
