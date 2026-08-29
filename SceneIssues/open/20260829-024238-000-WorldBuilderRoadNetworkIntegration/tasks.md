@@ -17,6 +17,7 @@
 - [ ] Convert diagonal `PlannedRoute` legs into deterministic shared voxel-road geometry without restoring Kentridge-only axis assumptions.
 - [ ] Replace vegetation's legacy `BlockedByStreet`-only exclusion with the shared road influence so both `Routes` and compatibility `Streets` suppress/recover vegetation from the exact physical corridor.
 - [ ] Keep regional ecology policy authoritative; apply road influence only as a local suppression/recovery modifier using existing route exclusion ownership.
+- [ ] Replace `TopDownWorldVoxelCatalogue`'s Manhattan `PaintSurface` tile realization with the shared terrain-aware resolved route/influence so macro semantic connections and Kentridge circulation use one physical road spine.
 - [ ] Preserve deterministic chunk/LOD/streaming behavior and avoid per-segment GameObject/primitive explosion.
 
 ## Regressions
@@ -26,6 +27,7 @@
 - [ ] Impossible blocked routes reroute/reject or require explicit crossing/pass semantics.
 - [ ] Terrain and surface presentation consume the same influence.
 - [ ] Shoulder coverage is continuous/monotonic and does not require discrete band stacks.
+- [ ] Replace the legacy `KentridgeRoadShoulderRegressionTests` assertion that requires ten Moss shoulder bands with a regression proving shared continuous influence/coverage and no repeated-band dependency.
 - [ ] Vegetation is suppressed in the core and recovers through the shoulder.
 - [ ] Segment/chunk/LOD boundaries preserve road geometry/material continuity.
 - [ ] Semantic/resolved road remains queryable by travel/navigation/map consumers.
