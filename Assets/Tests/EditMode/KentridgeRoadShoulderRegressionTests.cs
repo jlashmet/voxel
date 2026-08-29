@@ -5,6 +5,7 @@ using MountingForce.WorldGen.Voxel;
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
 using VoxelEngine.Structures.Runtime;
 
@@ -101,6 +102,94 @@ namespace VoxelEngine.Tests.EditMode
                 "Vegetation/placement clearance must extend through the authored road corridor.");
         }
 
+        [Test]
+        public void VegetationSuppressionUsesSharedInfluenceAndRecoversThroughShoulder()
+        {
+            VoxelWorldGenSettings settings = BuildSettings();
+            SettlementPlan plan = KentridgeDefinition.Build(Seed);
+            WorldRoadNetwork network = KentridgeWorldRoadNetwork.Build(plan, Seed, settings);
+            WorldRoadNetworkRoute route = network.Routes[0];
+            ResolvedWorldRoadPoint point = route.Road.Points[0];
+
+            int strongestShoulder = 0;
+            int weakestShoulder = 32;
+            for (int offset = 0; offset <= route.GradeRadiusDm; offset++)
+            {
+                Assert.IsTrue(network.TrySample(
+                    point.Xdm + offset,
+                    point.Zdm,
+                    out WorldRoadNetworkSample sample));
+                int suppression = sample.Influence.VegetationSuppression31;
+                if (suppression <= 0 || suppression >= 31) continue;
+                strongestShoulder = Math.Max(strongestShoulder, suppression);
+                weakestShoulder = Math.Min(weakestShoulder, suppression);
+            }
+
+            Assert.That(strongestShoulder, Is.GreaterThan(weakestShoulder),
+                "The shared road influence must expose more than one intermediate ecology state.");
+
+            const int population = 3100;
+            int coreSuppressed = CountSuppressed(31, population);
+            int innerShoulderSuppressed = CountSuppressed((byte)strongestShoulder, population);
+            int outerShoulderSuppressed = CountSuppressed((byte)weakestShoulder, population);
+            int localTerrainSuppressed = CountSuppressed(0, population);
+
+            Assert.AreEqual(population, coreSuppressed,
+                "Full road influence must suppress incompatible core vegetation.");
+            Assert.That(innerShoulderSuppressed, Is.LessThan(coreSuppressed));
+            Assert.That(innerShoulderSuppressed, Is.GreaterThan(outerShoulderSuppressed),
+                "Vegetation density must recover as the same road influence falls through the shoulder.");
+            Assert.That(outerShoulderSuppressed, Is.GreaterThan(localTerrainSuppressed));
+            Assert.AreEqual(0, localTerrainSuppressed,
+                "Road ecology influence must not suppress the regional ecology outside its footprint.");
+        }
+
+        [Test]
+        public void KentridgeVegetationPlannerConsumesInfluenceRatherThanBinaryClearance()
+        {
+            VoxelWorldGenSettings settings = BuildSettings();
+            SettlementPlan plan = KentridgeDefinition.Build(Seed);
+            var candidates = KentridgeVegetationLayoutPlanner.Build(plan);
+            WorldRoadNetwork network = KentridgeWorldRoadNetwork.Build(plan, Seed, settings);
+
+            int expectedSurvivors = 0;
+            int legacyClearanceSurvivors = 0;
+            for (int i = 0; i < candidates.Count; i++)
+            {
+                VegetationCandidate candidate = candidates[i];
+                bool suppressed = network.TrySample(
+                        candidate.X, candidate.Z, out WorldRoadNetworkSample sample)
+                    && WorldRoadVegetationSuppression.ShouldSuppress(
+                        sample.Influence.VegetationSuppression31,
+                        Seed,
+                        candidate.X,
+                        candidate.Z,
+                        candidate.Ordinal);
+                if (!suppressed) expectedSurvivors++;
+                if (!network.TrySampleClearance(candidate.X, candidate.Z, out _))
+                    legacyClearanceSurvivors++;
+            }
+
+            Assert.AreNotEqual(legacyClearanceSurvivors, expectedSurvivors,
+                "This fixture must discriminate shared shoulder recovery from the legacy hard-clearance behavior.");
+            Assert.IsTrue(KentridgeVegetationPlanner.TryBuild(
+                Seed, settings, new AlwaysSolidSurfaceQuery(), out var instances));
+            Assert.AreEqual(expectedSurvivors, instances.Count,
+                "Production Kentridge vegetation must consume the exact shared road suppression scalar.");
+        }
+
+        private static int CountSuppressed(byte suppression31, int population)
+        {
+            int count = 0;
+            for (int ordinal = 0; ordinal < population; ordinal++)
+            {
+                if (WorldRoadVegetationSuppression.ShouldSuppress(
+                        suppression31, Seed, 1234, 5678, ordinal))
+                    count++;
+            }
+            return count;
+        }
+
         private static void AssertPhysicalInfluenceMatchesSemanticRoad(
             FeatureCatalogue roads,
             WorldRoadNetworkRoute route,
@@ -188,6 +277,45 @@ namespace VoxelEngine.Tests.EditMode
                 roofTile: 8, slate: 7, cloth: 9,
                 moss: 14, water: 11, roadSurface: 13);
             return new VoxelWorldGenSettings(1, materials);
+        }
+
+        private sealed class AlwaysSolidSurfaceQuery : IVoxelSurfaceQuery
+        {
+            public bool TryRead(int3 worldVoxel, out VoxelCell cell)
+            {
+                cell = SolidCell();
+                return true;
+            }
+
+            public bool TryFindTopSolid(
+                int x,
+                int z,
+                int minY,
+                int maxY,
+                out int y,
+                out VoxelCell cell)
+            {
+                y = minY;
+                cell = SolidCell();
+                return true;
+            }
+
+            public bool TryFindTopSolidExcluding(
+                int x,
+                int z,
+                int minY,
+                int maxY,
+                byte excludedMaterialA,
+                byte excludedMaterialB,
+                out int y,
+                out VoxelCell cell)
+            {
+                y = minY;
+                cell = SolidCell();
+                return true;
+            }
+
+            private static VoxelCell SolidCell() => new VoxelCell { BaseMaterialId = 1 };
         }
     }
 }
