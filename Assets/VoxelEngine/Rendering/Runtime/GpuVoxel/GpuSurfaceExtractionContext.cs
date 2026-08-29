@@ -44,6 +44,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private GpuChunkExtraction _staged;
         private GpuExtractionCounts _stagedCounts;
         private bool _hasStaged;
+        private bool _stageAdmissionPending;
+        private ulong _stageStorageGeneration;
         private int _writeVertexCapacity;
         private int _writeIndexCapacity;
 
@@ -130,7 +132,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                                           in GpuChunkExtraction request,
                                           ulong generation)
         {
-            if (!BeginPersistentStage(request, generation)) return GpuStageOutcome.NoSlot;
+            Release();
+            if (!TryCaptureStorageGeneration(out ulong storageGeneration)
+                || !BeginPersistentStage(request, storageGeneration))
+                return GpuStageOutcome.NoSlot;
 
             _stagedCounts = _extractor.Count(_mirror, _tables, request);
             ChunksStaged++;
@@ -150,15 +155,51 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                                                in GpuChunkExtraction request,
                                                ulong generation)
         {
-            if (!BeginPersistentStage(request, generation)) return GpuStageOutcome.NoSlot;
-            _extractor.BeginCount(_mirror, _tables, request);
+            ThrowIfDisposed();
+            Release();
+            if (!TryCaptureStorageGeneration(out _stageStorageGeneration))
+            {
+                ChunksRefusedNoSlot++;
+                return GpuStageOutcome.NoSlot;
+            }
+
+            // The caller's generation is its renderer-local dirty/build sequence; the mirror uses
+            // Storage/change-journal versions. Capture the authoritative Storage generation at the
+            // immutable snapshot's GPU handoff, then retain it while mirror recovery catches up.
+            // A later solid change in any covered region makes Covers reject this snapshot rather
+            // than silently sampling newer world data under an older renderer generation.
+            _staged = request;
+            _stageAdmissionPending = true;
+            TryAdmitPendingStage();
+
+            // Mirror recovery is deliberately bounded. Not-ready this frame is backpressure, not
+            // evidence that an implemented GPU path is unsupported. Report Staged so the worker
+            // remains on its GPU phase and retries without routing eligible work through the CPU.
             return GpuStageOutcome.Staged;
+        }
+
+        private bool TryCaptureStorageGeneration(out ulong generation)
+        {
+            generation = 0;
+            if (!VoxelRenderBridge.TryGetWorld(out VoxelWorldView world) || world.Storage == null)
+                return false;
+            generation = world.Storage.Version;
+            return true;
+        }
+
+        private bool TryAdmitPendingStage()
+        {
+            if (!_stageAdmissionPending) return _hasStaged;
+            if (!BeginPersistentStage(_staged, _stageStorageGeneration)) return false;
+
+            _extractor.BeginCount(_mirror, _tables, _staged);
+            _stageAdmissionPending = false;
+            return true;
         }
 
         private bool BeginPersistentStage(in GpuChunkExtraction request, ulong generation)
         {
             ThrowIfDisposed();
-            Release();
 
             if (!GpuSurfaceMirrorCoordinator.PrepareFromBridge(generation)
                 || !GpuSurfaceMirrorCoordinator.Covers(
@@ -195,6 +236,15 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             ThrowIfDisposed();
             counts = default;
+            if (_stageAdmissionPending)
+            {
+                if (!TryAdmitPendingStage())
+                    return GpuSurfaceExtractor.GpuCounterPoll.Pending;
+
+                // Count was dispatched only now. Give Metal at least one worker slice before
+                // polling its async counters, exactly as an immediately admitted stage does.
+                return GpuSurfaceExtractor.GpuCounterPoll.Pending;
+            }
             if (!_hasStaged) return GpuSurfaceExtractor.GpuCounterPoll.Failed;
 
             GpuSurfaceExtractor.GpuCounterPoll poll = _extractor.TryCompleteCount(out counts);
@@ -278,7 +328,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         public void Release()
         {
-            if (!_hasStaged && !_sharedExtractionActive) return;
+            if (!_hasStaged && !_sharedExtractionActive && !_stageAdmissionPending) return;
+            _stageAdmissionPending = false;
+            _stageStorageGeneration = 0;
             _hasStaged = false;
             _extractor.CancelPendingCounters();
             if (_sharedExtractionActive)
