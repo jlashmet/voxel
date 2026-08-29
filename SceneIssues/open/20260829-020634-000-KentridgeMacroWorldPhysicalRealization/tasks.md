@@ -15,6 +15,7 @@
 - [x] Discovered: add a strict production-road rise assertion (<= 6 voxels per 30 dm route step) on the exact Kentridge macro plan rather than relying only on the generic planner ceiling.
 - [x] Discovered: trace the exact playable composition and prove `KentridgeDefinition.Build` selects the semantic macro layout before `KentridgeCombinedVoxelCatalogue` consumes it one-shot.
 - [x] Discovered: assert the production combined catalogue contains macro roads, all four remote settlement blockouts, ridge geography, and the carved-water pass after composition.
+- [x] Discovered: make built-player evidence pre-stream and traverse a real Moordell macro-road segment with the production `AutoWalk`/CharacterMotor path before remote survey captures.
 
 ## Behavioral regression
 - [x] Add one final targeted PlayMode acceptance test that nests the full macro realization regression plus production water/slope/composition assertions: `VoxelEngine.Tests.PlayMode.KentridgeMacroWorldPhysicalProductionAcceptanceTests.PhysicalMacroWorldHasWalkableRoutesAndADeepStreamedWaterBody`.
