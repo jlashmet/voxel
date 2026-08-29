@@ -17,8 +17,11 @@ namespace VoxelEngine.Structures.Runtime
         public byte Coverage31 { get; }
         public bool InCore { get; }
 
-        public TerrainCorridorSample(int distanceDm, int targetHeightVoxels,
-            byte coverage31, bool inCore)
+        public TerrainCorridorSample(
+            int distanceDm,
+            int targetHeightVoxels,
+            byte coverage31,
+            bool inCore)
         {
             DistanceDm = distanceDm;
             TargetHeightVoxels = targetHeightVoxels;
@@ -67,14 +70,17 @@ namespace VoxelEngine.Structures.Runtime
             {
                 if (!TrySample(in primitive, x, z, out TerrainCorridorSample sample))
                     continue;
-                if (!TryFindSurface(in primitive, x, z, boundsMin.y, boundsMax.y,
+                if (!TryFindSurface(x, z, boundsMin.y, boundsMax.y,
                         ref read, out int sourceY, out VoxelCell sourceSurface))
                     continue;
 
                 int desiredY = sourceY + DivideRounded(
-                    (long)(sample.TargetHeightVoxels - sourceY) * sample.Coverage31, 31);
-                desiredY = math.clamp(desiredY,
-                    sourceY - maximumCutFill, sourceY + maximumCutFill);
+                    (long)(sample.TargetHeightVoxels - sourceY) * sample.Coverage31,
+                    31);
+                desiredY = math.clamp(
+                    desiredY,
+                    sourceY - maximumCutFill,
+                    sourceY + maximumCutFill);
 
                 byte localMaterial = sourceSurface.BaseMaterialId;
                 int low = math.min(sourceY + 1, desiredY - topDepth + 1);
@@ -83,10 +89,11 @@ namespace VoxelEngine.Structures.Runtime
                 high = math.min(high, subVolumeMax.y - 1);
                 if (low > high) continue;
 
-                bool roadCoverage = ShouldUsePrimaryMaterial(in primitive, x, z, sample.Coverage31);
+                bool roadCoverage = ShouldUsePrimaryMaterial(
+                    in primitive, x, z, sample.Coverage31);
                 for (int y = low; y <= high; y++)
                 {
-                    int3 voxel = new(x, y, z);
+                    int3 voxel = new int3(x, y, z);
                     VoxelCell current = writes.ReadCell(voxel, ref read);
                     if (y > desiredY)
                     {
@@ -98,13 +105,12 @@ namespace VoxelEngine.Structures.Runtime
                     bool inTop = y >= desiredY - topDepth + 1;
                     VoxelCell next = current;
                     if (!next.IsSolid)
-                    {
                         next = new VoxelCell { BaseMaterialId = localMaterial };
-                    }
 
                     if (inTop)
                     {
-                        if (roadCoverage || sample.InCore || next.BaseMaterialId == primitive.Material)
+                        if (roadCoverage || sample.InCore
+                            || next.BaseMaterialId == primitive.Material)
                         {
                             next.BaseMaterialId = primitive.Material;
                             next.Surface = new VoxelSurfaceSemantics
@@ -116,7 +122,9 @@ namespace VoxelEngine.Structures.Runtime
                         }
                         else
                         {
-                            next.Surface.Detail = math.max(next.Surface.Detail, sample.Coverage31);
+                            next.Surface.Detail = (byte)math.max(
+                                (int)next.Surface.Detail,
+                                (int)sample.Coverage31);
                         }
                     }
 
@@ -136,7 +144,10 @@ namespace VoxelEngine.Structures.Runtime
         /// core/outer adjustment and coverage rounding are the same operations in the same order.
         /// </summary>
         public static bool TrySample(
-            in Primitive primitive, int worldX, int worldZ, out TerrainCorridorSample sample)
+            in Primitive primitive,
+            int worldX,
+            int worldZ,
+            out TerrainCorridorSample sample)
         {
             if (primitive.Shape != PrimitiveShape.TerrainCorridor)
             {
@@ -159,6 +170,7 @@ namespace VoxelEngine.Structures.Runtime
             long lengthSquared = dx * dx + dz * dz;
             long distanceSquared;
             int targetHeightDm;
+
             if (lengthSquared <= 0)
             {
                 long px = (long)xdm - ax;
@@ -169,22 +181,37 @@ namespace VoxelEngine.Structures.Runtime
             else
             {
                 long dot = ((long)xdm - ax) * dx + ((long)zdm - az) * dz;
-                dot = math.max(0L, math.min(lengthSquared, dot));
+                if (dot < 0) dot = 0;
+                else if (dot > lengthSquared) dot = lengthSquared;
+
                 long qx = (long)ax + DivideRounded(dx * dot, lengthSquared);
                 long qz = (long)az + DivideRounded(dz * dot, lengthSquared);
                 long ex = (long)xdm - qx;
                 long ez = (long)zdm - qz;
                 distanceSquared = ex * ex + ez * ez;
-                targetHeightDm = ay + DivideRounded(((long)by - ay) * dot, lengthSquared);
+                targetHeightDm = ay + DivideRounded(
+                    ((long)by - ay) * dot,
+                    lengthSquared);
             }
 
             int distance = IntegerSqrt(distanceSquared);
-            int edgeVariationDm = DivideRounded(math.max(0, primitive.D.x), scale);
+            int edgeVariationDm = DivideRounded(
+                math.max(0, primitive.D.x),
+                scale);
             int edge = DeterministicEdgeOffset(
-                unchecked((uint)primitive.D.y), xdm, zdm, edgeVariationDm);
-            int coreBaseDm = DivideRounded(math.max(0, primitive.InnerRadius), scale);
-            int maximumOuterDm = DivideRounded(math.max(primitive.InnerRadius, primitive.Radius), scale);
-            int baseOuterDm = math.max(coreBaseDm, maximumOuterDm - edgeVariationDm);
+                unchecked((uint)primitive.D.y),
+                xdm,
+                zdm,
+                edgeVariationDm);
+            int coreBaseDm = DivideRounded(
+                math.max(0, primitive.InnerRadius),
+                scale);
+            int maximumOuterDm = DivideRounded(
+                math.max(primitive.InnerRadius, primitive.Radius),
+                scale);
+            int baseOuterDm = math.max(
+                coreBaseDm,
+                maximumOuterDm - edgeVariationDm);
             int core = math.max(0, coreBaseDm + edge);
             int outer = math.max(core, baseOuterDm + edge);
             if (distance > outer)
@@ -195,7 +222,8 @@ namespace VoxelEngine.Structures.Runtime
 
             int coverage = distance <= core || outer == core
                 ? 31
-                : ((outer - distance) * 31 + (outer - core) / 2) / (outer - core);
+                : ((outer - distance) * 31 + (outer - core) / 2)
+                    / (outer - core);
             coverage = math.clamp(coverage, 0, 31);
             sample = new TerrainCorridorSample(
                 distance,
@@ -207,8 +235,13 @@ namespace VoxelEngine.Structures.Runtime
 
         public static bool Contains(in Primitive primitive, int3 voxel)
         {
-            if (!TrySample(in primitive, voxel.x, voxel.z, out TerrainCorridorSample sample))
+            if (!TrySample(
+                    in primitive,
+                    voxel.x,
+                    voxel.z,
+                    out TerrainCorridorSample sample))
                 return false;
+
             int vertical = math.max(0, primitive.C.x);
             int fillDepth = math.max(1, primitive.C.y);
             int clearAbove = math.max(0, primitive.C.z);
@@ -217,7 +250,6 @@ namespace VoxelEngine.Structures.Runtime
         }
 
         private static bool TryFindSurface(
-            in Primitive primitive,
             int x,
             int z,
             int minY,
@@ -241,10 +273,14 @@ namespace VoxelEngine.Structures.Runtime
         }
 
         private static bool ShouldUsePrimaryMaterial(
-            in Primitive primitive, int worldX, int worldZ, int coverage31)
+            in Primitive primitive,
+            int worldX,
+            int worldZ,
+            int coverage31)
         {
             if (coverage31 >= 31) return true;
             if (coverage31 <= 0) return false;
+
             int scale = math.max(1, primitive.D.z);
             int xdm = DivideRounded(worldX, scale);
             int zdm = DivideRounded(worldZ, scale);
@@ -257,7 +293,11 @@ namespace VoxelEngine.Structures.Runtime
             }
         }
 
-        private static int DeterministicEdgeOffset(uint seed, int x, int z, int amplitude)
+        private static int DeterministicEdgeOffset(
+            uint seed,
+            int x,
+            int z,
+            int amplitude)
         {
             if (amplitude <= 0) return 0;
             unchecked
@@ -272,7 +312,8 @@ namespace VoxelEngine.Structures.Runtime
         private static int DivideRounded(long numerator, long denominator)
         {
             if (denominator <= 0) return 0;
-            if (numerator >= 0) return (int)((numerator + denominator / 2) / denominator);
+            if (numerator >= 0)
+                return (int)((numerator + denominator / 2) / denominator);
             return (int)(-((-numerator + denominator / 2) / denominator));
         }
 
@@ -280,7 +321,7 @@ namespace VoxelEngine.Structures.Runtime
         {
             if (value <= 0) return 0;
             long low = 1;
-            long high = math.min(value, 3037000499L);
+            long high = value < 3037000499L ? value : 3037000499L;
             while (low <= high)
             {
                 long middle = low + ((high - low) >> 1);
@@ -296,6 +337,7 @@ namespace VoxelEngine.Structures.Runtime
                 long upperError = next * next - value;
                 if (upperError <= lowerError) root = next;
             }
+
             return root > int.MaxValue ? int.MaxValue : (int)root;
         }
 
@@ -328,12 +370,16 @@ namespace VoxelEngine.Structures.Runtime
                 if (!_hasView || math.any(regionCoord != _regionCoord))
                 {
                     _regionCoord = regionCoord;
-                    _hasView = _source != null && _source.TryAcquireRegion(regionCoord, out _view);
+                    _hasView = _source != null
+                        && _source.TryAcquireRegion(regionCoord, out _view);
                 }
 
                 if (!_hasView) return default;
-                int3 localVoxel = worldVoxel - (regionCoord << VoxelGrid.RegionVoxelEdgeLog2);
-                return _view.TryReadCell(localVoxel, out VoxelCell cell) ? cell : default;
+                int3 localVoxel = worldVoxel
+                    - (regionCoord << VoxelGrid.RegionVoxelEdgeLog2);
+                return _view.TryReadCell(localVoxel, out VoxelCell cell)
+                    ? cell
+                    : default;
             }
         }
 
@@ -354,10 +400,14 @@ namespace VoxelEngine.Structures.Runtime
                 _payloadChanged = false;
             }
 
-            public VoxelCell ReadCell(int3 worldVoxel, ref WorldReadCursor fallback)
+            public VoxelCell ReadCell(
+                int3 worldVoxel,
+                ref WorldReadCursor fallback)
             {
                 int3 worldBlock = worldVoxel >> VoxelReadGrid.BlockEdgeLog2;
-                if (_hasBlock && math.all(worldBlock == _worldBlock) && _mutation.IsCreated)
+                if (_hasBlock
+                    && math.all(worldBlock == _worldBlock)
+                    && _mutation.IsCreated)
                     return _mutation.GetCell(VoxelIndex(worldVoxel));
                 return fallback.ReadCell(worldVoxel);
             }
@@ -368,7 +418,11 @@ namespace VoxelEngine.Structures.Runtime
                 if (!_hasBlock || math.any(worldBlock != _worldBlock))
                 {
                     Flush();
-                    if (_store == null || !_store.TryBeginCellBlock(worldBlock, false, out _mutation))
+                    if (_store == null
+                        || !_store.TryBeginCellBlock(
+                            worldBlock,
+                            false,
+                            out _mutation))
                         return false;
                     _worldBlock = worldBlock;
                     _hasBlock = true;
