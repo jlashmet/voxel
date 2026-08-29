@@ -11,17 +11,17 @@
 
 ## Bake-cost discriminator
 - [x] Inspect both final-CI attempts and separate cold import from actual bake work: retry imported in ~63 s, then spent ~177 s in bake before the 240 s Unity guard killed it.
-- [x] Compare with the earlier exact Mountain Dragon candidate `3059c8c119a7...`: the same CI bake completed in 3:57, only 3 s under the guard.
-- [x] Falsify the expanded-footprint-region hypothesis: the +24 Y voxels do not add a vertical 512-voxel region layer at the observed mountain base; X/Z footprint is unchanged.
-- [x] Isolate the post-3:57 production delta: natural supports already existed in the successful candidate; `83c50f94...` subsequently added full-width headroom carve prisms, while `54f2088a...` only bounded them in the existing region layers.
-- [ ] Reduce headroom raster volume without weakening the 24-voxel vertical clearance, normal-movement route, full visible path width, or shared WorldBuilder semantics.
-- [ ] Add a focused regression that proves the traversable clearance lane is wider than the 0.6 m motor with lateral margin and bounds total carve volume/cost below the full-width implementation.
-- [ ] Re-check primitive count, feature footprint, shared consumers, and one-time bake cost after the optimization.
+- [x] Compare with earlier Mountain Dragon source `3059c8c119a7...`: the same CI bake completed in 3:57, only 3 s under the guard.
+- [x] Falsify the expanded-footprint-region hypothesis: +24 Y voxels do not add a 512-voxel region layer at the observed mountain base; X/Z footprint is unchanged.
+- [x] Isolate the post-3:57 production delta: natural supports already existed in the successful candidate; `83c50f94...` added full-width headroom carve prisms and `54f2088a...` only bounded them in existing region layers.
+- [x] Reduce headroom raster volume without weakening 24-voxel vertical clearance, the normal-movement route, full visible path width, or shared WorldBuilder semantics: centered clear lane is 16 voxels / 1.6 m.
+- [x] Add focused production-program regression proving the clear lane leaves 0.5 m lateral margin per side around the 0.6 m motor and caps total carve volume at 2.8M voxels.
+- [x] Re-check static blast radius/cost: 13 carve primitives and 76 total primitives unchanged; footprint unchanged at 1200 x 306 x 1200; carve raster volume 5,097,000 -> 2,718,400 voxels (-46.7%); no steady-state runtime work added.
 
 ## Exact-SHA bake / built-player gate
 - [x] Use the one authorized final `ci-test/fixes/agent-4` request only once. Request SHA `ee738bc8511160139eb3d7ea39fbde81d8d21877`, source parent `7b5393736485e4411083bf06fd3257e42702b4bb`.
 - [x] Use the single permitted retry only on that same workflow job/request SHA; do not create another transport or update the CI ref again.
-- [ ] Obtain an authorized exact-SHA validation path for any new source candidate; the already-used CI ref cannot be advanced again under the current workflow rule.
+- [ ] Obtain an authorized exact-SHA validation path for the new source candidate; the already-used CI ref cannot be advanced again under the current workflow rule.
 - [ ] Generate and validate source-matched `ShowcaseWorld.bytes` + manifest.
 - [ ] Run the exact focused acceptance filter green.
 - [ ] Traverse the complete route via production `AutoWalk -> CharacterMotor.Step` with grounded Y proof.
