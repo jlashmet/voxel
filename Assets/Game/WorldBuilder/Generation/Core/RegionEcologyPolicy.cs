@@ -21,7 +21,8 @@ namespace MountingForce.WorldGen
             float vegetationDensity,
             float vegetationSampleSpacingMetres,
             float maxVegetationSlopeDegrees,
-            float routeClearanceMetres)
+            float routeClearanceMetres,
+            uint deterministicSeedSalt = 0u)
         {
             _vegetationKinds = CopyKinds(vegetationKinds);
             _treeKinds = CopyKinds(treeKinds);
@@ -30,6 +31,7 @@ namespace MountingForce.WorldGen
             VegetationSampleSpacingMetres = Math.Max(0.1f, vegetationSampleSpacingMetres);
             MaxVegetationSlopeDegrees = Math.Max(0f, Math.Min(89f, maxVegetationSlopeDegrees));
             RouteClearanceMetres = Math.Max(0f, routeClearanceMetres);
+            DeterministicSeedSalt = deterministicSeedSalt;
         }
 
         public IReadOnlyList<string> VegetationKinds => _vegetationKinds;
@@ -39,10 +41,30 @@ namespace MountingForce.WorldGen
         public float VegetationSampleSpacingMetres { get; }
         public float MaxVegetationSlopeDegrees { get; }
         public float RouteClearanceMetres { get; }
+        public uint DeterministicSeedSalt { get; }
 
         public bool AllowsVegetation(string kind) => Contains(_vegetationKinds, kind);
         public bool AllowsTree(string kind) => Contains(_treeKinds, kind);
         public bool AllowsAmbientAnimal(string kind) => Contains(_ambientAnimalKinds, kind);
+
+        /// <summary>
+        /// Derives the stable random stream for this authored ecology area. A zero salt preserves
+        /// legacy callers exactly; authored areas can opt into independent deterministic variation
+        /// without changing the world seed or relying on scene-local random state.
+        /// </summary>
+        public uint DeriveSeed(uint worldSeed)
+        {
+            if (DeterministicSeedSalt == 0u) return worldSeed;
+
+            uint h = worldSeed ^ 0x9E3779B9u;
+            h ^= DeterministicSeedSalt + 0x85EBCA6Bu + (h << 6) + (h >> 2);
+            h ^= h >> 16;
+            h *= 0x7FEB352Du;
+            h ^= h >> 15;
+            h *= 0x846CA68Bu;
+            h ^= h >> 16;
+            return h == 0u ? 1u : h;
+        }
 
         private static string[] CopyKinds(string[] kinds)
         {
