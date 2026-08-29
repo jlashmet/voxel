@@ -1,6 +1,9 @@
 using System.Collections.Generic;
 using Game.Materials.Api;
 using Game.Structures.Runtime;
+using Game.WorldBuilder.Api;
+using Game.WorldBuilder.Runtime;
+using Game.WorldBuilder.Voxel;
 using Unity.Mathematics;
 using VoxelEngine.Composition;
 using VoxelEngine.Structures.Api;
@@ -17,6 +20,28 @@ namespace VoxelEngine.Showcase
         private static readonly int2 s_GalleryAdventurersGuildOriginXZ = new(-1340, -260);
         private static readonly int2 s_GalleryWizardGuildOriginXZ = new(-1340, 120);
 
+        // Town-architecture districts form a separated 3x2 walkable grid south of the original gallery.
+        // Each centre is far enough from its neighbours for the shared 164x132-voxel district footprint.
+        private static readonly int2[] s_GalleryTownDistrictCentres =
+        {
+            new(-1140, -520),
+            new(-920, -520),
+            new(-700, -520),
+            new(-1140, -720),
+            new(-920, -720),
+            new(-700, -720),
+        };
+
+        private static readonly string[] s_GalleryTownStyleIds =
+        {
+            WorldBuilderTownArchitectureIds.Kentridge,
+            WorldBuilderTownArchitectureIds.Hightown,
+            WorldBuilderTownArchitectureIds.Moordell,
+            WorldBuilderTownArchitectureIds.Rossdam,
+            WorldBuilderTownArchitectureIds.FairyVillage,
+            WorldBuilderTownArchitectureIds.OrcVillage,
+        };
+
         private static readonly string[] s_GalleryTourNames =
         {
             "Storage shed",
@@ -28,6 +53,12 @@ namespace VoxelEngine.Showcase
             "Cave entrance",
             "Adventurers guild hall",
             "Wizard guild tower",
+            "Kentridge district",
+            "Hightown district",
+            "Moordell district",
+            "Rossdam district",
+            "Fairy Village district",
+            "Orc Village district",
         };
 
         private static readonly int2[] s_GalleryTourTargetXZ =
@@ -41,6 +72,12 @@ namespace VoxelEngine.Showcase
             new(-1120, 220),
             new(-1298, -224),
             new(-1306, 154),
+            s_GalleryTownDistrictCentres[0],
+            s_GalleryTownDistrictCentres[1],
+            s_GalleryTownDistrictCentres[2],
+            s_GalleryTownDistrictCentres[3],
+            s_GalleryTownDistrictCentres[4],
+            s_GalleryTownDistrictCentres[5],
         };
 
         private static readonly int[] s_GalleryTourLookHeightVoxels =
@@ -54,6 +91,12 @@ namespace VoxelEngine.Showcase
             24,
             48,
             68,
+            42,
+            62,
+            38,
+            62,
+            56,
+            50,
         };
 
         public int WorldbuildingGalleryTourStopCount => s_GalleryTourNames.Length;
@@ -65,7 +108,7 @@ namespace VoxelEngine.Showcase
         {
             int normalized = NormalizeGalleryTourIndex(index);
             int2 target = s_GalleryTourTargetXZ[normalized];
-            int approach = normalized == 3 ? 120 : 76;
+            int approach = normalized == 3 ? 120 : normalized >= 9 ? 118 : 76;
             int2 spawn = target + new int2(0, -approach);
             int y = TerrainQuery.HeightAt(spawn.x, spawn.y, Seed) + 5;
             return new float3(spawn.x, y, spawn.y) * VoxelSize;
@@ -81,15 +124,18 @@ namespace VoxelEngine.Showcase
         }
 
         /// <summary>
-        /// Adds two larger semantic-building examples beside the original gallery collection.
-        /// Furnished guild authoring is preferred; the shell authorer remains a deterministic fallback
-        /// if a decoration scene cannot be resolved for a room.
+        /// Adds larger semantic-building examples and six reference-driven town districts beside the
+        /// original gallery collection. The same method is invoked by generated startup and bake creation,
+        /// keeping the production authoring path identical in both modes.
         /// </summary>
         public void GenerateWorldbuildingGalleryTourExpansionBlocking()
         {
             var regions = new HashSet<int3>();
             AddGalleryRegionNeighbourhood(regions, s_GalleryAdventurersGuildOriginXZ, 1);
             AddGalleryRegionNeighbourhood(regions, s_GalleryWizardGuildOriginXZ, 1);
+            for (int i = 0; i < s_GalleryTownDistrictCentres.Length; i++)
+                AddGalleryRegionNeighbourhood(regions, s_GalleryTownDistrictCentres[i], 1);
+
             foreach (int3 region in regions)
                 GenerateRegionBlocking(region);
 
@@ -118,6 +164,76 @@ namespace VoxelEngine.Showcase
                 DecorationRegionTheme.Hightown,
                 0x574247A2u,
                 requestedRooms: 8);
+
+            for (int i = 0; i < s_GalleryTownStyleIds.Length; i++)
+            {
+                string styleId = s_GalleryTownStyleIds[i];
+                TownArchitectureProgram program = WorldBuilderTownArchitecture.Resolve(styleId);
+                TownArchitectureVoxelPalette palette = GalleryTownPalette(styleId);
+                WorldBuilderTownArchitectureVoxelAuthoring.Author(
+                    authoring,
+                    s_GalleryTownDistrictCentres[i],
+                    (x, z) => TerrainQuery.HeightAt(x, z, Seed),
+                    program,
+                    in palette);
+            }
+        }
+
+        private static TownArchitectureVoxelPalette GalleryTownPalette(string styleId)
+        {
+            switch (styleId)
+            {
+                case WorldBuilderTownArchitectureIds.Kentridge:
+                    return new TownArchitectureVoxelPalette(
+                        GameMaterialIds.MasonryMedium,
+                        GameMaterialIds.Tile,
+                        GameMaterialIds.Wood,
+                        GameMaterialIds.Grass,
+                        GameMaterialIds.DarkStone,
+                        GameMaterialIds.LitWindow);
+                case WorldBuilderTownArchitectureIds.Hightown:
+                    return new TownArchitectureVoxelPalette(
+                        GameMaterialIds.MasonryLarge,
+                        GameMaterialIds.Slate,
+                        GameMaterialIds.DarkStone,
+                        GameMaterialIds.MasonrySmall,
+                        GameMaterialIds.Stone,
+                        GameMaterialIds.LitWindow);
+                case WorldBuilderTownArchitectureIds.Moordell:
+                    return new TownArchitectureVoxelPalette(
+                        GameMaterialIds.Stone,
+                        GameMaterialIds.Slate,
+                        GameMaterialIds.Wood,
+                        GameMaterialIds.Dirt,
+                        GameMaterialIds.Moss,
+                        GameMaterialIds.Gold);
+                case WorldBuilderTownArchitectureIds.Rossdam:
+                    return new TownArchitectureVoxelPalette(
+                        GameMaterialIds.MasonryLarge,
+                        GameMaterialIds.Tile,
+                        GameMaterialIds.DarkStone,
+                        GameMaterialIds.MasonryMedium,
+                        GameMaterialIds.Gold,
+                        GameMaterialIds.Cloth);
+                case WorldBuilderTownArchitectureIds.FairyVillage:
+                    return new TownArchitectureVoxelPalette(
+                        GameMaterialIds.Wood,
+                        GameMaterialIds.Moss,
+                        GameMaterialIds.Wood,
+                        GameMaterialIds.Grass,
+                        GameMaterialIds.FlowerWhite,
+                        GameMaterialIds.Crystal);
+                case WorldBuilderTownArchitectureIds.OrcVillage:
+                    return new TownArchitectureVoxelPalette(
+                        GameMaterialIds.DarkStone,
+                        GameMaterialIds.Wood,
+                        GameMaterialIds.Wood,
+                        GameMaterialIds.Dirt,
+                        GameMaterialIds.Slate,
+                        GameMaterialIds.Cloth);
+                default:
+                    throw new System.ArgumentOutOfRangeException(nameof(styleId), styleId, "Unsupported gallery town style.");
+            }
         }
 
         private void AuthorGalleryGuildHouse(
