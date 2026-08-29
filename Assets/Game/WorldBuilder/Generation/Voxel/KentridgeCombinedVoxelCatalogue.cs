@@ -67,21 +67,38 @@ namespace MountingForce.WorldGen.Voxel
                 return local;
 
             FeatureCatalogue macro = default;
+            FeatureCatalogue waterBodies = default;
             try
             {
+                TopDownWorldPhysicalIntentSpec intent = KentridgeTopDownWorldPhysicalIntent.Build();
+                var root = new Int2(selection.RootXdm, selection.RootZdm);
+                TopDownWorldPhysicalPlan physical = TopDownWorldPhysicalVoxelCatalogue.Plan(
+                    selection.Layout,
+                    intent,
+                    root,
+                    selection.CellSizeDm,
+                    settings);
                 macro = TopDownWorldPhysicalVoxelCatalogue.Build(
                     selection.Layout,
-                    KentridgeTopDownWorldPhysicalIntent.Build(),
-                    new Int2(selection.RootXdm, selection.RootZdm),
+                    intent,
+                    root,
                     selection.CellSizeDm,
                     settings,
                     allocator);
-                return SettlementCatalogueCombiner.Combine(allocator, local, macro);
+                waterBodies = TopDownWorldWaterBodyVoxelCatalogue.Build(
+                    physical,
+                    seed,
+                    settings,
+                    allocator);
+                return waterBodies.IsCreated
+                    ? SettlementCatalogueCombiner.Combine(allocator, local, macro, waterBodies)
+                    : SettlementCatalogueCombiner.Combine(allocator, local, macro);
             }
             finally
             {
                 if (local.IsCreated) local.Dispose();
                 if (macro.IsCreated) macro.Dispose();
+                if (waterBodies.IsCreated) waterBodies.Dispose();
             }
         }
     }
