@@ -1,23 +1,28 @@
 # Plan — Kentridge Awon + Medrare Opening Cutscenes
 
-## Evidence / repro
-- `captures` is empty, so the complete marked/repro contract is the ordered sequence in `issue.json`.
-- The existing Kentridge pub opening already ports the recovered 31-line scene; the gap starts after it.
-- Legacy `Code/KentridgeMedrareJoin.m` waits 1.5 s, moves Medrare to the player for 2 s, then starts dialogue block `5000`; the retained text supplies all 23 first-spell spoken/narrated lines.
-- The retained Logan continuation says to meet outside the church while Weldon talks to his father, so it belongs between the pub and Awon.
-- `References/MountingForce/INTEGRATION_GAPS.md` says Awon's referenced text payload is absent from the retained snapshot. Preserve only the issue-contract beats (knighting, beginner/medium/advanced sword demonstrations, join); do not invent dialogue.
+## Authoritative evidence
+- No captures/annotations exist; the acceptance contract is `issue.json` plus the original Mounting Force source.
+- Pin legacy evidence to `jlashmet/mounting-force` commit `9491acd9efc3ad7413a13fd28f1686ed473b5672` (`agent/original-world-content-inventory`). Earlier notes incorrectly treated tree SHA `456d9596...` as a commit; do not use that as provenance.
+- The retained `References/MountingForce/contracts/kentridge-opening-cutscene-contract.yaml` remains authoritative for the existing 31-line pub opening.
+- `Art/kentridge-awon-house.tmx` gates Awon on `pub=1`, sets `Awon=1`, and references missing `kentridge-awon-house-back-room.txt`. `References/MountingForce/INTEGRATION_GAPS.md` therefore requires the explicit `Dialogue coming soon.` placeholder rather than invented Awon dialogue.
+- `Art/kentridge.tmx` then gates `kentridge-see-medrare` on `Awon=1`, sets `see-medrare=1`, and `Art/kentridge-see-medrare.txt` supplies one exact Medrare line.
+- `Art/medrare-house-lower.tmx` gates `MedrareFirstSpell` on `see-medrare=1`, sets `first-spell=1`, then gates `medrare-to-church` directly on `first-spell=1` and sets `church=1`; therefore `medrare-to-church` is part of the immediately connected opening slice.
+- `Art/medrare-first-spell.txt` supplies the exact 17-line Medrare dialogue. `MedrareFirstSpell.m` supplies bespoke staging: control-lock/scene start, camera zoom 0.5, 1.5 s opening delay, 18-line dialogue block boundary, Medrare approaches the player for 1 s, attacks/plays `stab.caf`, waits 1.5 s, shows two lines, then a black-layer 2 s delay + 2 s fade-in + 2 s delay + three lines + 2 s fade-out.
+- `Art/medrare-to-church.txt` supplies three exact Logan lines. Later `kentridge-medrare-join` / `Code/KentridgeMedrareJoin.m` is a distinct later sequence and is explicitly out of scope for this opening feature.
 
-## Hypotheses / conclusion
-1. **General cutscene machinery is missing** — rejected: the existing opening already exercises binding, waits, movement, dialogue, camera cues, and control blocking.
-2. **The progression is unauthored** — confirmed: the campaign had no Logan → Awon → Medrare chain.
-3. **Kentridge needs a new spatial polling path** — rejected. The playable slice already exposes authoritative, player-facing semantic NPC interaction through E; use that visit interaction and gate it on completed prior cutscenes. Current master also independently owns the generic site-proximity primitive, which this fix leaves untouched.
-4. **A reusable gating primitive is missing** — confirmed: add the positive `CutsceneCompleted` story condition beside the existing not-completed condition.
+## Discriminators / selected fix
+1. **General cutscene machinery missing** — rejected. Existing shared cutscene steps already cover waits, movement, dialogue, camera/control cues, and transitions; add shared behavior only if a source cue cannot be represented.
+2. **Existing feature progression is source-faithful** — rejected. It skips `kentridge-see-medrare`, uses non-source first-spell dialogue, and omits the directly connected `medrare-to-church` event.
+3. **Awon dialogue should be reconstructed from story summaries** — rejected. The referenced text payload is absent; preserve state/choreography that is source-backed and use the repository-standard placeholder.
+4. **Later Medrare join belongs here** — rejected. Its event/text is downstream and separate from `see-medrare -> first-spell -> church`.
 
-## Fix / regression
-- Chain pub completion → Logan church continuation → Awon visit → Medrare visit; premature Awon/Medrare interactions do nothing.
-- Preserve Medrare's recovered 1.5 s pause, 2 s approach, and exact first-spell text. Preserve Awon's named training progression without fabricated source dialogue.
-- One PlayMode regression dispatches the production rules and asserts ordering, source cues, and Medrare movement timing.
-- The single SceneIssue CI request targets `Assets/Scenes/KentridgePlayableSlice.unity`, exercising the built player for startup/runtime smoke in addition to the focused regression.
+## Implementation / regression
+- Preserve the existing pub opening; author the source-backed chain `pub -> Awon -> see-medrare -> first-spell -> church` with one-shot positive-completion prerequisites.
+- Replace the inherited first-spell dialogue/choreography with the exact 17-line text and source-backed `MedrareFirstSpell.m` staging. Add exact see-Medrare and church text.
+- Bind staging semantically through existing Kentridge/Game cutscene APIs; no hard-coded legacy map coordinates in runtime code.
+- Update campaign rules and behavioral regressions to assert exact dialogue ordering, gating, key staging semantics, one-shot/re-entry, and persisted completed-state behavior.
+- Before CI, inspect changed paths for blast radius/cost and move only this assignment `open -> pending` with required metadata.
+- Submit one final targeted exact-SHA CI request only via `ci-test/fixes/agent-1`; require focused PlayMode regression plus built-player Kentridge scene validation.
 
 ## Blast radius / cost
-The shared change is one condition type plus rule evaluation. Kentridge changes are campaign content and one regression. No renderer work, background job, hierarchy scan, `Find*`, or new steady-state allocation path is added.
+Expected changes stay within Kentridge opening content/composition, the existing generic completion-condition primitive if still required, focused tests, and this assignment metadata. No renderer work, per-frame scene search, background polling, hierarchy scan, new steady-state allocation loop, or unrelated campaign content is needed. Any shared primitive change must be justified by a source cue and covered by regression.
