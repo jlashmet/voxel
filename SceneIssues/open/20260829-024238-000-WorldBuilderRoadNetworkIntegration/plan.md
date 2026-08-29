@@ -1,48 +1,21 @@
-# Plan
+# Plan — WorldBuilder Road Network Integration
 
-## Observed gap / acceptance
-- `TopDownWorldLayout`/Mounting Force connectivity and Kentridge physical Dirt roads exist, but no proven shared contract carries one semantic road through route resolution, voxel grading, surface transition, vegetation, and travel/navigation consumers.
-- Acceptance requires deterministic terrain-aware routing, one shared road influence, continuous Dirt↔local-terrain shoulders, ecology falloff, Kentridge migration, semantic consumer access, built `KentridgePlayableSlice` visual proof, and measured blast radius/cost.
+## Acceptance
+Promote Kentridge organic roads into a reusable WorldBuilder contract: semantic intent/provenance first, deterministic terrain-aware resolution, one continuous influence for voxel grading/surface transition/ecology, reusable keep-clearance, and a bounded physical representation. Kentridge is the proving consumer; the generic module must not depend on Kentridge. Final proof is the built `VoxelShowcase` player with no new seam, wall, floating prop, startup, or runtime failure.
 
-## Competing hypotheses
-1. **Composition gap:** current road generation is reusable enough; only macro connectivity/profile wiring and semantic exposure are missing.
-2. **Representation gap:** current Kentridge physical roads are local strip geometry, so a compact route/influence model and shared terrain-coverage path are required.
+## Discrimination result
+The original representation gap is resolved in the current branch. `Game.WorldBuilder.Api` now owns `WorldRoadProfile`, `WorldRoadIntent`, deterministic `WorldRoadResolver`, `ResolvedWorldRoad`, `WorldRoadInfluence`, and `WorldRoadNetwork`. Kentridge modern `SettlementPlan.Routes` and compatibility `Streets` both author that contract; macro `TopDownWorldRouteSpec` hard connections do too. Physical lowering is one bounded `EmitTerrainCorridor` primitive per piece, not the historical carve/core/ten-strip shoulder stack.
 
-## Discriminator result
-**Representation gap selected.** Current Kentridge planning already emits semantic `PlannedRoute` data (including diagonal legs), while `KentridgeTownSurfaceCatalogue` still realizes legacy `Streets` through Kentridge-specific axis-aligned carve/fill/ramp programs and five fixed grassy shoulder bands per side. Historical commit `336cb6e63e19bc6039f3f89bb4d2056e2d0efb60` confirms the ten-strip shoulder representation. Commit `8cd28a5ea7133a4012a17112375f70384bee79ec` establishes the coarse-LOD invariant that exposed +Y cap material must remain preferred on layered terrain. The shared capability therefore needs semantic road/profile + deterministic resolved geometry + one analytic influence, with a generic diagonal-to-voxel realization path and no restoration of stale package paths.
+`TerrainCorridorRasteriser` evaluates distance, target height and 0..31 coverage per voxel column. It grades/fills/carves destructible voxels, preserves local material outside road coverage, and persists the same RoadInfluence detail used for presentation. Kentridge vegetation samples that same network scalar and deterministically thins existing regional ecology. Generic `TrySampleClearance` extends beyond the grading shoulder for later placement consumers.
 
-## Vegetation integration discriminator
-- Resumed implementation already computed `WorldRoadInfluenceSample.VegetationSuppression31` from the same continuous 0..31 coverage used by grading/material presentation, but `KentridgeVegetationPlanner.TryBuild` still called `TrySampleClearance` and removed every tree in the larger clearance envelope.
-- That binary-clearance hypothesis is rejected: it creates a hard ecology boundary outside the physical influence and cannot satisfy progressive shoulder recovery.
-- Production Kentridge vegetation now samples `WorldRoadNetwork.TrySample` and deterministically thins only existing ecology candidates using `VegetationSuppression31`. The road owns the stable thinning policy; Kentridge does not duplicate radii or distance math. For a stable candidate key, decreasing suppression can only restore vegetation, while zero influence leaves regional ecology untouched.
+## Terrain flags
+The generic resolver supports Blocked/Water/Reserved/Pass flags and profile crossing policy. Current production `TerrainQuery` exposes height/slope only; Kentridge `PlannedRoute` and top-down route specs carry no terrain-classification map. `WorldRoadVoxelTerrain.FlagsAtDm` therefore correctly returns `None` and documents the missing authority rather than fabricating crossings. Regression fixtures exercise real barrier/crossing behavior through the generic interface.
 
-## Selected design constraints
-- Logical endpoint connectivity remains separate from resolved geometry.
-- Road profiles carry width/shoulder/material/grade/cut-fill/edge/ecology/traversal intent.
-- Deterministic resolver produces compact resolved centerline data and explicitly rejects/reroutes invalid crossings.
-- One chunk-safe analytic influence drives grading, surface coverage, and vegetation falloff.
-- Regional ecology remains authoritative; road influence is only a local modifier.
-- Reuse/generalize terrain material/coating machinery; preserve exposed-top/coarse-slope safety and avoid a road-only shader or dense splat stack.
-- Preserve semantic/resolved road data for navigation/map/travel/NPC consumers.
+## Regression state
+The pre-merge targeted run failed before product execution because the new EditMode regression omitted the `MountingForce.WorldGen` namespace. That harness is repaired. The focused class now covers bounded one-corridor lowering, semantic↔physical influence equality, continuous shoulders, ecology recovery, production vegetation consumption, deterministic terrain rerouting/grade/cut-fill, crossing policy, and generic Kentridge keep-clearance. `KentridgeOrganicLayoutTests` retains named-landmark/diagonal/connectivity traceability.
 
-## Blast-radius decision before implementation
-- Assembly ownership stays acyclic: reusable semantic/profile/resolved-route/influence math belongs in engine-free `Game.WorldBuilder.Api`; `MountingForce.WorldGen.Core` remains zero-dependency; the existing voxel assembly adapts both modern `SettlementPlan.Routes`/legacy `Streets` and macro `TopDownWorldRouteSpec` into the shared road representation.
-- Voxel storage and surface vertex stride do **not** need expansion. `VoxelSurfaceSemantics.Detail` already stores a 5-bit scalar, `TransvoxelTopologyJob.Pack` preserves the complete high semantics byte, and `SmoothSurface.shader` already decodes that scalar as `surfaceDetail`.
-- The current shape bytecode exposes style/coating but not varying detail, while the rasteriser already owns clipped, deterministic column edits. Add a new backward-compatible generic terrain-corridor opcode/mode rather than changing existing emit operand counts. A corridor primitive carries resolved A/B elevations plus core/outer radii; rasterisation computes distance once per column, grades toward the resolved elevation, and derives the same 0..31 influence scalar for surface presentation. This is one compact primitive per resolved segment instead of the legacy eleven-strip shoulder stack.
-- Generalize coating presentation rather than adding a road shader branch: a coating row may optionally reference a configured secondary base-material presentation row and multiply its blend by the authored 5-bit detail scalar. The secondary material path reuses full material albedo/texture/normal/roughness response; existing coatings remain unchanged unless explicitly configured for detail-driven material coverage.
-- Physical fill in a graded transition preserves the sampled local terrain base material where possible. Road identity remains authoritative in the semantic/resolved road profile, while the renderer presents the road material as secondary coverage; this avoids smearing a grass base material down exposed slopes and keeps the existing exposed-top/slope-material selection invariant intact.
-- `TopDownWorldVoxelCatalogue` and Kentridge surface realization must both emit the shared corridor primitive. `RegionCorridorCatalogue` may retain river/bridge crossing geometry, but road semantics/centerline cannot remain a second fixed-axis road solver.
+## Blast radius / cost
+No per-frame road generation, road GameObjects, dense world masks, storage-width changes, or surface-vertex stride changes. Road work occurs during deterministic planning/catalogue generation. Each bounded physical piece budgets one primitive; definitions remain under `FeatureBudget`. Final CI/player evidence must still quantify generated definitions/primitives, bake/build behavior, residency/runtime health, and visible LOD/streaming continuity.
 
-## Cost expectations to verify
-- Primitive count should fall materially from the old Kentridge representation: legacy road pieces budget one carve plus Dirt core plus ten shoulder strips (and ramps) versus one shared corridor primitive per resolved segment plus plaza/crossing geometry.
-- No per-segment GameObjects, dense world masks, voxel-cell widening, or surface-vertex stride growth are expected.
-- Route resolution and influence queries operate on compact polylines and deterministic integer/fixed-point math; final validation must measure resolver/world-build time, voxels/brick mutations, primitive count, resident memory, CPU/GPU, and LOD/streaming impact rather than relying on this expectation.
-
-## Validation gates
-- Focused regressions cover semantic→resolved→physical traceability, determinism, grade/cut-fill, blocked routes, shared influence, continuous shoulders, vegetation recovery, seam continuity, consumer access, and Kentridge connectivity.
-- Exact-SHA targeted CI is green.
-- Exact-SHA built application launches `Assets/Scenes/KentridgePlayableSlice.unity`; durable evidence proves endpoint connection, player traversal, natural sloped shoulders, vegetation recovery, and no medium/far chunk/LOD seams.
-- Measure route/world-build cost, voxel/brick work, primitive/GameObject count, memory, CPU/GPU impact, and streaming/LOD behavior without weakening budgets.
-
-Investigation-start source SHA: `ff781ed26b1d9182fa8cd76e2d2da08abfa3765c`.
-Implementation planning head before source edits: `c78b13f15880115b36fb846121f091081f92ee22`.
+## Remaining gates
+Refresh/merge current master, run the single final exact-SHA request on `ci-test/fixes/agent-1`, inspect its focused regression and available artifacts, then run/verify repository-supported built-player `VoxelShowcase` evidence. Update tasks/metadata only from actual green gates; then promote open→pending→closed and non-force merge the exact feature head to master.
