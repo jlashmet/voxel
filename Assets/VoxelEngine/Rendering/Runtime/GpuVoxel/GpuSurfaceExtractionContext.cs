@@ -213,10 +213,18 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
             int coreExtentVoxels = _extractor.CellsPerAxis * request.SourceStep;
             int3 coreMaxVoxelExclusive = request.ChunkOriginVoxel + new int3(coreExtentVoxels);
-            if (!GpuSurfaceMirrorCoordinator.PrepareFromBridge(generation)
-                || !GpuSurfaceMirrorCoordinator.Covers(
-                    request.BrickCacheOrigin, _brickCacheEdge,
-                    request.ChunkOriginVoxel, coreMaxVoxelExclusive, generation))
+
+            // Preparation owns journal replay and mirror mutation, so it may correctly be blocked
+            // by an active extraction or an already queued recovery drain. Coverage discovery is
+            // different: Covers() only validates readiness and deduplicates exact missing blocks
+            // into the recovery queue. Do not short-circuit it when preparation is blocked. Let all
+            // pending workers contribute their demand before the next safe drain point, then admit
+            // only after both global preparation and this chunk's exact coverage are ready.
+            bool prepared = GpuSurfaceMirrorCoordinator.PrepareFromBridge(generation);
+            bool covered = GpuSurfaceMirrorCoordinator.Covers(
+                request.BrickCacheOrigin, _brickCacheEdge,
+                request.ChunkOriginVoxel, coreMaxVoxelExclusive, generation);
+            if (!prepared || !covered)
             {
                 ChunksRefusedNoSlot++;
                 return false;
