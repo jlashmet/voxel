@@ -1,24 +1,23 @@
 # Plan — Kentridge Awon + Medrare Opening Cutscenes
 
 ## Evidence / repro
-- The issue has no screenshot evidence or image-region markers; the full marked/repro contract is the ordered opening sequence in `issue.json`.
-- The current Kentridge pub opening is already a recovered 31-line cutscene, so the failure is after that scene, not missing cutscene playback generally.
-- `KnownOpeningCampaignContent` previously fell through to a generic destination conversation and had no ordered Logan → Awon → Medrare chain.
-- Legacy `Code/KentridgeMedrareJoin.m` waits 1.5 s, moves Medrare to the player for 2 s, then plays dialogue block `5000`; retained dialogue supplies the 23 first-spell lines/narration.
-- The retained three Logan lines explicitly say to meet outside the church while Weldon talks to his father; they are the post-pub continuation required by this issue.
-- `References/MountingForce/INTEGRATION_GAPS.md` confirms the retained snapshot does not contain Awon's referenced dialogue payload. For Awon, use only the issue-contract beats (knighting lesson, beginner/medium/advanced sword demonstrations, join) and do not invent dialogue.
+- `captures` is empty, so the complete marked/repro contract is the ordered sequence in `issue.json`.
+- The existing Kentridge pub opening already ports the recovered 31-line scene; the gap starts after it.
+- Legacy `Code/KentridgeMedrareJoin.m` waits 1.5 s, moves Medrare to the player for 2 s, then starts dialogue block `5000`; the retained text supplies all 23 first-spell spoken/narrated lines.
+- The retained Logan continuation says to meet outside the church while Weldon talks to his father, so it belongs between the pub and Awon.
+- `References/MountingForce/INTEGRATION_GAPS.md` says Awon's referenced text payload is absent from the retained snapshot. Preserve only the issue-contract beats (knighting, beginner/medium/advanced sword demonstrations, join); do not invent dialogue.
 
 ## Hypotheses / conclusion
-1. **Missing general cutscene runtime** — rejected: the pub opening already exercises actor binding, waits, movement, dialogue, cameras, and blocking playback.
-2. **Missing authored progression only** — mostly true: Logan/Awon/Medrare were not connected in the campaign graph.
-3. **Missing reusable trigger primitive** — true and narrow: Story supported new-game/NPC/cutscene/quest events but no semantic site-entry event or positive completed-cutscene condition. Add those shared primitives rather than Kentridge polling/scans.
-4. **Need scene-specific hierarchy/proximity discovery** — rejected: progression uses stable WorldBuilder site/NPC identities and event dispatch; no `Find*`/hierarchy scan or allocation-heavy steady-state work is required.
+1. **General cutscene machinery is missing** — rejected: the existing opening already exercises binding, waits, movement, dialogue, camera cues, and control blocking.
+2. **The progression is unauthored** — confirmed: the campaign had no Logan → Awon → Medrare chain.
+3. **Kentridge needs a new spatial polling path** — rejected. The playable slice already exposes authoritative, player-facing semantic NPC interaction through E; use that visit interaction and gate it on completed prior cutscenes. Current master also independently owns the generic site-proximity primitive, which this fix leaves untouched.
+4. **A reusable gating primitive is missing** — confirmed: add the positive `CutsceneCompleted` story condition beside the existing not-completed condition.
 
 ## Fix / regression
-- Author post-pub Logan continuation, then gate Awon on entering Awon's generated site after Logan completes, and gate Medrare on entering Medrare's generated site after Awon completes.
-- Preserve Medrare's retained wait/approach choreography and dialogue; preserve Awon's named training progression without fabricated source text.
-- Behavioral regression dispatches production story rules and proves premature Awon/Medrare entries do nothing, then proves Logan → Awon → Medrare ordering plus cue identity/timing.
-- Built-player SceneIssue CI remains the runtime/startup smoke for `WorldbuildingGalleryShowcase`; campaign behavior is asserted independently so the gallery showcase does not acquire Kentridge-only story coupling.
+- Chain pub completion → Logan church continuation → Awon visit → Medrare visit; premature Awon/Medrare interactions do nothing.
+- Preserve Medrare's recovered 1.5 s pause, 2 s approach, and exact first-spell text. Preserve Awon's named training progression without fabricated source dialogue.
+- One PlayMode regression dispatches the production rules and asserts ordering, source cues, and Medrare movement timing.
+- The single SceneIssue CI request targets `Assets/Scenes/KentridgePlayableSlice.unity`, exercising the built player for startup/runtime smoke in addition to the focused regression.
 
 ## Blast radius / cost
-Shared change is limited to one semantic event, one condition, rule matching, and a `CampaignRuntime.EnterSite` forwarding seam. It adds no background job, renderer work, scene-object scan, or collection allocation on the render/update path. Kentridge-specific changes are content/ordering plus one focused EditMode regression.
+The shared change is one condition type plus rule evaluation. Kentridge changes are campaign content and one regression. No renderer work, background job, hierarchy scan, `Find*`, or new steady-state allocation path is added.
