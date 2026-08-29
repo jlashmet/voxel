@@ -79,13 +79,11 @@ namespace VoxelEngine.Rendering.Runtime
 
             lights = new Vector4[count];
             colours = new Vector4[count];
-            if (baseCount > 0)
-            {
-                Array.Copy(baseLights, lights, baseCount);
-                Array.Copy(baseColours, colours, baseCount);
-            }
 
-            int output = baseCount;
+            // Feature contributors go first. The shader has a fixed local-light cap, so appending
+            // feature lights after a large base landmark set can make an independently registered
+            // cave contribute zero rendered lights. The base layer fills whatever capacity remains.
+            int output = 0;
             foreach (Entry entry in s_entries.Values)
             {
                 int entryCount = entry.Count;
@@ -93,6 +91,12 @@ namespace VoxelEngine.Rendering.Runtime
                 Array.Copy(entry.Lights, 0, lights, output, entryCount);
                 Array.Copy(entry.Colours, 0, colours, output, entryCount);
                 output += entryCount;
+            }
+
+            if (baseCount > 0)
+            {
+                Array.Copy(baseLights, 0, lights, output, baseCount);
+                Array.Copy(baseColours, 0, colours, output, baseCount);
             }
         }
     }
