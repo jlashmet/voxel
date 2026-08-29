@@ -16,8 +16,9 @@ namespace VoxelEngine.Showcase
     ///
     /// <para><b>What this stores instead.</b> One coarse sample per 3.2 m column. Tall authored
     /// surfaces retain the old positive silhouette record. Authored terrain that ends below the
-    /// analytic height field is recorded separately as a surface override, so a gorge, cliff cut,
-    /// or moat is not filled back in by the fallback terrain proxy.</para>
+    /// analytic height field is recorded separately as a surface override, including the sampled
+    /// material, so a gorge, cliff cut, moat, or water receiver is not filled back in or recolored
+    /// by the fallback terrain proxy.</para>
     ///
     /// <para>The trade is honest and deliberate: at range a structure becomes a silhouette with
     /// no overhangs, no interior, and no destruction detail. Runtime destruction is intentionally
@@ -41,6 +42,7 @@ namespace VoxelEngine.Showcase
 
         private readonly Dictionary<int2, int[]> _columns = new();
         private readonly Dictionary<int2, int[]> _authoredTerrain = new();
+        private readonly Dictionary<int2, byte[]> _authoredTerrainMaterials = new();
 
         /// <summary>Regions holding positive built-content silhouettes.</summary>
         public int RecordedRegionCount => _columns.Count;
@@ -71,6 +73,7 @@ namespace VoxelEngine.Showcase
             int3 originVoxel = regionCoord * ShowcaseWorld.RegionVoxelEdge;
             int[] structureHeights = null;
             int[] loweredTerrain = null;
+            byte[] loweredMaterials = null;
 
             for (int cz = 0; cz < ColumnsPerRegion; cz++)
             for (int cx = 0; cx < ColumnsPerRegion; cx++)
@@ -78,8 +81,9 @@ namespace VoxelEngine.Showcase
                 int voxelX = originVoxel.x + cx * VoxelsPerColumn + VoxelsPerColumn / 2;
                 int voxelZ = originVoxel.z + cz * VoxelsPerColumn + VoxelsPerColumn / 2;
 
-                int top = TopSolidVoxel(in region, voxelX, voxelZ,
-                                        originVoxel.y, ShowcaseWorld.RegionVoxelEdge);
+                int top = TopSurfaceVoxel(in region, voxelX, voxelZ,
+                                          originVoxel.y, ShowcaseWorld.RegionVoxelEdge,
+                                          out byte topMaterial);
                 if (top == int.MinValue) continue;
 
                 int terrain = TerrainSampler.HeightAt(voxelX, voxelZ, seed);
@@ -88,10 +92,14 @@ namespace VoxelEngine.Showcase
                 // A post-authoring surface below the deterministic height field is authoritative
                 // world data, not destruction detail. Keep the lowest authored value ever captured
                 // so later eviction/regeneration of plain terrain cannot erase the distant sculpt.
+                // Material travels with that surface; an equal-height semantic recapture may update
+                // it (for example a baked grass shelf repaired to water) without changing geometry.
                 if (top < terrain)
                 {
                     loweredTerrain ??= NewOverrideArray();
+                    loweredMaterials ??= new byte[ColumnsPerRegion * ColumnsPerRegion];
                     loweredTerrain[index] = top;
+                    loweredMaterials[index] = topMaterial;
                 }
 
                 if (top - terrain < MinRiseVoxels) continue;
@@ -102,7 +110,7 @@ namespace VoxelEngine.Showcase
 
             var key = new int2(regionCoord.x, regionCoord.z);
             bool changed = MergeStructureColumns(key, structureHeights);
-            changed |= MergeLoweredTerrain(key, loweredTerrain);
+            changed |= MergeLoweredTerrain(key, loweredTerrain, loweredMaterials);
             if (changed) Version++;
         }
 
@@ -137,10 +145,28 @@ namespace VoxelEngine.Showcase
             return heights[index];
         }
 
+        /// <summary>
+        /// Material carried by an authored lowered surface. Callers should first confirm that
+        /// <see cref="AuthoredTerrainHeightAt"/> returned a real override; empty means no retained
+        /// material and preserves compatibility with terrain-only records.
+        /// </summary>
+        public byte AuthoredTerrainMaterialAt(int worldVoxelX, int worldVoxelZ)
+        {
+            int regionX = FloorDiv(worldVoxelX, ShowcaseWorld.RegionVoxelEdge);
+            int regionZ = FloorDiv(worldVoxelZ, ShowcaseWorld.RegionVoxelEdge);
+            if (!_authoredTerrainMaterials.TryGetValue(
+                    new int2(regionX, regionZ), out byte[] materials))
+                return VoxelGrid.MaterialEmpty;
+
+            int index = ColumnIndex(worldVoxelX, worldVoxelZ, regionX, regionZ);
+            return materials[index];
+        }
+
         public void Clear()
         {
             _columns.Clear();
             _authoredTerrain.Clear();
+            _authoredTerrainMaterials.Clear();
             Version++;
         }
 
@@ -172,13 +198,21 @@ namespace VoxelEngine.Showcase
             return changed;
         }
 
-        private bool MergeLoweredTerrain(int2 key, int[] heights)
+        private bool MergeLoweredTerrain(int2 key, int[] heights, byte[] materials)
         {
             if (heights == null) return false;
             if (!_authoredTerrain.TryGetValue(key, out int[] existing))
             {
                 _authoredTerrain[key] = heights;
+                _authoredTerrainMaterials[key] = materials
+                    ?? new byte[ColumnsPerRegion * ColumnsPerRegion];
                 return true;
+            }
+
+            if (!_authoredTerrainMaterials.TryGetValue(key, out byte[] existingMaterials))
+            {
+                existingMaterials = new byte[ColumnsPerRegion * ColumnsPerRegion];
+                _authoredTerrainMaterials[key] = existingMaterials;
             }
 
             bool changed = false;
@@ -186,8 +220,25 @@ namespace VoxelEngine.Showcase
             {
                 int incoming = heights[i];
                 if (incoming == int.MinValue) continue;
-                if (existing[i] != int.MinValue && incoming >= existing[i]) continue;
-                existing[i] = incoming;
+
+                byte incomingMaterial = materials != null
+                    ? materials[i]
+                    : VoxelGrid.MaterialEmpty;
+                int current = existing[i];
+                if (current != int.MinValue && incoming > current) continue;
+
+                if (current == int.MinValue || incoming < current)
+                {
+                    existing[i] = incoming;
+                    existingMaterials[i] = incomingMaterial;
+                    changed = true;
+                    continue;
+                }
+
+                // Equal geometry can still represent a semantic material change. This is required
+                // when a restored bake is repaired in place before its far proxy is recaptured.
+                if (existingMaterials[i] == incomingMaterial) continue;
+                existingMaterials[i] = incomingMaterial;
                 changed = true;
             }
             return changed;
@@ -203,14 +254,16 @@ namespace VoxelEngine.Showcase
         }
 
         /// <summary>
-        /// Topmost solid voxel in a column within one region's vertical span. Skip empty 8^3
+        /// Topmost non-empty voxel in a column within one region's vertical span. Skip empty 8^3
         /// blocks through the compact block-ref/occupancy summary first; only the top occupied
-        /// mixed block needs up to eight cell reads. This keeps terminal castle far-field capture
-        /// bounded to roughly 64 block checks per coarse column instead of 512 cell reads.
+        /// mixed block needs up to eight cell reads. The material returned is the exact top-cell
+        /// material consumed by the far presentation path.
         /// </summary>
-        private static int TopSolidVoxel(in RegionReadView region,
-                                         int worldX, int worldZ, int baseY, int height)
+        private static int TopSurfaceVoxel(in RegionReadView region,
+                                           int worldX, int worldZ, int baseY, int height,
+                                           out byte material)
         {
+            material = VoxelGrid.MaterialEmpty;
             int3 originVoxel = region.RegionCoord * ShowcaseWorld.RegionVoxelEdge;
             int localX = worldX - originVoxel.x;
             int localZ = worldZ - originVoxel.z;
@@ -232,7 +285,10 @@ namespace VoxelEngine.Showcase
                 if (block.Kind == VoxelReadBlockKind.Uniform)
                 {
                     if (block.UniformMaterial != VoxelGrid.MaterialEmpty)
+                    {
+                        material = block.UniformMaterial;
                         return baseY + blockBaseY + maxInnerY;
+                    }
                     continue;
                 }
 
@@ -242,8 +298,9 @@ namespace VoxelEngine.Showcase
                     if (!region.TryReadCell(
                             new int3(localX, localY, localZ), out VoxelCell cell))
                         continue;
-                    if (cell.BaseMaterialId != VoxelGrid.MaterialEmpty)
-                        return baseY + localY;
+                    if (cell.BaseMaterialId == VoxelGrid.MaterialEmpty) continue;
+                    material = cell.BaseMaterialId;
+                    return baseY + localY;
                 }
             }
             return int.MinValue;

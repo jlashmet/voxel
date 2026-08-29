@@ -48,6 +48,7 @@ namespace VoxelEngine.Showcase
 
             LoadBake(LoadBakeResource(
                 ShowcaseWorldBakeCodec.ResourcePath, "Voxel Showcase", "Bake Showcase World"));
+            ApplyBakedCastleSemanticRepairs();
             EnsureCastleWorldObjectSceneLoaded();
         }
 
@@ -115,7 +116,7 @@ namespace VoxelEngine.Showcase
         /// <summary>
         /// Replaces the showcase feature catalogue with production-generated gameplay content.
         /// This must happen on a fresh world before any region is generated. Ownership of the
-        /// supplied catalogue transfers to this world and it is disposed with the world.
+        /// supplied catalogue transfers to this world and it is disposed with this world.
         ///
         /// ShowcaseWorld still contains the showcase castle bootstrap because the streaming,
         /// storage, collision, and rendering composition currently live in the same application
