@@ -17,11 +17,15 @@
 - [ ] Keep generated-gallery and baked-startup behavior in parity: static composition is shared; final baked/player parity requires exact-SHA scene validation.
 - [x] Extend gallery tour/evidence framing with deterministic wide/elevated, player-height facade (2–5 m), and close-detail (0.5–2 m) views for every district.
 - [x] Add focused behavioral regressions through the production WorldBuilder path proving all six styles resolve intended material families, all four roles, non-empty detail vocabularies, distinct form signatures, fixed seeds, Rossdam fortification traits, and bounded district footprint.
-- [x] Commit stable Unity `.meta` files for every new shared/test C# asset.
+- [x] Consolidate duplicate catalogue coverage into the PlayMode regression rather than widening `VoxelEngine.Tests.Features` assembly dependencies.
+- [x] Commit stable Unity `.meta` files for every new shared/test C# asset; remove the deleted duplicate test's `.meta` with it.
 - [x] Validate production scene composition has no direct bespoke voxel-writing or one-off scene hierarchy geometry for this feature; scene placement delegates district geometry to shared town authoring.
 - [x] Review pre-CI diff for unrelated files and check blast radius across shared WorldBuilder/structure consumers; changes are limited to town API/runtime/voxel authoring, gallery composition, focused tests, and this assignment.
+- [x] Classify first exact-SHA CI failure (`22360b821627ea552fb9ee75fabd3e6bf00331da` over feature `2c5b8d6b3fa3daf715774c477f037e8907fc227a`) as product compile failure plus independent player-capture metadata failure.
+- [x] Fix three C# scope-collision compiler errors in `ShowcaseWorld.WorldbuildingGalleryTour.cs` and remove the duplicate Features-assembly test that could not legally reference WorldBuilder.
+- [ ] Resolve/validate the capture-less feature SceneIssue player path without fabricating recorded camera evidence; the failed run reported `scene issue has no valid captured screen dimensions` before player build.
 - [ ] Quantify/validate world-build writes/time, material/shader cost, draw/triangle impact, memory impact, batching, and streaming/LOD implications against existing budgets; detail must not be obtained by uncontrolled geometry growth.
-- [ ] Run focused exact-SHA targeted CI on `ci-test/fixes/agent-9` using the single allowed final request transport.
+- [ ] Run sanctioned focused exact-SHA targeted CI for the repaired branch using only the permitted `ci-test/fixes/agent-9` failure-retry mechanism; do not create parallel transports or replace queued CI.
 - [ ] Run/verify exact-SHA built-application `WorldbuildingGalleryShowcase` detailed issue check and available scene-test gate reaches a usable rendered scene without startup/runtime exceptions.
 - [ ] Capture and directly inspect wide/elevated, player-height facade, and close-detail built-scene evidence for all six districts against their original screenshot sets; explicitly verify useful 10–30 cm construction detail in every town style.
 - [ ] Complete pending metadata (`status`, `resolutionSummary`, `regressionTest`, `fixCommit`) and move only this assignment `open -> pending` after all required gates are green.
