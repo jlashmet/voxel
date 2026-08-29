@@ -79,9 +79,28 @@ namespace Game.Structures.Runtime
             in CaveMaterialPalette cavePalette,
             in UndergroundCavernRuinConfig config)
         {
+            UndergroundCavernTraversalProfile profile = UndergroundCavernTraversalProfile.LongDescent;
+            return Author(
+                authoring,
+                in caveRequest,
+                in caveConfig,
+                in cavePalette,
+                in config,
+                in profile);
+        }
+
+        public static UndergroundCavernRuinResult Author(
+            IStructureAuthoringSession authoring,
+            in CaveGenerationRequest caveRequest,
+            in CaveConfig caveConfig,
+            in CaveMaterialPalette cavePalette,
+            in UndergroundCavernRuinConfig config,
+            in UndergroundCavernTraversalProfile traversalProfile)
+        {
             if (authoring == null) throw new ArgumentNullException(nameof(authoring));
-            if (!caveRequest.IsWellFormed || !caveConfig.IsWellFormed || !config.IsWellFormed)
-                throw new ArgumentException("Underground cavern/ruin authoring requires valid cave and destination configuration.");
+            if (!caveRequest.IsWellFormed || !caveConfig.IsWellFormed || !config.IsWellFormed ||
+                !traversalProfile.IsWellFormed)
+                throw new ArgumentException("Underground cavern/ruin authoring requires valid cave, destination, and traversal configuration.");
             if (caveConfig.TurnChancePercent != 0)
                 throw new ArgumentException(
                     "The deep-host sleeve requires a deterministic straight primary descent; use authored transition chambers for curvature.",
@@ -106,7 +125,12 @@ namespace Game.Structures.Runtime
 
             // Guaranteed spatial transitions make the long approach read as a cave rather than a
             // uniform service tunnel even though the primary route stays cardinal and predictable.
-            AuthorTransitionChambers(authoring, in caveRequest, in caveConfig, in cavePalette);
+            AuthorTransitionChambers(
+                authoring,
+                in caveRequest,
+                in caveConfig,
+                in cavePalette,
+                in traversalProfile);
 
             int3 forward = FacingVector(destination.ExitFacing);
             int innerRadius = config.CavernRadius - 18;
@@ -229,19 +253,21 @@ namespace Game.Structures.Runtime
             IStructureAuthoringSession a,
             in CaveGenerationRequest request,
             in CaveConfig cave,
-            in CaveMaterialPalette palette)
+            in CaveMaterialPalette palette,
+            in UndergroundCavernTraversalProfile traversalProfile)
         {
             int3 direction = FacingVector(request.Entrance.Facing);
             int3 side = new int3(-direction.z, 0, direction.x);
-            int[] segments = { 17, 31, 43 };
+            int[] segments = traversalProfile.ResolveBendSegments(in cave);
             for (int i = 0; i < segments.Length; i++)
             {
                 int segment = math.min(segments[i], cave.SurfaceDescentSegments - 1);
+                int sideSign = (i & 1) == 0 ? 1 : -1;
                 int3 centre = request.EntranceWorldPosition
                     + direction * (request.Entrance.ClearanceLength + segment * cave.SegmentLength)
-                    + side * (i == 1 ? -14 : 14);
+                    + side * sideSign * math.max(10, traversalProfile.BendSideReach / 2 - 2);
                 centre.y -= segment * cave.SurfaceDescentPerSegment;
-                int radius = 28 + i * 4;
+                int radius = math.max(24, traversalProfile.BendRadius + 12 + i * 4);
                 int chamberHeight = 42 + i * 5;
                 a.Cylinder(centre.x, centre.y, centre.z, radius, chamberHeight, palette.Opening);
                 a.Disc(centre.x, centre.y - 1, centre.z, radius, palette.Rock);
