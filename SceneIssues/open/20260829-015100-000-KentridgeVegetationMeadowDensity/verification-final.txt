@@ -1,0 +1,33 @@
+Kentridge vegetation meadow density — final verification
+
+Validated source SHA: ec92c3002a6b75ca86de7819f4175c5390a1ca2b
+Final CI request SHA: d71730e46c2e12bc81e8c6e58cb87c07525904e3
+Workflow: 33249542767
+Commit status: ci/single-test=success
+Unity: 6000.5.6f1
+Scene: KentridgePlayableSlice
+
+Focused production-scene evidence
+- KentridgeMeadowAcceptanceTests.BuiltKentridge_ReportsDenseConnectedGrassOnlyMeadowWithNoExcludedLeakage passed.
+- Production scene diagnostics: 11,322 semantic grass instances; 113,490 packed rendered blades total; 5,740 instances / 57,752 blades in the primary connected meadow; 16 packed grass mesh chunks; 0 excluded-surface grass; 1,694 route candidates rejected.
+- Opening-player-camera regression used the real `Kentridge Player Camera` and production `_undergrowth`: 11,322 grass roots in front of the camera, 3,664 root-cluster bounds inside its frustum, furthest forward grass 116.02 m, max grass Z=218.80 m. This proves the authored meadow crosses the required player view rather than existing only in global counts.
+- The isolated production packed-grass + production-shader framebuffer repro also passed, proving the shared shader visibly deforms over time.
+
+Built-player visual gate
+- The exact built application launched `KentridgePlayableSlice` and remained usable with no startup/runtime exceptions in player-run.log.
+- Direct inspection of stationary player-height frames at t=39.8s, 49.8s, and 59.8s plainly shows a dense field made from individual procedural grass blades across the foreground and midground; it does not read as isolated accents, tiled sprites, floating grass, or buried roots.
+- The camera/UI/world geometry remains fixed while blade silhouettes and poses visibly change between those frames. As quantitative support, comparing only the grass band y=440..739 (excluding sky and dialogue UI) at a >5 RGB-channel delta threshold changes 42.89% of pixels from 39.8->49.8s and 44.08% from 49.8->59.8s. This is stationary-view wind motion, not camera motion.
+
+Architecture / exclusions
+- Kentridge selects reusable `RegionEcologyPolicy`: only semantic Grass is allowed; tree and ambient-animal allowlists are empty; density, sample spacing, deterministic seed salt, slope limit, route clearance, and exclusion classes are top-level policy data.
+- Regression coverage proves deterministic placement, allowed-kind filtering, density behavior, independent authorability of route/built/water/cultivated/steep/invalid exclusion classes, connected-meadow accounting, shared 5-15 blade expansion, no excluded-cell leakage, exposed-surface grounding, isolated visible shader deformation, and real production-camera visibility.
+- No legacy grass sprite, Kentridge-only shader, scene-local coordinate scatter, or per-blade GameObjects were introduced.
+
+Blast radius / cost
+- The causal production correction is Kentridge authoring only: sample spacing 0.4 m -> 0.8 m. The existing MaxUndergrowth=12,000 semantic-instance safety cap and VegetationDensity=0.96 are unchanged, so the fix extends spatial coverage without multiplying the semantic/blade budget.
+- Final realization remains 11,322 semantic instances / 113,490 blades in 16 packed chunks. Wind stays GPU-side through the shared packed grass shader; the engine-managed time cleanup removes the prior custom per-frame time state/write.
+- Built Mac player size: 157 MB. Player build report duration: 36.270 s (ShowcasePlayerBuild logged 37 s). CI Unity wrapper status: elapsed=81 s, RSS=573 MB, peak RSS=6,136 MB.
+- After startup/warmup, ordinary captured play before the held stationary phase was roughly 60-73 FPS. The harness does not emit separate CPU-ms/GPU-ms counters, so none are inferred.
+- Feature-only diff against master contains only assigned Kentridge ecology/rendering/tests and this SceneIssue; no feature-branch `.github/test-request.json`, unrelated capture, or workflow change is present.
+
+Human visual closure decision: PASS — dense meadow coverage and visible stationary wind are both plainly observable in the exact built application.
