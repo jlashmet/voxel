@@ -1,7 +1,8 @@
 # Tasks — Kentridge Awon + Medrare Opening Cutscenes
 
 - [x] Read `AGENTS.md` and target issue; confirm no capture frames/annotations exist.
-- [x] Inspect current `fixes/agent-1` / `origin/master` divergence; confirm incoming master work is unrelated and defer the required final master merge until after green exact-SHA CI.
+- [x] Inspect current `fixes/agent-1` / `origin/master` divergence; confirm incoming master work is unrelated and has no overlapping paths with this feature.
+- [ ] Merge current `origin/master` into `fixes/agent-1` before further substantive implementation and before the final CI request, as required by the canonical coordinator workflow.
 - [ ] Reconcile all legacy provenance against pinned commit `9491acd9efc3ad7413a13fd28f1686ed473b5672`; prior resumed-branch notes contain incorrect dialogue counts and at least one nonexistent choreography path.
 - [x] Confirm Awon's referenced text payload is missing and repository policy requires `Dialogue coming soon.` rather than invented dialogue.
 - [ ] Re-prove the exact source order/state chain from pinned map/source files and document only source-backed opening events; keep later Medrare join out of scope unless the pinned state chain proves otherwise.
@@ -17,4 +18,4 @@
 - [ ] Run one final targeted CI request from that exact feature SHA on `ci-test/fixes/agent-1`, including focused PlayMode regression and built-player Kentridge replay/startup gate.
 - [ ] Inspect exact-SHA CI logs/artifacts and confirm every requested test plus built application scene validation is green.
 - [ ] Complete pending metadata after green CI; move only this assignment `pending -> closed`, set `status=fixed` and `resolvedUtc`, and finish every remaining checkbox.
-- [ ] Merge latest `origin/master` into `fixes/agent-1`, resolve only in-scope conflicts, then non-force push that exact feature head to `origin/master`; fetch/merge/retry if master advances.
+- [ ] Re-fetch latest `origin/master`, merge it into `fixes/agent-1` if master advanced after CI, then non-force push that exact feature head to `origin/master`; fetch/merge/retry if master advances during propagation.
