@@ -35,6 +35,55 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void DefaultKindRestriction_RemainsBackwardCompatibleAndUnrestricted()
+        {
+            VegetationPlacementSettings settings = default;
+
+            Assert.That(settings.RestrictKinds, Is.False);
+            Assert.That(settings.Allows(VegetationKind.Grass), Is.True);
+            Assert.That(settings.Allows(VegetationKind.Fern), Is.True);
+            Assert.That(settings.Allows(VegetationKind.ArcaneVine), Is.True);
+        }
+
+        [Test]
+        public void RestrictedKindMask_EmitsOnlyAllowedGrass()
+        {
+            var samples = new List<VegetationSurfaceSample>();
+            for (int i = 0; i < 256; i++)
+                samples.Add(Sample(new float3(i * 0.25f, 0f, i % 17), VegetationSurface.Ground, 0.5f, 0.3f));
+
+            VegetationPlacementSettings settings = VegetationPlacementSettings.Default(0xBEEFu);
+            settings.Density = 1f;
+            settings.RestrictKinds = true;
+            settings.AllowedKindsMask = 1UL << (int)VegetationKind.Grass;
+            var output = new List<VegetationInstance>();
+
+            VegetationPlacement.Generate(samples, settings, output);
+
+            Assert.That(output.Count, Is.GreaterThan(200));
+            for (int i = 0; i < output.Count; i++)
+                Assert.That(output[i].Kind, Is.EqualTo(VegetationKind.Grass));
+        }
+
+        [Test]
+        public void RestrictedEmptyKindMask_EmitsNothing()
+        {
+            var samples = new List<VegetationSurfaceSample>
+            {
+                Sample(new float3(1f, 0f, 1f), VegetationSurface.Ground, 0.5f, 0.3f),
+            };
+            VegetationPlacementSettings settings = VegetationPlacementSettings.Default(17u);
+            settings.Density = 1f;
+            settings.RestrictKinds = true;
+            settings.AllowedKindsMask = 0UL;
+            var output = new List<VegetationInstance>();
+
+            VegetationPlacement.Generate(samples, settings, output);
+
+            Assert.That(output, Is.Empty);
+        }
+
+        [Test]
         public void WetShadedMasonry_SelectsSurfaceGrowingVegetation()
         {
             var samples = new List<VegetationSurfaceSample>
