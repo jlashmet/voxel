@@ -69,6 +69,9 @@ namespace VoxelEngine.Showcase
         private readonly List<int> _ringBuiltStructureVersion = new();
         private readonly List<float> _ringBuiltTopologyHoleMetres = new();
         private readonly List<int> _indicesScratch = new();
+        private readonly List<Vector3> _startupFallbackPositions = new();
+        private readonly List<Color> _startupFallbackColours = new();
+        private readonly List<int> _startupFallbackIndices = new();
         private Vector3[] _positionsScratch;
         private Color[] _coloursScratch;
         private MeshRenderer _renderer;
@@ -87,13 +90,14 @@ namespace VoxelEngine.Showcase
         private ulong _topologyRebuildCount;
 
         // Ring zero is sampled synchronously once so nearby terrain has the correct silhouette on
-        // the first rendered frame. The remaining clipmap has no completed height cache to draw,
-        // so keep one zero-sampling emergency mesh in the outer-ring slot until that ring receives
-        // its first authoritative async sample. As contiguous outer rings publish, the fallback's
-        // inner boundary advances to their exact outer boundary so the flat proxy never shares XZ
-        // ownership with authoritative terrain. It is deliberately not marked height-valid: normal
-        // single-flight admission still visits every outer ring in order, while DrawMesh provides
-        // continuous unresolved horizon coverage. The real outer ring replaces it on publication.
+        // the first rendered frame. Remaining rings are async, so unresolved horizon space is
+        // temporarily covered by a coarse semantic surface in the outer-ring slot. The fallback
+        // samples one quarter of each unresolved ring's linear density, follows the same analytic
+        // height field, and applies authored lowered-surface/material metadata and structure
+        // silhouettes. That keeps first-frame cost bounded without inventing flat grass over water.
+        // As contiguous rings publish, the fallback's exact inner boundary advances and the final
+        // authoritative outer-ring publication replaces it completely.
+        private const int StartupFallbackSpacingMultiplier = 4;
         private bool _startupFallbackInitialized;
         private int _startupFallbackRing = -1;
         private int _startupFallbackCoverageRing = -1;
@@ -136,15 +140,10 @@ namespace VoxelEngine.Showcase
         public ulong TopologyRebuildCount => _topologyRebuildCount;
 
         /// <summary>
-        /// True once every ring carries heights sampled from the terrain height field, so the far
-        /// mesh is the height field at a coarser rate rather than a placeholder.
-        ///
-        /// Until the first asynchronous height job for the outermost ring lands, that ring carries
-        /// a flat base-height annulus only over unresolved horizon space. Each contiguous outer-ring
-        /// publication advances the annulus hole to the published ring's exact outer boundary, so
-        /// the placeholder never overlaps authoritative lowered terrain. Its vertices still do not
-        /// follow the height field, so comparisons with <see cref="TerrainSampler.HeightAt"/> must
-        /// wait for this property rather than for a frame count.
+        /// True once every ring carries heights sampled at the authoritative clipmap density.
+        /// During async startup the unresolved horizon is already terrain-following and semantic,
+        /// but deliberately coarser, so callers that compare exact clipmap samples must still wait
+        /// for this property rather than for a frame count.
         /// </summary>
         public bool HasSampledHeightsForEveryRing
         {
@@ -586,11 +585,10 @@ namespace VoxelEngine.Showcase
             Vector3 cameraPosition = _camera != null ? _camera.transform.position : transform.position;
             _startupFallbackCameraXZ = new Vector2(cameraPosition.x, cameraPosition.z);
             float radius = Mathf.Max(m_OuterRadiusMetres, m_InnerRadiusMetres);
-            float y = ShowcaseWorld.BaseHeightVoxels * 0.1f;
-            float outerMinX = cameraPosition.x - radius;
-            float outerMaxX = cameraPosition.x + radius;
-            float outerMinZ = cameraPosition.z - radius;
-            float outerMaxZ = cameraPosition.z + radius;
+            float desiredMinX = cameraPosition.x - radius;
+            float desiredMaxX = cameraPosition.x + radius;
+            float desiredMinZ = cameraPosition.z - radius;
+            float desiredMaxZ = cameraPosition.z + radius;
 
             int coverageSpacing = _ringSpacing[coverageRing];
             int2 coverageOrigin = _ringOrigin[coverageRing];
@@ -599,57 +597,171 @@ namespace VoxelEngine.Showcase
             float innerMinZ = coverageOrigin.y * 0.1f;
             float innerMaxZ = (coverageOrigin.y + coverageSpacing * m_Resolution) * 0.1f;
 
-            // Camera motion can occur while the zero-sampling fallback is still active (scene
-            // replay, spawn placement, teleports, or ordinary startup movement). Keep both the
-            // already-published clipmap footprint and one current critical-ring footprint out of
-            // the emergency mesh. Otherwise a stale 4 km corner can cross the new camera plane and
-            // rasterize as a viewport-scale triangle until an unrelated async ring publishes.
+            // A startup camera relocation can happen before another outer ring publishes. Preserve
+            // both already-published ownership and the current critical footprint as the fallback
+            // hole, then grow coarse semantic bands around that exact union.
             float criticalHalfExtent = _ringSpacing[0] * m_Resolution * 0.05f;
             innerMinX = Mathf.Min(innerMinX, cameraPosition.x - criticalHalfExtent);
             innerMaxX = Mathf.Max(innerMaxX, cameraPosition.x + criticalHalfExtent);
             innerMinZ = Mathf.Min(innerMinZ, cameraPosition.z - criticalHalfExtent);
             innerMaxZ = Mathf.Max(innerMaxZ, cameraPosition.z + criticalHalfExtent);
-            innerMinX = Mathf.Clamp(innerMinX, outerMinX, outerMaxX);
-            innerMaxX = Mathf.Clamp(innerMaxX, outerMinX, outerMaxX);
-            innerMinZ = Mathf.Clamp(innerMinZ, outerMinZ, outerMaxZ);
-            innerMaxZ = Mathf.Clamp(innerMaxZ, outerMinZ, outerMaxZ);
+            innerMinX = Mathf.Clamp(innerMinX, desiredMinX, desiredMaxX);
+            innerMaxX = Mathf.Clamp(innerMaxX, desiredMinX, desiredMaxX);
+            innerMinZ = Mathf.Clamp(innerMinZ, desiredMinZ, desiredMaxZ);
+            innerMaxZ = Mathf.Clamp(innerMaxZ, desiredMinZ, desiredMaxZ);
 
-            // The fallback owns unresolved horizon space only. As each contiguous startup ring
-            // publishes, use that authoritative mesh's exact outer boundary as the new inner hole.
-            // Sharing only the boundary edge avoids both cracks and a coplanar/height-mismatched XZ
-            // overlap that can depth-mask authored lowered terrain such as the receiving river.
-            mesh.vertices = new[]
-            {
-                new Vector3(outerMinX, y, outerMinZ),
-                new Vector3(outerMinX, y, outerMaxZ),
-                new Vector3(outerMaxX, y, outerMaxZ),
-                new Vector3(outerMaxX, y, outerMinZ),
-                new Vector3(innerMinX, y, innerMinZ),
-                new Vector3(innerMinX, y, innerMaxZ),
-                new Vector3(innerMaxX, y, innerMaxZ),
-                new Vector3(innerMaxX, y, innerMinZ),
-            };
+            _startupFallbackPositions.Clear();
+            _startupFallbackColours.Clear();
+            _startupFallbackIndices.Clear();
 
-            byte material = MaterialRoles.SurfaceAt(
-                ShowcaseWorld.BaseHeightVoxels, ShowcaseWorld.BaseHeightVoxels);
-            Vector4 albedo = RenderingComposition.GetMaterialAlbedo(material);
-            Color colour = new(albedo.x, albedo.y, albedo.z, 1f);
-            mesh.colors = new[]
+            float currentMinX = innerMinX;
+            float currentMaxX = innerMaxX;
+            float currentMinZ = innerMinZ;
+            float currentMaxZ = innerMaxZ;
+            for (int ring = coverageRing + 1; ring < _ringMeshes.Count; ring++)
             {
-                colour, colour, colour, colour,
-                colour, colour, colour, colour,
-            };
-            mesh.SetTriangles(new[]
+                int spacing = _ringSpacing[ring];
+                float halfExtent = spacing * m_Resolution * 0.05f;
+                float targetMinX = Mathf.Max(desiredMinX, cameraPosition.x - halfExtent);
+                float targetMaxX = Mathf.Min(desiredMaxX, cameraPosition.x + halfExtent);
+                float targetMinZ = Mathf.Max(desiredMinZ, cameraPosition.z - halfExtent);
+                float targetMaxZ = Mathf.Min(desiredMaxZ, cameraPosition.z + halfExtent);
+
+                float nextMinX = Mathf.Min(currentMinX, targetMinX);
+                float nextMaxX = Mathf.Max(currentMaxX, targetMaxX);
+                float nextMinZ = Mathf.Min(currentMinZ, targetMinZ);
+                float nextMaxZ = Mathf.Max(currentMaxZ, targetMaxZ);
+                float targetStep = Mathf.Max(
+                    _ringSpacing[0] * 0.1f,
+                    spacing * 0.1f * StartupFallbackSpacingMultiplier);
+
+                AddStartupFallbackBand(
+                    nextMinX, nextMaxX, nextMinZ, nextMaxZ,
+                    currentMinX, currentMaxX, currentMinZ, currentMaxZ,
+                    targetStep);
+
+                currentMinX = nextMinX;
+                currentMaxX = nextMaxX;
+                currentMinZ = nextMinZ;
+                currentMaxZ = nextMaxZ;
+            }
+
+            // RingCount normally guarantees the final clipmap half-extent reaches the requested
+            // radius. Keep this small final guard for unusual inspector configurations.
+            if (currentMinX > desiredMinX || currentMaxX < desiredMaxX
+                || currentMinZ > desiredMinZ || currentMaxZ < desiredMaxZ)
             {
-                0, 1, 4, 4, 1, 5,
-                5, 1, 6, 6, 1, 2,
-                7, 6, 3, 3, 6, 2,
-                0, 4, 3, 3, 4, 7,
-            }, 0, false);
+                float targetStep = Mathf.Max(
+                    _ringSpacing[0] * 0.1f,
+                    _ringSpacing[_ringSpacing.Count - 1] * 0.1f
+                        * StartupFallbackSpacingMultiplier);
+                AddStartupFallbackBand(
+                    desiredMinX, desiredMaxX, desiredMinZ, desiredMaxZ,
+                    currentMinX, currentMaxX, currentMinZ, currentMaxZ,
+                    targetStep);
+            }
+
+            mesh.Clear(false);
+            mesh.SetVertices(_startupFallbackPositions);
+            mesh.SetColors(_startupFallbackColours);
+            mesh.SetTriangles(_startupFallbackIndices, 0, false);
             mesh.RecalculateNormals();
             mesh.bounds = new Bounds(
-                new Vector3(cameraPosition.x, y, cameraPosition.z),
-                new Vector3(radius * 2f, 2f, radius * 2f));
+                new Vector3(cameraPosition.x, 0f, cameraPosition.z),
+                new Vector3(radius * 2f, 20000f, radius * 2f));
+        }
+
+        private void AddStartupFallbackBand(
+            float outerMinX, float outerMaxX, float outerMinZ, float outerMaxZ,
+            float innerMinX, float innerMaxX, float innerMinZ, float innerMaxZ,
+            float targetStep)
+        {
+            AddStartupFallbackRect(
+                outerMinX, outerMaxX, outerMinZ, innerMinZ, targetStep);
+            AddStartupFallbackRect(
+                outerMinX, outerMaxX, innerMaxZ, outerMaxZ, targetStep);
+            AddStartupFallbackRect(
+                outerMinX, innerMinX, innerMinZ, innerMaxZ, targetStep);
+            AddStartupFallbackRect(
+                innerMaxX, outerMaxX, innerMinZ, innerMaxZ, targetStep);
+        }
+
+        private void AddStartupFallbackRect(
+            float minX, float maxX, float minZ, float maxZ, float targetStep)
+        {
+            float width = maxX - minX;
+            float depth = maxZ - minZ;
+            if (width <= 0.01f || depth <= 0.01f) return;
+
+            int xSegments = Mathf.Max(1, Mathf.CeilToInt(width / targetStep));
+            int zSegments = Mathf.Max(1, Mathf.CeilToInt(depth / targetStep));
+            int row = xSegments + 1;
+            int baseVertex = _startupFallbackPositions.Count;
+
+            for (int z = 0; z <= zSegments; z++)
+            {
+                float worldZ = Mathf.Lerp(minZ, maxZ, z / (float)zSegments);
+                for (int x = 0; x <= xSegments; x++)
+                {
+                    float worldX = Mathf.Lerp(minX, maxX, x / (float)xSegments);
+                    SampleStartupFallbackVertex(worldX, worldZ, out Vector3 position, out Color colour);
+                    _startupFallbackPositions.Add(position);
+                    _startupFallbackColours.Add(colour);
+                }
+            }
+
+            for (int z = 0; z < zSegments; z++)
+            for (int x = 0; x < xSegments; x++)
+            {
+                int i = baseVertex + x + z * row;
+                _startupFallbackIndices.Add(i);
+                _startupFallbackIndices.Add(i + row);
+                _startupFallbackIndices.Add(i + 1);
+                _startupFallbackIndices.Add(i + 1);
+                _startupFallbackIndices.Add(i + row);
+                _startupFallbackIndices.Add(i + row + 1);
+            }
+        }
+
+        private void SampleStartupFallbackVertex(
+            float worldX, float worldZ, out Vector3 position, out Color colour)
+        {
+            int voxelX = Mathf.FloorToInt(worldX / 0.1f);
+            int voxelZ = Mathf.FloorToInt(worldZ / 0.1f);
+            int height = TerrainSampler.HeightAt(voxelX, voxelZ, m_Seed);
+            bool hasAuthoredTerrain = false;
+            byte authoredTerrainMaterial = 0;
+            if (Structures != null)
+            {
+                int authoredTerrain = Structures.AuthoredTerrainHeightAt(voxelX, voxelZ);
+                if (authoredTerrain != int.MinValue)
+                {
+                    height = authoredTerrain;
+                    hasAuthoredTerrain = true;
+                    authoredTerrainMaterial = Structures.AuthoredTerrainMaterialAt(voxelX, voxelZ);
+                }
+            }
+
+            bool isStructure = false;
+            if (Structures != null)
+            {
+                int built = Structures.HeightAt(voxelX, voxelZ);
+                if (built != int.MinValue && built > height)
+                {
+                    height = built;
+                    isStructure = true;
+                }
+            }
+
+            position = new Vector3(worldX, height * 0.1f, worldZ);
+            byte material = ResolveFarSurfaceMaterial(
+                MaterialRoles,
+                isStructure,
+                hasAuthoredTerrain,
+                authoredTerrainMaterial,
+                height);
+            Vector4 albedo = RenderingComposition.GetMaterialAlbedo(material);
+            colour = new Color(albedo.x, albedo.y, albedo.z, 1f);
         }
 
         private void CloseRingZeroHoleTopology()
