@@ -2,20 +2,29 @@
 
 - [x] Read `AGENTS.md`, available SceneIssue workflow, assigned issue, current plan, and resume `fixes/agent-9` without discarding existing work.
 - [x] Confirm `SceneIssues/feature-readme.md` is absent on current branch/master; apply the stricter coordinator instructions plus available `SceneIssues/README.md`.
-- [x] Inspect all six reference screenshot prefix sets and capture/runtime evidence already summarized in `plan.md`; keep screenshot evidence authoritative over proposed art-direction notes.
+- [x] Merge current `origin/master` after the coordinator expanded this assignment with player-scale architecture requirements; treat the updated `issue.json` as authoritative.
+- [x] Inspect all six reference screenshot prefix sets and capture/runtime evidence summarized in `plan.md`; keep screenshot evidence authoritative over proposed art-direction notes.
 - [x] Add reusable town architecture contracts and six canonical town style programs with distinct material families and required residential/commercial/civic/landmark roles.
 - [x] Add shared voxel realization for the town programs without direct scene voxel-writing or hand-authored hierarchy geometry.
+- [ ] Extend the shared town-program contract with an explicit reusable detail vocabulary and distinct high-level building/roof/form intent; do not let Twin/steep/lean-to/organic/fortified/stockade intents collapse to one generic gable/box.
+- [ ] Add reusable shared architectural-detail authoring assemblies for meaningful 10–30 cm construction: recessed/framed windows with sill/lintel/mullion/shutter options, recessed/framed doors with threshold/lintel/steps/canopy/hardware, eaves/fascia/ridge caps, chimneys/caps, timber braces/joints, buttresses/caps, balconies/railings, masonry coursing/quoins/coping, and fortification reveals/crenellations where style-appropriate.
+- [ ] Refactor all six town realization paths to apply coherent style-specific macro/meso/micro detail through shared helpers rather than flat window rectangles, meter-scale boxes, or per-town copy/paste noise.
+- [ ] Ensure at least one representative building in every district visibly carries multiple authored 1–3 voxel (10–30 cm) construction details.
+- [ ] Expand Rossdam fortification realization with reusable layered parapet/coping, crenellation, arrow-slit reveal, tower-wall transition, buttress, stair/access, and gate framing/hardware primitives suitable for later castle reuse.
 - [ ] Commit stable Unity `.meta` files for every new shared/test C# asset so imports remain deterministic.
 - [ ] Wire six clearly separated/labeled town districts into the production `WorldbuildingGalleryShowcase` composition path.
 - [ ] Keep generated-gallery and baked-startup behavior in parity: the bake source must contain the six districts and stale-bake detection/versioning must force regeneration when this feature changes gallery content.
-- [ ] Extend gallery tour/evidence framing so all six districts have deterministic spawn/look targets usable by the built-app harness and rendered review.
-- [ ] Ensure each district includes readable palette/swatch display, characteristic ground/street treatment, architecture for all required roles, and town-specific exterior props/landscape details.
-- [ ] Add focused behavioral regressions through the production WorldBuilder path proving all six styles resolve intended material families and required roles; include distinct structural/silhouette semantics rather than source-string checks.
+- [ ] Extend gallery tour/evidence framing with deterministic wide/elevated, player-height facade (2–5 m), and close-detail (0.5–2 m) views for every district.
+- [ ] Ensure each district includes readable palette/swatch display, characteristic ground/street treatment, architecture for all four required roles, and town-specific exterior props/landscape details under consistent neutral lighting.
+- [ ] Add focused behavioral regressions through the production WorldBuilder path proving all six styles resolve intended material families, all four roles, non-empty detail vocabularies, meaningful micro-detail operations, and bounded writes.
+- [ ] Add regressions proving distinct high-level form intents produce measurably distinct production geometry/operation signatures and cannot silently collapse to one generic roof/form.
+- [ ] Add Rossdam regression coverage for reusable fortification detail operations, including depth/reveal and layered parapet/coping behavior.
 - [ ] Validate production scene composition has no direct bespoke voxel-writing or one-off scene geometry for this feature.
-- [ ] Review final diff for unrelated files and check blast radius across shared WorldBuilder consumers.
-- [ ] Quantify/validate world-build work, voxel/material/shader cost, draw/triangle impact, and memory impact against existing budgets.
+- [ ] Review final diff for unrelated files and check blast radius across shared WorldBuilder/structure consumers.
+- [ ] Quantify/validate world-build writes/time, material/shader cost, draw/triangle impact, memory impact, batching, and streaming/LOD implications against existing budgets; detail must not be obtained by uncontrolled geometry growth.
 - [ ] Run focused exact-SHA targeted CI on `ci-test/fixes/agent-9` using the single allowed final request transport.
 - [ ] Run/verify exact-SHA built-application `WorldbuildingGalleryShowcase` harness reaches a usable rendered scene without startup/runtime exceptions and captures all six districts.
-- [ ] Review rendered evidence directly against the six original town screenshot sets and repository AAA world-authoring bar; resolve any visible grounding, construction, circulation, intersection, or readability defects.
+- [ ] Review rendered evidence directly against the six original town screenshot sets and repository AAA world-authoring bar; resolve visible grounding, construction, circulation, intersection, silhouette, or readability defects.
+- [ ] Explicitly inspect wide/elevated, player-height facade, and close-detail evidence and record whether 10 cm voxel resolution visibly contributes useful 10–30 cm architecture in every town style.
 - [ ] Complete pending metadata (`status`, `resolutionSummary`, `regressionTest`, `fixCommit`) and move only this assignment `open -> pending` after all required gates are green.
 - [ ] After all workflow gates and green exact-SHA CI, set `status=fixed` and `resolvedUtc`, move only this assignment `pending -> closed`, merge current `origin/master`, and push the exact feature head to `origin/master` non-force (retry merge if master advances).
