@@ -29,5 +29,13 @@
 - Artifact id: `9709278530`. All three replay screenshots and `verification-final.png` were inspected; the final state still has large missing near/mid voxel surfaces and disconnected fragments while distant terrain/vegetation render.
 - This request is completed and is not being replaced while queued. The same CI mailbox may be reused after the next feature fix is final.
 
+## 2026-08-29 — recovery-fairness request `70b1e683…`
+- CI ref: `ci-test/fixes/agent-2`
+- Request SHA: `70b1e6832393a6276412af3add2b9f46f772e12c`
+- Exact feature parent: `3605acec8cccaa1394cde27bb47d1397f48b7f9e`
+- Run: `33239649762`
+- Official result: `ci/single-test=failure` before product execution. The new liveness regression did not compile because `VoxelSurfaceMetrics` was referenced without importing `VoxelEngine.Rendering.Runtime.SurfaceExtraction`; the same compiler error prevented the real-player build.
+- This is a product/test-source failure, not runner infrastructure. Feature commit `7015d7f2b16434a6d1115665553b1c03473e431f` adds the missing namespace import without changing production behavior or test thresholds.
+
 ## Final request
-Pending the stale live-Storage admission-generation fix. Reuse only `ci-test/fixes/agent-2`, parent the request commit directly on the next final feature SHA, and do not modify `.github/test-request.json` on `fixes/agent-2`.
+Pending one fresh exact-head request after the compile fix and this CI record. Reuse only `ci-test/fixes/agent-2`, parent the request commit directly on the final feature SHA, and do not modify `.github/test-request.json` on `fixes/agent-2`.
