@@ -13,11 +13,12 @@
 - [x] Add/update focused behavioral regression(s) through the production WorldBuilder path for mountain/path, grounded summit dragon, normal proximity-triggered dialogue, shared presentation routing, and evidence-route drift.
 - [x] Add only the smallest reusable evidence/navigation support needed for exact built-player normal-movement traversal and durable captures; no teleport/debug-trigger shortcut.
 - [x] Check blast radius across WorldBuilder/terrain/story/cutscene consumers and quantify one-time world-build/bake cost plus steady-state trigger/presentation cost against existing budgets.
+- [x] Record the final-CI request contract discovered from run `33235920288`: SceneIssue `replay_seconds` must be 20-60; the 110-second request failed during request resolution before Unity or product tests started.
 - [ ] Validate the checked-in startup bake contains the accepted mountain.
 - [ ] Run exact-SHA built-application VoxelShowcase validation with no startup/runtime exceptions.
 - [ ] Traverse the complete route through normal player movement without jumps/teleportation/impassable intersections.
 - [ ] Save durable built-application visual captures for approach landmark, path base, representative switchbacks, supported summit dragon, and proximity-triggered `Hello, I'm Mr. Dragon.` dialogue.
 - [ ] Human-review the rendered captures and confirm AAA visual/spatial acceptance before pending promotion.
-- [ ] Run final focused targeted CI on `ci-test/fixes/agent-4` only, against the exact feature SHA, and verify green `ci/single-test`.
+- [ ] Run final focused targeted CI on `ci-test/fixes/agent-4` only, against the exact feature SHA, with a supported 60-second SceneIssue replay, and verify green `ci/single-test`.
 - [ ] Complete pending metadata (`status`, `resolutionSummary`, `regressionTest`, `fixCommit`) and move only this assignment from `open/` to `pending/`.
 - [ ] After all exact-SHA gates are green, set `status=fixed` and `resolvedUtc`, move only this assignment from `pending/` to `closed/`, merge current `origin/master`, and non-force push the exact feature head to `origin/master`.
