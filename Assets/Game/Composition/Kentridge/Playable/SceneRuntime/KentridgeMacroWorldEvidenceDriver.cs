@@ -30,10 +30,10 @@ namespace Game.Kentridge.PlayableSlice
         private const float RoadWalkSeconds = 0.85f;
         private const float TargetMinimumDwellSeconds = 0.35f;
         private const float TargetPostCaptureSeconds = 0.10f;
+        private const int StableCoverageFrames = 4;
         private const float DmToMetres = 0.1f;
         private const uint Seed = 0x4B454E54u;
-        private const int SettlementSurveyOffsetDm = 500;
-        private const float SettlementSurveyHeightMetres = 36f;
+        private const float SettlementSurveyHeightMetres = 22f;
 
         private static readonly FieldInfo s_MotorField = typeof(KentridgePlayableSlice).GetField(
             "_motor",
@@ -55,6 +55,9 @@ namespace Game.Kentridge.PlayableSlice
         private bool _roadWalkStarted;
         private Vector3 _roadWalkStartedAt;
         private bool _roadWalkRecorded;
+        private bool _roadCaptured;
+        private float _roadCaptureStartedAt;
+        private int _stableCoverageFrames;
         private int _targetIndex = -1;
         private float _targetStartedAt;
         private bool _targetCaptured;
@@ -165,11 +168,27 @@ namespace Game.Kentridge.PlayableSlice
             if (!_roadWalkRecorded)
             {
                 _roadWalkRecorded = true;
+                _roadCaptureStartedAt = Time.realtimeSinceStartup;
+                _stableCoverageFrames = 0;
                 Vector3 delta = _motor.Position - _roadWalkStartedAt;
                 delta.y = 0f;
                 Debug.Log($"MACROEVIDENCE traversal=CharacterMotor-macro-road metres={delta.magnitude:0.00} " +
                           $"from={Format(_roadWalkStartedAt)} to={Format(_motor.Position)}");
-                CaptureNamed("macro-road-character-motor");
+            }
+
+            if (!_roadCaptured)
+            {
+                HoldRoadHeading();
+                _slice.transform.position = _motor.EyePosition;
+                if (Time.realtimeSinceStartup - _roadCaptureStartedAt >= TargetMinimumDwellSeconds
+                    && HasStablePublishedCoverage())
+                {
+                    _roadCaptured = true;
+                    Debug.Log(
+                        $"MACROEVIDENCE capture-ready target=macro-road-character-motor coverage=True stableFrames={_stableCoverageFrames}");
+                    CaptureNamed("macro-road-character-motor");
+                }
+                return;
             }
 
             if (_targets == null || _targets.Length == 0) return;
@@ -182,11 +201,12 @@ namespace Game.Kentridge.PlayableSlice
             float targetElapsed = now - _targetStartedAt;
             if (!_targetCaptured
                 && targetElapsed >= TargetMinimumDwellSeconds
-                && RenderingComposition.HasCompletePublishedNearSurfaceCoverage())
+                && HasStablePublishedCoverage())
             {
                 _targetCaptured = true;
                 _targetCapturedAt = now;
-                Debug.Log("MACROEVIDENCE capture-ready target=" + target.Label + " coverage=True");
+                Debug.Log(
+                    $"MACROEVIDENCE capture-ready target={target.Label} coverage=True stableFrames={_stableCoverageFrames}");
                 CaptureTarget(target);
             }
 
@@ -203,6 +223,18 @@ namespace Game.Kentridge.PlayableSlice
             ApplyCamera(_targets[_targetIndex]);
         }
 
+        private bool HasStablePublishedCoverage()
+        {
+            if (!RenderingComposition.HasCompletePublishedNearSurfaceCoverage())
+            {
+                _stableCoverageFrames = 0;
+                return false;
+            }
+
+            _stableCoverageFrames++;
+            return _stableCoverageFrames >= StableCoverageFrames;
+        }
+
         private void RestoreTimeScale()
         {
             if (!_timeScaleBoosted) return;
@@ -217,6 +249,7 @@ namespace Game.Kentridge.PlayableSlice
             _targetStartedAt = Time.realtimeSinceStartup;
             _targetCaptured = false;
             _targetCapturedAt = 0f;
+            _stableCoverageFrames = 0;
             EvidenceTarget target = _targets[index];
             Debug.Log(
                 "MACROEVIDENCE target=" + target.Label +
@@ -259,12 +292,20 @@ namespace Game.Kentridge.PlayableSlice
                 physical,
                 MountingForceTopDownWorldDefinition.MoordellCorridor,
                 MountingForceTopDownWorldDefinition.RossdamApproach);
-            Int2 lakeRoutePoint = rossdamRoute.Tiles[rossdamRoute.Tiles.Count / 2];
+            Int2 lakeRoutePoint = ClosestRoutePoint(rossdamRoute, lake.CentreDm);
+            Vector2 lakeOutward = new Vector2(
+                lakeRoutePoint.X - lake.CentreDm.X,
+                lakeRoutePoint.Y - lake.CentreDm.Y);
+            if (lakeOutward.sqrMagnitude < 1f) lakeOutward = Vector2.right;
+            lakeOutward.Normalize();
+            var lakeCamera = new Int2(
+                lakeRoutePoint.X + Mathf.RoundToInt(lakeOutward.x * 140f),
+                lakeRoutePoint.Y + Mathf.RoundToInt(lakeOutward.y * 140f));
             targets.Add(new EvidenceTarget(
                 "rossdam-lake-detour",
-                lakeRoutePoint,
+                lakeCamera,
                 lake.CentreDm,
-                cameraHeightMetres: 72f,
+                cameraHeightMetres: 24f,
                 elevated: true));
 
             targets.Add(SettlementSurvey(physical, MountingForceTopDownWorldDefinition.FairyVillage));
@@ -284,19 +325,31 @@ namespace Game.Kentridge.PlayableSlice
                 ridgeRoad = loganRoute.Tiles[i];
                 break;
             }
-            var ridgeCamera = new Int2(ridgeRoad.X - 320, ridgeRoad.Y - 300);
+            var ridgeCamera = new Int2(ridgeRoad.X - 190, ridgeRoad.Y - 170);
             targets.Add(new EvidenceTarget(
                 "southern-ridge-pass",
                 ridgeCamera,
                 ridgeRoad,
-                cameraHeightMetres: 55f,
+                cameraHeightMetres: 32f,
                 elevated: true));
 
+            TopDownWorldPhysicalRoutePlan orcRoute = FindRoute(
+                physical,
+                MountingForceTopDownWorldDefinition.SouthFightingArea,
+                MountingForceTopDownWorldDefinition.OrcVillage);
+            Int2 networkFocus = loganRoute.Tiles[0];
+            if (orcRoute.Tiles.Count > 0)
+            {
+                networkFocus = new Int2(
+                    (networkFocus.X + orcRoute.Tiles[0].X) / 2,
+                    (networkFocus.Y + orcRoute.Tiles[0].Y) / 2);
+            }
+            var networkCamera = new Int2(networkFocus.X - 220, networkFocus.Y - 190);
             targets.Add(new EvidenceTarget(
                 "macro-network-overview",
-                ridgeCamera,
-                new Int2(KentridgeDefinition.TownCentreDm.X, KentridgeDefinition.TownCentreDm.Y + 250),
-                cameraHeightMetres: 105f,
+                networkCamera,
+                networkFocus,
+                cameraHeightMetres: 40f,
                 elevated: true));
             _targets = targets.ToArray();
         }
@@ -311,33 +364,42 @@ namespace Game.Kentridge.PlayableSlice
                 throw new InvalidOperationException(
                     "Macro evidence settlement '" + nodeId + "' does not expose the expected four blockout plots.");
 
-            TopDownWorldBuildingBlockoutPlan focusBuilding = settlement.Buildings[0];
+            TopDownWorldBuildingBlockoutPlan first = settlement.Buildings[0];
+            int minX = first.CentreDm.X - first.HalfExtentXDm;
+            int maxX = first.CentreDm.X + first.HalfExtentXDm;
+            int minZ = first.CentreDm.Y - first.HalfExtentZDm;
+            int maxZ = first.CentreDm.Y + first.HalfExtentZDm;
             for (var i = 1; i < settlement.Buildings.Count; i++)
             {
-                if (settlement.Buildings[i].HeightDm <= focusBuilding.HeightDm) continue;
-                focusBuilding = settlement.Buildings[i];
+                TopDownWorldBuildingBlockoutPlan building = settlement.Buildings[i];
+                minX = Math.Min(minX, building.CentreDm.X - building.HalfExtentXDm);
+                maxX = Math.Max(maxX, building.CentreDm.X + building.HalfExtentXDm);
+                minZ = Math.Min(minZ, building.CentreDm.Y - building.HalfExtentZDm);
+                maxZ = Math.Max(maxZ, building.CentreDm.Y + building.HalfExtentZDm);
             }
-            Int2 focusDm = focusBuilding.CentreDm;
 
+            var focusDm = new Int2((minX + maxX) / 2, (minZ + maxZ) / 2);
+            int halfSpanDm = Math.Max((maxX - minX) / 2, (maxZ - minZ) / 2);
+            int surveyOffsetDm = Math.Max(280, Math.Min(360, halfSpanDm + 70));
             var offsets = new[]
             {
-                new Int2(-SettlementSurveyOffsetDm, -SettlementSurveyOffsetDm),
-                new Int2(SettlementSurveyOffsetDm, -SettlementSurveyOffsetDm),
-                new Int2(-SettlementSurveyOffsetDm, SettlementSurveyOffsetDm),
-                new Int2(SettlementSurveyOffsetDm, SettlementSurveyOffsetDm)
+                new Int2(-surveyOffsetDm, -surveyOffsetDm),
+                new Int2(surveyOffsetDm, -surveyOffsetDm),
+                new Int2(-surveyOffsetDm, surveyOffsetDm),
+                new Int2(surveyOffsetDm, surveyOffsetDm)
             };
 
             int focusGround = TerrainSampler.HeightAt(focusDm.X, focusDm.Y, Seed);
             Int2 bestCamera = new Int2(
-                settlement.CentreDm.X + offsets[0].X,
-                settlement.CentreDm.Y + offsets[0].Y);
+                focusDm.X + offsets[0].X,
+                focusDm.Y + offsets[0].Y);
             int bestCameraGround = TerrainSampler.HeightAt(bestCamera.X, bestCamera.Y, Seed);
             int bestAdvantage = bestCameraGround - focusGround;
             for (var i = 1; i < offsets.Length; i++)
             {
                 var candidate = new Int2(
-                    settlement.CentreDm.X + offsets[i].X,
-                    settlement.CentreDm.Y + offsets[i].Y);
+                    focusDm.X + offsets[i].X,
+                    focusDm.Y + offsets[i].Y);
                 int candidateGround = TerrainSampler.HeightAt(candidate.X, candidate.Y, Seed);
                 int advantage = candidateGround - focusGround;
                 if (advantage <= bestAdvantage) continue;
@@ -352,6 +414,22 @@ namespace Game.Kentridge.PlayableSlice
                 focusDm,
                 cameraHeightMetres: SettlementSurveyHeightMetres,
                 elevated: true);
+        }
+
+        private static Int2 ClosestRoutePoint(TopDownWorldPhysicalRoutePlan route, Int2 point)
+        {
+            Int2 closest = route.Tiles[0];
+            long bestDistanceSquared = long.MaxValue;
+            for (var i = 0; i < route.Tiles.Count; i++)
+            {
+                long dx = route.Tiles[i].X - point.X;
+                long dz = route.Tiles[i].Y - point.Y;
+                long distanceSquared = dx * dx + dz * dz;
+                if (distanceSquared >= bestDistanceSquared) continue;
+                closest = route.Tiles[i];
+                bestDistanceSquared = distanceSquared;
+            }
+            return closest;
         }
 
         private void PinToRoadStart()
