@@ -4,6 +4,24 @@ using System.Collections.Generic;
 namespace MountingForce.WorldGen
 {
     /// <summary>
+    /// Semantic surface/clearance classes that an authored ecology area may reject before
+    /// vegetation placement. The policy owns the decision; a runtime realizer only maps concrete
+    /// world evidence (road distance, built-content columns, wet theme, slope, etc.) to a class.
+    /// </summary>
+    [Flags]
+    public enum RegionEcologyExclusion : byte
+    {
+        None = 0,
+        Route = 1 << 0,
+        BuiltContent = 1 << 1,
+        Water = 1 << 2,
+        Cultivated = 1 << 3,
+        SteepOrCliff = 1 << 4,
+        OtherInvalid = 1 << 5,
+        All = Route | BuiltContent | Water | Cultivated | SteepOrCliff | OtherInvalid,
+    }
+
+    /// <summary>
     /// Engine-neutral authoring policy for the living content allowed in a world region.
     /// Rendering/runtime composition translates the stable kind ids into the engine-specific
     /// vegetation, tree, and ambient-life enums it owns.
@@ -22,7 +40,8 @@ namespace MountingForce.WorldGen
             float vegetationSampleSpacingMetres,
             float maxVegetationSlopeDegrees,
             float routeClearanceMetres,
-            uint deterministicSeedSalt = 0u)
+            uint deterministicSeedSalt = 0u,
+            RegionEcologyExclusion exclusions = RegionEcologyExclusion.All)
         {
             _vegetationKinds = CopyKinds(vegetationKinds);
             _treeKinds = CopyKinds(treeKinds);
@@ -32,6 +51,7 @@ namespace MountingForce.WorldGen
             MaxVegetationSlopeDegrees = Math.Max(0f, Math.Min(89f, maxVegetationSlopeDegrees));
             RouteClearanceMetres = Math.Max(0f, routeClearanceMetres);
             DeterministicSeedSalt = deterministicSeedSalt;
+            Exclusions = exclusions;
         }
 
         public IReadOnlyList<string> VegetationKinds => _vegetationKinds;
@@ -42,10 +62,13 @@ namespace MountingForce.WorldGen
         public float MaxVegetationSlopeDegrees { get; }
         public float RouteClearanceMetres { get; }
         public uint DeterministicSeedSalt { get; }
+        public RegionEcologyExclusion Exclusions { get; }
 
         public bool AllowsVegetation(string kind) => Contains(_vegetationKinds, kind);
         public bool AllowsTree(string kind) => Contains(_treeKinds, kind);
         public bool AllowsAmbientAnimal(string kind) => Contains(_ambientAnimalKinds, kind);
+        public bool Excludes(RegionEcologyExclusion exclusion) =>
+            exclusion != RegionEcologyExclusion.None && (Exclusions & exclusion) == exclusion;
 
         /// <summary>
         /// Derives the stable random stream for this authored ecology area. A zero salt preserves
@@ -124,9 +147,9 @@ namespace MountingForce.WorldGen
     }
 
     /// <summary>
-    /// Pure connectivity accounting shared by region realizers and regressions. The returned count
-    /// is the number of occupied cells in the eligible 4-neighbour component that contains the most
-    /// occupied cells.
+    /// Pure connectivity accounting shared by region realizers and regressions. Components are
+    /// defined by eligible 4-neighbour cells; occupancy or presentation weight is then accumulated
+    /// only inside that physical component.
     /// </summary>
     public static class RegionEcologyConnectivity
     {
@@ -146,8 +169,30 @@ namespace MountingForce.WorldGen
                 || eligibleCells.Count == 0 || occupiedCells.Count == 0)
                 return 0;
 
-            var remaining = new HashSet<RegionEcologyGridCell>(eligibleCells);
             var occupied = new HashSet<RegionEcologyGridCell>(occupiedCells);
+            return LargestConnectedWeight(
+                eligibleCells,
+                cell => occupied.Contains(cell) ? 1 : 0);
+        }
+
+        public static int LargestConnectedOccupiedWeight(
+            IReadOnlyCollection<RegionEcologyGridCell> eligibleCells,
+            IReadOnlyDictionary<RegionEcologyGridCell, int> occupiedWeights)
+        {
+            if (eligibleCells == null || occupiedWeights == null
+                || eligibleCells.Count == 0 || occupiedWeights.Count == 0)
+                return 0;
+
+            return LargestConnectedWeight(
+                eligibleCells,
+                cell => occupiedWeights.TryGetValue(cell, out int weight) ? Math.Max(0, weight) : 0);
+        }
+
+        private static int LargestConnectedWeight(
+            IReadOnlyCollection<RegionEcologyGridCell> eligibleCells,
+            Func<RegionEcologyGridCell, int> weightForCell)
+        {
+            var remaining = new HashSet<RegionEcologyGridCell>(eligibleCells);
             var queue = new Queue<RegionEcologyGridCell>();
             int largest = 0;
 
@@ -162,12 +207,12 @@ namespace MountingForce.WorldGen
 
                 remaining.Remove(start);
                 queue.Enqueue(start);
-                int componentOccupied = 0;
+                int componentWeight = 0;
 
                 while (queue.Count > 0)
                 {
                     RegionEcologyGridCell cell = queue.Dequeue();
-                    if (occupied.Contains(cell)) componentOccupied++;
+                    componentWeight += weightForCell(cell);
 
                     for (int i = 0; i < Neighbours.Length; i++)
                     {
@@ -178,7 +223,7 @@ namespace MountingForce.WorldGen
                     }
                 }
 
-                if (componentOccupied > largest) largest = componentOccupied;
+                if (componentWeight > largest) largest = componentWeight;
             }
 
             return largest;
