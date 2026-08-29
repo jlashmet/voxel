@@ -24,11 +24,12 @@ namespace VoxelEngine.Showcase
             if (styleId == WorldBuilderTownArchitectureIds.Rossdam)
             {
                 int2 landmark = WorldbuildingGalleryTownLandmarkOriginXZ(district);
-                // Gatehouse south face is z=-11 from the landmark. Player framing angles around
-                // the commerce building; close framing inspects the left tower arrow-slit face.
+                // The gatehouse south face is z=-11 from the landmark. The player view targets the
+                // gate centre while approaching around the west side of the commerce footprint. The
+                // close view targets the left tower arrow-slit reveal without entering its buttress.
                 return view == 1
                     ? landmark + new int2(0, -11)
-                    : landmark + new int2(-20, -11);
+                    : landmark + new int2(-21, -11);
             }
 
             int2 residence = WorldbuildingGalleryTownResidenceOriginXZ(district);
@@ -57,9 +58,12 @@ namespace VoxelEngine.Showcase
             if (styleId == WorldBuilderTownArchitectureIds.Rossdam)
             {
                 int2 landmark = WorldbuildingGalleryTownLandmarkOriginXZ(district);
+                // Commerce occupies roughly x[-24,+24], z[-64,-28] from the landmark including its
+                // foundation. These positions keep the complete camera ray west/south of that volume
+                // until it has cleared the north edge, then converge on the gate / slit at 2-5 m.
                 return view == 1
-                    ? landmark + new int2(-30, -48)
-                    : landmark + new int2(-20, -26);
+                    ? landmark + new int2(-42, -37)
+                    : landmark + new int2(-37, -23);
             }
 
             if (styleId == WorldBuilderTownArchitectureIds.FairyVillage)
@@ -91,7 +95,7 @@ namespace VoxelEngine.Showcase
 
             string styleId = s_GalleryTownStyleIds[district];
             if (styleId == WorldBuilderTownArchitectureIds.Rossdam)
-                return view == 1 ? 16 : 14;
+                return view == 1 ? 24 : 19;
             if (styleId == WorldBuilderTownArchitectureIds.FairyVillage)
                 return view == 1 ? 36 : 35;
             return view == 1 ? 13 : 10;
