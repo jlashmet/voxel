@@ -13,7 +13,9 @@
 - [ ] Implement/reuse continuous primary+secondary terrain coverage for natural Dirt↔local-terrain shoulders while preserving exposed-top/slope material correctness.
 - [ ] Keep semantic/resolved roads available to navigation/map/travel/NPC/encounter consumers.
 - [ ] Migrate equivalent Kentridge road generation to the shared primitive; do not duplicate the macro-world physical-realization ticket’s road graph/solver.
+- [ ] Migrate modern Kentridge `SettlementPlan.Routes` (the production planner emits zero legacy `Streets`) while retaining a compatibility adapter for authored legacy streets.
 - [ ] Convert diagonal `PlannedRoute` legs into deterministic shared voxel-road geometry without restoring Kentridge-only axis assumptions.
+- [ ] Replace vegetation's legacy `BlockedByStreet`-only exclusion with the shared road influence so both `Routes` and compatibility `Streets` suppress/recover vegetation from the exact physical corridor.
 - [ ] Keep regional ecology policy authoritative; apply road influence only as a local suppression/recovery modifier using existing route exclusion ownership.
 - [ ] Preserve deterministic chunk/LOD/streaming behavior and avoid per-segment GameObject/primitive explosion.
 
