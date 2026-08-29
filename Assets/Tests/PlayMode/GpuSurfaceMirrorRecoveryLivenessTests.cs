@@ -16,9 +16,9 @@ namespace VoxelEngine.Tests.PlayMode
     ///
     /// The full showcase traversal proved that a few GPU chunks can complete before all workers
     /// become permanently pending. This smaller harness watches the shared-mirror state directly:
-    /// demanded recovery must drain even while covered work is active, and a nonresident region
-    /// touched only by the exact snapshot's optional sampling halo must remain canonical empty rather
-    /// than becoming an unrecoverable GPU admission dependency.
+    /// demanded recovery must advance while older covered GPU work is still in flight, and a
+    /// nonresident region touched only by the exact snapshot's optional sampling halo must remain
+    /// canonical empty rather than becoming an unrecoverable GPU admission dependency.
     /// </summary>
     public sealed class GpuSurfaceMirrorRecoveryLivenessTests
     {
@@ -76,12 +76,15 @@ namespace VoxelEngine.Tests.PlayMode
                 Vector3 origin = showcase.transform.position;
                 Vector3 position = origin;
                 ulong baselineGpuCompleted = metrics.GpuCompletedSolidBuilds;
+                ulong baselineConcurrentRecovery =
+                    GpuSurfaceMirrorCoordinator.ConcurrentDemandRecoverySlices;
                 ulong lastGpuCompleted = baselineGpuCompleted;
                 int lastReadyBlocks = GpuSurfaceMirrorCoordinator.ReadyBlockCount;
                 int stalledBacklogActiveFrames = 0;
                 int maxStalledBacklogActiveFrames = 0;
                 bool sawRecoveryBacklog = false;
                 bool sawBacklogOverlapActiveExtraction = false;
+                bool sawConcurrentDemandRecovery = false;
 
                 for (int frame = 0; frame < ObservationFrames; frame++)
                 {
@@ -104,6 +107,9 @@ namespace VoxelEngine.Tests.PlayMode
 
                     sawRecoveryBacklog |= recoveryBacklog;
                     sawBacklogOverlapActiveExtraction |= recoveryBacklog && activeExtractions > 0;
+                    sawConcurrentDemandRecovery |=
+                        GpuSurfaceMirrorCoordinator.ConcurrentDemandRecoverySlices
+                        > baselineConcurrentRecovery;
 
                     if (recoveryBacklog && activeExtractions > 0 && !progress)
                         stalledBacklogActiveFrames++;
@@ -128,6 +134,7 @@ namespace VoxelEngine.Tests.PlayMode
 
                     if (position.x - origin.x >= TravelMetres
                         && sawRecoveryBacklog
+                        && sawConcurrentDemandRecovery
                         && gpuCompleted >= baselineGpuCompleted + 4
                         && metrics.VisibleSolidChunks > 0
                         && GpuSurfaceMirrorCoordinator.OptionalNonResidentHaloBlocksAccepted > 0)
@@ -136,6 +143,14 @@ namespace VoxelEngine.Tests.PlayMode
 
                 Assert.True(sawRecoveryBacklog,
                     "Focused traversal never exercised shared-mirror demand recovery.");
+                Assert.True(sawBacklogOverlapActiveExtraction,
+                    "Focused traversal never overlapped new mirror demand with an older GPU "
+                  + "extraction, so it did not cover the readback head-of-line condition.");
+                Assert.Greater(
+                    GpuSurfaceMirrorCoordinator.ConcurrentDemandRecoverySlices,
+                    baselineConcurrentRecovery,
+                    "New demanded mirror blocks never advanced while older GPU extractions were "
+                  + "still active; demand remains globally serialized behind async readbacks.");
                 Assert.Greater(GpuSurfaceMirrorCoordinator.OptionalNonResidentHaloBlocksAccepted, 0ul,
                     "Focused traversal never exercised a nonresident optional snapshot halo; the "
                   + "regression did not cover the admission state that previously stayed pending.");
@@ -145,6 +160,8 @@ namespace VoxelEngine.Tests.PlayMode
                   + $"activeExtractions={GpuSurfaceMirrorCoordinator.ActiveExtractions}, "
                   + $"recoveryPending={!GpuSurfaceMirrorCoordinator.RecoveryComplete}, "
                   + $"readyBlocks={GpuSurfaceMirrorCoordinator.ReadyBlockCount}, "
+                  + $"concurrentRecoverySlices="
+                  + $"{GpuSurfaceMirrorCoordinator.ConcurrentDemandRecoverySlices - baselineConcurrentRecovery}, "
                   + $"optionalHaloAccepted="
                   + $"{GpuSurfaceMirrorCoordinator.OptionalNonResidentHaloBlocksAccepted}, "
                   + $"overlappedActiveExtraction={sawBacklogOverlapActiveExtraction}, "

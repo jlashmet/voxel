@@ -64,6 +64,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private static int s_LastExtractionDispatchFrame = -1;
         private static uint s_CoverageEpoch;
         private static ulong s_OptionalNonResidentHaloBlocksAccepted;
+        private static ulong s_ConcurrentDemandRecoverySlices;
 
         private readonly struct ActiveFootprint : IEquatable<ActiveFootprint>
         {
@@ -245,6 +246,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         internal static bool RecoveryComplete => s_PendingBlocks.Count == 0;
         internal static ulong OptionalNonResidentHaloBlocksAccepted =>
             s_OptionalNonResidentHaloBlocksAccepted;
+        internal static ulong ConcurrentDemandRecoverySlices => s_ConcurrentDemandRecoverySlices;
 
         private static void AttachWorld(IRegionReadSource storage, IVoxelChangeSource changes)
         {
@@ -350,7 +352,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             }
         }
 
-        private static void QueueRecoveryBlock(int3 block)
+        private static void QueueRecoveryBlock(int3 block, bool requiresExclusiveAccess = false)
         {
             if (!IsBlockDemanded(block)) return;
             if (!s_PendingBlocks.Add(block)) return;
