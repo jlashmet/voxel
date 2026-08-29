@@ -3,14 +3,14 @@
 ## Evidence / marked region
 - The saved capture has one red circle over the top-left FPS/telemetry region (center `0.0281,0.0259`, radius `0.0369`) at the player-driven captured pose; report: `when moving around i get 3 fps`. Repro/acceptance therefore uses sustained production movement, not a stationary/editor-only proxy.
 - Failed exact-SHA product CI on `2af9088aca0b04b9b8cbf051546daaa3576b734a` measured moving p95 `91.445 ms` vs the unchanged `<18 ms` gate. Worker/admission spikes correlated (`46.408 -> 46.409 ms`, `98.201 -> 98.203 ms`), while GPU arena geometry upload was only ~`0.345 ms`; water separately spiked ~`48.707 ms`.
-- Targeted CI for `85c3b6a3c0d2f1ecc7a977efde0c33c7af82caa0` and `0b881e5f3228164dd4c4fd4f29d93f21debc374a` both used Apple M4 Max Metal and allocated production GPU backends, yet the 210 m traversal recorded `0` GPU completions while streaming grew roughly `199 -> 236` regions. The second built-player replay passed; after startup, one-second windows were typically ~129–350 FPS with p95 ~3.8–11.5 ms.
+- Targeted CI on `85c3b6a3c0d2f1ecc7a977efde0c33c7af82caa0` and `0b881e5f3228164dd4c4fd4f29d93f21debc374a` used Apple M4 Max Metal with production GPU backends, yet the 210 m traversal recorded `0` GPU completions while streaming grew roughly `199 -> 236` regions; built-player replay passed. Diagnostic `6344d47a77b1e002b01795d456b8448b41f349d8` added per-region generation validation but retained global recovery admission and also recorded `0` GPU completions, isolating recovery admission as the remaining blocker.
 
 ## Competing hypotheses / conclusion
-- Watchdog/Metal/harness-only failure: rejected; both failures ran on Metal with resident GPU backends and successful built-player replay.
+- Watchdog/Metal/harness-only failure: rejected; failures ran on Metal with resident GPU backends and successful built-player replay.
 - Geometry upload/readback: rejected as the remaining admission blocker; geometry remains GPU-resident and measured arena upload is sub-ms after batched mirror work.
 - Water: historically contributing but insufficient; it cannot explain zero solid GPU completions.
 - Recovery scheduling alone: rejected as sufficient. Advancing the bounded 128-record journal slice and 2048-block recovery slice in the same frame did not change the zero-completion result.
-- Global admission barriers: supported by code plus runtime streaming. A chunk was rejected when its snapshot differed from global Storage generation and, even after per-region generation validation, GPU admission still required `RecoveryComplete` for every resident region. Unrelated streamed-region changes/recovery can therefore suppress locally unchanged, fully mirrored chunks indefinitely.
+- Global admission barriers: supported by code plus runtime streaming. Per-region generation validation alone still failed because GPU admission required `RecoveryComplete` for every resident region. Unrelated streamed-region recovery can therefore suppress locally unchanged, fully mirrored chunks indefinitely.
 
 ## Fix
 - Keep the world-scoped persistent GPU brick mirror and compact directory, bounded journal/recovery progress, and stale no-payload protection.
