@@ -1,18 +1,21 @@
 # Plan — VoxelShowcase missing water
 
 ## Observed / acceptance
-Capture `20260828-172924-078` contains one 1440×801 `VoxelShowcase` frame at camera `(59.45,20.35,-1.55)` with five marked regions spanning one broad teal/green shelf; the note says the whole grass patch should be water. Acceptance: the built player exposes the authored receiving-water geometry at all five marked sightlines, preserves the cascade and dry outer shore, and never lets a startup proxy share the critical water footprint.
+Capture `20260828-172924-078` has one `VoxelShowcase` frame at camera `(59.45,20.35,-1.55)` with five marked regions over one broad green startup shelf that should read as authored water. Acceptance: all five marks share the correct water semantics during startup, the temporary fallback relinquishes ownership after authoritative publication, and the focused built-player proof visibly renders the production fallback without requiring the full showcase world.
 
 ## Competing hypotheses / evidence
-1. **Authored storage geometry:** Experiment 001 repaired the receiving bank, but exact-player replay still showed the marked polygon: necessary, not sufficient.
-2. **Far semantic presentation:** Experiment 002 retained lowered-water material metadata through far capture/rendering. The polygon still appeared transiently: necessary, not sufficient.
-3. **Startup fallback ownership:** Experiments 005–009 show all five circles were covered together by one flat diagonal emergency fallback during startup; it disappeared after authoritative ring handoff. Camera relocation before that handoff could leave the fallback centered on the old camera, moving a 4 km corner through the current view.
+1. **Receiving-bank content:** the bounded castle repair converts the five marked offsets to water while preserving the cascade and dry outer shore, but built-player evidence showed the polygon could still appear transiently.
+2. **Far-field metadata:** recapture now retains authored lowered height/material; still insufficient by itself.
+3. **Startup fallback semantics/ownership:** runtime replay showed all five marks were covered together by the same emergency fallback and disappeared together after handoff. The production fix now samples authored lowered height/material for that fallback and preserves critical-ring exclusions/recentering.
 
 ## Selected fix / regression
-`VoxelFarTerrain` recenters the emergency startup fallback when the camera moves while preserving exclusion for both published ownership and the current critical-ring footprint. `StartupFallbackRecentersAfterCameraRelocationBeforeRingPublication` deterministically relocates the camera before another ring publishes and asserts the proxy follows without covering either critical footprint while retaining unresolved horizon coverage.
+`VoxelFarTerrain` builds a bounded semantic startup fallback from the same terrain/material ownership inputs as authoritative far terrain. `StartupFallbackPreservesAuthoredWaterHeightAndMaterial` seeds a known authored-water coarse region and asserts production fallback vertices use the lowered water height and water albedo.
+
+## Focused visual validation
+Per user direction, final visual CI uses `Assets/Scenes/WaterStartupFallbackValidation.unity` instead of booting `VoxelShowcase`. Its validation-only bootstrap seeds the exact regression water region, allows production `VoxelFarTerrain` to build its first startup meshes, then freezes copies of those production-generated meshes so the 10 s player screenshots can inspect the transient water fallback deterministically. `tools/showcase-player-capture.sh` maps only the exact regression filter to this scene.
 
 ## Blast radius / cost
-Scope is limited to castle receiving-bank compatibility repair, far-field lowered material metadata, and startup fallback ownership. Analytic terrain, moat policy, near publication, destruction, water gameplay, and steady-state clipmap behavior are unchanged. Added steady work is one camera-delta check per `LateUpdate` only while the emergency fallback exists; qualifying moves rebuild an 8-vertex/8-triangle startup-only proxy. Far lowered metadata remains +256 material bytes per affected region.
+Production behavior is unchanged by the validation scene. The new bootstrap runs only when that dedicated scene is loaded; normal scenes never instantiate it. Capture routing changes only one exact test filter. Runtime fix cost remains startup-only and bounded below 3,000 fallback vertices; authored far metadata adds 256 material bytes per affected region.
 
-## Current state / remaining gate
-`fixes/agent-7` was rebuilt as a clean ticket-only commit on current `master` `bc0593070e10497da89d651e1ab3c61772335f95`; no unrelated capture or CI-request file remains in the feature diff. Prior run `33268258959` executed the relocation regression successfully and completed the 60 s `VoxelShowcase` player build/replay, but the workflow result was cancelled, so it is diagnostic only. Keep the issue `open`. Next: issue one fresh exact-SHA request on `ci-test/fixes/agent-7` for the relocation regression plus this issue’s 60 s replay. Promote only after green exact-SHA focused CI, green built-player validation, and successful replay of all five marked regions.
+## Remaining gate
+Run one exact-SHA PlayMode CI request for `StartupFallbackPreservesAuthoredWaterHeightAndMaterial`, with no SceneIssue replay and a 20 s focused-scene player capture. Inspect both screenshots for visible authored water and require green exact request status before any pending/closed metadata or master push.
