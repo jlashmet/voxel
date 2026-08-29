@@ -51,6 +51,12 @@ namespace Game.WorldBuilder.Api
         internal QuestActiveConditionSpec(QuestRef quest) => Quest = quest;
     }
 
+    public sealed class CutsceneCompletedConditionSpec : IStoryConditionSpec
+    {
+        public CutsceneRef Cutscene { get; }
+        internal CutsceneCompletedConditionSpec(CutsceneRef cutscene) => Cutscene = cutscene;
+    }
+
     public sealed class CutsceneNotCompletedConditionSpec : IStoryConditionSpec
     {
         public CutsceneRef Cutscene { get; }
@@ -90,6 +96,7 @@ namespace Game.WorldBuilder.Api
     {
         public static IStoryConditionSpec ObjectiveActive(ObjectiveRef objective) => new ObjectiveActiveConditionSpec(objective);
         public static IStoryConditionSpec QuestActive(QuestRef quest) => new QuestActiveConditionSpec(quest);
+        public static CutsceneCompletedConditionSpec CutsceneCompleted(CutsceneRef cutscene) => new CutsceneCompletedConditionSpec(cutscene);
         public static CutsceneNotCompletedConditionSpec CutsceneNotCompleted(CutsceneRef cutscene) => new CutsceneNotCompletedConditionSpec(cutscene);
     }
 
