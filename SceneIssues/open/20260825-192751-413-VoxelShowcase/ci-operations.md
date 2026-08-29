@@ -42,16 +42,17 @@
 - Request SHA: `5d78ad005c0873f6155b0171f124959c1d8d7454`.
 - Exact feature parent: `4722b74771ab2a265157d800bdf9500f7ffcb9fe`.
 - Run/job: `33275543571` / `99161482259`; artifact `9721533195`.
-- GitHub's workflow conclusion was `cancelled`, but the uploaded XML contains completed requested tests and therefore supplies product evidence. This is not treated as an infrastructure retry.
-- Focused recovery liveness passed.
-- Migration failed after 78.6 s because coverage did not settle within 20 s: `visible=43`, `missing=579`, `dirty=1927`, `jobs=12`, `uploads=0`, `gpu=154/0`.
-- `gpu=154/0` proves the empty-stage fix eliminated eligible CPU fallback; that narrow fix is retained.
-- The exact player exited normally after 45 s. All four screenshots were inspected: t15.4 nearly empty, t25.4/t35.4 substantially recovered, final still incomplete on the right/world extent.
-- Runtime starts around 245–264 FPS, then late solid admission / individual solid-worker `Prepare` repeatedly reaches ~190–195 ms and FPS falls to roughly 5–18. Arena `leaseFail=0`, unused capacity remains, and relief is negligible.
-- Source inspection identified an uninstrumented persistent-mirror transfer hotspot: mixed recovery may stage 64 arbitrarily fragmented LIFO-reused slots, while the old payload flush performs four synchronous `ComputeBuffer.SetData` calls per contiguous run. Experiment 009 replaces that fragmentation-dependent call count with one compact payload upload plus GPU scatter per 64-brick batch.
+- GitHub workflow conclusion was `cancelled`, but uploaded XML contains completed requested tests and therefore supplies product evidence; this is not treated as an infrastructure retry.
+- Recovery liveness passed. Migration failed after 78.6 s because coverage did not settle within 20 s: `visible=43`, `missing=579`, `dirty=1927`, `jobs=12`, `uploads=0`, `gpu=154/0`.
+- Exact player exited normally after 45 s. All four screenshots were inspected: t15.4 nearly empty, t25.4/t35.4 substantially recovered, final still incomplete. Runtime starts around 245–264 FPS, then late solid admission / individual worker `Prepare` repeatedly reaches ~190–195 ms and FPS falls to roughly 5–18. Arena `leaseFail=0`.
+- Source inspection isolated fragmented persistent-mirror payload uploads as the next discriminator; experiment 009 replaces fragmentation-dependent `SetData` calls with one compact payload upload plus GPU scatter per 64-brick batch.
 
-## Current final-validation candidate
-- Fragmented payload scatter source: `Assets/VoxelEngine/Rendering/Runtime/GpuVoxel/GpuVoxelBrickMirror.cs` and `Assets/VoxelEngine/Rendering/Resources/VoxelBrickDirectoryUpdater.compute`.
-- Experiment evidence: `experiment-009-fragmented-mirror-payload-flush.md`.
-- Feature synchronized with current `origin/master` (`922565bedd104c1795a9d13c610d4d185b65754e`) through merge `b38e8d68840372243219f17c89a1c0ccfa8398fe`; master changes touched only the separate reopened town-architecture assignment, so no agent-2 path conflict existed.
-- Next: update this metadata with the exact final feature head, then issue one targeted request on `ci-test/fixes/agent-2` parented directly on that head. Do not modify feature `.github/test-request.json` and do not replace the request while queued/running.
+## 2026-08-29 — final fragmented-payload request `0f7c958f…`
+- CI ref: `ci-test/fixes/agent-2`.
+- Request SHA: `0f7c958fab59ebf497bd3a80edd041970dd9cdd4`.
+- Exact feature parent: `33ae17d7f5df8a572ebd7edc9bee8e689adc3876`.
+- Run/job: `33277135240` / `99165718210`; artifact `9721973168`; official workflow conclusion `cancelled` with requested-test step `failure`.
+- Product/test-source red: uploaded XML shows both requested PlayMode tests failed on Metal shader compilation. `VoxelBrickDirectoryUpdater.compute(62)` reports `syntax error: unexpected token 'linear'` in `CSApplyPayloadDeltas`/shader compilation. Liveness duration 45.325 s; migration duration 4.382 s.
+- The exact built-player harness still built/launched `VoxelShowcase` and completed 45.1 s with zero harness assertions, but this cannot satisfy the failed targeted gate. Player telemetry also still exhibits late admission spikes around 80–195 ms and roughly 6–17 FPS, so there is no positive performance verdict for the compaction.
+- Feature correction `18d72133342daa56ecfaa3c6d1f09e4a194cf205` renames only the reserved HLSL identifier `linear` to `linearIndex`.
+- Per assignment, no extra CI transport was created after the final request. Therefore the corrected head has no green exact-SHA targeted CI and the capture must remain under `open/`; pending/closed metadata and master promotion are prohibited.
