@@ -14,7 +14,10 @@ namespace VoxelEngine.Vegetation.Api
             in VegetationPlacementSettings settings,
             List<VegetationInstance> output)
         {
-            if (samples == null || output == null) return;
+            if (samples == null || output == null)
+            {
+                return;
+            }
 
             float density = math.saturate(settings.Density);
             for (int i = 0; i < samples.Count; i++)
@@ -22,15 +25,23 @@ namespace VoxelEngine.Vegetation.Api
                 VegetationSurfaceSample sample = samples[i];
                 float3 normal = math.normalizesafe(sample.Normal, new float3(0f, 1f, 0f));
                 uint seed = Hash(settings.WorldSeed, (uint)i, QuantizedHash(sample.PositionMetres));
+
                 VegetationKind selected = SelectKind(sample, normal, seed, settings, out float suitability);
-                if (suitability <= 0f) continue;
+                if (suitability <= 0f)
+                {
+                    continue;
+                }
 
                 float roll = Random01(seed ^ 0xA341316Cu);
-                if (roll > density * math.saturate(suitability)) continue;
+                if (roll > density * math.saturate(suitability))
+                {
+                    continue;
+                }
 
                 float scaleT = Random01(seed ^ 0xC8013EA4u);
                 float minScale = math.max(0.01f, settings.MinScale);
                 float maxScale = math.max(minScale, settings.MaxScale);
+
                 output.Add(new VegetationInstance
                 {
                     PositionMetres = sample.PositionMetres,
@@ -54,7 +65,11 @@ namespace VoxelEngine.Vegetation.Api
             for (int i = 0; i < VegetationCatalogue.Count; i++)
             {
                 VegetationKind kind = VegetationCatalogue.KindAt(i);
-                if (!settings.Allows(kind)) continue;
+                if (!settings.Allows(kind))
+                {
+                    continue;
+                }
+
                 VegetationProfile profile = VegetationCatalogue.Get(kind);
                 float score = Score(sample, normal, profile, settings);
                 total += score;
@@ -70,13 +85,15 @@ namespace VoxelEngine.Vegetation.Api
             float target = Random01(seed ^ 0x9E3779B9u) * total;
             float cumulative = 0f;
             VegetationKind fallback = VegetationKind.Grass;
-            bool hasFallback = false;
             for (int i = 0; i < VegetationCatalogue.Count; i++)
             {
                 VegetationKind kind = VegetationCatalogue.KindAt(i);
-                if (!settings.Allows(kind)) continue;
+                if (!settings.Allows(kind))
+                {
+                    continue;
+                }
+
                 fallback = kind;
-                hasFallback = true;
                 VegetationProfile profile = VegetationCatalogue.Get(kind);
                 cumulative += Score(sample, normal, profile, settings);
                 if (target <= cumulative)
@@ -86,7 +103,7 @@ namespace VoxelEngine.Vegetation.Api
                 }
             }
 
-            suitability = hasFallback ? strongest : 0f;
+            suitability = strongest;
             return fallback;
         }
 
@@ -97,15 +114,23 @@ namespace VoxelEngine.Vegetation.Api
             in VegetationPlacementSettings settings)
         {
             float surfaceWeight = VegetationCatalogue.SurfaceWeight(profile, sample.Surface);
-            if (surfaceWeight <= 0f) return 0f;
+            if (surfaceWeight <= 0f)
+            {
+                return 0f;
+            }
 
             float arcane = math.saturate(sample.ArcaneSaturation);
-            if (arcane < profile.MinArcaneSaturation) return 0f;
+            if (arcane < profile.MinArcaneSaturation)
+            {
+                return 0f;
+            }
 
             float upDot = math.clamp(normal.y, -1f, 1f);
             float slopeDegrees = math.degrees(math.acos(upDot));
             if (sample.Surface == VegetationSurface.Ground && slopeDegrees > settings.MaxGroundSlopeDegrees)
+            {
                 return 0f;
+            }
 
             float slope01 = math.saturate(slopeDegrees / 90f);
             float slopeFactor = math.lerp(1f, profile.SlopeTolerance, slope01);
@@ -115,6 +140,7 @@ namespace VoxelEngine.Vegetation.Api
                 + (moisture - 0.5f) * profile.MoistureAffinity * (1f + settings.MoistureBias)
                 + (shade - 0.5f) * profile.ShadeAffinity * (1f + settings.ShadeBias)
                 + arcane * profile.ArcaneAffinity * (1f + settings.ArcaneBias);
+
             environment *= GrowthFormFactor(profile.GrowthForm, sample.Surface, normal);
             return math.max(0f, surfaceWeight * slopeFactor * environment);
         }
@@ -126,20 +152,34 @@ namespace VoxelEngine.Vegetation.Api
         {
             float upFacing = math.max(0f, normal.y);
             float verticality = 1f - math.abs(normal.y);
+
             switch (form)
             {
                 case VegetationGrowthForm.Climber:
+                    // Climbing vegetation originates on walls, trunks, and cliff faces.
                     return math.smoothstep(0.35f, 0.90f, verticality);
+
                 case VegetationGrowthForm.Hanger:
+                    // Hanging growth can start on a vertical face or underside/overhang.
                     float underside = math.max(0f, -normal.y);
-                    return math.max(math.smoothstep(0.35f, 0.90f, verticality), math.smoothstep(0.15f, 0.75f, underside));
+                    return math.max(
+                        math.smoothstep(0.35f, 0.90f, verticality),
+                        math.smoothstep(0.15f, 0.75f, underside));
+
                 case VegetationGrowthForm.Aquatic:
                     return surface == VegetationSurface.Water ? 1f : 0.20f * upFacing;
+
                 case VegetationGrowthForm.Tuft:
                 case VegetationGrowthForm.Shrub:
                 case VegetationGrowthForm.Root:
                 case VegetationGrowthForm.Debris:
                     return math.smoothstep(0.25f, 0.75f, upFacing);
+
+                // Fronds include wall ferns/epiphytes, fungi can grow on trunks, and creepers
+                // intentionally conform to arbitrary support surfaces.
+                case VegetationGrowthForm.Frond:
+                case VegetationGrowthForm.Creeper:
+                case VegetationGrowthForm.Fungus:
                 default:
                     return 1f;
             }
