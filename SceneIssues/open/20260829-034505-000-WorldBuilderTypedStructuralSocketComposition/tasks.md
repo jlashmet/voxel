@@ -4,15 +4,17 @@
 - [x] Confirm assignment branch starts from current `origin/master` and keep all work on `fixes/agent-5`.
 - [x] Read `AGENTS.md`, `SceneIssues/README.md`, assignment `README.md`, `issue.json`, `plan.md`, and `tasks.md`.
 - [x] Identify current assembly seams: engine-free contracts in `Game.WorldBuilder.Api`, deterministic planners in `Game.WorldBuilder.Runtime`, authoritative structure voxel authoring through `IStructureAuthoringSession`.
-- [x] Verify there is no current active `SocketType.cs` / structural socket solver at this head; treat `SlotSpec` / `ShapeOp.CallSlot` / historical WorldArt socket names as predecessor contracts to reconcile rather than duplicate.
-- [ ] Locate/document any remaining dormant `CallSlot`/slot metadata implementation or historical typed socket code reachable in the current tree; route/retire it if it still compiles.
+- [x] Discriminate the predecessor path: `VoxelEngine.Structures.Runtime.ShapeProgram.Run` actively compiles `ShapeOp.CallSlot` but its production switch case is a no-op. The prior "no active CallSlot" inventory was falsified.
+- [x] Select one canonical path: complete/reconcile `FeatureDefinition` / `SlotSpec` / `ShapeOp.CallSlot` and its production catalogue/evaluator rather than introduce a parallel `StructuralSocketComposer`.
+- [ ] Locate/document the full active slot metadata/compiler/catalogue/validation/hash chain and preserve generation-order independence.
+- [ ] Ensure structural socket/slot metadata participates in deterministic catalogue/world identity so content changes cannot silently desync saves/networked generation.
 - [ ] Locate/document the active decoration-socket path and preserve it as the fine-grained prop-placement layer; add only a structural-to-decoration handoff if needed.
 
 ## Canonical production contract / solver
-- [ ] Implement one shared engine-free structural socket contract: stable ids, semantic role flags/tags, cardinal facing, integer voxel position/transform, clearance volume, attachment capacity, support requirements/probes, required/optional semantics, support-loss invalidation metadata, and decoration handoff metadata.
+- [ ] Generalize the existing slot contract into one shared engine-free structural socket contract: stable ids, semantic role flags/tags, cardinal facing, integer voxel position/transform, clearance volume, attachment capacity, support requirements/probes, required/optional semantics, support-loss invalidation metadata, and decoration handoff metadata.
 - [ ] Implement reusable structural piece/catalogue/recipe contracts with independently bounded physical extents and bounded authoring cost.
 - [ ] Implement deterministic compatibility predicates; require mutual type compatibility and valid opposing facing rather than string-name conventions.
-- [ ] Implement one bounded deterministic `StructuralSocketComposer` in production Runtime with stable seed ordering and no generation-order dependence.
+- [ ] Implement bounded deterministic child selection/attachment through the existing production `CallSlot` evaluation path with stable seed ordering and no generation-order dependence.
 - [ ] Enforce required/optional resolution, socket capacity/cardinality, clearance/overlap, footprint/spacing, terrain/structural support, and explicit failure results.
 - [ ] Enforce recursion/cycle protection plus max depth, child count, primitive/voxel cost, and spatial extent budgets before runaway generation.
 - [ ] Keep composed pieces one semantic structure while child pieces retain independent bounded/streamable transforms/bounds.
@@ -21,7 +23,7 @@
 - [ ] Do not leave a second competing structural-composition mechanism active.
 
 ## Authoritative voxel realization
-- [ ] Add shared structural composition voxel authoring that consumes compiled graph children through normal `IStructureAuthoringSession` primitives.
+- [ ] Add shared structural composition voxel authoring that consumes compiled graph children through normal `IStructureAuthoringSession` / authoritative structure primitives.
 - [ ] Prove child pieces remain authoritative voxel/collision/destruction/storage content; do not realize structural children as presentation-only meshes or permanent GameObjects.
 - [ ] Keep each child piece bounded so monumental structures can span multiple logical generation/streaming regions without one giant feature footprint.
 - [ ] Preserve/expose decoration handoff spaces after structural realization without moving micro-detail responsibilities into structural sockets.
