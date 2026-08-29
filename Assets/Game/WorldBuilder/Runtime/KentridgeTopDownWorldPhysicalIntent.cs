@@ -105,6 +105,13 @@ namespace Game.WorldBuilder.Runtime
                     clearanceDm: 75,
                     source: "northern road stays on dry ground around the lake's eastern shore"),
                 new TopDownWorldRouteRegionConstraintSpec(
+                    KentridgeTopDownWorldLayout.FightingArea1,
+                    KentridgeTopDownWorldLayout.BanditHideout,
+                    RossdamLake,
+                    TopDownWorldRouteRegionSolutionKind.GoAround,
+                    clearanceDm: 75,
+                    source: "modern 3D blockout: the verified bandit spur follows dry western shoreline around the authored lake; this is a routing solution, not legacy geography evidence"),
+                new TopDownWorldRouteRegionConstraintSpec(
                     KentridgeTopDownWorldLayout.MoordellCorridor,
                     KentridgeTopDownWorldLayout.RossdamApproach,
                     RossdamLake,
