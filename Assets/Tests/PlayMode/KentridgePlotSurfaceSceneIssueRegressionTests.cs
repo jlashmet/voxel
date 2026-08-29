@@ -40,14 +40,15 @@ namespace VoxelEngine.Tests.PlayMode
                     placement.Position.y,
                     "Generated houses must sink by the compiler's full foundation depth; the old 5dm sink exposed a 2dm rectangular cap in both marked dirt/grass regions.");
 
-                EvaluationResult evaluation = FeatureGeneration.EvaluateInstance(
-                    in structures,
-                    VoxelShowcaseSeed,
-                    roleId,
-                    in definition,
-                    in placement,
-                    primitives,
-                    anchors);
+                ParameterSet parameters = FeatureGeneration.ResolveParameters(
+                    in structures, in definition, in placement,
+                    roleId, placement.Position, VoxelShowcaseSeed);
+                ulong instanceSeed = FeatureGeneration.InstanceSeed(
+                    VoxelShowcaseSeed, roleId, placement.Position);
+                EvaluationResult evaluation = ShapeProgram.Evaluate(
+                    in structures, roleId, in parameters,
+                    placement.Position, placement.Orientation,
+                    VoxelShowcaseSeed, instanceSeed, primitives, anchors);
                 Assert.AreEqual(EvaluationResult.Ok, evaluation);
 
                 Primitive foundation = FindFoundation(primitives);
