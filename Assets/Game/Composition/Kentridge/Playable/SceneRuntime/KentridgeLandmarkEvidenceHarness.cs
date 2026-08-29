@@ -86,14 +86,22 @@ namespace Game.Kentridge.PlayableSlice
                 return;
             }
 
-            // SceneIssue automation owns this capture once armed. Generic rotating autowalk/survey
-            // must not compete with the deterministic production-entrance approach below.
-            _slice.AutoWalk = false;
             _slice.AutoSurvey = false;
             _slice.AutoRecede = false;
             MouseLookField.SetValue(_slice, false);
 
-            if (!_slice.GameplayControlEnabled) return;
+            // The unattended built-player replay cannot click through the authored opening dialogue.
+            // Reuse the slice's existing scripted-walk release path while that cutscene owns control;
+            // its Update dismisses pending dialogue, ticks the real campaign runtime, and releases the
+            // normal player host. The landmark harness takes over only after gameplay control is live,
+            // so rotating autowalk never competes with the deterministic entrance approach itself.
+            if (!_slice.GameplayControlEnabled)
+            {
+                _slice.AutoWalk = true;
+                return;
+            }
+
+            _slice.AutoWalk = false;
             if (!_initialized && !TryInitializeApproach()) return;
 
             float remaining = HorizontalDistance(_motor.Position, _hold);
