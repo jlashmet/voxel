@@ -2,8 +2,13 @@ using System.Reflection;
 using Game.WorldBuilder.Voxel;
 using NUnit.Framework;
 using Unity.Collections;
+using Unity.Mathematics;
 using VoxelEngine.Showcase;
+using VoxelEngine.Storage.Api;
+using VoxelEngine.Storage.Runtime;
 using VoxelEngine.Structures.Api;
+using VoxelEngine.Structures.Runtime;
+using VoxelEngine.Structures.Runtime.Emitters;
 
 namespace VoxelEngine.Tests.PlayMode
 {
@@ -134,6 +139,78 @@ namespace VoxelEngine.Tests.PlayMode
 
             Assert.That(captureEnabled.GetValue(store), Is.True,
                 "Capture must be restored after offline generation so LoadBake/runtime rebuilding works.");
+        }
+
+        [Test]
+        public void BoxCarveSkipsCanonicalEmptyBlocksButClearsMixedBoundaryPayload()
+        {
+            var table = new RegionTable(1, Allocator.Temp);
+            var pool = new BrickPool(4, Allocator.Temp);
+
+            try
+            {
+                table.LoadRegion(int3.zero);
+                var reads = new RegionReadSource(in table, in pool);
+                var mutations = new RegionMutationStore(in table, in pool);
+                Primitive carve = BoxEmitter.Box(
+                    int3.zero,
+                    new int3(VoxelReadGrid.BlockEdge, VoxelReadGrid.BlockEdge, VoxelReadGrid.BlockEdge),
+                    VoxelGrid.MaterialEmpty,
+                    PrimitiveMode.Carve,
+                    0);
+
+                RasterResult emptyResult = PrimitiveRasteriser.RasterisePrimitive(
+                    in carve,
+                    int3.zero,
+                    new int3(VoxelReadGrid.BlockEdge, VoxelReadGrid.BlockEdge, VoxelReadGrid.BlockEdge),
+                    reads,
+                    mutations);
+
+                Assert.That(emptyResult.VoxelsWritten, Is.Zero,
+                    "Carving an explicitly Empty storage block must remain an authoritative no-op.");
+                Assert.That(pool.AllocatedCount, Is.Zero,
+                    "The boxed-carve fast path must not materialize canonical empty storage.");
+                Assert.That(reads.TryAcquireRegionContainingBlock(int3.zero, out RegionReadView emptyView), Is.True);
+                Assert.That(emptyView.TryGetWorldBlock(int3.zero, out VoxelReadBlock emptyBlock), Is.True);
+                Assert.That(emptyBlock.Kind, Is.EqualTo(VoxelReadBlockKind.Empty));
+
+                VoxelCell emptyWithBoundary = new VoxelCell
+                {
+                    Boundary = VoxelBoundarySample.FromSignedQ4(-8)
+                };
+                Assert.That(mutations.SetWholeCellBlock(int3.zero, in emptyWithBoundary, false), Is.True,
+                    "Test setup must create authored empty-side boundary state.");
+                reads.Refresh(in table, in pool);
+                mutations.Refresh(in table, in pool);
+
+                Assert.That(reads.TryAcquireRegionContainingBlock(int3.zero, out RegionReadView mixedView), Is.True);
+                Assert.That(mixedView.TryGetWorldBlock(int3.zero, out VoxelReadBlock mixedBlock), Is.True);
+                Assert.That(mixedBlock.Kind, Is.EqualTo(VoxelReadBlockKind.Mixed),
+                    "Empty-side boundary metadata must keep the block Mixed so it cannot use the fast skip.");
+                Assert.That(pool.AllocatedCount, Is.EqualTo(1));
+
+                RasterResult mixedResult = PrimitiveRasteriser.RasterisePrimitive(
+                    in carve,
+                    int3.zero,
+                    new int3(VoxelReadGrid.BlockEdge, VoxelReadGrid.BlockEdge, VoxelReadGrid.BlockEdge),
+                    reads,
+                    mutations);
+                reads.Refresh(in table, in pool);
+
+                Assert.That(mixedResult.VoxelsWritten, Is.EqualTo(VoxelReadGrid.VoxelsPerBlock),
+                    "Box carve must still visit a Mixed block and clear every authored empty-side boundary sample.");
+                Assert.That(reads.TryAcquireRegionContainingBlock(int3.zero, out RegionReadView clearedView), Is.True);
+                Assert.That(clearedView.TryGetWorldBlock(int3.zero, out VoxelReadBlock clearedBlock), Is.True);
+                Assert.That(clearedBlock.Kind, Is.EqualTo(VoxelReadBlockKind.Empty),
+                    "After authoritative boundary clearing, storage should collapse back to canonical Empty.");
+                Assert.That(pool.AllocatedCount, Is.Zero,
+                    "Clearing the last authored payload must release the mixed-brick allocation.");
+            }
+            finally
+            {
+                table.Dispose();
+                pool.Dispose();
+            }
         }
     }
 }
