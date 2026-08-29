@@ -18,7 +18,7 @@
 - [x] Extend gallery tour/evidence framing with deterministic wide/elevated, player-height facade (2–5 m), and close-detail (0.5–2 m) views for every district.
 - [x] Add focused behavioral regressions through the production WorldBuilder path proving all six styles resolve intended material families, all four roles, non-empty detail vocabularies, distinct form signatures, fixed seeds, Rossdam fortification traits, and bounded district footprint.
 - [x] Consolidate duplicate catalogue coverage into the PlayMode regression rather than widening `VoxelEngine.Tests.Features` assembly dependencies.
-- [x] Commit stable Unity `.meta` files for all three new shared WorldBuilder C# assets, the PlayMode regression, and the gallery audit harness.
+- [x] Commit stable Unity `.meta` files for all three new shared WorldBuilder C# assets, the PlayMode regression, gallery audit harness, and stale-bake compatibility partial.
 - [x] Validate production scene composition has no direct bespoke voxel-writing or one-off scene hierarchy geometry for this feature; scene placement delegates district geometry to shared town authoring.
 - [x] Review pre-CI diff for unrelated files and check blast radius across shared WorldBuilder/structure consumers; production changes are limited to town API/runtime/voxel authoring, gallery composition/evidence support, focused tests, and this assignment. Capture-less script fallback preserves strict recorded-pose validation when captures exist.
 - [x] Classify first exact-SHA CI failure (`22360b821627ea552fb9ee75fabd3e6bf00331da` over feature `2c5b8d6b3fa3daf715774c477f037e8907fc227a`) as product compile failure plus independent capture-less player metadata failure.
@@ -26,9 +26,9 @@
 - [x] Repair capture-less SceneIssue validation without fabricating a camera pose: the generic player harness uses its existing 1600×900 default only when `captures` is empty, while recorded captures still require their immutable dimensions.
 - [x] Add scoped built-player evidence support that captures all 18 production gallery town tour views; wide/elevated evidence uses the authored production camera position/look target rather than the interactive ground-snapped player pose.
 - [x] Inspect green request `c3b2e25d011eb3877f3a7baa81c6e444dfdf9875` / feature `61664de269b4e082e6fcc9c9d7de357ec1e34a77`; automated test/player harness passed but direct frame review failed the visual gate because the default baked world is stale and lacks the new six-town geometry.
-- [ ] Add a production storage probe for the six deterministic representative structure anchors plus a town-only stale-bake repair; fresh generated/rebaked worlds that already contain all six anchors must skip duplicate runtime authoring.
-- [ ] Add regression coverage for the deterministic representative-anchor contract used by both audit framing and stale-bake detection.
-- [ ] After town geometry is present, verify/retarget the Rossdam player/close audit subject to the fortified gate/landmark and ensure all town player/close subjects actually frame authored architecture.
+- [x] Add a production storage probe for the six deterministic representative structure anchors plus a town-only stale-bake repair; fresh generated/rebaked worlds that already contain all six anchors skip duplicate runtime authoring, and built-player audit now hard-fails when the content probe is false.
+- [x] Add regression coverage for the deterministic representative-anchor contract used by both audit framing and stale-bake detection.
+- [x] Retarget Rossdam player/close audit subjects to the fortified gatehouse landmark; final built evidence must still prove the framing and visible construction quality.
 - [ ] Quantify/validate town-only world-build writes/time, material/shader cost, draw/triangle impact, memory impact, batching, and streaming/LOD implications against existing budgets; do not attribute the pre-existing ~48.8 M full-gallery pass to the six-town expansion.
 - [ ] Run sanctioned focused exact-SHA targeted CI for the final repaired branch using only `ci-test/fixes/agent-9`; do not create parallel transports or replace queued/running CI.
 - [ ] Run/verify exact-SHA built-application `WorldbuildingGalleryShowcase` detailed issue check reaches a usable rendered scene without startup/runtime exceptions and reports `TOWNARCH_AUDIT result=PASS` with 18 frames.
