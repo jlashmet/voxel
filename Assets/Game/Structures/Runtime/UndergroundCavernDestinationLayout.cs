@@ -11,6 +11,9 @@ namespace Game.Structures.Runtime
     /// </summary>
     public static class UndergroundCavernDestinationLayout
     {
+        private const int StatueFrontClearance = 8;
+        private const int StatueSideInset = 12;
+
         public static int3 ResolveRuinApproach(
             in DecorationBounds cavern,
             in DecorationBounds ruin,
@@ -28,15 +31,39 @@ namespace Game.Structures.Runtime
 
             int3 front = ruinCentre - forward * (forwardSize / 2);
             // Keep enough setback to read the full facade/statue pair in ordinary gameplay while
-            // ensuring the final waypoint remains inside the destination cavern, ahead of its
-            // centre rather than retreating back into the descent.
+            // ensuring the final waypoint does not retreat behind the destination cavern centre.
             int viewingClearance = math.max(48, sideSize * 2 / 3);
             int3 approach = front - forward * viewingClearance;
             int forwardFromCavernCentre = math.dot(approach - cavernCentre, forward);
-            if (forwardFromCavernCentre < 8)
-                approach = cavernCentre + forward * 8;
+            if (forwardFromCavernCentre < 0)
+                approach = cavernCentre;
             approach.y = ruin.Min.y;
             return approach;
+        }
+
+        public static int3 ResolveFlankingStatueCentre(
+            in DecorationBounds ruin,
+            Facing facing,
+            int sideSign)
+        {
+            if (!ruin.IsWellFormed)
+                throw new ArgumentException("Statue placement requires valid ruin bounds.");
+            if (sideSign != -1 && sideSign != 1)
+                throw new ArgumentOutOfRangeException(nameof(sideSign), "Statue side sign must be -1 or +1.");
+
+            int3 forward = FacingVector(facing);
+            int3 side = new int3(-forward.z, 0, forward.x);
+            int3 centre = CentreOf(in ruin);
+            bool alongX = math.abs(forward.x) == 1;
+            int forwardSize = alongX ? ruin.Size.x : ruin.Size.z;
+            int sideSize = alongX ? ruin.Size.z : ruin.Size.x;
+            int sideOffset = math.max(16, sideSize / 2 - StatueSideInset);
+
+            int3 statue = centre
+                - forward * (forwardSize / 2 + StatueFrontClearance)
+                + side * sideOffset * sideSign;
+            statue.y = ruin.Min.y;
+            return statue;
         }
 
         public static bool IsRuinAtFarEnd(
