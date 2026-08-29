@@ -22,7 +22,7 @@
       "travelSeconds": 0.1,
       "holdSeconds": 12.0,
       "camera": {
-        "hierarchyPath": "Main Camera",
+        "hierarchyPath": "Showcase Camera",
         "position": { "x": -370.0, "y": 27.2, "z": -37.8 },
         "rotation": { "x": 0.0493253, "y": 0.7053843, "z": -0.0493253, "w": 0.7053843 },
         "fieldOfView": 72.0,
@@ -37,7 +37,7 @@
       "travelSeconds": 5.0,
       "holdSeconds": 6.0,
       "camera": {
-        "hierarchyPath": "Main Camera",
+        "hierarchyPath": "Showcase Camera",
         "position": { "x": -263.5, "y": -4.6, "z": -37.8 },
         "rotation": { "x": 0.0, "y": 0.3826834, "z": 0.0, "w": 0.9238795 },
         "fieldOfView": 70.0,
@@ -52,7 +52,7 @@
       "travelSeconds": 4.0,
       "holdSeconds": 6.0,
       "camera": {
-        "hierarchyPath": "Main Camera",
+        "hierarchyPath": "Showcase Camera",
         "position": { "x": -184.5, "y": -29.8, "z": -37.8 },
         "rotation": { "x": 0.0, "y": 0.9238795, "z": 0.0, "w": 0.3826834 },
         "fieldOfView": 70.0,
@@ -67,7 +67,7 @@
       "travelSeconds": 4.0,
       "holdSeconds": 6.0,
       "camera": {
-        "hierarchyPath": "Main Camera",
+        "hierarchyPath": "Showcase Camera",
         "position": { "x": -117.0, "y": -51.4, "z": -37.8 },
         "rotation": { "x": 0.0, "y": 0.3826834, "z": 0.0, "w": 0.9238795 },
         "fieldOfView": 70.0,
@@ -82,7 +82,7 @@
       "travelSeconds": 4.0,
       "holdSeconds": 6.0,
       "camera": {
-        "hierarchyPath": "Main Camera",
+        "hierarchyPath": "Showcase Camera",
         "position": { "x": -38.0, "y": -65.8, "z": -37.8 },
         "rotation": { "x": -0.0616284, "y": 0.7044160, "z": 0.0616284, "w": 0.7044160 },
         "fieldOfView": 82.0,
@@ -97,7 +97,7 @@
       "travelSeconds": 4.0,
       "holdSeconds": 10.0,
       "camera": {
-        "hierarchyPath": "Main Camera",
+        "hierarchyPath": "Showcase Camera",
         "position": { "x": -35.5, "y": -65.8, "z": -37.8 },
         "rotation": { "x": -0.0308436, "y": 0.7064338, "z": 0.0308436, "w": 0.7064338 },
         "fieldOfView": 74.0,
