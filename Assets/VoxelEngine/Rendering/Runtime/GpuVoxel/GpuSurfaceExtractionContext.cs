@@ -27,6 +27,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
     public sealed class GpuSurfaceExtractionContext : IDisposable
     {
         public const string ShaderResourcePath = "VoxelBrickMesher";
+        private const int MaxCounterReadbackRetries = 2;
 
         private readonly GpuVoxelBrickMirror _mirror;
         private readonly GpuTransvoxelTables _tables;
@@ -56,8 +57,14 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private bool _coverageRoundIncomplete;
         private bool _coverageReady;
         private int _lastCoveragePollFrame = -1;
+        private ComputeBuffer _writeVertices;
+        private ComputeBuffer _writeIndices;
+        private int _writeVertexStart;
         private int _writeVertexCapacity;
+        private int _writeIndexStart;
         private int _writeIndexCapacity;
+        private int _countReadbackRetries;
+        private int _writeReadbackRetries;
 
         public GpuVoxelBrickMirror Mirror => _mirror;
         public GpuTransvoxelTables Tables => _tables;
@@ -70,6 +77,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         public ulong ChunksEmpty { get; private set; }
         public ulong ChunksUnsupported { get; private set; }
         public ulong ChunksOverflowed { get; private set; }
+        public ulong CountReadbackRetryCount { get; private set; }
+        public ulong WriteReadbackRetryCount { get; private set; }
         public long MirrorCommittedBytes => _mirror.CommittedBytes;
 
         private GpuSurfaceExtractionContext(ComputeShader shader, int cellsPerAxis, int padding,
@@ -257,6 +266,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _stageAdmissionPending = true;
             _coverageRequested = false;
             _lastCoveragePollFrame = -1;
+            _countReadbackRetries = 0;
             TryAdmitPendingStage();
 
             // Mirror recovery is deliberately bounded. Not-ready this frame is backpressure, not
@@ -372,10 +382,25 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
             GpuSurfaceExtractor.GpuCounterPoll poll = _extractor.TryCompleteCount(out counts);
             if (poll == GpuSurfaceExtractor.GpuCounterPoll.Pending) return poll;
-            // A failed asynchronous bookkeeping readback does not invalidate the immutable
-            // staged mirror footprint. The worker can re-dispatch count through RetryCount.
-            if (poll == GpuSurfaceExtractor.GpuCounterPoll.Failed) return poll;
+            if (poll == GpuSurfaceExtractor.GpuCounterPoll.Failed)
+            {
+                // A failed async counter transfer is not evidence that this supported chunk needs
+                // the CPU mesher. The count dispatch already owns a stable shared-mirror extraction
+                // window, so retry the four-word bookkeeping transfer by redispatching the same
+                // count against the same immutable request. Only repeated failure escapes to the
+                // caller's existing device/error fallback.
+                if (_countReadbackRetries < MaxCounterReadbackRetries)
+                {
+                    _countReadbackRetries++;
+                    CountReadbackRetryCount++;
+                    _extractor.BeginCount(_mirror, _tables, _staged);
+                    return GpuSurfaceExtractor.GpuCounterPoll.Pending;
+                }
+                Release();
+                return poll;
+            }
 
+            _countReadbackRetries = 0;
             _stagedCounts = counts;
             ChunksStaged++;
             if (counts.Unsupported)
@@ -386,8 +411,13 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             }
             if (counts.IsEmpty)
             {
-                Release();
+                // The count itself completed successfully, so this is not a GPU failure. Keep the
+                // staged extraction alive and let the normal publication path install a zero-index
+                // ready entry. CpuTransvoxelChunkCache still needs a non-zero arena sizing token,
+                // but the authoritative zero remains in _stagedCounts. BeginWriteRange recognizes
+                // that zero and deliberately skips the redundant write/verification dispatch.
                 ChunksEmpty++;
+                counts = new GpuExtractionCounts(1, 1);
             }
             return poll;
         }
@@ -410,8 +440,21 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                                     int indexStart, int indexCapacity)
         {
             ThrowIfDisposed();
+            _writeVertices = vertices;
+            _writeIndices = indices;
+            _writeVertexStart = vertexStart;
             _writeVertexCapacity = vertexCapacity;
+            _writeIndexStart = indexStart;
             _writeIndexCapacity = indexCapacity;
+            _writeReadbackRetries = 0;
+
+            // A completed zero count is already the authoritative payload. Dispatching the write
+            // kernel just to prove that it writes zero vertices/indices adds a second async
+            // readback failure surface and can incorrectly route valid empty chunks to the CPU.
+            // Keep the caller's tiny staging lease only as its existing publication token; phase
+            // 10 will receive Ready/0 immediately and publish zero indirect args.
+            if (_stagedCounts.IsEmpty) return;
+
             _extractor.BeginWriteRange(_mirror, _tables, _staged, vertices, indices,
                                        vertexStart, vertexCapacity, indexStart, indexCapacity);
         }
@@ -421,11 +464,35 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             ThrowIfDisposed();
             indexCount = 0;
             if (!_hasStaged) return GpuSurfaceExtractor.GpuCounterPoll.Failed;
+            if (_stagedCounts.IsEmpty)
+            {
+                ChunksWritten++;
+                return GpuSurfaceExtractor.GpuCounterPoll.Ready;
+            }
 
             GpuSurfaceExtractor.GpuCounterPoll poll = _extractor.TryCompleteWriteRange(
                 _writeVertexCapacity, _writeIndexCapacity, out GpuExtractionResult result);
-            if (poll != GpuSurfaceExtractor.GpuCounterPoll.Ready) return poll;
+            if (poll == GpuSurfaceExtractor.GpuCounterPoll.Pending) return poll;
+            if (poll == GpuSurfaceExtractor.GpuCounterPoll.Failed)
+            {
+                // Re-running a failed verification transfer is safe: the write targets the same
+                // invisible staging lease, so a second dispatch only overwrites that unpublished
+                // range. Do not route a transient async readback failure into CPU topology work.
+                if (_writeReadbackRetries < MaxCounterReadbackRetries
+                    && _writeVertices != null && _writeIndices != null)
+                {
+                    _writeReadbackRetries++;
+                    WriteReadbackRetryCount++;
+                    _extractor.BeginWriteRange(
+                        _mirror, _tables, _staged, _writeVertices, _writeIndices,
+                        _writeVertexStart, _writeVertexCapacity,
+                        _writeIndexStart, _writeIndexCapacity);
+                    return GpuSurfaceExtractor.GpuCounterPoll.Pending;
+                }
+                return poll;
+            }
 
+            _writeReadbackRetries = 0;
             if (result.Overflowed
                 || result.VertexCount != _stagedCounts.VertexCount
                 || result.IndexCount != _stagedCounts.IndexCount)
@@ -478,6 +545,14 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _coverageRequested = false;
             _lastCoveragePollFrame = -1;
             _hasStaged = false;
+            _countReadbackRetries = 0;
+            _writeReadbackRetries = 0;
+            _writeVertices = null;
+            _writeIndices = null;
+            _writeVertexStart = 0;
+            _writeVertexCapacity = 0;
+            _writeIndexStart = 0;
+            _writeIndexCapacity = 0;
             _extractor.CancelPendingCounters();
             ReleaseLegacyPins();
             if (_sharedExtractionActive)

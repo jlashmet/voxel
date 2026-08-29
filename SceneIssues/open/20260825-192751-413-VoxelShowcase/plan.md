@@ -1,22 +1,20 @@
 # Plan — SceneIssue 20260825-192751-413 VoxelShowcase
 
-## Observed behavior / acceptance
-- Exact built-player evidence at `db1230b` reached 636–770 ms solid admission, 757 missing visible chunks, and four drawn. Exact-block/optional-halo iterations removed that stall but still starved or converged too slowly.
-- Preserve deterministic CPU world truth, collision, replication, residency, and stale-publication rejection. Presentation may lag behind one immutable generation while old/far geometry covers it.
-- Pass requires sustained step-1/step-2 GPU completion, zero eligible CPU fallback/blocking waits, no visible holes, moving p95 <18 ms/p99 <25 ms, stationary p95 <8 ms, and inspected exact-pose built-player evidence.
+## Observed defect / acceptance
+- The single capture marks top-left performance telemetry at `Showcase Camera` `(77.953941,24.550051,-3.345814)`, FOV 70. Note: sub-100 FPS while moving, slow fill, transient/missing geometry.
+- Pass requires sustained step-1/2 GPU completion, zero eligible CPU fallback/blocking waits, no visible holes, moving p95 <18 ms/p99 <25 ms, stationary p95 <8 ms, and inspected exact-pose built-player evidence.
 
-## Hypotheses / discriminators
-- H1 (**confirmed**): whole-region recovery and per-chunk CPU snapshots dominated admission. Demand-only blocks plus direct `RegionReadView` payload copy remove both costs.
-- H2 (**confirmed**): global/region-wide mutation gates and optional nonresident halo mismatch starved unrelated work. Exact active footprints and canonical-empty optional halo preserve liveness.
-- H3 (**confirmed**): obsolete chunk requests were never withdrawn. A local failure had 358,697 ready and 53,567 pending blocks with zero active extraction; O(1) footprint cancellation restored convergence.
-- H4 (**under test**): synchronous 1,000–5,832-block coverage walks and bursty simultaneous compute dispatches create the remaining tail. Per-worker 128-block cursors reduced local moving p95 from 97.624 to 42.250 ms; one count dispatch/frame is the next discriminator.
+## Runtime evidence / hypotheses
+- H1 (**confirmed**): demand-scoped mirror recovery, exact footprints, optional empty halo, and obsolete-demand cancellation removed global recovery starvation while preserving Storage versions.
+- H2 (**falsified as complete fix**): compact payload scatter removed fragmented `SetData` fan-out and now compiles on Metal, but exact run `33279094247` still failed traversal at frame 3 (`gpu=8/0`, waits 248) and the built player retained ~191–198 ms admission spikes with 344 missing chunks at 51.4 s. Liveness passed; arena exhaustion remained absent.
+- H3 (**next discriminator**): per-chunk CPU exact snapshots, synchronous 1,000–5,832-block coverage walks, and bursty count dispatches create the remaining tail. Preserved local evidence reduced moving p95 from 97.624 to 42.250 ms with 128-block coverage cursors; one count dispatch/frame was not yet validated after the payload fix.
 
-## Selected fix / material results
-- Use one bounded, demand-filled, versioned GPU mirror shared by workers. GPU candidates enter compute before CPU metadata/classification/payload snapshot work; compute classifies raw semantics. Unsupported decorated/faceted/profile content retains the CPU fidelity path.
-- Keep geometry GPU-resident through count/reserve/write/draw. Retry transient Metal count/write bookkeeping without CPU fallback.
-- Reference-count live demand footprints, discard cancelled queue entries before Storage access, cap retained ready descriptors at 65,536, and evict only inactive undemanded entries. Verify coverage incrementally and reject changed/pending bricks before dispatch.
-- Local gates: policy/classification 5/5 passed; real-device arena bridge 4/4 passed with zero geometry readback; liveness passed. Demand cancellation restored settling and zero eligible fallback; latest pre-throttle traversal failed only moving p95 at 42.250 ms with zero count/write retries.
+## Selected integration
+- Preserve compact 64-record payload upload/scatter and transient count/write retry behavior from `origin/fixes/agent-2`.
+- Preserve the takeover branch's snapshotless production admission: GPU resolves/classifies raw mirror bricks; unsupported decorated/faceted/profile content explicitly re-enters the CPU fidelity path.
+- Reference-count demand footprints, verify coverage in 128-block cursors, evict only inactive undemanded entries, and admit at most one new count dispatch per frame. Geometry remains GPU-resident through draw.
+- CPU world truth, collision, replication, HLOD/water, stale-build rejection, arena budgets, and performance thresholds are unchanged.
 
 ## Remaining gates
-- Run merged liveness, traversal, arena, and zero-allocation regressions; inspect exact built-player screenshots/logs.
-- Commit final evidence, create one exact feature-parented CI request on `ci-test/fixes/agent-2`, monitor its exact SHA, then update issue state only if every gate passes.
+- Compile/static review, then liveness, arena/no-readback, zero-allocation, and production traversal regressions on the integrated head.
+- Inspect exact built-player screenshots/logs. Keep the capture open until exact-SHA targeted CI and built-player gates are green.
