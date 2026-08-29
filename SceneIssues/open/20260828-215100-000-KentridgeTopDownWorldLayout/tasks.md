@@ -15,10 +15,10 @@
 - [x] Initial exact-SHA regression and real-player build/run completed green on source `8b6ea69c` (run `33223023746`).
 - [x] Inspect the actual run artifact rather than treating workflow green as sufficient.
 - [x] Add a reusable capture-less Kentridge SceneIssue harness profile so validation continues beyond loading and records post-load evidence without changing recorded-pose replays.
-- [ ] Capture a post-load real-player frame showing the production top-down macro-layout overlay.
-- [ ] Capture normal eye-level scripted traversal using the real `CharacterMotor`, collision, streaming, and generated route/corridor output.
-- [ ] Confirm post-load geography is usable/coherent and no startup/runtime exception occurs.
-- [ ] Record durable verification evidence beside the assigned feature.
+- [x] Capture a post-load real-player frame showing the production top-down macro-layout overlay (`showcase-002-t033.4s-stationary.png`).
+- [x] Capture normal eye-level scripted traversal using the real `CharacterMotor`, collision, streaming, and generated route/corridor output (`showcase-003` / `showcase-004`).
+- [x] Confirm post-load geography is usable/coherent and no startup/runtime exception occurs; player exit 0 and final `missingVisible=0`.
+- [x] Record durable verification evidence beside the assigned feature in `verification-kentridge-topdown-world.txt`.
 
 ## Acceptance audit
 - [x] (1) Kentridge selects a reusable Mounting Force macro-world definition through production WorldBuilder.
@@ -29,13 +29,13 @@
 - [x] (6) Town styling/material/architecture work remains out of scope.
 - [x] (7) Fixed-seed layout/routing is deterministic and reusable; scene code selects intent.
 - [x] (8) Production regression covers graph, placement, connectivity, physical realization, and hard-route failure.
-- [ ] (9) Built-player top-down plus normal playable-traversal evidence is inspectable and compared to source topology.
-- [ ] (10) Exact built `KentridgePlayableSlice` evidence shows a usable rendered post-load scene and inspectable surrounding routes.
+- [x] (9) Built-player top-down plus normal playable-traversal evidence is inspectable and compared to source topology.
+- [x] (10) Exact built `KentridgePlayableSlice` evidence shows a usable rendered post-load scene and inspectable surrounding routes.
 - [x] (11) Blast radius/cost reviewed without weakening budgets.
 
 ## Closure
-- [ ] Every checkbox and acceptance criterion above is complete.
-- [ ] Final exact-SHA focused CI and built-player evidence are green for the final source state.
+- [x] Every feature-work and acceptance checkbox above is complete.
+- [x] Final exact-SHA focused CI and built-player evidence are green for source `9e532f52c6954ec4f3d38a99aae3f90ab13e24a3` (run `33224752568`).
 - [ ] Complete pending metadata and move only this feature `open -> pending`.
 - [ ] Move only this feature `pending -> closed`, set `status=fixed` and `resolvedUtc`.
 - [ ] Fetch current `origin/master`, merge it into `fixes/agent-5`, and stop on any unrelated conflict.
