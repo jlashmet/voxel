@@ -81,6 +81,34 @@ namespace Game.WorldBuilder.Api
         internal PlayCutsceneEffectSpec(CutsceneRef cutscene) => Cutscene = cutscene;
     }
 
+    public sealed class JoinPartyMemberEffectSpec : IStoryEffectSpec
+    {
+        public string MemberId { get; }
+        internal JoinPartyMemberEffectSpec(string memberId) =>
+            MemberId = RequireProgressId(memberId, nameof(memberId));
+
+        private static string RequireProgressId(string value, string paramName)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                throw new ArgumentException("Story progression ids must be non-empty.", paramName);
+            return value;
+        }
+    }
+
+    public sealed class GrantSpellEffectSpec : IStoryEffectSpec
+    {
+        public string SpellId { get; }
+        internal GrantSpellEffectSpec(string spellId) =>
+            SpellId = RequireProgressId(spellId, nameof(spellId));
+
+        private static string RequireProgressId(string value, string paramName)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                throw new ArgumentException("Story progression ids must be non-empty.", paramName);
+            return value;
+        }
+    }
+
     public static class StoryTrigger
     {
         public static IStoryTriggerSpec NewGame() => new NewGameTriggerSpec();
@@ -107,6 +135,8 @@ namespace Game.WorldBuilder.Api
         public static IStoryEffectSpec StartObjective(ObjectiveRef objective) => new StartObjectiveEffectSpec(objective);
         public static IStoryEffectSpec StartQuest(QuestRef quest) => new StartQuestEffectSpec(quest);
         public static IStoryEffectSpec PlayCutscene(CutsceneRef cutscene) => new PlayCutsceneEffectSpec(cutscene);
+        public static IStoryEffectSpec JoinPartyMember(string memberId) => new JoinPartyMemberEffectSpec(memberId);
+        public static IStoryEffectSpec GrantSpell(string spellId) => new GrantSpellEffectSpec(spellId);
     }
 
     public static class ObjectiveCompletion
