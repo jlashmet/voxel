@@ -2,21 +2,22 @@
 
 - [x] Trace current `VoxelShowcase` composition through WorldBuilder/shared authoring and identify the production owners for terrain/carving, subterranean traversal, formations, ruin/statue assembly, and local/underground lighting.
 - [x] Map all 14 acceptance criteria to existing capabilities or explicit reusable gaps; add any discovered required work below.
-- [ ] Add a reusable destination-cavern/ancient-ruin composer in `Game.Structures`; reuse the existing natural-cave voxel formation planner and mine-cave lantern presentation rather than duplicating geology or light semantics.
-- [ ] Establish a bounded subterranean dark-stone host volume before carving so deep-cavern behavior does not depend on whether a sparse negative-y region begins solid or empty.
-- [ ] Use shared cave traversal results/placement requirements to select the cavern destination by meaningful entrance-to-destination traversal distance rather than a showcase-only coordinate assumption.
-- [ ] Integrate cavern generation with both offline `VoxelShowcase` baking and runtime bake restoration/presentation metadata so the shipping baked startup path contains the feature and its local lights.
-- [ ] Implement a natural, normally walkable terrain cave mouth through WorldBuilder/shared systems.
-- [ ] Implement a substantial, gently descending, continuously traversable subterranean route with adequate clearance and organic variation.
-- [ ] Implement a much larger connected cavern with high irregular ceiling, broad navigable floor, recess/rock variation, and unblocked route.
-- [ ] Populate reusable geological formations including stalactites and multiple additional categories without blocking circulation.
-- [ ] Implement/place a reachable aged/damaged stone ruin with believable structural construction and readable entrance.
-- [ ] Place exactly two large aged stone statues, grounded on credible bases and framing the ruin entrance.
-- [ ] Implement localized, physically supported torch navigation lighting while preserving deep underground darkness and excluding outdoor-strength/direct sunlight behavior.
-- [ ] Preserve the reveal sequence: daylight mouth -> prolonged descent -> huge dark cavern -> ruin/statues destination.
-- [ ] Add focused behavioral regressions through the production WorldBuilder path for connectivity/traversability, formations, ruin/statues, and underground/local-light semantics.
+- [x] Add a reusable destination-cavern/ancient-ruin composer in `Game.Structures`; reuse the existing natural-cave voxel formation planner and mine-cave lantern presentation rather than duplicating geology or light semantics.
+- [x] Establish a bounded subterranean dark-stone host volume before carving so deep-cavern behavior does not depend on whether a sparse negative-y region begins solid or empty.
+- [x] Use shared cave traversal results/placement requirements to select the cavern destination by meaningful entrance-to-destination traversal distance rather than a showcase-only coordinate assumption.
+- [x] Integrate cavern generation with both offline `VoxelShowcase` baking and runtime bake restoration/presentation metadata so the shipping baked startup path contains the feature and its local lights.
+- [ ] Replace the production mouth's rectangular first impression with a reusable natural/asymmetric cave-mouth treatment while preserving normal walkable clearance.
+- [ ] Add deterministic direction-changing traversal through shared cavern authoring (not a straight corridor with only side alcoves); preserve deep-host protection and destination reachability.
+- [x] Implement a much larger connected cavern with high irregular ceiling, broad navigable floor, recess/rock variation, and unblocked route.
+- [x] Populate reusable geological formations including stalactites and multiple additional categories without blocking circulation.
+- [x] Implement/place a reachable aged/damaged stone ruin with believable structural construction and readable entrance.
+- [x] Place exactly two large aged dark-stone humanoid statues, grounded on credible bases and framing the ruin entrance.
+- [ ] Extend supported local torch/lantern navigation lighting from the descent into the primary cavern while keeping the emitted-light count bounded and preserving deep darkness.
+- [ ] Preserve and validate the reveal sequence: daylight mouth -> prolonged varied descent -> huge dark cavern -> ruin/statues destination.
+- [ ] Add focused behavioral regression through the authoritative `VoxelShowcase`/WorldBuilder production path, in addition to the existing detached authoring regression, for route execution, natural writes, cavern/statues/geology/lights/materials/determinism/write budget.
 - [ ] Review blast radius for every shared-system change and test likely negative regressions.
 - [ ] Quantify world-build/runtime cost: voxel/chunk work, triangle impact, draw/light/shadow cost, memory, and supported-device budget impact without weakening budgets.
+- [ ] Refresh/merge current `origin/master` into `fixes/agent-3` before the final CI gate and resolve only conflicts inside this assignment's files.
 - [ ] Run exact-SHA focused targeted CI on `ci-test/fixes/agent-3` only after production/test work is final.
 - [ ] Run exact-SHA built-application `VoxelShowcase` harness and verify usable rendered scene with no startup/runtime exceptions.
 - [ ] Validate every acceptance criterion from built-app evidence; record durable verification evidence beside the assignment.
