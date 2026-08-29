@@ -151,6 +151,20 @@ namespace Game.Structures.Runtime
             if (lights.Length == 0)
                 throw new InvalidOperationException("The supported cavern lanterns produced no local-light requests.");
 
+            // The deterministic cavern shell is deliberately solid before its interior is opened.
+            // Because the shell overlaps the final primary-route spans, its back wall can seal an
+            // otherwise valid cave endpoint after CaveAuthoring has already reported it reachable.
+            // Reassert a narrow gameplay corridor last, after formations, rubble and fixtures, so
+            // semantic traversal remains physically walkable through the shell and ruin doorway.
+            AuthorProtectedDestinationRoute(
+                authoring,
+                destination.Position,
+                ruinCentre,
+                floorY,
+                destination.ExitFacing,
+                in caveConfig,
+                in config);
+
             var cavernBounds = new DecorationBounds
             {
                 Min = new int3(cavernCentre.x - innerRadius, floorY, cavernCentre.z - innerRadius),
@@ -266,6 +280,33 @@ namespace Game.Structures.Runtime
                 24, 48, palette.Rock);
             a.Cone(centre.x + innerRadius / 3, floorY, centre.z + innerRadius / 2,
                 20, 38, palette.Rock);
+        }
+
+        private static void AuthorProtectedDestinationRoute(
+            IStructureAuthoringSession a,
+            int3 destination,
+            int3 ruinCentre,
+            int floorY,
+            Facing facing,
+            in CaveConfig cave,
+            in UndergroundCavernRuinConfig config)
+        {
+            int3 forward = FacingVector(facing);
+            int halfWidth = math.max(6, cave.TunnelWidth / 4);
+            int clearanceHeight = math.max(24, cave.TunnelHeight - 4);
+            int backtrack = math.max(
+                cave.SegmentLength,
+                config.CavernRadius - 34 + cave.WallRoughness + 8);
+            int3 start = destination - forward * backtrack;
+            int3 end = ruinCentre;
+
+            int minX = math.min(start.x, end.x) - halfWidth;
+            int minZ = math.min(start.z, end.z) - halfWidth;
+            int sizeX = math.abs(end.x - start.x) + halfWidth * 2 + 1;
+            int sizeZ = math.abs(end.z - start.z) + halfWidth * 2 + 1;
+            a.Carve(
+                new int3(minX, floorY, minZ),
+                new int3(sizeX, clearanceHeight, sizeZ));
         }
 
         private static CaveWalkablePatch CavernPatch(
