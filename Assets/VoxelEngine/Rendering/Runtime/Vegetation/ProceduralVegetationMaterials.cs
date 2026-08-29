@@ -10,6 +10,7 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
         Surface,
         Vine,
         Woody,
+        Grass,
     }
 
     public readonly struct VegetationRenderStyle
@@ -43,21 +44,26 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
 
     /// <summary>
     /// Shared shader/material bridge for lightweight vegetation. Species stay semantic; the renderer
-    /// maps them onto a small number of growth-form shaders so GPU batching remains practical.
+    /// maps them onto a small number of presentation shaders so batching remains practical.
     /// </summary>
     public static class ProceduralVegetationMaterials
     {
         public const string FoliageShaderName = "VoxelEngine/ProceduralVegetationFoliage";
         public const string SurfaceShaderName = "VoxelEngine/ProceduralVegetationSurface";
         public const string VineShaderName = "VoxelEngine/ProceduralVine";
+        public const string GrassShaderName = "VoxelEngine/ProceduralVegetationGrass";
         public const int MaxGrassInteractors = 64;
+
+        private const float CameraFallbackGrassRadius = 0.65f;
 
         private static readonly Vector4[] s_GrassInteractors = new Vector4[MaxGrassInteractors];
         private static int s_GrassInteractorCount;
         private static Material s_Foliage;
         private static Material s_Surface;
         private static Material s_Vine;
+        private static Material s_Grass;
         private static bool s_ReportedMissing;
+        private static bool s_ReportedMissingGrass;
 
         public static bool Ensure()
         {
@@ -82,10 +88,30 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             }
 
             s_ReportedMissing = false;
-
             s_Foliage = Create(foliage, "Procedural Vegetation Foliage (Shared Runtime)");
             s_Surface = Create(surface, "Procedural Vegetation Surface (Shared Runtime)");
             s_Vine = Create(vine, "Procedural Vine (Shared Runtime)");
+            return true;
+        }
+
+        private static bool EnsureGrass()
+        {
+            if (s_Grass != null) return true;
+
+            Shader grass = Shader.Find(GrassShaderName);
+            if (grass == null)
+            {
+                if (!s_ReportedMissingGrass)
+                {
+                    s_ReportedMissingGrass = true;
+                    Debug.LogError($"Vegetation shader was not found: {GrassShaderName}");
+                }
+                return false;
+            }
+
+            s_ReportedMissingGrass = false;
+            s_Grass = Create(grass, "Procedural Grass (Shared Runtime)");
+            s_Grass.enableInstancing = false;
             return true;
         }
 
@@ -94,6 +120,8 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             VegetationRenderStyle style = StyleFor(kind);
             if (style.ShaderClass == VegetationShaderClass.Woody)
                 return ProceduralTreeMaterials.Bark;
+            if (style.ShaderClass == VegetationShaderClass.Grass)
+                return EnsureGrass() ? s_Grass : null;
 
             if (!Ensure()) return null;
             switch (style.ShaderClass)
@@ -119,9 +147,9 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
         }
 
         /// <summary>
-        /// Publishes nearby character positions to the shared foliage shader. W stores each
-        /// character's influence radius so callers can use capsule radius or another authored value.
-        /// Extra entries are deliberately truncated to the fixed shader-array budget.
+        /// Publishes nearby character positions to grass presentation. W stores each character's
+        /// influence radius so gameplay can use capsule radius or another authored value. Extra
+        /// entries are deliberately truncated to the fixed shader-array budget.
         /// </summary>
         public static void SetGrassInteractors(IReadOnlyList<Vector4> interactors)
         {
@@ -139,8 +167,12 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             ApplyLighting(s_Foliage);
             ApplyLighting(s_Surface);
             ApplyLighting(s_Vine);
+
+            // Keep the legacy foliage publication while semantic Grass migrates to its dedicated
+            // packed renderer. Other foliage shaders ignore these values.
             s_Foliage.SetInt("_GrassInteractorCount", s_GrassInteractorCount);
             s_Foliage.SetVectorArray("_GrassInteractorPositions", s_GrassInteractors);
+            if (EnsureGrass()) ApplyGrassState(s_Grass);
         }
 
         public static VegetationRenderStyle StyleFor(VegetationKind kind)
@@ -168,6 +200,9 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
 
         private static VegetationShaderClass Classify(VegetationKind kind, VegetationGrowthForm growthForm)
         {
+            if (kind == VegetationKind.Grass)
+                return VegetationShaderClass.Grass;
+
             switch (kind)
             {
                 case VegetationKind.Moss:
@@ -201,14 +236,18 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
 
         private static float ShapeFor(VegetationKind kind, VegetationGrowthForm growthForm)
         {
-            // Grass gets a dedicated presentation discriminator. Several other tuft-like species
-            // intentionally share shape 0, so specializing shape 0 would silently restyle clover,
-            // weeds, nettles, reeds, and related foliage along with the captured grass defect.
             if (kind == VegetationKind.Grass) return 5f;
             if (kind == VegetationKind.Flower || kind == VegetationKind.ManaBloom) return 2f;
             if (growthForm == VegetationGrowthForm.Fungus) return 3f;
             if (growthForm == VegetationGrowthForm.Shrub) return 4f;
             if (growthForm == VegetationGrowthForm.Frond) return 1f;
+            if (growthForm == VegetationGrowthForm.Tuft || growthForm == VegetationGrowthForm.Aquatic)
+            {
+                // Shape 0 is the legacy camera-facing three-blade grass sprite. Semantic Grass now
+                // has its own packed renderer, so ordinary meadow accents must stay on their actual
+                // multi-card tuft/aquatic geometry instead of repeating that obsolete icon.
+                return 0.75f;
+            }
             return 0f;
         }
 
@@ -217,8 +256,6 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             if ((traits & VegetationTraits.Dead) != 0) return new Color(0.34f, 0.27f, 0.14f, 1f);
             switch (kind)
             {
-                // The grass sprite needs to read as a lit pixel-art accent over the already-green
-                // terrain rather than as the near-black vertical bars seen in the captured replay.
                 case VegetationKind.Grass: return new Color(0.31f, 0.62f, 0.18f, 1f);
                 case VegetationKind.Flower: return new Color(0.84f, 0.28f, 0.46f, 1f);
                 case VegetationKind.Mushroom: return new Color(0.58f, 0.34f, 0.20f, 1f);
@@ -289,6 +326,33 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             material.SetVector("_SunDirection", new Vector4(sun.x, sun.y, sun.z, 0f));
             material.SetColor("_SkyHorizon", VoxelRenderBridge.SkyHorizon);
             material.SetColor("_SkyZenith", VoxelRenderBridge.SkyZenith);
+        }
+
+        private static void ApplyGrassState(Material material)
+        {
+            material.SetFloat("_GrassTime", Time.time);
+            material.SetInt("_GrassInteractorCount", s_GrassInteractorCount);
+            material.SetVectorArray("_GrassInteractorPositions", s_GrassInteractors);
+
+            Camera camera = Camera.main;
+            if (s_GrassInteractorCount == 0 && camera != null)
+            {
+                Vector3 cameraPosition = camera.transform.position;
+                material.SetVector("_GrassPlayerPositionWS",
+                    new Vector4(cameraPosition.x, cameraPosition.y, cameraPosition.z, 1f));
+                material.SetFloat("_GrassPushRadius", CameraFallbackGrassRadius);
+            }
+            else
+            {
+                material.SetVector("_GrassPlayerPositionWS", new Vector4(100000f, 100000f, 100000f, 1f));
+                material.SetFloat("_GrassPushRadius", 1.05f);
+            }
+
+            Vector3 right = camera != null ? camera.transform.right : Vector3.right;
+            right.y = 0f;
+            if (right.sqrMagnitude < 0.0001f) right = Vector3.right;
+            right.Normalize();
+            material.SetVector("_GrassCameraRightWS", new Vector4(right.x, 0f, right.z, 0f));
         }
     }
 }

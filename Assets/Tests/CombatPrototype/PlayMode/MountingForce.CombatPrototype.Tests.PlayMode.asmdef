@@ -3,6 +3,7 @@
   "rootNamespace": "MountingForce.CombatPrototype.Tests.PlayMode",
   "references": [
     "MountingForce.CombatPrototype",
+    "Game.Combat.Runtime",
     "Game.Composition.CombatEnvironment.Runtime",
     "VoxelEngine.Vegetation.Api",
     "VoxelEngine.Vegetation.Runtime",

@@ -13,6 +13,7 @@
         "Game.Composition.Campaign.Runtime",
         "Game.Composition.Kentridge.Api",
         "Game.Composition.Kentridge.Runtime",
+        "Game.Composition.Kentridge.Playable",
         "Game.Composition.WorldBuilderWorldGen",
         "Game.Composition.WorldBuilderWorldGen.Runtime",
         "Game.Cutscenes.Api",
@@ -32,8 +33,7 @@
         "VoxelEngine.Vegetation.Api",
         "VoxelEngine.AmbientLife.Api",
         "VoxelEngine.Terrain.Api",
-        "Unity.Mathematics",
-        "VoxelEngine.Characters.Runtime"
+        "Unity.Mathematics"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

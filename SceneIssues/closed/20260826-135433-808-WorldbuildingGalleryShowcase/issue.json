@@ -1,0 +1,121 @@
+{
+    "formatVersion": 3,
+    "id": "20260826-135433-808-WorldbuildingGalleryShowcase",
+    "capturedUtc": "2026-08-26T13:54:33.8111230Z",
+    "note": "the grass still looks aweful.  you were supposed to have fixed it in issue 20260825-032832-253-VoxelShowcase.  \n\nThis project implements exactly what I want: https://github.com/DylearnDev/Dylearn-3D-Pixel-Art-Grass-Demo/tree/main\n\nREOPENED after human review on 2026-08-27: the previous closure did not visually match the supplied target. `reference-grass-target.jpg` is now the acceptance reference. The grass must look like that reference in normal gameplay: a dense, continuous stylized pixel-art meadow with irregular layered silhouettes, multiple green tonal regions/noise variation, and scattered accent blades/foliage rather than obvious repeated three-blade icons or dark billboard bars. The Dylearn project above is the implementation/art reference, not merely inspiration.\n\nPlayer interaction is required: grass near the player must visibly bend/displace away as the player moves through it and then recover after the player passes. The response must be local, smooth enough to read during movement, and must not move the entire field uniformly.",
+    "status": "fixed",
+    "resolvedUtc": "2026-08-28T22:39:20Z",
+    "resolutionSummary": "Restored the intended dense near-camera meadow appearance by routing ordinary Nettle meadow cover through ProceduralGrassBatch's packed grass renderer alongside semantic Grass, while retaining WaterGrass and other tuft accents on the generic path. Runtime replay of the marked pose no longer shows the surviving dark crossed-card Nettle cluster, and the existing grass shader interaction regression continues to gate local player bend/displacement and recovery.",
+    "regressionTest": "OrdinaryMeadowNettleUsesPackedGrassRendererWhileAquaticTuftsStayGeneric",
+    "fixCommit": "9a6e2b93969c807bd7175d7ff231c9e274311814",
+    "unityVersion": "6000.5.6f1",
+    "platform": "OSXEditor",
+    "sceneName": "WorldbuildingGalleryShowcase",
+    "scenePath": "Assets/Scenes/WorldbuildingGalleryShowcase.unity",
+    "sceneBuildIndex": 1,
+    "captures": [
+        {
+            "screenshot": "screenshot-001.png",
+            "capturedUtc": "2026-08-26T13:54:33.8120030Z",
+            "frameCount": 3105,
+            "timeSinceLevelLoad": 17.685041427612306,
+            "screenWidth": 1928,
+            "screenHeight": 836,
+            "poseAnchor": {
+                "hierarchyPath": "Worldbuilding Gallery Camera",
+                "position": {
+                    "x": -98.94783782958985,
+                    "y": 23.65003776550293,
+                    "z": 0.38304123282432558
+                },
+                "rotation": {
+                    "x": 0.2068670243024826,
+                    "y": -0.193331778049469,
+                    "z": 0.041740018874406818,
+                    "w": 0.9581683874130249
+                },
+                "localScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                }
+            },
+            "camera": {
+                "hierarchyPath": "Worldbuilding Gallery Camera",
+                "position": {
+                    "x": -98.94783782958985,
+                    "y": 23.65003776550293,
+                    "z": 0.38304123282432558
+                },
+                "rotation": {
+                    "x": 0.2068670243024826,
+                    "y": -0.193331778049469,
+                    "z": 0.041740018874406818,
+                    "w": 0.9581683874130249
+                },
+                "fieldOfView": 70.0,
+                "orthographic": false,
+                "orthographicSize": 5.0,
+                "nearClipPlane": 0.05000000074505806,
+                "farClipPlane": 15000.0
+            },
+            "circles": [
+                {
+                    "centerX": 0.48022598028182986,
+                    "centerY": 0.6677547097206116,
+                    "radius": 0.06902249902486801
+                }
+            ]
+        }
+    ],
+    "screenshot": "screenshot-001.png",
+    "frameCount": 3105,
+    "timeSinceLevelLoad": 17.685041427612306,
+    "screenWidth": 1928,
+    "screenHeight": 836,
+    "poseAnchor": {
+        "hierarchyPath": "Worldbuilding Gallery Camera",
+        "position": {
+            "x": -98.94783782958985,
+            "y": 23.65003776550293,
+            "z": 0.38304123282432558
+        },
+        "rotation": {
+            "x": 0.2068670243024826,
+            "y": -0.193331778049469,
+            "z": 0.041740018874406818,
+            "w": 0.9581683874130249
+        },
+        "localScale": {
+            "x": 1.0,
+            "y": 1.0,
+            "z": 1.0
+        }
+    },
+    "camera": {
+        "hierarchyPath": "Worldbuilding Gallery Camera",
+        "position": {
+            "x": -98.94783782958985,
+            "y": 23.65003776550293,
+            "z": 0.38304123282432558
+        },
+        "rotation": {
+            "x": 0.2068670243024826,
+            "y": -0.193331778049469,
+            "z": 0.041740018874406818,
+            "w": 0.9581683874130249
+        },
+        "fieldOfView": 70.0,
+        "orthographic": false,
+        "orthographicSize": 5.0,
+        "nearClipPlane": 0.05000000074505806,
+        "farClipPlane": 15000.0
+    },
+    "circles": [
+        {
+            "centerX": 0.48022598028182986,
+            "centerY": 0.6677547097206116,
+            "radius": 0.06902249902486801
+        }
+    ]
+}
