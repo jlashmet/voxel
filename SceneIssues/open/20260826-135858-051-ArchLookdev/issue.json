@@ -13,6 +13,8 @@
   "sceneName": "KentridgePlayableSlice",
   "scenePath": "Assets/Scenes/KentridgePlayableSlice.unity",
   "sceneBuildIndex": 0,
+  "screenWidth": 1928,
+  "screenHeight": 836,
   "evidenceLandmarkApproach": true,
   "evidenceLandmarkRole": 14,
   "captures": []
