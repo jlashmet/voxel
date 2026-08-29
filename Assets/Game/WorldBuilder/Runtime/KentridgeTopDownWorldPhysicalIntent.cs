@@ -63,10 +63,11 @@ namespace Game.WorldBuilder.Runtime
                     TopDownWorldRegionRelationKind.Between,
                     KentridgeTopDownWorldLayout.MoordellCorridor,
                     KentridgeTopDownWorldLayout.RossdamApproach,
-                    halfExtentXDm: 310,
+                    halfExtentXDm: 520,
                     halfExtentZDm: 270,
                     elevationDeltaDm: -45,
                     variationDm: 12,
+                    offsetXDm: -300,
                     source: "first macro geography pass: substantial lake separating the Moordell corridor from Rossdam approach"),
                 new TopDownWorldRegionSpec(
                     SouthernRidge,
@@ -96,6 +97,13 @@ namespace Game.WorldBuilder.Runtime
 
             var routeConstraints = new[]
             {
+                new TopDownWorldRouteRegionConstraintSpec(
+                    KentridgeTopDownWorldLayout.FightingArea1,
+                    KentridgeTopDownWorldLayout.FightingArea2,
+                    RossdamLake,
+                    TopDownWorldRouteRegionSolutionKind.GoAround,
+                    clearanceDm: 75,
+                    source: "northern road stays on dry ground around the lake's eastern shore"),
                 new TopDownWorldRouteRegionConstraintSpec(
                     KentridgeTopDownWorldLayout.MoordellCorridor,
                     KentridgeTopDownWorldLayout.RossdamApproach,
