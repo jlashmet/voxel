@@ -24,11 +24,34 @@
       "lookAt": true,
       "lookX": -43.5,
       "lookZ": -32.5,
-      "lookPitchDegrees": -8.0
+      "lookPitchDegrees": -8.0,
+      "requireGrounded": true,
+      "anchorVertical": true
     },
-    { "name": "switchback-0-high", "x": -43.5, "z": -32.5 },
-    { "name": "switchback-1-low", "x": -43.5, "z": -25.6 },
-    { "name": "switchback-1-high", "x": -76.5, "z": -25.6 },
+    {
+      "name": "switchback-0-high",
+      "x": -43.5,
+      "z": -32.5,
+      "requireGrounded": true,
+      "expectedYOffset": 4.6,
+      "yTolerance": 0.75
+    },
+    {
+      "name": "switchback-1-low",
+      "x": -43.5,
+      "z": -25.6,
+      "requireGrounded": true,
+      "expectedYOffset": 4.6,
+      "yTolerance": 0.75
+    },
+    {
+      "name": "switchback-1-high",
+      "x": -76.5,
+      "z": -25.6,
+      "requireGrounded": true,
+      "expectedYOffset": 9.2,
+      "yTolerance": 0.75
+    },
     {
       "name": "switchback-2-low",
       "x": -76.5,
@@ -38,13 +61,51 @@
       "lookAt": true,
       "lookX": -43.5,
       "lookZ": -18.7,
-      "lookPitchDegrees": -6.0
+      "lookPitchDegrees": -6.0,
+      "requireGrounded": true,
+      "expectedYOffset": 9.2,
+      "yTolerance": 0.75
     },
-    { "name": "switchback-2-high", "x": -43.5, "z": -18.7 },
-    { "name": "switchback-3-low", "x": -43.5, "z": -11.8 },
-    { "name": "switchback-3-high", "x": -76.5, "z": -11.8 },
-    { "name": "switchback-4-low", "x": -76.5, "z": -4.9 },
-    { "name": "switchback-4-high", "x": -43.5, "z": -4.9 },
+    {
+      "name": "switchback-2-high",
+      "x": -43.5,
+      "z": -18.7,
+      "requireGrounded": true,
+      "expectedYOffset": 13.8,
+      "yTolerance": 0.75
+    },
+    {
+      "name": "switchback-3-low",
+      "x": -43.5,
+      "z": -11.8,
+      "requireGrounded": true,
+      "expectedYOffset": 13.8,
+      "yTolerance": 0.75
+    },
+    {
+      "name": "switchback-3-high",
+      "x": -76.5,
+      "z": -11.8,
+      "requireGrounded": true,
+      "expectedYOffset": 18.4,
+      "yTolerance": 0.75
+    },
+    {
+      "name": "switchback-4-low",
+      "x": -76.5,
+      "z": -4.9,
+      "requireGrounded": true,
+      "expectedYOffset": 18.4,
+      "yTolerance": 0.75
+    },
+    {
+      "name": "switchback-4-high",
+      "x": -43.5,
+      "z": -4.9,
+      "requireGrounded": true,
+      "expectedYOffset": 23.0,
+      "yTolerance": 0.75
+    },
     {
       "name": "switchback-5-low",
       "x": -43.5,
@@ -54,9 +115,19 @@
       "lookAt": true,
       "lookX": -76.5,
       "lookZ": 2.0,
-      "lookPitchDegrees": -5.0
+      "lookPitchDegrees": -5.0,
+      "requireGrounded": true,
+      "expectedYOffset": 23.0,
+      "yTolerance": 0.75
     },
-    { "name": "switchback-5-high", "x": -76.5, "z": 2.0 },
+    {
+      "name": "switchback-5-high",
+      "x": -76.5,
+      "z": 2.0,
+      "requireGrounded": true,
+      "expectedYOffset": 27.6,
+      "yTolerance": 0.75
+    },
     {
       "name": "summit-ramp-high",
       "x": -76.5,
@@ -66,7 +137,10 @@
       "lookAt": true,
       "lookX": -60.0,
       "lookZ": 20.0,
-      "lookPitchDegrees": -4.0
+      "lookPitchDegrees": -4.0,
+      "requireGrounded": true,
+      "expectedYOffset": 28.0,
+      "yTolerance": 0.75
     },
     {
       "name": "summit-proximity",
@@ -77,7 +151,10 @@
       "lookAt": true,
       "lookX": -60.0,
       "lookZ": 20.0,
-      "lookPitchDegrees": -3.0
+      "lookPitchDegrees": -3.0,
+      "requireGrounded": true,
+      "expectedYOffset": 28.0,
+      "yTolerance": 0.75
     }
   ]
 }
