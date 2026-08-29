@@ -12,7 +12,7 @@ namespace VoxelEngine.Tests.PlayMode
             var cue = new CutsceneCueId("test.dialogue");
             var dialogue = new TimedCutsceneDialogueRuntime(
                 (speaker, requested) => requested.Equals(cue) ? "Shared dialogue" : requested.Value,
-                displayMilliseconds: 1000);
+                displayDurationMilliseconds: 1000);
             var presentation = new CutscenePresentationRouter(
                 ImmediateCutsceneCueRuntime.Instance,
                 dialogue,
