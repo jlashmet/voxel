@@ -57,6 +57,8 @@ namespace VoxelEngine.Showcase
         /// This is the only startup entry the gallery scene needs. Authoring the district during
         /// play costs a castle plus a 48-million-voxel structure pass before the first frame; the
         /// baked path installs the same voxels from storage snapshots and binds presentation.
+        /// Older gallery bakes may predate newer town districts, so a bounded town-only compatibility
+        /// pass repairs those missing shared WorldBuilder structures without rerunning the old gallery.
         /// </summary>
         public void StartWorldbuildingGalleryBlocking(WorldObjectRuntimeComposition worldObjects)
         {
@@ -78,6 +80,7 @@ namespace VoxelEngine.Showcase
                     "produced by the Voxel Showcase baker. Re-run " +
                     "Tools > Voxel Engine > Bake Worldbuilding Gallery World.");
 
+            EnsureWorldbuildingGalleryTownArchitectureBlocking();
             EnsureCastleWorldObjectSceneLoaded();
             RestoreWorldbuildingGalleryFromBake(worldObjects);
         }
