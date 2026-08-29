@@ -40,6 +40,7 @@ namespace VoxelEngine.Tests.PlayMode
                     out TopDownWorldRegionPlan lake),
                 Is.True);
             Assert.That(lake.Spec.Kind, Is.EqualTo(TopDownWorldRegionKind.WaterBody));
+            AssertBanditSpurUsesDryAuthoredShoreline(physical, lake);
 
             FeatureCatalogue waterCatalogue = default;
             try
@@ -79,6 +80,30 @@ namespace VoxelEngine.Tests.PlayMode
                 $"constrainedRoutes={physical.GeographyConstrainedRouteCount} solveSteps={physical.RouteSolveSteps} " +
                 $"maxRoadRiseVoxels={maximumRise} roadStepDm={TopDownWorldPhysicalPlanner.RouteTileStepDm} " +
                 $"waterDepthVoxels={TopDownWorldWaterBodyVoxelCatalogue.DepthVoxels(lake, settings.VoxelsPerDecimetre)}");
+        }
+
+        private static void AssertBanditSpurUsesDryAuthoredShoreline(
+            TopDownWorldPhysicalPlan physical,
+            TopDownWorldRegionPlan lake)
+        {
+            Assert.That(
+                physical.TryGetRoute(
+                    MountingForceTopDownWorldDefinition.FightingArea1,
+                    MountingForceTopDownWorldDefinition.BanditHideout,
+                    out TopDownWorldPhysicalRoutePlan bandit),
+                Is.True);
+            Assert.That(
+                bandit.GeographyConstrained,
+                Is.True,
+                "The verified bandit spur grazes the modern Rossdam lake footprint and must use an explicit dry routing solution.");
+            int corridorMargin = bandit.Route.CorridorWidthDm / 2;
+            for (var i = 0; i < bandit.Tiles.Count; i++)
+            {
+                Assert.That(
+                    lake.Contains(bandit.Tiles[i], -corridorMargin),
+                    Is.False,
+                    "The authored Bandit Hideout shoreline route may not put the travel corridor in Rossdam Lake.");
+            }
         }
 
         private static void AssertProductionCompositionContainsMacro(
