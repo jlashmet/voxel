@@ -15,10 +15,9 @@ namespace VoxelEngine.Tests.PlayMode
     ///
     /// The full showcase traversal proved that a few GPU chunks can complete before all workers
     /// become permanently pending. This smaller harness watches the shared-mirror state directly:
-    /// a demanded recovery backlog may overlap an already-dispatched extraction briefly, but that
-    /// overlap must drain. If covered work can continuously reacquire the mirror while recovery is
-    /// queued, ReadyBlockCount and completed GPU builds stop changing and new camera coverage can
-    /// never become drawable.
+    /// demanded recovery must drain even while covered work is active, and a nonresident region
+    /// touched only by the exact snapshot's optional sampling halo must remain canonical empty rather
+    /// than becoming an unrecoverable GPU admission dependency.
     /// </summary>
     public sealed class GpuSurfaceMirrorRecoveryLivenessTests
     {
@@ -41,92 +40,116 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.NotNull(showcase);
             Assert.NotNull(camera);
 
-            VoxelSurfaceMetrics metrics = default;
-            for (int i = 0; i < WarmupFrames; i++)
+            var target = new RenderTexture(320, 180, 24, RenderTextureFormat.ARGB32)
             {
-                yield return null;
-                camera.Render();
-                metrics = VoxelRenderBridge.SurfaceMetrics;
-                if (metrics.VisibleSolidChunks > 0
-                    && GpuSurfaceMirrorCoordinator.ReadyBlockCount > 0)
-                    break;
-            }
+                name = "GpuSurfaceMirrorRecoveryLivenessTests.Recovery",
+                antiAliasing = 1,
+            };
+            RenderTexture previousTarget = camera.targetTexture;
+            target.Create();
+            camera.targetTexture = target;
 
-            Assert.Greater(metrics.VisibleSolidChunks, 0,
-                "Focused mirror-liveness harness never reached initial visible coverage.");
-            Assert.Greater(GpuSurfaceMirrorCoordinator.ReadyBlockCount, 0,
-                "Focused mirror-liveness harness never initialized the shared GPU mirror.");
-
-            Vector3 origin = showcase.transform.position;
-            Vector3 position = origin;
-            ulong baselineGpuCompleted = metrics.GpuCompletedSolidBuilds;
-            ulong lastGpuCompleted = baselineGpuCompleted;
-            int lastReadyBlocks = GpuSurfaceMirrorCoordinator.ReadyBlockCount;
-            int stalledBacklogActiveFrames = 0;
-            int maxStalledBacklogActiveFrames = 0;
-            bool sawRecoveryBacklog = false;
-            bool sawBacklogOverlapActiveExtraction = false;
-
-            for (int frame = 0; frame < ObservationFrames; frame++)
+            try
             {
-                if (position.x - origin.x < TravelMetres)
+                VoxelSurfaceMetrics metrics = default;
+                for (int i = 0; i < WarmupFrames; i++)
                 {
-                    float step = Mathf.Min(StepMetres, TravelMetres - (position.x - origin.x));
-                    position.x += step;
-                    showcase.transform.position = position;
+                    yield return null;
+                    camera.Render();
+                    metrics = VoxelRenderBridge.SurfaceMetrics;
+                    if (metrics.VisibleSolidChunks > 0
+                        && GpuSurfaceMirrorCoordinator.ReadyBlockCount > 0)
+                        break;
                 }
 
-                yield return null;
-                camera.Render();
-                metrics = VoxelRenderBridge.SurfaceMetrics;
+                Assert.Greater(metrics.VisibleSolidChunks, 0,
+                    "Focused mirror-liveness harness never reached initial visible coverage.");
+                Assert.Greater(GpuSurfaceMirrorCoordinator.ReadyBlockCount, 0,
+                    "Focused mirror-liveness harness never initialized the shared GPU mirror.");
 
-                bool recoveryBacklog = !GpuSurfaceMirrorCoordinator.RecoveryComplete;
-                int activeExtractions = GpuSurfaceMirrorCoordinator.ActiveExtractions;
-                int readyBlocks = GpuSurfaceMirrorCoordinator.ReadyBlockCount;
-                ulong gpuCompleted = metrics.GpuCompletedSolidBuilds;
-                bool progress = readyBlocks != lastReadyBlocks || gpuCompleted != lastGpuCompleted;
+                Vector3 origin = showcase.transform.position;
+                Vector3 position = origin;
+                ulong baselineGpuCompleted = metrics.GpuCompletedSolidBuilds;
+                ulong lastGpuCompleted = baselineGpuCompleted;
+                int lastReadyBlocks = GpuSurfaceMirrorCoordinator.ReadyBlockCount;
+                int stalledBacklogActiveFrames = 0;
+                int maxStalledBacklogActiveFrames = 0;
+                bool sawRecoveryBacklog = false;
+                bool sawBacklogOverlapActiveExtraction = false;
 
-                sawRecoveryBacklog |= recoveryBacklog;
-                sawBacklogOverlapActiveExtraction |= recoveryBacklog && activeExtractions > 0;
+                for (int frame = 0; frame < ObservationFrames; frame++)
+                {
+                    if (position.x - origin.x < TravelMetres)
+                    {
+                        float step = Mathf.Min(StepMetres, TravelMetres - (position.x - origin.x));
+                        position.x += step;
+                        showcase.transform.position = position;
+                    }
 
-                if (recoveryBacklog && activeExtractions > 0 && !progress)
-                    stalledBacklogActiveFrames++;
-                else
-                    stalledBacklogActiveFrames = 0;
+                    yield return null;
+                    camera.Render();
+                    metrics = VoxelRenderBridge.SurfaceMetrics;
 
-                maxStalledBacklogActiveFrames = Mathf.Max(
-                    maxStalledBacklogActiveFrames, stalledBacklogActiveFrames);
+                    bool recoveryBacklog = !GpuSurfaceMirrorCoordinator.RecoveryComplete;
+                    int activeExtractions = GpuSurfaceMirrorCoordinator.ActiveExtractions;
+                    int readyBlocks = GpuSurfaceMirrorCoordinator.ReadyBlockCount;
+                    ulong gpuCompleted = metrics.GpuCompletedSolidBuilds;
+                    bool progress = readyBlocks != lastReadyBlocks || gpuCompleted != lastGpuCompleted;
 
-                Assert.Less(stalledBacklogActiveFrames, MaxBacklogActiveStallFrames,
-                    $"Shared GPU mirror recovery made no progress for "
-                  + $"{stalledBacklogActiveFrames} rendered frames while "
-                  + $"activeExtractions={activeExtractions}, recoveryPending={recoveryBacklog}, "
-                  + $"readyBlocks={readyBlocks}, gpuCompleted={gpuCompleted}, "
-                  + $"gpuWaitSlices={metrics.GpuReadbackWaitSlices}, "
-                  + $"visible={metrics.VisibleSolidChunks}, "
-                  + $"missing={metrics.MissingVisibleSolidChunks}. Covered GPU work is starving "
-                  + "new demanded mirror blocks instead of yielding a recovery drain point.");
+                    sawRecoveryBacklog |= recoveryBacklog;
+                    sawBacklogOverlapActiveExtraction |= recoveryBacklog && activeExtractions > 0;
 
-                lastReadyBlocks = readyBlocks;
-                lastGpuCompleted = gpuCompleted;
+                    if (recoveryBacklog && activeExtractions > 0 && !progress)
+                        stalledBacklogActiveFrames++;
+                    else
+                        stalledBacklogActiveFrames = 0;
 
-                if (position.x - origin.x >= TravelMetres
-                    && sawRecoveryBacklog
-                    && gpuCompleted >= baselineGpuCompleted + 4
-                    && metrics.VisibleSolidChunks > 0)
-                    break;
+                    maxStalledBacklogActiveFrames = Mathf.Max(
+                        maxStalledBacklogActiveFrames, stalledBacklogActiveFrames);
+
+                    Assert.Less(stalledBacklogActiveFrames, MaxBacklogActiveStallFrames,
+                        $"Shared GPU mirror recovery made no progress for "
+                      + $"{stalledBacklogActiveFrames} rendered frames while "
+                      + $"activeExtractions={activeExtractions}, recoveryPending={recoveryBacklog}, "
+                      + $"readyBlocks={readyBlocks}, gpuCompleted={gpuCompleted}, "
+                      + $"gpuWaitSlices={metrics.GpuReadbackWaitSlices}, "
+                      + $"visible={metrics.VisibleSolidChunks}, "
+                      + $"missing={metrics.MissingVisibleSolidChunks}. Covered GPU work is starving "
+                      + "new demanded mirror blocks instead of yielding a recovery drain point.");
+
+                    lastReadyBlocks = readyBlocks;
+                    lastGpuCompleted = gpuCompleted;
+
+                    if (position.x - origin.x >= TravelMetres
+                        && sawRecoveryBacklog
+                        && gpuCompleted >= baselineGpuCompleted + 4
+                        && metrics.VisibleSolidChunks > 0
+                        && GpuSurfaceMirrorCoordinator.OptionalNonResidentHaloBlocksAccepted > 0)
+                        break;
+                }
+
+                Assert.True(sawRecoveryBacklog,
+                    "Focused traversal never exercised shared-mirror demand recovery.");
+                Assert.Greater(GpuSurfaceMirrorCoordinator.OptionalNonResidentHaloBlocksAccepted, 0ul,
+                    "Focused traversal never exercised a nonresident optional snapshot halo; the "
+                  + "regression did not cover the admission state that previously stayed pending.");
+                Assert.GreaterOrEqual(metrics.GpuCompletedSolidBuilds - baselineGpuCompleted, 4ul,
+                    $"Focused traversal did not sustain GPU completion after new demand: "
+                  + $"completed={metrics.GpuCompletedSolidBuilds - baselineGpuCompleted}, "
+                  + $"activeExtractions={GpuSurfaceMirrorCoordinator.ActiveExtractions}, "
+                  + $"recoveryPending={!GpuSurfaceMirrorCoordinator.RecoveryComplete}, "
+                  + $"readyBlocks={GpuSurfaceMirrorCoordinator.ReadyBlockCount}, "
+                  + $"optionalHaloAccepted="
+                  + $"{GpuSurfaceMirrorCoordinator.OptionalNonResidentHaloBlocksAccepted}, "
+                  + $"overlappedActiveExtraction={sawBacklogOverlapActiveExtraction}, "
+                  + $"maxBacklogActiveStallFrames={maxStalledBacklogActiveFrames}.");
             }
-
-            Assert.True(sawRecoveryBacklog,
-                "Focused traversal never exercised shared-mirror demand recovery.");
-            Assert.GreaterOrEqual(metrics.GpuCompletedSolidBuilds - baselineGpuCompleted, 4ul,
-                $"Focused traversal did not sustain GPU completion after new demand: "
-              + $"completed={metrics.GpuCompletedSolidBuilds - baselineGpuCompleted}, "
-              + $"activeExtractions={GpuSurfaceMirrorCoordinator.ActiveExtractions}, "
-              + $"recoveryPending={!GpuSurfaceMirrorCoordinator.RecoveryComplete}, "
-              + $"readyBlocks={GpuSurfaceMirrorCoordinator.ReadyBlockCount}, "
-              + $"overlappedActiveExtraction={sawBacklogOverlapActiveExtraction}, "
-              + $"maxBacklogActiveStallFrames={maxStalledBacklogActiveFrames}.");
+            finally
+            {
+                camera.targetTexture = previousTarget;
+                target.Release();
+                Object.DestroyImmediate(target);
+            }
         }
     }
 }
