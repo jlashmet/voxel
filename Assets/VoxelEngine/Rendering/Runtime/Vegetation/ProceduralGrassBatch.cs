@@ -177,7 +177,7 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             // VegetationPlacement is authoritative about whether grass exists. Once a semantic
             // Grass instance reaches presentation, always render it; the seed may vary only the
             // local blade field inside that placement.
-            int bladesHere = BladeCountForSeed(instance.Seed);
+            int bladesHere = ProceduralGrassPresentation.BladeCountForSeed(instance.Seed);
 
             for (int blade = 0; blade < bladesHere; blade++)
             {
@@ -258,7 +258,7 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
         }
 
         internal static int BladeCountForSeed(uint seed) =>
-            Mathf.RoundToInt(Mathf.Lerp(5f, 15f, Random01(Hash(seed, 0xD1B54A35u))));
+            ProceduralGrassPresentation.BladeCountForSeed(seed);
 
         // Retained as a regression oracle for the old renderer-owned macro coverage decision. It is
         // intentionally not consulted by production geometry generation.
