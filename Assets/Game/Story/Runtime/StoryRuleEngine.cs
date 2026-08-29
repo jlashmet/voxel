@@ -35,7 +35,6 @@ namespace Game.Story.Runtime
             var pending = new List<PendingEffect>();
             int matchedRules = 0;
 
-            // Evaluation phase: no effect may mutate state while conditions are being checked.
             for (var i = 0; i < rules.Count; i++)
             {
                 StoryRuleSpec rule = rules[i] ?? throw new InvalidOperationException(
@@ -51,7 +50,6 @@ namespace Game.Story.Runtime
                     pending.Add(new PendingEffect(rule.Effects[j]));
             }
 
-            // Execution phase: preserve authored rule order and effect order.
             for (var i = 0; i < pending.Count; i++)
                 ApplyEffect(pending[i].Effect, effects);
 
@@ -66,6 +64,10 @@ namespace Game.Story.Runtime
             if (trigger is InteractWithNpcTriggerSpec interact)
                 return storyEvent.Kind == StoryEventKind.NpcInteracted
                     && interact.Npc.Equals(storyEvent.Npc);
+
+            if (trigger is EnterSiteProximityTriggerSpec proximity)
+                return storyEvent.Kind == StoryEventKind.SiteProximityEntered
+                    && proximity.Site.Equals(storyEvent.Site);
 
             if (trigger is CutsceneCompletedTriggerSpec completed)
                 return storyEvent.Kind == StoryEventKind.CutsceneCompleted
