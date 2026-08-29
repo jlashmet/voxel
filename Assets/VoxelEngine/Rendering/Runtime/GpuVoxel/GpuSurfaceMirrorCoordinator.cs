@@ -105,8 +105,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
             // Journal replay and resident recovery are independent bounded queues. Advance both in
             // the same frame when mutation is legal, but never rewrite a shared slot underneath an
-            // active extraction. Once the mirror already matches the current generation, multiple
-            // chunks may safely extract concurrently from that immutable image.
+            // active extraction. Once the journal matches the current generation, locally recovered
+            // regions may serve GPU chunks while unrelated resident regions continue background
+            // recovery; Covers proves the requested footprint is ready and snapshot-compatible.
             bool changesSynchronized = s_MirroredVersion == currentGeneration;
             if (!changesSynchronized)
             {
@@ -121,7 +122,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 ProcessRecovery();
             }
 
-            if (!changesSynchronized || !RecoveryComplete) return false;
+            if (!changesSynchronized) return false;
 
             s_LastPrepareResult = s_MirroredVersion == currentGeneration;
             return s_LastPrepareResult;
@@ -130,12 +131,12 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         /// <summary>
         /// True when every region sampled by the chunk is resident in the current mirror and no
         /// solid-affecting change in those regions occurred after the caller's snapshot generation.
-        /// Global changes elsewhere in the world do not invalidate otherwise identical chunk data.
+        /// Global recovery elsewhere in the world does not block an otherwise complete footprint.
         /// </summary>
         internal static bool Covers(int3 brickCacheOrigin, int brickCacheEdge,
                                     ulong requiredGeneration)
         {
-            if (s_Storage == null || !RecoveryComplete || brickCacheEdge <= 0) return false;
+            if (s_Storage == null || brickCacheEdge <= 0) return false;
             if (requiredGeneration < s_KnownRegionHistoryFromVersion) return false;
 
             int shift = VoxelReadGrid.BlocksPerRegionEdgeLog2;
