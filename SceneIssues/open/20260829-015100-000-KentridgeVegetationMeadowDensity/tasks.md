@@ -43,7 +43,7 @@
 - [x] Final artifact inspected directly; mandatory meadow-density and animation visual gates pass.
 
 ## Metadata / promotion / publish
-- [ ] Set pending metadata (`status=pending`, `resolutionSummary`, `regressionTest`, `fixCommit`) on the assigned issue.
+- [x] Set pending metadata (`status=pending`, `resolutionSummary`, `regressionTest`, `fixCommit`) on the assigned issue.
 - [ ] Move only this assignment `open -> pending` in a separate bookkeeping commit.
 - [ ] Move only this assignment `pending -> closed`, set `status=fixed` and `resolvedUtc`, and complete this checklist.
 - [ ] Merge current `origin/master` into `fixes/agent-5` (stop for conflicts outside assigned work).
