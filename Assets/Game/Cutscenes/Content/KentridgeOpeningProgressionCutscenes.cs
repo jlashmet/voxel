@@ -1,13 +1,12 @@
-using System;
 using System.Collections.Generic;
 using Game.Cutscenes.Api;
 
 namespace Game.Cutscenes.Content.Kentridge
 {
     /// <summary>
-    /// Source-faithful opening beats after the recovered pub scene. The retained Mounting Force
-    /// snapshot is missing Awon's referenced text payload, so that one-shot progression marker has
-    /// no invented dialogue. Medrare dialogue and narration are preserved verbatim from the source.
+    /// Opening beats after the recovered pub scene. Logan and Medrare preserve retained source
+    /// dialogue. Awon's referenced text payload is absent from the retained snapshot, so his scene
+    /// exposes only the issue-contract training beats rather than inventing dialogue.
     /// </summary>
     public static class KentridgeOpeningProgressionCutscenes
     {
@@ -15,17 +14,43 @@ namespace Game.Cutscenes.Content.Kentridge
         public static readonly CutsceneActorId Logan = new CutsceneActorId("logan");
         public static readonly CutsceneActorId Medrare = new CutsceneActorId("medrare");
 
+        public static readonly CutsceneStagePointId MedrareStart = new CutsceneStagePointId("medrare-start");
+        public static readonly CutsceneStagePointId MedrareConversation = new CutsceneStagePointId("medrare-conversation");
+
+        public static readonly CutsceneDefinition LoganToChurchDefinition = new CutsceneDefinition(
+            "kentridge.logan.to-church",
+            CutsceneStageSetupDefinition.Empty,
+            new[]
+            {
+                CutsceneStep.Dialogue(Logan, KentridgeOpeningScript.CueForLoganToChurchLine(1)),
+                CutsceneStep.Dialogue(Logan, KentridgeOpeningScript.CueForLoganToChurchLine(2)),
+                CutsceneStep.Dialogue(Logan, KentridgeOpeningScript.CueForLoganToChurchLine(3))
+            });
+
         public static readonly CutsceneDefinition AwonDefinition = new CutsceneDefinition(
             "kentridge.awon.house-back-room",
             CutsceneStageSetupDefinition.Empty,
-            Array.Empty<CutsceneStep>(),
-            Array.Empty<CutsceneStagePointRequirement>());
+            new[]
+            {
+                CutsceneStep.Dialogue(KentridgeOpeningScript.CueForAwonOpeningBeat(1)),
+                CutsceneStep.Dialogue(KentridgeOpeningScript.CueForAwonOpeningBeat(2)),
+                CutsceneStep.Dialogue(KentridgeOpeningScript.CueForAwonOpeningBeat(3)),
+                CutsceneStep.Dialogue(KentridgeOpeningScript.CueForAwonOpeningBeat(4)),
+                CutsceneStep.Dialogue(KentridgeOpeningScript.CueForAwonOpeningBeat(5))
+            });
 
         public static readonly CutsceneDefinition MedrareFirstSpellDefinition = new CutsceneDefinition(
             "kentridge.medrare.first-spell",
-            CutsceneStageSetupDefinition.Empty,
+            new CutsceneStageSetupDefinition(new[]
+            {
+                new CutsceneActorPlacement(Medrare, MedrareStart)
+            }),
             new List<CutsceneStep>
             {
+                // KentridgeMedrareJoin.m: 1.5-second beat, then Medrare walks to the player before
+                // the dialogue block starts. Semantic stage points keep those cues generator-owned.
+                CutsceneStep.Wait(1500),
+                CutsceneStep.Move(Medrare, MedrareConversation, 2000),
                 Spoken(Weldon, 1), Spoken(Medrare, 2), Spoken(Weldon, 3), Spoken(Medrare, 4),
                 Spoken(Weldon, 5), Spoken(Medrare, 6), Spoken(Weldon, 7), Spoken(Medrare, 8),
                 Spoken(Weldon, 9), Spoken(Medrare, 10), Spoken(Weldon, 11), Spoken(Logan, 12),
@@ -33,18 +58,19 @@ namespace Game.Cutscenes.Content.Kentridge
                 Spoken(Logan, 17), Spoken(Weldon, 18), Spoken(Logan, 19), Spoken(Weldon, 20),
                 Narrated(21), Narrated(22), Narrated(23)
             },
-            Array.Empty<CutsceneStagePointRequirement>());
-
-        public static readonly CutsceneDefinition MedrareToChurchDefinition = new CutsceneDefinition(
-            "kentridge.medrare.to-church",
-            CutsceneStageSetupDefinition.Empty,
             new[]
             {
-                CutsceneStep.Dialogue(Logan, KentridgeOpeningScript.CueForMedrareToChurchLine(1)),
-                CutsceneStep.Dialogue(Logan, KentridgeOpeningScript.CueForMedrareToChurchLine(2)),
-                CutsceneStep.Dialogue(Logan, KentridgeOpeningScript.CueForMedrareToChurchLine(3))
-            },
-            Array.Empty<CutsceneStagePointRequirement>());
+                new CutsceneStagePointRequirement(
+                    MedrareStart,
+                    CutsceneStageRegion.ConversationApproach,
+                    4,
+                    CutsceneStageFacingHint.TowardStageCenter),
+                new CutsceneStagePointRequirement(
+                    MedrareConversation,
+                    CutsceneStageRegion.InteriorGatheringArea,
+                    4,
+                    CutsceneStageFacingHint.TowardStageCenter)
+            });
 
         private static CutsceneStep Spoken(CutsceneActorId speaker, int line) =>
             CutsceneStep.Dialogue(speaker, KentridgeOpeningScript.CueForMedrareFirstSpellLine(line));
