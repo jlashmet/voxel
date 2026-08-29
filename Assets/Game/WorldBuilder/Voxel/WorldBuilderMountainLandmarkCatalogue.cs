@@ -136,7 +136,10 @@ namespace Game.WorldBuilder.Voxel
                 Kind = FeatureKind.Landform,
                 BasePlane = BasePlaneRule.FixedAltitude,
                 FixedAltitude = spec.Origin.y,
-                Footprint = new int3(spec.FootprintEdge, spec.MountainHeight + 2, spec.FootprintEdge),
+                Footprint = new int3(
+                    spec.FootprintEdge,
+                    spec.MountainHeight + PathHeadroomVoxels + 2,
+                    spec.FootprintEdge),
                 MaxSlope = 8,
                 Precedence = 100,
                 ProgramOffset = 0,
