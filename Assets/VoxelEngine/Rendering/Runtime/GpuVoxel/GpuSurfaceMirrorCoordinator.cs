@@ -98,7 +98,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
             int frame = Time.frameCount;
             if (s_LastPrepareFrame == frame && s_LastPrepareWorldVersion == currentGeneration)
-                return s_LastPrepareResult && s_MirroredVersion == currentGeneration;
+                return s_LastPrepareResult
+                    && s_MirroredVersion == currentGeneration
+                    && RecoveryComplete;
             s_LastPrepareFrame = frame;
             s_LastPrepareWorldVersion = currentGeneration;
             s_LastPrepareResult = false;
@@ -116,14 +118,16 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
             // Covers queues only exact blocks an eligible GPU build is actually waiting for. A
             // bounded recovery slice therefore cannot be monopolized by unrelated blocks from the
-            // same very large Storage region.
+            // same very large Storage region. Keep admission closed until the queued slice backlog
+            // is fully drained; otherwise an already-covered worker can immediately reacquire the
+            // shared extraction lease and starve the remaining demanded blocks indefinitely.
             if (!RecoveryComplete)
             {
                 if (s_ActiveExtractions != 0) return false;
                 ProcessRecovery();
             }
 
-            s_LastPrepareResult = s_MirroredVersion == currentGeneration;
+            s_LastPrepareResult = s_MirroredVersion == currentGeneration && RecoveryComplete;
             return s_LastPrepareResult;
         }
 
@@ -282,6 +286,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             UnmarkReadyBlock(block);
             if (!s_QueuedRecoveryBlocks.Add(block)) return;
             s_RecoveryBlocks.Enqueue(block);
+
+            // Covers can discover new demand after this frame's PrepareFromBridge result was cached.
+            // Close that cached admission immediately so later workers in the same frame cannot
+            // bypass the new backlog and keep an extraction continuously active.
+            s_LastPrepareResult = false;
         }
 
         private static void InvalidateRegion(int3 region, bool requeueReadyBlocks)
