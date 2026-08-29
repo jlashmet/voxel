@@ -75,11 +75,11 @@ namespace Game.WorldBuilder.Runtime
                     TopDownWorldRegionRelationKind.Separates,
                     KentridgeTopDownWorldLayout.SouthFightingArea,
                     KentridgeTopDownWorldLayout.LoganApproach,
-                    halfExtentXDm: 330,
-                    halfExtentZDm: 500,
+                    halfExtentXDm: 270,
+                    halfExtentZDm: 270,
                     elevationDeltaDm: 110,
-                    variationDm: 15,
-                    source: "first macro geography pass: ridge barrier across the Logan route"),
+                    variationDm: 12,
+                    source: "first macro geography pass: substantial ridge barrier across the Logan route"),
                 new TopDownWorldRegionSpec(
                     SouthernPass,
                     "Southern Ridge Pass",
@@ -87,11 +87,11 @@ namespace Game.WorldBuilder.Runtime
                     TopDownWorldRegionRelationKind.Between,
                     KentridgeTopDownWorldLayout.SouthFightingArea,
                     KentridgeTopDownWorldLayout.LoganApproach,
-                    halfExtentXDm: 95,
-                    halfExtentZDm: 120,
+                    halfExtentXDm: 80,
+                    halfExtentZDm: 300,
                     elevationDeltaDm: 24,
                     variationDm: 0,
-                    source: "explicit pass through the authored southern ridge barrier")
+                    source: "explicit north-south pass through the authored southern ridge barrier")
             };
 
             var routeConstraints = new[]
