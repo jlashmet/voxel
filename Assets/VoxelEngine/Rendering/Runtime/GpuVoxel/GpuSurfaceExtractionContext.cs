@@ -161,7 +161,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             Release();
 
             if (!GpuSurfaceMirrorCoordinator.PrepareFromBridge(generation)
-                || !GpuSurfaceMirrorCoordinator.Covers(request.BrickCacheOrigin, _brickCacheEdge))
+                || !GpuSurfaceMirrorCoordinator.Covers(
+                    request.BrickCacheOrigin, _brickCacheEdge, generation))
             {
                 ChunksRefusedNoSlot++;
                 return false;
