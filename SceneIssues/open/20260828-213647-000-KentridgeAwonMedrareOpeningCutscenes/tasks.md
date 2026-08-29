@@ -5,22 +5,23 @@
 - [x] Resume `fixes/agent-1` without resetting prior work and preserve the dedicated final-CI transport rule.
 - [x] Inspect the pinned Mounting Force commit `9491acd9efc3ad7413a13fd28f1686ed473b5672`; prefer pinned source over conflicting retained summaries/contracts.
 - [x] Verify the existing Kentridge pub opening/Logan prompt remains the source-backed entry beat.
-- [x] Recover `Art/kentridge-awon-house.tmx` and `kentridge-awon-house-back-room.txt`: Awon is talk-triggered, play-once, and the exact 22-line dialogue payload exists at the pinned commit.
-- [x] Recover distinct `kentridge-see-medrare` wiring from `Art/kentridge.tmx`: completed-Awon gate, play-once, `SceneCore`, separate from the custom join scene; confirm its text payload is absent and therefore UNKNOWN.
-- [x] Recover Kentridge Medrare join wiring: `Art/kentridge.tmx` gates `kentridge-medrare-join` on completed Awon, joins Medrare, is play-once + require-step; `Code/KentridgeMedrareJoin.m` marks the scene started, zooms to `0.5`, waits `1.5s`, approaches the player over `2s`, then invokes dialogue id `5000`.
-- [x] Confirm `kentridge-medrare-join.txt` is absent at the pinned commit; its dialogue is UNKNOWN and must not be invented.
-- [x] Recover `Art/medrare-house-lower.tmx`: `medrare-first-spell` is play-once + require-step after completed Awon and grants `Flame` to `RPGPlayer`; `medrare-to-church` is play-once after first-spell completion.
-- [x] Confirm the pinned source does not contain the referenced `medrare-first-spell.txt` or `medrare-to-church.txt` payloads; do not invent replacement dialogue. Treat absent payload text as UNKNOWN while retaining verified gates/actions.
-- [x] Identify later `medrare-join` after `meet-king` as a distinct later beat outside this opening feature.
-- [x] Reject the resumed branch's Michael/William/zombie dialogue and its claim that the Awon payload is missing; those assumptions conflict with the pinned source.
-- [ ] Replace the incorrect Awon/Medrare progression content with pinned-source dialogue/actions only, including distinct `kentridge-see-medrare` and `kentridge-medrare-join` events.
+- [x] Verify `Art/kentridge-awon-house.tmx` references actor `awn_cheer`, `Code/KentridgeAwon.m`, and `Art/kentridge-awon-house-back-room.txt`; the referenced `.m` and `.txt` payload files are absent from the pinned tree, so exact Awon dialogue/choreography must not be invented from the references alone.
+- [x] Verify `Art/kentridge.tmx` contains distinct `kentridge-see-medrare` and `kentridge-medrare-join` trigger objects; `kentridge-medrare-join` is require-step and references `Code/KentridgeMedrareJoin.m`.
+- [x] Recover the exact pinned `Code/KentridgeMedrareJoin.m` sequence: speech mode -> block until `move: 0` -> pause `0.5` -> center/follow Medrare -> pause `1.0` -> `SceneCore join medrare`; it contains no dialogue text.
+- [x] Verify `Art/medrare-house-lower.tmx` contains `medrare-house-lower-first-spell` with `SPELL_ENABLE 1` and `medrare-house-lower-to-church` referencing `Code/MedrareToChurch.m`; spell id `1` is Flame, while the referenced `MedrareToChurch.m` file is absent from the pinned tree.
+- [x] Reject resumed-branch dialogue/choreography claims that are not backed by the pinned tree; missing payloads remain UNKNOWN rather than reconstructed.
+- [ ] Inspect any recoverable Medrare SVG/outline assets and repository history needed to discriminate whether additional reveal/church choreography can be proven without guessing.
+- [ ] Replace the incorrect Awon/Medrare progression content with only pinned-source or otherwise directly verified dialogue/actions, retaining distinct `kentridge-see-medrare` and `kentridge-medrare-join` events.
+- [ ] Author and wire the source-backed Medrare join definition into normal campaign progression between sighting and first-spell progression.
 - [ ] Preserve source one-shot/re-entry gates in campaign progression; do not replay completed Awon/Medrare beats.
-- [ ] Implement source-backed Medrare party-join and one-time `Flame` grant state without inventing missing Medrare dialogue.
-- [ ] Remove or narrow shared runtime changes that only support the rejected Michael/William progression.
-- [ ] Add/update behavioral regressions for exact Awon dialogue identity/order, distinct Medrare sighting/join gates, join choreography/action ordering, Flame grant, church gate, Logan preservation, and replay suppression.
+- [ ] Implement source-backed Medrare party-join and one-time `Flame` grant state without inventing missing dialogue.
+- [ ] Fix the discovered story-runtime trigger/compiler mismatch (`SiteEntered` vs `SiteProximityEntered`) using the smallest generic seam needed by the recovered map triggers.
+- [ ] Provide an explicit campaign progress snapshot/restore seam (or equivalent persisted continuation) proving Medrare membership, Flame ownership, and completed opening beats survive continuation.
+- [ ] Remove or narrow shared runtime/presentation changes that only support rejected hidden choreography or player-runtime cue infrastructure.
+- [ ] Rewrite broken/stale progression regressions so they compile and prove exact recovered ordering, distinct sighting/join triggers, gameplay effects, replay suppression, continuation, Logan preservation, and control/camera restoration where source-backed.
 - [ ] Verify no unapproved assets/packages/generated expansion and no unrelated assignment changes.
 - [ ] Review blast radius and steady-state/runtime cost; verify unrelated campaign/story consumers remain valid.
-- [ ] Re-read every acceptance criterion and validate the implementation against corrected pinned-source evidence, explicitly recording any acceptance wording that cannot be reproduced because a pinned payload is absent.
+- [ ] Re-read every acceptance criterion and validate the implementation against corrected source evidence, explicitly recording any requested wording/choreography that cannot be reproduced because its referenced source payload is absent.
 - [ ] Run required repository/workflow gates and move only this assignment `open -> pending` with required metadata.
 - [ ] Create exactly one final targeted-CI request on `ci-test/fixes/agent-1` for the exact feature SHA; never edit `.github/test-request.json` on the feature branch.
 - [ ] Inspect exact-SHA CI logs/artifacts and confirm requested focused regressions plus built-application Kentridge validation are green.
