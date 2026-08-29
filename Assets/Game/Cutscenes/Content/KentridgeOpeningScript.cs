@@ -5,18 +5,27 @@ using Game.Cutscenes.Api;
 namespace Game.Cutscenes.Content.Kentridge
 {
     /// <summary>
-    /// Spoken content for the Kentridge opening.
-    ///
-    /// Lines 1-31 preserve the spoken text from the original MountingForce Art/Opening.txt.
-    /// Speaker labels from that source file are represented by the cutscene dialogue steps rather
-    /// than repeated in the displayed text. The choreography consumes stable cue ids while
-    /// presentation resolves those ids here, keeping dialogue content separate from staging.
+    /// Dialogue content for the recovered Kentridge opening. Text is copied verbatim from the
+    /// pinned Mounting Force payload when that payload exists. Missing legacy payloads resolve to an
+    /// empty string so this port preserves their identity/gates without inventing replacement prose.
     /// </summary>
     public static class KentridgeOpeningScript
     {
         public const int OriginalOpeningLineCount = 31;
+        public const int AwonOpeningLineCount = 22;
+        public const int AwonOpeningBeatCount = AwonOpeningLineCount;
 
         private const string OpeningCuePrefix = "kentridge.pub.opening.line-";
+        private const string AwonOpeningCuePrefix = "kentridge.awon.opening.line-";
+
+        public static readonly CutsceneCueId SeeMedrareSourceDialogue =
+            new CutsceneCueId("mounting-force.dialogue.kentridge-see-medrare");
+        public static readonly CutsceneCueId MedrareJoinSourceDialogue5000 =
+            new CutsceneCueId("mounting-force.dialogue.5000");
+        public static readonly CutsceneCueId MedrareFirstSpellSourceDialogue =
+            new CutsceneCueId("mounting-force.dialogue.medrare-first-spell");
+        public static readonly CutsceneCueId MedrareToChurchSourceDialogue =
+            new CutsceneCueId("mounting-force.dialogue.medrare-to-church");
 
         private static readonly string[] OriginalOpeningLines =
         {
@@ -53,38 +62,78 @@ namespace Game.Cutscenes.Content.Kentridge
             "Alright friends.  Lets head out!"
         };
 
-        private static readonly Dictionary<string, string> AdditionalLines = new Dictionary<string, string>
+        private static readonly string[] AwonOpeningLines =
         {
-            {
-                "destination-conversation.dialogue",
-                "You made it. Tell me what you found on the road."
-            },
+            "Weldon my boy!",
+            "Hey dad.",
+            "How are you all?  Good to see you Steven.  Hey madeline.",
+            "Greetings sir.  A pleasure to see you again.",
+            "Hi!  Tee hee.",
+            "I don't believe I've met this young fellow.  Pleased to meet you.  I'm Weldon's father, Awon.",
+            "The pleasure is all mine sir.  ",
+            "We're going with Logan to meet with Lord Radcliffe later to ask about the lack of food lately.",
+            "Ohhhh Madeline, you are a brave young bunch.  Be very careful though, Radcliffe can be a dangerous man.",
+            "We understand and agree sir, but this matter is too important to ignore.  If things do go awry, I'm confident in our ability to defend ourselves.",
+            "Well certainly you and Steven can hold your own, but what about Weldon?",
+            "Weldon, when you see them rush gallantly into battle, you remember to stay back and cast your spells like a ninny you hear?",
+            "Yes dad...",
+            "And try not to cause too much harm, or everyone will come after you and you'll have to run around in circles, again like a complete ninny.",
+            "Dad cut it out! I know how to handle myself.",
+            "Ok ok. Haha.  Well anyway, the reason I asked you to stop by is I found an old family heirloom in the back room.",
+            "Its behind a bunch of boxes that are too heavy for my old bones to move, but if you can clear them out, I think you'll find it useful.",
+            "And even better, you don't even have to equip it!  Because any items you find will add to your skills, no equipping or unequipping is needed.",
+            "If you click on your picture in the top left corner, you can see which items are equipped to each of your party members.",
+            "What do I do after clicking the picture?",
+            "Really Weldon? You are a wizard.  Figure it out already.",
+            "Ok thanks dad, thats helpful.  We will check it out."
         };
 
-        public static CutsceneCueId CueForOriginalLine(int oneBasedLineNumber)
+        private static readonly Dictionary<string, string> AdditionalLines = new Dictionary<string, string>
         {
-            if (oneBasedLineNumber < 1 || oneBasedLineNumber > OriginalOpeningLineCount)
-                throw new ArgumentOutOfRangeException(nameof(oneBasedLineNumber));
+            { "destination-conversation.dialogue", "You made it. Tell me what you found on the road." },
+            { SeeMedrareSourceDialogue.Value, string.Empty },
+            { MedrareJoinSourceDialogue5000.Value, string.Empty },
+            { MedrareFirstSpellSourceDialogue.Value, string.Empty },
+            { MedrareToChurchSourceDialogue.Value, string.Empty }
+        };
 
-            return new CutsceneCueId(OpeningCuePrefix + oneBasedLineNumber.ToString("00"));
-        }
+        public static CutsceneCueId CueForOriginalLine(int oneBasedLineNumber) =>
+            CueForLine(OpeningCuePrefix, oneBasedLineNumber, OriginalOpeningLineCount);
 
-        /// <summary>
-        /// The spoken text for a cue, or a visible placeholder naming the cue.
-        /// </summary>
+        public static CutsceneCueId CueForAwonOpeningLine(int oneBasedLineNumber) =>
+            CueForLine(AwonOpeningCuePrefix, oneBasedLineNumber, AwonOpeningLineCount);
+
+        public static CutsceneCueId CueForAwonOpeningBeat(int oneBasedLineNumber) =>
+            CueForAwonOpeningLine(oneBasedLineNumber);
+
         public static string LineFor(CutsceneCueId cue)
         {
             string id = cue.Value ?? string.Empty;
-            if (id.StartsWith(OpeningCuePrefix, StringComparison.Ordinal))
-            {
-                string suffix = id.Substring(OpeningCuePrefix.Length);
-                if (int.TryParse(suffix, out int lineNumber)
-                    && lineNumber >= 1
-                    && lineNumber <= OriginalOpeningLineCount)
-                    return OriginalOpeningLines[lineNumber - 1];
-            }
+            if (TryLine(id, OpeningCuePrefix, OriginalOpeningLines, out string line)) return line;
+            if (TryLine(id, AwonOpeningCuePrefix, AwonOpeningLines, out line)) return line;
+            return AdditionalLines.TryGetValue(id, out line) ? line : "[" + id + "]";
+        }
 
-            return AdditionalLines.TryGetValue(id, out string line) ? line : "[" + id + "]";
+        private static CutsceneCueId CueForLine(string prefix, int oneBasedLineNumber, int lineCount)
+        {
+            if (oneBasedLineNumber < 1 || oneBasedLineNumber > lineCount)
+                throw new ArgumentOutOfRangeException(nameof(oneBasedLineNumber));
+            return new CutsceneCueId(prefix + oneBasedLineNumber.ToString("00"));
+        }
+
+        private static bool TryLine(string id, string prefix, string[] lines, out string line)
+        {
+            if (id.StartsWith(prefix, StringComparison.Ordinal))
+            {
+                string suffix = id.Substring(prefix.Length);
+                if (int.TryParse(suffix, out int lineNumber) && lineNumber >= 1 && lineNumber <= lines.Length)
+                {
+                    line = lines[lineNumber - 1];
+                    return true;
+                }
+            }
+            line = null;
+            return false;
         }
     }
 }

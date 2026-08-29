@@ -6,28 +6,29 @@ Exact optional-halo request `33241309873` executed both requested PlayMode tests
 The exact built-player replay no longer stayed permanently frozen after the optional-halo change: t15.7 was sparse, t25.7 restored substantial castle geometry, and t35.7 restored more. Late telemetry was still only about `348 drawn / 351 missing`, so convergence exists but is too slow for moving coverage and does not settle by the 45 s gate.
 
 ## Hypotheses
-1. **Pending demand is serialized by the global prepare gate.** `BeginPersistentStage` used `if (!PrepareFromBridge(...) || !Covers(...))`. Once one worker's `Covers` enqueues recovery, `PrepareFromBridge` closes admission. Other workers therefore short-circuit before `Covers` and cannot register their own exact block demand. When the first queue drains, one extraction starts; the next worker then discovers its missing blocks, but recovery cannot mutate the shared mirror until active extraction returns to zero. This repeats recovery → one extraction → recovery across the 12 workers.
-2. **GPU count/write itself is the remaining bottleneck or semantic mismatch.** The single observed `gpuFallback=1` could indicate a count/readback/write disagreement unrelated to demand scheduling. If demand coalescing does not restore traversal coverage, instrument fallback reasons and count/write latency rather than increasing recovery budgets.
+1. **Pending demand is serialized by the global prepare gate.** `BeginPersistentStage` used `if (!PrepareFromBridge(...) || !Covers(...))`. Once one worker's `Covers` enqueues recovery, `PrepareFromBridge` closes admission. Other workers therefore short-circuit before `Covers` and cannot register their own exact block demand. When the first queue drains, one extraction starts; the next worker then discovers its missing blocks, but recovery cannot mutate the shared mirror until active extraction returns to zero.
+2. **GPU count/write itself is the remaining bottleneck or semantic mismatch.** The single observed `gpuFallback=1` could indicate a count/readback/write disagreement unrelated to demand scheduling.
 
 ## Discriminator / change
-Commit `0d88e6460c4a8a0c18fc6c68d7fc39c5855f893b` separates preparation from coverage discovery. Every pending stage now evaluates `Covers` even when `PrepareFromBridge` is false. `Covers` does not mutate GPU mirror payloads; it validates readiness/history and deduplicates exact missing resident block coordinates into the existing recovery queue. Dispatch still requires both `prepared` and `covered`, and mirror mutation remains forbidden while any extraction is active.
+Commit `0d88e6460c4a8a0c18fc6c68d7fc39c5855f893b` separated preparation from coverage discovery so every pending stage could register missing blocks even while preparation was blocked. Commit `862a857eeecefc1ada848cc2cf1f532b58878500` made the focused harness startup-aware without changing its post-startup liveness assertions.
 
-This lets waiting workers coalesce their overlapping footprints before the next safe recovery drain without increasing either the 64-block recovery slice or 128-record journal slice.
+## Exact result — hypothesis rejected as a production strategy
+Exact request `a41b2797c716762b8b31401b5f45a472cb0470b4`, direct parent of feature SHA `d9e846203010de71a261660fa1a20f134f787db2`, ran as GitHub Actions run `33254303476` / job `99105238335`; artifact `9715463385` was inspected.
 
-Commit `862a857eeecefc1ada848cc2cf1f532b58878500` replaces the focused test's 360-frame startup cap with a 60 s wall-clock initial-coverage window. Post-startup recovery, optional-halo, completion, and >180-frame stall assertions are unchanged.
+The focused 96 m behavioral regression **passed** in 53.6 s. That confirms the previously observed starvation mechanism was real: with all pending workers allowed to register demand, recovery no longer hits the focused no-progress condition and sustains the required additional GPU completions.
 
-## Expected result
-If hypothesis 1 is causal:
-- queued demand from multiple pending workers is drained as a union rather than one chunk at a time;
-- GPU completions continue beyond the prior eight-completion traversal ceiling;
-- the focused 96 m liveness test reaches its post-startup assertions and passes;
-- the 210 m traversal never reaches `visible=0`, has zero GPU-eligible CPU fallback, and settles to zero missing visible chunks;
-- the built-player replay restores the full near/mid field instead of slowly rebuilding only part of it by 45 s.
+The production 210 m regression **failed** at traversal frame 112: `visible=0`, `missing=716`, `jobs=12`, `gpuBackends=12`, `gpuCompleted=0`, `gpuFallback=0`, `gpuWaitSlices=1833`. The test output begins from a fully generated exact scene (`199 regions generated, 0 pending, terrain 100%`, castle complete). The later `16 pending, terrain 31%` line is new streaming induced by traversal, not premature test startup; the startup-confounder hypothesis is therefore rejected and the regression remains unchanged.
 
-If the same plateau remains, reject hypothesis 1 and pursue hypothesis 2 with explicit fallback-reason/count-write instrumentation.
+The exact built-player replay independently remained a product failure. Geometry recovered progressively rather than freezing, but at ~44.9 s it was still only about `103 visible / 661 missing`. Runtime remained fast enough to rule out general frame saturation (roughly 142 FPS average, p95 ~10.65 ms, normal exit).
+
+## Interpretation
+All-worker demand discovery traded starvation for over-batching. A step-2 GPU chunk has an 18^3 brick-cache footprint (5,832 block coordinates). Letting all 12 pending workers enqueue their footprints while `PrepareFromBridge` requires the *entire* global recovery queue to drain can create a very large union. Because extraction admission stays closed until that union is empty, the full traversal produced zero GPU completions even though the focused liveness test passed.
+
+Therefore experiment 006 establishes two facts simultaneously:
+- recovery admission fairness remains necessary; a queued backlog must not be leapfrogged indefinitely by already-covered extraction work;
+- unbounded cross-worker demand coalescing is not the correct fairness mechanism because it delays the first useful completion too long.
+
+Commit `4a51638a080bfdd6d226257b1dd4da5c235ea168` removes the experiment-006 all-worker coalescing behavior and restores one-footprint-at-a-time demand discovery while retaining the proven fairness gate and optional-halo semantics. The next experiment addresses the cost inside that bounded footprint rather than growing the global batch.
 
 ## Blast radius / cost
-The production change is limited to step-1/step-2 GPU mirror admission ordering. No storage semantics, world generation, shader layout, visibility policy, arena capacity, recovery budget, journal budget, or CPU fallback policy changes. Existing recovery queue deduplication bounds repeated demand discovery, and no new per-frame allocation is introduced.
-
-## Result
-Pending exact-SHA targeted CI and exact built-player replay.
+This experiment changed only step-1/step-2 GPU mirror admission ordering. No storage semantics, world generation, shader layout, visibility policy, arena capacity, journal budget, or CPU fallback policy changed. The rejected code has been removed; see experiment 007 for the bounded replacement.
