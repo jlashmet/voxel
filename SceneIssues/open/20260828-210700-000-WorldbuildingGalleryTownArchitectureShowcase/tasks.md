@@ -2,30 +2,26 @@
 
 - [x] Read `AGENTS.md`, available SceneIssue workflow, assigned issue, current plan, and resume `fixes/agent-9` without discarding existing work.
 - [x] Confirm `SceneIssues/feature-readme.md` is absent on current branch/master; apply the stricter coordinator instructions plus available `SceneIssues/README.md`.
-- [x] Merge current `origin/master` after the coordinator expanded this assignment with player-scale architecture requirements; treat the updated `issue.json` as authoritative.
+- [x] Merge current `origin/master` and treat the current `issue.json` as authoritative.
 - [x] Inspect all six reference screenshot prefix sets and capture/runtime evidence summarized in `plan.md`; keep screenshot evidence authoritative over proposed art-direction notes.
-- [x] Add reusable town architecture contracts and six canonical town style programs with distinct material families and required architecture/infrastructure roles.
+- [x] Add reusable town architecture contracts and six canonical town style programs with distinct material families and required residential/commercial/civic/landmark roles.
 - [x] Add shared voxel realization for the town programs without direct scene voxel-writing or hand-authored hierarchy geometry.
-- [ ] Make the shared realizer physically honor style/form intent so Riverbend, Greenhaven, Kentridge, Hightown, Fairy Valley, and Orc Invasion cannot collapse to the same generic shell/roof geometry.
-- [ ] Use `DetailUnitBlocks` for bounded 10–30 cm construction helpers and physically realize `WindowRows` as well as columns.
-- [ ] Add reusable recessed opening assemblies with projecting frame/sill/lintel treatment; ensure at least three districts visibly use them through shared WorldBuilder logic.
-- [ ] Add reusable style-specific entry/eave/coping/brace/chimney/porch/buttress/parapet/opening-reveal helpers needed by the six acceptance styles, without showcase-side geometry.
-- [ ] Ensure Riverbend reads as compact gabled timber/stone river settlement with cottage trim, chimney/porch massing, and authored dock chain.
-- [ ] Ensure Greenhaven reads as clean fortified light-stone town with dark trim, battlements/parapets, framed gate, and recessed framed rectangular windows.
-- [ ] Ensure Kentridge reads as denser/darker medieval stone center with connected massing, defensive battlements, tall narrow/slit openings, and strongly articulated entry.
-- [ ] Ensure Hightown reads as pale formal shoreline town with restrained dark bands/eaves, repeated organized recessed openings, civic/defensive massing, and harbor structure.
-- [ ] Ensure Fairy Valley reads as magical rather than recolored medieval: organic/crystalline silhouette, non-rectilinear spires/roofs, luminous accents, shaped recessed openings, and connected fantasy infrastructure.
-- [ ] Ensure Orc Invasion reads as harsh military/tribal: irregular bulky huts/towers, heavy braces/spikes/palisade, deep narrow openings with heavy surround, and raid/siege infrastructure.
-- [ ] Route showcase architecture authoring and bounds/audit access through `WorldBuilderTownArchitecture`; keep composition limited to style/placement/seed/material mapping/viewpoints/overlays.
-- [ ] Extend deterministic gallery evidence to verify all six labels, anchors, viewpoints, fixed seed/style mappings, world bounds/non-overlap, and style/detail trait summaries.
-- [ ] Add focused behavioral regressions for canonical style mapping, deterministic audit signatures, non-overlap/bounds, detail vocabulary, window-row realization contract, and distinct high-level form intent.
+- [ ] Extend the shared town-program contract with explicit reusable form/detail vocabulary and deterministic seed/detail-scale data; do not let distinct steep/twin/lean-to/organic/fortified/stockade intents collapse to one generic gable/box.
+- [ ] Add reusable shared architectural-detail authoring assemblies for meaningful 10–30 cm construction: recessed/framed windows with sill/lintel/mullion/shutter options, recessed/framed doors with threshold/lintel/steps/canopy/hardware, eaves/fascia/ridge caps, chimneys/caps, timber braces/joints, buttresses/caps, balconies/railings, masonry coursing/quoins/coping, and fortification reveals/crenellations where style-appropriate.
+- [ ] Refactor all six town realization paths to apply coherent style-specific macro/meso/micro detail through shared helpers rather than flat window rectangles, meter-scale boxes, or per-town copy/paste noise.
+- [ ] Ensure at least one representative building in every district visibly carries multiple authored 1–3 voxel (10–30 cm) construction details.
+- [ ] Expand Rossdam fortification realization with reusable layered parapet/coping, crenellation, arrow-slit reveal, tower-wall transition, buttress, stair/access, and gate framing/hardware primitives suitable for later castle reuse.
+- [ ] Keep `WorldbuildingGalleryShowcase` composition limited to style/placement/fixed seed/material mapping/viewpoints/overlays and route district geometry through the public WorldBuilder town-architecture authoring surface.
+- [ ] Wire six clearly separated/labeled Kentridge, Hightown, Moordell, Rossdam, Fairy Village, and Orc Village districts into the production `WorldbuildingGalleryShowcase` composition path with palette displays, characteristic ground/street treatment, all four required roles, and town-specific exterior cues.
+- [ ] Keep generated-gallery and baked-startup behavior in parity: the bake source must contain the six districts and stale-bake/version behavior must not omit this feature.
+- [ ] Extend gallery tour/evidence framing with deterministic wide/elevated, player-height facade (2–5 m), and close-detail (0.5–2 m) views for every district.
+- [ ] Add focused behavioral regressions through the production WorldBuilder path proving all six styles resolve intended material families, all four roles, non-empty detail vocabularies, distinct form signatures, fixed seeds, Rossdam fortification traits, and bounded district footprint.
 - [ ] Commit stable Unity `.meta` files for every new shared/test C# asset.
-- [ ] Verify generated-gallery and baked-startup behavior cannot retain stale pre-feature content and that the six districts are present through the production composition path.
-- [ ] Validate production scene composition has no direct bespoke voxel-writing or one-off district geometry for this feature.
+- [ ] Validate production scene composition has no direct bespoke voxel-writing or one-off scene geometry for this feature.
 - [ ] Review final diff for unrelated files and check blast radius across shared WorldBuilder/structure consumers.
 - [ ] Quantify/validate world-build writes/time, material/shader cost, draw/triangle impact, memory impact, batching, and streaming/LOD implications against existing budgets; detail must not be obtained by uncontrolled geometry growth.
 - [ ] Run focused exact-SHA targeted CI on `ci-test/fixes/agent-9` using the single allowed final request transport.
 - [ ] Run/verify exact-SHA built-application `WorldbuildingGalleryShowcase` detailed issue check and available scene-test gate reaches a usable rendered scene without startup/runtime exceptions.
-- [ ] Capture and directly inspect deterministic built-scene evidence for all six district viewpoints; do not resolve until each issue acceptance trait is visibly readable at intended screenshot distance and 10 cm detail contributes useful construction detail.
+- [ ] Capture and directly inspect wide/elevated, player-height facade, and close-detail built-scene evidence for all six districts against their original screenshot sets; explicitly verify useful 10–30 cm construction detail in every town style.
 - [ ] Complete pending metadata (`status`, `resolutionSummary`, `regressionTest`, `fixCommit`) and move only this assignment `open -> pending` after all required gates are green.
 - [ ] After all workflow gates and green exact-SHA CI, set `status=fixed` and `resolvedUtc`, move only this assignment `pending -> closed`, merge current `origin/master`, and push the exact feature head to `origin/master` non-force (retry merge if master advances).
