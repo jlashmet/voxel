@@ -5,6 +5,7 @@
 - [ ] Fix the actual traversal defect that left the player near Y=23.85 m instead of climbing the first switchbacks.
 - [ ] Add a reusable path occupancy/headroom contract using the production motor envelope (0.6 m footprint, 1.8 m body, 0.3 m max step).
 - [ ] Carve/clear a reusable mountain traversal corridor above authored ramps/landings: the proven obstruction is the already-solid mountain core above the one-voxel path surface, not the `FillIfEmpty` support masses.
+- [ ] Emit the traversal-clearance carve after every scenic/support `FillIfEmpty` pass so later fills cannot repopulate the production motor headroom envelope; preserve the authored walking floor.
 - [ ] Add semantic occupied-below + clear-above path-footprint regression to distinguish supported walking surface from a trapped/buried corridor.
 - [ ] Add regression/evidence that every switchback transition reaches its expected vertical band through normal `CharacterMotor` movement.
 - [ ] Generate and track `Assets/Resources/VoxelShowcase/ShowcaseWorld.manifest.txt` for the accepted startup bake.
