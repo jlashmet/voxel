@@ -10,22 +10,22 @@
 - [x] Merge current `origin/master` before the implementation pass without touching another assignment.
 
 ## Bake-cost discriminator
-- [x] Inspect both prior final-CI attempts and separate cold import from actual bake work: retry imported in ~63 s, then spent ~177 s in bake before the 240 s Unity guard killed it.
-- [x] Compare with earlier Mountain Dragon source `3059c8c119a7...`: the same CI bake completed in 3:57, only 3 s under the guard.
-- [x] Falsify the expanded-footprint-region hypothesis: +24 Y voxels do not add a 512-voxel region layer at the observed mountain base; X/Z footprint is unchanged.
-- [x] Isolate the post-3:57 production delta: natural supports already existed in the successful candidate; `83c50f94...` added full-width headroom carve prisms and `54f2088a...` only bounded them in existing region layers.
-- [x] Reduce headroom raster volume without weakening 24-voxel vertical clearance, the normal-movement route, full visible path width, or shared WorldBuilder semantics: centered clear lane is 16 voxels / 1.6 m.
-- [x] Add focused production-program regression proving the clear lane leaves 0.5 m lateral margin per side around the 0.6 m motor and caps total carve volume at 2.8M voxels.
-- [x] Re-check static blast radius/cost: 13 carve primitives and 76 total primitives unchanged; footprint unchanged at 1200 x 306 x 1200; carve raster volume 5,097,000 -> 2,718,400 voxels (-46.7%); no steady-state runtime work added.
-- [x] Inspect exact-SHA run `33274279301`: the optimized source still hit the external 4-minute bake-process wall after ~62.3 s cold import, so carve voxel count is not the dominant remaining bake cost.
-- [x] Remove the dominant non-serialized presentation work from only the offline VoxelShowcase bake: `FarFieldStructureStore.CaptureRegion` is suppressed by an instance-scoped `IDisposable` during `GenerateForBakeBlocking`, while runtime capture defaults enabled and `LoadBake` still rebuilds far-field metadata after restoration. Change-journal publication remains because it is constant-time and not the observed scan cost.
-- [x] Add the suppression/restoration regression to `MountainDragonNaturalSupportProgramTests` and invoke it from the exact final acceptance filter; nested scope behavior is covered so runtime capture cannot be accidentally re-enabled early.
-- [x] Re-check blast radius: semantic radius-8 generation, castle/features, startup snapshot payload, gallery bake, runtime streaming, region footprint, and Mountain Dragon primitive counts are unchanged; only discarded far-field scan work is skipped during the one-time VoxelShowcase offline generation path.
+- [x] Separate cold import from bake work and compare with successful source `3059c8c119a7...` (3:57 cold bake).
+- [x] Falsify expanded region-layer hypothesis; +24 Y voxels remain inside existing 512-voxel layers.
+- [x] Center headroom clearing to 16 voxels / 1.6 m while retaining 24-voxel height and full visible path; carve volume 5,097,000 -> 2,718,400 (-46.7%).
+- [x] Add production-program regression for 0.5 m lateral margin per side around the 0.6 m motor and <=2.8M carve voxels.
+- [x] Inspect run `33274279301`: centered clearing still hit the 240 s Unity guard after ~62.3 s cold import.
+- [x] Suppress non-serialized far-field capture only during offline VoxelShowcase bake and add scoped restoration regression.
+- [x] Merge master `355a7ed08915...`, preserving agent-4 work and adopting the 10-minute GitHub job ceiling.
+- [x] Submit exact request `6c96334421b3...` for merged feature `d1895b3b5591...`; leave it queued/running without replacement.
+- [x] Inspect run `33279296569`: cold import ~60.5 s, bake killed at 241 s / peak ~11.9 GB before the focused test; built-player fallback rejected stale payload because source-matched manifest is absent. Far-field suppression is falsified as sufficient.
+- [x] Trace the next hot path to shared `PrimitiveRasteriser`: box carve visits and reads already-empty voxels before discovering `default` is unchanged.
+- [ ] Add an output-equivalent fast path for `Carve` + `Box` that skips only blocks explicitly encoded `VoxelReadBlockKind.Empty`; never skip mixed blocks because empty-side boundary samples are authoritative.
+- [ ] Add behavioral regression covering implicit-empty box-carve no-op and mixed/boundary safety; include it in the exact final acceptance filter.
+- [ ] Re-check blast radius/cost: all non-box carve/fill/paint paths, primitive counts/order, footprint, runtime semantics, and serialized output must remain unchanged.
 
 ## Exact-SHA bake / built-player gate
-- [x] Inspect completed prior request `ee738bc8511160139eb3d7ea39fbde81d8d21877` and its one retry; both validate superseded source `7b5393736485e4411083bf06fd3257e42702b4bb` and cannot satisfy the new source gate.
-- [x] Diagnose the repeated bake timeout as a product-side cost regression and implement the bounded centered-clearance fix plus regression before requesting validation again.
-- [ ] Submit one fresh final exact-SHA request from the current feature head using only `ci-test/fixes/agent-4`; do not create another transport or replace queued/running work.
+- [ ] Submit one new final exact-SHA request from the post-fast-path feature head using only `ci-test/fixes/agent-4`; do not create another transport or replace queued/running work.
 - [ ] Generate and validate source-matched `ShowcaseWorld.bytes` + manifest.
 - [ ] Run the exact focused acceptance filter green.
 - [ ] Traverse the complete route via production `AutoWalk -> CharacterMotor.Step` with grounded Y proof.
