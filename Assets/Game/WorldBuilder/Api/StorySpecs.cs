@@ -51,6 +51,12 @@ namespace Game.WorldBuilder.Api
         internal QuestActiveConditionSpec(QuestRef quest) => Quest = quest;
     }
 
+    public sealed class CutsceneCompletedConditionSpec : IStoryConditionSpec
+    {
+        public CutsceneRef Cutscene { get; }
+        internal CutsceneCompletedConditionSpec(CutsceneRef cutscene) => Cutscene = cutscene;
+    }
+
     public sealed class CutsceneNotCompletedConditionSpec : IStoryConditionSpec
     {
         public CutsceneRef Cutscene { get; }
@@ -75,6 +81,34 @@ namespace Game.WorldBuilder.Api
         internal PlayCutsceneEffectSpec(CutsceneRef cutscene) => Cutscene = cutscene;
     }
 
+    public sealed class JoinPartyMemberEffectSpec : IStoryEffectSpec
+    {
+        public string MemberId { get; }
+        internal JoinPartyMemberEffectSpec(string memberId) =>
+            MemberId = RequireProgressId(memberId, nameof(memberId));
+
+        private static string RequireProgressId(string value, string paramName)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                throw new ArgumentException("Story progression ids must be non-empty.", paramName);
+            return value;
+        }
+    }
+
+    public sealed class GrantSpellEffectSpec : IStoryEffectSpec
+    {
+        public string SpellId { get; }
+        internal GrantSpellEffectSpec(string spellId) =>
+            SpellId = RequireProgressId(spellId, nameof(spellId));
+
+        private static string RequireProgressId(string value, string paramName)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                throw new ArgumentException("Story progression ids must be non-empty.", paramName);
+            return value;
+        }
+    }
+
     public static class StoryTrigger
     {
         public static IStoryTriggerSpec NewGame() => new NewGameTriggerSpec();
@@ -91,6 +125,8 @@ namespace Game.WorldBuilder.Api
     {
         public static IStoryConditionSpec ObjectiveActive(ObjectiveRef objective) => new ObjectiveActiveConditionSpec(objective);
         public static IStoryConditionSpec QuestActive(QuestRef quest) => new QuestActiveConditionSpec(quest);
+        public static CutsceneCompletedConditionSpec CutsceneCompleted(CutsceneRef cutscene) =>
+            new CutsceneCompletedConditionSpec(cutscene);
         public static IStoryConditionSpec CutsceneNotCompleted(CutsceneRef cutscene) => new CutsceneNotCompletedConditionSpec(cutscene);
     }
 
@@ -99,6 +135,8 @@ namespace Game.WorldBuilder.Api
         public static IStoryEffectSpec StartObjective(ObjectiveRef objective) => new StartObjectiveEffectSpec(objective);
         public static IStoryEffectSpec StartQuest(QuestRef quest) => new StartQuestEffectSpec(quest);
         public static IStoryEffectSpec PlayCutscene(CutsceneRef cutscene) => new PlayCutsceneEffectSpec(cutscene);
+        public static IStoryEffectSpec JoinPartyMember(string memberId) => new JoinPartyMemberEffectSpec(memberId);
+        public static IStoryEffectSpec GrantSpell(string spellId) => new GrantSpellEffectSpec(spellId);
     }
 
     public static class ObjectiveCompletion
@@ -155,11 +193,6 @@ namespace Game.WorldBuilder.Api
         }
     }
 
-    /// <summary>
-    /// A concrete use of an authored cutscene definition in the generated world. This owns only
-    /// physical/world binding: site and actor identities. Story sequencing is expressed separately
-    /// through StoryRuleSpec.
-    /// </summary>
     public sealed class CutsceneSpec
     {
         public CutsceneRef Ref { get; }
@@ -168,11 +201,7 @@ namespace Game.WorldBuilder.Api
         public IReadOnlyList<CutsceneActorBindingSpec> ActorBindings { get; }
         public IReadOnlyList<CutsceneStagePointId> StageRequirements => Definition.RequiredStagePoints;
 
-        internal CutsceneSpec(
-            CutsceneRef @ref,
-            CutsceneDefinition definition,
-            SiteRef site,
-            CutsceneActorBindingSpec[] actorBindings)
+        internal CutsceneSpec(CutsceneRef @ref, CutsceneDefinition definition, SiteRef site, CutsceneActorBindingSpec[] actorBindings)
         {
             Ref = @ref;
             Definition = definition ?? throw new ArgumentNullException(nameof(definition));
@@ -181,7 +210,6 @@ namespace Game.WorldBuilder.Api
         }
     }
 
-    /// <summary>Runtime story transition: WHEN Trigger, IF all Conditions, THEN Effects in authored order.</summary>
     public sealed class StoryRuleSpec
     {
         public StoryRuleRef Ref { get; }
@@ -189,11 +217,7 @@ namespace Game.WorldBuilder.Api
         public IReadOnlyList<IStoryConditionSpec> Conditions { get; }
         public IReadOnlyList<IStoryEffectSpec> Effects { get; }
 
-        internal StoryRuleSpec(
-            StoryRuleRef @ref,
-            IStoryTriggerSpec trigger,
-            IStoryConditionSpec[] conditions,
-            IStoryEffectSpec[] effects)
+        internal StoryRuleSpec(StoryRuleRef @ref, IStoryTriggerSpec trigger, IStoryConditionSpec[] conditions, IStoryEffectSpec[] effects)
         {
             Ref = @ref;
             Trigger = trigger ?? throw new ArgumentNullException(nameof(trigger));
@@ -202,10 +226,6 @@ namespace Game.WorldBuilder.Api
         }
     }
 
-    /// <summary>
-    /// Legacy single-objective source representation. CampaignRuntime compiles each instance into a
-    /// one-step QuestDefinition; new authoring should use QuestHandle while this bridge remains.
-    /// </summary>
     public sealed class ObjectiveSpec
     {
         public ObjectiveRef Ref { get; }
