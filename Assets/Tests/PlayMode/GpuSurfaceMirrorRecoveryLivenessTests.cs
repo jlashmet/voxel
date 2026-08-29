@@ -5,6 +5,7 @@ using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 using VoxelEngine.Rendering.Runtime;
 using VoxelEngine.Rendering.Runtime.GpuVoxel;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 using VoxelEngine.Showcase;
 
 namespace VoxelEngine.Tests.PlayMode
