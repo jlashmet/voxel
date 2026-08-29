@@ -63,7 +63,7 @@ namespace VoxelEngine.Showcase
                 // until it has cleared the north edge, then converge on the gate / slit at 2-5 m.
                 return view == 1
                     ? landmark + new int2(-42, -37)
-                    : landmark + new int2(-37, -23);
+                    : landmark + new int2(-36, -22);
             }
 
             if (styleId == WorldBuilderTownArchitectureIds.FairyVillage)
