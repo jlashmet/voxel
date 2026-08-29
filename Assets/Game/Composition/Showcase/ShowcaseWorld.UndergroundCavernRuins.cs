@@ -1,10 +1,11 @@
 using System;
-using System.Collections.Generic;
 using Game.Materials.Api;
 using Game.Structures.Runtime;
 using Unity.Mathematics;
 using UnityEngine;
 using VoxelEngine.Composition;
+using VoxelEngine.Rendering.Runtime;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
 using VoxelEngine.Terrain.Api;
 
@@ -23,6 +24,7 @@ namespace VoxelEngine.Showcase
         private const int UndergroundCaveDescentPerSegment = 18;
         private const ulong UndergroundCaveSeed = 0x564F584341564552ul; // VOXCAVER
         private const int UndergroundCavernMaximumLocalLights = 8;
+        private const string UndergroundCavernLightContributorKey = "voxel-showcase-underground-cavern";
 
         private bool _undergroundCavernRuinsAuthored;
 
@@ -54,12 +56,21 @@ namespace VoxelEngine.Showcase
                 out CaveConfig caveConfig,
                 out CaveMaterialPalette cavePalette);
             UndergroundCavernRuinConfig ruinConfig = UndergroundCavernRuinConfig.DeepAncientRuin;
-            // Preserve the existing eight-light feature ceiling by spending six supported fixtures
-            // on the long route and at most two inside the destination cavern.
+            UndergroundCavernTraversalProfile traversalProfile =
+                UndergroundCavernTraversalProfile.LongDescent;
+            // Preserve the existing eight-light feature ceiling by spending the profile's sparse
+            // route fixtures on the long descent and at most two inside the destination cavern.
             ruinConfig.LanternInstancesPerKind = 2;
 
+            var regionRuntime = new ShowcaseUndergroundCavernRegionRuntime(this);
             UndergroundCavernPreloadedRegionCount =
-                PreloadUndergroundCavernRegions(in caveRequest, in caveConfig, in ruinConfig);
+                UndergroundCavernRuntimeSupport.PrepareAffectedRegions(
+                    regionRuntime,
+                    in caveRequest,
+                    in caveConfig,
+                    in ruinConfig,
+                    in traversalProfile,
+                    RegionVoxelEdge);
 
             var authoring = StructuresComposition.CreateAuthoringSession(
                 ReadStorage,
@@ -71,7 +82,8 @@ namespace VoxelEngine.Showcase
                 in caveRequest,
                 in caveConfig,
                 in cavePalette,
-                in ruinConfig);
+                in ruinConfig,
+                in traversalProfile);
             if (!result.IsWellFormed)
                 throw new InvalidOperationException(
                     "Underground cavern/ruin authoring produced incomplete semantic output.");
@@ -81,7 +93,8 @@ namespace VoxelEngine.Showcase
                     authoring,
                     in caveRequest,
                     in caveConfig,
-                    in cavePalette);
+                    in cavePalette,
+                    in traversalProfile);
             MineCaveLightRequest[] allLights =
                 CombineUndergroundCavernLights(traversal.RouteLights, result.LocalLights);
             if (authoring.BudgetExceeded || !traversal.IsWellFormed ||
@@ -105,12 +118,18 @@ namespace VoxelEngine.Showcase
             UndergroundCavernTraversalWaypointsMetres =
                 BuildUndergroundCavernTraversalMetres(traversal.TraversalWaypoints, in result);
 
-            AppendUndergroundCavernLights(allLights);
+            RegisterUndergroundCavernLights(allLights);
 
             // Runtime bake restoration authors this feature after installing snapshots, so publish
             // every deep region now. During offline baking there are no live render consumers, but
             // the same notifications are harmless and keep the path identical.
-            PublishUndergroundCavernRegions(in caveRequest, in caveConfig, in ruinConfig);
+            UndergroundCavernRuntimeSupport.PublishAffectedRegions(
+                regionRuntime,
+                in caveRequest,
+                in caveConfig,
+                in ruinConfig,
+                in traversalProfile,
+                RegionVoxelEdge);
         }
 
         private void BuildUndergroundCaveDefinition(
@@ -169,114 +188,6 @@ namespace VoxelEngine.Showcase
             };
         }
 
-        private int PreloadUndergroundCavernRegions(
-            in CaveGenerationRequest request,
-            in CaveConfig cave,
-            in UndergroundCavernRuinConfig ruin)
-        {
-            var regions = CollectUndergroundCavernRegions(in request, in cave, in ruin);
-            foreach (int3 region in regions)
-                GenerateRegionBlocking(region);
-            return regions.Count;
-        }
-
-        private void PublishUndergroundCavernRegions(
-            in CaveGenerationRequest request,
-            in CaveConfig cave,
-            in UndergroundCavernRuinConfig ruin)
-        {
-            var regions = CollectUndergroundCavernRegions(in request, in cave, in ruin);
-            foreach (int3 region in regions)
-                _changes.PublishRegion(region, VoxelEngine.Storage.Api.VoxelChangeKind.All);
-        }
-
-        private HashSet<int3> CollectUndergroundCavernRegions(
-            in CaveGenerationRequest request,
-            in CaveConfig cave,
-            in UndergroundCavernRuinConfig ruin)
-        {
-            var regions = new HashSet<int3>();
-            int3 direction = UndergroundCavernFacingVector(request.Entrance.Facing);
-
-            // Prepare only the voxel-space envelope the reusable cave authoring can actually touch.
-            // The previous centre-point 3x3x3 neighbourhood pulled in two unrelated horizontal
-            // surface columns and three vertical layers at every stop. Surface regions each retain
-            // thousands of mixed bricks, so a long underground route could exhaust the fixed pool
-            // before authoring even began. This envelope still includes tunnel roughness, host
-            // padding, procedural chambers and traversal bends while avoiding unrelated terrain.
-            int routeHalfWidth = math.max(
-                cave.TunnelWidth / 2 + cave.WallRoughness + ruin.HostPadding,
-                math.max(cave.MaxChamberRadius + cave.WallRoughness + 4, 64));
-            int floorPadding = cave.FloorRoughness + ruin.HostPadding + 8;
-            int ceilingPadding = math.max(
-                cave.TunnelHeight + cave.CeilingRoughness + ruin.HostPadding + 8,
-                cave.MaxChamberHeight + cave.CeilingRoughness + 8);
-
-            int3 current = request.EntranceWorldPosition + direction * request.Entrance.ClearanceLength;
-            AddRegionBounds(
-                regions,
-                request.EntranceWorldPosition - new int3(routeHalfWidth, floorPadding, routeHalfWidth),
-                request.EntranceWorldPosition + new int3(routeHalfWidth, ceilingPadding, routeHalfWidth));
-
-            for (int segment = 0; segment < cave.MainSegmentCount; segment++)
-            {
-                int drop = segment < cave.SurfaceDescentSegments ? cave.SurfaceDescentPerSegment : 0;
-                int targetY = math.max(current.y - drop, request.Origin.y + cave.MinVerticalOffset);
-                int3 next = new int3(
-                    current.x + direction.x * cave.SegmentLength,
-                    targetY,
-                    current.z + direction.z * cave.SegmentLength);
-
-                AddRegionBounds(
-                    regions,
-                    new int3(
-                        math.min(current.x, next.x) - routeHalfWidth,
-                        math.min(current.y, next.y) - floorPadding,
-                        math.min(current.z, next.z) - routeHalfWidth),
-                    new int3(
-                        math.max(current.x, next.x) + routeHalfWidth,
-                        math.max(current.y, next.y) + ceilingPadding,
-                        math.max(current.z, next.z) + routeHalfWidth));
-                current = next;
-            }
-
-            int3 cavernCentre = current + direction * 34;
-            int padding = ruin.CavernRadius + 24;
-            int3 ruinReach = direction * (ruin.RuinForwardOffset + ruin.RuinDepth);
-            AddRegionBounds(
-                regions,
-                new int3(
-                    math.min(cavernCentre.x - padding, cavernCentre.x + ruinReach.x - padding),
-                    cavernCentre.y - 16,
-                    math.min(cavernCentre.z - padding, cavernCentre.z + ruinReach.z - padding)),
-                new int3(
-                    math.max(cavernCentre.x + padding, cavernCentre.x + ruinReach.x + padding),
-                    cavernCentre.y + ruin.CavernHeight + 24,
-                    math.max(cavernCentre.z + padding, cavernCentre.z + ruinReach.z + padding)));
-            return regions;
-        }
-
-        private static int3 UndergroundCavernFacingVector(Facing facing)
-        {
-            switch (facing)
-            {
-                case Facing.East: return new int3(1, 0, 0);
-                case Facing.South: return new int3(0, 0, -1);
-                case Facing.West: return new int3(-1, 0, 0);
-                default: return new int3(0, 0, 1);
-            }
-        }
-
-        private static void AddRegionBounds(HashSet<int3> regions, int3 minVoxel, int3 maxVoxel)
-        {
-            int3 first = RegionAt((float3)minVoxel * VoxelSize);
-            int3 last = RegionAt((float3)maxVoxel * VoxelSize);
-            for (int y = first.y; y <= last.y; y++)
-            for (int z = first.z; z <= last.z; z++)
-            for (int x = first.x; x <= last.x; x++)
-                regions.Add(new int3(x, y, z));
-        }
-
         private static float3[] BuildUndergroundCavernTraversalMetres(
             int3[] authoredWaypoints,
             in UndergroundCavernRuinResult result)
@@ -311,23 +222,42 @@ namespace VoxelEngine.Showcase
             return combined;
         }
 
-        private void AppendUndergroundCavernLights(MineCaveLightRequest[] lights)
+        private static void RegisterUndergroundCavernLights(MineCaveLightRequest[] requests)
         {
-            int oldCount = CastlePresentationLights.Length;
-            var positions = new Vector4[oldCount + lights.Length];
-            var colours = new Vector4[oldCount + lights.Length];
-            Array.Copy(CastlePresentationLights, positions, oldCount);
-            Array.Copy(CastlePresentationLightColours, colours, oldCount);
-
-            var warmTorch = new Vector4(1.00f, 0.25f, 0.045f, 1.35f);
+            UndergroundCavernLocalLight[] lights = UndergroundCavernRuntimeSupport.BuildLocalLights(
+                requests,
+                VoxelSize,
+                radiusMetres: 6.5f,
+                colourAndIntensity: new float4(1.00f, 0.25f, 0.045f, 1.35f));
+            var positions = new Vector4[lights.Length];
+            var colours = new Vector4[lights.Length];
             for (int i = 0; i < lights.Length; i++)
             {
-                float3 p = lights[i].PositionVoxels * VoxelSize;
-                positions[oldCount + i] = new Vector4(p.x, p.y, p.z, 6.5f);
-                colours[oldCount + i] = warmTorch;
+                float3 p = lights[i].PositionMetres;
+                positions[i] = new Vector4(p.x, p.y, p.z, lights[i].RadiusMetres);
+                float4 c = lights[i].ColourAndIntensity;
+                colours[i] = new Vector4(c.x, c.y, c.z, c.w);
             }
-            CastlePresentationLights = positions;
-            CastlePresentationLightColours = colours;
+            LocalLightContributorRegistry.Set(
+                UndergroundCavernLightContributorKey,
+                positions,
+                colours);
+        }
+
+        private sealed class ShowcaseUndergroundCavernRegionRuntime : IUndergroundCavernRegionRuntime
+        {
+            private readonly ShowcaseWorld _world;
+
+            public ShowcaseUndergroundCavernRegionRuntime(ShowcaseWorld world)
+            {
+                _world = world ?? throw new ArgumentNullException(nameof(world));
+            }
+
+            public void EnsureRegionResident(int3 region) =>
+                _world.GenerateRegionBlocking(region);
+
+            public void PublishRegion(int3 region) =>
+                _world._changes.PublishRegion(region, VoxelChangeKind.All);
         }
     }
 }
