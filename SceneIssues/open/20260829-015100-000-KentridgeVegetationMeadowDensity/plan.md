@@ -1,23 +1,20 @@
 # Plan — Kentridge vegetation meadow density
 
-## Scope and acceptance
-Work only `20260829-015100-000-KentridgeVegetationMeadowDensity` on `fixes/agent-5`. Kentridge must use reusable WorldBuilder ecology policy, render one connected grass meadow with at least 3,000 blades, respect exclusions, and show plainly visible wind in a stationary built-player replay. Do not edit scene serialization or `.github/test-request.json` on the feature branch.
+## Scope / acceptance
+Work only `20260829-015100-000-KentridgeVegetationMeadowDensity`. Kentridge must use reusable WorldBuilder ecology policy, allow only procedural Grass with no ambient animals, produce one connected meadow with >=3,000 blades, respect exclusions, and show visible stationary wind in the exact built `KentridgePlayableSlice`.
 
-## Material evidence
-- Reusable regional ecology policy is implemented through production terrain sampling; Kentridge allows only semantic Grass and no trees/ambient animals.
-- Clock experiments `33244533044`, `33246401704`, and `33246992214` each failed the mandatory player visual gate even though focused tests/workflows were green. The final clock cleanup uses engine-managed `_Time.y`; the production-shader minimal framebuffer repro proves the packed shader itself visibly deforms when explicitly rendered.
-- Experiment 004 moved every generated Kentridge grass root from `surface * VoxelSize` to `(surface + 1) * VoxelSize` and added a matching production-scene assertion. Corrected exact-SHA run `33247764440` is workflow-green and reports 11,469 semantic grass instances / 115,119 rendered blades, 57,724 blades in the primary connected meadow, 8 grass mesh chunks, and zero excluded-surface placements.
-- Mandatory real-player inspection of `33247764440` still fails: the stationary foreground/ground raster is byte-identical across late captures while only sky pixels move. Comparing the same real-player foreground against pre-grounding run `33246992214` also yields zero changed foreground pixels. Therefore the exposed-root grounding change is visually noncausal and the counted packed grass is not contributing readable pixels to this replay.
+## Material results
+- Reusable `RegionEcologyPolicy` now authors allowed vegetation/tree/animal kinds, density, spacing, deterministic seed salt, slope/route clearance, and exclusion classes; Kentridge selects Grass only with empty tree/animal allowlists.
+- Shared packed grass uses deterministic 5–15 blade expansion and engine-managed shader time. The production-shader framebuffer repro proves the shared shader visibly deforms.
+- Three clock attempts were falsified by built-player evidence. Exposed-top-face grounding is the correct surface contract but was not the visibility cause.
+- Experiment 005 found the causal defect: at 0.4 m spacing, `MaxUndergrowth=12000` was exhausted by ~Z=143.2 m, behind the required camera near Z=150 looking +Z. Kentridge spacing is now 0.8 m while density 0.96 and the 12k cap remain unchanged.
+- Final production-camera regression reports 11,322 grass roots in front of the real camera, 3,664 root clusters in its frustum, and 116.02 m forward coverage.
 
-## Current hypotheses and discriminator
-1. **Replay/view coverage:** the connected meadow may be generated outside the opening camera frustum, so large global blade counts do not prove the required player-height view actually contains grass.
-2. **Automatic draw submission:** production packed grass may exist in meshes but not reach the real Kentridge camera during normal frame rendering; the isolated explicit-render minimal repro would not detect this lifecycle/submission failure.
-3. **Geometry/depth/material visibility:** production-camera grass could be submitted but fully hidden/edge-on/indistinguishable. The zero-pixel response to a full-voxel Y translation makes simple root burial substantially less likely.
-
-Before another production correction, use the exact Kentridge camera and generated grass instances to prove whether grass bounds/roots intersect the camera frustum and whether an explicit production-batch draw immediately before an actual-camera render produces grass pixels. This separates view coverage from renderer lifecycle from geometry/depth without another blind shader/placement edit.
+## Final validation
+Source `ec92c3002a6b75ca86de7819f4175c5390a1ca2b`; request `d71730e46c2e12bc81e8c6e58cb87c07525904e3`; workflow `33249542767`; `ci/single-test=success`. Built player reports 113,490 blades total, 57,752 in the primary connected meadow, 16 packed chunks, and zero excluded-surface leakage. Direct inspection of stationary 39.8/49.8/59.8 s frames plainly shows dense individual procedural blades and changing silhouettes; grass-band pixel deltas are 42.89% and 44.08% between successive frames with sky/dialogue excluded.
 
 ## Blast radius / cost
-The reusable ecology API remains additive and the packed renderer retains one mesh per vegetation chunk rather than per-blade GameObjects. Current density is ~115k rendered blades in 8 grass chunks, so the primary cost question is visibility, not additional topology. The experiment-004 Y offset adds one integer increment per sampled Kentridge root but has no demonstrated visual benefit and should not be retained merely to satisfy a synthetic assertion; final implementation must re-evaluate it against the real surface contract. CPU-ms/GPU-ms are not emitted by the current harness; use available player FPS/memory/build measurements without inventing missing metrics.
+Causal production change is Kentridge authoring only (0.4→0.8 m spacing); shared 12k semantic-instance cap, density, blade expansion, exclusions, and packed rendering topology are unchanged. Player build: 157 MB, 36.270 s. Wrapper peak RSS: 6,136 MB. Ordinary captured play after warmup: ~60–73 FPS before the held stationary phase. Separate CPU/GPU-ms are not emitted and are not inferred.
 
 ## Remaining gates
-Update `tasks.md`/experiment evidence, run the production-camera discriminator locally/focused through the existing test path, implement only the causally supported correction, and keep `origin/master` current. Then issue one fresh final exact-SHA request on the assigned `ci-test/fixes/agent-5` mailbox only after the feature SHA changes and the mailbox is idle. Require green focused regression + exact built-player replay plus direct proof that the captured player-height meadow contains visible blades whose silhouettes change over time. Only then complete pending metadata, open→pending→closed bookkeeping, master merge, and non-force publish.
+Write final metadata, complete every `tasks.md` checkbox, move only this assignment `open→pending→closed`, set `resolvedUtc`, merge current `origin/master`, and non-force publish the exact feature head to `origin/master`.
