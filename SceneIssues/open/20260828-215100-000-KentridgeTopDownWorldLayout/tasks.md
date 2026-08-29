@@ -14,7 +14,7 @@
 ## Discovered runtime-evidence work
 - [x] Initial exact-SHA regression and real-player build/run completed green on source `8b6ea69c` (run `33223023746`).
 - [x] Inspect the actual run artifact rather than treating workflow green as sufficient.
-- [ ] Add a reusable capture-less Kentridge SceneIssue harness profile so validation continues beyond loading and records post-load evidence without changing recorded-pose replays.
+- [x] Add a reusable capture-less Kentridge SceneIssue harness profile so validation continues beyond loading and records post-load evidence without changing recorded-pose replays.
 - [ ] Capture a post-load real-player frame showing the production top-down macro-layout overlay.
 - [ ] Capture normal eye-level scripted traversal using the real `CharacterMotor`, collision, streaming, and generated route/corridor output.
 - [ ] Confirm post-load geography is usable/coherent and no startup/runtime exception occurs.
