@@ -106,6 +106,16 @@ PY
     exit 2
   fi
   SCENE="$ISSUE_SCENE"
+
+  # Capture-less architecture/world SceneIssues have no recorded camera pose to replay. For the
+  # Kentridge production scene, keep those validations unattended long enough to get past startup,
+  # then exercise the same CharacterMotor/collision/streaming path a player uses. Recorded-pose
+  # SceneIssues deliberately skip this profile so their camera evidence remains immutable.
+  if [[ "$SCENE" == "Assets/Scenes/KentridgePlayableSlice.unity" ]] && (( ISSUE_CAPTURE_COUNT == 0 )); then
+    : "${AUTO_DIALOGUE:=1.5}"
+    : "${AUTOWALK_AFTER:=40}"
+    KENTRIDGE_EVIDENCE=1
+  fi
 fi
 
 if [[ -n "$TEST_FILTER" && -z "$SCENE_ISSUE" ]]; then
