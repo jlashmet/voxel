@@ -43,6 +43,8 @@ namespace VoxelEngine.Showcase
         private bool _complete;
         private float _ordinaryWalkSpeed;
         private bool _replaySprintApplied;
+        private bool _hasVerticalAnchor;
+        private float _verticalAnchorY;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Install()
@@ -135,14 +137,33 @@ namespace VoxelEngine.Showcase
             float arrivalRadius = waypoint.arrivalRadius > 0f
                 ? waypoint.arrivalRadius
                 : _route.arrivalRadius;
+            bool traversalStateMatches = ShowcaseWaypointTraversalContract.Matches(
+                _motor.Position.y,
+                _motor.Grounded,
+                waypoint.requireGrounded,
+                _hasVerticalAnchor,
+                _verticalAnchorY,
+                waypoint.expectedYOffset,
+                waypoint.yTolerance);
 
-            if (!_holding && delta.sqrMagnitude <= arrivalRadius * arrivalRadius)
+            if (!_holding
+                && delta.sqrMagnitude <= arrivalRadius * arrivalRadius
+                && traversalStateMatches)
             {
+                if (waypoint.anchorVertical)
+                {
+                    _verticalAnchorY = _motor.Position.y;
+                    _hasVerticalAnchor = true;
+                    Debug.Log($"WAYPOINT_REPLAY vertical anchor '{waypoint.name}' feetY={_verticalAnchorY:0.00}");
+                }
+
                 _holding = true;
                 _holdElapsed = 0f;
                 _captured = false;
                 StopWalking();
-                Debug.Log($"WAYPOINT_REPLAY reached {_index + 1}/{_route.waypoints.Length} '{waypoint.name}' at {player}");
+                Debug.Log(
+                    $"WAYPOINT_REPLAY reached {_index + 1}/{_route.waypoints.Length} '{waypoint.name}' "
+                    + $"at {player} feetY={_motor.Position.y:0.00} grounded={_motor.Grounded}");
             }
 
             if (_holding)
@@ -236,6 +257,8 @@ namespace VoxelEngine.Showcase
                 throw new InvalidOperationException("Waypoint route must contain at least one waypoint.");
             if (route.timeoutSeconds <= 0f || route.arrivalRadius <= 0f)
                 throw new InvalidOperationException("Waypoint route timeoutSeconds and arrivalRadius must be positive.");
+
+            bool hasVerticalAnchor = false;
             for (int i = 0; i < route.waypoints.Length; i++)
             {
                 Waypoint waypoint = route.waypoints[i];
@@ -245,6 +268,13 @@ namespace VoxelEngine.Showcase
                     waypoint.arrivalRadius = -1f;
                 if (waypoint.holdSeconds == 0f)
                     waypoint.holdSeconds = -1f;
+                if (waypoint.yTolerance < -1f)
+                    throw new InvalidOperationException($"Waypoint '{waypoint.name}' has invalid yTolerance.");
+                if (waypoint.yTolerance >= 0f && !hasVerticalAnchor)
+                    throw new InvalidOperationException(
+                        $"Waypoint '{waypoint.name}' requires a vertical anchor earlier in the route.");
+                if (waypoint.anchorVertical)
+                    hasVerticalAnchor = true;
             }
         }
 
@@ -286,6 +316,10 @@ namespace VoxelEngine.Showcase
             public float lookX;
             public float lookZ;
             public float lookPitchDegrees;
+            public bool requireGrounded;
+            public bool anchorVertical;
+            public float expectedYOffset;
+            public float yTolerance = -1f;
         }
     }
 }
