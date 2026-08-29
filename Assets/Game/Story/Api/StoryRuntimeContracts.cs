@@ -9,8 +9,7 @@ namespace Game.Story.Api
         NewGame = 0,
         NpcInteracted = 1,
         CutsceneCompleted = 2,
-        QuestCompleted = 3,
-        SiteEntered = 4
+        QuestCompleted = 3
     }
 
     /// <summary>
@@ -23,36 +22,30 @@ namespace Game.Story.Api
         public NpcRef Npc { get; }
         public CutsceneRef Cutscene { get; }
         public QuestRef Quest { get; }
-        public SiteRef Site { get; }
 
         private StoryEvent(
             StoryEventKind kind,
             NpcRef npc,
             CutsceneRef cutscene,
-            QuestRef quest,
-            SiteRef site)
+            QuestRef quest)
         {
             Kind = kind;
             Npc = npc;
             Cutscene = cutscene;
             Quest = quest;
-            Site = site;
         }
 
         public static StoryEvent NewGame() =>
-            new StoryEvent(StoryEventKind.NewGame, default, default, default, default);
+            new StoryEvent(StoryEventKind.NewGame, default, default, default);
 
         public static StoryEvent NpcInteracted(NpcRef npc) =>
-            new StoryEvent(StoryEventKind.NpcInteracted, npc, default, default, default);
+            new StoryEvent(StoryEventKind.NpcInteracted, npc, default, default);
 
         public static StoryEvent CutsceneCompleted(CutsceneRef cutscene) =>
-            new StoryEvent(StoryEventKind.CutsceneCompleted, default, cutscene, default, default);
+            new StoryEvent(StoryEventKind.CutsceneCompleted, default, cutscene, default);
 
         public static StoryEvent QuestCompleted(QuestRef quest) =>
-            new StoryEvent(StoryEventKind.QuestCompleted, default, default, quest, default);
-
-        public static StoryEvent SiteEntered(SiteRef site) =>
-            new StoryEvent(StoryEventKind.SiteEntered, default, default, default, site);
+            new StoryEvent(StoryEventKind.QuestCompleted, default, default, quest);
     }
 
     /// <summary>
