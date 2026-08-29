@@ -24,11 +24,17 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         // capacity while eliminating duplication; the compact lookup directory adds ~4%.
         private const long MinimumSharedMirrorBudgetBytes = 96L * 1024L * 1024L;
 
-        // Recovery runs from worker admission on the frame path. Keep the slice deliberately small:
-        // the prior 2048-block global-resident sweep measured 0.65-0.77 s in VoxelShowcase. Queueing
-        // exact demanded blocks makes every bounded slice advance a waiting chunk instead of scanning
-        // the other 262k blocks in a 512^3 Storage region first.
-        private const int RecoveryBlocksPerFrame = 64;
+        // Recovery runs from worker admission on the frame path. Mixed blocks are the expensive
+        // operation because they pin Storage and copy a 512-voxel payload into the GPU mirror.
+        // Empty/uniform blocks only classify an already-borrowed RegionReadView and update compact
+        // directory metadata, so charging them against the same 64-block payload budget made a
+        // step-2 chunk's 18^3 footprint take dozens of frames even when most blocks carried no
+        // payload. Keep mixed publication at the proven 64-block ceiling while allowing a bounded
+        // 512 descriptor classifications per slice. The mirror batches at most 4096 directory
+        // deltas per dispatch, so this remains one bounded metadata batch rather than a driver-call
+        // fan-out. The prior 2048-block global-resident sweep is intentionally not restored.
+        private const int RecoveryDescriptorsPerFrame = 512;
+        private const int RecoveryMixedPayloadsPerFrame = 64;
         private const int ChangeRecordsPerFrame = 128;
 
         private static readonly Queue<int3> s_RecoveryBlocks = new();
@@ -37,7 +43,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private static readonly Dictionary<int3, int> s_ReadyBlockCountsByRegion = new();
         private static readonly Dictionary<int3, ulong> s_RegionLastSolidChangeVersion = new();
         private static readonly List<VoxelChangeRecord> s_Changes = new(ChangeRecordsPerFrame);
-        private static readonly List<int3> s_BlockScratch = new(RecoveryBlocksPerFrame);
+        private static readonly List<int3> s_BlockScratch = new(RecoveryDescriptorsPerFrame);
 
         private static GpuVoxelBrickMirror s_Mirror;
         private static IRegionReadSource s_Storage;
@@ -368,20 +374,22 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             if (s_Storage == null) return;
 
-            int remaining = RecoveryBlocksPerFrame;
+            int remainingDescriptors = RecoveryDescriptorsPerFrame;
+            int remainingMixedPayloads = RecoveryMixedPayloadsPerFrame;
             int shift = VoxelReadGrid.BlocksPerRegionEdgeLog2;
             ulong generation = s_Storage.Version;
             bool hasView = false;
             int3 viewRegion = default;
             RegionReadView view = default;
 
-            while (remaining > 0 && s_RecoveryBlocks.Count > 0)
+            while (remainingDescriptors > 0 && s_RecoveryBlocks.Count > 0)
             {
                 int3 worldBlock = s_RecoveryBlocks.Dequeue();
                 // Cancelled/stale queue entries stay physically in Queue<T>; the set is authoritative
                 // and lets cancellation remain O(1) without consuming the bounded recovery slice.
                 if (!s_QueuedRecoveryBlocks.Remove(worldBlock)) continue;
 
+                remainingDescriptors--;
                 int3 region = worldBlock >> shift;
                 if (!s_Storage.IsRegionResident(region))
                 {
@@ -409,8 +417,26 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
                 int3 regionOrigin = region << shift;
                 int3 localBlock = worldBlock - regionOrigin;
-                bool published = PublishRegionBlock(in view, worldBlock, localBlock, generation);
-                remaining--;
+                if (!view.TryGetBlock(localBlock, out VoxelReadBlock block))
+                {
+                    s_Mirror.Remove(worldBlock);
+                    continue;
+                }
+
+                if (block.Kind == VoxelReadBlockKind.Mixed)
+                {
+                    if (remainingMixedPayloads == 0)
+                    {
+                        // Keep the first unprocessed mixed coordinate at the tail and stop this
+                        // slice. Cheap descriptors before it have already advanced readiness; the
+                        // next frame resumes with the same proven 64-payload ceiling intact.
+                        QueueRecoveryBlock(worldBlock);
+                        break;
+                    }
+                    remainingMixedPayloads--;
+                }
+
+                bool published = PublishRegionBlock(in block, worldBlock, generation);
                 if (published && s_Storage.IsRegionResident(region)) MarkReadyBlock(worldBlock);
             }
         }
@@ -434,15 +460,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             else s_ReadyBlockCountsByRegion[region] = count - 1;
         }
 
-        private static bool PublishRegionBlock(in RegionReadView view, int3 worldBlock,
-                                               int3 localBlock, ulong generation)
+        private static bool PublishRegionBlock(in VoxelReadBlock block, int3 worldBlock,
+                                               ulong generation)
         {
-            if (!view.TryGetBlock(localBlock, out VoxelReadBlock block))
-            {
-                s_Mirror.Remove(worldBlock);
-                return false;
-            }
-
             // Empty and uniform blocks carry no mixed payload. Classify them from the borrowed
             // region view and update only directory metadata; reserve Storage pin/COW work for the
             // comparatively sparse mixed blocks that actually need a voxel payload copied to GPU.
