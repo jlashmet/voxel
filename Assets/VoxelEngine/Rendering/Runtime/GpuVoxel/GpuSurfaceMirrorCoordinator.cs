@@ -352,7 +352,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             }
         }
 
-        private static void QueueRecoveryBlock(int3 block, bool requiresExclusiveAccess = false)
+        private static void QueueRecoveryBlock(int3 block)
         {
             if (!IsBlockDemanded(block)) return;
             if (!s_PendingBlocks.Add(block)) return;
@@ -372,6 +372,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             int stagedBytes = 0;
             int consecutiveBlockedRegions = 0;
+            bool concurrentProgressRecorded = false;
             while (s_RecoveryRegions.Count > 0
                    && Time.realtimeSinceStartupAsDouble < deadlineSeconds)
             {
@@ -403,6 +404,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                     {
                         s_PendingBlocks.Remove(worldBlock);
                         madeProgress = true;
+                        RecordConcurrentRecoveryProgress(ref concurrentProgressRecorded);
                         continue;
                     }
                     if (IsBlockActive(worldBlock))
@@ -419,6 +421,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                     {
                         s_Mirror.Remove(worldBlock);
                         RemoveReadyBlock(worldBlock);
+                        RecordConcurrentRecoveryProgress(ref concurrentProgressRecorded);
                         continue;
                     }
                     if (!view.TryGetBlock(localBlock, out VoxelReadBlock block))
@@ -447,6 +450,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                     }
 
                     AddReadyBlock(worldBlock);
+                    RecordConcurrentRecoveryProgress(ref concurrentProgressRecorded);
                     if (block.Kind == VoxelReadBlockKind.Mixed)
                     {
                         if (s_MixedReadyBlocks.Add(worldBlock))
@@ -481,6 +485,13 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                     if (consecutiveBlockedRegions >= s_RecoveryRegions.Count) return;
                 }
             }
+        }
+
+        private static void RecordConcurrentRecoveryProgress(ref bool recorded)
+        {
+            if (recorded || s_ActiveExtractionCount == 0) return;
+            recorded = true;
+            s_ConcurrentDemandRecoverySlices++;
         }
 
         private static GpuBrickPublish PublishBlock(
@@ -696,6 +707,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             s_LastPrepareFrame = -1;
             s_LastExtractionDispatchFrame = -1;
             s_OptionalNonResidentHaloBlocksAccepted = 0;
+            s_ConcurrentDemandRecoverySlices = 0;
             ClearRecoveryQueues();
             ClearReadyBlocks();
             s_ChangedReadyScratch.Clear();
