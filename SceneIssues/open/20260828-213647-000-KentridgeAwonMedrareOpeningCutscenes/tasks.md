@@ -12,20 +12,21 @@
 - [x] Verify `Art/medrare-house-lower.tmx`: `medrare-first-spell` is play-once + require-step after Awon and grants `Flame` to `RPGPlayer`; `medrare-to-church` is play-once after first-spell.
 - [x] Confirm first-spell/church payloads are absent; retain verified gates/actions only.
 - [x] Identify later `medrare-join` after `meet-king` as out of scope.
-- [x] Reject resumed Michael/William/zombie content and concurrent incorrect claims that the recoverable Awon/root payload or join choreography were absent.
-- [ ] Replace incorrect progression content with only directly verified Awon/Medrare dialogue/actions, retaining distinct sighting and join events.
-- [ ] Author/wire the source-backed Medrare join into campaign progression without inventing a source dependency between sighting and join.
-- [ ] Preserve source one-shot/re-entry gates; completed beats must not replay.
-- [ ] Implement durable Medrare party membership and one-time `Flame` ownership through a generic campaign/story state seam.
-- [ ] Fix branch compile mismatch `SiteEntered` vs `SiteProximityEntered`.
-- [ ] Add capture/restore campaign progression state proving completed beats, Medrare membership, and Flame ownership survive continuation.
-- [ ] Remove/narrow shared runtime/presentation changes used only by rejected invented content.
-- [ ] Rewrite stale regressions so they compile and prove exact 22-line Awon identity/order/speakers, Logan preservation, distinct sighting/join gates, join choreography, party join, Flame grant, church gate, replay suppression, and continuation restore.
-- [ ] Verify no unapproved assets/packages/generated expansion and no unrelated assignment changes.
-- [ ] Review blast radius and steady-state/runtime cost; verify unrelated campaign/story/cutscene consumers remain valid.
-- [ ] Re-read every acceptance criterion and record any dialogue/choreography that remains UNKNOWN because the pinned payload is absent.
-- [ ] Run required repository/workflow gates and move only this assignment `open -> pending` with required metadata.
+- [x] Reject resumed Michael/William/zombie content and incorrect claims that the recoverable Awon/root payload or join choreography were absent.
+- [x] Replace incorrect progression content with only directly verified Awon/Medrare dialogue/actions, retaining distinct sighting and join events.
+- [x] Author/wire the source-backed Medrare join into campaign progression without inventing a dependency between sighting and join.
+- [x] Preserve source one-shot/re-entry gates; completed beats do not replay.
+- [x] Implement durable Medrare party membership and `Flame` ownership through generic event-driven story/campaign state.
+- [x] Fix branch compile mismatch `SiteEntered` vs `SiteProximityEntered`.
+- [x] Add deterministic capture/restore state for completed cutscenes, Medrare membership, and Flame ownership.
+- [x] Remove the shared control-lock/transition/cue runtime expansion used only by rejected invented content; retain only story APIs now used by this feature.
+- [x] Rewrite stale regression to cover exact 22-line Awon identity/order/speakers, Logan preservation, missing-dialogue non-invention, distinct sighting/join gates, join choreography, party join, Flame grant, church gate, replay suppression, and production continuation restore.
+- [x] Verify feature diff adds no assets/packages/workflows/generated expansion and touches no other SceneIssue.
+- [x] Review blast radius/cost: changes are event-dispatch and small HashSet/snapshot work only; no polling, update loops, hierarchy scans, or steady-state scene cost.
+- [x] Re-read acceptance criteria; later Medrare payload dialogue remains UNKNOWN because those pinned text files are absent, so only proven identities/gates/actions are represented.
+- [ ] Run exact-SHA focused PlayMode regression and built-application `KentridgePlayableSlice` harness; both must be green before promotion.
+- [ ] After green exact-SHA gates, set pending metadata (`status`, `resolutionSummary`, `regressionTest`, `fixCommit`) and move only this assignment `open -> pending` in a bookkeeping commit.
 - [ ] Create exactly one final targeted-CI request on `ci-test/fixes/agent-1` for the exact feature SHA; never edit `.github/test-request.json` on feature.
 - [ ] Inspect exact-SHA CI logs/artifacts and confirm focused regressions plus built-application Kentridge validation are green.
-- [ ] Complete pending metadata after green CI; move only this assignment `pending -> closed`, set `status=fixed` and `resolvedUtc`, finish every checkbox.
+- [ ] Complete final metadata after green CI; move only this assignment `pending -> closed`, set `status=fixed` and `resolvedUtc`, finish every checkbox.
 - [ ] Re-fetch latest `origin/master`, merge into `fixes/agent-1` if needed, then non-force push exact feature head to `origin/master`; fetch/merge/retry if master advances.
