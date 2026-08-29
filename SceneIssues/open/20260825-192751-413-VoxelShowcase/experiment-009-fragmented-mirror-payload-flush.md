@@ -27,3 +27,8 @@
 - Changed path is only persistent GPU mixed-brick publication. CPU topology, HLOD, water, world truth, surface catalogues, chunk scheduling and arena sizing are untouched.
 - Fixed staging: 64 × 517 uints = 132,352 GPU bytes plus same-size persistent CPU staging. A full batch is one ~132 KB upload plus one ~32.8k-thread scatter dispatch, replacing up to 256 fragmented `SetData` calls.
 - The existing migration test remains the behavioral regression. Because the sole final request is red and the assignment forbids extra CI transports, this experiment is not promotable; the SceneIssue remains open.
+
+## Corrected-head verdict
+- Exact request `562616c0f5aeb9a701c4468dc12115c332337b7e`, parent `0a1ee326877320dbd236dcdf9e2acf6fcd7d7ceb`, run/job `33279094247` / `99171054270`, artifact `9722639694` compiled the scatter shader successfully.
+- Liveness passed, but migration failed at traversal frame 3 with zero visible draws (`gpu=8/0`, waits 248). The built player still showed recurring ~191–198 ms admission spikes and 344 missing chunks at 51.4 s.
+- Verdict: compact scatter removes fragmented upload-call fan-out, but it is not the complete stall/convergence fix. Retain it as bounded publication infrastructure and move the next discriminator to snapshotless classification, incremental coverage, and dispatch throttling.

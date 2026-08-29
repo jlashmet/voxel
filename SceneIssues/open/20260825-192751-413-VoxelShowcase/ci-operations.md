@@ -56,3 +56,9 @@
 - The exact built-player harness still built/launched `VoxelShowcase` and completed 45.1 s with zero harness assertions, but this cannot satisfy the failed targeted gate. Player telemetry also still exhibits late admission spikes around 80–195 ms and roughly 6–17 FPS, so there is no positive performance verdict for the compaction.
 - Feature correction `18d72133342daa56ecfaa3c6d1f09e4a194cf205` renames only the reserved HLSL identifier `linear` to `linearIndex`.
 - Per assignment, no extra CI transport was created after the final request. Therefore the corrected head has no green exact-SHA targeted CI and the capture must remain under `open/`; pending/closed metadata and master promotion are prohibited.
+
+## 2026-08-29 — corrected payload-scatter request `562616c0…`
+- Exact feature parent `0a1ee326877320dbd236dcdf9e2acf6fcd7d7ceb`; run/job `33279094247` / `99171054270`; artifact `9722639694`.
+- Product red. Recovery liveness passed in 52.35 s. Migration failed after 44.55 s because traversal frame 3 lost every visible voxel draw: `visible=0`, `missing=64`, `gpuCompleted=8`, `gpuFallback=0`, `gpuWaitSlices=248`.
+- Built player launched and ran to 51.4 s. All four screenshots were inspected: t15.4 is almost empty; the castle largely appears by t25.4; t35.4/t51.4 add distant structures but remain incomplete. Telemetry retains recurring ~191–198 ms solid-admission spikes and ends at 351 visible / 344 missing with `leaseFail=0`.
+- The corrected shader compiles, so the prior Metal syntax failure is closed. Compact payload scatter is falsified as the complete performance fix. The capture remains open.
