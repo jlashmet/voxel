@@ -14,7 +14,7 @@ namespace VoxelEngine.Tests.PlayMode
     public sealed class KentridgeOpeningProgressionTests
     {
         [Test]
-        public void OpeningProgressionRejectsOutOfOrderSitesAndPreservesSourceBeats()
+        public void OpeningProgressionRejectsOutOfOrderVisitsAndPreservesSourceBeats()
         {
             var destination = new CutsceneDefinition(
                 "test.destination",
@@ -25,11 +25,11 @@ namespace VoxelEngine.Tests.PlayMode
             var effects = new StoryEffects();
 
             Assert.That(
-                StoryRuleEngine.Dispatch(content.Blueprint.StoryRules, StoryEvent.SiteEntered(content.AwonSite), state, effects),
+                StoryRuleEngine.Dispatch(content.Blueprint.StoryRules, StoryEvent.NpcInteracted(content.Awon), state, effects),
                 Is.Zero,
                 "Awon must not start before the post-pub Logan continuation completes.");
             Assert.That(
-                StoryRuleEngine.Dispatch(content.Blueprint.StoryRules, StoryEvent.SiteEntered(content.MedrareSite), state, effects),
+                StoryRuleEngine.Dispatch(content.Blueprint.StoryRules, StoryEvent.NpcInteracted(content.Medrare), state, effects),
                 Is.Zero,
                 "Medrare must not start before Awon's lesson completes.");
 
@@ -41,17 +41,17 @@ namespace VoxelEngine.Tests.PlayMode
 
             state.Complete(content.LoganToChurchCutscene);
             Assert.That(
-                StoryRuleEngine.Dispatch(content.Blueprint.StoryRules, StoryEvent.SiteEntered(content.AwonSite), state, effects),
+                StoryRuleEngine.Dispatch(content.Blueprint.StoryRules, StoryEvent.NpcInteracted(content.Awon), state, effects),
                 Is.EqualTo(1));
             Assert.That(effects.LastCutscene, Is.EqualTo(content.AwonOpeningCutscene));
             Assert.That(
-                StoryRuleEngine.Dispatch(content.Blueprint.StoryRules, StoryEvent.SiteEntered(content.MedrareSite), state, effects),
+                StoryRuleEngine.Dispatch(content.Blueprint.StoryRules, StoryEvent.NpcInteracted(content.Medrare), state, effects),
                 Is.Zero,
                 "Medrare still waits for the Awon cutscene itself to complete.");
 
             state.Complete(content.AwonOpeningCutscene);
             Assert.That(
-                StoryRuleEngine.Dispatch(content.Blueprint.StoryRules, StoryEvent.SiteEntered(content.MedrareSite), state, effects),
+                StoryRuleEngine.Dispatch(content.Blueprint.StoryRules, StoryEvent.NpcInteracted(content.Medrare), state, effects),
                 Is.EqualTo(1));
             Assert.That(effects.LastCutscene, Is.EqualTo(content.MedrareFirstSpellCutscene));
 
