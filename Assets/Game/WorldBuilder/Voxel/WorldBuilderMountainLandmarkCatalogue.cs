@@ -203,7 +203,7 @@ namespace Game.WorldBuilder.Voxel
             byte mountainMaterial,
             byte pathMaterial)
         {
-            var program = new List<int>(256);
+            var program = new List<int>(320);
             int c = spec.CentreLocal;
 
             EmitFrustum(
@@ -215,6 +215,8 @@ namespace Game.WorldBuilder.Voxel
                 1,
                 mountainMaterial,
                 PrimitiveMode.Fill);
+
+            AddAsymmetricMountainShoulders(program, in spec, mountainMaterial);
 
             int pathMinX = spec.PathMinLocalX;
             int lastRampZ = 0;
@@ -315,6 +317,48 @@ namespace Game.WorldBuilder.Voxel
 
             End(program);
             return program.ToArray();
+        }
+
+        private static void AddAsymmetricMountainShoulders(
+            List<int> program,
+            in MountainLandmarkSpec spec,
+            byte mountainMaterial)
+        {
+            int c = spec.CentreLocal;
+            int r = spec.MountainRadius;
+
+            // These deterministic overlapping masses stay inside the original ground footprint,
+            // but protrude from the shrinking core at different elevations. That breaks the
+            // single perfect-pyramid silhouette without changing placement, path, or summit bounds.
+            EmitFrustum(
+                program,
+                c - r * 36 / 100, 0, c + r * 28 / 100,
+                math.max(2, spec.MountainHeight * 68 / 100),
+                math.max(2, r * 60 / 100),
+                math.max(1, r * 18 / 100),
+                1,
+                mountainMaterial,
+                PrimitiveMode.FillIfEmpty);
+
+            EmitFrustum(
+                program,
+                c + r * 42 / 100, 0, c - r * 34 / 100,
+                math.max(2, spec.MountainHeight * 55 / 100),
+                math.max(2, r * 56 / 100),
+                math.max(1, r * 14 / 100),
+                1,
+                mountainMaterial,
+                PrimitiveMode.FillIfEmpty);
+
+            EmitFrustum(
+                program,
+                c - r * 30 / 100, 0, c - r * 46 / 100,
+                math.max(2, spec.MountainHeight * 43 / 100),
+                math.max(2, r * 48 / 100),
+                math.max(1, r * 12 / 100),
+                1,
+                mountainMaterial,
+                PrimitiveMode.FillIfEmpty);
         }
 
         private static int[] BuildPlaceholderProgram(int size, byte material)
