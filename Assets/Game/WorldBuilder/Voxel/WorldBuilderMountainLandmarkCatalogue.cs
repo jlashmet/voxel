@@ -94,6 +94,11 @@ namespace Game.WorldBuilder.Voxel
         public const string LandformDefinitionName = "worldbuilder-mountain-landmark";
         public const string PlaceholderDefinitionName = "worldbuilder-mountain-placeholder";
 
+        // VoxelShowcase uses 10 cm voxels and a 2 m navigation-agent height. Keep an extra 40 cm
+        // above the authored walking surface so rasterization and collision skin never turn a
+        // visually present ramp into a blocked corridor.
+        public const int PathHeadroomVoxels = 24;
+
         private const int SupportSegmentSpan = 64;
         private const int MinimumSupportTopRadius = 40;
         private const int MaximumSupportFlare = 112;
@@ -207,7 +212,7 @@ namespace Game.WorldBuilder.Voxel
             byte mountainMaterial,
             byte pathMaterial)
         {
-            var program = new List<int>(800);
+            var program = new List<int>(1200);
             int c = spec.CentreLocal;
 
             EmitFrustum(
@@ -222,6 +227,23 @@ namespace Game.WorldBuilder.Voxel
 
             AddAsymmetricMountainShoulders(program, in spec, mountainMaterial);
 
+            // Primitive order is part of the physical contract: establish every scenic/support
+            // mass first, carve player-clear air through all of it second, then restore the exact
+            // authored walking wedges and landings last. Later primitives win, so no support fill
+            // can silently bury a path after its headroom has been opened.
+            AddNaturalPathSupports(program, in spec, mountainMaterial);
+            CarvePathHeadroom(program, in spec);
+            EmitPathSurface(program, in spec, pathMaterial);
+
+            End(program);
+            return program.ToArray();
+        }
+
+        private static void AddNaturalPathSupports(
+            List<int> program,
+            in MountainLandmarkSpec spec,
+            byte mountainMaterial)
+        {
             int pathMinX = spec.PathMinLocalX;
             int lastRampZ = 0;
             int lastHighX = pathMinX;
@@ -235,9 +257,8 @@ namespace Game.WorldBuilder.Voxel
                 lastRampZ = z;
                 bool reverse = (level & 1) != 0;
 
-                // The ramp itself owns the rising walking wedge. Only support its base elevation:
-                // tapered overlapping masses blend into terrain/mountain and cannot create the
-                // full-height rectangular retaining walls produced by the old ground-to-ramp box.
+                // Only support the authored elevation. Tapered overlapping masses blend into the
+                // landform and avoid the tall rectangular retaining walls produced by old boxes.
                 AddNaturalSupportMasses(
                     program,
                     pathMinX, z,
@@ -245,15 +266,6 @@ namespace Game.WorldBuilder.Voxel
                     startY,
                     spec.PathWidth,
                     mountainMaterial);
-
-                int axis = reverse ? ShapeOps.ReverseRampBit : 0;
-                EmitRamp(
-                    program,
-                    pathMinX, startY, z,
-                    spec.PathRun, spec.PathRise + 1, spec.PathWidth,
-                    axis,
-                    pathMaterial,
-                    PrimitiveMode.Fill);
 
                 lastHighX = reverse
                     ? pathMinX
@@ -271,6 +283,134 @@ namespace Game.WorldBuilder.Voxel
                     endY,
                     spec.PathWidth,
                     mountainMaterial);
+            }
+
+            int summitZ = spec.CentreLocal - spec.SummitRadius - spec.PathWidth;
+            int finalZMin = Math.Min(lastRampZ, summitZ);
+            int finalZSize = Math.Abs(summitZ - lastRampZ) + spec.PathWidth;
+            AddNaturalSupportMasses(
+                program,
+                lastHighX, finalZMin,
+                spec.PathWidth, finalZSize,
+                endY,
+                spec.PathWidth,
+                mountainMaterial);
+
+            int approachX = spec.SummitApproachLocalX;
+            int topMinX = Math.Min(lastHighX, approachX);
+            int topSizeX = Math.Abs(approachX - lastHighX) + spec.PathWidth;
+            int topZ = spec.SummitApproachLocalZ - spec.PathWidth / 2;
+            AddNaturalSupportMasses(
+                program,
+                topMinX, topZ,
+                topSizeX, spec.PathWidth,
+                spec.MountainHeight,
+                spec.PathWidth,
+                mountainMaterial);
+        }
+
+        private static void CarvePathHeadroom(
+            List<int> program,
+            in MountainLandmarkSpec spec)
+        {
+            int pathMinX = spec.PathMinLocalX;
+            int lastRampZ = 0;
+            int lastHighX = pathMinX;
+            int endY = 0;
+
+            for (int level = 0; level < spec.SwitchbackCount; level++)
+            {
+                int startY = level * spec.PathRise;
+                endY = startY + spec.PathRise;
+                int z = spec.RampLocalZ(startY);
+                lastRampZ = z;
+                bool reverse = (level & 1) != 0;
+
+                // Clear everything above the ramp's base through its highest point plus the full
+                // collision envelope. The ramp wedge is restored after all carving is complete.
+                EmitBox(
+                    program,
+                    pathMinX, startY + 1, z,
+                    spec.PathRun, spec.PathRise + PathHeadroomVoxels, spec.PathWidth,
+                    0,
+                    PrimitiveMode.Carve);
+
+                lastHighX = reverse
+                    ? pathMinX
+                    : pathMinX + spec.PathRun - spec.PathWidth;
+
+                if (level + 1 >= spec.SwitchbackCount) continue;
+
+                int nextZ = spec.RampLocalZ(endY);
+                int zMin = Math.Min(z, nextZ);
+                int zSize = Math.Abs(nextZ - z) + spec.PathWidth;
+                EmitBox(
+                    program,
+                    lastHighX, endY + 1, zMin,
+                    spec.PathWidth, PathHeadroomVoxels, zSize,
+                    0,
+                    PrimitiveMode.Carve);
+            }
+
+            int summitZ = spec.CentreLocal - spec.SummitRadius - spec.PathWidth;
+            int finalRise = spec.MountainHeight - endY;
+            int finalZMin = Math.Min(lastRampZ, summitZ);
+            int finalZSize = Math.Abs(summitZ - lastRampZ) + spec.PathWidth;
+            EmitBox(
+                program,
+                lastHighX, endY + 1, finalZMin,
+                spec.PathWidth, finalRise + PathHeadroomVoxels, finalZSize,
+                0,
+                PrimitiveMode.Carve);
+
+            int approachX = spec.SummitApproachLocalX;
+            int topMinX = Math.Min(lastHighX, approachX);
+            int topSizeX = Math.Abs(approachX - lastHighX) + spec.PathWidth;
+            int topZ = spec.SummitApproachLocalZ - spec.PathWidth / 2;
+            EmitBox(
+                program,
+                topMinX, spec.MountainHeight + 1, topZ,
+                topSizeX, PathHeadroomVoxels, spec.PathWidth,
+                0,
+                PrimitiveMode.Carve);
+        }
+
+        private static void EmitPathSurface(
+            List<int> program,
+            in MountainLandmarkSpec spec,
+            byte pathMaterial)
+        {
+            int pathMinX = spec.PathMinLocalX;
+            int lastRampZ = 0;
+            int lastHighX = pathMinX;
+            int endY = 0;
+
+            for (int level = 0; level < spec.SwitchbackCount; level++)
+            {
+                int startY = level * spec.PathRise;
+                endY = startY + spec.PathRise;
+                int z = spec.RampLocalZ(startY);
+                lastRampZ = z;
+                bool reverse = (level & 1) != 0;
+                int axis = reverse ? ShapeOps.ReverseRampBit : 0;
+
+                EmitRamp(
+                    program,
+                    pathMinX, startY, z,
+                    spec.PathRun, spec.PathRise + 1, spec.PathWidth,
+                    axis,
+                    pathMaterial,
+                    PrimitiveMode.Fill);
+
+                lastHighX = reverse
+                    ? pathMinX
+                    : pathMinX + spec.PathRun - spec.PathWidth;
+
+                if (level + 1 >= spec.SwitchbackCount) continue;
+
+                int nextZ = spec.RampLocalZ(endY);
+                int zMin = Math.Min(z, nextZ);
+                int zSize = Math.Abs(nextZ - z) + spec.PathWidth;
                 EmitBox(
                     program,
                     lastHighX, endY, zMin,
@@ -279,21 +419,13 @@ namespace Game.WorldBuilder.Voxel
                     PrimitiveMode.Fill);
             }
 
-            int summitZ = c - spec.SummitRadius - spec.PathWidth;
+            int summitZ = spec.CentreLocal - spec.SummitRadius - spec.PathWidth;
             int finalRise = spec.MountainHeight - endY;
             int finalZMin = Math.Min(lastRampZ, summitZ);
             int finalZSize = Math.Abs(summitZ - lastRampZ) + spec.PathWidth;
 
-            AddNaturalSupportMasses(
-                program,
-                lastHighX, finalZMin,
-                spec.PathWidth, finalZSize,
-                endY,
-                spec.PathWidth,
-                mountainMaterial);
-            // The final ascent changes from the alternating X ramps to a Z ramp. Keep the same
-            // explicit flat path landing used by the earlier turns so integer ramp rasterization
-            // cannot leave the direction change connected only by a narrow edge.
+            // The final ascent changes from alternating X ramps to a Z ramp. Keep an explicit flat
+            // direction-change landing so integer ramp rasterization cannot leave an edge-only join.
             EmitBox(
                 program,
                 lastHighX, endY, lastRampZ,
@@ -312,22 +444,12 @@ namespace Game.WorldBuilder.Voxel
             int topMinX = Math.Min(lastHighX, approachX);
             int topSizeX = Math.Abs(approachX - lastHighX) + spec.PathWidth;
             int topZ = spec.SummitApproachLocalZ - spec.PathWidth / 2;
-            AddNaturalSupportMasses(
-                program,
-                topMinX, topZ,
-                topSizeX, spec.PathWidth,
-                spec.MountainHeight,
-                spec.PathWidth,
-                mountainMaterial);
             EmitBox(
                 program,
                 topMinX, spec.MountainHeight, topZ,
                 topSizeX, 1, spec.PathWidth,
                 pathMaterial,
                 PrimitiveMode.Fill);
-
-            End(program);
-            return program.ToArray();
         }
 
         private static void AddAsymmetricMountainShoulders(
