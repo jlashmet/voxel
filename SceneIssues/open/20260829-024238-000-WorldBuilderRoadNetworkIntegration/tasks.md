@@ -6,6 +6,9 @@
 - [x] Record the representation-gap discriminator and selected shared-road design in `plan.md`.
 - [x] Diagnose the pre-merge targeted CI compile failure and repair the missing `MountingForce.WorldGen` test import without changing product behavior.
 - [x] Audit terrain/crossing flag authority: current production `TerrainQuery`, `PlannedRoute`, and `TopDownWorldRouteSpec` expose no water/reserved/barrier field, so adapters must not fabricate flags; generic resolver policy remains ready for a future authoritative owner.
+- [x] Classify final targeted CI `33281599556`: product/test-contract failures, not runner noise; 7 tests executed, 2 failed.
+- [ ] Resolve the non-monotonic shoulder sample (`19 -> 26`) by discriminating single-route edge variation from aggregate overlap/junction sampling; do not weaken the monotonic shoulder acceptance.
+- [ ] Resolve authored vegetation point `(900,455)` colliding with settlement geometry and preserve production vegetation/layout constraints.
 
 ## Implementation
 - [x] Make road/trail intent first-class on stable semantic endpoints with reusable profile data, provenance, and deterministic seed.
@@ -30,18 +33,18 @@
 - [x] Non-flat deterministic routing respects maximum grade and cut/fill envelopes.
 - [x] Water/barrier fixture rejects a route without authored crossing policy and resolves when policy allows it.
 - [x] Physical corridor distance/height/coverage matches semantic influence on an intermediate shoulder sample.
-- [x] Shoulder coverage recovers continuously/monotonically without the legacy ten-band dependency.
+- [ ] Shoulder coverage recovers continuously/monotonically without the legacy ten-band dependency; current final CI exposed a `19 -> 26` increase that must be resolved.
 - [x] Physical catalogue asserts one `EmitTerrainCorridor`, zero legacy road `EmitBox` stamps, and bounded footprints/definitions.
-- [x] Vegetation suppresses in the core and progressively recovers through shared shoulder influence; production planner matches shared-network expectation.
+- [ ] Vegetation suppresses in the core and progressively recovers through shared shoulder influence; production planner equality test currently stops on authored point `(900,455)` colliding with settlement geometry.
 - [x] Kentridge authors positive generic placement keep-clearance beyond the grading radius and it is queryable from `WorldRoadNetwork`.
 - [x] Existing Kentridge named-landmark, diagonal-route, and connectivity coverage remains in `KentridgeOrganicLayoutTests`.
 - [ ] Validate the repaired/expanded `KentridgeRoadShoulderRegressionTests` class on final exact-SHA targeted CI.
 - [ ] Validate segment/chunk/LOD road geometry/material continuity in the built player.
 
 ## Validation / cost
-- [ ] Refresh/merge current `origin/master` immediately before the final request.
-- [ ] Run one focused exact-SHA targeted CI request through `ci-test/fixes/agent-1` only; do not replace it while queued/running.
-- [ ] Run/inspect repository-supported built `VoxelShowcase` player evidence; verify no startup/runtime exceptions.
+- [x] Refresh/merge current `origin/master` immediately before the attempted final request (`2e3574af`, master parent `2b100aa4`).
+- [ ] Obtain a green focused exact-SHA targeted CI request through `ci-test/fixes/agent-1` only; run `33281599556` failed product assertions and is diagnostic only.
+- [ ] Run/inspect repository-supported built application/player evidence for `Assets/Scenes/KentridgePlayableSlice.unity`; verify no startup/runtime exceptions.
 - [ ] Capture/inspect endpoint-to-endpoint road continuity and player-height traversal with collision/streaming active.
 - [ ] Inspect both shoulders on uneven/sloped terrain for natural Grass↔Dirt recovery with no repeated bands, staircase, exposed wall, or hard line.
 - [ ] Inspect medium/far views for chunk/LOD seams and floating props.
