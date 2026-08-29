@@ -14,12 +14,11 @@
 - [x] Correct only this issue's replay camera metadata to current root `Kentridge Player Camera`; no scene serialization/shared harness changes.
 - [x] Experiment 001: custom per-draw `_GrassTime` MPB advanced in test but built grass remained byte-identical; falsified by run `33244533044`.
 - [x] Experiment 002: shared material `_GrassTime` changed to unscaled time and focused test passed, but built grass still remained byte-identical; falsified by run `33246401704`.
-- [x] Discriminate clock boundary: built frames show moving clouds from engine-managed `_Time.y`, proving GPU time advances.
-- [x] Experiment 003: switch existing grass wind formula to engine-managed `_Time.y`; remove dead custom `_GrassTime` shader/material/MPB CPU state.
-- [x] Clean focused wind regression to exercise production packed draw across frames, require no custom `_GrassTime`, and prove topology is unchanged/no CPU rebuild.
-- [x] Discriminate geometry visibility before final CI: `ShowcaseWorld.MaterialAt(y, surface)` proves `surface` is the topmost occupied voxel; above-ground construction uses `ground + 1`, while Kentridge vegetation currently roots at `surface * VoxelSize`.
-- [ ] Experiment 004: correct Kentridge ecology grounding to the exposed voxel face `(surface + 1) * VoxelSize` without changing X/Z, density, exclusions, normal sampling, or renderer.
-- [ ] Add production-scene regression proving generated semantic grass roots equal the world's exposed top face and are not buried.
+- [x] Experiment 003: engine-managed `_Time.y` removes custom clock state and its focused test/build passed, but run `33246992214` still showed zero grass-region pixel change; third clock hypothesis falsified.
+- [x] After the third failed attempt, isolate the visible grass draw in the focused production-scene regression: render the actual packed grass batch + production shader well above terrain and require visible framebuffer pixels to deform over real time.
+- [x] Discriminate geometry visibility: `ShowcaseWorld.MaterialAt(y, surface)` proves `surface` is the topmost occupied voxel; above-ground construction uses `ground + 1`, while Kentridge vegetation had rooted at `surface * VoxelSize`.
+- [x] Experiment 004: correct Kentridge ecology grounding to the exposed voxel face `(surface + 1) * VoxelSize` without changing X/Z, density, exclusions, normal sampling, or renderer.
+- [x] Add production-scene regression sampling generated semantic grass roots against the world's exact exposed top-face contract.
 
 ## Regression / architecture checks
 - [x] Prove Kentridge definition exposes grass-only dense regional policy and empty tree/ambient-animal allowlists.
@@ -28,7 +27,7 @@
 - [x] Prove allowed-kind filtering, density behavior, and placement are deterministic.
 - [x] Prove shared blade expansion is deterministic/bounded at 5–15 and is the renderer's exact contract.
 - [x] Preserve packed chunk renderer; no legacy sprite, renderer-side global density magic, Kentridge-only scatter loop, per-blade GameObjects, or shader fork.
-- [ ] Green exact-SHA focused production-scene regression for exposed-face grass roots plus packed GPU-only wind topology.
+- [ ] Green exact-SHA focused production-scene regression proving exposed-face grass roots and isolated visible packed-shader deformation.
 - [ ] Green exact-SHA Kentridge built-application replay proving visible blade motion.
 
 ## Blast radius / cost
@@ -42,11 +41,10 @@
 - [ ] Re-evaluate final runtime/density/leakage/visual-contact evidence after exact-SHA built validation.
 
 ## Final exact-SHA validation / visual gate
-- [x] Request `b598b19c88503ce9d59011f196dc404934bbef36` / run `33246401704` completed green but failed mandatory animation inspection; product-failure evidence only.
-- [x] Human inspection + pixel comparison: grass/ground crop has exactly zero changed pixels at 39.3→49.3 and 49.3→59.3 seconds while sky changes.
-- [x] Confirm the failed capture lacks readable moving blade silhouettes despite packed blade counts; grounding contract explains invisible/buried geometry.
-- [ ] Refresh current `origin/master` before final exposed-face CI and confirm feature-only diff has no unrelated capture/workflow or feature `.github/test-request.json` change.
-- [ ] Submit final exact-SHA request on the same assigned `ci-test/fixes/agent-5` mailbox only after confirming no queued/running request; do not create another transport.
+- [x] Run `33246992214` is the third green workflow / failed visual experiment: engine-managed clock still yields exactly zero grass/ground pixel change at late stationary captures.
+- [x] Refresh current `origin/master`: `521ba9c1fc5531f299f09595316dff03af01df57` remains the feature merge base (`behind_by=0`).
+- [x] Review feature-only diff: only assigned Kentridge ecology/render/tests/issue files changed; no unrelated capture/workflow and no feature `.github/test-request.json` change.
+- [ ] Submit final exact-SHA request on the same assigned `ci-test/fixes/agent-5` mailbox after confirming the previous request is completed; do not create another transport.
 - [ ] Leave queued/running CI untouched; inspect logs/artifact after completion. Retry only once for infrastructure failure.
 - [ ] Built player reaches usable `KentridgePlayableSlice` without startup/runtime exceptions.
 - [ ] Gameplay/player-height replay plainly reads as dense procedural meadow made of visible blades, not sparse/tiled/floating/buried grass.
@@ -61,7 +59,7 @@
 - [ ] (4) Final built gameplay visibly animates grass while player/camera are stationary.
 - [ ] (5) Final evidence confirms roads, structures/interiors, water, steep/invalid terrain, cultivated surfaces when semantically identified, and other exclusions are not carpeted.
 - [x] (6) No legacy grass sprite, scene-local scatter, thousands of grass GameObjects, or Kentridge-specific shader fork introduced.
-- [x] (7) Behavioral regressions cover WorldBuilder policy, allowlist, density, determinism, exclusions, empty animal allowlist, blade expansion, and packed GPU-only wind topology; exposed-face grounding regression remains pending.
+- [x] (7) Behavioral regressions cover WorldBuilder policy, allowlist, density, determinism, exclusions, empty animal allowlist, blade expansion, packed GPU-only wind topology, isolated render deformation, and exposed-face grounding; final exact-SHA run remains pending.
 - [ ] (8) Exact built-application Kentridge harness is green and usable for final source.
 - [ ] (9) Durable visual evidence satisfies mandatory meadow-density and animation checks.
 - [ ] (10) Final blast-radius/cost evidence is measured/documented and acceptable.
@@ -69,7 +67,7 @@
 ## Metadata / promotion / publish
 - [x] Commit ecology/density implementation and regressions on `fixes/agent-5`.
 - [x] Commit engine-managed wind implementation and focused regression cleanup on `fixes/agent-5`.
-- [ ] Commit exposed-face grounding fix and regression on `fixes/agent-5`.
+- [x] Commit exposed-face grounding fix and minimal-render/grounding regression on `fixes/agent-5`.
 - [ ] After green exact-SHA focused CI + built replay + human visual gate, set pending metadata (`status=pending`, `resolutionSummary`, `regressionTest`, `fixCommit`) and move only this capture `open -> pending` in a bookkeeping commit.
 - [ ] Complete every remaining checkbox/acceptance item and record passing verification evidence.
 - [ ] Move only this capture `pending -> closed`, set `status=fixed` and `resolvedUtc`, and commit final bookkeeping.
