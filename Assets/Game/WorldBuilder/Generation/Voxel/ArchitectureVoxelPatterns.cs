@@ -230,8 +230,10 @@ namespace MountingForce.WorldGen.Voxel
         /// Builds a structural surround and a genuinely curved opening while preserving a full
         /// rectangular body-clearance zone below the spring line. Production entrance arches also
         /// inherit the hero-lookdev's thirteen-piece voussoir rhythm as non-destructive radial
-        /// masonry seams on the projecting face. The surround and two carves keep their existing
-        /// dimensions, so adopting the lookdev vocabulary does not narrow or lower traversal.
+        /// masonry joints on the projecting face. Those joints have real surface width so the rhythm
+        /// remains legible at player distance instead of collapsing to zero-width diagnostic lines.
+        /// The surround and two carves keep their existing dimensions, so the treatment does not
+        /// narrow or lower traversal.
         /// </summary>
         public static void FramedArchedOpening(
             ArchitectureShapeProgramBuilder builder,
@@ -330,6 +332,7 @@ namespace MountingForce.WorldGen.Voxel
             int innerRadiusY = Math.Max(1, archRise + 1);
             int outerRadiusX = innerRadiusX + frameThickness;
             int outerRadiusY = innerRadiusY + frameThickness;
+            int jointRadius = Math.Max(1, frameThickness / 2);
 
             for (int i = 1; i < HeroArchVoussoirCount; i++)
             {
@@ -347,7 +350,7 @@ namespace MountingForce.WorldGen.Voxel
                 builder.RawCapsule(
                     innerX, innerY, frontZ,
                     outerX, outerY, frontZ,
-                    radius: 0,
+                    radius: jointRadius,
                     material,
                     PrimitiveMode.SurfaceDetail,
                     SurfaceStyles.MasonryJoint);
