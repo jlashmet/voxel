@@ -114,7 +114,7 @@ namespace VoxelEngine.Tests.PlayMode
         }
 
         [Test]
-        public void ProductionCatalogue_LandmarkEntrancesCarryHeroVoussoirSeams()
+        public void ProductionCatalogue_LandmarkEntrancesCarryReadableHeroVoussoirJoints()
         {
             FeatureCatalogue catalogue = KentridgeSharedStructureVoxelCatalogue.Build(
                 Seed, BuildSettings(), Allocator.Temp);
@@ -144,6 +144,9 @@ namespace VoxelEngine.Tests.PlayMode
                                 == PrimitiveMode.SurfaceDetail
                             && catalogue.Program[pc + 10] == SurfaceStyles.MasonryJoint)
                         {
+                            Assert.That(catalogue.Program[pc + 8], Is.GreaterThanOrEqualTo(1),
+                                definition.Name + " emitted a zero-width hero joint that can pass " +
+                                "program-count tests while disappearing at normal player distance.");
                             masonrySeams++;
                         }
 
@@ -161,7 +164,7 @@ namespace VoxelEngine.Tests.PlayMode
                     {
                         Assert.That(masonrySeams, Is.EqualTo(12),
                             "A landmark entrance should carry the 13-piece hero arch rhythm as " +
-                            "twelve radial joints without multiplying that treatment onto glazing.");
+                            "twelve readable radial joints without multiplying that treatment onto glazing.");
                         heroEntranceDefinitions++;
                     }
                 }

@@ -1,0 +1,19 @@
+# Final Kentridge verification
+
+Exact tested source SHA: `8fbb5510a962296c1de5cfcc01bed6d319c7d593`
+CI transport SHA: `6902b44ca8f2fe382432df6d2d7448b48b18cc0c`
+GitHub Actions run: `33274034740`
+Artifact: `single-test-33274034740` (`9721041939`)
+Scene: `Assets/Scenes/KentridgePlayableSlice.unity`
+Focused regression: `VoxelEngine.Tests.PlayMode.KentridgeHeroArchPlayableSceneTests.GeneratedWarehouseHeroArch_IsReachableThroughProductionPlayerHost`
+
+Result:
+- `ci/single-test` succeeded.
+- Focused production-player traversal passed in 13.44 seconds.
+- Built-player replay ran 60 seconds with zero harness assertion failures.
+- `player-run.log` emitted `ARCH_EVIDENCE armed role=14`, then `approach`, then `arrived` with the real Kentridge player host.
+- Every full-resolution artifact frame was inspected: 10.0s loading; 20.0s and 30.1s authored opening; 40.1s and 50.1s normal player-height Warehouse exterior.
+- The 40.1s and 50.1s frames clearly show the production Warehouse entrance in recognizable Kentridge building/town context. The arch is readable as a segmented projecting voussoir treatment rather than a continuous featureless curve, and the opening remains physically traversable by the behavioral regression.
+- No startup/runtime exception or harness assertion failure invalidated the scene proof.
+
+Blast radius/cost remains bounded: only `FramedArchedOpening` hero entrances gain nonzero-width masonry-joint surface detail; glazed arched windows stay unchanged; primitive count remains twelve joints per hero entrance; evidence automation is SceneIssue-metadata gated.
