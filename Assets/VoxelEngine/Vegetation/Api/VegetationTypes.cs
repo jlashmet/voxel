@@ -116,6 +116,38 @@ namespace VoxelEngine.Vegetation.Api
     }
 
     /// <summary>
+    /// Shared semantic-to-presentation contract for packed procedural grass. World diagnostics and
+    /// the renderer use the same deterministic expansion so a reported blade count is the count the
+    /// packed grass renderer will actually build, rather than the number of semantic spawn records.
+    /// </summary>
+    public static class ProceduralGrassPresentation
+    {
+        public const int MinBladesPerInstance = 5;
+        public const int MaxBladesPerInstance = 15;
+
+        public static int BladeCountForSeed(uint seed)
+        {
+            float random = Random01(Hash(seed, 0xD1B54A35u));
+            return (int)math.round(math.lerp(MinBladesPerInstance, MaxBladesPerInstance, random));
+        }
+
+        private static uint Hash(uint seed, uint value)
+        {
+            uint h = seed == 0u ? 0x9E3779B9u : seed;
+            h ^= value + 0x85EBCA6Bu + (h << 6) + (h >> 2);
+            h ^= h >> 16;
+            h *= 0x7FEB352Du;
+            h ^= h >> 15;
+            h *= 0x846CA68Bu;
+            h ^= h >> 16;
+            return h == 0u ? 1u : h;
+        }
+
+        private static float Random01(uint seed) =>
+            (Hash(seed, 0xA341316Cu) & 0x00FFFFFFu) / 16777216f;
+    }
+
+    /// <summary>
     /// A world-surface candidate supplied by terrain, structures, or authored content. Placement
     /// remains independent of the source that discovered the surface.
     /// </summary>
