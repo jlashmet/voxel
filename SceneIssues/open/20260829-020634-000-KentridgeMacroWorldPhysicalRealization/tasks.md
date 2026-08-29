@@ -47,11 +47,13 @@
 - [x] Self-review implementation commit `a0fc52f67e1a8e495de0012ca4715b7250f9c3a5`: only `KentridgeMacroWorldEvidenceDriver.cs` changed. Full branch diff remains limited to agent-6 Kentridge/WorldBuilder/tests/assignment files; `.github/test-request.json` is absent. Four-frame stability adds only bounded validation latency after convergence and closer cameras reduce view/streaming footprint.
 
 ## Physical-visibility discriminator discovered by 33265086481
-- [ ] Trace generic settlement blockouts from `TopDownWorldSettlementPlan.Buildings` through the production voxel catalogue and final combined catalogue; prove whether each planned building has visible above-ground shell/roof voxels at its sampled ground height.
-- [ ] Check whether terrain/road composition overwrites or swallows generic-building voxels, and whether the resident production player catalogue actually includes those features at Fairy/Orc/Rossdam/Moordell coordinates.
-- [ ] Correlate exact run `33265086481` camera/focus coordinates with building centres/extents and emitted voxels to discriminate generation defects from framing/streaming defects.
-- [ ] If generation can satisfy plan-level counts while producing an unreadable/invisible blockout, add a production-path behavioral regression for visible above-ground building shell material and fix the reusable physical catalogue.
-- [ ] If generation is correct, change only validation targeting/readiness from resolved production geometry; do not weaken world truth or streamer budgets.
+- [x] Trace generic settlement blockouts from `TopDownWorldSettlementPlan.Buildings` through the physical catalogue into `KentridgeCombinedVoxelCatalogue`. Source trace confirms grounded foundations plus filled timber wall and roof/gable primitives are authored for each generic building and the physical structure pass is composed after macro roads.
+- [x] Check production composition/precedence for obvious terrain/road swallowing. The combined catalogue contains the authored generic building definitions and does not intentionally replace them with marker-only records; no production geometry rewrite is justified before final occupancy is sampled.
+- [x] Correlate evidence targeting with streaming. `KentridgePlayableSlice.UpdateDynamicResidency` follows `CharacterMotor.EyePosition`, while `KentridgeMacroWorldEvidenceDriver.PinToTarget` puts that motor at `EvidenceTarget.CameraPositionMetres`; `IsTargetReady` also samples around that camera position. Therefore target readiness is not proof that the photographed settlement/lake/ridge focus is resident/published.
+- [ ] Add a production-path behavioral regression that resolves a real authored generic settlement building through `KentridgeCombinedVoxelCatalogue` and asserts above-ground wall/roof occupancy in final `VoxelData`, not only planner/definition presence.
+- [ ] Decouple evidence-time residency from survey camera position: keep motor/streaming centered on the actual target feature and drive the camera transform independently at the existing offset.
+- [ ] Change target storage readiness to probe the actual target feature while retaining current published-surface/fallback rendering gates.
+- [ ] Re-run the existing evidence targets unchanged first after the occupancy/residency fix; adjust framing only if confirmed resident production geometry remains visually ambiguous.
 - [ ] Re-run exact-SHA focused + built-player validation after the proven minimal fix and reject closure unless full-resolution settlement/lake/ridge evidence is readable.
 
 ## Behavioral regression
@@ -63,7 +65,7 @@
 - [ ] Final exact-SHA execution verifies lake/ridge constraints alter hard routes via explicit semantic solutions, including Bandit dry-shore and Orc ridge-shoulder route-arounds.
 - [ ] Final exact-SHA execution verifies impossible blocked route rejection without explicit crossing/pass/around solution.
 - [ ] Final exact-SHA execution verifies richer Kentridge/Hightown output is preserved.
-- [ ] Final exact-SHA execution verifies the selected macro graph survives the real combined production catalogue, including carved water.
+- [ ] Final exact-SHA execution verifies the selected macro graph survives the real combined production catalogue, including carved water and above-ground generic-building occupancy.
 
 ## Visual / runtime evidence
 - [ ] Exact built `KentridgePlayableSlice` reaches a usable rendered state with no startup/runtime exceptions.
@@ -78,6 +80,8 @@
 - [ ] Inspect built-player CPU/GPU/frame/memory/streaming/far-field telemetry against existing device budgets; do not weaken budgets and distinguish startup/teleport validation spikes from steady-state gameplay.
 - [x] Static blast-radius review: macro realization is opt-in through existing one-shot `TopDownWorldLayoutSelection`; ordinary callers retain prior cost, no second graph/static destination hierarchy.
 - [x] Scope audit: only agent-6 Kentridge/WorldBuilder/tests/assignment files differ from current master; no other SceneIssue and no `.github/test-request.json` on `fixes/agent-6`.
+- [x] Planned residency fix is validation-only and reuses the existing radius-1 `ResidencyManager`; no eager remote build, streaming-radius increase, production catalogue change, or extra CI transport.
+- [x] Planned occupancy regression is bounded to production-catalogue sampling of a small authored building footprint inside the existing final targeted PlayMode acceptance.
 - [ ] Re-check final branch diff after final CI/metadata and before promotion.
 
 ## Acceptance audit / closure
