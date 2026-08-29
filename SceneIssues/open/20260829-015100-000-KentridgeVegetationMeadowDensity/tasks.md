@@ -12,11 +12,11 @@
 - [x] Report renderer-equivalent total/primary-meadow blade counts and exclusion leakage/rejection diagnostics.
 - [x] Fix playable WorldBuilder compatibility facade so authored `CountrysideEcology` reaches runtime.
 - [x] Correct only this issue's replay camera metadata to current root `Kentridge Player Camera`; no scene serialization/shared harness changes.
-- [x] Experiment 001: custom per-draw `_GrassTime` MPB advanced in test but built grass remained byte-identical; hypothesis falsified by run `33244533044`.
-- [x] Experiment 002: shared material `_GrassTime` changed to unscaled time and focused test passed, but built grass still remained byte-identical; hypothesis falsified by run `33246401704`.
+- [x] Experiment 001: custom per-draw `_GrassTime` MPB advanced in test but built grass remained byte-identical; falsified by run `33244533044`.
+- [x] Experiment 002: shared material `_GrassTime` changed to unscaled time and focused test passed, but built grass still remained byte-identical; falsified by run `33246401704`.
 - [x] Discriminate the next boundary: the same built frames show moving clouds from `AuthoredSky.shader` using engine-managed `_Time.y`, proving GPU time advances while custom grass time produces no visible motion.
-- [ ] Experiment 003: switch the existing grass wind formula to engine-managed `_Time.y` and remove dead custom `_GrassTime` CPU/material/MPB plumbing.
-- [ ] Clean the focused wind regression so it covers packed GPU-only topology without asserting obsolete custom clock publication.
+- [x] Experiment 003: switch the existing grass wind formula to engine-managed `_Time.y`; remove dead custom `_GrassTime` shader property, material write, MPB state, and CPU time source.
+- [x] Clean the focused wind regression to exercise the production packed draw across frames, require no custom `_GrassTime` property, and prove topology is unchanged/no CPU rebuild.
 
 ## Regression / architecture checks
 - [x] Prove Kentridge definition exposes grass-only dense regional policy and empty tree/ambient-animal allowlists.
@@ -33,8 +33,8 @@
 - [x] Density realization changes remain Kentridge composition + reusable policy/vegetation APIs.
 - [x] Wind changes affect shared packed Grass/Nettle presentation only.
 - [x] Prior player density baseline: 11,478 semantic grass instances / 114,580 blades total; primary connected meadow 5,777 / 57,589 blades; 8 chunks; zero excluded-surface leakage.
-- [x] Run `33246401704` retained identical density/leakage totals and reached ~68–74 FPS after startup before later unloaded/held-scene phases accelerated into hundreds of FPS. Exact CPU-ms/GPU-ms/memory/build-time dimensions are not emitted by this harness and remain unavailable rather than inferred.
-- [x] Engine-clock correction is lower CPU state cost than either failed custom-clock attempt: removes per-frame grass time material write and MPB clear/float write; no new topology, draw, allocation, material, or CPU blade animation.
+- [x] Run `33246401704` retained identical density/leakage totals and reached ~68–74 FPS after startup before later held-scene phases accelerated into hundreds of FPS. Exact CPU-ms/GPU-ms/memory/build-time dimensions are not emitted by this harness and remain unavailable rather than inferred.
+- [x] Engine-clock correction lowers CPU state cost: removes per-frame grass time material write, MPB clear/float write, persistent MPB, delegate, and time-source read; no new topology, draw, allocation, material, or CPU blade animation.
 - [ ] Re-evaluate final runtime/density/leakage evidence after final exact-SHA built validation.
 
 ## Final exact-SHA validation / visual gate
@@ -56,14 +56,14 @@
 - [ ] (4) Final built gameplay visibly animates grass while player/camera are stationary.
 - [ ] (5) Final evidence confirms roads, structures/interiors, water, steep/invalid terrain, cultivated surfaces when semantically identified, and other exclusions are not carpeted.
 - [x] (6) No legacy grass sprite, scene-local scatter, thousands of grass GameObjects, or Kentridge-specific shader fork introduced.
-- [x] (7) Behavioral regressions cover WorldBuilder policy, allowlist, density, determinism, exclusions, empty animal allowlist, and blade expansion; final wind regression cleanup remains pending.
+- [x] (7) Behavioral regressions cover WorldBuilder policy, allowlist, density, determinism, exclusions, empty animal allowlist, blade expansion, and packed GPU-only wind topology; final built visual replay is the wind-motion oracle.
 - [ ] (8) Exact built-application Kentridge harness is green and usable for final source.
 - [ ] (9) Durable visual evidence satisfies mandatory meadow-density and animation checks.
 - [ ] (10) Final blast-radius/cost evidence is measured/documented and acceptable.
 
 ## Metadata / promotion / publish
 - [x] Commit ecology/density implementation and regressions on `fixes/agent-5`.
-- [ ] Commit final engine-managed wind implementation and focused regression cleanup on `fixes/agent-5`.
+- [x] Commit final engine-managed wind implementation and focused regression cleanup on `fixes/agent-5`.
 - [ ] After green exact-SHA focused CI + built replay + human visual gate, set pending metadata (`status=pending`, `resolutionSummary`, `regressionTest`, `fixCommit`) and move only this capture `open -> pending` in a bookkeeping commit.
 - [ ] Complete every remaining checkbox/acceptance item and record passing verification evidence.
 - [ ] Move only this capture `pending -> closed`, set `status=fixed` and `resolvedUtc`, and commit final bookkeeping.
