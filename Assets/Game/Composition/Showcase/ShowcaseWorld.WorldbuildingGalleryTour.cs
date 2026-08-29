@@ -108,8 +108,8 @@ namespace VoxelEngine.Showcase
             TownArchitectureProgram program = WorldBuilderTownArchitecture.Resolve(s_GalleryTownStyleIds[i], s_GalleryTownSeeds[i]);
             int2 centre = s_GalleryTownDistrictCentres[i];
             return program.DisplayName + " anchor=(" + centre.x + "," + centre.y + ") footprint=" +
-                   (WorldBuilderTownArchitectureVoxelAuthoring.DistrictHalfWidthVoxels * 2) + "x" +
-                   (WorldBuilderTownArchitectureVoxelAuthoring.DistrictHalfDepthVoxels * 2) + " " +
+                   TownArchitectureDistrictBounds.WidthVoxels + "x" +
+                   TownArchitectureDistrictBounds.DepthVoxels + " " +
                    WorldBuilderTownArchitecture.Describe(program);
         }
 
