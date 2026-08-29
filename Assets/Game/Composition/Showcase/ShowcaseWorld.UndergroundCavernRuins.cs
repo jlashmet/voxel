@@ -196,38 +196,75 @@ namespace VoxelEngine.Showcase
             in UndergroundCavernRuinConfig ruin)
         {
             var regions = new HashSet<int3>();
-            int3 direction = new int3(1, 0, 0);
+            int3 direction = UndergroundCavernFacingVector(request.Entrance.Facing);
+
+            // Prepare only the voxel-space envelope the reusable cave authoring can actually touch.
+            // The previous centre-point 3x3x3 neighbourhood pulled in two unrelated horizontal
+            // surface columns and three vertical layers at every stop. Surface regions each retain
+            // thousands of mixed bricks, so a long underground route could exhaust the fixed pool
+            // before authoring even began. This envelope still includes tunnel roughness, host
+            // padding, procedural chambers and traversal bends while avoiding unrelated terrain.
+            int routeHalfWidth = math.max(
+                cave.TunnelWidth / 2 + cave.WallRoughness + ruin.HostPadding,
+                math.max(cave.MaxChamberRadius + cave.WallRoughness + 4, 64));
+            int floorPadding = cave.FloorRoughness + ruin.HostPadding + 8;
+            int ceilingPadding = math.max(
+                cave.TunnelHeight + cave.CeilingRoughness + ruin.HostPadding + 8,
+                cave.MaxChamberHeight + cave.CeilingRoughness + 8);
+
             int3 current = request.EntranceWorldPosition + direction * request.Entrance.ClearanceLength;
-            AddRegionNeighbourhood(regions, current, 1);
+            AddRegionBounds(
+                regions,
+                request.EntranceWorldPosition - new int3(routeHalfWidth, floorPadding, routeHalfWidth),
+                request.EntranceWorldPosition + new int3(routeHalfWidth, ceilingPadding, routeHalfWidth));
 
             for (int segment = 0; segment < cave.MainSegmentCount; segment++)
             {
                 int drop = segment < cave.SurfaceDescentSegments ? cave.SurfaceDescentPerSegment : 0;
-                current = new int3(
-                    current.x + cave.SegmentLength,
-                    math.max(current.y - drop, request.Origin.y + cave.MinVerticalOffset),
-                    current.z);
-                AddRegionNeighbourhood(regions, current, 1);
+                int targetY = math.max(current.y - drop, request.Origin.y + cave.MinVerticalOffset);
+                int3 next = new int3(
+                    current.x + direction.x * cave.SegmentLength,
+                    targetY,
+                    current.z + direction.z * cave.SegmentLength);
+
+                AddRegionBounds(
+                    regions,
+                    new int3(
+                        math.min(current.x, next.x) - routeHalfWidth,
+                        math.min(current.y, next.y) - floorPadding,
+                        math.min(current.z, next.z) - routeHalfWidth),
+                    new int3(
+                        math.max(current.x, next.x) + routeHalfWidth,
+                        math.max(current.y, next.y) + ceilingPadding,
+                        math.max(current.z, next.z) + routeHalfWidth));
+                current = next;
             }
 
             int3 cavernCentre = current + direction * 34;
             int padding = ruin.CavernRadius + 24;
+            int3 ruinReach = direction * (ruin.RuinForwardOffset + ruin.RuinDepth);
             AddRegionBounds(
                 regions,
-                cavernCentre - new int3(padding, 16, padding),
-                cavernCentre + new int3(padding + ruin.RuinForwardOffset + ruin.RuinDepth,
-                    ruin.CavernHeight + 24,
-                    padding));
+                new int3(
+                    math.min(cavernCentre.x - padding, cavernCentre.x + ruinReach.x - padding),
+                    cavernCentre.y - 16,
+                    math.min(cavernCentre.z - padding, cavernCentre.z + ruinReach.z - padding)),
+                new int3(
+                    math.max(cavernCentre.x + padding, cavernCentre.x + ruinReach.x + padding),
+                    cavernCentre.y + ruin.CavernHeight + 24,
+                    math.max(cavernCentre.z + padding, cavernCentre.z + ruinReach.z + padding)));
             return regions;
         }
 
-        private static void AddRegionNeighbourhood(HashSet<int3> regions, int3 voxel, int radius)
+        private static int3 UndergroundCavernFacingVector(Facing facing)
         {
-            int3 centre = RegionAt((float3)voxel * VoxelSize);
-            for (int y = -radius; y <= radius; y++)
-            for (int z = -radius; z <= radius; z++)
-            for (int x = -radius; x <= radius; x++)
-                regions.Add(centre + new int3(x, y, z));
+            switch (facing)
+            {
+                case Facing.East: return new int3(1, 0, 0);
+                case Facing.South: return new int3(0, 0, -1);
+                case Facing.West: return new int3(-1, 0, 0);
+                default: return new int3(0, 0, 1);
+            }
         }
 
         private static void AddRegionBounds(HashSet<int3> regions, int3 minVoxel, int3 maxVoxel)
