@@ -7,7 +7,6 @@ using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
-using VoxelEngine.Showcase;
 
 namespace VoxelEngine.Tests.PlayMode
 {
@@ -21,6 +20,8 @@ namespace VoxelEngine.Tests.PlayMode
     {
         private const string SceneName = "KentridgePlayableSlice";
         private const string DriverTypeName = "Game.Kentridge.PlayableSlice.KentridgePlayableSlice";
+        private const string CharacterHostTypeName = "Game.Composition.Kentridge.Playable.KentridgeCharacterHost";
+        private const string CharacterGroundingTypeName = "Game.Composition.Kentridge.Playable.CharacterVisualFootGrounding";
         private const float DecimetresToMetres = 0.1f;
 
         private Scene _loadedScene;
@@ -49,6 +50,13 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(ReadBoolProperty(driver, "HasExitedPub"), Is.False,
                 "The production opening must begin inside the generated pub.");
 
+            object motor = ReadPrivateField<object>(driver, "_motor");
+            object actors = ReadPrivateField<object>(driver, "_actors");
+            Assert.That(motor.GetType().FullName, Is.EqualTo(CharacterHostTypeName),
+                "The production scene must route player movement through the Game-owned character host instead of owning CharacterMotor directly.");
+            Assert.That(actors, Is.SameAs(motor),
+                "Player movement and campaign cutscene actors must share one authoritative Game-owned character host.");
+
             for (var frame = 0; frame < 1200 && !ReadBoolProperty(driver, "OpeningCutsceneStarted"); frame++)
                 yield return null;
 
@@ -59,7 +67,6 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(ReadBoolProperty(driver, "OpeningCutsceneCameraActive"), Is.True,
                 "The recovered opening must use its fixed establishing camera.");
 
-            CharacterMotor motor = ReadPrivateField<CharacterMotor>(driver, "_motor");
             Camera openingCamera = driver.GetComponent<Camera>();
             Assert.That(openingCamera, Is.Not.Null,
                 "The production Kentridge driver must own the camera used for the opening shot.");
@@ -83,7 +90,7 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(GameObject.Find("Weldon"), Is.Not.Null,
                 "The production opening must realize a visible Weldon body under the ensemble camera.");
 
-            Vector3 leadStart = motor.Position;
+            Vector3 leadStart = ReadVector3Property(motor, "Position");
             Vector3 previousLead = leadStart;
             int leadMovingFrames = 0;
             Time.captureDeltaTime = 0.1f;
@@ -91,7 +98,7 @@ namespace VoxelEngine.Tests.PlayMode
             for (var frame = 0; frame < 100 && !HasPendingDialogue(driver); frame++)
             {
                 yield return null;
-                Vector3 leadNow = motor.Position;
+                Vector3 leadNow = ReadVector3Property(motor, "Position");
                 if (HorizontalDistance(leadNow, previousLead) > 0.01f)
                 {
                     leadMovingFrames++;
@@ -104,14 +111,15 @@ namespace VoxelEngine.Tests.PlayMode
 
             Assert.That(HasPendingDialogue(driver), Is.True,
                 "The production opening never reached recovered dialogue line 1 after Weldon entered.");
-            Assert.That(HorizontalDistance(motor.Position, leadStart), Is.GreaterThan(0.5f),
+            Assert.That(HorizontalDistance(ReadVector3Property(motor, "Position"), leadStart), Is.GreaterThan(0.5f),
                 "Weldon must physically move from the opening spawn into the pub conversation.");
             Assert.That(leadMovingFrames, Is.GreaterThanOrEqualTo(5),
                 "Weldon's recovered entrance must remain visible movement rather than a teleport.");
 
             object madelineActor = FindNpcActor(driver, "madeline");
+            AssertProductionMadeline(madelineActor);
             object stevenActor = FindNpcActor(driver, "steven");
-            AssertActorReadable(openingCamera, motor.Position, "Weldon at dialogue line 1");
+            AssertActorReadable(openingCamera, ReadVector3Property(motor, "Position"), "Weldon at dialogue line 1");
             AssertActorReadable(openingCamera, ReadActorRootPosition(madelineActor), "Madeline at dialogue line 1");
             AssertActorReadable(openingCamera, ReadActorRootPosition(stevenActor), "Steven at dialogue line 1");
 
@@ -128,7 +136,7 @@ namespace VoxelEngine.Tests.PlayMode
                     && HasPendingDialogue(driver)
                     && string.Equals(ReadPendingSpeaker(driver), "Logan", StringComparison.Ordinal))
                 {
-                    AssertActorReadable(openingCamera, motor.Position, "Weldon when Logan first speaks");
+                    AssertActorReadable(openingCamera, ReadVector3Property(motor, "Position"), "Weldon when Logan first speaks");
                     AssertActorReadable(openingCamera, ReadActorRootPosition(madelineActor), "Madeline when Logan first speaks");
                     AssertActorReadable(openingCamera, ReadActorRootPosition(stevenActor), "Steven when Logan first speaks");
                     AssertActorReadable(openingCamera, ReadActorRootPosition(loganActor), "Logan on his first dialogue line");
@@ -176,10 +184,11 @@ namespace VoxelEngine.Tests.PlayMode
             Vector3 entrance = ReadRealizedPoint(pubAccess, "Entrance");
             Vector3 interiorApproach = ReadRealizedPoint(pubAccess, "InteriorApproach");
             Vector3 inward = ReadInt2Direction(pubAccess, "Inward");
+            Vector3 playerPosition = ReadVector3Property(motor, "Position");
 
-            Assert.That(HorizontalDistance(motor.Position, interiorApproach), Is.LessThanOrEqualTo(0.05f),
+            Assert.That(HorizontalDistance(playerPosition, interiorApproach), Is.LessThanOrEqualTo(0.05f),
                 "The opening must hand gameplay back at the architecture-owned interior pub approach.");
-            Assert.That(Vector3.Dot(motor.Position - entrance, inward), Is.GreaterThan(0.5f),
+            Assert.That(Vector3.Dot(playerPosition - entrance, inward), Is.GreaterThan(0.5f),
                 "The player must still be physically inside the generated pub when the opening releases control.");
             Assert.That(ReadBoolProperty(driver, "HasExitedPub"), Is.False,
                 "The scene must not report Kentridge town until the player physically crosses the generated doorway.");
@@ -235,6 +244,33 @@ namespace VoxelEngine.Tests.PlayMode
                 actor + " must occupy a readable share of the frame instead of becoming a tiny distant figure; projected height=" + projectedHeight.ToString("0.###"));
         }
 
+        private static void AssertProductionMadeline(object actor)
+        {
+            PropertyInfo productionProperty = actor.GetType().GetProperty(
+                "UsesProductionMadeline", BindingFlags.Instance | BindingFlags.Public);
+            Assert.That(productionProperty, Is.Not.Null,
+                "The shared NPC actor must expose whether the resolved authored Madeline identity uses the production character.");
+            Assert.That((bool)productionProperty.GetValue(actor), Is.True,
+                "The authored Madeline NPC must resolve to the production Humanoid prefab, not a placeholder presentation.");
+
+            GameObject root = ReadActorRoot(actor);
+            Animator animator = root.GetComponentInChildren<Animator>(true);
+            Assert.That(animator, Is.Not.Null,
+                "Production Madeline must carry an Animator from her imported character prefab.");
+            Assert.That(animator.avatar, Is.Not.Null,
+                "Production Madeline must use the imported Humanoid Avatar.");
+            Assert.That(animator.avatar.isHuman, Is.True,
+                "Production Madeline's imported rig must remain Humanoid at runtime.");
+            Assert.That(animator.runtimeAnimatorController, Is.Not.Null,
+                "Production Madeline must have her animation controller bound.");
+            Assert.That(animator.applyRootMotion, Is.False,
+                "CharacterMotor/cutscene motion must remain authoritative; production Madeline animation may not apply root motion.");
+            Assert.That(HasDescendantNamed(root, "Madeline Visual"), Is.True,
+                "Madeline's production prefab must remain intact under the reusable actor visual root.");
+            Assert.That(HasComponentType(root, CharacterGroundingTypeName), Is.True,
+                "Production Madeline must use the reusable Game-owned visual foot-grounding behavior.");
+        }
+
         private static bool HasPendingDialogue(Component driver)
         {
             object presentation = ReadPrivateField<object>(driver, "_presentation");
@@ -287,13 +323,35 @@ namespace VoxelEngine.Tests.PlayMode
             return null;
         }
 
-        private static Vector3 ReadActorRootPosition(object actor)
+        private static GameObject ReadActorRoot(object actor)
         {
             FieldInfo rootField = actor.GetType().GetField("_root", BindingFlags.Instance | BindingFlags.NonPublic);
             Assert.That(rootField, Is.Not.Null, "Cutscene NPC actor is missing its visual root.");
             var root = rootField.GetValue(actor) as GameObject;
             Assert.That(root, Is.Not.Null, "Cutscene NPC visual root must exist while the opening is running.");
-            return root.transform.position;
+            return root;
+        }
+
+        private static Vector3 ReadActorRootPosition(object actor) => ReadActorRoot(actor).transform.position;
+
+        private static bool HasDescendantNamed(GameObject root, string name)
+        {
+            Transform[] transforms = root.GetComponentsInChildren<Transform>(true);
+            for (int i = 0; i < transforms.Length; i++)
+                if (string.Equals(transforms[i].name, name, StringComparison.Ordinal)) return true;
+            return false;
+        }
+
+        private static bool HasComponentType(GameObject root, string fullName)
+        {
+            Component[] components = root.GetComponentsInChildren<Component>(true);
+            for (int i = 0; i < components.Length; i++)
+            {
+                Component component = components[i];
+                if (component != null && string.Equals(component.GetType().FullName, fullName, StringComparison.Ordinal))
+                    return true;
+            }
+            return false;
         }
 
         private static float HorizontalDistance(Vector3 a, Vector3 b)
@@ -322,25 +380,25 @@ namespace VoxelEngine.Tests.PlayMode
             return null;
         }
 
-        private static bool ReadBoolProperty(Component driver, string name)
+        private static bool ReadBoolProperty(object owner, string name)
         {
-            PropertyInfo property = driver.GetType().GetProperty(name, BindingFlags.Instance | BindingFlags.Public);
-            Assert.That(property, Is.Not.Null, "Playable scene driver is missing public property '" + name + "'.");
-            return (bool)property.GetValue(driver);
+            PropertyInfo property = owner.GetType().GetProperty(name, BindingFlags.Instance | BindingFlags.Public);
+            Assert.That(property, Is.Not.Null, "Runtime object is missing public property '" + name + "'.");
+            return (bool)property.GetValue(owner);
         }
 
-        private static Vector3 ReadVector3Property(Component driver, string name)
+        private static Vector3 ReadVector3Property(object owner, string name)
         {
-            PropertyInfo property = driver.GetType().GetProperty(name, BindingFlags.Instance | BindingFlags.Public);
-            Assert.That(property, Is.Not.Null, "Playable scene driver is missing public property '" + name + "'.");
-            return (Vector3)property.GetValue(driver);
+            PropertyInfo property = owner.GetType().GetProperty(name, BindingFlags.Instance | BindingFlags.Public);
+            Assert.That(property, Is.Not.Null, "Runtime object is missing public Vector3 property '" + name + "'.");
+            return (Vector3)property.GetValue(owner);
         }
 
-        private static T ReadPrivateField<T>(Component driver, string name)
+        private static T ReadPrivateField<T>(object owner, string name)
         {
-            FieldInfo field = driver.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic);
-            Assert.That(field, Is.Not.Null, "Playable scene driver is missing runtime field '" + name + "'.");
-            return (T)field.GetValue(driver);
+            FieldInfo field = owner.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That(field, Is.Not.Null, "Runtime object is missing field '" + name + "'.");
+            return (T)field.GetValue(owner);
         }
 
         private static Vector3 ReadRealizedPoint(object owner, string propertyName)

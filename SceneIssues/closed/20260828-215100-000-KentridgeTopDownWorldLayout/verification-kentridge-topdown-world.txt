@@ -1,0 +1,37 @@
+Kentridge top-down world layout verification
+
+Final tested source SHA: 9e532f52c6954ec4f3d38a99aae3f90ab13e24a3
+CI request SHA: 9f8ed8654f88876e9be9a79158a45b30e72ee9ac
+GitHub Actions run: 33224752568
+Job: 99026054159
+Artifact: single-test-33224752568 / id 9706498435
+Artifact SHA256: 57e807dd28a3b517cbf16b2e7d9ce8272f4c24326d95b7adb22145dc9a9c6d1a
+
+Focused production regression
+- VoxelEngine.Tests.PlayMode.KentridgeTopDownWorldLayoutTests.SourceBackedWorldLayoutIsDeterministicPhysicallyRealizedAndRejectsSeveredHardRoute
+- Exactly 1 requested PlayMode test executed and passed; Unity exit 0.
+- Covers fixed-seed deterministic non-overlap, verified/soft provenance, required reachability, Hightown anchor alignment, continuous Kentridge route tiles, real FeatureCatalogue realization, and rejection of a severed hard route.
+
+Built-player evidence
+- Exact scene: Assets/Scenes/KentridgePlayableSlice.unity
+- Unity 6000.5.6f1 player build exit 0; real player exit 0.
+- Replay: 60 seconds at 1600x900; captures=[] so there is no recorded camera pose to pin.
+- Five real-player screenshots captured; final verification frame is 1600x900.
+- showcase-002-t033.4s-stationary.png: fully rendered post-load Kentridge; production "SOURCE-BACKED WORLD LAYOUT — KENTRIDGE" overlay visibly shows the generated macro graph and named destinations.
+- player log: KENTRIDGE_WORLD_LAYOUT source=legacy-warps root=kentridge nodes=21 routes=20, including Hightown, Moordell, Rossdam, Fairy Village, Orc Village, Logan Castle, Stanley's House, Radcliffe Mansion, and Bandit Hideout.
+- HARNESS autowalk on at t=40.0s.
+- showcase-003-t043.4s-walking.png and showcase-004-t053.4s-walking.png are real CharacterMotor traversal frames, not transform teleports. The latter is a normal eye-level generated Kentridge/outskirts view with a grounded travel path and the source-backed topology overlay still visible.
+- Streaming reacted to movement and recovered; final RINGS line reports missingVisible=0. Final FPS sample at t=59.6 is 251.6 fps (p95 5.50 ms) in the uncapped validation player.
+- No runtime error/exception/fatal/crash lines were found in player-run.log.
+
+Source/topology comparison
+- Hard connectivity is sourced from the original/imported transition and progression evidence recorded in the production route specs; inferred compass/placement hints remain soft provenance.
+- Runtime overlay shape and labels match the same production layout exercised by the regression rather than a second scene-local map model.
+- Physical Kentridge route output is produced through the shared voxel WorldBuilder catalogue; the regression verifies the first Kentridge route is continuous and reaches the shared physical anchors while the built-player walk demonstrates the resulting generated world remains usable under collision/streaming.
+
+Blast radius / cost
+- Macro planner: O(21 nodes + 20 routes).
+- Physical plan: 803 route tiles + 21 neutral markers / 41 definitions.
+- Playable Kentridge selects this through one-shot production WorldBuilder composition; unrelated Kentridge catalogue callers retain prior behavior.
+- No eager extra chunks, device budgets, or existing showcase limits were weakened.
+- Validation harness change applies only to capture-less Kentridge SceneIssues; recorded-pose replay semantics are unchanged.
