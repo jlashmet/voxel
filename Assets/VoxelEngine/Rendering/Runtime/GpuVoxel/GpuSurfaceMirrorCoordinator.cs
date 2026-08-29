@@ -50,6 +50,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private static int s_LastPrepareFrame = -1;
         private static ulong s_LastPrepareWorldVersion;
         private static bool s_LastPrepareResult;
+        private static ulong s_OptionalNonResidentHaloBlocksAccepted;
 
         internal static GpuVoxelBrickMirror Acquire(long requestedBudgetBytes)
         {
@@ -76,8 +77,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         /// Advances the shared mirror to the current authoritative generation without rewriting any
         /// GPU slot while an earlier count/write can still read it. The caller's snapshot may be an
         /// older global generation because unrelated streamed regions can advance Storage between
-        /// snapshot and admission; <see cref="Covers(int3,int,ulong)"/> separately proves that none
-        /// of this chunk's covered regions changed after that snapshot.
+        /// snapshot and admission; <see cref="Covers(int3,int,int3,int3,ulong)"/> separately proves
+        /// that none of this chunk's covered resident regions changed after that snapshot.
         /// </summary>
         internal static bool PrepareFromBridge(ulong requiredGeneration)
         {
@@ -132,12 +133,16 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         }
 
         /// <summary>
-        /// True when every storage block sampled by the chunk is resident in the current mirror and
-        /// no solid-affecting change in any covered region occurred after the caller's snapshot
-        /// generation. Missing resident blocks are queued here so recovery follows the exact GPU
-        /// footprint rather than the containing 512^3 Storage regions.
+        /// True when every required/core storage block sampled by the chunk is resident in the
+        /// current mirror and no solid-affecting change in a covered resident region occurred after
+        /// the caller's snapshot generation. The exact CPU snapshot treats a nonresident region that
+        /// intersects only its sampling halo as canonical empty; the GPU directory uses that same
+        /// representation (no entry means empty), so such optional halo blocks must not become an
+        /// unrecoverable admission dependency. Missing resident blocks are queued here so recovery
+        /// follows the exact GPU footprint rather than the containing 512^3 Storage regions.
         /// </summary>
         internal static bool Covers(int3 brickCacheOrigin, int brickCacheEdge,
+                                    int3 coreMinVoxel, int3 coreMaxVoxelExclusive,
                                     ulong requiredGeneration)
         {
             if (s_Storage == null || brickCacheEdge <= 0) return false;
@@ -145,20 +150,44 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
             bool covered = true;
             int3 last = brickCacheOrigin + new int3(brickCacheEdge - 1);
-            int shift = VoxelReadGrid.BlocksPerRegionEdgeLog2;
+            int regionShift = VoxelReadGrid.BlocksPerRegionEdgeLog2;
+            int blockShift = VoxelReadGrid.BlockEdgeLog2;
+            int blockEdge = VoxelReadGrid.BlockEdge;
             for (int z = brickCacheOrigin.z; z <= last.z; z++)
             for (int y = brickCacheOrigin.y; y <= last.y; y++)
             for (int x = brickCacheOrigin.x; x <= last.x; x++)
             {
                 int3 block = new int3(x, y, z);
-                int3 region = block >> shift;
+                int3 region = block >> regionShift;
+                bool resident = s_Storage.IsRegionResident(region);
+
+                if (!resident)
+                {
+                    int3 blockMinVoxel = block << blockShift;
+                    int3 blockMaxVoxelExclusive = blockMinVoxel + new int3(blockEdge);
+                    bool intersectsCore = math.all(blockMaxVoxelExclusive > coreMinVoxel)
+                                       && math.all(blockMinVoxel < coreMaxVoxelExclusive);
+                    if (!intersectsCore)
+                    {
+                        // Exact CPU snapshots clear their destination first and simply skip an
+                        // unavailable optional halo region. The persistent GPU directory has the
+                        // same empty-by-absence contract, so waiting for this block would never
+                        // converge while the region legitimately remains nonresident.
+                        s_OptionalNonResidentHaloBlocksAccepted++;
+                        continue;
+                    }
+
+                    covered = false;
+                    continue;
+                }
+
                 if (s_RegionLastSolidChangeVersion.TryGetValue(region, out ulong changedAt)
                     && changedAt > requiredGeneration)
                     return false;
 
                 if (s_ReadyBlocks.Contains(block)) continue;
                 covered = false;
-                if (s_Storage.IsRegionResident(region)) QueueRecoveryBlock(block);
+                QueueRecoveryBlock(block);
             }
             return covered;
         }
@@ -176,6 +205,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         internal static int ActiveExtractions => s_ActiveExtractions;
         internal static ulong MirroredVersion => s_MirroredVersion;
         internal static bool RecoveryComplete => s_QueuedRecoveryBlocks.Count == 0;
+        internal static ulong OptionalNonResidentHaloBlocksAccepted =>
+            s_OptionalNonResidentHaloBlocksAccepted;
 
         private static void AttachWorld(IRegionReadSource storage, IVoxelChangeSource changes)
         {
@@ -476,6 +507,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             s_LastPrepareFrame = -1;
             s_LastPrepareWorldVersion = 0;
             s_LastPrepareResult = false;
+            s_OptionalNonResidentHaloBlocksAccepted = 0;
             s_RecoveryBlocks.Clear();
             s_QueuedRecoveryBlocks.Clear();
             s_ReadyBlocks.Clear();
