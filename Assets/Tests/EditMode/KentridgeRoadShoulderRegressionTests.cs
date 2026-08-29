@@ -1,3 +1,5 @@
+using Game.WorldBuilder.Api;
+using MountingForce.WorldGen.Content.Kentridge;
 using MountingForce.WorldGen.Voxel;
 using NUnit.Framework;
 using Unity.Collections;
@@ -11,28 +13,30 @@ namespace VoxelEngine.Tests.EditMode
         private const uint Seed = 0x4B454E54u;
 
         [Test]
-        public void SceneIssue20260823013924433RoadsFeatherDirtWithGrassyShoulders()
+        public void WorldBuilderRoadsUseOneContinuousInfluenceInsteadOfRepeatedShoulderBands()
         {
-            FeatureCatalogue roads = KentridgeTownSurfaceCatalogue.Build(
-                Seed, BuildSettings(), Allocator.Temp);
+            VoxelWorldGenSettings settings = BuildSettings();
+            SettlementPlan plan = KentridgeDefinition.Build(Seed);
+            WorldRoadNetwork network = KentridgeWorldRoadNetwork.Build(plan, Seed, settings);
+            FeatureCatalogue roads = KentridgeDirectedTownSurfaceCatalogue.Build(
+                Seed, settings, Allocator.Temp);
 
             try
             {
-                int roadDefinitions = 0;
+                Assert.AreEqual(plan.Routes.Count, network.Routes.Count);
+                Assert.AreEqual(plan.Routes.Count, roads.Definitions.Length,
+                    "Each semantic route should lower through one shared bounded road definition.");
 
                 for (int i = 0; i < roads.Definitions.Length; i++)
                 {
                     FeatureDefinition definition = roads.Definitions[i];
-                    if (!definition.Name.ToString().StartsWith("kentridge-road-"))
-                        continue;
+                    StringAssert.StartsWith("world-road-", definition.Name.ToString());
 
-                    roadDefinitions++;
-                    int roadSurfaceStrips = 0;
-                    int grassyShoulderStrips = 0;
-                    int carveStrips = 0;
+                    int roadSurfaceFills = 0;
+                    int grassyTransitionFills = 0;
+                    int carveOps = 0;
                     int pc = definition.ProgramOffset;
                     int end = pc + definition.ProgramLength;
-
                     while (pc < end)
                     {
                         ShapeOp op = (ShapeOp)roads.Program[pc];
@@ -40,31 +44,41 @@ namespace VoxelEngine.Tests.EditMode
                         {
                             byte material = (byte)roads.Program[pc + 8];
                             PrimitiveMode mode = (PrimitiveMode)roads.Program[pc + 11];
-                            if (mode == PrimitiveMode.Carve)
-                                carveStrips++;
-                            else if (mode == PrimitiveMode.Fill && material == 13)
-                                roadSurfaceStrips++;
-                            else if (mode == PrimitiveMode.Fill && material == 14)
-                                grassyShoulderStrips++;
+                            if (mode == PrimitiveMode.Carve) carveOps++;
+                            else if (mode == PrimitiveMode.Fill && material == 13) roadSurfaceFills++;
+                            else if (mode == PrimitiveMode.Fill && material == 14) grassyTransitionFills++;
                         }
 
                         pc += ShapeOps.InstructionLength(op);
-                        if (op == ShapeOp.End)
-                            break;
+                        if (op == ShapeOp.End) break;
                     }
 
-                    Assert.AreEqual(1, carveStrips,
-                        $"{definition.Name} should cut one graded corridor before filling it back.");
-                    Assert.AreEqual(1, roadSurfaceStrips,
-                        $"{definition.Name} should retain one Dirt carriageway core.");
-                    Assert.GreaterOrEqual(grassyShoulderStrips, 10,
-                        $"{definition.Name} must feather the hard Dirt edge with at least five grassy bands per side.");
-                    Assert.GreaterOrEqual(definition.MaxPrimitives, 12,
-                        $"{definition.Name} primitive budget must account for its carriageway and shoulder strips.");
+                    Assert.AreEqual(1, carveOps,
+                        definition.Name + " should cut one shared grade corridor.");
+                    Assert.AreEqual(1, roadSurfaceFills,
+                        definition.Name + " should fill one Dirt carriageway core.");
+                    Assert.AreEqual(1, grassyTransitionFills,
+                        definition.Name + " should use one natural-terrain transition footprint, not repeated bands.");
+                    Assert.That(definition.MaxPrimitives, Is.LessThanOrEqualTo(4),
+                        definition.Name + " must keep the shared road primitive budget bounded.");
                 }
 
-                Assert.Greater(roadDefinitions, 0,
-                    "The Kentridge surface catalogue emitted no road definitions.");
+                WorldRoadNetworkRoute route = network.Routes[0];
+                ResolvedWorldRoadPoint point = route.Road.Points[0];
+                int previousCoverage = 32;
+                for (int offset = 0; offset <= route.GradeRadiusDm; offset++)
+                {
+                    Assert.IsTrue(network.TrySample(point.Xdm + offset, point.Zdm, out WorldRoadNetworkSample sample),
+                        "Influence should continuously cover every decimetre through the graded shoulder.");
+                    Assert.LessOrEqual(sample.Influence.Coverage31, previousCoverage,
+                        "Road influence must recover monotonically toward natural terrain.");
+                    previousCoverage = sample.Influence.Coverage31;
+                }
+
+                Assert.IsTrue(network.TrySampleClearance(
+                    point.Xdm + route.ClearanceRadiusDm, point.Zdm, out WorldRoadNetworkSample clearance));
+                Assert.Greater(clearance.ClearanceCoverage31, 0,
+                    "Vegetation/placement clearance must extend through the full authored road corridor.");
             }
             finally
             {
