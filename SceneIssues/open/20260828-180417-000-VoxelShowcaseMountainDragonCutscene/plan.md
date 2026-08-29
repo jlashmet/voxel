@@ -12,10 +12,10 @@ Final request `ee738bc85111...` for source `7b5393736485...` failed twice in pre
 Hypotheses:
 1. Expanded bounds added a region layer — **falsified**; +24 Y voxels stay in the same 512-voxel layers and X/Z are unchanged.
 2. Full-width headroom carving pushed the marginal bake over budget — **supported**; natural supports were already in the 3:57 candidate, while `83c50f94...` later added the large carve prisms.
-3. Baseline variance alone explains the overrun — still falsifiable only by exact-SHA timing of the optimized source.
+3. Baseline variance alone explains the overrun — falsifiable by exact-SHA timing of the optimized source.
 
 ## Selected optimization
-Current candidate `e71a165aa721...` keeps the full 30-voxel / 3 m visible path and 24-voxel vertical headroom, but carves a centered 16-voxel / 1.6 m traversal lane. That leaves 0.5 m lateral margin on each side of the 0.6 m motor. Region footprint and primitive count remain 1200 x 306 x 1200 and 76; carve volume falls 5,097,000 -> 2,718,400 voxels (-46.7%). A focused production-program regression enforces lane width, carve count/volume, tapered support, and shared budgets. No steady-state runtime work was added.
+The current candidate keeps the full 30-voxel / 3 m visible path and 24-voxel vertical headroom, but carves a centered 16-voxel / 1.6 m traversal lane. That leaves 0.5 m lateral margin on each side of the 0.6 m motor. Region footprint and primitive count remain 1200 x 306 x 1200 and 76; carve volume falls 5,097,000 -> 2,718,400 voxels (-46.7%). A focused production-program regression enforces lane width, carve count/volume, tapered support, and shared budgets. No steady-state runtime work was added.
 
 ## Remaining gates
-The CI ref was already advanced once and its one retry consumed, so do not update or replace it without an authorized workflow path. Require green exact-SHA focused CI, source-matched bake/manifest, full grounded built-player route, and human-reviewed captures before open -> pending -> closed. Only then merge latest master and push the exact feature head to master non-force.
+The previous CI request is completed and validates only the superseded source. After the product fix, submit one fresh final request from the new exact feature SHA using only `ci-test/fixes/agent-4`; never create another transport or replace queued/running work. Require green focused CI, source-matched bake/manifest, full grounded built-player route, and human-reviewed captures before open -> pending -> closed. Only then merge latest master and push the exact feature head to master non-force.
