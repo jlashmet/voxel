@@ -5,7 +5,6 @@ Shader "VoxelEngine/ProceduralVegetationGrass"
         _GrassPlayerPositionWS ("Player Position WS", Vector) = (100000,100000,100000,1)
         _GrassCameraRightWS ("Camera Right WS", Vector) = (1,0,0,0)
         _GrassPushRadius ("Interaction Radius", Float) = 1.05
-        _GrassTime ("Grass Time", Float) = 0
     }
 
     SubShader
@@ -56,7 +55,6 @@ Shader "VoxelEngine/ProceduralVegetationGrass"
                 float4 _GrassPlayerPositionWS;
                 float4 _GrassCameraRightWS;
                 float _GrassPushRadius;
-                float _GrassTime;
             CBUFFER_END
 
             // The gameplay-facing registry already supports multiple characters. The supplied
@@ -130,10 +128,13 @@ Shader "VoxelEngine/ProceduralVegetationGrass"
                         awaySide);
                 }
 
-                // Exact coherent-wave constants from the approved reference implementation.
-                float gust = sin(_GrassTime * 0.82 + rootWS.x * 0.26 + rootWS.z * 0.10) * 0.050;
-                float wave = sin(_GrassTime * 0.46 - rootWS.x * 0.08 + rootWS.z * 0.18) * 0.024;
-                float local = sin(_GrassTime * 1.06 + phase) * 0.005;
+                // Use the engine-managed GPU clock already proven by the authored sky in this exact
+                // built player. Two CPU-published _GrassTime paths advanced in tests but produced
+                // byte-identical grass frames, so wind must not depend on that failed uniform boundary.
+                float presentationTime = _Time.y;
+                float gust = sin(presentationTime * 0.82 + rootWS.x * 0.26 + rootWS.z * 0.10) * 0.050;
+                float wave = sin(presentationTime * 0.46 - rootWS.x * 0.08 + rootWS.z * 0.18) * 0.024;
+                float local = sin(presentationTime * 1.06 + phase) * 0.005;
                 float wind = gust + wave + local;
 
                 float lateral =
