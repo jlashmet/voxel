@@ -69,8 +69,9 @@ namespace MountingForce.WorldGen.Voxel
             FeatureCatalogue macro = default;
             try
             {
-                macro = TopDownWorldVoxelCatalogue.Build(
+                macro = TopDownWorldPhysicalVoxelCatalogue.Build(
                     selection.Layout,
+                    KentridgeTopDownWorldPhysicalIntent.Build(),
                     new Int2(selection.RootXdm, selection.RootZdm),
                     selection.CellSizeDm,
                     settings,
