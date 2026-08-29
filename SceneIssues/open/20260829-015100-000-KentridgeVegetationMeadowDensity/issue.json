@@ -23,7 +23,7 @@
       "screenHeight": 900,
       "poseAnchor": null,
       "camera": {
-        "hierarchyPath": "",
+        "hierarchyPath": "FirstPerson-AIO/FirstPersonCharacter/Capsule/PlayerCamera",
         "position": { "x": 145.0, "y": 23.4, "z": 150.0 },
         "rotation": { "x": 0.020069, "y": 0.0, "z": 0.0, "w": 0.999799 },
         "fieldOfView": 60.0,
