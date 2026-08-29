@@ -66,5 +66,39 @@ namespace VoxelEngine.Tests.PlayMode
                 if (material != null) Object.Destroy(material);
             }
         }
+
+        [UnityTest]
+        public IEnumerator ApplyLighting_AdvancesGrassMaterialClockWhileGameplayTimeIsPaused()
+        {
+            float originalTimeScale = Time.timeScale;
+            Material grass = ProceduralVegetationMaterials.MaterialFor(VegetationKind.Grass);
+            Assert.That(grass, Is.Not.Null,
+                "The shared production grass material must be available to exercise its published wind clock.");
+
+            try
+            {
+                Time.timeScale = 0f;
+                yield return null;
+
+                float scaledTime = Time.time;
+                ProceduralVegetationMaterials.ApplyLighting();
+                float firstPresentationTime = grass.GetFloat("_GrassTime");
+
+                yield return null;
+                yield return null;
+
+                ProceduralVegetationMaterials.ApplyLighting();
+                float secondPresentationTime = grass.GetFloat("_GrassTime");
+
+                Assert.That(Time.time, Is.EqualTo(scaledTime).Within(0.0001f),
+                    "The regression must exercise a genuinely paused gameplay clock.");
+                Assert.That(secondPresentationTime, Is.GreaterThan(firstPresentationTime),
+                    "Ambient grass wind must advance from unscaled presentation time even while gameplay is paused.");
+            }
+            finally
+            {
+                Time.timeScale = originalTimeScale;
+            }
+        }
     }
 }
