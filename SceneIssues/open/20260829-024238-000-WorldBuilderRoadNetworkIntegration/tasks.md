@@ -10,7 +10,7 @@
 - [ ] Make road/trail intent first-class on stable semantic world endpoints with reusable profile data and provenance/seed behavior.
 - [ ] Deterministically resolve logical connections to terrain-aware physical routes with grade/cut-fill constraints and explicit invalid-barrier handling.
 - [ ] Wire production terrain/crossing flags where the owning world data exposes water/reserved/barrier semantics; do not leave production resolution permanently hard-wired to `None` if those semantics are available.
-- [ ] Provide one compact, chunk-safe road influence consumed by terrain deformation, surface/shoulder presentation, and vegetation falloff.
+- [x] Provide one compact, chunk-safe road influence consumed by terrain deformation, surface/shoulder presentation, and vegetation falloff.
 - [ ] Produce genuinely graded/walkable voxel roads through normal WorldBuilder generation without scene-local voxel edits or non-destructible cover meshes.
 - [ ] Replace overlapping square road stamps with a bounded generic terrain-corridor lowering whose physical rasterization evaluates distance/elevation per voxel column from the resolved segment.
 - [ ] Implement/reuse continuous primary+secondary terrain coverage for natural Dirt↔local-terrain shoulders while preserving exposed-top/slope material correctness.
@@ -19,8 +19,8 @@
 - [ ] Migrate equivalent Kentridge road generation to the shared primitive; do not duplicate the macro-world physical-realization ticket’s road graph/solver.
 - [ ] Migrate modern Kentridge `SettlementPlan.Routes` (the production planner emits zero legacy `Streets`) while retaining a compatibility adapter for authored legacy streets.
 - [ ] Convert diagonal `PlannedRoute` legs into deterministic shared voxel-road geometry without restoring Kentridge-only axis assumptions.
-- [ ] Replace vegetation's legacy `BlockedByStreet`-only exclusion with the shared road influence so both `Routes` and compatibility `Streets` suppress/recover vegetation from the exact physical corridor.
-- [ ] Keep regional ecology policy authoritative; apply road influence only as a local suppression/recovery modifier using existing route exclusion ownership.
+- [x] Replace vegetation's legacy `BlockedByStreet`-only exclusion with the shared road influence so both `Routes` and compatibility `Streets` suppress/recover vegetation from the exact physical corridor.
+- [x] Keep regional ecology policy authoritative; apply road influence only as a local suppression/recovery modifier using existing route exclusion ownership.
 - [ ] Replace `TopDownWorldVoxelCatalogue`'s Manhattan `PaintSurface` tile realization with the shared terrain-aware resolved route/influence so macro semantic connections and Kentridge circulation use one physical road spine.
 - [ ] Preserve deterministic chunk/LOD/streaming behavior and avoid per-segment GameObject/primitive explosion.
 
