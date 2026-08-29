@@ -4,6 +4,7 @@ using Game.WorldBuilder.Runtime;
 using Game.WorldBuilder.Voxel;
 using NUnit.Framework;
 using Unity.Mathematics;
+using VoxelEngine.Showcase;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
 
@@ -127,6 +128,31 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.LessOrEqual(TownArchitectureDistrictBounds.WidthVoxels, 192);
             Assert.LessOrEqual(TownArchitectureDistrictBounds.DepthVoxels, 160);
             Assert.LessOrEqual(TownArchitectureDistrictBounds.EstimatedMaxHeightVoxels, 96);
+
+            // The same canonical origins drive the stale-bake production probe and the player evidence
+            // framing. Keep them deterministic, unique, and safely inside each public district footprint.
+            int2[] districtCentres =
+            {
+                new(-1140, -520), new(-920, -520), new(-700, -520),
+                new(-1140, -720), new(-920, -720), new(-700, -720),
+            };
+            int2[] expectedResidences =
+            {
+                new(-1188, -532), new(-966, -532), new(-747, -532),
+                new(-1187, -732), new(-969, -732), new(-748, -732),
+            };
+            var residenceAnchors = new HashSet<int2>();
+            for (int i = 0; i < districtCentres.Length; i++)
+            {
+                int2 residence = ShowcaseWorld.WorldbuildingGalleryTownResidenceOriginXZ(i);
+                Assert.AreEqual(expectedResidences[i], residence, styleIds[i] + " representative anchor drifted");
+                Assert.IsTrue(residenceAnchors.Add(residence), styleIds[i] + " representative anchor is not unique");
+                Assert.LessOrEqual(math.abs(residence.x - districtCentres[i].x), TownArchitectureDistrictBounds.HalfWidthVoxels);
+                Assert.LessOrEqual(math.abs(residence.y - districtCentres[i].y), TownArchitectureDistrictBounds.HalfDepthVoxels);
+            }
+
+            Assert.AreEqual(new int2(-1100, -686), ShowcaseWorld.WorldbuildingGalleryTownLandmarkOriginXZ(3),
+                "Rossdam fortified audit landmark drifted away from the authored gatehouse origin.");
         }
 
         private sealed class RecordingStructureAuthoringSession : IStructureAuthoringSession
