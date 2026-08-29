@@ -2,21 +2,23 @@
 
 ## Competing hypotheses
 1. The packed grass exists and animates, but Kentridge's bounded semantic-grass budget is exhausted outside the required opening camera frustum.
-2. Grass roots are inside the required frustum, but normal `ProceduralVegetationBatchRenderer` submission fails to reach the Kentridge camera.
+2. Grass roots are inside the required frustum, but normal packed-render submission fails to reach the Kentridge camera.
 3. Grass is submitted inside the frustum but remains unreadable because of geometry/depth/material behavior.
 
-## Smallest discriminator
-Trace the exact production sampling bounds and cap, then add a production-scene regression that loads `KentridgePlayableSlice`, reads the actual generated `_undergrowth`, uses the real `Kentridge Player Camera`, and counts grass-root cluster bounds intersecting that camera's frustum. This uses production positions and the real replay camera; global blade counts are not accepted as visibility evidence.
+## Discriminator and pre-fix result
+Load the production `KentridgePlayableSlice`, read generated `_undergrowth`, and test root-cluster bounds against the real `Kentridge Player Camera` frustum. Kentridge begins countryside sampling at Z=122 m. With the former 0.4 m grid, a 90 m strip has 226 X cells per row; the unchanged 12,000-sample cap therefore reaches only about Z=143.2 m. The required replay camera is around Z=150 m looking +Z. Hypothesis 1 is confirmed: the capped meadow was generated behind the required view.
 
-## Pre-fix result — hypothesis 1 confirmed
-Kentridge calls `Populate` from `(TownCentreDm.Y + 700) * 0.1 = 122 m` toward Hightown. `BuildUndergrowth` samples a 90 m-wide strip (`coverHalfWidth=45`) and stops when `_samples.Count == MaxUndergrowth` (12,000). With the former authored 0.4 m spacing, the X row contains `floor(90 / 0.4) + 1 = 226` cells. The cap therefore permits only 53 complete rows plus 22 cells of the next row, so the furthest sampled Z is about `122 + 53 * 0.4 = 143.2 m`.
-
-The required opening replay camera is at about Z=150 m and looks toward positive Z. Thus the entire capped dense meadow was generated behind the camera. This also explains the previous built-player evidence: moving every root upward by one voxel changed zero foreground pixels because no packed grass roots occupied the captured forward view in the first place.
+This also explains experiment 004: raising every grass root by one voxel changed zero foreground pixels because there was no grass in front of the captured camera. The exposed-top-face grounding remains the correct surface contract and is independently asserted, but it was not the cause of the visibility failure.
 
 ## Causal correction
-Keep the existing 12,000 semantic-instance safety budget and 0.96 occupancy density, but author Kentridge at a still-dense 0.8 m sample grid. The same X row is now 113 cells, so the unchanged cap reaches roughly `122 + 106 * 0.8 = 206.8 m`, extending more than 50 m into the required opening view without multiplying semantic instances, grass blades, per-blade GameObjects, or draw topology.
+Keep `MaxUndergrowth=12000` and density `0.96`, but author Kentridge at a still-dense 0.8 m sample grid. The unchanged cap now spans roughly 85 m of countryside and crosses the required opening view without increasing the semantic-instance safety budget or introducing new draw topology.
 
-A new `KentridgeMeadowPlayerVisibilityTests.OpeningPlayerCamera_FrustumContainsDenseProductionGrass` regression requires the production scene to place hundreds of grass roots in front of the real camera and at least 128 packed-root cluster bounds in its frustum. The existing isolated production-shader repro still proves time-varying deformation; the final built-player replay remains the authority for visible meadow density and wind.
+`KentridgeMeadowPlayerVisibilityTests.OpeningPlayerCamera_FrustumContainsDenseProductionGrass` uses the production scene, production positions, and real camera. Final exact-source run `33249542767` reports 11,322 grass roots in front of the camera, 3,664 root clusters inside its frustum, furthest-forward grass 116.02 m, and max grass Z=218.80 m.
+
+## Final built-player result
+Final source `ec92c3002a6b75ca86de7819f4175c5390a1ca2b`, request `d71730e46c2e12bc81e8c6e58cb87c07525904e3`, workflow `33249542767`: focused test, player build, 60-second exact-scene replay, preview generation, artifact upload, and `ci/single-test` all pass. The player reports 11,322 semantic grass instances / 113,490 blades, with 57,752 blades in the primary connected meadow, 16 chunks, and zero excluded-surface leakage.
+
+Direct inspection of stationary t=39.8s, 49.8s, and 59.8s frames shows dense player-height procedural grass and visibly changing blade silhouettes. Grass-band pixel deltas are 42.89% (39.8→49.8s) and 44.08% (49.8→59.8s) at a >5 RGB-channel threshold with sky/dialogue excluded. Hypotheses 2 and 3 are falsified for the final source.
 
 ## Cost / blast radius
-The production change is Kentridge WorldBuilder authoring only: sample spacing 0.4 m -> 0.8 m. `MaxUndergrowth=12000`, `VegetationDensity=0.96`, grass blade expansion (5–15), packed renderer/shader, exclusions, and ambient/tree allowlists are unchanged. The expected semantic/blade budget therefore remains approximately the prior ~12k semantic instances / ~115k rendered blades while covering a larger contiguous Z span. Final CI/player evidence must confirm actual counts, chunk count, FPS/memory, zero exclusion leakage, in-frustum coverage, and visible wind before closure.
+The production correction is Kentridge WorldBuilder authoring only (0.4→0.8 m spacing); shared placement/rendering budgets remain capped. Final player build is 157 MB / 36.270 s, wrapper peak RSS is 6,136 MB, and ordinary captured play after warmup is about 60–73 FPS before the held stationary phase. The harness does not expose separate CPU-ms/GPU-ms counters, so none are inferred.
