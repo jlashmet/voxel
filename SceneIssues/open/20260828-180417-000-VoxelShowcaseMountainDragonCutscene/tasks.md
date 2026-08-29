@@ -6,8 +6,9 @@
 - [x] Confirm `GenerateForBakeBlocking` authors current source directly; default `ShowcaseStartupSource.Bake` on the editor baker is not the stale-image root cause.
 - [x] Add discovered required work here before implementation.
 - [x] Add a durable bake-content/freshness invariant so a checked-in startup image that predates required authored landmarks fails validation instead of silently shipping without them.
-- [ ] Track the generated `ShowcaseWorld.manifest.txt` itself (not only its `.meta`) and validate that its content signature/hash describes the exact checked-in startup bake.
-- [ ] Recover/regenerate or safely refresh the checked-in VoxelShowcase startup bake from current authored WorldBuilder content without creating another CI transport.
+- [ ] Track `Assets/Resources/VoxelShowcase/ShowcaseWorld.bake-manifest.txt` itself (not only its `.meta`) and validate that its content signature/hash describes the exact checked-in `Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes` startup bake; the manifest payload is currently missing at HEAD.
+- [ ] Recover/regenerate or safely refresh the checked-in Resources VoxelShowcase startup bake from current authored WorldBuilder content without creating another CI transport.
+- [ ] Restore/update the issue-owned `mountain-dragon-evidence-route.json` referenced by `issue.json`; it is currently missing at HEAD.
 - [ ] Prove the checked-in startup bake contains production-realized mountain, switchback path, summit support, and dragon occupancy rather than relying only on primitive/catalogue assertions.
 - [x] Move mountain dialogue presentation out of `MountainDragonShowcaseDriver.OnGUI` into a reusable shared cutscene presentation component; keep the showcase driver composition-only.
 - [x] Add/update focused behavioral regression(s) through the production WorldBuilder path for mountain/path, grounded summit dragon, normal proximity-triggered dialogue, shared presentation routing, and evidence-route drift.
@@ -18,7 +19,8 @@
 - [x] Add `Game.Cutscenes.Api` to the `VoxelEngine.Showcase` SceneRuntime assembly references; run `33236605080` exposed CS0012 at `MountainDragonShowcaseDriver.overlay.Bind(_encounter)` because the shared presentation method exposes `IActiveCutsceneDialogue` from that API assembly.
 - [ ] Correct the startup-bake semantic regression to sample a guaranteed interior ramp surface rather than the exact integer high endpoint; run `33236729056` generated the path and the real player reached path/turn waypoints, while the test sampled air at `int3(-435, 264, -325)`.
 - [ ] Make the issue-owned standalone replay complete within the workflow's mandatory 60-second ceiling using normal CharacterMotor sprint movement only (no teleport/jump/debug trigger); current AutoWalk is fixed at 5.5 m/s and run `33236729056` reached only 4/15 route waypoints.
-- [ ] Redesign the production WorldBuilder mountain silhouette/material so the fresh built-player result reads as a natural substantial mountain rather than the current regular single-frustum/large planar masonry-like slab, while preserving the walkable switchbacks and supported summit.
+- [ ] Redesign the production WorldBuilder mountain silhouette so the fresh built-player result reads as a natural substantial mountain rather than the current regular single-frustum/large planar masonry-like slab, while preserving the walkable switchbacks and supported summit.
+- [ ] Add/adjust a structural regression so mountain realization cannot silently collapse back to one symmetric frustum while path/connectivity assertions stay intact.
 - [ ] Validate the checked-in startup bake contains the accepted mountain.
 - [ ] Run exact-SHA built-application VoxelShowcase validation with no startup/runtime exceptions.
 - [ ] Traverse the complete route through normal player movement without jumps/teleportation/impassable intersections.
