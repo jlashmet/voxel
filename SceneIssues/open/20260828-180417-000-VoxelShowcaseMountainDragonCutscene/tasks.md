@@ -3,7 +3,8 @@
 - [ ] Replace the exact turn-landing midpoint material probe with a robust realized landing-footprint/column assertion.
 - [ ] Make built-player waypoint arrival verify authored vertical elevation using production `CharacterMotor.Position` feet and `Grounded`, not X/Z alone.
 - [ ] Fix the actual traversal defect that left the player near Y=23.85 m instead of climbing the first switchbacks.
-- [ ] Add a reusable path occupancy/headroom contract; if support geometry violates it, bound the generic mountain support realization rather than adding scene-local carving.
+- [ ] Add a reusable path occupancy/headroom contract using the production motor envelope (0.6 m footprint, 1.8 m body, 0.3 m max step).
+- [ ] Carve/clear a reusable mountain traversal corridor above authored ramps/landings: the proven obstruction is the already-solid mountain core above the one-voxel path surface, not the `FillIfEmpty` support masses.
 - [ ] Add semantic occupied-below + clear-above path-footprint regression to distinguish supported walking surface from a trapped/buried corridor.
 - [ ] Add regression/evidence that every switchback transition reaches its expected vertical band through normal `CharacterMotor` movement.
 - [ ] Generate and track `Assets/Resources/VoxelShowcase/ShowcaseWorld.manifest.txt` for the accepted startup bake.
