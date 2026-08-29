@@ -1,8 +1,11 @@
 using Game.Materials.Api;
+using Game.Structures.Api;
+using Game.Structures.Runtime;
 using NUnit.Framework;
 using Unity.Mathematics;
 using UnityEngine;
 using VoxelEngine.Showcase;
+using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Tests.PlayMode
 {
@@ -105,6 +108,45 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(world.UndergroundCavernVoxelsWritten, Is.EqualTo(writes));
             Assert.That(math.all(world.UndergroundCavernCentreMetres == centre), Is.True,
                 "The production entry point must remain idempotent for runtime/offline restoration.");
+        }
+
+        [Test]
+        public void DestinationCirculationPlanUsesOverlappingRoundedNodes()
+        {
+            var cavern = new DecorationBounds
+            {
+                Min = new int3(-160, -700, -150),
+                MaxExclusive = new int3(161, -520, 151),
+            };
+            var ruin = new DecorationBounds
+            {
+                Min = new int3(96, -700, -58),
+                MaxExclusive = new int3(172, -638, 59),
+            };
+
+            UndergroundCavernCirculationPlan plan = UndergroundCavernCirculationProtection.ResolvePlan(
+                in cavern,
+                in ruin,
+                Facing.East,
+                width: 20,
+                clearanceHeight: 32);
+
+            Assert.That(plan.IsWellFormed, Is.True);
+            Assert.That(plan.Radius, Is.GreaterThan(10),
+                "Rounded clearance nodes must extend beyond the old rectangular half-width.");
+            Assert.That(plan.Spacing, Is.LessThan(plan.Radius),
+                "Rounded clearance nodes must overlap rather than leave independent cylindrical rooms.");
+            Assert.That(plan.NodeCount, Is.GreaterThanOrEqualTo(20),
+                "Destination circulation must be a multi-node sweep, not one box-shaped carve.");
+            Assert.That(plan.Start.x, Is.LessThan(cavern.Min.x),
+                "The rounded sweep must still protect the rear approach overlap used by normal traversal.");
+            Assert.That(plan.End.x, Is.GreaterThan(ruin.Min.x),
+                "The rounded sweep must still enter the ruin throat far enough to keep the doorway reachable.");
+            Assert.That(plan.Start.z, Is.EqualTo(plan.End.z));
+            Assert.That(
+                4 * plan.Radius * plan.Radius - plan.Spacing * plan.Spacing,
+                Is.GreaterThanOrEqualTo(20 * 20),
+                "Overlap geometry must retain at least the former 20-voxel gameplay width between sweep nodes.");
         }
 
         private static int WalkProductionRoute(ShowcaseWorld world)
