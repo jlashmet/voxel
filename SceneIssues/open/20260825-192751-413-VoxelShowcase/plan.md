@@ -2,25 +2,27 @@
 
 ## Evidence / marked region
 - One capture/circle marks the top-left FPS telemetry; replay pose is `Showcase Camera` at `(77.953941,24.55005,-3.345814)`, FOV `70`.
-- Earlier built-player evidence isolated a ~`0.65–0.77 s/frame` solid-admission stall while arena upload/water were negligible. That supported removing global resident-world mirror recovery.
-- Exact request `f7258c53…` (parent `f6754abf…`), run `33231204833`, then exposed a different product failure after the global stall was removed: PlayMode failed at traversal frame 134 with `gpuCompleted=0`, `gpuFallback=0`, `gpuWaitSlices=2118`, and zero visible voxel draws. The exact built player remained at ~`5 visible / 768 missing` chunks through the 45 s replay while solid admission was only ~`0.13–0.33 ms`.
+- Initial built-player evidence isolated a ~`0.65–0.77 s/frame` solid-admission stall while arena upload/water were negligible. Removing global resident-world mirror recovery eliminated that cost.
+- Region-demand recovery then failed because one 512³ Storage region contains 262,144 logical 8³ blocks; at 64 blocks/frame a demanded region needed 4,096 frames before readiness.
+- Exact-block recovery (`c3d06ab0…`, run `33232803150`) materially improved runtime: built-player ~194–200 FPS and solid admission ~2–4 ms. But editor traversal failed at frame 119 with `gpuCompleted=3`, `gpuFallback=0`, `gpuWaitSlices=1611`; the exact player plateaued at `27 drawn / 743 missing` from ~t28–t44. All three captures plus final verification visibly retain missing near/mid voxel surfaces.
 
 ## Competing hypotheses / discriminator
-- Global recovery CPU stall: **fixed/rejected for the current failure** because admission is now sub-millisecond.
-- GPU upload/readback/watchdog: rejected; no GPU count ever dispatches, while the player itself runs ~300 FPS once startup settles.
-- Stale snapshot/history remains a guarded edge but does not explain every worker waiting from startup.
-- **Supported:** recovery was demand-driven only at *region* granularity. A Storage region is `512³` voxels = `64³` = `262,144` logical 8³ blocks. At 64 blocks/frame, one demanded region requires 4,096 frames before being marked ready (~13.7 s at 300 FPS), starving actual chunk footprints.
+- Original global recovery CPU stall: **fixed**; admission is now a few milliseconds, not ~700 ms.
+- Whole-region readiness: **fixed**; exact-block recovery produces early GPU completions and 27 visible draws.
+- GPU readback/watchdog as primary cause: rejected by stable ~200 FPS player and permanent admission/coverage plateau rather than an expanding GPU stall.
+- Raw 64-block/frame throughput alone: weak; finite exact footprints should keep converging, but telemetry and imagery become exactly flat for ~16 s.
+- **Supported current hypothesis:** a phase-9 GPU stage retains the Storage generation captured at handoff. Any covered-region edit makes `Covers(oldGeneration)` permanently false while the worker continues polling. `dirty=2050` in the failed traversal supplies the required invalidation pressure.
 
 ## Fix
-- Preserve the shared persistent mirror, journal/version safety, active-extraction mutation guard, and 64-block/frame foreground budget.
-- Make readiness/recovery block-granular: `Covers` queues exact blocks in each GPU brick-cache footprint; empty/uniform blocks use zero-copy `RegionReadView`; only mixed blocks pin/copy payloads.
-- Region changes conservatively invalidate snapshot generations but republish/requeue only previously demanded blocks. Region unload/replacement no longer scans/removes all 262k coordinates.
+- Keep exact-block demand recovery, the 64-block/frame budget, shared persistent mirror, and region history safety.
+- While admission is pending, refresh only the mirror's live `Storage.Version` gate before `PrepareFromBridge`/`Covers`.
+- Preserve the cache's immutable renderer `_build.SourceVersion`; existing publication checks still reject any build superseded by relevant renderer invalidation. No eligible CPU fallback is introduced.
 
 ## Regression / acceptance
 - Behavioral regression `ShowcaseGpuMigrationTests.MovingShowcaseCompletesGpuSurfaceBuildsAndPreservesCoverage`: exact `VoxelShowcase`, 210 m traversal, >=8 GPU completions, zero eligible fallbacks, no holes/blocking completion, moving p95 `<18 ms`, p99 `<25 ms`, stationary p95 `<8 ms`.
 - Exact built-player replay must restore near geometry at the captured pose and eliminate persistent missing-chunk holes while retaining high-FPS headroom.
 
 ## Blast radius / cost
-- Solid GPU mirror/admission only; water, HLOD, visibility, Storage writes, collision, worldgen/content unchanged.
-- Shared mirror allocation remains >=96 MiB. New persistent CPU state is only demanded block queue/hash bookkeeping; no per-frame allocations are introduced. Recovery remains capped at 64 blocks/frame, but every processed block now belongs to waiting GPU work.
+- Solid GPU mirror admission only; water, HLOD, visibility, Storage writes, collision, worldgen/content unchanged.
+- Shared mirror remains >=96 MiB and recovery remains capped at 64 demanded blocks/frame. The new work is one live-world/Storage-version read per pending stage retry; no per-frame allocation.
 - Closure requires green exact-SHA targeted CI plus green exact built-player evidence; no gate weakening.

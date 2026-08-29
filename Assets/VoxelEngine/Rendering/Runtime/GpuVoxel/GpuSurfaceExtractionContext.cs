@@ -164,10 +164,12 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             }
 
             // The caller's generation is its renderer-local dirty/build sequence; the mirror uses
-            // Storage/change-journal versions. Capture the authoritative Storage generation at the
-            // immutable snapshot's GPU handoff, then retain it while mirror recovery catches up.
-            // A later solid change in any covered region makes Covers reject this snapshot rather
-            // than silently sampling newer world data under an older renderer generation.
+            // Storage/change-journal versions. The persistent mirror represents live Storage, not a
+            // historical snapshot, so a bounded recovery can legitimately span later Storage
+            // generations. TryAdmitPendingStage refreshes this mirror-only gate on every retry.
+            // CpuTransvoxelChunkCache keeps the renderer generation on the immutable build and
+            // rejects that build before publication when a relevant edit made it stale. This lets
+            // recovery converge without ever publishing newer mirror data as an older render build.
             _staged = request;
             _stageAdmissionPending = true;
             TryAdmitPendingStage();
@@ -190,6 +192,14 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private bool TryAdmitPendingStage()
         {
             if (!_stageAdmissionPending) return _hasStaged;
+
+            // Covers() must gate against the generation the live persistent mirror is currently
+            // trying to represent. Holding the handoff generation forever creates a liveness trap:
+            // one relevant Storage edit makes Covers(oldGeneration) permanently false even after
+            // the demanded blocks have been recovered. Refresh only this mirror generation; the
+            // caller's immutable renderer generation is deliberately unchanged and remains the
+            // authority that can discard this build before publication.
+            if (!TryCaptureStorageGeneration(out _stageStorageGeneration)) return false;
             if (!BeginPersistentStage(_staged, _stageStorageGeneration)) return false;
 
             _extractor.BeginCount(_mirror, _tables, _staged);

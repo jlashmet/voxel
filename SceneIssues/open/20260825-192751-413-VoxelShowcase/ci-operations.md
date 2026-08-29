@@ -17,7 +17,17 @@
 - Product result: failed. `ShowcaseGpuMigrationTests.MovingShowcaseCompletesGpuSurfaceBuildsAndPreservesCoverage` reached traversal frame 134 with zero visible voxel draws, `gpuCompleted=0`, `gpuFallback=0`, and `gpuWaitSlices=2118`.
 - Exact built-player replay independently reproduced the liveness defect: after startup it remained around `visible=5 / missing=768` through the 45 s capture. Solid admission was only ~`0.13–0.33 ms`, proving the prior whole-world recovery stall was removed and isolating block-recovery liveness as the next product defect.
 - Run artifact id: `9708773306`.
-- This completed failed request is not queued/running; the same CI mailbox may be reused only after the feature fix is final.
+
+## 2026-08-28 — exact request `87671c08…`
+- CI ref: `ci-test/fixes/agent-2`
+- Request SHA: `87671c08698b67c3c86c523748a3ffbd8200f789`
+- Exact feature parent: `c3d06ab0421535e4418f12e7f7ebb5ee09467d64`
+- Run/job: `33232803150` / `99048449957`
+- The workflow eventually concluded `cancelled` at its timeout envelope, but this is a **product-failed iteration**, not an infrastructure retry: the requested PlayMode regression itself failed before cancellation.
+- Traversal failure: frame 119, camera `(71.07,24.55,-15.20)`, zero visible voxel draws, `gpuCompleted=3`, `gpuFallback=0`, `gpuWaitSlices=1611`, `dirty=2050`.
+- Exact built-player capture completed successfully. Runtime improved to ~194–200 FPS with solid admission settling around ~2–4 ms, but coverage plateaued at `27 drawn / 743 missing` from roughly t28 through t44.
+- Artifact id: `9709278530`. All three replay screenshots and `verification-final.png` were inspected; the final state still has large missing near/mid voxel surfaces and disconnected fragments while distant terrain/vegetation render.
+- This request is completed and is not being replaced while queued. The same CI mailbox may be reused after the next feature fix is final.
 
 ## Final request
-Pending. Reuse only `ci-test/fixes/agent-2`, parented directly on the final feature SHA; do not modify `.github/test-request.json` on `fixes/agent-2`.
+Pending the stale live-Storage admission-generation fix. Reuse only `ci-test/fixes/agent-2`, parent the request commit directly on the next final feature SHA, and do not modify `.github/test-request.json` on `fixes/agent-2`.
