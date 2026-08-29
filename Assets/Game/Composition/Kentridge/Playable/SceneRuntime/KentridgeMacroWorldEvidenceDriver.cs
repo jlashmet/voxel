@@ -9,6 +9,7 @@ using MountingForce.WorldGen;
 using MountingForce.WorldGen.Content.Kentridge;
 using MountingForce.WorldGen.Voxel;
 using UnityEngine;
+using VoxelEngine.Composition;
 using VoxelEngine.Showcase;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
 
@@ -24,11 +25,12 @@ namespace Game.Kentridge.PlayableSlice
     internal sealed class KentridgeMacroWorldEvidenceDriver : MonoBehaviour
     {
         private const string ValidationProfile = "kentridge-macro-world";
+        private const float OpeningEvidenceTimeScale = 4f;
         private const float WalkEvidenceSeconds = 1.25f;
-        private const float RoadPrestreamSeconds = 1f;
-        private const float RoadWalkSeconds = 1.25f;
-        private const float TargetSeconds = 1.55f;
-        private const float CaptureAfterSeconds = 0.95f;
+        private const float RoadPrestreamSeconds = 1.5f;
+        private const float RoadWalkSeconds = 1.5f;
+        private const float TargetMinimumDwellSeconds = 2.4f;
+        private const float TargetPostCaptureSeconds = 0.25f;
         private const float DmToMetres = 0.1f;
         private const uint Seed = 0x4B454E54u;
 
@@ -62,6 +64,9 @@ namespace Game.Kentridge.PlayableSlice
         private int _targetIndex = -1;
         private float _targetStartedAt;
         private bool _targetCaptured;
+        private float _targetCapturedAt;
+        private float _originalTimeScale = 1f;
+        private bool _timeScaleBoosted;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void InstallForAssignedProfile()
@@ -74,6 +79,18 @@ namespace Game.Kentridge.PlayableSlice
             host.hideFlags = HideFlags.DontSave;
             host.AddComponent<KentridgeMacroWorldEvidenceDriver>();
         }
+
+        private void OnEnable()
+        {
+            _originalTimeScale = Time.timeScale;
+            Time.timeScale = OpeningEvidenceTimeScale;
+            _timeScaleBoosted = true;
+            Debug.Log($"MACROEVIDENCE opening-time-scale={OpeningEvidenceTimeScale:0.##}");
+        }
+
+        private void OnDisable() => RestoreTimeScale();
+
+        private void OnDestroy() => RestoreTimeScale();
 
         private void Update()
         {
@@ -98,6 +115,8 @@ namespace Game.Kentridge.PlayableSlice
                 PrewarmEvidenceRegions();
                 return;
             }
+
+            RestoreTimeScale();
 
             if (_gameplayStartedAt < 0f)
             {
@@ -169,25 +188,26 @@ namespace Game.Kentridge.PlayableSlice
             }
 
             if (_targets == null || _targets.Length == 0) return;
-            int requested = Mathf.Min(
-                _targets.Length - 1,
-                Mathf.FloorToInt((elapsed - roadWalkEnd) / TargetSeconds));
-            if (requested != _targetIndex)
-            {
-                _targetIndex = requested;
-                _targetStartedAt = Time.realtimeSinceStartup;
-                _targetCaptured = false;
-                Debug.Log("MACROEVIDENCE target=" + _targets[_targetIndex].Label +
-                          " focusDm=" + _targets[_targetIndex].FocusDm);
-            }
+            if (_targetIndex < 0)
+                BeginTarget(0);
 
-            PinToTarget(_targets[_targetIndex]);
+            EvidenceTarget target = _targets[_targetIndex];
+            PinToTarget(target);
+            float now = Time.realtimeSinceStartup;
+            float targetElapsed = now - _targetStartedAt;
             if (!_targetCaptured
-                && Time.realtimeSinceStartup - _targetStartedAt >= CaptureAfterSeconds)
+                && targetElapsed >= TargetMinimumDwellSeconds
+                && RenderingComposition.HasCompletePublishedNearSurfaceCoverage())
             {
                 _targetCaptured = true;
-                CaptureTarget(_targets[_targetIndex]);
+                _targetCapturedAt = now;
+                CaptureTarget(target);
             }
+
+            if (_targetCaptured
+                && now - _targetCapturedAt >= TargetPostCaptureSeconds
+                && _targetIndex + 1 < _targets.Length)
+                BeginTarget(_targetIndex + 1);
         }
 
         private void LateUpdate()
@@ -195,6 +215,24 @@ namespace Game.Kentridge.PlayableSlice
             if (_targetIndex < 0 || _targets == null || _targetIndex >= _targets.Length || _motor == null)
                 return;
             ApplyCamera(_targets[_targetIndex]);
+        }
+
+        private void RestoreTimeScale()
+        {
+            if (!_timeScaleBoosted) return;
+            Time.timeScale = _originalTimeScale;
+            _timeScaleBoosted = false;
+            Debug.Log($"MACROEVIDENCE restored-time-scale={Time.timeScale:0.##}");
+        }
+
+        private void BeginTarget(int index)
+        {
+            _targetIndex = index;
+            _targetStartedAt = Time.realtimeSinceStartup;
+            _targetCaptured = false;
+            _targetCapturedAt = 0f;
+            Debug.Log("MACROEVIDENCE target=" + _targets[index].Label +
+                      " focusDm=" + _targets[index].FocusDm);
         }
 
         private void BuildTargetsAndRoadTraversal()
