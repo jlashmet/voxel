@@ -5,7 +5,10 @@
 - [x] Inspect all six reference screenshot prefix sets and capture/runtime evidence already summarized in `plan.md`; keep screenshot evidence authoritative over proposed art-direction notes.
 - [x] Add reusable town architecture contracts and six canonical town style programs with distinct material families and required residential/commercial/civic/landmark roles.
 - [x] Add shared voxel realization for the town programs without direct scene voxel-writing or hand-authored hierarchy geometry.
+- [ ] Commit stable Unity `.meta` files for every new shared/test C# asset so imports remain deterministic.
 - [ ] Wire six clearly separated/labeled town districts into the production `WorldbuildingGalleryShowcase` composition path.
+- [ ] Keep generated-gallery and baked-startup behavior in parity: the bake source must contain the six districts and stale-bake detection/versioning must force regeneration when this feature changes gallery content.
+- [ ] Extend gallery tour/evidence framing so all six districts have deterministic spawn/look targets usable by the built-app harness and rendered review.
 - [ ] Ensure each district includes readable palette/swatch display, characteristic ground/street treatment, architecture for all required roles, and town-specific exterior props/landscape details.
 - [ ] Add focused behavioral regressions through the production WorldBuilder path proving all six styles resolve intended material families and required roles; include distinct structural/silhouette semantics rather than source-string checks.
 - [ ] Validate production scene composition has no direct bespoke voxel-writing or one-off scene geometry for this feature.
