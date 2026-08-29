@@ -93,8 +93,8 @@ namespace MountingForce.WorldGen.Voxel
 
     /// <summary>
     /// Bounded terrain-following rasterizer for generic settlement routes. It samples each integer
-    /// polyline at no more than half its width, so adjacent square patches overlap and form continuous
-    /// diagonal/curved circulation without arbitrary-angle shape transforms or an unbounded pathfinder.
+    /// polyline at no more than half its width. Adjacent radial stamps overlap into continuous
+    /// diagonal/curved circulation without the metre-scale square corners produced by box stamps.
     /// A short backend-only connector begins at each physically realized public entrance, ensuring
     /// semantic routes remain walkably attached even when architecture shifts a doorway along a facade.
     /// </summary>
@@ -167,7 +167,9 @@ namespace MountingForce.WorldGen.Voxel
                 for (int p = 0; p < program.Length; p++)
                     catalogue.Program[programOffset + p] = program[p];
 
-                int width = widthDm * scale;
+                int requestedWidth = widthDm * scale;
+                int radius = Math.Max(1, requestedWidth / 2);
+                int stampDiameter = radius * 2 + 1;
                 int fill = SurfaceThicknessDm * scale;
                 int clear = ClearAboveDm * scale;
                 catalogue.Definitions[definitionIndex] = new FeatureDefinition
@@ -176,7 +178,7 @@ namespace MountingForce.WorldGen.Voxel
                     Kind = FeatureKind.Landform,
                     BasePlane = BasePlaneRule.FixedAltitude,
                     FixedAltitude = 0,
-                    Footprint = new int3(width, fill + clear, width),
+                    Footprint = new int3(stampDiameter, fill + clear, stampDiameter),
                     MaxSlope = 32,
                     Precedence = 20,
                     ParameterOffset = 0,
@@ -199,9 +201,9 @@ namespace MountingForce.WorldGen.Voxel
                     catalogue.ExplicitPlacements[placementOffset + i] = new ExplicitPlacement
                     {
                         Position = new int3(
-                            point.X * scale - width / 2,
+                            point.X * scale - radius,
                             surfaceY - fill,
-                            point.Y * scale - width / 2),
+                            point.Y * scale - radius),
                         Orientation = 0,
                         OverrideOffset = 0,
                         OverrideCount = 0,
@@ -322,21 +324,24 @@ namespace MountingForce.WorldGen.Voxel
         private static int[] RouteProgram(int widthDm, VoxelWorldGenSettings settings)
         {
             int s = settings.VoxelsPerDecimetre;
-            int width = widthDm * s;
+            int requestedWidth = widthDm * s;
+            int radius = Math.Max(1, requestedWidth / 2);
+            int centre = radius;
             int fill = SurfaceThicknessDm * s;
             int clear = ClearAboveDm * s;
             byte roadSurface = settings.Materials.Resolve(MaterialRole.RoadSurface);
             var code = new List<int>(30);
-            EmitBox(code, 0, fill, 0, width, clear, width, 0, PrimitiveMode.Carve);
-            EmitBox(code, 0, 0, 0, width, fill, width, roadSurface, PrimitiveMode.Fill);
+            EmitCylinder(code, centre, fill, centre, radius, clear, 1, 0, PrimitiveMode.Carve);
+            EmitCylinder(code, centre, 0, centre, radius, fill, 1, roadSurface, PrimitiveMode.Fill);
             Emit(code, ShapeOp.End);
             return code.ToArray();
         }
 
-        private static void EmitBox(
-            List<int> code, int x, int y, int z, int sx, int sy, int sz,
-            byte material, PrimitiveMode mode) =>
-            Emit(code, ShapeOp.EmitBox, x, y, z, sx, sy, sz, material, 0, 0, (int)mode);
+        private static void EmitCylinder(
+            List<int> code, int centreX, int baseY, int centreZ, int radius, int height,
+            int axis, byte material, PrimitiveMode mode) =>
+            Emit(code, ShapeOp.EmitCylinder, centreX, baseY, centreZ, radius, height, axis,
+                 material, 0, 0, (int)mode);
 
         private static void Emit(List<int> code, ShapeOp op, params int[] operands)
         {
