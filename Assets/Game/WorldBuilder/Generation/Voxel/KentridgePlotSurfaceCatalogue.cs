@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using MountingForce.WorldGen.Architecture;
 using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Collections;
 using Unity.Mathematics;
@@ -11,10 +12,10 @@ namespace MountingForce.WorldGen.Voxel
     /// <summary>
     /// Prepares deterministic, level building pads before Kentridge structures are rasterised.
     ///
-    /// Plot altitude comes from <see cref="KentridgeVerticalProfile.PlotSurfaceY"/>, sampled at the
-    /// public frontage so the building envelope meets its authored street elevation. Grading stays
-    /// inside the actual building envelope; parcel-edge terrain remains owned by the deterministic
-    /// terrain field instead of being raised into an artificial moss-capped berm.
+    /// Organic Kentridge generated houses use the exact foundation rectangle resolved by the same
+    /// architecture form that the shared-house compiler consumes. This keeps grading under the
+    /// building instead of exposing an archetype-wide rectangular terrace beside it. Legacy layouts
+    /// and non-Kentridge settlements retain their established archetype pads.
     /// </summary>
     public static class KentridgePlotSurfaceCatalogue
     {
@@ -23,6 +24,7 @@ namespace MountingForce.WorldGen.Voxel
         private const int SurfaceThicknessDm = 1;
         private const int ClearAboveDm = 56;
         private const int FootprintHeightDm = FillDepthDm + SurfaceThicknessDm + ClearAboveDm;
+        private const int SharedHouseFrontInsetDm = 10;
 
         private readonly struct PadRect
         {
@@ -40,12 +42,128 @@ namespace MountingForce.WorldGen.Voxel
             }
         }
 
+        private readonly struct OrganicPadEntry
+        {
+            public readonly BuildingPlot Plot;
+            public readonly PadRect Pad;
+            public readonly int[] Program;
+
+            public OrganicPadEntry(BuildingPlot plot, PadRect pad, int[] program)
+            {
+                Plot = plot;
+                Pad = pad;
+                Program = program;
+            }
+        }
+
         public static FeatureCatalogue Build(uint seed, VoxelWorldGenSettings settings,
                                              Allocator allocator)
         {
             SettlementPlan plan = SettlementVoxelPlan.Resolve(seed, in settings);
-            int scale = settings.VoxelsPerDecimetre;
+            bool organicKentridge = plan.Theme.Id == KentridgeDefinition.Id
+                                  && plan.Routes.Count > 0;
+            return organicKentridge
+                ? BuildOrganicKentridge(plan, seed, settings, allocator)
+                : BuildLegacy(plan, seed, settings, allocator);
+        }
 
+        private static FeatureCatalogue BuildOrganicKentridge(
+            SettlementPlan plan,
+            uint seed,
+            VoxelWorldGenSettings settings,
+            Allocator allocator)
+        {
+            int scale = settings.VoxelsPerDecimetre;
+            var entries = new List<OrganicPadEntry>(plan.Plots.Count);
+            int programLength = 0;
+
+            // Preserve the historical archetype-major placement order. The vertical placement
+            // adapter walks the same order when it applies the exact scene elevation profile.
+            for (int archetype = 0; archetype < ArchetypeCount; archetype++)
+            {
+                for (int i = 0; i < plan.Plots.Count; i++)
+                {
+                    BuildingPlot plot = plan.Plots[i];
+                    if ((int)plot.Archetype != archetype
+                        || plot.Archetype == StructureArchetype.Well)
+                        continue;
+
+                    PadRect pad = OrganicPadFor(plan, plot, seed);
+                    int[] program = PadProgram(pad, settings);
+                    entries.Add(new OrganicPadEntry(plot, pad, program));
+                    programLength += program.Length;
+                }
+            }
+
+            FeatureCatalogue catalogue = FeatureCatalogueBuilder.Allocate(
+                definitions: entries.Count,
+                rules: entries.Count,
+                parameters: 0,
+                anchors: 0,
+                slots: 0,
+                programLength: programLength,
+                materials: 0,
+                explicitPlacements: entries.Count,
+                overrides: 0,
+                allocator);
+
+            int programOffset = 0;
+            for (int id = 0; id < entries.Count; id++)
+            {
+                OrganicPadEntry entry = entries[id];
+                BuildingPlot plot = entry.Plot;
+                Int3 footprintDm = SettlementFootprints.For(plan, plot.Archetype);
+                CopyProgram(ref catalogue, programOffset, entry.Program);
+
+                catalogue.Definitions[id] = new FeatureDefinition
+                {
+                    Name = new FixedString64Bytes(
+                        "kentridge-plot-" + ((KentridgeRole)plot.RoleId).ToString().ToLowerInvariant()),
+                    Kind = FeatureKind.Landform,
+                    BasePlane = BasePlaneRule.FixedAltitude,
+                    FixedAltitude = 0,
+                    Footprint = new int3(
+                        footprintDm.X * scale,
+                        FootprintHeightDm * scale,
+                        footprintDm.Z * scale),
+                    MaxSlope = 16,
+                    Precedence = 40,
+                    ParameterOffset = 0,
+                    ParameterCount = 0,
+                    AnchorOffset = 0,
+                    AnchorCount = 0,
+                    SlotOffset = 0,
+                    SlotCount = 0,
+                    ProgramOffset = programOffset,
+                    ProgramLength = entry.Program.Length,
+                    MaterialOffset = 0,
+                    MaterialCount = 0,
+                    MaxPrimitives = 3,
+                };
+
+                catalogue.ExplicitPlacements[id] = ResolvePlacement(plan, plot, seed, scale);
+                catalogue.Rules[id] = ExplicitRule(id, id, 1);
+                programOffset += entry.Program.Length;
+            }
+
+            CatalogueLoadResult result = FeatureCatalogueBuilder.Finalise(ref catalogue);
+            if (result != CatalogueLoadResult.Ok)
+            {
+                catalogue.Dispose();
+                throw new InvalidOperationException(
+                    "Organic Kentridge plot surface catalogue failed validation: " + result);
+            }
+
+            return catalogue;
+        }
+
+        private static FeatureCatalogue BuildLegacy(
+            SettlementPlan plan,
+            uint seed,
+            VoxelWorldGenSettings settings,
+            Allocator allocator)
+        {
+            int scale = settings.VoxelsPerDecimetre;
             var byArchetype = new List<BuildingPlot>[ArchetypeCount];
             for (int i = 0; i < ArchetypeCount; i++) byArchetype[i] = new List<BuildingPlot>();
 
@@ -62,7 +180,7 @@ namespace MountingForce.WorldGen.Voxel
             int programLength = 0;
             for (int i = 0; i < ArchetypeCount; i++)
             {
-                programs[i] = PadProgram((StructureArchetype)i, settings);
+                programs[i] = PadProgram(PadFor((StructureArchetype)i), settings);
                 programLength += programs[i].Length;
             }
 
@@ -80,7 +198,6 @@ namespace MountingForce.WorldGen.Voxel
 
             int programOffset = 0;
             int placementOffset = 0;
-
             for (int id = 0; id < ArchetypeCount; id++)
             {
                 StructureArchetype archetype = (StructureArchetype)id;
@@ -135,7 +252,20 @@ namespace MountingForce.WorldGen.Voxel
             return catalogue;
         }
 
-        private static ExplicitPlacement ResolvePlacement(SettlementPlan plan, BuildingPlot plot, uint seed, int scale)
+        private static PadRect OrganicPadFor(SettlementPlan plan, BuildingPlot plot, uint seed)
+        {
+            StructureIntent intent = KentridgeDefinition.StructureIntent(plot);
+            StructureForm form = ArchitectureCompiler.Resolve(intent, plan.Theme, seed);
+            if (!form.IsGenerated)
+                return PadFor(plot.Archetype);
+
+            Int3 envelope = SettlementFootprints.For(plan, plot.Archetype);
+            int x = (envelope.X - form.WidthDm) / 2;
+            return new PadRect(x, SharedHouseFrontInsetDm, form.WidthDm, form.DepthDm);
+        }
+
+        private static ExplicitPlacement ResolvePlacement(
+            SettlementPlan plan, BuildingPlot plot, uint seed, int scale)
         {
             int targetSurface = KentridgeVerticalProfile.PlotSurfaceY(plan, plot, seed, scale);
             return new ExplicitPlacement
@@ -186,11 +316,9 @@ namespace MountingForce.WorldGen.Voxel
             }
         }
 
-        private static int[] PadProgram(StructureArchetype archetype,
-                                        VoxelWorldGenSettings settings)
+        private static int[] PadProgram(PadRect core, VoxelWorldGenSettings settings)
         {
             int s = settings.VoxelsPerDecimetre;
-            PadRect core = PadFor(archetype);
             byte dirt = settings.Materials.Resolve(MaterialRole.RoadSurface);
             byte groundCover = settings.Materials.Resolve(MaterialRole.Moss);
             int subsoilHeight = FillDepthDm * s;

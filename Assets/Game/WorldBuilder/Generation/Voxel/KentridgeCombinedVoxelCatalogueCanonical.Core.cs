@@ -8,8 +8,6 @@ namespace MountingForce.WorldGen.Voxel
 {
     internal static partial class KentridgeCombinedVoxelCatalogueCanonical
     {
-        private const int OrganicPlotGradingPrecedence = 10;
-
         public static FeatureCatalogue Build(uint seed, VoxelWorldGenSettings settings,
                                              Allocator allocator)
         {
@@ -38,11 +36,7 @@ namespace MountingForce.WorldGen.Voxel
 
             // Plot-driven stages remain valid for both layouts because they derive from SettlementPlan.Plots.
             Add(stageList, KentridgeTerraceSupportCatalogue.Build(seed, settings, Allocator.Temp));
-            FeatureCatalogue plotSurfaces = KentridgeVerticalPlacementAdapter.BuildPlotSurfaces(
-                seed, settings, Allocator.Temp);
-            if (organicKentridge)
-                LowerPlotGradingBelowOrganicRoutes(ref plotSurfaces);
-            Add(stageList, plotSurfaces);
+            Add(stageList, KentridgeVerticalPlacementAdapter.BuildPlotSurfaces(seed, settings, Allocator.Temp));
 
             if (isKentridge && !organicKentridge)
                 Add(stageList, KentridgeUrbanSidewalkCatalogue.Build(seed, settings, Allocator.Temp));
@@ -124,20 +118,6 @@ namespace MountingForce.WorldGen.Voxel
             {
                 for (int i = 0; i < stages.Length; i++)
                     if (stages[i].IsCreated) stages[i].Dispose();
-            }
-        }
-
-        private static void LowerPlotGradingBelowOrganicRoutes(ref FeatureCatalogue catalogue)
-        {
-            // Organic routes are authored public circulation and must remain the visible/topmost
-            // semantic surface where they cross a building pad. Keep grading above settlement-wide
-            // ground cover (precedence 5), but below organic Dirt routes (precedence 20). Legacy
-            // Kentridge retains the established precedence 40 because it has different street layers.
-            for (int i = 0; i < catalogue.Definitions.Length; i++)
-            {
-                FeatureDefinition definition = catalogue.Definitions[i];
-                definition.Precedence = OrganicPlotGradingPrecedence;
-                catalogue.Definitions[i] = definition;
             }
         }
 
