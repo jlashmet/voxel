@@ -19,6 +19,7 @@
 - [x] Discriminate geometry visibility: `ShowcaseWorld.MaterialAt(y, surface)` proves `surface` is the topmost occupied voxel; above-ground construction uses `ground + 1`, while Kentridge vegetation had rooted at `surface * VoxelSize`.
 - [x] Experiment 004: correct Kentridge ecology grounding to the exposed voxel face `(surface + 1) * VoxelSize` without changing X/Z, density, exclusions, normal sampling, or renderer.
 - [x] Add production-scene regression sampling generated semantic grass roots against the world's exact exposed top-face contract.
+- [x] Classify run `33247434464` as product compile failure before tests/capture; restore the immediately preceding green interface-based `KentridgeRegionLife.Populate(...)` implementation and retain only the exposed-face grounding delta.
 
 ## Regression / architecture checks
 - [x] Prove Kentridge definition exposes grass-only dense regional policy and empty tree/ambient-animal allowlists.
@@ -38,13 +39,15 @@
 - [x] Run `33246401704` retained identical density/leakage totals and reached ~68–74 FPS after startup before later held-scene phases accelerated into hundreds of FPS. Exact CPU-ms/GPU-ms/memory/build-time dimensions are not emitted by this harness and remain unavailable rather than inferred.
 - [x] Engine-clock correction lowers CPU state cost: removes per-frame grass time material write, MPB clear/float write, persistent MPB, delegate, and time-source read; no new topology, draw, allocation, material, or CPU blade animation.
 - [x] Exposed-face grounding cost is one integer increment per Kentridge ground sample; no added allocation, draw, mesh, object, or per-frame blade work.
+- [x] Blast-radius correction: relative to prior green engine-clock source, `KentridgeRegionLife.cs` now changes only one behavior line (+ two explanatory comment lines); obsolete concrete-renderer/configure code is not retained.
 - [ ] Re-evaluate final runtime/density/leakage/visual-contact evidence after exact-SHA built validation.
 
 ## Final exact-SHA validation / visual gate
 - [x] Run `33246992214` is the third green workflow / failed visual experiment: engine-managed clock still yields exactly zero grass/ground pixel change at late stationary captures.
 - [x] Refresh current `origin/master`: `521ba9c1fc5531f299f09595316dff03af01df57` remains the feature merge base (`behind_by=0`).
 - [x] Review feature-only diff: only assigned Kentridge ecology/render/tests/issue files changed; no unrelated capture/workflow and no feature `.github/test-request.json` change.
-- [ ] Submit final exact-SHA request on the same assigned `ci-test/fixes/agent-5` mailbox after confirming the previous request is completed; do not create another transport.
+- [x] Request/run `4cb67bf942b5b4f9ad8834bb8c4ac92780ac84f2` / `33247434464` completed with a product compile failure and produced no validation evidence; do not count it as a gate.
+- [ ] Submit corrected exact-SHA request on the same assigned `ci-test/fixes/agent-5` mailbox after confirming the failed request is completed; do not create another transport.
 - [ ] Leave queued/running CI untouched; inspect logs/artifact after completion. Retry only once for infrastructure failure.
 - [ ] Built player reaches usable `KentridgePlayableSlice` without startup/runtime exceptions.
 - [ ] Gameplay/player-height replay plainly reads as dense procedural meadow made of visible blades, not sparse/tiled/floating/buried grass.
