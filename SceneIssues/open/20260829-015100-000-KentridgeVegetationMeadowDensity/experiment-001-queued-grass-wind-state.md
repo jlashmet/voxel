@@ -2,10 +2,10 @@
 
 **Hypothesis.** The shader exists and the packed mesh is being resubmitted, but `_GrassTime` is not being snapshotted with each deferred `Graphics.DrawMesh` submission; mutating the shared material is therefore not reliably reaching the rendered grass.
 
-**Action / source.** On pre-fix source `fca3877669cd48e269badeb11fe7cb37c644b207`, inspect exact-player run `33242524673`, shader build inclusion, `ProceduralVegetationBatchRenderer.DrawNow`, `ProceduralVegetationMaterials.ApplyGrassState`, `ProceduralGrassBatch.Draw`, and the grass vertex shader. Compare late stationary captures at 19.7/29.7/39.7/49.7/59.7 seconds.
+**Action / source.** On pre-fix source `fca3877669cd48e269badeb11fe7cb37c644b207`, inspect player run `33242524673`, then repair `ProceduralGrassBatch.Draw()` with a reused per-draw property block and validate exact feature SHA `6c9219e90d68b939940adca1ca37be1f8961b31d` in run `33244533044`. Compare late stationary captures and check shader wave frequencies against the 10-second capture cadence.
 
-**Result.** The grass/ground raster is pixel-identical across multiple 10-second late intervals while sky pixels continue changing. The grass shader is compiled/included, consumes `_GrassTime`, and the batch is submitted every `LateUpdate`. Unity's `Graphics.DrawMesh` contract states queued draws should use `MaterialPropertyBlock` when submission-specific material properties must be preserved.
+**Result.** The focused regression passes and confirms the MPB contains an advancing unscaled clock, but the built player still has exactly zero changed pixels in the grass/ground region from 39.9s→49.9s and 49.9s→59.9s while sky pixels change. The shader uses 0.82, 0.46, and 1.06 rad/s wave terms, so exact 10-second recurrence cannot explain the identical ground raster.
 
-**Verdict.** Supports a shared draw-state ownership defect, not sparse geometry, shader stripping, or missing per-frame submission. Selected repair: snapshot an unscaled wind clock in one reused property block passed directly to every packed-grass draw.
+**Verdict.** FALSIFIED. Snapshotting `_GrassTime` in the packed draw's property block is insufficient to make the visible built-player grass advance. The scene remains a product failure and cannot promote.
 
-**Falsifier / next step.** If the exact built-player replay remains visually static after the property-block repair, reject this hypothesis and continue at the compiled shader/material binding boundary rather than adding a second animation system.
+**Next step.** Inspect the production material publication consumed by the shader during paused gameplay rather than adding a second animation system.
