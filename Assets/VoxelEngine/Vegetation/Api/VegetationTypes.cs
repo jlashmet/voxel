@@ -116,6 +116,38 @@ namespace VoxelEngine.Vegetation.Api
     }
 
     /// <summary>
+    /// Shared semantic-to-presentation contract for packed procedural grass. World diagnostics and
+    /// the renderer use the same deterministic expansion so a reported blade count is the count the
+    /// packed grass renderer will actually build, rather than the number of semantic spawn records.
+    /// </summary>
+    public static class ProceduralGrassPresentation
+    {
+        public const int MinBladesPerInstance = 5;
+        public const int MaxBladesPerInstance = 15;
+
+        public static int BladeCountForSeed(uint seed)
+        {
+            float random = Random01(Hash(seed, 0xD1B54A35u));
+            return (int)math.round(math.lerp(MinBladesPerInstance, MaxBladesPerInstance, random));
+        }
+
+        private static uint Hash(uint seed, uint value)
+        {
+            uint h = seed == 0u ? 0x9E3779B9u : seed;
+            h ^= value + 0x85EBCA6Bu + (h << 6) + (h >> 2);
+            h ^= h >> 16;
+            h *= 0x7FEB352Du;
+            h ^= h >> 15;
+            h *= 0x846CA68Bu;
+            h ^= h >> 16;
+            return h == 0u ? 1u : h;
+        }
+
+        private static float Random01(uint seed) =>
+            (Hash(seed, 0xA341316Cu) & 0x00FFFFFFu) / 16777216f;
+    }
+
+    /// <summary>
     /// A world-surface candidate supplied by terrain, structures, or authored content. Placement
     /// remains independent of the source that discovered the surface.
     /// </summary>
@@ -145,6 +177,14 @@ namespace VoxelEngine.Vegetation.Api
         public float ShadeBias;
         public float ArcaneBias;
 
+        /// <summary>
+        /// When true, only kinds whose bit is present in <see cref="AllowedKindsMask"/> may be
+        /// selected. Kept separate from the mask so default/zero-initialized settings remain
+        /// backward-compatible and unrestricted.
+        /// </summary>
+        public bool RestrictKinds;
+        public ulong AllowedKindsMask;
+
         public static VegetationPlacementSettings Default(uint worldSeed)
         {
             return new VegetationPlacementSettings
@@ -157,7 +197,16 @@ namespace VoxelEngine.Vegetation.Api
                 MoistureBias = 0.35f,
                 ShadeBias = 0.20f,
                 ArcaneBias = 0.35f,
+                RestrictKinds = false,
+                AllowedKindsMask = ulong.MaxValue,
             };
+        }
+
+        public bool Allows(VegetationKind kind)
+        {
+            if (!RestrictKinds) return true;
+            int bit = (int)kind;
+            return bit >= 0 && bit < 64 && (AllowedKindsMask & (1UL << bit)) != 0UL;
         }
     }
 

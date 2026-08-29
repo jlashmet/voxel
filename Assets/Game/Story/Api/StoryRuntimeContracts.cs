@@ -77,4 +77,14 @@ namespace Game.Story.Api
         void StartQuest(QuestRef quest);
         void PlayCutscene(CutsceneRef cutscene);
     }
+
+    /// <summary>
+    /// Additive campaign-progression effects used only when source content changes persistent player
+    /// state. Keeping this separate preserves existing IStoryEffectSink consumers.
+    /// </summary>
+    public interface IStoryProgressEffectSink : IStoryEffectSink
+    {
+        void JoinPartyMember(string memberId);
+        void GrantSpell(string spellId);
+    }
 }
