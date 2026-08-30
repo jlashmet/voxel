@@ -32,11 +32,11 @@
 - [x] Make optional road-edge irregularity spatially coherent without changing profile width/transition budgets or semantic↔physical sampling parity.
 - [x] Treat authored Kentridge non-residential tree coordinates as preferred anchors and relocate only blocked anchors through a deterministic <=120dm search; clear anchors remain unchanged.
 - [x] Bound generated road definition names to `FixedString64Bytes.UTF8MaxLengthInBytes` while preserving the segment/piece suffix and deterministic route traceability.
-- [ ] Remove the regular checker/stair-step Dirt→Grass presentation exposed by final-player evidence while preserving the shared 0..31 road influence, continuous shoulder recovery, slope/exposed-top correctness, destructibility, and bounded streaming representation. Do not reintroduce repeated strip primitives or a road-only cover mesh/shader island.
-- [ ] Encode the generic two-material surface blend inside the existing packed surface representation without increasing persisted voxel size or `SurfaceVertex` stride; interpolate authored scalar coverage in the shared `SmoothSurface` path and blend full primary/secondary material response.
-- [ ] Ensure two-material presentation metadata is presentation-only and contributes zero coating density/displacement on both CPU and GPU paths.
-- [ ] Preserve ordinary non-blend coating/style/detail behavior, including existing coating displacement semantics.
-- [ ] Mask the blend marker back to the underlying reconstruction style before CPU/GPU style lookup, faceted classification, and GPU-support classification so blend metadata cannot route geometry through a different reconstruction path.
+- [x] Remove the regular checker/stair-step Dirt→Grass authoring path while preserving the shared 0..31 road influence, continuous shoulder recovery, slope/exposed-top correctness, destructibility, and bounded streaming representation; fractional shoulders now retain local terrain as authoritative material and carry road material as continuous presentation metadata.
+- [x] Encode the generic two-material surface blend inside the existing packed surface representation without increasing persisted voxel size or `SmoothSurfaceVertex` stride; the shared `SmoothSurface` path interpolates authored scalar coverage and blends full primary/secondary material response.
+- [x] Ensure two-material presentation metadata is presentation-only and contributes zero coating density/displacement on both CPU and GPU density paths.
+- [x] Preserve ordinary non-blend coating/style/detail behavior, including existing coating displacement semantics.
+- [x] Mask the blend marker back to the underlying reconstruction style before shared CPU/GPU style lookup and faceted classification so blend metadata cannot route geometry through a different reconstruction path.
 
 ## Regressions implemented
 - [x] Modern Kentridge semantic routes map to traceable generic physical road definitions.
@@ -51,8 +51,8 @@
 - [x] Existing Kentridge named-landmark, diagonal-route, and connectivity coverage remains in `KentridgeOrganicLayoutTests`.
 - [x] Validate repaired/expanded `KentridgeRoadShoulderRegressionTests` on exact source `b5cac79f1ff4f289d643edeef3019e4c1d75a806`: run `33284733815`, 7/7 passed, Unity peak RSS 5119 MB.
 - [x] Add a production-catalogue regression using the observed long macro route ID; it lowers through `WorldRoadNetworkVoxelCatalogue.Build`, asserts fixed-string capacity, and preserves the `-sNpM` suffix. It lives in PlayMode so the final combined request can prove this repair and then launch the real player.
-- [ ] Add/extend regression coverage at the production surface-presentation boundary so non-core shoulder samples retain fractional road influence rather than collapsing to a periodic binary road/terrain mask.
-- [ ] Add shared-surface regression coverage proving blend metadata cannot alter geometry density while an ordinary coating still follows the pre-existing displacement path.
+- [x] Add PlayMode production-boundary coverage that samples an actual fractional `TerrainCorridorRasteriser` shoulder and round-trips that exact 0..31 value through the packed two-material surface contract without storage or vertex-stride growth.
+- [x] Add PlayMode shared-surface coverage that invokes the production CPU density coating-displacement path: a blend whose secondary material byte equals Snow produces zero displacement while ordinary Snow retains positive displacement; shared style lookup also resolves the marker back to Smooth.
 - [ ] Validate segment/chunk/LOD road geometry/material continuity in the built player.
 
 ## Validation / cost
@@ -60,7 +60,7 @@
 - [x] Refresh/merge current `origin/master` after the CI-discovered shoulder/vegetation repairs (`ed0d8711`, master parent `47e51f98`).
 - [x] Refresh/merge current `origin/master` after the full-player name repair: feature merge `cd835ce4`, master `d4b31a70`.
 - [x] Obtain green focused exact-source EditMode regression through `ci-test/fixes/agent-1` only: run `33284733815`, 7/7 passed.
-- [x] Static cost audit: one analytic primitive + one explicit placement per bounded piece; definition/footprint budgets are enforced; `Primitive` adds no fields/stride; no road GameObjects or per-frame generation path; coherent edge variation is integer-only sample work; name repair adds no geometry/residency cost.
+- [x] Static cost audit: one analytic primitive + one explicit placement per bounded piece; definition/footprint budgets are enforced; `Primitive` adds no fields/stride; no road GameObjects or per-frame generation path; coherent edge variation is integer-only sample work; name repair adds no geometry/residency cost. The presentation repair reuses persisted style/coating/detail bits and the existing 32-byte `SmoothSurfaceVertex`; marked fragments add one bounded second material evaluation only.
 - [ ] Obtain a green combined exact-source PlayMode + built-player request through the same `ci-test/fixes/agent-1` transport after the visual shoulder repair. Run `33286511375` was green (PlayMode 1/1; capture/upload/status all green; 60s player, zero exceptions/assertions) but is diagnostic only because human inspection rejected the regular checker/stair-step shoulder artifact.
 - [ ] Run/inspect final repaired built application/player evidence for `Assets/Scenes/KentridgePlayableSlice.unity`; verify no startup/runtime exceptions.
 - [ ] Capture/inspect endpoint-to-endpoint road continuity and player-height traversal with collision/streaming active.
