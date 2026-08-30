@@ -115,7 +115,7 @@ namespace MountingForce.WorldGen.Voxel
             in VegetationCandidate candidate,
             int baseYDm)
         {
-            int radiusDm = Math.Max(2, candidate.TrunkRadiusUnits);
+            int radiusDm = Math.Max(2, Math.Min(8, candidate.HeightUnits / 8));
             int heightDm = Math.Max(8, candidate.HeightUnits);
             return SpatialReservation.Box(
                 "kentridge-vegetation:" + candidate.Ordinal,
