@@ -17,6 +17,7 @@
 - [x] Verify the active URP renderer-data asset serializes `WaterSurface.shader` and the project GraphicsSettings selects the matching URP asset/renderer.
 - [ ] Verify material-presentation installation occurs before renderer water classification/extraction is consumed in normal player bootstrap.
 - [x] Discover that the required `Assets/Scenes/WaterRenderingShowcase.unity` is absent and current build settings contain only two enabled scenes, so build index 3 cannot yet exist.
+- [ ] Preserve existing enabled build scenes, explicitly register `Assets/Scenes/VoxelShowcase.unity` at build index 2, and register `Assets/Scenes/WaterRenderingShowcase.unity` at required build index 3 so the portability and showcase harnesses address stable production indices.
 
 ## Shared implementation
 
