@@ -142,7 +142,7 @@ namespace VoxelEngine.Tests.PlayMode
         }
 
         [Test]
-        public void BoxCarveSkipsCanonicalEmptyBlocksButClearsMixedBoundaryPayload()
+        public void BoxCarveSkipsCanonicalEmptyClearsFullMixedBlockAndPreservesPartialEdge()
         {
             var table = new RegionTable(1, Allocator.Temp);
             var pool = new BrickPool(4, Allocator.Temp);
@@ -152,22 +152,28 @@ namespace VoxelEngine.Tests.PlayMode
                 table.LoadRegion(int3.zero);
                 var reads = new RegionReadSource(in table, in pool);
                 var mutations = new RegionMutationStore(in table, in pool);
-                Primitive carve = BoxEmitter.Box(
+                Primitive fullCarve = BoxEmitter.Box(
                     int3.zero,
                     new int3(VoxelReadGrid.BlockEdge, VoxelReadGrid.BlockEdge, VoxelReadGrid.BlockEdge),
                     VoxelGrid.MaterialEmpty,
                     PrimitiveMode.Carve,
                     0);
 
+                var emptyMutations = new CountingMutationStore(
+                    new RegionMutationStore(in table, in pool));
                 RasterResult emptyResult = PrimitiveRasteriser.RasterisePrimitive(
-                    in carve,
+                    in fullCarve,
                     int3.zero,
                     new int3(VoxelReadGrid.BlockEdge, VoxelReadGrid.BlockEdge, VoxelReadGrid.BlockEdge),
                     reads,
-                    mutations);
+                    emptyMutations);
 
                 Assert.That(emptyResult.VoxelsWritten, Is.Zero,
                     "Carving an explicitly Empty storage block must remain an authoritative no-op.");
+                Assert.That(emptyMutations.WholeCellBlockCalls, Is.Zero,
+                    "Canonical-empty skip must happen before the whole-block mutation path.");
+                Assert.That(emptyMutations.BeginCellBlockCalls, Is.Zero,
+                    "Canonical-empty skip must not open a partial mutation.");
                 Assert.That(pool.AllocatedCount, Is.Zero,
                     "The boxed-carve fast path must not materialize canonical empty storage.");
                 Assert.That(reads.TryAcquireRegionContainingBlock(int3.zero, out RegionReadView emptyView), Is.True);
@@ -181,36 +187,134 @@ namespace VoxelEngine.Tests.PlayMode
                 Assert.That(mutations.SetWholeCellBlock(int3.zero, in emptyWithBoundary, false), Is.True,
                     "Test setup must create authored empty-side boundary state.");
                 reads.Refresh(in table, in pool);
-                mutations.Refresh(in table, in pool);
 
                 Assert.That(reads.TryAcquireRegionContainingBlock(int3.zero, out RegionReadView mixedView), Is.True);
                 Assert.That(mixedView.TryGetWorldBlock(int3.zero, out VoxelReadBlock mixedBlock), Is.True);
                 Assert.That(mixedBlock.Kind, Is.EqualTo(VoxelReadBlockKind.Mixed),
-                    "Empty-side boundary metadata must keep the block Mixed so it cannot use the fast skip.");
+                    "Empty-side boundary metadata must keep the block Mixed so it cannot use the empty skip.");
                 Assert.That(pool.AllocatedCount, Is.EqualTo(1));
 
+                var fullBlockMutations = new CountingMutationStore(
+                    new RegionMutationStore(in table, in pool));
                 RasterResult mixedResult = PrimitiveRasteriser.RasterisePrimitive(
-                    in carve,
+                    in fullCarve,
                     int3.zero,
                     new int3(VoxelReadGrid.BlockEdge, VoxelReadGrid.BlockEdge, VoxelReadGrid.BlockEdge),
                     reads,
-                    mutations);
+                    fullBlockMutations);
                 reads.Refresh(in table, in pool);
 
+                Assert.That(fullBlockMutations.WholeCellBlockCalls, Is.EqualTo(1),
+                    "A fully covered Mixed box-carve block must use one authoritative whole-cell replacement.");
+                Assert.That(fullBlockMutations.BeginCellBlockCalls, Is.Zero,
+                    "A fully covered box-carve block must not regress to the 512-cell partial mutation loop.");
                 Assert.That(mixedResult.VoxelsWritten, Is.EqualTo(VoxelReadGrid.VoxelsPerBlock),
-                    "Box carve must still visit a Mixed block and clear every authored empty-side boundary sample.");
+                    "Whole-block carve must retain logical voxel-write accounting for a changed 8^3 block.");
                 Assert.That(reads.TryAcquireRegionContainingBlock(int3.zero, out RegionReadView clearedView), Is.True);
                 Assert.That(clearedView.TryGetWorldBlock(int3.zero, out VoxelReadBlock clearedBlock), Is.True);
                 Assert.That(clearedBlock.Kind, Is.EqualTo(VoxelReadBlockKind.Empty),
-                    "After authoritative boundary clearing, storage should collapse back to canonical Empty.");
+                    "Whole-block carve must clear authored boundary payload and collapse to canonical Empty.");
                 Assert.That(pool.AllocatedCount, Is.Zero,
                     "Clearing the last authored payload must release the mixed-brick allocation.");
+
+                VoxelCell solidWithBoundary = new VoxelCell
+                {
+                    BaseMaterialId = MountainMaterial,
+                    Boundary = VoxelBoundarySample.FromSignedQ4(12)
+                };
+                mutations.Refresh(in table, in pool);
+                Assert.That(mutations.SetWholeCellBlock(int3.zero, in solidWithBoundary, false), Is.True,
+                    "Partial-edge setup must restore a semantic solid block.");
+                reads.Refresh(in table, in pool);
+
+                int partialWidth = VoxelReadGrid.BlockEdge / 2;
+                Primitive partialCarve = BoxEmitter.Box(
+                    int3.zero,
+                    new int3(partialWidth, VoxelReadGrid.BlockEdge, VoxelReadGrid.BlockEdge),
+                    VoxelGrid.MaterialEmpty,
+                    PrimitiveMode.Carve,
+                    0);
+                var partialMutations = new CountingMutationStore(
+                    new RegionMutationStore(in table, in pool));
+                RasterResult partialResult = PrimitiveRasteriser.RasterisePrimitive(
+                    in partialCarve,
+                    int3.zero,
+                    new int3(VoxelReadGrid.BlockEdge, VoxelReadGrid.BlockEdge, VoxelReadGrid.BlockEdge),
+                    reads,
+                    partialMutations);
+                reads.Refresh(in table, in pool);
+
+                Assert.That(partialMutations.WholeCellBlockCalls, Is.Zero,
+                    "A clipped box must not clear cells outside its authored bounds through whole-block replacement.");
+                Assert.That(partialMutations.BeginCellBlockCalls, Is.EqualTo(1),
+                    "A clipped box must retain the existing partial-cell mutation path.");
+                Assert.That(partialResult.VoxelsWritten,
+                    Is.EqualTo(partialWidth * VoxelReadGrid.BlockEdge * VoxelReadGrid.BlockEdge),
+                    "Partial carve must report only cells inside its half-block geometry.");
+                Assert.That(reads.TryAcquireRegionContainingBlock(int3.zero, out RegionReadView partialView), Is.True);
+                Assert.That(partialView.TryReadCell(new int3(0, 0, 0), out VoxelCell carvedCell), Is.True);
+                Assert.That(carvedCell.IsSolid, Is.False);
+                Assert.That(carvedCell.Boundary.IsAuthored, Is.False,
+                    "Cells inside the partial carve must be reset to the exact default cell.");
+                Assert.That(partialView.TryReadCell(
+                    new int3(VoxelReadGrid.BlockEdge - 1, 0, 0), out VoxelCell preservedCell), Is.True);
+                Assert.That(preservedCell.BaseMaterialId, Is.EqualTo(MountainMaterial),
+                    "Cells outside the clipped carve must preserve their authored material.");
+                Assert.That(preservedCell.Boundary.IsAuthored, Is.True,
+                    "Cells outside the clipped carve must preserve authored boundary semantics.");
             }
             finally
             {
                 table.Dispose();
                 pool.Dispose();
             }
+        }
+
+        private sealed class CountingMutationStore : IRegionMutationStore
+        {
+            private RegionMutationStore _inner;
+
+            public CountingMutationStore(RegionMutationStore inner)
+            {
+                _inner = inner;
+            }
+
+            public int WholeCellBlockCalls { get; private set; }
+            public int BeginCellBlockCalls { get; private set; }
+
+            public bool IsRegionResident(int3 regionCoord) => _inner.IsRegionResident(regionCoord);
+
+            public bool SetWholeBlock(int3 worldBlock, byte material, bool markHardSurface) =>
+                _inner.SetWholeBlock(worldBlock, material, markHardSurface);
+
+            public bool SetWholeCellBlock(
+                int3 worldBlock,
+                in VoxelCell cell,
+                bool markHardSurface)
+            {
+                WholeCellBlockCalls++;
+                return _inner.SetWholeCellBlock(worldBlock, in cell, markHardSurface);
+            }
+
+            public bool TryBeginPartialBlock(
+                int3 worldBlock,
+                byte targetMaterial,
+                bool markHardSurface,
+                out VoxelBlockMutation mutation) =>
+                _inner.TryBeginPartialBlock(
+                    worldBlock, targetMaterial, markHardSurface, out mutation);
+
+            public bool TryBeginCellBlock(
+                int3 worldBlock,
+                bool markHardSurface,
+                out VoxelBlockMutation mutation)
+            {
+                BeginCellBlockCalls++;
+                return _inner.TryBeginCellBlock(worldBlock, markHardSurface, out mutation);
+            }
+
+            public bool CompletePartialBlock(ref VoxelBlockMutation mutation, bool payloadChanged) =>
+                _inner.CompletePartialBlock(ref mutation, payloadChanged);
         }
     }
 }
