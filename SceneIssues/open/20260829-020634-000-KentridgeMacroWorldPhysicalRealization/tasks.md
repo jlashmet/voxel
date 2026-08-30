@@ -26,11 +26,11 @@
 - [x] Falsify lake-first scheduling: after Moordell (~29 s), lake publication consumes roughly the next 12 s and Rossdam consumes the remaining ~18 s.
 
 ## Current required remediation
-- [ ] Move Rossdam Lake south semantically while preserving its `Between(MoordellCorridor,RossdamApproach)` authority, accepted `900 x 450 x 24 dm` resolved dimensions, and deterministic variation; direct Rossdam route must truly intersect it and the solved route/endpoint must remain dry.
-- [ ] Preserve the full 24 dm carved basin but represent non-solid water as a 2 dm surface sheet at the basin top; tighten aggregate primitive-scan regression from 17M to 10M cells (expected ~9.28M).
-- [ ] Restore evidence target order to `Moordell -> Rossdam -> Rossdam lake -> Fairy -> Orc -> Southern Ridge/pass -> network`; do not skip real content-settled or renderer-coverage gates.
-- [ ] Add/maintain behavioral regression for the water-surface realization rather than relying on source-string assertions.
-- [ ] Record this failed lake-first/product-red attempt as the next experiment before final exact CI.
+- [x] Move Rossdam Lake south semantically while preserving its `Between(MoordellCorridor,RossdamApproach)` authority, accepted `900 x 450 x 24 dm` resolved dimensions, and deterministic variation; direct Rossdam route must truly intersect it and the solved route/endpoint must remain dry.
+- [x] Preserve the full 24 dm carved basin but represent non-solid water as a 2 dm surface sheet at the basin top; tighten aggregate primitive-scan regression from 17M to 10M cells (expected 9,281,584).
+- [x] Restore evidence target order to `Moordell -> Rossdam -> Rossdam lake -> Fairy -> Orc -> Southern Ridge/pass -> network`; do not skip real content-settled or renderer-coverage gates.
+- [x] Add/maintain behavioral regression for the water-surface realization rather than relying on source-string assertions.
+- [x] Record this failed lake-first/product-red attempt as `experiment-014-lake-first-route-intersection-and-cost.md` before final exact CI.
 
 ## Exact runtime / visual gate
 - [ ] Exact built `KentridgePlayableSlice` reaches usable gameplay without startup/runtime exceptions and captures every required macro target inside the supported 60 s replay.
