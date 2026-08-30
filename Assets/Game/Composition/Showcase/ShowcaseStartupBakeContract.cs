@@ -22,11 +22,11 @@ namespace VoxelEngine.Showcase
             "Assets/Resources/VoxelShowcase/ShowcaseWorld.manifest.txt";
 
         private const int ManifestVersion = 1;
-        // Revision 5 keeps the established mountain placement/traversal contract while naturalizing
-        // the player-visible realization: broad foothill shoulders keep ground cover, repeated path
-        // support blobs consolidate into overlapping rock ridges, and the summit crest is narrower.
-        // The explicit bump rejects revision-4 bytes even though public landmark dimensions match.
-        private const uint LandmarkContractRevision = 5;
+        // Revision 6 keeps the established placement/traversal and three ground-cover shoulders,
+        // but replaces revision 5's duplicate full-height ridge pairs with one support-covering rock
+        // ridge plus a lower/narrow rock buttress. The explicit bump rejects revision-5 bytes even
+        // though public landmark dimensions and primitive count are unchanged.
+        private const uint LandmarkContractRevision = 6;
         private const uint FnvOffsetBasis = 2166136261u;
         private const uint FnvPrime = 16777619u;
 
