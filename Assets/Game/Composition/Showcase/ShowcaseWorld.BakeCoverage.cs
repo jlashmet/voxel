@@ -47,9 +47,13 @@ namespace VoxelEngine.Showcase
 
                     // Match FeatureRegionBuild's declared-footprint overlap contract exactly. The
                     // footprint is half-open [Position, Position + Footprint), so subtract one when
-                    // converting the inclusive maximum voxel to a region coordinate.
+                    // converting the inclusive maximum voxel to a region coordinate. Keep the math
+                    // component-wise here so this helper does not depend on vector operator support.
                     int3 minVoxel = placement.Position;
-                    int3 maxVoxel = placement.Position + definition.Footprint - new int3(1);
+                    int3 maxVoxel = new int3(
+                        placement.Position.x + definition.Footprint.x - 1,
+                        placement.Position.y + definition.Footprint.y - 1,
+                        placement.Position.z + definition.Footprint.z - 1);
                     int3 minRegion = new int3(
                         FloorDivRegion(minVoxel.x),
                         FloorDivRegion(minVoxel.y),
