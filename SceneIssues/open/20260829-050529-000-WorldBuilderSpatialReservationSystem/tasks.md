@@ -58,17 +58,17 @@
 - [x] Stable ids, insertion-order independence, equal-precedence stable-id tie, hard/clearance/soft/handoff outcomes.
 - [x] Replay/release ownership regression and bounded-window query-work regression authored.
 - [x] Add macro-road production regression; architecture shared-source/host-filter regression is covered by `SpatialReservationProductionIntegrationTests`.
-- [ ] Record representative snapshot/source construction and query metrics after integration.
-- [ ] Check repository-supported allocation/memory evidence where available.
-- [ ] Verify generation/device budgets and unrelated world-generation behavior did not move.
+- [ ] Record representative snapshot/source construction and query metrics after integration; `WorldbuildingGalleryReservationInspection` and the PlayMode smoke test already emit `SPATIAL_RESERVATION_COST`, but final values must come from the final exact-SHA run.
+- [x] Check repository-supported allocation/memory evidence where available: the existing capture-less `WorldbuildingGalleryAuditHarness` records Unity profiler allocated/reserved/unused-reserved memory plus resident/pending regions, and separately emits reservation build/query metrics.
+- [x] Verify generation/device budgets and unrelated world-generation behavior did not move: `master...fixes/agent-7` changes no global/device/region budget files; reservation queries stay bounded and existing budget/tolerance constants are untouched.
 
 ## Gallery / runtime evidence
 
 - [x] Trace `WorldbuildingGalleryReservationInspection` through the runtime path and prove presentation-only behavior.
 - [x] Add a presentation-only runtime/gallery renderer for inspection primitives.
-- [ ] Ensure surface hard/clearance/access, underground 3D claims and a deliberate rejected candidate are visibly/readably inspectable against corresponding physical content.
+- [ ] Ensure surface hard/clearance/access, underground 3D claims and a deliberate rejected candidate are visibly/readably inspectable against corresponding physical content. The production smoke test now asserts all five evidence classes and visible-on-boot overlay state; durable built-player inspection is still required.
 - [x] Verify benchmark scene remains `Assets/Scenes/WorldbuildingGalleryShowcase.unity`; Kentridge production validation remains separately required.
-- [ ] Satisfy current scene highlight/classifier requirements for affected scenes.
+- [ ] Satisfy current scene highlight/classifier requirements for affected scenes; current workflow guidance binds direct durable built-player inspection rather than a separately named classifier source.
 - [ ] Run exact built `WorldbuildingGalleryShowcase` and visually inspect required captures.
 - [ ] Run real `KentridgePlayableSlice` built/runtime traversal check.
 
@@ -81,7 +81,7 @@
 - [ ] Run required scene/runtime/built-player/visual gates and capture durable evidence.
 - [ ] Review assignment-only blast radius and record commands/results/cost/acceptance mapping in issue metadata.
 - [ ] Complete every required acceptance checkbox; keep the assignment in `open/` until gates pass.
-- [ ] Use `ci-test/fixes/agent-7` only for the final targeted-CI request; verify no request is queued/running first.
+- [ ] Use `ci-test/fixes/agent-7` only for the final targeted-CI request; verified idle on 2026-08-30 with latest run `33291387557` completed successfully at stale head `8cc6ff94dcbbca46b1c522d08752235b891b1851`. Do not publish until the typed-socket prerequisite lands and the feature tree is final.
 - [ ] Obtain green exact-SHA CI and record request/run/tested-SHA evidence.
 - [ ] Complete metadata, then move `open/` -> `closed/` with `status=fixed` and `resolvedUtc` only when every acceptance criterion is complete.
 - [ ] Merge current master again if required; revalidate any changed tree.
