@@ -6,6 +6,7 @@ using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
 using VoxelEngine.Composition;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
 using VoxelEngine.Structures.Runtime;
 using VoxelEngine.Terrain.Api;
@@ -186,7 +187,7 @@ namespace VoxelEngine.Showcase
             private void Op(ShapeOp op, params int[] operands)
             {
                 _program.Add((int)op);
-                _program.Add(0); // every exhibit operand is an immediate value
+                _program.Add(0);
                 for (int i = 0; i < operands.Length; i++) _program.Add(operands[i]);
             }
         }
@@ -245,11 +246,6 @@ namespace VoxelEngine.Showcase
             EnsureStructuralMetrics(author: true);
         }
 
-        /// <summary>
-        /// Drives the production CharacterMotor over the bridge, through the gatehouse, or up the
-        /// cliff settlement connection. Tests and the built-player audit share this probe so neither
-        /// can accidentally validate a collision path different from the one the player uses.
-        /// </summary>
         public GalleryStructuralTraversalReport AuditWorldbuildingGalleryStructuralTraversal(int index)
         {
             EnsureStructuralMetrics(author: true);
@@ -307,9 +303,6 @@ namespace VoxelEngine.Showcase
             timer.Stop();
             _structuralAuthoringMs = timer.Elapsed.TotalMilliseconds;
 
-            // Existing monolithic architectural arch primitive bound: 13 voussoirs + 2 piers.
-            // The typed bridge reports its aggregate reusable-piece primitive cost beside this
-            // baseline so primitive-count improvement is a measured number rather than a claim.
             _archPrimitiveBaseline = 15;
 
             UnityEngine.Debug.Log(
@@ -493,9 +486,9 @@ namespace VoxelEngine.Showcase
             RequireOk("cliff settlement", in plan);
             FeatureCatalogueBuildResult build = BuildIfNeeded(in catalogue, in plan, author);
             _structuralProofMetrics[2] = new GalleryStructuralProofMetrics(s_StructuralProofNames[2], in plan, in build);
-            _structuralProofCentres[2] = new float3(site.X + 260, site.LowY + site.Rise + 60, site.Z + 40) * VoxelSize;
+            _structuralProofCentres[2] = new float3(site.X + 300, site.LowY + site.Rise + 60, site.Z + 40) * VoxelSize;
             _structuralTraversalStarts[2] = new float3(site.X + 40, site.LowY + 18, site.Z + 40) * VoxelSize;
-            _structuralTraversalEnds[2] = new float3(site.X + 360, site.LowY + site.Rise + 18, site.Z + 40) * VoxelSize;
+            _structuralTraversalEnds[2] = new float3(site.X + 500, site.LowY + site.Rise + 28, site.Z + 40) * VoxelSize;
 
             SlotSpec original = catalogue.Slots[1];
             SlotSpec unsupported = original;
@@ -525,7 +518,7 @@ namespace VoxelEngine.Showcase
                         .CallSlot(0).Finish(), 1, stone,
                     Slot("cliff-ramp", 0x53544411u,
                         StructuralSocketRole.Traversal | StructuralSocketRole.VerticalConnection,
-                        CliffTag, new int3(180, 0, 20), Facing.East, 1, required: true)),
+                        CliffTag, new int3(180, 12, 20), Facing.East, 1, required: true)),
                 Def("cliff-ramp", new int3(260, rampHeight, 80),
                     Piece(0x53544402u,
                         StructuralSocketRole.Traversal | StructuralSocketRole.VerticalConnection,
@@ -543,8 +536,8 @@ namespace VoxelEngine.Showcase
                         LocalMin = new int3(260, rise, 0), LocalMax = new int3(260, rise, 0),
                         CountMin = 1, CountMax = 1, Capacity = 1,
                         Flags = StructuralSocketFlags.Required | StructuralSocketFlags.RequireTerrainSupport,
-                        SupportProbeMin = new int3(-10, -18, -10),
-                        SupportProbeMax = new int3(10, 18, 10), MinimumSupportContacts = 1,
+                        SupportProbeMin = new int3(-10, -22, -10),
+                        SupportProbeMax = new int3(10, 22, 10), MinimumSupportContacts = 1,
                     }),
                 Def("cliff-upper-platform", new int3(180, 24, 120),
                     Piece(0x53544403u, StructuralSocketRole.Platform | StructuralSocketRole.TerrainAnchor,
@@ -571,9 +564,6 @@ namespace VoxelEngine.Showcase
             int3 secondOrigin = firstOrigin + new int3(300, 0, 0);
             GalleryStructuralProofMetrics b = BuildFacadeVariant(secondOrigin, true, author);
 
-            // The proof case is deliberately one logical acceptance item containing two variants.
-            // Aggregate authoring counters while retaining variant A's deterministic graph identity
-            // as the representative hash; tests compare both contracts/hashes independently.
             var aggregatePlan = new StructuralCompositionReport
             {
                 Result = a.Result == StructuralCompositionResult.Ok && b.Result == StructuralCompositionResult.Ok
@@ -591,8 +581,8 @@ namespace VoxelEngine.Showcase
                 a.VoxelsWritten + b.VoxelsWritten);
             _structuralProofMetrics[3] = new GalleryStructuralProofMetrics(
                 s_StructuralProofNames[3], in aggregatePlan, in aggregateBuild);
-            _structuralProofCentres[3] = new float3(firstOrigin.x + 240, firstOrigin.y + 95,
-                firstOrigin.z + 100) * VoxelSize;
+            _structuralProofCentres[3] = new float3(firstOrigin.x + 90, firstOrigin.y + 95,
+                firstOrigin.z + 60) * VoxelSize;
         }
 
         private GalleryStructuralProofMetrics BuildFacadeVariant(int3 origin, bool ornate, bool author)
@@ -862,7 +852,7 @@ namespace VoxelEngine.Showcase
 
         private CliffSite FindCliffSite()
         {
-            const int run = 260;
+            const int run = 440;
             int bestX = -3400, bestZ = 760, bestLow = BaseHeight, bestRise = 24;
             int bestScore = int.MinValue;
             for (int z = 520; z <= 1500; z += 80)
