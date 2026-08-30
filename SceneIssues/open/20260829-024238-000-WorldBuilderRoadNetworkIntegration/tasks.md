@@ -33,6 +33,9 @@
 - [x] Treat authored Kentridge non-residential tree coordinates as preferred anchors and relocate only blocked anchors through a deterministic <=120dm search; clear anchors remain unchanged.
 - [x] Bound generated road definition names to `FixedString64Bytes.UTF8MaxLengthInBytes` while preserving the segment/piece suffix and deterministic route traceability.
 - [ ] Remove the regular checker/stair-step Dirt→Grass presentation exposed by final-player evidence while preserving the shared 0..31 road influence, continuous shoulder recovery, slope/exposed-top correctness, destructibility, and bounded streaming representation. Do not reintroduce repeated strip primitives or a road-only cover mesh/shader island.
+- [ ] Encode the generic two-material surface blend inside the existing packed surface representation without increasing persisted voxel size or `SurfaceVertex` stride; interpolate authored scalar coverage in the shared `SmoothSurface` path and blend full primary/secondary material response.
+- [ ] Ensure two-material presentation metadata is presentation-only and contributes zero coating density/displacement on both CPU and GPU paths.
+- [ ] Preserve ordinary non-blend coating/style/detail behavior, including existing coating displacement semantics.
 
 ## Regressions implemented
 - [x] Modern Kentridge semantic routes map to traceable generic physical road definitions.
@@ -48,6 +51,7 @@
 - [x] Validate repaired/expanded `KentridgeRoadShoulderRegressionTests` on exact source `b5cac79f1ff4f289d643edeef3019e4c1d75a806`: run `33284733815`, 7/7 passed, Unity peak RSS 5119 MB.
 - [x] Add a production-catalogue regression using the observed long macro route ID; it lowers through `WorldRoadNetworkVoxelCatalogue.Build`, asserts fixed-string capacity, and preserves the `-sNpM` suffix. It lives in PlayMode so the final combined request can prove this repair and then launch the real player.
 - [ ] Add/extend regression coverage at the production surface-presentation boundary so non-core shoulder samples retain fractional road influence rather than collapsing to a periodic binary road/terrain mask.
+- [ ] Add shared-surface regression coverage proving blend metadata cannot alter geometry density while an ordinary coating still follows the pre-existing displacement path.
 - [ ] Validate segment/chunk/LOD road geometry/material continuity in the built player.
 
 ## Validation / cost
