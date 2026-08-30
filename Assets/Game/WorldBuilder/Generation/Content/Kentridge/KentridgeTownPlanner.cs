@@ -6,8 +6,9 @@ namespace MountingForce.WorldGen.Content.Kentridge
     /// <summary>
     /// Deterministic semantic layout for Kentridge. Named sites are placed from district affinity,
     /// bounded clearances and stable role identity; circulation is inferred afterwards from the
-    /// realized public entrances. Legacy street constants remain only for older vertical-profile
-    /// diagnostics and are not planning inputs.
+    /// realized public entrances. Spatial claims are owned by the shared Core reservation service.
+    /// Legacy street constants remain only for older vertical-profile diagnostics and are not
+    /// planning inputs.
     /// </summary>
     public static class KentridgeTownPlanner
     {
@@ -37,7 +38,11 @@ namespace MountingForce.WorldGen.Content.Kentridge
         private const int PlanningMaxXDm = 1780;
         private const int PlanningMinZDm = -40;
         private const int PlanningMaxZDm = 1130;
+        private const int PlanningMinYDm = -80;
+        private const int PlanningMaxYDm = 320;
         private const int SiteClearanceDm = 18;
+        private const int PublicApproachLengthDm = 32;
+        private const int PublicApproachRadiusDm = 8;
         private const int MaxCandidatesPerSite = 256;
 
         private static readonly SettlementCompositionPolicy Policy = BuildCompositionPolicy();
@@ -112,17 +117,81 @@ namespace MountingForce.WorldGen.Content.Kentridge
                 plots);
         }
 
+        /// <summary>
+        /// Reconstructs the semantic claims for the bounded Kentridge plan. This is derived data,
+        /// not mutable runtime authority, so eviction/regeneration and streaming order cannot change it.
+        /// Road consumers may overlap the settlement envelope only through explicitly compatible
+        /// public-access/road handoffs.
+        /// </summary>
+        public static SpatialReservationSnapshot BuildReservationSnapshot(uint seed)
+        {
+            SettlementPlan plan = Build(seed);
+            var claims = new List<SpatialReservation>(plan.Plots.Count * 3 + plan.Routes.Count * 2 + 2);
+            claims.Add(WorldBuilderReservationFactory.PlazaKeepOpen(
+                "kentridge:" + plan.Plaza.Id,
+                plan.Plaza.CentreDm,
+                plan.Plaza.SizeDm,
+                SiteClearanceDm,
+                0,
+                PlanningMaxYDm,
+                provenance: "KentridgeTownPlanner.plaza"));
+
+            for (int i = 0; i < plan.Plots.Count; i++)
+            {
+                BuildingPlot plot = plan.Plots[i];
+                if (plot.Archetype == StructureArchetype.Well) continue;
+                Int3 footprint = KentridgeDefinition.FootprintDm(plot.Archetype);
+                string ownerId = SiteOwnerId(plot.RoleId);
+                claims.Add(WorldBuilderReservationFactory.BuildingFootprint(
+                    ownerId, plot.PositionDm, footprint, provenance: "KentridgeTownPlanner.plot"));
+                claims.Add(WorldBuilderReservationFactory.BuildingClearance(
+                    ownerId, plot.PositionDm, footprint, SiteClearanceDm,
+                    provenance: "KentridgeTownPlanner.clearance"));
+                claims.Add(BuildPublicApproachReservation(plot, footprint));
+            }
+
+            for (int routeIndex = 0; routeIndex < plan.Routes.Count; routeIndex++)
+            {
+                PlannedRoute route = plan.Routes[routeIndex];
+                int radiusDm = Math.Max(1, route.WidthDm / 2);
+                for (int segment = 0; segment + 1 < route.Points.Count; segment++)
+                {
+                    claims.Add(WorldBuilderReservationFactory.RoadCorridor(
+                        "kentridge-route:" + route.Id + ":" + segment,
+                        route.Points[segment],
+                        route.Points[segment + 1],
+                        0,
+                        40,
+                        radiusDm,
+                        provenance: "KentridgeTownPlanner.route"));
+                }
+            }
+
+            return SpatialReservationSnapshot.Create(claims, PlanningWindow());
+        }
+
         private static List<BuildingPlot> PlaceNamedSites(uint seed, PlannedPlaza plaza)
         {
             var plots = new List<BuildingPlot>(17);
+            var reservations = new PlannerLocalReservationSet(PlanningWindow());
+            reservations.Add(WorldBuilderReservationFactory.PlazaKeepOpen(
+                "kentridge:" + plaza.Id,
+                plaza.CentreDm,
+                plaza.SizeDm,
+                SiteClearanceDm,
+                0,
+                PlanningMaxYDm,
+                provenance: "KentridgeTownPlanner.plaza"));
+
             for (int i = 0; i < SiteSpecs.Length; i++)
             {
                 OrganicSiteSpec spec = SiteSpecs[i];
                 BuildingPlot placed;
-                if (!TryPlaceSite(seed, in spec, plaza, plots, out placed))
+                if (!TryPlaceSite(seed, in spec, plaza, reservations, out placed))
                     throw new InvalidOperationException(
                         "Kentridge organic planner exhausted its bounded candidate set for " + spec.Role + ".");
                 plots.Add(placed);
+                AddPlacedSiteReservations(placed, reservations);
             }
             return plots;
         }
@@ -131,7 +200,7 @@ namespace MountingForce.WorldGen.Content.Kentridge
             uint seed,
             in OrganicSiteSpec spec,
             PlannedPlaza plaza,
-            List<BuildingPlot> placed,
+            PlannerLocalReservationSet reservations,
             out BuildingPlot result)
         {
             Int2 preferred;
@@ -152,10 +221,20 @@ namespace MountingForce.WorldGen.Content.Kentridge
                     || x + footprint.X > PlanningMaxXDm
                     || z + footprint.Z > PlanningMaxZDm)
                     continue;
-                if (IntersectsPlaza(x, z, footprint, plaza, SiteClearanceDm))
-                    continue;
-                if (IntersectsPlaced(x, z, footprint, placed, SiteClearanceDm))
-                    continue;
+
+                var position = new Int2(x, z);
+                SpatialReservation candidate = WorldBuilderReservationFactory.BuildingFootprint(
+                    SiteOwnerId((int)spec.Role),
+                    position,
+                    footprint,
+                    provenance: "KentridgeTownPlanner.candidate");
+                ReservationQueryResult conflict = reservations.Query(
+                    candidate,
+                    ReservationConsumerKind.SettlementBuilding,
+                    ReservationCategory.Building | ReservationCategory.Plaza |
+                    ReservationCategory.PublicAccess | ReservationCategory.Road |
+                    ReservationCategory.SettlementEnvelope);
+                if (!conflict.IsAccepted) continue;
 
                 Int2 centre = new Int2(x + footprint.X / 2, z + footprint.Z / 2);
                 int dx = centre.X - plaza.CentreDm.X;
@@ -171,7 +250,7 @@ namespace MountingForce.WorldGen.Content.Kentridge
                     (int)spec.Role,
                     spec.Archetype,
                     spec.District,
-                    new Int2(x, z),
+                    position,
                     frontage,
                     new PlannedSiteAccess(SiteAccessKind.Route, routeId, accessPoint),
                     inward);
@@ -181,6 +260,50 @@ namespace MountingForce.WorldGen.Content.Kentridge
             result = default(BuildingPlot);
             return false;
         }
+
+        private static void AddPlacedSiteReservations(
+            BuildingPlot plot,
+            PlannerLocalReservationSet reservations)
+        {
+            Int3 footprint = KentridgeDefinition.FootprintDm(plot.Archetype);
+            string ownerId = SiteOwnerId(plot.RoleId);
+            reservations.Add(WorldBuilderReservationFactory.BuildingFootprint(
+                ownerId, plot.PositionDm, footprint,
+                provenance: "KentridgeTownPlanner.plot"));
+            reservations.Add(WorldBuilderReservationFactory.BuildingClearance(
+                ownerId, plot.PositionDm, footprint, SiteClearanceDm,
+                provenance: "KentridgeTownPlanner.clearance"));
+            reservations.Add(BuildPublicApproachReservation(plot, footprint));
+        }
+
+        private static SpatialReservation BuildPublicApproachReservation(
+            BuildingPlot plot,
+            Int3 footprint)
+        {
+            Int2 access = plot.Access.NetworkPointDm;
+            Int2 outside = new Int2(
+                access.X - plot.AccessDirection.X * PublicApproachLengthDm,
+                access.Y - plot.AccessDirection.Z * PublicApproachLengthDm);
+            return WorldBuilderReservationFactory.PublicAccessCorridor(
+                "kentridge-approach:" + plot.RoleId,
+                access,
+                outside,
+                0,
+                Math.Max(24, Math.Min(footprint.Y, 60)),
+                PublicApproachRadiusDm,
+                provenance: "KentridgeTownPlanner.public-approach");
+        }
+
+        private static ReservationBoundsDm PlanningWindow() =>
+            new ReservationBoundsDm(
+                PlanningMinXDm,
+                PlanningMinYDm,
+                PlanningMinZDm,
+                PlanningMaxXDm,
+                PlanningMaxYDm,
+                PlanningMaxZDm);
+
+        private static string SiteOwnerId(int roleId) => "kentridge-site:" + roleId;
 
         private static List<PlannedRoute> InferCirculation(
             uint seed, List<BuildingPlot> plots, PlannedPlaza plaza)
@@ -272,42 +395,6 @@ namespace MountingForce.WorldGen.Content.Kentridge
                     break;
             }
         }
-
-        private static bool IntersectsPlaced(
-            int x, int z, Int3 footprint, List<BuildingPlot> plots, int clearance)
-        {
-            for (int i = 0; i < plots.Count; i++)
-            {
-                BuildingPlot other = plots[i];
-                Int3 otherFootprint = KentridgeDefinition.FootprintDm(other.Archetype);
-                if (RectanglesIntersect(
-                    x - clearance, z - clearance,
-                    x + footprint.X + clearance, z + footprint.Z + clearance,
-                    other.PositionDm.X, other.PositionDm.Y,
-                    other.PositionDm.X + otherFootprint.X,
-                    other.PositionDm.Y + otherFootprint.Z))
-                    return true;
-            }
-            return false;
-        }
-
-        private static bool IntersectsPlaza(
-            int x, int z, Int3 footprint, PlannedPlaza plaza, int clearance)
-        {
-            int minX = plaza.CentreDm.X - plaza.SizeDm.X / 2;
-            int maxX = plaza.CentreDm.X + plaza.SizeDm.X / 2;
-            int minZ = plaza.CentreDm.Y - plaza.SizeDm.Y / 2;
-            int maxZ = plaza.CentreDm.Y + plaza.SizeDm.Y / 2;
-            return RectanglesIntersect(
-                x - clearance, z - clearance,
-                x + footprint.X + clearance, z + footprint.Z + clearance,
-                minX, minZ, maxX, maxZ);
-        }
-
-        private static bool RectanglesIntersect(
-            int minX, int minZ, int maxX, int maxZ,
-            int otherMinX, int otherMinZ, int otherMaxX, int otherMaxZ) =>
-            maxX > otherMinX && minX < otherMaxX && maxZ > otherMinZ && minZ < otherMaxZ;
 
         private static long SquaredDistance(Int2 a, Int2 b)
         {
