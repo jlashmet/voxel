@@ -27,25 +27,28 @@
 - [x] Prior evidence proved camera-target residency is within the normal 3-region (~153.6 m) radius; do not change residency to make evidence pass.
 - [x] Full-resolution run `33279138597` confirms the clean Rossdam basin/road response is more readable.
 - [x] Full-resolution run `33279138597` rejects a camera-only explanation for missing towns: Fairy/Orc survey cameras are close enough that present building-scale shells would be obvious, yet none render.
-- [x] Inspect final full-resolution artifact `9723674189` from run `33283034449`: Fairy Village and Orc Village show roads/terrain but no readable settlement shells; Moordell shows fewer than four obvious shells; Rossdam is dominated by lake/terrain with no four-building settlement read.
-- [x] Because final storage is green while built-player settlements remain absent, classify the remaining defect as production streaming/render-path visibility rather than camera framing or storage generation.
-- [x] Trace persisted `SettlementStructure` payload through the production path and identify the first failing boundary: `ShowcaseWorld.FinishRegion()` publishes terrain before separately queued feature realization, allowing renderer-only coverage to report stable before `CompleteFeatureBuild()` publishes the settlement commit/invalidation.
-- [x] Add a reusable current-demand generated-content readiness contract: terrain publication alone is not settled while a demanded region can still receive feature publication/invalidation.
-- [x] Add a production behavioral regression at that two-stage boundary proving readiness remains false after terrain publication, becomes true only after feature draining, real feature rasterization increases, and the expected settlement timber shell reaches the authoritative world storage consumed by rendering.
-- [x] Gate built evidence on current-demand content readiness followed by four consecutive complete near-surface renderer publications; no fixed delay.
-- [x] Fix the reusable production path without scene-local hardcoding, camera masking, eager remote GameObjects, direct scene voxel writes, or streaming-radius expansion.
+- [x] Inspect full-resolution artifact `9723674189` from run `33283034449`: Fairy Village and Orc Village show roads/terrain but no readable settlement shells; Moordell shows fewer than four obvious shells; Rossdam is dominated by lake/terrain with no four-building settlement read.
+- [x] Trace persisted `SettlementStructure` payload through production and identify the first failing boundary: terrain publishes before queued feature realization; renderer-only coverage can stabilize before `CompleteFeatureBuild()` publishes settlement invalidation.
+- [x] Add and run a real production two-stage readiness regression proving terrain-only publication is not final, feature rasterization later increases, readiness becomes true, and Moordell timber reaches authoritative storage.
+- [x] Exact request `4a00dc022631e62628f59a944c5410767dc9904d`, run `33288421041`, is workflow-green for source `f13bd8cf0e9e2bfcc4dfda3077eda391e61aefa4`; nested physical/storage acceptance and two-stage readiness regression pass.
+- [x] Reject full-residency readiness as closure remediation: the green run delayed opening to ~40 s and produced no custom `macro-*.png` captures in the 60 s replay, so settlement renderer acceptance remained unproven.
+- [ ] Replace full-radius readiness with reusable presentation-scoped point/column readiness while preserving the two-stage publication guarantee.
+- [ ] Gate opening only on presentation-relevant pub/opening content plus renderer coverage; do not wait for unrelated radius-3 countryside.
+- [ ] Gate each macro evidence target on the content it presents: road/focus column, all four generic settlement building-centre columns, or semantic lake/ridge/network focus, then four renderer coverage frames.
+- [ ] Refactor the production readiness regression to the scoped query while retaining the full nested macro physical/storage contract.
 - [ ] Exact built `KentridgePlayableSlice` reaches a usable rendered state without startup/runtime exceptions.
-- [ ] Full-resolution exact-scene evidence proves the committed settlement shells become renderer/mesh-visible and shows four readable blockouts at Moordell, Rossdam, Fairy Village, and Orc Village.
+- [ ] Full-resolution exact-scene evidence proves committed settlement shells become renderer/mesh-visible and shows four readable blockouts at Moordell, Rossdam, Fairy Village, and Orc Village.
 - [ ] Full-resolution evidence shows continuous roads/network without large holes, substantial lake and ridge/pass response, and representative CharacterMotor traversal.
 
 ## Blast radius / cost
 - [x] Static scope: no other SceneIssue, no feature-branch `.github/test-request.json`, no custom workflow/CI transport, no CharacterMotor/streaming-radius change.
 - [x] Terrain-relief sampling cost is bounded: 25 samples x 16 generic buildings = 400 deterministic catalogue-build queries; definition/placement counts are unchanged.
 - [x] Southern Ridge remediation changes one Kentridge region extent only; graph nodes/routes, settlement coordinates, feature counts, and runtime systems are unchanged.
-- [x] Refresh `fixes/agent-6` from current `origin/master` after the green storage gate; latest merge `2c6c501b4823fbb3b5a33ef30ac0e3ba119b1ab0` incorporates master `d4b31a700bae19b08ef765e874e26026620bde0e` with path-disjoint changes and no agent-6 conflict.
-- [x] Keep readiness evaluation scoped to already-maintained current-demand generation state: at normal radius 3 it visits 29 horizontal columns and <=145 region-state checks (four capped surface layers plus at most one distinct camera layer), with no voxel/mesh scan, generation, allocation, duplicate geometry, or extra residency.
+- [x] Refresh `fixes/agent-6` from `origin/master` before run `33288421041`; merge `2c6c501b4823fbb3b5a33ef30ac0e3ba119b1ab0` incorporates master `d4b31a700bae19b08ef765e874e26026620bde0e` with path-disjoint changes.
+- [x] Measure failed broad-readiness cost signal: radius-1 focused world produced 18,908,465 feature voxel writes, 1302.13 ms final blocking feature step; built player peaked ~92.9% CPU / 5708.5 MB RSS with zero swap growth.
+- [ ] Keep final readiness evaluation presentation-scoped: surface/camera layers of one queried column; settlement evidence checks four building columns; no whole-world/residency scan, generation, allocation, duplicate geometry, extra residency, or replay-time inflation.
 - [ ] Measure final remediation cost and record route solve/tile/building/feature counts plus built-player CPU/GPU/frame/memory/streaming telemetry against existing budgets.
-- [x] Re-check current feature diff against current master before final CI: branch is ahead only, and the diff remains limited to the assigned macro-world implementation/tests/evidence plus the reusable Showcase readiness boundary and assignment metadata.
+- [ ] Re-check current feature diff against current master before the corrected final CI.
 
 ## Acceptance / closure
 - [ ] (1) Source-backed macro graph remains authoritative through shared WorldBuilder APIs.
@@ -56,7 +59,7 @@
 - [ ] (6) Built world visibly contains a substantial lake + ridge and a geography-constrained hard route.
 - [ ] (7) Regional terrain visibly reads as differentiated countryside rather than a flat debug plane.
 - [ ] (8) No second scene-local graph/direct voxel-writing/static destination hierarchy.
-- [ ] (9) Focused production regressions cover determinism, reachability, roads, settlements, constraints, blocked-route failure, and two-stage generated-content readiness.
+- [ ] (9) Focused production regressions cover determinism, reachability, roads, settlements, constraints, blocked-route failure, and two-stage presentation-scoped readiness.
 - [ ] (10) Exact built-player evidence covers settlements, roads, geography, constrained route, and CharacterMotor traversal.
 - [ ] (11) Blast radius and world-build/route/CPU/GPU/memory/streaming cost measured against budgets.
 - [ ] Final exact-SHA focused CI and built-player evidence are closure-quality green.
