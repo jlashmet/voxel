@@ -37,13 +37,13 @@
 - [x] Adapt structural decoration handoff after realization into existing `Game.Structures` decoration consumers: the runtime adapter enumerates engine-neutral flags into existing single-kind `DecorationSocket`s while leaving fine-detail placement with the existing decoration resolver.
 
 ## Required proving cases
-- [ ] Monumental mountain/gorge/river bridge: two terrain/cliff anchors, multi-piece span crossing multiple logical regions, repeated explicit span/support structure, continuous walkable deck, road/traversal continuation sockets at both ends, incompatible/orientation candidate rejection.
-- [ ] Add production `CharacterMotor` regression traversing the entire bridge.
-- [ ] Castle assembly: >=2 wall runs, >=2 towers, gatehouse/gate opening, generic wall/tower/gate continuation sockets, correctly oriented tower joins, traversable entrance, incompatible roof/facade/bridge module rejection.
-- [ ] Multi-level cliff settlement: at least two elevations, terrain-derived supported anchors, platform/building pieces plus traversable stair/ramp/short bridge, unsupported candidate rejection.
-- [ ] Add production `CharacterMotor` regression traversing the gate and vertical/cliff connection where applicable.
-- [ ] Meso-scale facade/roof attachment: facade attachment plus roof attachment, >=2 style variants from one semantic contract, shared architecture primitives, no micro-detail socket abuse.
-- [ ] Integrate all four cases into deterministic built-app showcase/harness reachable from exact `Assets/Scenes/WorldbuildingGalleryShowcase.unity`.
+- [x] Monumental mountain/gorge/river bridge: two terrain/cliff anchors, multi-piece span crossing multiple logical regions, repeated explicit span/support structure, continuous walkable deck, road/traversal continuation sockets at both ends, incompatible/orientation candidate rejection.
+- [x] Add production `CharacterMotor` regression traversing the entire bridge.
+- [x] Castle assembly: >=2 wall runs, >=2 towers, gatehouse/gate opening, generic wall/tower/gate continuation sockets, correctly oriented tower joins, traversable entrance, incompatible roof/facade/bridge module rejection.
+- [x] Multi-level cliff settlement: at least two elevations, terrain-derived supported anchors, platform/building pieces plus traversable stair/ramp/short bridge, unsupported candidate rejection.
+- [x] Add production `CharacterMotor` regression traversing the gate and vertical/cliff connection where applicable.
+- [x] Meso-scale facade/roof attachment: facade attachment plus roof attachment, >=2 style variants from one semantic contract, shared architecture primitives, no micro-detail socket abuse.
+- [x] Integrate all four cases into deterministic built-app showcase/harness reachable from exact `Assets/Scenes/WorldbuildingGalleryShowcase.unity`.
 
 ## Regression / negative validation
 - [x] Focused production-path regression proves identical seed/input => identical attachment graph/hash.
@@ -63,6 +63,8 @@
 - [x] Regression proves structural children are emitted through production authoritative voxel authoring, including a child outside the root logical region.
 - [x] Rejected alternatives remain inspectable but do not change accepted `GraphHash` identity.
 - [x] Conservative voxel-authoring cost accepts the exact 16,777,216-voxel ceiling and rejects one voxel over before composition continues.
+- [x] Add focused PlayMode regression over the four production gallery catalogues, deterministic graph/cost/bounds, and invalid attachment rejection.
+- [ ] Validate that focused PlayMode regression and the exact-scene built-player harness in the same final exact-SHA request.
 
 ## Built-application / visual gates
 - [ ] Run final targeted CI from an exact feature SHA via `ci-test/fixes/agent-5` only; never edit `.github/test-request.json` on the feature branch or replace queued/running CI.
@@ -79,7 +81,7 @@
 - [ ] Measure and record planning/composition time for bridge/castle.
 - [ ] Measure and record child feature count, primitive/voxel-authoring cost, logical generated-region/streaming span, bounded memory-model cost, and render/triangle proxy/impact.
 - [x] Reconcile composition limits with authoritative `device-matrix.md`; all six composition ceilings are deterministic and identical across tiers, with the conservative voxel model documented separately from actual region/instance raster budgets and no global budget weakened.
-- [ ] Confirm existing fine-detail/decoration behavior remains separate and existing unrelated generation paths are unchanged unless explicitly opted into structural composition.
+- [x] Confirm existing fine-detail/decoration behavior remains separate and existing unrelated generation paths are unchanged unless explicitly opted into structural composition.
 - [ ] Review final feature diff for assignment-only blast radius and cost.
 - [ ] Complete `issue.json` pending metadata only after all required exact-SHA workflow and built-app gates pass.
 - [ ] Move open -> pending in separate bookkeeping commit per `SceneIssues/README.md`.
@@ -105,6 +107,6 @@
 - [x] Ensure `GraphHash` represents the final accepted attachment graph while rejected alternatives remain inspectable diagnostics.
 - [x] Validate/document the conservative voxel-authoring cost model against authoritative region/instance budgets and regress its exact boundary behavior.
 - [x] Fix explicit-catalogue region enumeration so accepted structural descendants outside root footprints are visited and rasterized; add a production-helper regression using the existing cross-region fixture.
-- [ ] Ensure typed structural gallery proving content is present in both live-generate and normal bake startup modes through a bounded presence-check/compatibility repair; do not require a new bake merely to validate this feature.
-- [ ] Extend the existing gallery audit/player harness for feature frames, traversal assertions, and bridge/castle cost evidence; do not create a parallel validation harness.
-- [ ] Scope the structural audit phase to this exact SceneIssue id so unrelated capture-less WorldbuildingGallery validations keep their existing audit contract and runtime cost.
+- [x] Ensure typed structural gallery proving content is present in both live-generate and normal bake startup modes through a bounded presence-check/compatibility repair; do not require a new bake merely to validate this feature.
+- [x] Extend the existing gallery audit/player harness for feature frames, traversal assertions, and bridge/castle cost evidence; do not create a parallel validation harness.
+- [x] Scope the structural audit phase to this exact SceneIssue id so unrelated capture-less WorldbuildingGallery validations keep their existing audit contract and runtime cost.
