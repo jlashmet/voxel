@@ -47,6 +47,7 @@ namespace VoxelEngine.Showcase
         private StructuralAttachmentRejectReason _bridgeNegativeReject;
         private StructuralAttachmentRejectReason _cliffNegativeReject;
         private int _bridgeTerrainRelief;
+        private int _cliffTerrainRise;
         private int _archPrimitiveBaseline;
         private double _structuralAuthoringMs;
 
@@ -212,6 +213,11 @@ namespace VoxelEngine.Showcase
             get { EnsureStructuralMetrics(); return _bridgeTerrainRelief; }
         }
 
+        public int WorldbuildingGalleryStructuralCliffTerrainRise
+        {
+            get { EnsureStructuralMetrics(); return _cliffTerrainRise; }
+        }
+
         public int WorldbuildingGalleryStructuralArchPrimitiveBaseline
         {
             get { EnsureStructuralMetrics(); return _archPrimitiveBaseline; }
@@ -275,6 +281,7 @@ namespace VoxelEngine.Showcase
                 TerrainQuery.HeightAt(-2900, 120, Seed) + 2, 120), author);
 
             CliffSite cliff = FindCliffSite();
+            _cliffTerrainRise = cliff.Rise;
             BuildCliffSettlementProof(cliff, author);
 
             int facadeY = TerrainQuery.HeightAt(-2500, 1180, Seed) + 2;
@@ -286,7 +293,8 @@ namespace VoxelEngine.Showcase
 
             UnityEngine.Debug.Log(
                 $"STRUCTURAL_GALLERY authored={author} elapsedMs={_structuralAuthoringMs:0.###} " +
-                $"bridgeRelief={_bridgeTerrainRelief}v bridgePrimitiveCost={_structuralProofMetrics[0].PrimitiveCost} " +
+                $"bridgeRelief={_bridgeTerrainRelief}v cliffRise={_cliffTerrainRise}v " +
+                $"bridgePrimitiveCost={_structuralProofMetrics[0].PrimitiveCost} " +
                 $"archBaselinePrimitives={_archPrimitiveBaseline} " +
                 $"bridgeReject={_bridgeNegativeReject} cliffReject={_cliffNegativeReject}");
         }
@@ -382,10 +390,14 @@ namespace VoxelEngine.Showcase
                         .CallSlot(0).Finish(), 3, stone,
                     Slot("west-road-continuation", 0x53544222u, StructuralSocketRole.Traversal,
                         BridgeTag, int3.zero, Facing.West, 4, required: false, count: 0)),
-                Def("bridge-pier", new int3(20, 181, 20),
+                // The proof deck intentionally sits about 16 m above its terrain anchors so a river
+                // and truss/pier hierarchy can read beneath it. The support probe already reaches
+                // 240 voxels; give the authoritative pier the same reach so accepted supports never
+                // stop above the lowest part of the selected gorge.
+                Def("bridge-pier", new int3(20, 241, 20),
                     Piece(0x53544204u, StructuralSocketRole.Support | StructuralSocketRole.TerrainAnchor,
-                        BridgeTag, new int3(10, 180, 10), Facing.Up),
-                    new ProgramWriter().Box(int3.zero, new int3(20, 181, 20), stone).Finish(), 1, stone),
+                        BridgeTag, new int3(10, 240, 10), Facing.Up),
+                    new ProgramWriter().Box(int3.zero, new int3(20, 241, 20), stone).Finish(), 1, stone),
                 Def("road-continuation-contract", new int3(40, 8, 80),
                     Piece(0x53544205u, StructuralSocketRole.Traversal, BridgeTag, int3.zero, Facing.West),
                     new ProgramWriter().Finish(), 0, stone),
@@ -422,7 +434,7 @@ namespace VoxelEngine.Showcase
                     Slot("east-wall", 0x53544311u, StructuralSocketRole.Wall, WallTag,
                         new int3(160, 0, 40), Facing.East, 1, required: true),
                     Slot("west-wall", 0x53544312u, StructuralSocketRole.Wall, WallTag,
-                        new int3(0, 0, 40), Facing.West, 2, required: true)),
+                        int3.zero, Facing.West, 2, required: true)),
                 Def("castle-east-wall", new int3(220, 70, 40),
                     Piece(0x53544302u, StructuralSocketRole.Wall, WallTag, int3.zero, Facing.West),
                     new ProgramWriter()
@@ -813,44 +825,70 @@ namespace VoxelEngine.Showcase
         private BridgeSite FindBridgeSite()
         {
             const int totalSpan = 1220;
-            int bestX = -3600, bestZ = -700, bestRelief = int.MinValue, bestDeck = BaseHeight + 80;
-            for (int z = -900; z <= 900; z += 120)
-            for (int x = -3900; x <= -1900; x += 120)
+            const int minimumRelief = 40;
+            const int deckClearance = 160;
+            int bestX = 0, bestZ = 0, bestRelief = int.MinValue, bestDeck = 0;
+
+            // The inhabited gallery valley deliberately suppresses terrain-scale relief, so it can
+            // never satisfy the monumental bridge acceptance no matter how much decoration is added.
+            // Search the deterministic valley/mountain transition instead: endpoints must be similar
+            // in height, a real low point must exist between them, and approaches stay low enough that
+            // the fixed 24 m terrain-support probe can reach the entire gorge floor.
+            for (int z = -15600; z <= -14800; z += 80)
+            for (int x = -1600; x <= 800; x += 80)
             {
                 int left = TerrainQuery.HeightAt(x, z, Seed);
                 int right = TerrainQuery.HeightAt(x + totalSpan, z, Seed);
+                if (math.abs(left - right) > 30 || math.max(left, right) > BaseHeight + 160)
+                    continue;
+
                 int minimum = int.MaxValue;
                 for (int i = 1; i < 8; i++)
                     minimum = math.min(minimum, TerrainQuery.HeightAt(x + totalSpan * i / 8, z, Seed));
                 int relief = math.min(left, right) - minimum;
                 if (relief <= bestRelief) continue;
+
                 bestRelief = relief;
                 bestX = x;
                 bestZ = z;
-                bestDeck = math.max(left, right) + 36;
+                bestDeck = math.max(left, right) + deckClearance;
             }
+
+            if (bestRelief < minimumRelief)
+                throw new InvalidOperationException(
+                    $"Typed structural bridge could not find a gorge with {minimumRelief}v relief; best={bestRelief}v.");
             return new BridgeSite(bestX, bestZ, bestDeck, bestRelief);
         }
 
         private CliffSite FindCliffSite()
         {
             const int run = 440;
-            int bestX = -3400, bestZ = 760, bestLow = BaseHeight, bestRise = 24;
-            int bestScore = int.MinValue;
-            for (int z = 520; z <= 1500; z += 80)
-            for (int x = -3600; x <= -1900; x += 80)
+            const int minimumRise = 80;
+            const int maximumRise = 140;
+            int bestX = 0, bestZ = 0, bestLow = 0, bestRise = int.MinValue;
+
+            // Cross the same deterministic valley/mountain transition used by the terrain sampler.
+            // The previous search stayed inside the intentionally calm settlement valley and selected
+            // a 1.2 m grade; that cannot demonstrate a vertical structural composition. Keep the rise
+            // bounded so every child/presentation catalogue remains below existing spatial/voxel caps.
+            for (int z = -15400; z <= -14600; z += 80)
+            for (int x = 1600; x <= 3200; x += 80)
             {
                 int low = TerrainQuery.HeightAt(x, z, Seed);
                 int high = TerrainQuery.HeightAt(x + run, z, Seed);
                 int rise = high - low;
-                if (rise < 12 || rise > 42) continue;
-                if (rise <= bestScore) continue;
-                bestScore = rise;
+                if (rise < minimumRise || rise > maximumRise || low > BaseHeight + 180) continue;
+                if (rise <= bestRise) continue;
+
                 bestX = x;
                 bestZ = z;
                 bestLow = low;
                 bestRise = rise;
             }
+
+            if (bestRise < minimumRise)
+                throw new InvalidOperationException(
+                    $"Typed structural cliff proof could not find a supported {minimumRise}v rise; best={bestRise}v.");
             return new CliffSite(bestX, bestZ, bestLow, bestRise);
         }
 
