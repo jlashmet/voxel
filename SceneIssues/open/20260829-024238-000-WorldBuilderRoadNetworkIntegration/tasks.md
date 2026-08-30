@@ -6,10 +6,11 @@
 - [x] Record the representation-gap discriminator and selected shared-road design in `plan.md`.
 - [x] Diagnose the pre-merge targeted CI compile failure and repair the missing `MountingForce.WorldGen` test import without changing product behavior.
 - [x] Audit terrain/crossing flag authority: current production `TerrainQuery`, `PlannedRoute`, and `TopDownWorldRouteSpec` expose no water/reserved/barrier field, so adapters must not fabricate flags; generic resolver policy remains ready for a future authoritative owner.
-- [x] Classify final targeted CI `33281599556`: product/test-contract failures, not runner noise; 7 tests executed, 2 failed.
+- [x] Classify targeted CI `33281599556`: product/test-contract failures, not runner noise; 7 tests executed, 2 failed.
 - [x] Resolve the non-monotonic shoulder sample (`19 -> 26`): adjacent samples were independently hashing edge width; semantic and physical paths now sample coherent 64dm world-space variation at the nearest centerline point.
 - [x] Resolve authored vegetation point `(900,455)` collision: master already had fixed preferred anchors against an organic seeded building layout; authored non-residential anchors now use deterministic bounded clearance search while preserving species/zone intent.
 - [x] Identify the sanctioned built-player gate: same `tests-single.yml` transport, `PlayMode` + focused test + `scene_issue` + `replay_seconds`; no extra CI branch/workflow required.
+- [x] Classify combined full-app run `33285741354`: built player compiled, launched for 60s, captured 4 screenshots, and exited 0, but the canonical PlayMode acceptance exposed an in-scope `FixedString64Bytes` truncation for long macro-road definition name `world-road-macro:overworld-moordell->overworld-to-rossdam-s0p0` in `WorldRoadNetworkVoxelCatalogue.Build`.
 
 ## Implementation
 - [x] Make road/trail intent first-class on stable semantic endpoints with reusable profile data, provenance, and deterministic seed.
@@ -29,6 +30,7 @@
 - [x] Preserve bounded generation: one primitive per bounded piece, FeatureBudget-capped definitions/footprints, no per-segment GameObjects, no per-frame road-generation work.
 - [x] Make optional road-edge irregularity spatially coherent without changing profile width/transition budgets or semantic↔physical sampling parity.
 - [x] Treat authored Kentridge non-residential tree coordinates as preferred anchors and relocate only blocked anchors through a deterministic <=120dm search; clear anchors remain unchanged.
+- [ ] Bound generated road definition names to the actual `FixedString64Bytes` UTF-8 capacity while preserving the segment/piece suffix and deterministic route traceability.
 
 ## Regressions implemented
 - [x] Modern Kentridge semantic routes map to traceable generic physical road definitions.
@@ -42,6 +44,7 @@
 - [x] Kentridge authors positive generic placement keep-clearance beyond the grading radius and it is queryable from `WorldRoadNetwork`.
 - [x] Existing Kentridge named-landmark, diagonal-route, and connectivity coverage remains in `KentridgeOrganicLayoutTests`.
 - [x] Validate repaired/expanded `KentridgeRoadShoulderRegressionTests` on exact source `b5cac79f1ff4f289d643edeef3019e4c1d75a806`: run `33284733815`, 7/7 passed, Unity peak RSS 5119 MB.
+- [ ] Add a production-catalogue regression proving the observed long macro route ID lowers to `FixedString64Bytes` feature names without truncation and preserves its `-sNpM` suffix.
 - [ ] Validate segment/chunk/LOD road geometry/material continuity in the built player.
 
 ## Validation / cost
@@ -49,14 +52,14 @@
 - [x] Refresh/merge current `origin/master` again after the CI-discovered repairs (`ed0d8711`, current-master parent `47e51f98`).
 - [x] Obtain green focused exact-source EditMode regression through `ci-test/fixes/agent-1` only: run `33284733815`, 7/7 passed.
 - [x] Static cost audit: one analytic primitive + one explicit placement per bounded piece; definition/footprint budgets are enforced; `Primitive` adds no fields/stride; no road GameObjects or per-frame generation path; coherent edge variation is integer-only sample work.
-- [ ] Issue/obtain the combined exact-source PlayMode + built-player request through the same `ci-test/fixes/agent-1` transport using `VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests`, this issue's `scene_issue`, and a 60-second replay.
-- [ ] Run/inspect built application/player evidence for `Assets/Scenes/KentridgePlayableSlice.unity`; verify no startup/runtime exceptions.
+- [ ] Obtain a green combined exact-source PlayMode + built-player request through the same `ci-test/fixes/agent-1` transport using `VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests`, this issue's `scene_issue`, and a 60-second replay. Run `33285741354` is diagnostic only because the PlayMode acceptance failed on the long macro-road name even though real-player replay exited 0.
+- [ ] Run/inspect final repaired built application/player evidence for `Assets/Scenes/KentridgePlayableSlice.unity`; verify no startup/runtime exceptions.
 - [ ] Capture/inspect endpoint-to-endpoint road continuity and player-height traversal with collision/streaming active.
 - [ ] Inspect both shoulders on uneven/sloped terrain for natural Grass↔Dirt recovery with no repeated bands, staircase, exposed wall, or hard line.
 - [ ] Inspect medium/far views for chunk/LOD seams and floating props.
 - [ ] Verify vegetation suppression/recovery and semantic route/influence traceability evidence in the built application.
 - [ ] Quantify bounded cost from generated route/definition/primitive counts plus built-player residency/runtime evidence; confirm no storage/vertex-stride or per-frame cost increase.
-- [x] Review feature-only diff against `47e51f98`: all changed files are WorldBuilder/voxel road support, regressions, or this assignment metadata; no other assignment, workflow, or feature-branch `.github/test-request.json` change.
+- [x] Review feature-only diff against `47e51f98`: changed product/test files are WorldBuilder/voxel road support or road regressions; assignment metadata is in-scope. Preserve the coordinator's later `SceneIssues/README.md` CI clarification commit rather than rewriting it.
 
 ## Promotion / closure
 - [ ] Complete `issue.json` pending metadata (`status`, `resolutionSummary`, `regressionTest`, `fixCommit`) only after promotion gates pass.
