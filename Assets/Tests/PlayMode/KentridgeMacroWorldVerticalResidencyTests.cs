@@ -122,7 +122,7 @@ namespace VoxelEngine.Tests.PlayMode
 
             for (var ruleIndex = 0; ruleIndex < catalogue.Rules.Length; ruleIndex++)
             {
-                FeatureRule rule = catalogue.Rules[ruleIndex];
+                var rule = catalogue.Rules[ruleIndex];
                 if ((uint)rule.DefinitionId >= (uint)catalogue.Definitions.Length) continue;
                 FeatureDefinition definition = catalogue.Definitions[rule.DefinitionId];
                 int placementEnd = math.min(
