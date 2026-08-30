@@ -128,16 +128,16 @@ namespace VoxelEngine.Showcase
             // as terrain with banks and relief instead of a diagram made from orthogonal plates.
             AuthorTerrainApron(authoring, originX, originZ);
 
-            // Still water. Sand is authored first as a broad organic shelf and the calm pool then
-            // occupies the interior. Coarse far-field columns are intentionally used as pixels in
-            // the production representation, while the ellipse avoids a hard rectangular silhouette.
-            FillEllipse(authoring, originX, originZ, 136, 160, 104, 112, BaseY - 1, GameMaterialIds.Sand);
-            FillEllipse(authoring, originX, originZ, 136, 160, 72, 80, BaseY, GameMaterialIds.Water);
-
-            // Descending river. A gently wandering centreline, variable width, and stone banks make
-            // flow direction legible without replacing the production Water/far-terrain renderer.
+            // Descending river. Author its banks before the pool shelf so the two natural features
+            // can overlap without a river-bank column overwriting the pool's shoreline contract.
             AuthorRiverBanks(authoring, originX, originZ);
             AuthorRiver(authoring, originX, originZ);
+
+            // Still water. Sand is authored last at the confluence as a broad organic shelf and the
+            // calm pool occupies the interior. The ordering is semantic composition policy: the
+            // shoreline owns overlapping coarse columns while the upper river remains unobstructed.
+            FillEllipse(authoring, originX, originZ, 136, 160, 104, 112, BaseY - 1, GameMaterialIds.Sand);
+            FillEllipse(authoring, originX, originZ, 136, 160, 72, 80, BaseY, GameMaterialIds.Water);
 
             // Waterfall/cascade. The semantic cascade drops between rock shoulders into an organic
             // receiving pool. This remains coarse by design because these are the actual production
