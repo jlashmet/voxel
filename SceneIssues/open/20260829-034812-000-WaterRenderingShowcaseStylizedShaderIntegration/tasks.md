@@ -51,6 +51,7 @@
 - [x] Production renderer-path portability coverage authors Water/RiverWater/Cascade through `ShowcaseWorld`, binds the ordinary `RenderingWorldBinding`, verifies installed profile arrays, and combines with focused extraction identity/seam regressions; no source-string-only assertion.
 - [ ] Run exact player build for shader compile/stripping/pink/missing-resource failures.
 - [x] Static memory cost: six 32-entry `Vector4` water tables = 3,072 bytes; no per-water-voxel GameObjects/material instances were added.
+- [ ] Add capture-only frame timing and managed/native memory telemetry because the existing player harness records FPS but has no reusable GPU/memory sampler; keep it scene-local and inactive outside unattended evidence capture.
 - [ ] Record exact-player CPU/GPU/memory/render observations: draw/batching/culling, transparent overdraw risk, shader ALU/depth sampling, large bodies, and waterfall-only extras; do not weaken budgets.
 - [x] Review feature-only diff against current master: only assignment water code/tests/scene/build registration/docs are changed; `.github/test-request.json` is absent from the feature diff.
 
