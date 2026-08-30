@@ -123,6 +123,7 @@ namespace Game.Structures.Runtime
             long startWrites = authoring.TotalVoxelsWritten;
             int previousSide = 0;
             int sideSwitches = 0;
+            int lobeCount = 0;
             var spacingSeen = new bool[65];
             var ceilingSeen = new bool[65];
             int coreHeight = cave.TunnelHeight + cave.CeilingRoughness + 1;
@@ -154,9 +155,12 @@ namespace Game.Structures.Runtime
                     primaryBulge,
                     primaryBias,
                     palette.Opening);
-                authoring.Disc(
-                    centre.x, floorY - 1, centre.z,
-                    math.max(6, node.PrimaryRadius - 2), palette.Rock);
+                lobeCount++;
+
+                // Do not stamp a full circular rock disc under every sample. Those repeated discs
+                // survived as a regular tiled/ribbed floor in exact player evidence. The generic
+                // cave core already owns continuous floor support, so naturalization only carves
+                // geological void and leaves that authoritative floor untouched.
 
                 // Smaller offset vaults start above the floor and vary independently. Their bases
                 // remain embedded in the guaranteed primary opening, while their rounded sides and
@@ -175,6 +179,7 @@ namespace Game.Structures.Runtime
                     3 + (i % 3),
                     (i % 5) - 2,
                     palette.Opening);
+                lobeCount++;
 
                 int3 upperCentre = centre - side * (node.DominantSide * node.UpperOffset);
                 int upperCrown = math.max(4, math.min(8, node.UpperHeight / 3));
@@ -190,6 +195,37 @@ namespace Game.Structures.Runtime
                     2 + ((i + 1) % 4),
                     ((i * 3) % 5) - 2,
                     palette.Opening);
+                lobeCount++;
+
+                // Every second/third node opens a broader side pocket with a different forward
+                // offset, base and crown. This intentionally destroys the old three-lobe metronome:
+                // long views encounter recesses, pinches and shifted silhouettes rather than a row
+                // of equally legible ribs. It only removes host rock and cannot reduce clearance.
+                if ((i & 1) == 0 || i % 3 == 0)
+                {
+                    int pocketSign = ((i / 2) & 1) == 0 ? node.DominantSide : -node.DominantSide;
+                    int pocketSide = node.SideOffset + 6 + (i % 7);
+                    int pocketForward = node.StepToNext / 3 - 4 + (i % 5);
+                    int3 pocketCentre = centre
+                        + side * (pocketSign * pocketSide)
+                        + forward * pocketForward;
+                    int pocketRadius = math.max(8, node.SideRadius - 2 + (i % 5));
+                    int pocketBase = floorY + 3 + (i % 6);
+                    int pocketClearance = math.max(8, node.SideHeight - 5 + (i % 7));
+                    int pocketCrown = 6 + (i % 9);
+                    AuthorRoundedVault(
+                        authoring,
+                        pocketCentre.x,
+                        pocketBase,
+                        pocketCentre.z,
+                        pocketRadius,
+                        pocketClearance,
+                        pocketCrown,
+                        4 + (i % 4),
+                        (i % 7) - 3,
+                        palette.Opening);
+                    lobeCount++;
+                }
 
                 if (previousSide != 0 && previousSide != node.DominantSide)
                     sideSwitches++;
@@ -204,7 +240,7 @@ namespace Game.Structures.Runtime
 
             return new UndergroundCavernRouteNaturalizationResult(
                 plan.Length,
-                plan.Length * 3,
+                lobeCount,
                 CountTrue(spacingSeen),
                 sideSwitches,
                 CountTrue(ceilingSeen),
