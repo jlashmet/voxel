@@ -396,7 +396,8 @@ namespace Game.Kentridge.PlayableSlice
 
             var targets = new List<EvidenceTarget>(7)
             {
-                SettlementSurvey(physical, MountingForceTopDownWorldDefinition.Moordell)
+                SettlementSurvey(physical, MountingForceTopDownWorldDefinition.Moordell),
+                SettlementSurvey(physical, MountingForceTopDownWorldDefinition.Rossdam)
             };
 
             if (!physical.TryGetRegion(KentridgeTopDownWorldPhysicalIntent.RossdamLake, out TopDownWorldRegionPlan lake))
@@ -420,7 +421,6 @@ namespace Game.Kentridge.PlayableSlice
                 lake.CentreDm,
                 cameraHeightMetres: 24f,
                 elevated: true));
-            targets.Add(SettlementSurvey(physical, MountingForceTopDownWorldDefinition.Rossdam));
 
             targets.Add(SettlementSurvey(physical, MountingForceTopDownWorldDefinition.FairyVillage));
             targets.Add(SettlementSurvey(physical, MountingForceTopDownWorldDefinition.OrcVillage));
@@ -466,7 +466,7 @@ namespace Game.Kentridge.PlayableSlice
                 cameraHeightMetres: 40f,
                 elevated: true));
             _targets = targets.ToArray();
-            Debug.Log("MACROEVIDENCE target-order=moordell-lake-rossdam-fairy-orc-ridge-network");
+            Debug.Log("MACROEVIDENCE target-order=moordell-rossdam-lake-fairy-orc-ridge-network");
         }
 
         private static EvidenceTarget SettlementSurvey(
