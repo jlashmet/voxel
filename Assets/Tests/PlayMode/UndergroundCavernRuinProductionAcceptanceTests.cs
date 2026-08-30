@@ -28,6 +28,7 @@ namespace VoxelEngine.Tests.PlayMode
             world.GenerateUndergroundCavernRuinsBlocking();
             AssertRoundedDestinationCirculationPlan();
             AssertIrregularRouteNaturalizationPlan();
+            AssertRoundedVaultProfile();
 
             Assert.That(world.HasUndergroundCavernRuins, Is.True);
             Assert.That(world.UndergroundCavernRockMaterialId, Is.EqualTo(GameMaterialIds.DarkStone),
@@ -96,6 +97,12 @@ namespace VoxelEngine.Tests.PlayMode
         public void RouteNaturalizationPlanUsesDeterministicNonPeriodicLobes()
         {
             AssertIrregularRouteNaturalizationPlan();
+        }
+
+        [Test]
+        public void RoundedVaultProfileMasksCoreAndTapersCrown()
+        {
+            AssertRoundedVaultProfile();
         }
 
         private static void AssertRoundedDestinationCirculationPlan()
@@ -168,6 +175,11 @@ namespace VoxelEngine.Tests.PlayMode
             var ceilingSeen = new bool[65];
             int sideSwitches = 0;
             int previousSide = 0;
+            int spacing = profile.ResolvedNaturalizationSpacing;
+            int spacingVariation = math.max(2, math.min(6, spacing / 3));
+            int maximumStep = math.clamp(spacing + spacingVariation, 8, 32);
+            int halfStep = (maximumStep + 1) / 2;
+            int rectangularHalfWidth = cave.TunnelWidth / 2 + cave.WallRoughness + 1;
 
             for (int i = 0; i < first.Length; i++)
             {
@@ -176,6 +188,10 @@ namespace VoxelEngine.Tests.PlayMode
                 Assert.That(node.IsWellFormed, Is.True);
                 Assert.That(node.PrimaryRadius, Is.GreaterThanOrEqualTo(cave.TunnelWidth / 2 + 2));
                 Assert.That(node.StepToNext, Is.LessThanOrEqualTo(node.PrimaryRadius * 2));
+                Assert.That(
+                    node.PrimaryRadius * node.PrimaryRadius - halfStep * halfStep,
+                    Is.GreaterThanOrEqualTo(rectangularHalfWidth * rectangularHalfWidth),
+                    "Primary rounded-vault nodes must mask the generic rectangular core even halfway between maximum-spaced samples.");
                 Assert.That(node.Distance, Is.EqualTo(again.Distance));
                 Assert.That(node.StepToNext, Is.EqualTo(again.StepToNext));
                 Assert.That(node.PrimaryRadius, Is.EqualTo(again.PrimaryRadius));
@@ -203,6 +219,40 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(CountTrue(spacingSeen), Is.GreaterThanOrEqualTo(3));
             Assert.That(CountTrue(ceilingSeen), Is.GreaterThanOrEqualTo(4));
             Assert.That(sideSwitches, Is.GreaterThanOrEqualTo(4));
+        }
+
+        private static void AssertRoundedVaultProfile()
+        {
+            const int guaranteedRadius = 22;
+            const int clearanceHeight = 37;
+            const int crownHeight = 9;
+            const int bulge = 5;
+            const int verticalBias = -2;
+            int[] first = UndergroundCavernRouteNaturalization.ResolveRoundedVaultRadii(
+                guaranteedRadius, clearanceHeight, crownHeight, bulge, verticalBias);
+            int[] repeated = UndergroundCavernRouteNaturalization.ResolveRoundedVaultRadii(
+                guaranteedRadius, clearanceHeight, crownHeight, bulge, verticalBias);
+
+            Assert.That(first.Length, Is.EqualTo(clearanceHeight + crownHeight));
+            Assert.That(repeated.Length, Is.EqualTo(first.Length));
+            var wallRadii = new bool[64];
+            for (int y = 0; y < clearanceHeight; y++)
+            {
+                Assert.That(first[y], Is.GreaterThanOrEqualTo(guaranteedRadius));
+                Assert.That(first[y], Is.EqualTo(repeated[y]));
+                wallRadii[math.clamp(first[y], 0, wallRadii.Length - 1)] = true;
+            }
+            Assert.That(CountTrue(wallRadii), Is.GreaterThanOrEqualTo(4),
+                "Rounded vault walls must vary radius through clearance height rather than reproduce a vertical cylinder.");
+
+            Assert.That(first[clearanceHeight], Is.EqualTo(guaranteedRadius));
+            for (int y = clearanceHeight + 1; y < first.Length; y++)
+            {
+                Assert.That(first[y], Is.LessThanOrEqualTo(first[y - 1]));
+                Assert.That(first[y], Is.EqualTo(repeated[y]));
+            }
+            Assert.That(first[first.Length - 1], Is.EqualTo(1),
+                "Rounded vault crown must taper to an apex instead of ending in a planar cap.");
         }
 
         private static int CountTrue(bool[] values)
