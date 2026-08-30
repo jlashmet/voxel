@@ -15,7 +15,9 @@
     "surveySpin": 0
   },
   "assertions": {
-    "requiredLogPatterns": [],
+    "requiredLogPatterns": [
+      "KENTRIDGE_WORLD_LAYOUT"
+    ],
     "forbiddenLogPatterns": [
       "NullReferenceException",
       "MissingReferenceException",
