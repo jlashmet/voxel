@@ -32,6 +32,7 @@ namespace Game.Kentridge.PlayableSlice
         private const float RoadWalkSeconds = 0.85f;
         private const float TargetMinimumDwellSeconds = 0.35f;
         private const float TargetPostCaptureSeconds = 0.10f;
+        private const float ContentPendingLogIntervalSeconds = 1f;
         private const int StableCoverageFrames = 4;
         private const float DmToMetres = 0.1f;
         private const uint Seed = 0x4B454E54u;
@@ -77,6 +78,7 @@ namespace Game.Kentridge.PlayableSlice
         private float _targetStartedAt;
         private bool _targetCaptured;
         private float _targetCapturedAt;
+        private float _nextContentPendingLogAt;
         private bool _moordellRoadArrivalPending;
         private bool _moordellRoadArrivalCaptured;
         private float _moordellRoadArrivalStartedAt;
@@ -247,12 +249,21 @@ namespace Game.Kentridge.PlayableSlice
 
         private void LateUpdate()
         {
+            RetainMacroValidationAutomation(_slice);
             if (_targetIndex < 0 || _targets == null || _targetIndex >= _targets.Length || _motor == null)
                 return;
 
             EvidenceTarget target = _targets[_targetIndex];
             if (IsMoordell(target) && _targetCaptured)
             {
+                if (ShouldHoldMoordellSurveyAfterCapture(
+                        _targetCaptured,
+                        Time.realtimeSinceStartup - _targetCapturedAt))
+                {
+                    ApplySurveyCamera(target);
+                    return;
+                }
+
                 MoordellContinuation continuation = ResolveMoordellContinuation(
                     _targetCaptured,
                     _roadCaptured,
@@ -279,6 +290,18 @@ namespace Game.Kentridge.PlayableSlice
             if (!roadArrivalCaptured) return MoordellContinuation.RoadArrival;
             return MoordellContinuation.Advance;
         }
+
+        private static void RetainMacroValidationAutomation(KentridgePlayableSlice slice)
+        {
+            if (slice == null) return;
+            slice.AutoSurvey = false;
+            slice.AutoRecede = false;
+        }
+
+        private static bool ShouldHoldMoordellSurveyAfterCapture(
+            bool targetCaptured,
+            float elapsedSinceCapture) =>
+            targetCaptured && elapsedSinceCapture < TargetPostCaptureSeconds;
 
         private void RunMacroRoadEvidence(float now)
         {
@@ -394,10 +417,26 @@ namespace Game.Kentridge.PlayableSlice
 
         private bool AreTargetContentSettled(EvidenceTarget target)
         {
+            bool allSettled = true;
+            float now = Time.realtimeSinceStartup;
+            bool logPending = now >= _nextContentPendingLogAt;
             for (var i = 0; i < target.ContentDm.Length; i++)
-                if (!IsContentSettled(target.ContentDm[i]))
-                    return false;
-            return true;
+            {
+                Int2 point = target.ContentDm[i];
+                if (IsContentSettled(point)) continue;
+                allSettled = false;
+                if (!logPending) continue;
+
+                int regionX = Mathf.FloorToInt(point.X * DmToMetres / ShowcaseWorld.RegionMetres);
+                int regionZ = Mathf.FloorToInt(point.Y * DmToMetres / ShowcaseWorld.RegionMetres);
+                Debug.Log(
+                    $"MACROEVIDENCE content-pending target={target.Label} index={i}" +
+                    $" centreDm=({point.X},{point.Y}) regionXZ=({regionX},{regionZ})");
+            }
+
+            if (!allSettled && logPending)
+                _nextContentPendingLogAt = now + ContentPendingLogIntervalSeconds;
+            return allSettled;
         }
 
         private bool IsContentSettled(Int2 point)
@@ -438,6 +477,7 @@ namespace Game.Kentridge.PlayableSlice
             _targetStartedAt = Time.realtimeSinceStartup;
             _targetCaptured = false;
             _targetCapturedAt = 0f;
+            _nextContentPendingLogAt = 0f;
             _moordellRoadArrivalPending = false;
             _stableCoverageFrames = 0;
             EvidenceTarget target = _targets[index];
