@@ -19,6 +19,7 @@ namespace MountingForce.WorldGen.Voxel
         public const string DefinitionPrefix = "macro-water-basin-";
         public const int MinimumDepthDm = 24;
         public const int MaximumDepthDm = 60;
+        public const int WaterSurfaceThicknessDm = 2;
         private const int BankInsetDm = 12;
         private const int ShoreInsetDm = 6;
         private const int HeadroomDm = 2;
@@ -64,12 +65,16 @@ namespace MountingForce.WorldGen.Voxel
                     int depth = region.HalfExtentZDm * 2 * scale;
                     int basinDepth = DepthVoxels(region, scale);
                     int headroom = HeadroomDm * scale;
+                    int waterSurfaceThickness = WaterSurfaceThicknessDm * scale;
                     int height = basinDepth + headroom;
                     if (width > FeatureBudget.MaxFootprintVoxels
                         || depth > FeatureBudget.MaxFootprintVoxels
                         || height > FeatureBudget.MaxFootprintVoxels)
                         throw new InvalidOperationException(
                             "Macro water body '" + region.Spec.Id + "' exceeds the feature footprint budget.");
+                    if (waterSurfaceThickness > headroom)
+                        throw new InvalidOperationException(
+                            "Macro water surface thickness must fit inside the carved basin headroom.");
 
                     int bankInset = Math.Max(BankInsetDm * scale, Math.Min(width, depth) / 16);
                     int shoreInset = ShoreInsetDm * scale;
@@ -95,6 +100,7 @@ namespace MountingForce.WorldGen.Voxel
                         waterDepth,
                         basinDepth,
                         headroom,
+                        waterSurfaceThickness,
                         carveRadius,
                         waterRadius,
                         water);
@@ -188,6 +194,7 @@ namespace MountingForce.WorldGen.Voxel
             int waterDepth,
             int basinDepth,
             int headroom,
+            int waterSurfaceThickness,
             int carveRadius,
             int waterRadius,
             byte water)
@@ -199,8 +206,8 @@ namespace MountingForce.WorldGen.Voxel
                 carveWidth, basinDepth + headroom, carveDepth,
                 carveRadius, 0, 0, 0, (int)PrimitiveMode.Carve,
                 (int)ShapeOp.EmitRoundedBox, 0,
-                waterInset, 0, waterInset,
-                waterWidth, basinDepth + 1, waterDepth,
+                waterInset, basinDepth, waterInset,
+                waterWidth, waterSurfaceThickness, waterDepth,
                 waterRadius, water, 0, 0, (int)PrimitiveMode.Fill,
                 (int)ShapeOp.End, 0
             };
