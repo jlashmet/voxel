@@ -8,13 +8,15 @@ namespace VoxelEngine.Structures.Runtime
     /// Pure sample returned by <see cref="TerrainCorridorRasteriser.TrySample"/>. The corridor
     /// primitive stores its resolved geometry in voxels, but influence is evaluated in the authored
     /// decimetre grid so WorldBuilder semantic queries and physical lowering use identical rounding,
-    /// deterministic edge variation, target elevation and 0..31 coverage at shared sample points.
+    /// deterministic edge variation and 0..31 coverage at shared sample points. Target elevation
+    /// includes only a bounded presentation cross-section around the resolved centreline grade.
     /// </summary>
     public readonly struct TerrainCorridorSample
     {
         public int DistanceDm { get; }
         public int TargetHeightVoxels { get; }
         public byte Coverage31 { get; }
+        public byte SurfaceDetail31 { get; }
         public bool InCore { get; }
 
         public TerrainCorridorSample(
@@ -22,10 +24,21 @@ namespace VoxelEngine.Structures.Runtime
             int targetHeightVoxels,
             byte coverage31,
             bool inCore)
+            : this(distanceDm, targetHeightVoxels, coverage31, coverage31, inCore)
+        {
+        }
+
+        public TerrainCorridorSample(
+            int distanceDm,
+            int targetHeightVoxels,
+            byte coverage31,
+            byte surfaceDetail31,
+            bool inCore)
         {
             DistanceDm = distanceDm;
             TargetHeightVoxels = targetHeightVoxels;
             Coverage31 = coverage31;
+            SurfaceDetail31 = surfaceDetail31;
             InCore = inCore;
         }
     }
@@ -33,8 +46,9 @@ namespace VoxelEngine.Structures.Runtime
     /// <summary>
     /// Bounded, integer-only terrain-column lowering for generic resolved corridors. It owns no
     /// road vocabulary: callers provide resolved endpoints, core/outer influence, material and seed.
-    /// The same scalar grades density, selects surface coverage, and is persisted as generic surface
-    /// detail for presentation/LOD extraction.
+    /// The same scalar grades density and selects surface coverage. Inside the core, deterministic
+    /// world-space surface detail provides restrained wear breakup without material instances or
+    /// additional persisted vertex/storage fields.
     /// </summary>
     public static class TerrainCorridorRasteriser
     {
@@ -115,15 +129,13 @@ namespace VoxelEngine.Structures.Runtime
                             next.Surface = new VoxelSurfaceSemantics
                             {
                                 StyleId = SurfaceStyles.MaterialDefault,
-                                Detail = sample.Coverage31,
+                                Detail = sample.SurfaceDetail31,
                             };
                         }
                         else
                         {
                             // Preserve authoritative terrain material for destruction/collision and
-                            // carry the exact road influence as continuous presentation metadata.
-                            // This replaces the old hash/dither material choice which turned a
-                            // fractional shoulder into a visible periodic checker staircase.
+                            // carry the exact corridor influence as continuous presentation metadata.
                             next.BaseMaterialId = localMaterial;
                             next.Surface = VoxelSurfaceSemantics.MaterialBlend(
                                 localStyle,
@@ -145,10 +157,10 @@ namespace VoxelEngine.Structures.Runtime
         }
 
         /// <summary>
-        /// Evaluates one horizontal sample. At voxel coordinates that map to an authored decimetre
-        /// this intentionally mirrors WorldRoadInfluence exactly: closest-point rounding, coherent
-        /// centerline edge variation, core/outer adjustment and coverage rounding are the same
-        /// operations in the same order.
+        /// Evaluates one horizontal sample. Closest-point rounding, coherent edge variation and
+        /// coverage mirror the authored corridor semantics. A small width-derived crown and
+        /// shoulder falloff are added to the resolved centreline elevation as presentation-only
+        /// shaping; both remain bounded by the caller's existing cut/fill envelope.
         /// </summary>
         public static bool TrySample(
             in Primitive primitive,
@@ -238,10 +250,19 @@ namespace VoxelEngine.Structures.Runtime
                 : ((outer - distance) * 31 + (outer - core) / 2)
                     / (outer - core);
             coverage = math.clamp(coverage, 0, 31);
+            targetHeightDm += CrossSectionOffsetDm(distance, core, outer);
+            byte surfaceDetail = SurfaceDetail(
+                unchecked((uint)primitive.D.y),
+                xdm,
+                zdm,
+                distance,
+                core,
+                coverage);
             sample = new TerrainCorridorSample(
                 distance,
                 targetHeightDm * scale,
                 (byte)coverage,
+                surfaceDetail,
                 distance <= core);
             return coverage > 0;
         }
@@ -260,6 +281,51 @@ namespace VoxelEngine.Structures.Runtime
             int clearAbove = math.max(0, primitive.C.z);
             return voxel.y >= sample.TargetHeightVoxels - vertical - fillDepth
                 && voxel.y <= sample.TargetHeightVoxels + vertical + clearAbove;
+        }
+
+        private static int CrossSectionOffsetDm(int distanceDm, int coreDm, int outerDm)
+        {
+            if (coreDm <= 0) return 0;
+            int crown = math.clamp(coreDm / 12, 1, 3);
+            if (distanceDm <= coreDm)
+                return DivideRounded((long)crown * (coreDm - distanceDm), coreDm);
+
+            int shoulderWidth = outerDm - coreDm;
+            if (shoulderWidth <= 0) return 0;
+            int shoulderDrop = math.clamp(shoulderWidth / 10, 1, 3);
+            return -DivideRounded(
+                (long)shoulderDrop * (distanceDm - coreDm),
+                shoulderWidth);
+        }
+
+        private static byte SurfaceDetail(
+            uint seed,
+            int xdm,
+            int zdm,
+            int distanceDm,
+            int coreDm,
+            int coverage31)
+        {
+            if (coverage31 < 31 || coreDm <= 0) return (byte)coverage31;
+            int lateralPermille = math.clamp(distanceDm * 1000 / coreDm, 0, 1000);
+            int band = lateralPermille >= 430 && lateralPermille <= 760 ? 6
+                : lateralPermille <= 220 ? 3
+                : 0;
+            int breakup = (int)(Hash(seed, xdm, zdm) % 7u) - 3;
+            return (byte)math.clamp(21 + band + breakup, 8, 31);
+        }
+
+        private static uint Hash(uint seed, int x, int z)
+        {
+            unchecked
+            {
+                uint h = seed ^ 0xA511E9B3u;
+                h = (h ^ (uint)x) * 16777619u;
+                h = (h ^ (uint)z) * 16777619u;
+                h ^= h >> 13;
+                h *= 0x85EBCA6Bu;
+                return h ^ (h >> 16);
+            }
         }
 
         private static bool TryFindSurface(
