@@ -1,84 +1,66 @@
 # Tasks — Kentridge macro-world physical realization
 
-## Implemented feature foundation
+## Implemented foundation
 - [x] Inspect assignment; `captures: []`, so `issue.json` is the acceptance contract.
 - [x] Preserve source-backed `TopDownWorldLayout` / `MountingForceTopDownWorldDefinition` as topology authority through shared WorldBuilder APIs.
-- [x] Add reusable deterministic regional intent for lake/water, mountain/ridge, valley/pass, plains/meadow, woodland, generic regions, extents/elevation, relationships, route/placement constraints, and terrain output.
-- [x] Add deterministic terrain-aware hard-route solving with slope limits and explicit crossing/pass/around semantics; reject unsolved blocked hard routes.
-- [x] Physically realize every macro settlement; retain richer Kentridge/Hightown and generate four grounded reusable blockouts plus streets for Moordell, Rossdam, Fairy Village, and Orc Village.
-- [x] Emit continuous generated route surfaces and validate representative real CharacterMotor traversal.
-- [x] Add bounded carved Rossdam basin and production Southern Ridge/pass geography.
-- [x] Preserve ecology ownership and streaming/LOD semantics; no eager remote GameObjects or streaming-radius increase.
+- [x] Add reusable deterministic region intent for water, ridge/mountain, valley/pass, plains/meadow, woodland, generic country, extents/elevation, relationships, route/placement constraints, and terrain output.
+- [x] Add deterministic terrain-aware hard-route solving with explicit go-around/pass/crossing semantics and rejection of unsolved blocked hard routes.
+- [x] Physically realize all macro settlements; retain rich Kentridge/Hightown and generate four grounded reusable blockouts plus streets for Moordell, Rossdam, Fairy Village, and Orc Village.
+- [x] Emit continuous generated hard-route surfaces and exercise representative real CharacterMotor traversal.
+- [x] Add carved Rossdam basin plus Southern Ridge/pass while preserving ecology/streaming ownership and normal load radius.
+- [x] Production/storage regressions cover determinism, reachability, roads, settlements, blocking geography, explicit route solutions, bounded slopes, all 16 generic building shells, and two-stage presentation readiness.
 
-## Regressions / proven remediation
-- [x] Production acceptance covers determinism, all-settlement reachability, continuous roads, <=6 voxel/3 m rise, constraints, explicit route solutions, and blocked-route failure.
-- [x] Ground all 16 generic buildings with bounded 5x5 relief sampling; verify foundation/timber/roof material reaches final region storage.
-- [x] Add all-building water/separative-region footprint regression and remediate the proven Orc/Southern-Ridge overlap by bounding the modern ridge extent while preserving authored route solutions.
-- [x] Add production two-stage readiness regression proving terrain-only publication is not final, later feature publication makes the queried presentation column ready, and Moordell timber reaches authoritative storage.
-- [x] Scope authored-content readiness to presentation columns; normal opening startup uses terrain-column readiness plus renderer coverage.
-- [x] Add bounded Rossdam-water regression capping aggregate carve/fill primitive bounding scans at 17,000,000 cells.
-- [x] Exact green regression/storage runs include `33283034449`, `33288421041`, and `33289185080`; earlier visually insufficient artifacts were rejected rather than used for closure.
+## Proven evidence / remediation history
+- [x] Reject broad residency and serial building-centre prestreaming; both delay/churn normal production streaming.
+- [x] Add validation-only realtime opening-dialogue dismissal and restore normal time before CharacterMotor evidence.
+- [x] Keep streaming demand grounded at semantic focus while survey camera moves independently.
+- [x] Add player-height Moordell road-arrival evidence and hold that camera through the queued screenshot frame.
+- [x] Reject diagonal settlement surveys; move generic town framing into the proven driver as near-overhead views derived from actual building bounds.
+- [x] Reject external evidence helper; remove it and keep one dormant validation driver.
+- [x] Record rejected helper attempt in `experiment-013-direct-driver-evidence-remediation.md`.
+- [x] Reject replay >60 s; CI admission `33293402602` proves supported range is 20..60 seconds.
+- [x] Bound the original ~42M Rossdam water primitive scan to 16,591,536 cells while preserving deterministic `900 x 450 x 24 dm` accepted lake size/depth.
+- [x] Run `33293664047`: focused editor is native Burst infrastructure-red (no NUnit XML); built player is clean but closure-incomplete, ending after Fairy becomes content-ready.
+- [x] Run `33294931953`: product-red managed focused failure because `road-kentridge-rossdam` is not geography-constrained; lake-first built-player ordering also ends after Rossdam at the 60 s cap.
+- [x] Discriminate route cause from exact geometry: lake centre `(868,3325)dm`, half-depth `225dm`; closest direct route point ~`(860,2920)dm`, so the direct route misses the lake by ~180dm beyond its edge.
+- [x] Falsify lake-first scheduling: after Moordell (~29 s), lake publication consumes roughly the next 12 s and Rossdam consumes the remaining ~18 s.
 
-## Final evidence / streaming work discovered from exact runs
-- [x] Reject run `33290154012` / artifact `9725740286` for closure: opening consumes ~40 s and only Moordell column 0 becomes content-ready.
-- [x] Discriminate opening cause: dialogue uses realtime, so `Time.timeScale=12` cannot shorten auto-dialogue.
-- [x] Reject serial building-centre pinning because it churns streaming demand.
-- [x] In dormant `kentridge-macro-world` validation only, dismiss pending opening dialogue promptly and restore normal time before CharacterMotor evidence.
-- [x] Run `33292088730` proves the opening correction: gameplay by ~t15, local CharacterMotor 3.61 m, macro-road CharacterMotor 4.73 m, all four Moordell columns ready, and a full-resolution Moordell capture.
-- [x] Classify run `33292088730` focused-test failure as native Unity/Burst infrastructure crash: no NUnit XML/assertion result; `single.log` terminates in `Burst.Compiler.IL.Hashing.CacheBuilder.ILHasher` SIGSEGV; built-player step succeeds with zero harness assertions.
-- [x] Discriminate Rossdam stall as real streaming cost rather than renderer convergence.
-- [x] Bound Rossdam lake work from the original ~42M primitive bounding cells toward the 17M-cell cost ceiling while preserving carve/fill and semantic shoreline routing.
-- [x] Keep production streaming demand at target semantic focus on ground level; frame the validation camera independently so evidence does not queue an extra camera-height residency layer.
-- [x] Add a player-height Moordell road-arrival capture after settlement content is loaded.
-- [x] Inspect exact run `33292881845` / artifact `9726538126`: this is a managed product failure, not Burst infrastructure. NUnit reports resolved Rossdam width `888 dm` against the >=900 dm landmark floor.
-- [x] Reject `33292881845` visual evidence for closure: Moordell road-arrival proves structures exist, but diagonal settlement surveys terrain-occlude them; Fairy/Orc captures do not visibly show four blockout buildings.
-- [x] Reject the original target schedule at the 60 s cutoff: Southern Ridge becomes content-ready near t59.4 and ridge/network captures never occur.
-- [x] Add deterministic nominal guard margin so fixed-seed Rossdam resolves to exactly `900 x 450 dm`, resolved depth `24 dm`, and aggregate water primitive scan `16,591,536` cells (below the 17M cap).
-- [x] Add validation-only near-overhead generic-settlement camera correction; CharacterMotor/streaming demand remains grounded at settlement focus and the separate player-height Moordell road-arrival view is preserved.
-- [x] CI admission run `33293402602` proves `replay_seconds` is hard-capped at 20..60; the 75 s request was rejected before Unity ran and produced no product/evidence result.
-- [x] Reorder dormant validation targets to `Moordell -> Rossdam lake -> Rossdam settlement` so shared lake content is streamed once before the settlement wait; no readiness/capture gate is skipped.
-- [x] Run `33293551570`, exact source `2245eb810cbc7a09af4a4a33b32427f0ffce6d4b`, is product-red at compile: `KentridgeMacroWorldSettlementEvidenceCamera.cs` cannot resolve `MountingForceTopDownWorldDefinition`; focused test and player build both stop before execution.
-- [x] Add the missing `Game.WorldBuilder.Runtime` namespace import to the validation helper; no behavior/runtime budget change.
-- [x] Run `33293664047`, exact source `72c5986b71d79473a1d7725b9d65085cf520509a`, with supported `replay_seconds=60`. Built-player capture succeeds with zero harness assertions; focused PlayMode produces no `single.xml` and crashes natively in the Burst child domain (`Burst.Compiler.IL.Server.EntryPointMethodGrouper`), so the editor result is infrastructure-red rather than a managed product assertion.
-- [x] Reject run `33293664047` / artifact `9726759390` for closure despite the infrastructure-red editor result: the player reaches Moordell, Rossdam, and Rossdam lake, makes Fairy content-ready at ~59 s, then the 60 s harness ends before Fairy capture, Orc, Southern Ridge/pass, or network overview.
-- [x] Reject the current settlement survey evidence: exact `macro-moordell.png` and `macro-rossdam.png` each visibly frame only one blockout building. The separate Moordell road-arrival frame shows multiple buildings but is not proof of all four at every settlement.
-- [x] Diagnose why the intended validation helper did not remediate the exact player: no `target-order=lake-before-rossdam` log appears, the driver still runs `Moordell -> Rossdam -> lake`, and its own diagonal 36 m survey camera remains active. Do not rely on the helper for closure.
-- [x] Diagnose Moordell road-arrival camera race: `ScreenCapture.CaptureScreenshot` queues the frame, `_moordellRoadArrivalPending` is cleared in the same `Update`, then `LateUpdate` reapplies the survey camera before capture. Preserve road-arrival camera mode until the queued screenshot frame completes.
-- [x] Record rejected helper attempt and discriminator in `experiment-013-direct-driver-evidence-remediation.md`.
-- [x] Move lake-before-Rossdam ordering directly into `KentridgeMacroWorldEvidenceDriver.BuildTargetsAndRoadTraversal`; exact target construction is now `Moordell -> Rossdam lake -> Rossdam -> Fairy -> Orc -> Southern Ridge/pass -> network`, with all real readiness/coverage gates and the 60 s CI cap unchanged.
-- [x] Move near-overhead generic-settlement framing directly into the proven evidence driver (`70 m` height, `6 m` horizontal offset from computed settlement bounds), preserve `_moordellRoadArrivalPending` through the queued capture frame, and remove the ineffective separate helper + `.meta`.
-- [ ] Exact built `KentridgePlayableSlice` reaches usable gameplay without startup/runtime exceptions and captures every macro target.
-- [ ] Full-resolution exact-scene evidence shows four readable blockouts at Moordell, Rossdam, Fairy Village, and Orc Village.
-- [ ] Full-resolution evidence shows continuous roads/network, substantial Rossdam lake, Southern Ridge/pass response, geography-constrained route behavior, and representative real CharacterMotor traversal.
+## Current required remediation
+- [ ] Move Rossdam Lake south semantically while preserving its `Between(MoordellCorridor,RossdamApproach)` authority, accepted `900 x 450 x 24 dm` resolved dimensions, and deterministic variation; direct Rossdam route must truly intersect it and the solved route/endpoint must remain dry.
+- [ ] Preserve the full 24 dm carved basin but represent non-solid water as a 2 dm surface sheet at the basin top; tighten aggregate primitive-scan regression from 17M to 10M cells (expected ~9.28M).
+- [ ] Restore evidence target order to `Moordell -> Rossdam -> Rossdam lake -> Fairy -> Orc -> Southern Ridge/pass -> network`; do not skip real content-settled or renderer-coverage gates.
+- [ ] Add/maintain behavioral regression for the water-surface realization rather than relying on source-string assertions.
+- [ ] Record this failed lake-first/product-red attempt as the next experiment before final exact CI.
+
+## Exact runtime / visual gate
+- [ ] Exact built `KentridgePlayableSlice` reaches usable gameplay without startup/runtime exceptions and captures every required macro target inside the supported 60 s replay.
+- [ ] Full-resolution evidence shows at least four readable grounded blockouts at Moordell, Rossdam, Fairy Village, and Orc Village plus streets/open space and road arrival/exit.
+- [ ] Full-resolution evidence shows continuous roads/network, substantial Rossdam lake, Southern Ridge/pass, visibly geography-constrained route behavior, differentiated countryside, and representative real CharacterMotor traversal.
+- [ ] Verify player-height road entering/leaving settlement evidence is actually captured at player height.
 
 ## Blast radius / cost
-- [x] No other SceneIssue, no feature-branch `.github/test-request.json`, no custom workflow/CI transport, no CharacterMotor/streaming-radius/device-budget change.
+- [x] No unrelated SceneIssue, no feature-branch `.github/test-request.json`, no custom CI transport/workflow, no CharacterMotor/load-radius/device-budget change.
 - [x] Terrain-relief sampling remains bounded to 25 x 16 = 400 deterministic catalogue queries.
-- [x] Historical master `61d03336390ed9079498b183217cbf0ecf0abcd2` was merged cleanly at `6a49e63cc46fd651bbb815ac98f824a087a09c33`; those intervening commits were disjoint from this assignment.
-- [x] Current master `e95324aeaef619cb49d84bf2b07f770184bead81` was merged at `0cea93d647e5860795dd4938e3b8d8ab5b1bbc6c`; comparison is ahead-only (`behind=0`) and the blast-radius diff contains only this assignment's Kentridge/WorldBuilder implementation, focused tests, and SceneIssue records.
-- [x] Existing production metrics before final resolved-lake adjustment: regions=6, settlements=6, generic buildings=16, hardRoutes=20, routeTiles=833, constrainedRoutes=5, solveSteps=1108, maxRoadRiseVoxels=2.
-- [x] Existing scoped readiness regression: 1,090,380 feature voxels; prior last feature step ~2500 ms.
-- [x] Rejected run `33290154012`: elapsed=79 s, peak RSS=5859 MB, systemFree=31944 MB, swapGrowth=0 MB; post-start FPS generally >60.
-- [x] Run `33292088730` focused editor process before native Burst crash: elapsed=31 s, peak RSS=2287 MB, systemFree=29019 MB, swapGrowth=0 MB.
-- [x] Run `33292881845` exact player: elapsed=70 s, peak RSS=5233 MB, systemFree=28711 MB, swapGrowth=0 MB; after startup one-second FPS windows are generally >60 and often >100.
-- [x] Run `33293664047` focused editor native crash: elapsed=32 s, peak RSS=3448 MB, systemFree=27274 MB, swapGrowth=0 MB. Exact player remains smooth after startup (generally >60 FPS, often >100 FPS) and reports zero harness assertions, but the evidence sequence is incomplete.
-- [ ] Measure final resolved lake footprint/depth/primitive scan cells, route solve counts, feature voxel work/last-feature time, CPU/frame/FPS, memory, streaming convergence, and far-field/render telemetry against existing budgets.
-- [ ] Re-check the exact source diff/current master immediately before the next supported 60 s targeted request and again before promotion.
+- [x] Current master `e95324aeaef619cb49d84bf2b07f770184bead81` was merged at `0cea93d647e5860795dd4938e3b8d8ab5b1bbc6c`; comparison was ahead-only and assignment-scoped.
+- [x] Existing pre-final metrics: regions=6, settlements=6, generic buildings=16, hardRoutes=20, prior routeTiles=833, constrainedRoutes=5, solveSteps=1108, maxRoadRiseVoxels=2; scoped readiness previously 1,090,380 feature voxels and ~2500 ms last feature step.
+- [x] Rejected-run resource data remains bounded: `33292881845` player peak RSS 5233 MB; `33293664047` editor peak 3448 MB with zero swap growth; post-start built-player FPS generally >60 and often >100.
+- [ ] Measure final resolved lake dimensions/depth/primitive cells, route tile/solve/constrained counts, feature voxel work/last-feature time, CPU/frame/FPS, memory, streaming convergence, and render/far-field telemetry against existing budgets.
+- [ ] Re-check exact feature diff/current master immediately before final targeted CI and before promotion; if master advanced, follow the SceneIssue refresh gate.
 
 ## Acceptance / closure
 - [ ] (1) Source-backed macro graph remains authoritative through shared WorldBuilder APIs.
 - [ ] (2) Every settlement has readable physical presence, including >=4 grounded generic blockouts where no richer generator owns it.
 - [ ] (3) Every settlement is physically reachable from Kentridge over contiguous generated hard-route surfaces.
-- [ ] (4) Roads are terrain-aware and blocked geography requires explicit semantic solutions.
+- [ ] (4) Roads are terrain-aware; blocked geography requires explicit semantic solutions and no silent lake/cliff/building crossing.
 - [ ] (5) Reusable geographic authoring/query covers required region kinds, extents/elevation, relationships, deterministic variation, terrain output, and route/placement constraints.
-- [ ] (6) Built world visibly contains a substantial lake + ridge and a geography-constrained hard route.
+- [ ] (6) Built world visibly contains a substantial lake + ridge and at least one geography-altered hard route.
 - [ ] (7) Regional terrain visibly reads as differentiated countryside rather than a flat debug plane.
 - [ ] (8) No second scene-local graph/direct voxel-writing/static destination hierarchy.
-- [ ] (9) Focused production regressions cover determinism, reachability, roads, settlements, constraints, blocked-route failure, bounded water cost, and two-stage presentation readiness.
-- [ ] (10) Exact built-player evidence covers settlements, roads entering/leaving settlements, network survey, geography, constrained route, and CharacterMotor traversal.
-- [ ] (11) Blast radius and world-build/route/CPU/GPU/memory/streaming cost measured against budgets.
+- [ ] (9) Focused behavioral regressions cover determinism, reachability, roads, settlements, constraints, blocked-route failure, bounded water cost, and two-stage readiness.
+- [ ] (10) Exact built-player evidence covers settlements, roads entering/leaving settlements, network survey, geography, constrained route, and CharacterMotor traversal without runtime exceptions.
+- [ ] (11) Blast radius and world-build/route/CPU/GPU/memory/streaming cost are measured against budgets.
 - [ ] Corrected final exact-SHA focused CI and built-player evidence are closure-quality green.
 - [ ] Every checkbox above is complete before `open -> pending`.
 - [ ] Complete pending metadata (`status=pending`, `resolutionSummary`, `regressionTest`, `fixCommit`) only after green exact gates.
 - [ ] Move only this assignment `open -> pending`, then after closure gate `pending -> closed`, set `status=fixed` and `resolvedUtc`.
-- [ ] Merge current `origin/master` into `fixes/agent-6`, resolve no unrelated conflicts, and non-force push the exact feature head to `origin/master`; retry if master advances.
+- [ ] Merge current `origin/master` into `fixes/agent-6`, resolve only in-scope conflicts, and non-force push exact feature head to `origin/master`; retry if master advances.
