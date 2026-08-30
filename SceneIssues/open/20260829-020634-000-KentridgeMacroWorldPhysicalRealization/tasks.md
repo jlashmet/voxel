@@ -21,7 +21,12 @@
 - [x] Reorder only the dormant `kentridge-macro-world` evidence flow: local CharacterMotor proof -> fully settled/captured Moordell -> real macro-road CharacterMotor traversal -> player-height Moordell road arrival -> Rossdam -> lake -> Fairy -> Orc -> ridge/pass -> network.
 - [x] Preserve every real content-settled and renderer-coverage gate, normal load radius/budgets, and 60 s cap; no prestreaming or skipped target.
 - [x] Add behavioral regression through the real driver planning/sequencing path proving Moordell evidence precedes macro-road capture while accepted later target order remains unchanged.
-- [ ] Re-run exact-SHA targeted CI and prove the sequencing regression plus supported 60-second real-player smoke are closure-quality green for the same source SHA, including every required target.
+- [x] Inspect exact run `33311348299`: workflow/PlayMode are green, but only Moordell and road named captures exist; Rossdam renderer coverage settles while its four content columns remain unsettled until the 60 s cutoff.
+- [ ] Identify the exact Rossdam presentation column / macro-feature region that blocks content settlement under normal real-player streaming.
+- [ ] Fix the Rossdam publication/convergence defect without weakening `IsPresentationColumnContentSettled`, increasing residency, bypassing normal budgets, or skipping a required target.
+- [ ] Add or adjust focused regression coverage for the diagnosed convergence defect and re-check blast radius/cost.
+- [ ] Verify survey framing makes Moordell and Rossdam multi-building geometry visibly readable in full-resolution captures rather than merely telemetry-ready.
+- [ ] Re-run final exact-SHA targeted CI and prove the focused regression plus supported 60-second real-player smoke are closure-quality green for the same source SHA, including every required target.
 
 ## Exact runtime / visual gate
 - [ ] Exact built `KentridgePlayableSlice` reaches usable gameplay without startup/runtime exceptions and captures every required macro target inside 60 s.
