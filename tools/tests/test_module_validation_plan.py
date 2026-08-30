@@ -32,7 +32,7 @@ class PlannerTests(unittest.TestCase):
         write(root,"Assets/Game/game.module-validation.json",{
             "schemaVersion":1,"module":"game-integration","integrationGate":True,"fallback":True,
             "productionPaths":["Assets/Game/**"],"sharedPaths":["Assets/**"],
-            "tests":[{"platform":"PlayMode","filter":"Tests.Game"}],
+            "tests":[],
             "playerValidation":{"scene":"Assets/Game/Kentridge.unity","scenario":"Assets/Game/kentridge.player-scenario.json"}
         })
         return td,root
@@ -51,11 +51,13 @@ class PlannerTests(unittest.TestCase):
             result=planner.plan(["Assets/Core/Clock.cs"],planner.discover(root))
             self.assertEqual(["water"],result["modules"])
 
-    def test_unknown_production_uses_conservative_fallback(self):
+    def test_unknown_production_uses_integration_only_fallback(self):
         td,root=self.fixture()
         with td:
             result=planner.plan(["Assets/Unknown/Foo.cs"],planner.discover(root))
             self.assertEqual(["game-integration"],result["modules"])
+            self.assertEqual([],result["tests"])
+            self.assertEqual(["game-integration"],[item["module"] for item in result["playerValidations"]])
             self.assertEqual(["Assets/Unknown/Foo.cs"],result["fallbackPaths"])
 
     def test_nonproduction_change_is_noop(self):
@@ -76,6 +78,16 @@ class PlannerTests(unittest.TestCase):
             result=planner.plan(["Assets/Structures/Socket.cs"],planner.discover(root))
             self.assertEqual(["structures"],result["modules"])
             self.assertEqual("Tests.Structures",result["tests"][0]["filter"])
+
+    def test_owning_module_cannot_omit_focused_tests(self):
+        td,root=self.fixture()
+        with td:
+            manifest=root/"Assets/Water/water.module-validation.json"
+            data=json.loads(manifest.read_text(encoding="utf-8"))
+            data["tests"]=[]
+            manifest.write_text(json.dumps(data),encoding="utf-8")
+            with self.assertRaises(planner.ManifestError):
+                planner.discover(root)
 
     def test_scene_and_scenario_files_are_required(self):
         td,root=self.fixture()
