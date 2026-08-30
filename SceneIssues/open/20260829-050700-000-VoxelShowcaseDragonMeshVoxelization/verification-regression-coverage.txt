@@ -20,4 +20,14 @@ MeshVoxelizationPreflightTests
 - non-finite source vertex rejected before voxelization
 - non-finite transform rejected before transforming vertices
 
-These are supplemental regression contracts; they are not a substitute for the mandatory dragon-specific regression, exact-SHA CI, built-player validation, fidelity metrics, destruction truth check, or production-quality visual review.
+MeshVoxelizationReuseTests
+- independent non-dragon closed-box fixture traverses the public MeshVoxelizer -> BakedVoxelStructureCodec -> IStructureAuthoringSession replay path without dragon-specific setup or branches
+
+Runtime-authority review (2026-08-30)
+- `ShowcaseWorld.PlaceBakedMeshStructure` accepts only `BakedVoxelStructure`; it prepares canonical regions, creates the normal structure-authoring session, replays sparse cells, and publishes canonical storage. No triangle mesh enters this runtime placement API.
+- Unity mesh hierarchy/skinned-mesh extraction is isolated in `Assets/Editor/MeshVoxelization/UnityMeshVoxelizationAdapter.cs`.
+- `VoxelEngine.MeshVoxelization.Editor.asmdef` has `includePlatforms: ["Editor"]` and is not an ordinary player assembly.
+- Repository code search for `MeshCollider` returned no matches on current master, and this feature diff adds no `MeshCollider` use. Source mesh presentation therefore has no collider/gameplay fallback in the implemented path.
+- The generic `MeshVoxelizer` implementation remains a runtime-library type so deterministic conversion logic is engine-independent/testable, but no ordinary showcase/runtime composition path invokes voxelization; authoring adaptation is editor-only and player placement consumes baked sparse cells.
+
+These are supplemental regression/contracts and architecture evidence; they are not a substitute for the mandatory dragon-specific regression, exact-SHA CI, built-player validation, fidelity metrics, destruction truth check, or production-quality visual review.
