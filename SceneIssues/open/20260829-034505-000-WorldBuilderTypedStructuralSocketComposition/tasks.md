@@ -2,7 +2,7 @@
 
 ## Architecture / canonical production path
 - [x] Resume `fixes/agent-5` from current `origin/master`; keep this assignment isolated and use only `ci-test/fixes/agent-5` for targeted CI.
-- [x] Read `AGENTS.md`, the available `SceneIssues/README.md`, issue metadata, plan, implementation, tests, and exact built-player harness. (`SceneIssues/feature-readme.md` is absent in the repository.)
+- [x] Read `AGENTS.md`, `SceneIssues/feature-readme.md`, common `SceneIssues/README.md`, issue metadata, plan, implementation, tests, and exact built-player harness.
 - [x] Consolidate structural composition on the existing `FeatureDefinition` + typed `SlotSpec` + `ShapeOp.CallSlot` + `FeatureCatalogue` path; leave no second structural solver.
 - [x] Keep stable socket identity, role/tags, cardinal facing, integer transforms, clearance, capacity/cardinality, support probes, required/optional semantics, support-loss invalidation, and decoration handoff data-driven and inspectable.
 - [x] Make deterministic child selection independent of generation order and enforce semantic compatibility, orientation, clearance/overlap, spacing, support, capacity, recursion/depth, child-count, primitive/voxel cost, and spatial-extent budgets.
@@ -17,6 +17,7 @@
 - [x] Regress the exact conservative voxel-cost boundary (16,777,216 accepted; one over rejected).
 - [x] Regress authoritative cross-region child rasterization/provenance and decoration-handoff adaptation.
 - [x] Add focused PlayMode coverage over the four production gallery proof catalogues and invalid attachments.
+- [x] Add a focused PlayMode regression that authors the final refinement and requires the canonical production `CharacterMotor` to traverse the castle gate.
 
 ## Required proving cases
 - [x] Bridge structural graph: terrain anchors, repeated independently bounded span/support pieces, road/traversal continuation sockets, incompatible/orientation rejection, multi-region authoritative geometry, continuous traversable deck.
@@ -30,6 +31,7 @@
 - [x] Add an authoritative-voxel presentation pass (not GameObject-only meshes or a parallel solver) for construction hierarchy, materials, grounding, and environment context.
 - [x] Split river/banks/piers, castle sections, cliff sections, and facade variants into independent bounded catalogues after run `33323976945` correctly rejected a monolithic presentation footprint with `VoxelBudgetExceeded`.
 - [x] Correct split-piece local bounds: castle buttresses stay inside declared footprints and pier height covers the actual terrain-derived cap.
+- [x] Preserve the canonical 32-voxel castle gate passage through the final refinement; run `33330327732` proved the refinement base slab occluded route 1 at its front face, so the composition now splits that base around the existing opening without changing route or motor tolerances.
 - [ ] Bridge-wide must visibly read as a monumental crossing over a substantial gorge/river between grounded masses; run `33324919718` still reads as a long slab over shallow/flat terrain with large empty green background.
 - [ ] Bridge close/seam framing must be above/along the traversable deck and clearly show deck edge, rail/truss rhythm, abutment/pier contact, and continuation seam; run `33324919718` camera is under the bridge with a large empty render field.
 - [ ] Bridge architecture must move beyond slab/support blockout: strengthen abutment massing, pier hierarchy, span cadence/cross-bracing, edge/parapet detail, and visible grounding while preserving the typed structural graph and budgets.
@@ -47,7 +49,8 @@
 - [x] Run `33324919718` from exact source `3fa2e905e2d8d65504b34634b7ecf4cb9a68a0c3`: focused PlayMode and exact built-player audit both green; all three traversals and negative contracts pass; eight structural frames emitted.
 - [x] Measure run `33324919718`: bridge/castle planning 0.011/0.004 ms; proof aggregate 20 children, 51 primitives, 24,606,640 conservative voxels, 15 regions, 40 instances, 16,564,128 voxel writes; authoring 1710.726 ms including 914.307 ms presentation; 71 resident regions; 2558.19 MB reported allocation; 15 render-proxy regions.
 - [x] Confirm each split presentation catalogue stays below existing per-composition voxel/footprint ceilings in the green built-player logs; no global budget was raised.
-- [ ] After visual fixes, rerun one final exact-SHA PlayMode + exact-scene built-player request on the same CI transport and inspect all durable source frames.
+- [x] Inspect failed run `33330327732`: focused PlayMode passed, but the exact built player failed castle traversal route 1 after 1,500 steps at the refined gate front face; failure is product/composition, not CI infrastructure.
+- [ ] After the gate-clearance fix, rerun one final exact-SHA PlayMode + exact-scene built-player request on the same CI transport and inspect all durable source frames.
 - [ ] Final built-player production `CharacterMotor` traverses bridge, gate, and vertical connection and all required negative contracts still pass.
 
 ## Reusability / blast radius / closure
