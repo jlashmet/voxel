@@ -7,7 +7,7 @@ namespace VoxelEngine.Showcase
     /// <summary>Showcase-owned parameters for the reusable WorldBuilder mountain landmark.</summary>
     public static class ShowcaseMountainDragonLayout
     {
-        public const int OriginX = -1200;
+        public const int OriginX = -1712;
         public const int OriginZ = -400;
         public const int FootprintEdge = 1200;
         public const int MountainRadius = 500;
