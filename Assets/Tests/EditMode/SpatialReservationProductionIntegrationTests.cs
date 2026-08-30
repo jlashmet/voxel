@@ -54,9 +54,9 @@ namespace VoxelEngine.Tests.EditMode
 
             ReservationQueryResult accepted = KentridgeStructureReservationValidation.Query(
                 hostOnly,
-                roleId: 3,
+                3,
                 geometry,
-                maxYDm: 80);
+                80);
             Assert.That(accepted.IsAccepted, Is.True, accepted.Describe());
 
             SpatialReservation blocker = WorldBuilderReservationFactory.BuildingFootprint(
@@ -67,9 +67,9 @@ namespace VoxelEngine.Tests.EditMode
                 new[] { host, blocker }, Window);
             ReservationQueryResult rejected = KentridgeStructureReservationValidation.Query(
                 blocked,
-                roleId: 3,
+                3,
                 geometry,
-                maxYDm: 80);
+                80);
 
             Assert.That(rejected.Decision, Is.EqualTo(ReservationDecision.Rejected));
             Assert.That(rejected.Reason, Is.EqualTo(ReservationReasonCode.HardOccupancyConflict));
