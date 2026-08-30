@@ -10,7 +10,7 @@ using VoxelEngine.Storage.Api;
 namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 {
     /// <summary>
-    /// Derived raster mesh for authoritative water (material 11) and cascade (material 16) voxels.
+    /// Derived raster mesh for authoritative voxels whose installed presentation is water.
     /// Water remains presentation-only derived geometry; authoritative voxel memory is read through
     /// Storage.Api and no physical pool/region representation crosses into Rendering.
     /// </summary>
@@ -595,6 +595,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 {
                     BrickBaseVoxels = _waterBatchBrickBases,
                     SnapshotMaterials = _waterBatchMaterials,
+                    WaterMaterialMask = global::VoxelEngine.Rendering.Runtime.VoxelPresentationCatalogue.WaterMaterialMask,
                     BatchCount = _waterBatchCount,
                     VoxelSize = voxelSize,
                     MaskScratch = _waterMeshMask,
@@ -603,7 +604,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     Overflow = _waterMeshOverflow,
                 }.Schedule();
                 _waterMeshJobScheduled = true;
-                // Never spin on freshly scheduled mesh work.
                 return false;
             }
 
@@ -723,7 +723,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             return true;
         }
 
-        private static bool IsWater(byte material) => material == 11 || material == 16;
+        private static bool IsWater(byte material) =>
+            global::VoxelEngine.Rendering.Runtime.VoxelPresentationCatalogue.IsWaterMaterial(material);
 
         private void MarkKnownDirty(int3 chunk)
         {
@@ -850,8 +851,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (farthest < 0f) return false;
             if (!_entries.TryGetValue(victim, out Entry entry)) return false;
 
-            // Arena pressure is publication backpressure, not authoritative water eviction.
-            // Keep the discovered brick set + residency record so the chunk is rebuilt later.
             _entries.Remove(victim);
             ReleaseEntry(entry);
             MarkDirty(victim);
