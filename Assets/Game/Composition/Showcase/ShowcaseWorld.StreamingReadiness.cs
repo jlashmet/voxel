@@ -5,49 +5,38 @@ namespace VoxelEngine.Showcase
     public sealed partial class ShowcaseWorld
     {
         /// <summary>
-        /// True when every region currently demanded by the camera has completed both terrain
-        /// generation and the separately queued feature-realization publication.
+        /// True when the generated-content publication for one presentation column is final.
         ///
-        /// A generated terrain region is not presentation-stable yet when its feature work is
-        /// still queued or in flight: <see cref="FinishRegion"/> publishes terrain first and
-        /// <see cref="CompleteFeatureBuild"/> publishes a second invalidation after authored
-        /// structures are committed. Capture/loading gates that only watch renderer coverage can
-        /// otherwise observe the terrain-only publication and declare the view ready one frame
-        /// before buildings arrive.
+        /// Terrain publication is intentionally not enough. <see cref="FinishRegion"/> commits
+        /// terrain first, then queues authored feature realization; <see cref="CompleteFeatureBuild"/>
+        /// publishes the later feature mutation/invalidation. A camera or evidence gate may use this
+        /// query before accepting renderer coverage without waiting for unrelated regions elsewhere
+        /// in the streaming residency disc.
         ///
-        /// This intentionally walks the same bounded horizontal demand and surface-layer span as
-        /// <see cref="RefreshPending"/>. It does not scan world history, expand residency, or start
-        /// generation; it only asks whether the already-maintained current demand is final.
+        /// The query is observational only. It checks the same bounded surface-layer span used by
+        /// streaming for this X/Z column, plus the caller's explicit Y layer when that lies outside
+        /// the terrain span. It does not generate, expand residency, scan world history, traverse
+        /// voxels/meshes, or allocate.
         /// </summary>
-        public bool IsCurrentDemandContentSettled(float3 cameraMetres)
+        public bool IsPresentationColumnContentSettled(float3 presentationMetres)
         {
-            int3 centre = PositionToRegion(cameraMetres);
-            int radiusSquared = LoadRadiusRegions * LoadRadiusRegions;
+            int3 pointRegion = PositionToRegion(presentationMetres);
+            SurfaceLayerSpan(pointRegion.x, pointRegion.z, out int minLayer, out int maxLayer);
+            if (maxLayer - minLayer > MaxSurfaceLayersPerColumn)
+                maxLayer = minLayer + MaxSurfaceLayersPerColumn;
 
-            for (int dx = -LoadRadiusRegions; dx <= LoadRadiusRegions; dx++)
-            for (int dz = -LoadRadiusRegions; dz <= LoadRadiusRegions; dz++)
-            {
-                if (dx * dx + dz * dz > radiusSquared) continue;
-
-                int rx = centre.x + dx;
-                int rz = centre.z + dz;
-                SurfaceLayerSpan(rx, rz, out int minLayer, out int maxLayer);
-                if (maxLayer - minLayer > MaxSurfaceLayersPerColumn)
-                    maxLayer = minLayer + MaxSurfaceLayersPerColumn;
-
-                for (int ry = minLayer; ry <= maxLayer; ry++)
-                    if (!IsDemandedRegionContentSettled(new int3(rx, ry, rz)))
-                        return false;
-
-                if ((centre.y < minLayer || centre.y > maxLayer)
-                    && !IsDemandedRegionContentSettled(new int3(rx, centre.y, rz)))
+            for (int ry = minLayer; ry <= maxLayer; ry++)
+                if (!IsRegionContentSettled(new int3(pointRegion.x, ry, pointRegion.z)))
                     return false;
-            }
+
+            if ((pointRegion.y < minLayer || pointRegion.y > maxLayer)
+                && !IsRegionContentSettled(pointRegion))
+                return false;
 
             return true;
         }
 
-        private bool IsDemandedRegionContentSettled(int3 regionCoord)
+        private bool IsRegionContentSettled(int3 regionCoord)
         {
             if (!_generated.Contains(regionCoord)) return false;
 
