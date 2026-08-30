@@ -134,3 +134,6 @@
 - [ ] Upgrade facade/roof variants from raw box masses to reusable high-detail architectural treatment with clear facade/roof hierarchy and two visibly distinct style variants through the same typed semantic contracts.
 - [x] Reframe the existing structural audit captures to include useful player-height seam views and establishing context for all four proofs; keep validation in the existing harness rather than create a parallel capture path.
 - [ ] Re-run final exact-SHA targeted CI after visual/content rework, inspect all durable 1600x900 structural source frames individually, and reject any placeholder-level composition before closure.
+- [x] Refresh the final visual rework with current `master` in merge commit `0cd53d0761698490ad29edd563167251030b1aa5` without changing unrelated master content.
+- [x] Diagnose exact final-visual run `33323693205`: both PlayMode and built-player compilation fail only because `ShowcaseWorld.WorldbuildingGalleryStructuralPresentation.cs` imports `System.Diagnostics` and uses unqualified `Debug.Log`, producing CS0104 ambiguity before tests or capture can run.
+- [x] Qualify the two presentation log calls as `UnityEngine.Debug.Log` without changing structural behavior, budgets, or validation semantics; rerun the same persistent CI transport from the new exact source SHA.
