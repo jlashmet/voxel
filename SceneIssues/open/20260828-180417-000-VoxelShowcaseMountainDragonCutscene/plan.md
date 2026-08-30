@@ -18,11 +18,17 @@ The path must hug the mountain shell rather than move deep into the core: at bot
 
 Do not broaden the summit core merely to preserve the old constant 360-voxel upper run; that recreates the artificial platform already rejected by visual review. Do not perform another cosmetic support-pair iteration.
 
+## Current reconciliation and reusability scope
+`fixes/agent-4` was reconciled with current `origin/master` through merge PR #174 before new implementation. The upstream delta is documentation/SceneIssue metadata only and does not overlap Mountain Dragon runtime or tests. The next coherent implementation must also retire the outstanding reusable-API debt already recorded in `tasks.md`: keep showcase/player-specific traversal values in Showcase composition, express mountain naturalization semantically rather than by compiled instruction positions, replace replay reflection/hard-coded movement with a narrow public seam, make startup-bake provenance caller-signature-driven, and keep generic raster fast paths named/documented generically.
+
+Blast radius is intentionally bounded to the assigned Mountain Dragon composition plus shared WorldBuilder/runtime helpers and their focused regressions; no permanent scene asset and no sibling SceneIssue is in scope. Cost is checked cheapest-first: static/source invariants and focused edit/test coverage before the final gameplay CI. The 240 s / 14 GiB bake guard is unchanged and support-raster cost must be flat or lower.
+
 ## Next discriminator
 First enumerate every production/test consumer of `PathMinLocalX`, `PathRun`, `RampLocalZ` and route waypoint generation. Implement the shared tapered-tier helpers and corresponding regression in one coherent change, bump startup realization provenance, and review blast radius/cost. Immediately before CI, merge then-current master. Use only existing `ci-test/fixes/agent-4` for `MountainDragonVisualFinalAcceptanceTests.ProductionQualityMountainMaterialsAndEncounterAreReadyForBuiltPlayerReplay` plus same-run built-player evidence. The unchanged 240 s / 14 GiB bake gate and production-quality human frame review both must pass.
 
 ## Remaining gates
 1. Root topology implementation + regression + provenance bump with bounded or reduced support cost.
-2. Green exact PlayMode + built-player run under unchanged bake/runtime guards and accepted human visual review.
-3. Commit that accepted run's exact generated payload + manifest and validate clean-checkout consumption/provenance.
-4. Complete `open -> pending -> closed` metadata/lifecycle only after every acceptance/checklist item is green; merge then-current master and non-force push exact feature head to master.
+2. Finish the recorded reusability items without broadening beyond Mountain Dragon/shared helpers.
+3. Green exact PlayMode + built-player run under unchanged bake/runtime guards and accepted human visual review.
+4. Commit that accepted run's exact generated payload + manifest and validate clean-checkout consumption/provenance.
+5. Complete `open -> pending -> closed` metadata/lifecycle only after every acceptance/checklist item is green; merge then-current master and non-force push exact feature head to master.
