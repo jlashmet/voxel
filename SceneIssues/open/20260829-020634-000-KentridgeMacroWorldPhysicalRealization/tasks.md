@@ -37,6 +37,8 @@
 - [x] Add validation-only near-overhead generic-settlement camera correction; CharacterMotor/streaming demand remains grounded at settlement focus and the separate player-height Moordell road-arrival view is preserved.
 - [x] CI admission run `33293402602` proves `replay_seconds` is hard-capped at 20..60; the 75 s request was rejected before Unity ran and produced no product/evidence result.
 - [x] Reorder dormant validation targets to `Moordell -> Rossdam lake -> Rossdam settlement` so shared lake content is streamed once before the settlement wait; no readiness/capture gate is skipped.
+- [x] Run `33293551570`, exact source `2245eb810cbc7a09af4a4a33b32427f0ffce6d4b`, is product-red at compile: `KentridgeMacroWorldSettlementEvidenceCamera.cs` cannot resolve `MountingForceTopDownWorldDefinition`; focused test and player build both stop before execution.
+- [ ] Add the missing `Game.WorldBuilder.Runtime` namespace import to the validation helper; no behavior/runtime budget change.
 - [ ] Re-run the corrected exact source with supported `replay_seconds=60`; runtime/streaming budgets remain unchanged.
 - [ ] Exact built `KentridgePlayableSlice` reaches usable gameplay without startup/runtime exceptions and captures every macro target.
 - [ ] Full-resolution exact-scene evidence shows four readable blockouts at Moordell, Rossdam, Fairy Village, and Orc Village.
@@ -53,7 +55,7 @@
 - [x] Run `33292881845` exact player: elapsed=70 s, peak RSS=5233 MB, systemFree=28711 MB, swapGrowth=0 MB; after startup one-second FPS windows are generally >60 and often >100.
 - [x] Re-check corrected feature diff against current master before the rejected 75 s request: master remained `61d03336390ed9079498b183217cbf0ecf0abcd2`; feature was ahead-only/behind=0 and contained only this assignment beyond master.
 - [ ] Measure final resolved lake footprint/depth/primitive scan cells, route solve counts, feature voxel work/last-feature time, CPU/frame/FPS, memory, streaming convergence, and far-field/render telemetry against existing budgets.
-- [ ] Re-check the exact source diff/current master immediately before the supported 60 s targeted request and again before promotion.
+- [ ] Re-check the exact source diff/current master immediately before the next supported 60 s targeted request and again before promotion.
 
 ## Acceptance / closure
 - [ ] (1) Source-backed macro graph remains authoritative through shared WorldBuilder APIs.
