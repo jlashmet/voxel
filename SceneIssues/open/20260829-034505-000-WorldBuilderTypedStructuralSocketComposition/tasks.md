@@ -10,9 +10,11 @@
 - [ ] Audit/extend authoring-time slot validation and prove generation-order independence after composition is active.
 - [ ] Ensure structural socket/slot metadata participates in deterministic catalogue/world identity so content changes cannot silently desync saves/networked generation.
 - [x] Audit repository tree for a separately named `DecorationSocket*` production path: none exists on current master. Preserve existing fine-detail/attachment authoring APIs and add only a structural handoff marker; do not invent a parallel decoration solver.
-- [ ] Identify the concrete existing fine-detail/prop attachment consumers that must receive the structural handoff marker.
-- [ ] Trace `ShapeProgram` bytecode walking sufficiently to extract `CallSlot` occurrences deterministically without changing primitive evaluation semantics.
-- [ ] Trace existing test fixtures/catalogue builders and exact built-app harness entry points before adding production code.
+- [x] Identify the concrete existing fine-detail/prop attachment consumers that must receive the structural handoff marker: `Game.Structures.Api.DecorationSpace` / `DecorationSocket` / `DecorationSocketKind` plus existing scene resolvers/adapters such as `CastleBedroomDecorationAdapter`; structural composition emits engine-neutral handoff data and Game.Structures maps it into these prop sockets.
+- [x] Trace `ShapeProgram` bytecode walking sufficiently to extract `CallSlot` occurrences deterministically without changing primitive evaluation semantics: every instruction is `[opcode][modeMask][operands...]`; `CallSlot` has one `slotIndex` operand and `ShapeOps.InstructionLength` supplies the canonical decoder length.
+- [x] Trace existing test fixtures/catalogue builders and exact built-app harness entry points before adding production code: `Assets/Game/Structures/Tests/Game.Structures.Tests.asmdef`, `WorldbuildingVisualRegressionTests`, `VisualStructureCapture`, and exact `Assets/Scenes/WorldbuildingGalleryShowcase.unity` are the existing regression/visual surfaces.
+- [ ] Preserve assembly layering: `VoxelEngine.Structures.Api/Runtime` must not depend on `Game.Structures.Api`; define structural decoration-handoff metadata engine-neutrally and adapt it to `DecorationSpace` / `DecorationSocketKind` from the Game.Structures layer.
+- [ ] Locate and reuse the production `CharacterMotor` traversal harness rather than inventing a test-only mover.
 
 ## Canonical production contract / solver
 - [ ] Generalize the existing slot contract into one shared structural socket contract: stable ids, semantic role flags/tags, cardinal facing, integer voxel position/transform, clearance volume, attachment capacity, support requirements/probes, required/optional semantics, support-loss invalidation metadata, and decoration handoff metadata.
