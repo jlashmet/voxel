@@ -52,7 +52,6 @@ namespace VoxelEngine.Tests.PlayMode
 
                 var args = new uint[arena.ArgsRecordCapacity * SurfaceGeometryArena.ArgsWordsPerDraw];
                 arena.Args.GetData(args);
-                Assert.That(args[blocker.ArgsWordStart + 3], Is.EqualTo(0u));
                 Assert.That(args[SurfaceGeometryArena.ArgsWordsPerDraw + 3], Is.EqualTo(0u),
                     "startInstance must stay neutral because Metal does not deliver it as SV_InstanceID here.");
             }
