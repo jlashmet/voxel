@@ -66,7 +66,6 @@ namespace VoxelEngine.Showcase
                 PathRun,
                 PathRise,
                 SwitchbackCount,
-                PlaceholderSize,
-                CreateTraversalProfile());
+                PlaceholderSize);
     }
 }
