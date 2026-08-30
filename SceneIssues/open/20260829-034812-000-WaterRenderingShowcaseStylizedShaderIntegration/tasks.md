@@ -36,6 +36,7 @@
 - [x] Author still/deep lake, shoreline, directional river, waterfall/rapid, terrain/rock/structure contacts.
 - [x] Provide near, wide, elevated, and waterfall inspection view modes plus moving inspection controls; exact-built time-separated visual proof remains pending.
 - [x] Reuse existing screenshot/SceneIssue replay/standalone-player harness contracts; add no parallel capture stack or CI transport.
+- [ ] Make unattended real-player capture deterministically expose near, wide, then repeated waterfall views so the existing 10-second screenshot cadence proves framing plus time-separated animation without a second evidence transport.
 - [x] Add production portability outside the scene: independent Water/RiverWater/Cascade authoring through `ShowcaseWorld`, canonical read storage, normal presentation installation, and `RenderingComposition` world binding.
 - [x] Verify `VoxelShowcase` automatically receives shared presentation and restores water after a leaked diagnostic disable.
 - [x] Verify `WorldbuildingGalleryShowcase` automatically reaches the same globally installed water presentation for its cave-authored water.
