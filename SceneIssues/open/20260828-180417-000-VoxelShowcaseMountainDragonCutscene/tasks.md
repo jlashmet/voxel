@@ -44,9 +44,9 @@
 
 ## Reusability review
 - [ ] Remove VoxelShowcase/player-specific physical assumptions from reusable WorldBuilder mountain APIs. Derive headroom, traversal-lane clearance, voxel scale, and movement-envelope requirements from shared traversal/profile inputs or explicit landmark configuration; keep showcase-specific values in Showcase composition.
-- [ ] Replace `WorldBuilderMountainLandmarkMaterialCatalogue` post-processing of compiled feature-program indices/order/material slots with semantic mountain authoring/configuration. Naturalization must not depend on definition index `0`, instruction offsets, or assumptions such as “first three additive frusta are shoulders.”
+- [x] Replace `WorldBuilderMountainLandmarkMaterialCatalogue` post-processing of compiled feature-program indices/order/material slots with semantic mountain authoring/configuration. Naturalization now emits directly from `MountainLandmarkSpec`, semantic material roles, and `MountainLandmarkPresentationProfile`; it does not patch a compiled definition/instruction stream.
 - [ ] Replace `ShowcaseWaypointReplayHarness` reflection into private `VoxelShowcase` fields and the hard-coded `24°/s` AutoWalk behavior with a narrow public replay/movement-control seam. Evidence replay must survive ordinary internal refactors of `VoxelShowcase`.
-- [ ] Generalize startup-bake provenance so the reusable mechanism accepts a caller-provided content/source signature; keep `ShowcaseMountainDragonLayout` and manual Mountain Dragon revision composition outside the generic provenance implementation.
+- [ ] Generalize startup-bake provenance so the reusable mechanism accepts a caller-provided content/source signature; keep `ShowcaseMountainDragonLayout` and manual Mountain Dragon revision composition outside the generic provenance implementation. Implementation + independent fixture are committed; exact focused CI is still pending because run `33337836269` is queued on the prior topology source.
 - [ ] Clean engine-level rasterizer comments/names that imply mountain-only behavior where the implementation is generic, and retain regression coverage proving the Box/Frustum fast paths remain reusable for non-Mountain-Dragon callers.
 
 ## Checked-in startup payload
