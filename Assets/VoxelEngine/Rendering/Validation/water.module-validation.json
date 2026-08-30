@@ -2,9 +2,7 @@
   "schemaVersion": 1,
   "module": "water",
   "productionPaths": [
-    "Assets/VoxelEngine/Rendering/Runtime/Shaders/WaterSurface.shader",
-    "Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/*Water*.cs",
-    "Assets/Scenes/WaterStartupFallbackValidation.unity"
+    "Assets/VoxelEngine/Rendering/Runtime/**"
   ],
   "sharedPaths": [
     "Assets/VoxelEngine/Rendering/Api/**",
