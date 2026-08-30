@@ -262,9 +262,10 @@ namespace Game.Structures.Runtime
         }
 
         /// <summary>
-        /// Authors one reusable rounded cave vault using only the stable authoring API. Disc slices
-        /// avoid the vertical walls and planar caps inherent to a vertical cylinder while keeping a
-        /// deterministic integer carve and an explicit guaranteed-clearance envelope.
+        /// Authors one reusable rounded cave vault using only the stable authoring API. The shape
+        /// is defined as stacked horizontal discs, but is emitted as contiguous vertical bulk spans
+        /// for each radial column. This exactly preserves the rounded profile while retaining the
+        /// engine's cheap batched-column write path instead of paying one collapse scan per voxel.
         /// </summary>
         public static int AuthorRoundedVault(
             IStructureAuthoringSession authoring,
@@ -285,8 +286,36 @@ namespace Game.Structures.Runtime
                 crownHeight,
                 bulge,
                 verticalBias);
+
+            int maxRadius = 0;
             for (int y = 0; y < radii.Length; y++)
-                authoring.Disc(centreX, baseY + y, centreZ, radii[y], material);
+                maxRadius = math.max(maxRadius, radii[y]);
+
+            for (int z = -maxRadius; z <= maxRadius; z++)
+            for (int x = -maxRadius; x <= maxRadius; x++)
+            {
+                int distanceSquared = x * x + z * z;
+                int runStart = -1;
+                for (int y = 0; y <= radii.Length; y++)
+                {
+                    bool inside = y < radii.Length &&
+                                  distanceSquared <= radii[y] * radii[y];
+                    if (inside)
+                    {
+                        if (runStart < 0) runStart = y;
+                        continue;
+                    }
+
+                    if (runStart < 0) continue;
+                    authoring.FillColumnBulk(
+                        centreX + x,
+                        baseY + runStart,
+                        baseY + y,
+                        centreZ + z,
+                        material);
+                    runStart = -1;
+                }
+            }
             return radii.Length;
         }
 
