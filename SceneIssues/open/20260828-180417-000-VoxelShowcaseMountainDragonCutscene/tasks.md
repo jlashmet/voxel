@@ -40,6 +40,13 @@
 - [ ] Human-review the next exact approach/base/middle/upper/summit/dialogue frames and require `production-quality`; if below bar, record concrete defects and continue before closure.
 - [ ] Re-check final accepted bake/runtime cost under unchanged 240 s / 14 GiB contracts.
 
+## Reusability review
+- [ ] Remove VoxelShowcase/player-specific physical assumptions from reusable WorldBuilder mountain APIs. Derive headroom, traversal-lane clearance, voxel scale, and movement-envelope requirements from shared traversal/profile inputs or explicit landmark configuration; keep showcase-specific values in Showcase composition.
+- [ ] Replace `WorldBuilderMountainLandmarkMaterialCatalogue` post-processing of compiled feature-program indices/order/material slots with semantic mountain authoring/configuration. Naturalization must not depend on definition index `0`, instruction offsets, or assumptions such as “first three additive frusta are shoulders.”
+- [ ] Replace `ShowcaseWaypointReplayHarness` reflection into private `VoxelShowcase` fields and the hard-coded `24°/s` AutoWalk behavior with a narrow public replay/movement-control seam. Evidence replay must survive ordinary internal refactors of `VoxelShowcase`.
+- [ ] Generalize startup-bake provenance so the reusable mechanism accepts a caller-provided content/source signature; keep `ShowcaseMountainDragonLayout` and manual Mountain Dragon revision composition outside the generic provenance implementation.
+- [ ] Clean engine-level rasterizer comments/names that imply mountain-only behavior where the implementation is generic, and retain regression coverage proving the Box/Frustum fast paths remain reusable for non-Mountain-Dragon callers.
+
 ## Checked-in startup payload
 - [x] Confirm runtime requires both `ShowcaseWorld.bytes` and matching `ShowcaseWorld.manifest.txt`; the currently tracked legacy payload is stale.
 - [ ] From the final visually accepted run, record exact payload size/SHA-256/content signature and manifest.
