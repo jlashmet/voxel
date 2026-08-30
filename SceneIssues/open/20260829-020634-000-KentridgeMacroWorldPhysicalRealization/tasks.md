@@ -29,6 +29,7 @@
 - [x] Exact run `33318399738` PlayMode regression is `1/1` green and standalone exits with zero harness assertions, no swap growth, and all named targets through ridge/pass captured.
 - [x] Diagnose vertical-residency owner: static storage tests must explicitly generate separate timber/roof Y-regions when a generic building crosses a 51.2 m vertical boundary, while ordinary `ShowcaseWorld.RefreshPending` demands terrain-surface/viewer Y layers only and features are applied per exact generated 3D region.
 - [ ] Add feature-aware vertical residency that queues only feature-bearing Y-regions intersecting loaded X/Z columns; do not blanket-load an extra Y layer across the horizontal ring.
+  - Blocker 2026-08-30: the semantic, catalogue-driven `ShowcaseWorld.FeatureResidency.cs` helper is implemented, but `RefreshPending` still needs the single production hook `QueueFeatureRegionsForColumn(rx, rz)`. The available GitHub connector only supports whole-file replacement for existing files, `ShowcaseWorld.cs` is ~115 KB, and direct Git/network checkout is unavailable. Do not replace this with broad residency, surface-span inflation, alternate CI/editor transports, or scene-specific preload policy; continue independent acceptance work until a safe exact edit transport is available.
 - [ ] Add focused ordinary-`ShowcaseWorld.Update` regression proving a generic building that crosses a Y-region boundary publishes its upper shell without direct/test-injected region generation.
 - [ ] Verify full-resolution Rossdam/Fairy/Orc surveys show all four readable authored settlement blockouts after vertical residency correction.
 - [ ] Capture the final `macro-network-overview` inside the unchanged 60 s replay; run `33318399738` reaches ridge/pass at the cutoff but ends before the final network target.
@@ -72,7 +73,5 @@
 - [ ] (10) Exact built-player evidence covers settlements, roads entering/leaving settlements, network survey, geography, constrained route, and CharacterMotor traversal without runtime exceptions.
 - [ ] (11) Blast radius and world-build/route/CPU/GPU/memory/streaming cost are measured against budgets.
 - [ ] Corrected final exact-SHA focused CI and built-player evidence are closure-quality green.
-- [ ] Every checkbox above is complete before `open -> pending`.
-- [ ] Complete pending metadata (`status=pending`, `resolutionSummary`, `regressionTest`, `fixCommit`) only after green exact gates.
-- [ ] Move only this assignment `open -> pending`, then after closure gate `pending -> closed`, set `status=fixed` and `resolvedUtc`.
-- [ ] Merge current `origin/master` into `fixes/agent-6`, resolve only in-scope conflicts, and non-force push exact feature head to `origin/master`; retry if master advances.
+- [ ] Every checkbox above is complete before closure.
+- [ ] After green exact gates, move this assignment directly `open -> closed`, set `status=fixed` and `resolvedUtc`, merge current `origin/master`, and non-force push that exact feature head to `origin/master`; retry if master advances.
