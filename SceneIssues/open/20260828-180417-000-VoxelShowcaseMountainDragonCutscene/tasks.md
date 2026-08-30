@@ -28,9 +28,9 @@
 - [x] Confirm `RegionReadView.TryGetWorldBlock` correctly distinguishes canonical Empty from Mixed, so the failed timing result does not invalidate the fast path's semantics.
 - [x] Identify the next output-equivalent discriminator: a fully covered non-empty Uniform `Carve + Box` block can use existing authoritative `IRegionMutationStore.SetWholeCellBlock(default)` instead of 512 identical cell iterations.
 - [x] Catch and constrain the write-accounting edge case before CI: Mixed blocks may contain sparse payload, so atomic whole-block clearing would alter `RasterResult.VoxelsWritten`; keep Mixed on the existing partial-cell path.
-- [ ] Restrict the full-8^3 default replacement to fully covered non-empty Uniform `Carve + Box` blocks; retain canonical-empty skip plus all Mixed/partial/non-box behavior.
-- [ ] Extend real-storage regression: Uniform full block uses one whole-cell replacement with 512 writes; full Mixed boundary state remains on partial mutation; partial box leaves outside cells/boundary state untouched.
-- [ ] Re-check blast radius and cost after the Uniform-only full-block change; no non-box/fill/paint semantics, primitive order, footprint, serialized output, or write accounting may change.
+- [x] Restrict the full-8^3 default replacement to fully covered non-empty Uniform `Carve + Box` blocks; retain canonical-empty skip plus all Mixed/partial/non-box behavior.
+- [x] Extend real-storage regression: Empty performs no mutation; Uniform full block uses one whole-cell replacement with 512 writes; full Mixed boundary state remains on partial mutation; partial box leaves outside material/boundary state untouched. Keep this regression called by the exact final acceptance filter.
+- [x] Re-check blast radius and cost: post-plan candidate changes only `PrimitiveRasteriser` plus the Mountain Dragon storage regression/final-filter call. The existing per-box block-kind lookup is reused; Uniform interior blocks replace up to 512 read/compare/write iterations with one Storage mutation; Mixed/partial and all non-box/fill/paint paths retain their prior mutation semantics, primitive order, footprint, serialized output, and write accounting.
 
 ## Exact-SHA bake / built-player gate
 - [ ] Commit the post-full-block candidate on `fixes/agent-4`, then issue the next final exact-SHA request using only existing `ci-test/fixes/agent-4`; do not create another transport or replace queued/running work.
