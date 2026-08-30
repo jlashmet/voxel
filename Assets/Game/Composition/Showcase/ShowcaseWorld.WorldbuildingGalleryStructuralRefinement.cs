@@ -183,10 +183,16 @@ namespace VoxelEngine.Showcase
                 .Box(new int3(172, 12, 0), new int3(28, 94, 26), detail)
                 .Box(new int3(18, 84, 0), new int3(164, 12, 28), stone)
                 .Box(new int3(10, 100, 0), new int3(180, 10, 32), detail)
-                .Box(new int3(36, 54, 0), new int3(18, 28, 8), GameMaterialIds.LitWindow)
-                .Box(new int3(146, 54, 0), new int3(18, 28, 8), GameMaterialIds.LitWindow);
+                .Box(new int3(68, 12, 0), new int3(16, 48, 14), detail)
+                .Box(new int3(116, 12, 0), new int3(16, 48, 14), detail)
+                .Box(new int3(76, 58, 0), new int3(48, 10, 16), detail)
+                .Box(new int3(84, 68, 0), new int3(32, 8, 18), stone)
+                .Box(new int3(42, 48, 0), new int3(10, 18, 8), GameMaterialIds.LitWindow)
+                .Box(new int3(148, 48, 0), new int3(10, 18, 8), GameMaterialIds.LitWindow)
+                .Box(new int3(36, 68, 0), new int3(22, 6, 10), stone)
+                .Box(new int3(142, 68, 0), new int3(22, 6, 10), stone);
             for (int x = 10; x <= 170; x += 32)
-                gate.Box(new int3(x, 110, 0), new int3(18, 20, 28), detail);
+                gate.Box(new int3(x, 110, 0), new int3(14, 16, 24), detail);
             AuthorPresentationCatalogue(
                 "castle-refined-gatehouse", crownOrigin + new int3(300, 0, 0),
                 new int3(200, 132, 80), 0x53544C11u,
@@ -218,7 +224,7 @@ namespace VoxelEngine.Showcase
                 .Box(new int3(0, 132, frontZ), new int3(120, 10, 124), stone)
                 .Box(new int3(14, 26, frontZ), new int3(14, 34, 8), detail)
                 .Box(new int3(92, 26, frontZ), new int3(14, 34, 8), detail)
-                .Box(new int3(50, 72, frontZ), new int3(20, 26, 8), GameMaterialIds.LitWindow);
+                .Box(new int3(55, 74, frontZ), new int3(10, 18, 8), GameMaterialIds.LitWindow);
             for (int x = 4; x <= 100; x += 32)
                 writer.Box(new int3(x, 142, frontZ), new int3(16, 24, 20), detail);
 
@@ -276,11 +282,11 @@ namespace VoxelEngine.Showcase
                 ramp.Box(new int3(x, 0, 116), new int3(14, math.max(12, y), 14), stone);
                 ramp.Box(new int3(x - 4, 0, 22), new int3(22, 8, 22), detail);
                 ramp.Box(new int3(x - 4, 0, 112), new int3(22, 8, 22), detail);
+                ramp.Box(new int3(i * 52, math.max(6, y - 4), 68), new int3(54, 6, 20), timber);
             }
-            ramp.Box(new int3(0, 4, 68), new int3(300, 8, 20), timber);
             AuthorPresentationCatalogue(
                 "cliff-refined-ramp-supports", context + new int3(190, 0, 0),
-                new int3(300, site.Rise + 72, 150), 0x53544C22u,
+                new int3(320, site.Rise + 72, 150), 0x53544C22u,
                 StructuralSocketRole.VerticalConnection | StructuralSocketRole.Support,
                 CliffTag, ramp, 32, stone);
         }
@@ -291,13 +297,15 @@ namespace VoxelEngine.Showcase
             byte contrast = ornate ? GameMaterialIds.DarkStone : GameMaterialIds.Wood;
             byte roof = ornate ? GameMaterialIds.Slate : GameMaterialIds.Tile;
             const int x = 20;
-            const int frontZ = 132;
+            // Structural facade children and balconies extend to local z=170. Keep this final relief
+            // just in front of that transformed envelope so it cannot be buried inside the base body.
+            const int frontZ = 172;
             var writer = new ProgramWriter();
 
             for (int y = 14; y <= 110; y += 24)
             {
-                writer.Box(new int3(x + 2, y, frontZ), new int3(12, 14, 8), trim);
-                writer.Box(new int3(x + 166, y, frontZ), new int3(12, 14, 8), trim);
+                writer.Box(new int3(x + 2, y, frontZ), new int3(12, 14, 6), trim);
+                writer.Box(new int3(x + 166, y, frontZ), new int3(12, 14, 6), trim);
             }
 
             int[] wx = { x + 28, x + 78, x + 128 };
@@ -305,26 +313,32 @@ namespace VoxelEngine.Showcase
             for (int yi = 0; yi < wy.Length; yi++)
             for (int xi = 0; xi < wx.Length; xi++)
             {
-                writer.Box(new int3(wx[xi] - 3, wy[yi] - 5, frontZ), new int3(30, 5, 8), contrast);
-                writer.Box(new int3(wx[xi] - 3, wy[yi] + 26, frontZ), new int3(30, 5, 8), contrast);
+                writer.Box(new int3(wx[xi] - 3, wy[yi] - 5, frontZ), new int3(30, 5, 6), contrast);
+                writer.Box(new int3(wx[xi] - 3, wy[yi] + 26, frontZ), new int3(30, 5, 6), contrast);
+                writer.Box(new int3(wx[xi] - 3, wy[yi], frontZ), new int3(5, 26, 6), contrast);
+                writer.Box(new int3(wx[xi] + 22, wy[yi], frontZ), new int3(5, 26, 6), contrast);
+                writer.Box(new int3(wx[xi] + 2, wy[yi] + 2, frontZ + 1),
+                    new int3(20, 22, 5), GameMaterialIds.LitWindow);
             }
 
-            writer.Box(new int3(x + 56, 0, frontZ), new int3(10, 48, 8), trim)
-                .Box(new int3(x + 114, 0, frontZ), new int3(10, 48, 8), trim)
-                .Box(new int3(x + 56, 44, frontZ), new int3(68, 8, 10), trim)
-                .Box(new int3(x - 8, 144, 124), new int3(196, 8, 20), contrast)
+            writer.Box(new int3(x + 56, 0, frontZ), new int3(10, 48, 6), trim)
+                .Box(new int3(x + 114, 0, frontZ), new int3(10, 48, 6), trim)
+                .Box(new int3(x + 56, 44, frontZ), new int3(68, 8, 6), trim)
+                .Box(new int3(x + 10, 12, frontZ), new int3(160, 7, 6), trim)
+                .Box(new int3(x + 18, 58, frontZ), new int3(144, 6, 6), contrast)
+                .Box(new int3(x - 4, 144, frontZ - 8), new int3(188, 8, 16), contrast)
                 .Box(new int3(x + 38, 198, 38), new int3(104, 8, 70), trim)
                 .Box(new int3(x + 142, 198, 46), new int3(20, 38, 20), contrast)
                 .Box(new int3(x + 138, 232, 42), new int3(28, 8, 28), roof);
 
             if (ornate)
             {
-                writer.Box(new int3(x + 76, 128, frontZ), new int3(28, 18, 8), GameMaterialIds.Gold)
+                writer.Box(new int3(x + 76, 128, frontZ), new int3(28, 18, 6), GameMaterialIds.Gold)
                     .Box(new int3(x + 84, 208, 36), new int3(12, 28, 12), GameMaterialIds.Gold);
             }
             else
             {
-                writer.Box(new int3(x + 68, 128, frontZ), new int3(44, 10, 8), GameMaterialIds.Wood)
+                writer.Box(new int3(x + 68, 128, frontZ), new int3(44, 10, 6), GameMaterialIds.Wood)
                     .Box(new int3(x + 12, 136, 4), new int3(156, 8, 132), GameMaterialIds.Tile);
             }
 
