@@ -45,7 +45,7 @@
 
 ## Validation / cost
 - [x] Refresh/merge current `origin/master` immediately before the attempted final request (`2e3574af`, master parent `2b100aa4`).
-- [ ] Refresh/merge current `origin/master` again after the CI-discovered repairs and before issuing the replacement final request.
+- [x] Refresh/merge current `origin/master` again after the CI-discovered repairs and before issuing the replacement final request.
 - [ ] Obtain a green focused exact-SHA targeted CI request through `ci-test/fixes/agent-1` only; run `33281599556` failed product assertions and is diagnostic only.
 - [ ] Run/inspect repository-supported built application/player evidence for `Assets/Scenes/KentridgePlayableSlice.unity`; verify no startup/runtime exceptions.
 - [ ] Capture/inspect endpoint-to-endpoint road continuity and player-height traversal with collision/streaming active.
