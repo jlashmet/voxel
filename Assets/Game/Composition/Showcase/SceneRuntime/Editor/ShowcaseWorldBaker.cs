@@ -158,7 +158,7 @@ namespace VoxelEngine.Showcase.Editor
                 Application.isBatchMode,
                 Environment.GetEnvironmentVariable("GITHUB_ACTIONS"),
                 Environment.GetCommandLineArgs(),
-                EditorApplication.Exit);
+                Environment.Exit);
         }
 
         /// <summary>
