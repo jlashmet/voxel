@@ -36,7 +36,7 @@
 - [x] Author still/deep lake, shoreline, directional river, waterfall/rapid, terrain/rock/structure contacts.
 - [x] Provide near, wide, elevated, and waterfall inspection view modes plus moving inspection controls; exact-built time-separated visual proof remains pending.
 - [x] Reuse existing screenshot/SceneIssue replay/standalone-player harness contracts; add no parallel capture stack or CI transport.
-- [ ] Make unattended real-player capture deterministically expose near, wide, then repeated waterfall views so the existing 10-second screenshot cadence proves framing plus time-separated animation without a second evidence transport.
+- [x] Make unattended real-player capture deterministically expose near, wide, then repeated waterfall views so the existing 10-second screenshot cadence proves framing plus time-separated animation without a second evidence transport.
 - [x] Add production portability outside the scene: independent Water/RiverWater/Cascade authoring through `ShowcaseWorld`, canonical read storage, normal presentation installation, and `RenderingComposition` world binding.
 - [x] Verify `VoxelShowcase` automatically receives shared presentation and restores water after a leaked diagnostic disable.
 - [x] Verify `WorldbuildingGalleryShowcase` automatically reaches the same globally installed water presentation for its cave-authored water.
@@ -51,7 +51,7 @@
 - [x] Production renderer-path portability coverage authors Water/RiverWater/Cascade through `ShowcaseWorld`, binds the ordinary `RenderingWorldBinding`, verifies installed profile arrays, and combines with focused extraction identity/seam regressions; no source-string-only assertion.
 - [ ] Run exact player build for shader compile/stripping/pink/missing-resource failures.
 - [x] Static memory cost: six 32-entry `Vector4` water tables = 3,072 bytes; no per-water-voxel GameObjects/material instances were added.
-- [ ] Add capture-only frame timing and managed/native memory telemetry because the existing player harness records FPS but has no reusable GPU/memory sampler; keep it scene-local and inactive outside unattended evidence capture.
+- [x] Add capture-only frame timing and managed/native memory telemetry because the existing player harness records FPS but has no reusable GPU/memory sampler; keep it scene-local and inactive outside unattended evidence capture.
 - [ ] Record exact-player CPU/GPU/memory/render observations: draw/batching/culling, transparent overdraw risk, shader ALU/depth sampling, large bodies, and waterfall-only extras; do not weaken budgets.
 - [x] Review feature-only diff against current master: only assignment water code/tests/scene/build registration/docs are changed; `.github/test-request.json` is absent from the feature diff.
 
