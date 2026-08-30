@@ -32,6 +32,12 @@
 - [x] Add/maintain behavioral regression for the water-surface realization rather than relying on source-string assertions.
 - [x] Record this failed lake-first/product-red attempt as `experiment-014-lake-first-route-intersection-and-cost.md` before final exact CI.
 
+## Newly discovered exact-SHA CI regression
+- [ ] Resolve run `33301222246` product failure: hard route `forest -> fighting-area-1` is blocked by the remediated `rossdam-lake` footprint without an authored crossing/pass/route-around solution.
+- [ ] Preserve Rossdam Lake's remediated physical footprint while adding the smallest authored semantic route solution required to keep the source-backed hard-road graph traversable.
+- [ ] Add or extend a behavioral regression proving `forest -> fighting-area-1` has the intended semantic solution and remains dry/traversable rather than silently crossing lake geometry.
+- [ ] Re-run exact-SHA targeted CI only after the source remediation and prove both the focused Unity suite and supported 60-second real-player smoke are closure-quality green for that same source SHA.
+
 ## Exact runtime / visual gate
 - [ ] Exact built `KentridgePlayableSlice` reaches usable gameplay without startup/runtime exceptions and captures every required macro target inside the supported 60 s replay.
 - [ ] Full-resolution evidence shows at least four readable grounded blockouts at Moordell, Rossdam, Fairy Village, and Orc Village plus streets/open space and road arrival/exit.
