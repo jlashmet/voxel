@@ -3,6 +3,7 @@ using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Showcase;
+using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Tests.PlayMode
 {
