@@ -1,0 +1,13 @@
+Feature-vs-master review before final source/showcase implementation:
+
+Additive feature paths only:
+- Assets/VoxelEngine/Structures/Runtime/MeshImport/*
+- Assets/Editor/MeshVoxelization/*
+- Assets/Game/Composition/Showcase/ShowcaseWorld.MeshStructures.cs
+- Assets/Game/Composition/Showcase/StructurePlacementSelection.cs
+- Assets/Tests/EditMode/MeshVoxelization*Tests.cs
+- this SceneIssue's plan/tasks/evidence files
+
+No terrain/building storage semantics, global voxel scale, collision rules, device budgets, workflow request file, or another assignment are directly modified by feature work.
+
+Current master advanced from the feature merge base with no overlapping production paths. A normal master merge is required before the next substantial production integration and final CI.
