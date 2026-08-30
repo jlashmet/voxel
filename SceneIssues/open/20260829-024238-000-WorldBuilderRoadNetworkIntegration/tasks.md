@@ -35,25 +35,26 @@
 - [x] Non-flat deterministic routing respects maximum grade and cut/fill envelopes.
 - [x] Water/barrier fixture rejects a route without authored crossing policy and resolves when policy allows it.
 - [x] Physical corridor distance/height/coverage matches semantic influence on an intermediate shoulder sample.
-- [ ] Shoulder coverage recovers continuously/monotonically without the legacy ten-band dependency; repaired coherent-edge implementation still needs exact-SHA CI proof.
+- [x] Shoulder coverage recovers continuously/monotonically without the legacy ten-band dependency; exact-source CI run `33284733815` passed.
 - [x] Physical catalogue asserts one `EmitTerrainCorridor`, zero legacy road `EmitBox` stamps, and bounded footprints/definitions.
-- [ ] Vegetation suppresses in the core and progressively recovers through shared shoulder influence; deterministic anchor repair still needs production-planner CI proof.
+- [x] Vegetation suppresses in the core and progressively recovers through shared shoulder influence; production planner exact-source CI passed in run `33284733815`.
 - [x] Kentridge authors positive generic placement keep-clearance beyond the grading radius and it is queryable from `WorldRoadNetwork`.
 - [x] Existing Kentridge named-landmark, diagonal-route, and connectivity coverage remains in `KentridgeOrganicLayoutTests`.
-- [ ] Validate the repaired/expanded `KentridgeRoadShoulderRegressionTests` class on final exact-SHA targeted CI.
+- [x] Validate repaired/expanded `KentridgeRoadShoulderRegressionTests` on exact source `b5cac79f1ff4f289d643edeef3019e4c1d75a806`: run `33284733815`, 7/7 passed, Unity peak RSS 5119 MB.
 - [ ] Validate segment/chunk/LOD road geometry/material continuity in the built player.
 
 ## Validation / cost
 - [x] Refresh/merge current `origin/master` immediately before the attempted final request (`2e3574af`, master parent `2b100aa4`).
-- [x] Refresh/merge current `origin/master` again after the CI-discovered repairs and before issuing the replacement final request.
-- [ ] Obtain a green focused exact-SHA targeted CI request through `ci-test/fixes/agent-1` only; run `33281599556` failed product assertions and is diagnostic only.
-- [ ] Run/inspect repository-supported built application/player evidence for `Assets/Scenes/KentridgePlayableSlice.unity`; verify no startup/runtime exceptions.
+- [x] Refresh/merge current `origin/master` again after the CI-discovered repairs and before issuing the replacement final request (`ed0d8711`, current-master parent `47e51f98`); exact request source is `b5cac79f` after bookkeeping-only task update.
+- [x] Obtain green focused exact-SHA targeted CI through `ci-test/fixes/agent-1` only: run `33284733815`, request commit `b75fefa2`, exact feature parent/source `b5cac79f`, 7/7 passed.
+- [x] Static cost audit: one analytic primitive + one explicit placement per bounded piece; definition/footprint budgets are enforced; `Primitive` adds no fields/stride; no road GameObjects or per-frame generation path; coherent edge variation is integer-only sample work.
+- [ ] Run/inspect repository-supported built application/player evidence for `Assets/Scenes/KentridgePlayableSlice.unity`; verify no startup/runtime exceptions. The final EditMode request correctly skipped player capture, and this environment has no separate permitted exact-source player transport without violating the assignment's no-extra-CI-transport constraint.
 - [ ] Capture/inspect endpoint-to-endpoint road continuity and player-height traversal with collision/streaming active.
 - [ ] Inspect both shoulders on uneven/sloped terrain for natural Grass↔Dirt recovery with no repeated bands, staircase, exposed wall, or hard line.
 - [ ] Inspect medium/far views for chunk/LOD seams and floating props.
-- [ ] Verify vegetation suppression/recovery and semantic route/influence traceability evidence.
-- [ ] Quantify bounded cost from generated route/definition/primitive counts plus CI bake/player residency/runtime evidence; confirm no storage/vertex-stride or per-frame cost increase.
-- [ ] Review final feature-only diff for unrelated assignment, workflow, or feature-branch `.github/test-request.json` changes.
+- [ ] Verify vegetation suppression/recovery and semantic route/influence traceability evidence in the built application.
+- [ ] Quantify bounded cost from generated route/definition/primitive counts plus built-player residency/runtime evidence; confirm no storage/vertex-stride or per-frame cost increase.
+- [x] Review current feature-only diff against `47e51f98`: 23 files, all WorldBuilder/voxel road support, EditMode regressions, or this assignment metadata; no other assignment, workflow, or feature-branch `.github/test-request.json` change.
 
 ## Promotion / closure
 - [ ] Complete `issue.json` pending metadata (`status`, `resolutionSummary`, `regressionTest`, `fixCommit`) only after promotion gates pass.
