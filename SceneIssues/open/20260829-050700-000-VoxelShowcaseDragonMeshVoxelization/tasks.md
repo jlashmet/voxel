@@ -60,6 +60,11 @@
 - [ ] Emit deterministic source triangle count, voxel resolution, authored voxel count, sparse brick/chunk count, voxelization duration, serialized size, resident/runtime placement/build cost.
 - [ ] Add destruction/world-truth validation instance proving voxel edit changes rendering/collision without source-mesh shell/collider fallback.
 
+## Reusability review
+- [ ] Keep `MeshVoxelization` and its metrics/configuration completely mesh-agnostic; no dragon names, anatomy rules, source IDs, or showcase controls in engine mesh-import/runtime code.
+- [ ] Keep source selection, dragon-specific bake configuration, palette choices, comparison staging, and placement/input modes in game/showcase composition above the generic importer.
+- [ ] Add a regression proving a second non-dragon synthetic or fixture mesh can use the same public importer/codec/authoring path without dragon-specific setup or branches.
+
 ## Dragon artifact acceptance
 - [ ] Downloaded third-party source is legitimately redistributable and provenance/checksums are committed.
 - [ ] Source is detailed/curved/non-voxel-native and genuinely exercises anatomy/silhouette fidelity (roughly 20k+ triangles preferred/practical per issue).
