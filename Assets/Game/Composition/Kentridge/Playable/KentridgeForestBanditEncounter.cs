@@ -70,8 +70,6 @@ namespace Game.Composition.Kentridge.Playable
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void RegisterSceneInstaller()
         {
-            // RuntimeInitialize can be invoked more than once when editor domain reload is disabled.
-            // Remove first so every loaded Kentridge scene gets exactly one installation callback.
             SceneManager.sceneLoaded -= InstallIntoPlayableSlice;
             SceneManager.sceneLoaded += InstallIntoPlayableSlice;
         }
@@ -142,9 +140,6 @@ namespace Game.Composition.Kentridge.Playable
                     SettleCompletedCombat();
             }
 
-            // The existing Kentridge exploration controller is a legacy direct Unity input reader.
-            // Consume the physical frame here after Combat sampled it so both systems can never
-            // apply the same WASD/mouse intent while the Combat context owns control.
             _inputReader.SuppressLegacyReadersForCurrentFrame();
         }
 
@@ -227,8 +222,6 @@ namespace Game.Composition.Kentridge.Playable
                 }
                 else if (PlanarDistanceSquared(player, desired) < 40f * 40f)
                 {
-                    // Collision publication can lag the saved-pose replay by a frame. Keep the
-                    // actor readable at player-ground height until a real surface hit is available.
                     desired.y = player.y - 1.7f;
                 }
 
@@ -265,6 +258,12 @@ namespace Game.Composition.Kentridge.Playable
             _encounterResolved = true;
             _combatInput = null;
             ReleaseCombatContext();
+            Debug.Log(
+                "[KentridgeCombat] battle-complete seed=" + AutonomousBattleSeed +
+                " winner=" + _combat.WinningTeam.Value +
+                " actions=" + _combat.ActionCount +
+                " turns=" + _combat.TurnNumber +
+                " pending=" + HasPendingCombatWork);
         }
 
         private void ReleaseCombatContext()
@@ -288,8 +287,6 @@ namespace Game.Composition.Kentridge.Playable
             }
             else
             {
-                // Missing Resources are a build-integrity fault, but retain a readable emergency
-                // body so the world does not silently lose encounter actors in a damaged build.
                 root = new GameObject("Forest Bandit " + (index + 1));
                 root.transform.position = groundPosition;
                 AddPrimitive(root.transform, PrimitiveType.Capsule, "Emergency Body",
@@ -310,8 +307,6 @@ namespace Game.Composition.Kentridge.Playable
                     : new Color(0.16f, 0.15f, 0.18f);
             Color leather = new Color(0.11f, 0.07f, 0.04f);
 
-            // Distinct layered gear keeps the rigged production character readable as a forest
-            // outlaw at the saved-pose distance without replacing its authored body/animation.
             AddPrimitive(root.transform, PrimitiveType.Sphere, "Hood",
                 new Vector3(0f, 1.70f, 0.01f), new Vector3(0.50f, 0.42f, 0.48f), coat * 0.72f);
             AddPrimitive(root.transform, PrimitiveType.Cube, "Belt",
