@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Unity.Mathematics;
 using VoxelEngine.Structures.Api;
+using VoxelEngine.Structures.Runtime;
 
 namespace VoxelEngine.Showcase
 {
@@ -86,7 +87,44 @@ namespace VoxelEngine.Showcase
             List<int3> required = PlanExplicitFixedStructureBakeRegions(
                 in _catalogue, centre, radius);
             for (int i = 0; i < required.Count; i++)
-                GenerateRegionBlocking(required[i]);
+                MaterialiseExplicitFixedStructureBakeRegion(required[i]);
+        }
+
+        /// <summary>
+        /// Surface layers have already taken the normal terrain + complete feature path. A required
+        /// structure layer that is still absent is therefore sparse vertical storage discovered only
+        /// from the fixed-altitude structure footprint. Building that layer from canonical empty via
+        /// the shared feature rasteriser is output-equivalent when skipped definitions are empty-sky
+        /// no-ops, and avoids synthesising a full terrain region merely to author the structure.
+        /// Runtime streaming never calls this bake-only path.
+        /// </summary>
+        private void MaterialiseExplicitFixedStructureBakeRegion(int3 regionCoord)
+        {
+            if (_generated.Contains(regionCoord)) return;
+
+            _mutationStore.Refresh(in _table, in _pool);
+            if (_mutationStore.IsRegionResident(regionCoord))
+            {
+                // Preserve the normal full-generation contract for any pre-existing region whose
+                // provenance is not the just-completed startup surface pass.
+                GenerateRegionBlocking(regionCoord);
+                return;
+            }
+
+            FeatureRegionBuild interrupted = _featureBuild;
+            _featureBuild = new FeatureRegionBuild(
+                regionCoord, FeatureRegionBuildScope.FixedAltitudeStructures);
+            _readSource.Refresh(in _table, in _pool);
+            _mutationStore.Refresh(in _table, in _pool);
+            while (!_featureBuild.Step(
+                in _catalogue, Seed, _readSource, _mutationStore, int.MaxValue)) { }
+            CompleteFeatureBuild();
+            _featureBuild = interrupted;
+
+            // A first authored cell creates the sparse region through Storage's authoring path.
+            // Mark it complete for this offline world just as LoadBake does for captured snapshots.
+            if (_mutationStore.IsRegionResident(regionCoord))
+                _generated.Add(regionCoord);
         }
 
         private static int FloorDivRegion(int voxel)
