@@ -207,6 +207,7 @@ namespace MountingForce.WorldGen
         public readonly ReservationCategory Category;
         public readonly ReservationSemantics Semantics;
         public readonly ReservationConsumerKind CompatibleConsumers;
+        public readonly ReservationConsumerKind YieldingConsumers;
         public readonly int Precedence;
         public readonly ReservationShapeKind ShapeKind;
         public readonly ReservationBoundsDm Bounds;
@@ -221,6 +222,7 @@ namespace MountingForce.WorldGen
             ReservationCategory category,
             ReservationSemantics semantics,
             ReservationConsumerKind compatibleConsumers,
+            ReservationConsumerKind yieldingConsumers,
             int precedence,
             ReservationShapeKind shapeKind,
             ReservationBoundsDm bounds,
@@ -240,6 +242,7 @@ namespace MountingForce.WorldGen
             Category = category;
             Semantics = semantics;
             CompatibleConsumers = compatibleConsumers;
+            YieldingConsumers = yieldingConsumers;
             Precedence = precedence;
             ShapeKind = shapeKind;
             Bounds = bounds;
@@ -256,11 +259,12 @@ namespace MountingForce.WorldGen
             int precedence = 0,
             ReservationConsumerKind compatibleConsumers = ReservationConsumerKind.None,
             string provenance = "",
-            int ordinal = 0)
+            int ordinal = 0,
+            ReservationConsumerKind yieldingConsumers = ReservationConsumerKind.None)
         {
             return new SpatialReservation(
                 ReservationId.FromStableText(ownerId, category, ordinal),
-                ownerId, provenance, category, semantics, compatibleConsumers, precedence,
+                ownerId, provenance, category, semantics, compatibleConsumers, yieldingConsumers, precedence,
                 ReservationShapeKind.Box, bounds, default(Int2), default(Int2), 0);
         }
 
@@ -276,7 +280,8 @@ namespace MountingForce.WorldGen
             int precedence = 0,
             ReservationConsumerKind compatibleConsumers = ReservationConsumerKind.None,
             string provenance = "",
-            int ordinal = 0)
+            int ordinal = 0,
+            ReservationConsumerKind yieldingConsumers = ReservationConsumerKind.None)
         {
             if (maxYDm <= minYDm) throw new ArgumentOutOfRangeException(nameof(maxYDm));
             if (radiusDm < 0) throw new ArgumentOutOfRangeException(nameof(radiusDm));
@@ -286,7 +291,7 @@ namespace MountingForce.WorldGen
             int maxZ = Math.Max(startDm.Y, endDm.Y) + radiusDm + 1;
             return new SpatialReservation(
                 ReservationId.FromStableText(ownerId, category, ordinal),
-                ownerId, provenance, category, semantics, compatibleConsumers, precedence,
+                ownerId, provenance, category, semantics, compatibleConsumers, yieldingConsumers, precedence,
                 ReservationShapeKind.Corridor,
                 new ReservationBoundsDm(minX, minYDm, minZ, maxX, maxYDm, maxZ),
                 startDm, endDm, radiusDm);
@@ -443,6 +448,7 @@ namespace MountingForce.WorldGen
                 + ";bounds=" + existing.Bounds
                 + ";precedence=" + existing.Precedence
                 + ";compatibleConsumers=" + existing.CompatibleConsumers
+                + ";yieldingConsumers=" + existing.YieldingConsumers
                 + ";provenance=" + existing.Provenance;
         }
     }
@@ -600,7 +606,7 @@ namespace MountingForce.WorldGen
                 else if ((existing.Semantics & ReservationSemantics.Clearance) != 0)
                 {
                     reason = ReservationReasonCode.ClearanceConflict;
-                    conflictDecision = consumer == ReservationConsumerKind.Vegetation
+                    conflictDecision = (existing.YieldingConsumers & consumer) != 0
                         ? ReservationDecision.Yield
                         : ReservationDecision.Rejected;
                 }
@@ -814,7 +820,8 @@ namespace MountingForce.WorldGen
             SpatialReservation.Box(ownerId, ReservationCategory.Building,
                 ReservationSemantics.Clearance,
                 ReservationBoundsDm.FromFootprint(positionDm, envelopeDm, baseYDm).ExpandHorizontal(clearanceDm),
-                precedence, ReservationConsumerKind.None, provenance, 1);
+                precedence, ReservationConsumerKind.None, provenance, 1,
+                ReservationConsumerKind.Vegetation);
 
         public static SpatialReservation PlazaKeepOpen(
             string ownerId, Int2 centreDm, Int2 sizeDm, int clearanceDm, int minYDm, int maxYDm,
@@ -826,7 +833,8 @@ namespace MountingForce.WorldGen
                 .ExpandHorizontal(clearanceDm);
             return SpatialReservation.Box(ownerId, ReservationCategory.Plaza,
                 ReservationSemantics.Clearance, bounds, precedence,
-                ReservationConsumerKind.None, provenance);
+                ReservationConsumerKind.None, provenance, 0,
+                ReservationConsumerKind.Vegetation);
         }
 
         public static SpatialReservation SettlementEnvelope(
@@ -860,7 +868,8 @@ namespace MountingForce.WorldGen
             string provenance = "architecture") =>
             SpatialReservation.Box(ownerId, ReservationCategory.StructuralChild,
                 ReservationSemantics.Clearance | ReservationSemantics.CompatibleHandoff,
-                bounds, precedence, compatibleConsumers, provenance);
+                bounds, precedence, compatibleConsumers, provenance, 0,
+                ReservationConsumerKind.Vegetation);
 
         public static SpatialReservation VegetationSoftExclusion(
             string ownerId, ReservationBoundsDm bounds, int precedence = 5,
