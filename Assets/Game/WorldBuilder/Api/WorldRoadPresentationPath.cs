@@ -15,6 +15,11 @@ namespace Game.WorldBuilder.Api
         private const int QuadraticSteps = 4;
 
         public static IReadOnlyList<ResolvedWorldRoadPoint> Build(ResolvedWorldRoad road)
+            => Build(road, null);
+
+        public static IReadOnlyList<ResolvedWorldRoadPoint> Build(
+            ResolvedWorldRoad road,
+            IReadOnlyList<WorldRoadJunction> junctions)
         {
             if (road == null) throw new ArgumentNullException(nameof(road));
             if (!road.IsResolved || road.Points.Count < 2)
@@ -29,12 +34,18 @@ namespace Game.WorldBuilder.Api
                 ResolvedWorldRoadPoint previous = road.Points[i - 1];
                 ResolvedWorldRoadPoint corner = road.Points[i];
                 ResolvedWorldRoadPoint next = road.Points[i + 1];
+                if (IsJunction(corner, junctions))
+                {
+                    AddDistinct(result, corner);
+                    continue;
+                }
+
                 int previousRun = PlanarDistance(previous, corner);
                 int nextRun = PlanarDistance(corner, next);
                 int trim = Math.Min(previousRun, nextRun) * CurveTrimPermille / 1000;
                 int maximumByProfile = road.Intent.Profile.CoreRadiusDm
                     + road.Intent.Profile.TransitionWidthDm;
-                trim = Math.Min(trim, maximumByProfile * 2);
+                trim = Math.Min(trim, maximumByProfile);
                 if (trim < 2 || Collinear(previous, corner, next))
                 {
                     AddDistinct(result, corner);
@@ -65,6 +76,17 @@ namespace Game.WorldBuilder.Api
             return -DivideRounded(
                 (long)shoulderDrop * (distanceDm - coreDm),
                 shoulderWidth);
+        }
+
+        private static bool IsJunction(
+            ResolvedWorldRoadPoint point,
+            IReadOnlyList<WorldRoadJunction> junctions)
+        {
+            if (junctions == null) return false;
+            for (int i = 0; i < junctions.Count; i++)
+                if (junctions[i].Xdm == point.Xdm && junctions[i].Zdm == point.Zdm)
+                    return true;
+            return false;
         }
 
         private static ResolvedWorldRoadPoint Quadratic(
