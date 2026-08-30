@@ -2,6 +2,7 @@
 
 ## Observed state / acceptance
 - Ticket has no captures; `issue.json`, the supplied `Assets/Stylized Water Shader/` package, and `WaterfallReference.shader` define the target.
+- The issue folder is missing the normal `repro.json`, `expected.json`, and `replay.json` contract files; restore those before capture/CI work.
 - Production water must keep the existing voxel/world-authoring geometry/gameplay path while replacing its presentation globally with one reusable stylized renderer.
 - Add built `WaterRenderingShowcase` through standard water authoring, covering still/deep, shoreline, river, waterfall, terrain/structure contact, near/wide and time-separated views. Also prove replacement in existing game scenes.
 
@@ -17,4 +18,4 @@ Trace standard water authoring -> mesh/discovery -> renderer/material/shader bin
 Preserve collision, buoyancy/swimming/wading, discovery, streaming, edits and diagnostics. No per-water-voxel objects or per-body unique materials. Retain culling/batching and device budgets; quantify CPU/GPU/memory/variants/draw-call impact. No workflow/package changes unless proven necessary.
 
 ## Remaining gates
-Implement shared production path + showcase; add production-path portability regressions; validate shader/build reliability; exact-SHA targeted CI; exact built showcase motion evidence; built existing-scene evidence (VoxelShowcase + another water scene if available); inspect visual quality/cost; then pending/closed bookkeeping and non-force master promotion.
+Restore issue contract; implement shared production path + showcase; add production-path portability regressions; validate shader/build reliability; exact-SHA targeted CI; exact built showcase motion evidence; built existing-scene evidence (VoxelShowcase + another water scene if available); inspect visual quality/cost; then pending/closed bookkeeping and non-force master promotion.
