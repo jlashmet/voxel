@@ -19,12 +19,14 @@
 - Direct review rejected that Water evidence as `prototype/blockout quality`; it showed only the old startup patch rather than the required representative Water relationships.
 - Exact-SHA run 33336383760 was green after the first richer tableau attempt, but its Water frames were flat clear-colour output. The player log proved the composition aborted before creating production meshes.
 - Minimal repro/root cause: `FarFieldStructureStore` samples each 512-voxel region at coarse column centres `16 + 32n` and records only sufficiently raised authored surfaces. The tableau also incorrectly checked a raised inner-pool probe against `BaseY`, guaranteeing rejection even when captured. Several rectangle start offsets never intersected the coarse-centre lattice at all. The fix authors every semantic rectangle directly on that lattice, lifts the deterministic review pedestal above terrain variation, and fail-fast probes still water, shoreline, river, cascade, receiving pool, and terrain contact before any screenshot can count.
+- Exact-SHA run 33337294126 was green after the lattice fix and proved the actual `VoxelFarTerrain` production meshes were captured, but direct frame review still rejected the result: coarse rectangular authored masks plus an overhead overview camera made the real production renderer read as a flat diagram with hard slab edges and an exposed ring seam.
+- Second visual root cause/minimal repro: the frozen meshes are production `VoxelFarTerrain`; the remaining blockout symptom is therefore scene composition, not a fake renderer. `AuthorTableau` authored orthogonal constant-height rectangles across the coarse lattice and `CreateCamera` looked down on them, maximizing every grid edge. The acceptance repair keeps the production renderer unchanged and varies only module-local composition: irregular rolling terrain, organic shoreline/pool masks, a wandering variable-width descending river, shaped rock banks/cascade contacts, and lower three-quarter framing.
 
 ## Blast radius / cost
 CI/orchestration, validation assets, tests, and docs only; no authoritative gameplay runtime behavior changed. Measured automatic validation cost is 167.71 seconds for the earlier Water + Kentridge path. The current fix is confined to Water validation composition/content and deterministic ownership metadata; shared renderer/harness thresholds remain unchanged.
 
 ## Current commit
-Root-cause fix checkpoint: e8c0513831ad2ec182eb1fdb100c5d6c08d1e001
+Visual-composition checkpoint: 02748ef59b953c4ce9d646439ed3c72cc8524fd4
 
 ## Remaining gates
 - [x] Inspect current validation architecture and identify reusable harness boundary.
