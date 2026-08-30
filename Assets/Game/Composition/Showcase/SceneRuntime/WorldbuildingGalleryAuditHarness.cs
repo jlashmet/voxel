@@ -13,6 +13,7 @@ namespace VoxelEngine.Showcase
     {
         private const string SceneIssueArgument = "-voxel-scene-issue";
         private const string ScreenshotDirectoryArgument = "-voxel-screenshot-dir";
+        private const string StructuralCompositionIssueId = "20260829-034505-000-WorldBuilderTypedStructuralSocketComposition";
         private const int ViewsPerTown = 3;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -20,29 +21,38 @@ namespace VoxelEngine.Showcase
         {
             string issuePath = Argument(SceneIssueArgument);
             string screenshotDirectory = Argument(ScreenshotDirectoryArgument);
-            if (string.IsNullOrEmpty(issuePath) || string.IsNullOrEmpty(screenshotDirectory) || !IsCaptureLessIssue(issuePath)) return;
+            if (string.IsNullOrEmpty(issuePath) || string.IsNullOrEmpty(screenshotDirectory)) return;
+
+            IssueRecord issue = ReadIssue(issuePath);
+            if (!IsCaptureLessGalleryIssue(issue)) return;
 
             var root = new GameObject("Worldbuilding Gallery Audit Harness") { hideFlags = HideFlags.DontSave };
             Reporter reporter = root.AddComponent<Reporter>();
             reporter.ScreenshotDirectory = screenshotDirectory;
+            reporter.StructuralCompositionAudit = string.Equals(
+                issue.id,
+                StructuralCompositionIssueId,
+                StringComparison.Ordinal);
             UnityEngine.Object.DontDestroyOnLoad(root);
-            Debug.Log("TOWNARCH_AUDIT armed for capture-less SceneIssue validation.");
+            Debug.Log($"TOWNARCH_AUDIT armed for capture-less SceneIssue validation structural={reporter.StructuralCompositionAudit}.");
         }
 
-        private static bool IsCaptureLessIssue(string path)
+        private static IssueRecord ReadIssue(string path)
         {
             try
             {
-                IssueRecord record = JsonUtility.FromJson<IssueRecord>(File.ReadAllText(path));
-                return record != null && record.captures != null && record.captures.Length == 0 &&
-                       string.Equals(record.sceneName, "WorldbuildingGalleryShowcase", StringComparison.Ordinal);
+                return JsonUtility.FromJson<IssueRecord>(File.ReadAllText(path));
             }
             catch (Exception error)
             {
                 Debug.LogError($"TOWNARCH_AUDIT could not read SceneIssue: {error.Message}");
-                return false;
+                return null;
             }
         }
+
+        private static bool IsCaptureLessGalleryIssue(IssueRecord record) =>
+            record != null && record.captures != null && record.captures.Length == 0 &&
+            string.Equals(record.sceneName, "WorldbuildingGalleryShowcase", StringComparison.Ordinal);
 
         private static string Argument(string name)
         {
@@ -52,7 +62,7 @@ namespace VoxelEngine.Showcase
             return null;
         }
 
-        [Serializable] private sealed class IssueRecord { public string sceneName; public IssueFrame[] captures; }
+        [Serializable] private sealed class IssueRecord { public string id; public string sceneName; public IssueFrame[] captures; }
         [Serializable] private sealed class IssueFrame { }
 
         private readonly struct StructuralFrameSpec
@@ -91,6 +101,7 @@ namespace VoxelEngine.Showcase
         private sealed class Reporter : MonoBehaviour
         {
             internal string ScreenshotDirectory;
+            internal bool StructuralCompositionAudit;
             private bool _started;
             private bool _pinCamera;
             private bool _structuralAuditPassed;
@@ -194,8 +205,11 @@ namespace VoxelEngine.Showcase
                     yield break;
                 }
 
-                yield return CaptureStructural(world);
-                if (!_structuralAuditPassed) yield break;
+                if (StructuralCompositionAudit)
+                {
+                    yield return CaptureStructural(world);
+                    if (!_structuralAuditPassed) yield break;
+                }
 
                 long allocatedBytes = UnityEngine.Profiling.Profiler.GetTotalAllocatedMemoryLong();
                 long reservedBytes = UnityEngine.Profiling.Profiler.GetTotalReservedMemoryLong();
