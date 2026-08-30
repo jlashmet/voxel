@@ -553,7 +553,9 @@ namespace MountingForce.WorldGen.Voxel
         {
             string suffix = "-s" + segmentIndex + "p" + pieceIndex;
             string prefix = "world-road-" + id;
-            int prefixLimit = Math.Max(0, 63 - suffix.Length);
+            int prefixLimit = Math.Max(
+                0,
+                FixedString64Bytes.UTF8MaxLengthInBytes - suffix.Length);
             if (prefix.Length > prefixLimit) prefix = prefix.Substring(0, prefixLimit);
             return prefix + suffix;
         }
