@@ -1,6 +1,6 @@
 using System.Collections;
+using Game.Composition.Materials;
 using Game.Materials.Api;
-using Game.Materials.Runtime;
 using UnityEngine;
 using VoxelEngine.Composition;
 using VoxelEngine.Storage.Api;
@@ -46,7 +46,7 @@ namespace VoxelEngine.Showcase
                 mixedBrickCapacity: 8192,
                 changeJournalCapacity: 4096);
             RegisterGameMaterials(_storage);
-            MaterialPresentationComposition.Apply(GameMaterialRenderingDefinitions.Create());
+            GameMaterialComposition.Install();
 
             IStructureAuthoringSession authoring =
                 VoxelEngineBootstrap.CreateStructureAuthoring(_storage, 350000);
@@ -113,7 +113,7 @@ namespace VoxelEngine.Showcase
 
         private static void RegisterGameMaterials(IVoxelStorageRuntime storage)
         {
-            MaterialDefinition[] definitions = GameMaterialSimulationDefinitions.Create();
+            MaterialDefinition[] definitions = GameMaterialComposition.SimulationDefinitions();
             for (int i = 0; i < definitions.Length; i++)
             {
                 MaterialDefinition definition = definitions[i];
