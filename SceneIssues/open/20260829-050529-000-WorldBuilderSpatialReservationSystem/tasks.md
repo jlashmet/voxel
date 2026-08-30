@@ -132,3 +132,13 @@
 - [ ] Record regression tests, runtime evidence, cost results, blast radius, resolution summary and fix commit in issue metadata.
 - [ ] Move this assignment `open -> pending -> closed` only when every checkbox and acceptance criterion is complete; set `status=fixed` and `resolvedUtc`.
 - [ ] Merge current `origin/master` into `fixes/agent-7`, push feature branch, then non-force push that exact head to `origin/master`; if master advances, fetch/merge/retry.
+
+## Discovered completion work (2026-08-30 audit)
+
+- [ ] Make `PlannerLocalReservationSet` idempotent by stable `ReservationId`; replaying the same semantic claim must not duplicate authority.
+- [ ] Add deterministic planner-local `Release(ReservationId)` and `ReleaseOwner(string)` behavior with regression coverage; release must remain bounded/local and reconstructable from semantic ownership.
+- [ ] Thread a caller-supplied `SpatialReservationSnapshot` into Kentridge hidden-space batch/planner acceptance and reject only true 3D conflicts using `HiddenSpaceVolume`.
+- [ ] Add a production hidden-space regression that exercises real `SiteHiddenSpaceRealization` values against surface reservations.
+- [ ] Confirm the current-master structural integration seam without importing unmerged typed-socket work; wire only the available production site/child-clearance boundary.
+- [ ] Confirm and wire the `WorldbuildingGalleryShowcase` read-only inspection seam; visualization must consume snapshots and never mutate reservation authority.
+- [ ] Reconcile stale checklist entries for canonical-road and production-vegetation work already present on this branch only after their exact regressions/gates pass.
