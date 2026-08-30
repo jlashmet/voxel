@@ -46,6 +46,9 @@ namespace VoxelEngine.Tests.EditMode
                     Boundary = new VoxelBoundarySample { Packed = 0xA7 },
                 };
                 pool.SetCell(mixedPoolIndex, voxelIndex, in authored);
+                int waterVoxelIndex = 1 | (2 << 3) | (3 << 6);
+                var water = new VoxelCell { BaseMaterialId = 11 };
+                pool.SetCell(mixedPoolIndex, waterVoxelIndex, in water);
 
                 int mixedBlockIndex = Region.BrickIndex(mixedBlock.x, mixedBlock.y, mixedBlock.z);
                 Assert.IsTrue(region.MarkHardSurfaceBrick(mixedBlockIndex));
@@ -78,6 +81,15 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.AreEqual(VoxelReadBlockKind.Mixed, mixed.Kind);
                 Assert.IsTrue(view.IsBlockOccupied(mixedBlock));
                 Assert.IsTrue(view.IsHardSurfaceBlock(mixedBlock));
+                Assert.IsTrue(view.TryWorldBlockContainsEitherMaterial(
+                    uniformBlock, 11, 16, out bool uniformContainsWater));
+                Assert.IsFalse(uniformContainsWater);
+                Assert.IsTrue(view.TryWorldBlockContainsEitherMaterial(
+                    mixedBlock, 11, 16, out bool mixedContainsWater));
+                Assert.IsTrue(mixedContainsWater);
+                Assert.IsTrue(view.TryWorldBlockContainsEitherMaterial(
+                    int3.zero, 11, 16, out bool emptyContainsWater));
+                Assert.IsFalse(emptyContainsWater);
 
                 int3 authoredVoxel = mixedBlock * 8 + inner;
                 Assert.IsTrue(view.TryReadCell(authoredVoxel, out VoxelCell read));
@@ -134,6 +146,8 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.IsFalse(view.TryReadCell(new int3(-1, 0, 0), out _));
                 Assert.IsFalse(view.TryReadCell(new int3(VoxelGrid.RegionVoxelEdge, 0, 0), out _));
                 Assert.IsFalse(view.TryGetBlock(new int3(64, 0, 0), out _));
+                Assert.IsFalse(view.TryWorldBlockContainsEitherMaterial(
+                    new int3(64, 0, 0), 11, 16, out _));
             }
             finally
             {

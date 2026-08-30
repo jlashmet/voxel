@@ -49,6 +49,8 @@ namespace VoxelEngine.Tests.PlayMode
                 "Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs");
             string admission = File.ReadAllText(
                 "Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/WaterSurfaceDiscoveryAdmission.cs");
+            string cache = File.ReadAllText(
+                "Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuWaterSurfaceChunkCache.cs");
 
             StringAssert.Contains("_water.InvalidateSurfaceBricks(storage, _changedWaterBricks);", scheduler,
                 "authoritative water mutations must remain immediate");
@@ -66,6 +68,11 @@ namespace VoxelEngine.Tests.PlayMode
                 "repeated discovery publications must deduplicate pending classification");
             StringAssert.Contains("processed < SurfaceDiscoveryBricksPerPrepare", admission,
                 "each frame must drain only the bounded classification slice");
+            StringAssert.Contains("TryWorldBlockContainsEitherMaterial", cache,
+                "discovery classification must inspect only material bytes from the borrowed view");
+            StringAssert.DoesNotContain(
+                "bool containsWater = TryLoadBrickMaterials(storage, worldBrick", cache,
+                "discovery classification must not copy all three render-payload channels");
         }
 
         [Test]

@@ -312,8 +312,15 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (storage == null) return;
 
             int3 chunk = WorldBrickChunk(worldBrick);
-            bool containsWater = TryLoadBrickMaterials(storage, worldBrick, ref cachedRegion)
-                              && LoadedBrickContainsWater();
+            if (!cachedRegion.IsCreated || !cachedRegion.ContainsWorldBlock(worldBrick))
+            {
+                if (!storage.TryAcquireRegionContainingBlock(worldBrick, out cachedRegion))
+                    cachedRegion = default;
+            }
+            bool containsWater = cachedRegion.IsCreated
+                              && cachedRegion.TryWorldBlockContainsEitherMaterial(
+                                  worldBrick, 11, 16, out bool foundWater)
+                              && foundWater;
 
             if (containsWater)
             {

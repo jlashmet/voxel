@@ -68,3 +68,10 @@
 - Product red. Strengthened recovery liveness passed in 52.21 s. Migration failed only the unchanged moving-tail gate: p99 75.912 ms versus 25 ms; the preceding adoption, visibility, zero-fallback, and snapshotless-stage assertions passed.
 - The 45 s real-player harness passed and all four images were inspected. At 15.7 s geometry was nearly absent; the castle was substantially present by 25.7 s. Runtime ultimately reached `missingVisible=0`, no arena allocation failure, and roughly 200–500 FPS.
 - Exact telemetry separates the remaining tail from shared-mirror solid admission: one water admission slice was 29.256 ms while solid admission was 0.478 ms; later solid admission remained about 0.5–3 ms. Experiment 010 bounds discovery-only water classification by its existing deadline. The capture remains open.
+
+## 2026-08-29 — water-deadline request `5dfb7a91…`
+- Exact feature parent `5443cd73f5991d37dffbe5a2f1023ea162d35013`; run/job `33282801017` / `99180710200`; artifact `9723624497`.
+- Product red. Recovery liveness passed in 51.78 s; migration failed only moving p99 at 79.164 ms versus 25 ms.
+- The player converged to `missingVisible=0`, with settled intervals around 200–600 FPS and no arena lease failures. A 39.214 ms water slice remained while solid admission was 0.485 ms; arena upload peaked on a different frame.
+- All timed screenshots were inspected: sparse startup at 15.8 s, substantial castle coverage at 25.8 s, and complete coverage at 35.8 s. `verification-final.png` is a malformed thin strip and is not accepted as final visual evidence.
+- The between-brick deadline is therefore not a complete fix. Experiment 011 removes the discovery path's three-channel payload copy. The capture remains open.
