@@ -2,26 +2,36 @@ Selected source: Delatronic — Dragon
 Current source page: https://blendswap.com/blend/15891
 Historic upstream id recorded by redistribution mirrors: http://www.blendswap.com/blends/view/80766
 Author: Delatronic
-License: CC-BY (redistribution mirror identifies CC BY 3.0 requirements)
+License: CC-BY (redistribution mirrors identify CC BY 3.0 requirements)
 Original authoring format: Blender 2.7x / Cycles
 
 Auditable redistribution mirror:
 https://github.com/microsoft/DirectX-Graphics-Samples/tree/master/Samples/Desktop/D3D12Raytracing/src/D3D12RaytracingRealTimeDenoisedAmbientOcclusion/Assets/dragon
-Mirror license file explicitly identifies Delatronic, Benedikt Bitterli Rendering Resources, the original Blend Swap URL, CC-BY redistribution, and modification provenance.
+Mirror license/readme provenance identifies Delatronic, Benedikt Bitterli Rendering Resources, the original Blend Swap URL, and CC-BY redistribution.
+
+Independent conversion/provenance mirror:
+https://github.com/ErfanMo77/gltf-research-scenes/tree/main/scenes/dragon
+Its PBRT-v4 scene assigns the Dragon material only to Mesh008/013/014/015 and its conversion metadata reports the complete reference scene as 16 meshes / 831,812 triangles / 9 materials. Its Git LFS pointers expose SHA-256 object identities for the exact source PLY payloads.
 
 PBRT scene material ownership identifies dragon geometry as:
-- Mesh008.ply — Git blob fa8316f8b1c698da1d539b04cb83992437439dc6 — 4,386,778 bytes
-- Mesh013.ply — Git blob 27f7188faed577d4fb4a4130285ed5c97a024bdc — 4,840,746 bytes
-- Mesh014.ply — Git blob 5c0ff63e4e32568d005ff136017225abc5b94aab — 12,277 bytes
-- Mesh015.ply — Git blob c3bbd2718695bc8776b8b96626c31ab3e229d185 — 49,110 bytes
-Teeth are separate Mesh011.ply — Git blob dbb30c57a7fdb5e5f068f337ca0ad3676c9bcb18 — 13,749 bytes.
+- Mesh008.ply — 4,386,778 bytes — Git blob fa8316f8b1c698da1d539b04cb83992437439dc6 — SHA-256 f0d6d4a59b3f917b5f2412a53f18651021be4e3a80f698bab194090f1fc45b47
+- Mesh013.ply — 4,840,746 bytes — Git blob 27f7188faed577d4fb4a4130285ed5c97a024bdc — SHA-256 a0cace9524c2a7694b45a6f9340d256413a5f395fce7ffecc35b0b2b36380f65
+- Mesh014.ply — 12,277 bytes — Git blob 5c0ff63e4e32568d005ff136017225abc5b94aab — SHA-256 f269fced46a368b9e4abea226c4dea79c62d6fefc143b465674504442d67af52
+- Mesh015.ply — 49,110 bytes — Git blob c3bbd2718695bc8776b8b96626c31ab3e229d185 — SHA-256 3111eda2bf25d7c764c00563f049b4136f720a45c187ea68f4eaa8faa3f6d46c
 
-Research-scene conversion metadata for this source scene reports 16 meshes / 831,812 triangles total. Source-specific dragon triangle/vertex totals remain to be measured from the vendored dragon parts rather than inferred from the whole scene.
+The four Dragon-material files total 9,288,911 source bytes. Source-specific triangle/vertex totals still must be measured from the vendored payloads rather than inferred from the whole 831,812-triangle reference scene.
 
 Visual/detail decision:
-- Accepted source family: conventional curved, detailed Western winged dragon; source/reviewer metadata explicitly describes detail and wings.
+- Accepted source family: conventional curved, detailed Western winged dragon; BlendSwap reviewer metadata explicitly calls out detail, body flow, and wings.
 - Rejected artist_71 OpenGameArt three-headed model: detailed but wingless.
 - Rejected Cethiel/Drummyfish CC0 model: winged but mirrored source is only ~633 position vertices and visibly low-poly.
+- Rejected Stanford scan derivatives encountered during fallback search: high triangle counts but wingless and therefore fail this issue's anatomy requirement.
+
+Transport experiments completed without changing the selected quality bar:
+- GitHub contents/base64 succeeds for the small binary Mesh014 payload, but the connected API does not return the >1 MB Mesh008/Mesh013 binaries.
+- Git blob fetch for Mesh008 fails in the connector's UTF-8 response decoder; cross-repository blob SHA reuse is not accepted by GitHub because blobs are repository-local.
+- Original Bitterli archive and GitHub Raw/CDN download routes were probed from the execution environment; binary transfer did not succeed.
+- The same-assignment fixes/agent-1-temp-check branch is strictly behind fixes/agent-1 and contains no additional asset/bake commit to recover.
 
 Current blocker:
-The selected redistribution mirror stores its large PLY parts as binary little-endian files. The connected repository API can verify their exact blob identities and metadata but cannot presently transfer the two multi-megabyte binary payloads into this repository losslessly. Do not replace the selected source with lower-quality geometry merely to fit transport tooling. Checksums of committed bytes remain pending until the source is actually vendored.
+The selected source's two main binary PLY payloads are larger than the connected repository API's transferable binary ceiling, while this execution environment has no writable voxel checkout and no network-capable shell. Do not replace the selected source with lower-quality/wingless geometry merely to fit transport tooling. The SHA-256 identities above make the intended bytes unambiguous, but the source still must be physically vendored before the issue can pass acceptance or close.
