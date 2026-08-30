@@ -41,14 +41,49 @@ namespace MountingForce.WorldGen.Voxel
                                     out List<TreeInstance> instances)
         {
             SettlementPlan plan = KentridgeDefinition.Build(seed);
-            List<VegetationCandidate> candidates =
-                KentridgeVegetationLayoutPlanner.Build(plan);
             WorldRoadNetwork roads = KentridgeWorldRoadNetwork.Build(plan, seed, settings);
             SpatialReservationSnapshot reservations =
                 KentridgeSpatialReservationAdapter.Build(seed, plan, roads);
+            return TryBuild(
+                seed, settings, surfaceQuery, plan, roads, reservations,
+                out instances, out _);
+        }
+
+        /// <summary>
+        /// Caller-owned reservation overload for composed production planning. Ecology still chooses
+        /// the semantic candidates and the canonical road network still owns physical road influence;
+        /// this method only asks the supplied immutable snapshot whether each realized tree must yield.
+        /// Accepted vegetation claims are returned as derived ownership for downstream planners that
+        /// need it; callers are not required to retain them.
+        /// </summary>
+        public static bool TryBuild(uint seed, VoxelWorldGenSettings settings,
+                                    IVoxelSurfaceQuery surfaceQuery,
+                                    SpatialReservationSnapshot reservations,
+                                    out List<TreeInstance> instances,
+                                    out List<SpatialReservation> acceptedClaims)
+        {
+            if (reservations == null) throw new System.ArgumentNullException(nameof(reservations));
+            SettlementPlan plan = KentridgeDefinition.Build(seed);
+            WorldRoadNetwork roads = KentridgeWorldRoadNetwork.Build(plan, seed, settings);
+            return TryBuild(
+                seed, settings, surfaceQuery, plan, roads, reservations,
+                out instances, out acceptedClaims);
+        }
+
+        private static bool TryBuild(uint seed, VoxelWorldGenSettings settings,
+                                     IVoxelSurfaceQuery surfaceQuery,
+                                     SettlementPlan plan,
+                                     WorldRoadNetwork roads,
+                                     SpatialReservationSnapshot reservations,
+                                     out List<TreeInstance> instances,
+                                     out List<SpatialReservation> acceptedClaims)
+        {
+            List<VegetationCandidate> candidates =
+                KentridgeVegetationLayoutPlanner.Build(plan);
             int scale = settings.VoxelsPerDecimetre;
             float voxelSize = DecimetreMetres / scale;
             instances = new List<TreeInstance>(candidates.Count);
+            acceptedClaims = new List<SpatialReservation>(candidates.Count);
 
             for (int i = 0; i < candidates.Count; i++)
             {
@@ -85,6 +120,7 @@ namespace MountingForce.WorldGen.Voxel
                 if (!placement.IsAccepted)
                     continue;
 
+                acceptedClaims.Add(vegetationClaim);
                 AddInstance(candidate, worldX, rootVoxelY, worldZ,
                             voxelSize, seed, instances);
             }
