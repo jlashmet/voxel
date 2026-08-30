@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace Game.WorldBuilder.Api
 {
-    /// <summary>Stable semantic ids for reusable town-architecture programs.</summary>
+    /// <summary>Stable ids for the six reference-backed baseline programs. Registries may contain any additional id.</summary>
     public static class WorldBuilderTownArchitectureIds
     {
         public const string Kentridge = "kentridge";
@@ -14,10 +14,6 @@ namespace Game.WorldBuilder.Api
         public const string OrcVillage = "orc-village";
     }
 
-    /// <summary>
-    /// Bounded semantic footprint reserved by the shared town-architecture authoring contract.
-    /// Backends may author less geometry, but must stay within these limits so callers can place districts safely.
-    /// </summary>
     public static class TownArchitectureDistrictBounds
     {
         public const int HalfWidthVoxels = 82;
@@ -35,7 +31,7 @@ namespace Game.WorldBuilder.Api
         LandmarkInfrastructure = 3,
     }
 
-    /// <summary>High-level construction language. Backends must preserve these as distinct physical forms.</summary>
+    /// <summary>Semantic identity metadata. Realization is controlled by per-role composition recipes, not this enum.</summary>
     public enum TownArchitectureSilhouette : byte
     {
         PastoralTimberFrame = 0,
@@ -46,7 +42,6 @@ namespace Game.WorldBuilder.Api
         TribalHeavyTimber = 5,
     }
 
-    /// <summary>Roof/form intent that must survive the production realization path.</summary>
     public enum TownArchitectureRoofForm : byte
     {
         SteepGable = 0,
@@ -57,7 +52,6 @@ namespace Game.WorldBuilder.Api
         StockadeJagged = 5,
     }
 
-    /// <summary>Reusable player-scale facade construction vocabulary.</summary>
     public enum TownArchitectureOpeningStyle : byte
     {
         TimberFramed = 0,
@@ -68,7 +62,35 @@ namespace Game.WorldBuilder.Api
         HeavySlit = 5,
     }
 
-    /// <summary>Semantic material family selected by a town style before a renderer maps it to IDs.</summary>
+    /// <summary>Reusable massing capabilities. New styles compose these; they are not town identities.</summary>
+    public enum TownArchitectureMassing : byte
+    {
+        GabledFrame = 0,
+        StoneGabled = 1,
+        LowStoneLeanTo = 2,
+        FortifiedParapet = 3,
+        OrganicCanopy = 4,
+        HeavyStockade = 5,
+    }
+
+    [Flags]
+    public enum TownArchitectureDetailFeatures : ushort
+    {
+        None = 0,
+        TimberFrame = 1 << 0,
+        MasonryCourses = 1 << 1,
+        Balcony = 1 << 2,
+        Awning = 1 << 3,
+        CivicArch = 1 << 4,
+        Chimney = 1 << 5,
+        Buttress = 1 << 6,
+        Crenellation = 1 << 7,
+        Canopy = 1 << 8,
+        Stockade = 1 << 9,
+        Spikes = 1 << 10,
+        LeanTo = 1 << 11,
+    }
+
     public readonly struct TownArchitectureMaterialFamily
     {
         public string Wall { get; }
@@ -78,16 +100,9 @@ namespace Game.WorldBuilder.Api
         public string Trim { get; }
         public string Accent { get; }
 
-        public string Signature =>
-            Wall + "|" + Roof + "|" + Structure + "|" + Ground + "|" + Trim + "|" + Accent;
+        public string Signature => Wall + "|" + Roof + "|" + Structure + "|" + Ground + "|" + Trim + "|" + Accent;
 
-        public TownArchitectureMaterialFamily(
-            string wall,
-            string roof,
-            string structure,
-            string ground,
-            string trim,
-            string accent)
+        public TownArchitectureMaterialFamily(string wall, string roof, string structure, string ground, string trim, string accent)
         {
             Wall = Require(wall, nameof(wall));
             Roof = Require(roof, nameof(roof));
@@ -99,130 +114,173 @@ namespace Game.WorldBuilder.Api
 
         private static string Require(string value, string name)
         {
-            if (string.IsNullOrWhiteSpace(value))
-                throw new ArgumentException("Town architecture material roles require semantic names.", name);
+            if (string.IsNullOrWhiteSpace(value)) throw new ArgumentException("Town architecture material roles require semantic names.", name);
             return value;
         }
     }
 
-    /// <summary>
-    /// Reusable semantic program for one town's architecture. Geometry backends consume this contract;
-    /// scenes only choose placement/material mapping/evidence framing and may override the deterministic seed.
-    /// </summary>
-    public sealed class TownArchitectureProgram
+    /// <summary>One structure role assembled from reusable WorldBuilder massing/opening/detail capabilities.</summary>
+    public readonly struct TownArchitectureRoleRecipe
     {
-        private readonly TownArchitectureStructureRole[] _requiredRoles;
+        public TownArchitectureStructureRole Role { get; }
+        public TownArchitectureMassing Massing { get; }
+        public TownArchitectureRoofForm RoofForm { get; }
+        public TownArchitectureOpeningStyle OpeningStyle { get; }
+        public TownArchitectureDetailFeatures Features { get; }
+        public int Width { get; }
+        public int Depth { get; }
+        public int WallHeight { get; }
+        public int RoofHeight { get; }
+
+        public TownArchitectureRoleRecipe(
+            TownArchitectureStructureRole role,
+            TownArchitectureMassing massing,
+            TownArchitectureRoofForm roofForm,
+            TownArchitectureOpeningStyle openingStyle,
+            TownArchitectureDetailFeatures features,
+            int width,
+            int depth,
+            int wallHeight,
+            int roofHeight)
+        {
+            if (width < 16 || depth < 14 || wallHeight < 10 || roofHeight < 0)
+                throw new ArgumentOutOfRangeException(nameof(width), "Town role dimensions are outside reusable authoring bounds.");
+            Role = role;
+            Massing = massing;
+            RoofForm = roofForm;
+            OpeningStyle = openingStyle;
+            Features = features;
+            Width = width;
+            Depth = depth;
+            WallHeight = wallHeight;
+            RoofHeight = roofHeight;
+        }
+
+        public string Signature => Role + ":" + Massing + ":" + RoofForm + ":" + OpeningStyle + ":" + Features +
+                                   ":" + Width + "x" + Depth + "x" + WallHeight + "+" + RoofHeight;
+    }
+
+    /// <summary>Validated four-role composition. No style id or town name is encoded in the realization recipe.</summary>
+    public sealed class TownArchitectureComposition
+    {
+        private readonly TownArchitectureRoleRecipe[] _roles;
+        public IReadOnlyList<TownArchitectureRoleRecipe> Roles => _roles;
+        public string Signature { get; }
+
+        public TownArchitectureComposition(params TownArchitectureRoleRecipe[] roles)
+        {
+            if (roles == null) throw new ArgumentNullException(nameof(roles));
+            if (roles.Length != 4) throw new ArgumentException("A town composition requires exactly four structure roles.", nameof(roles));
+            _roles = (TownArchitectureRoleRecipe[])roles.Clone();
+            foreach (TownArchitectureStructureRole required in Enum.GetValues(typeof(TownArchitectureStructureRole)))
+            {
+                int matches = 0;
+                for (int i = 0; i < _roles.Length; i++) if (_roles[i].Role == required) matches++;
+                if (matches != 1) throw new ArgumentException("A town composition must define each required role exactly once.", nameof(roles));
+            }
+            var signatures = new string[_roles.Length];
+            for (int i = 0; i < _roles.Length; i++) signatures[i] = _roles[i].Signature;
+            Signature = string.Join("|", signatures);
+        }
+
+        public TownArchitectureRoleRecipe RecipeFor(TownArchitectureStructureRole role)
+        {
+            for (int i = 0; i < _roles.Length; i++) if (_roles[i].Role == role) return _roles[i];
+            throw new ArgumentOutOfRangeException(nameof(role), role, "Town composition has no recipe for role.");
+        }
+    }
+
+    /// <summary>Registry-ready immutable style definition. Callers may create/register additional definitions at runtime.</summary>
+    public sealed class TownArchitectureDefinition
+    {
         private readonly string[] _referenceScreenshots;
         private readonly string[] _detailVocabulary;
-
         public string StyleId { get; }
         public string DisplayName { get; }
         public string SourcePrefix { get; }
-        public uint Seed { get; }
+        public uint CanonicalSeed { get; }
         public int DetailUnitBlocks { get; }
         public TownArchitectureSilhouette Silhouette { get; }
         public TownArchitectureRoofForm RoofForm { get; }
         public TownArchitectureOpeningStyle OpeningStyle { get; }
         public TownArchitectureMaterialFamily MaterialFamily { get; }
-        public IReadOnlyList<TownArchitectureStructureRole> RequiredRoles => _requiredRoles;
+        public TownArchitectureComposition Composition { get; }
         public IReadOnlyList<string> ReferenceScreenshots => _referenceScreenshots;
         public IReadOnlyList<string> DetailVocabulary => _detailVocabulary;
 
-        public string FormSignature => Silhouette + "/" + RoofForm + "/" + OpeningStyle;
-        public string DetailSignature => string.Join("|", _detailVocabulary);
-        public string DeterministicSignature =>
-            StyleId + ":" + Seed.ToString("X8") + ":" + DetailUnitBlocks + ":" + FormSignature + ":" + DetailSignature;
-
-        internal TownArchitectureProgram(
-            string styleId,
-            string displayName,
-            string sourcePrefix,
-            uint seed,
-            int detailUnitBlocks,
-            TownArchitectureSilhouette silhouette,
-            TownArchitectureRoofForm roofForm,
-            TownArchitectureOpeningStyle openingStyle,
-            in TownArchitectureMaterialFamily materialFamily,
-            TownArchitectureStructureRole[] requiredRoles,
-            string[] referenceScreenshots,
-            string[] detailVocabulary)
+        public TownArchitectureDefinition(
+            string styleId, string displayName, string sourcePrefix, uint canonicalSeed, int detailUnitBlocks,
+            TownArchitectureSilhouette silhouette, TownArchitectureRoofForm roofForm,
+            TownArchitectureOpeningStyle openingStyle, in TownArchitectureMaterialFamily materialFamily,
+            TownArchitectureComposition composition, string[] referenceScreenshots, string[] detailVocabulary)
         {
             StyleId = Require(styleId, nameof(styleId));
             DisplayName = Require(displayName, nameof(displayName));
             SourcePrefix = Require(sourcePrefix, nameof(sourcePrefix));
-            if (detailUnitBlocks <= 0)
-                throw new ArgumentOutOfRangeException(nameof(detailUnitBlocks), "Detail unit must be at least one voxel.");
-            if (!FormMatchesSilhouette(silhouette, roofForm))
-                throw new ArgumentException(
-                    $"Roof/form intent {roofForm} does not match physical silhouette {silhouette}.", nameof(roofForm));
-
-            Seed = seed;
+            if (detailUnitBlocks <= 0) throw new ArgumentOutOfRangeException(nameof(detailUnitBlocks));
+            CanonicalSeed = canonicalSeed;
             DetailUnitBlocks = detailUnitBlocks;
             Silhouette = silhouette;
             RoofForm = roofForm;
             OpeningStyle = openingStyle;
             MaterialFamily = materialFamily;
-            _requiredRoles = requiredRoles ?? throw new ArgumentNullException(nameof(requiredRoles));
-            _referenceScreenshots = referenceScreenshots ?? throw new ArgumentNullException(nameof(referenceScreenshots));
-            _detailVocabulary = detailVocabulary ?? throw new ArgumentNullException(nameof(detailVocabulary));
-
-            if (_requiredRoles.Length == 0)
-                throw new ArgumentException("A town architecture program requires structure roles.", nameof(requiredRoles));
-            if (_referenceScreenshots.Length == 0)
-                throw new ArgumentException("A reference-driven town program requires screenshot evidence.", nameof(referenceScreenshots));
-            if (_detailVocabulary.Length == 0)
-                throw new ArgumentException("A town architecture program requires reusable construction detail.", nameof(detailVocabulary));
+            Composition = composition ?? throw new ArgumentNullException(nameof(composition));
+            _referenceScreenshots = referenceScreenshots == null ? Array.Empty<string>() : (string[])referenceScreenshots.Clone();
+            _detailVocabulary = detailVocabulary == null ? throw new ArgumentNullException(nameof(detailVocabulary)) : (string[])detailVocabulary.Clone();
+            if (_detailVocabulary.Length == 0) throw new ArgumentException("A town architecture definition requires reusable detail vocabulary.", nameof(detailVocabulary));
         }
 
-        public bool IncludesRole(TownArchitectureStructureRole role)
+        public TownArchitectureProgram CreateProgram(uint seed) => new TownArchitectureProgram(this, seed);
+
+        private static string Require(string value, string name)
         {
-            for (int i = 0; i < _requiredRoles.Length; i++)
-            {
-                if (_requiredRoles[i] == role)
-                    return true;
-            }
-            return false;
+            if (string.IsNullOrWhiteSpace(value)) throw new ArgumentException("Town architecture identity values cannot be blank.", name);
+            return value;
         }
+    }
+
+    public sealed class TownArchitectureProgram
+    {
+        private static readonly TownArchitectureStructureRole[] s_RequiredRoles =
+        {
+            TownArchitectureStructureRole.Residential, TownArchitectureStructureRole.Commercial,
+            TownArchitectureStructureRole.CivicCommunal, TownArchitectureStructureRole.LandmarkInfrastructure,
+        };
+        private readonly TownArchitectureDefinition _definition;
+
+        public string StyleId => _definition.StyleId;
+        public string DisplayName => _definition.DisplayName;
+        public string SourcePrefix => _definition.SourcePrefix;
+        public uint Seed { get; }
+        public int DetailUnitBlocks => _definition.DetailUnitBlocks;
+        public TownArchitectureSilhouette Silhouette => _definition.Silhouette;
+        public TownArchitectureRoofForm RoofForm => _definition.RoofForm;
+        public TownArchitectureOpeningStyle OpeningStyle => _definition.OpeningStyle;
+        public TownArchitectureMaterialFamily MaterialFamily => _definition.MaterialFamily;
+        public TownArchitectureComposition Composition => _definition.Composition;
+        public IReadOnlyList<TownArchitectureStructureRole> RequiredRoles => s_RequiredRoles;
+        public IReadOnlyList<string> ReferenceScreenshots => _definition.ReferenceScreenshots;
+        public IReadOnlyList<string> DetailVocabulary => _definition.DetailVocabulary;
+        public string FormSignature => Silhouette + "/" + RoofForm + "/" + OpeningStyle;
+        public string DetailSignature => string.Join("|", _definition.DetailVocabulary);
+        public string DeterministicSignature => StyleId + ":" + Seed.ToString("X8") + ":" + DetailUnitBlocks + ":" +
+                                                FormSignature + ":" + Composition.Signature + ":" + DetailSignature;
+
+        internal TownArchitectureProgram(TownArchitectureDefinition definition, uint seed)
+        {
+            _definition = definition ?? throw new ArgumentNullException(nameof(definition));
+            Seed = seed;
+        }
+
+        public bool IncludesRole(TownArchitectureStructureRole role) =>
+            role >= TownArchitectureStructureRole.Residential && role <= TownArchitectureStructureRole.LandmarkInfrastructure;
 
         public bool IncludesDetail(string detailId)
         {
             if (string.IsNullOrWhiteSpace(detailId)) return false;
-            for (int i = 0; i < _detailVocabulary.Length; i++)
-            {
-                if (string.Equals(_detailVocabulary[i], detailId, StringComparison.Ordinal))
-                    return true;
-            }
+            for (int i = 0; i < _definition.DetailVocabulary.Count; i++)
+                if (string.Equals(_definition.DetailVocabulary[i], detailId, StringComparison.Ordinal)) return true;
             return false;
-        }
-
-        private static bool FormMatchesSilhouette(
-            TownArchitectureSilhouette silhouette,
-            TownArchitectureRoofForm roofForm)
-        {
-            switch (silhouette)
-            {
-                case TownArchitectureSilhouette.PastoralTimberFrame:
-                    return roofForm == TownArchitectureRoofForm.SteepGable;
-                case TownArchitectureSilhouette.CivicVerticalStone:
-                    return roofForm == TownArchitectureRoofForm.TwinGable;
-                case TownArchitectureSilhouette.MoorlandLowStone:
-                    return roofForm == TownArchitectureRoofForm.GableWithLeanTo;
-                case TownArchitectureSilhouette.RoyalFortified:
-                    return roofForm == TownArchitectureRoofForm.FortifiedParapet;
-                case TownArchitectureSilhouette.OrganicCanopy:
-                    return roofForm == TownArchitectureRoofForm.OrganicCanopySpire;
-                case TownArchitectureSilhouette.TribalHeavyTimber:
-                    return roofForm == TownArchitectureRoofForm.StockadeJagged;
-                default:
-                    return false;
-            }
-        }
-
-        private static string Require(string value, string name)
-        {
-            if (string.IsNullOrWhiteSpace(value))
-                throw new ArgumentException("Town architecture identity values cannot be blank.", name);
-            return value;
         }
     }
 }

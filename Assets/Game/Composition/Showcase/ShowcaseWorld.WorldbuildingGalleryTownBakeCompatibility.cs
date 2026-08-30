@@ -1,5 +1,4 @@
 using System;
-using Game.Structures.Runtime;
 using Game.WorldBuilder.Runtime;
 using Game.WorldBuilder.Voxel;
 using Unity.Mathematics;
@@ -10,32 +9,23 @@ using VoxelEngine.Terrain.Api;
 namespace VoxelEngine.Showcase
 {
     /// <summary>
-    /// Compatibility boundary for gallery bakes created before the six town-architecture districts.
-    /// A fresh bake already contains the representative structures and pays no runtime authoring cost;
-    /// an older bake repairs only the missing town districts through the same shared WorldBuilder path.
+    /// Compatibility boundary for gallery bakes created before the registered town-architecture districts.
+    /// A fresh bake pays no runtime authoring cost; an older bake repairs only this bounded catalogue.
     /// </summary>
     public sealed partial class ShowcaseWorld
     {
-        private const int GalleryTownRepairWriteBudget = 18_000_000;
+        private const int GalleryTownRepairWriteBudget = 22_000_000;
 
-        /// <summary>
-        /// Returns true only when every canonical town district contains its representative residence.
-        /// The probe runs before gallery vegetation/world objects are populated, so it measures authored
-        /// voxel content rather than presentation clutter and naturally recognizes a future refreshed bake.
-        /// </summary>
         public bool HasWorldbuildingGalleryTownArchitectureContent()
         {
             for (int i = 0; i < s_GalleryTownDistrictCentres.Length; i++)
             {
                 int2 residence = WorldbuildingGalleryTownResidenceOriginXZ(i);
-                if (!HasBuiltContentAbove(residence.x, residence.y))
-                    return false;
+                if (!HasBuiltContentAbove(residence.x, residence.y)) return false;
             }
-
             return true;
         }
 
-        /// <summary>Canonical representative residence origin shared by bake probing and evidence framing.</summary>
         public static int2 WorldbuildingGalleryTownResidenceOriginXZ(int districtIndex)
         {
             int i = NormalizeTownDistrictIndex(districtIndex);
@@ -43,7 +33,6 @@ namespace VoxelEngine.Showcase
             return s_GalleryTownDistrictCentres[i] + new int2(-47 + seedShift, -12);
         }
 
-        /// <summary>Canonical landmark origin for a town district, including Rossdam's fortified gatehouse.</summary>
         public static int2 WorldbuildingGalleryTownLandmarkOriginXZ(int districtIndex)
         {
             int i = NormalizeTownDistrictIndex(districtIndex);
@@ -51,39 +40,29 @@ namespace VoxelEngine.Showcase
             return s_GalleryTownDistrictCentres[i] + new int2(40 - seedShift, 34);
         }
 
-        /// <summary>
-        /// Repairs a stale gallery bake without rerunning the castle, original exhibits, promenade,
-        /// cave, guild houses, or other expensive gallery generation. A future bake containing all six
-        /// town structures skips this method after the inexpensive storage probe.
-        /// </summary>
         public void EnsureWorldbuildingGalleryTownArchitectureBlocking()
         {
+            EnsureGalleryProofTownRegistered();
             if (HasWorldbuildingGalleryTownArchitectureContent())
             {
-                UnityEngine.Debug.Log("TOWNARCH_BAKE parity=present repair=false");
+                UnityEngine.Debug.Log($"TOWNARCH_BAKE parity=present repair=false districts={s_GalleryTownStyleIds.Length}");
                 return;
             }
 
             var regions = new System.Collections.Generic.HashSet<int3>();
             for (int i = 0; i < s_GalleryTownDistrictCentres.Length; i++)
                 AddGalleryRegionNeighbourhood(regions, s_GalleryTownDistrictCentres[i], 1);
-
-            foreach (int3 region in regions)
-                GenerateRegionBlocking(region);
+            foreach (int3 region in regions) GenerateRegionBlocking(region);
 
             IStructureAuthoringSession authoring = StructuresComposition.CreateAuthoringSession(
-                ReadStorage,
-                MutationStorage,
-                _palette,
-                writeBudget: GalleryTownRepairWriteBudget);
+                ReadStorage, MutationStorage, _palette, writeBudget: GalleryTownRepairWriteBudget);
 
             long writesStart = authoring.TotalVoxelsWritten;
             var timer = System.Diagnostics.Stopwatch.StartNew();
             for (int i = 0; i < s_GalleryTownStyleIds.Length; i++)
             {
-                string styleId = s_GalleryTownStyleIds[i];
-                var program = WorldBuilderTownArchitecture.Resolve(styleId, s_GalleryTownSeeds[i]);
-                TownArchitectureVoxelPalette palette = GalleryTownPalette(styleId);
+                var program = WorldBuilderTownArchitecture.Resolve(s_GalleryTownStyleIds[i], s_GalleryTownSeeds[i]);
+                TownArchitectureVoxelPalette palette = GalleryTownPalette(i);
                 WorldBuilderTownArchitectureVoxelAuthoring.Author(
                     authoring,
                     s_GalleryTownDistrictCentres[i],
@@ -104,7 +83,7 @@ namespace VoxelEngine.Showcase
                     $"Town architecture stale-bake repair exceeded its {authoring.WriteBudget:N0}-write budget.");
             if (!HasWorldbuildingGalleryTownArchitectureContent())
                 throw new InvalidOperationException(
-                    "Town architecture stale-bake repair completed without all six representative structures.");
+                    $"Town architecture stale-bake repair completed without all {s_GalleryTownStyleIds.Length} representative structures.");
         }
     }
 }
