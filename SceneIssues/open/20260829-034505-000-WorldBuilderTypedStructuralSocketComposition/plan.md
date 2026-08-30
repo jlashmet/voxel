@@ -2,29 +2,27 @@
 
 ## Observed behavior / acceptance
 - Canonical production remains `FeatureDefinition` + typed `SlotSpec` + `ShapeOp.CallSlot` + `FeatureCatalogue` + descendant-aware `FeatureRegionBuild`; no parallel structural solver.
-- Core deterministic composition, validation, bounded recursion/cost, authoritative child rasterization, support metadata, decoration handoff, four proving catalogues, negative contracts, and production `CharacterMotor` traversal are implemented.
-- Mechanical checkpoint `33314706183` on `945ec3fe05798096e6177b1eba1a213be4b47e7b` passed focused PlayMode + standalone-player traversal and emitted eight full-resolution frames, but manual art review rejected the old proof as below the required production-quality bar.
-- Current visual rework is merged with master at `0cd53d0761698490ad29edd563167251030b1aa5`: the authoritative voxel presentation now adds stronger bridge span rhythm/abutments/piers/gorge-water context, castle crown/gate/tower grounding, cliff terraces/supports/vertical context, and materially distinct facade/roof assemblies. Global structural and motor budgets remain unchanged.
+- Core deterministic composition, validation, authoritative child rasterization, support metadata, decoration handoff, four proving catalogues, negative contracts, and production `CharacterMotor` traversal are implemented.
+- Mechanical checkpoint `33314706183` passed focused PlayMode, all three real-player traversals, and emitted eight frames; manual review rejected that older presentation as below the current production-quality art bar.
+- Visual rework adds authoritative-voxel bridge hierarchy/gorge context, castle crown/gate/tower grounding, cliff terraces/supports, and distinct facade/roof variants without changing global solver or motor budgets.
 
-## Competing hypotheses / discriminator
-1. The prior failure was mainly presentation hierarchy/context: stronger grounded construction, silhouette, material separation, and establishing context will make the same typed compositions read production-quality.
-2. The underlying proof geometry/camera bounds are still too blockout-like or poorly framed, so extra detail will not be sufficient.
+## Hypotheses / discriminator
+1. The remaining blocker is presentation architecture/cost: independently bounded presentation pieces will preserve the stronger visuals while satisfying the existing conservative composition budget.
+2. Even after budget-safe partitioning, the rendered compositions/cameras may remain below production quality.
 
-Discriminator: one final exact-SHA PlayMode request using the existing `ci-test/fixes/agent-5` transport, including the exact SceneIssue built-player harness. Inspect every durable 1600x900 structural frame and classify the result using current `AGENTS.md`; any frame that remains below `production-quality` keeps the issue open.
+Run `33323976945` discriminated the first failure: focused PlayMode passed, but built-player presentation rejected the combined bridge context with `VoxelBudgetExceeded` because its full 1220×height×720 bounds were charged. The selected fix partitions river, terrain shoulders, piers, castle sections, cliff sections, and facade variants into independent bounded authoritative catalogues. Static audit also corrected castle buttresses outside local bounds and makes each pier footprint cover its actual terrain-derived cap.
 
-## Reusability review gates
-- Keep all socket compatibility, facing, capacity, clearance, support, recursion, deterministic selection, and budget semantics in generic `VoxelEngine.Structures` contracts/runtime; the WorldbuildingGallery must only author and demonstrate those semantics, never define gallery-only attachment rules.
-- Audit the large gallery structural composition/presentation files before closure and move any reusable structural decision or transformation logic down into the generic composition layer rather than duplicating it in showcase code.
-- Prove the same typed socket contract can compose at least two materially different structure families without special-case bridge/castle/cliff identifiers in the generic solver.
-- Keep decoration handoff as an adapter into the existing decoration system; do not let structural sockets become a parallel micro-detail/decorative placement system.
+Next discriminator: one exact-SHA PlayMode request through existing `ci-test/fixes/agent-5`, including the SceneIssue built-player harness. Any runtime/budget failure or any frame below `production-quality` keeps the issue open.
 
-## Cost / blast-radius gates
-- Baseline run `33314706183`: bridge planning `0.014 ms`, castle `0.005 ms`; 20 children, 51 structural primitives, 15 visited regions, 40 rasterized instances, 15,907,368 written voxels; traversal bridge `115 m -> 1.25 m`, gate `17.6 m -> 1.223 m`, cliff `42 m -> 1.317 m`.
-- Presentation changes are confined to the existing gallery authoritative-voxel pass and audit framing. No solver semantics, composition ceilings, scan budgets, `CharacterMotor` tolerances, or unrelated generation/render behavior changed.
-- Bridge presentation footprints are bounded at 1220 voxels, below `MaxFootprintVoxels=1280`; proof-local primitive ceilings remain below the existing per-instance ceiling. Final CI must confirm voxel-cost and runtime bounds.
+## Reusability / blast radius
+- Generic compatibility, facing, capacity, clearance, support, recursion, deterministic selection, and budgets remain in `VoxelEngine.Structures`; gallery code only authors proof content.
+- Decoration handoff remains an adapter into the existing decoration system; structural sockets are not used for micro-detail placement.
+- Feature-only diff is limited to structural composition contracts/runtime, focused regressions, gallery proof/audit content, and this SceneIssue bookkeeping. No unrelated capture, workflow, global budget, `CharacterMotor`, or CI request file is changed on the feature branch.
+- Largest fixed presentation footprint remains 1220 voxels (<1280). Split-piece conservative costs are individually below the existing 16,777,216-voxel ceiling by construction; final built-player logs must confirm actual costs/writes.
 
 ## Remaining gates
-- Freeze final source SHA after updating this plan/tasks; do not edit production/test content afterward.
 - Green exact-SHA focused PlayMode + exact-scene built-player audit; all three traversals and negative contracts pass.
-- Inspect all eight durable frames; only `production-quality` passes visual acceptance.
-- Record final measured costs/blast radius, complete pending metadata, move open -> pending -> closed, refresh master again, and non-force fast-forward `origin/master` to the exact feature head.
+- Inspect every durable full-resolution structural frame; only `production-quality` passes visual acceptance.
+- Record final planning/voxel/region/memory/render cost and check every task/acceptance item.
+- Complete pending metadata and open -> pending bookkeeping, then pending -> closed with `status=fixed`/`resolvedUtc` only after exact-SHA gates pass.
+- Refresh current `origin/master`, merge if needed, push feature head, then non-force push that exact head to `origin/master`; retry if master advances.
