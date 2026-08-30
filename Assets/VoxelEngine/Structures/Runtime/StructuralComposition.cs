@@ -34,6 +34,7 @@ namespace VoxelEngine.Structures.Runtime
         ChildBudgetExceeded = 9,
         PrimitiveBudgetExceeded = 10,
         SpatialExtentExceeded = 11,
+        MalformedDefinition = 12,
     }
 
     /// <summary>One independently bounded physical piece in a semantic composed structure.</summary>
@@ -194,6 +195,14 @@ namespace VoxelEngine.Structures.Runtime
                                 StructuralAttachmentRejectReason.ChildBudgetExceeded,
                                 StructuralCompositionResult.ChildBudgetExceeded);
                             return report;
+                        }
+
+                        if ((uint)slot.DefinitionId >= (uint)catalogue.DefinitionCount)
+                        {
+                            if (!Reject(ref report, decisions, in parent, parentIndex, in slot,
+                                StructuralAttachmentRejectReason.MalformedDefinition,
+                                StructuralCompositionResult.MalformedProgram)) return report;
+                            continue;
                         }
 
                         FeatureDefinition child = catalogue.Definitions[slot.DefinitionId];
