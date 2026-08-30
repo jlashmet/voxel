@@ -367,7 +367,6 @@ namespace VoxelEngine.Structures.Runtime
         {
             AddDecision(decisions, in parent, parentIndex, in slot, childPieceId,
                 childPosition, orientation, attachmentPosition, false, reason);
-            report.GraphHash = FeatureHash.Mix(report.GraphHash ^ slot.SocketId ^ (ulong)reason);
             if ((slot.Flags & StructuralSocketFlags.Required) == 0)
                 return true;
             report.Result = fatal;
@@ -584,16 +583,11 @@ namespace VoxelEngine.Structures.Runtime
                 int3 min = worldAttach + slot.SupportProbeMin;
                 int3 max = worldAttach + slot.SupportProbeMax;
                 Normalize(ref min, ref max);
-                int contacts = 0;
-                int y = max.y;
-                int[] xs = { min.x, max.x };
-                int[] zs = { min.z, max.z };
-                for (int xi = 0; xi < 2; xi++)
-                for (int zi = 0; zi < 2; zi++)
-                {
-                    int ground = TerrainQuery.HeightAt(xs[xi], zs[zi], terrainSeed);
-                    if (ground >= min.y && ground <= y) contacts++;
-                }
+                int contacts =
+                    TerrainContact(min.x, min.z, min.y, max.y, terrainSeed) +
+                    TerrainContact(min.x, max.z, min.y, max.y, terrainSeed) +
+                    TerrainContact(max.x, min.z, min.y, max.y, terrainSeed) +
+                    TerrainContact(max.x, max.z, min.y, max.y, terrainSeed);
                 if (contacts < slot.MinimumSupportContacts)
                 {
                     reason = StructuralAttachmentRejectReason.MissingTerrainSupport;
@@ -628,6 +622,12 @@ namespace VoxelEngine.Structures.Runtime
 
             reason = StructuralAttachmentRejectReason.None;
             return true;
+        }
+
+        private static int TerrainContact(int x, int z, int minY, int maxY, uint terrainSeed)
+        {
+            int ground = TerrainQuery.HeightAt(x, z, terrainSeed);
+            return ground >= minY && ground <= maxY ? 1 : 0;
         }
 
         private static int ConservativeVoxelCost(in FeatureDefinition definition)
