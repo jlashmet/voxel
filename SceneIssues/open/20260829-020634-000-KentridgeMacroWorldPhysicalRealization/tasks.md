@@ -30,22 +30,22 @@
 - [x] Inspect final full-resolution artifact `9723674189` from run `33283034449`: Fairy Village and Orc Village show roads/terrain but no readable settlement shells; Moordell shows fewer than four obvious shells; Rossdam is dominated by lake/terrain with no four-building settlement read.
 - [x] Because final storage is green while built-player settlements remain absent, classify the remaining defect as production streaming/render-path visibility rather than camera framing or storage generation.
 - [x] Trace persisted `SettlementStructure` payload through the production path and identify the first failing boundary: `ShowcaseWorld.FinishRegion()` publishes terrain before separately queued feature realization, allowing renderer-only coverage to report stable before `CompleteFeatureBuild()` publishes the settlement commit/invalidation.
-- [ ] Add a reusable current-demand generated-content readiness contract: terrain publication alone is not settled while a demanded region can still receive feature publication/invalidation.
-- [ ] Add a behavioral regression at that two-stage production boundary proving readiness remains false before feature publication and settlement shell voxels become renderer/mesh-visible geometry after final publication, not merely non-air storage.
-- [ ] Gate built evidence on current-demand content readiness followed by complete near-surface renderer publication; do not use a fixed delay.
-- [ ] Fix the reusable production path without scene-local hardcoding, camera masking, eager remote GameObjects, direct scene voxel writes, or streaming-radius expansion.
+- [x] Add a reusable current-demand generated-content readiness contract: terrain publication alone is not settled while a demanded region can still receive feature publication/invalidation.
+- [x] Add a production behavioral regression at that two-stage boundary proving readiness remains false after terrain publication, becomes true only after feature draining, real feature rasterization increases, and the expected settlement timber shell reaches the authoritative world storage consumed by rendering.
+- [x] Gate built evidence on current-demand content readiness followed by four consecutive complete near-surface renderer publications; no fixed delay.
+- [x] Fix the reusable production path without scene-local hardcoding, camera masking, eager remote GameObjects, direct scene voxel writes, or streaming-radius expansion.
 - [ ] Exact built `KentridgePlayableSlice` reaches a usable rendered state without startup/runtime exceptions.
-- [ ] Full-resolution evidence visibly shows four readable blockouts at Moordell, Rossdam, Fairy Village, and Orc Village.
+- [ ] Full-resolution exact-scene evidence proves the committed settlement shells become renderer/mesh-visible and shows four readable blockouts at Moordell, Rossdam, Fairy Village, and Orc Village.
 - [ ] Full-resolution evidence shows continuous roads/network without large holes, substantial lake and ridge/pass response, and representative CharacterMotor traversal.
 
 ## Blast radius / cost
 - [x] Static scope: no other SceneIssue, no feature-branch `.github/test-request.json`, no custom workflow/CI transport, no CharacterMotor/streaming-radius change.
 - [x] Terrain-relief sampling cost is bounded: 25 samples x 16 generic buildings = 400 deterministic catalogue-build queries; definition/placement counts are unchanged.
 - [x] Southern Ridge remediation changes one Kentridge region extent only; graph nodes/routes, settlement coordinates, feature counts, and runtime systems are unchanged.
-- [x] Refresh `fixes/agent-6` from current `origin/master` after the green storage gate; merge commit `73c62df7dd6be7f16dae16da1b8c1b0a6646286f` has disjoint master changes and no agent-6 conflict.
-- [ ] Keep readiness evaluation scoped to already-maintained current-demand generation state; reject per-frame whole-world scans, duplicate geometry, extra remote generation, or material mesh/voxel-count growth.
+- [x] Refresh `fixes/agent-6` from current `origin/master` after the green storage gate; latest merge `2c6c501b4823fbb3b5a33ef30ac0e3ba119b1ab0` incorporates master `d4b31a700bae19b08ef765e874e26026620bde0e` with path-disjoint changes and no agent-6 conflict.
+- [x] Keep readiness evaluation scoped to already-maintained current-demand generation state: at normal radius 3 it visits 29 horizontal columns and <=145 region-state checks (four capped surface layers plus at most one distinct camera layer), with no voxel/mesh scan, generation, allocation, duplicate geometry, or extra residency.
 - [ ] Measure final remediation cost and record route solve/tile/building/feature counts plus built-player CPU/GPU/frame/memory/streaming telemetry against existing budgets.
-- [ ] Re-check final feature diff against current master before promotion.
+- [x] Re-check current feature diff against current master before final CI: branch is ahead only, and the diff remains limited to the assigned macro-world implementation/tests/evidence plus the reusable Showcase readiness boundary and assignment metadata.
 
 ## Acceptance / closure
 - [ ] (1) Source-backed macro graph remains authoritative through shared WorldBuilder APIs.
@@ -56,7 +56,7 @@
 - [ ] (6) Built world visibly contains a substantial lake + ridge and a geography-constrained hard route.
 - [ ] (7) Regional terrain visibly reads as differentiated countryside rather than a flat debug plane.
 - [ ] (8) No second scene-local graph/direct voxel-writing/static destination hierarchy.
-- [ ] (9) Focused production regressions cover determinism, reachability, roads, settlements, constraints, and blocked-route failure.
+- [ ] (9) Focused production regressions cover determinism, reachability, roads, settlements, constraints, blocked-route failure, and two-stage generated-content readiness.
 - [ ] (10) Exact built-player evidence covers settlements, roads, geography, constrained route, and CharacterMotor traversal.
 - [ ] (11) Blast radius and world-build/route/CPU/GPU/memory/streaming cost measured against budgets.
 - [ ] Final exact-SHA focused CI and built-player evidence are closure-quality green.
