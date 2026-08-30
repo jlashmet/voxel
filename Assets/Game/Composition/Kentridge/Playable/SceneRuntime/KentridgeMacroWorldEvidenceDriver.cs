@@ -74,6 +74,9 @@ namespace Game.Kentridge.PlayableSlice
         private float _targetStartedAt;
         private bool _targetCaptured;
         private float _targetCapturedAt;
+        private bool _moordellRoadArrivalPending;
+        private bool _moordellRoadArrivalCaptured;
+        private float _moordellRoadArrivalStartedAt;
         private float _originalTimeScale = 1f;
         private bool _timeScaleBoosted;
 
@@ -215,7 +218,7 @@ namespace Game.Kentridge.PlayableSlice
 
             EvidenceTarget target = _targets[_targetIndex];
             float now = Time.realtimeSinceStartup;
-            PinToTarget(target);
+            PinToTargetDemand(target);
             if (!_targetCaptured && !AreTargetContentSettled(target))
             {
                 _stableCoverageFrames = 0;
@@ -242,6 +245,31 @@ namespace Game.Kentridge.PlayableSlice
                 CaptureTarget(target);
             }
 
+            if (_targetCaptured && IsMoordell(target) && !_moordellRoadArrivalCaptured)
+            {
+                if (!_moordellRoadArrivalPending)
+                {
+                    _moordellRoadArrivalPending = true;
+                    _moordellRoadArrivalStartedAt = now;
+                    _stableCoverageFrames = 0;
+                    Debug.Log("MACROEVIDENCE target=moordell-road-arrival playerHeight=True");
+                }
+
+                PinToRoadStart();
+                if (now - _moordellRoadArrivalStartedAt >= TargetMinimumDwellSeconds
+                    && HasStablePublishedCoverageAt(_motor.Position))
+                {
+                    _moordellRoadArrivalCaptured = true;
+                    _moordellRoadArrivalPending = false;
+                    _targetCapturedAt = now;
+                    _stableCoverageFrames = 0;
+                    Debug.Log(
+                        "MACROEVIDENCE capture-ready target=moordell-road-arrival coverage=True playerHeight=True");
+                    CaptureNamed("macro-moordell-road-arrival");
+                }
+                return;
+            }
+
             if (_targetCaptured
                 && now - _targetCapturedAt >= TargetPostCaptureSeconds
                 && _targetIndex + 1 < _targets.Length)
@@ -252,7 +280,12 @@ namespace Game.Kentridge.PlayableSlice
         {
             if (_targetIndex < 0 || _targets == null || _targetIndex >= _targets.Length || _motor == null)
                 return;
-            ApplyCamera(_targets[_targetIndex]);
+
+            EvidenceTarget target = _targets[_targetIndex];
+            if (_moordellRoadArrivalPending)
+                ApplyRoadArrivalCamera(target);
+            else
+                ApplySurveyCamera(target);
         }
 
         private void DismissPendingOpeningDialogue()
@@ -328,6 +361,7 @@ namespace Game.Kentridge.PlayableSlice
             _targetStartedAt = Time.realtimeSinceStartup;
             _targetCaptured = false;
             _targetCapturedAt = 0f;
+            _moordellRoadArrivalPending = false;
             _stableCoverageFrames = 0;
             EvidenceTarget target = _targets[index];
             Debug.Log(
@@ -551,21 +585,26 @@ namespace Game.Kentridge.PlayableSlice
             return route;
         }
 
-        private void PinToTarget(EvidenceTarget target)
+        private void PinToTargetDemand(EvidenceTarget target)
         {
-            int x = target.CameraDm.X;
-            int z = target.CameraDm.Y;
+            int x = target.FocusDm.X;
+            int z = target.FocusDm.Y;
             int ground = TerrainSampler.HeightAt(x, z, Seed);
-            float y = ground * DmToMetres + target.CameraHeightMetres;
-            _motor.Position = new Vector3(x * DmToMetres, y, z * DmToMetres);
+            _motor.Position = new Vector3(
+                x * DmToMetres,
+                ground * DmToMetres + 0.1f,
+                z * DmToMetres);
             _motor.Velocity = Vector3.zero;
-            ApplyCamera(target);
         }
 
-        private void ApplyCamera(EvidenceTarget target)
+        private void ApplySurveyCamera(EvidenceTarget target)
         {
-            if (_slice == null || _motor == null) return;
-            _slice.transform.position = _motor.EyePosition;
+            if (_slice == null) return;
+            int cameraGround = TerrainSampler.HeightAt(target.CameraDm.X, target.CameraDm.Y, Seed);
+            _slice.transform.position = new Vector3(
+                target.CameraDm.X * DmToMetres,
+                cameraGround * DmToMetres + target.CameraHeightMetres,
+                target.CameraDm.Y * DmToMetres);
             int focusGround = TerrainSampler.HeightAt(target.FocusDm.X, target.FocusDm.Y, Seed);
             Vector3 focus = new Vector3(
                 target.FocusDm.X * DmToMetres,
@@ -575,6 +614,26 @@ namespace Game.Kentridge.PlayableSlice
             if (direction.sqrMagnitude > 0.01f)
                 _slice.transform.rotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
         }
+
+        private void ApplyRoadArrivalCamera(EvidenceTarget target)
+        {
+            if (_slice == null || _motor == null) return;
+            _slice.transform.position = _motor.EyePosition;
+            int focusGround = TerrainSampler.HeightAt(target.FocusDm.X, target.FocusDm.Y, Seed);
+            Vector3 focus = new Vector3(
+                target.FocusDm.X * DmToMetres,
+                focusGround * DmToMetres + 5f,
+                target.FocusDm.Y * DmToMetres);
+            Vector3 direction = focus - _slice.transform.position;
+            if (direction.sqrMagnitude > 0.01f)
+                _slice.transform.rotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
+        }
+
+        private static bool IsMoordell(EvidenceTarget target) =>
+            string.Equals(
+                target.Label,
+                MountingForceTopDownWorldDefinition.Moordell,
+                StringComparison.Ordinal);
 
         private void CaptureTarget(EvidenceTarget target) => CaptureNamed("macro-" + target.Label);
 
