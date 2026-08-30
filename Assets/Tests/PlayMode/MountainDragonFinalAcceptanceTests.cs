@@ -17,6 +17,7 @@ namespace VoxelEngine.Tests.PlayMode
     public sealed class MountainDragonFinalAcceptanceTests
     {
         private const byte MountainMaterial = 1;
+        private const byte PathMaterial = 13;
 
         [Test]
         public void NaturalizedMountainBakeAndEncounterAreReadyForBuiltPlayerReplay()
@@ -33,6 +34,7 @@ namespace VoxelEngine.Tests.PlayMode
             support.BoxCarveSkipsEmptyAtomicallyClearsUniformAndPreservesMixedAndPartialAccounting();
 
             FrustumFillAtomicallyAuthorsFullyInteriorEmptyBlockWithoutOverfillingBoundaryBlock();
+            FrustumFillIfEmptyAtomicallyAuthorsEmptySkipsUniformAndPreservesMixedAndBoundaryBlocks();
 
             var headroom = new MountainDragonPathHeadroomBakeTests();
             headroom.PreparedStartupBakeKeepsPlayerClearAirAboveEveryMountainPathTier();
@@ -147,6 +149,162 @@ namespace VoxelEngine.Tests.PlayMode
                     new int3(VoxelReadGrid.BlockEdge * 3 - 1, VoxelReadGrid.BlockEdge, 4), out VoxelCell outside), Is.True);
                 Assert.That(outside.IsSolid, Is.False,
                     "The far side of a boundary block must remain empty after frustum rasterization.");
+            }
+            finally
+            {
+                table.Dispose();
+                pool.Dispose();
+            }
+        }
+
+        [Test]
+        public void FrustumFillIfEmptyAtomicallyAuthorsEmptySkipsUniformAndPreservesMixedAndBoundaryBlocks()
+        {
+            var table = new RegionTable(1, Allocator.Temp);
+            var pool = new BrickPool(8, Allocator.Temp);
+
+            try
+            {
+                table.LoadRegion(int3.zero);
+                var reads = new RegionReadSource(in table, in pool);
+                var setup = new RegionMutationStore(in table, in pool);
+                int3 interiorBlockCoord = new(0, 1, 0);
+                int3 interiorMin = interiorBlockCoord << VoxelReadGrid.BlockEdgeLog2;
+                int3 interiorMax = interiorMin + VoxelReadGrid.BlockEdge;
+                Primitive supportFrustum = CurvedPrimitiveEmitter.Frustum(
+                    new int3(4, 0, 4),
+                    32,
+                    24,
+                    24,
+                    1,
+                    MountainMaterial,
+                    SurfaceStyles.MaterialDefault,
+                    PrimitiveMode.FillIfEmpty,
+                    0);
+
+                var emptyMutations = new CountingMutationStore(
+                    new RegionMutationStore(in table, in pool));
+                RasterResult emptyResult = PrimitiveRasteriser.RasterisePrimitive(
+                    in supportFrustum,
+                    interiorMin,
+                    interiorMax,
+                    reads,
+                    emptyMutations);
+                reads.Refresh(in table, in pool);
+
+                Assert.That(emptyMutations.WholeCellBlockCalls, Is.EqualTo(1),
+                    "A canonical-empty 8^3 block wholly inside a FillIfEmpty support frustum must "
+                    + "use one authoritative whole-cell replacement instead of 512 reads/writes.");
+                Assert.That(emptyMutations.BeginCellBlockCalls, Is.Zero);
+                Assert.That(emptyResult.VoxelsWritten, Is.EqualTo(VoxelReadGrid.VoxelsPerBlock),
+                    "Atomic FillIfEmpty on canonical Empty must retain exact 512 logical writes.");
+                Assert.That(reads.TryAcquireRegionContainingBlock(interiorBlockCoord, out RegionReadView emptyView), Is.True);
+                Assert.That(emptyView.TryGetWorldBlock(interiorBlockCoord, out VoxelReadBlock filledBlock), Is.True);
+                Assert.That(filledBlock.Kind, Is.EqualTo(VoxelReadBlockKind.Uniform));
+                Assert.That(filledBlock.UniformMaterial, Is.EqualTo(MountainMaterial));
+
+                setup.Refresh(in table, in pool);
+                Assert.That(setup.SetWholeBlock(interiorBlockCoord, PathMaterial, false), Is.True,
+                    "Uniform-solid fixture must replace the prior mountain block.");
+                reads.Refresh(in table, in pool);
+                var uniformMutations = new CountingMutationStore(
+                    new RegionMutationStore(in table, in pool));
+                RasterResult uniformResult = PrimitiveRasteriser.RasterisePrimitive(
+                    in supportFrustum,
+                    interiorMin,
+                    interiorMax,
+                    reads,
+                    uniformMutations);
+                reads.Refresh(in table, in pool);
+
+                Assert.That(uniformResult.VoxelsWritten, Is.Zero,
+                    "FillIfEmpty must remain an exact no-op for a fully solid Uniform block.");
+                Assert.That(uniformMutations.WholeCellBlockCalls, Is.Zero,
+                    "Uniform-solid FillIfEmpty must not overwrite existing authored material.");
+                Assert.That(uniformMutations.BeginCellBlockCalls, Is.Zero,
+                    "Uniform-solid FillIfEmpty must not materialize a partial mutation.");
+                Assert.That(reads.TryAcquireRegionContainingBlock(interiorBlockCoord, out RegionReadView uniformView), Is.True);
+                Assert.That(uniformView.TryGetWorldBlock(interiorBlockCoord, out VoxelReadBlock uniformBlock), Is.True);
+                Assert.That(uniformBlock.Kind, Is.EqualTo(VoxelReadBlockKind.Uniform));
+                Assert.That(uniformBlock.UniformMaterial, Is.EqualTo(PathMaterial));
+
+                setup.Refresh(in table, in pool);
+                VoxelCell empty = default;
+                Assert.That(setup.SetWholeCellBlock(interiorBlockCoord, in empty, false), Is.True);
+                Assert.That(setup.TryBeginCellBlock(interiorBlockCoord, false, out VoxelBlockMutation mixedSetup), Is.True);
+                VoxelCell preserved = new VoxelCell
+                {
+                    BaseMaterialId = PathMaterial,
+                    Boundary = VoxelBoundarySample.FromSignedQ4(8)
+                };
+                Assert.That(mixedSetup.SetCell(0, in preserved), Is.True);
+                Assert.That(setup.CompletePartialBlock(ref mixedSetup, true), Is.True);
+                reads.Refresh(in table, in pool);
+                Assert.That(reads.TryAcquireRegionContainingBlock(interiorBlockCoord, out RegionReadView mixedBeforeView), Is.True);
+                Assert.That(mixedBeforeView.TryGetWorldBlock(interiorBlockCoord, out VoxelReadBlock mixedBefore), Is.True);
+                Assert.That(mixedBefore.Kind, Is.EqualTo(VoxelReadBlockKind.Mixed));
+
+                var mixedMutations = new CountingMutationStore(
+                    new RegionMutationStore(in table, in pool));
+                RasterResult mixedResult = PrimitiveRasteriser.RasterisePrimitive(
+                    in supportFrustum,
+                    interiorMin,
+                    interiorMax,
+                    reads,
+                    mixedMutations);
+                reads.Refresh(in table, in pool);
+
+                Assert.That(mixedMutations.WholeCellBlockCalls, Is.Zero,
+                    "Mixed FillIfEmpty state must remain on the per-cell path.");
+                Assert.That(mixedMutations.BeginCellBlockCalls, Is.EqualTo(1));
+                Assert.That(mixedResult.VoxelsWritten, Is.EqualTo(VoxelReadGrid.VoxelsPerBlock - 1),
+                    "Only the 511 empty cells in the Mixed fixture may be filled.");
+                Assert.That(reads.TryAcquireRegionContainingBlock(interiorBlockCoord, out RegionReadView mixedAfterView), Is.True);
+                Assert.That(mixedAfterView.TryReadCell(interiorMin, out VoxelCell preservedAfter), Is.True);
+                Assert.That(preservedAfter.BaseMaterialId, Is.EqualTo(PathMaterial));
+                Assert.That(preservedAfter.Boundary.IsAuthored, Is.True,
+                    "FillIfEmpty must preserve pre-existing authored solid-side boundary semantics.");
+                Assert.That(mixedAfterView.TryReadCell(interiorMin + new int3(1, 0, 0), out VoxelCell filledAfter), Is.True);
+                Assert.That(filledAfter.BaseMaterialId, Is.EqualTo(MountainMaterial));
+
+                Primitive edgeFrustum = CurvedPrimitiveEmitter.Frustum(
+                    new int3(4, 0, 4),
+                    32,
+                    16,
+                    16,
+                    1,
+                    MountainMaterial,
+                    SurfaceStyles.MaterialDefault,
+                    PrimitiveMode.FillIfEmpty,
+                    0);
+                int3 edgeMin = new(VoxelReadGrid.BlockEdge * 2, VoxelReadGrid.BlockEdge, 0);
+                int3 edgeMax = edgeMin + VoxelReadGrid.BlockEdge;
+                var edgeMutations = new CountingMutationStore(
+                    new RegionMutationStore(in table, in pool));
+                RasterResult edgeResult = PrimitiveRasteriser.RasterisePrimitive(
+                    in edgeFrustum,
+                    edgeMin,
+                    edgeMax,
+                    reads,
+                    edgeMutations);
+                reads.Refresh(in table, in pool);
+
+                Assert.That(edgeMutations.WholeCellBlockCalls, Is.Zero,
+                    "A FillIfEmpty frustum boundary block must not use whole-block replacement.");
+                Assert.That(edgeMutations.BeginCellBlockCalls, Is.GreaterThan(0));
+                Assert.That(edgeResult.VoxelsWritten, Is.GreaterThan(0));
+                Assert.That(edgeResult.VoxelsWritten, Is.LessThan(VoxelReadGrid.VoxelsPerBlock));
+                Assert.That(reads.TryAcquireRegionContainingBlock(new int3(2, 1, 0), out RegionReadView edgeView), Is.True);
+                Assert.That(edgeView.TryReadCell(new int3(20, VoxelReadGrid.BlockEdge, 4), out VoxelCell surfaceInside), Is.True);
+                Assert.That(surfaceInside.IsSolid, Is.True);
+                Assert.That(surfaceInside.Boundary.IsAuthored, Is.True,
+                    "FillIfEmpty must preserve the positive solid-side analytic boundary sample.");
+                Assert.That(surfaceInside.Boundary.SignedQ4, Is.GreaterThan(0));
+                Assert.That(edgeView.TryReadCell(new int3(21, VoxelReadGrid.BlockEdge, 4), out VoxelCell surfaceOutside), Is.True);
+                Assert.That(surfaceOutside.IsSolid, Is.False);
+                Assert.That(surfaceOutside.Boundary.IsAuthored, Is.True,
+                    "FillIfEmpty must preserve the adjacent negative empty-side halo sample.");
+                Assert.That(surfaceOutside.Boundary.SignedQ4, Is.LessThan(0));
             }
             finally
             {
