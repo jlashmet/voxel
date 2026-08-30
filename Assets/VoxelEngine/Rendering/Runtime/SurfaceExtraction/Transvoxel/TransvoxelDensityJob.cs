@@ -91,24 +91,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
             authoritativeSolid = centreSolid;
             centreSurface = ResolveSurface(centre, centreSurface);
             var boundary = new VoxelBoundarySample { Packed = packedBoundary };
-            // An authored sample refines where the surface sits inside this cell; occupancy decides
-            // which side of it the cell is on. Trust the analytic distance whenever the two agree.
-            //
-            // The previous rule instead demanded a six-neighbour occupancy transition, which is a
-            // proxy for "near the surface" and a bad one on a curve: a cell one voxel inside a
-            // smooth intrados has no empty axis neighbour, so it failed, fell through to the Planar
-            // branch below, and returned a constant 0.5. With no sub-voxel information on the solid
-            // side of an edge the crossing collapses onto the lattice, which is the staircased
-            // intrados. Dropping the guard outright is not the answer either: authored samples that
-            // contradict occupancy then produce surface where the world is empty, which tears holes
-            // in the surrounding wall. Sign agreement keeps the precision and rejects the garbage.
             if (packedBoundary != 0 && centreSolid == boundary.SignedQ3 >= 0)
             {
                 dominantMaterial = centreSolid ? centre : (byte)0;
                 dominantSurface = centreSolid ? centreSurface : 0u;
                 return boundary.SignedQ3 * 0.125f + CoatingDisplacement(centreSurface);
             }
-            ushort style = (ushort)centreSurface;
+            ushort style = SurfaceStyles.ReconstructionStyle((ushort)centreSurface);
             SurfaceStyleReadDefinition centreDefinition = Catalogue.Get(style);
             if (centreSolid && (centreDefinition.Reconstruction == SurfaceReconstruction.Planar
                                 || centreDefinition.Reconstruction == SurfaceReconstruction.Sharp
@@ -141,16 +130,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
 
             float density = mass - 0.5f;
             int nearestCrossingDistance = SourceStep;
-
-            // A coarse lattice point can sit several voxels below the actual surface. The 13-tap
-            // smoothing kernel is intentionally evaluated at authoritative-voxel scale, but simply
-            // interpolating its values between SourceStep-spaced samples nearly erases where a
-            // crossing falls inside that coarse edge. A one-voxel terrain rise at SourceStep 2 then
-            // moves the reconstructed surface only a small fraction of a voxel, producing contour
-            // rings. Preserve the smoothing decision (including removal/fill of tiny features) by
-            // changing magnitude only when its sign agrees with authoritative centre occupancy, and
-            // only when a coarse axis ray really reaches the opposite occupancy. The nearest fine
-            // transition supplies a signed-distance-like magnitude with the missing sub-step phase.
             if (SourceStep > 1)
             {
                 if (centreSolid)
@@ -231,8 +210,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
                 lastSurface = ResolveSurface(material, surface);
             }
 
-            // The far coarse endpoint is air, so if every intermediate voxel was solid then the
-            // final intermediate voxel is the exposed one immediately before that endpoint.
             ConsiderExposedMaterial(
                 SourceStep - 1, preferVisibleTopMaterial, lastMaterial, lastSurface,
                 ref bestDistance, ref bestMaterialDistance, ref hasVisibleTopMaterial,
@@ -246,13 +223,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
             ref byte dominantMaterial, ref uint dominantSurface)
         {
             bestDistance = math.min(bestDistance, exposedDistance);
-
-            // Geometry and material answer different questions. Geometry needs the nearest crossing
-            // on any axis so the coarse scalar field keeps its fine-voxel phase. Terrain material,
-            // however, is vertically layered: grass/snow is stored only on the exposed cap while a
-            // nearby side crossing can legitimately expose dirt/rock. If this sample has a +Y cap
-            // inside the same coarse step, use that cap for colour without moving the crossing.
-            // Walls, ceilings and cave sides have no +Y cap and retain the old nearest-crossing rule.
             bool shouldUseMaterial = preferVisibleTopMaterial
                 || (!hasVisibleTopMaterial && exposedDistance < bestMaterialDistance);
             if (!shouldUseMaterial) return;
@@ -269,9 +239,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
             ConsiderPhaseCrossingRay(p, new int3( 1, 0, 0), centreSolid, ref bestDistance);
             ConsiderPhaseCrossingRay(p, new int3(-1, 0, 0), centreSolid, ref bestDistance);
             ConsiderPhaseCrossingRay(p, new int3(0,  1, 0), centreSolid, ref bestDistance);
-            ConsiderPhaseCrossingRay(p, new int3(0, -1, 0), centreSolid, ref bestDistance);
-            ConsiderPhaseCrossingRay(p, new int3(0, 0,  1), centreSolid, ref bestDistance);
-            ConsiderPhaseCrossingRay(p, new int3(0, 0, -1), centreSolid, ref bestDistance);
+            ConsiderPhaseCrossingRay(p, new int3(0, -1,0), centreSolid, ref bestDistance);
+            ConsiderPhaseCrossingRay(p, new int3(0,0, 1), centreSolid, ref bestDistance);
+            ConsiderPhaseCrossingRay(p, new int3(0,0,-1), centreSolid, ref bestDistance);
             return bestDistance;
         }
 
@@ -294,6 +264,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
 
         private float CoatingDisplacement(uint surface)
         {
+            if (SurfaceStyles.IsMaterialBlend((ushort)surface)) return 0f;
             byte coating = (byte)(surface >> 16);
             return Coatings.Get(coating).Displacement * (1f / 64f);
         }
@@ -312,26 +283,19 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
             }
             if (!centreSolid) return weight;
 
-            SurfaceStyleReadDefinition neighbourDefinition = Catalogue.Get((ushort)surface);
+            SurfaceStyleReadDefinition neighbourDefinition = Catalogue.Get(
+                SurfaceStyles.ReconstructionStyle((ushort)surface));
             SurfaceJoinReadRule join = Catalogue.GetJoin(centreDefinition.JoinGroup,
                                                      neighbourDefinition.JoinGroup);
             if (join.Compatibility != SurfaceCompatibility.Join
                 || join.Continuity == SurfaceContinuity.Discontinuous)
                 return weight;
 
-            // Smooth-compatible neighbours share their reconstruction influence. This is the
-            // pairwise rule that lets curvature propagate without allowing a style to decide
-            // unilaterally how a neighbour is rebuilt.
             float neighbourCurvature = CurvatureFactor(neighbourDefinition);
             return weight * math.lerp(1f, neighbourCurvature,
                 math.saturate(join.BlendWidth * 0.5f));
         }
 
-        /// <summary>
-        /// Whether a material contributes solid surface. Internal rather than private so the GPU
-        /// oracle can compare against this predicate instead of restating it — the two excluded
-        /// materials are presentation-only and easy to forget.
-        /// </summary>
         internal static bool IsSolidSample(byte material) =>
             material != 0 && material != 11 && material != 16;
 
@@ -345,17 +309,20 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
 
         private uint ResolveSurface(byte material, uint surface)
         {
-            ushort style = (ushort)surface;
+            ushort authoredStyle = (ushort)surface;
+            bool materialBlend = SurfaceStyles.IsMaterialBlend(authoredStyle);
+            ushort style = SurfaceStyles.ReconstructionStyle(authoredStyle);
             if (style == SurfaceStyles.MaterialDefault)
                 style = Palette.GetDefaultSurfaceStyle(material);
             if (style == SurfaceStyles.MaterialDefault)
                 style = SurfaceStyles.Smooth;
+            if (materialBlend)
+                style = SurfaceStyles.WithMaterialBlend(style);
             return (surface & 0xFFFF0000u) | style;
         }
 
         private byte ReadMaterial(int3 p, out uint surface, out byte boundary)
         {
-            // Arithmetic right shift gives floor division for negative world coordinates.
             int3 worldBrick = new int3(p.x >> 3, p.y >> 3, p.z >> 3);
             int3 localBrick = worldBrick - BrickCacheOrigin;
             if ((uint)localBrick.x >= (uint)BrickCacheEdge
@@ -392,6 +359,5 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
             boundary = MixedBoundarySamples[brick.MixedOffset + voxelIndex];
             return MixedVoxels[brick.MixedOffset + voxelIndex];
         }
-
     }
 }
