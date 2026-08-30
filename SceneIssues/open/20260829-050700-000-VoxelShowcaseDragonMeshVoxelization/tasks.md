@@ -37,6 +37,7 @@
 - [x] Sparse artifact codec round-trips exactly and rejects malformed/out-of-bounds data.
 - [x] Baked cells replay through `IStructureAuthoringSession` at arbitrary requested origin.
 - [x] Showcase selection/Space commit state is single-trigger; idle/update repetition cannot duplicate placement.
+- [x] Reusable fidelity/cost instrumentation has synthetic regressions for surface extraction, connectedness/material/brick counts, symmetric p95 distance, fixed-view silhouette IoU, and transformed mesh→bake measurement.
 - [ ] Add dragon-specific production regression proving required anatomical regions are non-empty/spatially plausible without source-string/count-only assertions.
 
 ## Implementation
@@ -47,6 +48,7 @@
 - [x] Diagnose welded boundary/non-manifold topology and make open-source fill behavior explicit (`Reject` or safe `SurfaceOnly`) rather than silently inventing solids.
 - [x] Add deterministic sparse baked-cell codec/artifact and replay through `IStructureAuthoringSession`.
 - [x] Add generic Unity authoring bridge for nested `MeshFilter` hierarchies and reusable baked `SkinnedMeshRenderer` poses with deterministic submesh material mapping.
+- [x] Add reusable bounded offline bake-analysis/fidelity metrics for surface cells, connected components, material/sparse-brick counts, sampled symmetric p95 distance, and fixed-view silhouette IoU.
 - [x] Add isolated one-shot structure-selection state object; production VoxelShowcase input wiring still pending.
 - [ ] Add source-specific authoring/bake configuration for the chosen Delatronic model and generate/commit the baked dragon artifact; ordinary runtime must never execute mesh voxelization.
 - [ ] Preserve major source material/color regions with deterministic palette mapping/quantization.
