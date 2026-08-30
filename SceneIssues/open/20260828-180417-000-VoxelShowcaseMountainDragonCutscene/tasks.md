@@ -49,13 +49,19 @@
 - [x] Add a focused behavioral/cost regression before the next production optimization: `FrustumFillAtomicallyAuthorsFullyInteriorEmptyBlockWithoutOverfillingBoundaryBlock` requires one authoritative whole-cell mutation for a fully interior empty block, exact 512 logical writes, and preserves the per-cell boundary-block path.
 - [x] Implement an output-equivalent optimization preserving serialized voxel truth and observable write/primitive semantics: commit `090d0032456e...` atomically fills only complete canonical-empty Frustum Fill blocks whose eight extreme voxel centres are all contained.
 - [x] Re-check optimization blast radius statically: partial/non-empty frustum blocks, boundary halo, all other primitive modes/shapes, primitive order, footprint, material/surface semantics, and logical write accounting remain on their prior behavior.
-- [ ] Measure the revised full 9-region bake cost under the 240 s subprocess contract.
-- [ ] Prove all authored landing floor/headroom columns survive with the optimized path and no castle-region suppression.
+- [x] Measure the revised full 9-region bake cost with exact request `5cc2ef4e03ce...` / run `33288586966`: cache miss, ~63.1 s cold import, then killed at 241 s / 10.1 GB before the focused test. The interior-fill fast path is not sufficient.
+- [x] Inspect the failed run without replacing it: focused acceptance was skipped; the built-player fallback built successfully but exited 23 because the stale payload lacked the source-matched provenance manifest; all six fallback captures are therefore non-acceptance evidence.
+- [x] Identify the next shared hot path: `RasteriseBoundaryHalo` still computes curved signed distance, including integer square-root work, for every voxel in expanded frustum bounds and only then rejects deep-interior samples beyond the 2-voxel halo.
+- [x] Add the next focused semantic regression before production implementation: commit `b17d748f149b...` requires a deep-interior frustum cell to remain without boundary metadata while preserving positive solid-side and negative empty-side near-surface halo samples.
+- [ ] Implement the output-equivalent deep-interior `Fill + Frustum` halo block skip only when a complete block's eight extreme voxel centres all have signed boundary distance >32 Q4.
+- [ ] Re-check the halo optimization blast radius/cost; boundary/partial/outside blocks and all non-frustum/non-fill modes must stay on the existing per-voxel halo path.
+- [ ] Re-measure the full 9-region bake under the 240 s subprocess contract and prove all authored landing floor/headroom columns survive without castle-region suppression.
 
 ## Exact-SHA bake / built-player gate
 - [x] Use only existing `ci-test/fixes/agent-4` for targeted CI; no extra transport and no feature-branch `.github/test-request.json` edit.
+- [x] Submit exact-parent request `5cc2ef4e03ce...` for source `bf376936ae66...` only after latest-master ancestry was confirmed; run `33288586966` completed red and was not replaced while queued/running.
 - [ ] Produce/commit the accepted source-matched generated startup payload + manifest before final closure, if repository workflow permits producing it without violating the CI transport contract.
-- [ ] After revised source and latest-master integration, issue a new exact-parent final request using only `ci-test/fixes/agent-4`.
+- [ ] After the next revised source and latest-master integration, issue a new exact-parent final request using only `ci-test/fixes/agent-4`.
 - [ ] Run the exact focused acceptance filter green on the final feature SHA.
 - [ ] Traverse the complete route via production `AutoWalk -> CharacterMotor.Step` with grounded Y proof.
 - [ ] Save and human-review approach/base/middle/upper/summit/dialogue captures, including `Hello, I'm Mr. Dragon.`
