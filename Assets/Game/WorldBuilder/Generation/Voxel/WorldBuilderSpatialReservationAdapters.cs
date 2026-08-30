@@ -20,7 +20,8 @@ namespace MountingForce.WorldGen.Voxel
 
         public static SpatialReservation[] BuildClaims(
             WorldRoadNetwork network,
-            ReservationBoundsDm window)
+            ReservationBoundsDm window,
+            ReservationConsumerKind clearanceYieldingConsumers = ReservationConsumerKind.None)
         {
             if (network == null) throw new ArgumentNullException(nameof(network));
 
@@ -71,7 +72,7 @@ namespace MountingForce.WorldGen.Voxel
                             ReservationConsumerKind.Road | ReservationConsumerKind.Connector,
                             provenance,
                             ordinal: 1,
-                            yieldingConsumers: ReservationConsumerKind.Vegetation);
+                            yieldingConsumers: clearanceYieldingConsumers);
                         if (clearance.Bounds.Intersects(window)) claims.Add(clearance);
                     }
                 }
@@ -92,6 +93,7 @@ namespace MountingForce.WorldGen.Voxel
     {
         private const int DefaultMinYDm = -256;
         private const int DefaultMaxYDm = 1024;
+        private const ReservationConsumerKind RoadClearanceYieldingConsumers = ReservationConsumerKind.Vegetation;
 
         public static SpatialReservationSnapshot Build(
             TopDownWorldVoxelPlan plan,
@@ -108,7 +110,10 @@ namespace MountingForce.WorldGen.Voxel
             for (int i = 0; i < plan.Nodes.Count; i++)
                 claims.Add(NodeEnvelope(plan.Nodes[i], minYDm, maxYDm));
 
-            SpatialReservation[] roadClaims = WorldRoadReservationAdapter.BuildClaims(roads, window);
+            SpatialReservation[] roadClaims = WorldRoadReservationAdapter.BuildClaims(
+                roads,
+                window,
+                RoadClearanceYieldingConsumers);
             for (int i = 0; i < roadClaims.Length; i++) claims.Add(roadClaims[i]);
             AddArrivalHandoffs(plan, roads, claims, minYDm, maxYDm);
             return SpatialReservationSnapshot.Create(claims, window);
@@ -127,7 +132,10 @@ namespace MountingForce.WorldGen.Voxel
             for (int i = 0; i < plan.Nodes.Count; i++)
                 nodeClaims.Add(NodeEnvelope(plan.Nodes[i], minYDm, maxYDm));
             SpatialReservationSnapshot nodes = SpatialReservationSnapshot.Create(nodeClaims, window);
-            SpatialReservation[] roadClaims = WorldRoadReservationAdapter.BuildClaims(roads, window);
+            SpatialReservation[] roadClaims = WorldRoadReservationAdapter.BuildClaims(
+                roads,
+                window,
+                RoadClearanceYieldingConsumers);
             for (int i = 0; i < roadClaims.Length; i++)
             {
                 SpatialReservation road = roadClaims[i];
@@ -278,6 +286,8 @@ namespace MountingForce.WorldGen.Voxel
     /// </summary>
     public static class KentridgeSpatialReservationAdapter
     {
+        private const ReservationConsumerKind RoadClearanceYieldingConsumers = ReservationConsumerKind.Vegetation;
+
         public static SpatialReservationSnapshot Build(
             uint seed,
             SettlementPlan plan,
@@ -297,7 +307,10 @@ namespace MountingForce.WorldGen.Voxel
                 claims.Add(claim);
             }
 
-            SpatialReservation[] roadClaims = WorldRoadReservationAdapter.BuildClaims(roads, settlement.Window);
+            SpatialReservation[] roadClaims = WorldRoadReservationAdapter.BuildClaims(
+                roads,
+                settlement.Window,
+                RoadClearanceYieldingConsumers);
             for (int i = 0; i < roadClaims.Length; i++) claims.Add(roadClaims[i]);
             return SpatialReservationSnapshot.Create(claims, settlement.Window, settlement.BucketSizeDm);
         }
