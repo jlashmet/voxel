@@ -76,7 +76,7 @@ namespace Game.WorldBuilder.Voxel
     /// </summary>
     public static class WorldBuilderMountainLandmarkMaterialCatalogue
     {
-        private const int SupportSegmentSpan = 64;
+        private const int SupportSegmentSpan = 96;
         private const int MinimumSupportTopRadius = 40;
         private const int MaximumSupportFlare = 112;
 
@@ -227,7 +227,7 @@ namespace Game.WorldBuilder.Voxel
             in MountainLandmarkMaterialSet materials,
             in MountainLandmarkPresentationProfile presentation)
         {
-            var program = new List<int>(1200);
+            var program = new List<int>(1600);
             int c = spec.CentreLocal;
             int minimumCrest = spec.PlaceholderSize / 2 + presentation.MinimumPlaceholderCrestMargin;
             int proportionalCrest = spec.SummitRadius * presentation.CrestRadiusPercent / 100;
@@ -271,31 +271,22 @@ namespace Game.WorldBuilder.Voxel
                 endY = tier.EndY;
                 lastTier = tier;
 
-                AddSupportMassDrafts(
-                    drafts,
-                    tier.MinX, tier.LocalZ,
-                    tier.Run, spec.PathWidth,
-                    tier.StartY,
-                    spec.PathWidth,
-                    spec.PathWidth / 2);
-
-                if (level + 1 >= spec.SwitchbackCount) continue;
-
-                MountainPathTierGeometry next = spec.PathTier(level + 1);
-                int zMin = Math.Min(tier.LocalZ, next.LocalZ);
-                int zSize = Math.Abs(next.LocalZ - tier.LocalZ) + spec.PathWidth;
-                AddSupportMassDrafts(
-                    drafts,
-                    tier.HighLandingMinX, zMin,
-                    spec.PathWidth, zSize,
-                    endY,
-                    spec.PathWidth,
-                    0);
+                for (int segment = 0; segment < tier.SegmentCount; segment++)
+                {
+                    MountainPathSegmentGeometry geometry = tier.SegmentGeometry(segment);
+                    AddSupportMassDrafts(
+                        drafts,
+                        geometry.MinX, geometry.MinZ,
+                        geometry.Run, geometry.Depth,
+                        geometry.StartY,
+                        spec.PathWidth,
+                        spec.PathWidth / 2);
+                }
             }
 
             int summitZ = spec.CentreLocal - spec.SummitRadius - spec.PathWidth;
-            int finalZMin = Math.Min(lastTier.LocalZ, summitZ);
-            int finalZSize = Math.Abs(summitZ - lastTier.LocalZ) + spec.PathWidth;
+            int finalZMin = Math.Min(lastTier.EndLocalZ, summitZ);
+            int finalZSize = Math.Abs(summitZ - lastTier.EndLocalZ) + spec.PathWidth;
             AddSupportMassDrafts(
                 drafts,
                 lastTier.HighLandingMinX, finalZMin,
@@ -476,34 +467,27 @@ namespace Game.WorldBuilder.Voxel
                 endY = tier.EndY;
                 lastTier = tier;
 
-                EmitBox(
-                    program,
-                    tier.MinX, tier.StartY + 1, tier.LocalZ + clearanceInset,
-                    tier.Run,
-                    spec.PathRise + WorldBuilderMountainLandmarkCatalogue.PathHeadroomVoxels,
-                    clearanceWidth,
-                    0,
-                    PrimitiveMode.Carve);
-
-                if (level + 1 >= spec.SwitchbackCount) continue;
-
-                MountainPathTierGeometry next = spec.PathTier(level + 1);
-                int zMin = Math.Min(tier.LocalZ, next.LocalZ);
-                int zSize = Math.Abs(next.LocalZ - tier.LocalZ) + spec.PathWidth;
-                EmitBox(
-                    program,
-                    tier.HighLandingMinX + clearanceInset, endY + 1, zMin,
-                    clearanceWidth,
-                    WorldBuilderMountainLandmarkCatalogue.PathHeadroomVoxels,
-                    zSize,
-                    0,
-                    PrimitiveMode.Carve);
+                for (int segment = 0; segment < tier.SegmentCount; segment++)
+                {
+                    MountainPathSegmentGeometry geometry = tier.SegmentGeometry(segment);
+                    int carveDepth = math.max(
+                        clearanceWidth,
+                        geometry.Depth - clearanceInset * 2);
+                    EmitBox(
+                        program,
+                        geometry.MinX, geometry.StartY + 1, geometry.MinZ + clearanceInset,
+                        geometry.Run,
+                        geometry.Rise + WorldBuilderMountainLandmarkCatalogue.PathHeadroomVoxels,
+                        carveDepth,
+                        0,
+                        PrimitiveMode.Carve);
+                }
             }
 
             int summitZ = spec.CentreLocal - spec.SummitRadius - spec.PathWidth;
             int finalRise = spec.MountainHeight - endY;
-            int finalZMin = Math.Min(lastTier.LocalZ, summitZ);
-            int finalZSize = Math.Abs(summitZ - lastTier.LocalZ) + spec.PathWidth;
+            int finalZMin = Math.Min(lastTier.EndLocalZ, summitZ);
+            int finalZSize = Math.Abs(summitZ - lastTier.EndLocalZ) + spec.PathWidth;
             EmitBox(
                 program,
                 lastTier.HighLandingMinX + clearanceInset, endY + 1, finalZMin,
@@ -541,19 +525,6 @@ namespace Game.WorldBuilder.Voxel
                 endY = tier.EndY;
                 lastTier = tier;
 
-                int interiorRun = math.max(1, tier.Run - spec.PathWidth * 2);
-                int rampHeight = spec.PathRise + 1;
-                int overlapNumerator = math.max(0, interiorRun - rampHeight);
-                int lowLandingOverlap = overlapNumerator == 0
-                    ? 0
-                    : (overlapNumerator + rampHeight - 2) / (rampHeight - 1);
-                lowLandingOverlap = math.min(spec.PathWidth, lowLandingOverlap);
-                int rampRun = interiorRun + lowLandingOverlap;
-                int axis = tier.Reverse ? ShapeOps.ReverseRampBit : 0;
-                int rampX = tier.Reverse
-                    ? tier.MinX + spec.PathWidth
-                    : tier.MinX + spec.PathWidth - lowLandingOverlap;
-
                 if (level == 0)
                 {
                     EmitBox(
@@ -564,35 +535,28 @@ namespace Game.WorldBuilder.Voxel
                         PrimitiveMode.Fill);
                 }
 
-                EmitRamp(
-                    program,
-                    rampX, tier.StartY, tier.LocalZ,
-                    rampRun, rampHeight, spec.PathWidth,
-                    axis,
-                    pathMaterial,
-                    PrimitiveMode.Fill);
-
-                if (level + 1 >= spec.SwitchbackCount) continue;
-
-                MountainPathTierGeometry next = spec.PathTier(level + 1);
-                int zMin = Math.Min(tier.LocalZ, next.LocalZ);
-                int zSize = Math.Abs(next.LocalZ - tier.LocalZ) + spec.PathWidth;
-                EmitBox(
-                    program,
-                    tier.HighLandingMinX, endY, zMin,
-                    spec.PathWidth, 1, zSize,
-                    pathMaterial,
-                    PrimitiveMode.Fill);
+                for (int segment = 0; segment < tier.SegmentCount; segment++)
+                {
+                    MountainPathSegmentGeometry geometry = tier.SegmentGeometry(segment);
+                    int axis = geometry.Reverse ? ShapeOps.ReverseRampBit : 0;
+                    EmitRamp(
+                        program,
+                        geometry.MinX, geometry.StartY, geometry.MinZ,
+                        geometry.Run, geometry.Rise + 1, geometry.Depth,
+                        axis,
+                        pathMaterial,
+                        PrimitiveMode.Fill);
+                }
             }
 
             int summitZ = spec.CentreLocal - spec.SummitRadius - spec.PathWidth;
             int finalRise = spec.MountainHeight - endY;
-            int finalZMin = Math.Min(lastTier.LocalZ, summitZ);
-            int finalZSize = Math.Abs(summitZ - lastTier.LocalZ) + spec.PathWidth;
+            int finalZMin = Math.Min(lastTier.EndLocalZ, summitZ);
+            int finalZSize = Math.Abs(summitZ - lastTier.EndLocalZ) + spec.PathWidth;
 
             EmitBox(
                 program,
-                lastTier.HighLandingMinX, endY, lastTier.LocalZ,
+                lastTier.HighLandingMinX, endY, lastTier.EndLocalZ,
                 spec.PathWidth, 1, spec.PathWidth,
                 pathMaterial,
                 PrimitiveMode.Fill);
