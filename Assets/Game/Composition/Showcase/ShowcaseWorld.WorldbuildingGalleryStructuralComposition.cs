@@ -785,7 +785,7 @@ namespace VoxelEngine.Showcase
             MaxPrimitives = maxPrimitives,
             Material = material,
             Slots = slots ?? Array.Empty<SlotSpec>(),
-        }
+        };
 
         private static StructuralPieceSpec Piece(uint id, StructuralSocketRole role, ulong tag,
             int3 ingress, Facing facing) => new()
