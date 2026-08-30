@@ -13,7 +13,8 @@
 - [x] Resolve live VoxelShowcase runtime owner and input discrepancy; structure selection must be an explicit mode so ordinary movement/brush controls remain unchanged outside it.
 - [x] Reject the stale “original CC0 dragon” plan because acceptance explicitly requires a downloaded third-party mesh.
 - [x] Verify current external source leads: Meleagor Sketchfab dragon CC-BY ~21.6k tris but auth-gated; artist_71 OpenGameArt three-headed dragon CC-BY 4.0 ~24k tris/public archive; McGuire Chinese Dragon listed CC-BY 4.0 ~412.7k tris but very large.
-- [ ] Obtain/commit a redistribution-safe third-party dragon source representation plus exact URL, author, license, original format, vertex/triangle counts, original downloaded-file SHA-256, committed-source SHA-256, and required attribution/license text.
+- [x] Reject artist_71 OpenGameArt three-headed dragon after visual inspection: despite license/detail, it has no wings and therefore cannot satisfy mandatory wing silhouette/close-up acceptance.
+- [ ] Obtain/commit a redistribution-safe third-party **winged** dragon source representation plus exact URL, author, license, original format, vertex/triangle counts, original downloaded-file SHA-256, committed-source SHA-256, and required attribution/license text.
 - [ ] Verify committed source is meaningfully detailed/non-voxel-native with readable head(s), body, wings, limbs/feet, tail, and secondary silhouette detail.
 
 ## Behavior-first regressions
