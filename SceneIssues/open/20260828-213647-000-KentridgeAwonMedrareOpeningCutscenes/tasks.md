@@ -6,8 +6,8 @@
 - [x] Port every recovered Medrare line verbatim with its source speaker and extend the focused production-path regression to assert all 17 lines plus camera/wait/approach choreography.
 - [x] Inspect exact request `a94ad2e932ddf7f2e47a9173cfcead6a08fae522` / run `33282767733`: focused tests passed, but artifact inspection rejected the built-player gate because `KentridgePlayableSlice` failed `BlueprintCompiler.Compile` and the evidence probe logged `KENTRIDGE_OPENING result=FAIL`.
 - [x] Discriminate the built startup failure: recovered Weldon dialogue makes Weldon a required `MedrareJoinDefinition` actor, but production campaign composition bound only Medrare. Bind Weldon to `PlayerSlot.First` and add a regression that compiles the real campaign blueprint before exercising the Awon gate.
-- [ ] Make the exact-SHA built-player acceptance execute and verify the applicable Logan -> Awon -> Medrare flow, with durable evidence of sequence/gating/dialogue rather than only generic timed scene screenshots.
-- [ ] Re-run post-fix exact-SHA targeted CI and the exact-SHA built-application gate; inspect the resulting artifact/log evidence before returning the ticket to pending/closed.
+- [x] Make exact-SHA built-player acceptance execute and verify Logan -> Awon -> Medrare with durable sequence/gating/dialogue evidence; run `33283114649` emitted `KENTRIDGE_OPENING result=PASS sequence=logan>awon>medrare awonLines=22 medrareLines=17 dialogueHash=af88eb792eee83b6 party=Medrare flame=True replaySuppressed=True`.
+- [x] Re-run post-fix exact-SHA targeted CI and built-application gate; request `1555383ab5a230a8e2e402ee15b54cd8ce6fccc6` (source parent `46617dd27787592e27dbb5a5d812de871a7f94c4`) completed green, focused regression passed 1/1, built `Assets/Scenes/KentridgePlayableSlice.unity`, and artifact/player log was inspected with no startup/runtime exception.
 
 ## Prior work (previous closure rejected; retain as historical evidence)
 
@@ -24,4 +24,4 @@
 - [x] Review current blast radius/cost: content + focused tests + exact-issue-only validation probe; no normal-game polling/update loops/hierarchy scans/steady-state scene work.
 
 ## Historical rejected closure
-The earlier agent-1 targeted request/run and pending/closed bookkeeping are retained only as historical evidence. They do not satisfy this reopened ticket. The ticket remains open until both new exact-SHA gates are green.
+The earlier agent-1 targeted request/run and pending/closed bookkeeping are retained only as historical evidence. They do not satisfy this reopened ticket. The quality-review rework gates above are now green; only canonical pending/closed bookkeeping and master reconciliation remain.
