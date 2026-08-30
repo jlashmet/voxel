@@ -29,6 +29,8 @@ namespace VoxelEngine.Structures.Api
         public const int MaxCompositionDepth = 12;
         public const int MaxCompositionChildren = 256;
         public const int MaxCompositionPrimitiveCost = MaxPrimitivesPerRegion;
+        public const int MaxCompositionVoxelCost = 16 * 1024 * 1024;
+        public const int MaxCompositionPlacementAttempts = 16;
         public const int MaxCompositionExtentVoxels = MaxFootprintVoxels * 8;
     }
 }
