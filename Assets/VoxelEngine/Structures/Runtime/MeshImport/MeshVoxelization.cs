@@ -47,11 +47,13 @@ namespace VoxelEngine.Structures.Runtime.MeshImport
     /// <summary>
     /// Policy used when FillInterior is requested for a mesh whose welded triangle topology is open
     /// or non-manifold. SurfaceOnly is the safe authoring fallback; Reject is useful for strict bakes.
+    /// VoxelShellFill permits fill only where the conservative voxel raster itself encloses cells.
     /// </summary>
     public enum MeshVoxelOpenSurfacePolicy : byte
     {
         SurfaceOnly = 0,
         Reject = 1,
+        VoxelShellFill = 2,
     }
 
     /// <summary>Bounded authoring policy. Dimensions are in output voxels.</summary>
@@ -212,14 +214,15 @@ namespace VoxelEngine.Structures.Runtime.MeshImport
                     $"Mesh cannot be solid-filled because welded topology has {topology.BoundaryEdges} boundary edges " +
                     $"and {topology.NonManifoldEdges} non-manifold edges. Repair the source or use SurfaceOnly fallback.");
             }
-            bool fillInterior = settings.FillInterior && topologyClosed;
+            bool attemptInteriorFill = settings.FillInterior
+                && (topologyClosed || settings.OpenSurfacePolicy == MeshVoxelOpenSurfacePolicy.VoxelShellFill);
 
             // Epsilon expands exact grid-plane extrema to both touching cells. This is deliberate:
             // conservative coverage must retain a zero-thickness membrane that lies on a cell face.
             int3 gridMin = (int3)math.floor(min - BoundsEpsilon);
             int3 gridMax = (int3)math.floor(max + BoundsEpsilon);
             int3 size = gridMax - gridMin + 1;
-            PreflightSize(size, in settings, fillInterior);
+            PreflightSize(size, in settings, attemptInteriorFill);
 
             int denseCount = CheckedCellCount(size);
             var surfaceMaterial = new byte[denseCount];
@@ -263,10 +266,15 @@ namespace VoxelEngine.Structures.Runtime.MeshImport
 
             byte[] finalMaterial = surfaceMaterial;
             bool[] finalOwned = surfaceOwned;
-            if (fillInterior)
-                FloodFillInterior(surfaceOwned, surfaceMaterial, size,
-                                  settings.FallbackMaterial, settings.MaxDenseCells,
-                                  out finalOwned, out finalMaterial);
+            int interiorCellCount = 0;
+            if (attemptInteriorFill)
+                interiorCellCount = FloodFillInterior(surfaceOwned, surfaceMaterial, size,
+                                                       settings.FallbackMaterial, settings.MaxDenseCells,
+                                                       out finalOwned, out finalMaterial);
+            bool interiorFilled = topologyClosed && settings.FillInterior
+                || (!topologyClosed
+                    && settings.OpenSurfacePolicy == MeshVoxelOpenSurfacePolicy.VoxelShellFill
+                    && interiorCellCount > 0);
 
             var cells = new List<BakedVoxelCell>();
             for (int x = 0; x < size.x; x++)
@@ -290,7 +298,7 @@ namespace VoxelEngine.Structures.Runtime.MeshImport
                 stopwatch.Elapsed.TotalMilliseconds,
                 topology.BoundaryEdges,
                 topology.NonManifoldEdges,
-                fillInterior);
+                interiorFilled);
         }
 
         private static void ValidateSettings(in MeshVoxelizationSettings settings)
@@ -306,7 +314,8 @@ namespace VoxelEngine.Structures.Runtime.MeshImport
             if (settings.FallbackMaterial == 0)
                 throw new ArgumentOutOfRangeException(nameof(settings), "Fallback material must be non-empty.");
             if (settings.OpenSurfacePolicy != MeshVoxelOpenSurfacePolicy.SurfaceOnly
-                && settings.OpenSurfacePolicy != MeshVoxelOpenSurfacePolicy.Reject)
+                && settings.OpenSurfacePolicy != MeshVoxelOpenSurfacePolicy.Reject
+                && settings.OpenSurfacePolicy != MeshVoxelOpenSurfacePolicy.VoxelShellFill)
                 throw new ArgumentOutOfRangeException(nameof(settings), "Unknown open-surface policy.");
         }
 
@@ -474,7 +483,7 @@ namespace VoxelEngine.Structures.Runtime.MeshImport
             }
         }
 
-        private static void FloodFillInterior(
+        private static int FloodFillInterior(
             bool[] surfaceOwned,
             byte[] surfaceMaterial,
             int3 size,
@@ -520,6 +529,7 @@ namespace VoxelEngine.Structures.Runtime.MeshImport
 
             finalOwned = (bool[])surfaceOwned.Clone();
             finalMaterial = (byte[])surfaceMaterial.Clone();
+            int interiorCellCount = 0;
             for (int x = 0; x < size.x; x++)
             for (int y = 0; y < size.y; y++)
             for (int z = 0; z < size.z; z++)
@@ -530,7 +540,9 @@ namespace VoxelEngine.Structures.Runtime.MeshImport
                 if (exterior[Index(local + 1, paddedSize)]) continue;
                 finalOwned[index] = true;
                 finalMaterial[index] = fallbackMaterial;
+                interiorCellCount++;
             }
+            return interiorCellCount;
         }
 
         private static void EnqueueExterior(
