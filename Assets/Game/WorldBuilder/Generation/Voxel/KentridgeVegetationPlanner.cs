@@ -20,13 +20,21 @@ namespace MountingForce.WorldGen.Voxel
     /// so trees sit on the same district terraces, plot grading, and natural terrain the player
     /// sees. Road suppression is applied here from the exact resolved WorldRoadNetwork used by the
     /// voxel surface backend; the regional ecology policy remains authoritative for density and
-    /// species selection while the shared road influence is only a local suppression/recovery
-    /// modifier.
+    /// species selection while shared reservations only suppress/yield a realized placement that
+    /// would violate another subsystem's published spatial ownership.
     /// </summary>
     public static class KentridgeVegetationPlanner
     {
         private const float DecimetreMetres = 0.1f;
         private const int SearchMarginDm = 80;
+        private const ReservationCategory VegetationBlockingCategories =
+            ReservationCategory.Building
+            | ReservationCategory.Plaza
+            | ReservationCategory.Road
+            | ReservationCategory.PublicAccess
+            | ReservationCategory.StructuralChild
+            | ReservationCategory.Landmark
+            | ReservationCategory.Geographic;
 
         public static bool TryBuild(uint seed, VoxelWorldGenSettings settings,
                                     IVoxelSurfaceQuery surfaceQuery,
@@ -36,6 +44,8 @@ namespace MountingForce.WorldGen.Voxel
             List<VegetationCandidate> candidates =
                 KentridgeVegetationLayoutPlanner.Build(plan);
             WorldRoadNetwork roads = KentridgeWorldRoadNetwork.Build(plan, seed, settings);
+            SpatialReservationSnapshot reservations =
+                KentridgeSpatialReservationAdapter.Build(seed, plan, roads);
             int scale = settings.VoxelsPerDecimetre;
             float voxelSize = DecimetreMetres / scale;
             instances = new List<TreeInstance>(candidates.Count);
@@ -64,7 +74,18 @@ namespace MountingForce.WorldGen.Voxel
                         out int surface, out _))
                     continue;
 
-                AddInstance(candidate, worldX, surface + 1, worldZ,
+                int rootVoxelY = surface + 1;
+                int rootYDm = rootVoxelY / scale;
+                SpatialReservation vegetationClaim =
+                    KentridgeSpatialReservationAdapter.VegetationCandidate(candidate, rootYDm);
+                ReservationQueryResult placement = reservations.Query(
+                    vegetationClaim,
+                    ReservationConsumerKind.Vegetation,
+                    VegetationBlockingCategories);
+                if (!placement.IsAccepted)
+                    continue;
+
+                AddInstance(candidate, worldX, rootVoxelY, worldZ,
                             voxelSize, seed, instances);
             }
 
@@ -75,8 +96,8 @@ namespace MountingForce.WorldGen.Voxel
         /// Deterministic editor-preview realization. Urban candidates use the authored Kentridge
         /// macro profile; perimeter candidates stay on natural terrain so the vegetation belt does
         /// not inherit the summit height merely because it lies north of town. This diagnostic path
-        /// intentionally does not invent VoxelWorldGenSettings, so production road suppression is
-        /// validated through <see cref="TryBuild"/> and the shared road-network tests.
+        /// intentionally does not invent VoxelWorldGenSettings, so production road suppression and
+        /// reservation consumption are validated through <see cref="TryBuild"/>.
         /// </summary>
         public static List<TreeInstance> BuildAnalytic(uint seed, int voxelsPerDecimetre = 1)
         {
