@@ -4,6 +4,7 @@ using System.IO;
 using System.Reflection;
 using Unity.Mathematics;
 using UnityEngine;
+using VoxelEngine.Collision.Api;
 using VoxelEngine.Structures.Runtime;
 
 namespace VoxelEngine.Showcase
@@ -114,6 +115,7 @@ namespace VoxelEngine.Showcase
             private bool _pinCamera;
             private bool _structuralAuditPassed;
             private Transform _cameraTransform;
+            private CharacterMotor _pinnedMotor;
             private Vector3 _pinnedPosition;
             private Quaternion _pinnedRotation;
 
@@ -128,13 +130,23 @@ namespace VoxelEngine.Showcase
 
             private void LateUpdate()
             {
-                if (_pinCamera && _cameraTransform != null)
-                    _cameraTransform.SetPositionAndRotation(_pinnedPosition, _pinnedRotation);
+                if (!_pinCamera || _cameraTransform == null) return;
+
+                _cameraTransform.SetPositionAndRotation(_pinnedPosition, _pinnedRotation);
+                if (_pinnedMotor != null)
+                {
+                    // WorldbuildingGalleryShowcase streams around its production CharacterMotor in
+                    // Update. Keep that motor on the same evidence pose so the next frame prepares
+                    // near-voxel residency/rendering for the camera that will actually be presented.
+                    _pinnedMotor.Position = _pinnedPosition - Vector3.up * _pinnedMotor.EyeHeight;
+                    _pinnedMotor.Velocity = Vector3.zero;
+                }
             }
 
             private IEnumerator Capture(WorldbuildingGalleryShowcase showcase)
             {
-                FieldInfo worldField = typeof(WorldbuildingGalleryShowcase).GetField("_world", BindingFlags.Instance | BindingFlags.NonPublic);
+                const BindingFlags instancePrivate = BindingFlags.Instance | BindingFlags.NonPublic;
+                FieldInfo worldField = typeof(WorldbuildingGalleryShowcase).GetField("_world", instancePrivate);
                 if (worldField == null)
                 {
                     Debug.LogError("TOWNARCH_AUDIT result=FAIL reason=gallery-world-contract-unavailable");
@@ -159,6 +171,20 @@ namespace VoxelEngine.Showcase
                 {
                     Debug.LogError("TOWNARCH_AUDIT result=FAIL reason=town-content-missing");
                     yield break;
+                }
+
+                CharacterMotor sceneMotor = null;
+                FieldInfo flyModeField = null;
+                if (StructuralCompositionAudit)
+                {
+                    FieldInfo motorField = typeof(WorldbuildingGalleryShowcase).GetField("_motor", instancePrivate);
+                    flyModeField = typeof(WorldbuildingGalleryShowcase).GetField("m_FlyMode", instancePrivate);
+                    sceneMotor = motorField?.GetValue(showcase) as CharacterMotor;
+                    if (sceneMotor == null || flyModeField == null || flyModeField.FieldType != typeof(bool))
+                    {
+                        Debug.LogError("STRUCTURAL_AUDIT result=FAIL reason=gallery-camera-streaming-contract-unavailable");
+                        yield break;
+                    }
                 }
 
                 // Structural composition has its own eight-frame evidence set below. Do not spend the
@@ -220,7 +246,7 @@ namespace VoxelEngine.Showcase
 
                 if (StructuralCompositionAudit)
                 {
-                    yield return CaptureStructural(world);
+                    yield return CaptureStructural(showcase, sceneMotor, flyModeField, world);
                     if (!_structuralAuditPassed) yield break;
                 }
 
@@ -236,7 +262,11 @@ namespace VoxelEngine.Showcase
                 Debug.Log($"TOWNARCH_AUDIT result=PASS captured={captured} expected={expectedViews}");
             }
 
-            private IEnumerator CaptureStructural(ShowcaseWorld world)
+            private IEnumerator CaptureStructural(
+                WorldbuildingGalleryShowcase showcase,
+                CharacterMotor sceneMotor,
+                FieldInfo flyModeField,
+                ShowcaseWorld world)
             {
                 _structuralAuditPassed = false;
                 // Normal gallery startup authors the same refined authoritative-voxel pass. Requiring
@@ -331,6 +361,15 @@ namespace VoxelEngine.Showcase
                 Directory.CreateDirectory(structuralDirectory);
                 foreach (string stale in Directory.GetFiles(structuralDirectory, "*.png")) File.Delete(stale);
 
+                // The evidence camera is several load radii from the gallery centre for the bridge
+                // and cliff proofs. The normal scene Update drives streaming from CharacterMotor,
+                // while this harness pins only the camera in LateUpdate. Put that same production
+                // motor in fly mode and keep it on the pinned pose so residency, renderer scheduling,
+                // and the presented camera all describe one location instead of two.
+                bool previousFlyMode = (bool)flyModeField.GetValue(showcase);
+                flyModeField.SetValue(showcase, true);
+                _pinnedMotor = sceneMotor;
+
                 for (int frame = 0; frame < s_StructuralFrames.Length; frame++)
                 {
                     StructuralFrameSpec spec = s_StructuralFrames[frame];
@@ -351,9 +390,8 @@ namespace VoxelEngine.Showcase
                     _pinnedRotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
                     _pinCamera = true;
 
-                    // Load a bounded strip through the actual view, not just its endpoints. This
-                    // prevents a valid structure from being judged through missing neighbouring
-                    // near-terrain while avoiding a second streaming radius for evidence capture.
+                    // Load a bounded strip through the actual view, not just its endpoints. The
+                    // production scene then keeps this neighbourhood resident from the pinned motor.
                     world.PrepareWorldbuildingGalleryStructuralEvidence(_pinnedPosition, target);
                     yield return null;
                     yield return new WaitForSecondsRealtime(1.0f);
@@ -367,6 +405,8 @@ namespace VoxelEngine.Showcase
                 }
 
                 _pinCamera = false;
+                _pinnedMotor = null;
+                flyModeField.SetValue(showcase, previousFlyMode);
                 yield return new WaitForSecondsRealtime(1f);
                 int captured = Directory.Exists(structuralDirectory)
                     ? Directory.GetFiles(structuralDirectory, "*.png").Length : 0;
