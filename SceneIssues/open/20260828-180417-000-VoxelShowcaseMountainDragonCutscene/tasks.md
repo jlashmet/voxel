@@ -54,7 +54,8 @@
 - [x] Verify run `33298125653` focused failure is not path/headroom/traversal: startup-bake acceptance requires dragon material at centre `(-1112,530,200)`, but the source-matched bake omits that upper vertical region while runtime streaming later realizes the visible placeholder.
 - [x] Implement bake-only explicit fixed-altitude `Structure` coverage planning and materialisation so the source baker requests structure-owned vertical layers without changing runtime streaming or gallery baking.
 - [x] Keep exact request `670d9f16a920...` / run `33299149060` untouched through completion; classify it as a compile-only product failure before bake/test execution, so it supplies no new bake-cost evidence.
-- [ ] Repair only the unsupported `int3` scalar/vector arithmetic in `ShowcaseWorld.BakeCoverage` and the focused test's signed region conversion; preserve the existing half-open footprint and floor-division contracts.
+- [x] Repair only the unsupported `int3` vector arithmetic in `ShowcaseWorld.BakeCoverage` and the focused test's signed region conversion; preserve the existing half-open footprint and floor-division contracts.
+- [x] Re-check compile-repair blast radius: exactly the bake planner plus its focused PlayMode regression changed; no runtime streaming, geometry, collision, movement, structure program, or bake-budget contract changed.
 - [ ] Make the prepared startup payload include the upper vertical region containing the authored summit dragon placeholder without broadly materializing unrelated sky-only regions.
 - [x] Add `ShowcaseBakeExplicitStructureCoverageTests` proving the mountain-only catalogue plans exactly the dragon placeholder's lower/upper layers across the Y=512 boundary and does not expand the landform/headroom sky footprint.
 - [ ] Re-check bake time/memory blast radius after required-upper-layer capture; do not weaken the 240 s/14 GB contracts.
