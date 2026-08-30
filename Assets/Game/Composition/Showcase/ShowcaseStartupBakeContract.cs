@@ -22,11 +22,10 @@ namespace VoxelEngine.Showcase
             "Assets/Resources/VoxelShowcase/ShowcaseWorld.manifest.txt";
 
         private const int ManifestVersion = 1;
-        // Revision 3 is the accepted naturalized realization: asymmetric mountain masses plus
-        // tapered path/landing support. Dimensions are unchanged from revision 1, so this explicit
-        // algorithm revision rejects both the original single-frustum bake and the transitional
-        // asymmetric bake that still used tall rectangular retaining-wall supports.
-        private const uint LandmarkContractRevision = 3;
+        // Revision 4 keeps the accepted naturalized geometry but assigns distinct semantic rock,
+        // ground-cover/support and path material roles. Dimensions are unchanged, so this explicit
+        // realization revision rejects the previous single-material mountain bake as visually stale.
+        private const uint LandmarkContractRevision = 4;
         private const uint FnvOffsetBasis = 2166136261u;
         private const uint FnvPrime = 16777619u;
 
