@@ -310,12 +310,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         }
 
         /// <summary>
-        /// Publishes a lease's draw record.
-        ///
-        /// The record carries the chunk's index base as the draw's start-vertex, and the page table
-        /// carries its vertex base. Between them the draw needs no per-chunk material state, which
-        /// is what lets the pass submit every visible chunk without copying a property block each
-        /// time — the cost that dominated the frame when it did.
+        /// Publishes a lease's draw record. Indices remain local to the lease's vertex range; the
+        /// fourth indirect word is the one-instance draw's start-instance and carries VertexStart
+        /// so procedural shaders can recover that base from SV_InstanceID without per-draw state.
         /// </summary>
         public void UploadArgs(uint indexCount, in SurfaceGeometryLease lease)
         {
@@ -325,7 +322,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             destination[0] = indexCount;
             destination[1] = 1u;
             destination[2] = 0u;
-            destination[3] = 0u;
+            destination[3] = (uint)lease.VertexStart;
             Args.EndWrite<uint>(ArgsWordsPerDraw);
             SurfaceGeometryUploadTelemetry.Add(
                 (Time.realtimeSinceStartupAsDouble - start) * 1000.0,
