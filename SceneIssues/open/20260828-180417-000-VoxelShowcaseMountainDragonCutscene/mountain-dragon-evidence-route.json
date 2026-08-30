@@ -41,7 +41,7 @@
     {
       "name": "switchback-0-high",
       "x": -94.7,
-      "z": -29.5,
+      "z": -22.6,
       "requireGrounded": true,
       "expectedYOffset": 4.6,
       "yTolerance": 0.75
@@ -57,7 +57,7 @@
     {
       "name": "switchback-1-high",
       "x": -127.7,
-      "z": -22.6,
+      "z": -15.7,
       "requireGrounded": true,
       "expectedYOffset": 9.2,
       "yTolerance": 0.75
@@ -79,7 +79,7 @@
     {
       "name": "switchback-2-high",
       "x": -94.7,
-      "z": -15.7,
+      "z": -8.8,
       "requireGrounded": true,
       "expectedYOffset": 13.8,
       "yTolerance": 0.75
@@ -95,7 +95,7 @@
     {
       "name": "switchback-3-high",
       "x": -127.7,
-      "z": -8.8,
+      "z": -1.9,
       "requireGrounded": true,
       "expectedYOffset": 18.4,
       "yTolerance": 0.75
@@ -111,7 +111,7 @@
     {
       "name": "switchback-4-high",
       "x": -102.7,
-      "z": -1.9,
+      "z": 5.0,
       "requireGrounded": true,
       "expectedYOffset": 23.0,
       "yTolerance": 0.75
@@ -133,7 +133,7 @@
     {
       "name": "switchback-5-high",
       "x": -119.5,
-      "z": 5.0,
+      "z": 11.9,
       "requireGrounded": true,
       "expectedYOffset": 27.6,
       "yTolerance": 0.75
