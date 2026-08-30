@@ -115,16 +115,16 @@ namespace VoxelEngine.Showcase
             int shoulderUpper = math.clamp(deckLocalY - 18, 48, 200);
             AuthorBridgeShoulderPresentation(
                 "bridge-bank-l-n", new int3(site.X, contextY, site.Z - 320),
-                shoulderLower, shoulderUpper, right: false, stone, detail, path, 0x53544701u);
+                shoulderLower, shoulderUpper, false, stone, detail, path, 0x53544701u);
             AuthorBridgeShoulderPresentation(
                 "bridge-bank-l-s", new int3(site.X, contextY, site.Z + 114),
-                shoulderLower, shoulderUpper, right: false, stone, detail, path, 0x53544702u);
+                shoulderLower, shoulderUpper, false, stone, detail, path, 0x53544702u);
             AuthorBridgeShoulderPresentation(
                 "bridge-bank-r-n", new int3(site.X + 1102, contextY, site.Z - 320),
-                shoulderLower, shoulderUpper, right: true, stone, detail, path, 0x53544703u);
+                shoulderLower, shoulderUpper, true, stone, detail, path, 0x53544703u);
             AuthorBridgeShoulderPresentation(
                 "bridge-bank-r-s", new int3(site.X + 1102, contextY, site.Z + 114),
-                shoulderLower, shoulderUpper, right: true, stone, detail, path, 0x53544704u);
+                shoulderLower, shoulderUpper, true, stone, detail, path, 0x53544704u);
 
             int[] supportXs = { 170, 335, 530, 610, 690, 885, 1050 };
             for (int i = 0; i < supportXs.Length; i++)
@@ -177,7 +177,8 @@ namespace VoxelEngine.Showcase
             byte stone = GameMaterialIds.MasonryMedium;
             byte detail = GameMaterialIds.DarkStone;
             int3 crownOrigin = origin + new int3(-320, 0, -20);
-            var crown = new ProgramWriter()
+
+            var front = new ProgramWriter()
                 .Box(new int3(320, 72, 14), new int3(160, 8, 12), detail)
                 .Box(new int3(312, 88, 12), new int3(176, 8, 16), detail)
                 .Box(new int3(360, 54, 8), new int3(80, 10, 20), stone)
@@ -187,62 +188,96 @@ namespace VoxelEngine.Showcase
                 .Box(new int3(378, 28, 8), new int3(16, 20, 6), GameMaterialIds.LitWindow)
                 .Box(new int3(406, 28, 8), new int3(16, 20, 6), GameMaterialIds.LitWindow)
                 .Box(new int3(394, 62, 10), new int3(14, 28, 5), GameMaterialIds.Cloth)
-                .Box(new int3(390, 88, 9), new int3(22, 5, 7), GameMaterialIds.Gold)
-                .Box(new int3(12, 136, 32), new int3(96, 10, 96), detail)
-                .Box(new int3(692, 136, 72), new int3(96, 10, 96), detail);
-
+                .Box(new int3(390, 88, 9), new int3(22, 5, 7), GameMaterialIds.Gold);
             for (int x = 324; x <= 464; x += 24)
-                crown.Box(new int3(x, 96, 12), new int3(14, 18, 18), detail);
+                front.Box(new int3(x, 96, 12), new int3(14, 18, 18), detail);
             for (int x = 104; x <= 302; x += 30)
-                crown.Box(new int3(x, 64, 56), new int3(16, 18, 16), detail);
+                front.Box(new int3(x, 64, 56), new int3(16, 18, 16), detail);
             for (int x = 486; x <= 684; x += 30)
-                crown.Box(new int3(x, 64, 56), new int3(16, 18, 16), detail);
+                front.Box(new int3(x, 64, 56), new int3(16, 18, 16), detail);
+            AuthorPresentationCatalogue(
+                "castle-front-crown", crownOrigin, new int3(800, 120, 80),
+                0x53544901u, StructuralSocketRole.Wall | StructuralSocketRole.Gate,
+                WallTag, front, 48, stone);
 
+            var leftTop = new ProgramWriter()
+                .Box(new int3(12, 136, 32), new int3(96, 10, 96), detail);
             for (int x = 20; x <= 92; x += 24)
             {
-                crown.Box(new int3(x, 146, 28), new int3(16, 22, 16), detail);
-                crown.Box(new int3(x, 146, 112), new int3(16, 22, 16), detail);
+                leftTop.Box(new int3(x, 146, 28), new int3(16, 22, 16), detail);
+                leftTop.Box(new int3(x, 146, 112), new int3(16, 22, 16), detail);
             }
-            for (int x = 700; x <= 772; x += 24)
-            {
-                crown.Box(new int3(x, 146, 68), new int3(16, 22, 16), detail);
-                crown.Box(new int3(x, 146, 152), new int3(16, 22, 16), detail);
-            }
-
             AuthorPresentationCatalogue(
-                "castle-crown-and-gatehouse-detail", crownOrigin, new int3(800, 176, 180),
-                0x53544611u, StructuralSocketRole.Wall | StructuralSocketRole.Tower | StructuralSocketRole.Gate,
-                WallTag, crown, 56, stone);
+                "castle-left-crown", crownOrigin, new int3(120, 176, 140),
+                0x53544902u, StructuralSocketRole.Tower, WallTag, leftTop, 16, detail);
 
-            var grounded = new ProgramWriter()
-                .Box(new int3(306, 0, 8), new int3(18, 92, 22), detail)
-                .Box(new int3(476, 0, 8), new int3(18, 92, 22), detail)
+            var rightTop = new ProgramWriter()
+                .Box(new int3(12, 136, 14), new int3(96, 10, 96), detail);
+            for (int x = 20; x <= 92; x += 24)
+            {
+                rightTop.Box(new int3(x, 146, 10), new int3(16, 22, 16), detail);
+                rightTop.Box(new int3(x, 146, 94), new int3(16, 22, 16), detail);
+            }
+            AuthorPresentationCatalogue(
+                "castle-right-crown", crownOrigin + new int3(680, 0, 58),
+                new int3(120, 176, 122), 0x53544903u,
+                StructuralSocketRole.Tower, WallTag, rightTop, 16, detail);
+
+            var leftTower = new ProgramWriter()
                 .Box(new int3(10, 0, 26), new int3(18, 136, 18), detail)
                 .Box(new int3(92, 0, 26), new int3(18, 136, 18), detail)
-                .Box(new int3(690, 0, 66), new int3(18, 136, 18), detail)
-                .Box(new int3(772, 0, 66), new int3(18, 136, 18), detail)
                 .Box(new int3(0, 0, 18), new int3(120, 18, 124), stone)
-                .Box(new int3(680, 0, 58), new int3(120, 18, 122), stone)
-                .Box(new int3(112, 0, 42), new int3(182, 10, 36), stone)
-                .Box(new int3(496, 0, 42), new int3(182, 10, 36), stone)
-                .Box(new int3(38, 48, 24), new int3(22, 30, 5), GameMaterialIds.LitWindow)
-                .Box(new int3(720, 48, 64), new int3(22, 30, 5), GameMaterialIds.LitWindow);
-
-            for (int x = 122; x <= 286; x += 55)
-            {
-                grounded.Box(new int3(x, 0, 48), new int3(14, 52, 20), detail);
-                grounded.Box(new int3(x - 5, 0, 44), new int3(24, 12, 28), stone);
-            }
-            for (int x = 500; x <= 664; x += 55)
-            {
-                grounded.Box(new int3(x, 0, 48), new int3(14, 52, 20), detail);
-                grounded.Box(new int3(x - 5, 0, 44), new int3(24, 12, 28), stone);
-            }
-
+                .Box(new int3(38, 48, 24), new int3(22, 30, 5), GameMaterialIds.LitWindow);
             AuthorPresentationCatalogue(
-                "castle-grounded-buttresses", crownOrigin, new int3(800, 160, 180),
-                0x53544612u, StructuralSocketRole.Wall | StructuralSocketRole.Tower,
-                WallTag, grounded, 40, stone);
+                "castle-left-base", crownOrigin, new int3(120, 150, 150),
+                0x53544904u, StructuralSocketRole.Tower | StructuralSocketRole.Support,
+                WallTag, leftTower, 12, stone);
+
+            var rightTower = new ProgramWriter()
+                .Box(new int3(10, 0, 8), new int3(18, 136, 18), detail)
+                .Box(new int3(92, 0, 8), new int3(18, 136, 18), detail)
+                .Box(new int3(0, 0, 0), new int3(120, 18, 122), stone)
+                .Box(new int3(40, 48, 6), new int3(22, 30, 5), GameMaterialIds.LitWindow);
+            AuthorPresentationCatalogue(
+                "castle-right-base", crownOrigin + new int3(680, 0, 58),
+                new int3(120, 150, 122), 0x53544905u,
+                StructuralSocketRole.Tower | StructuralSocketRole.Support,
+                WallTag, rightTower, 12, stone);
+
+            var gateGround = new ProgramWriter()
+                .Box(new int3(0, 0, 0), new int3(18, 92, 22), detail)
+                .Box(new int3(170, 0, 0), new int3(18, 92, 22), detail);
+            AuthorPresentationCatalogue(
+                "castle-gate-ground", crownOrigin + new int3(306, 0, 8),
+                new int3(188, 100, 40), 0x53544906u,
+                StructuralSocketRole.Gate | StructuralSocketRole.Support,
+                WallTag, gateGround, 8, stone);
+
+            var leftWall = new ProgramWriter()
+                .Box(new int3(0, 0, 0), new int3(182, 10, 36), stone);
+            for (int x = 10; x <= 175; x += 55)
+            {
+                leftWall.Box(new int3(x, 0, 6), new int3(14, 52, 20), detail);
+                leftWall.Box(new int3(x - 5, 0, 2), new int3(24, 12, 28), stone);
+            }
+            AuthorPresentationCatalogue(
+                "castle-left-wall-base", crownOrigin + new int3(112, 0, 42),
+                new int3(190, 60, 50), 0x53544907u,
+                StructuralSocketRole.Wall | StructuralSocketRole.Support,
+                WallTag, leftWall, 16, stone);
+
+            var rightWall = new ProgramWriter()
+                .Box(new int3(0, 0, 0), new int3(182, 10, 36), stone);
+            for (int x = 4; x <= 169; x += 55)
+            {
+                rightWall.Box(new int3(x, 0, 6), new int3(14, 52, 20), detail);
+                rightWall.Box(new int3(x - 5, 0, 2), new int3(24, 12, 28), stone);
+            }
+            AuthorPresentationCatalogue(
+                "castle-right-wall-base", crownOrigin + new int3(496, 0, 42),
+                new int3(190, 60, 50), 0x53544908u,
+                StructuralSocketRole.Wall | StructuralSocketRole.Support,
+                WallTag, rightWall, 16, stone);
         }
 
         private void AuthorCliffPresentation(CliffSite site)
@@ -251,58 +286,65 @@ namespace VoxelEngine.Showcase
             byte timber = GameMaterialIds.Wood;
             byte slate = GameMaterialIds.Slate;
             int3 contextOrigin = new(site.X - 20, site.LowY, site.Z - 20);
-            var writer = new ProgramWriter();
 
-            int lowerX = 20;
-            int lowerZ = 20;
-            writer.Box(new int3(lowerX, 0, lowerZ), new int3(180, 12, 120), stone)
-                .Box(new int3(lowerX - 8, 0, lowerZ - 8), new int3(196, 8, 136), GameMaterialIds.DarkStone)
-                .Box(new int3(lowerX, 12, lowerZ), new int3(180, 6, 8), GameMaterialIds.DarkStone)
-                .Box(new int3(lowerX, 12, lowerZ + 112), new int3(180, 6, 8), GameMaterialIds.DarkStone)
-                .Box(new int3(lowerX + 16, 18, lowerZ + 78), new int3(8, 44, 8), timber)
-                .Box(new int3(lowerX + 132, 18, lowerZ + 78), new int3(8, 44, 8), timber)
-                .Box(new int3(lowerX + 8, 58, lowerZ + 70), new int3(142, 8, 46), slate)
-                .Box(new int3(lowerX + 20, 66, lowerZ + 76), new int3(118, 8, 34), slate);
-
+            var lower = new ProgramWriter()
+                .Box(new int3(20, 0, 20), new int3(180, 12, 120), stone)
+                .Box(new int3(12, 0, 12), new int3(196, 8, 136), GameMaterialIds.DarkStone)
+                .Box(new int3(20, 12, 20), new int3(180, 6, 8), GameMaterialIds.DarkStone)
+                .Box(new int3(20, 12, 132), new int3(180, 6, 8), GameMaterialIds.DarkStone)
+                .Box(new int3(36, 18, 98), new int3(8, 44, 8), timber)
+                .Box(new int3(152, 18, 98), new int3(8, 44, 8), timber)
+                .Box(new int3(28, 58, 90), new int3(142, 8, 46), slate)
+                .Box(new int3(40, 66, 96), new int3(118, 8, 34), slate);
             for (int x = 28; x <= 184; x += 32)
             {
-                writer.Box(new int3(x, 18, 18), new int3(6, 24, 6), timber);
-                writer.Box(new int3(x, 18, 134), new int3(6, 24, 6), timber);
+                lower.Box(new int3(x, 18, 18), new int3(6, 24, 6), timber);
+                lower.Box(new int3(x, 18, 134), new int3(6, 24, 6), timber);
             }
-            writer.Box(new int3(24, 38, 18), new int3(168, 5, 6), timber)
+            lower.Box(new int3(24, 38, 18), new int3(168, 5, 6), timber)
                 .Box(new int3(24, 38, 134), new int3(168, 5, 6), timber);
+            AuthorPresentationCatalogue(
+                "cliff-lower-terrace", contextOrigin, new int3(210, 80, 150),
+                0x53544A01u, StructuralSocketRole.Platform | StructuralSocketRole.Support,
+                CliffTag, lower, 32, stone);
 
-            int rampStartX = 200;
+            var ramp = new ProgramWriter();
             for (int i = 0; i <= 5; i++)
             {
-                int x = rampStartX + i * 52;
+                int x = 10 + i * 52;
                 int y = 20 + (site.Rise + 4) * i / 5;
-                writer.Box(new int3(x, y, 36), new int3(6, 24, 6), timber);
-                writer.Box(new int3(x, y, 112), new int3(6, 24, 6), timber);
+                ramp.Box(new int3(x, y, 36), new int3(6, 24, 6), timber);
+                ramp.Box(new int3(x, y, 112), new int3(6, 24, 6), timber);
                 if (i < 5)
                 {
-                    writer.Box(new int3(x, y + 20, 36), new int3(58, 5, 6), timber);
-                    writer.Box(new int3(x, y + 20, 112), new int3(58, 5, 6), timber);
+                    ramp.Box(new int3(x, y + 20, 36), new int3(58, 5, 6), timber);
+                    ramp.Box(new int3(x, y + 20, 112), new int3(58, 5, 6), timber);
                 }
             }
+            AuthorPresentationCatalogue(
+                "cliff-ramp-detail", contextOrigin + new int3(190, 0, 0),
+                new int3(300, site.Rise + 80, 150), 0x53544A02u,
+                StructuralSocketRole.VerticalConnection | StructuralSocketRole.Support,
+                CliffTag, ramp, 32, timber);
 
             int upperBaseY = site.Rise + 8;
             int upperTopY = upperBaseY + 12;
-            writer.Box(new int3(452, upperBaseY - 10, 28), new int3(180, 10, 120), GameMaterialIds.DarkStone)
-                .Box(new int3(462, upperBaseY, 36), new int3(160, 8, 104), stone);
-            for (int x = 472; x <= 612; x += 35)
+            var upper = new ProgramWriter()
+                .Box(new int3(102, upperBaseY - 10, 28), new int3(180, 10, 120), GameMaterialIds.DarkStone)
+                .Box(new int3(112, upperBaseY, 36), new int3(160, 8, 104), stone);
+            for (int x = 122; x <= 262; x += 35)
             {
-                writer.Box(new int3(x, upperTopY, 38), new int3(6, 24, 6), timber);
-                writer.Box(new int3(x, upperTopY, 134), new int3(6, 24, 6), timber);
+                upper.Box(new int3(x, upperTopY, 38), new int3(6, 24, 6), timber);
+                upper.Box(new int3(x, upperTopY, 134), new int3(6, 24, 6), timber);
             }
-            writer.Box(new int3(468, upperTopY + 20, 38), new int3(154, 5, 6), timber)
-                .Box(new int3(468, upperTopY + 20, 134), new int3(154, 5, 6), timber);
+            upper.Box(new int3(118, upperTopY + 20, 38), new int3(154, 5, 6), timber)
+                .Box(new int3(118, upperTopY + 20, 134), new int3(154, 5, 6), timber);
 
             int cliffFaceHeight = math.max(40, site.Rise + 24);
-            writer.Box(new int3(360, 0, 142), new int3(72, cliffFaceHeight, 24), stone)
-                .Box(new int3(398, 20, 136), new int3(58, math.max(32, cliffFaceHeight - 20), 28), GameMaterialIds.DarkStone)
-                .Box(new int3(434, 40, 132), new int3(50, math.max(24, cliffFaceHeight - 40), 32), stone)
-                .Box(new int3(470, 60, 128), new int3(42, math.max(16, cliffFaceHeight - 60), 36), GameMaterialIds.DarkStone);
+            upper.Box(new int3(10, 0, 142), new int3(72, cliffFaceHeight, 24), stone)
+                .Box(new int3(48, 20, 136), new int3(58, math.max(32, cliffFaceHeight - 20), 28), GameMaterialIds.DarkStone)
+                .Box(new int3(84, 40, 132), new int3(50, math.max(24, cliffFaceHeight - 40), 32), stone)
+                .Box(new int3(120, 60, 128), new int3(42, math.max(16, cliffFaceHeight - 60), 36), GameMaterialIds.DarkStone);
 
             int[] supportX = { site.X + 452, site.X + 602 };
             int[] supportZ = { site.Z + 32, site.Z + 128 };
@@ -312,16 +354,16 @@ namespace VoxelEngine.Showcase
                 int terrain = TerrainQuery.HeightAt(supportX[xi], supportZ[zi], Seed);
                 int bottom = math.max(0, terrain - contextOrigin.y);
                 int height = math.max(8, upperBaseY - bottom);
-                int localX = supportX[xi] - contextOrigin.x;
+                int localX = supportX[xi] - contextOrigin.x - 350;
                 int localZ = supportZ[zi] - contextOrigin.z;
-                writer.Box(new int3(localX - 8, bottom, localZ - 8), new int3(16, height, 16), stone)
+                upper.Box(new int3(localX - 8, bottom, localZ - 8), new int3(16, height, 16), stone)
                     .Box(new int3(localX - 14, bottom, localZ - 14), new int3(28, 8, 28), GameMaterialIds.DarkStone);
             }
 
-            int houseX = 500;
+            int houseX = 150;
             int houseY = site.Rise + 20;
             int houseZ = 60;
-            writer.Box(new int3(houseX - 6, houseY - 4, houseZ - 6), new int3(112, 8, 92), GameMaterialIds.DarkStone)
+            upper.Box(new int3(houseX - 6, houseY - 4, houseZ - 6), new int3(112, 8, 92), GameMaterialIds.DarkStone)
                 .Box(new int3(houseX, houseY, houseZ - 4), new int3(10, 78, 10), GameMaterialIds.DarkStone)
                 .Box(new int3(houseX + 90, houseY, houseZ - 4), new int3(10, 78, 10), GameMaterialIds.DarkStone)
                 .Box(new int3(houseX + 18, houseY + 26, houseZ - 5), new int3(24, 28, 5), GameMaterialIds.LitWindow)
@@ -334,25 +376,31 @@ namespace VoxelEngine.Showcase
                 .Box(new int3(houseX - 16, houseY + 10, houseZ - 18), new int3(132, 6, 22), timber);
 
             AuthorPresentationCatalogue(
-                "cliff-settlement-architectural-detail", contextOrigin,
-                new int3(660, site.Rise + 170, 170),
-                0x53544621u,
-                StructuralSocketRole.Platform | StructuralSocketRole.VerticalConnection | StructuralSocketRole.Building,
-                CliffTag, writer, 96, stone);
+                "cliff-upper-settlement", contextOrigin + new int3(350, 0, 0),
+                new int3(310, site.Rise + 170, 170), 0x53544A03u,
+                StructuralSocketRole.Platform | StructuralSocketRole.Building | StructuralSocketRole.Support,
+                CliffTag, upper, 64, stone);
         }
 
         private void AuthorFacadePresentation(int3 firstOrigin)
         {
-            int3 origin = firstOrigin + new int3(-20, 0, -10);
-            var writer = new ProgramWriter();
-            AddFacadeVariantPresentation(writer, 20, false);
-            AddFacadeVariantPresentation(writer, 320, true);
-
+            int3 civicOrigin = firstOrigin + new int3(-20, 0, -10);
+            var civic = new ProgramWriter();
+            AddFacadeVariantPresentation(civic, 20, false);
             AuthorPresentationCatalogue(
-                "facade-roof-production-detail", origin, new int3(540, 240, 180),
-                0x53544631u,
+                "facade-civic-detail", civicOrigin, new int3(220, 240, 180),
+                0x53544B01u,
                 StructuralSocketRole.Building | StructuralSocketRole.Facade | StructuralSocketRole.Roof,
-                FacadeTag | RoofTag, writer, 96, GameMaterialIds.MasonryMedium);
+                FacadeTag | RoofTag, civic, 48, GameMaterialIds.MasonryMedium);
+
+            int3 ornateOrigin = civicOrigin + new int3(300, 0, 0);
+            var ornate = new ProgramWriter();
+            AddFacadeVariantPresentation(ornate, 20, true);
+            AuthorPresentationCatalogue(
+                "facade-ornate-detail", ornateOrigin, new int3(220, 240, 180),
+                0x53544B02u,
+                StructuralSocketRole.Building | StructuralSocketRole.Facade | StructuralSocketRole.Roof,
+                FacadeTag | RoofTag, ornate, 48, GameMaterialIds.MasonryMedium);
         }
 
         private static void AddFacadeVariantPresentation(ProgramWriter writer, int x, bool ornate)
