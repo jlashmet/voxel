@@ -20,6 +20,8 @@ namespace VoxelEngine.Showcase.Editor
         private const string ShowcaseScenePath = "Assets/Scenes/VoxelShowcase.unity";
         private const string OutputAssetPath =
             "Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes";
+        private const string ShowcaseBakeExecuteMethod =
+            "VoxelEngine.Showcase.Editor.ShowcaseWorldBaker.BakeShowcaseWorld";
 
         private const string GalleryScenePath =
             "Assets/Scenes/WorldbuildingGalleryShowcase.unity";
@@ -152,7 +154,11 @@ namespace VoxelEngine.Showcase.Editor
                     EditorUtility.ClearProgressBar();
             }
 
-            CompleteSuccessfulBake(Application.isBatchMode, EditorApplication.Exit);
+            CompleteSuccessfulBake(
+                Application.isBatchMode,
+                Environment.GetEnvironmentVariable("GITHUB_ACTIONS"),
+                Environment.GetCommandLineArgs(),
+                EditorApplication.Exit);
         }
 
         /// <summary>
@@ -269,14 +275,52 @@ namespace VoxelEngine.Showcase.Editor
             }
         }
 
-        private static void CompleteSuccessfulBake(bool isBatchMode, Action<int> exit)
+        private static void CompleteSuccessfulBake(
+            bool isBatchMode,
+            string githubActions,
+            string[] commandLineArgs,
+            Action<int> exit)
         {
-            if (!isBatchMode)
+            if (!ShouldExitSuccessfulBake(isBatchMode, githubActions, commandLineArgs))
                 return;
             if (exit == null)
                 throw new ArgumentNullException(nameof(exit));
 
             exit(0);
+        }
+
+        private static bool ShouldExitSuccessfulBake(
+            bool isBatchMode,
+            string githubActions,
+            string[] commandLineArgs)
+        {
+            if (!isBatchMode ||
+                !string.Equals(githubActions, "true", StringComparison.OrdinalIgnoreCase) ||
+                commandLineArgs == null)
+            {
+                return false;
+            }
+
+            string executeMethod = null;
+            for (int i = 0; i < commandLineArgs.Length; i++)
+            {
+                string argument = commandLineArgs[i];
+                if (string.Equals(argument, "-runTests", StringComparison.OrdinalIgnoreCase))
+                    return false;
+
+                if (!string.Equals(argument, "-executeMethod", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                if (i + 1 >= commandLineArgs.Length)
+                    return false;
+
+                executeMethod = commandLineArgs[++i];
+            }
+
+            return string.Equals(
+                executeMethod,
+                ShowcaseBakeExecuteMethod,
+                StringComparison.Ordinal);
         }
 
         private static SerializedProperty RequireProperty(SerializedObject serialized, string name)
