@@ -8,11 +8,22 @@ namespace VoxelEngine.Showcase
     /// </summary>
     internal static class WorldbuildingGalleryStructuralTraversalAudit
     {
+        private const float CliffLandingRetreatMetres = 3.5f;
+
         public static ShowcaseWorld.GalleryStructuralTraversalReport AuditWorldbuildingGalleryStructuralTraversal(
             this ShowcaseWorld world,
             int index)
         {
             world.PrepareWorldbuildingGalleryStructuralTraversal(index, out Vector3 start, out Vector3 end);
+
+            int route = index % ShowcaseWorld.WorldbuildingGalleryStructuralTraversalCount;
+            if (route < 0) route += ShowcaseWorld.WorldbuildingGalleryStructuralTraversalCount;
+            if (route == 2)
+            {
+                // The authored cliff house begins 2 m before the generic route endpoint. Keep the
+                // traversal proof on the clear upper-platform landing rather than targeting its facade.
+                end.x -= CliffLandingRetreatMetres;
+            }
 
             var motor = new CharacterMotor { WalkSpeed = 6.5f, StepHeight = 0.35f };
             motor.SnapToGround(world, start);
