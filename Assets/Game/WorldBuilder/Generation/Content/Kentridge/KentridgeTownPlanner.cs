@@ -123,9 +123,19 @@ namespace MountingForce.WorldGen.Content.Kentridge
         /// Road consumers may overlap the settlement envelope only through explicitly compatible
         /// public-access/road handoffs.
         /// </summary>
-        public static SpatialReservationSnapshot BuildReservationSnapshot(uint seed)
+        public static SpatialReservationSnapshot BuildReservationSnapshot(uint seed) =>
+            BuildReservationSnapshot(Build(seed));
+
+        /// <summary>
+        /// Reconstructs semantic claims from an already-resolved Kentridge plan so downstream
+        /// realization can share the exact planning result without a second deterministic solve.
+        /// </summary>
+        public static SpatialReservationSnapshot BuildReservationSnapshot(SettlementPlan plan)
         {
-            SettlementPlan plan = Build(seed);
+            if (plan == null) throw new ArgumentNullException(nameof(plan));
+            if (!string.Equals(plan.Theme.Id, KentridgeDefinition.Id, StringComparison.Ordinal))
+                throw new ArgumentException("Reservation snapshot requires a Kentridge settlement plan.", nameof(plan));
+
             var claims = new List<SpatialReservation>(plan.Plots.Count * 3 + plan.Routes.Count * 2 + 2);
             claims.Add(WorldBuilderReservationFactory.PlazaKeepOpen(
                 "kentridge:" + plan.Plaza.Id,
