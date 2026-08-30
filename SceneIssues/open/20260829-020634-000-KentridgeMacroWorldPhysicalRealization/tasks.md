@@ -19,15 +19,19 @@
 - [x] Run `33279138597` for exact request `a3f2d6d6652abac2dcf9061f9dda51b9e6ecb52b`; nested production acceptance passed (20 routes, 16 buildings, 5 constrained routes, max rise 2), then footprint regression found `orc-village building 3` overlapping `southern-ridge`.
 - [x] Reject Rossdam/infrastructure hypotheses for that failure; exact NUnit evidence proves an Orc/ridge semantic conflict.
 - [x] Bound the modern Southern Ridge blockout (`halfExtentZDm 270 -> 120`) so fixed-seed Orc plot 3 clears it while the direct Orc/Logan corridors still intersect the ridge and retain their authored `GoAround` / designated-pass solutions.
-- [ ] Final exact-SHA run proves Orc exclusion passes and both Southern Ridge route constraints remain geography-constrained.
-- [ ] Final exact-SHA run proves all 16 generic buildings pass placement/program grounding and final timber/roof storage probes.
+- [x] Exact-SHA request `c1a21b76cdc548436a32bd0866f26a2448a67286`, run `33283034449`, is green for source `0bbc9150f36281c0f951d9c75a60b318842fba46`; final persisted macro-world storage contains non-air payload/ownership across all expected regions and the authored traversable route set.
+- [x] Final exact-SHA storage evidence proves the Southern Ridge remediation no longer blocks production storage generation and all-building settlement material probes complete successfully.
 
 ## Built-player / visual evidence
 - [x] Gate remote captures on four consecutive complete current-camera near-surface passes; preserve normal collision/streaming and `Time.timeScale=1` CharacterMotor motion.
 - [x] Prior evidence proved camera-target residency is within the normal 3-region (~153.6 m) radius; do not change residency to make evidence pass.
 - [x] Full-resolution run `33279138597` confirms the clean Rossdam basin/road response is more readable.
 - [x] Full-resolution run `33279138597` rejects a camera-only explanation for missing towns: Fairy/Orc survey cameras are close enough that present building-scale shells would be obvious, yet none render.
-- [ ] If all-16 final storage is green but built-player settlements remain absent, investigate the production streaming/render path; do not mask it with camera changes.
+- [x] Inspect final full-resolution artifact `9723674189` from run `33283034449`: Fairy Village and Orc Village show roads/terrain but no readable settlement shells; Moordell shows fewer than four obvious shells; Rossdam is dominated by lake/terrain with no four-building settlement read.
+- [x] Because final storage is green while built-player settlements remain absent, classify the remaining defect as production streaming/render-path visibility rather than camera framing or storage generation.
+- [ ] Trace persisted `SettlementStructure` voxel payload through region load/meshing/rendering and identify the first production boundary where settlement shell voxels are lost or occluded.
+- [ ] Add a behavioral regression at that production boundary proving persisted settlement shell voxels become renderer/mesh-visible geometry, not merely non-air storage.
+- [ ] Fix the reusable production streaming/render path without scene-local hardcoding, camera masking, eager remote GameObjects, or streaming-radius expansion.
 - [ ] Exact built `KentridgePlayableSlice` reaches a usable rendered state without startup/runtime exceptions.
 - [ ] Full-resolution evidence visibly shows four readable blockouts at Moordell, Rossdam, Fairy Village, and Orc Village.
 - [ ] Full-resolution evidence shows continuous roads/network without large holes, substantial lake and ridge/pass response, and representative CharacterMotor traversal.
@@ -36,6 +40,8 @@
 - [x] Static scope: no other SceneIssue, no feature-branch `.github/test-request.json`, no custom workflow/CI transport, no CharacterMotor/renderer/streaming-radius change.
 - [x] Terrain-relief sampling cost is bounded: 25 samples x 16 generic buildings = 400 deterministic catalogue-build queries; definition/placement counts are unchanged.
 - [x] Southern Ridge remediation changes one Kentridge region extent only; graph nodes/routes, settlement coordinates, feature counts, and runtime systems are unchanged.
+- [x] Refresh `fixes/agent-6` from current `origin/master` after the green storage gate; merge commit `73c62df7dd6be7f16dae16da1b8c1b0a6646286f` has disjoint master changes and no agent-6 conflict.
+- [ ] Measure any render-path remediation cost; reject fixes that add per-frame whole-world scans, increase normal streaming residency, or materially raise generated voxel/mesh counts beyond the four existing generic shells per settlement.
 - [ ] Record final route solve/tile/building/feature counts and built-player CPU/GPU/frame/memory/streaming telemetry against existing budgets.
 - [ ] Re-check final feature diff against current master before promotion.
 
