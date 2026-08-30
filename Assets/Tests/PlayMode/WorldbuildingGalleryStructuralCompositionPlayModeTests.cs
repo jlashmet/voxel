@@ -49,5 +49,22 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.AreEqual(StructuralAttachmentRejectReason.MissingTerrainSupport,
                 first.WorldbuildingGalleryStructuralCliffNegativeReject);
         }
+
+        [Test]
+        public void RefinedCastleGatePreservesCanonicalCharacterMotorTraversal()
+        {
+            using var world = new ShowcaseWorld(Seed, 4096, 1, 2);
+            world.EnsureWorldbuildingGalleryStructuralRefinementBlocking();
+
+            ShowcaseWorld.GalleryStructuralTraversalReport traversal =
+                world.AuditWorldbuildingGalleryStructuralTraversal(1);
+
+            Assert.IsTrue(traversal.Reached,
+                $"refined gate must preserve its canonical traversal; steps={traversal.Steps} " +
+                $"start={traversal.StartDistanceMetres:0.###}m end={traversal.EndDistanceMetres:0.###}m " +
+                $"feet={traversal.FinalFeetPosition}");
+            Assert.LessOrEqual(traversal.EndDistanceMetres, 1.35f,
+                "refined gate traversal must retain the production motor acceptance distance");
+        }
     }
 }
