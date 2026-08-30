@@ -15,7 +15,7 @@ namespace MountingForce.WorldGen.Voxel
             bool isKentridge = settlement.Theme.Id == Content.Kentridge.KentridgeDefinition.Id;
             bool organicKentridge = isKentridge && settlement.Routes.Count > 0;
             SpatialReservationSnapshot structureReservations = isKentridge
-                ? Content.Kentridge.KentridgeTownPlanner.BuildReservationSnapshot(seed)
+                ? Content.Kentridge.KentridgeTownPlanner.BuildReservationSnapshot(settlement)
                 : null;
             var stageList = new List<FeatureCatalogue>(organicKentridge ? 8 : (isKentridge ? 25 : 9));
 
