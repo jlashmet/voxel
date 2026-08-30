@@ -9,7 +9,9 @@
   },
   "timeline": {},
   "assertions": {
-    "requiredLogPatterns": [],
+    "requiredLogPatterns": [
+      "WATER_VALIDATION ready:"
+    ],
     "forbiddenLogPatterns": [
       "NullReferenceException",
       "MissingReferenceException",
