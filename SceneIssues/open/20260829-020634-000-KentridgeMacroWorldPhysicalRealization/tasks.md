@@ -34,6 +34,12 @@
 - [ ] Verify final full-resolution Moordell/Rossdam/Fairy/Orc surveys show readable multi-building geometry rather than telemetry-only readiness.
 - [ ] Re-run final exact-SHA targeted CI and prove focused regression + supported 60 s real-player smoke are closure-quality green for the same source SHA.
 
+## Reusability review
+- [ ] Audit `TopDownWorldPhysicalPlanner`, `TopDownWorldPhysicalIntent`, and generic physical/water catalogues for Kentridge/Rossdam/Fairy/Orc names, fixed landmark coordinates, evidence timing, or route exceptions; move all such policy into `KentridgeTopDownWorldPhysicalIntent` or composition/evidence layers.
+- [ ] Keep generic planner inputs semantic and data-driven: geography, settlement intent, route constraints, water bodies, and terrain relationships should be supplied as intent rather than inferred from Kentridge-specific IDs or ordering.
+- [ ] Add a focused non-Kentridge fixture/regression proving the generic top-down physical planner can realize a different small macro layout without Kentridge adapters or special cases.
+- [ ] Keep the large `KentridgeMacroWorldEvidenceDriver` validation-only; no production world-generation, streaming, route-solving, or publication policy may depend on the evidence driver.
+
 ## Exact runtime / visual gate
 - [ ] Exact built `KentridgePlayableSlice` reaches usable gameplay without startup/runtime exceptions and captures every required macro target inside 60 s.
 - [ ] Full-resolution evidence shows at least four readable grounded blockouts at Moordell, Rossdam, Fairy Village, and Orc Village plus streets/open space and road arrival/exit.
