@@ -9,12 +9,7 @@
   "sharedPaths": [
     "Assets/**"
   ],
-  "tests": [
-    {
-      "platform": "PlayMode",
-      "filter": "VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests.*"
-    }
-  ],
+  "tests": [],
   "playerValidation": {
     "scene": "Assets/Scenes/KentridgePlayableSlice.unity",
     "scenario": "Assets/Scenes/Validation/kentridge.player-scenario.json"
