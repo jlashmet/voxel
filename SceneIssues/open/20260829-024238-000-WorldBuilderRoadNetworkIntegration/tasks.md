@@ -9,6 +9,7 @@
 - [x] Classify final targeted CI `33281599556`: product/test-contract failures, not runner noise; 7 tests executed, 2 failed.
 - [x] Resolve the non-monotonic shoulder sample (`19 -> 26`): adjacent samples were independently hashing edge width; semantic and physical paths now sample coherent 64dm world-space variation at the nearest centerline point.
 - [x] Resolve authored vegetation point `(900,455)` collision: master already had fixed preferred anchors against an organic seeded building layout; authored non-residential anchors now use deterministic bounded clearance search while preserving species/zone intent.
+- [x] Identify the sanctioned built-player gate: same `tests-single.yml` transport, `PlayMode` + focused test + `scene_issue` + `replay_seconds`; no extra CI branch/workflow required.
 
 ## Implementation
 - [x] Make road/trail intent first-class on stable semantic endpoints with reusable profile data, provenance, and deterministic seed.
@@ -45,16 +46,17 @@
 
 ## Validation / cost
 - [x] Refresh/merge current `origin/master` immediately before the attempted final request (`2e3574af`, master parent `2b100aa4`).
-- [x] Refresh/merge current `origin/master` again after the CI-discovered repairs and before issuing the replacement final request (`ed0d8711`, current-master parent `47e51f98`); exact request source is `b5cac79f` after bookkeeping-only task update.
-- [x] Obtain green focused exact-SHA targeted CI through `ci-test/fixes/agent-1` only: run `33284733815`, request commit `b75fefa2`, exact feature parent/source `b5cac79f`, 7/7 passed.
+- [x] Refresh/merge current `origin/master` again after the CI-discovered repairs (`ed0d8711`, current-master parent `47e51f98`).
+- [x] Obtain green focused exact-source EditMode regression through `ci-test/fixes/agent-1` only: run `33284733815`, 7/7 passed.
 - [x] Static cost audit: one analytic primitive + one explicit placement per bounded piece; definition/footprint budgets are enforced; `Primitive` adds no fields/stride; no road GameObjects or per-frame generation path; coherent edge variation is integer-only sample work.
-- [ ] Run/inspect repository-supported built application/player evidence for `Assets/Scenes/KentridgePlayableSlice.unity`; verify no startup/runtime exceptions. The final EditMode request correctly skipped player capture, and this environment has no separate permitted exact-source player transport without violating the assignment's no-extra-CI-transport constraint.
+- [ ] Issue/obtain the combined exact-source PlayMode + built-player request through the same `ci-test/fixes/agent-1` transport using `VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests`, this issue's `scene_issue`, and a 60-second replay.
+- [ ] Run/inspect built application/player evidence for `Assets/Scenes/KentridgePlayableSlice.unity`; verify no startup/runtime exceptions.
 - [ ] Capture/inspect endpoint-to-endpoint road continuity and player-height traversal with collision/streaming active.
 - [ ] Inspect both shoulders on uneven/sloped terrain for natural Grass↔Dirt recovery with no repeated bands, staircase, exposed wall, or hard line.
 - [ ] Inspect medium/far views for chunk/LOD seams and floating props.
 - [ ] Verify vegetation suppression/recovery and semantic route/influence traceability evidence in the built application.
 - [ ] Quantify bounded cost from generated route/definition/primitive counts plus built-player residency/runtime evidence; confirm no storage/vertex-stride or per-frame cost increase.
-- [x] Review current feature-only diff against `47e51f98`: 23 files, all WorldBuilder/voxel road support, EditMode regressions, or this assignment metadata; no other assignment, workflow, or feature-branch `.github/test-request.json` change.
+- [x] Review feature-only diff against `47e51f98`: all changed files are WorldBuilder/voxel road support, regressions, or this assignment metadata; no other assignment, workflow, or feature-branch `.github/test-request.json` change.
 
 ## Promotion / closure
 - [ ] Complete `issue.json` pending metadata (`status`, `resolutionSummary`, `regressionTest`, `fixCommit`) only after promotion gates pass.
