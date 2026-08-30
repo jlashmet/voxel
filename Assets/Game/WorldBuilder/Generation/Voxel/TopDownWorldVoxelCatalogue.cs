@@ -78,11 +78,9 @@ namespace MountingForce.WorldGen.Voxel
     }
 
     /// <summary>
-    /// Physical realization of a production WorldBuilder macro layout. Verified routes become
-    /// overlapping, terrain-grounded surface tiles and named destinations get neutral grounded
-    /// markers. The semantic envelope remains the reservation contract; the physical marker is
-    /// intentionally small instrumentation so it cannot become accidental final architecture.
-    /// Detailed settlement/corridor passes run at higher precedence and override these surfaces.
+    /// Physical realization of a production WorldBuilder macro layout. Verified semantic routes are
+    /// resolved by TopDownWorldRoadNetwork and lowered by WorldRoadNetworkVoxelCatalogue; this class
+    /// owns only macro node markers plus a lightweight route-plan diagnostic view.
     /// </summary>
     public static class TopDownWorldVoxelCatalogue
     {
@@ -119,7 +117,7 @@ namespace MountingForce.WorldGen.Voxel
                 if (!physicalById.TryGetValue(route.FromId, out Int2 from)
                     || !physicalById.TryGetValue(route.ToId, out Int2 to))
                     throw new InvalidOperationException("Macro route references an unrealized node: " + route.Key);
-                routes.Add(new TopDownWorldVoxelRoutePlan(route, BuildRouteTiles(from, to)));
+                routes.Add(new TopDownWorldVoxelRoutePlan(route, BuildRouteSamples(from, to)));
             }
 
             return new TopDownWorldVoxelPlan(nodes, routes);
@@ -133,29 +131,43 @@ namespace MountingForce.WorldGen.Voxel
             Allocator allocator)
         {
             TopDownWorldVoxelPlan plan = Plan(layout, rootCentreDm, cellSizeDm);
-            int scale = settings.VoxelsPerDecimetre;
-            int routeDefinitionCount = plan.Routes.Count;
-            int nodeDefinitionCount = plan.Nodes.Count;
-            int definitionCount = routeDefinitionCount + nodeDefinitionCount;
-            int verticalBand = VerticalBandDm * scale;
-            int programLength = 0;
-            var routePrograms = new int[routeDefinitionCount][];
-            var nodePrograms = new int[nodeDefinitionCount][];
+            WorldRoadNetwork network = TopDownWorldRoadNetwork.Build(
+                layout, rootCentreDm, cellSizeDm, settings);
 
-            byte road = settings.Materials.Resolve(MaterialRole.RoadSurface);
-            byte marker = settings.Materials.Resolve(MaterialRole.FoundationStone);
-            for (var i = 0; i < routeDefinitionCount; i++)
+            FeatureCatalogue nodes = BuildNodeMarkers(plan, layout.Seed, settings, allocator);
+            if (network.Routes.Count == 0) return nodes;
+
+            FeatureCatalogue roads = default;
+            try
             {
-                int width = plan.Routes[i].Route.CorridorWidthDm * scale;
-                routePrograms[i] = PaintProgram(width, verticalBand, width, road);
-                programLength += routePrograms[i].Length;
+                roads = WorldRoadNetworkVoxelCatalogue.Build(network, settings, allocator, precedence: 6);
+                return SettlementCatalogueCombiner.Combine(allocator, nodes, roads);
             }
-            for (var i = 0; i < nodeDefinitionCount; i++)
+            finally
+            {
+                if (nodes.IsCreated) nodes.Dispose();
+                if (roads.IsCreated) roads.Dispose();
+            }
+        }
+
+        private static FeatureCatalogue BuildNodeMarkers(
+            TopDownWorldVoxelPlan plan,
+            uint seed,
+            VoxelWorldGenSettings settings,
+            Allocator allocator)
+        {
+            int scale = settings.VoxelsPerDecimetre;
+            int verticalBand = VerticalBandDm * scale;
+            int definitionCount = plan.Nodes.Count;
+            var programs = new int[definitionCount][];
+            int programLength = 0;
+            byte marker = settings.Materials.Resolve(MaterialRole.FoundationStone);
+            for (int i = 0; i < definitionCount; i++)
             {
                 int halfDm = Math.Min(plan.Nodes[i].Node.EnvelopeHalfExtentDm, MarkerMaxHalfExtentDm);
                 int size = halfDm * 2 * scale;
-                nodePrograms[i] = PaintProgram(size, verticalBand, size, marker);
-                programLength += nodePrograms[i].Length;
+                programs[i] = PaintProgram(size, verticalBand, size, marker);
+                programLength += programs[i].Length;
             }
 
             FeatureCatalogue catalogue = FeatureCatalogueBuilder.Allocate(
@@ -166,91 +178,42 @@ namespace MountingForce.WorldGen.Voxel
                 slots: 0,
                 programLength: programLength,
                 materials: 0,
-                explicitPlacements: plan.RouteTileCount + plan.Nodes.Count,
+                explicitPlacements: definitionCount,
                 overrides: 0,
                 allocator);
 
             try
             {
                 int programOffset = 0;
-                int placementOffset = 0;
-
-                for (var i = 0; i < plan.Routes.Count; i++)
+                for (int i = 0; i < definitionCount; i++)
                 {
-                    TopDownWorldVoxelRoutePlan physicalRoute = plan.Routes[i];
-                    TopDownWorldRouteSpec route = physicalRoute.Route;
-                    int width = route.CorridorWidthDm * scale;
-                    int[] program = routePrograms[i];
+                    TopDownWorldVoxelNodePlan node = plan.Nodes[i];
+                    int halfDm = Math.Min(node.Node.EnvelopeHalfExtentDm, MarkerMaxHalfExtentDm);
+                    int size = halfDm * 2 * scale;
+                    int[] program = programs[i];
                     CopyProgram(ref catalogue, programOffset, program);
                     catalogue.Definitions[i] = Definition(
-                        "macro-route-" + i,
-                        width,
-                        verticalBand,
-                        width,
-                        programOffset,
-                        program.Length,
-                        precedence: 6);
+                        "macro-node-" + i, size, verticalBand, size,
+                        programOffset, program.Length, precedence: 5);
 
-                    int firstPlacement = placementOffset;
-                    for (var p = 0; p < physicalRoute.Tiles.Count; p++)
-                    {
-                        Int2 centre = physicalRoute.Tiles[p];
-                        int ground = TerrainSampler.HeightAt(centre.X * scale, centre.Y * scale, layout.Seed);
-                        catalogue.ExplicitPlacements[placementOffset++] = new ExplicitPlacement
-                        {
-                            Position = new int3(
-                                (centre.X - route.CorridorWidthDm / 2) * scale,
-                                ground - verticalBand / 2,
-                                (centre.Y - route.CorridorWidthDm / 2) * scale),
-                            Orientation = 0,
-                            OverrideOffset = 0,
-                            OverrideCount = 0,
-                        };
-                    }
-                    catalogue.Rules[i] = ExplicitRule(i, firstPlacement, placementOffset - firstPlacement);
-                    programOffset += program.Length;
-                }
-
-                for (var i = 0; i < plan.Nodes.Count; i++)
-                {
-                    int definitionId = routeDefinitionCount + i;
-                    TopDownWorldVoxelNodePlan physicalNode = plan.Nodes[i];
-                    int halfDm = Math.Min(physicalNode.Node.EnvelopeHalfExtentDm, MarkerMaxHalfExtentDm);
-                    int size = halfDm * 2 * scale;
-                    int[] program = nodePrograms[i];
-                    CopyProgram(ref catalogue, programOffset, program);
-                    catalogue.Definitions[definitionId] = Definition(
-                        "macro-node-" + i,
-                        size,
-                        verticalBand,
-                        size,
-                        programOffset,
-                        program.Length,
-                        precedence: 5);
-
-                    int ground = TerrainSampler.HeightAt(
-                        physicalNode.CentreDm.X * scale,
-                        physicalNode.CentreDm.Y * scale,
-                        layout.Seed);
-                    int firstPlacement = placementOffset;
-                    catalogue.ExplicitPlacements[placementOffset++] = new ExplicitPlacement
+                    int ground = TerrainSampler.HeightAt(node.CentreDm.X * scale, node.CentreDm.Y * scale, seed);
+                    catalogue.ExplicitPlacements[i] = new ExplicitPlacement
                     {
                         Position = new int3(
-                            (physicalNode.CentreDm.X - halfDm) * scale,
+                            (node.CentreDm.X - halfDm) * scale,
                             ground - verticalBand / 2,
-                            (physicalNode.CentreDm.Y - halfDm) * scale),
+                            (node.CentreDm.Y - halfDm) * scale),
                         Orientation = 0,
                         OverrideOffset = 0,
                         OverrideCount = 0,
                     };
-                    catalogue.Rules[definitionId] = ExplicitRule(definitionId, firstPlacement, 1);
+                    catalogue.Rules[i] = ExplicitRule(i, i, 1);
                     programOffset += program.Length;
                 }
 
                 CatalogueLoadResult result = FeatureCatalogueBuilder.Finalise(ref catalogue);
                 if (result != CatalogueLoadResult.Ok)
-                    throw new InvalidOperationException(
-                        "Top-down world voxel catalogue failed validation: " + result);
+                    throw new InvalidOperationException("Top-down node marker catalogue failed validation: " + result);
                 return catalogue;
             }
             catch
@@ -260,32 +223,16 @@ namespace MountingForce.WorldGen.Voxel
             }
         }
 
-        private static IReadOnlyList<Int2> BuildRouteTiles(Int2 from, Int2 to)
+        private static IReadOnlyList<Int2> BuildRouteSamples(Int2 from, Int2 to)
         {
-            var tiles = new List<Int2> { from };
-            // Deterministic Manhattan realization keeps every surface primitive axis aligned. The
-            // bend is backend geometry only; the source-backed endpoints remain authoritative.
-            Int2 bend = new Int2(to.X, from.Y);
-            AppendAxis(tiles, bend);
-            AppendAxis(tiles, to);
-            return tiles;
-        }
-
-        private static void AppendAxis(List<Int2> tiles, Int2 target)
-        {
-            Int2 current = tiles[tiles.Count - 1];
-            if (current.X != target.X && current.Y != target.Y)
-                throw new InvalidOperationException("Macro corridor segment must be axis-aligned.");
-
-            while (current.X != target.X || current.Y != target.Y)
-            {
-                int dx = target.X - current.X;
-                int dz = target.Y - current.Y;
-                int stepX = dx == 0 ? 0 : Math.Sign(dx) * Math.Min(RouteTileStepDm, Math.Abs(dx));
-                int stepZ = dz == 0 ? 0 : Math.Sign(dz) * Math.Min(RouteTileStepDm, Math.Abs(dz));
-                current = new Int2(current.X + stepX, current.Y + stepZ);
-                tiles.Add(current);
-            }
+            int dx = to.X - from.X;
+            int dz = to.Y - from.Y;
+            int extent = Math.Max(Math.Abs(dx), Math.Abs(dz));
+            int steps = Math.Max(1, (extent + RouteTileStepDm - 1) / RouteTileStepDm);
+            var samples = new List<Int2>(steps + 1);
+            for (int step = 0; step <= steps; step++)
+                samples.Add(new Int2(from.X + dx * step / steps, from.Y + dz * step / steps));
+            return samples;
         }
 
         private static FeatureDefinition Definition(

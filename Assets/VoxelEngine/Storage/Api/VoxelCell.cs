@@ -63,6 +63,32 @@ namespace VoxelEngine.Storage.Api
         /// join than the general-purpose Rounded style.
         /// </summary>
         public const ushort ArchitecturalRounded = 8;
+
+        /// <summary>
+        /// Persisted style bit reserved for generic two-material presentation. The low four style
+        /// bits still name the reconstruction style; when this marker is present the coating nibble
+        /// carries the secondary material and Detail carries 0..31 secondary coverage. Geometry
+        /// consumers must always use <see cref="ReconstructionStyle"/> so presentation metadata
+        /// cannot select a different reconstruction path.
+        /// </summary>
+        public const ushort MaterialBlendMarker = 1 << 4;
+        public const ushort MaterialBlendStyleMask = MaterialBlendMarker - 1;
+
+        public static bool IsMaterialBlend(ushort styleId) =>
+            (styleId & MaterialBlendMarker) != 0;
+
+        public static ushort ReconstructionStyle(ushort styleId) =>
+            IsMaterialBlend(styleId)
+                ? (ushort)(styleId & MaterialBlendStyleMask)
+                : styleId;
+
+        public static ushort WithMaterialBlend(ushort reconstructionStyle)
+        {
+            if ((reconstructionStyle & ~MaterialBlendStyleMask) != 0)
+                throw new ArgumentOutOfRangeException(nameof(reconstructionStyle),
+                    "Two-material presentation supports reconstruction styles 0..15.");
+            return (ushort)(reconstructionStyle | MaterialBlendMarker);
+        }
     }
 
     /// <summary>Stable built-in coating identifiers. Coatings never replace base material.</summary>
@@ -96,10 +122,35 @@ namespace VoxelEngine.Storage.Api
         /// <summary>
         /// Generic authored detail code. Zero is neutral, 1-15 is a signed piece-variation
         /// channel, and 16-31 is continuous high detail; presentation remains style-defined.
+        /// For a material-blend surface this field instead carries 0..31 secondary-material
+        /// coverage; that mode is explicitly marked in StyleId and never interpreted as coating.
         /// </summary>
         public byte Detail;
 
         public static VoxelSurfaceSemantics Default => default;
+
+        public bool IsMaterialBlend => SurfaceStyles.IsMaterialBlend(StyleId);
+        public ushort ReconstructionStyleId => SurfaceStyles.ReconstructionStyle(StyleId);
+        public byte SecondaryMaterialId => IsMaterialBlend ? (byte)(CoatingId & 0x0F) : (byte)0;
+        public byte BlendCoverage31 => IsMaterialBlend ? (byte)(Detail & 0x1F) : (byte)0;
+
+        public static VoxelSurfaceSemantics MaterialBlend(
+            ushort reconstructionStyle,
+            byte secondaryMaterialId,
+            byte coverage31,
+            VoxelSurfaceFlags flags = VoxelSurfaceFlags.None)
+        {
+            if (secondaryMaterialId > 0x0F)
+                throw new ArgumentOutOfRangeException(nameof(secondaryMaterialId),
+                    "Persisted two-material presentation supports secondary material IDs 0..15.");
+            return new VoxelSurfaceSemantics
+            {
+                StyleId = SurfaceStyles.WithMaterialBlend(reconstructionStyle),
+                CoatingId = secondaryMaterialId,
+                Flags = flags,
+                Detail = (byte)Math.Clamp((int)coverage31, 0, 31),
+            };
+        }
 
         public uint Packed => StyleId | ((uint)CoatingId << 16)
             | ((uint)(((byte)Flags & 0x07) | ((Detail & 0x1F) << 3)) << 24);

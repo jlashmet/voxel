@@ -17,6 +17,8 @@ namespace MountingForce.WorldGen.Content.Kentridge
         private const int BuildingClearanceDm = 12;
         private const int RoadClearanceDm = 10;
         private const int PlazaClearanceDm = 8;
+        private const int PreferredAnchorSearchStepDm = 20;
+        private const int PreferredAnchorSearchRadiusDm = 120;
 
         public static List<VegetationCandidate> Build(SettlementPlan plan)
         {
@@ -93,8 +95,9 @@ namespace MountingForce.WorldGen.Content.Kentridge
                                            List<VegetationCandidate> result,
                                            ref int ordinal)
         {
-            // Kept outside the market-square rectangle itself: stalls and the well remain the focus,
-            // while the trees frame approaches and break up the long shop frontage.
+            // These are preferred composition anchors rather than immutable world coordinates. The
+            // organic seeded building layout may occupy an old anchor, in which case Add performs a
+            // small deterministic clearance search while retaining the same species/zone identity.
             Add(plan, result, 730, 455, 96, SemanticTreeSpecies.Maple, ref ordinal);
             Add(plan, result, 900, 455, 90, SemanticTreeSpecies.Birch, ref ordinal);
             Add(plan, result, 1030, 455, 102, SemanticTreeSpecies.Maple, ref ordinal);
@@ -172,9 +175,27 @@ namespace MountingForce.WorldGen.Content.Kentridge
                                 int x, int z, int heightDm, SemanticTreeSpecies species,
                                 ref int ordinal)
         {
-            if (!TryAdd(plan, result, x, z, heightDm, species, ref ordinal))
-                throw new InvalidOperationException(
-                    $"Authored Kentridge vegetation point {x},{z} collides with settlement geometry.");
+            if (TryAdd(plan, result, x, z, heightDm, species, ref ordinal))
+                return;
+
+            for (int radius = PreferredAnchorSearchStepDm;
+                 radius <= PreferredAnchorSearchRadiusDm;
+                 radius += PreferredAnchorSearchStepDm)
+            {
+                if (TryAdd(plan, result, x, z - radius, heightDm, species, ref ordinal)
+                    || TryAdd(plan, result, x + radius, z, heightDm, species, ref ordinal)
+                    || TryAdd(plan, result, x, z + radius, heightDm, species, ref ordinal)
+                    || TryAdd(plan, result, x - radius, z, heightDm, species, ref ordinal)
+                    || TryAdd(plan, result, x + radius, z - radius, heightDm, species, ref ordinal)
+                    || TryAdd(plan, result, x + radius, z + radius, heightDm, species, ref ordinal)
+                    || TryAdd(plan, result, x - radius, z + radius, heightDm, species, ref ordinal)
+                    || TryAdd(plan, result, x - radius, z - radius, heightDm, species, ref ordinal))
+                    return;
+            }
+
+            throw new InvalidOperationException(
+                $"Authored Kentridge vegetation anchor {x},{z} has no clear placement within "
+                + PreferredAnchorSearchRadiusDm + "dm.");
         }
 
         private static bool TryAdd(SettlementPlan plan, List<VegetationCandidate> result,
@@ -183,7 +204,8 @@ namespace MountingForce.WorldGen.Content.Kentridge
         {
             if (BlockedByBuilding(plan, x, z)
                 || BlockedByStreet(plan, x, z)
-                || BlockedByPlaza(plan, x, z))
+                || BlockedByPlaza(plan, x, z)
+                || AlreadyPlaced(result, x, z))
                 return false;
 
             // Surface limits are backend hints only. The Kentridge voxel adapter uses the authored
@@ -191,6 +213,14 @@ namespace MountingForce.WorldGen.Content.Kentridge
             result.Add(VegetationCandidate.Surface(
                 x, z, heightDm, species, maxY: 512, minY: 1, ordinal: ordinal++));
             return true;
+        }
+
+        private static bool AlreadyPlaced(List<VegetationCandidate> result, int x, int z)
+        {
+            for (int i = 0; i < result.Count; i++)
+                if (result[i].X == x && result[i].Z == z)
+                    return true;
+            return false;
         }
 
         private static bool BlockedByBuilding(SettlementPlan plan, int x, int z)

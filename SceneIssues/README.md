@@ -87,6 +87,13 @@ exact feature SHA, changing `.github/test-request.json` on the CI branch only, t
 regression coverage; replay requests may name the assigned
 `SceneIssues/open|pending|closed/<id>/issue.json` and 20–60 `replay_seconds`.
 
+For the final SceneIssue built-application validation, use that same `ci-test/fixes/agent-N`
+transport rather than creating another CI path. Make the request `platform: PlayMode` and include
+`scene_issue` plus `replay_seconds` (20–60). The shared single-test workflow then runs the requested
+PlayMode regression and invokes the real-player capture harness for the scene named by `issue.json`,
+building and launching the standalone application/player and recording the replay evidence in the
+same workflow run. A plain EditMode request does not run this required player validation.
+
 Focused EditMode/PlayMode CI is necessary regression coverage but is not the final SceneIssue
 validation gate. Every fix must also run the repository's built-application scene harness against
 the exact feature SHA. That harness must build the real application/player, launch the exact scene
