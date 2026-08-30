@@ -18,9 +18,10 @@ namespace Game.Kentridge.PlayableSlice
     /// <summary>
     /// Built-player evidence automation for capture-less macro-world validations. It is dormant in
     /// normal gameplay. When an assigned SceneIssue selects the reusable kentridge-macro-world
-    /// validation profile, it exercises the production CharacterMotor first in ordinary gameplay
-    /// and then on a generated macro-road segment before moving that same motor/camera through
-    /// semantic physical-plan targets. Normal world streaming/rendering remains authoritative.
+    /// validation profile, it exercises the production CharacterMotor in ordinary gameplay, settles
+    /// the first semantic settlement target, then exercises that same motor on a generated macro-road
+    /// before continuing through the remaining physical-plan targets. Production streaming/rendering
+    /// remains authoritative throughout.
     /// </summary>
     internal sealed class KentridgeMacroWorldEvidenceDriver : MonoBehaviour
     {
@@ -64,6 +65,7 @@ namespace Game.Kentridge.PlayableSlice
         private Int2 _roadStartDm;
         private Int2 _roadNextDm;
         private bool _roadPrepared;
+        private float _roadSequenceStartedAt = -1f;
         private bool _roadWalkStarted;
         private Vector3 _roadWalkStartedAt;
         private bool _roadWalkRecorded;
@@ -80,6 +82,14 @@ namespace Game.Kentridge.PlayableSlice
         private float _moordellRoadArrivalStartedAt;
         private float _originalTimeScale = 1f;
         private bool _timeScaleBoosted;
+
+        private enum MoordellContinuation
+        {
+            Survey,
+            MacroRoad,
+            RoadArrival,
+            Advance
+        }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void InstallForAssignedProfile()
@@ -160,65 +170,47 @@ namespace Game.Kentridge.PlayableSlice
 
             _slice.AutoSurvey = false;
             _slice.AutoRecede = false;
-
-            float roadPrestreamEnd = WalkEvidenceSeconds + RoadPrestreamSeconds;
-            float roadWalkEnd = roadPrestreamEnd + RoadWalkSeconds;
-            if (elapsed < roadPrestreamEnd)
-            {
-                _slice.AutoWalk = false;
-                PinToRoadStart();
-                return;
-            }
-
-            if (elapsed < roadWalkEnd)
-            {
-                if (!_roadWalkStarted)
-                {
-                    _roadWalkStarted = true;
-                    _roadWalkStartedAt = _motor.Position;
-                    Debug.Log(
-                        "MACROEVIDENCE phase=macro-road-character-motor start=" + Format(_roadWalkStartedAt) +
-                        $" startDm=({_roadStartDm.X},{_roadStartDm.Y}) nextDm=({_roadNextDm.X},{_roadNextDm.Y})");
-                }
-
-                HoldRoadHeading();
-                _slice.AutoWalk = true;
-                return;
-            }
-
-            _slice.AutoWalk = false;
-            if (!_roadWalkRecorded)
-            {
-                _roadWalkRecorded = true;
-                _roadCaptureStartedAt = Time.realtimeSinceStartup;
-                _stableCoverageFrames = 0;
-                Vector3 delta = _motor.Position - _roadWalkStartedAt;
-                delta.y = 0f;
-                Debug.Log($"MACROEVIDENCE traversal=CharacterMotor-macro-road metres={delta.magnitude:0.00} " +
-                          $"from={Format(_roadWalkStartedAt)} to={Format(_motor.Position)}");
-            }
-
-            if (!_roadCaptured)
-            {
-                HoldRoadHeading();
-                _slice.transform.position = _motor.EyePosition;
-                if (Time.realtimeSinceStartup - _roadCaptureStartedAt >= TargetMinimumDwellSeconds
-                    && HasStablePublishedCoverageAt(_motor.Position))
-                {
-                    _roadCaptured = true;
-                    Debug.Log(
-                        $"MACROEVIDENCE capture-ready target=macro-road-character-motor coverage=True stableFrames={_stableCoverageFrames}");
-                    CaptureNamed("macro-road-character-motor");
-                }
-                return;
-            }
-
             if (_targets == null || _targets.Length == 0) return;
             if (_targetIndex < 0)
                 BeginTarget(0);
 
             EvidenceTarget target = _targets[_targetIndex];
             float now = Time.realtimeSinceStartup;
+
+            if (IsMoordell(target) && _targetCaptured)
+            {
+                MoordellContinuation continuation = ResolveMoordellContinuation(
+                    _targetCaptured,
+                    _roadCaptured,
+                    _moordellRoadArrivalCaptured);
+                if (now - _targetCapturedAt < TargetPostCaptureSeconds)
+                {
+                    _slice.AutoWalk = false;
+                    return;
+                }
+
+                if (continuation == MoordellContinuation.MacroRoad)
+                {
+                    RunMacroRoadEvidence(now);
+                    return;
+                }
+
+                if (continuation == MoordellContinuation.RoadArrival)
+                {
+                    RunMoordellRoadArrival(now, target);
+                    return;
+                }
+
+                if (continuation == MoordellContinuation.Advance)
+                {
+                    _slice.AutoWalk = false;
+                    if (_targetIndex + 1 < _targets.Length)
+                        BeginTarget(_targetIndex + 1);
+                    return;
+                }
+            }
+
+            _slice.AutoWalk = false;
             PinToTargetDemand(target);
             if (!_targetCaptured && !AreTargetContentSettled(target))
             {
@@ -246,31 +238,8 @@ namespace Game.Kentridge.PlayableSlice
                 CaptureTarget(target);
             }
 
-            if (_targetCaptured && IsMoordell(target) && !_moordellRoadArrivalCaptured)
-            {
-                if (!_moordellRoadArrivalPending)
-                {
-                    _moordellRoadArrivalPending = true;
-                    _moordellRoadArrivalStartedAt = now;
-                    _stableCoverageFrames = 0;
-                    Debug.Log("MACROEVIDENCE target=moordell-road-arrival playerHeight=True");
-                }
-
-                PinToRoadStart();
-                if (now - _moordellRoadArrivalStartedAt >= TargetMinimumDwellSeconds
-                    && HasStablePublishedCoverageAt(_motor.Position))
-                {
-                    _moordellRoadArrivalCaptured = true;
-                    _targetCapturedAt = now;
-                    _stableCoverageFrames = 0;
-                    Debug.Log(
-                        "MACROEVIDENCE capture-ready target=moordell-road-arrival coverage=True playerHeight=True");
-                    CaptureNamed("macro-moordell-road-arrival");
-                }
-                return;
-            }
-
             if (_targetCaptured
+                && !IsMoordell(target)
                 && now - _targetCapturedAt >= TargetPostCaptureSeconds
                 && _targetIndex + 1 < _targets.Length)
                 BeginTarget(_targetIndex + 1);
@@ -282,10 +251,118 @@ namespace Game.Kentridge.PlayableSlice
                 return;
 
             EvidenceTarget target = _targets[_targetIndex];
-            if (_moordellRoadArrivalPending)
-                ApplyRoadArrivalCamera(target);
-            else
-                ApplySurveyCamera(target);
+            if (IsMoordell(target) && _targetCaptured)
+            {
+                MoordellContinuation continuation = ResolveMoordellContinuation(
+                    _targetCaptured,
+                    _roadCaptured,
+                    _moordellRoadArrivalCaptured);
+                if (continuation == MoordellContinuation.MacroRoad)
+                    return;
+                if (_moordellRoadArrivalPending)
+                {
+                    ApplyRoadArrivalCamera(target);
+                    return;
+                }
+            }
+
+            ApplySurveyCamera(target);
+        }
+
+        private static MoordellContinuation ResolveMoordellContinuation(
+            bool targetCaptured,
+            bool macroRoadCaptured,
+            bool roadArrivalCaptured)
+        {
+            if (!targetCaptured) return MoordellContinuation.Survey;
+            if (!macroRoadCaptured) return MoordellContinuation.MacroRoad;
+            if (!roadArrivalCaptured) return MoordellContinuation.RoadArrival;
+            return MoordellContinuation.Advance;
+        }
+
+        private void RunMacroRoadEvidence(float now)
+        {
+            if (_roadSequenceStartedAt < 0f)
+            {
+                _roadSequenceStartedAt = now;
+                _stableCoverageFrames = 0;
+                Debug.Log("MACROEVIDENCE phase=macro-road-prestream-after-moordell");
+            }
+
+            float roadElapsed = now - _roadSequenceStartedAt;
+            if (roadElapsed < RoadPrestreamSeconds)
+            {
+                _slice.AutoWalk = false;
+                PinToRoadStart();
+                return;
+            }
+
+            if (roadElapsed < RoadPrestreamSeconds + RoadWalkSeconds)
+            {
+                if (!_roadWalkStarted)
+                {
+                    PinToRoadStart();
+                    _roadWalkStarted = true;
+                    _roadWalkStartedAt = _motor.Position;
+                    Debug.Log(
+                        "MACROEVIDENCE phase=macro-road-character-motor start=" + Format(_roadWalkStartedAt) +
+                        $" startDm=({_roadStartDm.X},{_roadStartDm.Y}) nextDm=({_roadNextDm.X},{_roadNextDm.Y})");
+                }
+
+                HoldRoadHeading();
+                _slice.AutoWalk = true;
+                return;
+            }
+
+            _slice.AutoWalk = false;
+            if (!_roadWalkRecorded)
+            {
+                _roadWalkRecorded = true;
+                _roadCaptureStartedAt = now;
+                _stableCoverageFrames = 0;
+                Vector3 delta = _motor.Position - _roadWalkStartedAt;
+                delta.y = 0f;
+                Debug.Log($"MACROEVIDENCE traversal=CharacterMotor-macro-road metres={delta.magnitude:0.00} " +
+                          $"from={Format(_roadWalkStartedAt)} to={Format(_motor.Position)}");
+            }
+
+            if (_roadCaptured) return;
+            HoldRoadHeading();
+            _slice.transform.position = _motor.EyePosition;
+            if (now - _roadCaptureStartedAt < TargetMinimumDwellSeconds
+                || !HasStablePublishedCoverageAt(_motor.Position))
+                return;
+
+            _roadCaptured = true;
+            _targetCapturedAt = now;
+            _stableCoverageFrames = 0;
+            Debug.Log(
+                $"MACROEVIDENCE capture-ready target=macro-road-character-motor coverage=True stableFrames={StableCoverageFrames}");
+            CaptureNamed("macro-road-character-motor");
+        }
+
+        private void RunMoordellRoadArrival(float now, EvidenceTarget target)
+        {
+            _slice.AutoWalk = false;
+            if (!_moordellRoadArrivalPending)
+            {
+                _moordellRoadArrivalPending = true;
+                _moordellRoadArrivalStartedAt = now;
+                _stableCoverageFrames = 0;
+                Debug.Log("MACROEVIDENCE target=moordell-road-arrival playerHeight=True");
+            }
+
+            PinToRoadStart();
+            if (now - _moordellRoadArrivalStartedAt < TargetMinimumDwellSeconds
+                || !HasStablePublishedCoverageAt(_motor.Position))
+                return;
+
+            _moordellRoadArrivalCaptured = true;
+            _targetCapturedAt = now;
+            _stableCoverageFrames = 0;
+            Debug.Log(
+                "MACROEVIDENCE capture-ready target=moordell-road-arrival coverage=True playerHeight=True");
+            CaptureNamed("macro-moordell-road-arrival");
         }
 
         private void DismissPendingOpeningDialogue()
@@ -466,7 +543,7 @@ namespace Game.Kentridge.PlayableSlice
                 cameraHeightMetres: 40f,
                 elevated: true));
             _targets = targets.ToArray();
-            Debug.Log("MACROEVIDENCE target-order=moordell-rossdam-lake-fairy-orc-ridge-network");
+            Debug.Log("MACROEVIDENCE target-order=moordell-road-rossdam-lake-fairy-orc-ridge-network");
         }
 
         private static EvidenceTarget SettlementSurvey(
