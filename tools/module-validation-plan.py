@@ -36,9 +36,9 @@ def load_manifest(path: Path, root: Path) -> dict:
     fallback=data.get("fallback",False)
     if not isinstance(integration,bool) or not isinstance(fallback,bool):
         raise ManifestError(f"{path}: integrationGate/fallback must be boolean")
-    tests=data.get("tests")
-    if not isinstance(tests,list) or not tests:
-        raise ManifestError(f"{path}: tests must be a non-empty array")
+    tests=data.get("tests",[])
+    if not isinstance(tests,list) or (not tests and not integration):
+        raise ManifestError(f"{path}: tests must be a non-empty array for owning modules")
     normalized_tests=[]
     for i,test in enumerate(tests):
         if not isinstance(test,dict):
