@@ -128,6 +128,10 @@ namespace VoxelEngine.Showcase
             // same bounded production composition after either Bake or Generate startup so both
             // modes expose the four proof assemblies from authoritative voxels.
             _world.EnsureWorldbuildingGalleryStructuralCompositionBlocking();
+            // Layer the bounded authoritative-voxel architectural presentation passes over the
+            // same typed proof district so the normal interactive gallery and CI audit see the
+            // same grounded bridge, castle, cliff-settlement and facade/roof treatment.
+            _world.EnsureWorldbuildingGalleryStructuralPresentationBlocking();
 
             // Scatter after the world is populated and before the player is placed. Both systems
             // read the built surface to decide where not to go, so running them against a world
