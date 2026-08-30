@@ -112,6 +112,13 @@ namespace Game.WorldBuilder.Runtime
                     clearanceDm: 75,
                     source: "northern road stays on dry ground around the lake's eastern shore"),
                 new TopDownWorldRouteRegionConstraintSpec(
+                    KentridgeTopDownWorldLayout.Forest,
+                    KentridgeTopDownWorldLayout.FightingArea1,
+                    RossdamLake,
+                    TopDownWorldRouteRegionSolutionKind.GoAround,
+                    clearanceDm: 75,
+                    source: "forest approach stays on dry ground around the lake after Rossdam's southward physical realization"),
+                new TopDownWorldRouteRegionConstraintSpec(
                     KentridgeTopDownWorldLayout.FightingArea1,
                     KentridgeTopDownWorldLayout.BanditHideout,
                     RossdamLake,
