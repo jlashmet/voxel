@@ -1,0 +1,5 @@
+# CI operations — Kentridge Awon + Medrare opening rework
+
+- Source `add68da73422a7f4d339793cdcfabccdb63bf4e0` -> request `a94ad2e932ddf7f2e47a9173cfcead6a08fae522` -> run `33282767733`. Focused progression tests passed, but artifact inspection classified a **product failure**: built `KentridgePlayableSlice` threw `Campaign blueprint contains validation errors` and logged `KENTRIDGE_OPENING result=FAIL reason=player-exited-before-validation`. No promotion performed.
+- Product fix: bind recovered Weldon actor to `PlayerSlot.First` in the Medrare join and add `KentridgeOpeningBuiltPathRegressionTests` to compile the production campaign graph and exercise the Awon gate.
+- Post-fix source `46617dd27787592e27dbb5a5d812de871a7f94c4` -> request `1555383ab5a230a8e2e402ee15b54cd8ce6fccc6` -> run `33283114649`. This is the active exact request; leave it untouched while queued/running. Required evidence: focused regression green, built-player log `KENTRIDGE_OPENING result=PASS`, no startup/runtime exception, uploaded artifact available for inspection.

@@ -51,6 +51,7 @@ namespace VoxelEngine.Showcase
                 "Voxel Showcase",
                 "Bake Showcase World",
                 ShowcaseStartupBakeContract.ManifestResourcePath));
+            ApplyBakedCastleSemanticRepairs();
             EnsureCastleWorldObjectSceneLoaded();
         }
 

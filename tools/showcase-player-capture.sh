@@ -133,6 +133,10 @@ if [[ -n "$TEST_FILTER" && -z "$SCENE_ISSUE" ]]; then
   fi
 
   case "$TEST_FILTER" in
+    VoxelEngine.Tests.PlayMode.CastleLowerRiverWaterRepairPlayModeTests.StartupFallbackPreservesAuthoredWaterHeightAndMaterial)
+      SCENE="Assets/Scenes/WaterStartupFallbackValidation.unity"
+      : "${RUN_SECONDS:=20}"
+      ;;
     VoxelEngine.Tests.PlayMode.ArchLookdevSceneTests|VoxelEngine.Tests.PlayMode.ArchLookdevSceneTests.*)
       SCENE="Assets/Scenes/ArchLookdev.unity"
       : "${RUN_SECONDS:=30}"
