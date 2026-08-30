@@ -38,11 +38,14 @@
 - [x] Perform the visual-quality validation and reject it: localized darkness and traversal are healthy, but frames 1–5 remain a repetitive masonry/tiled ribbed tube with terraced crowns; frame 6 is a rectangular flat-walled chamber/straight paved approach; the aged ruin plus exactly two grounded flanking statues are not clearly readable.
 - [x] Record durable exact-run, cost, and rendered-decision evidence in `plan.md` and `experiment-001-rounded-vault-topology.md`.
 
-## Discovered required product work — still open
+## Discovered required product work — implement now
+- [ ] **Continue implementation immediately on `fixes/agent-3`; do not wait for a coordinator or another CI-transport instruction before making the product changes below.** The consumed single canonical CI transport blocks only issuing another transport request; it does not block source/content changes, focused local validation, task/plan updates, or preparation of the next exact feature SHA.
 - [ ] Trace and replace the owning presentation/authoring layer that leaves masonry/tiled architectural surfaces and vertical terracing across the *natural* cave route; rounded passage topology alone is insufficient. Do not solve this with camera/capture changes.
 - [ ] Replace the rectangular destination host/approach presentation with an actually irregular geological cavern envelope while retaining the validated reachable route, cost ceilings, localized lighting, ruin bounds, and exactly two statue semantics.
 - [ ] Compose the aged ruin and exactly two grounded humanoid statues so both statues clearly flank the ruin and are unmistakably visible from the normal production player route.
-- [ ] Revalidate all visual acceptance criteria in an exact built application after those product repairs. The current instruction explicitly forbids extra CI transports, and the single canonical transport was consumed by run `33286541699`; do not issue another transport without a new instruction that permits it.
+- [ ] Add or update focused regressions and perform every available local/source validation needed to prove these repairs without weakening existing traversal, determinism, write, light, or device budgets.
+- [ ] Keep `plan.md` and `tasks.md` current while implementing. Do not stop merely because a second CI transport is not yet authorized; stop only when the product repairs and non-transport validation are complete and another exact CI transport is the sole remaining blocked gate.
+- [ ] Revalidate all visual acceptance criteria in an exact built application after those product repairs when an authorized exact-SHA transport is available. The current instruction does not itself authorize an extra CI transport beyond the consumed run `33286541699`.
 
 ## Closure — blocked by failed rendered gate
 - [ ] Move only this assignment `open` -> `pending` after both exact-SHA gates and direct rendered review are green; fill `status=pending`, `resolutionSummary`, `regressionTest`, and `fixCommit`.
