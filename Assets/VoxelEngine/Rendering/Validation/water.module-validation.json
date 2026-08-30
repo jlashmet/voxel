@@ -2,7 +2,8 @@
   "schemaVersion": 1,
   "module": "water",
   "productionPaths": [
-    "Assets/VoxelEngine/Rendering/Runtime/**"
+    "Assets/VoxelEngine/Rendering/Runtime/**",
+    "Assets/Game/Composition/Showcase/SceneRuntime/WaterStartupFallbackValidationShowcase.cs"
   ],
   "sharedPaths": [
     "Assets/VoxelEngine/Rendering/Api/**",
