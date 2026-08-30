@@ -18,6 +18,7 @@
 - [x] Regress authoritative cross-region child rasterization/provenance and decoration-handoff adaptation.
 - [x] Add focused PlayMode coverage over the four production gallery proof catalogues and invalid attachments.
 - [x] Add a focused PlayMode regression that authors the final refinement and requires the canonical production `CharacterMotor` to traverse the castle gate.
+- [x] Reuse the scene-runtime traversal audit in that regression instead of duplicating motor logic; run `33331508390` exposed its `internal` visibility, so the showcase-specific audit helper is now public while structural/composition ownership remains unchanged.
 
 ## Required proving cases
 - [x] Bridge structural graph: terrain anchors, repeated independently bounded span/support pieces, road/traversal continuation sockets, incompatible/orientation rejection, multi-region authoritative geometry, continuous traversable deck.
@@ -50,7 +51,8 @@
 - [x] Measure run `33324919718`: bridge/castle planning 0.011/0.004 ms; proof aggregate 20 children, 51 primitives, 24,606,640 conservative voxels, 15 regions, 40 instances, 16,564,128 voxel writes; authoring 1710.726 ms including 914.307 ms presentation; 71 resident regions; 2558.19 MB reported allocation; 15 render-proxy regions.
 - [x] Confirm each split presentation catalogue stays below existing per-composition voxel/footprint ceilings in the green built-player logs; no global budget was raised.
 - [x] Inspect failed run `33330327732`: focused PlayMode passed, but the exact built player failed castle traversal route 1 after 1,500 steps at the refined gate front face; failure is product/composition, not CI infrastructure.
-- [ ] After the gate-clearance fix, rerun one final exact-SHA PlayMode + exact-scene built-player request on the same CI transport and inspect all durable source frames.
+- [x] Inspect failed run `33331508390`: the focused class failed at compile because the reused scene-runtime traversal audit was inaccessible to the test assembly; the built-player step never became a valid acceptance result.
+- [ ] After the gate-clearance/visibility fixes, rerun one final exact-SHA PlayMode + exact-scene built-player request on the same CI transport and inspect all durable source frames.
 - [ ] Final built-player production `CharacterMotor` traverses bridge, gate, and vertical connection and all required negative contracts still pass.
 
 ## Reusability / blast radius / closure
