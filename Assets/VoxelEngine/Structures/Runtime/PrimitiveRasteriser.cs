@@ -668,6 +668,8 @@ namespace VoxelEngine.Structures.Runtime
                 case PrimitiveShape.Annulus:
                 case PrimitiveShape.ArcWedge:
                     return CurvedPrimitiveEmitter.Contains(in primitive, voxel);
+                case PrimitiveShape.TerrainCorridor:
+                    return TerrainCorridorRasteriser.Contains(in primitive, voxel);
                 default: return false;
             }
         }
