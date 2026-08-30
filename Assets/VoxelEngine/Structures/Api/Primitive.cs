@@ -34,6 +34,13 @@ namespace VoxelEngine.Structures.Api
         /// base material, coating, and authored boundary geometry remain unchanged.
         /// </summary>
         SurfaceDetail = 5,
+
+        /// <summary>
+        /// Terrain-column operation used by a <see cref="PrimitiveShape.TerrainCorridor"/>. It
+        /// grades the source surface toward the primitive's resolved elevation, clears headroom,
+        /// builds any required embankment, and writes continuous influence into surface detail.
+        /// </summary>
+        TerrainCorridor = 6,
     }
 
     public enum PrimitiveShape : byte
@@ -48,6 +55,7 @@ namespace VoxelEngine.Structures.Api
         Frustum = 7,
         Annulus = 8,
         ArcWedge = 9,
+        TerrainCorridor = 10,
     }
 
     /// <summary>Profile for <see cref="PrimitiveShape.Prism"/>.</summary>
@@ -109,10 +117,16 @@ namespace VoxelEngine.Structures.Api
         /// <summary>Inclusive maximum corner in world voxels; for a capsule, the second endpoint.</summary>
         public int3 B;
 
-        /// <summary>Radius in voxels for capsules.</summary>
+        /// <summary>
+        /// Radius in voxels for capsules. For terrain corridors this is the maximum horizontal
+        /// influence radius including authored edge variation.
+        /// </summary>
         public int Radius;
 
-        /// <summary>Second radius for annuli/frusta and shape-specific integer parameters.</summary>
+        /// <summary>
+        /// Second radius for annuli/frusta and shape-specific integer parameters. For terrain
+        /// corridors this is the carriageway/core radius before edge variation.
+        /// </summary>
         public int InnerRadius;
         public int3 C;
         public int3 D;
@@ -129,6 +143,15 @@ namespace VoxelEngine.Structures.Api
             {
                 min -= Radius;
                 max += Radius;
+            }
+            else if (Shape == PrimitiveShape.TerrainCorridor)
+            {
+                int horizontal = math.max(0, Radius);
+                int cutFill = math.max(0, C.x);
+                int fillDepth = math.max(1, C.y);
+                int clearAbove = math.max(0, C.z);
+                min -= new int3(horizontal, cutFill + fillDepth, horizontal);
+                max += new int3(horizontal, cutFill + clearAbove, horizontal);
             }
         }
 

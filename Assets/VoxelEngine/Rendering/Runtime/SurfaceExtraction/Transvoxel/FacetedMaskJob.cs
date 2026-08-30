@@ -35,8 +35,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
             byte material = Materials[sample];
             uint surface = SurfaceSemantics[sample];
             byte boundary = BoundarySamples[sample];
-            SurfaceStyleReadDefinition style = Catalogue.Get((ushort)surface);
-            bool displaced = Coatings.Get((byte)(surface >> 16)).Displacement != 0;
+            ushort authoredStyle = (ushort)surface;
+            bool materialBlend = SurfaceStyles.IsMaterialBlend(authoredStyle);
+            SurfaceStyleReadDefinition style = Catalogue.Get(
+                SurfaceStyles.ReconstructionStyle(authoredStyle));
+            bool displaced = !materialBlend
+                && Coatings.Get((byte)(surface >> 16)).Displacement != 0;
             bool solid = TransvoxelDensityJob.IsAuthoritativelySolid(surface);
             uint encoded = Pack(material, surface) + 1u;
             var boundarySample = new VoxelBoundarySample { Packed = boundary };

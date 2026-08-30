@@ -1,5 +1,6 @@
 using Unity.Collections;
 using Unity.Mathematics;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Runtime.Emitters;
 using VoxelEngine.Terrain.Api;
 
@@ -34,20 +35,11 @@ namespace VoxelEngine.Structures.Runtime
     /// </summary>
     public static class ShapeProgram
     {
-        /// <summary>State carried through one instance's evaluation.</summary>
         private struct Frame
         {
             public int3 Offset;
         }
 
-        /// <summary>
-        /// Evaluates <paramref name="definition"/>'s program.
-        ///
-        /// <paramref name="origin"/> is where the instance's local origin lands in the world, and
-        /// <paramref name="orientation"/> is one of four cardinal rotations about Y. Rotation is
-        /// applied to finished primitives rather than to coordinates as the program runs, so a
-        /// program author never has to think about it.
-        /// </summary>
         public static EvaluationResult Evaluate(
             in FeatureCatalogue catalogue,
             int definitionId,
@@ -63,7 +55,6 @@ namespace VoxelEngine.Structures.Runtime
                 return EvaluationResult.MalformedProgram;
 
             var definition = catalogue.Definitions[definitionId];
-
             var registers = new NativeArray<int>(ShapeOps.RegisterCount, Allocator.Temp);
             var stack = new NativeArray<Frame>(ShapeOps.MaxTransformDepth, Allocator.Temp);
 
@@ -71,10 +62,8 @@ namespace VoxelEngine.Structures.Runtime
                 registers[ShapeOps.FirstParameterRegister + i] = parameters[i];
 
             registers[ShapeOps.RegisterBase] = BasePlane(in definition, origin, terrainSeed);
-
             int stackDepth = 0;
             stack[0] = new Frame { Offset = int3.zero };
-
             ulong drawState = instanceSeed;
             int emitted = 0;
 
@@ -85,15 +74,9 @@ namespace VoxelEngine.Structures.Runtime
 
             registers.Dispose();
             stack.Dispose();
-
             return result;
         }
 
-        /// <summary>
-        /// Executes a run of instructions. Recurses for structured control flow only — there is no
-        /// jump, so a program cannot loop forever and the recursion depth is the nesting depth the
-        /// author wrote.
-        /// </summary>
         private static EvaluationResult Run(
             in FeatureCatalogue catalogue,
             in FeatureDefinition definition,
@@ -114,16 +97,12 @@ namespace VoxelEngine.Structures.Runtime
             while (pc < end)
             {
                 if (pc + 1 >= program.Length) return EvaluationResult.MalformedProgram;
-
                 var op = (ShapeOp)program[pc];
                 int mask = program[pc + 1];
-
                 int operandCount = ShapeOps.OperandCount(op);
                 if (operandCount < 0) return EvaluationResult.MalformedProgram;
-
                 int operandBase = pc + 2;
                 if (operandBase + operandCount > end) return EvaluationResult.MalformedProgram;
-
                 if (op == ShapeOp.End) return EvaluationResult.Ok;
 
                 int o0 = Resolve(program, registers, operandBase, mask, 0, operandCount);
@@ -141,7 +120,6 @@ namespace VoxelEngine.Structures.Runtime
                 int o12 = Resolve(program, registers, operandBase, mask, 12, operandCount);
                 int o13 = Resolve(program, registers, operandBase, mask, 13, operandCount);
                 int o14 = Resolve(program, registers, operandBase, mask, 14, operandCount);
-
                 int advance = ShapeOps.InstructionLength(op);
 
                 switch (op)
@@ -156,37 +134,33 @@ namespace VoxelEngine.Structures.Runtime
                     case ShapeOp.EmitFrustum:
                     case ShapeOp.EmitAnnulus:
                     case ShapeOp.EmitArcWedge:
+                    case ShapeOp.EmitTerrainCorridor:
                     {
-                        if (emitted >= definition.MaxPrimitives ||
-                            emitted >= FeatureBudget.MaxPrimitivesPerInstance)
+                        if (emitted >= definition.MaxPrimitives
+                            || emitted >= FeatureBudget.MaxPrimitivesPerInstance)
                             return EvaluationResult.PrimitiveLimitExceeded;
 
-                        var primitive = BuildPrimitive(op, o0, o1, o2, o3, o4, o5, o6, o7, o8,
-                                                       o9, o10,
-                                                       o11, o12, o13, o14,
-                                                       stack[stackDepth].Offset, emitted);
-
+                        var primitive = BuildPrimitive(
+                            op, o0, o1, o2, o3, o4, o5, o6, o7, o8, o9, o10,
+                            o11, o12, o13, o14, stack[stackDepth].Offset, emitted);
                         primitive = Orient(primitive, definition.Footprint, orientation);
                         primitive.A += origin;
                         primitive.B += origin;
-                        if (primitive.Shape >= PrimitiveShape.Ellipsoid)
-                            primitive.C += origin;
-
+                        if (UsesPositionC(primitive.Shape)) primitive.C += origin;
                         primitives.Add(primitive);
                         emitted++;
                         break;
                     }
 
                     case ShapeOp.PushTransform:
-                    {
                         if (stackDepth + 1 >= ShapeOps.MaxTransformDepth)
                             return EvaluationResult.TransformStackOverflow;
-
-                        var offset = new int3(o0, o1, o2);
-                        stack[stackDepth + 1] = new Frame { Offset = stack[stackDepth].Offset + offset };
+                        stack[stackDepth + 1] = new Frame
+                        {
+                            Offset = stack[stackDepth].Offset + new int3(o0, o1, o2)
+                        };
                         stackDepth++;
                         break;
-                    }
 
                     case ShapeOp.PopTransform:
                         if (stackDepth > 0) stackDepth--;
@@ -196,12 +170,9 @@ namespace VoxelEngine.Structures.Runtime
                     {
                         int count = o0;
                         var stride = new int3(o1, o2, o3);
-                        int bodyInstructions = o4;
-
                         int bodyStart = pc + advance;
-                        int bodyLength = MeasureInstructions(catalogue, bodyStart, end, bodyInstructions);
+                        int bodyLength = MeasureInstructions(catalogue, bodyStart, end, o4);
                         if (bodyLength < 0) return EvaluationResult.MalformedProgram;
-
                         if (count < 0) count = 0;
                         if (count > FeatureBudget.MaxPrimitivesPerInstance)
                             return EvaluationResult.PrimitiveLimitExceeded;
@@ -210,18 +181,15 @@ namespace VoxelEngine.Structures.Runtime
                         {
                             if (stackDepth + 1 >= ShapeOps.MaxTransformDepth)
                                 return EvaluationResult.TransformStackOverflow;
-
                             stack[stackDepth + 1] = new Frame
                             {
                                 Offset = stack[stackDepth].Offset + stride * i,
                             };
                             stackDepth++;
-
-                            var inner = Run(in catalogue, in definition, bodyStart, bodyLength,
-                                            registers, stack, ref stackDepth, ref drawState,
-                                            ref emitted, origin, orientation, terrainSeed,
-                                            primitives, anchors);
-
+                            var inner = Run(
+                                in catalogue, in definition, bodyStart, bodyLength,
+                                registers, stack, ref stackDepth, ref drawState, ref emitted,
+                                origin, orientation, terrainSeed, primitives, anchors);
                             stackDepth--;
                             if (inner != EvaluationResult.Ok) return inner;
                         }
@@ -232,25 +200,17 @@ namespace VoxelEngine.Structures.Runtime
 
                     case ShapeOp.IfRange:
                     {
-                        int value = o0;
-                        int min = o1;
-                        int max = o2;
-                        int bodyInstructions = o3;
-
                         int bodyStart = pc + advance;
-                        int bodyLength = MeasureInstructions(catalogue, bodyStart, end, bodyInstructions);
+                        int bodyLength = MeasureInstructions(catalogue, bodyStart, end, o3);
                         if (bodyLength < 0) return EvaluationResult.MalformedProgram;
-
-                        if (value >= min && value <= max)
+                        if (o0 >= o1 && o0 <= o2)
                         {
-                            var inner = Run(in catalogue, in definition, bodyStart, bodyLength,
-                                            registers, stack, ref stackDepth, ref drawState,
-                                            ref emitted, origin, orientation, terrainSeed,
-                                            primitives, anchors);
-
+                            var inner = Run(
+                                in catalogue, in definition, bodyStart, bodyLength,
+                                registers, stack, ref stackDepth, ref drawState, ref emitted,
+                                origin, orientation, terrainSeed, primitives, anchors);
                             if (inner != EvaluationResult.Ok) return inner;
                         }
-
                         advance += bodyLength;
                         break;
                     }
@@ -260,26 +220,18 @@ namespace VoxelEngine.Structures.Runtime
                         int destination = program[operandBase];
                         int worldX = origin.x + stack[stackDepth].Offset.x + o1;
                         int worldZ = origin.z + stack[stackDepth].Offset.z + o2;
-
                         if ((uint)destination < (uint)ShapeOps.RegisterCount)
                             registers[destination] = TerrainQuery.HeightAt(worldX, worldZ, terrainSeed);
-
                         break;
                     }
 
                     case ShapeOp.DrawRange:
                     {
                         int destination = program[operandBase];
-                        int min = o1;
-                        int max = o2;
-                        int quantum = o3;
-
-                        int value = FeatureHash.Range(ref drawState, min, max);
-                        if (quantum > 1) value = min + ((value - min) / quantum) * quantum;
-
+                        int value = FeatureHash.Range(ref drawState, o1, o2);
+                        if (o3 > 1) value = o1 + ((value - o1) / o3) * o3;
                         if ((uint)destination < (uint)ShapeOps.RegisterCount)
                             registers[destination] = value;
-
                         break;
                     }
 
@@ -287,45 +239,34 @@ namespace VoxelEngine.Structures.Runtime
                     {
                         int anchorIndex = o0;
                         var local = new int3(o1, o2, o3) + stack[stackDepth].Offset;
-                        var facing = (Facing)o4;
-
                         if ((uint)anchorIndex < (uint)definition.AnchorCount)
                         {
                             var spec = catalogue.Anchors[definition.AnchorOffset + anchorIndex];
-                            var rotated = RotatePoint(local, definition.Footprint, orientation);
-
                             anchors.Add(new ResolvedAnchor
                             {
                                 Name = spec.Name,
-                                Position = origin + rotated,
-                                Facing = RotateFacing(facing, orientation),
+                                Position = origin + RotatePoint(local, definition.Footprint, orientation),
+                                Facing = RotateFacing((Facing)o4, orientation),
                             });
                         }
-
                         break;
                     }
 
                     case ShapeOp.Arithmetic:
                     {
                         int destination = program[operandBase];
-                        int a = o1;
-                        int b = o2;
-                        var operation = (ArithmeticOp)o3;
-
-                        int value = operation switch
+                        int value = (ArithmeticOp)o3 switch
                         {
-                            ArithmeticOp.Add => a + b,
-                            ArithmeticOp.Subtract => a - b,
-                            ArithmeticOp.Multiply => a * b,
-                            ArithmeticOp.Divide => b == 0 ? 0 : a / b,
-                            ArithmeticOp.Min => a < b ? a : b,
-                            ArithmeticOp.Max => a > b ? a : b,
+                            ArithmeticOp.Add => o1 + o2,
+                            ArithmeticOp.Subtract => o1 - o2,
+                            ArithmeticOp.Multiply => o1 * o2,
+                            ArithmeticOp.Divide => o2 == 0 ? 0 : o1 / o2,
+                            ArithmeticOp.Min => o1 < o2 ? o1 : o2,
+                            ArithmeticOp.Max => o1 > o2 ? o1 : o2,
                             _ => 0,
                         };
-
                         if ((uint)destination < (uint)ShapeOps.RegisterCount)
                             registers[destination] = value;
-
                         break;
                     }
 
@@ -339,21 +280,18 @@ namespace VoxelEngine.Structures.Runtime
             return EvaluationResult.Ok;
         }
 
-        private static int MeasureInstructions(in FeatureCatalogue catalogue, int start, int end, int count)
+        private static int MeasureInstructions(
+            in FeatureCatalogue catalogue, int start, int end, int count)
         {
             var program = catalogue.Program;
             int pc = start;
-
             for (var i = 0; i < count; i++)
             {
                 if (pc >= end || pc >= program.Length) return -1;
-
                 var op = (ShapeOp)program[pc];
                 int length = ShapeOps.InstructionLength(op);
                 if (length < 0) return -1;
-
                 pc += length;
-
                 if (op == ShapeOp.Repeat || op == ShapeOp.IfRange)
                 {
                     int nested = program[pc - 1];
@@ -362,88 +300,88 @@ namespace VoxelEngine.Structures.Runtime
                     pc += nestedLength;
                 }
             }
-
             return pc - start;
         }
 
-        private static int Resolve(NativeArray<int> program, NativeArray<int> registers,
-                                   int operandBase, int mask, int index, int operandCount)
+        private static int Resolve(
+            NativeArray<int> program,
+            NativeArray<int> registers,
+            int operandBase,
+            int mask,
+            int index,
+            int operandCount)
         {
             if (index >= operandCount) return 0;
-
             int raw = program[operandBase + index];
             if ((mask & (1 << index)) == 0) return raw;
-
             return (uint)raw < (uint)ShapeOps.RegisterCount ? registers[raw] : 0;
         }
 
-        private static Primitive BuildPrimitive(ShapeOp op,
-                                                int o0, int o1, int o2, int o3, int o4,
-                                                int o5, int o6, int o7, int o8,
-                                                int o9, int o10,
-                                                int o11, int o12, int o13, int o14,
-                                                int3 offset, int order)
+        private static Primitive BuildPrimitive(
+            ShapeOp op,
+            int o0, int o1, int o2, int o3, int o4,
+            int o5, int o6, int o7, int o8, int o9,
+            int o10, int o11, int o12, int o13, int o14,
+            int3 offset,
+            int order)
         {
             switch (op)
             {
                 case ShapeOp.EmitBox:
-                    return BoxEmitter.Box(
-                        new int3(o0, o1, o2) + offset,
-                        new int3(o3, o4, o5),
-                        (byte)o6, (PrimitiveMode)o9, order, (ushort)o7, (byte)o8);
-
+                    return BoxEmitter.Box(new int3(o0, o1, o2) + offset,
+                        new int3(o3, o4, o5), (byte)o6, (PrimitiveMode)o9,
+                        order, (ushort)o7, (byte)o8);
                 case ShapeOp.EmitCylinder:
-                    return CylinderEmitter.Cylinder(
-                        new int3(o0, o1, o2) + offset,
-                        o3, o4, (byte)o5,
-                        (byte)o6, (PrimitiveMode)o9, order, (ushort)o7, (byte)o8);
-
+                    return CylinderEmitter.Cylinder(new int3(o0, o1, o2) + offset,
+                        o3, o4, (byte)o5, (byte)o6, (PrimitiveMode)o9,
+                        order, (ushort)o7, (byte)o8);
                 case ShapeOp.EmitPrism:
-                    return PrismEmitter.Prism(
-                        new int3(o0, o1, o2) + offset,
-                        new int3(o3, o4, o5),
-                        (PrismProfile)o6, (byte)o7,
+                    return PrismEmitter.Prism(new int3(o0, o1, o2) + offset,
+                        new int3(o3, o4, o5), (PrismProfile)o6, (byte)o7,
                         (PrimitiveMode)o10, order, (ushort)o8, (byte)o9);
-
                 case ShapeOp.EmitCapsule:
-                    return CapsuleChainEmitter.Capsule(
-                        new int3(o0, o1, o2) + offset,
-                        new int3(o3, o4, o5) + offset,
-                        o6, (byte)o7, (PrimitiveMode)o10, order, (ushort)o8, (byte)o9);
-
-                case ShapeOp.EmitRoundedBox:
-                    return CurvedPrimitiveEmitter.RoundedBox(
-                        new int3(o0, o1, o2) + offset, new int3(o3, o4, o5), o6,
-                        (byte)o7, (ushort)o8, (PrimitiveMode)o10, order, (byte)o9);
-
-                case ShapeOp.EmitEllipsoid:
-                    return CurvedPrimitiveEmitter.Ellipsoid(
-                        new int3(o0, o1, o2) + offset, new int3(o3, o4, o5),
-                        (byte)o6, (ushort)o7, (PrimitiveMode)o9, order, (byte)o8);
-
-                case ShapeOp.EmitFrustum:
-                    return CurvedPrimitiveEmitter.Frustum(
-                        new int3(o0, o1, o2) + offset, o3, o4, o5, (byte)o6,
-                        (byte)o7, (ushort)o8, (PrimitiveMode)o10, order, (byte)o9);
-
-                case ShapeOp.EmitAnnulus:
-                    return CurvedPrimitiveEmitter.Annulus(
-                        new int3(o0, o1, o2) + offset, o3, o4, o5, (byte)o6, o7 != 0,
-                        (byte)o8, (ushort)o9, (PrimitiveMode)o11, order, (byte)o10);
-
-                case ShapeOp.EmitArcWedge:
-                    return CurvedPrimitiveEmitter.ArcWedge(
-                        new int3(o0, o1, o2) + offset, o3, o4, o5, (byte)o6,
-                        new int2(o7, o8), new int2(o9, o10), (byte)o11, (ushort)o12,
-                        (PrimitiveMode)o14, order, (byte)o13);
-
-                case ShapeOp.EmitRamp:
-                    return BoxEmitter.Ramp(
-                        new int3(o0, o1, o2) + offset,
-                        new int3(o3, o4, o5),
-                        (byte)o6, (byte)o7,
+                    return CapsuleChainEmitter.Capsule(new int3(o0, o1, o2) + offset,
+                        new int3(o3, o4, o5) + offset, o6, (byte)o7,
                         (PrimitiveMode)o10, order, (ushort)o8, (byte)o9);
-
+                case ShapeOp.EmitRoundedBox:
+                    return CurvedPrimitiveEmitter.RoundedBox(new int3(o0, o1, o2) + offset,
+                        new int3(o3, o4, o5), o6, (byte)o7, (ushort)o8,
+                        (PrimitiveMode)o10, order, (byte)o9);
+                case ShapeOp.EmitEllipsoid:
+                    return CurvedPrimitiveEmitter.Ellipsoid(new int3(o0, o1, o2) + offset,
+                        new int3(o3, o4, o5), (byte)o6, (ushort)o7,
+                        (PrimitiveMode)o9, order, (byte)o8);
+                case ShapeOp.EmitFrustum:
+                    return CurvedPrimitiveEmitter.Frustum(new int3(o0, o1, o2) + offset,
+                        o3, o4, o5, (byte)o6, (byte)o7, (ushort)o8,
+                        (PrimitiveMode)o10, order, (byte)o9);
+                case ShapeOp.EmitAnnulus:
+                    return CurvedPrimitiveEmitter.Annulus(new int3(o0, o1, o2) + offset,
+                        o3, o4, o5, (byte)o6, o7 != 0, (byte)o8, (ushort)o9,
+                        (PrimitiveMode)o11, order, (byte)o10);
+                case ShapeOp.EmitArcWedge:
+                    return CurvedPrimitiveEmitter.ArcWedge(new int3(o0, o1, o2) + offset,
+                        o3, o4, o5, (byte)o6, new int2(o7, o8), new int2(o9, o10),
+                        (byte)o11, (ushort)o12, (PrimitiveMode)o14, order, (byte)o13);
+                case ShapeOp.EmitRamp:
+                    return BoxEmitter.Ramp(new int3(o0, o1, o2) + offset,
+                        new int3(o3, o4, o5), (byte)o6, (byte)o7,
+                        (PrimitiveMode)o10, order, (ushort)o8, (byte)o9);
+                case ShapeOp.EmitTerrainCorridor:
+                    return new Primitive
+                    {
+                        Shape = PrimitiveShape.TerrainCorridor,
+                        Mode = PrimitiveMode.TerrainCorridor,
+                        Material = (byte)o12,
+                        SurfaceStyle = SurfaceStyles.MaterialDefault,
+                        Order = order,
+                        A = new int3(o0, o1, o2) + offset,
+                        B = new int3(o3, o4, o5) + offset,
+                        InnerRadius = math.max(0, o6),
+                        Radius = math.max(o6, o7),
+                        C = new int3(math.max(0, o8), math.max(1, o9), math.max(0, o10)),
+                        D = new int3(math.max(0, o11), o13, o14),
+                    };
                 default:
                     return default;
             }
@@ -452,23 +390,25 @@ namespace VoxelEngine.Structures.Runtime
         private static Primitive Orient(Primitive p, int3 footprint, byte orientation)
         {
             if ((orientation & 3) == 0) return p;
-
             byte originalAxis = p.Axis;
-
             int3 a = RotatePoint(p.A, footprint, orientation);
             int3 b = RotatePoint(p.B, footprint, orientation);
-
-            p.A = math.min(a, b);
-            p.B = math.max(a, b);
-
-            if (p.Shape >= PrimitiveShape.Ellipsoid)
-                p.C = RotatePoint(p.C, footprint, orientation);
+            if (p.Shape == PrimitiveShape.TerrainCorridor)
+            {
+                p.A = a;
+                p.B = b;
+            }
+            else
+            {
+                p.A = math.min(a, b);
+                p.B = math.max(a, b);
+            }
+            if (UsesPositionC(p.Shape)) p.C = RotatePoint(p.C, footprint, orientation);
 
             if ((orientation & 1) != 0)
             {
                 if (p.Axis == 0) p.Axis = 2;
                 else if (p.Axis == 2) p.Axis = 0;
-
                 if (p.Shape == PrimitiveShape.Ellipsoid)
                 {
                     int radius = p.D.x;
@@ -493,9 +433,9 @@ namespace VoxelEngine.Structures.Runtime
             if (p.Shape == PrimitiveShape.ArcWedge)
             {
                 int2 start = RotateRadialDirection(p.StartDirection, originalAxis,
-                                                   p.Axis, orientation, out int axisSign);
+                    p.Axis, orientation, out int axisSign);
                 int2 end = RotateRadialDirection(p.EndDirection, originalAxis,
-                                                 p.Axis, orientation, out _);
+                    p.Axis, orientation, out _);
                 if (axisSign < 0)
                 {
                     p.StartDirection = end;
@@ -507,32 +447,41 @@ namespace VoxelEngine.Structures.Runtime
                     p.EndDirection = end;
                 }
             }
-
             return p;
         }
 
-        private static int2 RotateRadialDirection(int2 direction, byte originalAxis,
-                                                  byte rotatedAxis, byte orientation,
-                                                  out int axisSign)
+        private static bool UsesPositionC(PrimitiveShape shape) =>
+            shape == PrimitiveShape.Ellipsoid
+            || shape == PrimitiveShape.Frustum
+            || shape == PrimitiveShape.Annulus
+            || shape == PrimitiveShape.ArcWedge;
+
+        private static int2 RotateRadialDirection(
+            int2 direction,
+            byte originalAxis,
+            byte rotatedAxis,
+            byte orientation,
+            out int axisSign)
         {
             int originalA = (originalAxis + 1) % 3;
             int originalB = (originalAxis + 2) % 3;
             int3 vector = default;
             vector[originalA] = direction.x;
             vector[originalB] = direction.y;
-
             int3 axisVector = default;
             axisVector[originalAxis] = 1;
             vector = RotateVector(vector, orientation);
             axisVector = RotateVector(axisVector, orientation);
             axisSign = axisVector[rotatedAxis] < 0 ? -1 : 1;
-
             int rotatedA = (rotatedAxis + 1) % 3;
             int rotatedB = (rotatedAxis + 2) % 3;
             return new int2(vector[rotatedA], vector[rotatedB]);
         }
 
-        private static int RotateAxisSign(byte originalAxis, byte rotatedAxis, byte orientation)
+        private static int RotateAxisSign(
+            byte originalAxis,
+            byte rotatedAxis,
+            byte orientation)
         {
             int3 axisVector = default;
             axisVector[originalAxis] = 1;
@@ -553,7 +502,6 @@ namespace VoxelEngine.Structures.Runtime
         {
             int maxX = footprint.x - 1;
             int maxZ = footprint.z - 1;
-
             return (orientation & 3) switch
             {
                 1 => new int3(maxZ - p.z, p.y, p.x),
@@ -569,30 +517,27 @@ namespace VoxelEngine.Structures.Runtime
             return (Facing)(((int)facing + orientation) & 3);
         }
 
-        private static int BasePlane(in FeatureDefinition definition, int3 origin, uint terrainSeed)
+        private static int BasePlane(
+            in FeatureDefinition definition,
+            int3 origin,
+            uint terrainSeed)
         {
             if (definition.BasePlane == BasePlaneRule.FixedAltitude)
                 return definition.FixedAltitude;
-
             const int samplesPerAxis = 5;
-
             int lowest = int.MaxValue;
             int highest = int.MinValue;
             long total = 0;
-
             for (var iz = 0; iz < samplesPerAxis; iz++)
             for (var ix = 0; ix < samplesPerAxis; ix++)
             {
                 int x = origin.x + (definition.Footprint.x - 1) * ix / (samplesPerAxis - 1);
                 int z = origin.z + (definition.Footprint.z - 1) * iz / (samplesPerAxis - 1);
-
                 int h = TerrainQuery.HeightAt(x, z, terrainSeed);
-
                 if (h < lowest) lowest = h;
                 if (h > highest) highest = h;
                 total += h;
             }
-
             return definition.BasePlane switch
             {
                 BasePlaneRule.LowestGround => lowest,

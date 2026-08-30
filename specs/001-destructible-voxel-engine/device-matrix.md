@@ -137,19 +137,6 @@ on a PC and not on a phone, which is the same class of defect as tiering interes
 | Placement cell edge | 640 voxels (64 m) | 640 | 640 |
 | Catalogue size limit | 256 definitions | 256 | 256 |
 | Stored state per touched instance | 64 B | 64 B | 64 B |
-| Structural composition max depth | 12 | 12 | 12 |
-| Structural composition max accepted children | 256 | 256 | 256 |
-| Structural composition primitive-cost ceiling | 4096 | 4096 | 4096 |
-| Structural composition conservative voxel-cost ceiling | 16,777,216 | 16,777,216 | 16,777,216 |
-| Structural composition placement attempts per ranged socket | 16 | 16 | 16 |
-| Structural composition max axis extent | 10,240 voxels (1,024 m) | 10,240 | 10,240 |
-
-Structural composition limits are deterministic simulation limits and therefore do not tier. The
-composition voxel-cost ceiling is a conservative pre-rasterization sum of definition footprint
-volumes; it bounds pathological authoring/attachment graphs but is not an actual voxel-write count,
-and it does not relax the existing per-region or per-instance rasterization budgets above. The exact
-16,777,216-voxel conservative boundary is inclusive; any larger conservative cost is rejected before
-composition continues.
 
 **The 8 ms generation budget is provisional.** Terrain generation alone measures ~45 ms per
 region, so this number is a target rather than an observation, and spec 002 task T058 measures
