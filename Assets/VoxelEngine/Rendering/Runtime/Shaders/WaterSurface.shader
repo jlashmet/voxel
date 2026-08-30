@@ -24,10 +24,6 @@ Shader "Hidden/VoxelEngine/WaterSurface"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
 
-            #define WATER_PROFILE_STILL 1.0
-            #define WATER_PROFILE_FLOWING 2.0
-            #define WATER_PROFILE_WATERFALL 3.0
-
             struct SurfaceVertex
             {
                 float3 position;
@@ -135,8 +131,6 @@ Shader "Hidden/VoxelEngine/WaterSurface"
 
                 if (profile > 2.5)
                 {
-                    // WaterfallReference: coherent downward travel plus turbulent lateral warp and
-                    // narrow secondary streak motion. Normal-space motion works for any wall axis.
                     float warp = (Fbm2(p.xz * (2.1 * scale) + _WaterTime * 0.17) - 0.5)
                                * cascade.x * 2.4;
                     phaseA = p.y * (4.2 / scale) - _WaterTime * speed * 4.3 + warp;
@@ -183,7 +177,8 @@ Shader "Hidden/VoxelEngine/WaterSurface"
                 float4 detail = _WaterDetail[material];
                 float4 foamParams = _WaterFoam[material];
                 float4 cascade = _WaterCascade[material];
-                bool waterfall = motion.x > 2.5;
+                float waterfallMask = step(2.5, motion.x);
+                bool waterfall = waterfallMask > 0.5;
                 bool flowing = motion.x > 1.5 && !waterfall;
 
                 float3 normal = AnimatedNormal(input.positionWS, input.normalWS,
@@ -218,17 +213,15 @@ Shader "Hidden/VoxelEngine/WaterSurface"
                     ? saturate(0.28 + cascade.x * (surfacePattern * 0.85 + downwardStreaks * 0.55))
                     : 0.0;
 
-                // Voxel waterfall authoring naturally creates top/lip and landing/rapid faces.
-                // Make those faces read as whitewater while vertical faces retain streaking.
-                float lipFoam = waterfall * upFacing * cascade.y
+                float lipFoam = waterfallMask * upFacing * cascade.y
                               * smoothstep(0.42, 0.76, waterfallWarp);
-                float impactFoam = waterfall * upFacing * cascade.z
+                float impactFoam = waterfallMask * upFacing * cascade.z
                                  * smoothstep(0.30, 0.72,
                                      Fbm2(input.positionWS.xz * 4.1 - _WaterTime * 0.8));
-                float edgeBreakup = waterfall * verticalFacing * cascade.y
+                float edgeBreakup = waterfallMask * verticalFacing * cascade.y
                                   * smoothstep(0.62, 0.86,
                                       Fbm2(input.positionWS.xz * 3.7 + input.positionWS.yy * 0.09));
-                float mist = waterfall * verticalFacing * cascade.w
+                float mist = waterfallMask * verticalFacing * cascade.w
                            * smoothstep(0.60, 0.90,
                                Fbm2(input.positionWS.xz * 1.5
                                   + float2(_WaterTime * 0.17, -_WaterTime * 0.26)));
