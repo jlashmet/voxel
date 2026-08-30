@@ -12,5 +12,6 @@
 - [x] Update `AGENTS.md`, `SceneIssues/README.md`, `SceneIssues/feature-readme.md`, CI semantics, and validation documentation to describe the module-author workflow and hide harness internals.
 - [x] Add focused automated regression coverage for module discovery, shared/core fallback, scene/scenario separation, and mandatory/fail-closed gate execution.
 - [ ] Replace the startup-only prototype Water validation fixture with a representative module-local production Water tableau covering still water, shallow shoreline, river flow, waterfall/cascade, and terrain contact; inspect exact built-player evidence as production-quality.
+- [ ] Require module-owned readiness/world-layout evidence so an early-aborted Water or Kentridge player can never satisfy the built-player gate with screenshots alone.
 - [ ] Validate an ordinary Water production diff automatically selects focused Water tests -> built-player Water scene -> built-player `KentridgePlayableSlice`; record runtime/cost.
 - [ ] Review final diff against all 18 acceptance criteria and complete required SceneIssue metadata/closure only after green exact-SHA CI.
