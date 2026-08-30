@@ -142,3 +142,6 @@
 - [ ] Confirm the current-master structural integration seam without importing unmerged typed-socket work; wire only the available production site/child-clearance boundary.
 - [ ] Confirm and wire the `WorldbuildingGalleryShowcase` read-only inspection seam; visualization must consume snapshots and never mutate reservation authority.
 - [ ] Reconcile stale checklist entries for canonical-road and production-vegetation work already present on this branch only after their exact regressions/gates pass.
+- [ ] Extend `SpatialReservationTests` with stable-id replay/release coverage, including preserving the prior claim when a replay conflicts with another owner.
+- [ ] Exercise `KentridgeHiddenSpaceBatchPlanner` with generated `SiteHiddenSpaceRealization` data against vertically separated and true-XYZ external blockers.
+- [ ] Extend the existing `WorldbuildingGalleryShowcase` + `WorldbuildingGalleryAuditHarness` path with read-only reservation visualization/evidence; do not add a second scene bootstrap or mutate reservation authority.
