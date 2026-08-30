@@ -18,7 +18,18 @@ namespace VoxelEngine.Showcase
 
         public void EnsureWorldbuildingGalleryStructuralRefinementBlocking()
         {
-            if (_structuralRefinementAuthored) return;
+            if (_structuralRefinementAuthored)
+            {
+                if (HasWorldbuildingGalleryStructuralCompositionContent()) return;
+
+                // Authoring flags outlive region residency, but the voxels do not. A long gallery
+                // audit can legitimately evict this distant proof district before returning to it.
+                // Re-enter through the full bounded composition/presentation/refinement stack so
+                // the public ensure contract restores authoritative content rather than trusting
+                // stale lifetime bookkeeping.
+                _structuralRefinementAuthored = false;
+                _structuralPresentationAuthored = false;
+            }
 
             EnsureWorldbuildingGalleryStructuralPresentationBlocking();
             var timer = Stopwatch.StartNew();
