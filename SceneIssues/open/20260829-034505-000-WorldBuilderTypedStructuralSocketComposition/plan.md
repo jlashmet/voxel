@@ -1,29 +1,27 @@
 # Plan
 
 ## Observed behavior / acceptance
-- The canonical production path is `FeatureDefinition` + typed `SlotSpec` + `ShapeOp.CallSlot` + `FeatureCatalogue` + descendant-aware `FeatureRegionBuild`; a parallel structural solver would duplicate authoritative world identity.
-- Core composition, validation, deterministic graph/hash identity, bounded recursion/cost, authoritative descendant rasterization, support metadata, decoration handoff, and four gallery proving catalogues are implemented with focused regressions.
-- Remaining acceptance is exact-scene proof in built `WorldbuildingGalleryShowcase`: bridge, castle, cliff settlement, and facade/roof variants must render cleanly, production `CharacterMotor` must traverse bridge/gate/vertical routes, and cost/region/memory evidence must remain bounded.
+- The canonical production path remains `FeatureDefinition` + typed `SlotSpec` + `ShapeOp.CallSlot` + `FeatureCatalogue` + descendant-aware `FeatureRegionBuild`; no parallel structural solver will be introduced.
+- Core composition, validation, deterministic graph/hash identity, bounded recursion/cost, authoritative descendant rasterization, support metadata, decoration handoff, and the four proving catalogues are implemented with focused regressions.
+- Exact run `33314706183` is mechanically green on source `945ec3fe05798096e6177b1eba1a213be4b47e7b`: the focused PlayMode regression passed, the standalone player passed all three production `CharacterMotor` traversals, all four proof metrics were valid, and eight full-resolution structural frames were emitted.
+- Manual full-resolution art review does **not** satisfy final visual acceptance yet. `AGENTS.md` requires shipped/AAA-quality critique rather than placeholder-box approval. The bridge wide view does not convincingly show a substantial gorge/river between terrain masses; the cliff context is visually shallow; castle treatment is still primitive; and the facade/roof variants read as raw box masses rather than reusable high-detail architecture treatment.
 
-## Hypotheses / material results
-1. **Complete existing `CallSlot` path** — confirmed by catalogue ownership, bytecode execution, planner output, and descendant region rasterization.
-2. **Add a parallel solver** — rejected because it would create competing generation/save/network identity.
-3. **Scene proof is missing from startup** — resolved with four bounded structural catalogues plus a bounded presence/repair pass for live-generate and stale-bake startup.
-4. **Traversal belongs in lower `ShowcaseWorld`** — falsified by assembly compilation; route/preload data stays in `Game.Composition.Showcase`, traversal execution stays in SceneRuntime beside `CharacterMotor`.
-5. **SceneRuntime can avoid `VoxelEngine.Structures.Runtime`** — falsified by exact CI `33307182322`: audit assertions consume runtime planner contracts, so the existing acyclic runtime assembly reference is required.
-6. **Bridge still fails after the inclusive support-lattice correction** — falsified by durable artifacts from exact run `33308789329`: the built player reports `STRUCTURAL_GALLERY authored=True` and a valid bridge cost/hash. The earlier `MissingSupport` interpretation came from incomplete log evidence.
-7. **Cliff ramp continuity was the only route-2 defect** — falsified by exact run `33311927310`. The fixed-string-safe name and one-voxel ramp base slab cleared the focused PlayMode regression and improved route 2 from 30.919 m remaining to 6.435 m, but the motor now stops at the ramp/upper-platform seam. The authored upper platform walking surface is 8 voxels (0.8 m) above the ramp top, exceeding the production motor's 0.35 m step height.
+## Selected rework
+1. Preserve solver/runtime contracts, budgets, stable socket IDs, and authoritative child composition unchanged unless a visual fix genuinely requires catalogue geometry.
+2. Reuse existing authoritative voxel architecture/detail helpers where available; do not add presentation-only meshes/GameObjects or a second composition system.
+3. Improve the bridge proof/capture so a player-height and wide establishing view clearly reads as a monumental crossing with grounded abutments/piers and meaningful terrain/water/gorge context.
+4. Improve castle, cliff settlement, and facade/roof proving geometry with intentional hierarchy, silhouette, material separation, and repeated architectural language while keeping meso-scale typed sockets structural rather than micro-detail attachment points.
+5. Reframe the existing built-player audit captures to prove the required seams and context without sparse/unloaded-looking terrain dominating the frame.
+6. Re-run the same focused PlayMode + exact built-player targeted-CI transport from the final exact feature SHA, then inspect every durable full-resolution structural frame again before accepting the visual gate.
 
-## Selected fix / current state
-- Four production cases remain: monumental multi-region bridge, wall/tower/gatehouse castle, supported multi-level cliff chain, and two facade/roof styles.
-- Existing gallery audit is scoped to this SceneIssue id and records structural metrics, negative cases, three production-`CharacterMotor` traversals, eight structural frames, and cost proxies.
-- Focused PlayMode regression plans all four production catalogues twice, compares deterministic graph/cost/bounds, and verifies invalid attachment reasons; it passed on exact feature source `250cc16515451e57a5543d5ae1104e3c5f79b2eb` in run `33311927310`.
-- `fixes/agent-5` was refreshed with `origin/master` at `e17e858bfe0497c90b87db70fcfef80a142917a4` through merge commit `3cd4307d54bd7dba7578866c6c0717141f32cd24`; the upstream change is an unrelated new SceneIssue file and does not overlap this feature.
-- The cliff proof now uses fixed-string-safe socket name `upper-terrain-platform` and a one-voxel authoritative base slab under the shallow ramp. The remaining production correction is gallery-only: lower the upper-platform attachment by 8 voxels so its 12-voxel platform thickness ends exactly at the ramp's top walking surface. Keep terrain-support probes, stable socket identity, global ramp semantics, and production `CharacterMotor` unchanged.
+## Current evidence / cost baseline
+- Run `33314706183`: bridge planning `0.014 ms`, castle planning `0.005 ms`; bridge `5 children / 12 primitives / 6,073,200 conservative voxels / 3 regions`; castle `4 / 11 / 5,072,000 / 3`; cliff `3 / 6 / 2,537,600 / 6`; facade/roof aggregate `8 / 22 / 10,923,840 / 3`.
+- Total proof authoring was `895.63 ms`; `20 children`, `51 primitives`, `24,606,640` conservative voxel budget, `15` visited regions, `40` rasterized instances, `15,907,368` written voxels, `2,622,212 KiB` reported allocation model, and `63,629,472` render-proxy triangles.
+- Traversal evidence is mechanically green: bridge `115 m -> 1.25 m`, gate `17.6 m -> 1.223 m`, cliff vertical route `42 m -> 1.317 m`.
+- Treat these as a baseline only; final cost/visual acceptance must be re-measured after content rework.
 
-## Remaining gates / blast radius
-- Revalidate the corrected feature through the existing `ci-test/fixes/agent-5` PlayMode + scene replay transport; do not replace active queued/running work.
-- Run `33311927310` produced no `StructuralCompositionAudit` frames because the structural audit exits on route-2 failure before capture, so unrelated town screenshots from that artifact are not acceptance evidence.
-- Inspect all durable full-resolution structural frames and exact logs after traversal clears; record bridge/castle planning, child/primitives/voxel/region/memory/render proxies, and review the final assignment-only diff.
-- Ramp continuity cost already added is one `260 x 1 x 80` proof-only box (20,800 conservative voxels and one primitive before overlap). The seam-height correction only changes the upper platform's local Y attachment by -8 voxels; it adds no primitive, allocation, global composition ceiling, streaming budget, solver behavior, or unrelated ramp/CharacterMotor cost.
-- Only after green exact-SHA regression + built-player validation: complete pending metadata, move open -> pending, then pending -> closed with `status=fixed` / `resolvedUtc`, merge current master, and non-force push the exact feature head to master.
+## Blast radius guardrails
+- Keep changes scoped to this gallery proof, its reusable authoritative-voxel presentation/detail helpers, and its existing audit/capture path.
+- Do not raise composition ceilings, scan budgets, `CharacterMotor` tolerances, global terrain/ramp semantics, or unrelated generation/render behavior.
+- Do not edit `.github/test-request.json` on `fixes/agent-5`; use only the existing `ci-test/fixes/agent-5` transport after the feature head is ready and no prior request is active.
+- Only after a green exact-SHA regression + built-player run **and** successful full-resolution art review: finish cost/blast-radius evidence, complete pending metadata, move open -> pending -> closed with `status=fixed` / `resolvedUtc`, merge current `origin/master`, and non-force push the exact feature head to `origin/master`.
