@@ -6,8 +6,13 @@
 - [x] Re-check CI transport state: `ci-test/fixes/agent-1` already exists; leave it untouched until the single final targeted-CI request and never replace queued/running CI.
 - [x] Record execution limitation before behavior coding: this execution host has no Unity Editor/test runner (`unity-editor`, `Unity`, `unity`, and `unityhub` are absent), so the required regression will still be committed before production implementation but cannot be executed locally; the single final exact-SHA CI is the authoritative Unity runner.
 - [ ] Trace existing mesh/SDF import, voxel stamp/storage, structure placement, material palette, showcase composition, collision/edit, and player-capture owners.
+- [x] Resolve canonical structure-authoring seam: `IStructureAuthoringSession` + concrete `StructureAuthoringSession`/`VoxelBrush`; baked sparse cells must replay through this path rather than introduce mesh truth.
+- [x] Resolve importer assembly split: deterministic mesh-data voxelizer core stays in shared Structures using `Unity.Mathematics`; Unity `Mesh`/hierarchy extraction belongs in an editor-facing adapter rather than the Structures API contract.
 - [ ] Inspect prior dragon/SDF work only as reusable-code evidence; do not modify another assignment.
 - [ ] Verify and document a detailed conventional dragon source with redistribution-compatible license, URL, author, format, triangle/vertex counts, checksum, and required attribution files.
+- [ ] Acquire the exact redistributable source bytes through an accessible authoring/download path before committing the dragon artifact; do not substitute provenance text for the required source asset/checksum.
+- [x] Re-verify issue-authored source licensing: Sketchfab `Black Ink Dragon - Stylized Model` by Meleagor is currently CC-BY, 21.6k triangles / 16.1k vertices; binary download remains gated from this execution host.
+- [x] Identify a license-safe fallback candidate: OpenGameArt `Cethiel's Dragon 3D` is CC0 with a published downloadable archive; inspect actual anatomy/detail/counts before selecting it.
 - [x] Record at least two plausible implementation hypotheses and the smallest discriminator in `plan.md`; discriminator supports additive structure-authoring replay and finds no existing editor mesh voxelizer to generalize.
 - [x] Check blast radius against terrain/building voxel paths and authoritative voxel/world-truth invariants: keep importer/showcase additive, preserve existing WorldBuilder/terrain/storage/collision/edit semantics, and enforce bounded voxel-grid preflight.
 - [x] Resolve exact VoxelShowcase scene: `Assets/Scenes/VoxelShowcase.unity`; its sole authored runtime component owns the voxel world configuration, so integration must remain additive to that normal 3D scene rather than introduce a second showcase scene.
@@ -27,6 +32,7 @@
 - [ ] Add importer preflight bounds/cost limits before dense flood-fill work and emit deterministic bake metrics.
 
 ## Regressions
+- [ ] Commit behavior-first regression fixtures/tests for the importer contract before production implementation.
 - [ ] Curved synthetic closed geometry proves triangle surface coverage and solid interior fill.
 - [ ] Same input/config produces byte/voxel-stable deterministic output.
 - [ ] Transform/orientation/mirroring behavior is covered.
