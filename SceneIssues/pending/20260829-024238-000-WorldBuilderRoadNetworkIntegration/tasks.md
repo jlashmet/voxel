@@ -75,7 +75,7 @@
 - [x] Review feature product/test scope: changed implementation/test files are WorldBuilder/voxel road support or road regressions; assignment metadata is in-scope. Preserve the coordinator's `SceneIssues/README.md` CI clarification and merged queue-state changes from master rather than rewriting them.
 
 ## Promotion / closure
-- [ ] Complete `issue.json` pending metadata (`status`, `resolutionSummary`, `regressionTest`, `fixCommit`) only after promotion gates pass.
-- [ ] Move only this assignment `open` → `pending` in a separate bookkeeping commit.
+- [x] Complete `issue.json` pending metadata (`status`, `resolutionSummary`, `regressionTest`, `fixCommit`) only after promotion gates pass.
+- [x] Move only this assignment `open` → `pending` in a separate bookkeeping commit.
 - [ ] After green exact-SHA targeted CI and built-app validation, set `status=fixed` and `resolvedUtc`, then move only this assignment `pending` → `closed`.
 - [ ] Merge current `origin/master` into `fixes/agent-1`, resolve only in-scope conflicts, push feature head, then push that exact head to `origin/master` non-force; if master advances, fetch/merge/retry.
