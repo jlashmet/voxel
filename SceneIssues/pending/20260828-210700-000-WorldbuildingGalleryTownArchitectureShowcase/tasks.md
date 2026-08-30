@@ -13,8 +13,9 @@
 - [x] Prove the proof town defines residential, commercial, civic/communal, and landmark/infrastructure roles with deterministic seeded variation in the focused regression.
 - [x] Add focused regression proving extensible registration/composition and preservation of all six existing style contracts.
 - [x] Repair the focused regression compile gate by importing `VoxelEngine.Storage.Api` for the `IStructureAuthoringSession` coating/surface types; no production-scope change required.
-- [ ] Run exact built `WorldbuildingGalleryShowcase` and capture wide/player/close evidence for all six existing towns plus the proof town.
-- [ ] Directly inspect rendered evidence for distinctness, detail retention, circulation/grounding/intersections, and no visual regression.
-- [ ] Measure world-build work, memory/allocation, render/draw implications, and blast radius from the exact built-player logs.
-- [ ] Run final exact-SHA targeted CI and built-player validation through the canonical SceneIssue workflow.
-- [ ] Complete pending metadata, move open -> pending -> closed only after every acceptance criterion is green, then merge/push per workflow.
+- [x] Run exact built `WorldbuildingGalleryShowcase` and capture wide/player/close evidence for all six existing towns plus the proof town.
+- [x] Directly inspect rendered evidence for distinctness, detail retention, circulation/grounding/intersections, and no visual regression.
+- [x] Measure world-build work, memory/allocation, render/draw implications, and blast radius from the exact built-player logs.
+- [x] Run final exact-SHA targeted CI and built-player validation through the canonical SceneIssue workflow.
+- [x] Complete pending metadata and move open -> pending only after every acceptance criterion is green.
+- [ ] Move pending -> closed with `status=fixed` and `resolvedUtc`, merge current `origin/master`, and push the exact feature head to master non-force.

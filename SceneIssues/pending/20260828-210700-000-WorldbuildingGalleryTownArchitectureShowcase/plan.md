@@ -17,4 +17,4 @@ Exact tested source: `b61b329feadcaee13db118721405744c902071d7`. Final CI reques
 Blast radius is the shared town program API/catalogue/voxel authorer plus gallery composition/tour/audit harness. No unrelated consumer was modified. Registry lookup remains once per district and every role remains inside the existing bounded district contract. Exact player evidence: 7 districts, 1,178,835 writes / 22,000,000 budget (5.36%), 565.95 ms stale-bake repair, 51 resident / 0 pending regions, far-terrain coverage and structures true, zero assertion failures, no runtime exception/error lines.
 
 ## Remaining gate
-Complete pending metadata, promote open -> pending -> closed with final `resolvedUtc`, merge current `origin/master` into `fixes/agent-7`, then non-force update master to that exact feature head.
+Pending metadata is complete and the capture is promoted to `pending/`. Move only this assignment to `closed/` with `status=fixed` and `resolvedUtc`, merge current `origin/master` into `fixes/agent-7`, then non-force update master to that exact feature head.
