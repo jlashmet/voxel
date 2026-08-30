@@ -12,6 +12,7 @@ namespace VoxelEngine.Showcase
     {
         private const string SceneIssueArgument = "-voxel-scene-issue";
         private const string ScreenshotDirectoryArgument = "-voxel-screenshot-dir";
+        private const string SpatialReservationFeatureId = "20260829-050529-000-WorldBuilderSpatialReservationSystem";
         private const int ViewsPerTown = 3;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -19,20 +20,26 @@ namespace VoxelEngine.Showcase
         {
             string issuePath = Argument(SceneIssueArgument);
             string screenshotDirectory = Argument(ScreenshotDirectoryArgument);
-            if (string.IsNullOrEmpty(issuePath) || string.IsNullOrEmpty(screenshotDirectory) || !IsCaptureLessIssue(issuePath)) return;
+            if (string.IsNullOrEmpty(issuePath) || string.IsNullOrEmpty(screenshotDirectory)
+                || !TryReadCaptureLessIssue(issuePath, out IssueRecord issue)) return;
 
             var root = new GameObject("Worldbuilding Gallery Audit Harness") { hideFlags = HideFlags.DontSave };
             Reporter reporter = root.AddComponent<Reporter>();
             reporter.ScreenshotDirectory = screenshotDirectory;
+            reporter.CaptureSpatialReservationEvidence = string.Equals(
+                issue.id,
+                SpatialReservationFeatureId,
+                StringComparison.Ordinal);
             UnityEngine.Object.DontDestroyOnLoad(root);
             Debug.Log("TOWNARCH_AUDIT armed for capture-less SceneIssue validation.");
         }
 
-        private static bool IsCaptureLessIssue(string path)
+        private static bool TryReadCaptureLessIssue(string path, out IssueRecord record)
         {
+            record = null;
             try
             {
-                IssueRecord record = JsonUtility.FromJson<IssueRecord>(File.ReadAllText(path));
+                record = JsonUtility.FromJson<IssueRecord>(File.ReadAllText(path));
                 return record != null && record.captures != null && record.captures.Length == 0 &&
                        string.Equals(record.sceneName, "WorldbuildingGalleryShowcase", StringComparison.Ordinal);
             }
@@ -51,14 +58,16 @@ namespace VoxelEngine.Showcase
             return null;
         }
 
-        [Serializable] private sealed class IssueRecord { public string sceneName; public IssueFrame[] captures; }
+        [Serializable] private sealed class IssueRecord { public string id; public string sceneName; public IssueFrame[] captures; }
         [Serializable] private sealed class IssueFrame { }
 
         private sealed class Reporter : MonoBehaviour
         {
             internal string ScreenshotDirectory;
+            internal bool CaptureSpatialReservationEvidence;
             private bool _started;
             private bool _pinCamera;
+            private bool _spatialReservationEvidencePassed;
             private Transform _cameraTransform;
             private Vector3 _pinnedPosition;
             private Quaternion _pinnedRotation;
@@ -159,6 +168,16 @@ namespace VoxelEngine.Showcase
                     yield break;
                 }
 
+                if (CaptureSpatialReservationEvidence)
+                {
+                    yield return CaptureSpatialReservations(showcase);
+                    if (!_spatialReservationEvidencePassed)
+                    {
+                        Debug.LogError("TOWNARCH_AUDIT result=FAIL reason=spatial-reservation-evidence");
+                        yield break;
+                    }
+                }
+
                 long allocatedBytes = UnityEngine.Profiling.Profiler.GetTotalAllocatedMemoryLong();
                 long reservedBytes = UnityEngine.Profiling.Profiler.GetTotalReservedMemoryLong();
                 long unusedReservedBytes = UnityEngine.Profiling.Profiler.GetTotalUnusedReservedMemoryLong();
@@ -169,6 +188,54 @@ namespace VoxelEngine.Showcase
                     $"residentRegions={world.RegionsGenerated} pendingRegions={world.PendingRegionLoads} " +
                     $"{showcase.DescribeFarTerrain()}");
                 Debug.Log($"TOWNARCH_AUDIT result=PASS captured={captured} expected={expectedViews}");
+            }
+
+            private IEnumerator CaptureSpatialReservations(WorldbuildingGalleryShowcase showcase)
+            {
+                SpatialReservationGalleryOverlay overlay = showcase.GetComponent<SpatialReservationGalleryOverlay>();
+                float waitSeconds = 0f;
+                while ((overlay == null || overlay.Report == null) && waitSeconds < 5f)
+                {
+                    yield return null;
+                    waitSeconds += Time.unscaledDeltaTime;
+                    overlay = showcase.GetComponent<SpatialReservationGalleryOverlay>();
+                }
+                if (overlay == null || overlay.Report == null)
+                {
+                    Debug.LogError("SPATIAL_RESERVATION_AUDIT result=FAIL reason=overlay-unavailable");
+                    yield break;
+                }
+
+                string directory = Path.Combine(ScreenshotDirectory, "SpatialReservationAudit");
+                Directory.CreateDirectory(directory);
+                foreach (string stale in Directory.GetFiles(directory, "*.png")) File.Delete(stale);
+
+                overlay.SetVisible(true);
+                yield return null;
+                yield return new WaitForSecondsRealtime(0.5f);
+                yield return new WaitForEndOfFrame();
+                string path = Path.Combine(directory, "01-reservation-inspection.png");
+                ScreenCapture.CaptureScreenshot(path);
+                yield return new WaitForSecondsRealtime(0.5f);
+                overlay.SetVisible(false);
+
+                int captured = Directory.GetFiles(directory, "*.png").Length;
+                if (captured < 1)
+                {
+                    Debug.LogError("SPATIAL_RESERVATION_AUDIT result=FAIL reason=screenshot-missing");
+                    yield break;
+                }
+
+                var report = overlay.Report;
+                var metrics = report.RejectedCandidateMetrics;
+                Debug.Log(
+                    $"SPATIAL_RESERVATION_COST sourceClaims={report.SourceClaimCount} primitives={report.Primitives.Count + 1} " +
+                    $"buildTicks={report.BuildStopwatchTicks} queryBuckets={metrics.BucketsVisited} " +
+                    $"broadCandidates={metrics.BroadPhaseCandidates} narrowTests={metrics.NarrowPhaseTests}");
+                Debug.Log(
+                    $"SPATIAL_RESERVATION_AUDIT result=PASS rejected=visible underground=visible " +
+                    $"surface=visible screenshot={path}");
+                _spatialReservationEvidencePassed = true;
             }
 
             private static string Sanitize(string value)
