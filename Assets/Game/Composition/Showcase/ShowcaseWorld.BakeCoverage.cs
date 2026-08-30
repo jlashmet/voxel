@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Unity.Mathematics;
+using VoxelEngine.Composition;
 using VoxelEngine.Structures.Api;
-using VoxelEngine.Structures.Runtime;
 
 namespace VoxelEngine.Showcase
 {
@@ -111,6 +111,9 @@ namespace VoxelEngine.Showcase
                 return;
             }
 
+            // Keep the Showcase world on its Composition-owned bridge. Only this absent sparse
+            // bake layer selects the narrower catalogue scope; the field's normal runtime builder
+            // and every default constructor remain full-catalogue.
             FeatureRegionBuild interrupted = _featureBuild;
             _featureBuild = new FeatureRegionBuild(
                 regionCoord, FeatureRegionBuildScope.FixedAltitudeStructures);
