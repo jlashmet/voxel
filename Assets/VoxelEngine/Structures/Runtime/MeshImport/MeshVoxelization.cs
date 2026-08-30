@@ -27,8 +27,8 @@ namespace VoxelEngine.Structures.Runtime.MeshImport
 
     /// <summary>
     /// Engine-independent triangle input for the deterministic voxelizer. Vertices are local-space
-    /// points and <see cref="Transform"/> is applied before grid quantization, so authoring adapters
-    /// can flatten Unity mesh hierarchies without leaking GameObjects into Structures.Runtime.
+    /// points and Transform is applied before grid quantization, so authoring adapters can flatten
+    /// Unity mesh hierarchies without leaking GameObjects into Structures.Runtime.
     /// </summary>
     public readonly struct MeshVoxelizationSource
     {
@@ -36,15 +36,22 @@ namespace VoxelEngine.Structures.Runtime.MeshImport
         public readonly MeshVoxelTriangle[] Triangles;
         public readonly float4x4 Transform;
 
-        public MeshVoxelizationSource(
-            float3[] vertices,
-            MeshVoxelTriangle[] triangles,
-            float4x4 transform)
+        public MeshVoxelizationSource(float3[] vertices, MeshVoxelTriangle[] triangles, float4x4 transform)
         {
             Vertices = vertices ?? throw new ArgumentNullException(nameof(vertices));
             Triangles = triangles ?? throw new ArgumentNullException(nameof(triangles));
             Transform = transform;
         }
+    }
+
+    /// <summary>
+    /// Policy used when FillInterior is requested for a mesh whose welded triangle topology is open
+    /// or non-manifold. SurfaceOnly is the safe authoring fallback; Reject is useful for strict bakes.
+    /// </summary>
+    public enum MeshVoxelOpenSurfacePolicy : byte
+    {
+        SurfaceOnly = 0,
+        Reject = 1,
     }
 
     /// <summary>Bounded authoring policy. Dimensions are in output voxels.</summary>
@@ -56,6 +63,7 @@ namespace VoxelEngine.Structures.Runtime.MeshImport
         public readonly int3 MaxDimensions;
         public readonly int MaxDenseCells;
         public readonly int ThinFeaturePaddingVoxels;
+        public readonly MeshVoxelOpenSurfacePolicy OpenSurfacePolicy;
 
         public MeshVoxelizationSettings(
             float voxelSize,
@@ -63,7 +71,8 @@ namespace VoxelEngine.Structures.Runtime.MeshImport
             byte fallbackMaterial,
             int3 maxDimensions,
             int maxDenseCells,
-            int thinFeaturePaddingVoxels)
+            int thinFeaturePaddingVoxels,
+            MeshVoxelOpenSurfacePolicy openSurfacePolicy = MeshVoxelOpenSurfacePolicy.SurfaceOnly)
         {
             VoxelSize = voxelSize;
             FillInterior = fillInterior;
@@ -71,6 +80,7 @@ namespace VoxelEngine.Structures.Runtime.MeshImport
             MaxDimensions = maxDimensions;
             MaxDenseCells = maxDenseCells;
             ThinFeaturePaddingVoxels = thinFeaturePaddingVoxels;
+            OpenSurfacePolicy = openSurfacePolicy;
         }
     }
 
@@ -94,7 +104,7 @@ namespace VoxelEngine.Structures.Runtime.MeshImport
 
     /// <summary>
     /// Deterministic sparse structure emitted by mesh authoring. Cell positions are local to
-    /// <see cref="GridOrigin"/> and sorted x/y/z for stable serialization and replay.
+    /// GridOrigin and sorted x/y/z for stable serialization and replay.
     /// </summary>
     public sealed class BakedVoxelStructure
     {
@@ -104,6 +114,9 @@ namespace VoxelEngine.Structures.Runtime.MeshImport
         public BakedVoxelCell[] Cells { get; }
         public int SourceTriangleCount { get; }
         public double VoxelizationMilliseconds { get; }
+        public int BoundaryEdgeCount { get; }
+        public int NonManifoldEdgeCount { get; }
+        public bool InteriorFilled { get; }
 
         public BakedVoxelStructure(
             float voxelSize,
@@ -111,17 +124,25 @@ namespace VoxelEngine.Structures.Runtime.MeshImport
             int3 size,
             BakedVoxelCell[] cells,
             int sourceTriangleCount,
-            double voxelizationMilliseconds)
+            double voxelizationMilliseconds,
+            int boundaryEdgeCount = 0,
+            int nonManifoldEdgeCount = 0,
+            bool interiorFilled = false)
         {
             if (!(voxelSize > 0f) || !IsFinite(voxelSize))
                 throw new ArgumentOutOfRangeException(nameof(voxelSize));
             if (math.any(size <= 0)) throw new ArgumentOutOfRangeException(nameof(size));
+            if (boundaryEdgeCount < 0) throw new ArgumentOutOfRangeException(nameof(boundaryEdgeCount));
+            if (nonManifoldEdgeCount < 0) throw new ArgumentOutOfRangeException(nameof(nonManifoldEdgeCount));
             VoxelSize = voxelSize;
             GridOrigin = gridOrigin;
             Size = size;
             Cells = cells ?? throw new ArgumentNullException(nameof(cells));
             SourceTriangleCount = sourceTriangleCount;
             VoxelizationMilliseconds = voxelizationMilliseconds;
+            BoundaryEdgeCount = boundaryEdgeCount;
+            NonManifoldEdgeCount = nonManifoldEdgeCount;
+            InteriorFilled = interiorFilled;
         }
 
         /// <summary>
@@ -157,6 +178,7 @@ namespace VoxelEngine.Structures.Runtime.MeshImport
     {
         private const float BoundsEpsilon = 1e-5f;
         private const float AxisEpsilonSq = 1e-12f;
+        private const float TopologyWeldToleranceInVoxels = 1e-4f;
 
         public static BakedVoxelStructure Voxelize(
             in MeshVoxelizationSource source,
@@ -181,12 +203,23 @@ namespace VoxelEngine.Structures.Runtime.MeshImport
                 max = math.max(max, grid);
             }
 
+            TopologyInfo topology = AnalyzeTopology(gridVertices, source.Triangles);
+            bool topologyClosed = topology.BoundaryEdges == 0 && topology.NonManifoldEdges == 0;
+            if (settings.FillInterior && !topologyClosed
+                && settings.OpenSurfacePolicy == MeshVoxelOpenSurfacePolicy.Reject)
+            {
+                throw new InvalidOperationException(
+                    $"Mesh cannot be solid-filled because welded topology has {topology.BoundaryEdges} boundary edges " +
+                    $"and {topology.NonManifoldEdges} non-manifold edges. Repair the source or use SurfaceOnly fallback.");
+            }
+            bool fillInterior = settings.FillInterior && topologyClosed;
+
             // Epsilon expands exact grid-plane extrema to both touching cells. This is deliberate:
             // conservative coverage must retain a zero-thickness membrane that lies on a cell face.
             int3 gridMin = (int3)math.floor(min - BoundsEpsilon);
             int3 gridMax = (int3)math.floor(max + BoundsEpsilon);
             int3 size = gridMax - gridMin + 1;
-            PreflightSize(size, in settings);
+            PreflightSize(size, in settings, fillInterior);
 
             int denseCount = CheckedCellCount(size);
             var surfaceMaterial = new byte[denseCount];
@@ -202,9 +235,7 @@ namespace VoxelEngine.Structures.Runtime.MeshImport
                 float3 triMax = math.max(a, math.max(b, c));
                 int3 first = math.max(gridMin, (int3)math.floor(triMin - BoundsEpsilon));
                 int3 last = math.min(gridMax, (int3)math.floor(triMax + BoundsEpsilon));
-                byte material = triangle.Material != 0
-                    ? triangle.Material
-                    : settings.FallbackMaterial;
+                byte material = triangle.Material != 0 ? triangle.Material : settings.FallbackMaterial;
 
                 for (int x = first.x; x <= last.x; x++)
                 for (int y = first.y; y <= last.y; y++)
@@ -221,8 +252,7 @@ namespace VoxelEngine.Structures.Runtime.MeshImport
                     }
                     else if (material < surfaceMaterial[index])
                     {
-                        // Multiple triangles may own a boundary cell. Resolve without dependence on
-                        // traversal/hash ordering so equivalent source orderings remain deterministic.
+                        // Resolve competing source materials without traversal/hash ordering effects.
                         surfaceMaterial[index] = material;
                     }
                 }
@@ -233,10 +263,10 @@ namespace VoxelEngine.Structures.Runtime.MeshImport
 
             byte[] finalMaterial = surfaceMaterial;
             bool[] finalOwned = surfaceOwned;
-            if (settings.FillInterior)
-                FillInterior(surfaceOwned, surfaceMaterial, size,
-                             settings.FallbackMaterial, settings.MaxDenseCells,
-                             out finalOwned, out finalMaterial);
+            if (fillInterior)
+                FloodFillInterior(surfaceOwned, surfaceMaterial, size,
+                                  settings.FallbackMaterial, settings.MaxDenseCells,
+                                  out finalOwned, out finalMaterial);
 
             var cells = new List<BakedVoxelCell>();
             for (int x = 0; x < size.x; x++)
@@ -246,9 +276,7 @@ namespace VoxelEngine.Structures.Runtime.MeshImport
                 int3 local = new int3(x, y, z);
                 int index = Index(local, size);
                 if (!finalOwned[index]) continue;
-                byte material = finalMaterial[index] != 0
-                    ? finalMaterial[index]
-                    : settings.FallbackMaterial;
+                byte material = finalMaterial[index] != 0 ? finalMaterial[index] : settings.FallbackMaterial;
                 cells.Add(new BakedVoxelCell(local, material));
             }
 
@@ -259,7 +287,10 @@ namespace VoxelEngine.Structures.Runtime.MeshImport
                 size,
                 cells.ToArray(),
                 source.Triangles.Length,
-                stopwatch.Elapsed.TotalMilliseconds);
+                stopwatch.Elapsed.TotalMilliseconds,
+                topology.BoundaryEdges,
+                topology.NonManifoldEdges,
+                fillInterior);
         }
 
         private static void ValidateSettings(in MeshVoxelizationSettings settings)
@@ -274,6 +305,9 @@ namespace VoxelEngine.Structures.Runtime.MeshImport
                 throw new ArgumentOutOfRangeException(nameof(settings), "Thin-feature padding must be in [0,8].");
             if (settings.FallbackMaterial == 0)
                 throw new ArgumentOutOfRangeException(nameof(settings), "Fallback material must be non-empty.");
+            if (settings.OpenSurfacePolicy != MeshVoxelOpenSurfacePolicy.SurfaceOnly
+                && settings.OpenSurfacePolicy != MeshVoxelOpenSurfacePolicy.Reject)
+                throw new ArgumentOutOfRangeException(nameof(settings), "Unknown open-surface policy.");
         }
 
         private static void ValidateSource(in MeshVoxelizationSource source)
@@ -300,7 +334,50 @@ namespace VoxelEngine.Structures.Runtime.MeshImport
             }
         }
 
-        private static void PreflightSize(int3 size, in MeshVoxelizationSettings settings)
+        private static TopologyInfo AnalyzeTopology(float3[] vertices, MeshVoxelTriangle[] triangles)
+        {
+            var welded = new Dictionary<VertexKey, int>(vertices.Length);
+            var ids = new int[vertices.Length];
+            for (int i = 0; i < vertices.Length; i++)
+            {
+                var key = new VertexKey(vertices[i]);
+                if (!welded.TryGetValue(key, out int id))
+                {
+                    id = welded.Count;
+                    welded.Add(key, id);
+                }
+                ids[i] = id;
+            }
+
+            var edges = new Dictionary<EdgeKey, int>(triangles.Length * 2);
+            for (int i = 0; i < triangles.Length; i++)
+            {
+                MeshVoxelTriangle triangle = triangles[i];
+                AddEdge(edges, ids[triangle.A], ids[triangle.B]);
+                AddEdge(edges, ids[triangle.B], ids[triangle.C]);
+                AddEdge(edges, ids[triangle.C], ids[triangle.A]);
+            }
+
+            int boundary = 0;
+            int nonManifold = 0;
+            foreach (KeyValuePair<EdgeKey, int> edge in edges)
+            {
+                if (edge.Value == 1) boundary++;
+                else if (edge.Value > 2) nonManifold++;
+            }
+            return new TopologyInfo(boundary, nonManifold);
+        }
+
+        private static void AddEdge(Dictionary<EdgeKey, int> edges, int a, int b)
+        {
+            if (a == b) return;
+            var key = new EdgeKey(a, b);
+            edges.TryGetValue(key, out int count);
+            edges[key] = count + 1;
+        }
+
+        private static void PreflightSize(
+            int3 size, in MeshVoxelizationSettings settings, bool fillInterior)
         {
             if (math.any(size <= 0) || math.any(size > settings.MaxDimensions))
                 throw new ArgumentOutOfRangeException(nameof(settings),
@@ -309,7 +386,7 @@ namespace VoxelEngine.Structures.Runtime.MeshImport
             if (dense > settings.MaxDenseCells)
                 throw new ArgumentOutOfRangeException(nameof(settings),
                     $"Voxelized dense working set {dense:N0} exceeds budget {settings.MaxDenseCells:N0}.");
-            if (settings.FillInterior)
+            if (fillInterior)
             {
                 long padded = (long)(size.x + 2) * (size.y + 2) * (size.z + 2);
                 if (padded > settings.MaxDenseCells)
@@ -368,8 +445,7 @@ namespace VoxelEngine.Structures.Runtime.MeshImport
             return !(min > radius || max < -radius);
         }
 
-        private static void DilateSurface(
-            bool[] owned, byte[] materials, int3 size, int radius)
+        private static void DilateSurface(bool[] owned, byte[] materials, int3 size, int radius)
         {
             bool[] sourceOwned = (bool[])owned.Clone();
             byte[] sourceMaterials = (byte[])materials.Clone();
@@ -398,7 +474,7 @@ namespace VoxelEngine.Structures.Runtime.MeshImport
             }
         }
 
-        private static void FillInterior(
+        private static void FloodFillInterior(
             bool[] surfaceOwned,
             byte[] surfaceMaterial,
             int3 size,
@@ -475,6 +551,62 @@ namespace VoxelEngine.Structures.Runtime.MeshImport
             IsFinite(v.x) && IsFinite(v.y) && IsFinite(v.z) && IsFinite(v.w);
         private static bool IsFinite(float value) =>
             !float.IsNaN(value) && !float.IsInfinity(value);
+
+        private readonly struct TopologyInfo
+        {
+            public readonly int BoundaryEdges;
+            public readonly int NonManifoldEdges;
+            public TopologyInfo(int boundaryEdges, int nonManifoldEdges)
+            {
+                BoundaryEdges = boundaryEdges;
+                NonManifoldEdges = nonManifoldEdges;
+            }
+        }
+
+        private readonly struct VertexKey : IEquatable<VertexKey>
+        {
+            private readonly long _x;
+            private readonly long _y;
+            private readonly long _z;
+
+            public VertexKey(float3 point)
+            {
+                _x = Quantize(point.x);
+                _y = Quantize(point.y);
+                _z = Quantize(point.z);
+            }
+
+            public bool Equals(VertexKey other) =>
+                _x == other._x && _y == other._y && _z == other._z;
+            public override bool Equals(object obj) => obj is VertexKey other && Equals(other);
+            public override int GetHashCode()
+            {
+                unchecked
+                {
+                    int hash = _x.GetHashCode();
+                    hash = hash * 397 ^ _y.GetHashCode();
+                    hash = hash * 397 ^ _z.GetHashCode();
+                    return hash;
+                }
+            }
+
+            private static long Quantize(float value) =>
+                (long)Math.Round(value / TopologyWeldToleranceInVoxels, MidpointRounding.AwayFromZero);
+        }
+
+        private readonly struct EdgeKey : IEquatable<EdgeKey>
+        {
+            private readonly int _a;
+            private readonly int _b;
+            public EdgeKey(int a, int b)
+            {
+                if (a < b) { _a = a; _b = b; }
+                else { _a = b; _b = a; }
+            }
+            public bool Equals(EdgeKey other) => _a == other._a && _b == other._b;
+            public override bool Equals(object obj) => obj is EdgeKey other && Equals(other);
+            public override int GetHashCode() => _a * 397 ^ _b;
+        }
     }
 
     /// <summary>
@@ -532,10 +664,10 @@ namespace VoxelEngine.Structures.Runtime.MeshImport
                 {
                     string[] values = rows[i].Split(',');
                     if (values.Length != 4
-                        || !int.TryParse(values[0], out int x)
-                        || !int.TryParse(values[1], out int y)
-                        || !int.TryParse(values[2], out int z)
-                        || !byte.TryParse(values[3], out byte material))
+                        || !int.TryParse(values[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out int x)
+                        || !int.TryParse(values[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int y)
+                        || !int.TryParse(values[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out int z)
+                        || !byte.TryParse(values[3], NumberStyles.Integer, CultureInfo.InvariantCulture, out byte material))
                         throw new FormatException($"Mesh voxel bake cell {i} is invalid.");
                     int3 position = new int3(x, y, z);
                     if (material == 0 || math.any(position < 0) || math.any(position >= size))
