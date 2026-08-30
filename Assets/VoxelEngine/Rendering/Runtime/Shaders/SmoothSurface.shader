@@ -85,6 +85,7 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
                 float3 positionWS : TEXCOORD1;
                 nointerpolation uint material : TEXCOORD2;
                 float occlusion : TEXCOORD3;
+                float blendCoverage : TEXCOORD4;
             };
 
             Varyings Vert(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
@@ -98,6 +99,7 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
                     output.normalNS = float3(0.0, 1.0, 0.0);
                     output.material = 0u;
                     output.occlusion = 0.0;
+                    output.blendCoverage = 0.0;
                     return output;
                 }
                 SurfaceVertex vertex = _SurfaceVertices[draw.vertexStart + _SurfaceIndices[draw.indexStart + vertexID]];
@@ -106,6 +108,10 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
                 output.normalNS = normalize(vertex.normal);
                 output.material = vertex.material;
                 output.occlusion = ((vertex.active >> 8) & 0xFFu) * (1.0 / 255.0);
+                // Detail occupies bits 27..31 of the existing packed surface payload. Keep it as a
+                // float varying so two-material coverage interpolates continuously without growing
+                // SmoothSurfaceVertex or persisted voxel storage.
+                output.blendCoverage = float((vertex.material >> 27u) & 0x1Fu) * (1.0 / 31.0);
                 return output;
             }
 
@@ -172,6 +178,51 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
                                + tangent * tangentNormal.x + bitangent * tangentNormal.y);
             }
 
+            struct MaterialResponse
+            {
+                float3 albedo;
+                float3 normal;
+                float roughness;
+            };
+
+            MaterialResponse EvaluateMaterial(uint material, float3 faceNormal,
+                                                float3 hitVoxel, float hitDistance)
+            {
+                MaterialResponse response;
+                float4 sampling = _MaterialSampling[material];
+                float4 surface = _MaterialSurface[material];
+                float4 variation = _MaterialVariation[material];
+                float3 albedo = _MaterialAlbedo[material].rgb;
+
+                float3 mappedNormal = SampleSurfaceNormal(sampling, surface,
+                                                          faceNormal, hitVoxel);
+                float normalStrength = surface.y;
+                normalStrength *= 1.0 - smoothstep(18.0, 64.0, hitDistance);
+                response.normal = normalize(lerp(faceNormal, mappedNormal, normalStrength));
+
+                float3 textured = SampleMaterialAlbedo(sampling, surface,
+                                                       hitVoxel, response.normal);
+                float textureWeight = sampling.w
+                                    * lerp(1.0, 0.44, saturate(hitDistance / 350.0));
+                float3 directTexture = lerp(albedo, textured, textureWeight);
+                float textureLuminance = dot(textured, float3(0.2126, 0.7152, 0.0722));
+                float detail = clamp(textureLuminance / max(variation.x, 0.08), 0.68, 1.24);
+                float3 chroma = textured / max(textureLuminance, 0.08);
+                float3 luminanceTexture = albedo
+                                        * lerp(1.0, detail, variation.y)
+                                        * lerp(1.0, chroma, variation.z);
+                response.albedo = lerp(directTexture, luminanceTexture, saturate(surface.w));
+
+                float fineNoise = sin(dot(hitVoxel, float3(0.33, 0.27, 0.39)) + material * 0.71)
+                                * sin(dot(hitVoxel, float3(-0.21, 0.43, 0.17)) - material * 0.37);
+                float macroNoise = sin(dot(hitVoxel, float3(0.041, 0.029, 0.037)) + material)
+                                 * sin(dot(hitVoxel, float3(-0.023, 0.035, 0.031)));
+                response.albedo *= 1.0 + fineNoise * variation.w * 0.24
+                                      + macroNoise * variation.w;
+                response.roughness = surface.z;
+                return response;
+            }
+
             half4 Frag(Varyings input) : SV_Target
             {
                 if (_CutawayEnabled != 0u)
@@ -186,43 +237,37 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
                     return half4(normalize(input.normalNS) * 0.5 + 0.5, 1.0);
 
                 float3 faceNormal = normalize(input.normalNS);
-                float3 normal = faceNormal;
                 uint material = min(input.material & 0xFFu, 31u);
-                uint coating = min((input.material >> 8u) & 0xFFu, 15u);
-                uint surfaceStyle = min((input.material >> 16u) & 0xFFu, 31u);
+                uint coatingOrSecondary = min((input.material >> 8u) & 0xFFu, 15u);
+                uint rawSurfaceStyle = min((input.material >> 16u) & 0xFFu, 31u);
+                bool materialBlend = (rawSurfaceStyle & 16u) != 0u;
+                uint surfaceStyle = rawSurfaceStyle & 15u;
                 uint packedSurface = (input.material >> 24u) & 0xFFu;
                 uint surfaceFlags = packedSurface & 0x07u;
                 float surfaceDetail = float(packedSurface >> 3u) / 31.0;
-                float4 materialSampling = _MaterialSampling[material];
-                float4 materialSurface = _MaterialSurface[material];
-                float4 materialVariation = _MaterialVariation[material];
-                float3 albedo = _MaterialAlbedo[material].rgb;
 
                 float3 hitVoxel = input.positionWS / max(_VoxelSize, 1e-4);
                 float hitDistance = length(input.positionWS - GetCameraPositionWS());
+                MaterialResponse primary = EvaluateMaterial(material, faceNormal,
+                                                            hitVoxel, hitDistance);
+                float3 albedo = primary.albedo;
+                float3 normal = primary.normal;
+                float baseRoughness = primary.roughness;
 
-                float3 mappedNormal = SampleSurfaceNormal(materialSampling, materialSurface,
-                                                          normal, hitVoxel);
-                float normalStrength = materialSurface.y;
-                normalStrength *= 1.0 - smoothstep(18.0, 64.0, hitDistance);
-                normal = normalize(lerp(normal, mappedNormal, normalStrength));
+                if (materialBlend)
+                {
+                    uint secondaryMaterial = min(coatingOrSecondary, 31u);
+                    MaterialResponse secondary = EvaluateMaterial(secondaryMaterial, faceNormal,
+                                                                  hitVoxel, hitDistance);
+                    float coverage = saturate(input.blendCoverage);
+                    albedo = lerp(primary.albedo, secondary.albedo, coverage);
+                    normal = normalize(lerp(primary.normal, secondary.normal, coverage));
+                    baseRoughness = lerp(primary.roughness, secondary.roughness, coverage);
+                }
 
-                float3 textured = SampleMaterialAlbedo(materialSampling, materialSurface,
-                                                       hitVoxel, normal);
-                float textureWeight = materialSampling.w
-                                    * lerp(1.0, 0.44, saturate(hitDistance / 350.0));
-                float3 directTexture = lerp(albedo, textured, textureWeight);
-                float textureLuminance = dot(textured, float3(0.2126, 0.7152, 0.0722));
-                float detail = clamp(textureLuminance / max(materialVariation.x, 0.08),
-                                     0.68, 1.24);
-                float3 chroma = textured / max(textureLuminance, 0.08);
-                float3 luminanceTexture = albedo
-                                        * lerp(1.0, detail, materialVariation.y)
-                                        * lerp(1.0, chroma, materialVariation.z);
-                albedo = lerp(directTexture, luminanceTexture, saturate(materialSurface.w));
-
-                // Coatings are presentation overlays. They never replace the base material ID
-                // used by destruction/collision and arrive independently in packed attributes.
+                // Coatings are presentation overlays. In material-blend mode this packed byte is
+                // the secondary material, so the blend marker explicitly disables coating response.
+                uint coating = materialBlend ? 0u : coatingOrSecondary;
                 float4 coatingSampling = _CoatingSampling[coating];
                 float4 coatingResponse = _CoatingResponse[coating];
                 float3 coatingTexture = SampleAlbedoLayer(coatingSampling.x,
@@ -233,11 +278,13 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
                 float orientation = lerp(coatingResponse.x, coatingResponse.y, upward);
                 float coatingNoise = sin(dot(hitVoxel, float3(0.19, 0.13, 0.23)))
                                    * sin(dot(hitVoxel, float3(-0.071, 0.113, 0.053)) + 1.7);
-                float coatingAmount = saturate(coatingSampling.w * orientation
-                                             * (1.0 + coatingNoise * coatingResponse.z));
+                float coatingAmount = materialBlend ? 0.0
+                    : saturate(coatingSampling.w * orientation
+                             * (1.0 + coatingNoise * coatingResponse.z));
                 albedo = lerp(albedo, coatingColour, coatingAmount);
 
-                // Surface patterns are indexed by style, rather than recognizing a style ID.
+                // Surface patterns are indexed by the reconstruction style; the marker itself is
+                // presentation metadata and never selects a style catalogue row.
                 float4 pattern = _SurfacePattern[surfaceStyle];
                 float course = abs(frac(hitVoxel.y / max(pattern.y, 1.0)) - 0.5);
                 float stagger = floor(hitVoxel.y / max(pattern.y, 1.0)) * pattern.z * 0.5;
@@ -248,28 +295,21 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
                 float patternAmount = pattern.x * pattern.w * joint * preservePattern;
                 albedo = lerp(albedo, _SurfaceJointColour[surfaceStyle].rgb, patternAmount);
 
-                // Authored detail is generic scalar data. The style row supplies its response;
-                // no feature or material identity is compiled into this shader.
+                // Detail remains the existing style-defined channel for ordinary surfaces. In
+                // material-blend mode those same five bits are coverage, so do not apply a second
+                // seam/wear response on top of the material interpolation.
                 float4 detailResponse = _SurfaceDetailResponse[surfaceStyle];
-                // Detail codes are style-independent authoring channels: zero is neutral,
-                // 1..15 select signed per-piece variation, and 16..31 describe continuous
-                // high detail such as seams or wear. The style row controls every response.
+                float ordinaryDetail = materialBlend ? 0.0 : 1.0;
                 float detailCode = surfaceDetail * 31.0;
-                float pieceMask = step(0.5, detailCode) * (1.0 - step(15.5, detailCode));
+                float pieceMask = step(0.5, detailCode) * (1.0 - step(15.5, detailCode))
+                                * ordinaryDetail;
                 float pieceSignal = clamp((detailCode - 8.0) / 7.0, -1.0, 1.0);
                 float pieceVariation = pieceSignal * detailResponse.z * pieceMask;
                 albedo *= 1.0 + pieceVariation;
                 float detailMask = smoothstep(1.0 - saturate(detailResponse.w), 1.0,
-                                              surfaceDetail);
+                                              surfaceDetail) * ordinaryDetail;
                 albedo = lerp(albedo, _SurfaceJointColour[surfaceStyle].rgb,
                               detailMask * detailResponse.x);
-
-                float fineNoise = sin(dot(hitVoxel, float3(0.33, 0.27, 0.39)) + material * 0.71)
-                                * sin(dot(hitVoxel, float3(-0.21, 0.43, 0.17)) - material * 0.37);
-                float macroNoise = sin(dot(hitVoxel, float3(0.041, 0.029, 0.037)) + material)
-                                 * sin(dot(hitVoxel, float3(-0.023, 0.035, 0.031)));
-                albedo *= 1.0 + fineNoise * materialVariation.w * 0.24
-                              + macroNoise * materialVariation.w;
 
                 float ndotl = saturate(dot(normal, _SunDirection.xyz));
                 float fill = saturate(dot(normal, -_SunDirection.xyz)) * 0.06;
@@ -292,7 +332,7 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
 
                 float3 viewToCamera = normalize(GetCameraPositionWS() - input.positionWS);
                 float coatingRoughnessWeight = step(0.0, coatingResponse.w) * coatingAmount;
-                float roughness = lerp(materialSurface.z, coatingResponse.w,
+                float roughness = lerp(baseRoughness, coatingResponse.w,
                                        coatingRoughnessWeight);
                 roughness = lerp(roughness, detailResponse.y,
                                  step(0.0, detailResponse.y) * detailMask);
