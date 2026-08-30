@@ -14,6 +14,8 @@ Revision 4 (`33314740587`) proved material separation alone was insufficient: it
 ## Selected next fix
 Change the reusable route/core topology rather than support styling. Introduce shared tier-geometry helpers in `MountainLandmarkSpec` that derive each tier's usable X run and near-face Z placement from the core radius over that tier. Lower tiers may remain broad; upper tiers must narrow deterministically with elevation so the walking lane is cut into / supported by the coherent mountain mass. Use those same helpers for support authoring, headroom carving, path surface emission, and route/evidence waypoints so geometry and traversal cannot drift. Retain normal motor traversal, turn landings, path headroom, winding direction changes, summit approach and placeholder support. Keep any residual embankment modest and reduce—not increase—the support raster-cost envelope.
 
+The path must hug the mountain shell rather than move deep into the core: at both ends of every rising tier, the lane should overlap the natural flank enough to read as an exposed cut terrace. It must not remain wholly outside the core (the rejected freestanding causeway/berm look), and it must not sit wholly inside the core where the 24-voxel headroom carve would create a trench/tunnel. Derive near-face placement from the tapered core envelope and validate both low- and high-end overlap in regression.
+
 Do not broaden the summit core merely to preserve the old constant 360-voxel upper run; that recreates the artificial platform already rejected by visual review. Do not perform another cosmetic support-pair iteration.
 
 ## Next discriminator
