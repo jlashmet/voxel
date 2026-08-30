@@ -88,18 +88,17 @@ namespace VoxelEngine.Showcase
 
         private static readonly StructuralFrameSpec[] s_StructuralFrames =
         {
-            // Establishing and seam views stay above the bridge deck and look broadside across the
-            // authored river corridor so the crossing, understructure, piers and both grounded banks
-            // read together instead of placing the camera under/inside the refinement geometry.
-            new("bridge-wide", 0, new Vector3(0.50f, 0.45f, 0.50f), new Vector3(0f, 0.30f, -1f), 0.60f, 64f),
-            new("bridge-deck-junction", 0, new Vector3(0.12f, 0.88f, 0.50f), new Vector3(-0.35f, 0.35f, -1f), 0.16f, 20f),
+            // The bridge and cliff proofs now live on the deterministic valley/mountain transition.
+            // Frame them from the +Z valley-facing side: the opposite side climbs into the mountain
+            // and can place an otherwise valid evidence camera inside foreground terrain.
+            new("bridge-wide", 0, new Vector3(0.50f, 0.45f, 0.50f), new Vector3(0f, 0.30f, 1f), 0.60f, 64f),
+            new("bridge-deck-junction", 0, new Vector3(0.12f, 0.88f, 0.50f), new Vector3(-0.35f, 0.35f, 1f), 0.16f, 20f),
             new("castle-wide", 1, new Vector3(0.50f, 0.50f, 0.50f), new Vector3(0.50f, 0.18f, -0.75f), 0.55f, 44f),
             new("castle-gate", 1, new Vector3(0.50f, 0.38f, 0.18f), new Vector3(0.12f, 0.12f, -1f), 0.22f, 20f),
-            // Cliff evidence needs visible vertical parallax: both cameras are above the connection
-            // and oblique to its run so lower landing, stepped rise, supports and upper settlement
-            // cannot collapse into the nearly-flat silhouette seen in the rejected frame set.
-            new("cliff-wide", 2, new Vector3(0.55f, 0.55f, 0.50f), new Vector3(-0.75f, 0.45f, -0.65f), 0.75f, 46f),
-            new("cliff-ramp-junction", 2, new Vector3(0.50f, 0.55f, 0.50f), new Vector3(-0.55f, 0.45f, -0.80f), 0.38f, 24f),
+            // Cliff evidence keeps the same elevated oblique parallax but approaches from the valley,
+            // so lower landing, stepped rise, supports and upper settlement remain visible together.
+            new("cliff-wide", 2, new Vector3(0.55f, 0.55f, 0.50f), new Vector3(-0.75f, 0.45f, 0.65f), 0.75f, 46f),
+            new("cliff-ramp-junction", 2, new Vector3(0.50f, 0.55f, 0.50f), new Vector3(-0.55f, 0.45f, 0.80f), 0.38f, 24f),
             // The facade proof metric aggregates two variants. Aim at each true variant centre and
             // offset the cameras outward so the other facade/unrelated gallery content falls behind
             // the frame edge while roof, dormer, balcony and front relief remain readable.
