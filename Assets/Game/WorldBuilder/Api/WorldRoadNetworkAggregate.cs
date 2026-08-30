@@ -164,9 +164,9 @@ namespace Game.WorldBuilder.Api
             for (var i = 0; i < _routes.Length; i++)
             {
                 WorldRoadNetworkRoute route = _routes[i];
-                var influence = new WorldRoadInfluence(route.Road);
+                var influence = new WorldRoadInfluence(route.Road, _junctions);
                 if (!influence.TrySample(xdm, zdm, out WorldRoadInfluenceSample roadSample)) continue;
-                IReadOnlyList<ResolvedWorldRoadPoint> presentation = WorldRoadPresentationPath.Build(route.Road);
+                IReadOnlyList<ResolvedWorldRoadPoint> presentation = WorldRoadPresentationPath.Build(route.Road, _junctions);
                 ClosestSegment(presentation, xdm, zdm, out int distance, out int tangentX, out int tangentZ);
                 int clearanceCoverage = Coverage(distance, route.ClearanceRadiusDm);
                 var candidate = new WorldRoadNetworkSample(route, roadSample, tangentX, tangentZ, clearanceCoverage);
@@ -183,11 +183,11 @@ namespace Game.WorldBuilder.Api
             for (var i = 0; i < _routes.Length; i++)
             {
                 WorldRoadNetworkRoute route = _routes[i];
-                IReadOnlyList<ResolvedWorldRoadPoint> presentation = WorldRoadPresentationPath.Build(route.Road);
+                IReadOnlyList<ResolvedWorldRoadPoint> presentation = WorldRoadPresentationPath.Build(route.Road, _junctions);
                 ClosestSegment(presentation, xdm, zdm, out int distance, out int tangentX, out int tangentZ);
                 if (distance > route.ClearanceRadiusDm) continue;
 
-                var influence = new WorldRoadInfluence(route.Road);
+                var influence = new WorldRoadInfluence(route.Road, _junctions);
                 WorldRoadInfluenceSample physical;
                 if (!influence.TrySample(xdm, zdm, out physical))
                     physical = new WorldRoadInfluenceSample(distance, 0, 0, 0, false);
