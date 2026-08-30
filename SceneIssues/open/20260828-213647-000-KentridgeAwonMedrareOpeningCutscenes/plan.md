@@ -7,15 +7,16 @@
 ## Competing hypotheses / discriminator
 1. `showLines:data:5000` identifies an unrecoverable dialogue payload. **Falsified:** `RPGCutScene.showLines` uses the integer only as `currentStop = index + lines`; dialogue is loaded from the cutscene `text` attribute.
 2. The Medrare join text file is absent. **Falsified:** pinned `MountingForce.xcodeproj/project.pbxproj` maps `kentridge-medrare-join.txt` to `Art/kentridge-medrare-join.txt`, which contains 17 authoritative lines.
+3. The first rework built-player failure is renderer/startup infrastructure. **Falsified:** artifact log reaches `BlueprintCompiler.Compile` and rejects the campaign because recovered Weldon dialogue made Weldon required while the Medrare join bound only Medrare.
 
 ## Selected fix / results
-- Port all 17 Medrare/Weldon lines verbatim with source speaker order after the existing zoom `0.5`, 1.5s wait, and 2s Medrare approach.
-- Keep genuinely unrecovered `kentridge-see-medrare`, `medrare-first-spell`, and `medrare-to-church` text empty rather than inventing prose.
-- Focused regression asserts Logan continuation, exact 22-line Awon payload, exact 17-line Medrare payload/speakers/choreography, prerequisites, distinct events, party join, Flame/church continuation, replay suppression, and save/load state.
-- Exact SceneIssue built-player replay now arms a dormant Kentridge evidence harness: it waits for the real playable slice to complete Logan, then verifies the production Awon/Medrare rule path and emits `KENTRIDGE_OPENING result=PASS`; failure/incomplete replay exits nonzero.
+- Port all 17 Medrare/Weldon lines verbatim with source speaker order after zoom `0.5`, 1.5s wait, and 2s Medrare approach; keep genuinely unrecovered sighting/first-spell/church text empty.
+- Bind recovered Medrare-join Weldon to `PlayerSlot.First`; focused regression now compiles the real campaign blueprint before proving Awon gating.
+- Existing progression regression covers exact Logan/Awon/Medrare dialogue/choreography, distinct gates, party join, Flame/church continuation, replay suppression, and save/load state.
+- Exact SceneIssue replay arms a dormant built-player evidence harness, completes the live Logan opening through the production slice, then verifies the production Awon/Medrare path and emits `KENTRIDGE_OPENING result=PASS`; failure/incomplete validation exits nonzero.
 
 ## Blast radius / cost
-Feature diff is limited to Kentridge cutscene content, focused PlayMode regression, and an exact-issue-only validation harness plus two assembly references. No packages, workflows, generated content, other SceneIssues, normal-game polling, hierarchy scans, or steady-state work were added. The validation-only `Update`/scene lookup runs only when this exact SceneIssue (or explicit evidence flag) is launched.
+Diff remains Kentridge story composition/content, focused tests, exact-issue-only validation, and this issue. No packages/workflows/generated content/other SceneIssues. The production fix is one static actor binding; no added runtime polling or steady-state work. Validation-only `Update`/scene lookup runs only for this exact issue (or explicit evidence flag).
 
 ## Remaining gates
-Merge current `master` if it advances; create one final exact-SHA request on `ci-test/fixes/agent-9`; require focused PlayMode green plus built `KentridgePlayableSlice` evidence containing `KENTRIDGE_OPENING result=PASS`; inspect artifacts/logs, then pending/closed bookkeeping and non-force promotion to `master`.
+Refresh/merge current `master`; issue one post-fix exact-SHA request on `ci-test/fixes/agent-9`; require focused regression green plus built `KentridgePlayableSlice` log evidence `KENTRIDGE_OPENING result=PASS` with no startup/runtime exception; inspect artifact, then pending/closed bookkeeping and non-force promotion to `master`.
