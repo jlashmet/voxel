@@ -4,8 +4,10 @@
 
 - [x] Recover the authoritative Medrare dialogue payload required by acceptance criterion (2): `RPGCutScene.showLines:data:` proves `5000` is a line-count stop, while pinned `MountingForce.xcodeproj/project.pbxproj` points to `Art/kentridge-medrare-join.txt` with 17 recoverable lines.
 - [x] Port every recovered Medrare line verbatim with its source speaker and extend the focused production-path regression to assert all 17 lines plus camera/wait/approach choreography.
-- [ ] Make the exact-SHA built-player acceptance execute and verify the applicable Logan -> Awon -> Medrare flow, with durable evidence of sequence/gating/dialogue rather than only generic timed scene screenshots. The exact-issue evidence harness is implemented; the gate still must run green.
-- [ ] Re-run exact-SHA targeted CI and the exact-SHA built-application gate after the rework; inspect the resulting evidence before returning the ticket to pending/closed.
+- [x] Inspect exact request `a94ad2e932ddf7f2e47a9173cfcead6a08fae522` / run `33282767733`: focused tests passed, but artifact inspection rejected the built-player gate because `KentridgePlayableSlice` failed `BlueprintCompiler.Compile` and the evidence probe logged `KENTRIDGE_OPENING result=FAIL`.
+- [x] Discriminate the built startup failure: recovered Weldon dialogue makes Weldon a required `MedrareJoinDefinition` actor, but production campaign composition bound only Medrare. Bind Weldon to `PlayerSlot.First` and add a regression that compiles the real campaign blueprint before exercising the Awon gate.
+- [ ] Make the exact-SHA built-player acceptance execute and verify the applicable Logan -> Awon -> Medrare flow, with durable evidence of sequence/gating/dialogue rather than only generic timed scene screenshots.
+- [ ] Re-run post-fix exact-SHA targeted CI and the exact-SHA built-application gate; inspect the resulting artifact/log evidence before returning the ticket to pending/closed.
 
 ## Prior work (previous closure rejected; retain as historical evidence)
 
