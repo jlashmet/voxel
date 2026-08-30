@@ -3,6 +3,7 @@ using Game.Materials.Runtime;
 using NUnit.Framework;
 using VoxelEngine.Rendering.Api;
 using VoxelEngine.Rendering.Runtime;
+using VoxelEngine.Storage.Api;
 
 namespace Game.Materials.Tests
 {
@@ -51,6 +52,52 @@ namespace Game.Materials.Tests
         }
 
         [Test]
+        public void WaterProfiles_AreInstalledThroughOneSharedDataDrivenRendererContract()
+        {
+            MaterialPresentationDefinition[] definitions = GameMaterialRenderingDefinitions.Create();
+            MaterialPresentationDefinition still = definitions[GameMaterialIds.Water];
+            MaterialPresentationDefinition river = definitions[GameMaterialIds.RiverWater];
+            MaterialPresentationDefinition waterfall = definitions[GameMaterialIds.Cascade];
+
+            Assert.That(still.Water.Profile, Is.EqualTo(WaterPresentationProfile.Still));
+            Assert.That(river.Water.Profile, Is.EqualTo(WaterPresentationProfile.Flowing));
+            Assert.That(waterfall.Water.Profile, Is.EqualTo(WaterPresentationProfile.Waterfall));
+            Assert.That(river.Water.Motion.w, Is.GreaterThan(still.Water.Motion.w * 4f),
+                "A river must be a reusable directional-flow profile, not a faster lake branch in shader code.");
+            Assert.That(waterfall.Water.Cascade.x, Is.GreaterThan(0.8f));
+            Assert.That(waterfall.Water.Cascade.y, Is.GreaterThan(0.8f));
+            Assert.That(waterfall.Water.Cascade.z, Is.GreaterThan(0.9f));
+            Assert.That(waterfall.Water.Cascade.w, Is.GreaterThan(0.5f));
+
+            VoxelMaterialPresentationInstaller.Apply(definitions);
+            Assert.That(VoxelPresentationCatalogue.IsWaterMaterial(GameMaterialIds.Water), Is.True);
+            Assert.That(VoxelPresentationCatalogue.IsWaterMaterial(GameMaterialIds.RiverWater), Is.True);
+            Assert.That(VoxelPresentationCatalogue.IsWaterMaterial(GameMaterialIds.Cascade), Is.True);
+            Assert.That(VoxelPresentationCatalogue.IsWaterMaterial(GameMaterialIds.Stone), Is.False);
+            uint expectedMask = (1u << GameMaterialIds.Water)
+                              | (1u << GameMaterialIds.RiverWater)
+                              | (1u << GameMaterialIds.Cascade);
+            Assert.That(VoxelPresentationCatalogue.WaterMaterialMask, Is.EqualTo(expectedMask));
+        }
+
+        [Test]
+        public void RiverProfile_ReusesWaterSimulation_WhileCascadePreservesInertGameplay()
+        {
+            ref readonly GameMaterialRuntimeDefinition still =
+                ref GameMaterialRuntimeCatalogue.Get(GameMaterialIds.Water);
+            ref readonly GameMaterialRuntimeDefinition river =
+                ref GameMaterialRuntimeCatalogue.Get(GameMaterialIds.RiverWater);
+            ref readonly GameMaterialRuntimeDefinition waterfall =
+                ref GameMaterialRuntimeCatalogue.Get(GameMaterialIds.Cascade);
+
+            Assert.That(still.Simulation.DestructionClass, Is.EqualTo(DestructionClass.Spreading));
+            Assert.That(river.Simulation.DestructionClass, Is.EqualTo(still.Simulation.DestructionClass));
+            Assert.That(river.Simulation.Hardness, Is.EqualTo(still.Simulation.Hardness));
+            Assert.That(waterfall.Simulation.DestructionClass, Is.EqualTo(DestructionClass.None),
+                "Presentation integration must not silently turn authored cascades into simulated spreading water.");
+        }
+
+        [Test]
         public void GrassAndMossCoatingShareAuthoredTextureDensity()
         {
             MaterialPresentationDefinition grass =
@@ -79,17 +126,9 @@ namespace Game.Materials.Tests
                 Assert.That(row.Sampling.z,
                     Is.EqualTo((float)MaterialTextureProjection.Triplanar));
                 Assert.That(row.Sampling.w, Is.LessThanOrEqualTo(0.16f));
-                // Terrain still needs normal relief at walking distance, but the source normal map
-                // must not dominate the geometric normal. At 0.24 the near-only normal path reads
-                // as bluish repeated swirls from elevated views; the old 0.035 treatment was too
-                // flat. Keep the authored compromise narrow so either regression is caught.
                 Assert.That(row.Surface.y, Is.InRange(0.05f, 0.08f));
                 Assert.That(row.Surface.w, Is.EqualTo(1f),
                     "Terrain detail should modulate luminance without importing source hue.");
-
-                // Keep the albedo/luminance source resolvable independently of normal strength.
-                // Re-enlarging the tile would hide the texture and recreate the older flat-ground
-                // regression even if the normal relief itself remained correct.
                 Assert.That(row.Surface.x, Is.GreaterThan(1f / 16f),
                     "Ground texture is tiled too large to resolve at eye level.");
             }
