@@ -12,7 +12,7 @@
 - [x] Separate print-support geometry from the uploaded source: dominant dragon/scenic-base component is 1,763,914 triangles; support-free STL SHA-256 `e6a0a8bee6a08193db1eb09afea5003d3a502d3c097cf061a165ecc9bb637813`.
 - [x] Produce deterministic conventional support-free OBJ derivation candidate via 0.5-unit vertex clustering: 13,431 vertices / 29,734 triangles / SHA-256 `f1f44d59f7d9c775b600ac0b9ad066a15a3c652bf685a12b2344b8c383ff12b1`; do not treat this as voxels or hand-authored replacement geometry.
 - [x] Record exact upload/cleanup/derivation hashes, dimensions, and material limitation in `verification-uploaded-source.txt`.
-- [ ] Vendor the deterministic OBJ source/reconstructable archive into this repository without changing geometry. Current connector can write text but not directly attach the local binary/large text file; use a lossless split archive/reconstruction path rather than lowering detail.
+- [ ] Vendor the deterministic OBJ source/reconstructable archive into this repository without changing geometry. BLOCKED: only transfer parts `part00`-`part07` (160,000 base64 bytes total) are present on the branch; the remaining exact derived payload is not retained in repository or recoverable prior context. Do not fabricate or regenerate different geometry; resume exact lossless transfer when the verified payload is available.
 - [ ] Complete exact third-party provenance: source URL, author, and named license/permission text are still unavailable. User states the model was free and able to be used; record that statement but do not invent missing attribution/license fields or close provenance acceptance without them.
 - [x] Verify source candidate is detailed/non-voxel-native and contains readable head, body, wings, limbs/feet, long curved tail, secondary surface detail, and scenic base after support removal.
 
@@ -31,7 +31,7 @@
 - [x] Add generic Editor-only Unity hierarchy/skinned-mesh adapter with deterministic submesh mapping.
 - [x] Add reusable bounded offline bake-analysis/fidelity metrics.
 - [x] Add isolated one-shot structure-selection state and control-consumption router.
-- [ ] Add source reconstruction/import for the committed split OBJ archive in Editor-only/source-specific tooling; runtime must never decode or voxelize source triangles.
+- [x] Add source reconstruction/import for the committed split OBJ archive in Editor-only/source-specific tooling; reconstruction fails closed on missing/non-contiguous parts or gzip/OBJ hash mismatch, and ordinary runtime never reads the source archive.
 - [ ] Add source-specific bake configuration and generate/commit the baked dragon artifact within structure bounds X/Z<=127 and Y<=511.
 - [ ] Apply deterministic semantic showcase palette mapping. STL contains no standard material/color source regions, so do not claim source-color preservation; final acceptance must explicitly resolve this source limitation rather than silently changing the requirement.
 - [ ] Instantiate baked dragon through normal `ShowcaseWorld`/WorldBuilder voxel authoring so rendering/collision/edit/destruction share canonical storage.
