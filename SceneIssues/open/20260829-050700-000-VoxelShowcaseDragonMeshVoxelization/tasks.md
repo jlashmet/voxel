@@ -1,94 +1,72 @@
 # Tasks
 
 ## Investigation
-- [x] Read `AGENTS.md`, current `SceneIssues/feature-readme.md`, and canonical `SceneIssues/README.md`; the feature guide was absent on the resumed branch initially and is now present via the current-master refresh merge.
-- [x] Confirm `fixes/agent-1` starts from/merges current `origin/master` before implementation.
-- [x] Re-check CI transport state: `ci-test/fixes/agent-1` already exists; leave it untouched until the single final targeted-CI request and never replace queued/running CI.
-- [x] Record execution limitation: no local Unity runner; exact-SHA CI is authoritative compiler/test/player validation.
-- [x] Trace voxel authoring/storage, material palette, showcase composition, collision/edit, and player-capture owners enough to keep the feature additive.
-- [x] Resolve canonical replay seam: `IStructureAuthoringSession` + `StructuresComposition.CreateAuthoringSession`; baked sparse cells replay through normal voxel storage.
-- [x] Confirm no existing arbitrary mesh-to-voxel production importer to generalize.
-- [x] Record competing implementation hypotheses/discriminator in `plan.md`.
-- [x] Check blast radius/cost: importer/showcase additions only; bounded dense working set; no runtime voxelization or mesh gameplay truth.
-- [x] Resolve live VoxelShowcase runtime owner and input discrepancy; structure selection must be an explicit mode so ordinary movement/brush controls remain unchanged outside it.
-- [x] Reject the stale “original CC0 dragon” plan because acceptance explicitly requires a downloaded third-party mesh.
-- [x] Reject artist_71 OpenGameArt three-headed dragon after visual inspection: despite CC-BY 4.0/~24k-triangle detail, it has no wings and cannot satisfy mandatory wing silhouette/close-up acceptance.
-- [x] Reject Cethiel/Drummyfish CC0 winged dragon as final proof asset: redistribution is clean, but the mirrored DAE has only ~633 position vertices and is visibly low-poly, below the detailed/production-quality gate.
-- [x] Select Delatronic `Dragon` (Blend Swap asset 15891 / historic id 80766) as the preferred source: CC-BY, detailed curved winged anatomy, Blender 2.7x source; verify Bitterli redistribution and Microsoft `DirectX-Graphics-Samples` PBRT/PLY mirror with asset-specific CC-BY license/provenance.
-- [x] Verify Microsoft's PBRT scene maps the dragon material to `Mesh008.ply`, `Mesh013.ply`, `Mesh014.ply`, and `Mesh015.ply`, with one shared scene transform; source files are real non-LFS payloads.
-- [x] Verify compact mirror `gkjohnson/3d-demo-data` `dragon.glb` is 1,651,276 bytes, Delatronic / CC BY 3.0, Draco-compressed without mesh simplification; verify independent `ErfanMo77/gltf-research-scenes` conversion reports 16 meshes / 831,812 scene triangles and preserves the same Blend Swap/Bitterli provenance.
-- [x] Resolve exact SHA-256 identities for all four Delatronic Dragon-material PLY payloads from the independent Git LFS mirror and cross-check byte sizes against Microsoft's non-LFS mirror; record them in `verification-source-selection.txt`.
-- [x] Exhaust connector-safe lossless transport options without lowering the source-quality bar: >1 MB binary contents/blob fetch, cross-repository blob reuse, GitHub Raw/CDN download, and same-assignment temp branch recovery are unavailable/no-op in this execution environment.
-- [ ] Vendor the selected Delatronic source bytes into this repository. Current connectors can inspect/base64 small binary source objects but still cannot losslessly transfer the two multi-megabyte main payloads into this repo; direct shell network access was rechecked on 2026-08-30 and still cannot resolve github.com. The exact PLY mirror is `binary_little_endian`, so UTF-8 line-range reconstruction is not viable. Per the repeated-gate rule, do not retry these same transfer methods without a new transport capability and do not substitute lower-quality geometry merely to fit tooling.
-- [ ] Commit exact source URL, author, license, original/mirrored format, vertex/triangle counts, original/mirror SHA-256, committed-source SHA-256, mirror blob/commit provenance, and required attribution/license text.
-- [ ] Verify committed source is meaningfully detailed/non-voxel-native with readable head, body, wings, limbs/feet, tail, and secondary silhouette detail.
+- [x] Read `AGENTS.md`, `SceneIssues/feature-readme.md`, and canonical `SceneIssues/README.md`; keep `plan.md` and `tasks.md` separate.
+- [x] Resume `fixes/agent-1`, confirm `ci-test/fixes/agent-1` is the only CI transport, and merge current master before substantial work.
+- [x] Trace voxel authoring/storage, material palette, showcase composition, collision/edit, and player-capture owners; canonical replay seam is `IStructureAuthoringSession` + `StructuresComposition.CreateAuthoringSession`.
+- [x] Confirm no existing arbitrary mesh-to-voxel production importer should own this conversion.
+- [x] Record architecture hypotheses/discriminator and blast-radius/cost boundaries in `plan.md`.
+- [x] Resolve live VoxelShowcase input ownership: structure selection must be explicit so ordinary movement/brush controls are unchanged outside placement mode.
+- [x] Reject earlier source candidates that fail anatomy/detail or cannot be transferred without lowering acceptance; retain evidence in `verification-source-selection.txt`.
+- [x] Inspect user upload `mountain_dragon_supported.zip`: one valid binary CHITUBOX STL, 107,207,684 bytes, 2,144,152 triangles, SHA-256 `a01f600705a6daf79a8828474f227251a5680d4bb8bad4aa46659f9e06cf53d6`.
+- [x] Separate print-support geometry from the uploaded source: dominant dragon/scenic-base component is 1,763,914 triangles; support-free STL SHA-256 `e6a0a8bee6a08193db1eb09afea5003d3a502d3c097cf061a165ecc9bb637813`.
+- [x] Produce deterministic conventional support-free OBJ derivation candidate via 0.5-unit vertex clustering: 13,431 vertices / 29,734 triangles / SHA-256 `f1f44d59f7d9c775b600ac0b9ad066a15a3c652bf685a12b2344b8c383ff12b1`; do not treat this as voxels or hand-authored replacement geometry.
+- [x] Record exact upload/cleanup/derivation hashes, dimensions, and material limitation in `verification-uploaded-source.txt`.
+- [ ] Vendor the deterministic OBJ source/reconstructable archive into this repository without changing geometry. Current connector can write text but not directly attach the local binary/large text file; use a lossless split archive/reconstruction path rather than lowering detail.
+- [ ] Complete exact third-party provenance: source URL, author, and named license/permission text are still unavailable. User states the model was free and able to be used; record that statement but do not invent missing attribution/license fields or close provenance acceptance without them.
+- [x] Verify source candidate is detailed/non-voxel-native and contains readable head, body, wings, limbs/feet, long curved tail, secondary surface detail, and scenic base after support removal.
 
 ## Behavior-first regressions
-- [x] Add compile-intended importer contract tests before production code (`9164857ad304dc95a6e182e8e982251d5a918567`).
-- [x] Add compile-intended open/non-manifold topology policy contract before production topology handling (`32703c26a0a1f2d9a91b6ff3986b98d8f3e46142`).
-- [x] Curved synthetic closed geometry proves conservative surface coverage and solid interior fill.
-- [x] Same input/config produces stable ordered voxel/material output.
-- [x] Off-origin transform, rotation/non-uniform scale, and mirrored orientation are covered.
-- [x] Material mapping is deterministic through production importer output.
-- [x] Thin curved/sheet feature retention is covered without global bloat.
-- [x] Invalid triangle indices and oversized bounds fail preflight before rasterization/dense allocation.
-- [x] Focused non-finite source and non-finite transform preflight regressions reject before rasterization.
-- [x] Open/non-manifold input either rejects clearly or explicitly falls back to surface-only without invented interior.
-- [x] Sparse artifact codec round-trips exactly and rejects malformed/out-of-bounds data.
-- [x] Baked cells replay through `IStructureAuthoringSession` at arbitrary requested origin.
-- [x] Showcase selection/Space commit state is single-trigger; idle/update repetition cannot duplicate placement.
-- [x] Structure-placement input ownership is explicit and reusable: inactive routing consumes neither scroll nor commit; active routing consumes both controls (including rejected commits); successful commit is one-shot and returns controls on the following frame (`StructurePlacementInputRouterTests`).
-- [x] Reusable fidelity/cost instrumentation has synthetic regressions for surface extraction, connectedness/material/brick counts, symmetric p95 distance, fixed-view silhouette IoU, and transformed mesh→bake measurement.
-- [ ] Add dragon-specific production regression proving required anatomical regions are non-empty/spatially plausible without source-string/count-only assertions.
+- [x] Add importer contract tests before production code.
+- [x] Cover conservative curved surface coverage, solid closed-interior fill, deterministic output/material ownership, transforms including mirrored/non-uniform scale, thin features, malformed/non-finite/oversized input, topology policy, codec round-trip, and canonical authoring replay.
+- [x] Cover independent non-dragon reuse through `MeshVoxelizationReuseTests.IndependentBoxFixture_UsesImporterCodecAndCanonicalAuthoringPath`.
+- [x] Cover one-shot structure selection plus reusable input ownership through `StructurePlacementInputRouterTests`.
+- [x] Cover reusable fidelity/cost instrumentation for surface extraction, connectedness/material/brick counts, symmetric p95 distance, fixed-view silhouette IoU, and transformed mesh→bake measurement.
+- [ ] Add dragon-specific production regression proving required anatomical regions are non-empty/spatially plausible through produced bake data, not source-string/count-only assertions.
 
 ## Implementation
-- [x] Add reusable transformed triangle mesh→voxel API/configuration with voxel size, fill policy, bounds/cost limits, material input/fallback, and thin-feature policy.
-- [x] Conservatively rasterize triangle coverage rather than vertex-only quantization.
-- [x] Fill intended closed interiors using bounded exterior flood fill while preserving surface material ownership.
-- [x] Apply source transform before grid quantization, including non-uniform/mirrored transforms.
-- [x] Diagnose welded boundary/non-manifold topology and make open-source fill behavior explicit (`Reject` or safe `SurfaceOnly`) rather than silently inventing solids.
-- [x] Add deterministic sparse baked-cell codec/artifact and replay through `IStructureAuthoringSession`.
-- [x] Add generic Unity authoring bridge for nested `MeshFilter` hierarchies and reusable baked `SkinnedMeshRenderer` poses with deterministic submesh material mapping.
-- [x] Add reusable bounded offline bake-analysis/fidelity metrics for surface cells, connected components, material/sparse-brick counts, sampled symmetric p95 distance, and fixed-view silhouette IoU.
-- [x] Add isolated one-shot structure-selection state plus input-consumption router; production VoxelShowcase call-site wiring remains pending.
-- [ ] Add source-specific authoring/bake configuration for the chosen Delatronic model and generate/commit the baked dragon artifact; ordinary runtime must never execute mesh voxelization.
-- [ ] Preserve major source material/color regions with deterministic palette mapping/quantization.
-- [ ] Instantiate baked dragon through normal `ShowcaseWorld`/WorldBuilder voxel authoring so collision/edit/destruction read the same storage.
-- [ ] Wire explicit VoxelShowcase structure-selection mode: scroll selects while active, Space commits once, ordinary controls unchanged outside mode. Current tool blocker: the live 58 KB `Assets/Game/Composition/Showcase/SceneRuntime/VoxelShowcase.cs` is only writable as a whole file while connector reads truncate it; do not risk unrelated code loss or bypass with reflection/parallel input authority.
-- [ ] Add dedicated labeled `Mesh -> Voxels` comparison area with matched pose/scale/orientation/ground/lighting; source mesh is presentation-only and has no collider/gameplay authority.
-- [ ] Add durable comparison capture support for front, side, rear, front 3/4, rear 3/4, elevated/top 3/4, plus head/horns, wing, feet/claws, tail closeups.
-- [ ] Add supplemental symmetric source↔voxel surface-distance metric and fixed-view silhouette IoU evidence (targets p95 <=1.5 voxels, primary IoU >=0.90 unless a documented thin-feature limitation is visually acceptable).
+- [x] Add reusable semantic/config-driven transformed triangle mesh→voxel API/configuration with bounded cost, fill/topology/material/thin-feature policy.
+- [x] Conservatively rasterize triangles, bounded-fill closed interiors, preserve deterministic surface material ownership, and support mirrored/non-uniform transforms.
+- [x] Add deterministic sparse baked-cell codec/artifact and replay through canonical `IStructureAuthoringSession`.
+- [x] Add generic Editor-only Unity hierarchy/skinned-mesh adapter with deterministic submesh mapping.
+- [x] Add reusable bounded offline bake-analysis/fidelity metrics.
+- [x] Add isolated one-shot structure-selection state and control-consumption router.
+- [ ] Add source reconstruction/import for the committed split OBJ archive in Editor-only/source-specific tooling; runtime must never decode or voxelize source triangles.
+- [ ] Add source-specific bake configuration and generate/commit the baked dragon artifact within structure bounds X/Z<=127 and Y<=511.
+- [ ] Apply deterministic semantic showcase palette mapping. STL contains no standard material/color source regions, so do not claim source-color preservation; final acceptance must explicitly resolve this source limitation rather than silently changing the requirement.
+- [ ] Instantiate baked dragon through normal `ShowcaseWorld`/WorldBuilder voxel authoring so rendering/collision/edit/destruction share canonical storage.
+- [ ] Wire explicit VoxelShowcase selection mode: scroll selects while active and Space commits once; ordinary controls unchanged outside mode. Current tool blocker: live 58 KB `Assets/Game/Composition/Showcase/SceneRuntime/VoxelShowcase.cs` is only writable as a whole while connector reads truncate it; do not risk unrelated loss or create parallel/reflection input authority.
+- [ ] Add labeled `Mesh -> Voxels` comparison area with matched pose/scale/orientation/ground/lighting; source mesh is presentation-only with no collider/gameplay authority.
+- [ ] Add durable capture support for front, side, rear, front 3/4, rear 3/4, elevated/top 3/4, plus head/horns, wing, feet/claws, and tail closeups.
 - [ ] Emit deterministic source triangle count, voxel resolution, authored voxel count, sparse brick/chunk count, voxelization duration, serialized size, resident/runtime placement/build cost.
-- [ ] Add destruction/world-truth validation instance proving voxel edit changes rendering/collision without source-mesh shell/collider fallback.
+- [ ] Add destruction/world-truth validation instance proving voxel edits affect rendering/collision without source-mesh shell/collider fallback.
 
 ## Reusability review
-- [x] Keep `MeshVoxelization` and its metrics/configuration completely mesh-agnostic; no dragon names, anatomy rules, source IDs, or showcase controls in engine mesh-import/runtime code.
-- [x] Keep source selection, dragon-specific bake configuration, palette choices, comparison staging, and placement/input modes in game/showcase composition above the generic importer.
-- [x] Add a regression proving a second non-dragon synthetic or fixture mesh can use the same public importer/codec/authoring path without dragon-specific setup or branches (`MeshVoxelizationReuseTests.IndependentBoxFixture_UsesImporterCodecAndCanonicalAuthoringPath`).
+- [x] Keep shared `MeshVoxelization` and metrics/config completely mesh-agnostic; no dragon names/anatomy/source IDs/showcase controls in engine APIs.
+- [x] Keep source selection, source reconstruction, dragon bake configuration, palette choices, comparison staging, and placement controls in Editor/game/showcase composition.
+- [x] Prove a second non-dragon fixture uses the same importer/codec/canonical authoring path without dragon branches.
 
 ## Dragon artifact acceptance
-- [ ] Downloaded third-party source is legitimately redistributable and provenance/checksums are committed.
-- [ ] Source is detailed/curved/non-voxel-native and genuinely exercises anatomy/silhouette fidelity (roughly 20k+ triangles preferred/practical per issue).
-- [ ] Generated structure is volumetric, sparse, within X/Z<=127 and Y<=511, and preserves recognizable head/body/wings/limbs/feet/tail/secondary detail.
-- [ ] Source and voxel exhibit use same effective transform/pose; major material regions remain recognizable.
-- [ ] Human review confirms voxelized result is unmistakably the exact source model, not merely a generic dragon.
+- [ ] Downloaded/user-provided third-party source is legitimately redistributable and exact provenance/checksums/required attribution are committed.
+- [x] Candidate source is detailed/curved/non-voxel-native and genuinely exercises wing/head/limb/tail silhouette fidelity (>20k triangles after deterministic support-free derivation).
+- [ ] Generated structure is volumetric, sparse, bounded, and preserves recognizable head/body/wings/limbs/feet/tail/secondary detail.
+- [ ] Source and voxel exhibit use same effective transform/pose; required material/color acceptance is explicitly and correctly resolved for an STL source with no standard material regions.
+- [ ] Human review confirms voxelized result is unmistakably this exact source model, not merely a generic dragon.
 
 ## Validation / cost
 - [ ] Exact-SHA final CI compiles/passes focused importer/codec/authoring/showcase + dragon-specific regressions.
 - [ ] Record import/voxelization time, occupied voxel count, sparse brick/chunk count, serialized size, runtime resident/storage impact, and incremental render/world-build cost within repository budgets.
-- [x] Verify ordinary runtime does not execute mesh voxelization and no `MeshCollider`/source-mesh gameplay fallback exists; `ShowcaseWorld.PlaceBakedMeshStructure` accepts/replays only `BakedVoxelStructure`, Unity mesh extraction is isolated to an Editor-only assembly, and repository search finds no `MeshCollider` use. Recorded in `verification-regression-coverage.txt`.
-- [x] Current feature-vs-master blast-radius review shows additions confined to mesh-import editor/runtime, showcase mesh-structure/selection helpers, focused EditMode tests, and this issue's plan/tasks; no workflow request or unrelated SceneIssue changes.
-- [x] Refresh-merged `origin/master` through `5865c6e04f93c7d2ba0f10258909f38115424607` at merge commit `040bc7a146672c01e9c7f9f1d165d65b3c5854e6`; the master delta was limited to Kentridge shared-composition/regression files and was preserved unchanged.
-- [ ] Re-run full feature diff review after source/showcase/evidence implementation.
-- [ ] Refresh/merge current `origin/master` again immediately before final CI if it advanced.
-- [ ] Issue one final exact-source PlayMode request only through `ci-test/fixes/agent-1`; do not replace queued/running CI.
-- [ ] Obtain green focused behavioral regression plus exact built-player `VoxelShowcase` validation in that final request.
-- [ ] Inspect all required built-player views directly for same-source silhouette/anatomy/material fidelity, grounding, negative spaces, and no holes/fused/bloated/broken parts.
-- [ ] Classify exact built-player visual evidence `production-quality`; lower classifications fail under current `AGENTS.md`.
+- [x] Verify ordinary runtime does not execute mesh voxelization and no `MeshCollider`/source-mesh gameplay fallback exists; recorded in `verification-regression-coverage.txt`.
+- [x] Feature blast radius remains confined to mesh-import editor/runtime, showcase mesh-structure/selection helpers, focused tests/assets/evidence, and this issue folder.
+- [x] Merge current `origin/master` `ebdc2e4f63ef73153cd4e0ff5c62efe604f35470` into feature at `75d2a5e8f783c836f1ecb4c0aa58c714d444d64c`; delta was only shared SceneIssues workflow guidance.
+- [ ] Re-run final feature diff review after source/showcase/evidence implementation.
+- [ ] Refresh/merge current `origin/master` immediately before final CI if advanced.
+- [ ] Issue one final exact-source request only through `ci-test/fixes/agent-1`; never replace queued/running CI.
+- [ ] Obtain green focused regression plus exact built-player `VoxelShowcase` validation and inspect all required views directly.
+- [ ] Classify built-player visual evidence `production-quality`; lower classification fails.
 - [ ] Confirm built-app destruction/world truth, one-shot spawn, metrics, and no startup/runtime exceptions.
 
 ## Promotion / closure
-- [ ] Complete pending metadata (`status`, `resolutionSummary`, `regressionTest`, `fixCommit`) only after all gates pass.
-- [ ] Move only this assignment `open` → `pending` in separate bookkeeping after implementation/evidence is complete.
-- [ ] After green exact-SHA CI/built-app/human visual review, set `status=fixed` + `resolvedUtc` and move only this assignment `pending` → `closed`.
+- [ ] Complete metadata (`status`, `resolutionSummary`, `regressionTest`, `fixCommit`, `resolvedUtc`) only after every required gate passes.
+- [ ] Move only this assignment directly `open` → `closed` after green exact-SHA gates and human visual acceptance.
 - [ ] Merge latest `origin/master` into `fixes/agent-1`, push feature head, then push that exact head to `origin/master` non-force; fetch/merge/retry if master advances.
