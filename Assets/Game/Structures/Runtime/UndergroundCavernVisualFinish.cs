@@ -79,55 +79,61 @@ namespace Game.Structures.Runtime
             int3 forward = FacingVector(facing);
             int3 side = new int3(-forward.z, 0, forward.x);
 
-            int sideReach = radius * 2 / 3;
-            int rearReach = radius * 3 / 5;
-            int[] outerRadii =
-            {
-                math.max(62, radius * 56 / 100),
-                math.max(58, radius * 52 / 100),
-                math.max(54, radius * 48 / 100),
-            };
+            // The old finish overlaid three tall cylinders onto the already cylindrical host.
+            // Their vertical sides and flat caps reinforced the box/tank silhouette seen in player
+            // evidence. Carve overlapping rounded vault lobes instead: each has a different centre,
+            // base, wall bulge and crown, so their union reads as one eroded geological chamber.
+            int sideReach = radius * 3 / 5;
+            int rearReach = radius / 2;
             int3[] centres =
             {
-                centre + side * sideReach + forward * (radius / 5),
-                centre - side * (sideReach - radius / 12) + forward * (radius / 3),
+                centre + side * sideReach + forward * (radius / 6),
+                centre - side * (sideReach - radius / 10) + forward * (radius / 3),
                 centre - forward * rearReach + side * (radius / 5),
+                centre + forward * (radius * 2 / 5) + side * (radius / 4),
+                centre + forward * (radius / 2) - side * (radius / 3),
             };
-            int[] baseOffsets = { 4, 10, 7 };
-            int[] heightCuts = { 26, 42, 54 };
-
-            // Author all thin host shells before opening any lobe. A later lobe can therefore
-            // overlap an earlier one without re-filling the already-carved union.
-            for (int i = 0; i < centres.Length; i++)
+            int[] radii =
             {
-                int outer = outerRadii[i];
-                int inner = math.max(40, outer - 14);
-                int baseY = floorY + baseOffsets[i];
-                int lobeHeight = math.max(72, height - heightCuts[i]);
-                a.Cylinder(centres[i].x, baseY - 3, centres[i].z, outer, lobeHeight + 7,
-                    palette.Rock, inner);
-                a.Disc(centres[i].x, baseY - 3, centres[i].z, outer, palette.Rock);
-                a.Disc(centres[i].x, baseY + lobeHeight + 3, centres[i].z, outer, palette.Rock);
-            }
+                math.max(54, radius * 48 / 100),
+                math.max(58, radius * 52 / 100),
+                math.max(50, radius * 44 / 100),
+                math.max(46, radius * 40 / 100),
+                math.max(43, radius * 38 / 100),
+            };
+            int[] baseOffsets = { 2, 8, 5, 12, 6 };
+            int[] clearanceCuts = { 70, 82, 94, 105, 112 };
+            int[] crownHeights = { 62, 48, 54, 40, 46 };
 
             for (int i = 0; i < centres.Length; i++)
             {
-                int outer = outerRadii[i];
-                int inner = math.max(40, outer - 14);
-                int baseY = floorY + baseOffsets[i];
-                int lobeHeight = math.max(72, height - heightCuts[i]);
-                a.Cylinder(centres[i].x, baseY, centres[i].z, inner, lobeHeight, palette.Opening);
-                a.Disc(centres[i].x, baseY - 1, centres[i].z, inner - 2, palette.Rock);
+                int clearance = math.max(42, height - clearanceCuts[i]);
+                int crown = math.min(crownHeights[i], math.max(18, height - clearance - baseOffsets[i] - 4));
+                int bulge = 7 + (i * 5) % 13;
+                int verticalBias = (i % 3) - 1;
+                UndergroundCavernRouteNaturalization.AuthorRoundedVault(
+                    a,
+                    centres[i].x,
+                    floorY + baseOffsets[i],
+                    centres[i].z,
+                    radii[i],
+                    clearance,
+                    crown,
+                    bulge,
+                    verticalBias,
+                    palette.Opening);
+                a.Disc(centres[i].x, floorY - 1 + baseOffsets[i] / 3, centres[i].z,
+                    math.max(28, radii[i] - 8), palette.Rock);
             }
 
-            // Low shoulders and shelves make the floor/wall junction read as geology rather than
-            // a mathematically smooth tank while staying away from the centreline circulation.
-            int3 leftShelf = centre + side * (radius * 4 / 5) + forward * (radius / 4);
-            int3 rightShelf = centre - side * (radius * 4 / 5) + forward * (radius / 8);
-            a.Cylinder(leftShelf.x, floorY, leftShelf.z, 25, 22, palette.Rock);
-            a.Cylinder(rightShelf.x, floorY, rightShelf.z, 29, 16, palette.Rock);
-            a.Disc(leftShelf.x, floorY + 21, leftShelf.z, 31, palette.Rock);
-            a.Disc(rightShelf.x, floorY + 15, rightShelf.z, 35, palette.Rock);
+            // Asymmetric shelves and columns interrupt the floor/wall junction and deliberately
+            // occlude long planar sight lines without narrowing the protected centre circulation.
+            int3 leftShelf = centre + side * (radius * 4 / 5) + forward * (radius / 5);
+            int3 rightShelf = centre - side * (radius * 3 / 4) + forward * (radius / 10);
+            int3 rearShelf = centre - forward * (radius * 3 / 4) - side * (radius / 6);
+            a.Cone(leftShelf.x, floorY, leftShelf.z, 31, 38, palette.Rock);
+            a.Cone(rightShelf.x, floorY, rightShelf.z, 36, 29, palette.Rock);
+            a.Cone(rearShelf.x, floorY, rearShelf.z, 27, 47, palette.Rock);
             return centres.Length;
         }
 
@@ -153,8 +159,18 @@ namespace Game.Structures.Runtime
                 floorY - 3, 5, GameMaterialIds.DarkStone); detailCount++;
             OrientedBox(a, centre - forward * 3, facing, forwardSize + 9, sideSize + 16,
                 floorY + 2, 4, GameMaterialIds.MasonryMedium); detailCount++;
-            OrientedBox(a, centre - forward * (forwardSize / 2 + 12), facing, 30, 54,
-                floorY + 1, 3, GameMaterialIds.MasonrySmall); detailCount++;
+
+            // Do not pave a straight rectangular strip from the route to the ruin. Three broken,
+            // side-shifted threshold remnants retain the aged architectural cue while leaving the
+            // surrounding approach visibly geological.
+            for (int i = 0; i < 3; i++)
+            {
+                int sideShift = i == 0 ? -13 : i == 1 ? 9 : -4;
+                int3 slab = centre - forward * (forwardSize / 2 + 14 + i * 13) + side * sideShift;
+                OrientedBox(a, slab, facing, 13 + i * 3, 22 - i * 3,
+                    floorY + 1 + (i & 1), 2 + (i & 1), GameMaterialIds.MasonrySmall);
+                detailCount++;
+            }
 
             // Re-face the original box with a darker, articulated temple frontage, then cut a
             // genuinely arched opening through both the new facing and the old backing wall.
@@ -231,12 +247,17 @@ namespace Game.Structures.Runtime
             bool alongX = math.abs(forward.x) == 1;
             int forwardSize = alongX ? ruin.MaxExclusive.x - ruin.Min.x : ruin.MaxExclusive.z - ruin.Min.z;
             int sideSize = alongX ? ruin.MaxExclusive.z - ruin.Min.z : ruin.MaxExclusive.x - ruin.Min.x;
-            int3 front = centre - forward * (forwardSize / 2 + 18);
+
+            // Pull both figures forward into the approach and outside the facade silhouette. The
+            // previous placement tucked them against the ruin corners, where perspective and pylons
+            // merged them into the architecture. These remain symmetric semantic flank positions,
+            // but are now unmistakable from the normal production route.
+            int3 front = centre - forward * (forwardSize / 2 + 36);
             int details = 0;
 
             for (int sign = -1; sign <= 1; sign += 2)
             {
-                int3 p = front + side * (sideSize / 2 - 12) * sign;
+                int3 p = front + side * (sideSize / 2 + 10) * sign;
 
                 OrientedBox(a, p, facing, 30, 30, floorY, 5, GameMaterialIds.MasonryLarge); details++;
                 OrientedBox(a, p, facing, 24, 24, floorY + 5, 5, GameMaterialIds.DarkStone); details++;
