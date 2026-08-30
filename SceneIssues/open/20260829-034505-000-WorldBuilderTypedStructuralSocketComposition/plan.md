@@ -11,15 +11,17 @@
 - Run `33324919718` was mechanically green; full-resolution review still rejected bridge gorge/framing, planar castle, weak cliff support read, and facade framing. Those demonstrated defects drove the bounded authoritative-voxel refinement plus tighter evidence framing/preload.
 - Run `33325668040` never exercised refined source because the shared runner failed at the editor-wait gate; treated as infrastructure.
 - Exact-source run `33330327732` passed focused PlayMode but the real player exposed a product regression: castle route 1 stopped at the front face of `castle-refined-gatehouse`. The refinement’s 12-voxel base spanned the canonical 32-voxel gate opening. Root cause is isolated to composition geometry, not `CharacterMotor` or structural semantics.
-- Selected fix: split only the refined gate base around the canonical opening and add focused PlayMode coverage that authors the final refinement then traverses route 1 with the production motor. No tolerance, route, solver, or budget changes.
-- Refreshed `fixes/agent-5` onto current master `5865c6e04f93c7d2ba0f10258909f38115424607`; the two incoming Kentridge files were preserved unchanged and do not overlap agent-5 work.
+- Selected geometry fix: split only the refined gate base around the canonical opening and add focused PlayMode coverage that authors the final refinement then traverses route 1 with the production motor. No tolerance, route, solver, or budget changes.
+- Run `33331508390` then failed at compile because that regression reused an `internal` scene-runtime traversal audit. The test assembly already references `VoxelEngine.Showcase`; the selected wiring fix is to make the showcase-specific audit helper public so focused tests and the real-player harness execute one traversal implementation without moving motor logic into lower composition layers.
+- Refreshed `fixes/agent-5` onto master `5865c6e04f93c7d2ba0f10258909f38115424607`; the two incoming Kentridge files were preserved unchanged. The branch-only common `SceneIssues/README.md` newline delta was restored to the master blob.
 
 ## Next discriminator
-Use `ci-test/fixes/agent-5` for one exact-SHA request from the corrected feature head. The focused regression must pass with the final refinement authored, then the real `WorldbuildingGalleryShowcase` player must pass all three traversals/negative contracts and emit all eight frames. Inspect every full-resolution frame directly; only `production-quality` passes.
+Reuse `ci-test/fixes/agent-5` for one exact-SHA request from the corrected feature head. The focused regression class must compile and pass with the final refinement authored, then the real `WorldbuildingGalleryShowcase` player must pass all three traversals/negative contracts and emit all eight frames. Inspect every full-resolution frame directly; only `production-quality` passes.
 
 ## Cost / blast radius
 - No global structural/device budget or `CharacterMotor` tolerance is weakened.
 - Gate fix removes filled voxels from the existing bounded refinement footprint and adds one primitive while remaining below its declared `MaxPrimitives=24`.
+- The traversal-audit visibility change exposes only a showcase/evidence helper and does not alter shared structural APIs or runtime behavior.
 - Largest authored piece footprint remains within `MaxFootprintVoxels=1280`; each split/refinement catalogue remains below the 16,777,216 conservative voxel ceiling.
 - Final run must record bridge/castle planning time, children/primitives/voxel budget, regions/instances/writes, authoring/presentation time, memory and render-region proxy.
 
