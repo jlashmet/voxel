@@ -2,21 +2,21 @@
 
 ## Observed defect / acceptance
 - No captures or marked regions exist; `issue.json` plus pinned `jlashmet/mounting-force@9491acd9efc3ad7413a13fd28f1686ed473b5672` are authoritative.
-- Prior closure left Medrare join text empty and its built-player run proved only generic scene startup, failing exact-dialogue and complete Logan -> Awon -> Medrare acceptance.
+- Prior closure omitted Medrare join text and did not prove the complete built-player Logan -> Awon -> Medrare sequence.
 
-## Competing hypotheses / discriminator
-1. `showLines:data:5000` identifies an unrecoverable dialogue payload. **Falsified:** `RPGCutScene.showLines` uses the integer only as `currentStop = index + lines`; dialogue is loaded from the cutscene `text` attribute.
-2. The Medrare join text file is absent. **Falsified:** pinned `MountingForce.xcodeproj/project.pbxproj` maps `kentridge-medrare-join.txt` to `Art/kentridge-medrare-join.txt`, which contains 17 authoritative lines.
-3. The first rework built-player failure is renderer/startup infrastructure. **Falsified:** artifact log reaches `BlueprintCompiler.Compile` and rejects the campaign because recovered Weldon dialogue made Weldon required while the Medrare join bound only Medrare.
+## Competing hypotheses / discriminators
+1. `showLines:data:5000` identifies an unrecoverable dialogue payload. **Falsified:** inherited `RPGCutScene.showLines` treats `5000` only as a line-count limit; dialogue comes from the cutscene `text` resource.
+2. The Medrare text resource is absent. **Falsified:** pinned project metadata maps `kentridge-medrare-join.txt` to `Art/kentridge-medrare-join.txt`, containing 17 authoritative lines.
+3. The first rework built-player failure was infrastructure. **Falsified:** its artifact reached `BlueprintCompiler.Compile`; recovered Weldon dialogue made Weldon required while production bound only Medrare.
 
-## Selected fix / results
-- Port all 17 Medrare/Weldon lines verbatim with source speaker order after zoom `0.5`, 1.5s wait, and 2s Medrare approach; keep genuinely unrecovered sighting/first-spell/church text empty.
-- Bind recovered Medrare-join Weldon to `PlayerSlot.First`; focused regression now compiles the real campaign blueprint before proving Awon gating.
-- Existing progression regression covers exact Logan/Awon/Medrare dialogue/choreography, distinct gates, party join, Flame/church continuation, replay suppression, and save/load state.
-- Exact SceneIssue replay arms a dormant built-player evidence harness, completes the live Logan opening through the production slice, then verifies the production Awon/Medrare path and emits `KENTRIDGE_OPENING result=PASS`; failure/incomplete validation exits nonzero.
+## Selected fix / verified results
+- Port all 17 Medrare/Weldon lines verbatim and preserve source zoom `0.5`, 1.5s wait, 2s approach, party join, Flame/church continuation, one-shot gating, re-entry, and save/load state.
+- Bind Medrare-join Weldon to `PlayerSlot.First`; focused regression compiles the real campaign blueprint and proves Awon gating.
+- Exact source SHA `46617dd27787592e27dbb5a5d812de871a7f94c4`, request `1555383ab5a230a8e2e402ee15b54cd8ce6fccc6`, run `33283114649`: focused regression passed 1/1 and the built `KentridgePlayableSlice` replay emitted `KENTRIDGE_OPENING result=PASS sequence=logan>awon>medrare awonLines=22 medrareLines=17 dialogueHash=af88eb792eee83b6 party=Medrare flame=True replaySuppressed=True` with no player startup/runtime exception.
+- Final verification frame was inspected; the real Kentridge scene rendered and remained usable.
 
 ## Blast radius / cost
-Diff remains Kentridge story composition/content, focused tests, exact-issue-only validation, and this issue. No packages/workflows/generated content/other SceneIssues. The production fix is one static actor binding; no added runtime polling or steady-state work. Validation-only `Update`/scene lookup runs only for this exact issue (or explicit evidence flag).
+Kentridge story/cutscene composition, focused tests, exact-issue-only evidence harness, and this issue only. Production delta is a static actor binding/content change; no new steady-state polling, hierarchy scans, packages, workflows, generated content, or unrelated SceneIssues.
 
 ## Remaining gates
-Refresh/merge current `master`; issue one post-fix exact-SHA request on `ci-test/fixes/agent-9`; require focused regression green plus built `KentridgePlayableSlice` log evidence `KENTRIDGE_OPENING result=PASS` with no startup/runtime exception; inspect artifact, then pending/closed bookkeeping and non-force promotion to `master`.
+Complete canonical pending metadata/move, then closed bookkeeping with `status=fixed` and `resolvedUtc`; merge current `origin/master` into `fixes/agent-9`, resolve only this assignment if its concurrent invalid closure conflicts, and push the exact feature head to `origin/master` non-force.
