@@ -114,7 +114,7 @@ namespace VoxelEngine.Tests.PlayMode
                 TestContext.WriteLine(
                     "MACRO_STREAMING_READINESS " +
                     $"regions={world.RegionsGenerated} featureVoxels={world.FeatureVoxelsBuilt} " +
-                    $"featureSteps={world.FeatureBuildSteps} drainSteps={drainSteps} timberVoxel={timberVoxel}");
+                    $"lastFeatureMs={world.LastFeatureMs:0.00} drainSteps={drainSteps} timberVoxel={timberVoxel}");
             }
             finally
             {
