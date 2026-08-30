@@ -111,4 +111,6 @@
 - [x] Extend the existing gallery audit/player harness for feature frames, traversal assertions, and bridge/castle cost evidence; do not create a parallel validation harness.
 - [x] Scope the structural audit phase to this exact SceneIssue id so unrelated capture-less WorldbuildingGallery validations keep their existing audit contract and runtime cost.
 - [x] Diagnose final CI admission failure run `33306559976`: request schema used string `"60"` for `replay_seconds`, so Unity/test/player steps never ran and no gate was satisfied.
-- [ ] Correct `replay_seconds` to integer `60` and resubmit on the same persistent `ci-test/fixes/agent-5` transport without changing production code.
+- [x] Correct `replay_seconds` to integer `60` and resubmit on the same persistent `ci-test/fixes/agent-5` transport without changing production code.
+- [x] Diagnose compile-gate run `33306616999` and fix only the reported in-scope script errors: import production `CharacterMotor` namespace and mutate copied `FeatureCatalogue` handles rather than readonly `using` variables.
+- [ ] Revalidate the corrected feature source after those compile fixes; prior compile failure produced no screenshots and satisfied no gate.
