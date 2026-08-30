@@ -4,6 +4,7 @@ using System.IO;
 using System.Reflection;
 using Unity.Mathematics;
 using UnityEngine;
+using VoxelEngine.Structures.Runtime;
 
 namespace VoxelEngine.Showcase
 {
@@ -54,11 +55,45 @@ namespace VoxelEngine.Showcase
         [Serializable] private sealed class IssueRecord { public string sceneName; public IssueFrame[] captures; }
         [Serializable] private sealed class IssueFrame { }
 
+        private readonly struct StructuralFrameSpec
+        {
+            public readonly string Name;
+            public readonly int Proof;
+            public readonly Vector3 Target01;
+            public readonly Vector3 CameraDirection;
+            public readonly float DistanceScale;
+            public readonly float MinimumDistance;
+
+            public StructuralFrameSpec(string name, int proof, Vector3 target01,
+                Vector3 cameraDirection, float distanceScale, float minimumDistance)
+            {
+                Name = name;
+                Proof = proof;
+                Target01 = target01;
+                CameraDirection = cameraDirection;
+                DistanceScale = distanceScale;
+                MinimumDistance = minimumDistance;
+            }
+        }
+
+        private static readonly StructuralFrameSpec[] s_StructuralFrames =
+        {
+            new("bridge-wide", 0, new Vector3(0.50f, 0.55f, 0.50f), new Vector3(-0.35f, 0.42f, -1f), 0.72f, 90f),
+            new("bridge-deck-junction", 0, new Vector3(0.43f, 0.45f, 0.50f), new Vector3(-0.20f, 0.25f, -1f), 0.22f, 28f),
+            new("castle-wide", 1, new Vector3(0.50f, 0.52f, 0.50f), new Vector3(0.80f, 0.45f, -1f), 0.85f, 65f),
+            new("castle-gate", 1, new Vector3(0.50f, 0.30f, 0.08f), new Vector3(0f, 0.18f, -1f), 0.30f, 26f),
+            new("cliff-wide", 2, new Vector3(0.50f, 0.58f, 0.50f), new Vector3(-0.90f, 0.55f, -1f), 0.80f, 62f),
+            new("cliff-ramp-junction", 2, new Vector3(0.48f, 0.44f, 0.50f), new Vector3(-0.45f, 0.22f, -1f), 0.30f, 30f),
+            new("facade-civic", 3, new Vector3(0.22f, 0.55f, 0.88f), new Vector3(0f, 0.25f, 1f), 0.28f, 28f),
+            new("facade-ornate", 3, new Vector3(0.78f, 0.55f, 0.88f), new Vector3(0f, 0.25f, 1f), 0.28f, 28f),
+        };
+
         private sealed class Reporter : MonoBehaviour
         {
             internal string ScreenshotDirectory;
             private bool _started;
             private bool _pinCamera;
+            private bool _structuralAuditPassed;
             private Transform _cameraTransform;
             private Vector3 _pinnedPosition;
             private Quaternion _pinnedRotation;
@@ -159,6 +194,9 @@ namespace VoxelEngine.Showcase
                     yield break;
                 }
 
+                yield return CaptureStructural(world);
+                if (!_structuralAuditPassed) yield break;
+
                 long allocatedBytes = UnityEngine.Profiling.Profiler.GetTotalAllocatedMemoryLong();
                 long reservedBytes = UnityEngine.Profiling.Profiler.GetTotalReservedMemoryLong();
                 long unusedReservedBytes = UnityEngine.Profiling.Profiler.GetTotalUnusedReservedMemoryLong();
@@ -169,6 +207,153 @@ namespace VoxelEngine.Showcase
                     $"residentRegions={world.RegionsGenerated} pendingRegions={world.PendingRegionLoads} " +
                     $"{showcase.DescribeFarTerrain()}");
                 Debug.Log($"TOWNARCH_AUDIT result=PASS captured={captured} expected={expectedViews}");
+            }
+
+            private IEnumerator CaptureStructural(ShowcaseWorld world)
+            {
+                _structuralAuditPassed = false;
+                if (!world.HasWorldbuildingGalleryStructuralCompositionContent())
+                {
+                    Debug.LogError("STRUCTURAL_AUDIT result=FAIL reason=structural-content-missing");
+                    yield break;
+                }
+
+                int totalChildren = 0;
+                int totalPrimitives = 0;
+                int totalVoxelBudget = 0;
+                int totalRegions = 0;
+                int totalInstances = 0;
+                int totalVoxelsWritten = 0;
+
+                for (int proof = 0; proof < ShowcaseWorld.WorldbuildingGalleryStructuralProofCaseCount; proof++)
+                {
+                    ShowcaseWorld.GalleryStructuralProofMetrics metrics =
+                        world.WorldbuildingGalleryStructuralProofMetrics(proof);
+                    if (metrics.Result != StructuralCompositionResult.Ok || metrics.ChildCount <= 0 ||
+                        metrics.PrimitiveCost <= 0 || metrics.VoxelCost <= 0 || metrics.RegionsVisited <= 0 ||
+                        metrics.InstancesRasterised <= 0 || metrics.VoxelsWritten <= 0 || metrics.GraphHash == 0UL)
+                    {
+                        Debug.LogError($"STRUCTURAL_AUDIT result=FAIL reason=invalid-proof-metrics proof={proof} " +
+                            $"name={metrics.Name} result={metrics.Result} children={metrics.ChildCount} " +
+                            $"primitives={metrics.PrimitiveCost} voxelBudget={metrics.VoxelCost} " +
+                            $"regions={metrics.RegionsVisited} instances={metrics.InstancesRasterised} " +
+                            $"voxelsWritten={metrics.VoxelsWritten} graph=0x{metrics.GraphHash:X16}");
+                        yield break;
+                    }
+
+                    double planningMs = world.AuditWorldbuildingGalleryStructuralPlanningMilliseconds(proof);
+                    totalChildren += metrics.ChildCount;
+                    totalPrimitives += metrics.PrimitiveCost;
+                    totalVoxelBudget += metrics.VoxelCost;
+                    totalRegions += metrics.RegionsVisited;
+                    totalInstances += metrics.InstancesRasterised;
+                    totalVoxelsWritten += metrics.VoxelsWritten;
+                    Debug.Log($"STRUCTURAL_COST proof={proof} name={metrics.Name} planningMs={planningMs:0.###} " +
+                        $"children={metrics.ChildCount} primitives={metrics.PrimitiveCost} voxelBudget={metrics.VoxelCost} " +
+                        $"regions={metrics.RegionsVisited} instances={metrics.InstancesRasterised} " +
+                        $"voxelsWritten={metrics.VoxelsWritten} graph=0x{metrics.GraphHash:X16} " +
+                        $"bounds={metrics.BoundsMin}..{metrics.BoundsMax}");
+                }
+
+                StructuralAttachmentRejectReason bridgeOrientation =
+                    world.AuditWorldbuildingGalleryStructuralBridgeOrientationReject();
+                StructuralAttachmentRejectReason castleSemantic =
+                    world.AuditWorldbuildingGalleryStructuralCastleSemanticReject();
+                StructuralAttachmentRejectReason bridgeSemantic =
+                    world.WorldbuildingGalleryStructuralBridgeNegativeReject;
+                StructuralAttachmentRejectReason cliffSupport =
+                    world.WorldbuildingGalleryStructuralCliffNegativeReject;
+                if (bridgeOrientation != StructuralAttachmentRejectReason.OrientationMismatch ||
+                    castleSemantic != StructuralAttachmentRejectReason.IncompatibleRoleOrTags ||
+                    bridgeSemantic == StructuralAttachmentRejectReason.None ||
+                    cliffSupport != StructuralAttachmentRejectReason.MissingTerrainSupport)
+                {
+                    Debug.LogError($"STRUCTURAL_AUDIT result=FAIL reason=negative-contract " +
+                        $"bridgeOrientation={bridgeOrientation} bridgeSemantic={bridgeSemantic} " +
+                        $"castleSemantic={castleSemantic} cliffSupport={cliffSupport}");
+                    yield break;
+                }
+
+                if (world.WorldbuildingGalleryStructuralBridgeTerrainRelief <= 0 ||
+                    world.WorldbuildingGalleryStructuralArchPrimitiveBaseline <= 0)
+                {
+                    Debug.LogError($"STRUCTURAL_AUDIT result=FAIL reason=site-or-detail-contract " +
+                        $"bridgeRelief={world.WorldbuildingGalleryStructuralBridgeTerrainRelief} " +
+                        $"archBaseline={world.WorldbuildingGalleryStructuralArchPrimitiveBaseline}");
+                    yield break;
+                }
+
+                for (int route = 0; route < ShowcaseWorld.WorldbuildingGalleryStructuralTraversalCount; route++)
+                {
+                    ShowcaseWorld.GalleryStructuralTraversalReport traversal =
+                        world.AuditWorldbuildingGalleryStructuralTraversal(route);
+                    Debug.Log($"STRUCTURAL_TRAVERSAL route={route} reached={traversal.Reached} steps={traversal.Steps} " +
+                        $"startDistance={traversal.StartDistanceMetres:0.###}m endDistance={traversal.EndDistanceMetres:0.###}m " +
+                        $"finalFeet={traversal.FinalFeetPosition}");
+                    if (!traversal.Reached || traversal.EndDistanceMetres >= traversal.StartDistanceMetres)
+                    {
+                        Debug.LogError($"STRUCTURAL_AUDIT result=FAIL reason=character-motor-traversal route={route}");
+                        yield break;
+                    }
+                }
+
+                string structuralDirectory = Path.Combine(ScreenshotDirectory, "StructuralCompositionAudit");
+                Directory.CreateDirectory(structuralDirectory);
+                foreach (string stale in Directory.GetFiles(structuralDirectory, "*.png")) File.Delete(stale);
+
+                for (int frame = 0; frame < s_StructuralFrames.Length; frame++)
+                {
+                    StructuralFrameSpec spec = s_StructuralFrames[frame];
+                    ShowcaseWorld.GalleryStructuralProofMetrics metrics =
+                        world.WorldbuildingGalleryStructuralProofMetrics(spec.Proof);
+                    Vector3 min = new Vector3(metrics.BoundsMin.x, metrics.BoundsMin.y, metrics.BoundsMin.z) * ShowcaseWorld.VoxelSize;
+                    Vector3 max = new Vector3(metrics.BoundsMax.x, metrics.BoundsMax.y, metrics.BoundsMax.z) * ShowcaseWorld.VoxelSize;
+                    Vector3 span = max - min;
+                    Vector3 target = new Vector3(
+                        Mathf.Lerp(min.x, max.x, spec.Target01.x),
+                        Mathf.Lerp(min.y, max.y, spec.Target01.y),
+                        Mathf.Lerp(min.z, max.z, spec.Target01.z));
+                    float horizontalSpan = Mathf.Max(span.x, span.z);
+                    float distance = Mathf.Max(spec.MinimumDistance, horizontalSpan * spec.DistanceScale);
+                    Vector3 cameraDirection = spec.CameraDirection.normalized;
+                    _pinnedPosition = target + cameraDirection * distance;
+                    Vector3 direction = target - _pinnedPosition;
+                    _pinnedRotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
+                    _pinCamera = true;
+
+                    world.GenerateRegionBlocking(ShowcaseWorld.RegionAt(target));
+                    world.GenerateRegionBlocking(ShowcaseWorld.RegionAt(_pinnedPosition));
+                    yield return null;
+                    yield return new WaitForSecondsRealtime(0.85f);
+                    yield return new WaitForEndOfFrame();
+
+                    string path = Path.Combine(structuralDirectory, $"{frame + 1:00}-{spec.Name}.png");
+                    ScreenCapture.CaptureScreenshot(path);
+                    Debug.Log($"STRUCTURAL_AUDIT frame={frame + 1}/{s_StructuralFrames.Length} " +
+                        $"name={spec.Name} proof={spec.Proof} camera={_pinnedPosition} target={target}");
+                    yield return new WaitForSecondsRealtime(0.35f);
+                }
+
+                _pinCamera = false;
+                yield return new WaitForSecondsRealtime(1f);
+                int captured = Directory.Exists(structuralDirectory)
+                    ? Directory.GetFiles(structuralDirectory, "*.png").Length : 0;
+                if (captured < s_StructuralFrames.Length)
+                {
+                    Debug.LogError($"STRUCTURAL_AUDIT result=FAIL captured={captured} expected={s_StructuralFrames.Length}");
+                    yield break;
+                }
+
+                long allocatedBytes = UnityEngine.Profiling.Profiler.GetTotalAllocatedMemoryLong();
+                Debug.Log($"STRUCTURAL_COST totalAuthoringMs={world.WorldbuildingGalleryStructuralAuthoringMilliseconds:0.###} " +
+                    $"children={totalChildren} primitives={totalPrimitives} voxelBudget={totalVoxelBudget} " +
+                    $"regions={totalRegions} instances={totalInstances} voxelsWritten={totalVoxelsWritten} " +
+                    $"residentRegions={world.RegionsGenerated} allocatedMB={allocatedBytes / (1024f * 1024f):0.##} " +
+                    $"renderProxyRegions={totalRegions} bridgeRelief={world.WorldbuildingGalleryStructuralBridgeTerrainRelief} " +
+                    $"archBaselinePrimitives={world.WorldbuildingGalleryStructuralArchPrimitiveBaseline}");
+                Debug.Log($"STRUCTURAL_AUDIT result=PASS captured={captured} traversals={ShowcaseWorld.WorldbuildingGalleryStructuralTraversalCount} " +
+                    $"bridgeOrientationReject={bridgeOrientation} castleSemanticReject={castleSemantic} cliffSupportReject={cliffSupport}");
+                _structuralAuditPassed = true;
             }
 
             private static string Sanitize(string value)
