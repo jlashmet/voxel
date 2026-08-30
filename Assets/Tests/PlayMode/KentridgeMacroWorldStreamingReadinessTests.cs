@@ -23,7 +23,7 @@ namespace VoxelEngine.Tests.PlayMode
         private const int MaximumFeatureDrainSteps = 16;
 
         [Test]
-        public void CurrentDemandReadinessWaitsForFeaturePublicationAndCommittedSettlementShell()
+        public void PresentationColumnReadinessWaitsForFeaturePublicationAndCommittedSettlementShell()
         {
             // Keep the complete macro physical/storage contract inside the final exact-SHA target,
             // then add the production streaming discriminator that was missing from the prior gate.
@@ -53,7 +53,7 @@ namespace VoxelEngine.Tests.PlayMode
                 building.CentreDm.X * settings.VoxelsPerDecimetre,
                 maximumGround + 10 * settings.VoxelsPerDecimetre,
                 building.CentreDm.Y * settings.VoxelsPerDecimetre);
-            var cameraMetres = new float3(
+            var presentationMetres = new float3(
                 timberVoxel.x * ShowcaseWorld.VoxelSize,
                 timberVoxel.y * ShowcaseWorld.VoxelSize,
                 timberVoxel.z * ShowcaseWorld.VoxelSize);
@@ -84,27 +84,27 @@ namespace VoxelEngine.Tests.PlayMode
 
                 // Feature work is deliberately stepped before terrain. A fresh streaming call can
                 // therefore finish every currently demanded terrain region and publish its terrain
-                // meshes while the settlement feature publications it just queued have not run yet.
-                world.StepStreaming(cameraMetres, StreamingBudgetMs);
+                // meshes while the settlement feature publication for this column has not run yet.
+                world.StepStreaming(presentationMetres, StreamingBudgetMs);
 
                 Assert.That(world.PendingRegionLoads, Is.Zero,
                     "The discriminator requires all current terrain demand to be generated in the first streaming pass.");
                 Assert.That(world.RegionsGenerated, Is.GreaterThan(0));
                 Assert.That(
-                    world.IsCurrentDemandContentSettled(cameraMetres),
+                    world.IsPresentationColumnContentSettled(presentationMetres),
                     Is.False,
-                    "Terrain publication alone must not declare the current demand presentation-stable while authored feature publication is pending.");
+                    "Terrain publication alone must not declare a presented settlement column stable while authored feature publication is pending.");
 
                 int featureVoxelsBeforeDrain = world.FeatureVoxelsBuilt;
                 int drainSteps = 0;
-                while (!world.IsCurrentDemandContentSettled(cameraMetres)
+                while (!world.IsPresentationColumnContentSettled(presentationMetres)
                        && drainSteps++ < MaximumFeatureDrainSteps)
-                    world.StepStreaming(cameraMetres, StreamingBudgetMs);
+                    world.StepStreaming(presentationMetres, StreamingBudgetMs);
 
                 Assert.That(
-                    world.IsCurrentDemandContentSettled(cameraMetres),
+                    world.IsPresentationColumnContentSettled(presentationMetres),
                     Is.True,
-                    "Current-demand readiness must become true after all demanded feature publications complete.");
+                    "Presentation-column readiness must become true after that column's feature publication completes.");
                 Assert.That(
                     world.FeatureVoxelsBuilt,
                     Is.GreaterThan(featureVoxelsBeforeDrain),
