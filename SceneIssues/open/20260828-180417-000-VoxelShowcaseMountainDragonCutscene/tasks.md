@@ -16,27 +16,23 @@
 - [x] Run `33310677691` on exact source `2100df40287a...`: fresh bake, native exit, Unity reopen, structural PlayMode acceptance, 17/17 built-player traversal, capture, and final status all green.
 
 ## Visual quality gate
-- [x] Merge master visual-quality instructions and re-review built-player frames under the AAA rubric.
-- [x] Classify the original bright-masonry mountain/path as `prototype/blockout quality`; cube dragon remains explicitly permitted placeholder art.
-- [x] Add reusable semantic mountain presentation roles (`rock`, `groundCover`, `path`, `placeholder`), compose VoxelShowcase with dark rock/moss/dirt/red-cube roles, and bump startup landmark contract revision to 4.
-- [x] Add `MountainDragonVisualFinalAcceptanceTests.ProductionQualityMountainMaterialsAndEncounterAreReadyForBuiltPlayerReplay` plus Unity metadata.
-- [x] Merge current `origin/master` `c2cdde7fef88...` before request `2773c67f655a...`; exact source `a6288a9411c5...` had `behind_by=0`.
-- [x] Leave exact run `33314740587` untouched through completion and inspect its NUnit result, bake log, standalone-player log, and exact built-player captures.
-- [x] Record run `33314740587` cost result: revision-4 fresh bake succeeded under unchanged 240 s / 14 GiB guards, logged `200 regions, 13.9 MiB`, signature `0x217FA141`, and reopened Unity normally.
-- [x] Classify requested-test failure: material-role regression itself passed; old prepared-startup acceptance still expected legacy mountain material `1` although production VoxelShowcase core rock is now `6`.
-- [x] Classify standalone-player failure: normal production movement reached grounded waypoint `16/17`, then the evidence harness hit its 58.0 s internal timeout; dialogue had already triggered in the summit frame, but final waypoint/capture was not completed.
-- [x] Human-review exact run `33314740587` frames as still `prototype/blockout quality`: repeated giant rounded support banks, pile-of-domes silhouette, hard/extruded path edges with weak terrain transition, and an engineered flat summit pad.
-- [ ] Correct only the stale prepared-bake material expectation while retaining generic single-material catalogue tests and exact path/placeholder semantics.
-- [ ] Restore deterministic evidence timing margin without changing route coordinates, movement speed, grounded/Y predicates, or gameplay behavior.
-- [ ] Replace repetitive segmented support blobs with a reusable natural ridge/support realization that blends into the mountain and avoids repeated cylindrical/domed forms; preserve continuous occupied support and headroom.
-- [ ] Improve mountain/summit/path terrain integration enough that exact built-player approach/base/middle/upper/summit/dialogue frames classify `production-quality`; add behavioral geometry regressions for the selected reusable invariant rather than screenshot-string/source checks.
-- [ ] Re-run one exact final PlayMode filter + same-run built-player replay through existing `ci-test/fixes/agent-4` only after product fixes and then-current master merge; leave it untouched while queued/running.
+- [x] Merge master visual-quality instructions and classify the prior bright-masonry and revision-4 material-separated captures as still `prototype/blockout quality`; cube dragon remains explicitly permitted placeholder art.
+- [x] Add reusable semantic presentation roles and compose VoxelShowcase with dark rock, moss foothills, dirt path, and red cube.
+- [x] Leave exact run `33314740587` untouched through completion; its fresh revision-4 bake passed unchanged cost guards, while the stale material assertion and 58 s replay margin failed and exact frames exposed repeated support blobs / engineered summit geometry.
+- [x] Correct the prepared-bake mountain expectation from legacy material `1` to production dark-rock role `6`; retain generic single-material raster/catalogue tests.
+- [x] Restore deterministic evidence timing margin by changing route timeout `58.0 -> 59.0` only; coordinates, movement speed, arrival radius, grounded/Y predicates, gameplay, and workflow 60 s limit remain unchanged.
+- [x] Replace repetitive segmented presentation with reusable same-elevation support-pair ridge consolidation, keep moss only on the three broad asymmetric foothills, and narrow the summit crest while retaining placeholder support; no primitive count is added.
+- [x] Replace the obsolete geometry-identical visual regression with a behavioral program invariant: primitive/budget envelope and all carve/ramp/path instructions stay fixed; exactly three moss shoulders remain; support ridges retain elevation/height/axis/mode and rock role; deterministic support pairing and narrowed supported crest are required.
+- [x] Bump startup landmark realization provenance to revision 5 so revision-4 bytes cannot satisfy the changed rendered geometry.
+- [x] Refresh from current master `65e33762a0d0...` via merge `edddd087f1e6...`; master delta was only the unrelated GPU SceneIssue queue file.
+- [ ] Merge then-current master immediately before the final request, then run the exact visual-final PlayMode filter + same-run built-player replay through existing `ci-test/fixes/agent-4` only; leave it untouched while queued/running.
+- [ ] Human-review exact approach/base/middle/upper/summit/dialogue frames and require `production-quality`; if below bar, record concrete defects and continue before closure.
 - [ ] Re-check final bake/runtime cost under unchanged 240 s / 14 GiB contracts.
 
 ## Checked-in startup payload
-- [x] Confirm runtime requires both `ShowcaseWorld.bytes` and matching `ShowcaseWorld.manifest.txt`; the currently tracked 11,074,525-byte legacy payload is stale.
+- [x] Confirm runtime requires both `ShowcaseWorld.bytes` and matching `ShowcaseWorld.manifest.txt`; the currently tracked legacy payload is stale.
 - [ ] From the final visually accepted run, record exact payload size/SHA-256/content signature and manifest.
-- [ ] Replace tracked `Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes` with that exact accepted payload and add matching `ShowcaseWorld.manifest.txt` through a repository-sanctioned binary write/refresh path; do not weaken provenance, runtime-author the mountain, create a workflow, or create another CI transport.
+- [ ] Replace tracked `Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes` with that exact accepted payload and add matching `ShowcaseWorld.manifest.txt` through a repository-sanctioned binary write path; do not weaken provenance, runtime-author the mountain, create a workflow, or create another CI transport.
 - [ ] Validate a clean checkout consumes the exact checked-in accepted payload/manifest; satisfy any exact-source gate required by repository policy after the binary commit.
 
 ## Closure
