@@ -45,11 +45,12 @@
 - [x] Submit the completed final request only through existing `ci-test/fixes/agent-4`: CI SHA `517acdd1e7498f703b1a8355f2dc026261f33e97`, exact feature parent `40e01319e0ddc05cd135d5c6d2577d71a398492c`, run `33287514117`.
 - [x] Inspect run `33287514117` attempts 1 and 2 without replacing the request: both source-matched fresh bakes were killed at 241 s before focused acceptance; attempt 1 peak RSS was 10.5 GB, below the 14 GB ceiling; fallback player failure was only missing fresh manifest provenance.
 - [x] Correct the cost model: moving out of castle ownership changes effective mountain authoring from 6 active footprint regions to all 9 (+50%); unchanged nominal footprint/primitive count does not imply unchanged bake cost.
-- [ ] Locate the newly exercised hot path responsible for the 9-region layout exceeding the 240 s bake contract.
-- [ ] Add a focused behavioral/cost regression before the next production optimization.
-- [ ] Implement an output-equivalent optimization preserving serialized voxel truth and observable write/primitive semantics.
-- [ ] Re-check optimization blast radius and measured cost.
-- [ ] Prove all authored landing floor/headroom columns survive with the optimized carve path and no castle-region suppression.
+- [x] Locate the newly exercised hot path responsible for the 9-region layout exceeding the 240 s bake contract: the mountain emits 20+ convex frustum support fills, and fully interior canonical-empty 8^3 blocks still execute 512 identical contains/read/write iterations each.
+- [x] Add a focused behavioral/cost regression before the next production optimization: `FrustumFillAtomicallyAuthorsFullyInteriorEmptyBlockWithoutOverfillingBoundaryBlock` requires one authoritative whole-cell mutation for a fully interior empty block, exact 512 logical writes, and preserves the per-cell boundary-block path.
+- [x] Implement an output-equivalent optimization preserving serialized voxel truth and observable write/primitive semantics: commit `090d0032456e...` atomically fills only complete canonical-empty Frustum Fill blocks whose eight extreme voxel centres are all contained.
+- [x] Re-check optimization blast radius statically: partial/non-empty frustum blocks, boundary halo, all other primitive modes/shapes, primitive order, footprint, material/surface semantics, and logical write accounting remain on their prior behavior.
+- [ ] Measure the revised full 9-region bake cost under the 240 s subprocess contract.
+- [ ] Prove all authored landing floor/headroom columns survive with the optimized path and no castle-region suppression.
 
 ## Exact-SHA bake / built-player gate
 - [x] Use only existing `ci-test/fixes/agent-4` for targeted CI; no extra transport and no feature-branch `.github/test-request.json` edit.
