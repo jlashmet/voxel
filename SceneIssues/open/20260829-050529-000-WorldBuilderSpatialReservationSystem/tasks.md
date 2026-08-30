@@ -1,5 +1,16 @@
 # Tasks — WorldBuilder Spatial Reservation System
 
+## Audit findings / ownership map (2026-08-29)
+
+- Canonical reservation contracts belong in `Assets/Game/WorldBuilder/Generation/Core` under the existing `MountingForce.WorldGen` engine-free integer-decimeter layer (`Int2`/`Int3`).
+- Kentridge production migration target is `Content/Kentridge/KentridgeTownPlanner`: `IntersectsPlaced` and `IntersectsPlaza` currently own bespoke footprint/clearance rejection.
+- Settlement/macro/road-facing boundaries already live in `SettlementPlotLayout`, `SettlementRoadFacingPlacement`, settlement model/composition policy, and planned route/access contracts; reservation integration must consume those semantics rather than take over topology or route solving.
+- Vegetation integration belongs at `RegionEcologyPolicy` / `VegetationLayout`; ecology remains authoritative for species and baseline density while reservations only suppress/yield placement.
+- Underground semantics already have an engine-free home in `HiddenSpaceContracts`; the proving harness should adapt those concepts rather than invent cave topology.
+- The expected typed `StructuralSocket` symbol is not present on current `master`; integration must use the production structure-composition/attachment boundary that exists on this branch and must not depend on another agent's unmerged work.
+- No mutable global registry, GameObject/collider authority, Unity Physics query, insertion-order tie break, or second permanent spatial index is allowed.
+- Cost instrumentation is required in the reservation query result itself (buckets/candidates/narrow-phase counts plus elapsed ticks), with representative stress assertions before closure.
+
 ## Audit / architecture
 
 - [ ] Trace current `KentridgeTownPlanner` placement, clearance, plaza, bounds, and public-access logic.
