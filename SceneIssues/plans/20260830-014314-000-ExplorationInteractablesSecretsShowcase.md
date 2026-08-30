@@ -1,18 +1,18 @@
 # Exploration Interactables and Secrets Showcase
 
-- [x] Verify agent-2 assignment, branch, canonical SceneIssues workflow, issue metadata, and capture inventory.
-- [ ] **IN PROGRESS:** Inspect existing voxel/runtime/rendering/showcase infrastructure and discriminate reuse-vs-new-implementation hypotheses with repository/runtime evidence.
-- [ ] Add the narrow public runtime API and behavioral regression coverage for door, trapdoor, secret-passage, and secret-room semantics.
-- [ ] Implement the thinnest reusable runtime/rendering/showcase slice with bounded blast radius and cost.
-- [ ] Keep interaction affordance, activation source, activation target/mechanism, and secret/discovery integration as separate reusable responsibilities; do not hard-code source→target pairs such as lever→door or button→bookshelf.
-- [ ] Keep the existing secret system authoritative for identity, discovery, rewards/credit, and duplicate prevention; interactables may expose or unlock secrets but must not create a second reward/discovery state machine.
-- [ ] Prove at least two different activation sources can drive more than one compatible mechanism through the same public linking/activation contract, and that the same mechanisms work outside secret scenarios.
-- [ ] Reuse/migrate existing door and trapdoor behavior where practical instead of introducing a parallel interaction model; document any intentional migration deferral.
-- [ ] Validate component regressions, compile-check gate, and the exact `Assets/Scenes/Showcase/InteractablesShowcase.unity` path in the built application.
-- [ ] Push the exact feature SHA, issue the single final targeted-CI request through `ci-test/fixes/agent-2`, and require green exact-SHA evidence.
-- [ ] Complete resolution metadata, move the assigned issue pending→closed, merge latest `origin/master`, and push the exact feature head to `origin/master` non-force.
+- [x] Verify agent-2 assignment, branch, `AGENTS.md`, `SceneIssues/issue-readme.md`, common workflow, issue metadata, and capture inventory.
+- [x] Inspect the supplied capture metadata/marked region. **Blocker:** `captures/Primary__Scenepng.png` is referenced by `issue.json` but absent from the issue directory, so pixel-level inspection is unavailable; continue from the marked-region metadata and runtime evidence.
+- [x] Discriminate competing hypotheses: pressure/lever/destruction/signals/persistence/presentation already exist; the missing acceptance behavior is primarily showcase composition plus a reusable semantic proximity source. Prior trapdoor/reset work is shared infrastructure but is not one of this issue's four acceptance behaviors.
+- [ ] Add the narrow reusable proximity-trigger source and a generic authored-scene registry entry point; keep showcase IDs/layout policy in composition.
+- [ ] Compose the four marked-region mechanisms adjacent to the Primary hub: proximity sliding door, pressure-plate door, lever bridge, and breakable secret wall with revealed rubble/path.
+- [ ] Add a PlayMode behavioral regression that directly drives the WorldObject interaction interface and proves open/close, press/release, extend/retract, destruction/reveal, and persistence.
+- [ ] Validate `Assets/Scenes/Primary.unity`, deterministic descriptors/connections, and bounded blast radius/cost (small fixed scene; no terrain-wide regeneration or per-frame allocation loop).
+- [ ] Stage the assigned issue pending with exact feature metadata, then use only `ci-test/fixes/agent-2` for the exact-SHA targeted-CI request without replacing queued/running CI.
+- [ ] After green exact-SHA CI, complete pending metadata, move pending→closed with status `fixed`/`resolvedUtc`, merge latest `origin/master`, and push the exact feature head to `origin/master` non-force.
 
 ## Evidence notes
 
-- `SceneIssues/issue-readme.md` is absent on the assigned branch. `SceneIssues/README.md` identifies itself as the sole authoritative workflow, so it is the controlling SceneIssues guide.
-- The assigned issue has `captures: []`; there are no supplied captures or marked regions to inspect. Runtime/behavioral validation remains required by the acceptance criteria.
+- `WorldObjectBehavior` already implements pressure plate enter/exit, lever toggles, breakable-wall destruction, and connection-driven actions.
+- `WorldObjectSceneRegistry` already preserves per-parent state across unload/reload and snapshot/restore.
+- `WorldObjectPresentationPlan`/Unity presentation already handle door, drawbridge, lever, pressure plate, and breakable-wall visual/collider state.
+- The Unity presentation sink does not itself dispatch trigger-enter/exit events. This issue's required behavioral regression explicitly drives the authoritative interaction API directly, so expanding into a new player-controller collision router is outside this defect's demonstrated scope.
