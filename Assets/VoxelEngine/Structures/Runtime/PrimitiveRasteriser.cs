@@ -146,15 +146,35 @@ namespace VoxelEngine.Structures.Runtime
                 int bz0 = math.max(z0, blockVoxelMin.z);
                 int bz1 = math.min(z1, blockVoxelMin.z + VoxelReadGrid.BlockEdgeMask);
 
+                bool boxCarve = primitive.Mode == PrimitiveMode.Carve
+                    && primitive.Shape == PrimitiveShape.Box;
+
                 // Mountain headroom and other axis-aligned voids often overlap large volumes that
                 // are already canonical empty storage. A box has no authored boundary halo, so an
                 // explicitly Empty block cannot possibly change under Carve. Do not use occupancy
                 // alone here: a Mixed block may contain authored empty-side boundary samples that
                 // default-cell carving is required to clear.
-                if (primitive.Mode == PrimitiveMode.Carve
-                    && primitive.Shape == PrimitiveShape.Box
-                    && read.IsImplicitlyEmptyBlock(worldBlock))
+                if (boxCarve && read.IsImplicitlyEmptyBlock(worldBlock))
                     continue;
+
+                // A fully covered box-carve block has exactly one authoritative result regardless
+                // of its prior uniform/Mixed representation: all 8^3 cells become default. Use the
+                // Storage-owned whole-cell replacement so Mixed boundary payload is cleared and
+                // collapsed without 512 read/compare/write iterations. Edge-clipped blocks retain
+                // the per-voxel path below so cells outside the carve remain untouched.
+                if (boxCarve
+                    && bx0 == blockVoxelMin.x
+                    && bx1 == blockVoxelMin.x + VoxelReadGrid.BlockEdgeMask
+                    && by0 == blockVoxelMin.y
+                    && by1 == blockVoxelMin.y + VoxelReadGrid.BlockEdgeMask
+                    && bz0 == blockVoxelMin.z
+                    && bz1 == blockVoxelMin.z + VoxelReadGrid.BlockEdgeMask)
+                {
+                    VoxelCell empty = default;
+                    if (mutations.SetWholeCellBlock(worldBlock, in empty, false))
+                        result.VoxelsWritten += VoxelReadGrid.VoxelsPerBlock;
+                    continue;
+                }
 
                 VoxelBlockMutation mutation = default;
                 bool mutationOpen = false;
