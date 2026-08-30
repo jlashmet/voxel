@@ -14,28 +14,35 @@ namespace Game.Kentridge.PlayableSlice
 {
     /// <summary>
     /// Opt-in built-player acceptance probe for the recovered opening story. Ordinary gameplay does
-    /// not install this component. The real slice must first finish its live Logan opening; the probe
-    /// then drives the same authored Story rules for Awon and Medrare and validates the recovered
-    /// production dialogue/choreography before publishing one durable PASS record for CI.
+    /// not install this component. The exact SceneIssue replay drives the live Logan opening through
+    /// the normal playable-slice runtime, then validates the production Awon/Medrare story rules,
+    /// recovered dialogue, choreography, effects, and replay suppression before publishing PASS.
     /// </summary>
     [DefaultExecutionOrder(10000)]
     internal sealed class KentridgeOpeningEvidenceHarness : MonoBehaviour
     {
+        private const string TargetIssueId =
+            "20260828-213647-000-KentridgeAwonMedrareOpeningCutscenes";
         private const ulong ExpectedMedrareDialogueHash = 0xaf88eb792eee83b6UL;
+        private const int ValidationFailureExitCode = 42;
+        private const int IncompleteValidationExitCode = 43;
 
         private KentridgePlayableSlice _slice;
-        private bool _finished;
+        private bool _attempted;
+        private bool _passed;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Install()
         {
-            if (!HasCommandLineFlag("-voxel-kentridge-opening-evidence")) return;
+            if (!ShouldInstall()) return;
 
             KentridgePlayableSlice slice = UnityEngine.Object.FindFirstObjectByType<KentridgePlayableSlice>(
                 FindObjectsInactive.Include);
             if (slice == null)
             {
                 Debug.LogError("KENTRIDGE_OPENING result=FAIL reason=no-playable-slice");
+                Environment.ExitCode = ValidationFailureExitCode;
+                Application.Quit(ValidationFailureExitCode);
                 return;
             }
 
@@ -45,23 +52,48 @@ namespace Game.Kentridge.PlayableSlice
             };
             var harness = root.AddComponent<KentridgeOpeningEvidenceHarness>();
             harness._slice = slice;
+            UnityEngine.Object.DontDestroyOnLoad(root);
             Debug.Log("KENTRIDGE_OPENING armed waiting-for-live-logan-opening");
         }
 
         private void Update()
         {
-            if (_finished || _slice == null) return;
-            if (!_slice.OpeningCutsceneStarted || !_slice.GameplayControlEnabled) return;
+            if (_attempted || _slice == null) return;
 
-            _finished = true;
+            // This is exactly the same unattended release seam already used by the Kentridge
+            // landmark evidence harness. While the live Logan cutscene owns control, AutoWalk lets
+            // the production slice dismiss pending dialogue and tick its real CampaignRuntime. No
+            // teleport or alternate cutscene runner is introduced.
+            if (!_slice.GameplayControlEnabled)
+            {
+                _slice.AutoSurvey = false;
+                _slice.AutoRecede = false;
+                _slice.AutoWalk = true;
+                return;
+            }
+
+            _slice.AutoWalk = false;
+            _attempted = true;
             try
             {
                 ValidateProductionOpening();
+                _passed = true;
             }
             catch (Exception ex)
             {
                 Debug.LogError("KENTRIDGE_OPENING result=FAIL reason=" + Sanitize(ex.Message));
+                Environment.ExitCode = ValidationFailureExitCode;
+                Application.Quit(ValidationFailureExitCode);
             }
+        }
+
+        private void OnApplicationQuit()
+        {
+            if (_passed) return;
+            if (!_attempted)
+                Debug.LogError("KENTRIDGE_OPENING result=FAIL reason=player-exited-before-validation");
+            if (Environment.ExitCode == 0)
+                Environment.ExitCode = IncompleteValidationExitCode;
         }
 
         private static void ValidateProductionOpening()
@@ -81,9 +113,9 @@ namespace Game.Kentridge.PlayableSlice
             Require(DispatchNpc(content, content.Medrare, state, effects) == 0, "medrare-fired-before-awon");
             Require(DispatchSite(content, content.MedrareHouseSite, state, effects) == 0, "first-spell-fired-before-awon");
 
-            // GameplayControlEnabled above proves the built scene's real CampaignRuntime completed
-            // the Logan opening. Mirror that completion into this deterministic rule-state probe so
-            // the remaining production progression can be driven without teleporting the live player.
+            // GameplayControlEnabled above proves that this built application's real campaign
+            // runtime has completed the Logan opening. Mirror only that completion into the rule
+            // probe so the remaining production progression can be exercised deterministically.
             state.Complete(content.IntroCutscene);
             Require(DispatchNpc(content, content.Awon, state, effects) == 1, "awon-did-not-fire-after-logan");
             Require(effects.LastCutscene.Equals(content.AwonOpeningCutscene), "awon-cutscene-mismatch");
@@ -100,6 +132,7 @@ namespace Game.Kentridge.PlayableSlice
             Require(join.Steps[1].Type == CutsceneStepType.Wait && join.Steps[1].DurationMilliseconds == 1500, "medrare-wait-step");
             Require(join.Steps[2].Type == CutsceneStepType.MoveActor, "medrare-move-step");
             Require(join.Steps[2].Actor.Equals(KentridgeOpeningProgressionCutscenes.Medrare), "medrare-move-actor");
+            Require(join.Steps[2].StagePoint.Equals(KentridgeOpeningProgressionCutscenes.MedrareApproachPoint), "medrare-move-target");
             Require(join.Steps[2].DurationMilliseconds == 2000, "medrare-move-duration");
 
             ulong dialogueHash = HashMedrareDialogue(join);
@@ -179,11 +212,20 @@ namespace Game.Kentridge.PlayableSlice
             EvidenceEffects effects) =>
             StoryRuleEngine.Dispatch(content.Blueprint.StoryRules, StoryEvent.SiteProximityEntered(site), state, effects);
 
-        private static bool HasCommandLineFlag(string flag)
+        private static bool ShouldInstall()
         {
             string[] args = Environment.GetCommandLineArgs();
             for (int i = 0; i < args.Length; i++)
-                if (string.Equals(args[i], flag, StringComparison.Ordinal)) return true;
+            {
+                if (string.Equals(args[i], "-voxel-kentridge-opening-evidence", StringComparison.Ordinal))
+                    return true;
+
+                bool issueSwitch = string.Equals(args[i], "-voxel-scene-issue", StringComparison.Ordinal)
+                    || string.Equals(args[i], "-voxelIssue", StringComparison.Ordinal);
+                if (!issueSwitch || i + 1 >= args.Length) continue;
+                if ((args[i + 1] ?? string.Empty).IndexOf(TargetIssueId, StringComparison.Ordinal) >= 0)
+                    return true;
+            }
             return false;
         }
 
