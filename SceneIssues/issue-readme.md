@@ -1,28 +1,30 @@
 # Scene issue workflow
 
-Use this workflow for capture-driven defects in an existing scene. Common queue, branch, CI, and promotion rules live in `SceneIssues/README.md`.
+Use for capture-driven defects. Common queue, branch, CI, and merge rules are in `SceneIssues/README.md`.
 
-## Investigate the captured defect
+## Investigate
 
-1. Inspect every screenshot, frame, annotation, and note directly. Treat marked regions as separate defects until evidence proves a shared owner.
-2. Replay every recorded pose and identify the responsible runtime object, profile/material, coordinates, triangle/voxel, or ownership decision. A synthetic repro proves possibility, not causality.
-3. Record at least two plausible hypotheses and run the smallest discriminating experiment. State what would falsify the leading hypothesis.
-4. If the same acceptance gate fails twice, stop speculative production changes and isolate the behavior in a minimal reproduction/root-cause discriminator before another fix attempt. Remove temporary wiring before promotion.
-5. Add a focused behavioral regression through the production computation. Source-string checks may supplement it but cannot be the sole rendering, geometry, or performance regression.
-6. Implement the smallest proven fix. For shared systems, identify affected consumers, test likely negative regressions, and quantify cost against an existing budget.
+1. Inspect every capture, frame, annotation, and note. Treat marked regions as separate defects until evidence proves a shared owner.
+2. Replay every pose and identify the responsible runtime object/profile/material/coordinate/geometry/ownership decision. Synthetic repro proves possibility, not causality.
+3. Record at least two plausible hypotheses and run the smallest discriminating experiment; state what falsifies the leader.
+4. If the same acceptance symptom or assertion fails after two materially different fixes, stop speculative changes and isolate a minimal repro/root cause before another fix.
+5. Add a focused behavioral regression through production computation; source-string checks are supplemental only.
+6. Implement the smallest proven fix. For shared systems, check affected consumers, likely regressions, and cost against budget.
+
+If an external prerequisite is unavailable, record the blocker and continue independent work; do not substitute something that changes acceptance.
 
 ## Built-scene validation
 
-Validate every production change with the repository scene harness that builds the actual application/player and launches the exact affected scene. EditMode tests, editor-only PlayMode tests, unit tests, and synthetic repros are supplemental evidence only.
+Validate production changes in the actual built application/player for the affected scene; editor/unit/synthetic evidence is supplemental.
 
-Replay every original pose and marked region in the built application after the fix. The scene must reach a usable rendered state without startup/runtime exceptions.
+Replay every original pose and marked region. The scene must render and run without startup/runtime exceptions.
 
-Visual fixes must meet the repository's production art/layout bar, not merely add the named primitive types. Inspect construction detail, proportions, material readability, physical support, useful placement, circulation, clearance, intersections, and framing. Reject placeholder-quality assemblies, missing structural parts, floating props, unintended overlaps, or evidence that does not actually show the defect fixed.
+Visual fixes must meet the production art/layout bar: construction detail, proportions, material readability, support, placement, circulation, clearance, intersections, and framing. Reject placeholder quality, missing parts, floating props, unintended overlaps, or evidence that does not show the defect fixed. After visual rejection, identify the failed visual relationship before broad geometry/material changes.
 
-Fix reusable generation at the semantic/constraint level rather than hard-coding capture coordinates. Scene-specific placement and presentation belong in composition; shared systems should express reusable intent and constraints.
+Fix reusable generation at the semantic/constraint level. Keep scene-specific placement/presentation in composition. Do not refactor adjacent systems unless acceptance or a demonstrated defect requires it.
 
-## Evidence discipline
+## Evidence
 
-Keep `plan.md` concise: observed defect/acceptance, competing hypotheses, next discriminator, material results, selected fix, current commit, and remaining gates. Replace stale detail with a short conclusion rather than growing a diary.
+Keep `plan.md` concise: defect/acceptance, hypotheses, next discriminator, material results, selected fix, current commit, remaining gates.
 
-Record substantial experiments as `experiment-NNN-<slug>.md` with hypothesis, action/source SHA, result, verdict, and next step. Keep CI polling/runner notes in `ci-operations.md`; store durable textual evidence beside the issue.
+Record substantial experiments as `experiment-NNN-<slug>.md`: hypothesis, action/source SHA, result, verdict, next step. Keep CI polling in `ci-operations.md` and durable textual evidence beside the issue.
