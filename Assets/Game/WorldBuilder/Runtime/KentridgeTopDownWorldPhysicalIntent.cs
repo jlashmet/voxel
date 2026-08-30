@@ -66,12 +66,15 @@ namespace Game.WorldBuilder.Runtime
                     // Stable seeded variation is part of the authoring contract. These nominal
                     // margins resolve to exactly 450 x 225 dm half-extents and 24 dm depth for
                     // Kentridge's fixed seed instead of letting negative variation shrink the
-                    // landmark below its 90 m x 45 m acceptance floor.
+                    // landmark below its 90 m x 45 m acceptance floor. The semantic southward
+                    // offset keeps the bounded lake on the real direct Rossdam road so GoAround
+                    // remains an exercised geography solution rather than metadata-only intent.
                     halfExtentXDm: 456,
                     halfExtentZDm: 228,
                     elevationDeltaDm: -23,
                     variationDm: 12,
                     offsetXDm: -300,
+                    offsetZDm: -210,
                     source: "first macro geography pass: substantial bounded lake separating the Moordell corridor from Rossdam approach while remaining streamable at gameplay budgets"),
                 new TopDownWorldRegionSpec(
                     SouthernRidge,
@@ -151,16 +154,20 @@ namespace Game.WorldBuilder.Runtime
                     minimumBuildingCount: 0),
                 new TopDownWorldSettlementPhysicalSpec(
                     KentridgeTopDownWorldLayout.Moordell,
-                    TopDownWorldSettlementRealizationKind.GenericBlockout),
+                    TopDownWorldSettlementRealizationKind.GenericBlockout,
+                    minimumBuildingCount: 4),
                 new TopDownWorldSettlementPhysicalSpec(
                     KentridgeTopDownWorldLayout.Rossdam,
-                    TopDownWorldSettlementRealizationKind.GenericBlockout),
+                    TopDownWorldSettlementRealizationKind.GenericBlockout,
+                    minimumBuildingCount: 4),
                 new TopDownWorldSettlementPhysicalSpec(
                     KentridgeTopDownWorldLayout.FairyVillage,
-                    TopDownWorldSettlementRealizationKind.GenericBlockout),
+                    TopDownWorldSettlementRealizationKind.GenericBlockout,
+                    minimumBuildingCount: 4),
                 new TopDownWorldSettlementPhysicalSpec(
                     KentridgeTopDownWorldLayout.OrcVillage,
-                    TopDownWorldSettlementRealizationKind.GenericBlockout)
+                    TopDownWorldSettlementRealizationKind.GenericBlockout,
+                    minimumBuildingCount: 4)
             };
 
             return new TopDownWorldPhysicalIntentSpec(regions, routeConstraints, settlements);
