@@ -14,14 +14,14 @@ namespace Game.Cutscenes.Content.Kentridge
         public const int OriginalOpeningLineCount = 31;
         public const int AwonOpeningLineCount = 22;
         public const int AwonOpeningBeatCount = AwonOpeningLineCount;
+        public const int MedrareJoinLineCount = 17;
 
         private const string OpeningCuePrefix = "kentridge.pub.opening.line-";
         private const string AwonOpeningCuePrefix = "kentridge.awon.opening.line-";
+        private const string MedrareJoinCuePrefix = "kentridge.medrare.join.line-";
 
         public static readonly CutsceneCueId SeeMedrareSourceDialogue =
             new CutsceneCueId("mounting-force.dialogue.kentridge-see-medrare");
-        public static readonly CutsceneCueId MedrareJoinSourceDialogue5000 =
-            new CutsceneCueId("mounting-force.dialogue.5000");
         public static readonly CutsceneCueId MedrareFirstSpellSourceDialogue =
             new CutsceneCueId("mounting-force.dialogue.medrare-first-spell");
         public static readonly CutsceneCueId MedrareToChurchSourceDialogue =
@@ -88,11 +88,31 @@ namespace Game.Cutscenes.Content.Kentridge
             "Ok thanks dad, thats helpful.  We will check it out."
         };
 
+        private static readonly string[] MedrareJoinLines =
+        {
+            "Weldon!! I'm glad I caught up with you.",
+            "Man, how did you know we were back?  Were you just sitting here all day staring at the docks?",
+            "Umm.. no... Of course not!  Call it... wizards intuition.  Yes, thats it.  Wizards intuition.",
+            "I've come across some very disturbing news!  Remember how I said I've been working on a new type of magic?",
+            "Well my old arch nemesis, Elius, has stolen my notes!  That rat!!",
+            "Sorry professor, but we've got our own problems.",
+            "Remember Logan?  Well, the short of it is he turned into a demon, flew away, and is now raising an army to destroy the entire world.",
+            "We are on our way to warn the King and ask for reinforcements.",
+            "Weldon!  As your instructor, I command you to put aside the fate of the world, and help me resolve my petty squabble with Elius!",
+            "Plus... I'll join your party.  And my magic can pack quite a wallop.",
+            "Well... if you say so.  I guess you probably would be more useful than whoever the King would lend us.",
+            "So where is this Elius?",
+            "Hmmm.. let me tap into my intuition again...",
+            ".....",
+            ".....",
+            "Hightown!  He's in Hightown! I can feel it!",
+            "Ok, lets go."
+        };
+
         private static readonly Dictionary<string, string> AdditionalLines = new Dictionary<string, string>
         {
             { "destination-conversation.dialogue", "You made it. Tell me what you found on the road." },
             { SeeMedrareSourceDialogue.Value, string.Empty },
-            { MedrareJoinSourceDialogue5000.Value, string.Empty },
             { MedrareFirstSpellSourceDialogue.Value, string.Empty },
             { MedrareToChurchSourceDialogue.Value, string.Empty }
         };
@@ -106,11 +126,15 @@ namespace Game.Cutscenes.Content.Kentridge
         public static CutsceneCueId CueForAwonOpeningBeat(int oneBasedLineNumber) =>
             CueForAwonOpeningLine(oneBasedLineNumber);
 
+        public static CutsceneCueId CueForMedrareJoinLine(int oneBasedLineNumber) =>
+            CueForLine(MedrareJoinCuePrefix, oneBasedLineNumber, MedrareJoinLineCount);
+
         public static string LineFor(CutsceneCueId cue)
         {
             string id = cue.Value ?? string.Empty;
             if (TryLine(id, OpeningCuePrefix, OriginalOpeningLines, out string line)) return line;
             if (TryLine(id, AwonOpeningCuePrefix, AwonOpeningLines, out line)) return line;
+            if (TryLine(id, MedrareJoinCuePrefix, MedrareJoinLines, out line)) return line;
             return AdditionalLines.TryGetValue(id, out line) ? line : "[" + id + "]";
         }
 
