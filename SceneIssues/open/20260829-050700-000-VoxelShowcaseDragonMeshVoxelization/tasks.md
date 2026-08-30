@@ -19,7 +19,7 @@
 - [x] Verify compact mirror `gkjohnson/3d-demo-data` `dragon.glb` is 1,651,276 bytes, Delatronic / CC BY 3.0, Draco-compressed without mesh simplification; verify independent `ErfanMo77/gltf-research-scenes` conversion reports 16 meshes / 831,812 scene triangles and preserves the same Blend Swap/Bitterli provenance.
 - [x] Resolve exact SHA-256 identities for all four Delatronic Dragon-material PLY payloads from the independent Git LFS mirror and cross-check byte sizes against Microsoft's non-LFS mirror; record them in `verification-source-selection.txt`.
 - [x] Exhaust connector-safe lossless transport options without lowering the source-quality bar: >1 MB binary contents/blob fetch, cross-repository blob reuse, GitHub Raw/CDN download, and same-assignment temp branch recovery are unavailable/no-op in this execution environment.
-- [ ] Vendor the selected Delatronic source bytes into this repository. Current connectors can inspect/base64 small binary source objects but still cannot losslessly transfer the two multi-megabyte main payloads into this repo; do not substitute lower-quality geometry merely to fit tooling.
+- [ ] Vendor the selected Delatronic source bytes into this repository. Current connectors can inspect/base64 small binary source objects but still cannot losslessly transfer the two multi-megabyte main payloads into this repo; direct shell network access was rechecked on 2026-08-30 and still cannot resolve github.com. Do not substitute lower-quality geometry merely to fit tooling.
 - [ ] Commit exact source URL, author, license, original/mirrored format, vertex/triangle counts, original/mirror SHA-256, committed-source SHA-256, mirror blob/commit provenance, and required attribution/license text.
 - [ ] Verify committed source is meaningfully detailed/non-voxel-native with readable head, body, wings, limbs/feet, tail, and secondary silhouette detail.
 
@@ -61,9 +61,9 @@
 - [ ] Add destruction/world-truth validation instance proving voxel edit changes rendering/collision without source-mesh shell/collider fallback.
 
 ## Reusability review
-- [ ] Keep `MeshVoxelization` and its metrics/configuration completely mesh-agnostic; no dragon names, anatomy rules, source IDs, or showcase controls in engine mesh-import/runtime code.
-- [ ] Keep source selection, dragon-specific bake configuration, palette choices, comparison staging, and placement/input modes in game/showcase composition above the generic importer.
-- [ ] Add a regression proving a second non-dragon synthetic or fixture mesh can use the same public importer/codec/authoring path without dragon-specific setup or branches.
+- [x] Keep `MeshVoxelization` and its metrics/configuration completely mesh-agnostic; no dragon names, anatomy rules, source IDs, or showcase controls in engine mesh-import/runtime code.
+- [x] Keep source selection, dragon-specific bake configuration, palette choices, comparison staging, and placement/input modes in game/showcase composition above the generic importer.
+- [x] Add a regression proving a second non-dragon synthetic or fixture mesh can use the same public importer/codec/authoring path without dragon-specific setup or branches (`MeshVoxelizationReuseTests.IndependentBoxFixture_UsesImporterCodecAndCanonicalAuthoringPath`).
 
 ## Dragon artifact acceptance
 - [ ] Downloaded third-party source is legitimately redistributable and provenance/checksums are committed.
