@@ -37,7 +37,7 @@
 - [ ] Instantiate baked dragon through normal `ShowcaseWorld`/WorldBuilder voxel authoring so rendering/collision/edit/destruction share canonical storage. BLOCKED on baked artifact.
 - [ ] Wire explicit VoxelShowcase selection mode: scroll selects while active and Space commits once; ordinary controls unchanged outside mode. Current tool blocker: live 58 KB `Assets/Game/Composition/Showcase/SceneRuntime/VoxelShowcase.cs` is only writable as a whole while connector reads truncate it; do not risk unrelated loss or create parallel/reflection input authority.
 - [ ] Add labeled `Mesh -> Voxels` comparison area with matched pose/scale/orientation/ground/lighting; source mesh is presentation-only with no collider/gameplay authority. BLOCKED on reconstructed source + baked artifact.
-- [ ] Add durable capture support for front, side, rear, front 3/4, rear 3/4, elevated/top 3/4, plus head/horns, wing, feet/claws, and tail closeups.
+- [ ] Add durable capture support for front, side, rear, front 3/4, rear 3/4, elevated/top 3/4, plus head/horns, wing, feet/claws, and tail closeups. Semantic 10-view capture contract + coverage test are implemented; built-player integration and real evidence remain required.
 - [ ] Emit deterministic source triangle count, voxel resolution, authored voxel count, sparse brick/chunk count, voxelization duration, serialized size, resident/runtime placement/build cost. Final values BLOCKED on baked artifact.
 - [ ] Add destruction/world-truth validation instance proving voxel edits affect rendering/collision without source-mesh shell/collider fallback. BLOCKED on baked artifact.
 
