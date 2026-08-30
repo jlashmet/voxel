@@ -28,63 +28,38 @@ namespace VoxelEngine.Tests.PlayMode
             world.GenerateUndergroundCavernRuinsBlocking();
 
             Assert.That(world.HasUndergroundCavernRuins, Is.True);
-            Assert.That(world.UndergroundCavernRockMaterialId, Is.EqualTo(GameMaterialIds.Stone),
-                "The production natural cave host must use the geological Stone material; architectural DarkStone makes the cavern read as masonry in the built player.");
-            Assert.That(world.UndergroundCavernTraversalDistance, Is.GreaterThanOrEqualTo(2400),
-                "The destination must remain a prolonged traversal from the surface mouth.");
-            Assert.That(world.UndergroundCavernMouthOpeningCount, Is.GreaterThanOrEqualTo(4),
-                "The production path must author a multi-lobed natural mouth, not only the rectangular core entrance.");
-            Assert.That(world.UndergroundCavernDirectionChangeCount, Is.GreaterThanOrEqualTo(4),
-                "The production descent must force multiple lateral direction changes.");
-            Assert.That(world.UndergroundCavernNaturalizationNodeCount, Is.GreaterThanOrEqualTo(150),
-                "The prolonged production descent must be naturalized along its full non-dogleg span, not only at sparse bends.");
-            Assert.That(world.UndergroundCavernNaturalizationVoxelsWritten, Is.InRange(1L, 15_000_000L),
-                "Full-route naturalization must remain a bounded presentation pass inside the existing feature budget.");
+            Assert.That(world.UndergroundCavernRockMaterialId, Is.EqualTo(GameMaterialIds.DarkStone),
+                "Natural cave rock must use the dark smooth triplanar material; bright build Stone failed the built-player cavern presentation gate.");
+            Assert.That(world.UndergroundCavernTraversalDistance, Is.GreaterThanOrEqualTo(2400));
+            Assert.That(world.UndergroundCavernMouthOpeningCount, Is.GreaterThanOrEqualTo(4));
+            Assert.That(world.UndergroundCavernDirectionChangeCount, Is.GreaterThanOrEqualTo(4));
+            Assert.That(world.UndergroundCavernNaturalizationNodeCount, Is.GreaterThanOrEqualTo(150));
+            Assert.That(world.UndergroundCavernNaturalizationVoxelsWritten, Is.InRange(1L, 15_000_000L));
             Assert.That(world.UndergroundCavernStatueCount, Is.EqualTo(2));
             Assert.That(world.UndergroundCavernStalactiteCount, Is.GreaterThanOrEqualTo(2));
             Assert.That(world.UndergroundCavernGeologicalCategoryCount, Is.GreaterThanOrEqualTo(3));
-            Assert.That(world.UndergroundCavernIrregularLobeCount, Is.GreaterThanOrEqualTo(3),
-                "The destination silhouette must include overlapping authored lobes rather than relying on one cylindrical void.");
-            Assert.That(world.UndergroundCavernArchitectureDetailCount, Is.GreaterThanOrEqualTo(12),
-                "The ancient ruin must be a layered damaged architectural assembly rather than one box shell.");
-            Assert.That(world.UndergroundCavernStatueDetailCount, Is.GreaterThanOrEqualTo(20),
-                "The two semantic statues must receive enough articulated geometry to read as monumental humanoid figures.");
-            Assert.That(world.UndergroundCavernAdditionalFormationCount, Is.GreaterThanOrEqualTo(6),
-                "Large silhouette formations must supplement the small reusable cave-decoration stamps.");
-            Assert.That(world.UndergroundCavernVisualFinishVoxelsWritten, Is.InRange(1L, 20_000_000L),
-                "The reusable visual-finish pass must remain a bounded fraction of the existing feature write budget.");
-            Assert.That(world.UndergroundCavernRouteLightCount, Is.EqualTo(6),
-                "Supported local lights must recur along the prolonged descent rather than appearing only at doglegs.");
-            Assert.That(world.UndergroundCavernLocalLightCount, Is.InRange(7, 8),
-                "Six route lights plus one or two destination lights must remain inside the existing eight-light ceiling.");
-            Assert.That(world.UndergroundCavernPreloadedRegionCount, Is.InRange(1, 128),
-                "The deep route/cavern preload must remain a bounded region workload.");
-            Assert.That(world.UndergroundCavernVoxelsWritten, Is.InRange(1L, 55_000_000L),
-                "The feature must stay inside the existing production authoring budget.");
+            Assert.That(world.UndergroundCavernIrregularLobeCount, Is.GreaterThanOrEqualTo(3));
+            Assert.That(world.UndergroundCavernArchitectureDetailCount, Is.GreaterThanOrEqualTo(12));
+            Assert.That(world.UndergroundCavernStatueDetailCount, Is.GreaterThanOrEqualTo(20));
+            Assert.That(world.UndergroundCavernAdditionalFormationCount, Is.GreaterThanOrEqualTo(6));
+            Assert.That(world.UndergroundCavernVisualFinishVoxelsWritten, Is.InRange(1L, 20_000_000L));
+            Assert.That(world.UndergroundCavernRouteLightCount, Is.EqualTo(6));
+            Assert.That(world.UndergroundCavernLocalLightCount, Is.InRange(7, 8));
+            Assert.That(world.UndergroundCavernPreloadedRegionCount, Is.InRange(1, 128));
+            Assert.That(world.UndergroundCavernVoxelsWritten, Is.InRange(1L, 55_000_000L));
 
             float3 delta = world.UndergroundCavernCentreMetres - world.UndergroundCavernEntranceMetres;
             Assert.That(math.length(new float2(delta.x, delta.z)), Is.GreaterThan(250f));
-            Assert.That(delta.y, Is.LessThan(-70f),
-                "The cavern must remain substantially below the natural surface entrance.");
+            Assert.That(delta.y, Is.LessThan(-70f));
 
-            float ruinDistance = HorizontalDistance(
-                (Vector3)world.UndergroundCavernCentreMetres,
-                (Vector3)world.UndergroundCavernRuinCentreMetres);
-            float approachDistance = HorizontalDistance(
-                (Vector3)world.UndergroundCavernRuinApproachMetres,
-                (Vector3)world.UndergroundCavernRuinCentreMetres);
-            Assert.That(ruinDistance, Is.GreaterThanOrEqualTo(10f),
-                "The ruin must sit toward the far end of the large cavern rather than beside its centre.");
-            Assert.That(approachDistance, Is.GreaterThanOrEqualTo(6f),
-                "The final gameplay waypoint must stop outside the ruin with enough setback to read the facade and statues.");
-            Assert.That(approachDistance, Is.LessThan(ruinDistance),
-                "The facade-viewing approach should advance into the cavern without entering the ruin centre.");
+            float ruinDistance = HorizontalDistance((Vector3)world.UndergroundCavernCentreMetres, (Vector3)world.UndergroundCavernRuinCentreMetres);
+            float approachDistance = HorizontalDistance((Vector3)world.UndergroundCavernRuinApproachMetres, (Vector3)world.UndergroundCavernRuinCentreMetres);
+            Assert.That(ruinDistance, Is.GreaterThanOrEqualTo(10f));
+            Assert.That(approachDistance, Is.GreaterThanOrEqualTo(6f));
+            Assert.That(approachDistance, Is.LessThan(ruinDistance));
 
             float3[] route = world.UndergroundCavernTraversalWaypointsMetres;
-            Assert.That(math.distance(route[route.Length - 1], world.UndergroundCavernRuinApproachMetres),
-                Is.LessThan(0.01f),
-                "The production traversal must terminate at the shared ruin-approach point rather than inside the structure.");
-
+            Assert.That(math.distance(route[route.Length - 1], world.UndergroundCavernRuinApproachMetres), Is.LessThan(0.01f));
             int motorSteps = WalkProductionRoute(world);
 
             TestContext.WriteLine(
@@ -106,56 +81,31 @@ namespace VoxelEngine.Tests.PlayMode
             world.GenerateUndergroundCavernRuinsBlocking();
             Assert.That(world.UndergroundCavernLocalLightCount, Is.EqualTo(lights));
             Assert.That(world.UndergroundCavernVoxelsWritten, Is.EqualTo(writes));
-            Assert.That(math.all(world.UndergroundCavernCentreMetres == centre), Is.True,
-                "The production entry point must remain idempotent for runtime/offline restoration.");
+            Assert.That(math.all(world.UndergroundCavernCentreMetres == centre), Is.True);
         }
 
         [Test]
         public void DestinationCirculationPlanUsesOverlappingRoundedNodes()
         {
-            var cavern = new DecorationBounds
-            {
-                Min = new int3(-160, -700, -150),
-                MaxExclusive = new int3(161, -520, 151),
-            };
-            var ruin = new DecorationBounds
-            {
-                Min = new int3(96, -700, -58),
-                MaxExclusive = new int3(172, -638, 59),
-            };
-
-            UndergroundCavernCirculationPlan plan = UndergroundCavernCirculationProtection.ResolvePlan(
-                in cavern,
-                in ruin,
-                Facing.East,
-                width: 20,
-                clearanceHeight: 32);
+            var cavern = new DecorationBounds { Min = new int3(-160, -700, -150), MaxExclusive = new int3(161, -520, 151) };
+            var ruin = new DecorationBounds { Min = new int3(96, -700, -58), MaxExclusive = new int3(172, -638, 59) };
+            UndergroundCavernCirculationPlan plan = UndergroundCavernCirculationProtection.ResolvePlan(in cavern, in ruin, Facing.East, 20, 32);
 
             Assert.That(plan.IsWellFormed, Is.True);
-            Assert.That(plan.Radius, Is.GreaterThan(10),
-                "Rounded clearance nodes must extend beyond the old rectangular half-width.");
-            Assert.That(plan.Spacing, Is.LessThan(plan.Radius),
-                "Rounded clearance nodes must overlap rather than leave independent cylindrical rooms.");
-            Assert.That(plan.NodeCount, Is.GreaterThanOrEqualTo(20),
-                "Destination circulation must be a multi-node sweep, not one box-shaped carve.");
-            Assert.That(plan.Start.x, Is.LessThan(cavern.Min.x),
-                "The rounded sweep must still protect the rear approach overlap used by normal traversal.");
-            Assert.That(plan.End.x, Is.GreaterThan(ruin.Min.x),
-                "The rounded sweep must still enter the ruin throat far enough to keep the doorway reachable.");
+            Assert.That(plan.Radius, Is.GreaterThan(10));
+            Assert.That(plan.Spacing, Is.LessThan(plan.Radius));
+            Assert.That(plan.NodeCount, Is.GreaterThanOrEqualTo(20));
+            Assert.That(plan.Start.x, Is.LessThan(cavern.Min.x));
+            Assert.That(plan.End.x, Is.GreaterThan(ruin.Min.x));
             Assert.That(plan.Start.z, Is.EqualTo(plan.End.z));
-            Assert.That(
-                4 * plan.Radius * plan.Radius - plan.Spacing * plan.Spacing,
-                Is.GreaterThanOrEqualTo(20 * 20),
-                "Overlap geometry must retain at least the former 20-voxel gameplay width between sweep nodes.");
+            Assert.That(4 * plan.Radius * plan.Radius - plan.Spacing * plan.Spacing, Is.GreaterThanOrEqualTo(20 * 20));
         }
 
         private static int WalkProductionRoute(ShowcaseWorld world)
         {
             float3[] route = world.UndergroundCavernTraversalWaypointsMetres;
             Assert.That(route, Is.Not.Null);
-            Assert.That(route.Length, Is.GreaterThanOrEqualTo(25),
-                "Production authoring must expose the forced bends plus cavern/ruin approach as one route.");
-
+            Assert.That(route.Length, Is.GreaterThanOrEqualTo(25));
             var motor = new CharacterMotor { WalkSpeed = 5.5f };
             motor.SnapToGround(world, (Vector3)route[0]);
 
@@ -170,20 +120,15 @@ namespace VoxelEngine.Tests.PlayMode
                     Vector3 wish = target - motor.Position;
                     wish.y = 0f;
                     if (wish.sqrMagnitude > 1e-6f) wish.Normalize();
-                    motor.Step(world, wish, sprint: true, jumpHeld: false, FixedStep);
+                    motor.Step(world, wish, true, false, FixedStep);
                     steps++;
                     totalSteps++;
                     distance = HorizontalDistance(motor.Position, target);
                 }
-
                 Assert.That(distance, Is.LessThanOrEqualTo(ArrivalRadiusMetres),
-                    $"Normal CharacterMotor traversal stalled before cavern waypoint {waypoint}/{route.Length - 1} " +
-                    $"at {motor.Position}, target {target}, remaining {distance:F2} m.");
+                    $"Normal CharacterMotor traversal stalled before cavern waypoint {waypoint}/{route.Length - 1} at {motor.Position}, target {target}, remaining {distance:F2} m.");
             }
-
-            Assert.That(motor.Position.y,
-                Is.LessThan(((Vector3)route[0]).y - 60f),
-                "Normal player traversal must finish substantially below the surface entrance.");
+            Assert.That(motor.Position.y, Is.LessThan(((Vector3)route[0]).y - 60f));
             return totalSteps;
         }
 
