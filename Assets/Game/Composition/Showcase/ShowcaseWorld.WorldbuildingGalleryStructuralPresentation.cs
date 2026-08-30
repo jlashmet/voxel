@@ -48,7 +48,7 @@ namespace VoxelEngine.Showcase
             _structuralAuthoringMs += _structuralPresentationAuthoringMs;
             _structuralPresentationAuthored = true;
 
-            Debug.Log($"STRUCTURAL_PRESENTATION authored=True elapsedMs={_structuralPresentationAuthoringMs:0.###}");
+            UnityEngine.Debug.Log($"STRUCTURAL_PRESENTATION authored=True elapsedMs={_structuralPresentationAuthoringMs:0.###}");
         }
 
         private void AuthorBridgePresentation(BridgeSite site)
@@ -408,7 +408,7 @@ namespace VoxelEngine.Showcase
             StructuralCompositionReport plan = Plan(in catalogue, 0);
             RequireOk(name, in plan);
             FeatureCatalogueBuildResult build = BuildIfNeeded(in catalogue, in plan, author: true);
-            Debug.Log($"STRUCTURAL_PRESENTATION_COST name={name} primitives={plan.PrimitiveCost} " +
+            UnityEngine.Debug.Log($"STRUCTURAL_PRESENTATION_COST name={name} primitives={plan.PrimitiveCost} " +
                 $"voxelBudget={plan.VoxelCost} regions={build.RegionsVisited} " +
                 $"instances={build.InstancesRasterised} voxelsWritten={build.VoxelsWritten} " +
                 $"bounds={plan.BoundsMin}..{plan.BoundsMax}");
