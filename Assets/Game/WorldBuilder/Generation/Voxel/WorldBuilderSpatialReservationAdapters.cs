@@ -70,7 +70,8 @@ namespace MountingForce.WorldGen.Voxel
                             RoadClearancePrecedence,
                             ReservationConsumerKind.Road | ReservationConsumerKind.Connector,
                             provenance,
-                            ordinal: 1);
+                            ordinal: 1,
+                            yieldingConsumers: ReservationConsumerKind.Vegetation);
                         if (clearance.Bounds.Intersects(window)) claims.Add(clearance);
                     }
                 }
