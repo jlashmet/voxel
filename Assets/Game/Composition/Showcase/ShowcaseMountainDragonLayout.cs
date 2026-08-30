@@ -30,6 +30,21 @@ namespace VoxelEngine.Showcase
         }
 
         /// <summary>
+        /// Scene-owned player envelope translated into physical measurements rather than leaking
+        /// VoxelShowcase motor constants into WorldBuilder. At the current 10 cm scale this derives
+        /// the established 24-voxel headroom and 16-voxel clear walking lane, while the 50% grade
+        /// ceiling preserves the normal-movement 2:1 run-to-rise contract.
+        /// </summary>
+        public static MountainLandmarkTraversalProfile CreateTraversalProfile() =>
+            new MountainLandmarkTraversalProfile(
+                voxelSizeMillimetres: 100,
+                bodyHeightMillimetres: 1800,
+                bodyRadiusMillimetres: 300,
+                overheadMarginMillimetres: 600,
+                lateralMarginMillimetres: 500,
+                maximumGradePercent: 50);
+
+        /// <summary>
         /// Showcase-specific visual policy for the shared mountain authoring API. Geometry semantics
         /// remain generic in WorldBuilder; this composition chooses the narrower crest and natural
         /// ridge/buttress support form required by the Mountain Dragon presentation.
@@ -51,6 +66,7 @@ namespace VoxelEngine.Showcase
                 PathRun,
                 PathRise,
                 SwitchbackCount,
-                PlaceholderSize);
+                PlaceholderSize,
+                CreateTraversalProfile());
     }
 }
