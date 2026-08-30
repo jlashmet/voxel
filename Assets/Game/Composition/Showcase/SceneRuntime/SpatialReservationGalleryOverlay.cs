@@ -46,7 +46,10 @@ namespace VoxelEngine.Showcase
         {
             _report = WorldbuildingGalleryReservationInspection.Build();
             BuildMesh();
-            SetVisible(false);
+            // This scene is the durable acceptance surface for reservation inspection. Keep the
+            // evidence visible on boot so unattended built-player capture actually records it;
+            // V remains a convenience toggle for manual inspection.
+            SetVisible(true);
         }
 
         private void Update()
