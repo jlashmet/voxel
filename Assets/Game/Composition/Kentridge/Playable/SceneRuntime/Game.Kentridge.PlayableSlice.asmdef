@@ -18,6 +18,8 @@
         "Game.Composition.WorldBuilderWorldGen.Runtime",
         "Game.Cutscenes.Api",
         "Game.Cutscenes.Content",
+        "Game.Story.Api",
+        "Game.Story.Runtime",
         "Game.WorldBuilder.Api",
         "Game.WorldBuilder.Runtime",
         "Game.Inventory.Api",

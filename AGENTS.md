@@ -35,6 +35,13 @@ not complete merely because the requested object categories or primitive counts 
   work zones, sightlines, reachability, facing, and clearances. Objects must not intersect, float,
   block doors or windows, or overlap other fixtures unless the relationship is intentional and
   physically credible.
+- For player-visible work, critically inspect exact built-player evidence for silhouette, composition,
+  grounding, materials, repetition, seams, terrain integration, and blockout/procedural appearance.
+  Classify it `production-quality`, `acceptable but improvable`, `prototype/blockout quality`, or
+  `unacceptable`. Only `production-quality` passes visual acceptance unless the issue sets a lower bar.
+- If visual quality is below the required bar, add the defects to `tasks.md` and fix them; do not close
+  by deferring unmet visual acceptance to a follow-up. Judge reusable architecture and rendered quality
+  separately.
 - Review the rendered result, not just emitted data. Counts and semantic signatures can support a
   regression, but cannot prove visual finish, good composition, or absence of intersections.
 - Keep builders generic and constraint-driven. Express semantic requirements such as "a pub has a

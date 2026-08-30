@@ -116,12 +116,16 @@ PY
   SCENE="$ISSUE_SCENE"
 
   # Capture-less architecture/world SceneIssues have no recorded camera pose to replay. For the
-  # Kentridge production scene, keep those validations unattended long enough to get past startup,
-  # then exercise the same CharacterMotor/collision/streaming path a player uses. Recorded-pose
-  # SceneIssues deliberately skip this profile so their camera evidence remains immutable.
+  # Kentridge production scene, advance the unattended opening quickly enough that a 60-second
+  # feature replay can exercise the same CharacterMotor/collision/streaming path a player uses,
+  # then switch once to a fixed survey for route/LOD context. Recorded-pose SceneIssues deliberately
+  # skip this profile so their camera evidence remains immutable.
   if [[ "$SCENE" == "Assets/Scenes/KentridgePlayableSlice.unity" ]] && (( ISSUE_CAPTURE_COUNT == 0 )); then
-    : "${AUTO_DIALOGUE:=1.5}"
-    : "${AUTOWALK_AFTER:=40}"
+    : "${AUTO_DIALOGUE:=0.5}"
+    : "${AUTOWALK_AFTER:=30}"
+    : "${SURVEY_AFTER:=50}"
+    : "${SURVEY_HEIGHT:=55}"
+    : "${SURVEY_SPIN:=0}"
     KENTRIDGE_EVIDENCE=1
   fi
 fi
@@ -237,9 +241,6 @@ trap cleanup EXIT
 
 wait_for_unity_quiet() {
   local deadline=$((SECONDS + 900))
-  # Match an actual Unity executable, not this harness's `--unity .../Unity` argument. The broad
-  # substring predicate made two capture shells wait on themselves even after every editor had
-  # exited, and could strand an otherwise valid local player build behind unrelated command text.
   local unity_process='^/Applications/Unity/Hub/Editor/[^/]*/Unity.app/Contents/MacOS/Unity( |$)'
   while pgrep -f "$unity_process" >/dev/null 2>&1; do
     if (( SECONDS >= deadline )); then

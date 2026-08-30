@@ -5,7 +5,7 @@ namespace Game.Cutscenes.Content.Kentridge
 {
     /// <summary>
     /// Source-backed Kentridge opening beats after the recovered pub scene. Missing legacy dialogue
-    /// payloads remain identity-only cues; no replacement prose is authored here.
+    /// payloads remain identity-only cues; recovered payloads are represented line-for-line.
     /// </summary>
     public static class KentridgeOpeningProgressionCutscenes
     {
@@ -37,13 +37,7 @@ namespace Game.Cutscenes.Content.Kentridge
         public static readonly CutsceneDefinition MedrareJoinDefinition = new CutsceneDefinition(
             "kentridge.medrare.join-opening",
             CutsceneStageSetupDefinition.Empty,
-            new[]
-            {
-                CutsceneStep.Camera(MedrareJoinZoomHalf),
-                CutsceneStep.Wait(1500),
-                CutsceneStep.Move(Medrare, MedrareApproachPoint, 2000),
-                CutsceneStep.Dialogue(KentridgeOpeningScript.MedrareJoinSourceDialogue5000)
-            },
+            BuildMedrareJoinSteps(),
             new[]
             {
                 new CutsceneStagePointRequirement(
@@ -98,7 +92,37 @@ namespace Game.Cutscenes.Content.Kentridge
             };
         }
 
+        private static IReadOnlyList<CutsceneStep> BuildMedrareJoinSteps()
+        {
+            return new[]
+            {
+                CutsceneStep.Camera(MedrareJoinZoomHalf),
+                CutsceneStep.Wait(1500),
+                CutsceneStep.Move(Medrare, MedrareApproachPoint, 2000),
+                MedrareSpoken(Medrare, 1),
+                MedrareSpoken(Weldon, 2),
+                MedrareSpoken(Medrare, 3),
+                MedrareSpoken(Medrare, 4),
+                MedrareSpoken(Medrare, 5),
+                MedrareSpoken(Weldon, 6),
+                MedrareSpoken(Weldon, 7),
+                MedrareSpoken(Weldon, 8),
+                MedrareSpoken(Medrare, 9),
+                MedrareSpoken(Medrare, 10),
+                MedrareSpoken(Weldon, 11),
+                MedrareSpoken(Weldon, 12),
+                MedrareSpoken(Medrare, 13),
+                MedrareSpoken(Medrare, 14),
+                MedrareSpoken(Medrare, 15),
+                MedrareSpoken(Medrare, 16),
+                MedrareSpoken(Weldon, 17)
+            };
+        }
+
         private static CutsceneStep Spoken(CutsceneActorId speaker, int lineNumber) =>
             CutsceneStep.Dialogue(speaker, KentridgeOpeningScript.CueForAwonOpeningLine(lineNumber));
+
+        private static CutsceneStep MedrareSpoken(CutsceneActorId speaker, int lineNumber) =>
+            CutsceneStep.Dialogue(speaker, KentridgeOpeningScript.CueForMedrareJoinLine(lineNumber));
     }
 }
