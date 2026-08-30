@@ -57,17 +57,18 @@ namespace VoxelEngine.Showcase
             BridgeSite bridge = FindBridgeSite();
             int3 root = new(bridge.X + 450, bridge.DeckY, bridge.Z);
             using FeatureCatalogue catalogue = CreateBridgeCatalogue(root);
+            FeatureCatalogue mutableCatalogue = catalogue;
 
-            FeatureDefinition child = catalogue.Definitions[1];
+            FeatureDefinition child = mutableCatalogue.Definitions[1];
             StructuralPieceSpec piece = child.StructuralPiece;
             piece.Facing = Facing.Up;
             child.StructuralPiece = piece;
-            catalogue.Definitions[1] = child;
+            mutableCatalogue.Definitions[1] = child;
 
             using var instances = new NativeList<StructuralInstance>(Allocator.Temp);
             using var decisions = new NativeList<StructuralAttachmentDecision>(Allocator.Temp);
-            StructuralCompositionPlanner.ExpandRoot(in catalogue, Seed, 0,
-                catalogue.ExplicitPlacements[0], instances, decisions);
+            StructuralCompositionPlanner.ExpandRoot(in mutableCatalogue, Seed, 0,
+                mutableCatalogue.ExplicitPlacements[0], instances, decisions);
             return FirstRejected(decisions);
         }
 
@@ -77,17 +78,18 @@ namespace VoxelEngine.Showcase
             int3 origin = new(-2900,
                 TerrainQuery.HeightAt(-2900, 120, Seed) + 2, 120);
             using FeatureCatalogue catalogue = CreateCastleCatalogue(origin);
+            FeatureCatalogue mutableCatalogue = catalogue;
 
-            FeatureDefinition child = catalogue.Definitions[1];
+            FeatureDefinition child = mutableCatalogue.Definitions[1];
             StructuralPieceSpec piece = child.StructuralPiece;
             piece.Role = StructuralSocketRole.Roof;
             child.StructuralPiece = piece;
-            catalogue.Definitions[1] = child;
+            mutableCatalogue.Definitions[1] = child;
 
             using var instances = new NativeList<StructuralInstance>(Allocator.Temp);
             using var decisions = new NativeList<StructuralAttachmentDecision>(Allocator.Temp);
-            StructuralCompositionPlanner.ExpandRoot(in catalogue, Seed, 0,
-                catalogue.ExplicitPlacements[0], instances, decisions);
+            StructuralCompositionPlanner.ExpandRoot(in mutableCatalogue, Seed, 0,
+                mutableCatalogue.ExplicitPlacements[0], instances, decisions);
             return FirstRejected(decisions);
         }
 
