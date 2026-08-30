@@ -66,6 +66,44 @@ namespace VoxelEngine.Tests.PlayMode
             }
         }
 
+        [Test]
+        public void MacroDriverRetainsAutomationAndKeepsQueuedMoordellSurveyCamera()
+        {
+            Type driverType = typeof(KentridgePlayableSlice).Assembly.GetType(
+                "Game.Kentridge.PlayableSlice.KentridgeMacroWorldEvidenceDriver",
+                throwOnError: true);
+            MethodInfo retainAutomation = driverType.GetMethod("RetainMacroValidationAutomation", StaticPrivate);
+            MethodInfo shouldHoldSurvey = driverType.GetMethod("ShouldHoldMoordellSurveyAfterCapture", StaticPrivate);
+
+            Assert.That(retainAutomation, Is.Not.Null);
+            Assert.That(shouldHoldSurvey, Is.Not.Null);
+
+            var host = new GameObject("KentridgeMacroWorldEvidenceOwnershipTests");
+            host.SetActive(false);
+            try
+            {
+                var slice = host.AddComponent<KentridgePlayableSlice>();
+                slice.AutoSurvey = true;
+                slice.AutoRecede = true;
+
+                retainAutomation.Invoke(null, new object[] { slice });
+
+                Assert.That(slice.AutoSurvey, Is.False,
+                    "The macro validation driver must override a later generic survey toggle before streaming runs.");
+                Assert.That(slice.AutoRecede, Is.False,
+                    "The macro validation driver must override a later generic recede toggle before streaming runs.");
+
+                Assert.That(shouldHoldSurvey.Invoke(null, new object[] { true, 0f }), Is.EqualTo(true));
+                Assert.That(shouldHoldSurvey.Invoke(null, new object[] { true, 0.09f }), Is.EqualTo(true));
+                Assert.That(shouldHoldSurvey.Invoke(null, new object[] { true, 0.11f }), Is.EqualTo(false));
+                Assert.That(shouldHoldSurvey.Invoke(null, new object[] { false, 0f }), Is.EqualTo(false));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(host);
+            }
+        }
+
         private static void AssertContinuation(
             MethodInfo resolveContinuation,
             bool targetCaptured,
