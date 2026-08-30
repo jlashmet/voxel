@@ -13,7 +13,7 @@ namespace VoxelEngine.Tests.PlayMode
     public sealed class MountainDragonStartupBakeAcceptanceTests
     {
         private const uint Seed = 0x5EED1234;
-        private const byte MountainMaterial = 1;
+        private const byte MountainMaterial = 6;
         private const byte PathMaterial = 13;
         private const byte DragonMaterial = 9;
         private const int RegionVoxelEdgeLog2 = 9;
