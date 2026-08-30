@@ -16,13 +16,15 @@
 - [x] Trace the remaining silhouette to primitive topology: generic cave core is a full-height rectangular cross-section; full-route naturalization, doglegs, and destination circulation still add vertical cylinders with vertical walls/flat tops, so their union cannot reliably hide the architectural core.
 
 ## Current rounded-vault repair
-- [ ] Add a reusable deterministic stacked-disc rounded-vault brush in the opt-in underground-cavern runtime layer; no public authoring API or generic cave-core change.
-- [ ] Guarantee the vault fully masks the rectangular gameplay core between maximum-spaced nodes: minimum wall radius/height must preserve existing route width, wall roughness, ceiling roughness, and normal CharacterMotor clearance.
-- [ ] Give the vault multiple wall-radius slices and a tapered crown so the visible passage has sloped/rounded walls and a non-planar roof rather than cylinder ribs/bands.
-- [ ] Reuse the same rounded-vault brush for full-route naturalization, dogleg carving, and destination circulation so no late cavern passage pass reintroduces the failed cylinder silhouette.
-- [ ] Preserve existing floor support, dogleg route semantics, destination reachability, localized-light placement, and deterministic world truth.
-- [ ] Add/strengthen production-computation regressions for deterministic vault radii, multiple wall-radius variants, mathematical adjacent-node core coverage, tapered crown, bounded slice count, and repeated resolution.
-- [ ] Keep normal production WorldBuilder generation + CharacterMotor traversal/determinism coverage and the existing 15,000,000 naturalization-write / 55,000,000 total-write / eight-light ceilings unchanged.
+- [x] Add a reusable deterministic stacked-disc rounded-vault profile in the opt-in underground-cavern runtime layer; no public authoring API or generic cave-core change.
+- [x] Guarantee the vault fully masks the rectangular gameplay core between maximum-spaced nodes: minimum wall radius/height preserves route width, wall roughness, ceiling roughness, and CharacterMotor clearance.
+- [x] Give the vault multiple wall-radius slices and a tapered crown so the visible passage has sloped/rounded walls and a non-planar roof rather than cylinder ribs/bands.
+- [x] Reuse the same rounded-vault brush for full-route naturalization, dogleg carving, and destination circulation so no late cavern passage pass reintroduces the failed cylinder silhouette.
+- [x] Preserve existing floor support, dogleg route semantics, destination reachability, localized-light placement, and deterministic world truth at the production authoring boundary.
+- [x] Add/strengthen production-computation regressions for deterministic vault radii, multiple wall-radius variants, mathematical adjacent-node core coverage, tapered crown, bounded slice count, and repeated resolution.
+- [x] Keep normal production WorldBuilder generation + CharacterMotor traversal/determinism coverage and the existing 15,000,000 naturalization-write / 55,000,000 total-write / eight-light ceilings unchanged.
+- [x] Preserve the rounded slice geometry while compiling radial columns into contiguous `FillColumnBulk` spans so the repair stays off the 12,000,000 slow-write path used by per-voxel `Disc` emission.
+- [x] Confirm the rounded-vault production/test assemblies compile in the existing PR runner; its subsequent 59 EditMode failures are broad pre-existing/out-of-scope full-run failures and do not involve cavern compilation.
 
 ## Final validation / closure
 - [ ] Review final diff/blast radius and quantify voxel/chunk work, vertices/indices/draws, light/shadow count, runtime FPS/memory evidence, and supported-device budget impact against the recorded baseline.
