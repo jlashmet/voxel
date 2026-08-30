@@ -66,7 +66,7 @@ namespace VoxelEngine.Tests.PlayMode
                 int groundCoverFrustums = 0;
                 int rockSupportFrustums = 0;
                 int transformedPairs = 0;
-                int loweredButtresses = 0;
+                int localizedTails = 0;
                 int pathPrimitives = 0;
                 int pairOrdinal = 0;
                 long baselineSupportRasterProxy = 0;
@@ -134,25 +134,13 @@ namespace VoxelEngine.Tests.PlayMode
                                     naturalized.Program[naturalizedPc + 5],
                                     naturalized.Program[naturalizedPc + 6]);
 
-                                Assert.That(naturalized.Program[naturalizedPc + 3],
-                                    Is.EqualTo(baseline.Program[baselinePc + 3]),
-                                    "Support base altitude must stay authoritative.");
-                                Assert.That(naturalized.Program[naturalizedPc + 8],
-                                    Is.EqualTo(baseline.Program[baselinePc + 8]),
-                                    "Support frustum axis must stay authoritative.");
-                                Assert.That(naturalized.Program[naturalizedPc + 9], Is.EqualTo(RockMaterial));
-                                Assert.That(naturalized.Program[naturalizedPc + 10],
-                                    Is.EqualTo(baseline.Program[baselinePc + 10]));
-                                Assert.That(naturalized.Program[naturalizedPc + 11],
-                                    Is.EqualTo(baseline.Program[baselinePc + 11]));
-                                Assert.That(naturalized.Program[naturalizedPc + 12],
-                                    Is.EqualTo(baseline.Program[baselinePc + 12]),
-                                    "Support mode must remain FillIfEmpty.");
+                                AssertSupportSemanticFieldsMatch(baseline, naturalized, baselinePc, naturalizedPc);
 
-                                // Pairing is performed over each consecutive same-height support run.
-                                // The first member becomes the full-height support-covering ridge and
-                                // the second becomes a lower/narrow buttress. An odd run tail is left
-                                // unchanged. Derive the expectation from the generic program itself.
+                                // Production pairing is performed over each consecutive same-height
+                                // support run. The primary ridge reaches the authored path elevation
+                                // from a bounded local shell embed; its companion is a lower/narrower
+                                // buttress. Odd tails are localized to the same shell embed instead of
+                                // becoming isolated full-height retaining columns.
                                 int nextBaselinePc = baselinePc + length;
                                 bool hasSameHeightPartner = nextBaselinePc < end
                                     && (ShapeOp)baseline.Program[nextBaselinePc] == ShapeOp.EmitFrustum
@@ -163,6 +151,8 @@ namespace VoxelEngine.Tests.PlayMode
                                 if (hasSameHeightPartner)
                                 {
                                     int nextNaturalizedPc = naturalizedPc + length;
+                                    AssertSupportSemanticFieldsMatch(
+                                        baseline, naturalized, nextBaselinePc, nextNaturalizedPc);
                                     AssertRidgeButtressPair(
                                         baseline,
                                         naturalized,
@@ -181,7 +171,6 @@ namespace VoxelEngine.Tests.PlayMode
                                         naturalized.Program[nextNaturalizedPc + 6]);
 
                                     transformedPairs++;
-                                    loweredButtresses++;
                                     rockSupportFrustums += 2;
                                     pairOrdinal++;
                                     additiveFrustumIndex += 2;
@@ -190,13 +179,13 @@ namespace VoxelEngine.Tests.PlayMode
                                     continue;
                                 }
 
-                                for (int field = 0; field < length; field++)
-                                {
-                                    Assert.That(naturalized.Program[naturalizedPc + field],
-                                        Is.EqualTo(baseline.Program[baselinePc + field]),
-                                        "An unpaired support-run tail must remain unchanged.");
-                                }
-
+                                AssertLocalizedTail(
+                                    baseline,
+                                    naturalized,
+                                    baselinePc,
+                                    naturalizedPc,
+                                    in spec);
+                                localizedTails++;
                                 rockSupportFrustums++;
                             }
 
@@ -234,11 +223,11 @@ namespace VoxelEngine.Tests.PlayMode
                 Assert.That(groundCoverFrustums, Is.EqualTo(AsymmetricShoulderCount),
                     "Only the three broad asymmetric foothill masses should carry moss ground cover.");
                 Assert.That(rockSupportFrustums, Is.GreaterThan(AsymmetricShoulderCount),
-                    "Elevated path support must remain visibly structural rock rather than green cylinders.");
+                    "Elevated path support must remain structural rock rather than green cylinders.");
                 Assert.That(transformedPairs, Is.GreaterThanOrEqualTo(1),
-                    "At least one same-elevation support pair must become a ridge plus buttress.");
-                Assert.That(loweredButtresses, Is.EqualTo(transformedPairs),
-                    "Every transformed support pair must replace its duplicate full-height member with a buttress.");
+                    "At least one same-elevation support pair must become a local ridge plus buttress.");
+                Assert.That(localizedTails, Is.GreaterThanOrEqualTo(1),
+                    "Odd support runs must also use local shell embankments rather than full-height columns.");
                 Assert.That(naturalizedSupportRasterProxy * 4, Is.LessThan(baselineSupportRasterProxy * 3),
                     "Naturalized support raster-volume proxy must stay below 75% of the generic baseline; "
                     + "revision 5 exceeded the 240-second bake watchdog despite unchanged primitive count.");
@@ -257,6 +246,25 @@ namespace VoxelEngine.Tests.PlayMode
                 naturalized.Dispose();
                 baseline.Dispose();
             }
+        }
+
+        private static void AssertSupportSemanticFieldsMatch(
+            FeatureCatalogue baseline,
+            FeatureCatalogue naturalized,
+            int baselinePc,
+            int naturalizedPc)
+        {
+            Assert.That(naturalized.Program[naturalizedPc + 8],
+                Is.EqualTo(baseline.Program[baselinePc + 8]),
+                "Support frustum axis must stay authoritative.");
+            Assert.That(naturalized.Program[naturalizedPc + 9], Is.EqualTo(RockMaterial));
+            Assert.That(naturalized.Program[naturalizedPc + 10],
+                Is.EqualTo(baseline.Program[baselinePc + 10]));
+            Assert.That(naturalized.Program[naturalizedPc + 11],
+                Is.EqualTo(baseline.Program[baselinePc + 11]));
+            Assert.That(naturalized.Program[naturalizedPc + 12],
+                Is.EqualTo(baseline.Program[baselinePc + 12]),
+                "Support mode must remain FillIfEmpty.");
         }
 
         private static void AssertRidgeButtressPair(
@@ -285,19 +293,23 @@ namespace VoxelEngine.Tests.PlayMode
             int expectedRidgeBase = Math.Max(
                 Math.Max(baseline.Program[firstBaselinePc + 6], baseline.Program[secondBaselinePc + 6]),
                 expectedRidgeTop + spec.PathWidth / 2);
+            int runHeight = baseline.Program[firstBaselinePc + 5];
+            int expectedBaseY = ExpectedLocalSupportBaseY(runHeight, in spec);
+            int expectedLocalHeight = runHeight - expectedBaseY;
 
             Assert.That(naturalized.Program[ridgePc + 2], Is.EqualTo(centreX));
+            Assert.That(naturalized.Program[ridgePc + 3], Is.EqualTo(expectedBaseY));
             Assert.That(naturalized.Program[ridgePc + 4], Is.EqualTo(centreZ));
-            Assert.That(naturalized.Program[ridgePc + 5], Is.EqualTo(baseline.Program[firstBaselinePc + 5]),
-                "The primary ridge must retain full authored support height.");
+            Assert.That(naturalized.Program[ridgePc + 5], Is.EqualTo(expectedLocalHeight));
+            Assert.That(naturalized.Program[ridgePc + 3] + naturalized.Program[ridgePc + 5],
+                Is.EqualTo(runHeight),
+                "The local ridge must reach the same authored path-support elevation as the generic control.");
             Assert.That(naturalized.Program[ridgePc + 6], Is.EqualTo(expectedRidgeBase));
             Assert.That(naturalized.Program[ridgePc + 7], Is.EqualTo(expectedRidgeTop));
             Assert.That(expectedRidgeTop, Is.GreaterThanOrEqualTo(coverRadius),
                 "The primary ridge top must cover both original path-support centres with path-width margin.");
 
-            int runHeight = baseline.Program[firstBaselinePc + 5];
-            int expectedButtressHeight = Math.Max(spec.PathRise / 2, runHeight / 2);
-            expectedButtressHeight = Math.Max(1, Math.Min(runHeight - 1, expectedButtressHeight));
+            int expectedButtressHeight = Math.Max(1, expectedLocalHeight * 2 / 3);
             int expectedButtressTop = Math.Max(
                 spec.PathWidth,
                 Math.Min(baseline.Program[firstBaselinePc + 7], baseline.Program[secondBaselinePc + 7]) * 3 / 4);
@@ -306,17 +318,45 @@ namespace VoxelEngine.Tests.PlayMode
                 expectedButtressTop + spec.PathWidth / 2);
             bool anchorFirst = (pairOrdinal & 1) == 0;
 
-            Assert.That(naturalized.Program[buttressPc + 2],
-                Is.EqualTo(anchorFirst ? x1 : x2));
-            Assert.That(naturalized.Program[buttressPc + 4],
-                Is.EqualTo(anchorFirst ? z1 : z2));
+            Assert.That(naturalized.Program[buttressPc + 2], Is.EqualTo(anchorFirst ? x1 : x2));
+            Assert.That(naturalized.Program[buttressPc + 3], Is.EqualTo(expectedBaseY));
+            Assert.That(naturalized.Program[buttressPc + 4], Is.EqualTo(anchorFirst ? z1 : z2));
             Assert.That(naturalized.Program[buttressPc + 5], Is.EqualTo(expectedButtressHeight));
-            Assert.That(naturalized.Program[buttressPc + 5], Is.LessThan(runHeight),
-                "The companion primitive must be a lower buttress, not another full-height ridge.");
+            Assert.That(naturalized.Program[buttressPc + 5], Is.LessThan(expectedLocalHeight),
+                "The companion primitive must be a lower buttress, not another path-height ridge.");
             Assert.That(naturalized.Program[buttressPc + 6], Is.EqualTo(expectedButtressBase));
             Assert.That(naturalized.Program[buttressPc + 7], Is.EqualTo(expectedButtressTop));
             Assert.That(naturalized.Program[buttressPc + 7], Is.LessThan(expectedRidgeTop),
                 "The buttress must be visibly narrower than its support-covering ridge.");
+        }
+
+        private static void AssertLocalizedTail(
+            FeatureCatalogue baseline,
+            FeatureCatalogue naturalized,
+            int baselinePc,
+            int naturalizedPc,
+            in MountainLandmarkSpec spec)
+        {
+            int runHeight = baseline.Program[baselinePc + 5];
+            int expectedBaseY = ExpectedLocalSupportBaseY(runHeight, in spec);
+            int expectedHeight = runHeight - expectedBaseY;
+
+            Assert.That(naturalized.Program[naturalizedPc + 2], Is.EqualTo(baseline.Program[baselinePc + 2]));
+            Assert.That(naturalized.Program[naturalizedPc + 3], Is.EqualTo(expectedBaseY));
+            Assert.That(naturalized.Program[naturalizedPc + 4], Is.EqualTo(baseline.Program[baselinePc + 4]));
+            Assert.That(naturalized.Program[naturalizedPc + 5], Is.EqualTo(expectedHeight));
+            Assert.That(naturalized.Program[naturalizedPc + 6], Is.EqualTo(baseline.Program[baselinePc + 6]));
+            Assert.That(naturalized.Program[naturalizedPc + 7], Is.EqualTo(baseline.Program[baselinePc + 7]));
+            Assert.That(naturalized.Program[naturalizedPc + 3] + naturalized.Program[naturalizedPc + 5],
+                Is.EqualTo(runHeight),
+                "A localized tail must preserve the generic support's top elevation.");
+        }
+
+        private static int ExpectedLocalSupportBaseY(int runHeight, in MountainLandmarkSpec spec)
+        {
+            int supportTopY = runHeight - 1;
+            int embedDepth = Math.Max(spec.PathRise, spec.PathWidth);
+            return Math.Max(0, supportTopY - embedDepth);
         }
 
         private static long ConservativeFrustumRasterProxy(int height, int baseRadius)
