@@ -23,7 +23,7 @@
 - [x] Bump startup landmark contract revision from 3 to 4 so the previous single-material bake is rejected as visually stale.
 - [x] Add `MountainDragonVisualFinalAcceptanceTests.ProductionQualityMountainMaterialsAndEncounterAreReadyForBuiltPlayerReplay`, proving role separation changes only additive shoulder/support frustum material fields while preserving primitive sequence/count, path, placeholder, and the established structural acceptance.
 - [x] Add committed Unity `.meta` files for the new material-role source and visual acceptance test.
-- [ ] Merge current `origin/master` immediately before the final request and verify `behind_by=0`.
+- [x] Merge current `origin/master` `c2cdde7fef88...` immediately before the final request as second parent of `aac1ad310a8b...`; compare reports `behind_by=0` and master adds only an unrelated SceneIssue file.
 - [ ] Run the exact new final PlayMode filter plus built-player VoxelShowcase replay through the existing `ci-test/fixes/agent-4` transport only; leave the request untouched while queued/running.
 - [ ] Human-review exact approach/base/middle/upper/summit/dialogue frames and classify the mountain/path `production-quality`; if not, add concrete visual defects here and continue before closure.
 - [ ] Re-check final bake/runtime cost under unchanged 240 s / 14 GiB contracts after the visual material change.
