@@ -14,4 +14,4 @@
 - [x] Verify exact-SHA focused tests and exact built Kentridge scene validation are green (run `33291387557`: 3/3 tests passed; standalone player 30s, exit 0, 0 harness assertions).
 - [x] Complete pending CI/verification metadata on `fixes/agent-7`.
 - [x] Move assignment to closed, set `status=fixed` and `resolvedUtc`.
-- [ ] Merge current `origin/master` into `fixes/agent-7`, push feature, then advance `origin/master` non-force to the exact branch head.
+- [x] Refresh current `origin/master` (`0901be5a0640e3eec103cdf3c97aa12b8cd42a9e`), confirm it is already an ancestor of the closed feature head, and advance the exact feature head to `origin/master` non-force.
