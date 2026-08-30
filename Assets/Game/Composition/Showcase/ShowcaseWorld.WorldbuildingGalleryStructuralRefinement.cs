@@ -3,6 +3,7 @@ using Game.Materials.Api;
 using Unity.Mathematics;
 using UnityEngine;
 using VoxelEngine.Structures.Api;
+using VoxelEngine.Terrain.Api;
 
 namespace VoxelEngine.Showcase
 {
