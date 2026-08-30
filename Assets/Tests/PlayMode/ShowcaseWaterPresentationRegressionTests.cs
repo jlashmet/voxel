@@ -5,6 +5,7 @@ using NUnit.Framework;
 using Unity.Mathematics;
 using VoxelEngine.Composition;
 using VoxelEngine.Rendering.Api;
+using VoxelEngine.Rendering.Runtime;
 
 namespace VoxelEngine.Tests.PlayMode
 {
@@ -78,18 +79,44 @@ namespace VoxelEngine.Tests.PlayMode
                 AssertMaterial(view, river, GameMaterialIds.RiverWater);
                 AssertMaterial(view, waterfall, GameMaterialIds.Cascade);
 
-                var presentation = GameMaterialRenderingDefinitions.Create();
+                MaterialPresentationDefinition[] presentation = GameMaterialRenderingDefinitions.Create();
+                VoxelMaterialPresentationInstaller.Apply(presentation);
                 Assert.That(presentation[GameMaterialIds.Water].Water.Profile,
                     Is.EqualTo(WaterPresentationProfile.Still));
                 Assert.That(presentation[GameMaterialIds.RiverWater].Water.Profile,
                     Is.EqualTo(WaterPresentationProfile.Flowing));
                 Assert.That(presentation[GameMaterialIds.Cascade].Water.Profile,
                     Is.EqualTo(WaterPresentationProfile.Waterfall));
-                Assert.That(presentation[GameMaterialIds.Cascade].Water.Cascade.w, Is.GreaterThan(0f),
-                    "Portable waterfall semantics must retain the shared mist/spray cue.");
+
+                var renderingWorld = new RenderingWorldBinding(
+                    world.ReadStorage,
+                    world.Palette,
+                    world.SurfaceRules,
+                    world.CoatingRules,
+                    world.ProfileBlocks);
+                RenderingComposition.ConfigureWorld(
+                    in renderingWorld,
+                    world.Changes,
+                    world.Seed,
+                    farFieldEnabled: false);
+
+                Assert.That(RenderingComposition.TryGetWorld(out var bound, out uint boundSeed), Is.True,
+                    "Portable proof must reach the ordinary production RenderingComposition binding.");
+                Assert.That(bound.Storage, Is.SameAs(world.ReadStorage));
+                Assert.That(boundSeed, Is.EqualTo(world.Seed));
+                Assert.That(VoxelPresentationCatalogue.WaterMotion[GameMaterialIds.Water].x,
+                    Is.EqualTo((float)WaterPresentationProfile.Still));
+                Assert.That(VoxelPresentationCatalogue.WaterMotion[GameMaterialIds.RiverWater].x,
+                    Is.EqualTo((float)WaterPresentationProfile.Flowing));
+                Assert.That(VoxelPresentationCatalogue.WaterMotion[GameMaterialIds.Cascade].x,
+                    Is.EqualTo((float)WaterPresentationProfile.Waterfall));
+                Assert.That(VoxelPresentationCatalogue.WaterCascade[GameMaterialIds.Cascade].w,
+                    Is.GreaterThan(0f),
+                    "Portable waterfall semantics must retain the shared mist/spray cue after installation.");
             }
             finally
             {
+                RenderingComposition.ClearWorld();
                 world.StopBackgroundWork();
                 world.Dispose();
             }
