@@ -51,6 +51,7 @@
 - [x] `33330327732`: exact player exposed route-1 refined-gate obstruction; fixed without motor/route tolerance change.
 - [x] `33331734570`: exact player passed all three traversals/negative contracts and emitted eight frames; focused full-refinement test exposed the too-small fixture path.
 - [x] `33334360953`: exact player again passed all three traversals/negative contracts, emitted all eight frames, and `STRUCTURAL_AUDIT result=PASS`; focused test exposed device-budget clamping to 127100. Full-resolution evidence also demonstrated the insufficient bridge/cliff terrain relief root cause.
+- [x] `33336816661`: compilation stopped before tests because the preceding cliff-site edit dropped the `Def(...) => new()` initializer terminator; restored at `5f0109998cdf0f53ae57024f91169bf940ff6848` without changing the support-probe-aligned site fix.
 - [ ] Run one final exact-SHA PlayMode + exact-scene built-player request on the same CI transport after the tier-budget/terrain-site corrections.
 - [ ] Final focused class is green and final built-player `CharacterMotor` traverses bridge, gate, vertical connection; required negative contracts pass.
 - [ ] Record final measured cost and inspect all durable source frames.
