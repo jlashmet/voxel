@@ -44,6 +44,7 @@
 - [x] Reject the current settlement survey evidence: exact `macro-moordell.png` and `macro-rossdam.png` each visibly frame only one blockout building. The separate Moordell road-arrival frame shows multiple buildings but is not proof of all four at every settlement.
 - [x] Diagnose why the intended validation helper did not remediate the exact player: no `target-order=lake-before-rossdam` log appears, the driver still runs `Moordell -> Rossdam -> lake`, and its own diagonal 36 m survey camera remains active. Do not rely on the helper for closure.
 - [x] Diagnose Moordell road-arrival camera race: `ScreenCapture.CaptureScreenshot` queues the frame, `_moordellRoadArrivalPending` is cleared in the same `Update`, then `LateUpdate` reapplies the survey camera before capture. Preserve road-arrival camera mode until the queued screenshot frame completes.
+- [x] Record rejected helper attempt and discriminator in `experiment-013-direct-driver-evidence-remediation.md`.
 - [x] Move lake-before-Rossdam ordering directly into `KentridgeMacroWorldEvidenceDriver.BuildTargetsAndRoadTraversal`; exact target construction is now `Moordell -> Rossdam lake -> Rossdam -> Fairy -> Orc -> Southern Ridge/pass -> network`, with all real readiness/coverage gates and the 60 s CI cap unchanged.
 - [x] Move near-overhead generic-settlement framing directly into the proven evidence driver (`70 m` height, `6 m` horizontal offset from computed settlement bounds), preserve `_moordellRoadArrivalPending` through the queued capture frame, and remove the ineffective separate helper + `.meta`.
 - [ ] Exact built `KentridgePlayableSlice` reaches usable gameplay without startup/runtime exceptions and captures every macro target.
@@ -53,14 +54,14 @@
 ## Blast radius / cost
 - [x] No other SceneIssue, no feature-branch `.github/test-request.json`, no custom workflow/CI transport, no CharacterMotor/streaming-radius/device-budget change.
 - [x] Terrain-relief sampling remains bounded to 25 x 16 = 400 deterministic catalogue queries.
-- [x] Master `61d03336390ed9079498b183217cbf0ecf0abcd2` was merged cleanly; intervening master commits were disjoint from this assignment.
+- [x] Historical master `61d03336390ed9079498b183217cbf0ecf0abcd2` was merged cleanly at `6a49e63cc46fd651bbb815ac98f824a087a09c33`; those intervening commits were disjoint from this assignment.
+- [x] Current master `e95324aeaef619cb49d84bf2b07f770184bead81` was merged at `0cea93d647e5860795dd4938e3b8d8ab5b1bbc6c`; comparison is ahead-only (`behind=0`) and the blast-radius diff contains only this assignment's Kentridge/WorldBuilder implementation, focused tests, and SceneIssue records.
 - [x] Existing production metrics before final resolved-lake adjustment: regions=6, settlements=6, generic buildings=16, hardRoutes=20, routeTiles=833, constrainedRoutes=5, solveSteps=1108, maxRoadRiseVoxels=2.
 - [x] Existing scoped readiness regression: 1,090,380 feature voxels; prior last feature step ~2500 ms.
 - [x] Rejected run `33290154012`: elapsed=79 s, peak RSS=5859 MB, systemFree=31944 MB, swapGrowth=0 MB; post-start FPS generally >60.
 - [x] Run `33292088730` focused editor process before native Burst crash: elapsed=31 s, peak RSS=2287 MB, systemFree=29019 MB, swapGrowth=0 MB.
 - [x] Run `33292881845` exact player: elapsed=70 s, peak RSS=5233 MB, systemFree=28711 MB, swapGrowth=0 MB; after startup one-second FPS windows are generally >60 and often >100.
 - [x] Run `33293664047` focused editor native crash: elapsed=32 s, peak RSS=3448 MB, systemFree=27274 MB, swapGrowth=0 MB. Exact player remains smooth after startup (generally >60 FPS, often >100 FPS) and reports zero harness assertions, but the evidence sequence is incomplete.
-- [x] Re-check corrected feature diff against current master before the rejected 75 s request: master remained `61d03336390ed9079498b183217cbf0ecf0abcd2`; feature was ahead-only/behind=0 and contained only this assignment beyond master.
 - [ ] Measure final resolved lake footprint/depth/primitive scan cells, route solve counts, feature voxel work/last-feature time, CPU/frame/FPS, memory, streaming convergence, and far-field/render telemetry against existing budgets.
 - [ ] Re-check the exact source diff/current master immediately before the next supported 60 s targeted request and again before promotion.
 
