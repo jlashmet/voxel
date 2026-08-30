@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Game.WorldBuilder.Api;
+using MountingForce.WorldGen.Architecture;
 using MountingForce.WorldGen.Content.Kentridge;
 
 namespace MountingForce.WorldGen.Voxel
@@ -77,6 +78,195 @@ namespace MountingForce.WorldGen.Voxel
 
             claims.Sort((a, b) => a.Id.CompareTo(b.Id));
             return claims.ToArray();
+        }
+    }
+
+    /// <summary>
+    /// Adapts the source-backed macro layout envelopes and the already resolved road network. Node
+    /// envelope dimensions remain owned by TopDownWorldLayout; this class only publishes them through
+    /// the shared spatial-query contract. Region envelopes are parent handoffs rather than blanket
+    /// exclusions, while settlement envelopes admit roads only through explicit compatible semantics.
+    /// </summary>
+    public static class TopDownWorldReservationAdapter
+    {
+        private const int DefaultMinYDm = -256;
+        private const int DefaultMaxYDm = 1024;
+
+        public static SpatialReservationSnapshot Build(
+            TopDownWorldVoxelPlan plan,
+            WorldRoadNetwork roads,
+            int minYDm = DefaultMinYDm,
+            int maxYDm = DefaultMaxYDm)
+        {
+            if (plan == null) throw new ArgumentNullException(nameof(plan));
+            if (roads == null) throw new ArgumentNullException(nameof(roads));
+            if (maxYDm <= minYDm) throw new ArgumentOutOfRangeException(nameof(maxYDm));
+
+            ReservationBoundsDm window = PlanningWindow(plan, minYDm, maxYDm);
+            var claims = new List<SpatialReservation>(plan.Nodes.Count + roads.Routes.Count * 8);
+            for (int i = 0; i < plan.Nodes.Count; i++)
+                claims.Add(NodeEnvelope(plan.Nodes[i], minYDm, maxYDm));
+
+            SpatialReservation[] roadClaims = WorldRoadReservationAdapter.BuildClaims(roads, window);
+            for (int i = 0; i < roadClaims.Length; i++) claims.Add(roadClaims[i]);
+            AddArrivalHandoffs(plan, roads, claims, minYDm, maxYDm);
+            return SpatialReservationSnapshot.Create(claims, window);
+        }
+
+        public static void ValidateRoadHandoffs(
+            TopDownWorldVoxelPlan plan,
+            WorldRoadNetwork roads,
+            int minYDm = DefaultMinYDm,
+            int maxYDm = DefaultMaxYDm)
+        {
+            if (plan == null) throw new ArgumentNullException(nameof(plan));
+            if (roads == null) throw new ArgumentNullException(nameof(roads));
+            ReservationBoundsDm window = PlanningWindow(plan, minYDm, maxYDm);
+            var nodeClaims = new List<SpatialReservation>(plan.Nodes.Count);
+            for (int i = 0; i < plan.Nodes.Count; i++)
+                nodeClaims.Add(NodeEnvelope(plan.Nodes[i], minYDm, maxYDm));
+            SpatialReservationSnapshot nodes = SpatialReservationSnapshot.Create(nodeClaims, window);
+            SpatialReservation[] roadClaims = WorldRoadReservationAdapter.BuildClaims(roads, window);
+            for (int i = 0; i < roadClaims.Length; i++)
+            {
+                SpatialReservation road = roadClaims[i];
+                if ((road.Semantics & ReservationSemantics.ProtectedCorridor) == 0) continue;
+                ReservationQueryResult result = nodes.Query(
+                    road,
+                    ReservationConsumerKind.Road,
+                    ReservationCategory.SettlementEnvelope | ReservationCategory.Geographic);
+                if (!result.IsAccepted)
+                    throw new InvalidOperationException(
+                        "Resolved macro road violates a published node envelope: " + result.Describe());
+            }
+        }
+
+        private static SpatialReservation NodeEnvelope(
+            TopDownWorldVoxelNodePlan node,
+            int minYDm,
+            int maxYDm)
+        {
+            int half = node.Node.EnvelopeHalfExtentDm;
+            var bounds = new ReservationBoundsDm(
+                node.CentreDm.X - half,
+                minYDm,
+                node.CentreDm.Y - half,
+                node.CentreDm.X + half + 1,
+                maxYDm,
+                node.CentreDm.Y + half + 1);
+            string owner = "macro-node:" + node.Node.Id;
+            string provenance = node.Node.Source + " | TopDownWorldLayout envelope";
+            if (node.Node.Kind == TopDownWorldNodeKind.Settlement)
+                return WorldBuilderReservationFactory.SettlementEnvelope(
+                    owner, bounds, precedence: 50, provenance: provenance);
+
+            ReservationConsumerKind compatible =
+                ReservationConsumerKind.SettlementBuilding
+                | ReservationConsumerKind.Road
+                | ReservationConsumerKind.StructuralChild
+                | ReservationConsumerKind.Vegetation
+                | ReservationConsumerKind.Underground
+                | ReservationConsumerKind.Landmark;
+            return SpatialReservation.Box(
+                owner,
+                ReservationCategory.Geographic,
+                ReservationSemantics.HardOccupancy | ReservationSemantics.CompatibleHandoff,
+                bounds,
+                precedence: 20,
+                compatibleConsumers: compatible,
+                provenance: provenance);
+        }
+
+        private static ReservationBoundsDm PlanningWindow(
+            TopDownWorldVoxelPlan plan,
+            int minYDm,
+            int maxYDm)
+        {
+            if (plan.Nodes.Count == 0)
+                throw new InvalidOperationException("Macro reservation planning requires at least one node.");
+            int minX = int.MaxValue, minZ = int.MaxValue;
+            int maxX = int.MinValue, maxZ = int.MinValue;
+            for (int i = 0; i < plan.Nodes.Count; i++)
+            {
+                TopDownWorldVoxelNodePlan node = plan.Nodes[i];
+                int half = node.Node.EnvelopeHalfExtentDm;
+                minX = Math.Min(minX, node.CentreDm.X - half);
+                minZ = Math.Min(minZ, node.CentreDm.Y - half);
+                maxX = Math.Max(maxX, node.CentreDm.X + half + 1);
+                maxZ = Math.Max(maxZ, node.CentreDm.Y + half + 1);
+            }
+            return new ReservationBoundsDm(minX, minYDm, minZ, maxX, maxYDm, maxZ);
+        }
+
+        private static void AddArrivalHandoffs(
+            TopDownWorldVoxelPlan plan,
+            WorldRoadNetwork roads,
+            List<SpatialReservation> claims,
+            int minYDm,
+            int maxYDm)
+        {
+            var settlementIds = new HashSet<string>(StringComparer.Ordinal);
+            for (int i = 0; i < plan.Nodes.Count; i++)
+                if (plan.Nodes[i].Node.Kind == TopDownWorldNodeKind.Settlement)
+                    settlementIds.Add(plan.Nodes[i].Node.Id);
+
+            for (int routeIndex = 0; routeIndex < roads.Routes.Count; routeIndex++)
+            {
+                WorldRoadNetworkRoute route = roads.Routes[routeIndex];
+                bool fromSettlement = settlementIds.Contains(route.Road.Intent.FromId);
+                bool toSettlement = settlementIds.Contains(route.Road.Intent.ToId);
+                if (!fromSettlement && !toSettlement) continue;
+                IReadOnlyList<ResolvedWorldRoadPoint> points = route.Road.Points;
+                if (points.Count < 2) continue;
+                int aIndex = fromSettlement ? 0 : points.Count - 2;
+                int bIndex = fromSettlement ? 1 : points.Count - 1;
+                ResolvedWorldRoadPoint a = points[aIndex];
+                ResolvedWorldRoadPoint b = points[bIndex];
+                claims.Add(WorldBuilderReservationFactory.PublicAccessCorridor(
+                    "macro-arrival:" + route.Id,
+                    new Int2(a.Xdm, a.Zdm),
+                    new Int2(b.Xdm, b.Zdm),
+                    Math.Max(minYDm, Math.Min(a.Ydm, b.Ydm) - 12),
+                    Math.Min(maxYDm, Math.Max(a.Ydm, b.Ydm) + 25),
+                    Math.Max(1, route.ClearanceRadiusDm),
+                    precedence: 80,
+                    provenance: route.Road.Intent.Provenance + " | settlement arrival handoff"));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Architecture keeps ownership of piece selection, orientation, support and attachment policy.
+    /// This adapter publishes only the already-resolved site/child clearance volume through the
+    /// common spatial service.
+    /// </summary>
+    public static class StructureSiteReservationAdapter
+    {
+        public static SpatialReservation SiteClearance(
+            string ownerId,
+            in StructureSiteGeometry geometry,
+            int minYDm,
+            int maxYDm,
+            int horizontalClearanceDm = 0,
+            ReservationConsumerKind compatibleConsumers = ReservationConsumerKind.Connector,
+            string provenance = "StructureSiteGeometry")
+        {
+            if (maxYDm <= minYDm) throw new ArgumentOutOfRangeException(nameof(maxYDm));
+            if (horizontalClearanceDm < 0) throw new ArgumentOutOfRangeException(nameof(horizontalClearanceDm));
+            var bounds = new ReservationBoundsDm(
+                geometry.FootprintMinDm.X,
+                minYDm,
+                geometry.FootprintMinDm.Y,
+                geometry.FootprintMaxDm.X,
+                maxYDm,
+                geometry.FootprintMaxDm.Y);
+            if (horizontalClearanceDm > 0) bounds = bounds.ExpandHorizontal(horizontalClearanceDm);
+            return WorldBuilderReservationFactory.StructuralChildClearance(
+                ownerId,
+                bounds,
+                precedence: 40,
+                compatibleConsumers: compatibleConsumers,
+                provenance: provenance);
         }
     }
 
