@@ -205,16 +205,18 @@ namespace Game.WorldBuilder.Api
         public bool TrySample(int xdm, int zdm, out WorldRoadInfluenceSample sample)
         {
             WorldRoadProfile profile = Road.Intent.Profile;
+            IReadOnlyList<ResolvedWorldRoadPoint> presentation = WorldRoadPresentationPath.Build(Road);
             bool found = false;
             WorldRoadInfluenceSample best = default;
 
-            // Physical roads are lowered into bounded corridor pieces and therefore rasterize as the
-            // union of segment-local influence fields. Evaluate the semantic polyline the same way:
-            // strongest coverage wins, then nearest segment for deterministic height/tie selection.
-            for (var i = 0; i + 1 < Road.Points.Count; i++)
+            // Physical roads lower the deterministic presentation polyline into bounded corridor
+            // pieces. Evaluate exactly the same presentation path here so ecology, placement,
+            // material coverage and physical grading remain one shared influence authority while
+            // the resolver's original route points remain unchanged.
+            for (var i = 0; i + 1 < presentation.Count; i++)
             {
                 ClosestPoint(
-                    Road.Points[i], Road.Points[i + 1], xdm, zdm,
+                    presentation[i], presentation[i + 1], xdm, zdm,
                     out long distanceSquared, out int height,
                     out int centreX, out int centreZ);
 
@@ -233,8 +235,10 @@ namespace Game.WorldBuilder.Api
 
                 int vegetation = Clamp(
                     coverage * profile.VegetationSuppressionPermille / 1000, 0, 31);
+                int targetHeight = height
+                    + WorldRoadPresentationPath.CrossSectionOffsetDm(distance, core, outer);
                 var candidate = new WorldRoadInfluenceSample(
-                    distance, height, (byte)coverage, (byte)vegetation, distance <= core);
+                    distance, targetHeight, (byte)coverage, (byte)vegetation, distance <= core);
                 if (!found
                     || candidate.Coverage31 > best.Coverage31
                     || candidate.Coverage31 == best.Coverage31
