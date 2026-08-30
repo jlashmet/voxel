@@ -22,7 +22,7 @@
 - [x] Cover independent non-dragon reuse through `MeshVoxelizationReuseTests.IndependentBoxFixture_UsesImporterCodecAndCanonicalAuthoringPath`.
 - [x] Cover one-shot structure selection plus reusable input ownership through `StructurePlacementInputRouterTests`.
 - [x] Cover reusable fidelity/cost instrumentation for surface extraction, connectedness/material/brick counts, symmetric p95 distance, fixed-view silhouette IoU, and transformed mesh→bake measurement.
-- [ ] Add dragon-specific production regression proving required anatomical regions are non-empty/spatially plausible through produced bake data, not source-string/count-only assertions.
+- [ ] Add dragon-specific production regression proving required anatomical regions are non-empty/spatially plausible through produced bake data, not source-string/count-only assertions. BLOCKED on exact source reconstruction + baked artifact.
 
 ## Implementation
 - [x] Add reusable semantic/config-driven transformed triangle mesh→voxel API/configuration with bounded cost, fill/topology/material/thin-feature policy.
@@ -32,14 +32,14 @@
 - [x] Add reusable bounded offline bake-analysis/fidelity metrics.
 - [x] Add isolated one-shot structure-selection state and control-consumption router.
 - [x] Add source reconstruction/import for the committed split OBJ archive in Editor-only/source-specific tooling; reconstruction fails closed on missing/non-contiguous parts or gzip/OBJ hash mismatch, and ordinary runtime never reads the source archive.
-- [ ] Add source-specific bake configuration and generate/commit the baked dragon artifact within structure bounds X/Z<=127 and Y<=511.
-- [ ] Apply deterministic semantic showcase palette mapping. STL contains no standard material/color source regions, so do not claim source-color preservation; final acceptance must explicitly resolve this source limitation rather than silently changing the requirement.
-- [ ] Instantiate baked dragon through normal `ShowcaseWorld`/WorldBuilder voxel authoring so rendering/collision/edit/destruction share canonical storage.
+- [ ] Add source-specific bake configuration and generate/commit the baked dragon artifact within structure bounds X/Z<=127 and Y<=511. Configuration is implemented by `MountainDragonVoxelBakePolicy`/`MountainDragonAuthoringPolicy`; artifact generation is BLOCKED on the missing exact archive parts.
+- [x] Apply deterministic semantic showcase palette mapping. The source has no standard material/color regions, so composition maps unmaterialed source/interior cells to canonical `DarkStone`; this is explicit composition mapping, not source-color preservation.
+- [ ] Instantiate baked dragon through normal `ShowcaseWorld`/WorldBuilder voxel authoring so rendering/collision/edit/destruction share canonical storage. BLOCKED on baked artifact.
 - [ ] Wire explicit VoxelShowcase selection mode: scroll selects while active and Space commits once; ordinary controls unchanged outside mode. Current tool blocker: live 58 KB `Assets/Game/Composition/Showcase/SceneRuntime/VoxelShowcase.cs` is only writable as a whole while connector reads truncate it; do not risk unrelated loss or create parallel/reflection input authority.
-- [ ] Add labeled `Mesh -> Voxels` comparison area with matched pose/scale/orientation/ground/lighting; source mesh is presentation-only with no collider/gameplay authority.
+- [ ] Add labeled `Mesh -> Voxels` comparison area with matched pose/scale/orientation/ground/lighting; source mesh is presentation-only with no collider/gameplay authority. BLOCKED on reconstructed source + baked artifact.
 - [ ] Add durable capture support for front, side, rear, front 3/4, rear 3/4, elevated/top 3/4, plus head/horns, wing, feet/claws, and tail closeups.
-- [ ] Emit deterministic source triangle count, voxel resolution, authored voxel count, sparse brick/chunk count, voxelization duration, serialized size, resident/runtime placement/build cost.
-- [ ] Add destruction/world-truth validation instance proving voxel edits affect rendering/collision without source-mesh shell/collider fallback.
+- [ ] Emit deterministic source triangle count, voxel resolution, authored voxel count, sparse brick/chunk count, voxelization duration, serialized size, resident/runtime placement/build cost. Final values BLOCKED on baked artifact.
+- [ ] Add destruction/world-truth validation instance proving voxel edits affect rendering/collision without source-mesh shell/collider fallback. BLOCKED on baked artifact.
 
 ## Reusability review
 - [x] Keep shared `MeshVoxelization` and metrics/config completely mesh-agnostic; no dragon names/anatomy/source IDs/showcase controls in engine APIs.
