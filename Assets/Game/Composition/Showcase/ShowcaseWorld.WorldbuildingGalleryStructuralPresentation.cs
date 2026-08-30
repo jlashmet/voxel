@@ -86,7 +86,7 @@ namespace VoxelEngine.Showcase
             AuthorPresentationCatalogue(
                 "bridge-architectural-shell", shellOrigin, new int3(1380, 80, 140),
                 0x53544601u, StructuralSocketRole.BridgeSpan | StructuralSocketRole.Traversal,
-                BridgeTag, shell, 62, stone);
+                BridgeTag, shell, 72, stone);
 
             int riverY = int.MaxValue;
             for (int i = 2; i <= 6; i++)
@@ -262,7 +262,7 @@ namespace VoxelEngine.Showcase
                 new int3(660, site.Rise + 170, 170),
                 0x53544621u,
                 StructuralSocketRole.Platform | StructuralSocketRole.VerticalConnection | StructuralSocketRole.Building,
-                CliffTag, writer, 62, stone);
+                CliffTag, writer, 72, stone);
         }
 
         private void AuthorFacadePresentation(int3 firstOrigin)
