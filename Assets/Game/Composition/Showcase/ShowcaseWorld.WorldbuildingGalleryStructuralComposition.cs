@@ -5,6 +5,7 @@ using Game.Materials.Api;
 using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
+using VoxelEngine.Collision.Api;
 using VoxelEngine.Composition;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
@@ -336,19 +337,20 @@ namespace VoxelEngine.Showcase
             _structuralTraversalStarts[0] = new float3(site.X + 35, site.DeckY + 30, site.Z + 40) * VoxelSize;
             _structuralTraversalEnds[0] = new float3(site.X + 1185, site.DeckY + 30, site.Z + 40) * VoxelSize;
 
-            FeatureDefinition original = catalogue.Definitions[1];
+            FeatureCatalogue mutableCatalogue = catalogue;
+            FeatureDefinition original = mutableCatalogue.Definitions[1];
             FeatureDefinition incompatible = original;
             StructuralPieceSpec piece = incompatible.StructuralPiece;
             piece.Offers = 1UL << 55;
             piece.Accepts = 1UL << 55;
             incompatible.StructuralPiece = piece;
-            catalogue.Definitions[1] = incompatible;
+            mutableCatalogue.Definitions[1] = incompatible;
             using var instances = new NativeList<StructuralInstance>(Allocator.Temp);
             using var decisions = new NativeList<StructuralAttachmentDecision>(Allocator.Temp);
-            StructuralCompositionPlanner.ExpandRoot(in catalogue, Seed, 0,
-                catalogue.ExplicitPlacements[0], instances, decisions);
+            StructuralCompositionPlanner.ExpandRoot(in mutableCatalogue, Seed, 0,
+                mutableCatalogue.ExplicitPlacements[0], instances, decisions);
             _bridgeNegativeReject = FirstRejected(decisions);
-            catalogue.Definitions[1] = original;
+            mutableCatalogue.Definitions[1] = original;
         }
 
         private FeatureCatalogue CreateBridgeCatalogue(int3 rootPosition)
@@ -490,17 +492,18 @@ namespace VoxelEngine.Showcase
             _structuralTraversalStarts[2] = new float3(site.X + 40, site.LowY + 18, site.Z + 40) * VoxelSize;
             _structuralTraversalEnds[2] = new float3(site.X + 500, site.LowY + site.Rise + 28, site.Z + 40) * VoxelSize;
 
-            SlotSpec original = catalogue.Slots[1];
+            FeatureCatalogue mutableCatalogue = catalogue;
+            SlotSpec original = mutableCatalogue.Slots[1];
             SlotSpec unsupported = original;
             unsupported.SupportProbeMin += new int3(0, 100000, 0);
             unsupported.SupportProbeMax += new int3(0, 100000, 0);
-            catalogue.Slots[1] = unsupported;
+            mutableCatalogue.Slots[1] = unsupported;
             using var instances = new NativeList<StructuralInstance>(Allocator.Temp);
             using var decisions = new NativeList<StructuralAttachmentDecision>(Allocator.Temp);
-            StructuralCompositionPlanner.ExpandRoot(in catalogue, Seed, 0,
-                catalogue.ExplicitPlacements[0], instances, decisions);
+            StructuralCompositionPlanner.ExpandRoot(in mutableCatalogue, Seed, 0,
+                mutableCatalogue.ExplicitPlacements[0], instances, decisions);
             _cliffNegativeReject = FirstRejected(decisions);
-            catalogue.Slots[1] = original;
+            mutableCatalogue.Slots[1] = original;
         }
 
         private FeatureCatalogue CreateCliffCatalogue(int3 origin, int rise)
