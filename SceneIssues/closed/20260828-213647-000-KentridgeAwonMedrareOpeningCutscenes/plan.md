@@ -1,20 +1,22 @@
 # Plan — Kentridge Awon + Medrare Opening Cutscenes
 
-## Evidence / result
-- No captures exist; acceptance is the issue contract plus pinned Mounting Force source `9491acd9efc3ad7413a13fd28f1686ed473b5672`.
-- Existing Logan opening remains the entry beat.
-- `kentridge-awon-house-back-room` is talk-triggered/play-once and its exact 22-line payload is ported verbatim.
-- Distinct post-Awon `kentridge-see-medrare` and `kentridge-medrare-join` events are preserved. The join retains zoom `0.5`, 1.5s wait, 2s Medrare approach, party join, and source dialogue id `5000` identity. Missing Medrare text payloads remain UNKNOWN rather than reconstructed.
-- Medrare-house source proves a play-once `Flame` grant after Awon and `medrare-to-church` after first-spell; both gates/actions are ported without invented dialogue. Later post-`meet-king` Medrare join remains out of scope.
-- Rejected and removed the resumed Michael/William/zombie reconstruction.
+## Observed defect / acceptance
+- No captures or marked regions exist; `issue.json` plus pinned `jlashmet/mounting-force@9491acd9efc3ad7413a13fd28f1686ed473b5672` are authoritative.
+- Prior closure omitted Medrare join text and did not prove the complete built-player Logan -> Awon -> Medrare sequence.
 
-## Validation
-- Campaign/story state persists one-shot completion, Medrare party membership, and Flame ownership through deterministic capture/restore.
-- Exact feature SHA `38bfc6f67a746b505089320634d51ccbaed1d102` validated by CI request `89289ab14a85070d8d887f88e60bd8024784300e`, run `33256802496`: all 3 focused PlayMode regressions passed; built `Assets/Scenes/KentridgePlayableSlice.unity`; real player ran 45s with exit status 0; final 1600x900 verification and artifact uploaded.
-- Capture-less SceneIssues use the real-player harness default resolution; captured-pose issues still require captured dimensions.
+## Competing hypotheses / discriminators
+1. `showLines:data:5000` identifies an unrecoverable dialogue payload. **Falsified:** inherited `RPGCutScene.showLines` treats `5000` only as a line-count limit; dialogue comes from the cutscene `text` resource.
+2. The Medrare text resource is absent. **Falsified:** pinned project metadata maps `kentridge-medrare-join.txt` to `Art/kentridge-medrare-join.txt`, containing 17 authoritative lines.
+3. The first rework built-player failure was infrastructure. **Falsified:** its artifact reached `BlueprintCompiler.Compile`; recovered Weldon dialogue made Weldon required while production bound only Medrare.
+
+## Selected fix / verified results
+- Port all 17 Medrare/Weldon lines verbatim and preserve source zoom `0.5`, 1.5s wait, 2s approach, party join, Flame/church continuation, one-shot gating, re-entry, and save/load state.
+- Bind Medrare-join Weldon to `PlayerSlot.First`; focused regression compiles the real campaign blueprint and proves Awon gating.
+- Exact source SHA `46617dd27787592e27dbb5a5d812de871a7f94c4`, request `1555383ab5a230a8e2e402ee15b54cd8ce6fccc6`, run `33283114649`: focused regression passed 1/1 and the built `KentridgePlayableSlice` replay emitted `KENTRIDGE_OPENING result=PASS sequence=logan>awon>medrare awonLines=22 medrareLines=17 dialogueHash=af88eb792eee83b6 party=Medrare flame=True replaySuppressed=True` with no player startup/runtime exception.
+- Final verification frame was inspected; the real Kentridge scene rendered and remained usable.
 
 ## Blast radius / cost
-Changes are scoped to Kentridge opening content/composition, small event-driven story state/snapshot sets, focused tests, and validation startup parsing. No update loops, polling, hierarchy scans, packages/assets, or steady-state scene work were added.
+Kentridge story/cutscene composition, focused tests, exact-issue-only evidence harness, and this issue only. Production delta is a static actor binding/content change; no new steady-state polling, hierarchy scans, packages, workflows, generated content, or unrelated SceneIssues.
 
-## Remaining gate
-The assignment is closed. Re-fetch current `master`, merge if it advanced without an assignment conflict, then non-force push the exact closed feature head to `master` and verify the closed issue exists there.
+## Remaining gates
+Complete canonical pending metadata/move, then closed bookkeeping with `status=fixed` and `resolvedUtc`; merge current `origin/master` into `fixes/agent-9`, resolve only this assignment if its concurrent invalid closure conflicts, and push the exact feature head to `origin/master` non-force.

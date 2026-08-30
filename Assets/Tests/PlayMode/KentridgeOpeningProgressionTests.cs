@@ -22,9 +22,9 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(
                 KentridgeOpeningScript.LineFor(KentridgeOpeningScript.CueForOriginalLine(27)),
                 Is.EqualTo("There's a few things I have to do first though.  First, my father wanted me to stop by the house to show me something."),
-                "The existing Logan opening must continue to direct Weldon to Awon rather than being rewritten by this feature.");
+                "The Logan opening must still send Weldon to Awon.");
 
-            string[] expectedLines =
+            string[] expectedAwonLines =
             {
                 "Weldon my boy!",
                 "Hey dad.",
@@ -49,7 +49,7 @@ namespace VoxelEngine.Tests.PlayMode
                 "Really Weldon? You are a wizard.  Figure it out already.",
                 "Ok thanks dad, thats helpful.  We will check it out."
             };
-            CutsceneActorId[] expectedSpeakers =
+            CutsceneActorId[] expectedAwonSpeakers =
             {
                 KentridgeOpeningProgressionCutscenes.Awon,
                 KentridgeOpeningProgressionCutscenes.Weldon,
@@ -76,16 +76,51 @@ namespace VoxelEngine.Tests.PlayMode
             };
 
             CutsceneDefinition awon = KentridgeOpeningProgressionCutscenes.AwonDefinition;
-            Assert.That(awon.Steps.Count, Is.EqualTo(expectedLines.Length));
-            for (var i = 0; i < expectedLines.Length; i++)
+            AssertDialogue(awon, 0, expectedAwonLines, expectedAwonSpeakers, KentridgeOpeningScript.CueForAwonOpeningLine);
+
+            string[] expectedMedrareLines =
             {
-                Assert.That(awon.Steps[i].Type, Is.EqualTo(CutsceneStepType.Dialogue), "Awon step " + i);
-                Assert.That(awon.Steps[i].Actor, Is.EqualTo(expectedSpeakers[i]), "Awon speaker " + i);
-                Assert.That(KentridgeOpeningScript.LineFor(awon.Steps[i].Cue), Is.EqualTo(expectedLines[i]), "Awon line " + i);
-            }
+                "Weldon!! I'm glad I caught up with you.",
+                "Man, how did you know we were back?  Were you just sitting here all day staring at the docks?",
+                "Umm.. no... Of course not!  Call it... wizards intuition.  Yes, thats it.  Wizards intuition.",
+                "I've come across some very disturbing news!  Remember how I said I've been working on a new type of magic?",
+                "Well my old arch nemesis, Elius, has stolen my notes!  That rat!!",
+                "Sorry professor, but we've got our own problems.",
+                "Remember Logan?  Well, the short of it is he turned into a demon, flew away, and is now raising an army to destroy the entire world.",
+                "We are on our way to warn the King and ask for reinforcements.",
+                "Weldon!  As your instructor, I command you to put aside the fate of the world, and help me resolve my petty squabble with Elius!",
+                "Plus... I'll join your party.  And my magic can pack quite a wallop.",
+                "Well... if you say so.  I guess you probably would be more useful than whoever the King would lend us.",
+                "So where is this Elius?",
+                "Hmmm.. let me tap into my intuition again...",
+                ".....",
+                ".....",
+                "Hightown!  He's in Hightown! I can feel it!",
+                "Ok, lets go."
+            };
+            CutsceneActorId[] expectedMedrareSpeakers =
+            {
+                KentridgeOpeningProgressionCutscenes.Medrare,
+                KentridgeOpeningProgressionCutscenes.Weldon,
+                KentridgeOpeningProgressionCutscenes.Medrare,
+                KentridgeOpeningProgressionCutscenes.Medrare,
+                KentridgeOpeningProgressionCutscenes.Medrare,
+                KentridgeOpeningProgressionCutscenes.Weldon,
+                KentridgeOpeningProgressionCutscenes.Weldon,
+                KentridgeOpeningProgressionCutscenes.Weldon,
+                KentridgeOpeningProgressionCutscenes.Medrare,
+                KentridgeOpeningProgressionCutscenes.Medrare,
+                KentridgeOpeningProgressionCutscenes.Weldon,
+                KentridgeOpeningProgressionCutscenes.Weldon,
+                KentridgeOpeningProgressionCutscenes.Medrare,
+                KentridgeOpeningProgressionCutscenes.Medrare,
+                KentridgeOpeningProgressionCutscenes.Medrare,
+                KentridgeOpeningProgressionCutscenes.Medrare,
+                KentridgeOpeningProgressionCutscenes.Weldon
+            };
 
             CutsceneDefinition join = KentridgeOpeningProgressionCutscenes.MedrareJoinDefinition;
-            Assert.That(join.Steps.Count, Is.EqualTo(4));
+            Assert.That(join.Steps.Count, Is.EqualTo(3 + expectedMedrareLines.Length));
             Assert.That(join.Steps[0].Type, Is.EqualTo(CutsceneStepType.Camera));
             Assert.That(join.Steps[0].Cue, Is.EqualTo(KentridgeOpeningProgressionCutscenes.MedrareJoinZoomHalf));
             Assert.That(join.Steps[1].Type, Is.EqualTo(CutsceneStepType.Wait));
@@ -94,22 +129,20 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(join.Steps[2].Actor, Is.EqualTo(KentridgeOpeningProgressionCutscenes.Medrare));
             Assert.That(join.Steps[2].StagePoint, Is.EqualTo(KentridgeOpeningProgressionCutscenes.MedrareApproachPoint));
             Assert.That(join.Steps[2].DurationMilliseconds, Is.EqualTo(2000));
-            Assert.That(join.Steps[3].Type, Is.EqualTo(CutsceneStepType.Dialogue));
-            Assert.That(join.Steps[3].Cue, Is.EqualTo(KentridgeOpeningScript.MedrareJoinSourceDialogue5000));
+            AssertDialogue(join, 3, expectedMedrareLines, expectedMedrareSpeakers, KentridgeOpeningScript.CueForMedrareJoinLine);
             Assert.That(join.StageRequirements.Count, Is.EqualTo(1));
             Assert.That(join.StageRequirements[0].Point, Is.EqualTo(KentridgeOpeningProgressionCutscenes.MedrareApproachPoint));
             Assert.That(join.StageRequirements[0].Region, Is.EqualTo(CutsceneStageRegion.ConversationApproach));
             Assert.That(join.StageRequirements[0].Facing, Is.EqualTo(CutsceneStageFacingHint.TowardStageCenter));
 
             Assert.That(KentridgeOpeningScript.LineFor(KentridgeOpeningScript.SeeMedrareSourceDialogue), Is.Empty);
-            Assert.That(KentridgeOpeningScript.LineFor(KentridgeOpeningScript.MedrareJoinSourceDialogue5000), Is.Empty);
             Assert.That(KentridgeOpeningScript.LineFor(KentridgeOpeningScript.MedrareFirstSpellSourceDialogue), Is.Empty);
             Assert.That(KentridgeOpeningScript.LineFor(KentridgeOpeningScript.MedrareToChurchSourceDialogue), Is.Empty,
-                "Missing pinned payloads must stay empty rather than being replaced with fabricated dialogue.");
+                "Only genuinely unavailable pinned payloads stay empty; recovered join text must not regress to UNKNOWN.");
         }
 
         [Test]
-        public void OpeningProgressionUsesDistinctAwonGatedMedrareEventsAndPersistentEffects()
+        public void OpeningProgressionExecutesLoganToAwonToMedrareAndPersistentEffects()
         {
             KnownOpeningCampaignContent content = BuildOpening();
             var state = new StoryState();
@@ -119,22 +152,20 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(DispatchSite(content, content.MedrareSite, state, effects), Is.Zero);
             Assert.That(DispatchNpc(content, content.Medrare, state, effects), Is.Zero);
             Assert.That(DispatchSite(content, content.MedrareHouseSite, state, effects), Is.Zero,
-                "No Medrare event may fire before Awon completes.");
+                "No Medrare event may fire before the Logan/Awon opening progression.");
 
             state.Complete(content.IntroCutscene);
             Assert.That(DispatchNpc(content, content.Awon, state, effects), Is.EqualTo(1));
             Assert.That(effects.LastCutscene, Is.EqualTo(content.AwonOpeningCutscene));
             state.Complete(content.AwonOpeningCutscene);
 
-            Assert.That(DispatchNpc(content, content.Medrare, state, effects), Is.EqualTo(1),
-                "The original join is independently gated by Awon, not by an invented sighting prerequisite.");
+            Assert.That(DispatchNpc(content, content.Medrare, state, effects), Is.EqualTo(1));
             Assert.That(effects.LastCutscene, Is.EqualTo(content.MedrareJoinCutscene));
-            Assert.That(DispatchSite(content, content.MedrareHouseSite, state, effects), Is.EqualTo(1),
-                "The first-spell map event is independently gated by Awon in the pinned source.");
+            Assert.That(DispatchSite(content, content.MedrareHouseSite, state, effects), Is.EqualTo(1));
             Assert.That(effects.LastCutscene, Is.EqualTo(content.MedrareFirstSpellCutscene));
             Assert.That(DispatchSite(content, content.MedrareSite, state, effects), Is.EqualTo(1));
             Assert.That(effects.LastCutscene, Is.EqualTo(content.SeeMedrareCutscene),
-                "The sighting and join must remain distinct post-Awon events.");
+                "The sighting and join remain distinct post-Awon source events.");
 
             state.Complete(content.SeeMedrareCutscene);
             state.Complete(content.MedrareJoinCutscene);
@@ -219,7 +250,25 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(restored.IsPartyMemberJoined("Medrare"), Is.True);
             Assert.That(restored.HasSpell("Flame"), Is.True);
             Assert.That(restored.StartNewGame(), Is.Zero,
-                "Reloaded completion state must suppress the play-once cutscene instead of reopening an invalid intermediate state.");
+                "Reloaded completion state must suppress the play-once cutscene.");
+        }
+
+        private static void AssertDialogue(
+            CutsceneDefinition definition,
+            int stepOffset,
+            IReadOnlyList<string> expectedLines,
+            IReadOnlyList<CutsceneActorId> expectedSpeakers,
+            Func<int, CutsceneCueId> cueForLine)
+        {
+            Assert.That(expectedSpeakers.Count, Is.EqualTo(expectedLines.Count));
+            for (var i = 0; i < expectedLines.Count; i++)
+            {
+                CutsceneStep step = definition.Steps[stepOffset + i];
+                Assert.That(step.Type, Is.EqualTo(CutsceneStepType.Dialogue), "dialogue step " + i);
+                Assert.That(step.Actor, Is.EqualTo(expectedSpeakers[i]), "dialogue speaker " + i);
+                Assert.That(step.Cue, Is.EqualTo(cueForLine(i + 1)), "dialogue cue " + i);
+                Assert.That(KentridgeOpeningScript.LineFor(step.Cue), Is.EqualTo(expectedLines[i]), "dialogue text " + i);
+            }
         }
 
         private static KnownOpeningCampaignContent BuildOpening()

@@ -1,0 +1,20 @@
+Kentridge Awon + Medrare opening verification
+
+Issue: 20260828-213647-000-KentridgeAwonMedrareOpeningCutscenes
+Scene: Assets/Scenes/KentridgePlayableSlice.unity
+Validated source SHA: 46617dd27787592e27dbb5a5d812de871a7f94c4
+CI request SHA: 1555383ab5a230a8e2e402ee15b54cd8ce6fccc6
+Workflow run: 33283114649
+Artifact: single-test-33283114649 (artifact id 9723738424, sha256:55bdb331473f6dadfdbe28ea515b6399482aa9063f7b1dd3bf5dbd493b48cf4f)
+
+Focused behavioral regression:
+VoxelEngine.Tests.PlayMode.KentridgeOpeningBuiltPathRegressionTests.RecoveredMedrareJoinCompilesAndRemainsAwonGated
+Result: Passed 1/1.
+
+Built-player evidence from RealPlayer/player-run.log:
+KENTRIDGE_OPENING armed waiting-for-live-logan-opening
+KENTRIDGE_OPENING result=PASS sequence=logan>awon>medrare awonLines=22 medrareLines=17 dialogueHash=af88eb792eee83b6 party=Medrare flame=True replaySuppressed=True
+
+Player replay elapsed 73s. The player-run log contains no startup/runtime exception. Final verification frame was inspected and shows the real Kentridge playable scene rendered and usable.
+
+The issue has captures=[]; there are no original screenshots, marked regions, or recorded camera poses to replay beyond the exact built-scene harness validation above.

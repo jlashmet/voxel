@@ -182,7 +182,9 @@ namespace Game.Composition.Campaign.Content
                 KentridgeOpeningProgressionCutscenes.SeeMedrareDefinition);
             CutsceneHandle medrareJoin = medrareSite.Cutscene(
                 KentridgeOpeningProgressionCutscenes.MedrareJoinDefinition,
-                scene => scene.Bind(KentridgeOpeningProgressionCutscenes.Medrare, medrare));
+                scene => scene
+                    .Bind(KentridgeOpeningProgressionCutscenes.Weldon, PlayerSlot.First)
+                    .Bind(KentridgeOpeningProgressionCutscenes.Medrare, medrare));
             CutsceneHandle medrareFirstSpell = medrareHouseSite.Cutscene(
                 KentridgeOpeningProgressionCutscenes.MedrareFirstSpellDefinition);
             CutsceneHandle medrareToChurch = medrareHouseSite.Cutscene(
