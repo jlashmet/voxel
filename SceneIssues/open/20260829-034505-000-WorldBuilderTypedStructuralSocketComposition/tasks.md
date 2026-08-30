@@ -110,3 +110,5 @@
 - [x] Ensure typed structural gallery proving content is present in both live-generate and normal bake startup modes through a bounded presence-check/compatibility repair; do not require a new bake merely to validate this feature.
 - [x] Extend the existing gallery audit/player harness for feature frames, traversal assertions, and bridge/castle cost evidence; do not create a parallel validation harness.
 - [x] Scope the structural audit phase to this exact SceneIssue id so unrelated capture-less WorldbuildingGallery validations keep their existing audit contract and runtime cost.
+- [x] Diagnose final CI admission failure run `33306559976`: request schema used string `"60"` for `replay_seconds`, so Unity/test/player steps never ran and no gate was satisfied.
+- [ ] Correct `replay_seconds` to integer `60` and resubmit on the same persistent `ci-test/fixes/agent-5` transport without changing production code.
