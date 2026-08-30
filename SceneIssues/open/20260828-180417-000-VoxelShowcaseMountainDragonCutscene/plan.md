@@ -1,20 +1,22 @@
 # Plan
 
 ## Acceptance
-Built `VoxelShowcase` must show a substantial grounded mountain with a readable winding ascent, normal grounded traversal to a usable summit, the explicitly allowed cube dragon visibly supported, and proximity dialogue `Hello, I'm Mr. Dragon.` WorldBuilder/shared modules must own the geometry and interaction. Current `AGENTS.md` requires player-visible work to be `production-quality`; the issue lowers that bar only for final dragon art, not the mountain/path. Closure also requires a source-matched checked-in startup bake and exact built-player evidence.
+Built `VoxelShowcase` must show a substantial grounded mountain with a readable winding ascent, normal grounded traversal to a usable summit, the explicitly allowed cube dragon visibly supported, and proximity dialogue `Hello, I'm Mr. Dragon.` WorldBuilder/shared modules own geometry and interaction. Current `AGENTS.md` requires player-visible work to be `production-quality`; only final dragon art has a lower issue-specific bar. Closure also requires a source-matched checked-in startup bake and exact built-player evidence.
 
 ## Proven state
-Architecture, traversal, headroom, sparse upper-dragon bake coverage, and the exact CI-only native bake exit are proven. Run `33310677691` on source `2100df40287a...` passed the exact acceptance, fresh bake, Unity reopen, 17/17 production `AutoWalk -> CharacterMotor.Step` replay, and dialogue capture under unchanged 240 s / 14 GiB guards. Current master `dfbc43b086b6...` is merged as second parent of `fb7dd3b14853...`.
+Architecture, traversal/headroom/support, castle-suppression avoidance, sparse upper-dragon bake coverage, raster fast-path equivalence, and the exact-CI native bake exit are proven. Run `33310677691` on source `2100df40287a...` passed fresh bake, Unity reopen, structural acceptance, 17/17 production `AutoWalk -> CharacterMotor.Step` replay, and dialogue capture under unchanged 240 s / 14 GiB guards.
 
-## New visual discriminator
-Re-reviewing the exact six final-run frames under current master’s art rubric classifies the mountain/path as `prototype/blockout quality`: almost every landform/support surface uses the same bright masonry, the repeated rounded/frustum masses remain obvious, carved path faces read as retaining walls, and the dirt ramp has weak terrain/material integration. The cube itself remains acceptable because the issue explicitly permits placeholder dragon art.
+Re-review under master `dfbc43b086b6...` classified that run's mountain/path `prototype/blockout quality`: dominant bright masonry, repeated primitive/frustum masses, retaining-wall-like cuts, weak ground/material integration. The cube remains acceptable by explicit issue text.
 
-Two plausible causes remain: (1) the single mountain material makes otherwise serviceable tapered masses read as repeated masonry primitives; (2) even with material separation, the silhouette/support proportions may still look procedural. Test (1) first because it is the smaller reusable change.
+## Selected visual fix
+Hypothesis 1: material monotony is the primary blocker; hypothesis 2: silhouette/support proportions remain procedural even after separation. Test hypothesis 1 first because it changes presentation semantics without adding geometry or cost.
 
-## Selected next change
-Generalize the reusable mountain catalogue to distinct rock and ground-cover/support material roles while preserving the existing single-material overload. Keep the main core/cut faces rock; use ground cover on protruding shoulders and tapered path-support banks; keep the road material distinct. Compose VoxelShowcase with dark masonry rock + moss/ground cover + dirt road. Bump the startup landmark contract revision because rendered realization changes without layout dimensions. Add a focused program regression proving the role separation and unchanged support/traversal contract.
+Implemented semantic mountain roles (`rock`, `groundCover`, `path`, `placeholder`) in reusable WorldBuilder composition. VoxelShowcase now selects dark masonry rock, moss ground-cover/support banks, dirt path, and unchanged red cube. Revision 4 invalidates old single-material startup bakes. `MountainDragonVisualFinalAcceptanceTests` proves the material adapter changes only additive shoulder/support frustum material fields and preserves primitive order/count plus the entire established structural acceptance.
+
+## Next discriminator
+Merge current master, then use the existing `ci-test/fixes/agent-4` transport for one exact final PlayMode request targeting `MountainDragonVisualFinalAcceptanceTests.ProductionQualityMountainMaterialsAndEncounterAreReadyForBuiltPlayerReplay` with built-player VoxelShowcase replay. Human-review approach/base/middle/upper/summit/dialogue frames. If not `production-quality`, record the remaining silhouette/support defects and continue; do not close.
 
 ## Remaining gates
-1. Implement and run the exact final PlayMode + built-player capture; require `production-quality` review or continue improving silhouette/supports.
-2. Re-bake and source-match the new accepted payload/manifest; replace the stale checked-in startup image without weakening provenance or inventing another CI transport.
-3. Only when every checklist/acceptance item is green, move only this issue `open -> pending -> closed`, set fixed metadata, merge then-current master, and push exact head to master non-force.
+1. Final exact PlayMode + built-player visual run and cost check.
+2. Record the newly accepted source-matched payload/manifest and commit them as the clean-checkout startup image through an existing repository-sanctioned binary path; provenance validation stays strict.
+3. Validate clean-checkout shipped bytes, then complete `open -> pending -> closed` metadata/lifecycle, merge then-current master, and non-force push the exact feature head to master.
