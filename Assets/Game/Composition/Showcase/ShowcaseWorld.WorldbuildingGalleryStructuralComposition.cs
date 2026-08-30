@@ -380,20 +380,15 @@ namespace VoxelEngine.Showcase
                         .Box(new int3(0, 28, 0), new int3(450, 10, 4), rail)
                         .Box(new int3(0, 28, 76), new int3(450, 10, 4), rail)
                         .CallSlot(0).Finish(), 3, stone,
-                    Slot("west-road-continuation", 0x53544231u, StructuralSocketRole.Traversal,
+                    Slot("west-road-continuation", 0x53544222u, StructuralSocketRole.Traversal,
                         BridgeTag, int3.zero, Facing.West, 4, required: false, count: 0)),
-                Def("bridge-pier", new int3(28, 240, 28),
+                Def("bridge-pier", new int3(20, 181, 20),
                     Piece(0x53544204u, StructuralSocketRole.Support | StructuralSocketRole.TerrainAnchor,
-                        BridgeTag, new int3(14, 220, 14), Facing.Up),
-                    new ProgramWriter()
-                        .Box(int3.zero, new int3(28, 220, 28), stone)
-                        .Finish(), 1, stone),
-                Def("bridge-road-stub", new int3(80, 12, 80),
-                    Piece(0x53544205u, StructuralSocketRole.Traversal,
-                        BridgeTag, int3.zero, Facing.West),
-                    new ProgramWriter()
-                        .Box(int3.zero, new int3(80, 8, 80), stone)
-                        .Finish(), 1, stone),
+                        BridgeTag, new int3(10, 180, 10), Facing.Up),
+                    new ProgramWriter().Box(int3.zero, new int3(20, 181, 20), stone).Finish(), 1, stone),
+                Def("road-continuation-contract", new int3(40, 8, 80),
+                    Piece(0x53544205u, StructuralSocketRole.Traversal, BridgeTag, int3.zero, Facing.West),
+                    new ProgramWriter().Finish(), 0, stone),
             };
             return BuildCatalogue(defs, rootPosition);
         }
@@ -427,7 +422,7 @@ namespace VoxelEngine.Showcase
                     Slot("east-wall", 0x53544311u, StructuralSocketRole.Wall, WallTag,
                         new int3(160, 0, 40), Facing.East, 1, required: true),
                     Slot("west-wall", 0x53544312u, StructuralSocketRole.Wall, WallTag,
-                        int3.zero, Facing.West, 2, required: true)),
+                        new int3(0, 0, 40), Facing.West, 2, required: true)),
                 Def("castle-east-wall", new int3(220, 70, 40),
                     Piece(0x53544302u, StructuralSocketRole.Wall, WallTag, int3.zero, Facing.West),
                     new ProgramWriter()
@@ -473,8 +468,7 @@ namespace VoxelEngine.Showcase
             _structuralProofMetrics[2] = new GalleryStructuralProofMetrics(s_StructuralProofNames[2], in plan, in build);
             _structuralProofCentres[2] = new float3(site.X + 300, site.LowY + site.Rise + 60, site.Z + 40) * VoxelSize;
             _structuralTraversalStarts[2] = new float3(site.X + 40, site.LowY + 18, site.Z + 40) * VoxelSize;
-            // The upper house starts at X+480. End on the clear landing after the ramp rather than inside its facade.
-            _structuralTraversalEnds[2] = new float3(site.X + 465, site.LowY + site.Rise + 28, site.Z + 40) * VoxelSize;
+            _structuralTraversalEnds[2] = new float3(site.X + 500, site.LowY + site.Rise + 28, site.Z + 40) * VoxelSize;
 
             FeatureCatalogue mutableCatalogue = catalogue;
             SlotSpec original = mutableCatalogue.Slots[1];
@@ -862,10 +856,16 @@ namespace VoxelEngine.Showcase
 
         private static int NormalizeStructuralProofIndex(int index)
         {
-            int value = index % WorldbuildingGalleryStructuralProofCaseCount;
-            return value < 0 ? value + WorldbuildingGalleryStructuralProofCaseCount : value;
+            int normalized = index % WorldbuildingGalleryStructuralProofCaseCount;
+            return normalized < 0 ? normalized + WorldbuildingGalleryStructuralProofCaseCount : normalized;
         }
 
         private static Vector3 ToVector3(float3 value) => new(value.x, value.y, value.z);
+
+        private static float HorizontalDistance(Vector3 a, Vector3 b)
+        {
+            a.y = b.y = 0f;
+            return Vector3.Distance(a, b);
+        }
     }
 }
