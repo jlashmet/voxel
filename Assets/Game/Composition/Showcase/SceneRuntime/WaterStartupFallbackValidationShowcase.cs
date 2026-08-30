@@ -25,10 +25,14 @@ namespace VoxelEngine.Showcase
         private const uint ShowcaseSeed = 0x5EED1234u;
         private const int RegionX = 1;
         private const int RegionZ = 6;
-        private const int BaseY = 100;
+        // Far-field authored content is recorded only when it rises materially above analytic
+        // terrain. Keep the deterministic review pedestal well clear of terrain variation so every
+        // representative relationship is present independent of seed-local ground height.
+        private const int BaseY = 180;
         private const float InnerRadiusMetres = 30f;
         private const float OuterRadiusMetres = 180f;
-        private const int SampleStep = 16;
+        private const int CoarseColumnStep = 32;
+        private const int CoarseColumnCentre = 16;
 
         private IVoxelStorageRuntime _storage;
         private Material _frozenMaterial;
@@ -58,12 +62,13 @@ namespace VoxelEngine.Showcase
             AuthorTableau(authoring, originX, originZ);
 
             farField.CaptureRegion(new int3(RegionX, 0, RegionZ), _storage.Reads, ShowcaseSeed);
-            int probeX = originX + 112;
-            int probeZ = originZ + 160;
-            if (farField.AuthoredTerrainHeightAt(probeX, probeZ) != BaseY
-                || farField.AuthoredTerrainMaterialAt(probeX, probeZ) != GameMaterialIds.Water)
+            if (!RequireProbe(farField, originX, originZ, 112, 112, BaseY, GameMaterialIds.Water, "still pool")
+                || !RequireProbe(farField, originX, originZ, 208, 112, BaseY - 1, GameMaterialIds.Sand, "shallow shoreline")
+                || !RequireProbe(farField, originX, originZ, 240, 80, BaseY + 5, GameMaterialIds.Water, "upper river")
+                || !RequireProbe(farField, originX, originZ, 240, 400, BaseY + 6, GameMaterialIds.Cascade, "cascade")
+                || !RequireProbe(farField, originX, originZ, 240, 432, BaseY - 1, GameMaterialIds.Water, "receiving pool")
+                || !RequireProbe(farField, originX, originZ, 272, 432, BaseY, GameMaterialIds.Stone, "terrain contact"))
             {
-                Debug.LogError("WATER_VALIDATION authored still-water probe was not captured.");
                 yield break;
             }
 
@@ -93,13 +98,36 @@ namespace VoxelEngine.Showcase
             camera.transform.hasChanged = false;
         }
 
+        private static bool RequireProbe(
+            FarFieldStructureStore farField,
+            int originX,
+            int originZ,
+            int localX,
+            int localZ,
+            int expectedHeight,
+            byte expectedMaterial,
+            string relationship)
+        {
+            int worldX = originX + localX;
+            int worldZ = originZ + localZ;
+            int actualHeight = farField.AuthoredTerrainHeightAt(worldX, worldZ);
+            byte actualMaterial = farField.AuthoredTerrainMaterialAt(worldX, worldZ);
+            if (actualHeight == expectedHeight && actualMaterial == expectedMaterial)
+                return true;
+
+            Debug.LogError(
+                $"WATER_VALIDATION {relationship} probe mismatch at ({localX},{localZ}): " +
+                $"expected height/material {expectedHeight}/{expectedMaterial}, got {actualHeight}/{actualMaterial}.");
+            return false;
+        }
+
         private static void AuthorTableau(IStructureAuthoringSession authoring, int originX, int originZ)
         {
             // A neutral terrain apron makes water/terrain contact legible from the overview camera.
             FillRect(authoring, originX, originZ, 32, 480, 32, 480, BaseY - 8, GameMaterialIds.Grass);
 
-            // Still pool. A broad calm plate is surrounded by a one-sample shallow shelf so the
-            // shoreline reads as a deliberate transition instead of a water rectangle on open ground.
+            // Still pool. A broad calm plate is surrounded by a shallow shelf so the shoreline
+            // reads as a deliberate transition instead of a water rectangle on open ground.
             FillRect(authoring, originX, originZ, 64, 208, 96, 240, BaseY - 1, GameMaterialIds.Sand);
             FillRect(authoring, originX, originZ, 80, 192, 112, 224, BaseY, GameMaterialIds.Water);
             FillRect(authoring, originX, originZ, 96, 176, 128, 208, BaseY + 1, GameMaterialIds.Water);
@@ -112,8 +140,8 @@ namespace VoxelEngine.Showcase
             FillRect(authoring, originX, originZ, 208, 320, 48, 352, BaseY - 2, GameMaterialIds.Stone,
                 skipExistingWater: true);
 
-            // Waterfall/cascade. A raised lip feeds a vertical semantic Cascade band into a lower
-            // receiving pool. The lower stone shelf exposes contact on both sides of the drop.
+            // Waterfall/cascade. A raised lip feeds a semantic Cascade band into a lower receiving
+            // pool. The lower stone shelf exposes contact on both sides of the drop.
             FillRect(authoring, originX, originZ, 232, 296, 352, 384, BaseY + 7, GameMaterialIds.Water);
             FillRect(authoring, originX, originZ, 232, 296, 384, 400, BaseY + 6, GameMaterialIds.Cascade);
             FillRect(authoring, originX, originZ, 232, 296, 400, 416, BaseY + 3, GameMaterialIds.Cascade);
@@ -138,15 +166,26 @@ namespace VoxelEngine.Showcase
             byte material,
             bool skipExistingWater = false)
         {
-            for (int z = minZ; z <= maxZ; z += SampleStep)
-            for (int x = minX; x <= maxX; x += SampleStep)
+            // FarFieldStructureStore samples each 32-voxel coarse column at local 16 + 32n.
+            // Author exactly that lattice so semantic validation content cannot disappear merely
+            // because a rectangle happened to begin on a different modulo-32 offset.
+            int startX = FirstCoarseCentreAtOrAfter(minX);
+            int startZ = FirstCoarseCentreAtOrAfter(minZ);
+            for (int z = startZ; z <= maxZ; z += CoarseColumnStep)
+            for (int x = startX; x <= maxX; x += CoarseColumnStep)
             {
-                // Later water/cascade calls deliberately override the terrain apron. Bank calls use
-                // skipExistingWater only as composition intent; authoring itself remains semantic.
                 if (skipExistingWater && IsWaterZone(x, z))
                     continue;
                 authoring.Set(originX + x, y, originZ + z, material);
             }
+        }
+
+        private static int FirstCoarseCentreAtOrAfter(int minimum)
+        {
+            if (minimum <= CoarseColumnCentre)
+                return CoarseColumnCentre;
+            int delta = minimum - CoarseColumnCentre;
+            return CoarseColumnCentre + ((delta + CoarseColumnStep - 1) / CoarseColumnStep) * CoarseColumnStep;
         }
 
         private static bool IsWaterZone(int x, int z)
@@ -170,7 +209,7 @@ namespace VoxelEngine.Showcase
 
             // Frame the full authored region diagonally: still pool left, river centre, cascade and
             // receiving pool rear. This is scene policy, intentionally outside shared harness code.
-            Vector3 position = new Vector3(55f, 78f, 300f);
+            Vector3 position = new Vector3(55f, 86f, 300f);
             Vector3 target = new Vector3(78f, BaseY * 0.1f, 341f);
             camera.transform.SetPositionAndRotation(
                 position,
