@@ -1,9 +1,19 @@
 {
   "timeoutSeconds": 55.0,
   "arrivalRadius": 1.25,
-  "holdSeconds": 0.5,
+  "holdSeconds": 0.0,
   "quitOnComplete": true,
   "waypoints": [
+    {
+      "name": "castle-south-exit",
+      "x": 44.6,
+      "z": -54.0
+    },
+    {
+      "name": "castle-south-west-clear",
+      "x": -56.0,
+      "z": -54.0
+    },
     {
       "name": "normal-approach",
       "x": -146.2,
