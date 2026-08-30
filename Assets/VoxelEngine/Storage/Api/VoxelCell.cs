@@ -148,7 +148,7 @@ namespace VoxelEngine.Storage.Api
                 StyleId = SurfaceStyles.WithMaterialBlend(reconstructionStyle),
                 CoatingId = secondaryMaterialId,
                 Flags = flags,
-                Detail = (byte)Math.Clamp(coverage31, 0, 31),
+                Detail = (byte)Math.Clamp((int)coverage31, 0, 31),
             };
         }
 
