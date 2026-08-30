@@ -5,8 +5,9 @@ namespace Game.WorldBuilder.Api
 {
     /// <summary>
     /// Deterministic presentation-only refinement of an authoritative resolved road polyline.
-    /// The resolver points remain unchanged; this view only rounds interior direction changes so
-    /// physical lowering and presentation queries can share a coherent curved centreline.
+    /// The resolver points remain unchanged; this view only rounds interior direction changes and
+    /// defines bounded cross-section offsets so semantic presentation queries and physical lowering
+    /// can agree without changing route authority.
     /// </summary>
     public static class WorldRoadPresentationPath
     {
@@ -31,9 +32,8 @@ namespace Game.WorldBuilder.Api
                 int previousRun = PlanarDistance(previous, corner);
                 int nextRun = PlanarDistance(corner, next);
                 int trim = Math.Min(previousRun, nextRun) * CurveTrimPermille / 1000;
-                int maximumByProfile = Math.Max(
-                    road.Intent.Profile.CoreRadiusDm,
-                    road.Intent.Profile.CoreRadiusDm + road.Intent.Profile.TransitionWidthDm);
+                int maximumByProfile = road.Intent.Profile.CoreRadiusDm
+                    + road.Intent.Profile.TransitionWidthDm;
                 trim = Math.Min(trim, maximumByProfile * 2);
                 if (trim < 2 || Collinear(previous, corner, next))
                 {
@@ -50,6 +50,21 @@ namespace Game.WorldBuilder.Api
             }
             AddDistinct(result, road.Points[road.Points.Count - 1]);
             return result.ToArray();
+        }
+
+        public static int CrossSectionOffsetDm(int distanceDm, int coreDm, int outerDm)
+        {
+            if (coreDm <= 0) return 0;
+            int crown = Clamp(coreDm / 12, 1, 3);
+            if (distanceDm <= coreDm)
+                return DivideRounded((long)crown * (coreDm - distanceDm), coreDm);
+
+            int shoulderWidth = outerDm - coreDm;
+            if (shoulderWidth <= 0) return 0;
+            int shoulderDrop = Clamp(shoulderWidth / 10, 1, 3);
+            return -DivideRounded(
+                (long)shoulderDrop * (distanceDm - coreDm),
+                shoulderWidth);
         }
 
         private static ResolvedWorldRoadPoint Quadratic(
@@ -115,6 +130,9 @@ namespace Game.WorldBuilder.Api
             if (numerator >= 0) return (int)((numerator + denominator / 2) / denominator);
             return (int)(-((-numerator + denominator / 2) / denominator));
         }
+
+        private static int Clamp(int value, int min, int max)
+            => value < min ? min : value > max ? max : value;
 
         private static int IntegerSqrt(long value)
         {
