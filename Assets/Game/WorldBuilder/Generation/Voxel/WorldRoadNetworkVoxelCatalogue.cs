@@ -484,10 +484,11 @@ namespace MountingForce.WorldGen.Voxel
                     throw new InvalidOperationException(
                         "Road profile '" + profile.Id + "' cannot fit the bounded terrain-corridor budget.");
 
-                for (int segment = 0; segment + 1 < route.Road.Points.Count; segment++)
+                IReadOnlyList<ResolvedWorldRoadPoint> presentation = WorldRoadPresentationPath.Build(route.Road);
+                for (int segment = 0; segment + 1 < presentation.Count; segment++)
                 {
-                    ResolvedWorldRoadPoint a = route.Road.Points[segment];
-                    ResolvedWorldRoadPoint b = route.Road.Points[segment + 1];
+                    ResolvedWorldRoadPoint a = presentation[segment];
+                    ResolvedWorldRoadPoint b = presentation[segment + 1];
                     int extentVoxels = Math.Max(
                         Math.Abs(b.Xdm - a.Xdm),
                         Math.Abs(b.Zdm - a.Zdm)) * scale;
