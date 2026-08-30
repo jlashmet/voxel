@@ -1,7 +1,7 @@
 # Tasks
 
 ## Investigation
-- [x] Read `AGENTS.md` and canonical `SceneIssues/README.md`; confirm `SceneIssues/feature-readme.md` and `SceneIssues/test-workflow.md` are absent at this revision.
+- [x] Read `AGENTS.md`, current `SceneIssues/feature-readme.md`, and canonical `SceneIssues/README.md`; the feature guide was absent on the resumed branch initially and is now present via the current-master refresh merge.
 - [x] Confirm `fixes/agent-1` starts from/merges current `origin/master` before implementation.
 - [x] Re-check CI transport state: `ci-test/fixes/agent-1` already exists; leave it untouched until the single final targeted-CI request and never replace queued/running CI.
 - [x] Record execution limitation: no local Unity runner; exact-SHA CI is authoritative compiler/test/player validation.
@@ -77,7 +77,7 @@
 - [ ] Record import/voxelization time, occupied voxel count, sparse brick/chunk count, serialized size, runtime resident/storage impact, and incremental render/world-build cost within repository budgets.
 - [ ] Verify ordinary runtime does not execute mesh voxelization and no `MeshCollider`/source-mesh gameplay fallback exists.
 - [x] Current feature-vs-master blast-radius review shows additions confined to mesh-import editor/runtime, showcase mesh-structure/selection helpers, focused EditMode tests, and this issue's plan/tasks; no workflow request or unrelated SceneIssue changes.
-- [x] Refresh-merged `origin/master` through `65e33762a0d0f1739e9a518484d119e551f01f81` during resumed implementation, preserving only unrelated master additions untouched.
+- [x] Refresh-merged `origin/master` through `5f07db5cd7677e84f617deb61c5b03a4b896159c` at merge commit `76ecb118cd93010a0169e270822d769e46804123`, preserving current master changes without altering another assignment directly.
 - [ ] Re-run full feature diff review after source/showcase/evidence implementation.
 - [ ] Refresh/merge current `origin/master` again immediately before final CI if it advanced.
 - [ ] Issue one final exact-source PlayMode request only through `ci-test/fixes/agent-1`; do not replace queued/running CI.
