@@ -27,7 +27,7 @@ namespace VoxelEngine.Showcase
                 maxDimensions: MaximumStructureSize,
                 maxDenseCells: 2_000_000,
                 thinFeaturePaddingVoxels: 0,
-                openSurfacePolicy: MeshVoxelOpenSurfacePolicy.Reject);
+                openSurfacePolicy: MeshVoxelOpenSurfacePolicy.VoxelShellFill);
         }
 
         public static void ValidateBakeEnvelope(BakedVoxelStructure bake)
@@ -44,7 +44,7 @@ namespace VoxelEngine.Showcase
                 throw new InvalidOperationException("Mountain-dragon bake contains no authored voxels.");
             if (!bake.InteriorFilled)
                 throw new InvalidOperationException(
-                    "Mountain-dragon bake is not volumetric. Repair source topology rather than accepting a shell.");
+                    "Mountain-dragon bake is not volumetric. The configured voxel-shell policy may fill only when conservative rasterization actually encloses voxel-space cells.");
         }
     }
 }

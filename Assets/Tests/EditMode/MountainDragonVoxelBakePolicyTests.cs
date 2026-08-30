@@ -8,7 +8,7 @@ namespace VoxelEngine.Tests.EditMode
     public sealed class MountainDragonVoxelBakePolicyTests
     {
         [Test]
-        public void CreateSettings_UsesStrictVolumetricBoundedBakePolicy()
+        public void CreateSettings_UsesExplicitVoxelShellVolumetricBoundedBakePolicy()
         {
             MeshVoxelizationSettings settings = MountainDragonVoxelBakePolicy.CreateSettings(7);
 
@@ -19,8 +19,8 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(settings.MaxDenseCells, Is.EqualTo(2_000_000));
             Assert.That(settings.ThinFeaturePaddingVoxels, Is.Zero,
                 "The source-specific policy must not globally bloat wings, horns, legs, or tail.");
-            Assert.That(settings.OpenSurfacePolicy, Is.EqualTo(MeshVoxelOpenSurfacePolicy.Reject),
-                "A dragon body shell is not an acceptable substitute for volumetric world truth.");
+            Assert.That(settings.OpenSurfacePolicy, Is.EqualTo(MeshVoxelOpenSurfacePolicy.VoxelShellFill),
+                "This known topologically-open source may fill only when its conservative voxel raster encloses cells.");
         }
 
         [Test]

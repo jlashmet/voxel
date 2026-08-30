@@ -31,6 +31,7 @@
         "Game.Composition.WorldBuilderWorldGen.Runtime",
         "Game.Composition.WorldObjects.Runtime",
         "Game.Composition.Showcase",
+        "Game.Composition.Showcase.Editor",
         "Game.Quests.Api",
         "Game.Story.Api",
         "Game.Story.Runtime",
