@@ -50,20 +50,24 @@ namespace VoxelEngine.Tests.PlayMode
                     $"Tier {level} must keep an exposed outer edge rather than becoming a trench.");
                 Assert.That(tier.LocalZ + spec.PathWidth, Is.GreaterThan(coreMinZAtStart),
                     $"Tier {level} must overlap the natural shell at its low end.");
-                Assert.That(
-                    coreMinZAtEnd - (tier.LocalZ + spec.PathWidth),
-                    Is.LessThanOrEqualTo(spec.PathWidth * 2),
-                    $"Tier {level} high end must remain within a modest embankment envelope.");
+                Assert.That(tier.EndLocalZ, Is.LessThan(coreMinZAtEnd),
+                    $"Tier {level} high end must keep an exposed outer edge rather than becoming a trench.");
+                Assert.That(tier.EndLocalZ + spec.PathWidth, Is.GreaterThan(coreMinZAtEnd),
+                    $"Tier {level} high end must overlap the natural shell, not rely on an embankment gap.");
 
                 Assert.That(tier.MinX, Is.GreaterThanOrEqualTo(coreMinX - spec.PathWidth),
                     $"Tier {level} left edge exceeds the tapered core plus one path-width embankment.");
                 Assert.That(tier.MinX + tier.Run, Is.LessThanOrEqualTo(coreMaxX + spec.PathWidth),
                     $"Tier {level} right edge exceeds the tapered core plus one path-width embankment.");
 
+                AssertShellFollowingSegments(in spec, in tier);
+
                 if (level > 0)
                 {
                     Assert.That(tier.LowLandingMinX, Is.EqualTo(previous.HighLandingMinX),
                         $"Tier {level} must start on the exact prior turn landing.");
+                    Assert.That(tier.LocalZ, Is.EqualTo(previous.EndLocalZ),
+                        $"Tier {level} must start at the prior tier's exact shell-relative Z endpoint.");
                     Assert.That(tier.Run, Is.LessThanOrEqualTo(previous.Run),
                         "Switchback run length must be monotonic as the mountain narrows.");
                     narrowed |= tier.Run < previous.Run;
@@ -84,6 +88,44 @@ namespace VoxelEngine.Tests.PlayMode
 
             AssertEvidenceRouteUsesSharedTierGeometry(in spec);
             AssertSupportRasterProxyReducedFromRevision6(in spec);
+        }
+
+        private static void AssertShellFollowingSegments(
+            in MountainLandmarkSpec spec,
+            in MountainPathTierGeometry tier)
+        {
+            MountainPathSegmentGeometry previous = default;
+            for (int segment = 0; segment < tier.SegmentCount; segment++)
+            {
+                MountainPathSegmentGeometry geometry = tier.SegmentGeometry(segment);
+                int coreMinZAtStart = spec.CoreMinLocalZAtHeight(geometry.StartY);
+                int coreMinZAtEnd = spec.CoreMinLocalZAtHeight(geometry.EndY);
+
+                Assert.That(geometry.StartLocalZ, Is.LessThan(coreMinZAtStart));
+                Assert.That(geometry.StartLocalZ + spec.PathWidth, Is.GreaterThan(coreMinZAtStart),
+                    $"Tier {tier.Level} segment {segment} must overlap the shell at its low end.");
+                Assert.That(geometry.EndLocalZ, Is.LessThan(coreMinZAtEnd));
+                Assert.That(geometry.EndLocalZ + spec.PathWidth, Is.GreaterThan(coreMinZAtEnd),
+                    $"Tier {tier.Level} segment {segment} must overlap the shell at its high end.");
+                Assert.That(geometry.Run - spec.PathWidth, Is.GreaterThan(geometry.Rise),
+                    $"Tier {tier.Level} segment {segment} must remain a shallow traversable ramp.");
+
+                if (segment > 0)
+                {
+                    Assert.That(geometry.StartLandingMinX, Is.EqualTo(previous.EndLandingMinX));
+                    Assert.That(geometry.StartY, Is.EqualTo(previous.EndY));
+                    Assert.That(geometry.StartLocalZ, Is.EqualTo(previous.EndLocalZ));
+                }
+
+                previous = geometry;
+            }
+
+            MountainPathSegmentGeometry first = tier.SegmentGeometry(0);
+            MountainPathSegmentGeometry last = tier.SegmentGeometry(tier.SegmentCount - 1);
+            Assert.That(first.StartLandingMinX, Is.EqualTo(tier.LowLandingMinX));
+            Assert.That(first.StartLocalZ, Is.EqualTo(tier.LocalZ));
+            Assert.That(last.EndLandingMinX, Is.EqualTo(tier.HighLandingMinX));
+            Assert.That(last.EndLocalZ, Is.EqualTo(tier.EndLocalZ));
         }
 
         private static void AssertEvidenceRouteUsesSharedTierGeometry(in MountainLandmarkSpec spec)
@@ -110,9 +152,9 @@ namespace VoxelEngine.Tests.PlayMode
                 EvidenceWaypoint high = FindWaypoint(route, $"switchback-{level}-high");
 
                 AssertWorldCoordinate(low.x, spec.Origin.x + tier.LowCentreX, low.name + " x");
-                AssertWorldCoordinate(low.z, spec.Origin.z + tier.CentreZ, low.name + " z");
+                AssertWorldCoordinate(low.z, spec.Origin.z + tier.LowCentreZ, low.name + " z");
                 AssertWorldCoordinate(high.x, spec.Origin.x + tier.HighCentreX, high.name + " x");
-                AssertWorldCoordinate(high.z, spec.Origin.z + tier.CentreZ, high.name + " z");
+                AssertWorldCoordinate(high.z, spec.Origin.z + tier.HighCentreZ, high.name + " z");
 
                 if (level > 0)
                     Assert.That(low.expectedYOffset, Is.EqualTo(tier.StartY * VoxelSizeMetres).Within(0.001f));
@@ -185,9 +227,9 @@ namespace VoxelEngine.Tests.PlayMode
 
                 long legacyProxy = Revision6ConstantRunSupportProxy(in spec, out int legacySupportFrustums);
                 Assert.That(supportFrustums, Is.LessThan(legacySupportFrustums),
-                    "Tapered topology must remove support segments rather than adding geometry.");
+                    "Shell-following topology must stay below the revision-6 support count.");
                 Assert.That(actualProxy, Is.LessThan(legacyProxy),
-                    "Tapered topology must reduce the conservative support raster-cost proxy.");
+                    "Shell-following topology must reduce the conservative support raster-cost proxy.");
             }
             finally
             {
