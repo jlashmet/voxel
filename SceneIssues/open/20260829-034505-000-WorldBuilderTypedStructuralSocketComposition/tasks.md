@@ -7,6 +7,7 @@
 - [x] Discriminate the predecessor path: `VoxelEngine.Structures.Runtime.ShapeProgram.Run` actively compiles `ShapeOp.CallSlot` but its production switch case is a no-op. The prior "no active CallSlot" inventory was falsified.
 - [x] Select one canonical path: complete/reconcile `FeatureDefinition` / `SlotSpec` / `ShapeOp.CallSlot` and its production catalogue/evaluator rather than introduce a parallel `StructuralSocketComposer`.
 - [x] Locate/document the active slot metadata/compiler/catalogue/hash/region chain: `SlotSpec` -> pooled `FeatureCatalogue.Slots` -> `FeatureCatalogueComposer` definition-id rebasing -> `ShapeOp.CallSlot` bytecode -> current no-op evaluator -> top-level-only `FeatureRegionBuild`; catalogue hash currently omits slots.
+- [x] Record the second runtime discriminator: `StructuralCompositionPlanner` plans accepted descendants but `FeatureRegionBuild` never iterates them, so child pieces do not reach authoritative voxels/collision and cross-region descendants are undiscoverable.
 - [ ] Audit/extend authoring-time slot validation and prove generation-order independence after composition is active.
 - [ ] Ensure structural socket/slot metadata participates in deterministic catalogue/world identity so content changes cannot silently desync saves/networked generation.
 - [x] Audit repository tree for a separately named `DecorationSocket*` production path: none exists on current master. Preserve existing fine-detail/attachment authoring APIs and add only a structural handoff marker; do not invent a parallel decoration solver.
@@ -30,6 +31,8 @@
 
 ## Authoritative voxel realization
 - [ ] Expand accepted child links into deterministic physical feature placements before per-region rasterization; do not inline child primitives into the root footprint.
+- [ ] Make region generation discover and rasterise a composed child whose explicit root footprint lies outside the requested logical region.
+- [ ] Filter structural roots by exact composed graph bounds/piece footprints and charge planned physical pieces against the resumable scan budget so empty-region structural scans stay bounded and interruptible.
 - [ ] Prove child pieces remain authoritative voxel/collision/destruction/storage content; do not realize structural children as presentation-only meshes or permanent GameObjects.
 - [ ] Keep each child piece bounded so monumental structures can span multiple logical generation/streaming regions without one giant feature footprint.
 - [ ] Preserve/expose decoration handoff spaces after structural realization without moving micro-detail responsibilities into structural sockets.
