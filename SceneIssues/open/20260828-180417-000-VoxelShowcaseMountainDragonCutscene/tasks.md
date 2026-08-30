@@ -32,9 +32,17 @@
 - [x] Extend real-storage regression: Empty performs no mutation; Uniform full block uses one whole-cell replacement with 512 writes; full Mixed boundary state remains on partial mutation; partial box leaves outside material/boundary state untouched. Keep this regression called by the exact final acceptance filter.
 - [x] Re-check blast radius and cost: post-plan candidate changes only `PrimitiveRasteriser` plus the Mountain Dragon storage regression/final-filter call. The existing per-box block-kind lookup is reused; Uniform interior blocks replace up to 512 read/compare/write iterations with one Storage mutation; Mixed/partial and all non-box/fill/paint paths retain their prior mutation semantics, primitive order, footprint, serialized output, and write accounting.
 
+## Fresh-bake regression loop
+- [x] Merge current master into the candidate and submit exact request `agent4-mountain-dragon-final-7f522cf-uniformcarve` on CI head `0988cfa0c9d8...` for feature source `7f522cf98183...`, without replacing queued/running work.
+- [x] Generate a fresh source-matched startup bake in run `33285254695`; bake completed in ~226 s under the 600 s watchdog (`ShowcaseWorld.bytes` 164,690,080 bytes, digest `b9af6884c926b4f795b8393d49f797910d8e527a`). This clears the prior 241 s bake blocker.
+- [x] Inspect the completed focused-test failure and capture artifacts: fresh-bake acceptance reaches semantic traversal validation, then reports first-turn landing floor voxel `(-435,264,-316)` as Empty (`0`) instead of Gravel (`13`); the separate 60 s player capture completed.
+- [ ] Discriminate whether the missing landing comes from whole-block carve storage semantics, rasterizer read/mutation ordering, or mountain program geometry/order; preserve the successful bake-time improvement.
+- [ ] Add a focused behavioral regression reproducing the fresh-bake landing-loss mechanism before changing implementation.
+- [ ] Apply the smallest output-correct fix, re-check blast radius/cost, and prove all authored landing floor/headroom columns survive with the optimized carve path.
+
 ## Exact-SHA bake / built-player gate
-- [ ] Commit the post-full-block candidate on `fixes/agent-4`, then issue the next final exact-SHA request using only existing `ci-test/fixes/agent-4`; do not create another transport or replace queued/running work.
-- [ ] Generate and validate source-matched `ShowcaseWorld.bytes` + manifest.
+- [x] Commit the post-full-block candidate on `fixes/agent-4`, merge current master, then issue the next final exact-SHA request using only existing `ci-test/fixes/agent-4`; no extra transport was created.
+- [x] Generate and provenance-validate source-matched `ShowcaseWorld.bytes` + manifest on the Unity runner; run `33285254695` reached the focused test using the fresh payload.
 - [ ] Run the exact focused acceptance filter green.
 - [ ] Traverse the complete route via production `AutoWalk -> CharacterMotor.Step` with grounded Y proof.
 - [ ] Save and human-review approach/base/middle/upper/summit/dialogue captures, including `Hello, I'm Mr. Dragon.`
