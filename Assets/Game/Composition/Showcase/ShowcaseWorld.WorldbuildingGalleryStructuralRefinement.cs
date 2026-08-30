@@ -173,9 +173,12 @@ namespace VoxelEngine.Showcase
             byte stone = GameMaterialIds.MasonryMedium;
             byte detail = GameMaterialIds.DarkStone;
             int3 crownOrigin = origin + new int3(-320, 0, -20);
+            const int gatePassageMinX = 84;
+            const int gatePassageMaxX = 116;
 
             var gate = new ProgramWriter()
-                .Box(new int3(0, 0, 0), new int3(200, 12, 70), stone)
+                .Box(new int3(0, 0, 0), new int3(gatePassageMinX, 12, 70), stone)
+                .Box(new int3(gatePassageMaxX, 0, 0), new int3(200 - gatePassageMaxX, 12, 70), stone)
                 .Box(new int3(0, 12, 0), new int3(28, 94, 26), detail)
                 .Box(new int3(172, 12, 0), new int3(28, 94, 26), detail)
                 .Box(new int3(18, 84, 0), new int3(164, 12, 28), stone)
