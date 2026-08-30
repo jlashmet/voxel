@@ -3,6 +3,7 @@ using Game.Composition.Materials;
 using Game.Materials.Api;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Profiling;
 using VoxelEngine.Composition;
 
 namespace VoxelEngine.Showcase
@@ -20,7 +21,10 @@ namespace VoxelEngine.Showcase
         private const int BrickPoolCapacity = 32768;
         private const long StorageBudgetBytes = 128L * 1024L * 1024L;
         private const float InspectionSpeed = 8f;
+        private const float CaptureTelemetryIntervalSeconds = 10f;
+        private const double BytesPerMebibyte = 1024d * 1024d;
 
+        private readonly FrameTiming[] _frameTimings = new FrameTiming[1];
         private ShowcaseWorld _world;
         private Camera _camera;
         private Transform _sun;
@@ -33,6 +37,9 @@ namespace VoxelEngine.Showcase
         private bool _unattendedCapture;
         private float _captureTime;
         private byte _captureViewPhase = byte.MaxValue;
+        private float _telemetryTime;
+        private float _telemetryFrameSeconds;
+        private int _telemetryFrameCount;
 
         private enum MeasurementMode : byte
         {
@@ -86,6 +93,7 @@ namespace VoxelEngine.Showcase
                 && HasCommandLineArgument("-voxel-screenshot-dir");
             _captureTime = 0f;
             _captureViewPhase = byte.MaxValue;
+            ResetCaptureTelemetry();
             ApplyView(_unattendedCapture ? "near" : requestedView ?? "wide");
             if (_unattendedCapture)
                 _captureViewPhase = 0;
@@ -103,6 +111,7 @@ namespace VoxelEngine.Showcase
             _unattendedCapture = false;
             _captureTime = 0f;
             _captureViewPhase = byte.MaxValue;
+            ResetCaptureTelemetry();
 
             _world?.StopBackgroundWork();
             RenderingComposition.ResetTransientPresentation();
@@ -238,13 +247,51 @@ namespace VoxelEngine.Showcase
 
         private void UpdateUnattendedCaptureView()
         {
-            _captureTime += Time.unscaledDeltaTime;
+            FrameTimingManager.CaptureFrameTimings();
+            float deltaTime = Time.unscaledDeltaTime;
+            _captureTime += deltaTime;
+            _telemetryTime += deltaTime;
+            _telemetryFrameSeconds += deltaTime;
+            _telemetryFrameCount++;
+            if (_telemetryTime >= CaptureTelemetryIntervalSeconds)
+                EmitCaptureTelemetry();
+
             byte phase = _captureTime < 12f ? (byte)0 : _captureTime < 22f ? (byte)1 : (byte)2;
             if (phase == _captureViewPhase)
                 return;
 
             _captureViewPhase = phase;
             ApplyView(phase == 0 ? "near" : phase == 1 ? "wide" : "waterfall");
+        }
+
+        private void EmitCaptureTelemetry()
+        {
+            uint timingCount = FrameTimingManager.GetLatestTimings(1, _frameTimings);
+            double cpuFrameMs = timingCount > 0 ? _frameTimings[0].cpuFrameTime : -1d;
+            double gpuFrameMs = timingCount > 0 ? _frameTimings[0].gpuFrameTime : -1d;
+            double averageFrameMs = _telemetryFrameCount > 0
+                ? _telemetryFrameSeconds * 1000d / _telemetryFrameCount
+                : -1d;
+            double allocatedMiB = Profiler.GetTotalAllocatedMemoryLong() / BytesPerMebibyte;
+            double reservedMiB = Profiler.GetTotalReservedMemoryLong() / BytesPerMebibyte;
+            double monoUsedMiB = Profiler.GetMonoUsedSizeLong() / BytesPerMebibyte;
+
+            Debug.Log(
+                $"WATER_RENDERING_SHOWCASE_METRICS elapsed={_captureTime:F1}s " +
+                $"avgFrameMs={averageFrameMs:F3} cpuFrameMs={cpuFrameMs:F3} gpuFrameMs={gpuFrameMs:F3} " +
+                $"allocatedMiB={allocatedMiB:F1} reservedMiB={reservedMiB:F1} monoUsedMiB={monoUsedMiB:F1} " +
+                $"graphicsDevice={SystemInfo.graphicsDeviceName}");
+
+            _telemetryTime = 0f;
+            _telemetryFrameSeconds = 0f;
+            _telemetryFrameCount = 0;
+        }
+
+        private void ResetCaptureTelemetry()
+        {
+            _telemetryTime = 0f;
+            _telemetryFrameSeconds = 0f;
+            _telemetryFrameCount = 0;
         }
 
         private static bool HasCommandLineArgument(string expected)
