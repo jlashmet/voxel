@@ -15,7 +15,7 @@ namespace Game.Composition.Kentridge.Playable
     /// <summary>
     /// Production composition seam for the first Combat/Input vertical slice in Kentridge.
     /// The encounter owns only cross-module wiring: authored world placement, proximity lifecycle,
-    /// input-context ownership, and presentation identities. Combat rules remain in Game.Combat.
+    /// input-context ownership, battle stepping, and presentation identities. Combat rules remain in Game.Combat.
     /// </summary>
     [DefaultExecutionOrder(-10000)]
     public sealed class KentridgeForestBanditEncounter : MonoBehaviour
@@ -25,6 +25,8 @@ namespace Game.Composition.Kentridge.Playable
         private const string MaleCharacterResource = "Characters/placeholder_male";
         private const float DecimetresToMetres = 0.1f;
         private const int ForestEntryInsetDm = 240;
+        private const int AutonomousBattleSeed = 20260829;
+        private const float BattleActionIntervalSeconds = 0.10f;
         private static readonly LocalPlayerId LocalPlayer = new LocalPlayerId(0);
         private static readonly CombatParticipantId PlayerParticipant = new CombatParticipantId("kentridge-player");
 
@@ -37,9 +39,12 @@ namespace Game.Composition.Kentridge.Playable
         private UnityPlayerInputReader _inputReader;
         private CombatService _combat;
         private CombatInputController _combatInput;
+        private CombatAiBattleDriver _battleDriver;
         private IInputContextLease _combatContext;
         private Vector3 _ambushCenterWorld;
         private RegionThemeKind _ambushTheme;
+        private float _nextBattleActionTime;
+        private bool _encounterResolved;
 
         public int BanditCount => _bandits.Count;
         public IReadOnlyList<GameObject> Bandits => _bandits;
@@ -47,6 +52,17 @@ namespace Game.Composition.Kentridge.Playable
         public Vector3 AmbushCenterWorld => _ambushCenterWorld;
         public RegionThemeKind AmbushTheme => _ambushTheme;
         public bool CombatActive => _combat != null && _combat.IsActive;
+        public bool CombatResolved => _encounterResolved;
+        public CombatTeam? WinningTeam => _combat == null ? null : _combat.WinningTeam;
+        public int CombatActionCount => _combat == null ? 0 : _combat.ActionCount;
+        public int CombatTurnNumber => _combat == null ? 0 : _combat.TurnNumber;
+        public int BattleSeed => AutonomousBattleSeed;
+        public bool HasPendingCombatWork =>
+            (_combat != null && _combat.HasPendingBattleWork) ||
+            (_battleDriver != null && _battleDriver.HasPendingAction);
+        public string BattleDiagnostic => _battleDriver == null
+            ? "seed=" + AutonomousBattleSeed + " state=" + (_combat == null ? CombatLifecycleState.Idle : _combat.State)
+            : _battleDriver.Diagnostic("Kentridge forest battle");
         public InputContextId ActiveInputContext =>
             _inputContexts == null ? InputContextId.Exploration : _inputContexts.ActiveContext;
         public ICombatService CombatService => _combat;
@@ -98,6 +114,8 @@ namespace Game.Composition.Kentridge.Playable
 
             if (!_combat.IsActive)
             {
+                if (_encounterResolved) return;
+
                 float triggerSquared = _triggerRadiusMetres * _triggerRadiusMetres;
                 Vector3 player = transform.position;
                 for (int i = 0; i < _bandits.Count; i++)
@@ -110,17 +128,24 @@ namespace Game.Composition.Kentridge.Playable
                     _inputReader.SuppressLegacyReadersForCurrentFrame();
                     break;
                 }
+                return;
             }
-            else
-            {
-                if (_combatInput != null)
-                    _combatInput.Tick(Time.deltaTime);
 
-                // The existing Kentridge exploration controller is a legacy direct Unity input reader.
-                // Consume the physical frame here after Combat sampled it so both systems can never
-                // apply the same WASD/mouse intent while the Combat context owns control.
-                _inputReader.SuppressLegacyReadersForCurrentFrame();
+            if (_combatInput != null)
+                _combatInput.Tick(Time.deltaTime);
+
+            if (_battleDriver != null && Time.unscaledTime >= _nextBattleActionTime)
+            {
+                _battleDriver.Step();
+                _nextBattleActionTime = Time.unscaledTime + BattleActionIntervalSeconds;
+                if (!_combat.IsActive)
+                    SettleCompletedCombat();
             }
+
+            // The existing Kentridge exploration controller is a legacy direct Unity input reader.
+            // Consume the physical frame here after Combat sampled it so both systems can never
+            // apply the same WASD/mouse intent while the Combat context owns control.
+            _inputReader.SuppressLegacyReadersForCurrentFrame();
         }
 
         private void BuildAuthoredAmbushPlan()
@@ -213,7 +238,7 @@ namespace Game.Composition.Kentridge.Playable
 
         private void BeginBanditCombat()
         {
-            if (_combat.IsActive) return;
+            if (_combat.IsActive || _encounterResolved) return;
 
             var participants = new CombatParticipant[4];
             participants[0] = new CombatParticipant(PlayerParticipant, CombatTeam.Player);
@@ -225,6 +250,28 @@ namespace Game.Composition.Kentridge.Playable
             _combat.BeginCombat(new CombatEncounterRequest("kentridge-forest-bandits", participants));
             _combatContext = _inputContexts.Push(InputContextId.Combat);
             _combatInput = new CombatInputController(_combat, _inputReader, LocalPlayer, PlayerParticipant);
+            _battleDriver = new CombatAiBattleDriver(_combat, AutonomousBattleSeed);
+            _nextBattleActionTime = Time.unscaledTime + BattleActionIntervalSeconds;
+        }
+
+        private void SettleCompletedCombat()
+        {
+            if (_combat == null || _combat.IsActive) return;
+            if (!_combat.WinningTeam.HasValue)
+                throw new InvalidOperationException("Kentridge combat completed without a terminal team outcome.");
+            if (_battleDriver != null && _battleDriver.HasPendingAction)
+                throw new InvalidOperationException(_battleDriver.Diagnostic("Kentridge combat completed with pending AI work."));
+
+            _encounterResolved = true;
+            _combatInput = null;
+            ReleaseCombatContext();
+        }
+
+        private void ReleaseCombatContext()
+        {
+            if (_combatContext == null) return;
+            _combatContext.Dispose();
+            _combatContext = null;
         }
 
         private static GameObject CreateBandit(int index, Vector3 groundPosition)
@@ -320,11 +367,7 @@ namespace Game.Composition.Kentridge.Playable
 
         private void OnDestroy()
         {
-            if (_combatContext != null)
-            {
-                _combatContext.Dispose();
-                _combatContext = null;
-            }
+            ReleaseCombatContext();
         }
     }
 }
