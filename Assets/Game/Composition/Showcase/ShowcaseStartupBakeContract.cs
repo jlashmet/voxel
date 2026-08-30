@@ -13,10 +13,10 @@ namespace VoxelEngine.Showcase
             "Assets/Resources/VoxelShowcase/ShowcaseWorld.manifest.txt";
 
         private const int ManifestVersion = 1;
-        // Revision 8 makes each switchback follow the receding mountain shell throughout its rise.
-        // The tier contract now carries both Z endpoints and subdivides the climb into deterministic
-        // shallow segments, so no upper ramp can finish detached from the natural core.
-        private const uint LandmarkContractRevision = 8;
+        // Revision 9 retains the revision-8 shell-following route but localizes production support
+        // to a bounded embankment beneath each terrace instead of extending upper supports to the
+        // mountain base. This changes baked geometry and must reject older startup payloads.
+        private const uint LandmarkContractRevision = 9;
         private const uint FnvOffsetBasis = 2166136261u;
         private const uint FnvPrime = 16777619u;
 
