@@ -60,9 +60,13 @@ Shader "Hidden/VoxelEngine/WaterSurface"
                 nointerpolation uint material : TEXCOORD2;
             };
 
-            Varyings Vert(uint vertexID : SV_VertexID)
+            Varyings Vert(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
             {
-                SurfaceVertex vertex = _SurfaceVertices[_SurfaceIndices[_SurfaceIndexBase + vertexID]];
+                // Arena indices are local to each immutable vertex lease. The indirect record's
+                // startInstance carries that lease's VertexStart, so later water chunks do not
+                // accidentally dereference vertices from the arena's first allocation.
+                SurfaceVertex vertex = _SurfaceVertices[
+                    instanceID + _SurfaceIndices[_SurfaceIndexBase + vertexID]];
                 Varyings output;
                 output.positionCS = TransformWorldToHClip(vertex.position);
                 output.positionWS = vertex.position;
