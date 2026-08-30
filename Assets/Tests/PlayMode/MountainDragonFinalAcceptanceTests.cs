@@ -15,6 +15,9 @@ namespace VoxelEngine.Tests.PlayMode
             var startup = new MountainDragonStartupBakeAcceptanceTests();
             startup.MountainLandformProgramUsesMultipleAsymmetricMasses();
 
+            var ownership = new MountainDragonCastleRegionOwnershipTests();
+            ownership.MountainFootprintDoesNotEnterCastleOwnedFeatureSuppressionRegions();
+
             var support = new MountainDragonNaturalSupportProgramTests();
             support.MountainPathSupportUsesTaperedMassesWithoutTallRetainingWallBoxes();
             support.OfflineBakeFarFieldSuppressionIsScopedAndRestored();

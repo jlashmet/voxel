@@ -36,17 +36,22 @@
 - [x] Merge current master into the candidate and submit exact request `agent4-mountain-dragon-final-7f522cf-uniformcarve` on CI head `0988cfa0c9d8...` for feature source `7f522cf98183...`, without replacing queued/running work.
 - [x] Generate a fresh source-matched startup bake in run `33285254695`; bake completed in ~226 s under the 600 s watchdog (`ShowcaseWorld.bytes` 164,690,080 bytes, digest `b9af6884c926b4f795b8393d49f797910d8e527a`). This clears the prior 241 s bake blocker.
 - [x] Inspect the completed focused-test failure and capture artifacts: fresh-bake acceptance reaches semantic traversal validation, then reports first-turn landing floor voxel `(-435,264,-316)` as Empty (`0`) instead of Gravel (`13`); the separate 60 s player capture completed.
-- [ ] Discriminate whether the missing landing comes from whole-block carve storage semantics, rasterizer read/mutation ordering, or mountain program geometry/order; preserve the successful bake-time improvement.
-- [ ] Add a focused behavioral regression reproducing the fresh-bake landing-loss mechanism before changing implementation.
-- [ ] Apply the smallest output-correct fix, re-check blast radius/cost, and prove all authored landing floor/headroom columns survive with the optimized carve path.
+- [x] Discriminate the missing landing: source geometry covers the voxel, primitive order is preserved, snapshot/storage reads current semantic state, and the failed cell is not directly eligible for the Uniform full-block fast path. Root cause is composition: castle-owned regions defer generic catalogue features and intentionally discard those deferrals after castle authoring.
+- [x] Confirm the concrete overlap: castle landmark center `(256,376)` and minimum 512-voxel ownership reach produce castle regions `x=-1..1, z=-1..1`; the Mountain Dragon footprint currently spans `x=-3..-1, z=-1..1`, and failed voxel `(-435,264,-316)` is region `(-1,0,-1)`.
+- [x] Add a focused behavioral regression before production implementation: `MountainDragonCastleRegionOwnershipTests` rejects any Mountain Dragon footprint/castle feature-suppression region overlap and is invoked by the exact final acceptance filter.
+- [ ] Shift the Mountain Dragon footprint one 512-voxel region west (`OriginX - 512`) so its three X-region columns become `-4..-2`, preserving footprint size, primitive program, and route geometry while removing castle ownership overlap.
+- [ ] Re-check dependent runtime/evidence coordinates and update only layout-derived artifacts that do not already derive from `ShowcaseMountainDragonLayout`.
+- [ ] Re-check blast radius/cost after the shift: generic feature region count must remain unchanged, startup radius remains 8 regions, carve volume/primitive count remain unchanged, and Uniform carve optimization stays intact.
+- [ ] Prove all authored landing floor/headroom columns survive with the optimized carve path and no castle-region suppression.
 
 ## Exact-SHA bake / built-player gate
-- [x] Commit the post-full-block candidate on `fixes/agent-4`, merge current master, then issue the next final exact-SHA request using only existing `ci-test/fixes/agent-4`; no extra transport was created.
+- [x] Commit the post-full-block candidate on `fixes/agent-4`, merge current master, then issue the previous exact-SHA request using only existing `ci-test/fixes/agent-4`; no extra transport was created.
 - [x] Generate and provenance-validate source-matched `ShowcaseWorld.bytes` + manifest on the Unity runner; run `33285254695` reached the focused test using the fresh payload.
-- [ ] Run the exact focused acceptance filter green.
+- [ ] Produce/commit the accepted source-matched generated startup payload + manifest before the one remaining final exact-SHA CI request, if repository workflow permits producing it without using the CI transport.
+- [ ] Run the exact focused acceptance filter green on the final feature SHA using only `ci-test/fixes/agent-4`.
 - [ ] Traverse the complete route via production `AutoWalk -> CharacterMotor.Step` with grounded Y proof.
 - [ ] Save and human-review approach/base/middle/upper/summit/dialogue captures, including `Hello, I'm Mr. Dragon.`
-- [ ] Commit the accepted generated startup payload/manifest and record measured bake/runtime evidence.
+- [ ] Record measured bake/runtime evidence and accepted payload provenance.
 
 ## Closure gate
 - [ ] After all green gates, complete pending metadata and move only this assignment `open -> pending`.
