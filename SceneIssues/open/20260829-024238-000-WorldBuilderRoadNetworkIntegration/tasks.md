@@ -40,7 +40,7 @@
 - [x] Preserve ordinary non-blend coating/style/detail behavior, including existing coating displacement semantics.
 - [x] Mask the blend marker back to the underlying reconstruction style before shared CPU/GPU style lookup and faceted classification so blend metadata cannot route geometry through a different reconstruction path.
 - [x] Repair the CI-discovered `MaterialBlend` coverage clamp overload ambiguity without changing packed semantics or runtime behavior (`3c586c51b472f6c34461cfe939e8eca1051801a5`).
-- [ ] Improve the generic capture-less `KentridgePlayableSlice` evidence profile so a 60-second SceneIssue replay exits the opening sooner, exercises player-height road traversal, and captures an elevated survey view without adding a new capture or CI transport.
+- [x] Improve the generic capture-less `KentridgePlayableSlice` evidence profile so a 60-second SceneIssue replay exits the opening sooner, exercises player-height road traversal, and captures an elevated survey view without adding a new capture or CI transport.
 
 ## Regressions implemented
 - [x] Modern Kentridge semantic routes map to traceable generic physical road definitions.
