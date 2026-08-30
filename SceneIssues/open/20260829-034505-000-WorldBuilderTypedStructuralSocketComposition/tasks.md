@@ -98,3 +98,7 @@
 - [ ] Add focused negative regressions for required/optional sockets, semantic incompatibility, slot clearance, support, capacity, runtime depth, child/primitive/voxel/spatial budgets, and inspection metadata.
 - [ ] Add deterministic variation and generation-order regressions.
 - [ ] Resolve the exact production player traversal component serialized in `WorldbuildingGalleryShowcase` and use it for bridge/gate/vertical traversal proof.
+- [ ] Reconcile every structural composition simulation limit with the authoritative `device-matrix.md`; document deterministic cross-tier limits instead of leaving hidden code-only budgets.
+- [ ] Remove managed allocations from structural support probing so composition remains allocation-free/bounded on the production generation path.
+- [ ] Ensure `GraphHash` represents the final accepted attachment graph while rejected alternatives remain inspectable diagnostics rather than changing the accepted-graph identity.
+- [ ] Validate/document the conservative voxel-authoring cost model against the authoritative region/instance budgets and regress its boundary behavior.
