@@ -36,6 +36,38 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void Execute_VerticalCascadeColumnEmitsReusableFallingSheetFaces()
+        {
+            using var brickBases = new NativeArray<int3>(new[] { int3.zero }, Allocator.Temp);
+            var snapshotData = new byte[WaterBrickMeshBatchJob.SnapshotStride];
+            for (int y = 0; y < 4; y++)
+                snapshotData[y * WaterBrickMeshBatchJob.Edge] = GameMaterialIds.Cascade;
+            using var snapshots = new NativeArray<byte>(snapshotData, Allocator.Temp);
+            using var scratch = new NativeArray<byte>(WaterBrickMeshBatchJob.FaceArea, Allocator.Temp);
+            using var vertices = new NativeList<SmoothSurfaceVertex>(64, Allocator.Temp);
+            using var indices = new NativeList<uint>(96, Allocator.Temp);
+            using var overflow = new NativeArray<int>(1, Allocator.Temp);
+
+            Execute(brickBases, snapshots, scratch, vertices, indices, overflow,
+                1u << GameMaterialIds.Cascade);
+
+            Assert.That(overflow[0], Is.Zero);
+            Assert.That(vertices.Length, Is.EqualTo(24),
+                "A vertical cascade column must greedily retain four vertical sheet quads plus top/bottom faces.");
+            Assert.That(indices.Length, Is.EqualTo(36));
+
+            int verticalVertices = 0;
+            for (int i = 0; i < vertices.Length; i++)
+            {
+                Assert.That(vertices[i].Material, Is.EqualTo(GameMaterialIds.Cascade));
+                if (math.abs(vertices[i].Normal.y) < 0.5f)
+                    verticalVertices++;
+            }
+            Assert.That(verticalVertices, Is.EqualTo(16),
+                "Canonical extraction must expose both sides of a vertical waterfall sheet for the shared shader.");
+        }
+
+        [Test]
         public void Execute_ReciprocalBoundarySnapshotsSuppressInternalSeamAndKeepProfilesDistinct()
         {
             using var brickBases = new NativeArray<int3>(new[]
