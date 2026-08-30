@@ -46,7 +46,8 @@ These are existing foundations and are not candidates to rebuild from scratch.
   - Reuse the existing combat runtime and connect semantic encounters to world/story/campaign flow.
 - [x] **02. [Actor vitality, damage & defeat](game-systems/02-actor-vitality-damage-defeat.md)**
   - Vitality belongs to the character/actor rather than combat; defeat is an authoritative event-driven state transition.
-- [ ] **03. Production enemy actor framework**
+- [x] **03. [Gameplay character runtime](game-systems/03-gameplay-character-runtime.md)**
+  - One generic authoritative character runtime for players, NPCs, recruits, and enemies; enemies are a composition, not a separate actor hierarchy.
 - [ ] **04. Reusable enemy AI / perception / targeting**
 - [ ] **05. Encounter spawning / encounter lifecycle**
 - [ ] **06. Multiplayer replication for combat/gameplay state**
