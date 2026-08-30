@@ -102,8 +102,9 @@ namespace Game.Structures.Runtime
             int3 end = ruinCentre + forward * (ruinDepth / 3);
 
             // Radius exceeds the old half-width slightly; overlapping nodes therefore retain at
-            // least the previous guaranteed gameplay width between samples while avoiding the
-            // long planar side faces produced by one axis-aligned box carve.
+            // least the previous guaranteed gameplay width between samples. The authoring pass now
+            // uses rounded vault slices rather than vertical cylinders so this safety sweep cannot
+            // restore the planar walls/caps removed by cavern visual finishing.
             int radius = math.max(7, width / 2 + 2);
             int spacing = math.max(4, radius - 3);
             int length = HorizontalCardinalDistance(start, end);
@@ -135,12 +136,16 @@ namespace Game.Structures.Runtime
             {
                 int distance = math.min(length, node * plan.Spacing);
                 int3 centre = plan.Start + direction * distance;
-                authoring.Cylinder(
+                UndergroundCavernRouteNaturalization.AuthorRoundedVault(
+                    authoring,
                     centre.x,
                     plan.FloorY,
                     centre.z,
                     plan.Radius,
                     plan.ClearanceHeight,
+                    3 + (node & 1),
+                    2 + (node % 3),
+                    (node % 5) - 2,
                     GameMaterialIds.Empty);
             }
         }
