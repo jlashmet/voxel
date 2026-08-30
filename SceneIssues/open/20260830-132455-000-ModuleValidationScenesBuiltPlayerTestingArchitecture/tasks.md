@@ -13,6 +13,7 @@
 - [x] Add focused automated regression coverage for module discovery, shared/core fallback, scene/scenario separation, and mandatory/fail-closed gate execution.
 - [x] Require module-owned readiness/world-layout evidence so an early-aborted Water or Kentridge player can never satisfy the built-player gate with screenshots alone.
 - [x] Isolate and fix the additive-height river-bank/pool-shelf overlap exposed by exact-SHA run `33338330606` without weakening the shoreline probe.
+- [ ] Isolate the production-rendering cause of the ring seams, detached strip, coarse banks, and smeared water in green exact-SHA run `33339810737`; do not make another composition tweak until a minimal repro establishes whether the far-field fallback is the wrong proof path.
 - [ ] Replace the startup-only prototype Water validation fixture with a representative module-local production Water tableau covering still water, shallow shoreline, river flow, waterfall/cascade, and terrain contact; inspect exact built-player evidence as production-quality.
 - [ ] Validate an ordinary Water production diff automatically selects focused Water tests -> built-player Water scene -> built-player `KentridgePlayableSlice`; record runtime/cost.
 - [ ] Review final diff against all 18 acceptance criteria and complete required SceneIssue metadata/closure only after green exact-SHA CI.
