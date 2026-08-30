@@ -134,13 +134,14 @@ namespace VoxelEngine.Showcase
                 int bottom = math.max(0, terrain - contextY - 4);
                 int top = deckLocalY + 20;
                 int shaftHeight = math.max(12, top - bottom - 28);
+                int pierTop = bottom + 28 + shaftHeight;
                 var pier = new ProgramWriter()
                     .Box(new int3(6, bottom, 6), new int3(60, 14, 60), stone)
                     .Box(new int3(19, bottom + 14, 18), new int3(34, shaftHeight, 36), stone)
                     .Box(new int3(7, bottom + 14 + shaftHeight, 6), new int3(58, 14, 60), detail);
                 AuthorPresentationCatalogue(
                     $"bridge-pier-{i}", new int3(globalX - 36, contextY, site.Z + 4),
-                    new int3(72, deckLocalY + 24, 72), 0x53544800u + (uint)i,
+                    new int3(72, pierTop, 72), 0x53544800u + (uint)i,
                     StructuralSocketRole.Support | StructuralSocketRole.TerrainAnchor,
                     BridgeTag, pier, 8, stone);
             }
@@ -255,7 +256,7 @@ namespace VoxelEngine.Showcase
 
             var leftWall = new ProgramWriter()
                 .Box(new int3(0, 0, 0), new int3(182, 10, 36), stone);
-            for (int x = 10; x <= 175; x += 55)
+            for (int x = 5; x <= 170; x += 55)
             {
                 leftWall.Box(new int3(x, 0, 6), new int3(14, 52, 20), detail);
                 leftWall.Box(new int3(x - 5, 0, 2), new int3(24, 12, 28), stone);
@@ -268,7 +269,7 @@ namespace VoxelEngine.Showcase
 
             var rightWall = new ProgramWriter()
                 .Box(new int3(0, 0, 0), new int3(182, 10, 36), stone);
-            for (int x = 4; x <= 169; x += 55)
+            for (int x = 5; x <= 170; x += 55)
             {
                 rightWall.Box(new int3(x, 0, 6), new int3(14, 52, 20), detail);
                 rightWall.Box(new int3(x - 5, 0, 2), new int3(24, 12, 28), stone);
