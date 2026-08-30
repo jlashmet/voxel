@@ -5,7 +5,7 @@
 - [x] Trace Kentridge town, canonical road, architecture, ecology/vegetation, hidden-space and gallery ownership.
 - [x] Confirm no competing canonical reservation service exists on reconciled master.
 - [x] Keep road solving/grade in `WorldRoadNetwork`, form/orientation/support in architecture, species/density in ecology, hidden-space topology in its planner, and rendering in presentation.
-- [x] Confirm typed `StructuralSocket` is not required by the current production seam; do not import another assignment.
+- [ ] Acceptance blocker: criterion (7) requires one production typed-`StructuralSocket` consumer of the shared reservation clearance/overlap path. The prerequisite feature `20260829-034505-000-WorldBuilderTypedStructuralSocketComposition` remains `open` on current `origin/master` (`ebdc2e4f63ef73153cd4e0ff5c62efe604f35470`), so no canonical production typed-socket seam exists on this branch to integrate without taking another assignment's scope. Do not weaken or mark this acceptance complete; re-check after that prerequisite lands.
 - [x] Reconcile current master into `fixes/agent-7` before implementation (`d256dc2044c88b254751448012b60a138e716f27`, current master `65e33762a0d0f1739e9a518484d119e551f01f81`); resumed again and merged `7f935b26cc7aa8aff971d3488e9f9629108e419a` via `a2639073b1cb61e5fc050d3254d232c116d054e5`, `5f07db5cd7677e84f617deb61c5b03a4b896159c` via `23d16dc51e49f17adf4c9bcedc9306c22e264bd1`, and current master `ebdc2e4f63ef73153cd4e0ff5c62efe604f35470` via two-parent merge `46b4e473ab6497d836053a072f3fe7050156756b`.
 - [x] Reconcile the obsolete `pending/` state to the current authoritative `open/` workflow without changing acceptance.
 - [x] Reconcile plan/checklist to the actual post-merge production paths.
@@ -43,7 +43,7 @@
 - [x] Decorative ground plants/moss/vines are non-authoritative surface dressing; do not add parallel occupancy authority.
 - [x] Hidden-space batch planning consumes real 3D realization claims and a caller snapshot; vertical-only separation succeeds and true XYZ collision fails.
 - [x] Explicit connector compatibility cannot be reused by unrelated underground consumers.
-- [ ] Ensure affected vegetation/hidden-space regressions are green on final exact SHA.
+- [ ] Ensure affected vegetation/hidden-space regressions are green on final exact SHA. Blocked until the final exact-SHA targeted request is appropriate; continue independent gates first so the only CI transport is not spent on a non-final tree.
 
 ## Reusability review
 
