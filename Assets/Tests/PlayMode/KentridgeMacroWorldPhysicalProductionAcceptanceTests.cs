@@ -15,7 +15,7 @@ namespace VoxelEngine.Tests.PlayMode
     {
         private const uint Seed = 0x4B454E54u;
         private const int StrictRoadRiseVoxelsPerThreeMetres = 6;
-        private const long MaximumWaterPrimitiveBoundingCells = 17_000_000L;
+        private const long MaximumWaterPrimitiveBoundingCells = 10_000_000L;
 
         [Test]
         public void PhysicalMacroWorldHasWalkableRoutesAndADeepStreamedWaterBody()
@@ -260,6 +260,7 @@ namespace VoxelEngine.Tests.PlayMode
                 Assert.That(length, Is.GreaterThan(0));
                 if (op == ShapeOp.EmitRoundedBox)
                 {
+                    int offsetY = catalogue.Program[offset + 3];
                     int sizeX = catalogue.Program[offset + 5];
                     int sizeY = catalogue.Program[offset + 6];
                     int sizeZ = catalogue.Program[offset + 7];
@@ -272,7 +273,17 @@ namespace VoxelEngine.Tests.PlayMode
                         deepestCarve = Math.Max(deepestCarve, sizeY);
                     }
                     if (mode == PrimitiveMode.Fill && material == waterMaterial)
+                    {
                         filledWater = true;
+                        Assert.That(
+                            offsetY,
+                            Is.EqualTo(TopDownWorldWaterBodyVoxelCatalogue.MinimumDepthDm),
+                            "Non-solid water should occupy the basin surface instead of refilling the carved depth.");
+                        Assert.That(
+                            sizeY,
+                            Is.EqualTo(TopDownWorldWaterBodyVoxelCatalogue.WaterSurfaceThicknessDm),
+                            "Streamed water should remain a thin presentation sheet over the full carved basin.");
+                    }
                 }
                 offset += length;
                 if (op == ShapeOp.End) break;
