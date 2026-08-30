@@ -10,23 +10,25 @@
 - [x] Trace canonical voxel-water topology/render path through extraction/cache, render pass, shared material, and per-vertex material selection.
 - [x] Run competing-hypothesis discriminator and record results in `plan.md`.
 - [x] Refresh `fixes/agent-9` with current `origin/master` in merge commit `20adc71ba46ac929136c7f95c042fcb62a62a2e0`; no water-path conflicts were present.
+- [x] Correct stale resume-blocker assumptions: the canonical shader is the existing renderer-owned `Assets/VoxelEngine/Rendering/Runtime/Shaders/WaterSurface.shader`; focused tests do not reference a missing `WaterRenderingMaterialBinding`, and the render pass already owns/reuses one water material.
 - [ ] Trace all liquid classification/gameplay consumers so presentation changes cannot change swimming, buoyancy, collision, spreading, streaming, discovery, edits, or diagnostics.
 - [ ] Identify `WaterRenderingShowcase`, `VoxelShowcase`, and a second normal production water consumer (prefer Kentridge) and any remaining legacy water fallback.
-- [ ] Resolve resumed-branch compile blockers: the focused tests currently reference missing `WaterRenderingMaterialBinding`, and `Assets/Game/Materials/Shaders/StylizedWater.shader` is absent.
+- [ ] Verify the active URP renderer-data asset serializes `WaterSurface.shader` so player builds retain and instantiate the production shader.
+- [ ] Verify material-presentation installation occurs before renderer water classification/extraction is consumed in normal player bootstrap.
 
 ## Shared implementation
 
-- [ ] Add semantic-free renderer-owned water presentation/profile data with reusable still/lake, river/stream, and waterfall/rapid motion profiles.
-- [ ] Remove hard-coded game material IDs from engine liquid extraction; derive liquid classification from installed shared presentation data.
-- [ ] Keep one canonical shared production water shader/material path and no scene-local material forks.
-- [ ] Add `WaterRenderingMaterialBinding` (or the smallest equivalent shared binding) that creates/reuses one production material per renderer lifecycle, applies deterministic profile properties, and releases owned resources without per-frame material churn.
-- [ ] Add/promote the canonical player-build shader asset at `Assets/Game/Materials/Shaders/StylizedWater.shader` (plus Unity metadata as required) with the exact production shader name used by shared composition.
-- [ ] Adapt package shallow/deep color, depth fade, surface/intersection foam, normal/detail breakup, highlights, refraction, and wave direction/speed semantics into the shared shader.
-- [ ] Keep `CpuWaterSurfaceChunkCache` / voxel meshing authoritative for production water geometry/deformation; presentation shading must not introduce an independent scene-local geometry authority.
-- [ ] Add directional river flow distinct from still-water waves.
-- [ ] Add reusable shoreline/depth/contact foam inputs.
-- [ ] Add waterfall downward flow, turbulence, aeration, irregular breakup, lip/edge/base-impact foam, and mist/spray cues from `WaterfallReference.shader`.
-- [ ] Ensure no normal water silently falls back to the legacy generic shader behavior.
+- [x] Add semantic-free renderer-owned water presentation/profile data with reusable still/lake, river/stream, and waterfall/rapid motion profiles.
+- [x] Remove hard-coded game material IDs from engine liquid extraction; derive liquid classification from installed shared presentation data.
+- [x] Keep one canonical shared production water shader/material path and no scene-local material forks.
+- [x] Reuse one water material per render-pass lifecycle; `VoxelRenderPass.Setup` creates it once, setup/disposal destroys it, and visible chunks share it with no per-frame material allocation.
+- [x] Adapt package shallow/deep color, depth fade, surface/intersection foam, normal/detail breakup, highlights, refraction, and wave direction/speed semantics into the shared `WaterSurface.shader`.
+- [x] Keep `CpuWaterSurfaceChunkCache` / voxel meshing authoritative for production water geometry; presentation shading does not introduce an independent scene-local geometry authority.
+- [x] Add directional river flow distinct from still-water waves.
+- [x] Add reusable shoreline/depth/contact foam inputs.
+- [x] Add waterfall downward flow, turbulence, aeration, irregular breakup, lip/edge/base-impact foam, and mist/spray cues from `WaterfallReference.shader`.
+- [x] Preserve distinct per-vertex water material indices through extraction so independently authored profiles share the canonical water shader.
+- [ ] Ensure no normal water silently falls back to legacy generic shader behavior in a built player.
 - [ ] Preserve player-build shader retention / no editor-only dependency or missing shader asset.
 
 ## Showcase / portability
@@ -39,12 +41,12 @@
 
 ## Regression / reliability / cost
 
-- [ ] Add focused behavioral regression through real production profile/material installation and liquid classification for multiple independent bodies/profiles.
-- [ ] Add focused material-binding lifecycle regression proving deterministic property application, reuse, and release with no frame-by-frame material allocation.
-- [ ] Add focused `CpuWaterSurfaceChunkCache` regression proving stable topology/allocation identity while configured deformable regions animate deterministically.
-- [ ] Add focused waterfall semantic regression (not source-string-only).
+- [x] Add focused behavioral regression through real production profile installation and liquid classification for still, river, and waterfall profiles.
+- [x] Add focused gameplay regression proving still/river preserve spreading-water simulation while authored cascade remains inert rather than becoming spreading water.
+- [x] Verify render-loop lifecycle/wiring in production code: one shared water material, `_WaterTime = Time.time`, and one per-frame water-time global update rather than material churn.
+- [ ] Add/confirm focused extraction regression proving presentation-mask water classification preserves material identity across multiple independently selectable profiles.
 - [ ] Check player build for shader compile/stripping/pink/missing-resource failures.
-- [ ] Quantify CPU/GPU/memory/render cost: constant/profile uploads, water draw calls/batching/culling, transparent overdraw, shader variants, large bodies, turbulence/foam/mist work; do not weaken budgets.
+- [ ] Quantify CPU/GPU/memory/render cost: six 32-row `Vector4` profile tables are 3,072 bytes and uploaded once per catalogue install; still quantify water draw calls/culling, transparent overdraw, shader ALU/texture/depth work, large bodies, turbulence/foam/mist work, and confirm budgets are not weakened.
 - [ ] Review final feature-only diff for unrelated files and `.github/test-request.json` contamination.
 
 ## Visual / exact-SHA gates
