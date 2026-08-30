@@ -24,6 +24,10 @@ For reusable work, identify affected consumers and prove reuse with at least one
 
 Add focused behavioral regressions through the production computation. Validate the real runtime/built application whenever the acceptance criteria involve scene behavior, rendering, traversal, interaction, or other player-visible behavior; editor/unit tests alone are supplemental.
 
+Production-module validation is automatic. A module owns a `*.module-validation.json` manifest declaring the production paths it owns, focused tests, optional shared/dependency paths, and—when player-visible—a module-local validation scene plus a separate `*.player-scenario.json`. Normal feature agents author or update the module implementation, its focused tests, and its validation scene/scenario; they do not choose CI test filters, validation scenes, screenshot profiles, or standalone-player commands. CI derives the required module gates from the diff and attaches built-player `KentridgePlayableSlice` integration to production changes. Unknown/shared production paths must use declared conservative fallback/dependency policy rather than agent-selected consumers.
+
+All visual acceptance must use frames rendered by the standalone player through the shared capture mechanism. PlayMode screenshots and RenderTextures may remain useful diagnostics or behavioral regressions, but they do not satisfy visual acceptance.
+
 Measure relevant blast radius and cost against repository budgets. Do not weaken global budgets, production tolerances, or unrelated behavior merely to make proof content pass.
 
 For visual features, inspect durable built-player evidence directly and reject placeholder/blockout quality even when automated assertions are green. Reuse and mechanical correctness do not substitute for visual acceptance.
