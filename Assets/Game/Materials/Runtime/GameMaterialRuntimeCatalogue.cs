@@ -86,9 +86,12 @@ namespace Game.Materials.Runtime
 
             Row(GameMaterialIds.DarkStone, true,
                 Sim(GameMaterialIds.DarkStone, 210, DestructionClass.Crumble, SurfaceStyles.Smooth, WeatherCoatings),
-                Textured(GameMaterialIds.DarkStone, 0.23f, 0.25f, 0.28f, DarkStoneTexture, true, 0.18f,
-                    detailStrength: 0.72f, luminancePivot: 0.58f,
-                    chromaStrength: 0.025f, macroVariation: 0.075f)),
+                // DarkStone is the semantic natural-cave rock. Explicit Masonry* materials own
+                // blockwork; a high-strength repeating texture here made rounded cave geometry
+                // read as tiled architecture in the built player. Let geometry, lighting and
+                // coatings carry the geological surface instead of stamping a masonry-like motif.
+                Solid(GameMaterialIds.DarkStone, 0.19f, 0.21f, 0.24f, roughness: 0.90f,
+                    projection: MaterialTextureProjection.Triplanar)),
 
             Row(GameMaterialIds.Slate, true,
                 Sim(GameMaterialIds.Slate, 120, DestructionClass.Crumble, SurfaceStyles.Planar, WeatherCoatings),
