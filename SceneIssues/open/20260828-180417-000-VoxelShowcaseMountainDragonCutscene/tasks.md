@@ -45,15 +45,17 @@
 - [x] Merge current `origin/master` `e95324aeaef6...` into `fixes/agent-4` as true two-parent merge `a0e56301d676...`; inherit current road WorldBuilder/rendering/storage/structure/test/lifecycle work and preserve agent-4 Mountain Dragon changes.
 - [x] Resolve the shared `PrimitiveRasteriser` overlap in `b64ee242a7c2...`: retain all agent-4 proven Box/Frustum fast paths and current master's `TerrainCorridorRasteriser.Rasterise` dispatch plus `PrimitiveShape.TerrainCorridor -> TerrainCorridorRasteriser.Contains`; compare from master shows `behind_by=0` and no master deletions in the rasterizer.
 - [x] Verify current `origin/master` `e95324aeaef6...` is an ancestor of the merged feature head (`behind_by=0`).
-- [ ] Issue the new exact-parent final request only through `ci-test/fixes/agent-4`; do not edit `.github/test-request.json` on the feature branch or publish an intermediate CI reset head.
-- [ ] Keep that exact request untouched while queued/running and inspect the completed result before any further request.
-- [ ] Require the bake step to complete cleanly under 240 s with meaningful margin and the next Unity invocation to reopen.
+- [x] Issue exact-parent request commit `53469c7ab882...` with feature parent `2106820d31cb...` only through `ci-test/fixes/agent-4`; no feature-branch request edit, reset transport, or request replacement.
+- [x] Keep run `33298125653` untouched through completion and inspect its source-matched result/artifact before any further request.
+- [x] Fresh current-master bake completed in 225 s under the 240 s guard at ~5.37 GB peak RSS / 0 swap growth, persisted 178,034,009-byte payload digest `fd994e3ab598...`, and the next Unity invocation reopened successfully.
 - [ ] Run `VoxelEngine.Tests.PlayMode.MountainDragonFinalAcceptanceTests.NaturalizedMountainBakeAndEncounterAreReadyForBuiltPlayerReplay` green on the exact final feature SHA.
-- [ ] Prove all authored landing floor/headroom columns survive without castle-region suppression on the source-matched bake.
-- [ ] Traverse the complete 17-waypoint route via production `AutoWalk -> CharacterMotor.Step`, with every required grounded/Y predicate satisfied.
-- [ ] Save and human-review durable approach/base/middle/upper/summit/dialogue captures; reject generic stationary fallback screenshots.
-- [ ] Verify the summit dragon is visibly supported and the built-player proximity flow visibly presents `Hello, I'm Mr. Dragon.`
-- [ ] Record measured bake/runtime evidence and accepted source/payload provenance.
+- [x] Prove the complete 17-waypoint route via production `AutoWalk -> CharacterMotor.Step`: run `33298125653` reached 17/17 in 57.4 s with required grounded/Y predicates through the summit.
+- [x] Human-review run `33298125653` named approach/base/middle/upper/summit/dialogue captures: the mountain/path are visible across the route, the summit placeholder is visibly supported, and the dialogue frame visibly presents `Hello, I'm Mr. Dragon.`; keep these as traversal evidence but not final acceptance while the focused test is red.
+- [x] Verify run `33298125653` focused failure is not path/headroom/traversal: startup-bake acceptance requires dragon material at centre `(-1112,530,200)`, but the source-matched bake omits that upper vertical region while runtime streaming later realizes the visible placeholder.
+- [ ] Make the prepared startup payload include the upper vertical region containing the authored summit dragon placeholder without broadly materializing unrelated sky-only regions.
+- [ ] Add focused regression proving startup capture includes required feature-owned vertical layers crossing the 512-voxel Y boundary while preserving sparse-air behavior elsewhere.
+- [ ] Re-check bake time/memory blast radius after required-upper-layer capture; do not weaken the 240 s/14 GB contracts.
+- [ ] Record final measured bake/runtime evidence and accepted source/payload provenance.
 - [ ] Produce/commit the accepted source-matched generated startup payload + manifest before closure if the repository workflow permits retrieval without a second CI transport.
 
 ## Closure gate
