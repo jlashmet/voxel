@@ -5,14 +5,13 @@ namespace Game.WorldBuilder.Api
 {
     /// <summary>
     /// Deterministic presentation-only refinement of an authoritative resolved road polyline.
-    /// The resolver points remain unchanged; this view only rounds interior direction changes and
-    /// defines bounded cross-section offsets so semantic presentation queries and physical lowering
-    /// can agree without changing route authority.
+    /// The resolver points remain unchanged; this view removes bounded search-grid micro-turns,
+    /// rounds remaining interior direction changes, and defines bounded cross-section offsets so
+    /// semantic presentation queries and physical lowering agree without changing route authority.
     /// </summary>
     public static class WorldRoadPresentationPath
     {
         private const int CurveTrimPermille = 240;
-        private const int QuadraticSteps = 1;
 
         public static IReadOnlyList<ResolvedWorldRoadPoint> Build(ResolvedWorldRoad road)
             => Build(road, null);
@@ -27,16 +26,20 @@ namespace Game.WorldBuilder.Api
             if (road.Points.Count == 2)
                 return new[] { road.Points[0], road.Points[1] };
 
-            // Each ordinary corner is represented by one bounded chamfer (entry -> exit). This
-            // removes the hard resolved elbow without multiplying every search/sampling turn into
-            // several catalogue definitions; the authoritative resolver vertices stay untouched.
-            var result = new List<ResolvedWorldRoadPoint>(road.Points.Count * 2);
-            AddDistinct(result, road.Points[0]);
-            for (int i = 1; i + 1 < road.Points.Count; i++)
+            IReadOnlyList<ResolvedWorldRoadPoint> controls = SimplifyMicroTurns(road, junctions);
+            if (controls.Count == 2)
+                return new[] { controls[0], controls[1] };
+
+            // Each remaining ordinary corner is represented by one bounded chamfer (entry -> exit).
+            // Grid-search micro-turns are simplified first, so visual continuity improves while the
+            // number of catalogue definitions stays bounded instead of multiplying each resolver turn.
+            var result = new List<ResolvedWorldRoadPoint>(controls.Count * 2);
+            AddDistinct(result, controls[0]);
+            for (int i = 1; i + 1 < controls.Count; i++)
             {
-                ResolvedWorldRoadPoint previous = road.Points[i - 1];
-                ResolvedWorldRoadPoint corner = road.Points[i];
-                ResolvedWorldRoadPoint next = road.Points[i + 1];
+                ResolvedWorldRoadPoint previous = controls[i - 1];
+                ResolvedWorldRoadPoint corner = controls[i];
+                ResolvedWorldRoadPoint next = controls[i + 1];
                 if (IsJunction(corner, junctions))
                 {
                     AddDistinct(result, corner);
@@ -46,23 +49,17 @@ namespace Game.WorldBuilder.Api
                 int previousRun = PlanarDistance(previous, corner);
                 int nextRun = PlanarDistance(corner, next);
                 int trim = Math.Min(previousRun, nextRun) * CurveTrimPermille / 1000;
-                int maximumByProfile = road.Intent.Profile.CoreRadiusDm
-                    + road.Intent.Profile.TransitionWidthDm;
-                trim = Math.Min(trim, maximumByProfile);
+                trim = Math.Min(trim, road.Intent.Profile.CoreRadiusDm);
                 if (trim < 2 || Collinear(previous, corner, next))
                 {
                     AddDistinct(result, corner);
                     continue;
                 }
 
-                ResolvedWorldRoadPoint entry = MoveToward(corner, previous, trim, previousRun);
-                ResolvedWorldRoadPoint exit = MoveToward(corner, next, trim, nextRun);
-                AddDistinct(result, entry);
-                for (int step = 1; step < QuadraticSteps; step++)
-                    AddDistinct(result, Quadratic(entry, corner, exit, step, QuadraticSteps));
-                AddDistinct(result, exit);
+                AddDistinct(result, MoveToward(corner, previous, trim, previousRun));
+                AddDistinct(result, MoveToward(corner, next, trim, nextRun));
             }
-            AddDistinct(result, road.Points[road.Points.Count - 1]);
+            AddDistinct(result, controls[controls.Count - 1]);
             return result.ToArray();
         }
 
@@ -81,6 +78,78 @@ namespace Game.WorldBuilder.Api
                 shoulderWidth);
         }
 
+        private static IReadOnlyList<ResolvedWorldRoadPoint> SimplifyMicroTurns(
+            ResolvedWorldRoad road,
+            IReadOnlyList<WorldRoadJunction> junctions)
+        {
+            IReadOnlyList<ResolvedWorldRoadPoint> source = road.Points;
+            int minimumCore = Math.Max(1,
+                road.Intent.Profile.CoreRadiusDm - road.Intent.Profile.EdgeVariationDm);
+            int tolerance = Math.Max(1, minimumCore / 2);
+            var result = new List<ResolvedWorldRoadPoint>(source.Count) { source[0] };
+
+            int anchor = 0;
+            while (anchor + 1 < source.Count)
+            {
+                int selected = anchor + 1;
+                for (int candidate = anchor + 2; candidate < source.Count; candidate++)
+                {
+                    if (ContainsJunctionBetween(source, anchor, candidate, junctions)) break;
+                    if (!WithinPresentationEnvelope(source, anchor, candidate, tolerance)) break;
+                    selected = candidate;
+                    if (IsJunction(source[candidate], junctions)) break;
+                }
+                AddDistinct(result, source[selected]);
+                anchor = selected;
+            }
+            return result.ToArray();
+        }
+
+        private static bool WithinPresentationEnvelope(
+            IReadOnlyList<ResolvedWorldRoadPoint> points,
+            int fromIndex,
+            int toIndex,
+            int toleranceDm)
+        {
+            ResolvedWorldRoadPoint a = points[fromIndex];
+            ResolvedWorldRoadPoint b = points[toIndex];
+            long dx = (long)b.Xdm - a.Xdm;
+            long dz = (long)b.Zdm - a.Zdm;
+            long lengthSquared = dx * dx + dz * dz;
+            if (lengthSquared <= 0) return false;
+            long toleranceSquared = (long)toleranceDm * toleranceDm;
+
+            for (int i = fromIndex + 1; i < toIndex; i++)
+            {
+                ResolvedWorldRoadPoint point = points[i];
+                long dot = ((long)point.Xdm - a.Xdm) * dx
+                    + ((long)point.Zdm - a.Zdm) * dz;
+                if (dot <= 0 || dot >= lengthSquared) return false;
+                long qx = (long)a.Xdm + DivideRounded(dx * dot, lengthSquared);
+                long qz = (long)a.Zdm + DivideRounded(dz * dot, lengthSquared);
+                long ex = (long)point.Xdm - qx;
+                long ez = (long)point.Zdm - qz;
+                if (ex * ex + ez * ez > toleranceSquared) return false;
+
+                int expectedY = a.Ydm + DivideRounded(
+                    ((long)b.Ydm - a.Ydm) * dot,
+                    lengthSquared);
+                if (Math.Abs(point.Ydm - expectedY) > toleranceDm) return false;
+            }
+            return true;
+        }
+
+        private static bool ContainsJunctionBetween(
+            IReadOnlyList<ResolvedWorldRoadPoint> points,
+            int fromIndex,
+            int toIndex,
+            IReadOnlyList<WorldRoadJunction> junctions)
+        {
+            for (int i = fromIndex + 1; i < toIndex; i++)
+                if (IsJunction(points[i], junctions)) return true;
+            return false;
+        }
+
         private static bool IsJunction(
             ResolvedWorldRoadPoint point,
             IReadOnlyList<WorldRoadJunction> junctions)
@@ -90,27 +159,6 @@ namespace Game.WorldBuilder.Api
                 if (junctions[i].Xdm == point.Xdm && junctions[i].Zdm == point.Zdm)
                     return true;
             return false;
-        }
-
-        private static ResolvedWorldRoadPoint Quadratic(
-            ResolvedWorldRoadPoint a,
-            ResolvedWorldRoadPoint control,
-            ResolvedWorldRoadPoint b,
-            int numerator,
-            int denominator)
-        {
-            long inverse = denominator - numerator;
-            long divisor = (long)denominator * denominator;
-            return new ResolvedWorldRoadPoint(
-                DivideRounded(inverse * inverse * a.Xdm
-                    + 2L * inverse * numerator * control.Xdm
-                    + (long)numerator * numerator * b.Xdm, divisor),
-                DivideRounded(inverse * inverse * a.Ydm
-                    + 2L * inverse * numerator * control.Ydm
-                    + (long)numerator * numerator * b.Ydm, divisor),
-                DivideRounded(inverse * inverse * a.Zdm
-                    + 2L * inverse * numerator * control.Zdm
-                    + (long)numerator * numerator * b.Zdm, divisor));
         }
 
         private static ResolvedWorldRoadPoint MoveToward(
