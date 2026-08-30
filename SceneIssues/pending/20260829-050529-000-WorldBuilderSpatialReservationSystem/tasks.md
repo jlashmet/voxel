@@ -25,7 +25,7 @@
 - [x] `TopDownWorldReservationAdapter` publishes source-backed node envelopes, canonical road claims and explicit settlement-arrival handoffs.
 - [x] `TopDownWorldVoxelCatalogue.Build` already solves the canonical `TopDownWorldRoadNetwork` once and reuses it for road voxelization.
 - [x] Call `TopDownWorldReservationAdapter.ValidateRoadHandoffs` on that exact solved network before rasterization; do not solve roads twice.
-- [ ] Add/adjust focused production macro-road handoff regression.
+- [x] Add/adjust focused production macro-road handoff regression (`SpatialReservationProductionIntegrationTests.MacroRoadHandoffKeepsLoweredCorridorInBothRegionBuckets`).
 
 ## Production architecture integration
 
@@ -47,6 +47,7 @@
 
 - [ ] Audit `SpatialReservations.cs` and generic adapters for Kentridge role names, settlement IDs, road names, vegetation species, hidden-space identities, or gallery-only assumptions; generic core may depend only on reservation geometry, ownership, categories, precedence, masks, and deterministic policy.
 - [ ] Keep conflict/yield behavior data-driven through generic reservation categories/masks/precedence rather than hard-coded consumer pairs such as road-vs-tree or structure-vs-hidden-space.
+- [ ] Move the discovered `WorldRoadReservationAdapter` road-clearance -> vegetation yield choice out of the shared adapter and into explicit composition/configuration while preserving production behavior.
 - [ ] Add a non-Kentridge fixture/regression that exercises the same reservation source/snapshot/query/conflict APIs with at least two unrelated consumer categories and 3D vertical separation.
 - [ ] Keep `WorldbuildingGalleryReservationInspection` presentation-only; visualization/debug inspection must never become reservation authority or alter conflict results.
 
@@ -54,7 +55,7 @@
 
 - [x] Stable ids, insertion-order independence, equal-precedence stable-id tie, hard/clearance/soft/handoff outcomes.
 - [x] Replay/release ownership regression and bounded-window query-work regression authored.
-- [ ] Add macro-road production regression; architecture shared-source/host-filter regression is already covered by `SpatialReservationProductionIntegrationTests`.
+- [x] Add macro-road production regression; architecture shared-source/host-filter regression is already covered by `SpatialReservationProductionIntegrationTests`.
 - [ ] Record representative snapshot/source construction and query metrics after integration.
 - [ ] Check repository-supported allocation/memory evidence where available.
 - [ ] Verify generation/device budgets and unrelated world-generation behavior did not move.
