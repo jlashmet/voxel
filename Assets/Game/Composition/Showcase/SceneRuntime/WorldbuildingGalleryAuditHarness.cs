@@ -7,32 +7,21 @@ using UnityEngine;
 
 namespace VoxelEngine.Showcase
 {
-    /// <summary>
-    /// Unattended built-player evidence for capture-less Worldbuilding Gallery feature issues.
-    /// Normal play is untouched: the harness only arms when the canonical SceneIssue argument is
-    /// present, that issue has no recorded captures, and the active scene owns the gallery driver.
-    /// It reuses the production tour positions/look targets rather than inventing validation poses.
-    /// </summary>
+    /// <summary>Unattended built-player evidence for capture-less Worldbuilding Gallery SceneIssues.</summary>
     public static class WorldbuildingGalleryAuditHarness
     {
         private const string SceneIssueArgument = "-voxel-scene-issue";
         private const string ScreenshotDirectoryArgument = "-voxel-screenshot-dir";
-        private const int TownAuditViewCount = 18;
+        private const int ViewsPerTown = 3;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Install()
         {
             string issuePath = Argument(SceneIssueArgument);
             string screenshotDirectory = Argument(ScreenshotDirectoryArgument);
-            if (string.IsNullOrEmpty(issuePath) || string.IsNullOrEmpty(screenshotDirectory))
-                return;
-            if (!IsCaptureLessIssue(issuePath))
-                return;
+            if (string.IsNullOrEmpty(issuePath) || string.IsNullOrEmpty(screenshotDirectory) || !IsCaptureLessIssue(issuePath)) return;
 
-            var root = new GameObject("Worldbuilding Gallery Audit Harness")
-            {
-                hideFlags = HideFlags.DontSave
-            };
+            var root = new GameObject("Worldbuilding Gallery Audit Harness") { hideFlags = HideFlags.DontSave };
             Reporter reporter = root.AddComponent<Reporter>();
             reporter.ScreenshotDirectory = screenshotDirectory;
             UnityEngine.Object.DontDestroyOnLoad(root);
@@ -44,9 +33,7 @@ namespace VoxelEngine.Showcase
             try
             {
                 IssueRecord record = JsonUtility.FromJson<IssueRecord>(File.ReadAllText(path));
-                return record != null &&
-                       record.captures != null &&
-                       record.captures.Length == 0 &&
+                return record != null && record.captures != null && record.captures.Length == 0 &&
                        string.Equals(record.sceneName, "WorldbuildingGalleryShowcase", StringComparison.Ordinal);
             }
             catch (Exception error)
@@ -60,22 +47,12 @@ namespace VoxelEngine.Showcase
         {
             string[] args = Environment.GetCommandLineArgs();
             for (int i = 0; i + 1 < args.Length; i++)
-                if (string.Equals(args[i], name, StringComparison.Ordinal))
-                    return args[i + 1];
+                if (string.Equals(args[i], name, StringComparison.Ordinal)) return args[i + 1];
             return null;
         }
 
-        [Serializable]
-        private sealed class IssueRecord
-        {
-            public string sceneName;
-            public IssueFrame[] captures;
-        }
-
-        [Serializable]
-        private sealed class IssueFrame
-        {
-        }
+        [Serializable] private sealed class IssueRecord { public string sceneName; public IssueFrame[] captures; }
+        [Serializable] private sealed class IssueFrame { }
 
         private sealed class Reporter : MonoBehaviour
         {
@@ -89,24 +66,21 @@ namespace VoxelEngine.Showcase
             private void Update()
             {
                 if (_started) return;
-                WorldbuildingGalleryShowcase showcase =
-                    UnityEngine.Object.FindFirstObjectByType<WorldbuildingGalleryShowcase>();
+                WorldbuildingGalleryShowcase showcase = UnityEngine.Object.FindFirstObjectByType<WorldbuildingGalleryShowcase>();
                 if (showcase == null) return;
-
                 _started = true;
                 StartCoroutine(Capture(showcase));
             }
 
             private void LateUpdate()
             {
-                if (!_pinCamera || _cameraTransform == null) return;
-                _cameraTransform.SetPositionAndRotation(_pinnedPosition, _pinnedRotation);
+                if (_pinCamera && _cameraTransform != null)
+                    _cameraTransform.SetPositionAndRotation(_pinnedPosition, _pinnedRotation);
             }
 
             private IEnumerator Capture(WorldbuildingGalleryShowcase showcase)
             {
-                FieldInfo worldField = typeof(WorldbuildingGalleryShowcase).GetField(
-                    "_world", BindingFlags.Instance | BindingFlags.NonPublic);
+                FieldInfo worldField = typeof(WorldbuildingGalleryShowcase).GetField("_world", BindingFlags.Instance | BindingFlags.NonPublic);
                 if (worldField == null)
                 {
                     Debug.LogError("TOWNARCH_AUDIT result=FAIL reason=gallery-world-contract-unavailable");
@@ -122,32 +96,31 @@ namespace VoxelEngine.Showcase
                     yield return null;
                     waitSeconds += Time.unscaledDeltaTime;
                 }
-
                 if (world == null)
                 {
                     Debug.LogError("TOWNARCH_AUDIT result=FAIL reason=gallery-world-not-ready");
                     yield break;
                 }
-
                 if (!world.HasWorldbuildingGalleryTownArchitectureContent())
                 {
                     Debug.LogError("TOWNARCH_AUDIT result=FAIL reason=town-content-missing");
                     yield break;
                 }
 
+                int expectedViews = world.WorldbuildingGalleryTownDistrictCount * ViewsPerTown;
                 int totalStops = world.WorldbuildingGalleryTourStopCount;
-                if (totalStops < TownAuditViewCount)
+                if (expectedViews <= 0 || totalStops < expectedViews)
                 {
-                    Debug.LogError($"TOWNARCH_AUDIT result=FAIL reason=tour-too-short stops={totalStops}");
+                    Debug.LogError($"TOWNARCH_AUDIT result=FAIL reason=tour-too-short stops={totalStops} expectedViews={expectedViews}");
                     yield break;
                 }
 
-                int firstTownStop = totalStops - TownAuditViewCount;
+                int firstTownStop = totalStops - expectedViews;
                 string auditDirectory = Path.Combine(ScreenshotDirectory, "TownArchitectureAudit");
                 Directory.CreateDirectory(auditDirectory);
+                foreach (string stale in Directory.GetFiles(auditDirectory, "*.png")) File.Delete(stale);
                 _cameraTransform = showcase.transform;
 
-                // Give the baked/generated world one presented frame before the first evidence pose.
                 yield return null;
                 yield return new WaitForEndOfFrame();
 
@@ -170,25 +143,19 @@ namespace VoxelEngine.Showcase
                     yield return new WaitForEndOfFrame();
 
                     string stopName = world.WorldbuildingGalleryTourStopName(stop);
-                    string fileName = $"{stop - firstTownStop + 1:00}-{Sanitize(stopName)}.png";
-                    string path = Path.Combine(auditDirectory, fileName);
+                    int frame = stop - firstTownStop + 1;
+                    string path = Path.Combine(auditDirectory, $"{frame:00}-{Sanitize(stopName)}.png");
                     ScreenCapture.CaptureScreenshot(path);
-                    Debug.Log($"TOWNARCH_AUDIT frame={stop - firstTownStop + 1}/{TownAuditViewCount} " +
-                              $"stop={stop + 1}/{totalStops} name={stopName} position={_pinnedPosition}");
-
-                    // CaptureScreenshot writes asynchronously; allow the frame to leave the render
-                    // pipeline before moving the production camera to the next deterministic view.
+                    Debug.Log($"TOWNARCH_AUDIT frame={frame}/{expectedViews} stop={stop + 1}/{totalStops} name={stopName} position={_pinnedPosition}");
                     yield return new WaitForSecondsRealtime(0.35f);
                 }
 
                 _pinCamera = false;
                 yield return new WaitForSecondsRealtime(1f);
-                int captured = Directory.Exists(auditDirectory)
-                    ? Directory.GetFiles(auditDirectory, "*.png").Length
-                    : 0;
-                if (captured < TownAuditViewCount)
+                int captured = Directory.Exists(auditDirectory) ? Directory.GetFiles(auditDirectory, "*.png").Length : 0;
+                if (captured < expectedViews)
                 {
-                    Debug.LogError($"TOWNARCH_AUDIT result=FAIL captured={captured} expected={TownAuditViewCount}");
+                    Debug.LogError($"TOWNARCH_AUDIT result=FAIL captured={captured} expected={expectedViews}");
                     yield break;
                 }
 
@@ -201,15 +168,14 @@ namespace VoxelEngine.Showcase
                     $"unusedReservedMB={unusedReservedBytes / (1024f * 1024f):0.##} " +
                     $"residentRegions={world.RegionsGenerated} pendingRegions={world.PendingRegionLoads} " +
                     $"{showcase.DescribeFarTerrain()}");
-                Debug.Log($"TOWNARCH_AUDIT result=PASS captured={captured} expected={TownAuditViewCount}");
+                Debug.Log($"TOWNARCH_AUDIT result=PASS captured={captured} expected={expectedViews}");
             }
 
             private static string Sanitize(string value)
             {
                 if (string.IsNullOrEmpty(value)) return "unnamed";
                 char[] invalid = Path.GetInvalidFileNameChars();
-                for (int i = 0; i < invalid.Length; i++)
-                    value = value.Replace(invalid[i], '-');
+                for (int i = 0; i < invalid.Length; i++) value = value.Replace(invalid[i], '-');
                 return value.Replace(' ', '-').Replace('—', '-').ToLowerInvariant();
             }
         }

@@ -19,12 +19,14 @@ namespace VoxelEngine.Showcase
     {
         private const int GalleryBaseTourStopCount = 9;
         private const int GalleryTownViewsPerDistrict = 3;
+        private const string GalleryProofTownStyleId = "river-trade-proof";
+        private const uint GalleryProofTownSeed = 0x52495652u; // RIVR
 
         private static readonly int2 s_GalleryAdventurersGuildOriginXZ = new(-1340, -260);
         private static readonly int2 s_GalleryWizardGuildOriginXZ = new(-1340, 120);
 
-        // Town-architecture districts form a separated 3x2 walkable grid south of the original gallery.
-        // Each centre is far enough from its neighbours for the shared 164x132-voxel district footprint.
+        // Seven separated town-architecture districts sit south of the original gallery. Every centre remains
+        // clear of its neighbours by more than the shared 164x132-voxel public district footprint.
         private static readonly int2[] s_GalleryTownDistrictCentres =
         {
             new(-1140, -520),
@@ -33,6 +35,7 @@ namespace VoxelEngine.Showcase
             new(-1140, -720),
             new(-920, -720),
             new(-700, -720),
+            new(-480, -620), // synthetic river-trade extensibility proof
         };
 
         private static readonly string[] s_GalleryTownStyleIds =
@@ -43,6 +46,7 @@ namespace VoxelEngine.Showcase
             WorldBuilderTownArchitectureIds.Rossdam,
             WorldBuilderTownArchitectureIds.FairyVillage,
             WorldBuilderTownArchitectureIds.OrcVillage,
+            GalleryProofTownStyleId,
         };
 
         // Explicit fixed seeds are evidence data, not incidental random state. Reloading the gallery therefore
@@ -55,6 +59,27 @@ namespace VoxelEngine.Showcase
             0x524F5353u,
             0x46414952u,
             0x4F524353u,
+            GalleryProofTownSeed,
+        };
+
+        // Material mapping is exhibit data, not backend dispatch. A new ordinary registered style adds one data
+        // row here without teaching the reusable WorldBuilder authorer anything about the town's identity.
+        private static readonly TownArchitectureVoxelPalette[] s_GalleryTownPalettes =
+        {
+            new(GameMaterialIds.MasonryMedium, GameMaterialIds.Tile, GameMaterialIds.Wood,
+                GameMaterialIds.Grass, GameMaterialIds.DarkStone, GameMaterialIds.LitWindow),
+            new(GameMaterialIds.MasonryLarge, GameMaterialIds.Slate, GameMaterialIds.DarkStone,
+                GameMaterialIds.MasonrySmall, GameMaterialIds.Stone, GameMaterialIds.LitWindow),
+            new(GameMaterialIds.Stone, GameMaterialIds.Slate, GameMaterialIds.Wood,
+                GameMaterialIds.Dirt, GameMaterialIds.Moss, GameMaterialIds.Gold),
+            new(GameMaterialIds.MasonryLarge, GameMaterialIds.Tile, GameMaterialIds.DarkStone,
+                GameMaterialIds.MasonryMedium, GameMaterialIds.Gold, GameMaterialIds.Cloth),
+            new(GameMaterialIds.Wood, GameMaterialIds.Moss, GameMaterialIds.Wood,
+                GameMaterialIds.Grass, GameMaterialIds.FlowerWhite, GameMaterialIds.Crystal),
+            new(GameMaterialIds.DarkStone, GameMaterialIds.Wood, GameMaterialIds.Wood,
+                GameMaterialIds.Dirt, GameMaterialIds.Slate, GameMaterialIds.Cloth),
+            new(GameMaterialIds.MasonryMedium, GameMaterialIds.Tile, GameMaterialIds.Wood,
+                GameMaterialIds.MasonrySmall, GameMaterialIds.DarkStone, GameMaterialIds.LitWindow),
         };
 
         private static readonly string[] s_GalleryBaseTourNames =
@@ -104,6 +129,7 @@ namespace VoxelEngine.Showcase
 
         public string WorldbuildingGalleryTownAuditSummary(int districtIndex)
         {
+            EnsureGalleryProofTownRegistered();
             int i = NormalizeTownDistrictIndex(districtIndex);
             TownArchitectureProgram program = WorldBuilderTownArchitecture.Resolve(s_GalleryTownStyleIds[i], s_GalleryTownSeeds[i]);
             int2 centre = s_GalleryTownDistrictCentres[i];
@@ -119,6 +145,7 @@ namespace VoxelEngine.Showcase
             if (normalized < GalleryBaseTourStopCount)
                 return s_GalleryBaseTourNames[normalized];
 
+            EnsureGalleryProofTownRegistered();
             GetTownView(normalized, out int district, out int view);
             string viewName = view == 0 ? "wide/elevated" : view == 1 ? "player facade" : "close detail";
             return WorldBuilderTownArchitecture.Resolve(s_GalleryTownStyleIds[district], s_GalleryTownSeeds[district]).DisplayName +
@@ -156,13 +183,14 @@ namespace VoxelEngine.Showcase
         }
 
         /// <summary>
-        /// Adds larger semantic-building examples and six reference-driven town districts beside the original
-        /// gallery collection. Generated startup and offline bake creation both reach the six towns through
+        /// Adds larger semantic-building examples and the registered town districts beside the original gallery.
+        /// Generated startup and offline bake creation both reach the towns through
         /// <see cref="EnsureWorldbuildingGalleryTownArchitectureBlocking"/>, which is also the compatibility
         /// path for a checked-in gallery bake that predates this feature.
         /// </summary>
         public void GenerateWorldbuildingGalleryTourExpansionBlocking()
         {
+            EnsureGalleryProofTownRegistered();
             var regions = new HashSet<int3>();
             AddGalleryRegionNeighbourhood(regions, s_GalleryAdventurersGuildOriginXZ, 1);
             AddGalleryRegionNeighbourhood(regions, s_GalleryWizardGuildOriginXZ, 1);
@@ -205,6 +233,70 @@ namespace VoxelEngine.Showcase
             EnsureWorldbuildingGalleryTownArchitectureBlocking();
         }
 
+        private static void EnsureGalleryProofTownRegistered()
+        {
+            if (WorldBuilderTownArchitecture.IsRegistered(GalleryProofTownStyleId)) return;
+
+            var materials = new TownArchitectureMaterialFamily(
+                "river-cut-stone-and-plaster",
+                "steep-red-tile",
+                "dark-river-oak",
+                "quayside-stone",
+                "iron-and-weathered-timber",
+                "lantern-amber-and-blue-cloth");
+            var composition = new TownArchitectureComposition(
+                new TownArchitectureRoleRecipe(
+                    TownArchitectureStructureRole.Residential,
+                    TownArchitectureMassing.GabledFrame,
+                    TownArchitectureRoofForm.SteepGable,
+                    TownArchitectureOpeningStyle.OrderedStone,
+                    TownArchitectureDetailFeatures.TimberFrame | TownArchitectureDetailFeatures.Balcony | TownArchitectureDetailFeatures.Chimney,
+                    38, 30, 27, 16),
+                new TownArchitectureRoleRecipe(
+                    TownArchitectureStructureRole.Commercial,
+                    TownArchitectureMassing.StoneGabled,
+                    TownArchitectureRoofForm.SteepGable,
+                    TownArchitectureOpeningStyle.TimberFramed,
+                    TownArchitectureDetailFeatures.MasonryCourses | TownArchitectureDetailFeatures.TimberFrame | TownArchitectureDetailFeatures.Awning,
+                    44, 32, 28, 17),
+                new TownArchitectureRoleRecipe(
+                    TownArchitectureStructureRole.CivicCommunal,
+                    TownArchitectureMassing.StoneGabled,
+                    TownArchitectureRoofForm.TwinGable,
+                    TownArchitectureOpeningStyle.OrderedStone,
+                    TownArchitectureDetailFeatures.MasonryCourses | TownArchitectureDetailFeatures.CivicArch | TownArchitectureDetailFeatures.Balcony,
+                    46, 36, 32, 19),
+                new TownArchitectureRoleRecipe(
+                    TownArchitectureStructureRole.LandmarkInfrastructure,
+                    TownArchitectureMassing.FortifiedParapet,
+                    TownArchitectureRoofForm.FortifiedParapet,
+                    TownArchitectureOpeningStyle.OrderedStone,
+                    TownArchitectureDetailFeatures.MasonryCourses | TownArchitectureDetailFeatures.CivicArch | TownArchitectureDetailFeatures.Buttress,
+                    42, 34, 34, 0));
+
+            var proof = new TownArchitectureDefinition(
+                GalleryProofTownStyleId,
+                "River Trade",
+                "synthetic-gallery-proof",
+                GalleryProofTownSeed,
+                1,
+                TownArchitectureSilhouette.PastoralTimberFrame,
+                TownArchitectureRoofForm.TwinGable,
+                TownArchitectureOpeningStyle.OrderedStone,
+                in materials,
+                composition,
+                new string[0],
+                new[]
+                {
+                    "stone-lower-storey", "timber-upper-frame", "steep-roof", "recessed-window",
+                    "projecting-sill-lintel", "balcony-rail", "market-awning", "stone-course",
+                    "civic-arch", "quayside-buttress", "chimney-cap", "lantern-bracket"
+                });
+
+            if (!WorldBuilderTownArchitecture.Register(proof) && !WorldBuilderTownArchitecture.IsRegistered(GalleryProofTownStyleId))
+                throw new System.InvalidOperationException("Could not register the synthetic river-trade town architecture proof.");
+        }
+
         private static void GetTownView(int normalizedTourIndex, out int district, out int view)
         {
             int townViewIndex = normalizedTourIndex - GalleryBaseTourStopCount;
@@ -212,38 +304,8 @@ namespace VoxelEngine.Showcase
             view = townViewIndex % GalleryTownViewsPerDistrict;
         }
 
-        private static TownArchitectureVoxelPalette GalleryTownPalette(string styleId)
-        {
-            switch (styleId)
-            {
-                case WorldBuilderTownArchitectureIds.Kentridge:
-                    return new TownArchitectureVoxelPalette(
-                        GameMaterialIds.MasonryMedium, GameMaterialIds.Tile, GameMaterialIds.Wood,
-                        GameMaterialIds.Grass, GameMaterialIds.DarkStone, GameMaterialIds.LitWindow);
-                case WorldBuilderTownArchitectureIds.Hightown:
-                    return new TownArchitectureVoxelPalette(
-                        GameMaterialIds.MasonryLarge, GameMaterialIds.Slate, GameMaterialIds.DarkStone,
-                        GameMaterialIds.MasonrySmall, GameMaterialIds.Stone, GameMaterialIds.LitWindow);
-                case WorldBuilderTownArchitectureIds.Moordell:
-                    return new TownArchitectureVoxelPalette(
-                        GameMaterialIds.Stone, GameMaterialIds.Slate, GameMaterialIds.Wood,
-                        GameMaterialIds.Dirt, GameMaterialIds.Moss, GameMaterialIds.Gold);
-                case WorldBuilderTownArchitectureIds.Rossdam:
-                    return new TownArchitectureVoxelPalette(
-                        GameMaterialIds.MasonryLarge, GameMaterialIds.Tile, GameMaterialIds.DarkStone,
-                        GameMaterialIds.MasonryMedium, GameMaterialIds.Gold, GameMaterialIds.Cloth);
-                case WorldBuilderTownArchitectureIds.FairyVillage:
-                    return new TownArchitectureVoxelPalette(
-                        GameMaterialIds.Wood, GameMaterialIds.Moss, GameMaterialIds.Wood,
-                        GameMaterialIds.Grass, GameMaterialIds.FlowerWhite, GameMaterialIds.Crystal);
-                case WorldBuilderTownArchitectureIds.OrcVillage:
-                    return new TownArchitectureVoxelPalette(
-                        GameMaterialIds.DarkStone, GameMaterialIds.Wood, GameMaterialIds.Wood,
-                        GameMaterialIds.Dirt, GameMaterialIds.Slate, GameMaterialIds.Cloth);
-                default:
-                    throw new System.ArgumentOutOfRangeException(nameof(styleId), styleId, "Unsupported gallery town style.");
-            }
-        }
+        private static TownArchitectureVoxelPalette GalleryTownPalette(int districtIndex) =>
+            s_GalleryTownPalettes[NormalizeTownDistrictIndex(districtIndex)];
 
         private void AuthorGalleryGuildHouse(
             IStructureAuthoringSession authoring,
