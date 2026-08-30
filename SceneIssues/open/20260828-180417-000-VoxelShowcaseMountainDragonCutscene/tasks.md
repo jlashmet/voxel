@@ -7,7 +7,7 @@
 - [x] Require 24 voxels / 2.4 m vertical headroom above the 1.8 m production motor body.
 - [x] Add semantic occupied-below + clear-above regression across ramps, turns, final ascent, and summit approach.
 - [x] Add grounded route expectations: +4.6 m per tier, +27.6 m sixth high point, +28.0 m summit within 0.75 m.
-- [x] Merge current `origin/master` before the implementation pass without touching another assignment.
+- [x] Merge current `origin/master` before the earlier implementation pass without touching another assignment.
 
 ## Bake-cost discriminator
 - [x] Separate cold import from bake work and compare with successful source `3059c8c119a7...` (3:57 cold bake).
@@ -17,15 +17,22 @@
 - [x] Inspect run `33274279301`: centered clearing still hit the 240 s Unity guard after ~62.3 s cold import.
 - [x] Suppress non-serialized far-field capture only during offline VoxelShowcase bake and add scoped restoration regression.
 - [x] Merge master `355a7ed08915...`, preserving agent-4 work and adopting the 10-minute GitHub job ceiling.
-- [x] Submit exact request `6c96334421b3...` for merged feature `d1895b3b5591...`; leave it queued/running without replacement.
+- [x] Submit exact request `6c96334421b3...` for merged feature `d1895b3b5591...`; inspect its completed failure rather than replacing queued/running work.
 - [x] Inspect run `33279296569`: cold import ~60.5 s, bake killed at 241 s / peak ~11.9 GB before the focused test; built-player fallback rejected stale payload because source-matched manifest is absent. Far-field suppression is falsified as sufficient.
 - [x] Trace the next hot path to shared `PrimitiveRasteriser`: box carve visits and reads already-empty voxels before discovering `default` is unchanged.
 - [x] Add an output-equivalent fast path for `Carve` + `Box` that skips only blocks explicitly encoded `VoxelReadBlockKind.Empty`; never skip mixed blocks because empty-side boundary samples are authoritative.
 - [x] Add real-storage behavioral regression covering canonical-empty boxed-carve no-op plus Mixed empty-side boundary clearing, and include it in the exact final acceptance filter.
-- [x] Re-check blast radius/cost: post-failure diff changes only the rasterizer, two Mountain Dragon tests, and this assignment's plan/tasks; the production change is 24 added lines, leaves non-box carve/fill/paint logic and primitive order/footprint unchanged, and adds no per-voxel work to non-box paths.
+- [x] Re-check blast radius/cost for the empty-skip change: rasterizer + Mountain Dragon regression only; non-box carve/fill/paint logic and primitive order/footprint unchanged.
+- [x] Submit exact request `agent4-mountain-dragon-final-ef0beaf-emptycarve` on CI head `d6077213a499...` for feature source `ef0beaf69baa...`; no queued/running request remains.
+- [x] Inspect run `33280962999` attempt 2: bake again killed at 241 s / ~11.7 GB before focused acceptance; stale fallback payload remains unusable. Canonical-empty skipping is falsified as sufficient.
+- [x] Confirm `RegionReadView.TryGetWorldBlock` correctly distinguishes canonical Empty from Mixed, so the failed timing result does not invalidate the fast path's semantics.
+- [x] Identify the next output-equivalent discriminator: fully covered `Carve + Box` blocks can use existing authoritative `IRegionMutationStore.SetWholeCellBlock(default)` instead of 512 cell iterations; partial edge blocks must retain the current path.
+- [ ] Implement the full-8^3-block default replacement only for fully covered `Carve + Box` blocks, retaining canonical-empty skip and all partial/non-box behavior.
+- [ ] Extend real-storage regression: full Mixed boundary block clears/collapses with 512 logical writes, while a partial box leaves outside cells/boundary state untouched.
+- [ ] Re-check blast radius and cost after the full-block change; no non-box/fill/paint semantics, primitive order, footprint, or serialized output may change.
 
 ## Exact-SHA bake / built-player gate
-- [ ] Submit one new final exact-SHA request from the post-fast-path feature head using only `ci-test/fixes/agent-4`; do not create another transport or replace queued/running work.
+- [ ] Commit the post-full-block candidate on `fixes/agent-4`, then issue the next final exact-SHA request using only existing `ci-test/fixes/agent-4`; do not create another transport or replace queued/running work.
 - [ ] Generate and validate source-matched `ShowcaseWorld.bytes` + manifest.
 - [ ] Run the exact focused acceptance filter green.
 - [ ] Traverse the complete route via production `AutoWalk -> CharacterMotor.Step` with grounded Y proof.
@@ -35,4 +42,4 @@
 ## Closure gate
 - [ ] After all green gates, complete pending metadata and move only this assignment `open -> pending`.
 - [ ] Move only this assignment `pending -> closed`, set `status=fixed` and `resolvedUtc`.
-- [ ] Merge latest `origin/master`, push the exact feature head to `origin/master` non-force, fetch/merge/retry if master advanced.
+- [ ] Merge latest `origin/master`, preserving master semantic repairs/material retention and agent-4 provenance/capture suppression, then push the exact feature head to `origin/master` non-force; fetch/merge/retry if master advanced.
