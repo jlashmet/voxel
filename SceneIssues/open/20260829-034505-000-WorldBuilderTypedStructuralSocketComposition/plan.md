@@ -12,6 +12,12 @@
 
 Discriminator: one final exact-SHA PlayMode request using the existing `ci-test/fixes/agent-5` transport, including the exact SceneIssue built-player harness. Inspect every durable 1600x900 structural frame and classify the result using current `AGENTS.md`; any frame that remains below `production-quality` keeps the issue open.
 
+## Reusability review gates
+- Keep all socket compatibility, facing, capacity, clearance, support, recursion, deterministic selection, and budget semantics in generic `VoxelEngine.Structures` contracts/runtime; the WorldbuildingGallery must only author and demonstrate those semantics, never define gallery-only attachment rules.
+- Audit the large gallery structural composition/presentation files before closure and move any reusable structural decision or transformation logic down into the generic composition layer rather than duplicating it in showcase code.
+- Prove the same typed socket contract can compose at least two materially different structure families without special-case bridge/castle/cliff identifiers in the generic solver.
+- Keep decoration handoff as an adapter into the existing decoration system; do not let structural sockets become a parallel micro-detail/decorative placement system.
+
 ## Cost / blast-radius gates
 - Baseline run `33314706183`: bridge planning `0.014 ms`, castle `0.005 ms`; 20 children, 51 structural primitives, 15 visited regions, 40 rasterized instances, 15,907,368 written voxels; traversal bridge `115 m -> 1.25 m`, gate `17.6 m -> 1.223 m`, cliff `42 m -> 1.317 m`.
 - Presentation changes are confined to the existing gallery authoritative-voxel pass and audit framing. No solver semantics, composition ceilings, scan budgets, `CharacterMotor` tolerances, or unrelated generation/render behavior changed.
