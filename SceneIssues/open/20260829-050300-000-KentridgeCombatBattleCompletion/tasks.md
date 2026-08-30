@@ -9,9 +9,9 @@
 - [x] Compose battle progression and terminal input-context release into Kentridge.
 - [x] Add full end-to-end Kentridge AI-vs-AI regression with bounded no-progress watchdog and teardown assertions.
 - [x] Validate blast radius and runtime cost against the four-participant encounter.
-- [ ] Promote this assignment to pending with fix/regression metadata after exact-SHA workflow gates are green.
-- [x] Request exactly one final targeted CI through `ci-test/fixes/agent-7`, pinned directly to feature SHA `9eda40e9d44d09ed82bb0b4daa5c2ff9ae13c315` (transport commit `b0dff2a530a5c6d3a2af781ba7ad4fd904c41cc7`).
-- [ ] Verify exact-SHA focused tests and exact built Kentridge scene validation are green.
-- [ ] Complete pending CI/verification metadata on `fixes/agent-7`.
+- [x] Promote this assignment to pending with fix/regression metadata after exact-SHA workflow gates are green.
+- [x] Request exactly one final targeted CI through `ci-test/fixes/agent-7`, pinned directly to feature SHA `d8b5c56e774191ca11c161d5b13d66b4e7803025` (transport commit `8cc6ff94dcbbca46b1c522d08752235b891b1851`).
+- [x] Verify exact-SHA focused tests and exact built Kentridge scene validation are green (run `33291387557`: 3/3 tests passed; standalone player 30s, exit 0, 0 harness assertions).
+- [x] Complete pending CI/verification metadata on `fixes/agent-7`.
 - [ ] Move assignment to closed, set `status=fixed` and `resolvedUtc`.
 - [ ] Merge current `origin/master` into `fixes/agent-7`, push feature, then advance `origin/master` non-force to the exact branch head.
