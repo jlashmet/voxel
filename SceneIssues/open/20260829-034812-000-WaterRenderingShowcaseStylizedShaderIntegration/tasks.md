@@ -41,6 +41,12 @@
 - [x] Verify `VoxelShowcase` automatically receives shared presentation and restores water after a leaked diagnostic disable.
 - [x] Verify `WorldbuildingGalleryShowcase` automatically reaches the same globally installed water presentation for its cave-authored water.
 
+## Reusability review
+- [ ] Audit engine rendering/extraction code so still/river/waterfall behavior is selected entirely from semantic presentation/profile data; no `GameMaterialIds`, showcase IDs, or numeric material-ID assumptions may control renderer behavior.
+- [ ] Keep all reusable flow/foam/depth/turbulence/aeration parameters in shared material/presentation definitions; `WaterRenderingShowcase` may choose profiles and camera/placement only, not define authoritative water behavior.
+- [ ] Add or retain a regression proving two independently authored water materials/profiles with different IDs can produce the same semantic class, and one ID can change profile behavior through presentation data without engine-code changes.
+- [ ] Confirm the showcase's capture-only telemetry and visual-repair code is inactive outside evidence capture and does not become a production renderer lifecycle dependency.
+
 ## Regression / reliability / cost
 - [x] Production installation regression covers still/river/waterfall profiles and excludes non-water material.
 - [x] Gameplay regression proves still/river retain spreading-water semantics while cascade remains inert.
