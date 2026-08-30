@@ -12,7 +12,7 @@ Shader "Hidden/VoxelEngine/WaterSurface"
         {
             Name "VoxelWaterSurface"
             Tags { "LightMode"="UniversalForward" }
-            Cull Back
+            Cull Off
             ZWrite On
             ZTest LEqual
             Blend SrcAlpha OneMinusSrcAlpha
@@ -131,11 +131,13 @@ Shader "Hidden/VoxelEngine/WaterSurface"
 
                 if (profile > 2.5)
                 {
-                    float warp = (Fbm2(p.xz * (2.1 * scale) + _WaterTime * 0.17) - 0.5)
-                               * cascade.x * 2.4;
-                    phaseA = p.y * (4.2 / scale) - _WaterTime * speed * 4.3 + warp;
-                    phaseB = p.y * (7.4 / scale) - _WaterTime * speed * 5.9
-                           + dot(p.xz, float2(-1.7, 2.3)) + warp * 1.6;
+                    float lateral = p.x + p.z * 0.73;
+                    float warp = (Fbm2(float2(lateral, p.y) * (1.45 * scale)
+                                      + float2(_WaterTime * 0.11, -_WaterTime * speed * 0.38)) - 0.5)
+                               * cascade.x * 3.4;
+                    phaseA = p.y * (4.6 / scale) - _WaterTime * speed * 5.2 + warp;
+                    phaseB = p.y * (8.1 / scale) - _WaterTime * speed * 7.1
+                           + lateral * 2.2 + warp * 1.8;
                 }
                 else if (profile > 1.5)
                 {
@@ -184,7 +186,7 @@ Shader "Hidden/VoxelEngine/WaterSurface"
                 float3 normal = AnimatedNormal(input.positionWS, input.normalWS,
                                                motion, detail, cascade);
                 float3 toCamera = normalize(_CameraPosition.xyz - input.positionWS);
-                float ndotv = saturate(dot(normal, toCamera));
+                float ndotv = saturate(abs(dot(normal, toCamera)));
                 float fresnel = 0.025 + 0.975 * pow(1.0 - ndotv, 5.0);
 
                 float depthGap = SceneDepthGap(input);
@@ -203,33 +205,49 @@ Shader "Hidden/VoxelEngine/WaterSurface"
 
                 float upFacing = saturate(input.normalWS.y * 2.4 - 0.45);
                 float verticalFacing = 1.0 - saturate(abs(input.normalWS.y) * 2.2);
-                float waterfallWarp = Fbm2(input.positionWS.xz * 2.6
-                                          + float2(0, -_WaterTime * motion.w));
+                float lateral = input.positionWS.x + input.positionWS.z * 0.73;
+                float2 fallUv = float2(lateral * 2.15,
+                                      input.positionWS.y * 2.85 - _WaterTime * motion.w * 1.65);
+                float waterfallWarp = Fbm2(fallUv);
+                float coarseBreakup = Fbm2(fallUv * 0.47 + float2(13.2, -_WaterTime * 0.31));
                 float downwardStreaks = waterfall
-                    ? pow(saturate(0.5 + 0.5 * sin(input.positionWS.y * 19.0
-                              - _WaterTime * motion.w * 9.0
-                              + waterfallWarp * 5.0)), 4.0) : 0.0;
+                    ? pow(saturate(0.5 + 0.5 * sin(input.positionWS.y * 17.0
+                              - _WaterTime * motion.w * 10.5
+                              + lateral * 5.2 + waterfallWarp * 7.0)), 3.0) : 0.0;
+                float brightThreads = waterfall
+                    ? pow(saturate(0.5 + 0.5 * sin(input.positionWS.y * 29.0
+                              - _WaterTime * motion.w * 16.0
+                              - lateral * 8.3 + coarseBreakup * 5.5)), 7.0) : 0.0;
                 float aeration = waterfall
-                    ? saturate(0.28 + cascade.x * (surfacePattern * 0.85 + downwardStreaks * 0.55))
+                    ? saturate(0.18 + cascade.x * (waterfallWarp * 0.62
+                              + downwardStreaks * 0.72 + brightThreads * 0.95))
                     : 0.0;
 
                 float lipFoam = waterfallMask * upFacing * cascade.y
-                              * smoothstep(0.42, 0.76, waterfallWarp);
+                              * smoothstep(0.38, 0.70, waterfallWarp);
                 float impactFoam = waterfallMask * upFacing * cascade.z
-                                 * smoothstep(0.30, 0.72,
+                                 * smoothstep(0.25, 0.66,
                                      Fbm2(input.positionWS.xz * 4.1 - _WaterTime * 0.8));
                 float edgeBreakup = waterfallMask * verticalFacing * cascade.y
-                                  * smoothstep(0.62, 0.86,
-                                      Fbm2(input.positionWS.xz * 3.7 + input.positionWS.yy * 0.09));
+                                  * smoothstep(0.50, 0.80, coarseBreakup);
                 float mist = waterfallMask * verticalFacing * cascade.w
-                           * smoothstep(0.60, 0.90,
-                               Fbm2(input.positionWS.xz * 1.5
-                                  + float2(_WaterTime * 0.17, -_WaterTime * 0.26)));
+                           * smoothstep(0.48, 0.80,
+                               Fbm2(float2(lateral, input.positionWS.y) * 1.35
+                                  + float2(_WaterTime * 0.17, -_WaterTime * 0.46)));
 
-                float foam = saturate(surfaceFoam + contactFoam + aeration * 0.42
-                                    + lipFoam + impactFoam * 0.78 + edgeBreakup * 0.48);
+                float foam = saturate(surfaceFoam + contactFoam + aeration * 0.54
+                                    + lipFoam + impactFoam * 0.82 + edgeBreakup * 0.58);
 
                 float3 body = lerp(shallow.rgb, deep.rgb, depthT);
+                if (waterfall)
+                {
+                    float verticalEnergy = verticalFacing * saturate(
+                        downwardStreaks * 0.62 + brightThreads * 0.95 + aeration * 0.42);
+                    body = lerp(body, float3(0.34, 0.70, 0.83), verticalFacing * 0.42);
+                    body = lerp(body, float3(0.88, 0.96, 0.98), verticalEnergy * 0.72);
+                    body *= 0.82 + 0.30 * coarseBreakup;
+                }
+
                 float3 reflectedDirection = reflect(-toCamera, normal);
                 float3 reflectedSky = SkyReflection(reflectedDirection);
                 float3 refractedDirection = refract(-toCamera, normal, 0.75);
@@ -243,12 +261,14 @@ Shader "Hidden/VoxelEngine/WaterSurface"
 
                 float3 colour = lerp(body, reflectedSky, saturate(fresnel * 0.82 + 0.08));
                 colour += specularColour;
-                colour = lerp(colour, float3(0.83, 0.94, 0.96), foam * 0.82);
-                colour += float3(0.55, 0.72, 0.74) * mist * 0.26;
+                colour = lerp(colour, float3(0.86, 0.96, 0.98), foam * 0.86);
+                colour += float3(0.62, 0.79, 0.82) * mist * 0.34;
 
                 float baseAlpha = lerp(shallow.a * 0.72, shallow.a, depthT);
                 float alpha = saturate(lerp(baseAlpha, 0.94, fresnel * 0.34)
                                      + foam * 0.14 + mist * 0.08);
+                if (waterfall)
+                    alpha = max(alpha, verticalFacing * (0.84 + 0.10 * aeration));
                 return float4(colour, alpha);
             }
             ENDHLSL
