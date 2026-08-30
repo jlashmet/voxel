@@ -53,8 +53,8 @@
 - [x] Inspect the failed run without replacing it: focused acceptance was skipped; the built-player fallback built successfully but exited 23 because the stale payload lacked the source-matched provenance manifest; all six fallback captures are therefore non-acceptance evidence.
 - [x] Identify the next shared hot path: `RasteriseBoundaryHalo` still computes curved signed distance, including integer square-root work, for every voxel in expanded frustum bounds and only then rejects deep-interior samples beyond the 2-voxel halo.
 - [x] Add the next focused semantic regression before production implementation: commit `b17d748f149b...` requires a deep-interior frustum cell to remain without boundary metadata while preserving positive solid-side and negative empty-side near-surface halo samples.
-- [ ] Implement the output-equivalent deep-interior `Fill + Frustum` halo block skip only when a complete block's eight extreme voxel centres all have signed boundary distance >32 Q4.
-- [ ] Re-check the halo optimization blast radius/cost; boundary/partial/outside blocks and all non-frustum/non-fill modes must stay on the existing per-voxel halo path.
+- [x] Implement the output-equivalent deep-interior halo skip in commit `da45c64e9658...`: only complete `Fill + Frustum` blocks whose eight extreme voxel centres all have signed boundary distance >32 Q4 bypass the per-voxel halo scan.
+- [x] Re-check halo optimization blast radius/cost against the emitter formula: frustum radius is monotonic on the extrusion axis, radial distance is maximal at radial-plane block corners, and cap clearance is minimal at axial endpoints. Qualifying blocks cannot contain a halo sample; up to 512 integer-sqrt distance evaluations become eight corner checks. Boundary/partial/outside blocks and all non-frustum/non-fill modes stay on the existing path.
 - [ ] Re-measure the full 9-region bake under the 240 s subprocess contract and prove all authored landing floor/headroom columns survive without castle-region suppression.
 
 ## Exact-SHA bake / built-player gate
