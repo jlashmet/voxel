@@ -27,6 +27,7 @@ namespace VoxelEngine.Tests.PlayMode
 
             world.GenerateUndergroundCavernRuinsBlocking();
             AssertRoundedDestinationCirculationPlan();
+            AssertIrregularRouteNaturalizationPlan();
 
             Assert.That(world.HasUndergroundCavernRuins, Is.True);
             Assert.That(world.UndergroundCavernRockMaterialId, Is.EqualTo(GameMaterialIds.DarkStone),
@@ -91,6 +92,12 @@ namespace VoxelEngine.Tests.PlayMode
             AssertRoundedDestinationCirculationPlan();
         }
 
+        [Test]
+        public void RouteNaturalizationPlanUsesDeterministicNonPeriodicLobes()
+        {
+            AssertIrregularRouteNaturalizationPlan();
+        }
+
         private static void AssertRoundedDestinationCirculationPlan()
         {
             var cavern = new DecorationBounds { Min = new int3(-160, -700, -150), MaxExclusive = new int3(161, -520, 151) };
@@ -111,6 +118,99 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(repeated.NodeCount, Is.EqualTo(plan.NodeCount));
             Assert.That(repeated.Radius, Is.EqualTo(plan.Radius));
             Assert.That(repeated.Spacing, Is.EqualTo(plan.Spacing));
+        }
+
+        private static void AssertIrregularRouteNaturalizationPlan()
+        {
+            CaveGenerationRequest request = CaveGenerationRequest.Standalone(
+                0x564F584341564552ul,
+                Seed,
+                new int3(-3600, 180, -378),
+                Facing.East,
+                28,
+                32,
+                12);
+            CaveConfig cave = CaveConfig.Default;
+            cave.TunnelWidth = 28;
+            cave.TunnelHeight = 32;
+            cave.SegmentLength = 56;
+            cave.MainSegmentCount = 58;
+            cave.TurnChancePercent = 0;
+            cave.VerticalChancePercent = 0;
+            cave.MaxVerticalStepPerSegment = 0;
+            cave.SurfaceDescentSegments = 52;
+            cave.SurfaceDescentPerSegment = 18;
+            cave.MinimumSurfaceCover = 18;
+            cave.BranchChancePercent = 0;
+            cave.MaxBranches = 0;
+            cave.MaxBranchDepth = 0;
+            cave.ChamberChancePercent = 12;
+            cave.MinChamberRadius = 18;
+            cave.MaxChamberRadius = 30;
+            cave.MinChamberHeight = 34;
+            cave.MaxChamberHeight = 48;
+            cave.FloorRoughness = 2;
+            cave.CeilingRoughness = 4;
+            cave.WallRoughness = 3;
+            cave.BoundsHalfExtents = new int3(3400, 1120, 320);
+            cave.MinVerticalOffset = -1000;
+            cave.MaxVerticalOffset = 24;
+            UndergroundCavernTraversalProfile profile = UndergroundCavernTraversalProfile.LongDescent;
+
+            UndergroundCavernNaturalizationNode[] first =
+                UndergroundCavernRouteNaturalization.ResolvePlan(in request, in cave, in profile);
+            UndergroundCavernNaturalizationNode[] repeated =
+                UndergroundCavernRouteNaturalization.ResolvePlan(in request, in cave, in profile);
+
+            Assert.That(first.Length, Is.GreaterThanOrEqualTo(150));
+            Assert.That(repeated.Length, Is.EqualTo(first.Length));
+            var spacingSeen = new bool[65];
+            var ceilingSeen = new bool[65];
+            int sideSwitches = 0;
+            int previousSide = 0;
+
+            for (int i = 0; i < first.Length; i++)
+            {
+                UndergroundCavernNaturalizationNode node = first[i];
+                UndergroundCavernNaturalizationNode again = repeated[i];
+                Assert.That(node.IsWellFormed, Is.True);
+                Assert.That(node.PrimaryRadius, Is.GreaterThanOrEqualTo(cave.TunnelWidth / 2 + 2));
+                Assert.That(node.StepToNext, Is.LessThanOrEqualTo(node.PrimaryRadius * 2));
+                Assert.That(node.Distance, Is.EqualTo(again.Distance));
+                Assert.That(node.StepToNext, Is.EqualTo(again.StepToNext));
+                Assert.That(node.PrimaryRadius, Is.EqualTo(again.PrimaryRadius));
+                Assert.That(node.PrimaryHeight, Is.EqualTo(again.PrimaryHeight));
+                Assert.That(node.DominantSide, Is.EqualTo(again.DominantSide));
+                Assert.That(node.SideOffset, Is.EqualTo(again.SideOffset));
+                Assert.That(node.SideBaseOffset, Is.EqualTo(again.SideBaseOffset));
+                Assert.That(node.SideRadius, Is.EqualTo(again.SideRadius));
+                Assert.That(node.SideHeight, Is.EqualTo(again.SideHeight));
+                Assert.That(node.UpperOffset, Is.EqualTo(again.UpperOffset));
+                Assert.That(node.UpperBaseOffset, Is.EqualTo(again.UpperBaseOffset));
+                Assert.That(node.UpperRadius, Is.EqualTo(again.UpperRadius));
+                Assert.That(node.UpperHeight, Is.EqualTo(again.UpperHeight));
+
+                spacingSeen[math.clamp(node.StepToNext, 0, spacingSeen.Length - 1)] = true;
+                ceilingSeen[math.clamp(
+                    node.UpperBaseOffset + node.UpperHeight - cave.TunnelHeight,
+                    0,
+                    ceilingSeen.Length - 1)] = true;
+                if (previousSide != 0 && previousSide != node.DominantSide)
+                    sideSwitches++;
+                previousSide = node.DominantSide;
+            }
+
+            Assert.That(CountTrue(spacingSeen), Is.GreaterThanOrEqualTo(3));
+            Assert.That(CountTrue(ceilingSeen), Is.GreaterThanOrEqualTo(4));
+            Assert.That(sideSwitches, Is.GreaterThanOrEqualTo(4));
+        }
+
+        private static int CountTrue(bool[] values)
+        {
+            int count = 0;
+            for (int i = 0; i < values.Length; i++)
+                if (values[i]) count++;
+            return count;
         }
 
         private static int WalkProductionRoute(ShowcaseWorld world)
