@@ -78,4 +78,4 @@
 - [x] Complete `issue.json` pending metadata (`status`, `resolutionSummary`, `regressionTest`, `fixCommit`) only after promotion gates pass.
 - [x] Move only this assignment `open` → `pending` in a separate bookkeeping commit.
 - [x] After green exact-SHA targeted CI and built-app validation, set `status=fixed` and `resolvedUtc`, then move only this assignment `pending` → `closed`.
-- [ ] Merge current `origin/master` into `fixes/agent-1`, resolve only in-scope conflicts, push feature head, then push that exact head to `origin/master` non-force; if master advances, fetch/merge/retry.
+- [x] Merge current `origin/master` into `fixes/agent-1`, resolve only in-scope conflicts, push feature head, then push that exact head to `origin/master` non-force; if master advances, fetch/merge/retry.
