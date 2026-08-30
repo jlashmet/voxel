@@ -3,6 +3,7 @@
 ## Investigation
 - [x] Read `AGENTS.md` and canonical `SceneIssues/README.md`; confirm `SceneIssues/feature-readme.md` is absent at this revision.
 - [x] Confirm `fixes/agent-1` starts from current `origin/master` before implementation.
+- [x] Record execution limitation before behavior coding: this execution host has no Unity Editor/test runner (`unity-editor`, `Unity`, `unity`, and `unityhub` are absent), so the required regression will still be committed before production implementation but cannot be executed locally; the single final exact-SHA CI is the authoritative Unity runner.
 - [ ] Trace existing mesh/SDF import, voxel stamp/storage, structure placement, material palette, showcase composition, collision/edit, and player-capture owners.
 - [ ] Inspect prior dragon/SDF work only as reusable-code evidence; do not modify another assignment.
 - [ ] Verify and document a detailed conventional dragon source with redistribution-compatible license, URL, author, format, triangle/vertex counts, checksum, and required attribution files.
