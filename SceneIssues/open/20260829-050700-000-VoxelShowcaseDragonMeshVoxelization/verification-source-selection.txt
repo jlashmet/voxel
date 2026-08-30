@@ -26,12 +26,15 @@ Visual/detail decision:
 - Rejected artist_71 OpenGameArt three-headed model: detailed but wingless.
 - Rejected Cethiel/Drummyfish CC0 model: winged but mirrored source is only ~633 position vertices and visibly low-poly.
 - Rejected Stanford scan derivatives encountered during fallback search: high triangle counts but wingless and therefore fail this issue's anatomy requirement.
+- Rejected text-based OBJ fallback search (2026-08-30): no candidate found that simultaneously had clear redistribution rights and met the detailed curved winged/full-anatomy bar; source quality was not reduced to fit connector transport.
+- Rejected same-repository `feature/sdf-dragon-statue` recovery (2026-08-30): its current head `50374e569299d1883e7595527859c01ef559f2ad` uniquely changes only `Assets/Game/Structures/Runtime/DragonStatueDetailedVoxelAuthoring.cs`, whose production entry point explicitly authors V10 from empty authoritative voxel state via `DragonStatueConceptV10HardSurfaceAuthoring`. `References/` contains no dragon source asset. This is hand-authored voxel geometry, not a downloaded third-party triangle mesh, so reusing it would fail the exact-source mesh-voxelization acceptance.
 
 Transport experiments completed without changing the selected quality bar:
 - GitHub contents/base64 succeeds for the small binary Mesh014 payload, but the connected API does not return the >1 MB Mesh008/Mesh013 binaries.
 - Git blob fetch for Mesh008 fails in the connector's UTF-8 response decoder; cross-repository blob SHA reuse is not accepted by GitHub because blobs are repository-local.
 - Original Bitterli archive and GitHub Raw/CDN download routes were probed from the execution environment; binary transfer did not succeed.
 - The same-assignment fixes/agent-1-temp-check branch is strictly behind fixes/agent-1 and contains no additional asset/bake commit to recover.
+- Existing Git-blob reuse from the repository's older dragon branch was checked separately; no imported source blob exists there to reuse without network transfer.
 
 Current blocker:
-The selected source's two main binary PLY payloads are larger than the connected repository API's transferable binary ceiling, while this execution environment has no writable voxel checkout and no network-capable shell. Do not replace the selected source with lower-quality/wingless geometry merely to fit transport tooling. The SHA-256 identities above make the intended bytes unambiguous, but the source still must be physically vendored before the issue can pass acceptance or close.
+The selected source's two main binary PLY payloads are larger than the connected repository API's transferable binary ceiling, while this execution environment has no writable voxel checkout and no network-capable shell. Do not replace the selected source with lower-quality/wingless or hand-authored voxel geometry merely to fit transport tooling. The SHA-256 identities above make the intended bytes unambiguous, but the source still must be physically vendored before the issue can pass acceptance or close.
