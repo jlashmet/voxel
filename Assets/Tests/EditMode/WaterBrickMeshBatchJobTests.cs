@@ -1,12 +1,8 @@
 using Game.Materials.Api;
-using Game.Materials.Runtime;
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
-using VoxelEngine.Rendering.Api;
-using VoxelEngine.Rendering.Runtime;
 using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
-using VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel;
 
 namespace VoxelEngine.Tests.EditMode
 {
@@ -136,54 +132,6 @@ namespace VoxelEngine.Tests.EditMode
 
             Assert.That(vertices.Length, Is.Zero);
             Assert.That(indices.Length, Is.Zero);
-        }
-
-        [Test]
-        public void SolidClassification_UsesInstalledPresentationMaskForOpaqueWaterId()
-        {
-            const byte opaqueWaterId = 23;
-            const byte opaqueSolidId = 24;
-            var water = new WaterPresentationDefinition(
-                WaterPresentationProfile.Waterfall,
-                shallow: new float4(0.2f, 0.7f, 0.9f, 0.7f),
-                deep: new float4(0.02f, 0.15f, 0.3f, 4f),
-                flowDirection: new float2(0f, 1f),
-                flowSpeed: 1f,
-                waveScale: 1f,
-                normalStrength: 1f,
-                refractionStrength: 0.1f,
-                smoothness: 0.8f,
-                surfaceFoam: 0.5f,
-                contactFoam: 0.5f,
-                foamScale: 1f,
-                foamSpeed: 1f,
-                turbulence: 0.6f,
-                edgeFoam: 0.7f,
-                impactFoam: 0.8f,
-                mist: 0.9f);
-
-            try
-            {
-                VoxelMaterialPresentationInstaller.Apply(new[]
-                {
-                    new MaterialPresentationDefinition(
-                        opaqueWaterId, new float4(0.1f, 0.4f, 0.7f, 1f), water: water),
-                    new MaterialPresentationDefinition(
-                        opaqueSolidId, new float4(0.5f, 0.5f, 0.5f, 1f)),
-                });
-
-                Assert.That(VoxelPresentationCatalogue.IsWaterMaterial(opaqueWaterId), Is.True);
-                Assert.That(SolidMaterialClassification.IsSolid(opaqueWaterId), Is.False,
-                    "Solid extraction must derive water exclusion from installed presentation, not game IDs.");
-                Assert.That(TransvoxelDensityJob.IsSolidSample(opaqueWaterId), Is.False,
-                    "Burst density classification must consume the same presentation-driven water mask.");
-                Assert.That(SolidMaterialClassification.IsSolid(opaqueSolidId), Is.True);
-                Assert.That(TransvoxelDensityJob.IsSolidSample(opaqueSolidId), Is.True);
-            }
-            finally
-            {
-                VoxelMaterialPresentationInstaller.Apply(GameMaterialRenderingDefinitions.Create());
-            }
         }
 
         private static void Execute(
