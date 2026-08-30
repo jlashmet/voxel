@@ -18,7 +18,7 @@
 - [x] Resolve live input discrepancy and smallest integration point: Space is currently jump/fly and wheel is brush radius; add explicit structure-selection mode so wheel/Space are consumed only while selection is active, preserving normal movement otherwise.
 
 ## Behavior-first regressions (commit before production implementation)
-- [ ] Add compile-intended importer contract tests before production code.
+- [x] Add compile-intended importer contract tests before production code (`9164857ad304dc95a6e182e8e982251d5a918567`).
 - [ ] Curved synthetic closed geometry proves conservative surface coverage and solid interior fill.
 - [ ] Same input/config produces stable ordered voxel/material output.
 - [ ] Off-origin transform, rotation/non-uniform scale, and mirrored orientation are covered.
