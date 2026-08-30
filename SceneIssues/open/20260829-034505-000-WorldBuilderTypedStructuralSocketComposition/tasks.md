@@ -19,6 +19,7 @@
 - [x] Add focused final-refinement castle traversal regression using the same showcase traversal audit as the built-player harness; expose that showcase helper publicly rather than duplicate motor logic.
 - [x] Keep planner-only tests on a small 4096-brick world; after `33334360953` proved the production-sized request was clamped to 127100 by the constructor's fallback, mirror the gallery `DeviceTierBudget` path for only the full-refinement regression.
 - [x] Regress meaningful proof terrain rather than `>0`: bridge natural relief >=40 voxels and cliff natural rise >=80 voxels, with showcase-only acceptance diagnostics.
+- [ ] Regress structural proof re-entry after production residency eviction: author final refinement, evict via zero-budget remote `StepStreaming`, require cached-content probe to go false, then require the same public ensure to restore authoritative proof content.
 
 ## Required proving cases
 - [x] Bridge graph: terrain anchors, repeated independently bounded span/support pieces, road/traversal continuation sockets, incompatible/orientation rejection, multi-region authoritative geometry, continuous traversable deck.
@@ -33,7 +34,7 @@
 - [x] Partition presentation into bounded river/bank/pier, castle, cliff, and facade catalogues after `33323976945` correctly rejected a monolithic presentation footprint.
 - [x] Correct split-piece bounds and preserve the canonical 32-voxel castle passage; `33330327732` proved the former refinement base blocked route 1.
 - [x] After repeated visual failure, isolate the composition cause instead of further camera-only tweaks: `33334360953` measured only 12 voxels of bridge relief and the cliff proof lived in the same deliberately calm valley.
-- [x] Move bridge/cliff proof-site policy to deterministic valley/mountain transition terrain; fail closed below 40-voxel gorge relief / 80-voxel cliff rise. Fixed-seed reproduction yields 48 / 125 voxels.
+- [x] Move bridge/cliff proof-site policy to deterministic valley/mountain transition terrain; fail closed below 40-voxel gorge relief / 80-voxel cliff rise. Support-probe-aligned fixed-seed reproduction yields 48 / 95 voxels.
 - [x] Apply bounded composition readability polish required by prior evidence: gate portal hierarchy without blocking traversal, stepped cliff connection/support read, facade front-envelope relief, and elevated/unobstructed audit framing.
 - [ ] Bridge-wide visibly reads as a monumental crossing over substantial gorge/river between grounded masses.
 - [ ] Bridge close view is above/along the traversable deck and clearly shows deck edge, rail/truss cadence, abutment/pier contact, and continuation seam.
@@ -52,7 +53,8 @@
 - [x] `33331734570`: exact player passed all three traversals/negative contracts and emitted eight frames; focused full-refinement test exposed the too-small fixture path.
 - [x] `33334360953`: exact player again passed all three traversals/negative contracts, emitted all eight frames, and `STRUCTURAL_AUDIT result=PASS`; focused test exposed device-budget clamping to 127100. Full-resolution evidence also demonstrated the insufficient bridge/cliff terrain relief root cause.
 - [x] `33336816661`: compilation stopped before tests because the preceding cliff-site edit dropped the `Def(...) => new()` initializer terminator; restored at `5f0109998cdf0f53ae57024f91169bf940ff6848` without changing the support-probe-aligned site fix.
-- [ ] Run one final exact-SHA PlayMode + exact-scene built-player request on the same CI transport after the tier-budget/terrain-site corrections.
+- [x] `33338219310`: Windows compile and focused PlayMode class passed; built-player audit failed before structural captures with `structural-content-missing` after 21 town views evicted the proof district while refinement's lifetime authoring flag stayed true. Root cause isolated before another CI request.
+- [ ] Run one final exact-SHA PlayMode + exact-scene built-player request on the same CI transport after the tier-budget/terrain-site/residency corrections.
 - [ ] Final focused class is green and final built-player `CharacterMotor` traverses bridge, gate, vertical connection; required negative contracts pass.
 - [ ] Record final measured cost and inspect all durable source frames.
 
