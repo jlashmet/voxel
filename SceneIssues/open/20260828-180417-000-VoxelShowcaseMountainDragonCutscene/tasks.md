@@ -26,10 +26,11 @@
 - [x] Submit exact request `agent4-mountain-dragon-final-ef0beaf-emptycarve` on CI head `d6077213a499...` for feature source `ef0beaf69baa...`; no queued/running request remains.
 - [x] Inspect run `33280962999` attempt 2: bake again killed at 241 s / ~11.7 GB before focused acceptance; stale fallback payload remains unusable. Canonical-empty skipping is falsified as sufficient.
 - [x] Confirm `RegionReadView.TryGetWorldBlock` correctly distinguishes canonical Empty from Mixed, so the failed timing result does not invalidate the fast path's semantics.
-- [x] Identify the next output-equivalent discriminator: fully covered `Carve + Box` blocks can use existing authoritative `IRegionMutationStore.SetWholeCellBlock(default)` instead of 512 cell iterations; partial edge blocks must retain the current path.
-- [ ] Implement the full-8^3-block default replacement only for fully covered `Carve + Box` blocks, retaining canonical-empty skip and all partial/non-box behavior.
-- [ ] Extend real-storage regression: full Mixed boundary block clears/collapses with 512 logical writes, while a partial box leaves outside cells/boundary state untouched.
-- [ ] Re-check blast radius and cost after the full-block change; no non-box/fill/paint semantics, primitive order, footprint, or serialized output may change.
+- [x] Identify the next output-equivalent discriminator: a fully covered non-empty Uniform `Carve + Box` block can use existing authoritative `IRegionMutationStore.SetWholeCellBlock(default)` instead of 512 identical cell iterations.
+- [x] Catch and constrain the write-accounting edge case before CI: Mixed blocks may contain sparse payload, so atomic whole-block clearing would alter `RasterResult.VoxelsWritten`; keep Mixed on the existing partial-cell path.
+- [ ] Restrict the full-8^3 default replacement to fully covered non-empty Uniform `Carve + Box` blocks; retain canonical-empty skip plus all Mixed/partial/non-box behavior.
+- [ ] Extend real-storage regression: Uniform full block uses one whole-cell replacement with 512 writes; full Mixed boundary state remains on partial mutation; partial box leaves outside cells/boundary state untouched.
+- [ ] Re-check blast radius and cost after the Uniform-only full-block change; no non-box/fill/paint semantics, primitive order, footprint, serialized output, or write accounting may change.
 
 ## Exact-SHA bake / built-player gate
 - [ ] Commit the post-full-block candidate on `fixes/agent-4`, then issue the next final exact-SHA request using only existing `ci-test/fixes/agent-4`; do not create another transport or replace queued/running work.
