@@ -161,9 +161,14 @@ namespace VoxelEngine.Showcase
                     yield break;
                 }
 
-                int expectedViews = world.WorldbuildingGalleryTownDistrictCount * ViewsPerTown;
+                // Structural composition has its own eight-frame evidence set below. Do not spend the
+                // bounded player replay capturing 21 unrelated town-architecture frames first; the
+                // focused regression independently proves structural re-entry after residency eviction.
+                int expectedViews = StructuralCompositionAudit
+                    ? 0
+                    : world.WorldbuildingGalleryTownDistrictCount * ViewsPerTown;
                 int totalStops = world.WorldbuildingGalleryTourStopCount;
-                if (expectedViews <= 0 || totalStops < expectedViews)
+                if (!StructuralCompositionAudit && (expectedViews <= 0 || totalStops < expectedViews))
                 {
                     Debug.LogError($"TOWNARCH_AUDIT result=FAIL reason=tour-too-short stops={totalStops} expectedViews={expectedViews}");
                     yield break;
