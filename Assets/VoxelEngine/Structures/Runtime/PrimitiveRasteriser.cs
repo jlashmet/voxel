@@ -167,36 +167,50 @@ namespace VoxelEngine.Structures.Runtime
                         continue;
                 }
 
-                // Mountain support is dominated by convex frustum fills into canonical Empty
-                // storage. For a complete storage block, the eight extreme voxel centres bound the
-                // rectangular set of centres. Frustum radius varies monotonically along its axis,
-                // so if all eight extremes are inside, every one of the block's 8^3 centres is
-                // inside as well. Author the identical uniform cell once instead of repeating the
-                // same contains/read/write path 512 times. Boundary blocks deliberately fall back
-                // to the existing per-cell path.
-                if (primitive.Mode == PrimitiveMode.Fill
-                    && primitive.Shape == PrimitiveShape.Frustum
-                    && fullBlock
-                    && read.BlockKindOrEmpty(worldBlock) == VoxelReadBlockKind.Empty
-                    && FrustumContainsFullBlock(in primitive, blockVoxelMin))
+                bool frustumFillMode = primitive.Shape == PrimitiveShape.Frustum
+                    && (primitive.Mode == PrimitiveMode.Fill
+                        || primitive.Mode == PrimitiveMode.FillIfEmpty);
+                if (frustumFillMode)
                 {
-                    ushort style = primitive.SurfaceStyle;
-                    if (markHardSurface && style == SurfaceStyles.MaterialDefault)
-                        style = SurfaceStyles.Planar;
-                    VoxelCell fill = new VoxelCell
+                    VoxelReadBlockKind blockKind = read.BlockKindOrEmpty(worldBlock);
+
+                    // FillIfEmpty can never change a Uniform block: Uniform stores one non-empty
+                    // material for all 512 cells, so every membership hit would immediately take
+                    // the existing current.IsSolid guard. The boundary-halo pass still runs below
+                    // and remains free to materialize near-surface samples when the material matches.
+                    if (primitive.Mode == PrimitiveMode.FillIfEmpty
+                        && blockKind == VoxelReadBlockKind.Uniform)
+                        continue;
+
+                    // Mountain support is dominated by convex FillIfEmpty frusta into canonical
+                    // Empty storage. For a complete storage block, the eight extreme voxel centres
+                    // bound the rectangular set of centres. Frustum radius varies monotonically
+                    // along its axis, so if all eight extremes are inside, every one of the block's
+                    // 8^3 centres is inside as well. Fill and FillIfEmpty therefore have the same
+                    // exact result on canonical Empty: one identical whole-cell block and 512
+                    // logical writes. Mixed and boundary blocks deliberately retain the cell path.
+                    if (blockKind == VoxelReadBlockKind.Empty
+                        && fullBlock
+                        && FrustumContainsFullBlock(in primitive, blockVoxelMin))
                     {
-                        BaseMaterialId = primitive.Material,
-                        Surface = new VoxelSurfaceSemantics
+                        ushort style = primitive.SurfaceStyle;
+                        if (markHardSurface && style == SurfaceStyles.MaterialDefault)
+                            style = SurfaceStyles.Planar;
+                        VoxelCell fill = new VoxelCell
                         {
-                            StyleId = style,
-                            CoatingId = primitive.Coating,
-                            Flags = primitive.SurfaceFlags,
-                            Detail = (byte)math.min(31, primitive.SurfaceDetail)
-                        }
-                    };
-                    if (mutations.SetWholeCellBlock(worldBlock, in fill, false))
-                        result.VoxelsWritten += VoxelReadGrid.VoxelsPerBlock;
-                    continue;
+                            BaseMaterialId = primitive.Material,
+                            Surface = new VoxelSurfaceSemantics
+                            {
+                                StyleId = style,
+                                CoatingId = primitive.Coating,
+                                Flags = primitive.SurfaceFlags,
+                                Detail = (byte)math.min(31, primitive.SurfaceDetail)
+                            }
+                        };
+                        if (mutations.SetWholeCellBlock(worldBlock, in fill, false))
+                            result.VoxelsWritten += VoxelReadGrid.VoxelsPerBlock;
+                        continue;
+                    }
                 }
 
                 // For a fully covered non-empty Uniform block, every one of the 8^3 cells differs
@@ -437,8 +451,11 @@ namespace VoxelEngine.Structures.Runtime
                 // block, radial clearance is smallest at radial-plane corners and cap clearance is
                 // smallest at axial endpoints. If every extreme centre is already >2 voxels inside,
                 // every centre in the block is too. Skip 512 signed-distance evaluations while
-                // preserving every block that can contribute a boundary sample.
-                if (primitive.Mode == PrimitiveMode.Fill
+                // preserving every block that can contribute a boundary sample. FillIfEmpty has
+                // the same no-op halo outcome for such deep-interior blocks regardless of whether
+                // its geometry pass filled Empty storage or skipped pre-existing Uniform solids.
+                if ((primitive.Mode == PrimitiveMode.Fill
+                        || primitive.Mode == PrimitiveMode.FillIfEmpty)
                     && primitive.Shape == PrimitiveShape.Frustum
                     && fullBlock
                     && FrustumFillBlockIsBeyondBoundaryHalo(in primitive, blockVoxelMin))
