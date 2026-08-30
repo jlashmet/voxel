@@ -41,48 +41,38 @@
 - [x] Re-budget only assignment-owned evidence timing: retain every coordinate, motor speed, grounded requirement, expected Y offset, and capture name; reduce six capture-settle holds from 6.25 s total to 0.6 s and set internal timeout to 58 s inside the fixed 60 s workflow replay ceiling.
 - [x] Re-check latest corrective-change blast radius/cost: one PlayMode semantic-reader change plus assignment JSON timing only; no voxel output, geometry, collision, movement speed, streaming, or runtime composition change.
 
-## Latest-master / final exact-SHA gate
-- [x] Merge current `origin/master` `e95324aeaef6...` into `fixes/agent-4` as true two-parent merge `a0e56301d676...`; inherit current road WorldBuilder/rendering/storage/structure/test/lifecycle work and preserve agent-4 Mountain Dragon changes.
-- [x] Resolve the shared `PrimitiveRasteriser` overlap in `b64ee242a7c2...`: retain all agent-4 proven Box/Frustum fast paths and current master's `TerrainCorridorRasteriser.Rasterise` dispatch plus `PrimitiveShape.TerrainCorridor -> TerrainCorridorRasteriser.Contains`; compare from master shows `behind_by=0` and no master deletions in the rasterizer.
-- [x] Verify current `origin/master` `e95324aeaef6...` is an ancestor of the merged feature head (`behind_by=0`).
-- [x] Issue exact-parent request commit `53469c7ab882...` with feature parent `2106820d31cb...` only through `ci-test/fixes/agent-4`; no feature-branch request edit, reset transport, or request replacement.
-- [x] Keep run `33298125653` untouched through completion and inspect its source-matched result/artifact before any further request.
-- [x] Fresh current-master bake completed in 225 s under the 240 s guard at ~5.37 GB peak RSS / 0 swap growth, persisted 178,034,009-byte payload digest `fd994e3ab598...`, and the next Unity invocation reopened successfully.
-- [x] Prove the complete 17-waypoint route via production `AutoWalk -> CharacterMotor.Step`: run `33298125653` reached 17/17 in 57.4 s with required grounded/Y predicates through the summit.
-- [x] Human-review run `33298125653` named approach/base/middle/upper/summit/dialogue captures: the mountain/path are visible across the route, the summit placeholder is visibly supported, and the dialogue frame visibly presents `Hello, I'm Mr. Dragon.`; keep these as traversal evidence but not final acceptance while that focused test was red.
-- [x] Verify run `33298125653` focused failure is not path/headroom/traversal: startup-bake acceptance requires dragon material at centre `(-1112,530,200)`, but the source-matched bake omitted that upper vertical region while runtime streaming later realized the visible placeholder.
-- [x] Implement bake-only explicit fixed-altitude `Structure` coverage planning and materialisation so the source baker requests structure-owned vertical layers without changing runtime streaming or gallery baking.
-- [x] Keep exact request `670d9f16a920...` / run `33299149060` untouched through completion; classify it as a compile-only product failure before bake/test execution, so it supplies no new bake-cost evidence.
-- [x] Repair only the unsupported `int3` vector arithmetic in `ShowcaseWorld.BakeCoverage` and the focused test's signed region conversion; preserve the existing half-open footprint and floor-division contracts.
-- [x] Re-check compile-repair blast radius: exactly the bake planner plus its focused PlayMode regression changed; no runtime streaming, geometry, collision, movement, structure program, or bake-budget contract changed.
-- [x] Keep exact request `b68865a45a70...` / run `33300355968` untouched through completion and inspect its artifact: Unity compiled and generated/imported a corrected `200 regions, 18.2 MiB` startup image with content signature `0x7C8A5152`, then crossed the 240 s wrapper during shutdown; requested test was skipped while built-player capture still succeeded.
-- [x] Add the smallest generic bake-only optimization that materializes an explicit fixed-altitude structure in an otherwise sparse vertical region without paying unnecessary terrain/landform work; `FeatureRegionBuildScope.All` remains the runtime/default contract and only absent bake-discovered sparse structure layers select `FixedAltitudeStructures`.
-- [x] Add focused behavioral coverage proving the optimized bake-only path is output-equivalent for the required explicit fixed structure and does not materialize unrelated sky: compare semantic hash + serialized region bytes for full vs scoped actual Mountain Dragon upper-region builds, require one scoped structure instance/one resident region, and retain the exactly-two-layer planner assertion.
-- [x] Invoke both sparse-bake coverage regressions from `MountainDragonFinalAcceptanceTests.NaturalizedMountainBakeAndEncounterAreReadyForBuiltPlayerReplay` so the single exact final request executes them directly.
-- [x] Record experiment `experiment-003-sparse-fixed-structure-bake.md` with the 240 s discriminator, selected scope contract, expected blast radius, semantic proof, and remaining cost measurement.
-- [x] Keep exact request `606fb586c8ce...` / run `33302046675` untouched through completion; classify its 23 s / ~1.6 GB failure as compile-only, with no bake-cost conclusion. Artifact compiler diagnostics show `ShowcaseWorld.BakeCoverage` tried to exchange `VoxelEngine.Composition.FeatureRegionBuild` with `VoxelEngine.Structures.Runtime.FeatureRegionBuild` at lines 114/115/122.
-- [x] Repair the scoped-builder call through the existing `VoxelEngine.Composition.FeatureRegionBuild` bridge so Showcase composition does not cross the Structures.Runtime type boundary; preserve the bridge's default full-runtime scope and existing `CompleteFeatureBuild` bookkeeping.
-- [x] Keep exact request `b9fdc14c3c25...` / run `33302337781` untouched through completion and inspect its result artifact before any new request.
-- [x] Classify run `33302337781` as a post-bake shutdown timeout, not a generation-cost failure: the bake persisted/imported `200 regions, 18.2 MiB`, logged successful in-run cost gates, requested CI shutdown, and only then exhausted the 240 s wrapper during Unity graceful teardown.
-- [x] Preserve the 240 s / 14 GB workflow contracts and the sparse fixed-structure semantics; do not weaken startup coverage or trade away production-equivalent output to solve a process-teardown overrun.
-- [x] Add and regression-cover the strict exact-CI success policy through injectable `CompleteSuccessfulBake`; interactive/local/general test processes retain normal teardown.
-- [x] Make the generated startup payload include the upper vertical region containing the authored summit dragon placeholder without broadly materializing unrelated sky-only regions.
-- [x] Add `ShowcaseBakeExplicitStructureCoverageTests` proving the mountain-only catalogue plans exactly the dragon placeholder's lower/upper layers across the Y=512 boundary and does not expand the landform/headroom sky footprint.
-- [x] Keep exact request `90e824415962...` / run `33310154810` untouched through completion and inspect its artifact before any further request.
-- [x] Classify run `33310154810` as a managed/native shutdown discriminator: successful persistence/import completed and managed logging stopped, but the native Unity PID remained alive until the 240 s watchdog; `Environment.Exit(0)` is therefore insufficient.
-- [x] Harden only the exact successful GitHub Actions showcase bake with a native process-level successful exit (`_exit(0)` on POSIX; managed fallback elsewhere) after all required persistence/import/save/success logging; commit `aa3dab95a2e...` changes only this terminal callback.
-- [x] Merge then-current `origin/master` `e17e858bfe04...` as the second parent of feature merge `2100df40287a...`; the inherited change only adds the unrelated road-presentation SceneIssue and is not modified by this assignment.
-- [x] Issue final exact-parent request `0b1cac9068bb...` with feature parent `2100df40287a...` only through existing `ci-test/fixes/agent-4`; leave it untouched through completion.
-- [x] Run `VoxelEngine.Tests.PlayMode.MountainDragonFinalAcceptanceTests.NaturalizedMountainBakeAndEncounterAreReadyForBuiltPlayerReplay` green on exact feature SHA `2100df40287a...`: run `33310677691` / job `99255036891` is green end-to-end.
-- [x] Re-check bake time/memory blast radius after required-upper-layer capture: final fresh bake succeeds under the unchanged 240 s / 14 GiB watchdog contract, followed by a successful next Unity invocation; no runtime/world-generation semantics or budget were weakened.
-- [x] Record final measured bake/runtime evidence and accepted source/payload provenance in `experiment-006-final-exact-sha-acceptance.md`.
-- [x] Human-review the exact final green-run captures `01-mountain-approach` through `06-dragon-dialogue`: substantial grounded mountain, readable supported path, visibly supported summit cube, and exact dialogue are all present.
+## Latest-master / exact-SHA evidence
+- [x] Merge current `origin/master` `e95324aeaef6...` into `fixes/agent-4` as true two-parent merge `a0e56301d676...`; preserve both current road/WorldBuilder work and agent-4 fast paths.
+- [x] Resolve the shared `PrimitiveRasteriser` overlap while retaining agent-4 Box/Frustum fast paths plus master `TerrainCorridor` dispatch/containment.
+- [x] Keep exact run `33298125653` untouched; its fresh bake completed in 225 s at ~5.37 GB RSS/0 swap and real-player traversal reached 17/17 grounded/Y-checked waypoints in 57.4 s.
+- [x] Diagnose its only focused failure as omitted upper startup-bake dragon material rather than path/headroom/traversal failure.
+- [x] Implement bake-only explicit fixed-altitude `Structure` coverage plus `FixedAltitudeStructures` sparse build scope without changing runtime streaming/gallery baking.
+- [x] Add `ShowcaseBakeExplicitStructureCoverageTests` and scoped/full semantic-byte equivalence coverage; invoke both from the exact acceptance filter.
+- [x] Preserve 240 s / 14 GB workflow contracts through compile/shutdown experiments; do not trade away startup coverage or production-equivalent output.
+- [x] Keep run `33310154810` untouched and prove managed `Environment.Exit(0)` stops managed logging but leaves the native Unity PID alive to the 240 s watchdog.
+- [x] Harden only the exact successful GitHub Actions bake with POSIX `_exit(0)` after persistence/import/save/success logging; retain managed fallback elsewhere.
+- [x] Merge then-current `origin/master` `e17e858bfe04...` as the second parent of `2100df40287a...`; only an unrelated road SceneIssue is inherited.
+- [x] Issue request `0b1cac9068bb...` from exact source `2100df40287a...` through existing `ci-test/fixes/agent-4` and leave it untouched.
+- [x] Run `MountainDragonFinalAcceptanceTests.NaturalizedMountainBakeAndEncounterAreReadyForBuiltPlayerReplay` green on source `2100df40287a...`: run `33310677691` / job `99255036891` is green end-to-end.
+- [x] Final fresh bake stays under unchanged 240 s / 14 GiB guards, then the next Unity invocation reopens successfully.
+- [x] Record final measured bake/runtime/source/payload evidence in `experiment-006-final-exact-sha-acceptance.md`.
+- [x] Exact-run captures prove structural acceptance and exact dialogue; keep them as traversal/functional evidence.
+- [x] Merge current `origin/master` `dfbc43b086b6...` as second parent of `fb7dd3b14853...`; inherited change tightens the repository visual-quality gate only.
+
+## Visual quality gate — current master
+- [x] Re-review exact green-run frames under current `AGENTS.md`: classify mountain/path `prototype/blockout quality`; the issue lowers the bar only for cube dragon art.
+- [x] Record specific defects: dominant bright masonry over all masses/supports, repeated primitive/frustum read, retaining-wall-like cut faces, weak ground-cover/material integration around the dirt ascent.
+- [ ] Generalize the reusable mountain catalogue to distinct rock and ground-cover/support material roles while preserving a single-material compatibility overload.
+- [ ] Compose VoxelShowcase mountain with dark rock + moss/ground-cover support banks + distinct dirt road; keep the explicitly permitted red cube placeholder unchanged.
+- [ ] Bump the startup landmark contract revision because the rendered realization/material program changes without layout-dimension changes.
+- [ ] Add focused behavioral regression proving rock/ground-cover role separation while preserving tapered supports, traversal lane/headroom, primitive budget, and non-scene-local composition.
+- [ ] Run exact final PlayMode + built-player evidence after visual changes and classify approach/base/middle/upper/summit/dialogue frames `production-quality`; if not, continue with silhouette/support improvements before closure.
 
 ## Checked-in startup payload gate
-- [x] Retrieve the accepted source-matched generated startup payload + manifest from final green run `33310677691` without creating another CI transport: payload is `19,122,896` bytes, SHA-256 `cf51ac9fd9da8a753bf625cc14430ee4941e1ea2f7404be43fd3a2f8323c5da4`, signature `0x7C8A5152`.
-- [x] Verify the feature branch is still shipping stale startup state: tracked `ShowcaseWorld.bytes` is `11,074,525` bytes (blob `53b8673358e6166445162d64be4f4af89c132a50`) and `ShowcaseWorld.manifest.txt` is absent, while `ShowcaseStartupBakeContract.Validate` requires the matching sidecar and payload digest.
-- [ ] Replace the stale checked-in `Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes` with the accepted `19,122,896`-byte artifact and add its matching `ShowcaseWorld.manifest.txt` through a repository-sanctioned binary write/refresh path; do not weaken provenance validation, runtime-author the mountain, or create a second CI transport.
-- [ ] Validate a clean checkout consumes the exact checked-in accepted payload/manifest; if committing the binary changes the exact feature SHA under repository policy, run the required exact-source validation before closure.
+- [x] Retrieve the accepted source-matched generated startup payload + manifest from run `33310677691` without another CI transport: payload `19,122,896` bytes, SHA-256 `cf51ac9fd9da8a753bf625cc14430ee4941e1ea2f7404be43fd3a2f8323c5da4`, signature `0x7C8A5152`.
+- [x] Verify the feature branch still ships stale startup state: tracked `ShowcaseWorld.bytes` is `11,074,525` bytes and `ShowcaseWorld.manifest.txt` is absent while provenance validation requires both.
+- [ ] After the visual fix is accepted, replace the stale checked-in `Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes` with that new exact accepted artifact and add its matching `ShowcaseWorld.manifest.txt` through a repository-sanctioned binary write/refresh path; do not weaken provenance validation, runtime-author the mountain, or create another CI transport.
+- [ ] Validate a clean checkout consumes the exact checked-in accepted payload/manifest; if the binary commit creates a new required exact-source gate, validate that source before closure.
 
 ## Closure gate
 - [ ] Confirm every acceptance criterion in `issue.json` and every checkbox above is complete.
