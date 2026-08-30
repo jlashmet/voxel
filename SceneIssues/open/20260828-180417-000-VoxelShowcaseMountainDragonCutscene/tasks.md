@@ -62,13 +62,18 @@
 - [x] Add focused real-storage regression commit `ca237a4460bc...` before production implementation covering canonical-Empty interior atomic `FillIfEmpty`, Uniform-solid interior no-op, Mixed preservation/exact 511 writes, and a boundary block that remains on the per-cell path with authored positive/negative halo semantics.
 - [x] Implement only the proven full-block `FillIfEmpty + Frustum` cases in commit `2d1e1c76e673...` and extend the deep-interior halo skip to `FillIfEmpty` under the same eight-corner >32 Q4 proof.
 - [x] Re-check the `FillIfEmpty` optimization blast radius/cost: dominant support Empty blocks replace up to 512 membership/read/write iterations with one block lookup + eight corner checks + one whole mutation; Uniform-solid overlaps replace up to 512 membership/read guards with one block lookup; deep-interior halo scans replace up to 512 signed-distance/integer-sqrt evaluations with eight corner checks. Mixed/partial/boundary blocks, other shapes/modes, primitive order, surface/boundary semantics, and exact logical write accounting remain unchanged.
-- [ ] Re-measure the full 9-region bake under the 240 s subprocess contract.
-- [ ] Prove all authored landing floor/headroom columns survive without castle-region suppression on the source-matched bake.
+- [x] Re-measure the full 9-region bake under the 240 s subprocess contract: exact request `cea45ae16960...` / source `e394149aaf0d...` / run `33290377597` completed the source-matched fresh bake in 236 s at 11,199 MB peak RSS, clearing the prior timeout blocker with ~4 s margin.
+- [x] Inspect run `33290377597` without replacing it: focused acceptance failed at `turn landing 1 column 2`, where path material `13` occupies `(-1277,312,-197)` inside the 24-voxel clear envelope; the built-player route then timed out at waypoint `0/15` and exited `23`. Artifact `single-test-33290377597` was preserved for diagnosis.
+- [x] Discriminate the semantic failure from the optimization: the blocked voxel is the next X-ramp itself, not support/terrain. Full-width 360-voxel ramps overlap the 30-voxel turn landing at their low ends, so the ramp wedge rises into a landing that the authored contract and grounded route expect to remain flat and clear.
+- [ ] Add a structural regression for flat low-end turn landings, then narrow each alternating X-ramp to the interior between its 30-voxel end landings while retaining continuous supported floor and the same 46-voxel tier rise.
+- [ ] Prove all authored landing floor/headroom columns survive without castle-region suppression on the revised source-matched bake.
+- [ ] Re-run built-player waypoint traversal and inspect route captures; do not accept generic stationary fallback screenshots as evidence.
 
 ## Exact-SHA bake / built-player gate
 - [x] Use only existing `ci-test/fixes/agent-4` for targeted CI; no extra transport and no feature-branch `.github/test-request.json` edit.
 - [x] Submit exact-parent request `5cc2ef4e03ce...` for source `bf376936ae66...` only after latest-master ancestry was confirmed; run `33288586966` completed red and was not replaced while queued/running.
 - [x] Submit exact-parent request `cda51cb0a62a...` for source `408a0fdf8c2b...` only after the prior request was completed red and latest-master ancestry was confirmed; run `33289023179` completed red and was not replaced while queued/running.
+- [x] Submit exact-parent request `cea45ae16960...` for source `e394149aaf0d...`; run `33290377597` completed red after a successful fresh bake, failed focused headroom acceptance, and timed-out built-player route. It was never replaced while queued/running.
 - [ ] Produce/commit the accepted source-matched generated startup payload + manifest before final closure, if repository workflow permits producing it without violating the CI transport contract.
 - [ ] After revised source and latest-master integration, issue a new exact-parent final request using only `ci-test/fixes/agent-4`.
 - [ ] Run the exact focused acceptance filter green on the final feature SHA.
