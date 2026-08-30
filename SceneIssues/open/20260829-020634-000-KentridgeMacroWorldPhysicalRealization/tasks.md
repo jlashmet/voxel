@@ -18,24 +18,30 @@
 - [x] Scope authored-content readiness to presentation columns; normal opening startup uses terrain-column readiness plus renderer coverage.
 - [x] Exact green regression/storage runs include `33283034449`, `33288421041`, and `33289185080`; earlier visually insufficient artifacts were rejected rather than used for closure.
 
-## Final evidence scheduling — discovered work
-- [x] Inspect run `33290154012` / artifact `9725740286` for source `8cab72cc862f...`: focused CI and player harness are workflow-green, but closure evidence fails. The opening/pub consumes ~40 s; only macro road traversal and `moordell index=0` content readiness occur before the 60 s cutoff.
-- [x] Discriminate startup cause: `Time.timeScale=12` cannot shorten auto-dialogue because `TryAdvanceDialogue` uses realtime; this explains the long validation opening without changing normal gameplay readiness.
-- [x] Reject serial building-centre pinning: it regresses target progress versus the earlier stable survey-camera demand and causes streaming-demand churn.
-- [x] In the dormant `kentridge-macro-world` evidence profile only, dismiss pending opening dialogue promptly while retaining normal production opening behavior outside validation.
-- [x] Hold each production-derived settlement survey demand while all four building-centre presentation columns settle; do not serially move demand between building centres.
+## Final evidence / streaming work discovered from exact runs
+- [x] Reject run `33290154012` / artifact `9725740286` for closure: opening consumes ~40 s and only Moordell column 0 becomes content-ready.
+- [x] Discriminate opening cause: dialogue uses realtime, so `Time.timeScale=12` cannot shorten auto-dialogue.
+- [x] Reject serial building-centre pinning because it churns streaming demand.
+- [x] In dormant `kentridge-macro-world` validation only, dismiss pending opening dialogue promptly and restore normal time before CharacterMotor evidence.
+- [x] Run `33292088730` proves the opening correction: gameplay by ~t15, local CharacterMotor 3.61 m, macro-road CharacterMotor 4.73 m, all four Moordell columns ready, and full-resolution `macro-moordell.png` captured.
+- [x] Classify run `33292088730` focused-test failure as native Unity/Burst infrastructure crash: no NUnit XML/assertion result; `single.log` terminates in `Burst.Compiler.IL.Hashing.CacheBuilder.ILHasher` SIGSEGV; built-player step succeeds with zero harness assertions.
+- [x] Discriminate Rossdam stall as real streaming cost rather than renderer convergence: target starts after Moordell and remains unready for ~35 s while renderer repeatedly reaches `jobs=0`, `missingVisible=0`; visual frames progressively gain lake/settlement content.
+- [ ] Bound Rossdam lake intent to a still-substantial 90 m x 45 m x 2.4 m physical basin, preserving carve/fill and semantic shoreline routing while reducing rounded-box bounding work to ~39% of the current first-pass volume.
+- [ ] Hold settlement readiness demand at the settlement centre until all four building columns settle, then move once to the derived survey camera and require stable renderer coverage.
+- [ ] Capture a player-height Moordell road-arrival view after settlement content is loaded so the built evidence visibly shows a generated hard route entering a settlement.
 - [ ] Exact built `KentridgePlayableSlice` reaches usable gameplay without startup/runtime exceptions and leaves enough replay time for all macro targets.
 - [ ] Full-resolution exact-scene evidence shows four readable blockouts at Moordell, Rossdam, Fairy Village, and Orc Village.
-- [ ] Full-resolution evidence shows continuous roads/network, substantial Rossdam lake, Southern Ridge/pass response, and representative real CharacterMotor traversal.
+- [ ] Full-resolution evidence shows continuous roads/network, substantial Rossdam lake, Southern Ridge/pass response, geography-constrained route behavior, and representative real CharacterMotor traversal.
 
 ## Blast radius / cost
-- [x] No other SceneIssue, no feature-branch `.github/test-request.json`, no custom workflow/CI transport, no CharacterMotor/streaming-radius change.
+- [x] No other SceneIssue, no feature-branch `.github/test-request.json`, no custom workflow/CI transport, no CharacterMotor/streaming-radius/device-budget change.
 - [x] Terrain-relief sampling remains bounded to 25 x 16 = 400 deterministic catalogue queries.
-- [x] Current feature branch includes `origin/master` `0901be5a0640e3eec103cdf3c97aa12b8cd42a9e`; comparison remains ahead-only and contains only this Kentridge feature/tests/docs beyond master.
+- [x] Feature branch includes `origin/master` `0901be5a0640e3eec103cdf3c97aa12b8cd42a9e`; prior exact comparison is ahead-only and contains only this Kentridge feature/tests/docs beyond master.
 - [x] Existing production metrics: regions=6, settlements=6, generic buildings=16, hardRoutes=20, routeTiles=833, constrainedRoutes=5, solveSteps=1108, maxRoadRiseVoxels=2, waterDepthVoxels=46.
-- [x] Scoped readiness regression: 1,090,380 feature voxels; prior last feature step ~2500 ms, so player telemetry is required rather than inferred.
-- [x] Failed run `33290154012` player process: elapsed=79 s, peak RSS=5859 MB, systemFree=31944 MB, swapGrowth=0 MB; after startup, captured FPS samples are generally well above 60 fps, but this run is rejected for evidence completeness.
-- [ ] Measure final remediation CPU/GPU/frame/memory/streaming telemetry against the repository device budgets and record final feature/route/building counts.
+- [x] Existing scoped readiness regression: 1,090,380 feature voxels; prior last feature step ~2500 ms.
+- [x] Rejected run `33290154012`: elapsed=79 s, peak RSS=5859 MB, systemFree=31944 MB, swapGrowth=0 MB; post-start FPS generally >60.
+- [x] Run `33292088730` focused editor process before native Burst crash: elapsed=31 s, peak RSS=2287 MB, systemFree=29019 MB, swapGrowth=0 MB. Built player itself finishes 60 s with zero harness assertions and mostly high post-start FPS, but evidence remains incomplete.
+- [ ] Measure final lake depth/footprint, feature voxel work/last-feature time, route solve counts, CPU/frame/FPS, memory, streaming convergence, and far-field/render telemetry against existing budgets.
 - [ ] Re-check exact final feature diff against current master immediately before targeted CI and promotion.
 
 ## Acceptance / closure
@@ -48,7 +54,7 @@
 - [ ] (7) Regional terrain visibly reads as differentiated countryside rather than a flat debug plane.
 - [ ] (8) No second scene-local graph/direct voxel-writing/static destination hierarchy.
 - [ ] (9) Focused production regressions cover determinism, reachability, roads, settlements, constraints, blocked-route failure, and two-stage presentation readiness.
-- [ ] (10) Exact built-player evidence covers settlements, roads, geography, constrained route, and CharacterMotor traversal.
+- [ ] (10) Exact built-player evidence covers settlements, roads entering/leaving settlements, network survey, geography, constrained route, and CharacterMotor traversal.
 - [ ] (11) Blast radius and world-build/route/CPU/GPU/memory/streaming cost measured against budgets.
 - [ ] Final exact-SHA focused CI and built-player evidence are closure-quality green.
 - [ ] Every checkbox above is complete before `open -> pending`.
