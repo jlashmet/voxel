@@ -5,6 +5,7 @@ using Game.WorldBuilder.Runtime;
 using Game.WorldBuilder.Voxel;
 using NUnit.Framework;
 using Unity.Mathematics;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Tests.PlayMode
