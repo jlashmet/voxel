@@ -225,7 +225,8 @@ namespace Game.Kentridge.PlayableSlice
 
         private bool HasStablePublishedCoverage()
         {
-            if (!RenderingComposition.HasCompletePublishedNearSurfaceCoverage())
+            if (!_slice.CurrentDemandContentSettled
+                || !RenderingComposition.HasCompletePublishedNearSurfaceCoverage())
             {
                 _stableCoverageFrames = 0;
                 return false;
