@@ -42,8 +42,9 @@
 - [x] Re-check latest corrective-change blast radius/cost: one PlayMode semantic-reader change plus assignment JSON timing only; no voxel output, geometry, collision, movement speed, streaming, or runtime composition change.
 
 ## Latest-master / final exact-SHA gate
-- [ ] Merge current `origin/master` into `fixes/agent-4` as a true two-parent merge before the next request; resolve only the shared `PrimitiveRasteriser` overlap by preserving master road-shape semantics plus agent-4 proven fast paths.
-- [ ] Verify current `origin/master` is an ancestor of the merged feature head (`behind_by=0`).
+- [x] Merge current `origin/master` `e95324aeaef6...` into `fixes/agent-4` as true two-parent merge `a0e56301d676...`; inherit current road WorldBuilder/rendering/storage/structure/test/lifecycle work and preserve agent-4 Mountain Dragon changes.
+- [x] Resolve the shared `PrimitiveRasteriser` overlap in `b64ee242a7c2...`: retain all agent-4 proven Box/Frustum fast paths and current master's `TerrainCorridorRasteriser.Rasterise` dispatch plus `PrimitiveShape.TerrainCorridor -> TerrainCorridorRasteriser.Contains`; compare from master shows `behind_by=0` and no master deletions in the rasterizer.
+- [x] Verify current `origin/master` `e95324aeaef6...` is an ancestor of the merged feature head (`behind_by=0`).
 - [ ] Issue the new exact-parent final request only through `ci-test/fixes/agent-4`; do not edit `.github/test-request.json` on the feature branch or publish an intermediate CI reset head.
 - [ ] Keep that exact request untouched while queued/running and inspect the completed result before any further request.
 - [ ] Require the bake step to complete cleanly under 240 s with meaningful margin and the next Unity invocation to reopen.
