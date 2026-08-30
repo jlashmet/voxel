@@ -90,6 +90,11 @@ namespace VoxelEngine.Tests.PlayMode
                     new int3(0, 1, 0), out VoxelReadBlock interiorBlock), Is.True);
                 Assert.That(interiorBlock.Kind, Is.EqualTo(VoxelReadBlockKind.Uniform));
                 Assert.That(interiorBlock.UniformMaterial, Is.EqualTo(MountainMaterial));
+                Assert.That(interiorView.TryReadCell(
+                    new int3(4, VoxelReadGrid.BlockEdge, 4), out VoxelCell deepInterior), Is.True);
+                Assert.That(deepInterior.Boundary.IsAuthored, Is.False,
+                    "A frustum cell more than two voxels from every analytic surface must not "
+                    + "receive boundary metadata from the halo pass.");
 
                 Primitive edgeFrustum = CurvedPrimitiveEmitter.Frustum(
                     new int3(4, 0, 4),
@@ -126,6 +131,18 @@ namespace VoxelEngine.Tests.PlayMode
                 Assert.That(edgeView.TryReadCell(
                     new int3(VoxelReadGrid.BlockEdge * 2, VoxelReadGrid.BlockEdge, 4), out VoxelCell inside), Is.True);
                 Assert.That(inside.BaseMaterialId, Is.EqualTo(MountainMaterial));
+                Assert.That(edgeView.TryReadCell(
+                    new int3(20, VoxelReadGrid.BlockEdge, 4), out VoxelCell surfaceInside), Is.True);
+                Assert.That(surfaceInside.IsSolid, Is.True);
+                Assert.That(surfaceInside.Boundary.IsAuthored, Is.True,
+                    "A near-surface filled frustum cell must retain its authored positive boundary sample.");
+                Assert.That(surfaceInside.Boundary.SignedQ4, Is.GreaterThan(0));
+                Assert.That(edgeView.TryReadCell(
+                    new int3(21, VoxelReadGrid.BlockEdge, 4), out VoxelCell surfaceOutside), Is.True);
+                Assert.That(surfaceOutside.IsSolid, Is.False);
+                Assert.That(surfaceOutside.Boundary.IsAuthored, Is.True,
+                    "The adjacent empty-side halo cell must retain its authored negative boundary sample.");
+                Assert.That(surfaceOutside.Boundary.SignedQ4, Is.LessThan(0));
                 Assert.That(edgeView.TryReadCell(
                     new int3(VoxelReadGrid.BlockEdge * 3 - 1, VoxelReadGrid.BlockEdge, 4), out VoxelCell outside), Is.True);
                 Assert.That(outside.IsSolid, Is.False,
