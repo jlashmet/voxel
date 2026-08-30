@@ -6,7 +6,7 @@ namespace VoxelEngine.Showcase
     /// Executes structural traversal evidence in the scene-runtime assembly that owns CharacterMotor.
     /// ShowcaseWorld only prepares authoritative route voxels/endpoints, preserving lower-layer assembly direction.
     /// </summary>
-    internal static class WorldbuildingGalleryStructuralTraversalAudit
+    public static class WorldbuildingGalleryStructuralTraversalAudit
     {
         private const float CliffLandingRetreatMetres = 3.5f;
 
