@@ -5,7 +5,7 @@
 - [x] Trace Kentridge town, canonical road, architecture, ecology/vegetation, hidden-space and gallery ownership.
 - [x] Confirm no competing canonical reservation service exists on reconciled master.
 - [x] Keep road solving/grade in `WorldRoadNetwork`, form/orientation/support in architecture, species/density in ecology, hidden-space topology in its planner, and rendering in presentation.
-- [ ] Acceptance blocker: criterion (7) requires one production typed-`StructuralSocket` consumer of the shared reservation clearance/overlap path. Re-checked 2026-08-30 15:36 PDT: prerequisite feature `20260829-034505-000-WorldBuilderTypedStructuralSocketComposition` remains `open` on current `origin/master` (`ebdc2e4f63ef73153cd4e0ff5c62efe604f35470`), so no canonical production typed-socket seam exists on this branch to integrate without taking another assignment's scope. Do not weaken or mark this acceptance complete; re-check after that prerequisite lands.
+- [ ] Acceptance blocker: criterion (7) requires one production typed-`StructuralSocket` consumer of the shared reservation clearance/overlap path. Re-checked 2026-08-30 15:43 PDT: prerequisite feature `20260829-034505-000-WorldBuilderTypedStructuralSocketComposition` remains `open` on current `origin/master` (`ebdc2e4f63ef73153cd4e0ff5c62efe604f35470`) and its execution checklist is still entirely unchecked, so no canonical production typed-socket seam exists on this branch to integrate without taking another assignment's scope. Do not weaken or mark this acceptance complete; re-check after that prerequisite lands.
 - [x] Reconcile current master into `fixes/agent-7` before implementation (`d256dc2044c88b254751448012b60a138e716f27`, current master `65e33762a0d0f1739e9a518484d119e551f01f81`); resumed again and merged `7f935b26cc7aa8aff971d3488e9f9629108e419a` via `a2639073b1cb61e5fc050d3254d232c116d054e5`, `5f07db5cd7677e84f617deb61c5b03a4b896159c` via `23d16dc51e49f17adf4c9bcedc9306c22e264bd1`, and current master `ebdc2e4f63ef73153cd4e0ff5c62efe604f35470` via two-parent merge `46b4e473ab6497d836053a072f3fe7050156756b`.
 - [x] Reconcile the obsolete `pending/` state to the current authoritative `open/` workflow without changing acceptance.
 - [x] Reconcile plan/checklist to the actual post-merge production paths.
@@ -76,12 +76,12 @@
 
 - [x] Follow current `SceneIssues/feature-readme.md`, common `SceneIssues/README.md`, and `AGENTS.md`; unfinished work remains in `open/`.
 - [x] Never edit `.github/test-request.json` on `fixes/agent-7`, create extra transports, or replace queued CI.
-- [x] Fetch/merge current master through `ebdc2e4f63ef73153cd4e0ff5c62efe604f35470` into feature head via `46b4e473ab6497d836053a072f3fe7050156756b`.
+- [x] Fetch/merge current master through `ebdc2e4f63ef73153cd4e0ff5c62efe604f35470` into feature head via `46b4e473ab6497d836053a072f3fe7050156756b`; current comparison remains 85 ahead / 0 behind before the 2026-08-30 15:43 PDT bookkeeping refresh.
 - [ ] Run focused `SpatialReservationTests` + affected Kentridge/vegetation/hidden-space and incoming foundation-surface regressions plus repository compile/static/ProjectValidator gates on the reconciled exact SHA.
 - [ ] Run required scene/runtime/built-player/visual gates and capture durable evidence.
 - [ ] Review assignment-only blast radius and record commands/results/cost/acceptance mapping in issue metadata.
 - [ ] Complete every required acceptance checkbox; keep the assignment in `open/` until gates pass.
-- [ ] Use `ci-test/fixes/agent-7` only for the final targeted-CI request; verified idle on 2026-08-30 with latest run `33291387557` completed successfully at stale head `8cc6ff94dcbbca46b1c522d08752235b891b1851`. Do not publish until the typed-socket prerequisite lands and the feature tree is final.
+- [ ] Use `ci-test/fixes/agent-7` only for the final targeted-CI request; re-verified idle 2026-08-30 15:43 PDT at stale head `8cc6ff94dcbbca46b1c522d08752235b891b1851`, with latest run `33291387557` completed successfully. Do not publish until the typed-socket prerequisite lands and the feature tree is final.
 - [ ] Obtain green exact-SHA CI and record request/run/tested-SHA evidence.
 - [ ] Complete metadata, then move `open/` -> `closed/` with `status=fixed` and `resolvedUtc` only when every acceptance criterion is complete.
 - [ ] Merge current master again if required; revalidate any changed tree.
