@@ -29,20 +29,22 @@
 - [x] Full-resolution run `33279138597` rejects a camera-only explanation for missing towns: Fairy/Orc survey cameras are close enough that present building-scale shells would be obvious, yet none render.
 - [x] Inspect final full-resolution artifact `9723674189` from run `33283034449`: Fairy Village and Orc Village show roads/terrain but no readable settlement shells; Moordell shows fewer than four obvious shells; Rossdam is dominated by lake/terrain with no four-building settlement read.
 - [x] Because final storage is green while built-player settlements remain absent, classify the remaining defect as production streaming/render-path visibility rather than camera framing or storage generation.
-- [ ] Trace persisted `SettlementStructure` voxel payload through region load/meshing/rendering and identify the first production boundary where settlement shell voxels are lost or occluded.
-- [ ] Add a behavioral regression at that production boundary proving persisted settlement shell voxels become renderer/mesh-visible geometry, not merely non-air storage.
-- [ ] Fix the reusable production streaming/render path without scene-local hardcoding, camera masking, eager remote GameObjects, or streaming-radius expansion.
+- [x] Trace persisted `SettlementStructure` payload through the production path and identify the first failing boundary: `ShowcaseWorld.FinishRegion()` publishes terrain before separately queued feature realization, allowing renderer-only coverage to report stable before `CompleteFeatureBuild()` publishes the settlement commit/invalidation.
+- [ ] Add a reusable current-demand generated-content readiness contract: terrain publication alone is not settled while a demanded region can still receive feature publication/invalidation.
+- [ ] Add a behavioral regression at that two-stage production boundary proving readiness remains false before feature publication and settlement shell voxels become renderer/mesh-visible geometry after final publication, not merely non-air storage.
+- [ ] Gate built evidence on current-demand content readiness followed by complete near-surface renderer publication; do not use a fixed delay.
+- [ ] Fix the reusable production path without scene-local hardcoding, camera masking, eager remote GameObjects, direct scene voxel writes, or streaming-radius expansion.
 - [ ] Exact built `KentridgePlayableSlice` reaches a usable rendered state without startup/runtime exceptions.
 - [ ] Full-resolution evidence visibly shows four readable blockouts at Moordell, Rossdam, Fairy Village, and Orc Village.
 - [ ] Full-resolution evidence shows continuous roads/network without large holes, substantial lake and ridge/pass response, and representative CharacterMotor traversal.
 
 ## Blast radius / cost
-- [x] Static scope: no other SceneIssue, no feature-branch `.github/test-request.json`, no custom workflow/CI transport, no CharacterMotor/renderer/streaming-radius change.
+- [x] Static scope: no other SceneIssue, no feature-branch `.github/test-request.json`, no custom workflow/CI transport, no CharacterMotor/streaming-radius change.
 - [x] Terrain-relief sampling cost is bounded: 25 samples x 16 generic buildings = 400 deterministic catalogue-build queries; definition/placement counts are unchanged.
 - [x] Southern Ridge remediation changes one Kentridge region extent only; graph nodes/routes, settlement coordinates, feature counts, and runtime systems are unchanged.
 - [x] Refresh `fixes/agent-6` from current `origin/master` after the green storage gate; merge commit `73c62df7dd6be7f16dae16da1b8c1b0a6646286f` has disjoint master changes and no agent-6 conflict.
-- [ ] Measure any render-path remediation cost; reject fixes that add per-frame whole-world scans, increase normal streaming residency, or materially raise generated voxel/mesh counts beyond the four existing generic shells per settlement.
-- [ ] Record final route solve/tile/building/feature counts and built-player CPU/GPU/frame/memory/streaming telemetry against existing budgets.
+- [ ] Keep readiness evaluation scoped to already-maintained current-demand generation state; reject per-frame whole-world scans, duplicate geometry, extra remote generation, or material mesh/voxel-count growth.
+- [ ] Measure final remediation cost and record route solve/tile/building/feature counts plus built-player CPU/GPU/frame/memory/streaming telemetry against existing budgets.
 - [ ] Re-check final feature diff against current master before promotion.
 
 ## Acceptance / closure
