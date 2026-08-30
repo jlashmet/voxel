@@ -3,8 +3,9 @@
 ## Workflow / investigation
 - [x] Read `AGENTS.md`, canonical `SceneIssues/README.md`, assignment, and confirm requested `feature-readme.md` is absent.
 - [x] Confirm `captures=[]`; no original screenshot/annotation poses exist.
+- [ ] Restore the SceneIssue contract files required by the repository workflow (`repro.json`, `expected.json`, and `replay.json`) before capture/CI work; keep them scoped to this feature.
 - [ ] Inspect supplied stylized-water Shader Graph, support HLSL/subgraphs/material/textures/scripts.
-- [ ] Inspect `WaterfallReference.shader` and record required reusable waterfall behaviors.
+- [x] Inspect `WaterfallReference.shader` and record required reusable waterfall behaviors.
 - [ ] Trace canonical voxel-water authoring, meshing/discovery, renderer/material/shader selection, streaming, visibility diagnostics, and gameplay consumers.
 - [ ] Identify all normal production scenes/consumers currently using water and locate any legacy production shader/material fallback.
 - [ ] Run discriminator and record at least two hypotheses/results in plan/experiment evidence.
