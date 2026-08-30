@@ -54,7 +54,7 @@
 - [x] Existing pre-final metrics: regions=6, settlements=6, generic buildings=16, hardRoutes=20, prior routeTiles=833, constrainedRoutes=5, solveSteps=1108, maxRoadRiseVoxels=2; scoped readiness previously 1,090,380 feature voxels and ~2500 ms last feature step.
 - [x] Rejected-run resource data remains bounded: `33292881845` player peak RSS 5233 MB; `33293664047` editor peak 3448 MB with zero swap growth; post-start built-player FPS generally >60 and often >100.
 - [ ] Measure final resolved lake dimensions/depth/primitive cells, route tile/solve/constrained counts, feature voxel work/last-feature time, CPU/frame/FPS, memory, streaming convergence, and render/far-field telemetry against existing budgets.
-- [ ] Re-check exact feature diff/current master immediately before final targeted CI and before promotion; if master advanced, follow the SceneIssue refresh gate.
+- [x] Re-check exact feature diff/current master immediately before final targeted CI: master remains `e95324aeaef619cb49d84bf2b07f770184bead81`, branch is ahead-only, and the endpoint remediation is limited to Kentridge intent/test plus assignment evidence.
 
 ## Acceptance / closure
 - [ ] (1) Source-backed macro graph remains authoritative through shared WorldBuilder APIs.
