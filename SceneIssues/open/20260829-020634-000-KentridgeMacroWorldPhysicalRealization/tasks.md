@@ -36,7 +36,7 @@
 - [x] Add deterministic nominal guard margin so fixed-seed Rossdam resolves to exactly `900 x 450 dm`, resolved depth `24 dm`, and aggregate water primitive scan `16,591,536` cells (below the 17M cap).
 - [x] Add validation-only near-overhead generic-settlement camera correction; CharacterMotor/streaming demand remains grounded at settlement focus and the separate player-height Moordell road-arrival view is preserved.
 - [x] CI admission run `33293402602` proves `replay_seconds` is hard-capped at 20..60; the 75 s request was rejected before Unity ran and produced no product/evidence result.
-- [ ] Reorder dormant validation targets to `Moordell -> Rossdam lake -> Rossdam settlement` so shared lake content is streamed once before the settlement wait; do not skip any readiness/capture gate.
+- [x] Reorder dormant validation targets to `Moordell -> Rossdam lake -> Rossdam settlement` so shared lake content is streamed once before the settlement wait; no readiness/capture gate is skipped.
 - [ ] Re-run the corrected exact source with supported `replay_seconds=60`; runtime/streaming budgets remain unchanged.
 - [ ] Exact built `KentridgePlayableSlice` reaches usable gameplay without startup/runtime exceptions and captures every macro target.
 - [ ] Full-resolution exact-scene evidence shows four readable blockouts at Moordell, Rossdam, Fairy Village, and Orc Village.
