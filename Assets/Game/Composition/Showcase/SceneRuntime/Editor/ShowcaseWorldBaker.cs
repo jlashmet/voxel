@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 using Game.Composition.Materials;
 using UnityEditor;
@@ -158,7 +159,7 @@ namespace VoxelEngine.Showcase.Editor
                 Application.isBatchMode,
                 Environment.GetEnvironmentVariable("GITHUB_ACTIONS"),
                 Environment.GetCommandLineArgs(),
-                Environment.Exit);
+                ExitSuccessfulCiBakeImmediately);
         }
 
         /// <summary>
@@ -322,6 +323,20 @@ namespace VoxelEngine.Showcase.Editor
                 ShowcaseBakeExecuteMethod,
                 StringComparison.Ordinal);
         }
+
+        private static void ExitSuccessfulCiBakeImmediately(int exitCode)
+        {
+#if UNITY_EDITOR_OSX || UNITY_EDITOR_LINUX
+            PosixImmediateExit(exitCode);
+#else
+            Environment.Exit(exitCode);
+#endif
+        }
+
+#if UNITY_EDITOR_OSX || UNITY_EDITOR_LINUX
+        [DllImport("libc", EntryPoint = "_exit")]
+        private static extern void PosixImmediateExit(int exitCode);
+#endif
 
         private static SerializedProperty RequireProperty(SerializedObject serialized, string name)
         {
