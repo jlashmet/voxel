@@ -39,6 +39,7 @@ namespace VoxelEngine.Structures.Runtime
     public static class TerrainCorridorRasteriser
     {
         private const int SurfacePaintDepth = 4;
+        private const int EdgeNoiseCellDm = 64;
 
         public static RasterResult Rasterise(
             in Primitive primitive,
@@ -140,8 +141,9 @@ namespace VoxelEngine.Structures.Runtime
 
         /// <summary>
         /// Evaluates one horizontal sample. At voxel coordinates that map to an authored decimetre
-        /// this intentionally mirrors WorldRoadInfluence exactly: closest-point rounding, edge hash,
-        /// core/outer adjustment and coverage rounding are the same operations in the same order.
+        /// this intentionally mirrors WorldRoadInfluence exactly: closest-point rounding, coherent
+        /// centerline edge variation, core/outer adjustment and coverage rounding are the same
+        /// operations in the same order.
         /// </summary>
         public static bool TrySample(
             in Primitive primitive,
@@ -170,6 +172,8 @@ namespace VoxelEngine.Structures.Runtime
             long lengthSquared = dx * dx + dz * dz;
             long distanceSquared;
             int targetHeightDm;
+            int centreXdm;
+            int centreZdm;
 
             if (lengthSquared <= 0)
             {
@@ -177,6 +181,8 @@ namespace VoxelEngine.Structures.Runtime
                 long pz = (long)zdm - az;
                 distanceSquared = px * px + pz * pz;
                 targetHeightDm = ay;
+                centreXdm = ax;
+                centreZdm = az;
             }
             else
             {
@@ -192,6 +198,8 @@ namespace VoxelEngine.Structures.Runtime
                 targetHeightDm = ay + DivideRounded(
                     ((long)by - ay) * dot,
                     lengthSquared);
+                centreXdm = (int)qx;
+                centreZdm = (int)qz;
             }
 
             int distance = IntegerSqrt(distanceSquared);
@@ -200,8 +208,8 @@ namespace VoxelEngine.Structures.Runtime
                 scale);
             int edge = DeterministicEdgeOffset(
                 unchecked((uint)primitive.D.y),
-                xdm,
-                zdm,
+                centreXdm,
+                centreZdm,
                 edgeVariationDm);
             int coreBaseDm = DivideRounded(
                 math.max(0, primitive.InnerRadius),
@@ -300,6 +308,22 @@ namespace VoxelEngine.Structures.Runtime
             int amplitude)
         {
             if (amplitude <= 0) return 0;
+
+            int cellX = FloorDiv(x, EdgeNoiseCellDm);
+            int cellZ = FloorDiv(z, EdgeNoiseCellDm);
+            int localX = x - cellX * EdgeNoiseCellDm;
+            int localZ = z - cellZ * EdgeNoiseCellDm;
+            int v00 = EdgeNoiseValue(seed, cellX, cellZ, amplitude);
+            int v10 = EdgeNoiseValue(seed, cellX + 1, cellZ, amplitude);
+            int v01 = EdgeNoiseValue(seed, cellX, cellZ + 1, amplitude);
+            int v11 = EdgeNoiseValue(seed, cellX + 1, cellZ + 1, amplitude);
+            int x0 = LerpRounded(v00, v10, localX, EdgeNoiseCellDm);
+            int x1 = LerpRounded(v01, v11, localX, EdgeNoiseCellDm);
+            return LerpRounded(x0, x1, localZ, EdgeNoiseCellDm);
+        }
+
+        private static int EdgeNoiseValue(uint seed, int x, int z, int amplitude)
+        {
             unchecked
             {
                 uint h = seed ^ 0x9E3779B9u;
@@ -307,6 +331,16 @@ namespace VoxelEngine.Structures.Runtime
                 h = (h ^ (uint)z) * 16777619u;
                 return (int)(h % (uint)(amplitude * 2 + 1)) - amplitude;
             }
+        }
+
+        private static int LerpRounded(int a, int b, int numerator, int denominator)
+            => a + DivideRounded((long)(b - a) * numerator, denominator);
+
+        private static int FloorDiv(int value, int divisor)
+        {
+            int q = value / divisor;
+            int r = value % divisor;
+            return r != 0 && value < 0 ? q - 1 : q;
         }
 
         private static int DivideRounded(long numerator, long denominator)
