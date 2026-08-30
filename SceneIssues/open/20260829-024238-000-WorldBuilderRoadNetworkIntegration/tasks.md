@@ -7,8 +7,8 @@
 - [x] Diagnose the pre-merge targeted CI compile failure and repair the missing `MountingForce.WorldGen` test import without changing product behavior.
 - [x] Audit terrain/crossing flag authority: current production `TerrainQuery`, `PlannedRoute`, and `TopDownWorldRouteSpec` expose no water/reserved/barrier field, so adapters must not fabricate flags; generic resolver policy remains ready for a future authoritative owner.
 - [x] Classify final targeted CI `33281599556`: product/test-contract failures, not runner noise; 7 tests executed, 2 failed.
-- [ ] Resolve the non-monotonic shoulder sample (`19 -> 26`) by discriminating single-route edge variation from aggregate overlap/junction sampling; do not weaken the monotonic shoulder acceptance.
-- [ ] Resolve authored vegetation point `(900,455)` colliding with settlement geometry and preserve production vegetation/layout constraints.
+- [x] Resolve the non-monotonic shoulder sample (`19 -> 26`): adjacent samples were independently hashing edge width; semantic and physical paths now sample coherent 64dm world-space variation at the nearest centerline point.
+- [x] Resolve authored vegetation point `(900,455)` collision: master already had fixed preferred anchors against an organic seeded building layout; authored non-residential anchors now use deterministic bounded clearance search while preserving species/zone intent.
 
 ## Implementation
 - [x] Make road/trail intent first-class on stable semantic endpoints with reusable profile data, provenance, and deterministic seed.
@@ -26,6 +26,8 @@
 - [x] Author Kentridge keep-clearance on generic routes and expose it through the generic aggregate without Kentridge types in the reusable API.
 - [x] Replace top-down hard-route Manhattan surface realization with `TopDownWorldRoadNetwork` + the same shared terrain corridor lowering.
 - [x] Preserve bounded generation: one primitive per bounded piece, FeatureBudget-capped definitions/footprints, no per-segment GameObjects, no per-frame road-generation work.
+- [x] Make optional road-edge irregularity spatially coherent without changing profile width/transition budgets or semantic↔physical sampling parity.
+- [x] Treat authored Kentridge non-residential tree coordinates as preferred anchors and relocate only blocked anchors through a deterministic <=120dm search; clear anchors remain unchanged.
 
 ## Regressions implemented
 - [x] Modern Kentridge semantic routes map to traceable generic physical road definitions.
@@ -33,9 +35,9 @@
 - [x] Non-flat deterministic routing respects maximum grade and cut/fill envelopes.
 - [x] Water/barrier fixture rejects a route without authored crossing policy and resolves when policy allows it.
 - [x] Physical corridor distance/height/coverage matches semantic influence on an intermediate shoulder sample.
-- [ ] Shoulder coverage recovers continuously/monotonically without the legacy ten-band dependency; current final CI exposed a `19 -> 26` increase that must be resolved.
+- [ ] Shoulder coverage recovers continuously/monotonically without the legacy ten-band dependency; repaired coherent-edge implementation still needs exact-SHA CI proof.
 - [x] Physical catalogue asserts one `EmitTerrainCorridor`, zero legacy road `EmitBox` stamps, and bounded footprints/definitions.
-- [ ] Vegetation suppresses in the core and progressively recovers through shared shoulder influence; production planner equality test currently stops on authored point `(900,455)` colliding with settlement geometry.
+- [ ] Vegetation suppresses in the core and progressively recovers through shared shoulder influence; deterministic anchor repair still needs production-planner CI proof.
 - [x] Kentridge authors positive generic placement keep-clearance beyond the grading radius and it is queryable from `WorldRoadNetwork`.
 - [x] Existing Kentridge named-landmark, diagonal-route, and connectivity coverage remains in `KentridgeOrganicLayoutTests`.
 - [ ] Validate the repaired/expanded `KentridgeRoadShoulderRegressionTests` class on final exact-SHA targeted CI.
@@ -43,6 +45,7 @@
 
 ## Validation / cost
 - [x] Refresh/merge current `origin/master` immediately before the attempted final request (`2e3574af`, master parent `2b100aa4`).
+- [ ] Refresh/merge current `origin/master` again after the CI-discovered repairs and before issuing the replacement final request.
 - [ ] Obtain a green focused exact-SHA targeted CI request through `ci-test/fixes/agent-1` only; run `33281599556` failed product assertions and is diagnostic only.
 - [ ] Run/inspect repository-supported built application/player evidence for `Assets/Scenes/KentridgePlayableSlice.unity`; verify no startup/runtime exceptions.
 - [ ] Capture/inspect endpoint-to-endpoint road continuity and player-height traversal with collision/streaming active.
