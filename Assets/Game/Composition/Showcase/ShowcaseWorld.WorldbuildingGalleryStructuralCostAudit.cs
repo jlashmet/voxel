@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Structures.Api;
 using VoxelEngine.Structures.Runtime;
@@ -48,6 +49,46 @@ namespace VoxelEngine.Showcase
                     return TimePlan(in civic, "facade civic") + TimePlan(in ornate, "facade ornate");
                 }
             }
+        }
+
+        /// <summary>Built-player negative proof for a yaw-incompatible bridge attachment.</summary>
+        public StructuralAttachmentRejectReason AuditWorldbuildingGalleryStructuralBridgeOrientationReject()
+        {
+            BridgeSite bridge = FindBridgeSite();
+            int3 root = new(bridge.X + 450, bridge.DeckY, bridge.Z);
+            using FeatureCatalogue catalogue = CreateBridgeCatalogue(root);
+
+            FeatureDefinition child = catalogue.Definitions[1];
+            StructuralPieceSpec piece = child.StructuralPiece;
+            piece.Facing = Facing.Up;
+            child.StructuralPiece = piece;
+            catalogue.Definitions[1] = child;
+
+            using var instances = new NativeList<StructuralInstance>(Allocator.Temp);
+            using var decisions = new NativeList<StructuralAttachmentDecision>(Allocator.Temp);
+            StructuralCompositionPlanner.ExpandRoot(in catalogue, Seed, 0,
+                catalogue.ExplicitPlacements[0], instances, decisions);
+            return FirstRejected(decisions);
+        }
+
+        /// <summary>Built-player negative proof that a castle wall socket rejects the wrong role.</summary>
+        public StructuralAttachmentRejectReason AuditWorldbuildingGalleryStructuralCastleSemanticReject()
+        {
+            int3 origin = new(-2900,
+                TerrainQuery.HeightAt(-2900, 120, Seed) + 2, 120);
+            using FeatureCatalogue catalogue = CreateCastleCatalogue(origin);
+
+            FeatureDefinition child = catalogue.Definitions[1];
+            StructuralPieceSpec piece = child.StructuralPiece;
+            piece.Role = StructuralSocketRole.Roof;
+            child.StructuralPiece = piece;
+            catalogue.Definitions[1] = child;
+
+            using var instances = new NativeList<StructuralInstance>(Allocator.Temp);
+            using var decisions = new NativeList<StructuralAttachmentDecision>(Allocator.Temp);
+            StructuralCompositionPlanner.ExpandRoot(in catalogue, Seed, 0,
+                catalogue.ExplicitPlacements[0], instances, decisions);
+            return FirstRejected(decisions);
         }
 
         private double TimePlan(in FeatureCatalogue catalogue, string proofName)
