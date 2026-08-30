@@ -33,9 +33,9 @@
 - [x] Inspect exact run `33292881845` / artifact `9726538126`: this is a managed product failure, not Burst infrastructure. NUnit reports resolved Rossdam width `888 dm` against the >=900 dm landmark floor.
 - [x] Reject `33292881845` visual evidence for closure: Moordell road-arrival proves structures exist, but diagonal settlement surveys terrain-occlude them; Fairy/Orc captures do not visibly show four blockout buildings.
 - [x] Reject the 60 s final capture window as insufficient for the required target set: Southern Ridge becomes content-ready near t59.4 and ridge/network captures never occur.
-- [ ] Add deterministic nominal guard margin so Rossdam resolves to >=900 x 450 dm at this fixed seed while resolved depth remains >=24 dm and aggregate water primitive scan remains <=17,000,000 cells.
-- [ ] Replace diagonal generic-settlement surveys with near-overhead non-occluded framing that keeps streaming demand grounded at the settlement focus.
-- [ ] Use a 75 s validation-only replay window for the corrected final exact request; do not change runtime/streaming budgets.
+- [x] Add deterministic nominal guard margin so fixed-seed Rossdam resolves to exactly `900 x 450 dm`, resolved depth `24 dm`, and aggregate water primitive scan `16,591,536` cells (below the 17M cap).
+- [x] Add validation-only near-overhead generic-settlement camera correction; CharacterMotor/streaming demand remains grounded at settlement focus and the separate player-height Moordell road-arrival view is preserved.
+- [x] Use a 75 s validation-only replay window for the corrected final exact request; do not change runtime/streaming budgets.
 - [ ] Exact built `KentridgePlayableSlice` reaches usable gameplay without startup/runtime exceptions and captures every macro target.
 - [ ] Full-resolution exact-scene evidence shows four readable blockouts at Moordell, Rossdam, Fairy Village, and Orc Village.
 - [ ] Full-resolution evidence shows continuous roads/network, substantial Rossdam lake, Southern Ridge/pass response, geography-constrained route behavior, and representative real CharacterMotor traversal.
@@ -43,14 +43,14 @@
 ## Blast radius / cost
 - [x] No other SceneIssue, no feature-branch `.github/test-request.json`, no custom workflow/CI transport, no CharacterMotor/streaming-radius/device-budget change.
 - [x] Terrain-relief sampling remains bounded to 25 x 16 = 400 deterministic catalogue queries.
-- [x] Master `61d03336390ed9079498b183217cbf0ecf0abcd2` was merged cleanly before exact run `33292881845`; intervening master commits were disjoint from this assignment.
+- [x] Master `61d03336390ed9079498b183217cbf0ecf0abcd2` was merged cleanly; intervening master commits were disjoint from this assignment.
 - [x] Existing production metrics before final resolved-lake adjustment: regions=6, settlements=6, generic buildings=16, hardRoutes=20, routeTiles=833, constrainedRoutes=5, solveSteps=1108, maxRoadRiseVoxels=2.
 - [x] Existing scoped readiness regression: 1,090,380 feature voxels; prior last feature step ~2500 ms.
 - [x] Rejected run `33290154012`: elapsed=79 s, peak RSS=5859 MB, systemFree=31944 MB, swapGrowth=0 MB; post-start FPS generally >60.
 - [x] Run `33292088730` focused editor process before native Burst crash: elapsed=31 s, peak RSS=2287 MB, systemFree=29019 MB, swapGrowth=0 MB.
 - [x] Run `33292881845` exact player: elapsed=70 s, peak RSS=5233 MB, systemFree=28711 MB, swapGrowth=0 MB; after startup one-second FPS windows are generally >60 and often >100.
+- [x] Re-check corrected feature diff against current master immediately before CI: current master remains `61d03336390ed9079498b183217cbf0ecf0abcd2`; feature is ahead-only/behind=0 and contains only this assignment beyond master.
 - [ ] Measure final resolved lake footprint/depth/primitive scan cells, route solve counts, feature voxel work/last-feature time, CPU/frame/FPS, memory, streaming convergence, and far-field/render telemetry against existing budgets.
-- [ ] Re-check exact final feature diff against current master immediately before corrected targeted CI and promotion.
 
 ## Acceptance / closure
 - [ ] (1) Source-backed macro graph remains authoritative through shared WorldBuilder APIs.
