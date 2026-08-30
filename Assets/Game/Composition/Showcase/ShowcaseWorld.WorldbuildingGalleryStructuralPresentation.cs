@@ -57,40 +57,38 @@ namespace VoxelEngine.Showcase
             byte detail = GameMaterialIds.DarkStone;
             byte path = GameMaterialIds.MasonrySmall;
 
-            int3 shellOrigin = new(site.X - 80, site.DeckY - 20, site.Z - 30);
+            int3 shellOrigin = new(site.X, site.DeckY - 20, site.Z - 30);
             var shell = new ProgramWriter()
-                .Box(new int3(80, 46, 36), new int3(1220, 2, 68), path)
-                .Box(new int3(80, 30, 38), new int3(1220, 8, 8), detail)
-                .Box(new int3(80, 30, 94), new int3(1220, 8, 8), detail)
-                .Box(new int3(80, 20, 34), new int3(1220, 10, 12), stone)
-                .Box(new int3(80, 20, 94), new int3(1220, 10, 12), stone)
-                .Box(new int3(80, 66, 34), new int3(1220, 6, 8), detail)
-                .Box(new int3(80, 66, 98), new int3(1220, 6, 8), detail)
-                .Box(new int3(80, 72, 32), new int3(1220, 5, 12), stone)
-                .Box(new int3(80, 72, 96), new int3(1220, 5, 12), stone)
-                .Box(new int3(20, 0, 12), new int3(120, 36, 116), stone)
-                .Box(new int3(40, 36, 22), new int3(100, 12, 96), detail)
-                .Box(new int3(0, 6, 0), new int3(90, 26, 34), stone)
-                .Box(new int3(0, 6, 106), new int3(90, 26, 34), stone)
-                .Box(new int3(1240, 0, 12), new int3(120, 36, 116), stone)
-                .Box(new int3(1240, 36, 22), new int3(100, 12, 96), detail)
-                .Box(new int3(1290, 6, 0), new int3(90, 26, 34), stone)
-                .Box(new int3(1290, 6, 106), new int3(90, 26, 34), stone)
-                .Box(new int3(0, 42, 36), new int3(80, 6, 68), path)
-                .Box(new int3(1300, 42, 36), new int3(80, 6, 68), path);
+                .Box(new int3(0, 46, 36), new int3(1220, 2, 68), path)
+                .Box(new int3(0, 30, 38), new int3(1220, 8, 8), detail)
+                .Box(new int3(0, 30, 94), new int3(1220, 8, 8), detail)
+                .Box(new int3(0, 20, 34), new int3(1220, 10, 12), stone)
+                .Box(new int3(0, 20, 94), new int3(1220, 10, 12), stone)
+                .Box(new int3(0, 66, 34), new int3(1220, 6, 8), detail)
+                .Box(new int3(0, 66, 98), new int3(1220, 6, 8), detail)
+                .Box(new int3(0, 72, 32), new int3(1220, 5, 12), stone)
+                .Box(new int3(0, 72, 96), new int3(1220, 5, 12), stone)
+                .Box(new int3(0, 0, 12), new int3(100, 36, 116), stone)
+                .Box(new int3(8, 36, 22), new int3(92, 12, 96), detail)
+                .Box(new int3(0, 6, 0), new int3(72, 26, 34), stone)
+                .Box(new int3(0, 6, 106), new int3(72, 26, 34), stone)
+                .Box(new int3(1120, 0, 12), new int3(100, 36, 116), stone)
+                .Box(new int3(1120, 36, 22), new int3(92, 12, 96), detail)
+                .Box(new int3(1148, 6, 0), new int3(72, 26, 34), stone)
+                .Box(new int3(1148, 6, 106), new int3(72, 26, 34), stone);
 
-            for (int x = 92; x <= 1280; x += 64)
+            for (int x = 12; x <= 1200; x += 64)
             {
                 shell.Box(new int3(x, 46, 34), new int3(7, 24, 8), detail);
                 shell.Box(new int3(x, 46, 98), new int3(7, 24, 8), detail);
             }
-            for (int x = 120; x <= 1260; x += 160)
+            for (int x = 40; x <= 1160; x += 160)
                 shell.Box(new int3(x, 24, 36), new int3(8, 8, 68), detail);
-            for (int x = 180; x <= 1180; x += 250)
+            for (int x = 100; x <= 1100; x += 250)
                 shell.Box(new int3(x, 10, 30), new int3(14, 20, 80), stone);
 
             AuthorPresentationCatalogue(
-                "bridge-architectural-shell", shellOrigin, new int3(1380, 82, 140),
+                "bridge-architectural-shell", shellOrigin, new int3(1220, 82, 140),
                 0x53544601u, StructuralSocketRole.BridgeSpan | StructuralSocketRole.Traversal,
                 BridgeTag, shell, 80, stone);
 
@@ -103,28 +101,28 @@ namespace VoxelEngine.Showcase
             if (riverY == int.MaxValue) riverY = site.DeckY - 120;
             int contextY = math.min(riverY - 4, site.DeckY - 220);
             int deckLocalY = site.DeckY - contextY;
-            int3 supportOrigin = new(site.X - 80, contextY, site.Z - 320);
+            int3 supportOrigin = new(site.X, contextY, site.Z - 320);
             var supports = new ProgramWriter();
 
             int waterLocalY = math.max(2, riverY - contextY + 2);
-            supports.Box(new int3(535, waterLocalY, 0), new int3(310, 4, 720), GameMaterialIds.Water);
-            supports.Box(new int3(505, waterLocalY - 2, 0), new int3(30, 8, 720), GameMaterialIds.MasonrySmall);
-            supports.Box(new int3(845, waterLocalY - 2, 0), new int3(30, 8, 720), GameMaterialIds.MasonrySmall);
+            supports.Box(new int3(455, waterLocalY, 0), new int3(310, 4, 720), GameMaterialIds.Water);
+            supports.Box(new int3(425, waterLocalY - 2, 0), new int3(30, 8, 720), GameMaterialIds.MasonrySmall);
+            supports.Box(new int3(765, waterLocalY - 2, 0), new int3(30, 8, 720), GameMaterialIds.MasonrySmall);
 
-            int shoulderLower = math.max(64, deckLocalY - 52);
-            int shoulderUpper = math.max(48, deckLocalY - 18);
-            supports.Box(new int3(0, 0, 0), new int3(142, shoulderLower, 286), stone)
-                .Box(new int3(0, 0, 434), new int3(142, shoulderLower, 286), stone)
-                .Box(new int3(36, 0, 72), new int3(94, shoulderUpper, 210), detail)
-                .Box(new int3(36, 0, 438), new int3(94, shoulderUpper, 210), detail)
-                .Box(new int3(1238, 0, 0), new int3(142, shoulderLower, 286), stone)
-                .Box(new int3(1238, 0, 434), new int3(142, shoulderLower, 286), stone)
-                .Box(new int3(1250, 0, 72), new int3(94, shoulderUpper, 210), detail)
-                .Box(new int3(1250, 0, 438), new int3(94, shoulderUpper, 210), detail)
-                .Box(new int3(38, shoulderUpper, 92), new int3(90, 10, 164), path)
-                .Box(new int3(38, shoulderUpper, 464), new int3(90, 10, 164), path)
-                .Box(new int3(1252, shoulderUpper, 92), new int3(90, 10, 164), path)
-                .Box(new int3(1252, shoulderUpper, 464), new int3(90, 10, 164), path);
+            int shoulderLower = math.clamp(deckLocalY - 52, 64, 180);
+            int shoulderUpper = math.clamp(deckLocalY - 18, 48, 200);
+            supports.Box(new int3(0, 0, 0), new int3(28, shoulderLower, 286), stone)
+                .Box(new int3(0, 0, 434), new int3(28, shoulderLower, 286), stone)
+                .Box(new int3(28, 0, 72), new int3(18, shoulderUpper, 210), detail)
+                .Box(new int3(28, 0, 438), new int3(18, shoulderUpper, 210), detail)
+                .Box(new int3(1192, 0, 0), new int3(28, shoulderLower, 286), stone)
+                .Box(new int3(1192, 0, 434), new int3(28, shoulderLower, 286), stone)
+                .Box(new int3(1174, 0, 72), new int3(18, shoulderUpper, 210), detail)
+                .Box(new int3(1174, 0, 438), new int3(18, shoulderUpper, 210), detail)
+                .Box(new int3(28, shoulderUpper, 92), new int3(90, 10, 164), path)
+                .Box(new int3(28, shoulderUpper, 464), new int3(90, 10, 164), path)
+                .Box(new int3(1102, shoulderUpper, 92), new int3(90, 10, 164), path)
+                .Box(new int3(1102, shoulderUpper, 464), new int3(90, 10, 164), path);
 
             int[] supportXs = { 170, 335, 530, 610, 690, 885, 1050 };
             for (int i = 0; i < supportXs.Length; i++)
@@ -142,7 +140,7 @@ namespace VoxelEngine.Showcase
 
             AuthorPresentationCatalogue(
                 "bridge-grounded-supports-and-river", supportOrigin,
-                new int3(1380, deckLocalY + 58, 720),
+                new int3(1220, deckLocalY + 58, 720),
                 0x53544602u, StructuralSocketRole.Support | StructuralSocketRole.TerrainAnchor,
                 BridgeTag, supports, 48, stone);
         }
