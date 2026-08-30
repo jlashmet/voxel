@@ -88,14 +88,14 @@ namespace VoxelEngine.Showcase
 
         private static readonly StructuralFrameSpec[] s_StructuralFrames =
         {
-            new("bridge-wide", 0, new Vector3(0.50f, 0.55f, 0.50f), new Vector3(-0.35f, 0.42f, -1f), 0.72f, 90f),
-            new("bridge-deck-junction", 0, new Vector3(0.43f, 0.45f, 0.50f), new Vector3(-0.20f, 0.25f, -1f), 0.22f, 28f),
-            new("castle-wide", 1, new Vector3(0.50f, 0.52f, 0.50f), new Vector3(0.80f, 0.45f, -1f), 0.85f, 65f),
-            new("castle-gate", 1, new Vector3(0.50f, 0.30f, 0.08f), new Vector3(0f, 0.18f, -1f), 0.30f, 26f),
-            new("cliff-wide", 2, new Vector3(0.50f, 0.58f, 0.50f), new Vector3(-0.90f, 0.55f, -1f), 0.80f, 62f),
-            new("cliff-ramp-junction", 2, new Vector3(0.48f, 0.44f, 0.50f), new Vector3(-0.45f, 0.22f, -1f), 0.30f, 30f),
-            new("facade-civic", 3, new Vector3(0.22f, 0.55f, 0.88f), new Vector3(0f, 0.25f, 1f), 0.28f, 28f),
-            new("facade-ornate", 3, new Vector3(0.78f, 0.55f, 0.88f), new Vector3(0f, 0.25f, 1f), 0.28f, 28f),
+            new("bridge-wide", 0, new Vector3(0.50f, 0.42f, 0.50f), new Vector3(-0.28f, 0.18f, -1f), 0.95f, 110f),
+            new("bridge-deck-junction", 0, new Vector3(0.43f, 0.35f, 0.50f), new Vector3(-0.20f, 0.06f, -1f), 0.26f, 32f),
+            new("castle-wide", 1, new Vector3(0.50f, 0.46f, 0.48f), new Vector3(0.72f, 0.22f, -1f), 0.88f, 72f),
+            new("castle-gate", 1, new Vector3(0.50f, 0.27f, 0.08f), new Vector3(0f, 0.05f, -1f), 0.28f, 24f),
+            new("cliff-wide", 2, new Vector3(0.52f, 0.48f, 0.50f), new Vector3(-0.90f, 0.26f, -1f), 0.92f, 76f),
+            new("cliff-ramp-junction", 2, new Vector3(0.48f, 0.40f, 0.50f), new Vector3(-0.45f, 0.06f, -1f), 0.34f, 32f),
+            new("facade-civic", 3, new Vector3(0.22f, 0.42f, 0.88f), new Vector3(0f, 0.05f, 1f), 0.32f, 30f),
+            new("facade-ornate", 3, new Vector3(0.78f, 0.42f, 0.88f), new Vector3(0f, 0.05f, 1f), 0.32f, 30f),
         };
 
         private sealed class Reporter : MonoBehaviour
@@ -226,6 +226,9 @@ namespace VoxelEngine.Showcase
             private IEnumerator CaptureStructural(ShowcaseWorld world)
             {
                 _structuralAuditPassed = false;
+                // The normal gallery startup authors this pass as well. Requiring it here keeps the
+                // evidence path robust if the harness is invoked against an alternate startup mode.
+                world.EnsureWorldbuildingGalleryStructuralPresentationBlocking();
                 if (!world.HasWorldbuildingGalleryStructuralCompositionContent())
                 {
                     Debug.LogError("STRUCTURAL_AUDIT result=FAIL reason=structural-content-missing");
@@ -360,6 +363,7 @@ namespace VoxelEngine.Showcase
 
                 long allocatedBytes = UnityEngine.Profiling.Profiler.GetTotalAllocatedMemoryLong();
                 Debug.Log($"STRUCTURAL_COST totalAuthoringMs={world.WorldbuildingGalleryStructuralAuthoringMilliseconds:0.###} " +
+                    $"presentationMs={world.WorldbuildingGalleryStructuralPresentationAuthoringMilliseconds:0.###} " +
                     $"children={totalChildren} primitives={totalPrimitives} voxelBudget={totalVoxelBudget} " +
                     $"regions={totalRegions} instances={totalInstances} voxelsWritten={totalVoxelsWritten} " +
                     $"residentRegions={world.RegionsGenerated} allocatedMB={allocatedBytes / (1024f * 1024f):0.##} " +
