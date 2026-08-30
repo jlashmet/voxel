@@ -32,6 +32,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private static readonly int s_SurfaceVertices = Shader.PropertyToID("_SurfaceVertices");
         private static readonly int s_SurfaceIndices = Shader.PropertyToID("_SurfaceIndices");
         private static readonly int s_SurfaceIndexBase = Shader.PropertyToID("_SurfaceIndexBase");
+        private static readonly int s_SurfaceVertexBase = Shader.PropertyToID("_SurfaceVertexBase");
         private static readonly int[] s_Strides = { 1, E, E * E };
 
         public sealed class Entry : IDisposable
@@ -176,6 +177,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 properties.SetBuffer(s_SurfaceVertices, _arena.Vertices);
                 properties.SetBuffer(s_SurfaceIndices, _arena.Indices);
                 properties.SetInt(s_SurfaceIndexBase, _liveLease.IndexStart);
+                properties.SetInt(s_SurfaceVertexBase, _liveLease.VertexStart);
                 commandBuffer.DrawProceduralIndirect(Matrix4x4.identity, material, 0,
                     MeshTopology.Triangles, _arena.Args,
                     _liveLease.ArgsWordStart * sizeof(uint), properties);
