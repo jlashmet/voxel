@@ -193,18 +193,25 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
                     hasOwnedSolid |= ownsCore;
                     uint surface = VoxelSurfaceSemantics.FromStorage(
                         MixedSurfaceSemantics[voxel]).Packed;
-                    ushort styleId = (ushort)surface;
+                    ushort authoredStyle = (ushort)surface;
+                    bool materialBlend = SurfaceStyles.IsMaterialBlend(authoredStyle);
+                    ushort styleId = SurfaceStyles.ReconstructionStyle(authoredStyle);
                     if (styleId == SurfaceStyles.MaterialDefault)
                         styleId = Palette.GetDefaultSurfaceStyle(material);
                     SurfaceStyleReadDefinition style = Catalogue.Get(styleId);
                     bool continuous = style.Reconstruction == SurfaceReconstruction.Smooth
                                    || style.Reconstruction == SurfaceReconstruction.Rounded;
-                    byte coating = (byte)(surface >> 16);
-                    CoatingReadDefinition coatingDefinition = Coatings.Get(coating);
-                    bool decorated = coatingDefinition.DecorationShape != SurfaceDecorationShape.None
+
+                    // In material-blend mode the coating nibble is the secondary material ID.
+                    // Classification must not turn that presentation metadata into displacement,
+                    // decoration, or an unnecessary CPU fallback.
+                    CoatingReadDefinition coatingDefinition = materialBlend
+                        ? default : Coatings.Get((byte)(surface >> 16));
+                    bool decorated = !materialBlend
+                                  && coatingDefinition.DecorationShape != SurfaceDecorationShape.None
                                   && coatingDefinition.DecorationDensity != 0;
                     requiresContinuous |= MixedBoundarySamples[voxel] != 0
-                                       || coatingDefinition.Displacement != 0
+                                       || (!materialBlend && coatingDefinition.Displacement != 0)
                                        || continuous;
                     gpuUnsupported |= !continuous || decorated;
                     if (hasOwnedSolid && requiresContinuous && gpuUnsupported) break;
