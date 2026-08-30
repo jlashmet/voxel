@@ -173,7 +173,7 @@ namespace VoxelEngine.Structures.Runtime
                 // so if all eight extremes are inside, every one of the block's 8^3 centres is
                 // inside as well. Author the identical uniform cell once instead of repeating the
                 // same contains/read/write path 512 times. Boundary blocks deliberately fall back
-                // to the existing per-cell path and the boundary-halo pass remains unchanged.
+                // to the existing per-cell path.
                 if (primitive.Mode == PrimitiveMode.Fill
                     && primitive.Shape == PrimitiveShape.Frustum
                     && fullBlock
@@ -335,6 +335,24 @@ namespace VoxelEngine.Structures.Runtime
             return true;
         }
 
+        private static bool FrustumFillBlockIsBeyondBoundaryHalo(
+            in Primitive primitive, int3 blockVoxelMin)
+        {
+            int edge = VoxelReadGrid.BlockEdgeMask;
+            for (int z = 0; z <= edge; z += edge)
+            for (int y = 0; y <= edge; y += edge)
+            for (int x = 0; x <= edge; x += edge)
+            {
+                if (!CurvedPrimitiveEmitter.TryBoundaryDistanceQ4(
+                        in primitive,
+                        blockVoxelMin + new int3(x, y, z),
+                        out int distanceQ4)
+                    || distanceQ4 <= 32)
+                    return false;
+            }
+            return true;
+        }
+
         private static void RasteriseSurfacePaint(
             in Primitive primitive,
             int x0, int x1, int z0, int z1,
@@ -407,6 +425,24 @@ namespace VoxelEngine.Structures.Runtime
                 int by1 = math.min(max.y, blockVoxelMin.y + VoxelReadGrid.BlockEdgeMask);
                 int bz0 = math.max(min.z, blockVoxelMin.z);
                 int bz1 = math.min(max.z, blockVoxelMin.z + VoxelReadGrid.BlockEdgeMask);
+                bool fullBlock = bx0 == blockVoxelMin.x
+                    && bx1 == blockVoxelMin.x + VoxelReadGrid.BlockEdgeMask
+                    && by0 == blockVoxelMin.y
+                    && by1 == blockVoxelMin.y + VoxelReadGrid.BlockEdgeMask
+                    && bz0 == blockVoxelMin.z
+                    && bz1 == blockVoxelMin.z + VoxelReadGrid.BlockEdgeMask;
+
+                // The halo needs only samples within +/-2 voxels of an analytic surface. A convex
+                // frustum has monotonic radius along its extrusion axis; within an axis-aligned
+                // block, radial clearance is smallest at radial-plane corners and cap clearance is
+                // smallest at axial endpoints. If every extreme centre is already >2 voxels inside,
+                // every centre in the block is too. Skip 512 signed-distance evaluations while
+                // preserving every block that can contribute a boundary sample.
+                if (primitive.Mode == PrimitiveMode.Fill
+                    && primitive.Shape == PrimitiveShape.Frustum
+                    && fullBlock
+                    && FrustumFillBlockIsBeyondBoundaryHalo(in primitive, blockVoxelMin))
+                    continue;
 
                 VoxelBlockMutation mutation = default;
                 bool mutationOpen = false;
