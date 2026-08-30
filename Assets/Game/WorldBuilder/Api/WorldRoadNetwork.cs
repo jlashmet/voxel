@@ -192,20 +192,29 @@ namespace Game.WorldBuilder.Api
     public sealed class WorldRoadInfluence
     {
         private const int EdgeNoiseCellDm = 64;
+        private readonly IReadOnlyList<WorldRoadJunction> _junctions;
 
         public ResolvedWorldRoad Road { get; }
 
         public WorldRoadInfluence(ResolvedWorldRoad road)
+            : this(road, null)
+        {
+        }
+
+        public WorldRoadInfluence(
+            ResolvedWorldRoad road,
+            IReadOnlyList<WorldRoadJunction> junctions)
         {
             Road = road ?? throw new ArgumentNullException(nameof(road));
             if (!road.IsResolved || road.Points.Count < 2)
                 throw new ArgumentException("Road influence requires resolved geometry.", nameof(road));
+            _junctions = junctions;
         }
 
         public bool TrySample(int xdm, int zdm, out WorldRoadInfluenceSample sample)
         {
             WorldRoadProfile profile = Road.Intent.Profile;
-            IReadOnlyList<ResolvedWorldRoadPoint> presentation = WorldRoadPresentationPath.Build(Road);
+            IReadOnlyList<ResolvedWorldRoadPoint> presentation = WorldRoadPresentationPath.Build(Road, _junctions);
             bool found = false;
             WorldRoadInfluenceSample best = default;
 
