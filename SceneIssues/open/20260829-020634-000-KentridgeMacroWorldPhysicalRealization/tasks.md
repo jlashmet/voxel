@@ -7,30 +7,27 @@
 - [x] Production/storage regressions cover determinism, reachability, roads, settlements, blocking geography, explicit route solutions, bounded slopes, all 16 generic building shells, water realization, and two-stage presentation readiness.
 
 ## Proven remediation history
-- [x] Reject broad residency, serial building-centre prestreaming, external evidence helpers, and remote blocking prewarm.
+- [x] Reject broad residency, serial building-centre prestreaming, external evidence helpers, remote blocking prewarm, and global feature-scheduler preemption.
 - [x] Keep streaming demand grounded at semantic focus while survey camera moves independently.
 - [x] Add validation-only opening-dialogue dismissal, restore normal time, player-height road evidence, near-overhead settlement framing, and supported <=60 s replay.
 - [x] Bound Rossdam water primitive scan below 10M cells while preserving accepted `900 x 450 x 24 dm` lake and full basin with 2 dm water sheet.
-- [x] Resolve route-intersection regressions: final nominal lake offsets `(-400,-155)` keep endpoints dry while preserving genuine constrained outbound/Rossdam routes.
-- [x] Run exact source `cb4e1b0fa1464da214d799ba55750bea38159143` through wrapper `e5bdf88a387c486b72be5d8950fb6d1458a5aad9`; run `33304172039` is exact-attributed, PlayMode `1/1` green, standalone clean, but closure-red because visual evidence remains at Moordell through 59 s.
-- [x] Record run `33304172039` as `experiment-016-exact-ci-moordell-content-convergence.md`; do not promote from workflow status alone.
-- [x] Diagnose Moordell gate: evidence requires exactly four authored building centres; do not weaken readiness. Lake is in normal residency but does not share a Moordell building column.
-- [x] Prove shared `FeatureRegionBuild` is tile-resumable and reject global feature-scheduler preemption after blast-radius review.
+- [x] Resolve route-intersection regressions: nominal lake offsets `(-400,-155)` keep endpoints dry while preserving genuine constrained outbound/Rossdam routes.
+- [x] Exact run `33304172039`: PlayMode green/standalone clean, closure-red at Moordell; recorded as experiment 016.
+- [x] Exact run `33311348299`: workflow/PlayMode green, closure-red; recover artifact `9732113329` and diagnose two deterministic driver handoffs.
+- [x] Prove generic smoke harness sets `AutoSurvey` at t=50 while Rossdam is pending, collapsing residency (`visible=275 -> 0`, `residentGround=116.6m -> 14.2m`).
+- [x] Prove queued `macro-moordell.png` loses survey framing during immediate Moordell -> macro-road continuation and is visually unacceptable.
 
-## Current required remediation
-- [x] Reorder only the dormant `kentridge-macro-world` evidence flow: local CharacterMotor proof -> fully settled/captured Moordell -> real macro-road CharacterMotor traversal -> player-height Moordell road arrival -> Rossdam -> lake -> Fairy -> Orc -> ridge/pass -> network.
-- [x] Preserve every real content-settled and renderer-coverage gate, normal load radius/budgets, and 60 s cap; no prestreaming or skipped target.
-- [x] Add behavioral regression through the real driver planning/sequencing path proving Moordell evidence precedes macro-road capture while accepted later target order remains unchanged.
-- [x] Inspect exact run `33311348299`: workflow/PlayMode are green, but only Moordell and road named captures exist; Rossdam renderer coverage settles while its four content columns remain unsettled until the 60 s cutoff.
-- [x] Recover exact artifact `9732113329` and prove a competing generic smoke-harness write at `t=50.0s` sets `AutoSurvey`, evicts Rossdam residency (`visible=275 -> 0`, `residentGround=116.6m -> 14.2m`), and spends several seconds reloading while Rossdam is still pending.
-- [x] Inspect prior full-resolution `macro-moordell.png` and prove the queued screenshot races the Moordell -> macro-road handoff: the named settlement capture is a player-height/horizon frame with tiny distant geometry rather than the intended readable multi-building survey.
-- [ ] Identify the exact Rossdam presentation column / macro-feature region that blocks content settlement under normal real-player streaming; add throttled per-column diagnostics so the next exact run names centre/region state directly instead of aggregate readiness only.
-- [ ] Keep the dormant macro evidence driver authoritative over `AutoSurvey` / `AutoRecede` through `LateUpdate`, so later generic smoke-harness writes cannot move demand away from an active macro target on the following frame.
-- [ ] Hold the Moordell survey camera through the existing post-capture dwell so queued screenshot rendering cannot inherit the following macro-road camera state.
-- [ ] Fix the Rossdam publication/convergence defect without weakening `IsPresentationColumnContentSettled`, increasing residency, bypassing normal budgets, or skipping a required target.
-- [ ] Add or adjust focused regression coverage for the diagnosed convergence and capture-handoff defects and re-check blast radius/cost.
-- [ ] Verify survey framing makes Moordell and Rossdam multi-building geometry visibly readable in full-resolution captures rather than merely telemetry-ready.
-- [ ] Re-run final exact-SHA targeted CI and prove the focused regression plus supported 60-second real-player smoke are closure-quality green for the same source SHA, including every required target.
+## Current remediation
+- [x] Preserve sequence: local CharacterMotor -> Moordell survey -> macro-road CharacterMotor -> player-height Moordell road arrival -> Rossdam -> lake -> Fairy -> Orc -> ridge/pass -> network.
+- [x] Preserve real content-settled/renderer gates, normal load radius/budgets, and 60 s cap; no prestreaming or skipped target.
+- [x] Keep dormant macro driver authoritative over `AutoSurvey` / `AutoRecede` in `LateUpdate` so later generic smoke-harness writes cannot own subsequent streaming demand.
+- [x] Hold Moordell survey camera through existing post-capture dwell so queued screenshot rendering cannot inherit macro-road camera state.
+- [x] Add throttled per-column diagnostics bounded to existing target content columns; log exact centre and X/Z presentation region without generation or world scans.
+- [x] Extend focused regression to cover target order, macro-driver automation ownership, and post-capture survey hold.
+- [x] Re-check blast radius: production scheduler, CharacterMotor, residency/load radius, device budgets, render budgets, and gameplay behavior remain unchanged; correction is validation-profile-only.
+- [ ] If Rossdam still stalls under uninterrupted macro demand, identify the exact pending column/feature region from diagnostics and fix the real publication defect without weakening readiness or budgets.
+- [ ] Verify final full-resolution Moordell/Rossdam/Fairy/Orc surveys show readable multi-building geometry rather than telemetry-only readiness.
+- [ ] Re-run final exact-SHA targeted CI and prove focused regression + supported 60 s real-player smoke are closure-quality green for the same source SHA.
 
 ## Exact runtime / visual gate
 - [ ] Exact built `KentridgePlayableSlice` reaches usable gameplay without startup/runtime exceptions and captures every required macro target inside 60 s.
@@ -41,11 +38,11 @@
 ## Blast radius / cost
 - [x] No unrelated SceneIssue implementation, no feature-branch `.github/test-request.json`, no custom CI transport/workflow, no CharacterMotor/load-radius/device-budget change.
 - [x] Terrain-relief sampling remains bounded to 25 x 16 = 400 deterministic catalogue queries.
-- [x] Shared `FeatureRegionBuild` scheduling remains unchanged; the selected correction is validation-profile-only and does not alter production generation/residency semantics.
-- [x] Per-column diagnostics are bounded to the existing target content set (four settlement columns) and will be throttled; no world scan or new generation work is permitted.
-- [x] Moordell capture correction reuses the existing `TargetPostCaptureSeconds` dwell and survey camera; it adds no replay time, new residency demand, or rendering budget.
-- [x] Baseline runtime metrics from run `33304172039`: assertions `0`, no swap growth, peak RSS `5,571,344 KB`, late FPS approximately `197/222/232/168/137`, final visible coverage `missingVisible=0 coverage=True`.
-- [ ] Measure final lake dimensions/depth/primitive cells, route tile/solve/constrained counts, feature voxel work/last-feature time, CPU/frame/FPS, memory, streaming convergence, and render/far-field telemetry against budgets.
+- [x] Shared `FeatureRegionBuild` scheduling remains unchanged.
+- [x] Per-column diagnostics are validation-only, bounded to existing target content, and throttled to <=1 Hz while pending.
+- [x] Moordell camera correction reuses existing dwell; no replay/residency/render budget increase.
+- [x] Baseline run `33304172039`: assertions `0`, no swap growth, peak RSS `5,571,344 KB`, late FPS ~`197/222/232/168/137`, final `missingVisible=0 coverage=True`.
+- [ ] Measure final lake dimensions/depth/primitive cells, route tile/solve/constrained counts, feature work/time, CPU/FPS, memory, streaming convergence, and render/far-field telemetry against budgets.
 - [ ] Re-fetch current master and re-check exact feature diff immediately before final targeted CI.
 
 ## Acceptance / closure
