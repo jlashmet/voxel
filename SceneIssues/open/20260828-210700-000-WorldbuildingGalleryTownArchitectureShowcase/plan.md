@@ -1,30 +1,20 @@
 # Plan — reopened town-architecture extensibility
 
-## Baseline / evidence
-The prior six-town gallery remains the accepted visual baseline. This reopened issue contains no new captured frames or marked regions; its quality review identifies architecture/extensibility as the defect. The six reference-driven identities, four-role contracts, deterministic seeds, detail vocabulary and wide/player/close evidence path remain required.
+## Defect and hypotheses
+This capture-less reopen preserves the accepted six-town visual baseline. The quality defect was extensibility, not a new marked image region. Source/runtime discrimination confirmed three shared-system causes: one-to-one silhouette/roof validation, six-name catalogue/seed switches, and six-town voxel dispatch. The competing gallery-only hypothesis was rejected because the gallery only supplies composition/palette/placement/evidence.
 
-## Competing hypotheses and runtime/source evidence
-1. **Style-definition coupling:** confirmed. `TownArchitectureProgram` rejected independent silhouette/roof composition through a one-to-one central switch.
-2. **Catalogue coupling:** confirmed. `WorldBuilderTownArchitecture` hard-coded six ids in `AllStyleIds`, `Resolve` and `CanonicalSeed` switches.
-3. **Voxel-backend coupling:** confirmed. production authoring switched on the six silhouettes and dispatched to six town-named methods.
-4. **Gallery-only limitation:** rejected as root cause. The gallery merely exposed the shared API/backend limitation; the fix therefore lives in shared WorldBuilder contracts/registry/voxel realization, while the proof town is gallery composition data.
+## Selected fix
+`TownArchitectureDefinition` is registry data keyed by arbitrary string ids. `TownArchitectureComposition` contains one reusable role recipe for residential, commercial, civic/communal and landmark/infrastructure. Roles independently compose reusable massing, roof/opening data and orthogonal details. `WorldBuilderTownArchitecture` resolves registered definitions without style-name switches, and `WorldBuilderTownArchitectureVoxelAuthoring` dispatches reusable capabilities rather than town names.
 
-## Implemented architecture
-- `TownArchitectureDefinition` is a public immutable registry definition; style ids are arbitrary strings and the six historic constants are only stable baseline ids.
-- `TownArchitectureComposition` contains exactly one `TownArchitectureRoleRecipe` for each required structure role.
-- Each role composes reusable `TownArchitectureMassing`, roof/opening data and orthogonal `TownArchitectureDetailFeatures`; there is no silhouette-to-roof validity switch.
-- `WorldBuilderTownArchitecture` resolves and seeds dictionary-registered definitions instead of style-name switches.
-- `WorldBuilderTownArchitectureVoxelAuthoring` dispatches only on reusable massing/opening/detail capabilities. It contains no town id/name dispatch and preserves the established deterministic four-role anchors/footprint.
-- The exact gallery registers a seventh synthetic `river-trade-proof` definition that deliberately combines semantic/form data rejected by the former one-to-one gate, and mixes existing gabled stone/timber, balcony, awning, arch and buttress capabilities. Its material palette and placement are exhibit data only.
+The exact gallery registers `river-trade-proof` as a seventh definition only. It combines existing gabled frame/stone/parapet massing with timber framing, masonry, balcony, awning, civic arch, chimney and buttress capabilities; no proof-town backend method, scene-direct voxel writing or proof-specific central switch exists.
 
-## Regression
-`VoxelEngine.Tests.PlayMode.TownArchitectureExtensibilityTests.RegisteredSeventhStyleComposesExistingCapabilitiesWithoutCentralDispatch` registers an arbitrary seventh id through the public registry, resolves canonical/custom seeds, verifies all four roles/details, runs the production voxel authorer twice for determinism, proves mixed reusable macro capabilities are physically distinct, and re-runs all six built-in definitions through that same production authoring path.
+## Regression and exact scene
+`VoxelEngine.Tests.PlayMode.TownArchitectureExtensibilityTests.RegisteredSeventhStyleComposesExistingCapabilitiesWithoutCentralDispatch` proves arbitrary registration, deterministic/custom seeds, all four roles, mixed capability realization, six baseline contracts and seven distinct production macro profiles.
 
-## Exact built-scene gate
-The canonical SceneIssue remains `Assets/Scenes/WorldbuildingGalleryShowcase.unity`. The capture-less production audit now derives its evidence count from `WorldbuildingGalleryTownDistrictCount`; seven districts therefore produce 21 named screenshots (wide/elevated, player facade, close detail for each town). Inspect all 21 for grounding/intersections/detail retention/distinctness and require `TOWNARCH_AUDIT result=PASS` with no startup/runtime exceptions.
+Exact tested source: `b61b329feadcaee13db118721405744c902071d7`. Final CI request `a24a6208495c03df5a855d471df67bb523730160`, run `33284999177`, passed focused PlayMode and real-player `WorldbuildingGalleryShowcase` validation. The audit captured 21/21 wide/player/close frames. Direct inspection retained all six accepted identities and found the River Trade proof physically distinct, grounded and non-intersecting.
 
 ## Blast radius / cost
-Shared API/runtime/backend files change, so every consumer of town programs is in blast radius; registry search found no direct `new TownArchitectureProgram` callers outside the catalogue. Per-town realization still resolves one immutable program and emits four bounded role recipes inside the existing 164x132x78 public footprint. Registry lookup is once per district, not per voxel. The exact gallery adds one bounded district and increases stale-bake repair budget from 18M to 22M writes; final player logs must report actual `TOWNARCH_AUTHORING` writes/elapsed time plus `TOWNARCH_COST` allocation/residency evidence before closure.
+Blast radius is the shared town program API/catalogue/voxel authorer plus gallery composition/tour/audit harness. No unrelated consumer was modified. Registry lookup remains once per district and every role remains inside the existing bounded district contract. Exact player evidence: 7 districts, 1,178,835 writes / 22,000,000 budget (5.36%), 565.95 ms stale-bake repair, 51 resident / 0 pending regions, far-terrain coverage and structures true, zero assertion failures, no runtime exception/error lines.
 
-## Remaining gates
-Freeze one implementation SHA, run the exact focused PlayMode regression plus exact SceneIssue built-player replay through `ci-test/fixes/agent-7`, inspect NUnit/log/21-frame evidence and cost. Only after green exact-SHA gates update pending metadata, move open -> pending -> closed, merge current master into `fixes/agent-7`, and non-force fast-forward that exact merged head to master.
+## Remaining gate
+Complete pending metadata, promote open -> pending -> closed with final `resolvedUtc`, merge current `origin/master` into `fixes/agent-7`, then non-force update master to that exact feature head.
