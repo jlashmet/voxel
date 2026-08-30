@@ -52,8 +52,9 @@
 - [x] Prove the complete 17-waypoint route via production `AutoWalk -> CharacterMotor.Step`: run `33298125653` reached 17/17 in 57.4 s with required grounded/Y predicates through the summit.
 - [x] Human-review run `33298125653` named approach/base/middle/upper/summit/dialogue captures: the mountain/path are visible across the route, the summit placeholder is visibly supported, and the dialogue frame visibly presents `Hello, I'm Mr. Dragon.`; keep these as traversal evidence but not final acceptance while the focused test is red.
 - [x] Verify run `33298125653` focused failure is not path/headroom/traversal: startup-bake acceptance requires dragon material at centre `(-1112,530,200)`, but the source-matched bake omits that upper vertical region while runtime streaming later realizes the visible placeholder.
+- [x] Implement bake-only explicit fixed-altitude `Structure` coverage planning and materialisation so the source baker requests structure-owned vertical layers without changing runtime streaming or gallery baking.
 - [ ] Make the prepared startup payload include the upper vertical region containing the authored summit dragon placeholder without broadly materializing unrelated sky-only regions.
-- [ ] Add focused regression proving startup capture includes required feature-owned vertical layers crossing the 512-voxel Y boundary while preserving sparse-air behavior elsewhere.
+- [x] Add `ShowcaseBakeExplicitStructureCoverageTests` proving the mountain-only catalogue plans exactly the dragon placeholder's lower/upper layers across the Y=512 boundary and does not expand the landform/headroom sky footprint.
 - [ ] Re-check bake time/memory blast radius after required-upper-layer capture; do not weaken the 240 s/14 GB contracts.
 - [ ] Record final measured bake/runtime evidence and accepted source/payload provenance.
 - [ ] Produce/commit the accepted source-matched generated startup payload + manifest before closure if the repository workflow permits retrieval without a second CI transport.
