@@ -13,17 +13,16 @@
 - Targeted CI derives module tests/player targets from the exact feature diff and automatically adds Kentridge for production changes.
 - Water is the representative player-visible migration; an independent Structures planner fixture proves metadata reuse without planner code changes.
 - Required focused tests fail on missing/zero-match/skipped/failed cases; player validation fails on missing scene/scenario, failed execution, required/forbidden log assertions, or insufficient captures.
-- Earlier exact-SHA runs isolated and fixed Kentridge PlayMode coupling, relative artifact paths, far-field coarse-lattice authoring, and a false inner-pool probe. Run `33337294126` then proved real `VoxelFarTerrain` meshes were captured, but direct review rejected rectangular masks/overhead framing as prototype blockout quality.
-- The Water validation composition now keeps the production renderer unchanged while using irregular rolling terrain, an organic still-water shelf/pool, a wandering variable-width descending river, shaped rock banks/cascade contacts, and lower three-quarter framing.
-- Run `33337814842` exposed a shallow-shoreline collision at `(208,112)` and motivated module-owned readiness assertions (`WATER_VALIDATION ready:` / `KENTRIDGE_WORLD_LAYOUT`) so blank captures cannot pass.
-- Run `33338330606` confirmed the readiness assertions fail closed: focused Water + planner + built-player Kentridge passed, while Water failed because readiness was absent. The exact probe remained `expected 179/3, got 182/1`, falsifying the write-order hypothesis.
-- Minimal root cause: structure authoring is additive by voxel height. The river-bank mask and still-pool shelf both include coarse column `(208,112)`; the bank leaves Stone at Y=182, so later Sand at Y=179 cannot become the captured surface. The repair makes the river-bank mask explicitly exclude the same ellipse used by the pool shelf, sharing one `IsInsideEllipse` predicate so semantic ownership is geometric rather than order-dependent.
+- Earlier exact-SHA runs isolated and fixed Kentridge PlayMode coupling, relative artifact paths, far-field coarse-lattice authoring, a false inner-pool probe, and additive-height bank/shelf overlap. Module-owned readiness assertions prevent early-aborted players from passing on screenshot count alone.
+- Run `33339810737` was green end to end on exact feature SHA `c7ce42cd107ac908bf619f4a3521868afa1ed35f`: focused Water regression, diff planner, built-player Water, readiness assertion, and built-player Kentridge all executed automatically. Direct Water frame review still rejected the visual as prototype/blockout quality because of clipmap ring gaps, a detached strip, coarse banks, and smeared fallback water.
+- Repeated visual-symptom minimal repro established the production-path error rather than another composition defect: `VoxelFarTerrain` explicitly renders terrain beyond the voxel streaming radius as concentric clipmap rings, and its hole is intentionally governed by `RenderingComposition.HasCompletePublishedNearSurfaceCoverage`. `VoxelRenderPass` separately owns the production near-field liquid path through `CpuWaterSurfaceChunkCache` for Water/Cascade. Freezing `_ringMeshes` and destroying `VoxelFarTerrain` therefore bypassed the normal near/far ownership contract and could never be valid near-field Water proof.
+- Selected fix: keep shared rendering unchanged and repair only the module validation composition. The Water scene now authors dense authoritative terrain/liquid cells, installs the game material simulation/presentation definitions, publishes resident storage, binds that storage through `RenderingWorldBinding`, enables the normal production renderer with far-field disabled for this local tableau, and waits for published near-surface coverage before emitting `WATER_VALIDATION ready:`. Reflection/frozen clipmap meshes and scene-only proxy rendering are removed.
 
 ## Blast radius / cost
-CI/orchestration, validation assets, tests, and docs only; no authoritative gameplay runtime behavior changed. Earlier automatic Water + Kentridge validation measured 167.71 seconds. The current repair is confined to module-local Water composition plus its acceptance bookkeeping; shared renderer/harness behavior is unchanged.
+CI/orchestration, validation assets, tests, and docs only; no authoritative gameplay runtime behavior changed. Earlier automatic Water + Kentridge validation measured 167.71 seconds. The latest green automatic flow remains routine-scale; the current repair is confined to Water validation composition and uses existing production rendering APIs/configuration.
 
 ## Current commit
-Pool-shelf ownership checkpoint: `2038f1c5fa1a29f2297b403fbf3a49ea3da74b85`
+Production near-renderer checkpoint: `1cb854b4c427d491dd318e8e013a564b27ccedf6`
 
 ## Remaining gates
 - [x] Inspect current validation architecture and identify reusable harness boundary.
@@ -31,6 +30,7 @@ Pool-shelf ownership checkpoint: `2038f1c5fa1a29f2297b403fbf3a49ea3da74b85`
 - [x] Migrate Water validation scene/scenario.
 - [x] Remove generic feature-specific inference and update docs/workflow semantics.
 - [x] Add automated regression coverage, including fail-closed execution and integration-only fallback behavior.
+- [x] Isolate repeated Water visual symptom to the incorrect far-field-only proof path.
 - [ ] Upgrade and visually accept representative production Water validation content.
 - [ ] Rerun exact-SHA CI demonstrating automatic complete flow and record final cost/evidence.
 - [ ] Review all 18 acceptance criteria, complete metadata, open -> closed, merge current master, and promote exact head.
