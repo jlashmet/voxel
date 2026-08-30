@@ -48,10 +48,6 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("p + direction * sourceStep", densityShader);
             StringAssert.Contains("DecodeSurfaceStorage", densityShader,
                 "GPU density sampling must decode Storage's packed ushort surface semantics.");
-            StringAssert.Contains("ClassifyRawBrick", mesher,
-                "Near-ring eligibility must be classified from the GPU mirror, not by a CPU voxel scan.");
-            StringAssert.Contains("UnsupportedGpuSurface", mesher,
-                "Unsupported/decorated semantics must be rejected before GPU geometry publication.");
             StringAssert.Contains("SampleField(p, _SourceStep, material, surface, boundary)", mesher);
         }
 

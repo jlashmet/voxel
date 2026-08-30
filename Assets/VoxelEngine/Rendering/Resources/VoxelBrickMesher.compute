@@ -9,11 +9,15 @@
 // on the GPU through drawing, per the plan's no-readback invariant.
 
 #pragma kernel CSSampleDensity
-#pragma kernel CSClassifyRawBricks
 #pragma kernel CSCountCells
+#pragma kernel CSCountFacetedFaces
+#pragma kernel CSCountDecorations
 #pragma kernel CSWriteCells
+#pragma kernel CSWriteFacetedFaces
+#pragma kernel CSWriteDecorations
 #pragma kernel CSCopyVertices
 #pragma kernel CSCopyIndices
+#pragma kernel CSPublishArgs
 #pragma kernel CSSampleFace
 #pragma kernel CSTransitionCells
 
@@ -80,11 +84,12 @@ int _CopyVertexDestinationBase;
 int _CopyIndexDestinationBase;
 int _CopyVertexCount;
 int _CopyIndexCount;
+RWStructuredBuffer<uint> _DrawArgs;
+int _DrawArgsWordStart;
 // Write pass: 0,1 are vertices/indices written. Count pass: 2,3 are vertices/indices coming.
 // During the sample/count half only, word 0 is also a boolean unsupported-semantics marker. The
 // write path resets all counters before it starts, so the marker never enters geometry accounting.
 RWStructuredBuffer<uint> _Counters;
-RWStructuredBuffer<uint> _SampleDispatchArgs;
 int _VertexCapacity;
 int _IndexCapacity;
 
@@ -137,87 +142,6 @@ bool OwnsSelectedInsideSample(int3 cell, int selectedInsideCorner)
     if (selectedInsideCorner < 0 || selectedInsideCorner >= 8) return false;
     int3 sample = cell + CellCorner(selectedInsideCorner);
     return all(sample >= 0) && all(sample < _CellsPerAxis);
-}
-
-uint UnsupportedGpuSurface(uint material, uint surface)
-{
-    surface = ResolveSurface(material, surface);
-    StyleDefinition style = LoadStyle(surface & 0xFFFFu);
-    uint coating = (surface >> 16) & 0xFFu;
-    uint coatingWord1 = _CoatingWords[coating * COATING_WORDS + 1];
-    uint decorationShape = (coatingWord1 >> 8) & 0xFFu;
-    uint decorationDensity = (coatingWord1 >> 16) & 0xFFu;
-    bool decorated = decorationShape != 0u && decorationDensity != 0u;
-    bool continuous = style.reconstruction == RECONSTRUCTION_SMOOTH
-                   || style.reconstruction == RECONSTRUCTION_ROUNDED;
-    return (!continuous ? 1u : 0u) | (decorated ? 2u : 0u);
-}
-
-// The CPU classifier used to walk every raw voxel before a near-ring build was even allowed to
-// dispatch compute. The sample dispatch already has the same immutable mirror and dense cache, so
-// its first BrickCacheEdge^3 threads each classify one brick. A mixed brick scans its 512 payload
-// voxels locally on the GPU. This is deliberately a raw scan rather than a sampled-field check:
-// authored/faceted semantics can exist between lattice samples and still require CPU fallback.
-void ClassifyRawBrick(int brickIndex)
-{
-    if (_Counters[0] != 0u) return;
-
-    uint entry = 0u;
-    if (_BrickCache[0] == PERSISTENT_LOOKUP_MAGIC)
-    {
-        int x = brickIndex % _BrickCacheEdge;
-        int yz = brickIndex / _BrickCacheEdge;
-        int y = yz % _BrickCacheEdge;
-        int z = yz / _BrickCacheEdge;
-        if (!TryPersistentBrickEntry(_BrickCacheOrigin + int3(x, y, z), entry)) return;
-    }
-    else
-    {
-        entry = _BrickCache[brickIndex];
-    }
-    uint kind = entry & 0x3u;
-    if (kind == 0u) return;
-
-    if (kind == 1u)
-    {
-        uint material = (entry >> 8) & 0xFFu;
-        if (!IsSolidSample(material)) return;
-        uint unsupported = UnsupportedGpuSurface(material, 0u);
-        if (unsupported != 0u)
-        {
-            uint ignored;
-            InterlockedOr(_Counters[0], unsupported, ignored);
-            _SampleDispatchArgs[0] = 0u;
-        }
-        return;
-    }
-
-    uint slot = entry >> 16;
-    for (uint voxel = 0u; voxel < 512u; voxel++)
-    {
-        uint materialWord = _BrickMaterials[slot * 128u + (voxel >> 2)];
-        uint material = (materialWord >> ((voxel & 3u) * 8u)) & 0xFFu;
-        if (!IsSolidSample(material)) continue;
-
-        uint surfaceWord = _BrickSurfaceSemantics[slot * 256u + (voxel >> 1)];
-        uint packedStorage = (surfaceWord >> ((voxel & 1u) * 16u)) & 0xFFFFu;
-        uint surface = DecodeSurfaceStorage(packedStorage);
-        uint unsupported = UnsupportedGpuSurface(material, surface);
-        if (unsupported == 0u) continue;
-
-        uint ignored;
-        InterlockedOr(_Counters[0], unsupported, ignored);
-        _SampleDispatchArgs[0] = 0u;
-        return;
-    }
-}
-
-[numthreads(64, 1, 1)]
-void CSClassifyRawBricks(uint3 id : SV_DispatchThreadID)
-{
-    int brickCount = _BrickCacheEdge * _BrickCacheEdge * _BrickCacheEdge;
-    if ((int)id.x >= brickCount) return;
-    ClassifyRawBrick((int)id.x);
 }
 
 // ---------------------------------------------------------------------------
@@ -277,16 +201,27 @@ void CSCountCells(uint3 id : SV_DispatchThreadID)
     if (!OwnsSelectedInsideSample(cell, selectedInsideCorner)) return;
 
     bool continuous = false, planar = false, rounded = false;
+    bool authoredBoundary = false, displacedCoating = false;
+    for (int metadataCorner = 0; metadataCorner < 8; metadataCorner++)
+    {
+        int metadataSample = GridIndex(cell + _Padding + CellCorner(metadataCorner));
+        uint metadataSurface = _SampleSurface[metadataSample];
+        authoredBoundary = authoredBoundary || BoundaryIsAuthored(_SampleBoundary[metadataSample]);
+        displacedCoating = displacedCoating || CoatingDisplacement(metadataSurface) != 0.0;
+    }
     for (int c = 0; c < 8; c++)
     {
         int3 g = cell + _Padding + CellCorner(c);
         int sample = GridIndex(g);
         if (!IsSolidSample(_SampleMaterial[sample])) continue;
         StyleDefinition style = LoadStyle(_SampleSurface[sample] & 0xFFFFu);
-        if (style.reconstruction == RECONSTRUCTION_CUBIC) continue;
+        bool isContinuous = style.reconstruction == RECONSTRUCTION_SMOOTH
+                         || style.reconstruction == RECONSTRUCTION_ROUNDED
+                         || (style.reconstruction == RECONSTRUCTION_PLANAR
+                             && (authoredBoundary || displacedCoating));
+        if (!isContinuous) continue;
         continuous = true;
-        if (style.reconstruction == RECONSTRUCTION_PLANAR
-         || style.reconstruction == RECONSTRUCTION_SHARP) planar = true;
+        if (style.reconstruction == RECONSTRUCTION_PLANAR) planar = true;
         else rounded = true;
     }
     if (!continuous) return;
@@ -305,6 +240,399 @@ void CSCountCells(uint3 id : SV_DispatchThreadID)
     uint ignored;
     InterlockedAdd(_Counters[2], outputVertexCount, ignored);
     InterlockedAdd(_Counters[3], indexCount, ignored);
+}
+
+// ---------------------------------------------------------------------------
+// 2b. Exact Planar/Sharp/Cubic faces. Each thread owns one cell face. This deliberately emits
+// one quad per exposed cell rather than serially greedy-merging a plane: it keeps all 6*N^3 tests
+// parallel and preserves the exact occupied boundary, material, normal and winding semantics.
+// ---------------------------------------------------------------------------
+
+int3 FacetedCellFromIndex(int cellIndex)
+{
+    int plane = _CellsPerAxis * _CellsPerAxis;
+    return int3(cellIndex % _CellsPerAxis,
+                (cellIndex / _CellsPerAxis) % _CellsPerAxis,
+                cellIndex / plane);
+}
+
+uint PackMaterial(uint material, uint surface);
+
+float3 AxisOffset(int axis, float amount)
+{
+    return axis == 0 ? float3(amount, 0.0, 0.0)
+         : axis == 1 ? float3(0.0, amount, 0.0)
+                     : float3(0.0, 0.0, amount);
+}
+
+int3 AxisOffsetInt(int axis, int amount)
+{
+    return axis == 0 ? int3(amount, 0, 0)
+         : axis == 1 ? int3(0, amount, 0)
+                     : int3(0, 0, amount);
+}
+
+int AxisComponent(int3 value, int axis)
+{
+    return axis == 0 ? value.x : (axis == 1 ? value.y : value.z);
+}
+
+bool ClassifyFacetedCell(int cellIndex, out int3 voxel, out uint attributes,
+                         out uint boundary, out uint reconstruction, out bool displaced)
+{
+    int cellTotal = _CellsPerAxis * _CellsPerAxis * _CellsPerAxis;
+    voxel = 0; attributes = boundary = reconstruction = 0u; displaced = false;
+    if (cellIndex >= cellTotal) return false;
+
+    int3 local = FacetedCellFromIndex(cellIndex);
+    voxel = _ChunkOriginVoxel + local * _SourceStep;
+    uint surface;
+    uint material = ReadMaterial(voxel, surface, boundary);
+    if (!IsSolidSample(material)) return false;
+    surface = ResolveSurface(material, surface);
+    StyleDefinition style = LoadStyle(surface & 0xFFFFu);
+    bool materialBlend = IsMaterialBlendSurface(surface);
+    displaced = !materialBlend && CoatingDisplacement(surface) != 0.0;
+    reconstruction = style.reconstruction;
+    attributes = PackMaterial(material, surface);
+    return reconstruction == RECONSTRUCTION_PLANAR
+        || reconstruction == RECONSTRUCTION_SHARP
+        || reconstruction == RECONSTRUCTION_CUBIC;
+}
+
+bool FacetedFaceExposed(int3 voxel, uint boundary, uint reconstruction, bool displaced,
+                        int face, out int axis, out int sign)
+{
+    axis = face >> 1;
+    sign = (face & 1) == 0 ? -1 : 1;
+    if (reconstruction == RECONSTRUCTION_PLANAR
+        && (BoundaryAppliesAlong(boundary, axis) || displaced)) return false;
+    int3 neighbour = voxel + AxisOffsetInt(axis, sign * _SourceStep);
+    uint adjacentSurface, adjacentBoundary;
+    if (IsSolidSample(ReadMaterial(neighbour, adjacentSurface, adjacentBoundary))) return false;
+    return true;
+}
+
+[numthreads(64, 1, 1)]
+void CSCountFacetedFaces(uint3 id : SV_DispatchThreadID)
+{
+    if (_Counters[0] != 0u) return;
+    int3 voxel; uint attributes,boundary,reconstruction; bool displaced;
+    if (!ClassifyFacetedCell((int)id.x,voxel,attributes,boundary,reconstruction,displaced)) return;
+    uint faceCount=0u;
+    for(int face=0;face<6;face++)
+    {
+        int axis,sign;
+        if(FacetedFaceExposed(voxel,boundary,reconstruction,displaced,face,axis,sign)) faceCount++;
+    }
+    if(faceCount==0u) return;
+    uint ignored;
+    InterlockedAdd(_Counters[2], faceCount*4u, ignored);
+    InterlockedAdd(_Counters[3], faceCount*6u, ignored);
+}
+
+void StoreVertex(uint localIndex, float3 position, float3 normal, uint attributes)
+{
+    SurfaceVertex vertex;
+    vertex.position = position * _VoxelSize;
+    vertex.normal = normal;
+    vertex.material = attributes;
+    vertex.active = 0x0000FF00u;
+    _Vertices[VertexSlot(localIndex)] = vertex;
+}
+
+void StoreQuadIndices(uint vertexBase, uint indexBase, bool flip)
+{
+    if (flip)
+    {
+        _Indices[ArenaIndexSlot(indexBase+0u)]=ArenaVertex(vertexBase+0u);
+        _Indices[ArenaIndexSlot(indexBase+1u)]=ArenaVertex(vertexBase+2u);
+        _Indices[ArenaIndexSlot(indexBase+2u)]=ArenaVertex(vertexBase+1u);
+        _Indices[ArenaIndexSlot(indexBase+3u)]=ArenaVertex(vertexBase+0u);
+        _Indices[ArenaIndexSlot(indexBase+4u)]=ArenaVertex(vertexBase+3u);
+        _Indices[ArenaIndexSlot(indexBase+5u)]=ArenaVertex(vertexBase+2u);
+    }
+    else
+    {
+        _Indices[ArenaIndexSlot(indexBase+0u)]=ArenaVertex(vertexBase+0u);
+        _Indices[ArenaIndexSlot(indexBase+1u)]=ArenaVertex(vertexBase+1u);
+        _Indices[ArenaIndexSlot(indexBase+2u)]=ArenaVertex(vertexBase+2u);
+        _Indices[ArenaIndexSlot(indexBase+3u)]=ArenaVertex(vertexBase+0u);
+        _Indices[ArenaIndexSlot(indexBase+4u)]=ArenaVertex(vertexBase+2u);
+        _Indices[ArenaIndexSlot(indexBase+5u)]=ArenaVertex(vertexBase+3u);
+    }
+}
+
+[numthreads(64, 1, 1)]
+void CSWriteFacetedFaces(uint3 id : SV_DispatchThreadID)
+{
+    int3 voxel; uint attributes,boundary,reconstruction; bool displaced;
+    if (!ClassifyFacetedCell((int)id.x,voxel,attributes,boundary,reconstruction,displaced)) return;
+    uint faceMask=0u,faceCount=0u;
+    for(int classifiedFace=0;classifiedFace<6;classifiedFace++)
+    {
+        int classifiedAxis,classifiedSign;
+        if(!FacetedFaceExposed(voxel,boundary,reconstruction,displaced,classifiedFace,
+                              classifiedAxis,classifiedSign)) continue;
+        faceMask|=1u<<classifiedFace; faceCount++;
+    }
+    if(faceCount==0u) return;
+    uint vertexBase, indexBase;
+    InterlockedAdd(_Counters[0], faceCount*4u, vertexBase);
+    InterlockedAdd(_Counters[1], faceCount*6u, indexBase);
+    if ((int)(vertexBase + faceCount*4u) > _VertexCapacity
+     || (int)(indexBase + faceCount*6u) > _IndexCapacity) return;
+    uint emitted=0u;
+    for(int face=0;face<6;face++)
+    {
+        if((faceMask&(1u<<face))==0u) continue;
+        int axis=face>>1,sign=(face&1)==0?-1:1;
+        int axisA=(axis+1)%3,axisB=(axis+2)%3;
+        float3 p0=(float3)voxel+AxisOffset(axis,sign>0?_SourceStep:0);
+        float3 p1=p0+AxisOffset(axisA,_SourceStep);
+        float3 p2=p1+AxisOffset(axisB,_SourceStep);
+        float3 p3=p0+AxisOffset(axisB,_SourceStep);
+        float3 normal=AxisOffset(axis,sign);
+        uint vb=vertexBase+emitted*4u,ib=indexBase+emitted*6u;
+        StoreVertex(vb+0u,p0,normal,attributes); StoreVertex(vb+1u,p1,normal,attributes);
+        StoreVertex(vb+2u,p2,normal,attributes); StoreVertex(vb+3u,p3,normal,attributes);
+        StoreQuadIndices(vb,ib,dot(cross(p1-p0,p2-p0),normal)<0.0);
+        emitted++;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 2c. Deterministic coating decorations. Classification is repeated in count and write so no
+// surface-sized CPU transfer or serialized compaction pass is introduced.
+// ---------------------------------------------------------------------------
+
+uint DecorationHash(int3 voxel, uint coating)
+{
+    uint h = asuint(voxel.x) * 0x9E3779B9u ^ asuint(voxel.y) * 0x85EBCA6Bu
+           ^ asuint(voxel.z) * 0xC2B2AE35u ^ coating * 0x27D4EB2Fu;
+    h ^= h >> 16; h *= 0x7FEB352Du; h ^= h >> 15;
+    return h;
+}
+
+int FloorModDecoration(int value, int divisor)
+{
+    int remainder = value % divisor;
+    return remainder < 0 ? remainder + divisor : remainder;
+}
+
+bool DecorationAnchor(int3 voxel, uint coating, int face, uint separation, uint hash)
+{
+    if (separation == 0u) return true;
+    int stride = (int)separation + 1;
+    int axis = face >> 1;
+    int axisA = (axis + 1) % 3;
+    int axisB = (axis + 2) % 3;
+    int offsetA = (int)(hash % (uint)stride);
+    int offsetB = (int)((hash >> 8) % (uint)stride);
+    return FloorModDecoration(AxisComponent(voxel,axisA)+offsetA,stride)==0
+        && FloorModDecoration(AxisComponent(voxel,axisB)+offsetB,stride)==0;
+}
+
+bool LoadDecorationCell(int cellIndex, out int3 voxel, out uint material, out uint surface,
+                        out uint coating, out uint coatingWord1, out uint coatingWord2)
+{
+    int cellTotal = _CellsPerAxis * _CellsPerAxis * _CellsPerAxis;
+    voxel=0; material=surface=coating=coatingWord1=coatingWord2=0u;
+    if (cellIndex >= cellTotal) return false;
+    voxel = _ChunkOriginVoxel + FacetedCellFromIndex(cellIndex); // CPU decorations are LOD0 cells.
+    uint boundary;
+    material = ReadMaterial(voxel, surface, boundary);
+    if (!IsSolidSample(material) || IsMaterialBlendSurface(surface)) return false;
+    coating = (surface >> 16) & 0xFFu;
+    coatingWord1 = _CoatingWords[coating * COATING_WORDS + 1u];
+    coatingWord2 = _CoatingWords[coating * COATING_WORDS + 2u];
+    uint shape = (coatingWord1 >> 8) & 0xFFu;
+    uint density = (coatingWord1 >> 16) & 0xFFu;
+    return shape == 1u && density != 0u;
+}
+
+bool ClassifyDecorationFace(int3 voxel, uint coating, uint coatingWord1, uint coatingWord2,
+                            int face, out int axis, out int sign, out uint hash,
+                            out uint fringeMask)
+{
+    axis=sign=0; hash=fringeMask=0u;
+    uint density = (coatingWord1 >> 16) & 0xFFu;
+    uint faceMask = coatingWord2 >> 24;
+    if ((faceMask & (1u << face)) == 0u) return false;
+    axis = face >> 1; sign = (face & 1) == 0 ? -1 : 1;
+    int3 neighbour = voxel + AxisOffsetInt(axis,sign);
+    uint adjacentSurface, adjacentBoundary;
+    if (IsSolidSample(ReadMaterial(neighbour, adjacentSurface, adjacentBoundary))) return false;
+    hash = DecorationHash(voxel, coating + (uint)face * 17u);
+    if ((hash & 0xFFu) >= density) return false;
+    uint separation = (coatingWord2 >> 16) & 0xFFu;
+    if (!DecorationAnchor(voxel, coating, face, separation, hash)) return false;
+
+    uint dropQ4 = (coatingWord2 >> 8) & 0xFFu;
+    if (axis == 1 && sign > 0 && dropQ4 > 0u)
+    {
+        for (int sideFace = 0; sideFace < 6; sideFace++)
+        {
+            int sideAxis = sideFace >> 1;
+            if (sideAxis == 1) continue;
+            int sideSign = (sideFace & 1) == 0 ? -1 : 1;
+            int3 sideNeighbour = voxel + AxisOffsetInt(sideAxis,sideSign);
+            if (!IsSolidSample(ReadMaterial(sideNeighbour, adjacentSurface, adjacentBoundary)))
+                fringeMask |= 1u << sideFace;
+        }
+    }
+    return true;
+}
+
+uint CountBits4(uint mask)
+{
+    mask = mask - ((mask >> 1) & 0x55555555u);
+    mask = (mask & 0x33333333u) + ((mask >> 2) & 0x33333333u);
+    return ((mask + (mask >> 4)) & 0x0F0F0F0Fu) % 255u;
+}
+
+[numthreads(64, 1, 1)]
+void CSCountDecorations(uint3 id : SV_DispatchThreadID)
+{
+    if (_Counters[0] != 0u) return;
+    int3 voxel; uint material,surface,coating,word1,word2;
+    if(!LoadDecorationCell((int)id.x,voxel,material,surface,coating,word1,word2)) return;
+    uint vertexCount=0u,indexCount=0u;
+    for(int face=0;face<6;face++)
+    {
+        int axis,sign; uint hash,fringes;
+        if(!ClassifyDecorationFace(voxel,coating,word1,word2,face,axis,sign,hash,fringes)) continue;
+        uint fringeCount=CountBits4(fringes);
+        vertexCount+=12u+fringeCount*4u;
+        indexCount+=48u+fringeCount*6u;
+    }
+    if(vertexCount==0u) return;
+    uint ignored;
+    InterlockedAdd(_Counters[2],vertexCount,ignored);
+    InterlockedAdd(_Counters[3],indexCount,ignored);
+}
+
+void StoreDecorationVertex(uint localIndex, float3 position, float3 normal, uint attributes)
+{
+    StoreVertex(localIndex, position, normalize(normal), attributes);
+}
+
+void WriteDecorationFringe(float3 centre, int axisA, int axisB,
+                           float radiusA, float radiusB, float maxDrop,
+                           uint hash, int direction, uint attributes,
+                           uint vertexBase, uint indexBase)
+{
+    float3 tangent, outward;
+    if (direction < 2)
+    {
+        tangent=AxisOffset(axisA,1.0);
+        outward=AxisOffset(axisB,direction==0?1.0:-1.0);
+    }
+    else
+    {
+        tangent=AxisOffset(axisB,1.0);
+        outward=AxisOffset(axisA,direction==2?1.0:-1.0);
+    }
+    float halfWidth = lerp(0.20, 0.42, ((hash >> 3) & 0xFFu) / 255.0)
+                    * (direction < 2 ? radiusA : radiusB);
+    float drop = maxDrop * lerp(0.38, 1.0, ((hash >> 11) & 0xFFu) / 255.0);
+    float outwardRadius = direction < 2 ? radiusB : radiusA;
+    float3 lip = centre + outward * outwardRadius;
+    float3 p0 = lip - tangent * halfWidth;
+    float3 p1 = lip + tangent * halfWidth;
+    float3 p2 = p1 - float3(0.0, drop, 0.0) - outward * 0.07;
+    float3 p3 = p0 - float3(0.0, drop * 0.72, 0.0) - outward * 0.05;
+    StoreDecorationVertex(vertexBase+0u,p0,outward,attributes);
+    StoreDecorationVertex(vertexBase+1u,p1,outward,attributes);
+    StoreDecorationVertex(vertexBase+2u,p2,outward,attributes);
+    StoreDecorationVertex(vertexBase+3u,p3,outward,attributes);
+    bool flip = dot(cross(p1-p0,p2-p0),outward) < 0.0;
+    StoreQuadIndices(vertexBase,indexBase,flip);
+}
+
+void WriteDecorationFace(int3 voxel,uint material,uint surface,uint word1,uint word2,
+                         int axis,int sign,uint hash,uint fringes)
+{
+    uint fringeCount = CountBits4(fringes);
+    uint vertexCount = 12u + fringeCount * 4u;
+    uint indexCount = 48u + fringeCount * 6u;
+    uint vertexBase,indexBase;
+    InterlockedAdd(_Counters[0],vertexCount,vertexBase);
+    InterlockedAdd(_Counters[1],indexCount,indexBase);
+    if ((int)(vertexBase+vertexCount)>_VertexCapacity || (int)(indexBase+indexCount)>_IndexCapacity) return;
+
+    int axisA=(axis+1)%3, axisB=(axis+2)%3;
+    float jitterA=(((hash>>8)&0xFFu)/255.0-0.5)*0.42;
+    float jitterB=(((hash>>16)&0xFFu)/255.0-0.5)*0.42;
+    float radiusQ4=(word1>>24)&0xFFu;
+    float radiusA=radiusQ4*(1.0/16.0)*lerp(0.85,1.18,((hash>>5)&0xFFu)/255.0);
+    float radiusB=radiusQ4*(1.0/16.0)*lerp(0.62,1.05,((hash>>13)&0xFFu)/255.0);
+    float height=(word2&0xFFu)*(1.0/16.0)*lerp(0.78,1.22,((hash>>24)&0xFFu)/255.0);
+    float3 centre=(float3)voxel+0.5
+        +AxisOffset(axis,(sign>0?0.5:-0.5))
+        +AxisOffset(axisA,jitterA)+AxisOffset(axisB,jitterB);
+    uint attributes=PackMaterial(material,surface);
+    const uint sides=6u;
+    for(uint ring=0u;ring<2u;ring++)
+    {
+        float scale=ring==0u?1.0:0.94;
+        float normalOffset=ring==0u?0.025:height;
+        for(uint side=0u;side<sides;side++)
+        {
+            float angle=(side+((hash>>(side+3u))&7u)*0.018)*(6.28318530718/sides);
+            float3 position=centre
+                +AxisOffset(axisA,cos(angle)*radiusA*scale)
+                +AxisOffset(axisB,sin(angle)*radiusB*scale)
+                +AxisOffset(axis,normalOffset*sign);
+            float3 normal=AxisOffset(axis,sign);
+            StoreDecorationVertex(vertexBase+ring*sides+side,position,normal,attributes);
+        }
+    }
+    for(uint side=0u;side<sides;side++)
+    {
+        uint next=(side+1u)%sides;
+        uint o=indexBase+side*6u;
+        _Indices[ArenaIndexSlot(o+0u)]=ArenaVertex(vertexBase+side);
+        _Indices[ArenaIndexSlot(o+1u)]=ArenaVertex(vertexBase+sides+side);
+        _Indices[ArenaIndexSlot(o+2u)]=ArenaVertex(vertexBase+next);
+        _Indices[ArenaIndexSlot(o+3u)]=ArenaVertex(vertexBase+next);
+        _Indices[ArenaIndexSlot(o+4u)]=ArenaVertex(vertexBase+sides+side);
+        _Indices[ArenaIndexSlot(o+5u)]=ArenaVertex(vertexBase+sides+next);
+    }
+    uint topBase=indexBase+36u;
+    for(uint topSide=1u;topSide<sides-1u;topSide++)
+    {
+        uint o=topBase+(topSide-1u)*3u;
+        _Indices[ArenaIndexSlot(o+0u)]=ArenaVertex(vertexBase+sides);
+        _Indices[ArenaIndexSlot(o+1u)]=ArenaVertex(vertexBase+sides+topSide+1u);
+        _Indices[ArenaIndexSlot(o+2u)]=ArenaVertex(vertexBase+sides+topSide);
+    }
+
+    uint fringeVertex=vertexBase+12u, fringeIndex=indexBase+48u;
+    float maxDrop=((word2>>8)&0xFFu)*(1.0/16.0);
+    for(int sideFace=0;sideFace<6;sideFace++)
+    {
+        if((fringes&(1u<<sideFace))==0u) continue;
+        int sideAxis=sideFace>>1;
+        int sideSign=(sideFace&1)==0?-1:1;
+        int direction=sideAxis==axisB?(sideSign>0?0:1):(sideSign>0?2:3);
+        WriteDecorationFringe(centre,axisA,axisB,radiusA,radiusB,maxDrop,
+            hash^((uint)sideFace*0x9E37u),direction,attributes,fringeVertex,fringeIndex);
+        fringeVertex+=4u; fringeIndex+=6u;
+    }
+}
+
+[numthreads(64, 1, 1)]
+void CSWriteDecorations(uint3 id : SV_DispatchThreadID)
+{
+    int3 voxel; uint material,surface,coating,word1,word2;
+    if(!LoadDecorationCell((int)id.x,voxel,material,surface,coating,word1,word2)) return;
+    for(int face=0;face<6;face++)
+    {
+        int axis,sign; uint hash,fringes;
+        if(!ClassifyDecorationFace(voxel,coating,word1,word2,face,axis,sign,hash,fringes)) continue;
+        WriteDecorationFace(voxel,material,surface,word1,word2,axis,sign,hash,fringes);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -473,6 +801,18 @@ void CSCopyIndices(uint3 id : SV_DispatchThreadID)
     int index = (int)id.x;
     if (index >= _CopyIndexCount) return;
     _CopyIndicesDestination[_CopyIndexDestinationBase + index] = _CopyIndicesSource[index];
+}
+
+// Publication is ordered after both copy dispatches on the compute queue. The CPU swaps the
+// completed lease into visibility only after the following fence passes, so a draw can never
+// observe args for geometry whose copy is still in flight.
+[numthreads(1, 1, 1)]
+void CSPublishArgs(uint3 id : SV_DispatchThreadID)
+{
+    _DrawArgs[_DrawArgsWordStart + 0] = (uint)_CopyIndexCount;
+    _DrawArgs[_DrawArgsWordStart + 1] = 1u;
+    _DrawArgs[_DrawArgsWordStart + 2] = 0u;
+    _DrawArgs[_DrawArgsWordStart + 3] = 0u;
 }
 
 // ---------------------------------------------------------------------------

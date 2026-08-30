@@ -1489,7 +1489,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         _gpuStageCounts = counts;
                         _build.SnapshotTaken = true;
                         _gpuExtraction.BeginWriteRange(
-                            arena.Vertices, arena.Indices,
+                            arena.Vertices, arena.Indices, arena.Args, lease.ArgsWordStart,
                             lease.VertexStart, lease.VertexCapacity,
                             lease.IndexStart, lease.IndexCapacity);
                         _build.Phase = 10;
@@ -1512,7 +1512,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     {
                         _gpuExtraction.Release();
                         _gpuStagePending = false;
-                        arena.UploadArgs((uint)gpuIndexCount, in _gpuStageLease);
                         _gpuBuild = new GpuSurfaceArenaBuild(
                             GpuSurfaceArenaBuildStatus.Ready, in _gpuStageLease,
                             _gpuStageCounts.VertexCount, gpuIndexCount);

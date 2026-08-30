@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Rendering;
 using VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel;
 using VoxelEngine.Storage.Api;
 
@@ -53,6 +54,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private bool _countDispatchPending;
         private bool _writeDispatchPending;
         private bool _copyDispatchPending;
+        private bool _copyFencePending;
+        private GraphicsFence _copyFence;
         private int _copyIndexCount;
         private ulong _stageStorageGeneration;
         private bool _coverageRequested;
@@ -63,6 +66,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private int _lastCoveragePollFrame = -1;
         private ComputeBuffer _writeVertices;
         private ComputeBuffer _writeIndices;
+        private ComputeBuffer _writeArgs;
+        private int _writeArgsWordStart;
         private int _writeVertexStart;
         private int _writeVertexCapacity;
         private int _writeIndexStart;
@@ -379,8 +384,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         private void ConfigurePersistentLookupHeader()
         {
-            // Density sampling and raw semantic classification both resolve this footprint through
-            // the persistent world-coordinate directory.
+            // Density and semantic emission resolve this footprint through the persistent
+            // world-coordinate directory.
             _extractor.ClearBrickCache();
             uint magic = GpuVoxelBrickMirror.PersistentLookupMagic & ~3u;
             _extractor.SetBrickCacheEntry(new int3(0, 0, 0), magic);
@@ -484,12 +489,16 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         }
 
         public void BeginWriteRange(ComputeBuffer vertices, ComputeBuffer indices,
+                                    ComputeBuffer args, int argsWordStart,
                                     int vertexStart, int vertexCapacity,
                                     int indexStart, int indexCapacity)
         {
             ThrowIfDisposed();
             _writeVertices = vertices;
             _writeIndices = indices;
+            _writeArgs = args ?? throw new ArgumentNullException(nameof(args));
+            if (argsWordStart < 0) throw new ArgumentOutOfRangeException(nameof(argsWordStart));
+            _writeArgsWordStart = argsWordStart;
             _writeVertexStart = vertexStart;
             _writeVertexCapacity = vertexCapacity;
             _writeIndexStart = indexStart;
@@ -499,9 +508,15 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             // A completed zero count is already the authoritative payload. Dispatching the write
             // kernel just to prove that it writes zero vertices/indices adds a second async
             // readback failure surface and can incorrectly route valid empty chunks to the CPU.
-            // Keep the caller's tiny staging lease only as its existing publication token; phase
-            // 10 will receive Ready/0 immediately and publish zero indirect args.
-            if (_stagedCounts.IsEmpty) return;
+            // Keep the caller's tiny staging lease as its publication token and queue the same
+            // GPU args-plus-fence stage as non-empty geometry, with an index count of zero.
+            if (_stagedCounts.IsEmpty)
+            {
+                _copyIndexCount = 0;
+                _copyDispatchPending = true;
+                TryDispatchPendingCopy();
+                return;
+            }
             _writeDispatchPending = true;
             TryDispatchPendingWrite();
         }
@@ -511,11 +526,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             ThrowIfDisposed();
             indexCount = 0;
             if (!_hasStaged) return GpuSurfaceExtractor.GpuCounterPoll.Failed;
-            if (_stagedCounts.IsEmpty)
-            {
-                ChunksWritten++;
-                return GpuSurfaceExtractor.GpuCounterPoll.Ready;
-            }
             if (_writeDispatchPending)
             {
                 if (!TryDispatchPendingWrite())
@@ -526,6 +536,12 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             {
                 if (!TryDispatchPendingCopy())
                     return GpuSurfaceExtractor.GpuCounterPoll.Pending;
+                return GpuSurfaceExtractor.GpuCounterPoll.Pending;
+            }
+            if (_copyFencePending)
+            {
+                if (!_copyFence.passed) return GpuSurfaceExtractor.GpuCounterPoll.Pending;
+                _copyFencePending = false;
                 indexCount = _copyIndexCount;
                 ChunksWritten++;
                 return GpuSurfaceExtractor.GpuCounterPoll.Ready;
@@ -565,9 +581,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _copyDispatchPending = true;
             if (!TryDispatchPendingCopy())
                 return GpuSurfaceExtractor.GpuCounterPoll.Pending;
-            indexCount = _copyIndexCount;
-            ChunksWritten++;
-            return GpuSurfaceExtractor.GpuCounterPoll.Ready;
+            return GpuSurfaceExtractor.GpuCounterPoll.Pending;
         }
 
         private bool TryDispatchPendingWrite()
@@ -591,9 +605,13 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 return false;
 
             _extractor.CopyCompletedWriteRange(
-                _writeVertices, _writeIndices,
+                _writeVertices, _writeIndices, _writeArgs, _writeArgsWordStart,
                 _writeVertexStart, _stagedCounts.VertexCount,
                 _writeIndexStart, _copyIndexCount);
+            _copyFence = Graphics.CreateGraphicsFence(
+                GraphicsFenceType.AsyncQueueSynchronisation,
+                SynchronisationStageFlags.ComputeProcessing);
+            _copyFencePending = true;
             _copyDispatchPending = false;
             ChunksCopied++;
             return true;
@@ -630,6 +648,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             if (!_hasStaged && !_sharedExtractionActive && !_stageAdmissionPending
                 && !_countDispatchPending && !_writeDispatchPending && !_copyDispatchPending
+                && !_copyFencePending
                 && _legacyPinnedBricks.Count == 0)
                 return;
             if (_coverageRequested)
@@ -638,6 +657,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _countDispatchPending = false;
             _writeDispatchPending = false;
             _copyDispatchPending = false;
+            _copyFencePending = false;
             _copyIndexCount = 0;
             _stageStorageGeneration = 0;
             _coverageRequested = false;
@@ -647,6 +667,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _writeReadbackRetries = 0;
             _writeVertices = null;
             _writeIndices = null;
+            _writeArgs = null;
+            _writeArgsWordStart = 0;
             _writeVertexStart = 0;
             _writeVertexCapacity = 0;
             _writeIndexStart = 0;
