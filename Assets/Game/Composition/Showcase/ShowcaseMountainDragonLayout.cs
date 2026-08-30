@@ -29,6 +29,17 @@ namespace VoxelEngine.Showcase
             return CreateLandmarkAtBaseY(baseY);
         }
 
+        /// <summary>
+        /// Showcase-specific visual policy for the shared mountain authoring API. Geometry semantics
+        /// remain generic in WorldBuilder; this composition chooses the narrower crest and natural
+        /// ridge/buttress support form required by the Mountain Dragon presentation.
+        /// </summary>
+        public static MountainLandmarkPresentationProfile CreatePresentationProfile() =>
+            new MountainLandmarkPresentationProfile(
+                crestRadiusPercent: 75,
+                minimumPlaceholderCrestMargin: 12,
+                supportForm: MountainLandmarkSupportForm.RidgeAndButtress);
+
         private static MountainLandmarkSpec CreateLandmarkAtBaseY(int baseY) =>
             new MountainLandmarkSpec(
                 new int3(OriginX, baseY, OriginZ),
