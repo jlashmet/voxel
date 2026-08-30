@@ -10,6 +10,13 @@ namespace VoxelEngine.Rendering.Runtime
     /// </summary>
     public static class VoxelMaterialPresentationInstaller
     {
+        private static readonly int s_WaterShallow = Shader.PropertyToID("_WaterShallow");
+        private static readonly int s_WaterDeep = Shader.PropertyToID("_WaterDeep");
+        private static readonly int s_WaterMotion = Shader.PropertyToID("_WaterMotion");
+        private static readonly int s_WaterDetail = Shader.PropertyToID("_WaterDetail");
+        private static readonly int s_WaterFoam = Shader.PropertyToID("_WaterFoam");
+        private static readonly int s_WaterCascade = Shader.PropertyToID("_WaterCascade");
+
         public static void Apply(MaterialPresentationDefinition[] definitions)
         {
             if (definitions == null) throw new ArgumentNullException(nameof(definitions));
@@ -54,6 +61,16 @@ namespace VoxelEngine.Rendering.Runtime
                 VoxelPresentationCatalogue.MaterialVariation[materialIndex] = ToVector4(definition.Variation);
                 VoxelPresentationCatalogue.SetWater(materialIndex, in definition.Water);
             }
+
+            // Water profile rows are static application presentation state. Bind once when the
+            // authoritative catalogue is installed rather than re-uploading six 32-row arrays for
+            // every water chunk or every frame.
+            Shader.SetGlobalVectorArray(s_WaterShallow, VoxelPresentationCatalogue.WaterShallow);
+            Shader.SetGlobalVectorArray(s_WaterDeep, VoxelPresentationCatalogue.WaterDeep);
+            Shader.SetGlobalVectorArray(s_WaterMotion, VoxelPresentationCatalogue.WaterMotion);
+            Shader.SetGlobalVectorArray(s_WaterDetail, VoxelPresentationCatalogue.WaterDetail);
+            Shader.SetGlobalVectorArray(s_WaterFoam, VoxelPresentationCatalogue.WaterFoam);
+            Shader.SetGlobalVectorArray(s_WaterCascade, VoxelPresentationCatalogue.WaterCascade);
         }
 
         private static Vector4 ToVector4(Unity.Mathematics.float4 value) =>
