@@ -20,8 +20,8 @@
 - [x] Immutable bounded snapshots and deterministic integer XZ broad phase.
 - [x] Planner-local idempotent replay, replacement/release and owner release.
 - [x] Resolved local+global snapshot avoids double global capture during grouped planning.
+- [x] Keep Core conflict semantics unchanged for architecture; use a bounded role-local view that excludes only the matching host owner.
 - [ ] Add exact half-open touching/equality regression coverage.
-- [ ] Add owner-excluded shared-snapshot query seam needed by production structure realization without per-role snapshot rebuilds.
 
 ## Kentridge town / roads
 
@@ -63,7 +63,7 @@
 - [x] Hard/clearance/soft/compatible-handoff outcomes.
 - [x] Planner-local replay preserves prior committed claim on rejected replacement; deterministic release/release-owner coverage.
 - [x] Bounded-window stress excludes distant claims and bounds bucket/candidate/narrow-phase work.
-- [ ] Add exact owner-exclusion regression for shared production snapshots.
+- [ ] Add production architecture shared-source/host-filter regression.
 - [ ] Record representative snapshot/query work metrics and source-construction cost after final integration.
 - [ ] Check managed/native allocation or repository-supported memory evidence where available.
 - [ ] Verify no generation candidate/device budgets changed and no unrelated world-generation behavior moved.
