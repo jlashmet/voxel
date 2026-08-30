@@ -7,7 +7,7 @@
 - [x] Discriminate the predecessor path: `VoxelEngine.Structures.Runtime.ShapeProgram.Run` actively compiles `ShapeOp.CallSlot`; complete that canonical path rather than add a second solver.
 - [x] Select one canonical path: complete/reconcile `FeatureDefinition` / `SlotSpec` / `ShapeOp.CallSlot` and its production catalogue/evaluator rather than introduce a parallel `StructuralSocketComposer`.
 - [x] Locate/document the active slot metadata/compiler/catalogue/hash/region chain: `SlotSpec` -> pooled `FeatureCatalogue.Slots` -> `FeatureCatalogueComposer` definition-id rebasing -> `ShapeOp.CallSlot` bytecode -> structural planner -> descendant-aware `FeatureRegionBuild`.
-- [ ] Audit/extend authoring-time slot validation for every structural socket invariant; generation/region order independence itself is already proven below.
+- [x] Audit authoring-time slot validation for every structural socket invariant; stable IDs, semantic compatibility, cardinal facing, integer bounds, clearance, capacity/cardinality, support probes, handoff consistency, cycles, call-depth, and bytecode slot references are all rejected deterministically before production use.
 - [x] Ensure structural socket/slot metadata participates in deterministic catalogue/world identity so content changes cannot silently desync saves/networked generation.
 - [x] Audit repository tree for a separately named `DecorationSocket*` production path: none exists on current master. Preserve existing fine-detail/attachment authoring APIs and add only a structural handoff marker; do not invent a parallel decoration solver.
 - [x] Identify the concrete existing fine-detail/prop attachment consumers that must receive the structural handoff marker: `Game.Structures.Api.DecorationSpace` / `DecorationSocket` / `DecorationSocketKind` plus existing scene resolvers/adapters such as `CastleBedroomDecorationAdapter`.
@@ -17,7 +17,7 @@
 - [x] Locate and reuse the production player-world traversal controller: exact `WorldbuildingGalleryShowcase` constructs `CharacterMotor`, snaps it to authoritative voxel ground, and normal/`AutoWalk` motion executes `_motor.Step(...)`.
 
 ## Canonical production contract / solver
-- [ ] Finish authoring-validation audit before declaring the shared structural socket contract complete: stable ids, semantic role flags/tags, cardinal facing, integer voxel transform, clearance, capacity, support probes, required/optional, support-loss invalidation, and decoration handoff are present in runtime metadata/planning.
+- [x] Complete the shared authoring-validation contract: stable ids, semantic role flags/tags, cardinal facing, integer voxel transform, clearance, capacity, support probes, required/optional, support-loss invalidation, and decoration handoff are validated/preserved by the canonical catalogue and planner path.
 - [x] Implement reusable structural piece/catalogue/recipe contracts with independently bounded physical extents and bounded authoring cost.
 - [x] Implement deterministic compatibility predicates; require mutual type compatibility and valid opposing facing rather than string-name conventions.
 - [x] Implement bounded deterministic child selection/attachment through the existing production `CallSlot` path with stable seed ordering and no generation/region-order dependence.
@@ -34,7 +34,7 @@
 - [x] Filter structural roots by exact composed graph bounds/piece footprints and charge planned physical pieces against the resumable scan budget so empty-region structural scans stay bounded and interruptible.
 - [x] Prove child pieces remain authoritative voxel/collision/destruction/storage content; do not realize structural children as presentation-only meshes or permanent GameObjects.
 - [x] Keep each child piece bounded so monumental structures can span multiple logical generation/streaming regions without one giant feature footprint.
-- [ ] Adapt/preserve structural decoration handoff after realization into existing Game.Structures decoration consumers without moving micro-detail responsibilities into structural sockets.
+- [x] Adapt structural decoration handoff after realization into existing `Game.Structures` decoration consumers: the runtime adapter enumerates engine-neutral flags into existing single-kind `DecorationSocket`s while leaving fine-detail placement with the existing decoration resolver.
 
 ## Required proving cases
 - [ ] Monumental mountain/gorge/river bridge: two terrain/cliff anchors, multi-piece span crossing multiple logical regions, repeated explicit span/support structure, continuous walkable deck, road/traversal continuation sockets at both ends, incompatible/orientation candidate rejection.
@@ -62,6 +62,7 @@
 - [x] Inspection output carries semantic structure id, child piece ids, socket ids, accepted/rejected decisions, aggregate report data, and final accepted `GraphHash`.
 - [x] Regression proves structural children are emitted through production authoritative voxel authoring, including a child outside the root logical region.
 - [x] Rejected alternatives remain inspectable but do not change accepted `GraphHash` identity.
+- [x] Conservative voxel-authoring cost accepts the exact 16,777,216-voxel ceiling and rejects one voxel over before composition continues.
 
 ## Built-application / visual gates
 - [ ] Run final targeted CI from an exact feature SHA via `ci-test/fixes/agent-5` only; never edit `.github/test-request.json` on the feature branch or replace queued/running CI.
@@ -77,7 +78,7 @@
 ## Blast radius / performance / closure
 - [ ] Measure and record planning/composition time for bridge/castle.
 - [ ] Measure and record child feature count, primitive/voxel-authoring cost, logical generated-region/streaming span, bounded memory-model cost, and render/triangle proxy/impact.
-- [ ] Reconcile composition limits with authoritative `device-matrix.md` and confirm solver budgets remain bounded/deterministic at world scale with no global feature/region/device budget weakened.
+- [x] Reconcile composition limits with authoritative `device-matrix.md`; all six composition ceilings are deterministic and identical across tiers, with the conservative voxel model documented separately from actual region/instance raster budgets and no global budget weakened.
 - [ ] Confirm existing fine-detail/decoration behavior remains separate and existing unrelated generation paths are unchanged unless explicitly opted into structural composition.
 - [ ] Review final feature diff for assignment-only blast radius and cost.
 - [ ] Complete `issue.json` pending metadata only after all required exact-SHA workflow and built-app gates pass.
@@ -95,11 +96,11 @@
 - [x] Enforce declared spacing for repeated attachments pairwise in all three axes.
 - [x] Add explicit bounded voxel-authoring cost to composition reports/budgets.
 - [x] Carry support-loss invalidation and decoration-handoff metadata into inspectable accepted attachment decisions.
-- [ ] Adapt engine-neutral structural decoration handoff into existing `Game.Structures.Api.DecorationSocketKind`/`DecorationSpace` consumers without changing micro-detail semantics.
+- [x] Adapt engine-neutral structural decoration handoff into existing `Game.Structures.Api.DecorationSocketKind`/`DecorationSpace` consumers without changing micro-detail semantics; combined handoff flags are regressed as distinct existing socket kinds.
 - [x] Add focused negative regressions for required/optional sockets, semantic incompatibility, slot clearance, support, capacity, runtime depth, child/primitive/voxel/spatial budgets, and inspection metadata.
 - [x] Add deterministic variation and generation-order regressions.
 - [x] Resolve exact production player traversal component serialized in `WorldbuildingGalleryShowcase`: reuse `CharacterMotor` for bridge/gate/vertical traversal proof.
-- [ ] Reconcile every structural composition simulation limit with authoritative `device-matrix.md`; document deterministic cross-tier limits instead of hidden code-only budgets.
+- [x] Reconcile every structural composition simulation limit with authoritative `device-matrix.md`; document deterministic cross-tier limits instead of hidden code-only budgets.
 - [x] Remove managed allocations from structural support probing; current production support scan is bounded and allocation-free.
 - [x] Ensure `GraphHash` represents the final accepted attachment graph while rejected alternatives remain inspectable diagnostics.
-- [ ] Validate/document the conservative voxel-authoring cost model against authoritative region/instance budgets and regress its boundary behavior.
+- [x] Validate/document the conservative voxel-authoring cost model against authoritative region/instance budgets and regress its exact boundary behavior.

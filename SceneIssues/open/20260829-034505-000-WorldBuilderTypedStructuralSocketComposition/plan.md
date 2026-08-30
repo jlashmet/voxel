@@ -3,22 +3,23 @@
 ## Observed behavior / acceptance
 - Canonical structural composition is the existing VoxelEngine path: `FeatureDefinition` + pooled `SlotSpec` + `ShapeOp.CallSlot` + `FeatureCatalogue` + `FeatureRegionBuild`. A second WorldBuilder solver would duplicate ownership.
 - The branch expands `CallSlot` declarations into deterministic bounded child `StructuralInstance`s, hashes structural generation metadata into catalogue identity, validates structural call graphs, and feeds accepted descendants back through normal per-region voxel evaluation/rasterization.
-- Focused regressions now cover same-seed graph identity, required/optional semantics, semantic/orientation rejection, slot clearance, 3D repeated spacing, terrain/structural support, capacity, runtime depth, child/primitive/voxel/spatial budgets, bounded alternate-seed variation, rejected-alternative hash stability, cross-region generation-order independence, and authoritative descendant voxels.
-- Accepted attachment decisions expose support-loss invalidation, support probe, and engine-neutral decoration-handoff metadata; rejected alternatives remain inspectable diagnostics and do not alter accepted `GraphHash` identity.
+- Focused regressions cover same-seed graph identity, required/optional semantics, semantic/orientation rejection, slot clearance, 3D repeated spacing, terrain/structural support, capacity, runtime depth, child/primitive/voxel/spatial budgets, bounded alternate-seed variation, rejected-alternative hash stability, cross-region generation-order independence, authoritative descendant voxels, and the exact conservative voxel-budget boundary.
+- Authoring validation now covers the complete shared typed-socket contract before runtime use: stable IDs, semantic roles/tags, cardinal facing, integer bounds/transforms, clearance, capacity/cardinality, support probes, handoff consistency, cycles, call-depth, and bytecode slot references.
+- Accepted attachment decisions expose support-loss invalidation, support probe, and engine-neutral decoration-handoff metadata; `Game.Structures.Runtime.StructuralDecorationHandoffAdapter` maps those flags to the existing decoration-space/socket system without taking over micro-detail placement.
+- Structural composition simulation limits are reconciled with the authoritative device matrix as identical cross-tier limits. The 16,777,216-voxel composition cost is explicitly a conservative footprint-volume planning ceiling, not an actual voxel-write count and not a relaxation of per-region/per-instance raster budgets.
 - `WorldbuildingGalleryShowcase` already constructs the production `CharacterMotor`, snaps it to authoritative voxel ground, and routes normal plus `AutoWalk` movement through `_motor.Step(...)`. Traversal proof must reuse this path rather than introduce a test-only mover.
-- `fixes/agent-5` was refreshed with current `master` in merge commit `3a1ad612efc77a41b307b36855c2df0dbcc76cf6` before this continuation attempt.
+- `fixes/agent-5` remains based on current `master` for this attempt; refresh again before each later substantive gate and final integration.
 
 ## Hypotheses / discriminators / results
 1. **Complete the predecessor path** — supported by catalogue ownership, definition-id rebasing, bytecode, region generation, and the focused production regressions above.
 2. **Add a parallel structural solver** — rejected because it would duplicate canonical generation state and create save/network determinism risk.
 3. **Inline child primitives into root evaluation** — falsified by footprint/streaming boundaries; descendants must remain independently bounded physical placements.
-4. **Generic planner contract gaps are the primary remaining blocker** — largely falsified by code/test reconciliation: the previously identified clearance, 3D spacing, voxel-cost, support-loss/decor metadata, negative-regression, variation/order, allocation, and graph-hash gaps are already implemented. Remaining work is primarily authoring validation/device-budget reconciliation, Game.Structures decoration handoff integration, the four production proving cases, exact-scene traversal/visual validation, and measured blast/cost evidence.
+4. **Generic planner/contract gaps are the primary remaining blocker** — falsified after audit: shared authoring validation, composition budgets, voxel-cost boundary behavior, support-loss/decor metadata, decoration adaptation, negative regressions, allocation bounds, and accepted-graph hashing are covered. Remaining work is the four real production proving cases, exact-scene traversal/visual validation, and measured blast/cost evidence.
 
 ## Selected remaining fix
-- Audit authoring-time `SlotSpec` validation and reconcile structural composition limits with the authoritative device matrix; add only focused production fixes/regressions for concrete uncovered gaps.
-- Adapt engine-neutral structural decoration handoff into existing `Game.Structures.Api.DecorationSpace` / `DecorationSocketKind` consumers without moving micro-detail logic into structural sockets.
-- Author four deterministic showcase proving cases (bridge, castle, cliff settlement, facade/roof variants) through the same production catalogue/voxel path.
+- Author four deterministic showcase proving cases (bridge, castle, cliff settlement, facade/roof variants) through the same production catalogue/voxel path; do not create scene-only structural geometry or another solver.
 - Reuse the exact scene's existing `CharacterMotor` path for bridge, gate, and vertical traversal evidence.
+- Record bridge/castle planning and bounded composition/raster/render proxies using the production harness, then audit final blast radius.
 - Keep `tasks.md` authoritative: do not submit final CI or move the assignment until every remaining proving-case, built-app, measurement, and closure checkbox is complete.
 
 ## Gates / blast radius
