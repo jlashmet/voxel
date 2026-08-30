@@ -75,7 +75,7 @@
 ## Validation / cost
 - [ ] Exact-SHA final CI compiles/passes focused importer/codec/authoring/showcase + dragon-specific regressions.
 - [ ] Record import/voxelization time, occupied voxel count, sparse brick/chunk count, serialized size, runtime resident/storage impact, and incremental render/world-build cost within repository budgets.
-- [ ] Verify ordinary runtime does not execute mesh voxelization and no `MeshCollider`/source-mesh gameplay fallback exists.
+- [x] Verify ordinary runtime does not execute mesh voxelization and no `MeshCollider`/source-mesh gameplay fallback exists; `ShowcaseWorld.PlaceBakedMeshStructure` accepts/replays only `BakedVoxelStructure`, Unity mesh extraction is isolated to an Editor-only assembly, and repository search finds no `MeshCollider` use. Recorded in `verification-regression-coverage.txt`.
 - [x] Current feature-vs-master blast-radius review shows additions confined to mesh-import editor/runtime, showcase mesh-structure/selection helpers, focused EditMode tests, and this issue's plan/tasks; no workflow request or unrelated SceneIssue changes.
 - [x] Refresh-merged `origin/master` through `5f07db5cd7677e84f617deb61c5b03a4b896159c` at merge commit `76ecb118cd93010a0169e270822d769e46804123`, preserving current master changes without altering another assignment directly.
 - [ ] Re-run full feature diff review after source/showcase/evidence implementation.
