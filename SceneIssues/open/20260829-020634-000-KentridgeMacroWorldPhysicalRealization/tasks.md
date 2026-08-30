@@ -41,9 +41,12 @@
 - [x] Remove the now-unnecessary inbound `forest -> fighting-area-1` lake constraint and replace the temporary regression with endpoint-dry + inbound-dry + outbound/Rossdam-constrained behavioral assertions.
 - [x] Run exact source `cb4e1b0fa1464da214d799ba55750bea38159143` through wrapper `e5bdf88a387c486b72be5d8950fb6d1458a5aad9`; run `33304172039` is exact-attributed, focused PlayMode `1/1` green, standalone process clean, but visual evidence is closure-red because the driver remains at Moordell through 59 s.
 - [x] Record run `33304172039` as `experiment-016-exact-ci-moordell-content-convergence.md`; do not promote from workflow status alone.
-- [ ] Diagnose persistent Moordell readiness telemetry `contentCols=5 readyContent=4 missingContent=1` that prevents evidence target advancement within 60 s.
-- [ ] Preserve real content-settled and renderer-coverage gates; do not skip readiness, extend replay beyond 60 s, increase load radius, or reintroduce broad/serial prestreaming.
-- [ ] Apply only the smallest proved validation-driver/readiness-demand correction while retaining semantic-focus streaming ownership and target order `Moordell -> Rossdam -> Rossdam lake -> Fairy -> Orc -> Southern Ridge/pass -> network`.
+- [x] Diagnose persistent Moordell readiness: the evidence driver requires exactly four authored building centres; the extra telemetry column is not a fifth acceptance requirement. The lake does not share a Moordell building region, but an already-active lake-overlap `FeatureRegionBuild` can monopolize the single shared feature queue after demand moves to Moordell.
+- [x] Prove `FeatureRegionBuild` is already tile-resumable inside primitives; reject a new surface-carve primitive or lake-shape weakening as unnecessary. The missing behavior is demand-responsive scheduling between independent region builds.
+- [ ] Make Showcase feature scheduling preserve paused `FeatureRegionBuild` state and preempt a farther active build when a nearer unfinished region becomes demanded; do not cancel/restart work or change per-frame budgets.
+- [ ] Keep paused builds visible to content-settled readiness and dispose/cancel them correctly on eviction/world teardown.
+- [ ] Add a behavioral regression proving nearer-region completion under preemption, remote-build resume-to-completion, and paused-build cleanup/readiness semantics.
+- [x] Preserve real content-settled and renderer-coverage gates; do not skip readiness, extend replay beyond 60 s, increase load radius, or reintroduce broad/serial prestreaming.
 - [ ] Re-run exact-SHA targeted CI only after source remediation and prove the focused Unity suite plus supported 60-second real-player smoke are closure-quality green for that same source SHA, including every required target.
 
 ## Exact runtime / visual gate
@@ -71,7 +74,7 @@
 - [ ] (6) Built world visibly contains a substantial lake + ridge and at least one geography-altered hard route.
 - [ ] (7) Regional terrain visibly reads as differentiated countryside rather than a flat debug plane.
 - [ ] (8) No second scene-local graph/direct voxel-writing/static destination hierarchy.
-- [ ] (9) Focused behavioral regressions cover determinism, reachability, roads, settlements, constraints, blocked-route failure, bounded water cost, and two-stage readiness.
+- [ ] (9) Focused behavioral regressions cover determinism, reachability, roads, settlements, constraints, blocked-route failure, bounded water cost, demand-responsive streaming fairness, and two-stage readiness.
 - [ ] (10) Exact built-player evidence covers settlements, roads entering/leaving settlements, network survey, geography, constrained route, and CharacterMotor traversal without runtime exceptions.
 - [ ] (11) Blast radius and world-build/route/CPU/GPU/memory/streaming cost are measured against budgets.
 - [ ] Corrected final exact-SHA focused CI and built-player evidence are closure-quality green.
