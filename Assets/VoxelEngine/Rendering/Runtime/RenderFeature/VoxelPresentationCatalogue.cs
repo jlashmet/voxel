@@ -127,6 +127,15 @@ namespace VoxelEngine.Rendering.Runtime
                 blendStrength: 0.94f, verticalFloor: 0.78f, verticalCeiling: 1f,
                 noiseStrength: 0.38f, roughness: 0.12f));
 
+            // Smooth terrain surfaces already persist the generic five-bit Detail channel. Give
+            // that existing channel a restrained material-neutral response so terrain authoring
+            // such as compacted/worn corridors can vary surface value/roughness without inventing
+            // a road-specific shader, material identity, vertex field, or per-instance material.
+            // Detail==0 remains completely neutral for ordinary smooth terrain.
+            SetSurface(1, new VoxelSurfacePresentation(false, jointColour: new Color(0.18f, 0.16f, 0.14f),
+                detailColourBlend: 0.10f, detailRoughness: 0.92f,
+                detailVariation: 0.08f, detailWidth: 0.42f));
+
             SetSurface(5, new VoxelSurfacePresentation(false, 5f, 9f, 0f,
                 new Color(0.34f, 0.31f, 0.24f), detailColourBlend: 0.48f,
                 detailRoughness: 0.94f, detailVariation: 0.18f, detailWidth: 0.62f));
