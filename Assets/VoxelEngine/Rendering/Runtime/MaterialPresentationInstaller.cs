@@ -31,9 +31,6 @@ namespace VoxelEngine.Rendering.Runtime
                 seen |= bit;
             }
 
-            // Make application data authoritative. Any engine-backed legacy rows are erased before
-            // applying this catalogue, so an omitted game material cannot silently inherit semantic
-            // presentation from VoxelPresentationCatalogue.
             Vector4 neutralAlbedo = new(1f, 1f, 1f, 1f);
             Vector4 neutralSampling = Vector4.zero;
             Vector4 neutralSurface = new(1f / 36f, 0f, 0.76f, 0f);
@@ -45,6 +42,7 @@ namespace VoxelEngine.Rendering.Runtime
                 VoxelPresentationCatalogue.MaterialSurface[materialIndex] = neutralSurface;
                 VoxelPresentationCatalogue.MaterialVariation[materialIndex] = neutralVariation;
             }
+            VoxelPresentationCatalogue.ResetWater();
 
             for (int i = 0; i < definitions.Length; i++)
             {
@@ -54,6 +52,7 @@ namespace VoxelEngine.Rendering.Runtime
                 VoxelPresentationCatalogue.MaterialSampling[materialIndex] = ToVector4(definition.Sampling);
                 VoxelPresentationCatalogue.MaterialSurface[materialIndex] = ToVector4(definition.Surface);
                 VoxelPresentationCatalogue.MaterialVariation[materialIndex] = ToVector4(definition.Variation);
+                VoxelPresentationCatalogue.SetWater(materialIndex, in definition.Water);
             }
         }
 
