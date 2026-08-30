@@ -53,6 +53,37 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(ContainsLocal(bake, bake.Size / 2), Is.True);
         }
 
+        [Test]
+        public void NearlyClosedMesh_VoxelShellFill_FillsOnlyVoxelEnclosedInterior()
+        {
+            MeshVoxelizationSource source = BuildBoxWithTopologicalTopSeam();
+            var settings = Settings(MeshVoxelOpenSurfacePolicy.VoxelShellFill);
+
+            BakedVoxelStructure bake = MeshVoxelizer.Voxelize(in source, in settings);
+
+            Assert.That(bake.BoundaryEdgeCount, Is.GreaterThan(0),
+                "The independent fixture must remain topologically open so this does not duplicate the closed-mesh test.");
+            Assert.That(bake.NonManifoldEdgeCount, Is.EqualTo(0));
+            Assert.That(bake.InteriorFilled, Is.True,
+                "A conservative raster that encloses voxel-space cells may explicitly fill them despite a source seam.");
+            Assert.That(ContainsLocal(bake, bake.Size / 2), Is.True);
+        }
+
+        [Test]
+        public void OpenMesh_VoxelShellFill_DoesNotInventInteriorWithoutVoxelEnclosure()
+        {
+            MeshVoxelizationSource source = BuildBoxMissingTop();
+            var settings = Settings(MeshVoxelOpenSurfacePolicy.VoxelShellFill);
+
+            BakedVoxelStructure bake = MeshVoxelizer.Voxelize(in source, in settings);
+
+            Assert.That(bake.BoundaryEdgeCount, Is.GreaterThan(0));
+            Assert.That(bake.InteriorFilled, Is.False,
+                "VoxelShellFill must report no fill when the raster remains connected to the exterior.");
+            Assert.That(ContainsLocal(bake, bake.Size / 2), Is.False,
+                "VoxelShellFill must not close a genuine voxel-space opening.");
+        }
+
         private static MeshVoxelizationSettings Settings(MeshVoxelOpenSurfacePolicy policy) =>
             new MeshVoxelizationSettings(
                 voxelSize: 0.25f,
@@ -68,6 +99,25 @@ namespace VoxelEngine.Tests.EditMode
 
         private static MeshVoxelizationSource BuildBoxMissingTop() =>
             BuildBox(includeTop: false);
+
+        private static MeshVoxelizationSource BuildBoxWithTopologicalTopSeam()
+        {
+            MeshVoxelizationSource openBox = BuildBoxMissingTop();
+            var vertices = new float3[openBox.Vertices.Length + 4];
+            Array.Copy(openBox.Vertices, vertices, openBox.Vertices.Length);
+
+            const float seamOffset = 0.001f;
+            vertices[8] = new float3(-2f, 2f + seamOffset, -2f);
+            vertices[9] = new float3(-2f, 2f + seamOffset,  2f);
+            vertices[10] = new float3( 2f, 2f + seamOffset,  2f);
+            vertices[11] = new float3( 2f, 2f + seamOffset, -2f);
+
+            var triangles = new MeshVoxelTriangle[openBox.Triangles.Length + 2];
+            Array.Copy(openBox.Triangles, triangles, openBox.Triangles.Length);
+            triangles[triangles.Length - 2] = new MeshVoxelTriangle(8, 9, 10, 6);
+            triangles[triangles.Length - 1] = new MeshVoxelTriangle(8, 10, 11, 6);
+            return new MeshVoxelizationSource(vertices, triangles, float4x4.identity);
+        }
 
         private static MeshVoxelizationSource BuildBox(bool includeTop)
         {
