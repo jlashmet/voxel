@@ -30,30 +30,31 @@
 - [x] Use that run to prove authored Cascade survives storage, water-cache extraction, upload/publication, visibility, and non-empty indexed geometry.
 - [x] Directly reject run `33336797164` visual closure: 32s/42s square-on frames still show no falling sheet, locating the defect above cache publication.
 - [x] Trace shared arena addressing and identify the missing vertex-base defect: local water indices used `IndexStart`, but later aligned `VertexStart` was never applied by the water draw shader.
-- [x] Add focused regression before correction: `WaterArenaDrawRegressionTests.SecondArenaLeasePublishesVertexBaseInIndirectDrawRecord` requires a nonzero second arena lease to publish its vertex base.
-- [x] Implement the first shared correction attempt: `SurfaceGeometryArena.UploadArgs` stores `VertexStart` in indirect `startInstance`; `WaterSurface.shader` consumes `SV_InstanceID` as the vertex base.
-- [x] Exact run `33337560328` passed that regression and 60-second player capture, but direct 32s/42s frames still show no falling sheet; wide frame also lacks later river water while early lake renders. Treat the start-instance correction as falsified for visual acceptance.
-- [ ] Run the focused GPU minimal repro `IndirectStartInstanceReachesShaderOnCurrentBackend` on the exact feature SHA before another product fix.
-- [ ] Based on that repro, isolate and correct the actual later-lease draw-address transport; remove temporary repro asset if it only served diagnosis.
+- [x] Implement the first correction attempt: `SurfaceGeometryArena.UploadArgs` stores `VertexStart` in indirect `startInstance`; `WaterSurface.shader` consumes `SV_InstanceID` as the vertex base.
+- [x] Exact run `33337560328` passed that buffer-level regression and 60-second capture, but direct 32s/42s frames still show no falling sheet; wide frame also lacks later river water while early lake renders.
+- [x] Run the required minimal GPU discriminator: exact run `33339119323` proves Metal delivers `SV_InstanceID=0` even when indirect `startInstance=256`.
+- [x] Correct the proven cause: bind `_SurfaceVertexBase` explicitly in each water draw (matching the solid renderer's shared offset contract), consume it in `WaterSurface.shader`, restore indirect `startInstance` to zero, and remove the temporary repro shader.
+- [x] Replace the obsolete buffer-only regression with `SecondWaterEntryBindsExplicitArenaOffsets`, which forces a nonzero second lease and verifies actual water draw property state plus neutral `startInstance`.
 
 ## Reliability / cost
 - [x] Preserve spreading/inert gameplay semantics and storage/streaming/edit/diagnostic contracts; no swim/buoyancy subsystem exists to alter.
 - [x] Keep one renderer-owned water material and one `_WaterTime` path.
 - [x] Static profile cost remains six 32-entry `Vector4` arrays = 3,072 bytes plus one uint semantic mask.
 - [x] Prior player telemetry showed no frame-budget weakening (~1.2–2.8 ms average windows after startup, ~697.8 MiB allocated, ~846–848 MiB reserved); FrameTimingManager CPU/GPU values unavailable and not invented.
-- [x] Arena-address correction attempt added no allocation/draw call; it reused the existing fourth indirect argument.
+- [x] Final arena-address correction adds only one scalar to the existing per-water-draw property block; no geometry allocation or draw call.
 - [ ] Re-measure final corrected built-player frame/memory/draw observations and inspect logs for runtime/shader/stripping errors.
 
 ## Exact-SHA gates
 - [x] Inspect completed failed run `33332518398`; compile failure was caused by putting runtime-dependent semantic regression in the dependency-pure EditMode assembly, then repaired by moving it to PlayMode.
 - [x] Run exact production water suite on `44947d3b...`; automation green but visual acceptance failed, so it is not a closing gate.
-- [x] Re-read `origin/master` before corrected validation; master remained `ebdc2e4f63ef73153cd4e0ff5c62efe604f35470`.
-- [x] Run `WaterArenaDrawRegressionTests` for the start-instance correction through only `ci-test/fixes/agent-9`: run `33337560328` green with 60-second replay.
-- [x] Directly inspect corrected near/wide/time-separated waterfall frames: early lake renders, later river and waterfall do not; visual gate fails and the start-instance hypothesis is falsified.
-- [ ] Run the minimal indirect-instance GPU discriminator through only `ci-test/fixes/agent-9`; after completion fix the proven cause or retry only proven infrastructure failure.
-- [ ] After the proven correction, rerun `WaterArenaDrawRegressionTests` on the exact corrected feature SHA with the 60-second WaterRenderingShowcase replay.
+- [x] Re-read `origin/master` before corrected validation; master remained `ebdc2e4f63ef73153cd4e0ff5c62efe604f35470` before the earlier arena attempt.
+- [x] Run `WaterArenaDrawRegressionTests` for the start-instance attempt through only `ci-test/fixes/agent-9`: run `33337560328` green with 60-second replay.
+- [x] Directly inspect that replay: early lake renders, later river and waterfall do not; visual gate fails and the start-instance transport is falsified.
+- [x] Run the minimal indirect-instance GPU discriminator through only `ci-test/fixes/agent-9`: run `33339119323` fails exactly because `SV_InstanceID=0` on Metal for nonzero indirect `startInstance`, confirming the product cause rather than infrastructure failure.
+- [ ] Re-read current `origin/master`; merge it if needed before corrected validation.
+- [ ] Run `WaterArenaDrawRegressionTests` on the exact corrected feature SHA with the 60-second WaterRenderingShowcase replay.
 - [ ] Directly inspect corrected near/wide/time-separated waterfall frames and compare downward flow, turbulence, aeration, irregular edges, lip/edge/base foam, and mist/spray to retained reference semantics.
-- [ ] Run `ShowcaseWaterPresentationRegressionTests` on the same corrected exact SHA so portability, arbitrary-ID/remap, solid-classification, and exact Cascade storage→cache coverage are all exact-SHA green.
+- [ ] Run `ShowcaseWaterPresentationRegressionTests` on the same accepted feature head so portability, arbitrary-ID/remap, solid-classification, and exact Cascade storage→cache coverage are all exact-SHA green.
 - [ ] Confirm corrected exact-SHA player build launches without startup/runtime/shader compile/stripping/pink/missing-resource failures.
 - [ ] Reconcile final build with `VoxelShowcase` and `WorldbuildingGalleryShowcase` shared-water paths.
 - [ ] Complete issue `resolutionSummary`, `regressionTest`, `fixCommit`, `status=fixed`, and `resolvedUtc` only after every acceptance item below is validated.
