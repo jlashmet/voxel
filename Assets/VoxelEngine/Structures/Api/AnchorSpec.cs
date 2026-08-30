@@ -189,15 +189,36 @@ namespace VoxelEngine.Structures.Api
             }
         }
 
+        /// <summary>
+        /// Tests semantic/tag compatibility only. Cardinal orientation is deliberately resolved by
+        /// the composition planner after the child is selected, so a reusable horizontal child is
+        /// not rejected merely because its authored local facing needs a quarter-turn rotation.
+        /// </summary>
         public static bool Compatible(in SlotSpec parent, in StructuralPieceSpec child)
         {
             if (parent.SocketId == 0 || child.PieceId == 0)
                 return false;
             if ((parent.Role & child.Role) == 0)
                 return false;
-            if ((parent.Offers & child.Accepts) == 0 || (child.Offers & parent.Accepts) == 0)
+            return (parent.Offers & child.Accepts) != 0 && (child.Offers & parent.Accepts) != 0;
+        }
+
+        /// <summary>
+        /// Returns whether some yaw-only cardinal orientation can make the child ingress oppose the
+        /// parent socket. Vertical interfaces cannot be converted to horizontal ones (or flipped)
+        /// by yaw and therefore must already have the required vertical opposition.
+        /// </summary>
+        public static bool CanOrient(Facing parentFacing, Facing childFacing)
+        {
+            if (!IsCardinal(parentFacing) || !IsCardinal(childFacing))
                 return false;
-            return Opposite(parent.Facing) == child.Facing;
+
+            bool parentVertical = parentFacing == Facing.Up || parentFacing == Facing.Down;
+            bool childVertical = childFacing == Facing.Up || childFacing == Facing.Down;
+            if (parentVertical || childVertical)
+                return parentVertical && childVertical && Opposite(parentFacing) == childFacing;
+
+            return true;
         }
 
         public static bool HasValidBounds(int3 min, int3 max) =>
