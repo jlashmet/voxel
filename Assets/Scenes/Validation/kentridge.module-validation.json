@@ -5,7 +5,9 @@
   "productionPaths": [
     "Assets/Scenes/KentridgePlayableSlice.unity"
   ],
-  "sharedPaths": [],
+  "sharedPaths": [
+    "Assets/**"
+  ],
   "tests": [
     {
       "platform": "PlayMode",
