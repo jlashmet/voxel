@@ -12,7 +12,7 @@ namespace Game.WorldBuilder.Api
     public static class WorldRoadPresentationPath
     {
         private const int CurveTrimPermille = 240;
-        private const int QuadraticSteps = 4;
+        private const int QuadraticSteps = 1;
 
         public static IReadOnlyList<ResolvedWorldRoadPoint> Build(ResolvedWorldRoad road)
             => Build(road, null);
@@ -27,7 +27,10 @@ namespace Game.WorldBuilder.Api
             if (road.Points.Count == 2)
                 return new[] { road.Points[0], road.Points[1] };
 
-            var result = new List<ResolvedWorldRoadPoint>(road.Points.Count * 5);
+            // Each ordinary corner is represented by one bounded chamfer (entry -> exit). This
+            // removes the hard resolved elbow without multiplying every search/sampling turn into
+            // several catalogue definitions; the authoritative resolver vertices stay untouched.
+            var result = new List<ResolvedWorldRoadPoint>(road.Points.Count * 2);
             AddDistinct(result, road.Points[0]);
             for (int i = 1; i + 1 < road.Points.Count; i++)
             {
