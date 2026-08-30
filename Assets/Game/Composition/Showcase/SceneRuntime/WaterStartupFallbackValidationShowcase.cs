@@ -123,60 +123,169 @@ namespace VoxelEngine.Showcase
 
         private static void AuthorTableau(IStructureAuthoringSession authoring, int originX, int originZ)
         {
-            // A neutral terrain apron makes water/terrain contact legible from the overview camera.
-            FillRect(authoring, originX, originZ, 32, 480, 32, 480, BaseY - 8, GameMaterialIds.Grass);
+            // Shape a rolling, irregular review island rather than a rectangular pedestal. The
+            // validation still uses the production far-field surface, but the composition now reads
+            // as terrain with banks and relief instead of a diagram made from orthogonal plates.
+            AuthorTerrainApron(authoring, originX, originZ);
 
-            // Still pool. A broad calm plate is surrounded by a shallow shelf so the shoreline
-            // reads as a deliberate transition instead of a water rectangle on open ground.
-            FillRect(authoring, originX, originZ, 64, 208, 96, 240, BaseY - 1, GameMaterialIds.Sand);
-            FillRect(authoring, originX, originZ, 80, 192, 112, 224, BaseY, GameMaterialIds.Water);
-            FillRect(authoring, originX, originZ, 96, 176, 128, 208, BaseY + 1, GameMaterialIds.Water);
+            // Still water. Sand is authored first as a broad organic shelf and the calm pool then
+            // occupies the interior. Coarse far-field columns are intentionally used as pixels in
+            // the production representation, while the ellipse avoids a hard rectangular silhouette.
+            FillEllipse(authoring, originX, originZ, 136, 160, 104, 112, BaseY - 1, GameMaterialIds.Sand);
+            FillEllipse(authoring, originX, originZ, 136, 160, 72, 80, BaseY, GameMaterialIds.Water);
 
-            // River. The channel narrows and descends in three deterministic reaches, making its
-            // flow direction readable even in a still screenshot without inventing harness motion.
-            FillRect(authoring, originX, originZ, 224, 304, 64, 192, BaseY + 5, GameMaterialIds.Water);
-            FillRect(authoring, originX, originZ, 232, 296, 192, 288, BaseY + 3, GameMaterialIds.Water);
-            FillRect(authoring, originX, originZ, 240, 288, 288, 352, BaseY + 1, GameMaterialIds.Water);
-            FillRect(authoring, originX, originZ, 208, 320, 48, 352, BaseY - 2, GameMaterialIds.Stone,
-                skipExistingWater: true);
+            // Descending river. A gently wandering centreline, variable width, and stone banks make
+            // flow direction legible without replacing the production Water/far-terrain renderer.
+            AuthorRiverBanks(authoring, originX, originZ);
+            AuthorRiver(authoring, originX, originZ);
 
-            // Waterfall/cascade. A raised lip feeds a semantic Cascade band into a lower receiving
-            // pool. The lower stone shelf exposes contact on both sides of the drop.
-            FillRect(authoring, originX, originZ, 232, 296, 352, 384, BaseY + 7, GameMaterialIds.Water);
-            FillRect(authoring, originX, originZ, 232, 296, 384, 400, BaseY + 6, GameMaterialIds.Cascade);
-            FillRect(authoring, originX, originZ, 232, 296, 400, 416, BaseY + 3, GameMaterialIds.Cascade);
-            FillRect(authoring, originX, originZ, 216, 312, 416, 464, BaseY - 1, GameMaterialIds.Water);
-            FillRect(authoring, originX, originZ, 200, 328, 368, 464, BaseY - 4, GameMaterialIds.Stone,
-                skipExistingWater: true);
+            // Waterfall/cascade. The semantic cascade drops between rock shoulders into an organic
+            // receiving pool. This remains coarse by design because these are the actual production
+            // fallback meshes under validation, not a scene-only proxy surface.
+            FillEllipse(authoring, originX, originZ, 252, 440, 84, 52, BaseY - 4, GameMaterialIds.Stone);
+            FillEllipse(authoring, originX, originZ, 252, 440, 62, 42, BaseY - 1, GameMaterialIds.Water);
+            FillRiverBand(authoring, originX, originZ, 368, 384, BaseY + 7, GameMaterialIds.Water, 42f);
+            FillRiverBand(authoring, originX, originZ, 384, 416, BaseY + 6, GameMaterialIds.Cascade, 38f);
 
-            // A dry rock tongue intrudes into the receiving pool to make water/solid intersection
-            // and terrain contact visible rather than relying only on an outer shoreline.
-            FillRect(authoring, originX, originZ, 264, 312, 432, 464, BaseY, GameMaterialIds.Stone);
+            // A dry rock tongue intrudes into the receiving pool to expose water/solid contact.
+            // The representative probe at (272,432) deliberately sits on the tongue.
+            for (int z = CoarseColumnCentre; z < 512; z += CoarseColumnStep)
+            for (int x = CoarseColumnCentre; x < 512; x += CoarseColumnStep)
+            {
+                if (x < 272 || x > 320 || z < 432 || z > 480)
+                    continue;
+                int taper = (z - 432) / CoarseColumnStep;
+                if (x > 304 - taper * 8)
+                    continue;
+                authoring.Set(originX + x, BaseY + (x == 272 ? 0 : 1), originZ + z, GameMaterialIds.Stone);
+            }
         }
 
-        private static void FillRect(
+        private static void AuthorTerrainApron(IStructureAuthoringSession authoring, int originX, int originZ)
+        {
+            const float centreX = 222f;
+            const float centreZ = 258f;
+            const float radiusX = 218f;
+            const float radiusZ = 238f;
+
+            for (int z = CoarseColumnCentre; z < 512; z += CoarseColumnStep)
+            for (int x = CoarseColumnCentre; x < 512; x += CoarseColumnStep)
+            {
+                float nx = (x - centreX) / radiusX;
+                float nz = (z - centreZ) / radiusZ;
+                float d = nx * nx + nz * nz;
+                if (d > 1f)
+                    continue;
+
+                float relief = Mathf.Sin(x * 0.031f) * 2.2f
+                    + Mathf.Cos(z * 0.027f) * 1.7f
+                    + Mathf.Sin((x + z) * 0.019f) * 1.2f;
+                int y = BaseY - 10 + Mathf.RoundToInt(relief);
+                byte material = d > 0.78f || relief < -2.2f
+                    ? GameMaterialIds.Stone
+                    : GameMaterialIds.Grass;
+                authoring.Set(originX + x, y, originZ + z, material);
+            }
+        }
+
+        private static void AuthorRiverBanks(IStructureAuthoringSession authoring, int originX, int originZ)
+        {
+            for (int z = 48; z <= 416; z += CoarseColumnStep)
+            {
+                float centre = RiverCentreX(z);
+                float halfWater = RiverHalfWidth(z);
+                float halfBank = halfWater + 34f;
+                int waterY = RiverHeight(z);
+                for (int x = CoarseColumnCentre; x < 512; x += CoarseColumnStep)
+                {
+                    float dx = Mathf.Abs(x - centre);
+                    if (dx <= halfWater || dx > halfBank)
+                        continue;
+                    authoring.Set(originX + x, waterY - 3, originZ + z, GameMaterialIds.Stone);
+                }
+            }
+        }
+
+        private static void AuthorRiver(IStructureAuthoringSession authoring, int originX, int originZ)
+        {
+            for (int z = 48; z <= 368; z += CoarseColumnStep)
+            {
+                float centre = RiverCentreX(z);
+                float halfWidth = RiverHalfWidth(z);
+                int y = RiverHeight(z);
+                for (int x = CoarseColumnCentre; x < 512; x += CoarseColumnStep)
+                {
+                    if (Mathf.Abs(x - centre) <= halfWidth)
+                        authoring.Set(originX + x, y, originZ + z, GameMaterialIds.Water);
+                }
+            }
+        }
+
+        private static void FillRiverBand(
             IStructureAuthoringSession authoring,
             int originX,
             int originZ,
-            int minX,
-            int maxX,
             int minZ,
             int maxZ,
             int y,
             byte material,
-            bool skipExistingWater = false)
+            float halfWidth)
         {
-            // FarFieldStructureStore samples each 32-voxel coarse column at local 16 + 32n.
-            // Author exactly that lattice so semantic validation content cannot disappear merely
-            // because a rectangle happened to begin on a different modulo-32 offset.
-            int startX = FirstCoarseCentreAtOrAfter(minX);
-            int startZ = FirstCoarseCentreAtOrAfter(minZ);
-            for (int z = startZ; z <= maxZ; z += CoarseColumnStep)
-            for (int x = startX; x <= maxX; x += CoarseColumnStep)
+            for (int z = FirstCoarseCentreAtOrAfter(minZ); z <= maxZ; z += CoarseColumnStep)
             {
-                if (skipExistingWater && IsWaterZone(x, z))
-                    continue;
-                authoring.Set(originX + x, y, originZ + z, material);
+                float centre = RiverCentreX(z);
+                for (int x = CoarseColumnCentre; x < 512; x += CoarseColumnStep)
+                {
+                    if (Mathf.Abs(x - centre) <= halfWidth)
+                        authoring.Set(originX + x, y, originZ + z, material);
+                }
+            }
+        }
+
+        private static float RiverCentreX(int z)
+        {
+            float t = Mathf.InverseLerp(48f, 416f, z);
+            return 250f + Mathf.Sin(t * Mathf.PI * 1.65f) * 24f + Mathf.Sin(t * Mathf.PI * 3.1f) * 8f;
+        }
+
+        private static float RiverHalfWidth(int z)
+        {
+            float t = Mathf.InverseLerp(48f, 416f, z);
+            return Mathf.Lerp(50f, 34f, t) + Mathf.Sin(t * Mathf.PI * 2.2f) * 5f;
+        }
+
+        private static int RiverHeight(int z)
+        {
+            if (z <= 176)
+                return BaseY + 5;
+            if (z <= 272)
+                return BaseY + 3;
+            if (z <= 368)
+                return BaseY + 1;
+            return BaseY + 7;
+        }
+
+        private static void FillEllipse(
+            IStructureAuthoringSession authoring,
+            int originX,
+            int originZ,
+            int centreX,
+            int centreZ,
+            int radiusX,
+            int radiusZ,
+            int y,
+            byte material)
+        {
+            float radiusXSquared = radiusX * radiusX;
+            float radiusZSquared = radiusZ * radiusZ;
+            for (int z = CoarseColumnCentre; z < 512; z += CoarseColumnStep)
+            for (int x = CoarseColumnCentre; x < 512; x += CoarseColumnStep)
+            {
+                float dx = x - centreX;
+                float dz = z - centreZ;
+                float normalized = dx * dx / radiusXSquared + dz * dz / radiusZSquared;
+                if (normalized <= 1f)
+                    authoring.Set(originX + x, y, originZ + z, material);
             }
         }
 
@@ -188,29 +297,21 @@ namespace VoxelEngine.Showcase
             return CoarseColumnCentre + ((delta + CoarseColumnStep - 1) / CoarseColumnStep) * CoarseColumnStep;
         }
 
-        private static bool IsWaterZone(int x, int z)
-        {
-            bool stillPool = x >= 80 && x <= 192 && z >= 112 && z <= 224;
-            bool river = x >= 224 && x <= 304 && z >= 64 && z <= 416;
-            bool receivingPool = x >= 216 && x <= 312 && z >= 416 && z <= 464;
-            return stillPool || river || receivingPool;
-        }
-
         private static Camera CreateCamera()
         {
             GameObject cameraObject = new GameObject("Water Validation Review Camera");
             cameraObject.tag = "MainCamera";
             Camera camera = cameraObject.AddComponent<Camera>();
             camera.clearFlags = CameraClearFlags.SolidColor;
-            camera.backgroundColor = new Color(0.34f, 0.50f, 0.69f, 1f);
-            camera.fieldOfView = 46f;
+            camera.backgroundColor = new Color(0.29f, 0.43f, 0.61f, 1f);
+            camera.fieldOfView = 43f;
             camera.nearClipPlane = 0.1f;
             camera.farClipPlane = 500f;
 
-            // Frame the full authored region diagonally: still pool left, river centre, cascade and
-            // receiving pool rear. This is scene policy, intentionally outside shared harness code.
-            Vector3 position = new Vector3(55f, 86f, 300f);
-            Vector3 target = new Vector3(78f, BaseY * 0.1f, 341f);
+            // Use a lower three-quarter presentation so bank relief, river descent, and the cascade
+            // read spatially. This is scene policy and intentionally remains outside the harness.
+            Vector3 position = new Vector3(27f, 55f, 264f);
+            Vector3 target = new Vector3(76f, BaseY * 0.1f + 1f, 340f);
             camera.transform.SetPositionAndRotation(
                 position,
                 Quaternion.LookRotation(target - position, Vector3.up));
@@ -222,10 +323,10 @@ namespace VoxelEngine.Showcase
             GameObject lightObject = new GameObject("Water Validation Sun");
             Light sun = lightObject.AddComponent<Light>();
             sun.type = LightType.Directional;
-            sun.intensity = 1.25f;
-            sun.color = new Color(1f, 0.95f, 0.86f, 1f);
+            sun.intensity = 1.3f;
+            sun.color = new Color(1f, 0.94f, 0.84f, 1f);
             sun.shadows = LightShadows.Soft;
-            lightObject.transform.rotation = Quaternion.Euler(48f, -32f, 0f);
+            lightObject.transform.rotation = Quaternion.Euler(42f, -38f, 0f);
         }
 
         private bool FreezeProductionMeshes(VoxelFarTerrain far)
