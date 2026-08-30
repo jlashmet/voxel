@@ -110,8 +110,9 @@ namespace Game.WorldBuilder.Api
     /// <summary>
     /// Deterministic aggregate over resolved road geometry. All spatial consumers query this object
     /// rather than reproducing polyline-distance, shoulder, clearance, or local-frame logic.
-    /// The aggregate is deliberately compact: it stores only route-local resolved points and derives
-    /// junctions from shared resolved vertices, so streaming order cannot change its answers.
+    /// The aggregate stores route-local resolved points, derives exact shared-vertex junctions, and
+    /// evaluates tangent frames against the deterministic presentation path. Streaming order cannot
+    /// change its answers and merely nearby segments never become junctions.
     /// </summary>
     public sealed class WorldRoadNetwork
     {
@@ -165,7 +166,8 @@ namespace Game.WorldBuilder.Api
                 WorldRoadNetworkRoute route = _routes[i];
                 var influence = new WorldRoadInfluence(route.Road);
                 if (!influence.TrySample(xdm, zdm, out WorldRoadInfluenceSample roadSample)) continue;
-                ClosestSegment(route.Road, xdm, zdm, out int distance, out int tangentX, out int tangentZ);
+                IReadOnlyList<ResolvedWorldRoadPoint> presentation = WorldRoadPresentationPath.Build(route.Road);
+                ClosestSegment(presentation, xdm, zdm, out int distance, out int tangentX, out int tangentZ);
                 int clearanceCoverage = Coverage(distance, route.ClearanceRadiusDm);
                 var candidate = new WorldRoadNetworkSample(route, roadSample, tangentX, tangentZ, clearanceCoverage);
                 if (!found || Better(candidate, best)) { best = candidate; found = true; }
@@ -181,7 +183,8 @@ namespace Game.WorldBuilder.Api
             for (var i = 0; i < _routes.Length; i++)
             {
                 WorldRoadNetworkRoute route = _routes[i];
-                ClosestSegment(route.Road, xdm, zdm, out int distance, out int tangentX, out int tangentZ);
+                IReadOnlyList<ResolvedWorldRoadPoint> presentation = WorldRoadPresentationPath.Build(route.Road);
+                ClosestSegment(presentation, xdm, zdm, out int distance, out int tangentX, out int tangentZ);
                 if (distance > route.ClearanceRadiusDm) continue;
 
                 var influence = new WorldRoadInfluence(route.Road);
@@ -219,7 +222,7 @@ namespace Game.WorldBuilder.Api
         }
 
         private static void ClosestSegment(
-            ResolvedWorldRoad road,
+            IReadOnlyList<ResolvedWorldRoadPoint> points,
             int xdm,
             int zdm,
             out int distanceDm,
@@ -229,10 +232,10 @@ namespace Game.WorldBuilder.Api
             long bestDistanceSquared = long.MaxValue;
             tangentXdm = 0;
             tangentZdm = 1;
-            for (var i = 0; i + 1 < road.Points.Count; i++)
+            for (var i = 0; i + 1 < points.Count; i++)
             {
-                ResolvedWorldRoadPoint a = road.Points[i];
-                ResolvedWorldRoadPoint b = road.Points[i + 1];
+                ResolvedWorldRoadPoint a = points[i];
+                ResolvedWorldRoadPoint b = points[i + 1];
                 long dx = (long)b.Xdm - a.Xdm;
                 long dz = (long)b.Zdm - a.Zdm;
                 long lengthSquared = dx * dx + dz * dz;
