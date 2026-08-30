@@ -256,7 +256,19 @@ namespace Game.Structures.Runtime
                     sign);
                 int radius = profile.BendRadius + ((i & 1) == 0 ? 1 : 0);
                 int height = cave.TunnelHeight + 5 + (i % 3) * 2;
-                a.Cylinder(centre.x, centre.y, centre.z, radius, height, palette.Opening);
+                int clearanceHeight = cave.TunnelHeight + 1;
+                int crownHeight = math.max(4, height - clearanceHeight);
+                UndergroundCavernRouteNaturalization.AuthorRoundedVault(
+                    a,
+                    centre.x,
+                    centre.y,
+                    centre.z,
+                    radius,
+                    clearanceHeight,
+                    crownHeight,
+                    2 + (i % 3),
+                    (i % 5) - 2,
+                    palette.Opening);
                 a.Disc(centre.x, centre.y - 1, centre.z, radius - 2, palette.Rock);
             }
             return profile.BendForwardOffsets.Length;
