@@ -148,21 +148,26 @@ namespace VoxelEngine.Structures.Runtime
 
                 bool boxCarve = primitive.Mode == PrimitiveMode.Carve
                     && primitive.Shape == PrimitiveShape.Box;
+                VoxelReadBlockKind boxCarveBlockKind = default;
+                if (boxCarve)
+                {
+                    boxCarveBlockKind = read.BlockKindOrEmpty(worldBlock);
 
-                // Mountain headroom and other axis-aligned voids often overlap large volumes that
-                // are already canonical empty storage. A box has no authored boundary halo, so an
-                // explicitly Empty block cannot possibly change under Carve. Do not use occupancy
-                // alone here: a Mixed block may contain authored empty-side boundary samples that
-                // default-cell carving is required to clear.
-                if (boxCarve && read.IsImplicitlyEmptyBlock(worldBlock))
-                    continue;
+                    // Mountain headroom and other axis-aligned voids often overlap large volumes
+                    // already encoded as canonical Empty. A box has no authored boundary halo, so
+                    // those blocks are exact no-ops. Mixed is deliberately not treated as empty:
+                    // it may contain authored empty-side boundary samples that carving must clear.
+                    if (boxCarveBlockKind == VoxelReadBlockKind.Empty)
+                        continue;
+                }
 
-                // A fully covered box-carve block has exactly one authoritative result regardless
-                // of its prior uniform/Mixed representation: all 8^3 cells become default. Use the
-                // Storage-owned whole-cell replacement so Mixed boundary payload is cleared and
-                // collapsed without 512 read/compare/write iterations. Edge-clipped blocks retain
-                // the per-voxel path below so cells outside the carve remain untouched.
+                // For a fully covered non-empty Uniform block, every one of the 8^3 cells differs
+                // from the carve's default result. Storage can therefore perform one authoritative
+                // whole-cell replacement while preserving the existing 512-write accounting.
+                // Mixed blocks stay on the per-cell path because sparse payload would otherwise
+                // change RasterResult.VoxelsWritten even though final voxel data matched.
                 if (boxCarve
+                    && boxCarveBlockKind == VoxelReadBlockKind.Uniform
                     && bx0 == blockVoxelMin.x
                     && bx1 == blockVoxelMin.x + VoxelReadGrid.BlockEdgeMask
                     && by0 == blockVoxelMin.y
@@ -463,7 +468,7 @@ namespace VoxelEngine.Structures.Runtime
                 _hasView = false;
             }
 
-            public bool IsImplicitlyEmptyBlock(int3 worldBlock)
+            public VoxelReadBlockKind BlockKindOrEmpty(int3 worldBlock)
             {
                 int3 regionCoord = worldBlock >> VoxelReadGrid.BlocksPerRegionEdgeLog2;
                 if (!_hasView || math.any(regionCoord != _regionCoord))
@@ -472,9 +477,10 @@ namespace VoxelEngine.Structures.Runtime
                     _hasView = _source != null && _source.TryAcquireRegion(regionCoord, out _view);
                 }
 
-                if (!_hasView) return true;
+                if (!_hasView) return VoxelReadBlockKind.Empty;
                 return _view.TryGetWorldBlock(worldBlock, out VoxelReadBlock block)
-                    && block.Kind == VoxelReadBlockKind.Empty;
+                    ? block.Kind
+                    : VoxelReadBlockKind.Empty;
             }
 
             public VoxelCell ReadCell(int3 worldVoxel)
