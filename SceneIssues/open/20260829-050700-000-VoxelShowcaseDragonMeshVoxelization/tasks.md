@@ -19,7 +19,7 @@
 - [x] Verify compact mirror `gkjohnson/3d-demo-data` `dragon.glb` is 1,651,276 bytes, Delatronic / CC BY 3.0, Draco-compressed without mesh simplification; verify independent `ErfanMo77/gltf-research-scenes` conversion reports 16 meshes / 831,812 scene triangles and preserves the same Blend Swap/Bitterli provenance.
 - [x] Resolve exact SHA-256 identities for all four Delatronic Dragon-material PLY payloads from the independent Git LFS mirror and cross-check byte sizes against Microsoft's non-LFS mirror; record them in `verification-source-selection.txt`.
 - [x] Exhaust connector-safe lossless transport options without lowering the source-quality bar: >1 MB binary contents/blob fetch, cross-repository blob reuse, GitHub Raw/CDN download, and same-assignment temp branch recovery are unavailable/no-op in this execution environment.
-- [ ] Vendor the selected Delatronic source bytes into this repository. Current connectors can inspect/base64 small binary source objects but still cannot losslessly transfer the two multi-megabyte main payloads into this repo; direct shell network access was rechecked on 2026-08-30 and still cannot resolve github.com. Do not substitute lower-quality geometry merely to fit tooling.
+- [ ] Vendor the selected Delatronic source bytes into this repository. Current connectors can inspect/base64 small binary source objects but still cannot losslessly transfer the two multi-megabyte main payloads into this repo; direct shell network access was rechecked on 2026-08-30 and still cannot resolve github.com. The exact PLY mirror is `binary_little_endian`, so UTF-8 line-range reconstruction is not viable. Per the repeated-gate rule, do not retry these same transfer methods without a new transport capability and do not substitute lower-quality geometry merely to fit tooling.
 - [ ] Commit exact source URL, author, license, original/mirrored format, vertex/triangle counts, original/mirror SHA-256, committed-source SHA-256, mirror blob/commit provenance, and required attribution/license text.
 - [ ] Verify committed source is meaningfully detailed/non-voxel-native with readable head, body, wings, limbs/feet, tail, and secondary silhouette detail.
 
@@ -37,6 +37,7 @@
 - [x] Sparse artifact codec round-trips exactly and rejects malformed/out-of-bounds data.
 - [x] Baked cells replay through `IStructureAuthoringSession` at arbitrary requested origin.
 - [x] Showcase selection/Space commit state is single-trigger; idle/update repetition cannot duplicate placement.
+- [x] Structure-placement input ownership is explicit and reusable: inactive routing consumes neither scroll nor commit; active routing consumes both controls (including rejected commits); successful commit is one-shot and returns controls on the following frame (`StructurePlacementInputRouterTests`).
 - [x] Reusable fidelity/cost instrumentation has synthetic regressions for surface extraction, connectedness/material/brick counts, symmetric p95 distance, fixed-view silhouette IoU, and transformed mesh→bake measurement.
 - [ ] Add dragon-specific production regression proving required anatomical regions are non-empty/spatially plausible without source-string/count-only assertions.
 
@@ -49,11 +50,11 @@
 - [x] Add deterministic sparse baked-cell codec/artifact and replay through `IStructureAuthoringSession`.
 - [x] Add generic Unity authoring bridge for nested `MeshFilter` hierarchies and reusable baked `SkinnedMeshRenderer` poses with deterministic submesh material mapping.
 - [x] Add reusable bounded offline bake-analysis/fidelity metrics for surface cells, connected components, material/sparse-brick counts, sampled symmetric p95 distance, and fixed-view silhouette IoU.
-- [x] Add isolated one-shot structure-selection state object; production VoxelShowcase input wiring still pending.
+- [x] Add isolated one-shot structure-selection state plus input-consumption router; production VoxelShowcase call-site wiring remains pending.
 - [ ] Add source-specific authoring/bake configuration for the chosen Delatronic model and generate/commit the baked dragon artifact; ordinary runtime must never execute mesh voxelization.
 - [ ] Preserve major source material/color regions with deterministic palette mapping/quantization.
 - [ ] Instantiate baked dragon through normal `ShowcaseWorld`/WorldBuilder voxel authoring so collision/edit/destruction read the same storage.
-- [ ] Wire explicit VoxelShowcase structure-selection mode: scroll selects while active, Space commits once, ordinary controls unchanged outside mode.
+- [ ] Wire explicit VoxelShowcase structure-selection mode: scroll selects while active, Space commits once, ordinary controls unchanged outside mode. Current tool blocker: the live 58 KB `Assets/Game/Composition/Showcase/SceneRuntime/VoxelShowcase.cs` is only writable as a whole file while connector reads truncate it; do not risk unrelated code loss or bypass with reflection/parallel input authority.
 - [ ] Add dedicated labeled `Mesh -> Voxels` comparison area with matched pose/scale/orientation/ground/lighting; source mesh is presentation-only and has no collider/gameplay authority.
 - [ ] Add durable comparison capture support for front, side, rear, front 3/4, rear 3/4, elevated/top 3/4, plus head/horns, wing, feet/claws, tail closeups.
 - [ ] Add supplemental symmetric source↔voxel surface-distance metric and fixed-view silhouette IoU evidence (targets p95 <=1.5 voxels, primary IoU >=0.90 unless a documented thin-feature limitation is visually acceptable).
@@ -77,7 +78,7 @@
 - [ ] Record import/voxelization time, occupied voxel count, sparse brick/chunk count, serialized size, runtime resident/storage impact, and incremental render/world-build cost within repository budgets.
 - [x] Verify ordinary runtime does not execute mesh voxelization and no `MeshCollider`/source-mesh gameplay fallback exists; `ShowcaseWorld.PlaceBakedMeshStructure` accepts/replays only `BakedVoxelStructure`, Unity mesh extraction is isolated to an Editor-only assembly, and repository search finds no `MeshCollider` use. Recorded in `verification-regression-coverage.txt`.
 - [x] Current feature-vs-master blast-radius review shows additions confined to mesh-import editor/runtime, showcase mesh-structure/selection helpers, focused EditMode tests, and this issue's plan/tasks; no workflow request or unrelated SceneIssue changes.
-- [x] Refresh-merged `origin/master` through `5f07db5cd7677e84f617deb61c5b03a4b896159c` at merge commit `76ecb118cd93010a0169e270822d769e46804123`, preserving current master changes without altering another assignment directly.
+- [x] Refresh-merged `origin/master` through `5865c6e04f93c7d2ba0f10258909f38115424607` at merge commit `040bc7a146672c01e9c7f9f1d165d65b3c5854e6`; the master delta was limited to Kentridge shared-composition/regression files and was preserved unchanged.
 - [ ] Re-run full feature diff review after source/showcase/evidence implementation.
 - [ ] Refresh/merge current `origin/master` again immediately before final CI if it advanced.
 - [ ] Issue one final exact-source PlayMode request only through `ci-test/fixes/agent-1`; do not replace queued/running CI.
