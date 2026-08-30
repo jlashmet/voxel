@@ -123,9 +123,11 @@ namespace VoxelEngine.Tests.PlayMode
                 Assert.That(edgeResult.VoxelsWritten, Is.LessThan(VoxelReadGrid.VoxelsPerBlock));
                 Assert.That(reads.TryAcquireRegionContainingBlock(
                     new int3(2, 1, 0), out RegionReadView edgeView), Is.True);
-                Assert.That(edgeView.TryReadCell(new int3(0, VoxelReadGrid.BlockEdge, 4), out VoxelCell inside), Is.True);
+                Assert.That(edgeView.TryReadCell(
+                    new int3(VoxelReadGrid.BlockEdge * 2, VoxelReadGrid.BlockEdge, 4), out VoxelCell inside), Is.True);
                 Assert.That(inside.BaseMaterialId, Is.EqualTo(MountainMaterial));
-                Assert.That(edgeView.TryReadCell(new int3(7, VoxelReadGrid.BlockEdge, 4), out VoxelCell outside), Is.True);
+                Assert.That(edgeView.TryReadCell(
+                    new int3(VoxelReadGrid.BlockEdge * 3 - 1, VoxelReadGrid.BlockEdge, 4), out VoxelCell outside), Is.True);
                 Assert.That(outside.IsSolid, Is.False,
                     "The far side of a boundary block must remain empty after frustum rasterization.");
             }
