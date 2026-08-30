@@ -1,0 +1,23 @@
+Focused feature regressions present on fixes/agent-1:
+
+MeshVoxelizationFeatureTests
+- closed curved UV sphere: conservative surface extrema + solid interior
+- same source/settings: deterministic repeat output and stable cell ordering
+- off-origin rotation + non-uniform/mirrored transform
+- deterministic source material regions + interior fallback material
+- thin triangle sheet retention without global solidification
+- invalid index + oversized working-set preflight
+- sparse bake codec exact round-trip + malformed/out-of-bounds rejection
+- canonical IStructureAuthoringSession replay at arbitrary origin
+- selection scroll/Space commit state cannot duplicate across repeated idle frames
+
+MeshVoxelizationTopologyTests
+- open source explicitly falls back to surface-only and reports boundary edges
+- strict open-source policy rejects with topology diagnostic
+- closed source reports closed topology and filled interior
+
+MeshVoxelizationPreflightTests
+- non-finite source vertex rejected before voxelization
+- non-finite transform rejected before transforming vertices
+
+These are supplemental regression contracts; they are not a substitute for the mandatory dragon-specific regression, exact-SHA CI, built-player validation, fidelity metrics, destruction truth check, or production-quality visual review.
