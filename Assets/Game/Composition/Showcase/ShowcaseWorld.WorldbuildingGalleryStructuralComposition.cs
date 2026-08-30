@@ -356,7 +356,7 @@ namespace VoxelEngine.Showcase
                         Offers = BridgeTag, Accepts = BridgeTag,
                         LocalPosition = new int3(80, 20, 40), Facing = Facing.Down,
                         DefinitionId = 3,
-                        LocalMin = new int3(80, 20, 40), LocalMax = new int3(240, 20, 40),
+                        LocalMin = new int3(80, 20, 40), LocalMax = new int3(319, 20, 40),
                         CountMin = 3, CountMax = 3, Capacity = 3, Spacing = 80,
                         Flags = StructuralSocketFlags.Required | StructuralSocketFlags.RequireTerrainSupport,
                         SupportProbeMin = new int3(-8, -240, -8),
