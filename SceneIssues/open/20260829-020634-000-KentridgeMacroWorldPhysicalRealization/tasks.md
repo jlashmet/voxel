@@ -39,13 +39,18 @@
 - [x] Discriminate endpoint engulfment versus shared detour-solver insufficiency using authoritative graph coordinates: `fighting-area-1` is inside current road-expanded lake bounds, so the shared solver is correct.
 - [x] Move Rossdam Lake northwest to nominal offsets `(-400,-155)` while preserving resolved `900 x 450 x 24 dm`; keep `fighting-area-1` dry, its outbound north road constrained, and direct Rossdam approach genuinely constrained.
 - [x] Remove the now-unnecessary inbound `forest -> fighting-area-1` lake constraint and replace the temporary regression with endpoint-dry + inbound-dry + outbound/Rossdam-constrained behavioral assertions.
-- [ ] Re-run exact-SHA targeted CI only after the source remediation and prove both the focused Unity suite and supported 60-second real-player smoke are closure-quality green for that same source SHA.
+- [x] Run exact source `cb4e1b0fa1464da214d799ba55750bea38159143` through wrapper `e5bdf88a387c486b72be5d8950fb6d1458a5aad9`; run `33304172039` is exact-attributed, focused PlayMode `1/1` green, standalone process clean, but visual evidence is closure-red because the driver remains at Moordell through 59 s.
+- [x] Record run `33304172039` as `experiment-016-exact-ci-moordell-content-convergence.md`; do not promote from workflow status alone.
+- [ ] Diagnose persistent Moordell readiness telemetry `contentCols=5 readyContent=4 missingContent=1` that prevents evidence target advancement within 60 s.
+- [ ] Preserve real content-settled and renderer-coverage gates; do not skip readiness, extend replay beyond 60 s, increase load radius, or reintroduce broad/serial prestreaming.
+- [ ] Apply only the smallest proved validation-driver/readiness-demand correction while retaining semantic-focus streaming ownership and target order `Moordell -> Rossdam -> Rossdam lake -> Fairy -> Orc -> Southern Ridge/pass -> network`.
+- [ ] Re-run exact-SHA targeted CI only after source remediation and prove the focused Unity suite plus supported 60-second real-player smoke are closure-quality green for that same source SHA, including every required target.
 
 ## Exact runtime / visual gate
-- [ ] Exact built `KentridgePlayableSlice` reaches usable gameplay without startup/runtime exceptions and captures every required macro target inside the supported 60 s replay.
+- [ ] Exact built `KentridgePlayableSlice` reaches usable gameplay without startup/runtime exceptions and captures every required macro target inside the supported 60 s replay. Run `33304172039` is runtime-clean but visually incomplete at Moordell.
 - [ ] Full-resolution evidence shows at least four readable grounded blockouts at Moordell, Rossdam, Fairy Village, and Orc Village plus streets/open space and road arrival/exit.
 - [ ] Full-resolution evidence shows continuous roads/network, substantial Rossdam lake, Southern Ridge/pass, visibly geography-constrained route behavior, differentiated countryside, and representative real CharacterMotor traversal.
-- [ ] Verify player-height road entering/leaving settlement evidence is actually captured at player height.
+- [x] Verify player-height road entering/leaving settlement evidence is actually captured at player height: run `33304172039` artifact includes `macro-road-character-motor.png` / player-height Moordell road evidence.
 
 ## Blast radius / cost
 - [x] No unrelated SceneIssue, no feature-branch `.github/test-request.json`, no custom CI transport/workflow, no CharacterMotor/load-radius/device-budget change.
@@ -53,8 +58,9 @@
 - [x] Current master `e95324aeaef619cb49d84bf2b07f770184bead81` was merged at `0cea93d647e5860795dd4938e3b8d8ab5b1bbc6c`; comparison was ahead-only and assignment-scoped.
 - [x] Existing pre-final metrics: regions=6, settlements=6, generic buildings=16, hardRoutes=20, prior routeTiles=833, constrainedRoutes=5, solveSteps=1108, maxRoadRiseVoxels=2; scoped readiness previously 1,090,380 feature voxels and ~2500 ms last feature step.
 - [x] Rejected-run resource data remains bounded: `33292881845` player peak RSS 5233 MB; `33293664047` editor peak 3448 MB with zero swap growth; post-start built-player FPS generally >60 and often >100.
-- [ ] Measure final resolved lake dimensions/depth/primitive cells, route tile/solve/constrained counts, feature voxel work/last-feature time, CPU/frame/FPS, memory, streaming convergence, and render/far-field telemetry against existing budgets.
-- [x] Re-check exact feature diff/current master immediately before final targeted CI: master remains `e95324aeaef619cb49d84bf2b07f770184bead81`, branch is ahead-only, and the endpoint remediation is limited to Kentridge intent/test plus assignment evidence.
+- [x] Record run `33304172039` runtime budget sample: assertion failures `0`, no swap growth, peak RSS `5,571,344 KB`, late-run FPS approximately `197/222/232/168/137`, and final visible coverage `missingVisible=0 coverage=True`; visual progression remains blocked by one unready content column.
+- [ ] Measure final resolved lake dimensions/depth/primitive cells, route tile/solve/constrained counts, feature voxel work/last-feature time, CPU/frame/FPS, memory, streaming convergence, and render/far-field telemetry against existing budgets on closure-quality evidence.
+- [x] Re-check exact feature diff/current master immediately before targeted CI: master remains `e95324aeaef619cb49d84bf2b07f770184bead81`, branch is ahead-only, and the endpoint remediation is limited to Kentridge intent/test plus assignment evidence.
 
 ## Acceptance / closure
 - [ ] (1) Source-backed macro graph remains authoritative through shared WorldBuilder APIs.
