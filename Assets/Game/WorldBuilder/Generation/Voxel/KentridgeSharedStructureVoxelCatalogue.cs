@@ -32,6 +32,21 @@ namespace MountingForce.WorldGen.Voxel
             Allocator allocator)
         {
             SettlementPlan plan = SettlementVoxelPlan.Resolve(seed, in settings);
+            SpatialReservationSnapshot reservations =
+                string.Equals(plan.Theme.Id, KentridgeDefinition.Id, StringComparison.Ordinal)
+                    ? KentridgeTownPlanner.BuildReservationSnapshot(seed)
+                    : null;
+            return Build(seed, settings, allocator, plan, reservations);
+        }
+
+        internal static FeatureCatalogue Build(
+            uint seed,
+            VoxelWorldGenSettings settings,
+            Allocator allocator,
+            SettlementPlan plan,
+            SpatialReservationSnapshot reservations)
+        {
+            if (plan == null) throw new ArgumentNullException(nameof(plan));
             ArchitectureTheme theme = plan.Theme;
             int scale = settings.VoxelsPerDecimetre;
             BuildingPlot[] plots = PlotsByRole(plan);
@@ -44,6 +59,8 @@ namespace MountingForce.WorldGen.Voxel
                 BuildingPlot plot = plots[roleId];
                 StructureIntent intent = KentridgeDefinition.StructureIntent(plot);
                 StructureForm form = ArchitectureCompiler.Resolve(intent, theme, seed);
+                KentridgeStructureReservationValidation.Validate(
+                    plot, intent, theme, form, reservations);
                 programs[roleId] = form.IsGenerated
                     ? SharedGeneratedProgram(plot, form, theme, settings, seed)
                     : BespokeProgram(intent, form, theme, settings);
