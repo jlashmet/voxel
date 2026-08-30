@@ -59,9 +59,9 @@
 - [x] Inspect run `33289023179` without replacing it: fallback player build succeeded but rejected the stale world for missing source-matched provenance; all six captures remain non-acceptance evidence.
 - [x] Correct the frustum-mode discriminator from source: the single mountain core is `Fill`, while the three asymmetric shoulders and 20+ segmented path-support frusta are `FillIfEmpty`; the two previous `Fill`-only optimizations therefore missed the dominant support authoring mode.
 - [x] Verify storage semantics for a safe `FillIfEmpty` block path: canonical Empty may receive the exact whole-cell result; any non-empty Uniform block is an exact no-op because every cell is solid; Uniform stores material only with implicit zero surface/boundary semantics, so no broader overwrite is safe; Mixed must stay per-cell.
-- [ ] Add a focused real-storage regression before production implementation covering canonical-Empty interior atomic `FillIfEmpty`, Uniform-solid interior no-op, Mixed preservation, and a boundary block that remains on the per-cell path with authored halo semantics.
-- [ ] Implement only the proven full-block `FillIfEmpty + Frustum` cases and extend the deep-interior halo skip to `FillIfEmpty` under the same eight-corner >32 Q4 proof.
-- [ ] Re-check the `FillIfEmpty` optimization blast radius/cost; Mixed/partial/boundary blocks, other shapes/modes, primitive order, surface/boundary semantics, and exact logical write accounting must remain unchanged.
+- [x] Add focused real-storage regression commit `ca237a4460bc...` before production implementation covering canonical-Empty interior atomic `FillIfEmpty`, Uniform-solid interior no-op, Mixed preservation/exact 511 writes, and a boundary block that remains on the per-cell path with authored positive/negative halo semantics.
+- [x] Implement only the proven full-block `FillIfEmpty + Frustum` cases in commit `2d1e1c76e673...` and extend the deep-interior halo skip to `FillIfEmpty` under the same eight-corner >32 Q4 proof.
+- [x] Re-check the `FillIfEmpty` optimization blast radius/cost: dominant support Empty blocks replace up to 512 membership/read/write iterations with one block lookup + eight corner checks + one whole mutation; Uniform-solid overlaps replace up to 512 membership/read guards with one block lookup; deep-interior halo scans replace up to 512 signed-distance/integer-sqrt evaluations with eight corner checks. Mixed/partial/boundary blocks, other shapes/modes, primitive order, surface/boundary semantics, and exact logical write accounting remain unchanged.
 - [ ] Re-measure the full 9-region bake under the 240 s subprocess contract.
 - [ ] Prove all authored landing floor/headroom columns survive without castle-region suppression on the source-matched bake.
 
@@ -70,7 +70,7 @@
 - [x] Submit exact-parent request `5cc2ef4e03ce...` for source `bf376936ae66...` only after latest-master ancestry was confirmed; run `33288586966` completed red and was not replaced while queued/running.
 - [x] Submit exact-parent request `cda51cb0a62a...` for source `408a0fdf8c2b...` only after the prior request was completed red and latest-master ancestry was confirmed; run `33289023179` completed red and was not replaced while queued/running.
 - [ ] Produce/commit the accepted source-matched generated startup payload + manifest before final closure, if repository workflow permits producing it without violating the CI transport contract.
-- [ ] After the next revised source and latest-master integration, issue a new exact-parent final request using only `ci-test/fixes/agent-4`.
+- [ ] After revised source and latest-master integration, issue a new exact-parent final request using only `ci-test/fixes/agent-4`.
 - [ ] Run the exact focused acceptance filter green on the final feature SHA.
 - [ ] Traverse the complete route via production `AutoWalk -> CharacterMotor.Step` with grounded Y proof.
 - [ ] Save and human-review approach/base/middle/upper/summit/dialogue captures, including `Hello, I'm Mr. Dragon.`
