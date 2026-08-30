@@ -25,10 +25,10 @@ namespace VoxelEngine.Showcase
         private const int BaseY = 180;
         private const int StillPoolCentreX = 136;
         private const int StillPoolCentreZ = 160;
-        private const int StillPoolShelfRadiusX = 104;
-        private const int StillPoolShelfRadiusZ = 112;
-        private const int StillPoolWaterRadiusX = 72;
-        private const int StillPoolWaterRadiusZ = 80;
+        private const int StillPoolShelfRadiusX = 74;
+        private const int StillPoolShelfRadiusZ = 82;
+        private const int StillPoolWaterRadiusX = 52;
+        private const int StillPoolWaterRadiusZ = 58;
 
         private IVoxelStorageRuntime _storage;
 
@@ -142,9 +142,9 @@ namespace VoxelEngine.Showcase
                 BaseY, GameMaterialIds.Water);
 
             FillEllipse(authoring, originX, originZ,
-                252, 440, 84, 52, BaseY - 2, GameMaterialIds.Stone);
+                252, 440, 66, 44, BaseY - 2, GameMaterialIds.Stone);
             FillEllipse(authoring, originX, originZ,
-                252, 440, 62, 42, BaseY, GameMaterialIds.Water);
+                252, 440, 46, 32, BaseY, GameMaterialIds.Water);
 
             for (int z = 368; z <= 416; z++)
             {
@@ -303,12 +303,12 @@ namespace VoxelEngine.Showcase
             Camera camera = cameraObject.AddComponent<Camera>();
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.backgroundColor = new Color(0.29f, 0.43f, 0.61f, 1f);
-            camera.fieldOfView = 48f;
+            camera.fieldOfView = 36f;
             camera.nearClipPlane = 0.1f;
-            camera.farClipPlane = 300f;
+            camera.farClipPlane = 240f;
 
-            Vector3 position = new Vector3(45f, 43f, 300f);
-            Vector3 target = new Vector3(75f, BaseY * 0.1f + 0.5f, 337f);
+            Vector3 position = new Vector3(58f, 36f, 292f);
+            Vector3 target = new Vector3(84f, BaseY * 0.1f + 0.5f, 340f);
             camera.transform.SetPositionAndRotation(
                 position,
                 Quaternion.LookRotation(target - position, Vector3.up));
