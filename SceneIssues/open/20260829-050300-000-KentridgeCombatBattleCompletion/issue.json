@@ -2,10 +2,14 @@
   "id": "20260829-050300-000",
   "type": "scene_issue",
   "scene": "Kentridge",
+  "scenePath": "Assets/Scenes/KentridgePlayableSlice.unity",
   "component": "Combat / battle flow / AI turns",
   "status": "open",
   "created_at": "2026-08-29T05:03:00Z",
   "source": "manual user-authored issue",
+  "resolutionSummary": "Production Kentridge combat previously had no battle-progression authority after proximity activation: the CombatService only supported movement plus manual completion. Added authoritative HP, turn-consuming attacks, terminal team evaluation, a fixed-seed AI battle driver for both teams, Kentridge autonomous stepping/teardown, and high-signal terminal diagnostics. The focused regression repeatedly proves deterministic bounded completion and the exact Kentridge scene regression fails on any no-progress stall or unresolved teardown.",
+  "regressionTest": "VoxelEngine.Tests.PlayMode.KentridgeCombatEncounterTests",
+  "fixCommit": "605d83da722e9c7f37a6129bb6c1a884ff2455af",
   "issues": [
     {
       "key": "kentridge-combat-battle-freeze-ai-vs-ai",
