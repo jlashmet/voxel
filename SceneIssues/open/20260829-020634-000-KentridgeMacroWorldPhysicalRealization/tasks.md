@@ -53,7 +53,7 @@
 - [x] Keep final readiness evaluation presentation-scoped: surface/camera layers of one queried column; settlement evidence checks four building columns; no whole-world/residency scan, generation, duplicate geometry, extra residency, or replay-time inflation.
 - [x] Record corrected-run signal: presentation regression touched 1,090,380 feature voxels but reported a 2500.10 ms last feature step; treat final built-player telemetry as mandatory rather than inferring cost from voxel count alone.
 - [ ] Measure final remediation cost and record route solve/tile/building/feature counts plus built-player CPU/GPU/frame/memory/streaming telemetry against existing budgets.
-- [ ] Re-check current feature diff against current master before the next exact final CI.
+- [x] Re-check current feature diff against current master before the next exact final CI: merge `4d0409c068590f2507f8bb093cd876aed449f96d` incorporates master `0901be5a0640e3eec103cdf3c97aa12b8cd42a9e`; `behind_by=0`, and the remaining diff contains only this Kentridge macro-world feature/tests/docs.
 
 ## Acceptance / closure
 - [ ] (1) Source-backed macro graph remains authoritative through shared WorldBuilder APIs.
