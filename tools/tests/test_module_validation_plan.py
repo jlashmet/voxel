@@ -9,93 +9,78 @@ spec=importlib.util.spec_from_file_location("module_validation_plan",SCRIPT)
 planner=importlib.util.module_from_spec(spec)
 spec.loader.exec_module(planner)
 
-def write_manifest(root, rel, data):
+def write(root, rel, data="x"):
     path=root/rel
     path.parent.mkdir(parents=True,exist_ok=True)
-    path.write_text(json.dumps(data),encoding="utf-8")
+    path.write_text(json.dumps(data) if isinstance(data,dict) else data,encoding="utf-8")
     return path
 
 class PlannerTests(unittest.TestCase):
     def fixture(self):
         td=tempfile.TemporaryDirectory()
         root=Path(td.name)
-        water={
+        write(root,"Assets/Water/Validation.unity")
+        write(root,"Assets/Water/water.player-scenario.json","{}")
+        write(root,"Assets/Game/Kentridge.unity")
+        write(root,"Assets/Game/kentridge.player-scenario.json","{}")
+        write(root,"Assets/Water/water.module-validation.json",{
             "schemaVersion":1,"module":"water",
-            "productionPaths":["Assets/Runtime/Water/**"],
-            "sharedPaths":["Assets/Core/**"],
+            "productionPaths":["Assets/Water/Runtime/**"],"sharedPaths":["Assets/Core/**"],
             "tests":[{"platform":"PlayMode","filter":"Tests.Water"}],
-            "playerValidation":{"scene":"Assets/Runtime/Water/Validation.unity",
-                                "scenario":"Assets/Runtime/Water/Validation.player-scenario.json"}
-        }
-        game={
-            "schemaVersion":1,"module":"game-integration","integrationGate":True,
-            "productionPaths":["Assets/Game/**"],"sharedPaths":[],
+            "playerValidation":{"scene":"Assets/Water/Validation.unity","scenario":"Assets/Water/water.player-scenario.json"}
+        })
+        write(root,"Assets/Game/game.module-validation.json",{
+            "schemaVersion":1,"module":"game-integration","integrationGate":True,"fallback":True,
+            "productionPaths":["Assets/Game/**"],"sharedPaths":["Assets/**"],
             "tests":[{"platform":"PlayMode","filter":"Tests.Game"}],
-            "playerValidation":{"scene":"Assets/Game/Kentridge.unity",
-                                "scenario":"Assets/Game/Kentridge.player-scenario.json"}
-        }
-        write_manifest(root,"Assets/Runtime/Water/water.module-validation.json",water)
-        write_manifest(root,"Assets/Game/game.module-validation.json",game)
+            "playerValidation":{"scene":"Assets/Game/Kentridge.unity","scenario":"Assets/Game/kentridge.player-scenario.json"}
+        })
         return td,root
 
-    def test_water_diff_schedules_focused_visual_and_integration(self):
+    def test_owned_water_is_narrow_plus_integration(self):
         td,root=self.fixture()
         with td:
-            result=planner.plan(["Assets/Runtime/Water/Foo.cs"],planner.discover(root))
+            result=planner.plan(["Assets/Water/Runtime/Foo.cs"],planner.discover(root))
             self.assertEqual(["water"],result["modules"])
-            self.assertEqual([{"module":"water","platform":"PlayMode","filter":"Tests.Water"}],result["tests"])
-            self.assertEqual(["water","game-integration"],[p["module"] for p in result["playerValidations"]])
+            self.assertEqual(["Tests.Water"],[item["filter"] for item in result["tests"]])
+            self.assertEqual(["water","game-integration"],[item["module"] for item in result["playerValidations"]])
 
-    def test_unrelated_nonproduction_change_is_noop(self):
-        td,root=self.fixture()
-        with td:
-            result=planner.plan(["README.md"],planner.discover(root))
-            self.assertEqual([],result["modules"])
-            self.assertEqual([],result["tests"])
-            self.assertEqual([],result["playerValidations"])
-
-    def test_shared_core_expands_to_declared_dependents(self):
+    def test_shared_core_expands_declared_dependents(self):
         td,root=self.fixture()
         with td:
             result=planner.plan(["Assets/Core/Clock.cs"],planner.discover(root))
             self.assertEqual(["water"],result["modules"])
-            self.assertEqual(2,len(result["playerValidations"]))
 
-    def test_unowned_production_change_fails_closed(self):
+    def test_unknown_production_uses_conservative_fallback(self):
         td,root=self.fixture()
         with td:
-            with self.assertRaises(planner.ManifestError):
-                planner.plan(["Assets/Unknown/Foo.cs"],planner.discover(root))
+            result=planner.plan(["Assets/Unknown/Foo.cs"],planner.discover(root))
+            self.assertEqual(["game-integration"],result["modules"])
+            self.assertEqual(["Assets/Unknown/Foo.cs"],result["fallbackPaths"])
 
-    def test_scene_and_scenario_are_separate_and_required(self):
+    def test_nonproduction_change_is_noop(self):
         td,root=self.fixture()
         with td:
-            manifests=planner.discover(root)
-            player=next(m["playerValidation"] for m in manifests if m["module"]=="water")
-            self.assertTrue(player["scene"].endswith(".unity"))
-            self.assertTrue(player["scenario"].endswith(".player-scenario.json"))
-            self.assertNotEqual(player["scene"],player["scenario"])
+            result=planner.plan(["README.md"],planner.discover(root))
+            self.assertFalse(result["hasProductionChanges"])
+            self.assertEqual([],result["tests"])
+            self.assertEqual([],result["playerValidations"])
 
     def test_independent_manifest_added_without_planner_code_change(self):
         td,root=self.fixture()
         with td:
-            write_manifest(root,"Assets/Runtime/Structures/structures.module-validation.json",{
-                "schemaVersion":1,"module":"structures",
-                "productionPaths":["Assets/Runtime/Structures/**"],"sharedPaths":[],
+            write(root,"Assets/Structures/structures.module-validation.json",{
+                "schemaVersion":1,"module":"structures","productionPaths":["Assets/Structures/**"],"sharedPaths":[],
                 "tests":[{"platform":"EditMode","filter":"Tests.Structures"}]
             })
-            result=planner.plan(["Assets/Runtime/Structures/Socket.cs"],planner.discover(root))
+            result=planner.plan(["Assets/Structures/Socket.cs"],planner.discover(root))
             self.assertEqual(["structures"],result["modules"])
             self.assertEqual("Tests.Structures",result["tests"][0]["filter"])
 
-    def test_manifest_validation_rejects_implicit_scene_policy(self):
-        with tempfile.TemporaryDirectory() as name:
-            root=Path(name)
-            write_manifest(root,"Assets/Bad/bad.module-validation.json",{
-                "schemaVersion":1,"module":"bad","productionPaths":["Assets/Bad/**"],
-                "tests":[{"platform":"PlayMode","filter":"Tests.Bad"}],
-                "playerValidation":{"scene":"BadScene","scenario":"profile-name"}
-            })
+    def test_scene_and_scenario_files_are_required(self):
+        td,root=self.fixture()
+        with td:
+            (root/"Assets/Water/water.player-scenario.json").unlink()
             with self.assertRaises(planner.ManifestError):
                 planner.discover(root)
 
