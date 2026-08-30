@@ -13,14 +13,16 @@
 - Targeted CI derives module tests/player targets from the exact feature diff and automatically adds Kentridge for production changes.
 - Water is the representative player-visible migration; an independent Structures planner fixture proves metadata reuse without planner code changes.
 - Required focused tests fail on missing results, zero matches, skipped/failed cases; player validation fails on missing scene/scenario, failed player execution, required/forbidden log assertions, or insufficient captures.
-- Exact-SHA run 33334407204: explicit Water test and all 9 planner/runner regressions passed. Automatic planning selected Water + Kentridge. The run then failed because fallback Kentridge injected the broad `KentridgePlayableScenePlayTests.*` suite, whose unrelated NPC range assertion failed before either built-player gate. Fix: integration/fallback metadata may omit focused tests; owning modules still require them. Kentridge remains mandatory as the built-player integration gate.
-- Exact-SHA run 33334839567: explicit Water test and all 10 regressions passed; automatic plan correctly contained only the Water focused test plus Water/Kentridge player targets. Kentridge built successfully and ran for 60 seconds, but the harness found no log/captures because relative player artifact paths were resolved from the app runtime context. After two automatic-stage failures, root cause was isolated to relative `--output` handling before another fix. The shared capture harness now normalizes its artifact root to an absolute path before launching the player.
+- Run 33334407204 exposed unintended Kentridge PlayMode coupling; integration/fallback metadata is now integration-only while owning modules still require focused tests.
+- Run 33334839567 isolated relative standalone-player artifact paths as the second failure; the shared harness now normalizes the artifact root before launching the app.
+- Exact-SHA run 33335079315 is green: automatic planning selected Water + Kentridge, the Water focused test passed, built-player Kentridge produced 4 frames, built-player Water produced 3 frames, and automatic module validation completed in 167.71 seconds.
+- Direct review of that Water evidence rejected it as `prototype/blockout quality`: the startup-only patch does not visibly demonstrate still water, shallow shoreline, river flow, waterfall/cascade, and terrain contact. The validation composition must be upgraded before closure; automation green alone does not satisfy visual acceptance.
 
 ## Blast radius / cost
-CI/orchestration, validation assets, tests, and docs only; no authoritative runtime behavior changed. Expected validation cost is affected owning-module focused tests plus affected module player scenes plus one Kentridge player build/run; unrelated module visual scenes and integration-only fallback PlayMode suites are excluded.
+CI/orchestration, validation assets, tests, and docs only; no authoritative runtime behavior changed. Measured automatic validation cost is 167.71 seconds for the current Water + Kentridge path. The visual fix is confined to Water validation composition/content and must continue to exercise production Water rendering.
 
 ## Current commit
-Post-root-cause fix checkpoint: 2223bde6a46aa5ee5af7d34970f818ad0ef51246
+Post-green visual-review checkpoint: 609b42778ff6f4d6a5a380723d5aef600710cace
 
 ## Remaining gates
 - [x] Inspect current validation architecture and identify reusable harness boundary.
@@ -28,5 +30,6 @@ Post-root-cause fix checkpoint: 2223bde6a46aa5ee5af7d34970f818ad0ef51246
 - [x] Migrate Water validation scene/scenario.
 - [x] Remove generic feature-specific inference and update docs/workflow semantics.
 - [x] Add automated regression coverage, including fail-closed execution and integration-only fallback behavior.
-- [ ] Run exact-SHA CI demonstrating automatic complete flow and measure cost.
+- [ ] Upgrade and visually accept representative production Water validation content.
+- [ ] Rerun exact-SHA CI demonstrating automatic complete flow and record final cost/evidence.
 - [ ] Review all 18 acceptance criteria, complete metadata, open -> closed, merge current master, and promote exact head.
