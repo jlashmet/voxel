@@ -101,28 +101,30 @@ namespace VoxelEngine.Showcase
             if (riverY == int.MaxValue) riverY = site.DeckY - 120;
             int contextY = math.min(riverY - 4, site.DeckY - 220);
             int deckLocalY = site.DeckY - contextY;
-            int3 supportOrigin = new(site.X, contextY, site.Z - 320);
-            var supports = new ProgramWriter();
 
-            int waterLocalY = math.max(2, riverY - contextY + 2);
-            supports.Box(new int3(455, waterLocalY, 0), new int3(310, 4, 720), GameMaterialIds.Water);
-            supports.Box(new int3(425, waterLocalY - 2, 0), new int3(30, 8, 720), GameMaterialIds.MasonrySmall);
-            supports.Box(new int3(765, waterLocalY - 2, 0), new int3(30, 8, 720), GameMaterialIds.MasonrySmall);
+            var river = new ProgramWriter()
+                .Box(new int3(50, 8, 0), new int3(310, 4, 720), GameMaterialIds.Water)
+                .Box(new int3(20, 6, 0), new int3(30, 8, 720), path)
+                .Box(new int3(360, 6, 0), new int3(30, 8, 720), path);
+            AuthorPresentationCatalogue(
+                "bridge-river-channel", new int3(site.X + 405, riverY - 6, site.Z - 320),
+                new int3(410, 16, 720), 0x53544602u,
+                StructuralSocketRole.TerrainAnchor, BridgeTag, river, 8, path);
 
             int shoulderLower = math.clamp(deckLocalY - 52, 64, 180);
             int shoulderUpper = math.clamp(deckLocalY - 18, 48, 200);
-            supports.Box(new int3(0, 0, 0), new int3(28, shoulderLower, 286), stone)
-                .Box(new int3(0, 0, 434), new int3(28, shoulderLower, 286), stone)
-                .Box(new int3(28, 0, 72), new int3(18, shoulderUpper, 210), detail)
-                .Box(new int3(28, 0, 438), new int3(18, shoulderUpper, 210), detail)
-                .Box(new int3(1192, 0, 0), new int3(28, shoulderLower, 286), stone)
-                .Box(new int3(1192, 0, 434), new int3(28, shoulderLower, 286), stone)
-                .Box(new int3(1174, 0, 72), new int3(18, shoulderUpper, 210), detail)
-                .Box(new int3(1174, 0, 438), new int3(18, shoulderUpper, 210), detail)
-                .Box(new int3(28, shoulderUpper, 92), new int3(90, 10, 164), path)
-                .Box(new int3(28, shoulderUpper, 464), new int3(90, 10, 164), path)
-                .Box(new int3(1102, shoulderUpper, 92), new int3(90, 10, 164), path)
-                .Box(new int3(1102, shoulderUpper, 464), new int3(90, 10, 164), path);
+            AuthorBridgeShoulderPresentation(
+                "bridge-bank-l-n", new int3(site.X, contextY, site.Z - 320),
+                shoulderLower, shoulderUpper, right: false, stone, detail, path, 0x53544701u);
+            AuthorBridgeShoulderPresentation(
+                "bridge-bank-l-s", new int3(site.X, contextY, site.Z + 114),
+                shoulderLower, shoulderUpper, right: false, stone, detail, path, 0x53544702u);
+            AuthorBridgeShoulderPresentation(
+                "bridge-bank-r-n", new int3(site.X + 1102, contextY, site.Z - 320),
+                shoulderLower, shoulderUpper, right: true, stone, detail, path, 0x53544703u);
+            AuthorBridgeShoulderPresentation(
+                "bridge-bank-r-s", new int3(site.X + 1102, contextY, site.Z + 114),
+                shoulderLower, shoulderUpper, right: true, stone, detail, path, 0x53544704u);
 
             int[] supportXs = { 170, 335, 530, 610, 690, 885, 1050 };
             for (int i = 0; i < supportXs.Length; i++)
@@ -132,17 +134,42 @@ namespace VoxelEngine.Showcase
                 int bottom = math.max(0, terrain - contextY - 4);
                 int top = deckLocalY + 20;
                 int shaftHeight = math.max(12, top - bottom - 28);
-                int localX = globalX - supportOrigin.x;
-                supports.Box(new int3(localX - 30, bottom, 330), new int3(60, 14, 60), stone);
-                supports.Box(new int3(localX - 17, bottom + 14, 342), new int3(34, shaftHeight, 36), stone);
-                supports.Box(new int3(localX - 29, bottom + 14 + shaftHeight, 330), new int3(58, 14, 60), detail);
+                var pier = new ProgramWriter()
+                    .Box(new int3(6, bottom, 6), new int3(60, 14, 60), stone)
+                    .Box(new int3(19, bottom + 14, 18), new int3(34, shaftHeight, 36), stone)
+                    .Box(new int3(7, bottom + 14 + shaftHeight, 6), new int3(58, 14, 60), detail);
+                AuthorPresentationCatalogue(
+                    $"bridge-pier-{i}", new int3(globalX - 36, contextY, site.Z + 4),
+                    new int3(72, deckLocalY + 24, 72), 0x53544800u + (uint)i,
+                    StructuralSocketRole.Support | StructuralSocketRole.TerrainAnchor,
+                    BridgeTag, pier, 8, stone);
             }
+        }
+
+        private void AuthorBridgeShoulderPresentation(
+            string name,
+            int3 origin,
+            int shoulderLower,
+            int shoulderUpper,
+            bool right,
+            byte stone,
+            byte detail,
+            byte path,
+            uint pieceId)
+        {
+            int stoneX = right ? 90 : 0;
+            int detailX = right ? 72 : 28;
+            int pathX = right ? 0 : 28;
+            var shoulder = new ProgramWriter()
+                .Box(new int3(stoneX, 0, 0), new int3(28, shoulderLower, 286), stone)
+                .Box(new int3(detailX, 0, 72), new int3(18, shoulderUpper, 210), detail)
+                .Box(new int3(pathX, shoulderUpper, 92), new int3(90, 10, 164), path);
 
             AuthorPresentationCatalogue(
-                "bridge-grounded-supports-and-river", supportOrigin,
-                new int3(1220, deckLocalY + 58, 720),
-                0x53544602u, StructuralSocketRole.Support | StructuralSocketRole.TerrainAnchor,
-                BridgeTag, supports, 48, stone);
+                name, origin,
+                new int3(118, math.max(shoulderLower, shoulderUpper + 10), 286),
+                pieceId, StructuralSocketRole.Support | StructuralSocketRole.TerrainAnchor,
+                BridgeTag, shoulder, 8, stone);
         }
 
         private void AuthorCastlePresentation(int3 origin)
