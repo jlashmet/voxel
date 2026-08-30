@@ -1,40 +1,28 @@
 # Plan — WorldBuilder Spatial Reservation System
 
-## Observed gap
+## Observed behavior / acceptance
 
-WorldBuilder has engine-free integer planning contracts, but spatial ownership is fragmented. Kentridge historically rejected sites with private rectangle/plaza tests; ecology owns exclusions separately; hidden-space contracts already model local 3D bounds; architecture exposes `StructureSiteGeometry`; and no canonical production reservation/claim service exists on current `master`. The typed `StructuralSocket` work named by the feature is still not merged, so this branch must integrate through the existing architecture boundary rather than depend on another assignment.
+WorldBuilder spatial ownership is fragmented across settlement placement, roads, architecture, ecology and underground generation. This feature must provide one deterministic integer-space claim/query substrate without becoming a global first-writer registry or replacing route, socket, ecology or cave policy. Closure requires production Kentridge, road/macro, architecture, vegetation and underground consumers; stable diagnostics; bounded cost; gallery inspection; exact-SHA CI; and built-player evidence.
 
-Current `master` now includes the completed road-network integration. `WorldRoadNetwork` is the canonical resolved road aggregate and explicitly owns shared road geometry, shoulder, clearance and local-frame sampling. This feature will consume that aggregate; it will not reproduce polyline-distance math or take over road solving/grade policy.
+## Discriminators and results
 
-## Ownership decision
+Hypothesis A: a reusable production reservation/precedence service already exists and this work should adapt it. **Falsified** on current `master`; no competing canonical claim service exists.
 
-Create the canonical reservation substrate in `Assets/Game/WorldBuilder/Generation/Core` using integer decimetres. It owns only stable spatial identity/provenance, hard occupancy, clearance, protected corridors, compatible handoffs, soft-yield semantics, bounded integer broad-phase queries, deterministic precedence, diagnostics, and query-cost counters.
+Hypothesis B: the open typed-`StructuralSocket` feature is required before structural integration. **Falsified** for this assignment: current `master` still has no typed socket. The existing production boundary is `StructureSiteGeometry` plus architecture-resolved child/form extents. Reservations will validate only spatial clearance; compatibility/orientation/support remain architecture-owned.
 
-Settlement topology, route solving/grade, socket compatibility/orientation/support, ecology species/density, cave topology, terrain suitability, and presentation remain with their current owners.
+Road audit result: `WorldRoadNetwork` is now canonical for resolved road geometry, shoulders and clearance. Reservation adapters must consume it directly and remove inferred production-road approximations.
 
-Production adapters are intentionally thin:
+Inspection audit result: `WorldbuildingGalleryAuditHarness` is the existing built-player gallery hook. It will consume snapshots read-only; any debug GameObjects are presentation only and will have no authoritative colliders/state.
 
-- roads: adapt `WorldRoadNetwork` resolved route/core/clearance geometry into bounded reservation claims;
-- structures: adapt `StructureSiteGeometry` and accepted child/attachment clearances without deciding compatibility/orientation/support;
-- vegetation: let `KentridgeVegetationLayout` / `KentridgeVegetationPlanner` query shared claims after ecology chooses candidates, then optionally publish accepted vegetation ownership;
-- underground: adapt `SiteHiddenSpaceRealization` through `KentridgeHiddenSpaceBatchPlanner` / `KentridgeHiddenSpacePlanner` with true Y extents;
-- inspection: expose the same claims/decisions non-authoritatively in the existing Worldbuilding Gallery runtime path.
+## Selected implementation
 
-## Implementation sequence
+1. Keep the engine-free Core reservation contract already implemented: stable ids/provenance, 3D boxes/corridors, hard/clearance/protected/handoff/soft semantics, deterministic precedence, bounded snapshot buckets, planner-local replay/release, diagnostics and query metrics.
+2. Finish production adapters: canonical `WorldRoadNetwork` + top-down settlement envelope/public arrival, architecture site/child clearance, caller-owned vegetation snapshot, and real hidden-space snapshot.
+3. Add focused production regressions for road/macro handoff, structure clearance/connector compatibility, vegetation suppression/device independence, hidden-space 3D behavior, regeneration/order stability, and build/query work metrics.
+4. Extend the existing gallery audit path with non-authoritative surface/underground/rejected-candidate reservation visualization and durable cost/diagnostic logging.
+5. Validate compile/static diff and blast radius, then issue exactly one final request through `ci-test/fixes/agent-7` using the repository-required PlayMode SceneIssue transport so focused regression and standalone-player validation run against the exact feature SHA.
+6. Only after every task and acceptance criterion is green: complete pending metadata, move open -> pending -> closed, set `status=fixed`/`resolvedUtc`, merge current `origin/master`, and promote the exact feature head to `origin/master` non-force.
 
-1. Add immutable reservation contracts, 3D box/corridor intersection, bounded window snapshots, planner-local state, order-independent precedence resolution, and stable conflict diagnostics/cost metrics. **Implemented.**
-2. Migrate `KentridgeTownPlanner` building/plaza rejection to the shared service and publish building clearance plus entrance/access claims. **Implemented; temporary pre-road-integration inferred road claims remain to be replaced.**
-3. On reconciled current master, replace temporary road inference with `WorldRoadNetwork` claims, then wire the existing structure, vegetation and hidden-space production boundaries through caller-owned snapshots.
-4. Add focused EditMode regressions for canonical road adaptation, deterministic identity/order, hard/clearance conflicts, compatible handoff, true 3D separation, Kentridge production use, vegetation/architecture/hidden-space use, diagnostics, bounded work and regeneration/order stability.
-5. Extend `WorldbuildingGalleryShowcase` inspection visualization and exercise the real Kentridge path with surface, underground and deliberate rejection evidence.
-6. Measure blast radius and cost, run the required exact-SHA workflow gates, then make the single final targeted-CI request through `ci-test/fixes/agent-7`. Only after exact-SHA CI and built-application evidence are green will metadata move `open -> pending -> closed` and the exact final feature head be promoted non-force to `master`.
+## Risk / budgets
 
-## Current discriminator / risk
-
-The main compatibility risk is changing Kentridge layout while replacing its asymmetric “candidate expanded by 18dm vs existing footprint/plaza” checks and temporary inferred roads. The shared claims preserve the 18dm effective separation; canonical road claims must use `WorldRoadNetwork` widths/clearance rather than a second approximation. Existing candidate order and the bounded 256-attempt budget remain fixed.
-
-Large envelopes/corridors are clipped to a bounded planning window so they cannot materialize world-scale bucket sets. Query/source construction cost and bucket/candidate/narrow-phase work will be measured before closure. No authoritative GameObject/collider-per-reservation representation is allowed.
-
-## Reconciliation state
-
-The prior feature head `dc40995b5c33ecb80a48b4495a5294015ddec724` was reconciled with current `master` `e95324aeaef619cb49d84bf2b07f770184bead81` in two-parent merge `2b6c5b7912d30b4b923298a4d394e813cc3228d5`. The task-record reconciliation commit is `31dcb49ce20d795c2956459535da026006f20bb6`. Re-fetch `master` again before every final workflow/promotion gate.
+Preserve Kentridge fixed candidate ordering and 256-attempt cap. Do not duplicate road geometry math, eagerly materialize world claims, use Unity Physics as authority, weaken device budgets, or create per-claim authoritative GameObjects. Measure snapshot construction, bucket/candidate/narrow-phase work, allocations/memory where the harness supports it, and generation/regeneration impact before closure.
