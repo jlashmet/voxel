@@ -39,9 +39,9 @@
 - [x] Discriminate the missing landing: source geometry covers the voxel, primitive order is preserved, snapshot/storage reads current semantic state, and the failed cell is not directly eligible for the Uniform full-block fast path. Root cause is composition: castle-owned regions defer generic catalogue features and intentionally discard those deferrals after castle authoring.
 - [x] Confirm the concrete overlap: castle landmark center `(256,376)` and minimum 512-voxel ownership reach produce castle regions `x=-1..1, z=-1..1`; the Mountain Dragon footprint currently spans `x=-3..-1, z=-1..1`, and failed voxel `(-435,264,-316)` is region `(-1,0,-1)`.
 - [x] Add a focused behavioral regression before production implementation: `MountainDragonCastleRegionOwnershipTests` rejects any Mountain Dragon footprint/castle feature-suppression region overlap and is invoked by the exact final acceptance filter.
-- [ ] Shift the Mountain Dragon footprint one 512-voxel region west (`OriginX - 512`) so its three X-region columns become `-4..-2`, preserving footprint size, primitive program, and route geometry while removing castle ownership overlap.
-- [ ] Re-check dependent runtime/evidence coordinates and update only layout-derived artifacts that do not already derive from `ShowcaseMountainDragonLayout`.
-- [ ] Re-check blast radius/cost after the shift: generic feature region count must remain unchanged, startup radius remains 8 regions, carve volume/primitive count remain unchanged, and Uniform carve optimization stays intact.
+- [x] Shift the Mountain Dragon footprint one 512-voxel region west (`OriginX - 512`) so its three X-region columns become `-4..-2`, preserving footprint size, primitive program, and route geometry while removing castle ownership overlap.
+- [x] Re-check dependent runtime/evidence coordinates and update only layout-derived artifacts that do not already derive from `ShowcaseMountainDragonLayout`; the issue-owned replay route's absolute X/look-X coordinates moved by exactly 51.2 m.
+- [x] Re-check blast radius/cost after the shift: X/Z footprint remains 3x3 region columns, entry terrain height changes 217 -> 218, authored base/summit Y become 219/499, the mountain stays in the same vertical region layer, carve volume/primitive count are unchanged, and the Uniform carve optimization remains intact.
 - [ ] Prove all authored landing floor/headroom columns survive with the optimized carve path and no castle-region suppression.
 
 ## Exact-SHA bake / built-player gate
