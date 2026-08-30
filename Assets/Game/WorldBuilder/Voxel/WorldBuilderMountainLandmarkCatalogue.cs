@@ -392,6 +392,14 @@ namespace Game.WorldBuilder.Voxel
             byte pathMaterial)
         {
             int pathMinX = spec.PathMinLocalX;
+            int interiorRun = math.max(1, spec.PathRun - spec.PathWidth * 2);
+            int rampHeight = spec.PathRise + 1;
+            int overlapNumerator = math.max(0, interiorRun - rampHeight);
+            int lowLandingOverlap = overlapNumerator == 0
+                ? 0
+                : (overlapNumerator + rampHeight - 2) / (rampHeight - 1);
+            lowLandingOverlap = math.min(spec.PathWidth, lowLandingOverlap);
+            int rampRun = interiorRun + lowLandingOverlap;
             int lastRampZ = 0;
             int lastHighX = pathMinX;
             int endY = 0;
@@ -404,11 +412,28 @@ namespace Game.WorldBuilder.Voxel
                 lastRampZ = z;
                 bool reverse = (level & 1) != 0;
                 int axis = reverse ? ShapeOps.ReverseRampBit : 0;
+                int rampX = reverse
+                    ? pathMinX + spec.PathWidth
+                    : pathMinX + spec.PathWidth - lowLandingOverlap;
+
+                // Keep the low end of every alternating ramp flat for a complete turn landing.
+                // The ramp begins only far enough inside that landing to make the first interior
+                // column contain its floor voxel, and it reaches full tier height immediately
+                // before the opposite landing. The tiny overlap never rises above the low floor.
+                if (level == 0)
+                {
+                    EmitBox(
+                        program,
+                        pathMinX, startY, z,
+                        spec.PathWidth, 1, spec.PathWidth,
+                        pathMaterial,
+                        PrimitiveMode.Fill);
+                }
 
                 EmitRamp(
                     program,
-                    pathMinX, startY, z,
-                    spec.PathRun, spec.PathRise + 1, spec.PathWidth,
+                    rampX, startY, z,
+                    rampRun, rampHeight, spec.PathWidth,
                     axis,
                     pathMaterial,
                     PrimitiveMode.Fill);
