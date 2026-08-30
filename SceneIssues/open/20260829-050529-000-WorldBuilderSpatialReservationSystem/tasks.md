@@ -9,7 +9,7 @@
 - [x] Trace underground ownership (`HiddenSpaceContracts`): reservations may adapt realized volumes/connectors but do not own cave/WFC topology.
 - [x] Trace current architecture geometry/attachment boundary (`StructureSiteGeometry` plus Kentridge architecture grammar/placement). The feature-requested typed `StructuralSocket` symbol is not on current `master`, so this branch must not depend on agent-5/unmerged work.
 - [x] Record ownership split in `plan.md`: reservation identity/geometry/query/conflict belongs in engine-free Core; terrain suitability, topology, compatibility/orientation/support, ecology policy, quest state and presentation stay with their owners.
-- [x] Re-check current `origin/master` and reconcile it into `fixes/agent-7`; current master is `e95324aeaef619cb49d84bf2b07f770184bead81` and the two-parent reconciliation commit is `2b6c5b7912d30b4b923298a4d394e813cc3228d5`.
+- [x] Re-check current `origin/master` and reconcile it into `fixes/agent-7`; current master is `e17e858bfe0497c90b87db70fcfef80a142917a4` and the two-parent reconciliation commit is `f8d3a541640da797bcf8201c0688d49afd5a6e44`.
 
 ## Canonical reservation contracts
 
@@ -121,7 +121,7 @@
 ## Workflow gates / closure
 
 - [x] Check current `SceneIssues/feature-readme.md` on current `origin/master`; it is absent, while current `SceneIssues/README.md` explicitly declares itself the sole SceneIssue workflow authority, so use that file plus this assignment README.
-- [x] Re-fetch current `origin/master`, reconcile allowed prerequisite changes into `fixes/agent-7`, and ensure only this assignment plus in-scope production/test files are modified (`2b6c5b7912d30b4b923298a4d394e813cc3228d5`).
+- [x] Re-fetch current `origin/master`, reconcile allowed prerequisite changes into `fixes/agent-7`, and ensure only this assignment plus in-scope production/test files are modified (`f8d3a541640da797bcf8201c0688d49afd5a6e44`, incorporating master `e17e858bfe0497c90b87db70fcfef80a142917a4`).
 - [ ] Validate compile/static source state and update `plan.md`/`tasks.md` for any discovered work.
 - [ ] Request the final targeted CI only through `ci-test/fixes/agent-7`; never put `.github/test-request.json` on the feature branch and never replace a queued request.
 - [ ] Obtain green exact-SHA targeted EditMode CI and record run/evidence.
@@ -145,3 +145,7 @@
 - [ ] Extend `SpatialReservationTests` with stable-id replay/release coverage, including preserving the prior claim when a replay conflicts with another owner.
 - [ ] Exercise `KentridgeHiddenSpaceBatchPlanner` with generated `SiteHiddenSpaceRealization` data against vertically separated and true-XYZ external blockers.
 - [ ] Extend the existing `WorldbuildingGalleryShowcase` + `WorldbuildingGalleryAuditHarness` path with read-only reservation visualization/evidence; do not add a second scene bootstrap or mutate reservation authority.
+- [ ] Wire `TopDownWorldVoxelCatalogue.Build` through `TopDownWorldReservationAdapter.ValidateRoadHandoffs` after the canonical `WorldRoadNetwork` solve, without solving roads twice or constructing duplicate authoritative state.
+- [ ] Classify `KentridgeDecorativeVegetationPlanner` call sites against actual production clearance ownership; if it accepts placements independently, route candidates through the shared snapshot, otherwise document the non-authoritative role and do not add a parallel reservation path.
+- [ ] Prove generated Kentridge architecture output fits the exact `StructureSiteGeometry`-derived reservation envelope using the current production realization-facts seam.
+- [ ] Verify gallery reservation inspection is called from the existing runtime audit/showcase path at authored probes/phases; inspection objects must remain presentation-only.
