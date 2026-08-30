@@ -100,6 +100,9 @@ namespace Game.Kentridge.PlayableSlice
         public bool OpeningPresentationReady => _openingPresentationReady;
         public bool OpeningCutsceneCameraActive => _openingCutsceneCameraActive;
         public Vector3 OpeningCutsceneCameraFocus => _openingCameraFocus;
+        public bool CurrentDemandContentSettled =>
+            _world != null && _motor != null
+            && _world.IsCurrentDemandContentSettled(_motor.EyePosition);
         public bool TravelObjectiveActive =>
             _session != null && _session.Runtime.IsObjectiveActive(_travelObjective);
         public bool TravelObjectiveCompleted =>
@@ -404,6 +407,7 @@ namespace Game.Kentridge.PlayableSlice
                     _world.ResidentGroundRadiusMetres(_motor.EyePosition), streamed);
             }
 
+            if (!_world.IsCurrentDemandContentSettled(_motor.EyePosition)) return;
             if (!RenderingComposition.HasCompletePublishedNearSurfaceCoverage()) return;
 
             _openingPresentationReady = true;
