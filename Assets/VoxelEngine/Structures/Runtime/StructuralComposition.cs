@@ -16,8 +16,9 @@ namespace VoxelEngine.Structures.Runtime
         DepthExceeded = 6,
         ChildBudgetExceeded = 7,
         PrimitiveBudgetExceeded = 8,
-        SpatialExtentExceeded = 9,
-        MalformedProgram = 10,
+        VoxelBudgetExceeded = 9,
+        SpatialExtentExceeded = 10,
+        MalformedProgram = 11,
     }
 
     public enum StructuralAttachmentRejectReason : byte
@@ -27,14 +28,16 @@ namespace VoxelEngine.Structures.Runtime
         IncompatibleRoleOrTags = 2,
         OrientationMismatch = 3,
         ClearanceBlocked = 4,
-        MissingTerrainSupport = 5,
-        MissingStructuralSupport = 6,
-        CapacityExceeded = 7,
-        DepthExceeded = 8,
-        ChildBudgetExceeded = 9,
-        PrimitiveBudgetExceeded = 10,
-        SpatialExtentExceeded = 11,
-        MalformedDefinition = 12,
+        SpacingBlocked = 5,
+        MissingTerrainSupport = 6,
+        MissingStructuralSupport = 7,
+        CapacityExceeded = 8,
+        DepthExceeded = 9,
+        ChildBudgetExceeded = 10,
+        PrimitiveBudgetExceeded = 11,
+        VoxelBudgetExceeded = 12,
+        SpatialExtentExceeded = 13,
+        MalformedDefinition = 14,
     }
 
     /// <summary>One independently bounded physical piece in a semantic composed structure.</summary>
@@ -48,6 +51,7 @@ namespace VoxelEngine.Structures.Runtime
         public uint ParentSocketId;
         public int Depth;
         public int3 Position;
+        public int3 AttachmentPosition;
         public byte Orientation;
         public int OverrideOffset;
         public int OverrideCount;
@@ -61,6 +65,11 @@ namespace VoxelEngine.Structures.Runtime
         };
     }
 
+    /// <summary>
+    /// Immutable inspection record for one accepted or rejected structural attachment. Support and
+    /// decoration metadata are copied from the authored socket so destruction and fine-detail
+    /// systems can consume the solved graph without re-running composition.
+    /// </summary>
     public struct StructuralAttachmentDecision
     {
         public ulong SemanticStructureId;
@@ -68,9 +77,18 @@ namespace VoxelEngine.Structures.Runtime
         public uint SocketId;
         public uint ChildPieceId;
         public int3 Position;
+        public int3 AttachmentPosition;
         public byte Orientation;
+        public StructuralSocketFlags SocketFlags;
+        public StructuralDecorationHandoff DecorationHandoff;
+        public int3 SupportProbeMin;
+        public int3 SupportProbeMax;
+        public ushort MinimumSupportContacts;
         public bool Accepted;
         public StructuralAttachmentRejectReason Rejection;
+
+        public bool InvalidatesOnSupportLoss =>
+            (SocketFlags & StructuralSocketFlags.InvalidateOnSupportLoss) != 0;
     }
 
     public struct StructuralCompositionReport
@@ -78,6 +96,7 @@ namespace VoxelEngine.Structures.Runtime
         public StructuralCompositionResult Result;
         public int ChildCount;
         public int PrimitiveCost;
+        public int VoxelCost;
         public int3 BoundsMin;
         public int3 BoundsMax;
         public ulong GraphHash;
@@ -138,19 +157,34 @@ namespace VoxelEngine.Structures.Runtime
                 ParentSocketId = 0,
                 Depth = 0,
                 Position = rootPlacement.Position,
+                AttachmentPosition = rootPlacement.Position,
                 Orientation = (byte)(rootPlacement.Orientation & 3),
                 OverrideOffset = rootPlacement.OverrideOffset,
                 OverrideCount = rootPlacement.OverrideCount,
             });
             report.PrimitiveCost = root.MaxPrimitives;
-            ExpandBounds(ref report, rootPlacement.Position, OrientedFootprint(root.Footprint, rootPlacement.Orientation));
+            report.VoxelCost = ConservativeVoxelCost(in root);
+            ExpandBounds(ref report, rootPlacement.Position,
+                OrientedFootprint(root.Footprint, rootPlacement.Orientation));
             report.GraphHash = HashInstance(FeatureHash.Mix(semanticId), instances[0]);
+
+            if (report.PrimitiveCost > FeatureBudget.MaxCompositionPrimitiveCost)
+            {
+                report.Result = StructuralCompositionResult.PrimitiveBudgetExceeded;
+                return report;
+            }
+            if (report.VoxelCost > FeatureBudget.MaxCompositionVoxelCost)
+            {
+                report.Result = StructuralCompositionResult.VoxelBudgetExceeded;
+                return report;
+            }
 
             for (int parentIndex = 0; parentIndex < instances.Length; parentIndex++)
             {
                 StructuralInstance parent = instances[parentIndex];
                 FeatureDefinition parentDefinition = catalogue.Definitions[parent.DefinitionId];
-                if (parent.Depth >= FeatureBudget.MaxCompositionDepth && parentDefinition.SlotCount > 0)
+                if (parent.Depth >= FeatureBudget.MaxCompositionDepth &&
+                    DefinitionCallsAnySlot(in catalogue, in parentDefinition))
                 {
                     report.Result = StructuralCompositionResult.DepthExceeded;
                     return report;
@@ -223,9 +257,15 @@ namespace VoxelEngine.Structures.Runtime
                             continue;
                         }
 
-                        int3 localAttach = DrawAttachPoint(in slot, ordinal, ref draw);
-                        int3 worldAttach = parent.Position + RotatePoint(localAttach,
-                            parentDefinition.Footprint, parent.Orientation);
+                        if (!TryDrawAttachPoint(in slot, in parent, in parentDefinition, instances,
+                                parentIndex, ref draw, out int3 localAttach, out int3 worldAttach))
+                        {
+                            if (!Reject(ref report, decisions, in parent, parentIndex, in slot,
+                                StructuralAttachmentRejectReason.SpacingBlocked,
+                                StructuralCompositionResult.ClearanceBlocked)) return report;
+                            continue;
+                        }
+
                         int3 childIngress = RotatePoint(child.StructuralPiece.LocalPosition,
                             child.Footprint, childOrientation);
                         int3 childOrigin = worldAttach - childIngress;
@@ -233,38 +273,49 @@ namespace VoxelEngine.Structures.Runtime
 
                         if (!WithinCompositionExtent(instances[0].Position, childOrigin, childFootprint))
                         {
-                            if (!Reject(ref report, decisions, in parent, parentIndex, in slot,
+                            if (!RejectAt(ref report, decisions, in parent, parentIndex, in slot,
+                                child.StructuralPiece.PieceId, childOrigin, childOrientation, worldAttach,
                                 StructuralAttachmentRejectReason.SpatialExtentExceeded,
                                 StructuralCompositionResult.SpatialExtentExceeded)) return report;
                             continue;
                         }
 
-                        if (ClearanceBlocked(in catalogue, instances, parentIndex, childOrigin,
-                                childOrientation, in child.StructuralPiece))
+                        if (PlacementBlocked(in catalogue, instances, in parent, in parentDefinition,
+                                parentIndex, in slot, childOrigin, childOrientation,
+                                childFootprint, in child.StructuralPiece))
                         {
-                            if (!Reject(ref report, decisions, in parent, parentIndex, in slot,
+                            if (!RejectAt(ref report, decisions, in parent, parentIndex, in slot,
+                                child.StructuralPiece.PieceId, childOrigin, childOrientation, worldAttach,
                                 StructuralAttachmentRejectReason.ClearanceBlocked,
                                 StructuralCompositionResult.ClearanceBlocked)) return report;
                             continue;
                         }
 
                         if (!SupportSatisfied(in slot, worldAttach, terrainSeed, in catalogue,
-                                instances, parentIndex))
+                                instances, parentIndex, out StructuralAttachmentRejectReason supportReason))
                         {
-                            StructuralAttachmentRejectReason reason =
-                                (slot.Flags & StructuralSocketFlags.RequireTerrainSupport) != 0
-                                    ? StructuralAttachmentRejectReason.MissingTerrainSupport
-                                    : StructuralAttachmentRejectReason.MissingStructuralSupport;
-                            if (!Reject(ref report, decisions, in parent, parentIndex, in slot,
-                                reason, StructuralCompositionResult.MissingSupport)) return report;
+                            if (!RejectAt(ref report, decisions, in parent, parentIndex, in slot,
+                                child.StructuralPiece.PieceId, childOrigin, childOrientation, worldAttach,
+                                supportReason, StructuralCompositionResult.MissingSupport)) return report;
                             continue;
                         }
 
-                        if (report.PrimitiveCost + child.MaxPrimitives > FeatureBudget.MaxCompositionPrimitiveCost)
+                        if (report.PrimitiveCost > FeatureBudget.MaxCompositionPrimitiveCost - child.MaxPrimitives)
                         {
-                            Reject(ref report, decisions, in parent, parentIndex, in slot,
+                            RejectAt(ref report, decisions, in parent, parentIndex, in slot,
+                                child.StructuralPiece.PieceId, childOrigin, childOrientation, worldAttach,
                                 StructuralAttachmentRejectReason.PrimitiveBudgetExceeded,
                                 StructuralCompositionResult.PrimitiveBudgetExceeded);
+                            return report;
+                        }
+
+                        int childVoxelCost = ConservativeVoxelCost(in child);
+                        if (report.VoxelCost > FeatureBudget.MaxCompositionVoxelCost - childVoxelCost)
+                        {
+                            RejectAt(ref report, decisions, in parent, parentIndex, in slot,
+                                child.StructuralPiece.PieceId, childOrigin, childOrientation, worldAttach,
+                                StructuralAttachmentRejectReason.VoxelBudgetExceeded,
+                                StructuralCompositionResult.VoxelBudgetExceeded);
                             return report;
                         }
 
@@ -278,6 +329,7 @@ namespace VoxelEngine.Structures.Runtime
                             ParentSocketId = slot.SocketId,
                             Depth = parent.Depth + 1,
                             Position = childOrigin,
+                            AttachmentPosition = worldAttach,
                             Orientation = childOrientation,
                             OverrideOffset = 0,
                             OverrideCount = 0,
@@ -285,11 +337,12 @@ namespace VoxelEngine.Structures.Runtime
                         instances.Add(childInstance);
                         report.ChildCount++;
                         report.PrimitiveCost += child.MaxPrimitives;
+                        report.VoxelCost += childVoxelCost;
                         ExpandBounds(ref report, childOrigin, childFootprint);
                         report.GraphHash = HashInstance(report.GraphHash, childInstance);
                         AddDecision(decisions, in parent, parentIndex, in slot,
-                            child.StructuralPiece.PieceId, childOrigin, childOrientation, true,
-                            StructuralAttachmentRejectReason.None);
+                            child.StructuralPiece.PieceId, childOrigin, childOrientation, worldAttach,
+                            true, StructuralAttachmentRejectReason.None);
                     }
                 }
             }
@@ -302,7 +355,18 @@ namespace VoxelEngine.Structures.Runtime
             in StructuralInstance parent, int parentIndex, in SlotSpec slot,
             StructuralAttachmentRejectReason reason, StructuralCompositionResult fatal)
         {
-            AddDecision(decisions, in parent, parentIndex, in slot, 0, parent.Position, 0, false, reason);
+            return RejectAt(ref report, decisions, in parent, parentIndex, in slot,
+                0, parent.Position, 0, parent.Position, reason, fatal);
+        }
+
+        private static bool RejectAt(ref StructuralCompositionReport report,
+            NativeList<StructuralAttachmentDecision> decisions,
+            in StructuralInstance parent, int parentIndex, in SlotSpec slot,
+            uint childPieceId, int3 childPosition, byte orientation, int3 attachmentPosition,
+            StructuralAttachmentRejectReason reason, StructuralCompositionResult fatal)
+        {
+            AddDecision(decisions, in parent, parentIndex, in slot, childPieceId,
+                childPosition, orientation, attachmentPosition, false, reason);
             report.GraphHash = FeatureHash.Mix(report.GraphHash ^ slot.SocketId ^ (ulong)reason);
             if ((slot.Flags & StructuralSocketFlags.Required) == 0)
                 return true;
@@ -312,9 +376,13 @@ namespace VoxelEngine.Structures.Runtime
 
         private static void AddDecision(NativeList<StructuralAttachmentDecision> decisions,
             in StructuralInstance parent, int parentIndex, in SlotSpec slot, uint childPieceId,
-            int3 position, byte orientation, bool accepted, StructuralAttachmentRejectReason rejection)
+            int3 position, byte orientation, int3 attachmentPosition, bool accepted,
+            StructuralAttachmentRejectReason rejection)
         {
             if (!decisions.IsCreated) return;
+            int3 supportMin = attachmentPosition + slot.SupportProbeMin;
+            int3 supportMax = attachmentPosition + slot.SupportProbeMax;
+            Normalize(ref supportMin, ref supportMax);
             decisions.Add(new StructuralAttachmentDecision
             {
                 SemanticStructureId = parent.SemanticStructureId,
@@ -322,10 +390,24 @@ namespace VoxelEngine.Structures.Runtime
                 SocketId = slot.SocketId,
                 ChildPieceId = childPieceId,
                 Position = position,
+                AttachmentPosition = attachmentPosition,
                 Orientation = orientation,
+                SocketFlags = slot.Flags,
+                DecorationHandoff = slot.DecorationHandoff,
+                SupportProbeMin = supportMin,
+                SupportProbeMax = supportMax,
+                MinimumSupportContacts = slot.MinimumSupportContacts,
                 Accepted = accepted,
                 Rejection = rejection,
             });
+        }
+
+        private static bool DefinitionCallsAnySlot(in FeatureCatalogue catalogue,
+            in FeatureDefinition definition)
+        {
+            for (int i = 0; i < definition.SlotCount; i++)
+                if (ProgramCallsSlot(in catalogue, in definition, i)) return true;
+            return false;
         }
 
         private static bool ProgramCallsSlot(in FeatureCatalogue catalogue,
@@ -384,7 +466,27 @@ namespace VoxelEngine.Structures.Runtime
             return pc;
         }
 
-        private static int3 DrawAttachPoint(in SlotSpec slot, int ordinal, ref ulong draw)
+        private static bool TryDrawAttachPoint(in SlotSpec slot, in StructuralInstance parent,
+            in FeatureDefinition parentDefinition, NativeList<StructuralInstance> instances,
+            int parentIndex, ref ulong draw, out int3 localAttach, out int3 worldAttach)
+        {
+            int attempts = slot.CountMax <= 1 ? 1 : FeatureBudget.MaxCompositionPlacementAttempts;
+            for (int attempt = 0; attempt < attempts; attempt++)
+            {
+                localAttach = DrawAttachPoint(in slot, ref draw);
+                worldAttach = parent.Position + RotatePoint(localAttach,
+                    parentDefinition.Footprint, parent.Orientation);
+                if (!SpacingBlocked(instances, parentIndex, slot.SocketId, worldAttach, slot.Spacing))
+                    return true;
+            }
+
+            localAttach = slot.LocalPosition;
+            worldAttach = parent.Position + RotatePoint(localAttach,
+                parentDefinition.Footprint, parent.Orientation);
+            return false;
+        }
+
+        private static int3 DrawAttachPoint(in SlotSpec slot, ref ulong draw)
         {
             if (slot.CountMax <= 1) return slot.LocalPosition;
             int3 min = slot.LocalMin;
@@ -392,8 +494,33 @@ namespace VoxelEngine.Structures.Runtime
             int x = FeatureHash.Range(ref draw, min.x, max.x);
             int y = FeatureHash.Range(ref draw, min.y, max.y);
             int z = FeatureHash.Range(ref draw, min.z, max.z);
-            if (slot.Spacing > 0) x = min.x + ((x - min.x) / slot.Spacing) * slot.Spacing;
+            if (slot.Spacing > 0)
+            {
+                x = Quantize(x, min.x, slot.Spacing);
+                y = Quantize(y, min.y, slot.Spacing);
+                z = Quantize(z, min.z, slot.Spacing);
+            }
             return new int3(x, y, z);
+        }
+
+        private static int Quantize(int value, int min, int spacing) =>
+            min + ((value - min) / spacing) * spacing;
+
+        private static bool SpacingBlocked(NativeList<StructuralInstance> instances,
+            int parentIndex, uint socketId, int3 worldAttach, int spacing)
+        {
+            if (spacing <= 0) return false;
+            long requiredSquared = (long)spacing * spacing;
+            for (int i = 0; i < instances.Length; i++)
+            {
+                StructuralInstance other = instances[i];
+                if (other.ParentIndex != parentIndex || other.ParentSocketId != socketId) continue;
+                long dx = (long)other.AttachmentPosition.x - worldAttach.x;
+                long dy = (long)other.AttachmentPosition.y - worldAttach.y;
+                long dz = (long)other.AttachmentPosition.z - worldAttach.z;
+                if (dx * dx + dy * dy + dz * dz < requiredSquared) return true;
+            }
+            return false;
         }
 
         private static bool TryChildOrientation(byte parentOrientation, Facing parentFacing,
@@ -413,14 +540,26 @@ namespace VoxelEngine.Structures.Runtime
             return false;
         }
 
-        private static bool ClearanceBlocked(in FeatureCatalogue catalogue,
-            NativeList<StructuralInstance> instances, int parentIndex, int3 childOrigin,
-            byte childOrientation, in StructuralPieceSpec piece)
+        private static bool PlacementBlocked(in FeatureCatalogue catalogue,
+            NativeList<StructuralInstance> instances, in StructuralInstance parent,
+            in FeatureDefinition parentDefinition, int parentIndex, in SlotSpec slot,
+            int3 childOrigin, byte childOrientation, int3 childFootprint,
+            in StructuralPieceSpec piece)
         {
-            if (!NonEmpty(piece.ClearanceMin, piece.ClearanceMax)) return false;
-            int3 childMin = childOrigin + RotateVector(piece.ClearanceMin, childOrientation);
-            int3 childMax = childOrigin + RotateVector(piece.ClearanceMax, childOrientation);
-            Normalize(ref childMin, ref childMax);
+            int3 footprintMin = childOrigin;
+            int3 footprintMax = childOrigin + childFootprint;
+
+            int3 pieceMin = childOrigin + RotateVector(piece.ClearanceMin, childOrientation);
+            int3 pieceMax = childOrigin + RotateVector(piece.ClearanceMax, childOrientation);
+            Normalize(ref pieceMin, ref pieceMax);
+            bool hasPieceClearance = NonEmpty(pieceMin, pieceMax);
+
+            int3 slotAnchor = parent.Position + RotatePoint(slot.LocalPosition,
+                parentDefinition.Footprint, parent.Orientation);
+            int3 slotMin = slotAnchor + RotateVector(slot.ClearanceMin, parent.Orientation);
+            int3 slotMax = slotAnchor + RotateVector(slot.ClearanceMax, parent.Orientation);
+            Normalize(ref slotMin, ref slotMax);
+            bool hasSlotClearance = NonEmpty(slotMin, slotMax);
 
             for (int i = 0; i < instances.Length; i++)
             {
@@ -429,18 +568,22 @@ namespace VoxelEngine.Structures.Runtime
                 FeatureDefinition definition = catalogue.Definitions[other.DefinitionId];
                 int3 otherMin = other.Position;
                 int3 otherMax = other.Position + OrientedFootprint(definition.Footprint, other.Orientation);
-                if (Overlaps(childMin, childMax, otherMin, otherMax)) return true;
+                if (Overlaps(footprintMin, footprintMax, otherMin, otherMax)) return true;
+                if (hasPieceClearance && Overlaps(pieceMin, pieceMax, otherMin, otherMax)) return true;
+                if (hasSlotClearance && Overlaps(slotMin, slotMax, otherMin, otherMax)) return true;
             }
             return false;
         }
 
         private static bool SupportSatisfied(in SlotSpec slot, int3 worldAttach, uint terrainSeed,
-            in FeatureCatalogue catalogue, NativeList<StructuralInstance> instances, int parentIndex)
+            in FeatureCatalogue catalogue, NativeList<StructuralInstance> instances, int parentIndex,
+            out StructuralAttachmentRejectReason reason)
         {
             if ((slot.Flags & StructuralSocketFlags.RequireTerrainSupport) != 0)
             {
                 int3 min = worldAttach + slot.SupportProbeMin;
                 int3 max = worldAttach + slot.SupportProbeMax;
+                Normalize(ref min, ref max);
                 int contacts = 0;
                 int y = max.y;
                 int[] xs = { min.x, max.x };
@@ -451,13 +594,18 @@ namespace VoxelEngine.Structures.Runtime
                     int ground = TerrainQuery.HeightAt(xs[xi], zs[zi], terrainSeed);
                     if (ground >= min.y && ground <= y) contacts++;
                 }
-                if (contacts < slot.MinimumSupportContacts) return false;
+                if (contacts < slot.MinimumSupportContacts)
+                {
+                    reason = StructuralAttachmentRejectReason.MissingTerrainSupport;
+                    return false;
+                }
             }
 
             if ((slot.Flags & StructuralSocketFlags.RequireStructuralSupport) != 0)
             {
                 int3 probeMin = worldAttach + slot.SupportProbeMin;
                 int3 probeMax = worldAttach + slot.SupportProbeMax;
+                Normalize(ref probeMin, ref probeMax);
                 bool found = false;
                 for (int i = 0; i < instances.Length; i++)
                 {
@@ -465,11 +613,32 @@ namespace VoxelEngine.Structures.Runtime
                     StructuralInstance other = instances[i];
                     FeatureDefinition definition = catalogue.Definitions[other.DefinitionId];
                     int3 otherMax = other.Position + OrientedFootprint(definition.Footprint, other.Orientation);
-                    if (Overlaps(probeMin, probeMax, other.Position, otherMax)) { found = true; break; }
+                    if (Overlaps(probeMin, probeMax, other.Position, otherMax))
+                    {
+                        found = true;
+                        break;
+                    }
                 }
-                if (!found) return false;
+                if (!found)
+                {
+                    reason = StructuralAttachmentRejectReason.MissingStructuralSupport;
+                    return false;
+                }
             }
+
+            reason = StructuralAttachmentRejectReason.None;
             return true;
+        }
+
+        private static int ConservativeVoxelCost(in FeatureDefinition definition)
+        {
+            long x = definition.Footprint.x > 0 ? definition.Footprint.x : 0;
+            long y = definition.Footprint.y > 0 ? definition.Footprint.y : 0;
+            long z = definition.Footprint.z > 0 ? definition.Footprint.z : 0;
+            long volume = x * y * z;
+            if (volume > FeatureBudget.MaxCompositionVoxelCost)
+                return FeatureBudget.MaxCompositionVoxelCost + 1;
+            return (int)volume;
         }
 
         private static bool WithinCompositionExtent(int3 root, int3 childOrigin, int3 childFootprint)
@@ -495,6 +664,9 @@ namespace VoxelEngine.Structures.Runtime
             hash = FeatureHash.Mix(hash ^ (ulong)(uint)instance.Position.x);
             hash = FeatureHash.Mix(hash ^ (ulong)(uint)instance.Position.y);
             hash = FeatureHash.Mix(hash ^ (ulong)(uint)instance.Position.z);
+            hash = FeatureHash.Mix(hash ^ (ulong)(uint)instance.AttachmentPosition.x);
+            hash = FeatureHash.Mix(hash ^ (ulong)(uint)instance.AttachmentPosition.y);
+            hash = FeatureHash.Mix(hash ^ (ulong)(uint)instance.AttachmentPosition.z);
             hash = FeatureHash.Mix(hash ^ instance.Orientation);
             hash = FeatureHash.Mix(hash ^ instance.ParentSocketId);
             return hash;
