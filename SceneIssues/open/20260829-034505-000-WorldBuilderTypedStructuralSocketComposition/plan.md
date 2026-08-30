@@ -1,32 +1,30 @@
 # Plan
 
 ## Acceptance / ownership
-- Canonical production is the existing `FeatureDefinition` + typed `SlotSpec` + `ShapeOp.CallSlot` + `FeatureCatalogue` + descendant-aware `FeatureRegionBuild` path; no parallel structural solver.
-- Deterministic compatibility/facing/clearance/support/capacity/required semantics, bounded recursion/cost, inspectable graphs, authoritative independently bounded child voxels, decoration handoff, independent fixtures, four showcase families, and production `CharacterMotor` traversal are implemented.
-- Gallery presentation/refinement remains composition/evidence only; shared structural semantics stay in `VoxelEngine.Structures` and remain scene/material-ID agnostic.
+- Canonical production remains `FeatureDefinition` + typed `SlotSpec` + `ShapeOp.CallSlot` + `FeatureCatalogue` + descendant-aware `FeatureRegionBuild`; no parallel structural solver.
+- Shared structural APIs stay semantic/config-driven and scene/material-ID agnostic. Gallery proof, presentation, framing, and material choices stay in showcase composition/evidence.
+- Required behavior includes deterministic typed attachment semantics/budgets, authoritative independently bounded child voxels, four independent proof families, reuse fixtures, production `CharacterMotor` traversal, and production-quality built-player evidence.
 
 ## Material results / selected approach
-- Mechanical run `33314706183` passed focused PlayMode and all three built-player traversals, but manual review rejected blockout visuals.
-- Run `33323976945` isolated presentation-budget failure: one oversized bridge context catalogue exceeded conservative voxel cost. Context was partitioned into bounded authoritative voxel catalogues without changing global budgets.
-- Run `33324919718` was mechanically green; full-resolution review still rejected bridge gorge/framing, planar castle, weak cliff support read, and facade framing. Those demonstrated defects drove the bounded authoritative-voxel refinement plus tighter evidence framing/preload.
-- Run `33325668040` never exercised refined source because the shared runner failed at the editor-wait gate; treated as infrastructure.
-- Exact-source run `33330327732` passed focused PlayMode but the real player exposed a product regression: castle route 1 stopped at the front face of `castle-refined-gatehouse`. The refinement’s 12-voxel base spanned the canonical 32-voxel gate opening. Root cause is isolated to composition geometry, not `CharacterMotor` or structural semantics.
-- Selected geometry fix: split only the refined gate base around the canonical opening and add focused PlayMode coverage that authors the final refinement then traverses route 1 with the production motor. No tolerance, route, solver, or budget changes.
-- Run `33331508390` then failed at compile because that regression reused an `internal` scene-runtime traversal audit. The test assembly already references `VoxelEngine.Showcase`; the selected wiring fix is to make the showcase-specific audit helper public so focused tests and the real-player harness execute one traversal implementation without moving motor logic into lower composition layers.
-- Refreshed `fixes/agent-5` onto master `5865c6e04f93c7d2ba0f10258909f38115424607`; the two incoming Kentridge files were preserved unchanged. The branch-only common `SceneIssues/README.md` newline delta was restored to the master blob.
+- `33324919718` was mechanically green but full-resolution review rejected bridge/cliff/facade framing and blockout quality.
+- `33330327732` isolated the castle traversal regression: the refinement base occluded the canonical 32-voxel gate passage. The base is now split around that opening without changing motor/route/solver/budgets.
+- `33331508390` exposed only test visibility: the focused regression reused an `internal` showcase traversal audit. That helper is now public so test and built-player harness execute one showcase traversal implementation.
+- `33331734570` compiled and ran the focused class. Its only focused failure was `BrickPool exhausted at capacity 4096` while authoring full refinement; the planner-only test remains at 4096, while the full-refinement regression now uses the gallery's 262144 capacity. The same run's real player passed all three traversals/negative contracts; castle route 1 reached in 77 steps with 1.317 m remaining and all eight frames were emitted.
+- Direct review of those eight frames still failed visual acceptance. Root cause after the second visual failure is isolated: evidence cameras use base proof bounds while final presentation extends beyond them; bridge/cliff views are too low/inline; facade views are occluded by transformed depth; gate ornament was oversized/flat. Composition readability polish is committed; remaining fix is evidence framing around the authored presentation envelope.
+- Merged current master workflow guidance at `ebdc2e4f63ef73153cd4e0ff5c62efe604f35470` into agent-5.
 
 ## Next discriminator
-Reuse `ci-test/fixes/agent-5` for one exact-SHA request from the corrected feature head. The focused regression class must compile and pass with the final refinement authored, then the real `WorldbuildingGalleryShowcase` player must pass all three traversals/negative contracts and emit all eight frames. Inspect every full-resolution frame directly; only `production-quality` passes.
+Reframe only the eight structural audit cameras to elevated, unobstructed views of the already-authored crossing, gate, vertical connection, and separate facade variants. Then use only `ci-test/fixes/agent-5` for one exact-SHA PlayMode + exact-scene player request. Focused class, all three traversals/negative contracts, and eight durable frames must pass; every frame must classify `production-quality`.
 
 ## Cost / blast radius
-- No global structural/device budget or `CharacterMotor` tolerance is weakened.
-- Gate fix removes filled voxels from the existing bounded refinement footprint and adds one primitive while remaining below its declared `MaxPrimitives=24`.
-- The traversal-audit visibility change exposes only a showcase/evidence helper and does not alter shared structural APIs or runtime behavior.
-- Largest authored piece footprint remains within `MaxFootprintVoxels=1280`; each split/refinement catalogue remains below the 16,777,216 conservative voxel ceiling.
-- Final run must record bridge/castle planning time, children/primitives/voxel budget, regions/instances/writes, authoring/presentation time, memory and render-region proxy.
+- No global budget, structural constraint, route, or `CharacterMotor` tolerance is weakened.
+- Full-refinement test capacity matches production authoring needs; planner-only coverage stays intentionally small.
+- Presentation changes remain bounded authoritative voxel catalogues under existing primitive/voxel/footprint ceilings.
+- Final run records planning, children/primitives/voxel budget, regions/instances/writes, authoring/presentation time, memory, and render-region proxy.
 
 ## Remaining gates
-- Green exact-SHA focused + built-player run and three traversals/negative contracts.
-- Production-quality review of all eight structural frames.
-- Final assignment-only diff/cost review; all required `tasks.md` boxes complete.
-- Pending metadata/open→pending, then fixed/resolvedUtc pending→closed only after validation; refresh master again and non-force push exact feature head to `origin/master`.
+- Finish camera framing and update checklist.
+- Green exact-SHA focused + built-player run; all three traversals and negative contracts pass.
+- Inspect all eight full-resolution frames; only `production-quality` passes.
+- Review final assignment-only diff/cost; complete issue metadata.
+- After all gates pass, move this assignment directly `open -> closed`, set `status=fixed`/`resolvedUtc`, merge current master, and non-force push the exact feature head to `origin/master`.
