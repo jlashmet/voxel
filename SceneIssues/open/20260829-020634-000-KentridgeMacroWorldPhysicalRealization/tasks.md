@@ -33,13 +33,12 @@
 - [x] Record this failed lake-first/product-red attempt as `experiment-014-lake-first-route-intersection-and-cost.md` before final exact CI.
 
 ## Newly discovered exact-SHA CI regressions
-- [x] Resolve run `33301222246` product failure: hard route `forest -> fighting-area-1` is blocked by the remediated `rossdam-lake` footprint without an authored crossing/pass/route-around solution.
-- [x] Preserve Rossdam Lake's remediated physical footprint while adding the smallest authored semantic route solution required to keep the source-backed hard-road graph traversable.
-- [x] Add a behavioral regression proving `forest -> fighting-area-1` has the intended semantic solution and remains dry/traversable rather than silently crossing lake geometry.
-- [ ] Record and resolve run `33302489798` product failure: the explicit `forest -> fighting-area-1` `GoAround` intent exists, but `BuildAround` reports that no dry detour can be built.
-- [ ] Discriminate whether Rossdam Lake now contains a route endpoint/corridor versus the reusable four-candidate detour solver being insufficient; use authoritative node coordinates before changing geometry or planner behavior.
-- [ ] Preserve accepted `900 x 450 x 24 dm` Rossdam dimensions and a genuine obstruction of the direct Rossdam approach while applying the smallest proven correction.
-- [ ] Extend focused regression coverage for the proven correction, including endpoint dryness and continuous dry route behavior.
+- [x] Run `33301222246` proved the south-shifted lake intersects hard route `forest -> fighting-area-1` without semantic intent.
+- [x] Attempt the smallest explicit `forest -> fighting-area-1` `GoAround` plus focused dry-route regression; exact run `33302489798` proves that attempt invalid because the route endpoint itself is inside the blocker.
+- [x] Record run `33302489798` in experiment/CI evidence; do not rerun that product-red source.
+- [x] Discriminate endpoint engulfment versus shared detour-solver insufficiency using authoritative graph coordinates: `fighting-area-1` is inside current road-expanded lake bounds, so the shared solver is correct.
+- [ ] Move Rossdam Lake northwest to nominal offsets `(-400,-155)` while preserving resolved `900 x 450 x 24 dm`; keep `fighting-area-1` dry, its outbound north road constrained, and direct Rossdam approach genuinely constrained.
+- [ ] Remove the now-unnecessary inbound `forest -> fighting-area-1` lake constraint and replace the temporary regression with endpoint-dry + inbound-dry + outbound/Rossdam-constrained behavioral assertions.
 - [ ] Re-run exact-SHA targeted CI only after the source remediation and prove both the focused Unity suite and supported 60-second real-player smoke are closure-quality green for that same source SHA.
 
 ## Exact runtime / visual gate
