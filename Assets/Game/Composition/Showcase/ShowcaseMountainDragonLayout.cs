@@ -21,14 +21,16 @@ namespace VoxelEngine.Showcase
 
         public static MountainLandmarkSpec CreateLandmark(uint seed)
         {
-            int centre = FootprintEdge / 2;
-            int pathMinX = centre - PathRun / 2;
-            int firstRampZ = centre - MountainRadius - PathWidth - 10;
-            int entryWorldX = OriginX + pathMinX;
-            int entryWorldZ = OriginZ + firstRampZ;
+            MountainLandmarkSpec placementProbe = CreateLandmarkAtBaseY(0);
+            MountainPathTierGeometry entry = placementProbe.PathTier(0);
+            int entryWorldX = OriginX + entry.LowLandingMinX;
+            int entryWorldZ = OriginZ + entry.LocalZ;
             int baseY = TerrainQuery.HeightAt(entryWorldX, entryWorldZ, seed) + 1;
+            return CreateLandmarkAtBaseY(baseY);
+        }
 
-            return new MountainLandmarkSpec(
+        private static MountainLandmarkSpec CreateLandmarkAtBaseY(int baseY) =>
+            new MountainLandmarkSpec(
                 new int3(OriginX, baseY, OriginZ),
                 FootprintEdge,
                 MountainRadius,
@@ -39,6 +41,5 @@ namespace VoxelEngine.Showcase
                 PathRise,
                 SwitchbackCount,
                 PlaceholderSize);
-        }
     }
 }

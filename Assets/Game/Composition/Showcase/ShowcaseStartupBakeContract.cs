@@ -22,11 +22,11 @@ namespace VoxelEngine.Showcase
             "Assets/Resources/VoxelShowcase/ShowcaseWorld.manifest.txt";
 
         private const int ManifestVersion = 1;
-        // Revision 6 keeps the established placement/traversal and three ground-cover shoulders,
-        // but replaces revision 5's duplicate full-height ridge pairs with one support-covering rock
-        // ridge plus a lower/narrow rock buttress. The explicit bump rejects revision-5 bytes even
-        // though public landmark dimensions and primitive count are unchanged.
-        private const uint LandmarkContractRevision = 6;
+        // Revision 7 replaces revision 6's constant-run, freestanding switchback topology with
+        // shared core-aware tier geometry: the path cuts into the near mountain shell, upper runs
+        // narrow with the tapered core, turn landings remain coincident, and residual supports bias
+        // inward to merge with the coherent mountain mass.
+        private const uint LandmarkContractRevision = 7;
         private const uint FnvOffsetBasis = 2166136261u;
         private const uint FnvPrime = 16777619u;
 

@@ -28,12 +28,12 @@
     {
       "name": "path-base",
       "x": -127.7,
-      "z": -32.5,
+      "z": -29.5,
       "holdSeconds": 0.1,
       "capture": "02-path-base.png",
       "lookAt": true,
       "lookX": -94.7,
-      "lookZ": -32.5,
+      "lookZ": -29.5,
       "lookPitchDegrees": -8.0,
       "requireGrounded": true,
       "anchorVertical": true
@@ -41,7 +41,7 @@
     {
       "name": "switchback-0-high",
       "x": -94.7,
-      "z": -32.5,
+      "z": -29.5,
       "requireGrounded": true,
       "expectedYOffset": 4.6,
       "yTolerance": 0.75
@@ -49,7 +49,7 @@
     {
       "name": "switchback-1-low",
       "x": -94.7,
-      "z": -25.6,
+      "z": -22.6,
       "requireGrounded": true,
       "expectedYOffset": 4.6,
       "yTolerance": 0.75
@@ -57,7 +57,7 @@
     {
       "name": "switchback-1-high",
       "x": -127.7,
-      "z": -25.6,
+      "z": -22.6,
       "requireGrounded": true,
       "expectedYOffset": 9.2,
       "yTolerance": 0.75
@@ -65,12 +65,12 @@
     {
       "name": "switchback-2-low",
       "x": -127.7,
-      "z": -18.7,
+      "z": -15.7,
       "holdSeconds": 0.1,
       "capture": "03-switchback-mid.png",
       "lookAt": true,
       "lookX": -94.7,
-      "lookZ": -18.7,
+      "lookZ": -15.7,
       "lookPitchDegrees": -6.0,
       "requireGrounded": true,
       "expectedYOffset": 9.2,
@@ -79,7 +79,7 @@
     {
       "name": "switchback-2-high",
       "x": -94.7,
-      "z": -18.7,
+      "z": -15.7,
       "requireGrounded": true,
       "expectedYOffset": 13.8,
       "yTolerance": 0.75
@@ -87,7 +87,7 @@
     {
       "name": "switchback-3-low",
       "x": -94.7,
-      "z": -11.8,
+      "z": -8.8,
       "requireGrounded": true,
       "expectedYOffset": 13.8,
       "yTolerance": 0.75
@@ -95,7 +95,7 @@
     {
       "name": "switchback-3-high",
       "x": -127.7,
-      "z": -11.8,
+      "z": -8.8,
       "requireGrounded": true,
       "expectedYOffset": 18.4,
       "yTolerance": 0.75
@@ -103,28 +103,28 @@
     {
       "name": "switchback-4-low",
       "x": -127.7,
-      "z": -4.9,
+      "z": -1.9,
       "requireGrounded": true,
       "expectedYOffset": 18.4,
       "yTolerance": 0.75
     },
     {
       "name": "switchback-4-high",
-      "x": -94.7,
-      "z": -4.9,
+      "x": -102.7,
+      "z": -1.9,
       "requireGrounded": true,
       "expectedYOffset": 23.0,
       "yTolerance": 0.75
     },
     {
       "name": "switchback-5-low",
-      "x": -94.7,
-      "z": 2.0,
+      "x": -102.7,
+      "z": 5.0,
       "holdSeconds": 0.1,
       "capture": "04-switchback-upper.png",
       "lookAt": true,
-      "lookX": -127.7,
-      "lookZ": 2.0,
+      "lookX": -119.5,
+      "lookZ": 5.0,
       "lookPitchDegrees": -5.0,
       "requireGrounded": true,
       "expectedYOffset": 23.0,
@@ -132,15 +132,15 @@
     },
     {
       "name": "switchback-5-high",
-      "x": -127.7,
-      "z": 2.0,
+      "x": -119.5,
+      "z": 5.0,
       "requireGrounded": true,
       "expectedYOffset": 27.6,
       "yTolerance": 0.75
     },
     {
       "name": "summit-ramp-high",
-      "x": -127.7,
+      "x": -119.5,
       "z": 10.5,
       "holdSeconds": 0.1,
       "capture": "05-summit-dragon-supported.png",
