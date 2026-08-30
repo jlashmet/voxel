@@ -145,6 +145,12 @@ namespace VoxelEngine.Structures.Runtime
                 int by1 = math.min(y1, blockVoxelMin.y + VoxelReadGrid.BlockEdgeMask);
                 int bz0 = math.max(z0, blockVoxelMin.z);
                 int bz1 = math.min(z1, blockVoxelMin.z + VoxelReadGrid.BlockEdgeMask);
+                bool fullBlock = bx0 == blockVoxelMin.x
+                    && bx1 == blockVoxelMin.x + VoxelReadGrid.BlockEdgeMask
+                    && by0 == blockVoxelMin.y
+                    && by1 == blockVoxelMin.y + VoxelReadGrid.BlockEdgeMask
+                    && bz0 == blockVoxelMin.z
+                    && bz1 == blockVoxelMin.z + VoxelReadGrid.BlockEdgeMask;
 
                 bool boxCarve = primitive.Mode == PrimitiveMode.Carve
                     && primitive.Shape == PrimitiveShape.Box;
@@ -161,6 +167,38 @@ namespace VoxelEngine.Structures.Runtime
                         continue;
                 }
 
+                // Mountain support is dominated by convex frustum fills into canonical Empty
+                // storage. For a complete storage block, the eight extreme voxel centres bound the
+                // rectangular set of centres. Frustum radius varies monotonically along its axis,
+                // so if all eight extremes are inside, every one of the block's 8^3 centres is
+                // inside as well. Author the identical uniform cell once instead of repeating the
+                // same contains/read/write path 512 times. Boundary blocks deliberately fall back
+                // to the existing per-cell path and the boundary-halo pass remains unchanged.
+                if (primitive.Mode == PrimitiveMode.Fill
+                    && primitive.Shape == PrimitiveShape.Frustum
+                    && fullBlock
+                    && read.BlockKindOrEmpty(worldBlock) == VoxelReadBlockKind.Empty
+                    && FrustumContainsFullBlock(in primitive, blockVoxelMin))
+                {
+                    ushort style = primitive.SurfaceStyle;
+                    if (markHardSurface && style == SurfaceStyles.MaterialDefault)
+                        style = SurfaceStyles.Planar;
+                    VoxelCell fill = new VoxelCell
+                    {
+                        BaseMaterialId = primitive.Material,
+                        Surface = new VoxelSurfaceSemantics
+                        {
+                            StyleId = style,
+                            CoatingId = primitive.Coating,
+                            Flags = primitive.SurfaceFlags,
+                            Detail = (byte)math.min(31, primitive.SurfaceDetail)
+                        }
+                    };
+                    if (mutations.SetWholeCellBlock(worldBlock, in fill, false))
+                        result.VoxelsWritten += VoxelReadGrid.VoxelsPerBlock;
+                    continue;
+                }
+
                 // For a fully covered non-empty Uniform block, every one of the 8^3 cells differs
                 // from the carve's default result. Storage can therefore perform one authoritative
                 // whole-cell replacement while preserving the existing 512-write accounting.
@@ -168,12 +206,7 @@ namespace VoxelEngine.Structures.Runtime
                 // change RasterResult.VoxelsWritten even though final voxel data matched.
                 if (boxCarve
                     && boxCarveBlockKind == VoxelReadBlockKind.Uniform
-                    && bx0 == blockVoxelMin.x
-                    && bx1 == blockVoxelMin.x + VoxelReadGrid.BlockEdgeMask
-                    && by0 == blockVoxelMin.y
-                    && by1 == blockVoxelMin.y + VoxelReadGrid.BlockEdgeMask
-                    && bz0 == blockVoxelMin.z
-                    && bz1 == blockVoxelMin.z + VoxelReadGrid.BlockEdgeMask)
+                    && fullBlock)
                 {
                     VoxelCell empty = default;
                     if (mutations.SetWholeCellBlock(worldBlock, in empty, false))
@@ -288,6 +321,18 @@ namespace VoxelEngine.Structures.Runtime
                 if (mutationOpen)
                     mutations.CompletePartialBlock(ref mutation, payloadChanged);
             }
+        }
+
+        private static bool FrustumContainsFullBlock(in Primitive primitive, int3 blockVoxelMin)
+        {
+            int edge = VoxelReadGrid.BlockEdgeMask;
+            for (int z = 0; z <= edge; z += edge)
+            for (int y = 0; y <= edge; y += edge)
+            for (int x = 0; x <= edge; x += edge)
+                if (!CurvedPrimitiveEmitter.Contains(
+                        in primitive, blockVoxelMin + new int3(x, y, z)))
+                    return false;
+            return true;
         }
 
         private static void RasteriseSurfacePaint(
