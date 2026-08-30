@@ -1,47 +1,55 @@
-# Tasks — Water Rendering Showcase Stylized Shader Integration
+# Tasks
 
 ## Workflow / investigation
-- [x] Read `AGENTS.md`, canonical `SceneIssues/README.md`, assignment, and confirm requested `feature-readme.md` is absent.
-- [x] Confirm `captures=[]`; no original screenshot/annotation poses exist.
-- [ ] Restore the SceneIssue contract files required by the repository workflow (`repro.json`, `expected.json`, and `replay.json`) before capture/CI work; keep them scoped to this feature.
-- [ ] Inspect supplied stylized-water Shader Graph, support HLSL/subgraphs/material/textures/scripts.
-- [x] Inspect `WaterfallReference.shader` and record required reusable waterfall behaviors.
-- [ ] Trace canonical voxel-water authoring, meshing/discovery, renderer/material/shader selection, streaming, visibility diagnostics, and gameplay consumers.
-- [ ] Identify all normal production scenes/consumers currently using water and locate any legacy production shader/material fallback.
-- [ ] Run discriminator and record at least two hypotheses/results in plan/experiment evidence.
 
-## Shared production implementation
-- [ ] Define reusable semantic water profiles/body inputs for still/lake, river/stream, waterfall/rapid behavior.
-- [ ] Route all standard voxel-engine water through one canonical stylized production renderer/material path.
-- [ ] Preserve stylized wave/normal breakup, deep-mid-shallow color/depth, localized foam, highlights/refraction where supported, and surface displacement.
-- [ ] Add reusable directional flow semantics; still, river, and waterfall must have materially different motion.
-- [ ] Add reusable shoreline/depth/contact foam semantics from production water/terrain/render data, not showcase-painted masks.
-- [ ] Add waterfall orientation/speed, turbulent breakup/aeration, irregular edge/lip foam, base-impact churn/foam, and mist/spray semantics derived from shared profile/body data.
-- [ ] Ensure no normal game water can silently select the legacy production water shader/material.
-- [ ] Preserve collision/buoyancy/swimming/wading, edits, discovery/meshing, streaming/culling, and render-disable diagnostics.
-- [ ] Ensure player builds retain required shader graph dependencies/resources/variants without editor-only lookup.
+- [x] Read `AGENTS.md`, canonical `SceneIssues/README.md`, assignment, and note requested `feature-readme.md` is absent.
+- [x] Inspect assignment metadata/captures (capture list is empty).
+- [x] Confirm canonical workflow does not require synthetic `repro.json` / `expected.json` / `replay.json` files.
+- [x] Inspect imported Stylized Water Shader material/graph support and identify depth, shallow/deep color, foam, normals, refraction, and wave semantics to preserve.
+- [x] Inspect `WaterfallReference.shader` and record the non-lake waterfall semantics.
+- [x] Trace canonical voxel-water topology/render path through extraction/cache, render pass, shared material, and per-vertex material selection.
+- [x] Run competing-hypothesis discriminator and record results in `plan.md`.
+- [ ] Trace all liquid classification/gameplay consumers so presentation changes cannot change swimming, buoyancy, collision, spreading, streaming, discovery, edits, or diagnostics.
+- [ ] Identify `WaterRenderingShowcase`, `VoxelShowcase`, and a second normal production water consumer (prefer Kentridge) and any remaining legacy water fallback.
+
+## Shared implementation
+
+- [ ] Add semantic-free renderer-owned water presentation/profile data with reusable still/lake, river/stream, and waterfall/rapid motion profiles.
+- [ ] Remove hard-coded game material IDs from engine liquid extraction; derive liquid classification from installed shared presentation data.
+- [ ] Keep one canonical shared production water shader/material path and no scene-local material forks.
+- [ ] Adapt package shallow/deep color, depth fade, surface/intersection foam, normal/detail breakup, highlights, refraction, and wave direction/speed semantics into the shared shader.
+- [ ] Add directional river flow distinct from still-water waves.
+- [ ] Add reusable shoreline/depth/contact foam inputs.
+- [ ] Add waterfall downward flow, turbulence, aeration, irregular breakup, lip/edge/base-impact foam, and mist/spray cues from `WaterfallReference.shader`.
+- [ ] Ensure no normal water silently falls back to the legacy generic shader behavior.
+- [ ] Preserve player-build shader retention / no editor-only dependency or missing shader asset.
 
 ## Showcase / portability
-- [ ] Add `Assets/Scenes/WaterRenderingShowcase.unity` at build index 3 through normal scene/build harness.
-- [ ] Author showcase through WorldBuilder/voxel water systems—no scene-local production water planes/material forks.
-- [ ] Include broad still/deep water, shallow shoreline, directional river/stream, waterfall/rapid, terrain/cliff/rock/structure contacts, near and elevated/wide views.
-- [ ] Add production-authored portability coverage with independently authored bodies/profiles outside showcase code, including waterfall semantics.
-- [ ] Verify standard water in `VoxelShowcase` automatically uses the new renderer.
-- [ ] Verify a second existing production scene containing water automatically uses the new renderer (prefer Kentridge if applicable).
+
+- [ ] Validate `WaterRenderingShowcase` build index 3 uses standard WorldBuilder/voxel water authoring with no hand-authored production water planes.
+- [ ] Demonstrate still/deep, shoreline, river, waterfall/rapid, and terrain/rock/structure contact cases with readable near/wide views.
+- [ ] Add/validate a small production-authored portability case with at least two independently selectable water profiles; include waterfall where practical.
+- [ ] Verify `VoxelShowcase` automatically receives the shared presentation.
+- [ ] Verify a second existing normal water scene automatically receives the shared presentation.
 
 ## Regression / reliability / cost
-- [ ] Add focused behavioral regression through real production material/profile selection for multiple independently authored bodies.
-- [ ] Add waterfall semantic regression proving it is more than rotated/faster lake water.
-- [ ] Validate no pink/missing material, shader compile errors, missing variants, or accidental stripping in player build.
-- [ ] Measure/record blast radius and CPU/GPU/memory, transparent overdraw/sorting, draw-call/batching, shader-variant, culling/large-body, and waterfall turbulence/foam/mist costs without weakening budgets.
 
-## Visual/build acceptance
-- [ ] Built `WaterRenderingShowcase` launches without startup/runtime exceptions.
-- [ ] Inspect motion/time-separated evidence for still, shoreline, river, and waterfall cases; waterfall must visibly show downward coherent flow, turbulent streaks, irregular edges, aeration, lip/edge/base foam and mist/spray consistent with `WaterfallReference.shader`.
-- [ ] Inspect near-player and wide/elevated showcase views for depth/color separation, shoreline stability, contacts, sorting, support and no placeholder fallback.
-- [ ] Build/launch `VoxelShowcase` and visually prove global replacement outside showcase.
-- [ ] Build/launch one additional existing production water scene and visually prove global replacement.
-- [ ] Review final feature-only diff for no unrelated SceneIssues, workflows, packages, generated expansion, or feature-branch `.github/test-request.json` edit.
-- [ ] Run one final exact-SHA targeted CI request on `ci-test/fixes/agent-9`; inspect logs/artifacts and require focused regression + exact built-scene evidence green.
-- [ ] Complete pending metadata with validated source SHA and durable evidence.
-- [ ] Move open -> pending -> closed, set `status=fixed` and `resolvedUtc`, merge current master, and promote exact feature head non-force.
+- [ ] Add focused behavioral regression through real production profile/material installation and liquid classification for multiple independent bodies/profiles.
+- [ ] Add focused waterfall semantic regression (not source-string-only).
+- [ ] Check player build for shader compile/stripping/pink/missing-resource failures.
+- [ ] Quantify CPU/GPU/memory/render cost: constant/profile uploads, water draw calls/batching/culling, transparent overdraw, shader variants, large bodies, turbulence/foam/mist work; do not weaken budgets.
+- [ ] Review final feature-only diff for unrelated files and `.github/test-request.json` contamination.
+
+## Visual / exact-SHA gates
+
+- [ ] Run exact-SHA built-player `WaterRenderingShowcase` to a usable rendered state with no startup/runtime exceptions.
+- [ ] Capture durable near/wide and time-separated/video-equivalent evidence showing motion plus waterfall lip/edge/base foam/turbulence/mist.
+- [ ] Directly review visual quality against package behavior and `WaterfallReference.shader`.
+- [ ] Run exact-SHA built-player `VoxelShowcase` and second production water scene to demonstrate global replacement.
+- [ ] Push final production/test SHA on `fixes/agent-9`.
+- [ ] Submit exactly one smallest targeted-CI request from `ci-test/fixes/agent-9` for that exact feature SHA; do not replace queued/running CI.
+- [ ] Confirm focused behavioral regression green on exact feature SHA.
+- [ ] Confirm exact-SHA built-application scene harness green.
+- [ ] Complete `resolutionSummary`, `regressionTest`, and `fixCommit`; move open → pending in a separate bookkeeping commit.
+- [ ] After all exact-SHA gates are green, move pending → closed, set `status=fixed` and `resolvedUtc`.
+- [ ] Merge latest `origin/master` into `fixes/agent-9`, push exact feature head, and non-force fast-forward that exact head to `origin/master`; fetch/merge/retry if master advanced.
