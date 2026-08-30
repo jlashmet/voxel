@@ -5,7 +5,6 @@ using Game.Materials.Api;
 using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
-using VoxelEngine.Collision.Api;
 using VoxelEngine.Composition;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
@@ -247,36 +246,15 @@ namespace VoxelEngine.Showcase
             EnsureStructuralMetrics(author: true);
         }
 
-        public GalleryStructuralTraversalReport AuditWorldbuildingGalleryStructuralTraversal(int index)
+        public void PrepareWorldbuildingGalleryStructuralTraversal(int index, out Vector3 start, out Vector3 end)
         {
             EnsureStructuralMetrics(author: true);
             int route = index % WorldbuildingGalleryStructuralTraversalCount;
             if (route < 0) route += WorldbuildingGalleryStructuralTraversalCount;
 
-            Vector3 start = ToVector3(_structuralTraversalStarts[route]);
-            Vector3 end = ToVector3(_structuralTraversalEnds[route]);
+            start = ToVector3(_structuralTraversalStarts[route]);
+            end = ToVector3(_structuralTraversalEnds[route]);
             PreloadTraversal(start, end);
-
-            var motor = new CharacterMotor { WalkSpeed = 6.5f, StepHeight = 0.35f };
-            motor.SnapToGround(this, start);
-            float startDistance = HorizontalDistance(motor.Position, end);
-            int step;
-            for (step = 0; step < 1500; step++)
-            {
-                Vector3 delta = end - motor.Position;
-                delta.y = 0f;
-                float distance = delta.magnitude;
-                if (distance <= 1.35f)
-                    return new GalleryStructuralTraversalReport(true, step, startDistance,
-                        distance, motor.Position);
-
-                Vector3 wish = distance > 1e-5f ? delta / distance : Vector3.zero;
-                motor.Step(this, wish, false, false, 1f / 30f);
-            }
-
-            float finalDistance = HorizontalDistance(motor.Position, end);
-            return new GalleryStructuralTraversalReport(finalDistance <= 1.35f, step,
-                startDistance, finalDistance, motor.Position);
         }
 
         private void EnsureStructuralMetrics(bool author = false)
