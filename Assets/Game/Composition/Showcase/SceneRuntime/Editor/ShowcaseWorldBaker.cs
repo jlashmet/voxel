@@ -151,6 +151,8 @@ namespace VoxelEngine.Showcase.Editor
                 if (!Application.isBatchMode)
                     EditorUtility.ClearProgressBar();
             }
+
+            CompleteSuccessfulBake(Application.isBatchMode, EditorApplication.Exit);
         }
 
         /// <summary>
@@ -265,6 +267,16 @@ namespace VoxelEngine.Showcase.Editor
                 if (!Application.isBatchMode)
                     EditorUtility.ClearProgressBar();
             }
+        }
+
+        private static void CompleteSuccessfulBake(bool isBatchMode, Action<int> exit)
+        {
+            if (!isBatchMode)
+                return;
+            if (exit == null)
+                throw new ArgumentNullException(nameof(exit));
+
+            exit(0);
         }
 
         private static SerializedProperty RequireProperty(SerializedObject serialized, string name)
