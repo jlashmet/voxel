@@ -6,7 +6,7 @@ Provide one deterministic, engine-free spatial claim/query substrate for WorldBu
 
 ## Resume gate — 2026-08-30
 
-`fixes/agent-7` was fetched and reconciled with then-current `origin/master` `dfbc43b086b60798d66ea36f49fabc8a0ad73297` by two-parent merge `1dd53c5cfd809845b6a5bb5d26eadf17bd44e4cc`. The incoming master delta was only the strengthened `AGENTS.md` visual-quality gate. `SceneIssues/feature-readme.md` is absent; `SceneIssues/README.md` is the repository's declared workflow authority.
+`fixes/agent-7` was fetched and reconciled with current `origin/master` `65e33762a0d0f1739e9a518484d119e551f01f81` by two-parent merge `d256dc2044c88b254751448012b60a138e716f27`. The incoming master delta is an unrelated open GPU SceneIssue only; no other assignment content was edited. `SceneIssues/feature-readme.md` is absent on both refs; `SceneIssues/README.md` is the repository's declared workflow authority.
 
 Post-merge source audit:
 
