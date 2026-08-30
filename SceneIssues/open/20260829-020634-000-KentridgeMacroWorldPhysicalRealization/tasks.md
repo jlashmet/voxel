@@ -38,7 +38,7 @@
 - [x] CI admission run `33293402602` proves `replay_seconds` is hard-capped at 20..60; the 75 s request was rejected before Unity ran and produced no product/evidence result.
 - [x] Reorder dormant validation targets to `Moordell -> Rossdam lake -> Rossdam settlement` so shared lake content is streamed once before the settlement wait; no readiness/capture gate is skipped.
 - [x] Run `33293551570`, exact source `2245eb810cbc7a09af4a4a33b32427f0ffce6d4b`, is product-red at compile: `KentridgeMacroWorldSettlementEvidenceCamera.cs` cannot resolve `MountingForceTopDownWorldDefinition`; focused test and player build both stop before execution.
-- [ ] Add the missing `Game.WorldBuilder.Runtime` namespace import to the validation helper; no behavior/runtime budget change.
+- [x] Add the missing `Game.WorldBuilder.Runtime` namespace import to the validation helper; no behavior/runtime budget change.
 - [ ] Re-run the corrected exact source with supported `replay_seconds=60`; runtime/streaming budgets remain unchanged.
 - [ ] Exact built `KentridgePlayableSlice` reaches usable gameplay without startup/runtime exceptions and captures every macro target.
 - [ ] Full-resolution exact-scene evidence shows four readable blockouts at Moordell, Rossdam, Fairy Village, and Orc Village.
