@@ -27,10 +27,17 @@
 - [x] Replace each duplicated full-height support pair with one full-height support-covering rock ridge plus one lower/narrow rock buttress; keep primitive count and all carve/ramp/path instructions unchanged.
 - [x] Update the visual regression for deterministic ridge+buttress pairing and add a conservative support-volume cost proxy; current authored revision-6 proxy is ~57.3% of the generic support bound and the regression requires <75%.
 - [x] Bump startup landmark realization provenance to revision 6 so rejected revision-5 bytes cannot satisfy the changed realization.
-- [x] Refresh from current master `65e33762a0d0...` via merge `edddd087f1e6...`; master delta was only the unrelated GPU SceneIssue queue file.
-- [ ] Merge then-current master immediately before the final request, then run the exact visual-final PlayMode filter + same-run built-player replay through existing `ci-test/fixes/agent-4` only; leave it untouched while queued/running.
-- [ ] Human-review exact approach/base/middle/upper/summit/dialogue frames and require `production-quality`; if below bar, record concrete defects and continue before closure.
-- [ ] Re-check final bake/runtime cost under unchanged 240 s / 14 GiB contracts.
+- [x] Refresh from current master `65e33762a0d0...`; no additional merge was needed before revision-6 request because master was already an ancestor.
+- [x] Run exact revision-6 request `33318216711` from source `c597b35512f1...` through existing `ci-test/fixes/agent-4` only and leave it untouched: fresh bake ~232 s under unchanged guard, focused visual-final PlayMode green, same-run player replay complete with 17-waypoint route / 16 grounded-required waypoints / exact dialogue.
+- [x] Human-review exact revision-6 approach/base/middle/upper/summit/dialogue frames and reject the candidate as `prototype/blockout quality`: exposed rounded/cylindrical berms, tiled retaining walls, slab road edges, causeway terraces, repeated upper supports, and artificial summit platform. Record in `experiment-009-revision6-visual-review.md`; reject its generated payload/manifest.
+- [x] Treat revision 6 as the third genuine failed fix attempt and stop production-code iteration until a minimal reproduction is committed.
+- [x] Isolate and record the route/core failure in `experiment-010-switchback-core-gap-minimal-repro.md`: every fixed-Z tier begins 10 voxels outside the tapered core and ends 79 voxels outside it, while the constant 360-voxel upper run cannot fit the 86-voxel near-summit radius.
+- [ ] Re-author the reusable path/core topology so switchback runs taper with elevation and integrate into one coherent mountain mass instead of requiring freestanding walls/berms; share the same geometry helpers with route evidence/waypoints and preserve winding ascent, normal grounded traversal, headroom, landings, and supported summit.
+- [ ] Add regressions proving each tier's complete walking lane is integrated with the tapered core or modest embankment envelope, upper run length narrows deterministically with elevation, traversal instructions/evidence use the same helpers, and support raster-cost proxy does not regress.
+- [ ] Bump startup realization provenance for the topology change and invalidate revision-6 bytes.
+- [ ] Merge then-current master immediately before the next exact visual-final request, then use the existing `ci-test/fixes/agent-4` transport only and leave it untouched while queued/running.
+- [ ] Human-review the next exact approach/base/middle/upper/summit/dialogue frames and require `production-quality`; if below bar, record concrete defects and continue before closure.
+- [ ] Re-check final accepted bake/runtime cost under unchanged 240 s / 14 GiB contracts.
 
 ## Checked-in startup payload
 - [x] Confirm runtime requires both `ShowcaseWorld.bytes` and matching `ShowcaseWorld.manifest.txt`; the currently tracked legacy payload is stale.
@@ -41,6 +48,6 @@
 ## Closure
 - [ ] Confirm every `issue.json` acceptance criterion and every checkbox above is complete.
 - [ ] Fill `status: pending`, `resolutionSummary`, `regressionTest`, and `fixCommit`; move only this capture `open -> pending` in a separate bookkeeping commit.
-- [ ] After green exact-SHA focused + built-player gates, move only this capture `pending -> closed`, set `status: fixed` and `resolvedUtc`, preserving validation/capture provenance.
+- [ ] After green exact-SHA focused + built-player gates and accepted visual evidence, move only this capture `pending -> closed`, set `status: fixed` and `resolvedUtc`, preserving validation/capture provenance.
 - [ ] Fetch and merge then-current `origin/master`; stop for any conflict outside this assignment and verify master ancestry.
 - [ ] Push the exact feature head to `origin/master` non-force; if master advanced, fetch/merge/retry. Do not self-select more work.
