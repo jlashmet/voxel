@@ -18,11 +18,11 @@ Source audit after reconciliation:
 
 ## Implementation
 
-1. Preserve the existing Core contract; add only the smallest reusable query capability needed for a structure child/site to ignore its own host-owner claims without rebuilding a filtered snapshot per role.
+1. Preserve the existing Core contract. For architecture, build one canonical caller-owned source snapshot; derive only a small role-local filtered query view that excludes the matching host plot owner. Do not rebuild the town/road source per role and do not broaden Core conflict semantics.
 2. In `KentridgeCombinedVoxelCatalogueCanonical`, build the canonical `WorldRoadNetwork` and one caller-owned town reservation snapshot once, then thread the already-resolved `SettlementPlan` and snapshot into `KentridgeSharedStructureVoxelCatalogue`.
-3. In `KentridgeSharedStructureVoxelCatalogue`, validate each generated/bespoke realization's site-clearance claim against that shared snapshot, excluding only the matching host plot owner. Architecture retains form/orientation/support/piece-selection authority.
+3. In `KentridgeSharedStructureVoxelCatalogue`, validate each generated/bespoke realization's site-clearance claim against that shared source, excluding only the matching host plot owner. Architecture retains form/orientation/support/piece-selection authority.
 4. In `TopDownWorldVoxelCatalogue`, solve the canonical road network once before reservation construction; use it for settlement and bounded tree snapshots, validate road handoffs once, and reuse the same network for road rasterization.
-5. Add focused regressions for exact half-open touching semantics, owner-excluded structure queries, production canonical-road handoff, deterministic precedence/tie behavior, compatibility, grouped vegetation, true-3D hidden space, replay/release, and bounded query work.
+5. Add focused regressions for exact half-open touching semantics, production architecture reservation validation, production canonical-road handoff, deterministic precedence/tie behavior, compatibility, grouped vegetation, true-3D hidden space, replay/release, and bounded query work.
 6. Trace and validate the existing `WorldbuildingGalleryAuditHarness`/reservation inspection path; add only read-only visualization/evidence if a gap remains. Verify authored benchmark paths and highlight-policy requirements.
 7. Run repository-supported static/Unity tests, ProjectValidator, runtime/built-player gallery/playable-slice checks, and record query/snapshot/blast-radius evidence. No visual acceptance from code inspection alone.
 8. When implementation and runtime acceptance are complete, move open -> pending per `SceneIssues/README.md`; merge current master, perform the final targeted request only on `ci-test/fixes/agent-7` without replacing a queued request, and require exact feature SHA PASS.
@@ -32,6 +32,6 @@ Source audit after reconciliation:
 
 - No global first-writer registry, Physics authority, per-reservation GameObjects/colliders, duplicate road solver, or duplicate ecology/hidden-space policy.
 - Preserve Kentridge deterministic role/candidate ordering and existing generation budgets.
-- Reuse one road solve and one reservation source snapshot at each production stage; do not rebuild the full town once per architecture role.
+- Reuse one road solve and one canonical reservation source snapshot at each production stage; per-role architecture filtering may allocate a bounded small view but must not rebuild the source plan/network.
 - Bound snapshots to caller windows; use query metrics (buckets, broad candidates, narrow tests, intersections) as durable cost evidence.
 - Scope changes to this assignment's Core/WorldBuilder production seams, tests, audit evidence, and SceneIssue metadata only.
