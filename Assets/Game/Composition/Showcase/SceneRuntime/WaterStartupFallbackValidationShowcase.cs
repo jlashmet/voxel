@@ -33,6 +33,12 @@ namespace VoxelEngine.Showcase
         private const float OuterRadiusMetres = 180f;
         private const int CoarseColumnStep = 32;
         private const int CoarseColumnCentre = 16;
+        private const int StillPoolCentreX = 136;
+        private const int StillPoolCentreZ = 160;
+        private const int StillPoolShelfRadiusX = 104;
+        private const int StillPoolShelfRadiusZ = 112;
+        private const int StillPoolWaterRadiusX = 72;
+        private const int StillPoolWaterRadiusZ = 80;
 
         private IVoxelStorageRuntime _storage;
         private Material _frozenMaterial;
@@ -128,16 +134,20 @@ namespace VoxelEngine.Showcase
             // as terrain with banks and relief instead of a diagram made from orthogonal plates.
             AuthorTerrainApron(authoring, originX, originZ);
 
-            // Descending river. Author its banks before the pool shelf so the two natural features
-            // can overlap without a river-bank column overwriting the pool's shoreline contract.
+            // Descending river. Its rock banks explicitly yield to the still-pool shelf at the
+            // confluence. Structure authoring is additive by voxel height, so semantic ownership of
+            // overlapping columns must be expressed by the masks rather than by write order.
             AuthorRiverBanks(authoring, originX, originZ);
             AuthorRiver(authoring, originX, originZ);
 
-            // Still water. Sand is authored last at the confluence as a broad organic shelf and the
-            // calm pool occupies the interior. The ordering is semantic composition policy: the
-            // shoreline owns overlapping coarse columns while the upper river remains unobstructed.
-            FillEllipse(authoring, originX, originZ, 136, 160, 104, 112, BaseY - 1, GameMaterialIds.Sand);
-            FillEllipse(authoring, originX, originZ, 136, 160, 72, 80, BaseY, GameMaterialIds.Water);
+            // Still water. The broad organic sand shelf owns its full footprint at the confluence;
+            // the calm water then occupies the interior.
+            FillEllipse(authoring, originX, originZ,
+                StillPoolCentreX, StillPoolCentreZ, StillPoolShelfRadiusX, StillPoolShelfRadiusZ,
+                BaseY - 1, GameMaterialIds.Sand);
+            FillEllipse(authoring, originX, originZ,
+                StillPoolCentreX, StillPoolCentreZ, StillPoolWaterRadiusX, StillPoolWaterRadiusZ,
+                BaseY, GameMaterialIds.Water);
 
             // Waterfall/cascade. The semantic cascade drops between rock shoulders into an organic
             // receiving pool. This remains coarse by design because these are the actual production
@@ -201,6 +211,13 @@ namespace VoxelEngine.Showcase
                     float dx = Mathf.Abs(x - centre);
                     if (dx <= halfWater || dx > halfBank)
                         continue;
+                    if (IsInsideEllipse(
+                        x, z,
+                        StillPoolCentreX, StillPoolCentreZ,
+                        StillPoolShelfRadiusX, StillPoolShelfRadiusZ))
+                    {
+                        continue;
+                    }
                     authoring.Set(originX + x, waterY - 3, originZ + z, GameMaterialIds.Stone);
                 }
             }
@@ -276,17 +293,27 @@ namespace VoxelEngine.Showcase
             int y,
             byte material)
         {
-            float radiusXSquared = radiusX * radiusX;
-            float radiusZSquared = radiusZ * radiusZ;
             for (int z = CoarseColumnCentre; z < 512; z += CoarseColumnStep)
             for (int x = CoarseColumnCentre; x < 512; x += CoarseColumnStep)
             {
-                float dx = x - centreX;
-                float dz = z - centreZ;
-                float normalized = dx * dx / radiusXSquared + dz * dz / radiusZSquared;
-                if (normalized <= 1f)
+                if (IsInsideEllipse(x, z, centreX, centreZ, radiusX, radiusZ))
                     authoring.Set(originX + x, y, originZ + z, material);
             }
+        }
+
+        private static bool IsInsideEllipse(
+            int x,
+            int z,
+            int centreX,
+            int centreZ,
+            int radiusX,
+            int radiusZ)
+        {
+            float dx = x - centreX;
+            float dz = z - centreZ;
+            float radiusXSquared = radiusX * radiusX;
+            float radiusZSquared = radiusZ * radiusZ;
+            return dx * dx / radiusXSquared + dz * dz / radiusZSquared <= 1f;
         }
 
         private static int FirstCoarseCentreAtOrAfter(int minimum)
