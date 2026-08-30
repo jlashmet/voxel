@@ -25,7 +25,12 @@
 - [x] Add throttled per-column diagnostics bounded to existing target content columns; log exact centre and X/Z presentation region without generation or world scans.
 - [x] Extend focused regression to cover target order, macro-driver automation ownership, and post-capture survey hold.
 - [x] Re-check blast radius: production scheduler, CharacterMotor, residency/load radius, device budgets, render budgets, and gameplay behavior remain unchanged; correction is validation-profile-only.
-- [ ] If Rossdam still stalls under uninterrupted macro demand, identify the exact pending column/feature region from diagnostics and fix the real publication defect without weakening readiness or budgets.
+- [x] Exact run `33318399738` proves uninterrupted Rossdam convergence: pending columns 1/3 in region `(1,10)` settle under normal 3 ms gameplay streaming; no shared scheduler change is justified.
+- [x] Exact run `33318399738` PlayMode regression is `1/1` green and standalone exits with zero harness assertions, no swap growth, and all named targets through ridge/pass captured.
+- [ ] Fix visual publication/readiness so Rossdam shows all four readable settlement blockouts and Fairy/Orc show their four authored blockouts; current full-resolution captures are telemetry-ready but visually incomplete.
+- [ ] Capture the final `macro-network-overview` inside the unchanged 60 s replay; run `33318399738` reaches ridge/pass at the cutoff but ends before the final network target.
+- [ ] Re-check Rossdam lake framing: current lake-detour capture exposes only a thin distant water strip and must visibly read as the substantial authored water body plus constrained route.
+- [ ] Add focused regression for the diagnosed render-publication/capture-readiness invariant without weakening content or coverage gates.
 - [ ] Verify final full-resolution Moordell/Rossdam/Fairy/Orc surveys show readable multi-building geometry rather than telemetry-only readiness.
 - [ ] Re-run final exact-SHA targeted CI and prove focused regression + supported 60 s real-player smoke are closure-quality green for the same source SHA.
 
@@ -42,6 +47,7 @@
 - [x] Per-column diagnostics are validation-only, bounded to existing target content, and throttled to <=1 Hz while pending.
 - [x] Moordell camera correction reuses existing dwell; no replay/residency/render budget increase.
 - [x] Baseline run `33304172039`: assertions `0`, no swap growth, peak RSS `5,571,344 KB`, late FPS ~`197/222/232/168/137`, final `missingVisible=0 coverage=True`.
+- [x] Run `33318399738`: elapsed `73s`, final RSS `598MB`, peak RSS `5640MB`, swap growth `0MB`; settled-target FPS is typically ~150–370 with target-transition p95 frame time ~7–13 ms.
 - [ ] Measure final lake dimensions/depth/primitive cells, route tile/solve/constrained counts, feature work/time, CPU/FPS, memory, streaming convergence, and render/far-field telemetry against budgets.
 - [ ] Re-fetch current master and re-check exact feature diff immediately before final targeted CI.
 
