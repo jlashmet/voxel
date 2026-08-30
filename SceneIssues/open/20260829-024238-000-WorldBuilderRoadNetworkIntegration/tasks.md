@@ -13,6 +13,7 @@
 - [x] Classify combined full-app run `33285741354`: built player compiled, launched for 60s, captured 4 screenshots, and exited 0, but the PlayMode acceptance exposed an in-scope `FixedString64Bytes` truncation for long macro-road definition name `world-road-macro:overworld-moordell->overworld-to-rossdam-s0p0` in `WorldRoadNetworkVoxelCatalogue.Build`.
 - [x] Inspect green combined run `33286511375` and its real-player artifact instead of treating workflow success as closure evidence: PlayMode regression passed 1/1 and the player ran 60s with zero harness assertions/exceptions, but the captured Dirt→Grass road edge shows a regular voxel/checker staircase and the four frames do not prove endpoint-to-endpoint continuity or both shoulders on uneven/sloped terrain. This is an acceptance failure, not a bookkeeping blocker.
 - [x] Classify final blend request `33294139897`: product compile failure before tests/player build, `VoxelCell.cs(151,37)` ambiguous `Math.Clamp(byte, byte, byte)` vs `Math.Clamp(int, int, int)` in the new packed blend helper; runner admission/resources were healthy.
+- [x] Inspect repaired combined run `33296050037`: PlayMode blend regressions passed 2/2 and the real Kentridge player ran 60s with zero harness assertions/exceptions, but screenshots are dominated by loading/opening/interior/building-wall views. They do not prove endpoint continuity, both shoulders on uneven/sloped terrain, medium/far seam behavior, or vegetation recovery. Treat as validation-harness acceptance failure, not closure evidence.
 
 ## Implementation
 - [x] Make road/trail intent first-class on stable semantic endpoints with reusable profile data, provenance, and deterministic seed.
@@ -39,6 +40,7 @@
 - [x] Preserve ordinary non-blend coating/style/detail behavior, including existing coating displacement semantics.
 - [x] Mask the blend marker back to the underlying reconstruction style before shared CPU/GPU style lookup and faceted classification so blend metadata cannot route geometry through a different reconstruction path.
 - [x] Repair the CI-discovered `MaterialBlend` coverage clamp overload ambiguity without changing packed semantics or runtime behavior (`3c586c51b472f6c34461cfe939e8eca1051801a5`).
+- [ ] Improve the generic capture-less `KentridgePlayableSlice` evidence profile so a 60-second SceneIssue replay exits the opening sooner, exercises player-height road traversal, and captures an elevated survey view without adding a new capture or CI transport.
 
 ## Regressions implemented
 - [x] Modern Kentridge semantic routes map to traceable generic physical road definitions.
@@ -63,7 +65,7 @@
 - [x] Refresh/merge current `origin/master` after the full-player name repair: feature merge `cd835ce4`, master `d4b31a70`.
 - [x] Obtain green focused exact-source EditMode regression through `ci-test/fixes/agent-1` only: run `33284733815`, 7/7 passed.
 - [x] Static cost audit: one analytic primitive + one explicit placement per bounded piece; definition/footprint budgets are enforced; `Primitive` adds no fields/stride; no road GameObjects or per-frame generation path; coherent edge variation is integer-only sample work; name repair adds no geometry/residency cost. The presentation repair reuses persisted style/coating/detail bits and the existing 32-byte `SmoothSurfaceVertex`; marked fragments add one bounded second material evaluation only.
-- [ ] Obtain a green combined exact-source PlayMode + built-player request through the same `ci-test/fixes/agent-1` transport after the visual shoulder repair. Run `33286511375` was green (PlayMode 1/1; capture/upload/status all green; 60s player, zero exceptions/assertions) but is diagnostic only because human inspection rejected the regular checker/stair-step shoulder artifact. Run `33294139897` is also diagnostic only because the repaired source failed compilation before either gate.
+- [ ] Obtain a green combined exact-source PlayMode + built-player request through the same `ci-test/fixes/agent-1` transport with visually sufficient road evidence. Run `33286511375` was green but rejected for the checker/stair-step shoulder. Run `33294139897` failed compilation before either gate. Run `33296050037` is green (2/2 PlayMode; real-player capture/upload/status all green) but its camera evidence is insufficient for the issue's required road views.
 - [ ] Run/inspect final repaired built application/player evidence for `Assets/Scenes/KentridgePlayableSlice.unity`; verify no startup/runtime exceptions.
 - [ ] Capture/inspect endpoint-to-endpoint road continuity and player-height traversal with collision/streaming active.
 - [ ] Inspect both shoulders on uneven/sloped terrain for natural Grass↔Dirt recovery with no repeated bands, staircase, exposed wall, or hard line.
