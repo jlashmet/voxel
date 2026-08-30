@@ -4,20 +4,19 @@
 - [x] Read `AGENTS.md` and canonical `SceneIssues/README.md`; confirm `SceneIssues/feature-readme.md` and `SceneIssues/test-workflow.md` are absent at this revision.
 - [x] Confirm `fixes/agent-1` starts from current `origin/master` before implementation.
 - [x] Re-check CI transport state: `ci-test/fixes/agent-1` already exists; leave it untouched until the single final targeted-CI request and never replace queued/running CI.
-- [x] Record execution limitation before behavior coding: this execution host has no Unity Editor/test runner, so behavior-first tests are committed before production implementation but final exact-SHA CI is the authoritative Unity runner.
-- [x] Trace mesh/SDF import, voxel authoring/storage, material palette, showcase composition, collision/edit, and player-capture owners sufficiently to keep the feature additive: no existing arbitrary-mesh voxelizer/structure loader exists; normal gameplay truth is voxel storage.
-- [x] Resolve canonical structure-authoring seam: `IStructureAuthoringSession` + concrete `StructureAuthoringSession`/`VoxelBrush`, constructed by `StructuresComposition.CreateAuthoringSession`; baked sparse cells replay through this path rather than introduce mesh truth.
-- [x] Resolve importer assembly split: deterministic mesh-data voxelizer/core codec stays reusable and source-format extraction remains an authoring adapter; do not add scene-object dependencies to Structures API.
-- [x] Inspect prior dragon/SDF evidence only as reusable-code evidence; no existing arbitrary mesh-to-voxel production path is available to generalize and no other assignment will be modified.
-- [x] Verify external source candidates/licensing: Meleagor Sketchfab dragon CC-BY 21.6k tris (binary gated); OpenGameArt artist_71 three-headed dragon CC-BY 4.0 ~24k tris (31.7 MB archive inaccessible here); Khronos Stanford dragon carries Stanford non-commercial restriction.
-- [x] Choose a transfer-safe source strategy: commit an original conventional >=20k indexed-triangle dragon authored for this feature and dedicate it CC0-1.0; importer remains fully generic and dragon-free.
-- [ ] Generate/commit the exact CC0 source glTF bytes, provenance, triangle/vertex counts, material colors, and SHA-256; verify >=20,000 non-padding triangles and recognizable anatomy.
-- [x] Record at least two plausible implementation hypotheses and the smallest discriminator in `plan.md`; discriminator supports additive structure-authoring replay and finds no existing importer to generalize.
-- [x] Check blast radius/cost: importer/showcase additions only; preserve terrain/building/storage/collision/edit semantics; preflight bounds/dense-cell budget before flood fill; no runtime voxelization.
-- [x] Resolve exact VoxelShowcase scene/runtime owner: `Assets/Scenes/VoxelShowcase.unity` -> GUID `12be027be786465c9a6c8be1321251fd` -> `Assets/Game/Composition/Showcase/SceneRuntime/VoxelShowcase.cs`.
-- [x] Resolve live input discrepancy and smallest integration point: Space is currently jump/fly and wheel is brush radius; add explicit structure-selection mode so wheel/Space are consumed only while selection is active, preserving normal movement otherwise.
+- [x] Record execution limitation: no local Unity runner; exact-SHA CI is authoritative compiler/test/player validation.
+- [x] Trace voxel authoring/storage, material palette, showcase composition, collision/edit, and player-capture owners enough to keep the feature additive.
+- [x] Resolve canonical replay seam: `IStructureAuthoringSession` + `StructuresComposition.CreateAuthoringSession`; baked sparse cells replay through normal voxel storage.
+- [x] Confirm no existing arbitrary mesh-to-voxel production importer to generalize.
+- [x] Record competing implementation hypotheses/discriminator in `plan.md`.
+- [x] Check blast radius/cost: importer/showcase additions only; bounded dense working set; no runtime voxelization or mesh gameplay truth.
+- [x] Resolve live VoxelShowcase runtime owner and input discrepancy; structure selection must be an explicit mode so ordinary movement/brush controls remain unchanged outside it.
+- [x] Reject the stale “original CC0 dragon” plan because acceptance explicitly requires a downloaded third-party mesh.
+- [x] Verify current external source leads: Meleagor Sketchfab dragon CC-BY ~21.6k tris but auth-gated; artist_71 OpenGameArt three-headed dragon CC-BY 4.0 ~24k tris/public archive; McGuire Chinese Dragon listed CC-BY 4.0 ~412.7k tris but very large.
+- [ ] Obtain/commit a redistribution-safe third-party dragon source representation plus exact URL, author, license, original format, vertex/triangle counts, original downloaded-file SHA-256, committed-source SHA-256, and required attribution/license text.
+- [ ] Verify committed source is meaningfully detailed/non-voxel-native with readable head(s), body, wings, limbs/feet, tail, and secondary silhouette detail.
 
-## Behavior-first regressions (commit before production implementation)
+## Behavior-first regressions
 - [x] Add compile-intended importer contract tests before production code (`9164857ad304dc95a6e182e8e982251d5a918567`).
 - [ ] Curved synthetic closed geometry proves conservative surface coverage and solid interior fill.
 - [ ] Same input/config produces stable ordered voxel/material output.
@@ -28,38 +27,42 @@
 - [ ] Sparse artifact codec round-trips exactly and rejects malformed/out-of-bounds data.
 - [ ] Baked cells replay through `IStructureAuthoringSession` and normal occupancy reads.
 - [ ] Showcase selection/Space commit is single-trigger; idle/update repetition cannot duplicate placement.
+- [ ] Add dragon-specific production regression proving required anatomical regions are non-empty/spatially plausible without source-string/count-only assertions.
 
 ## Implementation
-- [ ] Add reusable transformed triangle mesh→voxel API/configuration with configurable voxel size, fill policy, bounds/cost limits, material input/fallback, and thin-feature policy.
-- [ ] Conservatively rasterize triangle coverage rather than vertex-only quantization.
-- [ ] Fill intended closed interiors predictably using bounded exterior flood fill; preserve surface material ownership.
-- [ ] Handle off-origin/nested-equivalent transforms, non-uniform scale, rotation, mirroring, pivot/bounds, and deterministic repeat conversion.
-- [ ] Preserve major material/color regions with deterministic fallback only when source color is unavailable.
-- [ ] Add deterministic sparse baked-cell codec/artifact; ordinary runtime never executes mesh voxelization.
-- [ ] Replay baked artifact through `StructuresComposition.CreateAuthoringSession` / `IStructureAuthoringSession.Set`, then normal storage publication; no dragon-specific procedural voxel shortcut.
-- [ ] Integrate generated dragon through `ShowcaseWorld` normal voxel placement so collision/edit/destruction read the same storage.
-- [ ] Add explicit VoxelShowcase structure-selection mode: scroll selects while active, Space commits selected dragon once, normal jump/brush controls remain unchanged outside mode.
+- [x] Add reusable transformed triangle mesh→voxel API/configuration with voxel size, fill policy, bounds/cost limits, material input/fallback, and thin-feature policy.
+- [x] Conservatively rasterize triangle coverage rather than vertex-only quantization.
+- [x] Fill intended closed interiors using bounded exterior flood fill while preserving surface material ownership.
+- [x] Apply source transform before grid quantization, including non-uniform/mirrored transforms.
+- [x] Add deterministic sparse baked-cell codec/artifact and replay through `IStructureAuthoringSession`.
+- [x] Add isolated one-shot structure-selection state object; production VoxelShowcase input wiring still pending.
+- [ ] Add authoring/source adapter for the chosen third-party model and generate/commit the baked dragon artifact; ordinary runtime must never execute mesh voxelization.
+- [ ] Preserve major source material/color regions with deterministic palette mapping/quantization.
+- [ ] Instantiate baked dragon through normal `ShowcaseWorld`/WorldBuilder voxel authoring so collision/edit/destruction read the same storage.
+- [ ] Wire explicit VoxelShowcase structure-selection mode: scroll selects while active, Space commits once, ordinary controls unchanged outside mode.
 - [ ] Add dedicated labeled `Mesh -> Voxels` comparison area with matched pose/scale/orientation/ground/lighting; source mesh is presentation-only and has no collider/gameplay authority.
-- [ ] Add durable comparison-capture support for source solid/wireframe, voxel preview, final spawn, and head/wing/feet/tail closeups without creating another CI transport.
-- [ ] Add source-vs-voxel metrics (surface distance and fixed-view silhouette evidence) where deterministic built-player capture supports them.
-- [ ] Emit deterministic source triangle count, voxel resolution, authored voxel count, voxelization duration, serialized size, and runtime placement duration.
+- [ ] Add durable comparison capture support for front, side, rear, front 3/4, rear 3/4, elevated/top 3/4, plus head/horns, wing, feet/claws, tail closeups.
+- [ ] Add supplemental symmetric source↔voxel surface-distance metric and fixed-view silhouette IoU evidence (targets p95 <=1.5 voxels, primary IoU >=0.90 unless a documented thin-feature limitation is visually acceptable).
+- [ ] Emit deterministic source triangle count, voxel resolution, authored voxel count, sparse brick/chunk count, voxelization duration, serialized size, resident/runtime placement/build cost.
+- [ ] Add destruction/world-truth validation instance proving voxel edit changes rendering/collision without source-mesh shell/collider fallback.
 
 ## Dragon artifact acceptance
-- [ ] Source is a real indexed triangle mesh with >=20,000 non-padding triangles and committed CC0 provenance.
-- [ ] Generated structure has >=6,000 authored voxels, volumetric occupancy on all three axes, X/Z <=127 and Y<=511.
-- [ ] Head/neck/body, two wings/negative spaces, four legs/feet, horns/spines, and curved tail remain spatially plausible in the baked artifact.
-- [ ] Source and voxel exhibit use the same transform/pose and major material regions remain recognizable.
+- [ ] Downloaded third-party source is legitimately redistributable and provenance/checksums are committed.
+- [ ] Source is detailed/curved/non-voxel-native and genuinely exercises anatomy/silhouette fidelity (roughly 20k+ triangles preferred/practical per issue).
+- [ ] Generated structure is volumetric, sparse, within X/Z<=127 and Y<=511, and preserves recognizable head/body/wings/limbs/feet/tail/secondary detail.
+- [ ] Source and voxel exhibit use same effective transform/pose; major material regions remain recognizable.
+- [ ] Human review confirms voxelized result is unmistakably the exact source model, not merely a generic dragon.
 
 ## Validation / cost
-- [ ] Run focused EditMode importer/codec/authoring/showcase tests in final exact-SHA CI.
-- [ ] Record source import/voxelization time, occupied voxel count, sparse serialized size, runtime resident/storage impact, and incremental placement/build cost.
+- [ ] Exact-SHA final CI compiles/passes focused importer/codec/authoring/showcase + dragon-specific regressions.
+- [ ] Record import/voxelization time, occupied voxel count, sparse brick/chunk count, serialized size, runtime resident/storage impact, and incremental render/world-build cost within repository budgets.
 - [ ] Verify ordinary runtime does not execute mesh voxelization and no `MeshCollider`/source-mesh gameplay fallback exists.
 - [ ] Review full feature diff for unrelated capture/workflow/request changes.
-- [ ] Merge current `origin/master` before final CI if it advanced.
-- [ ] Issue one final exact-source request only through `ci-test/fixes/agent-1`; do not replace queued/running CI.
-- [ ] Obtain green focused behavioral regression plus exact built-player `VoxelShowcase` validation in the final request.
-- [ ] Inspect required built-player views directly for same-source fidelity, silhouette/anatomy, material regions, grounding, negative spaces, and absence of holes/fused/bloated/broken parts.
-- [ ] Confirm built-app one-shot spawn, destruction/world-truth evidence, metrics, and no startup/runtime exceptions.
+- [ ] Refresh/merge current `origin/master` before final CI if it advanced.
+- [ ] Issue one final exact-source PlayMode request only through `ci-test/fixes/agent-1`; do not replace queued/running CI.
+- [ ] Obtain green focused behavioral regression plus exact built-player `VoxelShowcase` validation in that final request.
+- [ ] Inspect all required built-player views directly for same-source silhouette/anatomy/material fidelity, grounding, negative spaces, and no holes/fused/bloated/broken parts.
+- [ ] Confirm built-app destruction/world truth, one-shot spawn, metrics, and no startup/runtime exceptions.
 
 ## Promotion / closure
 - [ ] Complete pending metadata (`status`, `resolutionSummary`, `regressionTest`, `fixCommit`) only after all gates pass.
