@@ -137,3 +137,6 @@
 - [x] Refresh the final visual rework with current `master` in merge commit `0cd53d0761698490ad29edd563167251030b1aa5` without changing unrelated master content.
 - [x] Diagnose exact final-visual run `33323693205`: both PlayMode and built-player compilation fail only because `ShowcaseWorld.WorldbuildingGalleryStructuralPresentation.cs` imports `System.Diagnostics` and uses unqualified `Debug.Log`, producing CS0104 ambiguity before tests or capture can run.
 - [x] Qualify the two presentation log calls as `UnityEngine.Debug.Log` without changing structural behavior, budgets, or validation semantics; rerun the same persistent CI transport from the new exact source SHA.
+- [x] Diagnose run `33323976945`: focused PlayMode passed, but the real-player audit rejected the visual presentation with `VoxelBudgetExceeded` because the combined bridge context catalogue charged its full 1220×height×720 conservative bounds.
+- [x] Split bridge river, terrain shoulders, piers, castle sections, cliff sections, and facade variants into independently bounded authoritative voxel catalogues instead of raising `MaxCompositionVoxelCost` or `MaxFootprintVoxels`.
+- [ ] Correct split-presentation local bounds before CI: castle wall buttresses must remain inside declared footprints, and bridge pier declared height must cover the actual cap top for all selected terrain heights.
