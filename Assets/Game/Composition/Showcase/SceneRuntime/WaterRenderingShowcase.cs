@@ -218,15 +218,15 @@ namespace VoxelEngine.Showcase
             const int cliffHeight = 72;
             _world.AuthorVoxelBox(new int3(304, fallBaseY, 224), new int3(120, cliffHeight, 18), GameMaterialIds.DarkStone);
             _world.AuthorVoxelBox(new int3(329, fallBaseY + cliffHeight - 4, 205), new int3(70, 4, 19), GameMaterialIds.RiverWater);
-            _world.AuthorVoxelBox(new int3(333, fallBaseY + 10, 201), new int3(62, cliffHeight - 10, 4), GameMaterialIds.Cascade);
+            _world.AuthorVoxelBox(new int3(333, fallBaseY + 10, 199), new int3(62, cliffHeight - 10, 2), GameMaterialIds.Cascade);
             _world.AuthorVoxelBox(new int3(318, fallBaseY + 2, 176), new int3(92, 4, 49), GameMaterialIds.Cascade);
             _world.AuthorVoxelBox(new int3(324, fallBaseY + 6, 184), new int3(80, 2, 33), GameMaterialIds.RiverWater);
 
             // Break the waterfall silhouette with semantic cascade fingers rather than a bespoke
             // mesh. The shared waterfall profile supplies the downward streaks, aeration, edge/lip
             // foam and spray/mist response for all of them.
-            _world.AuthorVoxelBox(new int3(329, fallBaseY + 20, 197), new int3(9, 34, 4), GameMaterialIds.Cascade);
-            _world.AuthorVoxelBox(new int3(390, fallBaseY + 15, 197), new int3(7, 42, 4), GameMaterialIds.Cascade);
+            _world.AuthorVoxelBox(new int3(329, fallBaseY + 20, 196), new int3(9, 34, 2), GameMaterialIds.Cascade);
+            _world.AuthorVoxelBox(new int3(390, fallBaseY + 15, 196), new int3(7, 42, 2), GameMaterialIds.Cascade);
 
             _focus = new Vector3(25.5f, (lakeY + 18) * ShowcaseWorld.VoxelSize, 16.8f);
         }
@@ -313,7 +313,10 @@ namespace VoxelEngine.Showcase
             if (_telemetryTime >= CaptureTelemetryIntervalSeconds)
                 EmitCaptureTelemetry();
 
-            byte phase = _captureTime < 12f ? (byte)0 : _captureTime < 22f ? (byte)1 : (byte)2;
+            // The first 2-second capture occurs before cold-view convergence. Hold each useful
+            // framing long enough that the 10-second cadence records a converged near view at 12s,
+            // a wide comparison at 22s, then four time-separated waterfall frames from 32s onward.
+            byte phase = _captureTime < 18f ? (byte)0 : _captureTime < 30f ? (byte)1 : (byte)2;
             if (phase == _captureViewPhase)
                 return;
 
@@ -370,16 +373,18 @@ namespace VoxelEngine.Showcase
             switch (view)
             {
                 case "near":
-                    position = new Vector3(11f, 29f, 4.5f);
-                    target = new Vector3(10f, 24f, 12.5f);
+                    position = new Vector3(11f, 26.5f, 5.5f);
+                    target = new Vector3(10f, 24.5f, 12.5f);
                     break;
                 case "elevated":
                     position = new Vector3(25.5f, 48f, 0.5f);
                     target = new Vector3(25.5f, 24f, 16.5f);
                     break;
                 case "waterfall":
-                    position = new Vector3(46f, 31f, 17f);
-                    target = new Vector3(36.3f, 28f, 21f);
+                    // Face the semantic cascade sheet nearly square-on so vertical motion, edge
+                    // breakup and impact treatment are judged rather than hidden by cliff parallax.
+                    position = new Vector3(36.3f, 28.7f, 14.7f);
+                    target = new Vector3(36.3f, 27.0f, 20.0f);
                     break;
                 default:
                     position = new Vector3(25.5f, 38f, -1.5f);
