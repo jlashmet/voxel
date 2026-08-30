@@ -16,6 +16,7 @@
 - [x] Add all-building water/separative-region footprint regression and remediate the proven Orc/Southern-Ridge overlap by bounding the modern ridge extent while preserving authored route solutions.
 - [x] Add production two-stage readiness regression proving terrain-only publication is not final, later feature publication makes the queried presentation column ready, and Moordell timber reaches authoritative storage.
 - [x] Scope authored-content readiness to presentation columns; normal opening startup uses terrain-column readiness plus renderer coverage.
+- [x] Add bounded Rossdam-water regression capping aggregate carve/fill primitive bounding scans at 17,000,000 cells.
 - [x] Exact green regression/storage runs include `33283034449`, `33288421041`, and `33289185080`; earlier visually insufficient artifacts were rejected rather than used for closure.
 
 ## Final evidence / streaming work discovered from exact runs
@@ -25,10 +26,10 @@
 - [x] In dormant `kentridge-macro-world` validation only, dismiss pending opening dialogue promptly and restore normal time before CharacterMotor evidence.
 - [x] Run `33292088730` proves the opening correction: gameplay by ~t15, local CharacterMotor 3.61 m, macro-road CharacterMotor 4.73 m, all four Moordell columns ready, and full-resolution `macro-moordell.png` captured.
 - [x] Classify run `33292088730` focused-test failure as native Unity/Burst infrastructure crash: no NUnit XML/assertion result; `single.log` terminates in `Burst.Compiler.IL.Hashing.CacheBuilder.ILHasher` SIGSEGV; built-player step succeeds with zero harness assertions.
-- [x] Discriminate Rossdam stall as real streaming cost rather than renderer convergence: target starts after Moordell and remains unready for ~35 s while renderer repeatedly reaches `jobs=0`, `missingVisible=0`; visual frames progressively gain lake/settlement content.
+- [x] Discriminate Rossdam stall as real streaming cost rather than renderer convergence: target starts after Moordell and remains unready for ~35 s while renderer repeatedly reaches `jobs=0`, `missingVisible=0`.
 - [x] Bound Rossdam lake intent to a still-substantial 90 m x 45 m x 2.4 m physical basin, preserving carve/fill and semantic shoreline routing while reducing rounded-box bounding work to ~39% of the prior first-pass volume.
-- [x] Keep production streaming demand at the target semantic focus on ground level while checking all settlement building columns; frame the elevated survey camera separately in `LateUpdate` so evidence does not queue an extra camera-height residency layer across the streaming disc.
-- [x] Add a player-height Moordell road-arrival capture after settlement content is loaded so built evidence can show a generated hard route entering a settlement.
+- [x] Keep production streaming demand at target semantic focus on ground level while checking all settlement building columns; frame elevated survey camera separately in `LateUpdate` so evidence does not queue an extra camera-height residency layer.
+- [x] Add a player-height Moordell road-arrival capture after settlement content is loaded.
 - [ ] Exact built `KentridgePlayableSlice` reaches usable gameplay without startup/runtime exceptions and leaves enough replay time for all macro targets.
 - [ ] Full-resolution exact-scene evidence shows four readable blockouts at Moordell, Rossdam, Fairy Village, and Orc Village.
 - [ ] Full-resolution evidence shows continuous roads/network, substantial Rossdam lake, Southern Ridge/pass response, geography-constrained route behavior, and representative real CharacterMotor traversal.
@@ -36,11 +37,11 @@
 ## Blast radius / cost
 - [x] No other SceneIssue, no feature-branch `.github/test-request.json`, no custom workflow/CI transport, no CharacterMotor/streaming-radius/device-budget change.
 - [x] Terrain-relief sampling remains bounded to 25 x 16 = 400 deterministic catalogue queries.
-- [x] Feature branch includes `origin/master` `0901be5a0640e3eec103cdf3c97aa12b8cd42a9e`; prior exact comparison is ahead-only and contains only this Kentridge feature/tests/docs beyond master.
+- [x] Current master `61d03336390ed9079498b183217cbf0ecf0abcd2` merged cleanly into agent-6; its 17 intervening commits are disjoint from this assignment.
 - [x] Existing production metrics: regions=6, settlements=6, generic buildings=16, hardRoutes=20, routeTiles=833, constrainedRoutes=5, solveSteps=1108, maxRoadRiseVoxels=2, prior waterDepthVoxels=46.
 - [x] Existing scoped readiness regression: 1,090,380 feature voxels; prior last feature step ~2500 ms.
 - [x] Rejected run `33290154012`: elapsed=79 s, peak RSS=5859 MB, systemFree=31944 MB, swapGrowth=0 MB; post-start FPS generally >60.
-- [x] Run `33292088730` focused editor process before native Burst crash: elapsed=31 s, peak RSS=2287 MB, systemFree=29019 MB, swapGrowth=0 MB. Built player itself finishes 60 s with zero harness assertions and mostly high post-start FPS, but evidence remains incomplete.
+- [x] Run `33292088730` focused editor process before native Burst crash: elapsed=31 s, peak RSS=2287 MB, systemFree=29019 MB, swapGrowth=0 MB. Built player itself finishes 60 s with zero harness assertions but incomplete evidence.
 - [ ] Measure final lake depth/footprint, feature voxel work/last-feature time, route solve counts, CPU/frame/FPS, memory, streaming convergence, and far-field/render telemetry against existing budgets.
 - [ ] Re-check exact final feature diff against current master immediately before targeted CI and promotion.
 
@@ -53,7 +54,7 @@
 - [ ] (6) Built world visibly contains a substantial lake + ridge and a geography-constrained hard route.
 - [ ] (7) Regional terrain visibly reads as differentiated countryside rather than a flat debug plane.
 - [ ] (8) No second scene-local graph/direct voxel-writing/static destination hierarchy.
-- [ ] (9) Focused production regressions cover determinism, reachability, roads, settlements, constraints, blocked-route failure, and two-stage presentation readiness.
+- [ ] (9) Focused production regressions cover determinism, reachability, roads, settlements, constraints, blocked-route failure, bounded water cost, and two-stage presentation readiness.
 - [ ] (10) Exact built-player evidence covers settlements, roads entering/leaving settlements, network survey, geography, constrained route, and CharacterMotor traversal.
 - [ ] (11) Blast radius and world-build/route/CPU/GPU/memory/streaming cost measured against budgets.
 - [ ] Final exact-SHA focused CI and built-player evidence are closure-quality green.
