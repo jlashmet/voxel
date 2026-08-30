@@ -52,6 +52,36 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void NetworkInfluenceUsesResolvedTopologyWhenRefiningPresentation()
+        {
+            WorldRoadNetworkRoute turning = Route(Resolve(
+                "network-turn",
+                WorldRoadProfiles.DirtRoad,
+                new WorldRoadPlanPoint(0, 0),
+                new WorldRoadPlanPoint(80, 0),
+                new WorldRoadPlanPoint(80, 80)));
+            WorldRoadNetworkRoute joining = Route(Resolve(
+                "network-join",
+                WorldRoadProfiles.Trail,
+                new WorldRoadPlanPoint(80, 0),
+                new WorldRoadPlanPoint(160, 0)));
+            var network = new WorldRoadNetwork(new[] { turning, joining });
+
+            Assert.AreEqual(1, network.Junctions.Count);
+            Assert.IsTrue(network.TrySample(80, 0, out WorldRoadNetworkSample sample));
+            Assert.AreEqual(31, sample.Influence.Coverage31,
+                "Network sampling must keep the exact shared junction on the physical influence centreline.");
+            Assert.AreEqual(0, sample.Influence.DistanceDm,
+                "Topology-aware presentation must not round an actual shared junction away from its authoritative vertex.");
+
+            var routeInfluence = new WorldRoadInfluence(turning.Road, network.Junctions);
+            Assert.IsTrue(routeInfluence.TrySample(80, 0, out WorldRoadInfluenceSample routeSample));
+            Assert.AreEqual(sample.Influence.Coverage31, routeSample.Coverage31);
+            Assert.AreEqual(sample.Influence.TargetHeightDm, routeSample.TargetHeightDm,
+                "Aggregate and reusable route influence must share the same topology-aware presentation field.");
+        }
+
+        [Test]
         public void GenericTerrainCorridorFormsBoundedCrownShoulderAndDeterministicWear()
         {
             Primitive corridor = Corridor(
