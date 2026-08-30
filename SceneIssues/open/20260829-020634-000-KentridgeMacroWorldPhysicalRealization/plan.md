@@ -1,18 +1,18 @@
 # Plan
 
 ## Acceptance authority
-`captures` is empty, so `issue.json` is the acceptance contract. Keep the source-backed Mounting Force/Kentridge graph authoritative through shared WorldBuilder APIs; physically realize settlements, terrain-aware hard routes, reusable geography, Rossdam Lake, Southern Ridge/pass, real CharacterMotor traversal, readable built-player evidence, and bounded cost. `SceneIssues/README.md` is the workflow authority; `SceneIssues/feature-readme.md` is absent.
+`captures` is empty, so `issue.json` is the acceptance contract. Keep the source-backed Mounting Force/Kentridge graph authoritative through shared WorldBuilder APIs; physically realize settlements, terrain-aware hard routes, reusable geography, Rossdam Lake, Southern Ridge/pass, real CharacterMotor traversal, readable built-player evidence, and bounded cost. `AGENTS.md`, `SceneIssues/README.md`, and `SceneIssues/feature-readme.md` govern this feature.
 
 ## Proven results
 - Foundation: 20 hard routes, 6 settlements, 16 generic buildings, deterministic geography, bounded road slopes, authoritative storage, substantial lake/ridge, explicit constrained routes, and two-stage presentation readiness.
-- Exact run `33318399738` is focused-test/player green but closure-red. Uninterrupted Rossdam columns settle, so global feature-scheduler preemption is rejected. Moordell is readable; Rossdam is partial; Fairy/Orc show roads but no readable authored buildings; final network target misses the 60 s cutoff.
-- Static storage acceptance proves all four generic building shells can be generated. Its production path explicitly generates separate timber/roof Y-regions when a building crosses a 51.2 m vertical region boundary.
-- `ShowcaseWorld.RefreshPending` normally demands terrain-surface Y layers plus the viewer Y layer only; `FinishRegion` applies features only for the exact generated 3D region. Region eviction/re-entry correctly removes `_generated` and replays features.
+- Exact run `33318399738` was focused-test/player green but closure-red: Moordell readable, Rossdam partial, Fairy/Orc roads present without readable authored buildings, and final network target missed the 60 s cutoff.
+- Root cause discriminator identified vertical residency: static storage tests generate separate upper Y-regions for tall buildings, while ordinary residency previously demanded terrain/viewer Y only.
+- Selected fix is implemented at source `1b548f44a5c9e8acf9880c9df9bcb1244932ecb8`: `RefreshPending` is isolated in a residency partial, and already-accepted X/Z columns additionally queue only feature-bearing Y-regions from semantic catalogue bounds. No horizontal interest radius, device budget, scheduler, or scene-specific preload policy changes.
+- Focused ordinary-streaming regression is implemented; first CI attempt exposed only a test compile defect (`FeatureRule` type name), fixed by source `1b548f44...`. Exact-source retry run `33341240134` is queued and must not be replaced while queued/running.
+- Reuse audit: shared physical intent/planner/physical catalogue/water catalogue contain semantic inputs and no Kentridge/Rossdam policy. Existing generic `a`/`b` blocked-water fixture independently proves planner rejection and semantic `GoAround` reuse without Kentridge adapters.
 
-## Leading hypothesis / discriminator
-H1: generic settlement structures that extend above the terrain/viewer Y-region are never made resident in normal ground-level streaming. This explains Moordell visible, Rossdam partial, and Fairy/Orc absent while X/Z content readiness reports settled. H2: renderer publication is stale after correct vertical residency.
-
-Next discriminator/fix: use feature-catalogue placement/definition bounds to demand only feature-bearing vertical regions whose X/Z footprint intersects the normal horizontal load ring. Add a real-world regression selecting a generic building that crosses a Y-region boundary and prove its upper shell arrives through ordinary `ShowcaseWorld.Update` without test-injected region generation. Do not blanket-load an extra Y region for every horizontal column.
+## Current hypothesis / discriminator
+H1: feature-aware vertical residency publishes the missing upper settlement shells through ordinary `ShowcaseWorld.StepStreaming`. H2: if the focused regression is green but built evidence still lacks structures, renderer publication/framing is the next discriminator. Do not change rendering or evidence framing before H1 is proven.
 
 ## Remaining gates
-After vertical residency is proven/fixed, re-check full-resolution settlement visibility. Only then adjust target dwell/framing as needed for the substantial lake and final network capture inside the unchanged 60 s cap. Complete the existing reusability audit/non-Kentridge planner fixture, measure added region/work cost, refresh/merge current master, freeze source, and reuse only `ci-test/fixes/agent-6` for final exact PlayMode + player CI.
+Let exact run `33341240134` complete untouched; inspect its result. If green, quantify added feature Y-regions and run the unchanged 60 s exact built-player replay. Inspect full-resolution Rossdam/Fairy/Orc settlement evidence, lake readability, final network capture, and cost telemetry. Only acceptance-required framing/dwell changes may follow. Re-fetch/merge current master before final exact-SHA validation; after every checkbox is green, close `open -> closed`, set fixed metadata, merge current master again if needed, and non-force push the exact feature head to master.
