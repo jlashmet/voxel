@@ -37,6 +37,7 @@
 - [x] Move bridge/cliff proof-site policy to deterministic valley/mountain transition terrain; fail closed below 40-voxel gorge relief / 80-voxel cliff rise. Support-probe-aligned fixed-seed reproduction yields 48 / 95 voxels.
 - [x] Apply bounded composition readability polish required by prior evidence: gate portal hierarchy without blocking traversal, stepped cliff connection/support read, facade front-envelope relief, and elevated/unobstructed audit framing.
 - [x] After `33341092099` showed the relocated bridge/cliff cameras inside/behind mountain terrain, flip only those structural evidence views to the valley-facing side at `e0859a1140b524e93594fa5ebc3adc0244aa1492`; do not alter proof geometry or terrain.
+- [x] Keep the structural SceneIssue within the CI replay cap by skipping its unrelated 21 town-architecture screenshots and going directly to the eight structural frames; other gallery SceneIssues retain the existing town audit. Focused residency regression remains the eviction/re-entry proof.
 - [ ] Bridge-wide visibly reads as a monumental crossing over substantial gorge/river between grounded masses.
 - [ ] Bridge close view is above/along the traversable deck and clearly shows deck edge, rail/truss cadence, abutment/pier contact, and continuation seam.
 - [ ] Bridge architecture reads beyond slab/support blockout with abutment massing, pier hierarchy, span cadence/cross-bracing, edge detail, and grounding.
@@ -56,7 +57,8 @@
 - [x] `33336816661`: compilation stopped before tests because the preceding cliff-site edit dropped the `Def(...) => new()` initializer terminator; restored at `5f0109998cdf0f53ae57024f91169bf940ff6848` without changing the support-probe-aligned site fix.
 - [x] `33338219310`: Windows compile and focused PlayMode class passed; built-player audit failed before structural captures with `structural-content-missing` after 21 town views evicted the proof district while refinement's lifetime authoring flag stayed true. Root cause isolated before another CI request.
 - [x] `33341092099`: Windows compile + all three focused PlayMode tests green, including residency re-entry; exact player reacquired the proof district, all three traversals/negative contracts passed with zero assertion failures. The 60 s replay stopped after structural frame 5/8, and direct frame inspection exposed mountain-side terrain occlusion in bridge/cliff evidence; fixed only in audit framing.
-- [ ] Run one final exact-SHA PlayMode + exact-scene built-player request on the same CI transport from the valley-facing evidence head with enough replay time for all eight frames.
+- [x] `33342551997`: request resolver rejected `replay_seconds=120` because targeted CI supports only 20..60 seconds; Unity never started. Treated as request/infrastructure failure, not product evidence.
+- [ ] Run one final exact-SHA PlayMode + exact-scene built-player request on the same CI transport at the supported 60-second maximum after structural-only capture routing.
 - [ ] Final focused class is green and final built-player `CharacterMotor` traverses bridge, gate, vertical connection; required negative contracts pass.
 - [ ] Record final measured cost and inspect all durable source frames.
 
