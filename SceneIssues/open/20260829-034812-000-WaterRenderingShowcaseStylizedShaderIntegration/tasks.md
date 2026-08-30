@@ -59,6 +59,7 @@
 - [x] Refresh/merge latest `origin/master` before final feature SHA attempt; current compare is `behind_by=0` after merge commit `ab8b3bc3efa3eac933ce861748664fb246dc1ea2`.
 - [x] Push current production/test/docs commits on `fixes/agent-9`; final SHA will be re-read after this task synchronization commit.
 - [x] Confirm existing `ci-test/fixes/agent-9` workflow history has no queued/running request to replace; latest listed request is completed.
+- [x] Inspect failed exact run `33320921998`: Unity stopped before tests/player evidence because `ShowcaseWaterPresentationRegressionTests` lacked the `VoxelEngine.Showcase` namespace import; add the compile repair on the feature branch and keep the failed transport as durable evidence rather than reusing it.
 - [ ] Re-read `origin/master` and `fixes/agent-9`; merge again before CI if master advanced.
 - [ ] Submit exactly one smallest final targeted-CI request from `ci-test/fixes/agent-9` whose parent is the exact final feature SHA.
 - [ ] Confirm focused behavioral regressions green on exact SHA.
