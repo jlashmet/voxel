@@ -59,6 +59,14 @@ namespace Game.Structures.Runtime
                     }
                     break;
 
+                case WorldObjectKind.Trapdoor:
+                    if (open)
+                    {
+                        plan.RotationDegrees = new int3(-90, 0, 0);
+                        plan.BlocksNavigation = false;
+                    }
+                    break;
+
                 case WorldObjectKind.Gate:
                 case WorldObjectKind.Portcullis:
                     if (open)
@@ -153,6 +161,7 @@ namespace Game.Structures.Runtime
             switch (kind)
             {
                 case WorldObjectKind.Door:
+                case WorldObjectKind.Trapdoor:
                 case WorldObjectKind.Gate:
                 case WorldObjectKind.Portcullis:
                 case WorldObjectKind.Drawbridge:
