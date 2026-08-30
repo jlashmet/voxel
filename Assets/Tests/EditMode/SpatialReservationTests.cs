@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using MountingForce.WorldGen;
+using MountingForce.WorldGen.Architecture;
 using MountingForce.WorldGen.Content.Kentridge;
 using NUnit.Framework;
 
@@ -233,6 +234,126 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.That(result.IsAccepted, Is.True,
                     candidate.OwnerId + " conflicts after production migration: " + result.Describe());
             }
+        }
+
+        [Test]
+        public void PlannerLocalReservationsReplayAndReleaseStableOwnership()
+        {
+            var local = new PlannerLocalReservationSet(Window);
+            SpatialReservation first = SpatialReservation.Box(
+                "planner:stable", ReservationCategory.Landmark,
+                ReservationSemantics.HardOccupancy,
+                new ReservationBoundsDm(0, 0, 0, 20, 20, 20));
+            SpatialReservation replay = SpatialReservation.Box(
+                "planner:stable", ReservationCategory.Landmark,
+                ReservationSemantics.HardOccupancy,
+                new ReservationBoundsDm(40, 0, 40, 60, 20, 60));
+
+            local.Add(first);
+            local.Add(replay);
+            Assert.That(local.Reservations.Count, Is.EqualTo(1));
+            Assert.That(local.Reservations[0].Id, Is.EqualTo(first.Id));
+            Assert.That(local.Reservations[0].Bounds, Is.EqualTo(replay.Bounds));
+
+            SpatialReservation blocker = SpatialReservation.Box(
+                "planner:blocker", ReservationCategory.Building,
+                ReservationSemantics.HardOccupancy,
+                new ReservationBoundsDm(100, 0, 100, 140, 40, 140));
+            local.Add(blocker);
+            SpatialReservation conflictingReplay = SpatialReservation.Box(
+                "planner:stable", ReservationCategory.Landmark,
+                ReservationSemantics.HardOccupancy,
+                new ReservationBoundsDm(110, 0, 110, 130, 20, 130));
+            ReservationQueryResult rejected = local.TryAdd(
+                conflictingReplay,
+                ReservationConsumerKind.Landmark);
+
+            Assert.That(rejected.Decision, Is.EqualTo(ReservationDecision.Rejected));
+            Assert.That(local.Reservations.Count, Is.EqualTo(2));
+            Assert.That(local.Reservations[0].Bounds, Is.EqualTo(replay.Bounds),
+                "A rejected replay must leave the previous stable claim committed.");
+            Assert.That(local.Release(first.Id), Is.True);
+            Assert.That(local.Release(first.Id), Is.False);
+
+            local.Add(SpatialReservation.Box(
+                "planner:batch", ReservationCategory.Landmark,
+                ReservationSemantics.HardOccupancy,
+                new ReservationBoundsDm(200, 0, 200, 220, 20, 220), ordinal: 0));
+            local.Add(SpatialReservation.Box(
+                "planner:batch", ReservationCategory.PublicAccess,
+                ReservationSemantics.ProtectedCorridor,
+                new ReservationBoundsDm(230, 0, 230, 250, 20, 250), ordinal: 1));
+            Assert.That(local.ReleaseOwner("planner:batch"), Is.EqualTo(2));
+            Assert.That(local.Reservations.Count, Is.EqualTo(1));
+            Assert.That(local.Reservations[0].OwnerId, Is.EqualTo("planner:blocker"));
+        }
+
+        [Test]
+        public void KentridgeHiddenSpaceBatchUsesReal3DBoundsForExternalReservations()
+        {
+            const uint seed = 0x4B454E54u;
+            SettlementPlan plan = KentridgeTownPlanner.Build(seed);
+            BuildingPlot hostPlot = default(BuildingPlot);
+            SiteHiddenSpaceRequest request = null;
+            KentridgeHiddenSpaceGeometry geometry = null;
+
+            for (int i = 0; i < plan.Plots.Count; i++)
+            {
+                BuildingPlot plot = plan.Plots[i];
+                var candidateRequest = new SiteHiddenSpaceRequest(
+                    "reservation-test:" + plot.RoleId,
+                    plot.RoleId,
+                    minimumCount: 0,
+                    targetCount: 1,
+                    entrance: HiddenSpaceEntranceKind.BreakableMatchingWall);
+                IReadOnlyList<KentridgeHiddenSpaceGeometry> candidates =
+                    KentridgeHiddenSpacePlanner.Resolve(plot, seed, candidateRequest);
+                if (candidates.Count == 0) continue;
+                hostPlot = plot;
+                request = candidateRequest;
+                geometry = candidates[0];
+                break;
+            }
+
+            Assert.That(request, Is.Not.Null, "Expected at least one Kentridge site that can realize a hidden side cavity.");
+            Assert.That(geometry, Is.Not.Null);
+
+            SpatialReservation hidden = WorldBuilderReservationFactory.HiddenSpaceVolume(
+                geometry.Realization,
+                new Int3(hostPlot.PositionDm.X, 0, hostPlot.PositionDm.Y));
+            SpatialReservation verticalOnly = SpatialReservation.Box(
+                "external:above-hidden-space",
+                ReservationCategory.Landmark,
+                ReservationSemantics.HardOccupancy,
+                new ReservationBoundsDm(
+                    hidden.Bounds.MinX,
+                    hidden.Bounds.MaxY + 20,
+                    hidden.Bounds.MinZ,
+                    hidden.Bounds.MaxX,
+                    hidden.Bounds.MaxY + 40,
+                    hidden.Bounds.MaxZ));
+            SpatialReservationSnapshot verticalSnapshot = SpatialReservationSnapshot.Create(
+                new[] { verticalOnly },
+                Window);
+
+            IReadOnlyList<KentridgeHiddenSpaceGeometry> accepted =
+                KentridgeHiddenSpaceBatchPlanner.Resolve(plan, new[] { request }, verticalSnapshot);
+            Assert.That(accepted.Count, Is.EqualTo(1),
+                "XZ overlap alone must not reject a physically separated hidden-space volume.");
+
+            SpatialReservation trueCollision = SpatialReservation.Box(
+                "external:hidden-space-collision",
+                ReservationCategory.Landmark,
+                ReservationSemantics.HardOccupancy,
+                hidden.Bounds,
+                provenance: "SpatialReservationTests");
+            SpatialReservationSnapshot collisionSnapshot = SpatialReservationSnapshot.Create(
+                new[] { trueCollision },
+                Window);
+            IReadOnlyList<KentridgeHiddenSpaceGeometry> rejected =
+                KentridgeHiddenSpaceBatchPlanner.Resolve(plan, new[] { request }, collisionSnapshot);
+            Assert.That(rejected.Count, Is.EqualTo(0),
+                "A true XYZ collision must be rejected at the production hidden-space batch boundary.");
         }
 
         [Test]
