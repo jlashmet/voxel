@@ -7,6 +7,7 @@ namespace VoxelEngine.Tests.PlayMode
     public sealed class WorldbuildingGalleryStructuralCompositionPlayModeTests
     {
         private const uint Seed = 0x5EED1234u;
+        private const int FinalRefinementBrickPoolCapacity = 262144;
 
         [Test]
         public void TypedStructuralProofCataloguesPlanDeterministicallyAndRejectInvalidAttachments()
@@ -53,7 +54,10 @@ namespace VoxelEngine.Tests.PlayMode
         [Test]
         public void RefinedCastleGatePreservesCanonicalCharacterMotorTraversal()
         {
-            using var world = new ShowcaseWorld(Seed, 4096, 1, 2);
+            // This regression authors the entire final presentation/refinement just like the gallery
+            // scene. Use the scene's brick-pool capacity: the 4K planner-only fixture intentionally
+            // cannot hold all of that authoritative voxel content and was never a production limit.
+            using var world = new ShowcaseWorld(Seed, FinalRefinementBrickPoolCapacity, 1, 2);
             world.EnsureWorldbuildingGalleryStructuralRefinementBlocking();
 
             ShowcaseWorld.GalleryStructuralTraversalReport traversal =
