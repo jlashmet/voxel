@@ -88,14 +88,18 @@ namespace VoxelEngine.Showcase
 
         private static readonly StructuralFrameSpec[] s_StructuralFrames =
         {
-            new("bridge-wide", 0, new Vector3(0.50f, 0.42f, 0.50f), new Vector3(-0.28f, 0.18f, -1f), 0.95f, 110f),
-            new("bridge-deck-junction", 0, new Vector3(0.43f, 0.35f, 0.50f), new Vector3(-0.20f, 0.06f, -1f), 0.26f, 32f),
-            new("castle-wide", 1, new Vector3(0.50f, 0.46f, 0.48f), new Vector3(0.72f, 0.22f, -1f), 0.88f, 72f),
-            new("castle-gate", 1, new Vector3(0.50f, 0.27f, 0.08f), new Vector3(0f, 0.05f, -1f), 0.28f, 24f),
-            new("cliff-wide", 2, new Vector3(0.52f, 0.48f, 0.50f), new Vector3(-0.90f, 0.26f, -1f), 0.92f, 76f),
-            new("cliff-ramp-junction", 2, new Vector3(0.48f, 0.40f, 0.50f), new Vector3(-0.45f, 0.06f, -1f), 0.34f, 32f),
-            new("facade-civic", 3, new Vector3(0.22f, 0.42f, 0.88f), new Vector3(0f, 0.05f, 1f), 0.32f, 30f),
-            new("facade-ornate", 3, new Vector3(0.78f, 0.42f, 0.88f), new Vector3(0f, 0.05f, 1f), 0.32f, 30f),
+            // Low diagonal views keep the bridge against its authored river/bank context rather than
+            // the distant far-field, while still fitting the full 122 m span in one establishing frame.
+            new("bridge-wide", 0, new Vector3(0.50f, 0.78f, 0.50f), new Vector3(-0.50f, -0.05f, -0.50f), 0.50f, 58f),
+            new("bridge-deck-junction", 0, new Vector3(0.16f, 0.86f, 0.50f), new Vector3(-0.10f, 0.02f, -0.75f), 0.12f, 15f),
+            new("castle-wide", 1, new Vector3(0.50f, 0.55f, 0.50f), new Vector3(0.55f, 0.12f, -0.75f), 0.68f, 50f),
+            new("castle-gate", 1, new Vector3(0.50f, 0.33f, 0.12f), new Vector3(0f, 0.02f, -1f), 0.18f, 16f),
+            // The cliff views deliberately look uphill from below the upper landing; this makes the
+            // terrain-supported level change and ramp/pedestal relationship legible in 2D evidence.
+            new("cliff-wide", 2, new Vector3(0.62f, 0.70f, 0.50f), new Vector3(-0.65f, -0.15f, -0.45f), 0.65f, 38f),
+            new("cliff-ramp-junction", 2, new Vector3(0.54f, 0.63f, 0.50f), new Vector3(-0.42f, -0.06f, -0.80f), 0.27f, 17f),
+            new("facade-civic", 3, new Vector3(0.22f, 0.52f, 0.84f), new Vector3(-0.08f, 0.02f, 1f), 0.19f, 18f),
+            new("facade-ornate", 3, new Vector3(0.78f, 0.52f, 0.84f), new Vector3(0.08f, 0.02f, 1f), 0.19f, 18f),
         };
 
         private sealed class Reporter : MonoBehaviour
@@ -226,9 +230,9 @@ namespace VoxelEngine.Showcase
             private IEnumerator CaptureStructural(ShowcaseWorld world)
             {
                 _structuralAuditPassed = false;
-                // The normal gallery startup authors this pass as well. Requiring it here keeps the
-                // evidence path robust if the harness is invoked against an alternate startup mode.
-                world.EnsureWorldbuildingGalleryStructuralPresentationBlocking();
+                // Normal gallery startup authors the same refined authoritative-voxel pass. Requiring
+                // it here also keeps evidence robust if the harness runs against an alternate startup.
+                world.EnsureWorldbuildingGalleryStructuralRefinementBlocking();
                 if (!world.HasWorldbuildingGalleryStructuralCompositionContent())
                 {
                     Debug.LogError("STRUCTURAL_AUDIT result=FAIL reason=structural-content-missing");
@@ -338,10 +342,12 @@ namespace VoxelEngine.Showcase
                     _pinnedRotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
                     _pinCamera = true;
 
-                    world.GenerateRegionBlocking(ShowcaseWorld.RegionAt(target));
-                    world.GenerateRegionBlocking(ShowcaseWorld.RegionAt(_pinnedPosition));
+                    // Load a bounded strip through the actual view, not just its endpoints. This
+                    // prevents a valid structure from being judged through missing neighbouring
+                    // near-terrain while avoiding a second streaming radius for evidence capture.
+                    world.PrepareWorldbuildingGalleryStructuralEvidence(_pinnedPosition, target);
                     yield return null;
-                    yield return new WaitForSecondsRealtime(0.85f);
+                    yield return new WaitForSecondsRealtime(1.0f);
                     yield return new WaitForEndOfFrame();
 
                     string path = Path.Combine(structuralDirectory, $"{frame + 1:00}-{spec.Name}.png");
