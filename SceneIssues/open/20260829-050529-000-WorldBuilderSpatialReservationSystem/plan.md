@@ -6,7 +6,7 @@ Provide one deterministic, engine-free spatial claim/query substrate for WorldBu
 
 ## Current state — 2026-08-30
 
-`fixes/agent-7` is 85 commits ahead and 0 behind current `origin/master` `ebdc2e4f63ef73153cd4e0ff5c62efe604f35470`; current feature head before this bookkeeping refresh was `bc76dc3db2f5f9e9b016ce3c0c4fc18bf7474986`. The latest feature work makes the spatial-reservation gallery evidence visible on boot and adds a production-scene smoke assertion that the visible report includes hard, clearance, public-access, road, underground, and deliberate-rejection evidence.
+`fixes/agent-7` was at `ce04c014d683df5451ce2f1ca490eef70f768880` before this 16:43 PDT bookkeeping refresh. Current `origin/master` is still unchanged at `ebdc2e4f63ef73153cd4e0ff5c62efe604f35470`, so there is no new master integration to merge yet. The feature work makes the spatial-reservation gallery evidence visible on boot and adds a production-scene smoke assertion that the visible report includes hard, clearance, public-access, road, underground, and deliberate-rejection evidence.
 
 Implemented acceptance seams remain:
 - engine-free deterministic 3D reservations, bounded snapshots, diagnostics and precedence;
@@ -17,11 +17,11 @@ Implemented acceptance seams remain:
 
 The `master...fixes/agent-7` blast-radius review changes no global/device/region budget files or CharacterMotor/world-generation tolerances. The delta remains limited to the reservation core/adapters, intended Kentridge consumers, gallery evidence, focused tests, and this SceneIssue bookkeeping.
 
-Original acceptance criterion (7) additionally requires a production typed-`StructuralSocket` consumer. Re-checked at 2026-08-30 15:43 PDT: prerequisite `SceneIssues/open/20260829-034505-000-WorldBuilderTypedStructuralSocketComposition` remains open on unchanged current master, and its execution checklist is still entirely unchecked. This is an external blocker, not grounds to narrow acceptance. Agent-7 will not import or implement another assignment's socket system; re-check and integrate the canonical production seam after that feature lands.
+Original acceptance criterion (7) additionally requires a production typed-`StructuralSocket` consumer. Re-checked at 2026-08-30 16:43 PDT: prerequisite `SceneIssues/open/20260829-034505-000-WorldBuilderTypedStructuralSocketComposition` remains open on unchanged current master, and its execution checklist remains entirely unchecked on master. This is an external blocker, not grounds to narrow acceptance. Agent-7 will not import or implement another assignment's socket system; re-check and integrate the canonical production seam after that feature lands.
 
 Current SceneIssue workflow has no separate scene classifier/highlight artifact gate. Its player-visible contract is direct exact-SHA built-player validation with durable evidence. The existing production smoke test proves the required evidence classes are present/visible and the capture-less audit harness emits the screenshot plus cost/memory data; visual inspection of that final durable evidence remains required.
 
-`ci-test/fixes/agent-7` is idle at stale head `8cc6ff94dcbbca46b1c522d08752235b891b1851`; latest observed run `33291387557` is completed successfully and predates this assignment tree. Per assignment instructions, do not publish the final targeted request until the socket prerequisite has landed and any resulting integration changes are complete.
+`ci-test/fixes/agent-7` remains reserved for the final targeted request and must not be advanced while the production typed-socket acceptance seam is unavailable. The last observed transport head is the stale prior request `8cc6ff94dcbbca46b1c522d08752235b891b1851`.
 
 ## Validation hypotheses / discriminator
 
