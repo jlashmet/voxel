@@ -6,32 +6,34 @@ Provide one deterministic, engine-free spatial claim/query substrate for WorldBu
 
 ## Resume gate — 2026-08-30
 
-`fixes/agent-7` was fetched and reconciled with current `origin/master` `65e33762a0d0f1739e9a518484d119e551f01f81` by two-parent merge `d256dc2044c88b254751448012b60a138e716f27`. The incoming master delta is an unrelated open GPU SceneIssue only; no other assignment content was edited. `SceneIssues/feature-readme.md` is absent on both refs; `SceneIssues/README.md` is the repository's declared workflow authority.
+`fixes/agent-7` is reconciled with then-current `origin/master` `5f07db5cd7677e84f617deb61c5b03a4b896159c` by two-parent merge `23d16dc51e49f17adf4c9bcedc9306c22e264bd1`. The incoming delta is workflow-guide maintenance plus removal of an unrelated queued SceneIssue; no other assignment implementation was changed. `SceneIssues/feature-readme.md` now exists and is used together with `SceneIssues/README.md` and `AGENTS.md`.
 
-Post-merge source audit:
+Current source audit:
 
 - Core reservation identity, 3D geometry, semantics, bounded snapshots, deterministic resolution, diagnostics/metrics, planner-local replay/release, and resolved local+global snapshots are implemented.
-- `KentridgeHiddenSpaceBatchPlanner` already consumes real 3D realization claims and a caller snapshot.
-- `KentridgeVegetationPlanner` already filters grouped trees+boulders against one shared snapshot; decorative moss/vines/ground plants are non-authoritative visual dressing.
-- Production Kentridge architecture is `KentridgeCombinedVoxelCatalogueCanonical` -> `KentridgeSharedStructureVoxelCatalogue`; it still bypasses reservation validation. `KentridgeBuildingGrammar` is the comparison compatibility path.
-- `TopDownWorldVoxelCatalogue.Build` already solves the canonical `TopDownWorldRoadNetwork` exactly once and reuses it for rasterization. Its real gap is that it never invokes the existing shared reservation handoff validator for that solved network.
+- `KentridgeHiddenSpaceBatchPlanner` consumes real 3D realization claims and a caller snapshot.
+- `KentridgeVegetationPlanner` filters grouped trees+boulders against one shared snapshot; decorative moss/vines/ground plants remain non-authoritative visual dressing.
+- Production Kentridge architecture is `KentridgeCombinedVoxelCatalogueCanonical` -> `KentridgeSharedStructureVoxelCatalogue` and now validates production structure clearance against the shared reservation source while keeping architecture form/orientation/support/piece authority.
+- `TopDownWorldVoxelCatalogue.Build` solves the canonical `TopDownWorldRoadNetwork` exactly once, validates reservation handoffs on that solved network, and reuses it for rasterization.
+- The next required implementation task is the focused production macro-road handoff regression; no opportunistic enhancements are in scope.
 
 ## Implementation
 
 1. Keep Core conflict semantics unchanged.
-2. Build one Kentridge canonical reservation source snapshot for the combined catalogue and thread it with the already-resolved `SettlementPlan` into `KentridgeSharedStructureVoxelCatalogue`.
-3. Validate each production structure realization's `StructureSiteGeometry` clearance against a bounded role-local view of that source excluding only the matching host plot owner. Do not move form/orientation/support/piece selection into reservation policy.
-4. In `TopDownWorldVoxelCatalogue.Build`, invoke `TopDownWorldReservationAdapter.ValidateRoadHandoffs` immediately after the one canonical road solve; do not solve roads twice or create parallel authority.
-5. Add focused regressions for half-open touching semantics, architecture shared-source validation, macro road handoff, deterministic precedence/tie behavior, grouped vegetation, true-3D hidden space, replay/release, and bounded query work.
-6. Trace and validate the existing gallery audit/reservation inspection path, authored benchmark paths, and current visual-highlight policy. Add only read-only inspection/evidence if gaps remain.
-7. Run repository-supported compile/static, Unity/EditMode, ProjectValidator, runtime/built-player gallery/playable-slice, visual and cost/blast-radius gates.
-8. After open-phase acceptance is complete, follow `SceneIssues/README.md`: move open -> pending, merge current master, make the final targeted request only through `ci-test/fixes/agent-7` without replacing a queued request, and require exact feature SHA PASS.
-9. After green exact-SHA CI, complete pending metadata, move pending -> closed with `status=fixed` and `resolvedUtc`, merge current master again if required, revalidate any changed tree, and non-force promote the exact validated feature head to `origin/master`. If master advances, fetch/merge/revalidate/retry.
+2. Maintain one Kentridge canonical reservation source snapshot for the combined catalogue and thread it with the already-resolved `SettlementPlan` into `KentridgeSharedStructureVoxelCatalogue`.
+3. Keep production structure validation bounded to role-local source views that exclude only the matching host plot owner; reservation policy must not own architecture form/orientation/support/piece selection.
+4. Keep `TopDownWorldVoxelCatalogue.Build` on its single canonical road solve and validate handoffs on that exact network before rasterization.
+5. Add the focused production macro-road regression, then complete only acceptance-required reuse, cost, gallery/runtime, and regression evidence from `tasks.md`.
+6. Prove the generic reservation surface from an independent non-Kentridge fixture without place/material IDs or consumer-pair policy in shared code.
+7. Keep gallery/debug inspection presentation-only; add only the runtime visualization needed by the acceptance criterion.
+8. Run repository-supported compile/static, Unity/EditMode, ProjectValidator, runtime/built-player gallery/playable-slice, visual and cost/blast-radius gates.
+9. Merge current master before final validation as required. Use only `ci-test/fixes/agent-7` for the final targeted exact-SHA request and never replace queued/running CI.
+10. After green exact-SHA CI, complete pending metadata, move pending -> closed with `status=fixed` and `resolvedUtc`, merge current master again if required, revalidate any changed tree, and non-force promote the exact feature head to `origin/master`. If master advances, fetch/merge/revalidate/retry.
 
 ## Blast radius / cost
 
 - No global registry, Physics authority, per-reservation authoritative GameObjects/colliders, duplicate road solver, or duplicate ecology/hidden-space policy.
 - Preserve deterministic Kentridge candidate/role ordering and all existing budgets.
-- Eliminate per-role town/road reconstruction in production architecture; one source snapshot plus bounded role-local filtered views is acceptable.
+- Keep one shared source snapshot plus bounded role-local filtered views rather than reconstructing town/road data per role.
 - Keep snapshots bounded and record query metrics/source-construction evidence.
-- Scope changes to this assignment's WorldBuilder/Core seams, focused tests/evidence, and SceneIssue metadata only.
+- Scope changes to this assignment's WorldBuilder/Core seams, focused tests/evidence, gallery presentation seam, and SceneIssue metadata only.
