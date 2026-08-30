@@ -92,7 +92,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private const int VertexAlignment = 256;
         private const int IndexAlignment = 512;
 
-
         /// <summary>
         /// Frames a released range is quarantined before it may be handed out again. Unity queues
         /// at most <c>QualitySettings.maxQueuedFrames</c> frames ahead of the GPU; three covers
@@ -310,9 +309,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         }
 
         /// <summary>
-        /// Publishes a lease's draw record. Indices remain local to the lease's vertex range; the
-        /// fourth indirect word is the one-instance draw's start-instance and carries VertexStart
-        /// so procedural shaders can recover that base from SV_InstanceID without per-draw state.
+        /// Publishes a standard one-instance indirect draw record. Geometry offsets are explicit
+        /// draw state; they must not depend on backend-specific interpretation of startInstance.
         /// </summary>
         public void UploadArgs(uint indexCount, in SurfaceGeometryLease lease)
         {
@@ -322,7 +320,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             destination[0] = indexCount;
             destination[1] = 1u;
             destination[2] = 0u;
-            destination[3] = (uint)lease.VertexStart;
+            destination[3] = 0u;
             Args.EndWrite<uint>(ArgsWordsPerDraw);
             SurfaceGeometryUploadTelemetry.Add(
                 (Time.realtimeSinceStartupAsDouble - start) * 1000.0,
