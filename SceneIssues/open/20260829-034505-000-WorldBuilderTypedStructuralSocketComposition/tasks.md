@@ -82,3 +82,10 @@
 - [ ] Move open -> pending in separate bookkeeping commit per `SceneIssues/README.md`.
 - [ ] After verification, move pending -> closed, set `status=fixed` and `resolvedUtc`.
 - [ ] Fetch current `origin/master`, merge into `fixes/agent-5`, resolve only in-scope conflicts, push feature head, then push that exact head to `origin/master` non-force; retry merge/push if master advances.
+
+## Discovered review work
+- [ ] Fix and regress shared-DAG structural call-graph depth validation so max depth is evaluated per traversal path while recursion cycles still reject deterministically.
+- [ ] Verify/fix child-facing compatibility under cardinal rotation so semantic compatibility does not pre-reject a child orientation that `TryChildOrientation` can validly align; preserve explicit orientation-mismatch diagnostics.
+- [ ] Add malformed out-of-range `DefinitionId` regression proving catalogue/planner rejection is deterministic and never indexes past `Definitions` or mutates output.
+- [ ] Reconcile the already-added descendant region raster path with proving cases: accepted descendants must contribute authoritative region voxels/provenance and remain independently bounded across logical regions.
+- [x] Refresh `fixes/agent-5` with current `master` before further implementation; merge commit `9402cc846f739723b3a98e1c0401bd0b69ea1877` preserves both histories with no in-scope conflicts.
