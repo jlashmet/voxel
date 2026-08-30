@@ -11,6 +11,8 @@
 #pragma kernel CSSampleDensity
 #pragma kernel CSCountCells
 #pragma kernel CSWriteCells
+#pragma kernel CSCopyVertices
+#pragma kernel CSCopyIndices
 #pragma kernel CSSampleFace
 #pragma kernel CSTransitionCells
 
@@ -68,6 +70,15 @@ struct SurfaceVertex
 
 RWStructuredBuffer<SurfaceVertex> _Vertices;
 RWStructuredBuffer<uint> _Indices;
+
+StructuredBuffer<SurfaceVertex> _CopyVerticesSource;
+RWStructuredBuffer<SurfaceVertex> _CopyVerticesDestination;
+StructuredBuffer<uint> _CopyIndicesSource;
+RWStructuredBuffer<uint> _CopyIndicesDestination;
+int _CopyVertexDestinationBase;
+int _CopyIndexDestinationBase;
+int _CopyVertexCount;
+int _CopyIndexCount;
 // Write pass: 0,1 are vertices/indices written. Count pass: 2,3 are vertices/indices coming.
 // During the sample/count half only, word 0 is also a boolean unsupported-semantics marker. The
 // write path resets all counters before it starts, so the marker never enters geometry accounting.
@@ -433,6 +444,25 @@ void CSWriteCells(uint3 id : SV_DispatchThreadID)
             _Indices[ArenaIndexSlot(indexBase + i3)] =
                 ArenaVertex(vertexBase + _RegularCellIndices[tableBase + i3]);
     }
+}
+
+// Copy only completed geometry into its unpublished arena lease. The expensive extraction kernels
+// write private scratch buffers, so rasterization never has to order against a long UAV write on
+// the live arena. Indirect args are still published by the CPU only after this copy is queued.
+[numthreads(64, 1, 1)]
+void CSCopyVertices(uint3 id : SV_DispatchThreadID)
+{
+    int index = (int)id.x;
+    if (index >= _CopyVertexCount) return;
+    _CopyVerticesDestination[_CopyVertexDestinationBase + index] = _CopyVerticesSource[index];
+}
+
+[numthreads(64, 1, 1)]
+void CSCopyIndices(uint3 id : SV_DispatchThreadID)
+{
+    int index = (int)id.x;
+    if (index >= _CopyIndexCount) return;
+    _CopyIndicesDestination[_CopyIndexDestinationBase + index] = _CopyIndicesSource[index];
 }
 
 // ---------------------------------------------------------------------------

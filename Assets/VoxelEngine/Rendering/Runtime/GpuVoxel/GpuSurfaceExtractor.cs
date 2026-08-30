@@ -152,11 +152,27 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private static readonly int IdIndicesPerPage = Shader.PropertyToID("_IndicesPerPage");
         private static readonly int IdVertexWriteBase = Shader.PropertyToID("_VertexWriteBase");
         private static readonly int IdIndexWriteBase = Shader.PropertyToID("_IndexWriteBase");
+        private static readonly int IdCopyVerticesSource =
+            Shader.PropertyToID("_CopyVerticesSource");
+        private static readonly int IdCopyVerticesDestination =
+            Shader.PropertyToID("_CopyVerticesDestination");
+        private static readonly int IdCopyIndicesSource =
+            Shader.PropertyToID("_CopyIndicesSource");
+        private static readonly int IdCopyIndicesDestination =
+            Shader.PropertyToID("_CopyIndicesDestination");
+        private static readonly int IdCopyVertexDestinationBase =
+            Shader.PropertyToID("_CopyVertexDestinationBase");
+        private static readonly int IdCopyIndexDestinationBase =
+            Shader.PropertyToID("_CopyIndexDestinationBase");
+        private static readonly int IdCopyVertexCount = Shader.PropertyToID("_CopyVertexCount");
+        private static readonly int IdCopyIndexCount = Shader.PropertyToID("_CopyIndexCount");
 
         private readonly ComputeShader _shader;
         private readonly int _sampleKernel;
         private readonly int _countKernel;
         private readonly int _writeKernel;
+        private readonly int _copyVerticesKernel;
+        private readonly int _copyIndicesKernel;
         private readonly int _faceKernel;
         private readonly int _transitionKernel;
 
@@ -172,6 +188,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private readonly ComputeBuffer _faceMaterial;
         private readonly ComputeBuffer _faceSurface;
         private readonly ComputeBuffer _chunkPages;
+        private ComputeBuffer _writeScratchVertices;
+        private ComputeBuffer _writeScratchIndices;
+        private int _writeScratchVertexCapacity;
+        private int _writeScratchIndexCapacity;
 
         // Bound to the transition kernel while it is counting. It returns before touching either,
         // but an unbound UAV is undefined behaviour rather than a no-op, so it gets somewhere
@@ -250,6 +270,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _sampleKernel = shader.FindKernel("CSSampleDensity");
             _countKernel = shader.FindKernel("CSCountCells");
             _writeKernel = shader.FindKernel("CSWriteCells");
+            _copyVerticesKernel = shader.FindKernel("CSCopyVertices");
+            _copyIndicesKernel = shader.FindKernel("CSCopyIndices");
             _faceKernel = shader.FindKernel("CSSampleFace");
             _transitionKernel = shader.FindKernel("CSTransitionCells");
 
@@ -606,9 +628,78 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                                     int vertexStart, int vertexCapacity,
                                     int indexStart, int indexCapacity)
         {
-            DispatchWriteRange(mirror, tables, request, vertices, indices,
-                               vertexStart, vertexCapacity, indexStart, indexCapacity);
+            // Production writes into private scratch first. The arena buffers passed here remain
+            // untouched until the verified output is copied as a short publication stage; this
+            // avoids a long extraction UAV write overlapping raster reads of the live arena.
+            EnsureWriteScratch(vertexCapacity, indexCapacity);
+            DispatchWriteRange(mirror, tables, request,
+                               _writeScratchVertices, _writeScratchIndices,
+                               0, vertexCapacity, 0, indexCapacity);
             RequestCounters();
+        }
+
+        public void CopyCompletedWriteRange(ComputeBuffer vertices, ComputeBuffer indices,
+                                            int vertexStart, int vertexCount,
+                                            int indexStart, int indexCount)
+        {
+            ThrowIfDisposed();
+            if (vertices == null) throw new ArgumentNullException(nameof(vertices));
+            if (indices == null) throw new ArgumentNullException(nameof(indices));
+            if (vertexStart < 0) throw new ArgumentOutOfRangeException(nameof(vertexStart));
+            if (indexStart < 0) throw new ArgumentOutOfRangeException(nameof(indexStart));
+            if (vertexCount < 0 || vertexCount > _writeScratchVertexCapacity)
+                throw new ArgumentOutOfRangeException(nameof(vertexCount));
+            if (indexCount < 0 || indexCount > _writeScratchIndexCapacity)
+                throw new ArgumentOutOfRangeException(nameof(indexCount));
+
+            if (vertexCount > 0)
+            {
+                _shader.SetBuffer(_copyVerticesKernel, IdCopyVerticesSource,
+                                  _writeScratchVertices);
+                _shader.SetBuffer(_copyVerticesKernel, IdCopyVerticesDestination, vertices);
+                _shader.SetInt(IdCopyVertexDestinationBase, vertexStart);
+                _shader.SetInt(IdCopyVertexCount, vertexCount);
+                _shader.Dispatch(_copyVerticesKernel, Groups(vertexCount), 1, 1);
+            }
+            if (indexCount > 0)
+            {
+                _shader.SetBuffer(_copyIndicesKernel, IdCopyIndicesSource, _writeScratchIndices);
+                _shader.SetBuffer(_copyIndicesKernel, IdCopyIndicesDestination, indices);
+                _shader.SetInt(IdCopyIndexDestinationBase, indexStart);
+                _shader.SetInt(IdCopyIndexCount, indexCount);
+                _shader.Dispatch(_copyIndicesKernel, Groups(indexCount), 1, 1);
+            }
+        }
+
+        private void EnsureWriteScratch(int vertexCapacity, int indexCapacity)
+        {
+            if (_writeScratchVertexCapacity < vertexCapacity)
+            {
+                int capacity = GrowCapacity(_writeScratchVertexCapacity, vertexCapacity);
+                _writeScratchVertices?.Release();
+                _writeScratchVertices = new ComputeBuffer(
+                    capacity, ReadbackVertex.Stride, ComputeBufferType.Structured);
+                _writeScratchVertexCapacity = capacity;
+            }
+            if (_writeScratchIndexCapacity < indexCapacity)
+            {
+                int capacity = GrowCapacity(_writeScratchIndexCapacity, indexCapacity);
+                _writeScratchIndices?.Release();
+                _writeScratchIndices = new ComputeBuffer(
+                    capacity, sizeof(uint), ComputeBufferType.Structured);
+                _writeScratchIndexCapacity = capacity;
+            }
+        }
+
+        private static int GrowCapacity(int current, int required)
+        {
+            int capacity = Math.Max(256, current);
+            while (capacity < required)
+            {
+                if (capacity > int.MaxValue / 2) return required;
+                capacity *= 2;
+            }
+            return capacity;
         }
 
         private void DispatchWriteRange(GpuVoxelBrickMirror mirror, GpuTransvoxelTables tables,
@@ -920,6 +1011,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _chunkPages?.Release();
             _transitionSink?.Release();
             _transitionIndexSink?.Release();
+            _writeScratchVertices?.Release();
+            _writeScratchIndices?.Release();
             _styleWords?.Release();
             _joinWords?.Release();
             _coatingWords?.Release();

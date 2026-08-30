@@ -50,6 +50,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private GpuExtractionCounts _stagedCounts;
         private bool _hasStaged;
         private bool _stageAdmissionPending;
+        private bool _countDispatchPending;
+        private bool _writeDispatchPending;
+        private bool _copyDispatchPending;
+        private int _copyIndexCount;
         private ulong _stageStorageGeneration;
         private bool _coverageRequested;
         private uint _coverageEpoch;
@@ -378,6 +382,13 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 // polling its async counters, exactly as an immediately admitted stage does.
                 return GpuSurfaceExtractor.GpuCounterPoll.Pending;
             }
+            if (_countDispatchPending)
+            {
+                if (!TryDispatchPendingCount())
+                    return GpuSurfaceExtractor.GpuCounterPoll.Pending;
+
+                return GpuSurfaceExtractor.GpuCounterPoll.Pending;
+            }
             if (!_hasStaged) return GpuSurfaceExtractor.GpuCounterPoll.Failed;
 
             GpuSurfaceExtractor.GpuCounterPoll poll = _extractor.TryCompleteCount(out counts);
@@ -393,7 +404,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 {
                     _countReadbackRetries++;
                     CountReadbackRetryCount++;
-                    _extractor.BeginCount(_mirror, _tables, _staged);
+                    _countDispatchPending = true;
+                    TryDispatchPendingCount();
                     return GpuSurfaceExtractor.GpuCounterPoll.Pending;
                 }
                 return poll;
@@ -431,7 +443,19 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             ThrowIfDisposed();
             if (!_hasStaged) throw new InvalidOperationException("No GPU chunk is staged.");
             _extractor.CancelPendingCounters();
+            _countDispatchPending = true;
+            TryDispatchPendingCount();
+        }
+
+        private bool TryDispatchPendingCount()
+        {
+            if (!_countDispatchPending) return true;
+            if (!GpuSurfaceMirrorCoordinator.TryReserveExtractionDispatch(Time.frameCount))
+                return false;
+
             _extractor.BeginCount(_mirror, _tables, _staged);
+            _countDispatchPending = false;
+            return true;
         }
 
         public void BeginWriteRange(ComputeBuffer vertices, ComputeBuffer indices,
@@ -453,9 +477,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             // Keep the caller's tiny staging lease only as its existing publication token; phase
             // 10 will receive Ready/0 immediately and publish zero indirect args.
             if (_stagedCounts.IsEmpty) return;
-
-            _extractor.BeginWriteRange(_mirror, _tables, _staged, vertices, indices,
-                                       vertexStart, vertexCapacity, indexStart, indexCapacity);
+            _writeDispatchPending = true;
+            TryDispatchPendingWrite();
         }
 
         public GpuSurfaceExtractor.GpuCounterPoll TryCompleteWriteRange(out int indexCount)
@@ -465,6 +488,22 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (!_hasStaged) return GpuSurfaceExtractor.GpuCounterPoll.Failed;
             if (_stagedCounts.IsEmpty)
             {
+                ChunksWritten++;
+                return GpuSurfaceExtractor.GpuCounterPoll.Ready;
+            }
+            if (_writeDispatchPending)
+            {
+                if (!TryDispatchPendingWrite())
+                    return GpuSurfaceExtractor.GpuCounterPoll.Pending;
+
+                return GpuSurfaceExtractor.GpuCounterPoll.Pending;
+            }
+            if (_copyDispatchPending)
+            {
+                if (!TryDispatchPendingCopy())
+                    return GpuSurfaceExtractor.GpuCounterPoll.Pending;
+
+                indexCount = _copyIndexCount;
                 ChunksWritten++;
                 return GpuSurfaceExtractor.GpuCounterPoll.Ready;
             }
@@ -482,10 +521,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 {
                     _writeReadbackRetries++;
                     WriteReadbackRetryCount++;
-                    _extractor.BeginWriteRange(
-                        _mirror, _tables, _staged, _writeVertices, _writeIndices,
-                        _writeVertexStart, _writeVertexCapacity,
-                        _writeIndexStart, _writeIndexCapacity);
+                    _writeDispatchPending = true;
+                    TryDispatchPendingWrite();
                     return GpuSurfaceExtractor.GpuCounterPoll.Pending;
                 }
                 return poll;
@@ -500,9 +537,42 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 return GpuSurfaceExtractor.GpuCounterPoll.Failed;
             }
 
-            indexCount = result.IndexCount;
+            _copyIndexCount = result.IndexCount;
+            _copyDispatchPending = true;
+            if (!TryDispatchPendingCopy())
+                return GpuSurfaceExtractor.GpuCounterPoll.Pending;
+
+            indexCount = _copyIndexCount;
             ChunksWritten++;
             return GpuSurfaceExtractor.GpuCounterPoll.Ready;
+        }
+
+        private bool TryDispatchPendingWrite()
+        {
+            if (!_writeDispatchPending) return true;
+            if (!GpuSurfaceMirrorCoordinator.TryReserveExtractionDispatch(Time.frameCount))
+                return false;
+
+            _extractor.BeginWriteRange(
+                _mirror, _tables, _staged, _writeVertices, _writeIndices,
+                _writeVertexStart, _writeVertexCapacity,
+                _writeIndexStart, _writeIndexCapacity);
+            _writeDispatchPending = false;
+            return true;
+        }
+
+        private bool TryDispatchPendingCopy()
+        {
+            if (!_copyDispatchPending) return true;
+            if (!GpuSurfaceMirrorCoordinator.TryReserveExtractionDispatch(Time.frameCount))
+                return false;
+
+            _extractor.CopyCompletedWriteRange(
+                _writeVertices, _writeIndices,
+                _writeVertexStart, _stagedCounts.VertexCount,
+                _writeIndexStart, _copyIndexCount);
+            _copyDispatchPending = false;
+            return true;
         }
 
         public GpuExtractionCounts StagedCounts => _stagedCounts;
@@ -535,11 +605,16 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         public void Release()
         {
             if (!_hasStaged && !_sharedExtractionActive && !_stageAdmissionPending
+                && !_countDispatchPending && !_writeDispatchPending && !_copyDispatchPending
                 && _legacyPinnedBricks.Count == 0)
                 return;
             if (_coverageRequested)
                 ReleasePersistentCoverage(_staged);
             _stageAdmissionPending = false;
+            _countDispatchPending = false;
+            _writeDispatchPending = false;
+            _copyDispatchPending = false;
+            _copyIndexCount = 0;
             _stageStorageGeneration = 0;
             _coverageRequested = false;
             _lastCoveragePollFrame = -1;

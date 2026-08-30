@@ -1,21 +1,29 @@
 # Plan — SceneIssue 20260825-192751-413 VoxelShowcase
 
 ## Observed defect / acceptance
-- Capture `screenshot-001.png` marks sub-100 FPS while moving, slow fill, and transient/missing geometry at the exact Showcase camera.
-- Pass requires sustained step-1/2 GPU completion, zero eligible CPU fallback/blocking waits, no visible holes, moving p95 <18 ms/p99 <25 ms, stationary p95 <8 ms, and exact built-player pose inspection.
+- The VoxelShowcase player shows slow fill, seams, and hitches. Pass requires sustained step-1/2 GPU completion, no eligible CPU fallback/blocking waits, no visible holes, moving p95 <18 ms/p99 <25 ms, stationary p95 <8 ms, and reviewed screenshots.
+- CPU integer voxels remain authoritative. Collision, replication, interest, tick rate, and world truth are unchanged; extracted GPU geometry is versioned presentation only.
 
-## Runtime evidence / hypotheses
-- H1 (**confirmed material fix**): demand-scoped shared-mirror recovery, exact footprints, optional empty halo, obsolete-demand cancellation, snapshotless GPU admission, bounded coverage cursors, and concurrent recovery removed global recovery starvation. Exact liveness is green and the player converges to zero missing.
-- H2 (**falsified as remaining tail**): compact mirror payload scatter and bounded renderer admission fixed fill/recovery but did not clear traversal. Run `33281099872` failed moving p99 at 75.912 ms.
-- H3 (**secondary tail confirmed**): run `33282801017` failed moving p99 at 79.164 ms and recorded a player slice of `water=39.214 ms`, `solid=0.485 ms`. Between-brick deadlines cannot bound the old three-channel water-classification copy; use a borrowed-view material-only query. If that remains material, jobified classification is the alternative.
-- H4 (**primary tail selected**): the exact traversal generated regions 199 -> 243 with up to 30 pending. Source inspection shows time-sliced `StepRegion` ends in an unbudgeted `RefreshRegionSummary` over 262,144 bricks. The alternative is renderer staging reuse, but exact renderer/admission and arena-upload peaks do not align with the 79 ms tail.
+## Evidence and hypotheses
+- **Confirmed foundation:** the shared `GpuVoxelBrickMirror`, recovery, compact scatter, snapshotless admission, stale rejection, and old-mesh retention are correct. Mirror/admission is normally 0.3–4 ms with zero lease failures.
+- **Falsified tails:** zero-copy water discovery and 0.794 ms word-wise summaries removed measured CPU costs but not traversal stalls. The actual 150 s player still reached p95 970.31 ms with hundreds of missing visible chunks.
+- **Leading:** independent extractors write compute output directly into the large vertex/index arena concurrently consumed by rasterization. One GPU build kept ordinary walking frames near 3–9 ms but could not fill; eight produced recurring 100–350 ms stalls. Reserving every count/write/retry dispatch to one stage per frame improved the eight-build tail to 40–150 ms but still failed, proving burst admission is secondary rather than sufficient.
+- **Falsified throughput experiment:** two private-scratch stages per frame left missing at 546 and restored 80–305 ms stalls. Metal extraction saturation, not publication-copy throughput, requires one global stage ticket.
 
-## Selected integration
-- Preserve shared GPU mirror, compact scatter, snapshotless extraction, CPU fidelity fallback for unsupported semantics, stale-build rejection, and arena correctness.
-- Rebuild whole-region occupancy summaries word-wise: scan the same authoritative bricks, assemble 64 bits locally, and write each occupied/fully-solid word once. Ordinary mutations keep the single-block updater.
-- Classify discovered water bricks through a zero-copy material-presence query while preserving immediate mutation invalidation and pinned water-mesh snapshots.
-- CPU world truth, collision, replication, HLOD, budgets, and thresholds are unchanged.
+## Selected architecture
+- Follow Unreal RDG, Godot RenderingDevice, and Unity URP practice: declare compute/copy/draw access and let graph ordering own barriers/fences.
+- Keep the shared voxel mirror as immutable extraction input. Generate into bounded per-context unpublished scratch, never into a buffer currently drawn.
+- After completion, copy/compact only the produced ranges into a staging arena lease, then publish indirect args/indirection last. Retain the previous mesh or far fallback until publication; reject stale source versions.
+- Remove per-chunk GPU→CPU count/write handshakes in the final path: GPU sizing/allocation and args generation stay GPU-side. CPU observes completion/version only, never geometry truth.
+- Bound scratch, arena, in-flight requests, and per-frame GPU work from the device matrix. Prioritize visible holes before prefetch; presentation tiers may vary capacity, never outcomes.
 
-## Remaining gates
-- Local policy 5/5, mirror slot/catalogue 21/21, arena/readback 4/4, material query 2/2, bounded-water contract 1/1, and full-region summary semantics/budget 1/1 pass; the latter rebuilt 262,144 bricks in 0.794 ms versus 25 ms. Full-scene PlayMode hit the mandated 6 GB watchdog before assertions and has no product verdict.
-- Per developer direction, do not create another separate CI request; continue validation through local Unity/player workflows. Keep the issue open until full traversal and visual gates are green.
+## Gates
+- Private scratch plus one global stage cleared moving timing gates; coverage remained 400–542 chunks short. Two scratch stages regressed timing and were reverted.
+
+## Remaining task list
+- Run the 8-build actual-player harness under the 10 GB wrapper; record timing, coverage, fallback, and memory results.
+- Prove why visible-first demand churns faster than one safe extraction stage can fill; fix without weakening gates.
+- Add focused scratch/copy admission, retry, disposal, arena, and lifecycle coverage; rerun relevant EditMode/PlayMode tests.
+- Late screenshot inspection confirms broad rectangular ground holes/seams; visual gate remains failed.
+- Run the full 150 s acceptance capture; update evidence, review/clean the diff, and keep the SceneIssue open unless every gate passes.
+- Follow-up after this safe staging path: express compute/copy/draw access through RenderGraph and replace per-chunk counter readbacks with GPU-side sizing/args.

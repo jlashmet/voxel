@@ -237,10 +237,14 @@ trap cleanup EXIT
 
 wait_for_unity_quiet() {
   local deadline=$((SECONDS + 900))
-  while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+  # Match an actual Unity executable, not this harness's `--unity .../Unity` argument. The broad
+  # substring predicate made two capture shells wait on themselves even after every editor had
+  # exited, and could strand an otherwise valid local player build behind unrelated command text.
+  local unity_process='^/Applications/Unity/Hub/Editor/[^/]*/Unity.app/Contents/MacOS/Unity( |$)'
+  while pgrep -f "$unity_process" >/dev/null 2>&1; do
     if (( SECONDS >= deadline )); then
       echo "ERROR: Unity did not become idle before real-player build." >&2
-      pgrep -alf '/Unity.app/Contents/MacOS/Unity' >&2 || true
+      pgrep -alf "$unity_process" >&2 || true
       return 1
     fi
     sleep 5
