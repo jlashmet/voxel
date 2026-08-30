@@ -505,11 +505,12 @@ namespace VoxelEngine.Showcase
                         StructuralSocketRole.Traversal | StructuralSocketRole.VerticalConnection,
                         CliffTag, int3.zero, Facing.West),
                     new ProgramWriter()
+                        .Box(int3.zero, new int3(260, 1, 80), stone)
                         .Ramp(int3.zero, new int3(260, math.max(8, rise + 4), 80), 0, stone)
-                        .CallSlot(0).Finish(), 1, stone,
+                        .CallSlot(0).Finish(), 2, stone,
                     new SlotSpec
                     {
-                        Name = "upper-terrain-supported-platform", SocketId = 0x53544421u,
+                        Name = "upper-terrain-platform", SocketId = 0x53544421u,
                         Role = StructuralSocketRole.Platform | StructuralSocketRole.TerrainAnchor,
                         Offers = CliffTag, Accepts = CliffTag,
                         LocalPosition = new int3(260, rise, 0), Facing = Facing.East,
