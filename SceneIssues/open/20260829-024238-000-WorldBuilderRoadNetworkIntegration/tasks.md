@@ -36,6 +36,7 @@
 - [ ] Encode the generic two-material surface blend inside the existing packed surface representation without increasing persisted voxel size or `SurfaceVertex` stride; interpolate authored scalar coverage in the shared `SmoothSurface` path and blend full primary/secondary material response.
 - [ ] Ensure two-material presentation metadata is presentation-only and contributes zero coating density/displacement on both CPU and GPU paths.
 - [ ] Preserve ordinary non-blend coating/style/detail behavior, including existing coating displacement semantics.
+- [ ] Mask the blend marker back to the underlying reconstruction style before CPU/GPU style lookup, faceted classification, and GPU-support classification so blend metadata cannot route geometry through a different reconstruction path.
 
 ## Regressions implemented
 - [x] Modern Kentridge semantic routes map to traceable generic physical road definitions.
