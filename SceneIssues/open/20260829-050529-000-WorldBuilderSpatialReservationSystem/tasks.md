@@ -1,152 +1,133 @@
 # Tasks — WorldBuilder Spatial Reservation System
 
-## Audit findings / ownership map (2026-08-29)
+## Audit / ownership
 
-- Canonical reservation contracts belong in `Assets/Game/WorldBuilder/Generation/Core` under the existing `MountingForce.WorldGen` engine-free integer-decimeter layer (`Int2`/`Int3`).
-- Kentridge production migration target is `Content/Kentridge/KentridgeTownPlanner`: `IntersectsPlaced` and `IntersectsPlaza` currently own bespoke footprint/clearance rejection.
-- Settlement/macro/road-facing boundaries already live in `SettlementPlotLayout`, `SettlementRoadFacingPlacement`, settlement model/composition policy, and planned route/access contracts; reservation integration must consume those semantics rather than take over topology or route solving.
-- Vegetation integration belongs at `RegionEcologyPolicy` / `VegetationLayout`; ecology remains authoritative for species and baseline density while reservations only suppress/yield placement.
-- Underground semantics already have an engine-free home in `HiddenSpaceContracts`; the proving harness should adapt those concepts rather than invent cave topology.
-- The expected typed `StructuralSocket` symbol is not present on current `master`; integration must use the production structure-composition/attachment boundary that exists on this branch and must not depend on another agent's unmerged work.
-- No mutable global registry, GameObject/collider authority, Unity Physics query, insertion-order tie break, or second permanent spatial index is allowed.
-- Cost instrumentation is required in the reservation query result itself (buckets/candidates/narrow-phase counts plus elapsed ticks), with representative stress assertions before closure.
+- [x] Trace `KentridgeTownPlanner` placement, plaza, bounds, clearance, frontage and public-access behavior.
+- [ ] Trace current macro-world settlement/region envelopes and the actual road-network constraint boundary from current `master`.
+- [ ] Trace the completed R-001/R-002 placement/precedence implementation under its current names and reuse it where it is actually present.
+- [x] Trace vegetation/ecology ownership (`RegionEcologyPolicy` / `VegetationLayout`): ecology keeps species and density authority; reservations may only suppress/yield placement.
+- [x] Trace underground ownership (`HiddenSpaceContracts`): reservations may adapt realized volumes/connectors but do not own cave/WFC topology.
+- [x] Trace current architecture geometry/attachment boundary. The feature-requested typed `StructuralSocket` symbol is not on the source `master` used for this branch, so this branch must not depend on agent-5/unmerged work.
+- [x] Record ownership split in `plan.md`: reservation identity/geometry/query/conflict belongs in engine-free Core; terrain suitability, topology, compatibility/orientation/support, ecology policy, quest state and presentation stay with their owners.
+- [ ] Re-check current `origin/master` before final integration in case the typed-socket or macro-road prerequisites have landed; integrate only after merging current master and without editing another assignment.
 
-## Audit / architecture
+## Canonical reservation contracts
 
-- [ ] Trace current `KentridgeTownPlanner` placement, clearance, plaza, bounds, and public-access logic.
-- [ ] Trace current macro-world settlement/region envelope and route-corridor implementation from the completed top-down world-layout feature.
-- [ ] Trace the actual production implementation corresponding to world-feature-authoring R-001/R-002; identify whether placement-lattice/precedence claim code exists under renamed/refactored paths.
-- [ ] Trace road-network constraint inputs and identify the exact boundary where reservation queries belong.
-- [ ] Trace typed structural-socket clearance/overlap logic and identify the exact boundary where shared reservations should replace/localize it.
-- [ ] Trace vegetation/ecology placement exclusions and find the production path suitable for shared reservation consumption.
-- [ ] Trace existing cave/underground/protected-zone/occupancy abstractions that may already overlap this feature.
-- [ ] Write/update an ownership map separating spatial reservation, terrain suitability, semantic topology/compatibility, and presentation/influence responsibilities.
-- [ ] Add any discovered required migrations or regressions to this task list before implementation continues.
+- [x] Add stable semantic `ReservationId`, owner identity, provenance, category, precedence and deterministic stable-id tie break.
+- [x] Add typed consumer/category masks; no string-name compatibility rules.
+- [x] Add hard occupancy, clearance/keep-open, protected corridor, explicit compatible-handoff and soft-yield semantics.
+- [x] Add integer-decimetre half-open 3D bounds and route/corridor geometry with explicit Y ranges.
+- [x] Keep reservation authority engine-free: no GameObjects, colliders, Physics queries, streaming order or thread scheduling.
+- [x] Document non-reservation concerns in code/plan (terrain suitability, biome/ecology scoring, water/soil, aesthetics, quest state, route solving, attachment compatibility).
+- [x] Add stable query diagnostics carrying decision/reason, conflict id/owner/category/semantics/bounds/precedence/compatibility/provenance.
+- [x] Add per-query work/timing metrics (buckets, broad-phase candidates, narrow-phase tests, intersections, reject/yield counts, stopwatch ticks).
 
-## Canonical contracts
+## Deterministic bounded query/resolution
 
-- [ ] Define stable `ReservationId`, owner/source identity, provenance, category, precedence, and deterministic tie-break semantics.
-- [ ] Define typed query/category masks; do not use string-name matching as the compatibility model.
-- [ ] Define hard occupancy semantics.
-- [ ] Define clearance/keep-open semantics.
-- [ ] Define protected approach/travel corridor semantics.
-- [ ] Define explicit compatible handoff/consumer semantics.
-- [ ] Define soft-yield/exclusion semantics suitable for vegetation or similar consumers without moving ecology ownership into this layer.
-- [ ] Define integer-space 2D footprint geometry.
-- [ ] Define true 3D volume geometry with explicit vertical interval.
-- [ ] Define route/tunnel corridor geometry (segment/capsule/polyline or equivalent) with a bounded broad-phase representation.
-- [ ] Define stable conflict/result reason codes with conflicting ids/categories, relevant geometry, precedence result, compatibility result, and provenance.
-- [ ] Document which concerns are explicitly **not** reservations: slope, soil/material suitability, water depth, biome preference, aesthetics, quest state, and other specialized scoring unless exposed through a deliberate adapter.
+- [x] Add immutable `SpatialReservationSnapshot` scoped to a caller-owned planning window.
+- [x] Add deterministic integer XZ broad phase clipped to the planning window so macro envelopes/long claims do not materialize world-scale buckets.
+- [x] Add planner-local mutable reservation state without creating global world authority.
+- [x] Add independent-candidate resolver ordered by precedence then stable identity so caller insertion order cannot change winners.
+- [x] Add true vertical separation before narrow-phase conflict evaluation.
+- [ ] Validate planner-local commit order and source construction cost with exact tests/measurements.
+- [ ] Verify/align precedence behavior with the current R-002 implementation if/when found on current master; do not maintain two competing canonical precedence models.
 
-## Deterministic query/resolution implementation
+## Kentridge production migration
 
-- [ ] Implement/extend canonical immutable/derived reservation sources from authoritative semantic inputs.
-- [ ] Implement a bounded reservation query view/snapshot for a region or planning window.
-- [ ] Implement planner-local reservation state for bounded deterministic solvers without making it global world authority.
-- [ ] Implement a deterministic integer-space broad phase; reuse existing placement-lattice indexing when appropriate instead of duplicating it.
-- [ ] Ensure large macro envelopes and long corridors can be queried without eagerly materializing the entire world.
-- [ ] Ensure authoritative reservation logic has no dependency on Unity GameObjects, colliders, Physics queries, streaming order, or thread scheduling.
-- [ ] Reuse/generalize R-002-style precedence + stable identity for independently derived candidate conflicts.
-- [ ] Prove planner-local commit ordering is deterministic wherever a local mutable reservation set is used.
-- [ ] Add bounded-work instrumentation: scanned buckets/candidates, narrow-phase tests, accepted/rejected counts, and elapsed query/build cost.
-
-## Kentridge settlement migration
-
-- [ ] Replace/route `IntersectsPlaced` behavior through the shared reservation API.
-- [ ] Replace/route `IntersectsPlaza`/plaza keep-clear behavior through the shared reservation API.
-- [ ] Represent building physical footprint and required clearance as canonical reservations.
-- [ ] Represent public entrance/approach space so generated buildings cannot block required access.
-- [ ] Preserve district affinity, bounded candidate count, frontage/access semantics, and fixed-seed determinism.
-- [ ] Add regression proving shuffled independent candidate processing cannot change the deterministic winner/layout contract.
-- [ ] Add regression proving Kentridge cannot place two incompatible building claims in overlapping/clearance-conflicting space.
+- [x] Remove bespoke `IntersectsPlaced` / `IntersectsPlaza` placement rejection and route candidate placement through shared reservations.
+- [x] Publish building hard footprint and 18dm clearance claims.
+- [x] Publish plaza keep-clear claim.
+- [x] Publish per-site public entrance/approach protected corridors.
+- [x] Publish inferred Kentridge road segments as protected compatible road corridors in the derived reservation snapshot.
+- [x] Preserve district affinity, fixed hash/candidate sequence, bounded 256-attempt budget and existing frontage/access semantics.
+- [x] Add deterministic fixed-seed shared-claim regression.
+- [x] Add regression that Kentridge building footprints do not violate another building's clearance/plaza claim.
+- [ ] Run all pre-existing Kentridge layout/vegetation regressions and repair any layout/access regression caused by the migration.
+- [ ] Validate real `KentridgePlayableSlice` in the built application, including startup, representative buildings/plaza, open public approaches and CharacterMotor traversal.
 
 ## Macro world + roads
 
-- [ ] Adapt existing top-down settlement/region reserved envelopes into canonical reservation sources without duplicating their bounds.
-- [ ] Make lower-level settlement/road/POI planners able to query macro reservations in a bounded planning window.
-- [ ] Define and publish settlement road-arrival/gate/public-access corridor reservations.
-- [ ] Make road route resolution consume relevant hard/envelope/corridor constraints through the shared query boundary.
-- [ ] Make the resolved road publish protected road-core/clearance corridor reservations for later consumers.
-- [ ] Add explicit compatibility for intended road-to-settlement entrance handoff.
-- [ ] Add negative regression proving an unrelated building/POI cannot occupy the protected road/access corridor.
-- [ ] Add positive regression proving the intended road is not rejected simply because it enters the settlement envelope through its declared handoff.
+- [ ] Adapt the actual production macro settlement/region envelope into canonical claims without duplicating source bounds.
+- [ ] Make lower-level settlement/road/POI planning query those claims through a bounded snapshot.
+- [ ] Publish the real settlement arrival/gate/public-access handoff claim.
+- [ ] Make real road resolution consume relevant hard/envelope/corridor constraints at its existing policy boundary; reservations must not take over route solving/grade policy.
+- [ ] Publish resolved road core/clearance corridor claims for later consumers.
+- [x] Core semantics support explicit road-to-settlement compatible handoff.
+- [x] Add positive/negative semantic regressions: intended road handoff succeeds; unrelated building is rejected.
+- [ ] Add production regression proving the actual macro envelope/road path uses the shared service.
 
-## Structural socket integration
+## Structural composition integration
 
-- [ ] Route at least one real typed-socket child clearance/overlap validation path through the shared reservation service.
-- [ ] Preserve typed-socket ownership of compatibility, orientation, support, attachment graph, and piece selection.
-- [ ] Add regression proving two incompatible child clearance claims cannot silently overlap.
-- [ ] Add regression proving a declared compatible attachment/handoff is allowed without globally relaxing overlap rules.
+- [x] Add a shared `StructuralChildClearance` claim adapter in Core that preserves attachment-policy ownership.
+- [ ] Route one **actual production architecture attachment/child-clearance** path through shared reservation queries using the architecture boundary available on current master.
+- [ ] If typed `StructuralSocket` lands on master before closure, merge master and route that real typed-socket path; do not reimplement or copy another assignment's socket code.
+- [ ] Add production regression proving incompatible child clearances cannot overlap.
+- [ ] Add production regression proving only a declared compatible attachment/connector handoff is relaxed; orientation/support/piece selection remain architecture-owned.
 
 ## Vegetation/ecology integration
 
-- [ ] Make a production vegetation/ecology placement path query shared hard/clearance/soft reservations.
-- [ ] Suppress incompatible vegetation inside hard structure/road claims.
-- [ ] Yield/reduce placement in required clearance/approach zones as appropriate.
-- [ ] Preserve regional ecology policy as the authority for allowed species/types and baseline density.
-- [ ] Add regression proving reservation consumption does not alter world existence/placement by device tier.
+- [x] Core semantics support vegetation yield against clearance/soft reservations.
+- [ ] Make an actual production vegetation layout path consume the shared snapshot before accepting a placement.
+- [ ] Suppress vegetation inside hard structure/road claims and yield in clearance/approach zones as appropriate.
+- [ ] Preserve `RegionEcologyPolicy` as authority for species/types and baseline density.
+- [ ] Add regression proving reservation consumption does not make world existence/placement device-tier dependent.
 
-## True 3D underground proving case
+## True 3D underground integration
 
-- [ ] Reuse an existing cave/underground production abstraction where appropriate; otherwise add the smallest deterministic reservation harness necessary.
-- [ ] Reserve an underground chamber/tunnel volume beneath or adjacent to surface content.
-- [ ] Prove XZ overlap with a surface building is allowed when Y ranges are safely separated.
-- [ ] Prove a tunnel/chamber that truly intersects a protected building foundation/road volume is rejected or yields.
-- [ ] Add an explicit shaft/stair/entrance connector handoff and prove the intended connector is allowed.
-- [ ] Prove an unrelated underground consumer cannot exploit the connector compatibility.
-- [ ] Exercise multiple underground claims through the same bounded broad-phase/query path.
-- [ ] Keep WFC, full dungeon topology, full cave topology, room graph design, and content dressing out of scope.
+- [x] Add `HiddenSpaceVolume` adapter from actual `SiteHiddenSpaceRealization` + site origin into canonical 3D claims.
+- [x] Add semantic regression: XZ-overlapping tunnel below a surface building is legal, while a real XYZ collision is rejected.
+- [x] Add semantic regression: explicit connector handoff succeeds only for `Connector`; unrelated underground consumer cannot exploit it.
+- [ ] Exercise multiple actual hidden-space/underground production claims through one bounded snapshot.
+- [ ] Add production regression using real hidden-space realization data, not only synthetic boxes/corridors.
+- [ ] Keep WFC/full dungeon/cave topology/content dressing out of scope.
 
-## Inspection / debugging
+## Inspection / gallery visualization
 
-- [ ] Add a placement/reservation inspector that answers why a candidate was accepted or rejected.
-- [ ] Surface reservation owner/id, provenance, category, semantics, shape/bounds, conflicts, precedence decision, compatibility decision, and stable reason code.
-- [ ] Add `WorldbuildingGalleryShowcase` visualization for surface footprints/clearances/corridors.
-- [ ] Add a readable underground slice/layer visualization for 3D reservations.
-- [ ] Keep debug GameObjects/rendering strictly non-authoritative.
-- [ ] Add a deliberate rejected candidate to the gallery so failure reasoning is visually inspectable.
+- [x] `ReservationQueryResult.Describe()` provides a deterministic textual placement inspector with decision/reason and conflicting claim metadata.
+- [ ] Add `WorldbuildingGalleryShowcase` physical/debug visualization for surface hard footprints, clearance and route/access corridors using real production claims.
+- [ ] Add readable underground slice/layer visualization using true 3D claims.
+- [ ] Include a deliberate rejected candidate with visible reason/owner/provenance.
+- [ ] Ensure debug rendering is strictly non-authoritative and the scene also contains physical content corresponding to the claims.
 
-## Behavioral regression suite
+## Regression / cost coverage already authored (must still pass CI)
 
-- [ ] Fixed seed/world intent produces identical reservation ids and final resolved claims.
-- [ ] Shuffled independent candidate insertion order produces identical winners.
-- [ ] Shuffled region generation/eviction/regeneration order does not change derived reservation outcomes.
-- [ ] Hard occupancy conflict rejects deterministically.
-- [ ] Clearance conflict rejects/yields deterministically.
-- [ ] Compatible handoff succeeds only for declared compatible consumer kinds.
-- [ ] Legal vertical separation succeeds.
-- [ ] True 3D collision fails.
-- [ ] Macro settlement envelope is visible to lower-level queries.
-- [ ] Protected road/public-access corridor remains unobstructed after settlement placement.
-- [ ] Kentridge production path uses the shared reservation service.
-- [ ] Structural-socket production path uses the shared reservation service.
-- [ ] Vegetation/ecology production path uses the shared reservation data.
-- [ ] Conflict diagnostics/reason codes are stable across repeated runs.
-- [ ] Representative world-scale query work is bounded and does not devolve into whole-world scans.
+- [x] Fixed semantic inputs produce stable ids.
+- [x] Shuffled independent candidates produce identical precedence winners.
+- [x] Equal-precedence tie uses stable identity rather than insertion order.
+- [x] Hard occupancy rejects deterministically.
+- [x] Clearance rejects normal placement and yields vegetation.
+- [x] Soft reservation yields.
+- [x] Compatible handoff is limited to declared consumer kinds.
+- [x] Legal vertical separation succeeds; true 3D collision fails.
+- [x] Kentridge production planner publishes shared building/plaza/access/road claims.
+- [x] Diagnostics include stable reason and conflicting claim metadata.
+- [x] Bounded-window stress regression excludes distant claims and asserts bounded bucket/candidate/narrow-phase work.
+- [ ] Add region eviction/regeneration/order regression against the actual production source adapter(s).
+- [ ] Add production macro-road, architecture, vegetation and hidden-space regressions after those adapters are wired.
+- [ ] Run targeted EditMode regression suite on an exact feature SHA and record the green request/run.
 
-## Built-application validation
+## Performance / blast radius
 
-- [ ] Build and run exact `WorldbuildingGalleryShowcase`.
-- [ ] Capture durable evidence of surface hard claims, clearance, road/access corridor, compatible handoff, and an intentionally rejected conflict.
-- [ ] Capture durable evidence of underground reservations showing legal vertical overlap and an illegal true collision/connector distinction.
-- [ ] Validate physical content corresponding to the reservations, not debug overlays alone.
-- [ ] Build/run the real `KentridgePlayableSlice` production integration after migration.
-- [ ] Verify Kentridge loads without startup/runtime exceptions.
-- [ ] Verify representative buildings/plaza remain non-overlapping and visually coherent.
-- [ ] Verify public approach/access remains open and representative CharacterMotor traversal works.
-- [ ] Verify road/settlement arrival corridor remains usable when road integration is present.
+- [ ] Measure snapshot/source construction cost and representative query timing.
+- [ ] Record bucket/candidate/narrow-phase metrics for town, road, structural, vegetation and underground workloads.
+- [ ] Measure managed/native allocation/resident-memory impact with the repository-supported runtime tooling where available.
+- [ ] Measure WorldBuilder generation/streaming/regeneration impact with the repository-supported gate.
+- [x] Long macro envelope is clipped to the caller window rather than producing world-scale buckets (regression authored; not yet CI-validated).
+- [x] No one-GameObject/collider-per-reservation authoritative implementation was introduced.
+- [x] Existing planner candidate budget was not increased.
+- [ ] Check blast radius across WorldBuilder/Kentridge existing tests/scenes and fix in-scope regressions.
 
-## Performance / blast radius / closure
+## Workflow gates / closure
 
-- [ ] Measure reservation source construction cost.
-- [ ] Measure broad-phase buckets/candidates and narrow-phase tests per representative query.
-- [ ] Measure query timing under representative town, road, structural, vegetation, and underground workloads.
-- [ ] Measure managed/native allocations and resident memory attributable to reservations.
-- [ ] Measure impact on WorldBuilder generation time and region streaming/regeneration.
-- [ ] Test long corridor and large macro-envelope behavior for bounded memory/query work.
-- [ ] Confirm no one-GameObject/collider-per-reservation implementation was introduced.
-- [ ] Confirm existing device/streaming/candidate budgets were not weakened.
-- [ ] Check blast radius across existing WorldBuilder scenes/tests and fix regressions.
-- [ ] Update `plan.md`/`tasks.md` with any discovered required work; no unchecked acceptance work may be omitted.
-- [ ] Record regression test(s), runtime evidence, cost results, resolution summary, and fix commit in issue metadata.
-- [ ] Complete all SceneIssues workflow gates and exact-SHA CI requirements before moving the issue to `closed`.
+- [ ] Read current `SceneIssues/feature-readme.md` from current `origin/master` before gate execution (it was absent from the initial feature head).
+- [ ] Re-fetch current `origin/master`, reconcile allowed prerequisite changes into `fixes/agent-7`, and ensure only this assignment is modified.
+- [ ] Validate compile/static source state and update `plan.md`/`tasks.md` for any discovered work.
+- [ ] Request the final targeted CI only through `ci-test/fixes/agent-7`; never put `.github/test-request.json` on the feature branch and never replace a queued request.
+- [ ] Obtain green exact-SHA targeted EditMode CI and record run/evidence.
+- [ ] Complete pending metadata on `fixes/agent-7` after the green exact-SHA CI gate.
+- [ ] Build/run exact `WorldbuildingGalleryShowcase`; capture durable surface + underground + rejected-candidate evidence and physical-content validation.
+- [ ] Build/run real `KentridgePlayableSlice` and capture durable runtime/traversal evidence.
+- [ ] Complete pending metadata after every workflow/runtime gate.
+- [ ] Record regression tests, runtime evidence, cost results, blast radius, resolution summary and fix commit in issue metadata.
+- [ ] Move this assignment `open -> pending -> closed` only when every checkbox and acceptance criterion is complete; set `status=fixed` and `resolvedUtc`.
+- [ ] Merge current `origin/master` into `fixes/agent-7`, push feature branch, then non-force push that exact head to `origin/master`; if master advances, fetch/merge/retry.
