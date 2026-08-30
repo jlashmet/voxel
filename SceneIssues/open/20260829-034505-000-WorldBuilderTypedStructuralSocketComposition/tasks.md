@@ -112,5 +112,6 @@
 - [x] Scope the structural audit phase to this exact SceneIssue id so unrelated capture-less WorldbuildingGallery validations keep their existing audit contract and runtime cost.
 - [x] Diagnose final CI admission failure run `33306559976`: request schema used string `"60"` for `replay_seconds`, so Unity/test/player steps never ran and no gate was satisfied.
 - [x] Correct `replay_seconds` to integer `60` and resubmit on the same persistent `ci-test/fixes/agent-5` transport without changing production code.
-- [x] Diagnose compile-gate run `33306616999` and fix only the reported in-scope script errors: import production `CharacterMotor` namespace and mutate copied `FeatureCatalogue` handles rather than readonly `using` variables.
-- [ ] Revalidate the corrected feature source after those compile fixes; prior compile failure produced no screenshots and satisfied no gate.
+- [x] Diagnose compile-gate run `33306616999` and fix the readonly-`using` catalogue mutation errors without changing composition behavior.
+- [x] Diagnose compile-gate run `33306897362`: `CharacterMotor` belongs to the SceneRuntime `VoxelEngine.Showcase` assembly, so lower-layer `ShowcaseWorld` cannot depend on it; keep route/preload data in `ShowcaseWorld` and execute traversal through a SceneRuntime extension using the existing production motor.
+- [ ] Revalidate the corrected feature source after the SceneRuntime traversal-boundary fix; prior compile failures produced no screenshots and satisfied no gate.
