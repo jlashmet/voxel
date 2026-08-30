@@ -42,10 +42,12 @@
 - [x] Verify `WorldbuildingGalleryShowcase` automatically reaches the same globally installed water presentation for its cave-authored water.
 
 ## Reusability review
-- [ ] Audit engine rendering/extraction code so still/river/waterfall behavior is selected entirely from semantic presentation/profile data; no `GameMaterialIds`, showcase IDs, or numeric material-ID assumptions may control renderer behavior.
-- [ ] Keep all reusable flow/foam/depth/turbulence/aeration parameters in shared material/presentation definitions; `WaterRenderingShowcase` may choose profiles and camera/placement only, not define authoritative water behavior.
-- [ ] Add or retain a regression proving two independently authored water materials/profiles with different IDs can produce the same semantic class, and one ID can change profile behavior through presentation data without engine-code changes.
-- [ ] Confirm the showcase's capture-only telemetry and visual-repair code is inactive outside evidence capture and does not become a production renderer lifecycle dependency.
+- [x] Audit engine rendering/extraction code: shared water cache/shader behavior is selected from semantic presentation/profile tables and `WaterMaterialMask`; no `GameMaterialIds` or showcase IDs control renderer water behavior.
+- [x] Keep reusable flow/foam/depth/turbulence/aeration parameters in `WaterPresentationDefinition`/`VoxelPresentationCatalogue`; `WaterRenderingShowcase` chooses material/profile placement and inspection only.
+- [x] Add regression `WaterProfiles_UseOpaqueMaterialIdsAndCanBeRemappedByPresentationData`: arbitrary IDs can share Still and one can remap to Waterfall through presentation data only; final exact CI still required.
+- [x] Confirm capture-only telemetry runs only under unattended screenshot evidence capture and is not a production renderer lifecycle dependency.
+- [ ] Audit the solid extractor classification boundary so a presentation-water material remains excluded from solid geometry even when its gameplay simulation is inert.
+- [ ] Review `FlowerBlue = Cascade` transitional alias blast radius before finalizing any Cascade classification change.
 
 ## Regression / reliability / cost
 - [x] Production installation regression covers still/river/waterfall profiles and excludes non-water material.
@@ -59,8 +61,9 @@
 - [x] Static memory cost: six 32-entry `Vector4` water tables = 3,072 bytes; no per-water-voxel GameObjects/material instances were added.
 - [x] Add capture-only frame timing and managed/native memory telemetry because the existing player harness records FPS but has no reusable GPU/memory sampler; keep it scene-local and inactive outside unattended evidence capture.
 - [x] Record pre-repair exact-player baseline: Apple M4 Max, ~1.5–2.1 ms 10-second average frame windows after startup, ~697.8 MiB allocated, ~861–864 MiB reserved, ~9 MiB mono used, 191 resident draw leases, zero lease failures. GPU/CPU FrameTimingManager values were unavailable (`-1`), so do not invent them.
-- [ ] Re-measure the repaired two-sided waterfall pass and transparent-overdraw risk; do not weaken budgets.
-- [x] Review feature-only diff against current master: only assignment water code/tests/scene/build registration/docs are changed; `.github/test-request.json` is absent from the feature diff.
+- [x] Re-measure repaired two-sided pass from run `33324084398`: ~1.2–2.8 ms average frame windows after startup, ~697.8 MiB allocated, ~846–848 MiB reserved; no frame-budget weakening. CPU/GPU FrameTimingManager values remained unavailable.
+- [x] Review feature-only diff against current master before resumed investigation: only assignment water code/tests/scene/build registration/docs are changed; `.github/test-request.json` is absent from the feature diff.
+- [ ] Add focused regression for the confirmed missing-sheet root cause before the next implementation change.
 
 ## Rendered gate from exact run 33323151755
 - [x] Bake succeeded on exact feature parent `d3729aa0c971aa4973286fe61d024f500f6f308a`.
@@ -76,20 +79,25 @@
 - [x] Keep exhibit repair as semantic authoring/inspection intent: use thinner exposed Cascade sheet/fingers and a nearly square-on waterfall camera; no plane/material fork.
 - [x] Hold unattended near/wide phases long enough for the existing 10-second capture cadence to record converged near and wide evidence before repeated waterfall frames.
 - [x] Add focused regression proving a vertical Cascade column emits canonical vertical sheet faces with Cascade material identity.
-- [ ] Re-run exact repaired SHA and directly validate visible near/wide/waterfall quality and time-separated motion.
+- [x] Repaired exact run `33324084398` on source `3b3a55c...` completed green for automated tests/build/player capture.
+- [x] Directly inspect repaired frames and reject closure again: converged 32/42s square-on views still show no visible vertical waterfall sheet; only top lip/lower pool read. Framing hypothesis is falsified because authored sheet is directly in front of cliff and camera target.
+- [x] Trace shared shader/render pass: no vertical-face discard, `Cull Off`, waterfall profile forces high vertical alpha, and every visible water entry uses the same procedural draw path. If vertical Cascade reaches the water shader, it should be visible.
+- [ ] Determine whether inert Cascade is simultaneously emitted by solid extraction or missed by water discovery; preserve inert gameplay semantics.
+- [ ] Implement only the smallest shared production-path correction proven by the discriminator.
 
 ## Exact-SHA gates
 - [x] Refresh/merge latest `origin/master` before prior feature SHA attempt; compare was `behind_by=0` after merge commit `ab8b3bc3efa3eac933ce861748664fb246dc1ea2`.
 - [x] Inspect failed exact run `33320921998`: Unity stopped before tests/player evidence because `ShowcaseWaterPresentationRegressionTests` lacked the `VoxelEngine.Showcase` namespace import; repaired on feature branch.
 - [x] Submit canonical request for candidate `d3729aa...` through `ci-test/fixes/agent-9`; run `33323151755` completed green but failed direct visual acceptance and therefore was not used for closure.
-- [ ] Re-read current `origin/master` and repaired `fixes/agent-9`; merge before final CI if master advanced.
-- [ ] Submit the canonical final targeted-CI request from `ci-test/fixes/agent-9` whose parent is the exact repaired feature SHA; never replace a queued request or create another transport branch.
-- [ ] Confirm focused behavioral regressions green on repaired exact SHA.
-- [ ] Confirm repaired exact-SHA built `WaterRenderingShowcase` launches without startup/runtime exceptions.
-- [ ] Download and inspect durable repaired real-player artifact, build/player logs, and converged near/wide/time-separated showcase frames.
-- [ ] Directly compare repaired built waterfall evidence with retained reference semantics: downward flow, turbulence, aeration, irregular edges, lip/edge/base foam, mist/spray.
+- [x] Inspect already-queued repaired request: run `33324084398` completed green on source `3b3a55c...` but failed direct visual acceptance; do not replace/reuse it as final CI.
+- [ ] Re-read current `origin/master` and final `fixes/agent-9`; merge before final CI if master advanced.
+- [ ] Submit exactly one canonical final targeted-CI request from `ci-test/fixes/agent-9` whose parent is the final feature SHA; never replace a queued request or create another transport branch.
+- [ ] Confirm focused behavioral regressions green on final exact SHA, including arbitrary-ID/remap and missing-sheet root-cause coverage.
+- [ ] Confirm final exact-SHA built `WaterRenderingShowcase` launches without startup/runtime exceptions.
+- [ ] Download and inspect durable final real-player artifact, build/player logs, and converged near/wide/time-separated showcase frames.
+- [ ] Directly compare final built waterfall evidence with retained reference semantics: downward flow, turbulence, aeration, irregular edges, lip/edge/base foam, mist/spray.
 - [ ] Reconcile exact final build with registered `VoxelShowcase` and verified `WorldbuildingGalleryShowcase` shared-water paths; do not create an extra CI transport.
-- [ ] Record repaired built-player CPU/GPU/memory/draw/overdraw/variant/culling observations.
+- [ ] Record final built-player CPU/GPU/memory/draw/overdraw/variant/culling observations.
 - [ ] Complete `resolutionSummary`, `regressionTest`, `fixCommit`; move open → pending in prescribed bookkeeping commit.
 - [ ] After every gate and A1–A17 item is complete, move pending → closed; set `status=fixed` and `resolvedUtc`.
 - [ ] Merge latest master again, push feature exact head, then non-force promote exact head to `origin/master`; fetch/merge/retry if advanced.
