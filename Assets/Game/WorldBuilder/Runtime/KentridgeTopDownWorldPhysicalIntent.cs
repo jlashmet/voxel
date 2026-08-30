@@ -63,9 +63,13 @@ namespace Game.WorldBuilder.Runtime
                     TopDownWorldRegionRelationKind.Between,
                     KentridgeTopDownWorldLayout.MoordellCorridor,
                     KentridgeTopDownWorldLayout.RossdamApproach,
-                    halfExtentXDm: 450,
-                    halfExtentZDm: 225,
-                    elevationDeltaDm: -24,
+                    // Stable seeded variation is part of the authoring contract. These nominal
+                    // margins resolve to exactly 450 x 225 dm half-extents and 24 dm depth for
+                    // Kentridge's fixed seed instead of letting negative variation shrink the
+                    // landmark below its 90 m x 45 m acceptance floor.
+                    halfExtentXDm: 456,
+                    halfExtentZDm: 228,
+                    elevationDeltaDm: -23,
                     variationDm: 12,
                     offsetXDm: -300,
                     source: "first macro geography pass: substantial bounded lake separating the Moordell corridor from Rossdam approach while remaining streamable at gameplay budgets"),
