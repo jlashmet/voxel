@@ -1,7 +1,7 @@
 {
-  "platform": "EditMode",
-  "test": "VoxelEngine.Tests.EditMode.ArchitectureShapeProgramBuilderTests.PrimitiveOverridesRejectNegativeCornerRadius",
-  "request_id": "template",
+  "platform": "PlayMode",
+  "test": "VoxelEngine.Tests.PlayMode.UndergroundCavernRuinProductionAcceptanceTests.ProductionShowcaseWorldAuthorsTraversalCavernWithinBudgets",
+  "request_id": "20260830-agent3-cavern-reconcile-10cfb3c",
   "scene_issue": "",
   "replay_seconds": ""
 }
