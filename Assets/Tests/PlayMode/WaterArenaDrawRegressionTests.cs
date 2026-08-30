@@ -1,4 +1,6 @@
 using NUnit.Framework;
+using Unity.Collections;
+using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
 using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
@@ -8,76 +10,61 @@ namespace VoxelEngine.Tests.PlayMode
     public sealed class WaterArenaDrawRegressionTests
     {
         [Test]
-        public void SecondArenaLeasePublishesVertexBaseInIndirectDrawRecord()
+        public void SecondWaterEntryBindsExplicitArenaOffsets()
         {
             var arena = new SurfaceGeometryArena(1024, 2048, 8);
+            Assert.That(arena.TryAcquire(3, 3, out SurfaceGeometryLease blocker), Is.True);
+            var entry = new CpuWaterSurfaceChunkCache.Entry(int3.zero, arena);
+            var vertices = new NativeList<SmoothSurfaceVertex>(3, Allocator.Temp);
+            var indices = new NativeList<uint>(3, Allocator.Temp);
+            Material material = null;
+            var commandBuffer = new CommandBuffer { name = "Water arena offset regression" };
+
             try
             {
-                Assert.That(arena.TryAcquire(3, 3, out SurfaceGeometryLease first), Is.True);
-                Assert.That(arena.TryAcquire(3, 3, out SurfaceGeometryLease second), Is.True);
-                Assert.That(second.VertexStart, Is.GreaterThan(0),
-                    "The discriminator requires a second independently aligned vertex range.");
+                for (int i = 0; i < 3; i++)
+                    vertices.Add(new SmoothSurfaceVertex
+                    {
+                        Position = new Vector3(i, 0, 0),
+                        Normal = Vector3.up,
+                        Active = 1u,
+                    });
+                indices.Add(0u);
+                indices.Add(1u);
+                indices.Add(2u);
 
-                arena.UploadArgs(3, in first);
-                arena.UploadArgs(3, in second);
+                int byteBudget = vertices.Length * SmoothSurfaceVertex.Stride
+                               + indices.Length * sizeof(uint)
+                               + SurfaceGeometryArena.ArgsWordsPerDraw * sizeof(uint);
+                Assert.That(entry.AdvanceUpload(vertices, indices, byteBudget, out _), Is.True);
+
+                Shader shader = Shader.Find("Hidden/VoxelEngine/WaterSurface");
+                Assert.That(shader, Is.Not.Null);
+                material = new Material(shader);
+                var properties = new MaterialPropertyBlock();
+                entry.Draw(commandBuffer, material, properties);
+
+                Assert.That(properties.GetInt(Shader.PropertyToID("_SurfaceVertexBase")),
+                            Is.EqualTo(256),
+                    "The second independently aligned vertex lease must be explicit draw state.");
+                Assert.That(properties.GetInt(Shader.PropertyToID("_SurfaceIndexBase")),
+                            Is.EqualTo(512));
 
                 var args = new uint[arena.ArgsRecordCapacity * SurfaceGeometryArena.ArgsWordsPerDraw];
                 arena.Args.GetData(args);
-                Assert.That(args[second.ArgsWordStart + 3], Is.EqualTo((uint)second.VertexStart),
-                    "Water indices stay chunk-local, so the indirect record must carry the lease vertex base for the shader.");
+                Assert.That(args[blocker.ArgsWordStart + 3], Is.EqualTo(0u));
+                Assert.That(args[SurfaceGeometryArena.ArgsWordsPerDraw + 3], Is.EqualTo(0u),
+                    "startInstance must stay neutral because Metal does not deliver it as SV_InstanceID here.");
             }
             finally
             {
-                arena.Dispose();
-            }
-        }
-
-        [Test]
-        public void IndirectStartInstanceReachesShaderOnCurrentBackend()
-        {
-            Shader shader = Shader.Find("Hidden/VoxelEngine/Tests/IndirectStartInstanceProbe");
-            Assert.That(shader, Is.Not.Null,
-                "The focused start-instance probe shader must be available to the PlayMode repro.");
-
-            using var args = new ComputeBuffer(4, sizeof(uint), ComputeBufferType.IndirectArguments);
-            args.SetData(new uint[] { 3u, 1u, 0u, 256u });
-
-            var target = new RenderTexture(16, 16, 0, RenderTextureFormat.ARGB32)
-            {
-                name = "IndirectStartInstanceProbeTarget",
-            };
-            target.Create();
-            var readback = new Texture2D(16, 16, TextureFormat.RGBA32, false, true);
-            var material = new Material(shader);
-            var commandBuffer = new CommandBuffer { name = "Indirect start-instance probe" };
-            RenderTexture previous = RenderTexture.active;
-
-            try
-            {
-                commandBuffer.SetRenderTarget(target);
-                commandBuffer.ClearRenderTarget(true, true, Color.black);
-                commandBuffer.DrawProceduralIndirect(
-                    Matrix4x4.identity, material, 0, MeshTopology.Triangles, args, 0);
-                Graphics.ExecuteCommandBuffer(commandBuffer);
-
-                RenderTexture.active = target;
-                readback.ReadPixels(new Rect(0, 0, 16, 16), 0, 0, false);
-                readback.Apply(false, false);
-                Color sample = readback.GetPixel(8, 8);
-
-                Assert.That(sample.r, Is.GreaterThan(0.8f),
-                    $"The shader saw SV_InstanceID=0 instead of indirect startInstance on {SystemInfo.graphicsDeviceType}; " +
-                    "later water leases therefore cannot use startInstance as their vertex-buffer base.");
-                Assert.That(sample.b, Is.LessThan(0.2f));
-            }
-            finally
-            {
-                RenderTexture.active = previous;
+                entry.Dispose();
+                arena.Release(in blocker);
                 commandBuffer.Release();
-                Object.DestroyImmediate(material);
-                Object.DestroyImmediate(readback);
-                target.Release();
-                Object.DestroyImmediate(target);
+                if (material != null) Object.DestroyImmediate(material);
+                vertices.Dispose();
+                indices.Dispose();
+                arena.Dispose();
             }
         }
     }
