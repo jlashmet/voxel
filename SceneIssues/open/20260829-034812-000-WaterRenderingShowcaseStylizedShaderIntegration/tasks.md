@@ -1,22 +1,21 @@
 # Tasks
 
 ## Workflow / investigation
-
-- [x] Read `AGENTS.md`, canonical `SceneIssues/README.md`, assignment; record that requested `SceneIssues/feature-readme.md` is absent.
+- [x] Read `AGENTS.md`, canonical `SceneIssues/README.md`, assignment; record requested `SceneIssues/feature-readme.md` absent.
 - [x] Inspect assignment metadata and capture list (empty).
 - [x] Inspect imported Stylized Water package and `WaterfallReference.shader` semantics.
 - [x] Trace canonical water extraction/cache/render pass and one shared material lifecycle.
 - [x] Run competing-hypothesis discriminator and maintain `plan.md` separately.
 - [x] Resume existing `fixes/agent-9`; prior master refreshes are preserved in branch history.
-- [ ] Trace liquid/gameplay consumers: collision, swimming/buoyancy/wading where present, spreading, storage/streaming, discovery/meshing, edits, diagnostics.
-- [ ] Trace normal player bootstrap ordering: material presentation installation before water classification/extraction/rendering.
-- [ ] Identify `VoxelShowcase`, Kentridge/second production water consumer, and any legacy production fallback.
+- [x] Trace liquid/gameplay consumers: no swimming, buoyancy, wading, or generic liquid subsystem exists in the current tree; preserve existing material IDs, spreading/inert semantics, storage/streaming, discovery/meshing, edits, and diagnostics.
+- [x] Trace normal player bootstrap ordering: `GameMaterialPresentationBootstrap` installs presentation data `BeforeSceneLoad`, before scene-owned world/extraction/rendering setup.
+- [x] Identify normal production bindings: `VoxelShowcase` and Kentridge both construct `ShowcaseWorld` and bind its canonical storage/palette/surface/coating/profile inputs through `RenderingWorldBinding`.
+- [ ] Verify whether Kentridge or another existing normal production scene actually authors water profiles; choose the second built portability scene accordingly.
 - [x] Verify active URP renderer-data asset serializes `WaterSurface.shader` and matching URP asset is selected.
 - [x] Discover missing `WaterRenderingShowcase` and that build settings currently contain only indices 0/1.
 - [ ] Preserve build indices 0/1; register `VoxelShowcase` at 2 and `WaterRenderingShowcase` at required 3.
 
 ## Shared implementation
-
 - [x] Add reusable still/lake, river/stream, waterfall/rapid presentation profiles.
 - [x] Remove hard-coded game IDs from engine water extraction; classify from installed presentation data.
 - [x] Preserve per-vertex water material identity through extraction.
@@ -26,20 +25,21 @@
 - [x] Add waterfall downward flow, turbulence, aeration, irregular breakup, lip/edge/base foam, mist/spray cues.
 - [x] Keep production voxel extraction/cache authoritative for water geometry.
 - [ ] Prove no normal built water silently falls back to legacy generic shader/material behavior.
-- [ ] Prove player-build shader retention and no editor-only resource dependency.
+- [x] Verify player-build retention has a production asset dependency: active `VoxelUniversalRenderer.asset` directly serializes `WaterSurface.shader`; do not add a global always-included exception unless the player build falsifies this.
+- [ ] Prove player-build shader retention and no editor-only resource dependency with an exact player build.
 
 ## Showcase / portability
-
+- [ ] Add the smallest `ShowcaseWorld` bounded standard-authoring seam needed by the dedicated scene; no custom water mesh/material path.
 - [ ] Create `Assets/Scenes/WaterRenderingShowcase.unity` through standard voxel storage/authoring and canonical renderer; no production proof planes/bespoke water meshes.
 - [ ] Keep scene/controller limited to terrain/water placement, semantic selection, lighting/camera/inspection controls.
 - [ ] Demonstrate still/deep, shoreline, directional river, waterfall/rapid, terrain/rock/structure contacts.
 - [ ] Provide readable near, wide, elevated, and time-separated views; waterfall must show downward flow, turbulence, irregular edges, aeration, lip/edge/base foam, mist.
+- [ ] Reuse existing screenshot/replay/benchmark harness contracts for exact-built evidence and cost capture; do not add a parallel capture stack.
 - [ ] Add/verify production portability outside showcase with at least two independently selectable profiles and waterfall semantics.
 - [ ] Verify `VoxelShowcase` automatically receives shared presentation.
 - [ ] Verify Kentridge or another existing normal water scene automatically receives shared presentation.
 
 ## Regression / reliability / cost
-
 - [x] Production installation regression covers still/river/waterfall profiles and excludes non-water material.
 - [x] Gameplay regression proves still/river retain spreading-water semantics while cascade remains inert.
 - [x] Extraction regression preserves water material identity at negative world coordinates.
@@ -52,7 +52,6 @@
 - [ ] Review final feature-only diff for unrelated files and `.github/test-request.json` contamination.
 
 ## Exact-SHA gates
-
 - [ ] Refresh/merge latest `origin/master` before final feature SHA if advanced.
 - [ ] Push final production/test SHA on `fixes/agent-9`.
 - [ ] Confirm no queued/running agent-9 targeted CI is being replaced.
@@ -67,7 +66,6 @@
 - [ ] Merge latest master again, push feature exact head, then non-force promote exact head to `origin/master`; fetch/merge/retry if advanced.
 
 ## Acceptance ledger
-
 - [ ] A1 — Built `WaterRenderingShowcase` is in normal build/harness path, launches cleanly, and uses standard voxel/WorldBuilder water authoring.
 - [ ] A2 — Built showcase visibly contains still/deep, shallow shoreline, river, waterfall/rapid, terrain/rock/structure contacts and all required waterfall cues.
 - [ ] A3 — All cases use canonical reusable renderer/profile configuration; no scene shader/material fork.
@@ -84,4 +82,4 @@
 - [ ] A14 — Durable exact-built evidence has near/wide/time-separated motion for required cases plus existing production scene evidence.
 - [ ] A15 — Direct visual review meets repository quality with stable contacts/depth/foam/flow/waterfall and no placeholder/sorting catastrophe.
 - [ ] A16 — Blast radius and CPU/GPU/memory/render costs are measured without weakened budgets.
-- [ ] A17 — Durable reference evidence remains and built waterfall is explicitly compared to approved downward-flow/turbulence/aeration/edge/lip/base/mist behaviors.
+- [ ] A17 — Durable reference evidence remains and built waterfall explicitly compared to approved downward-flow/turbulence/aeration/edge/lip/base/mist behaviors.

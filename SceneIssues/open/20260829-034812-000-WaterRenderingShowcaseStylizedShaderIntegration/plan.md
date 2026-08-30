@@ -1,29 +1,33 @@
 # Plan
 
 ## Goal
+Finish the resumed stylized-water feature without creating a second renderer. The branch already contains reusable still/river/waterfall profiles, profile-driven water classification, per-face material identity, and one renderer-owned `Hidden/VoxelEngine/WaterSurface` material. Remaining work is production portability proof, a buildable canonical showcase, build registration, exact player evidence, gameplay/storage compatibility confirmation, and measured rendering cost.
 
-Finish the resumed stylized-water feature without creating a second renderer. The branch already contains shared still/river/waterfall presentation profiles, data-driven water classification, per-face material identity, and one renderer-owned `Hidden/VoxelEngine/WaterSurface` shader/material. Remaining work is production-path portability, a buildable `WaterRenderingShowcase`, build registration, exact-player evidence, gameplay compatibility, and measured cost.
+`SceneIssues/feature-readme.md` is absent, so follow `AGENTS.md` and canonical `SceneIssues/README.md`. Keep the only CI request off the feature branch and use exactly one final `ci-test/fixes/agent-9` transport after the final feature SHA is ready.
 
-`SceneIssues/feature-readme.md` is absent on both this branch and current `master`; follow `AGENTS.md` plus canonical `SceneIssues/README.md`. Keep `.github/test-request.json` off the feature branch and use `ci-test/fixes/agent-9` exactly once for final targeted CI.
+## Confirmed architecture
+- `GameMaterialPresentationBootstrap` installs reusable presentation data with `RuntimeInitializeOnLoadMethod(BeforeSceneLoad)`, before scene-owned world/extraction/rendering setup.
+- `VoxelShowcase` and Kentridge both use `ShowcaseWorld` plus `RenderingWorldBinding`; the dedicated showcase can use that same production storage → extraction → renderer path.
+- The active `VoxelUniversalRenderer.asset` directly serializes `WaterSurface.shader`, providing a real player-build retention dependency. Do not broaden global shader inclusion unless an exact player build proves this insufficient.
+- No swim, buoyancy, wading, or generic liquid subsystem exists in the current tree. Preserve the actual contracts that do exist: stable material IDs, spreading/inert semantics, storage/streaming, edits, discovery/meshing, diagnostics, and renderer binding.
+- Existing screenshot, camera-replay, and stationary benchmark harnesses already cover durable evidence and CPU/GPU capture contracts; reuse them instead of adding a second evidence framework.
 
 ## Hypotheses / discriminators
+1. **One canonical renderer is sufficient.** Trace bootstrap, renderer binding, `VoxelShowcase`, a second normal production water consumer, and legacy assets; built evidence must show no production fallback.
+2. **Presentation remains gameplay-neutral.** Existing spreading regressions plus unchanged material IDs/storage prove semantics unless a concrete consumer contradicts that.
+3. **Profile identity survives production extraction.** Existing negative-coordinate/seam regressions cover extraction; add only the missing real renderer-binding/portability regression.
+4. **Shader is player-build reliable through renderer-asset retention.** Falsify with an exact standalone build and built screenshots; only add an explicit retention fallback if compile/strip evidence requires it.
 
-1. **One canonical renderer serves normal water.** Trace bootstrap, renderer binding, `VoxelShowcase`, Kentridge, and legacy assets. Falsify if a normal scene bypasses the installed presentation catalogue or binds a separate production water material.
-2. **Presentation remains gameplay-neutral.** Trace collision, swimming/buoyancy/wading where present, spreading, storage/streaming, edits, meshing, and diagnostics. Falsify if rendering-profile classification changes authoritative gameplay semantics.
-3. **Cascade survives production extraction.** Existing regressions already cover negative coordinates, reciprocal seams, and distinct water material identities. Add only missing production portability/binding coverage and prove the built cascade.
-4. **The shader is player-build reliable.** Falsify with compile/stripping/pink/missing-resource failure in the exact built scene.
+## Implementation sequence
+1. Keep `tasks.md` synchronized with every discovered obligation and complete the remaining consumer/production-water audits.
+2. Add the smallest `ShowcaseWorld` bounded authoring seam so the dedicated scene can place voxels through normal `StructuresComposition` storage mutation APIs. No bespoke water geometry or material allocation.
+3. Add the thin `WaterRenderingShowcase` controller/scene using `ShowcaseWorld`, `RenderingWorldBinding`, existing game material IDs, normal lighting/camera setup, and existing evidence/benchmark harness contracts.
+4. Preserve build indices 0/1, register `VoxelShowcase` at index 2 and `WaterRenderingShowcase` at index 3.
+5. Add only the missing renderer-path portability regression against actual shader/profile arrays and canonical bindings.
+6. Refresh/merge latest `origin/master` if advanced, review feature-only diff/blast radius, and push the final feature SHA.
+7. Confirm no queued/running agent-9 request exists, then create exactly one smallest targeted-CI request from `ci-test/fixes/agent-9` for that exact SHA.
+8. Use exact-built player runs for focused regressions, `WaterRenderingShowcase`, `VoxelShowcase`, and a second normal production water scene; capture near/wide/elevated/time-separated evidence plus stationary CPU/GPU/render observations.
+9. Complete all A1–A17 acceptance items and issue metadata, transition open → pending → closed per workflow, set fixed/resolved UTC, merge latest master again, and non-force promote the exact feature head to `origin/master` (fetch/merge/retry if master advances).
 
-## Sequence
-
-1. Reconcile `tasks.md` with already-landed regressions; finish bootstrap/gameplay/legacy-path audit.
-2. Add the smallest production-path portability/binding regression still missing.
-3. Create a thin scene/controller that authors terrain plus still, river, and cascade through existing storage/authoring/WorldBuilder composition and hands them to the canonical renderer. Scene code may place content and expose deterministic inspection views only.
-4. Preserve build indices 0/1, register `VoxelShowcase` at 2 and `WaterRenderingShowcase` at required index 3.
-5. Refresh from `origin/master`, review feature-only diff/blast radius, then push the final feature SHA.
-6. Submit one final exact-SHA CI request on `ci-test/fixes/agent-9`; require focused regressions plus built `WaterRenderingShowcase`, `VoxelShowcase`, and a second production water scene with durable near/wide/time-separated evidence.
-7. Record measured CPU/GPU/memory/render/overdraw/variant/culling observations. Do not weaken budgets.
-8. Only after every A1–A17 item is evidenced: fill pending metadata, move open → pending → closed as prescribed, set `status=fixed`/`resolvedUtc`, merge latest master, push feature, then non-force promote the exact head to `origin/master` (retry after merge if master advances).
-
-## Blast radius / cost
-
-Limit changes to shared water presentation/extraction/shader, focused tests, this showcase/controller, build registration, and assignment metadata/evidence. Preserve one shared material, existing chunk streaming/culling, no per-water-voxel GameObjects, no per-body unique materials, no scene shader forks, and no URP replacement. Six 32-row `Vector4` profile tables cost 3,072 bytes per catalogue installation; remaining runtime costs must be measured in the built player.
+## Blast radius / cost guardrails
+Limit changes to shared water presentation/extraction/shader, focused tests, a tiny showcase authoring seam, the showcase/controller, build registration, and this assignment’s docs/evidence. Keep one renderer-owned water material, existing chunk streaming/culling, and no per-water-voxel GameObjects, per-scene shader forks, or URP replacement. Six 32-entry `Vector4` presentation tables consume 3,072 bytes; remaining CPU/GPU/memory/draw/overdraw/variant/culling cost must be measured in the built player without weakening existing budgets.
