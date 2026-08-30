@@ -34,6 +34,7 @@ namespace MountingForce.WorldGen.Voxel
     {
         private readonly ReservationInspectionPrimitive[] _primitives;
         public IReadOnlyList<ReservationInspectionPrimitive> Primitives => _primitives;
+        public ReservationInspectionPrimitive RejectedCandidate { get; }
         public ReservationBoundsDm Window { get; }
         public string RejectedCandidateDescription { get; }
         public ReservationQueryMetrics RejectedCandidateMetrics { get; }
@@ -42,6 +43,7 @@ namespace MountingForce.WorldGen.Voxel
 
         internal WorldbuildingGalleryReservationReport(
             ReservationInspectionPrimitive[] primitives,
+            ReservationInspectionPrimitive rejectedCandidate,
             ReservationBoundsDm window,
             string rejectedCandidateDescription,
             ReservationQueryMetrics rejectedCandidateMetrics,
@@ -49,6 +51,7 @@ namespace MountingForce.WorldGen.Voxel
             int sourceClaimCount)
         {
             _primitives = primitives ?? Array.Empty<ReservationInspectionPrimitive>();
+            RejectedCandidate = rejectedCandidate;
             Window = window;
             RejectedCandidateDescription = rejectedCandidateDescription ?? string.Empty;
             RejectedCandidateMetrics = rejectedCandidateMetrics;
@@ -108,8 +111,14 @@ namespace MountingForce.WorldGen.Voxel
                 throw new InvalidOperationException(
                     "Gallery reservation inspector expected its deliberate candidate to be rejected.");
 
+            var rejectedPrimitive = new ReservationInspectionPrimitive(
+                "REJECTED: " + rejected.OwnerId,
+                rejected.Bounds,
+                rejected.Category,
+                rejected.Semantics);
             return new WorldbuildingGalleryReservationReport(
                 primitives.ToArray(),
+                rejectedPrimitive,
                 snapshot.Window,
                 rejection.Describe(),
                 rejection.Metrics,
