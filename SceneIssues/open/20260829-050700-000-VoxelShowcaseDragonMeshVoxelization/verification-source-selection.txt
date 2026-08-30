@@ -1,0 +1,27 @@
+Selected source: Delatronic — Dragon
+Current source page: https://blendswap.com/blend/15891
+Historic upstream id recorded by redistribution mirrors: http://www.blendswap.com/blends/view/80766
+Author: Delatronic
+License: CC-BY (redistribution mirror identifies CC BY 3.0 requirements)
+Original authoring format: Blender 2.7x / Cycles
+
+Auditable redistribution mirror:
+https://github.com/microsoft/DirectX-Graphics-Samples/tree/master/Samples/Desktop/D3D12Raytracing/src/D3D12RaytracingRealTimeDenoisedAmbientOcclusion/Assets/dragon
+Mirror license file explicitly identifies Delatronic, Benedikt Bitterli Rendering Resources, the original Blend Swap URL, CC-BY redistribution, and modification provenance.
+
+PBRT scene material ownership identifies dragon geometry as:
+- Mesh008.ply — Git blob fa8316f8b1c698da1d539b04cb83992437439dc6 — 4,386,778 bytes
+- Mesh013.ply — Git blob 27f7188faed577d4fb4a4130285ed5c97a024bdc — 4,840,746 bytes
+- Mesh014.ply — Git blob 5c0ff63e4e32568d005ff136017225abc5b94aab — 12,277 bytes
+- Mesh015.ply — Git blob c3bbd2718695bc8776b8b96626c31ab3e229d185 — 49,110 bytes
+Teeth are separate Mesh011.ply — Git blob dbb30c57a7fdb5e5f068f337ca0ad3676c9bcb18 — 13,749 bytes.
+
+Research-scene conversion metadata for this source scene reports 16 meshes / 831,812 triangles total. Source-specific dragon triangle/vertex totals remain to be measured from the vendored dragon parts rather than inferred from the whole scene.
+
+Visual/detail decision:
+- Accepted source family: conventional curved, detailed Western winged dragon; source/reviewer metadata explicitly describes detail and wings.
+- Rejected artist_71 OpenGameArt three-headed model: detailed but wingless.
+- Rejected Cethiel/Drummyfish CC0 model: winged but mirrored source is only ~633 position vertices and visibly low-poly.
+
+Current blocker:
+The selected redistribution mirror stores its large PLY parts as binary little-endian files. The connected repository API can verify their exact blob identities and metadata but cannot presently transfer the two multi-megabyte binary payloads into this repository losslessly. Do not replace the selected source with lower-quality geometry merely to fit transport tooling. Checksums of committed bytes remain pending until the source is actually vendored.
