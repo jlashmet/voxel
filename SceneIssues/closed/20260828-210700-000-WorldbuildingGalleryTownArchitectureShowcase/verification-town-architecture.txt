@@ -1,0 +1,30 @@
+Source SHA: b61b329feadcaee13db118721405744c902071d7
+CI request SHA: a24a6208495c03df5a855d471df67bb523730160
+Run/job: 33284999177 / 99186538611
+
+Focused regression: PASS
+VoxelEngine.Tests.PlayMode.TownArchitectureExtensibilityTests.RegisteredSeventhStyleComposesExistingCapabilitiesWithoutCentralDispatch
+
+Built application: PASS
+Scene: Assets/Scenes/WorldbuildingGalleryShowcase.unity
+TOWNARCH_AUDIT result=PASS captured=21 expected=21
+HARNESS done after 60.0s, assertion failures 0
+No exception/error/crash/fatal runtime lines found in the player log.
+
+Authoring/cost:
+TOWNARCH_AUTHORING mode=stale-bake-repair districts=7 writes=1178835 elapsedMs=565.95 budget=22000000 budgetExceeded=False
+Write budget utilization: 5.36%
+TOWNARCH_COST allocatedMB=2528.09 reservedMB=2763.81 unusedReservedMB=235.73 residentRegions=51 pendingRegions=0 FAR hole=93.3m inner=204.8m streamed=204.8m residentGround=106.8m coverage=True structures=True
+No additional render pass or scene-direct voxel-writing was introduced; the seventh district uses the same bounded town realization path.
+
+Direct 21-frame visual audit:
+- Kentridge retains grounded pastoral timber framing and steep-roof identity.
+- Hightown retains tall civic stone massing and ordered openings.
+- Moordell retains low weathered moorland stone massing.
+- Rossdam retains fortified/royal crenellated identity; near views tightly frame its inherited wall/detail massing while the wide view confirms the district silhouette.
+- Fairy Village retains organic/treehouse rounded forms and accent vocabulary.
+- Orc Village retains heavy tribal/stockade timber identity.
+- River Trade proof is physically distinct: stone/order bands, timber-over-stone gabled composition, ordered openings and amber accents, assembled only from existing reusable capabilities.
+No floating shells, district collisions, broken circulation, or unintended inter-district intersections were observed. The six accepted identities remain distinct rather than collapsing to recolors.
+
+Verdict: PASS. Exact-SHA regression, built-player scene validation, visual audit, blast-radius review and cost gate are satisfied.
