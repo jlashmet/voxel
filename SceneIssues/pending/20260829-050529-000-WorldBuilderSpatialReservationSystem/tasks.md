@@ -6,7 +6,7 @@
 - [x] Confirm no competing canonical reservation service exists on reconciled master.
 - [x] Keep road solving/grade in `WorldRoadNetwork`, form/orientation/support in architecture, species/density in ecology, hidden-space topology in its planner, and rendering in presentation.
 - [x] Confirm typed `StructuralSocket` is not required by the current production seam; do not import another assignment.
-- [x] Reconcile current master into `fixes/agent-7` before implementation (`d256dc2044c88b254751448012b60a138e716f27`, current master `65e33762a0d0f1739e9a518484d119e551f01f81`); resumed again on 2026-08-30 and merged then-current master `7f935b26cc7aa8aff971d3488e9f9629108e419a` via `a2639073b1cb61e5fc050d3254d232c116d054e5`.
+- [x] Reconcile current master into `fixes/agent-7` before implementation (`d256dc2044c88b254751448012b60a138e716f27`, current master `65e33762a0d0f1739e9a518484d119e551f01f81`); resumed again on 2026-08-30 and merged then-current master `7f935b26cc7aa8aff971d3488e9f9629108e419a` via `a2639073b1cb61e5fc050d3254d232c116d054e5`; reconciled current master `5f07db5cd7677e84f617deb61c5b03a4b896159c` via `23d16dc51e49f17adf4c9bcedc9306c22e264bd1`.
 - [x] Reconcile plan/checklist to the actual post-merge production paths before implementation.
 
 ## Canonical reservation contract
@@ -71,12 +71,12 @@
 
 ## Validation / closure
 
-- [x] `SceneIssues/feature-readme.md` is absent; use `SceneIssues/README.md` plus assignment README.
+- [x] Follow `SceneIssues/feature-readme.md`, common `SceneIssues/README.md`, and `AGENTS.md`; do not move the already-pending assignment backwards.
 - [x] Never edit `.github/test-request.json` on `fixes/agent-7`, create extra transports, or replace queued CI.
 - [ ] Run focused `SpatialReservationTests` + affected Kentridge regressions and repository compile/static/ProjectValidator gates.
 - [ ] Run required scene/runtime/built-player/visual gates and capture durable evidence.
 - [ ] Review assignment-only blast radius and record commands/results/cost/acceptance mapping in issue metadata.
-- [ ] Complete every open-phase checkbox, then move open -> pending with required testing metadata (folder was moved early by prior work; metadata remains intentionally incomplete until gates pass).
+- [ ] Complete every required acceptance checkbox; folder was moved to pending early by prior work, so pending metadata remains intentionally incomplete until gates pass.
 - [ ] Fetch/merge current master and rerun affected focused gates.
 - [ ] Use `ci-test/fixes/agent-7` only for the final targeted-CI request; verify no request is already queued first.
 - [ ] Obtain green exact-SHA CI and record request/run/tested-SHA evidence.
