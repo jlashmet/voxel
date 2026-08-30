@@ -15,14 +15,13 @@
 - [x] Run exact source `cb4e1b0fa1464da214d799ba55750bea38159143` through wrapper `e5bdf88a387c486b72be5d8950fb6d1458a5aad9`; run `33304172039` is exact-attributed, PlayMode `1/1` green, standalone clean, but closure-red because visual evidence remains at Moordell through 59 s.
 - [x] Record run `33304172039` as `experiment-016-exact-ci-moordell-content-convergence.md`; do not promote from workflow status alone.
 - [x] Diagnose Moordell gate: evidence requires exactly four authored building centres; do not weaken readiness. Lake is in normal residency but does not share a Moordell building column.
-- [x] Prove shared `FeatureRegionBuild` is tile-resumable and evaluate a global preemptive feature scheduler.
-- [x] Reject global feature-scheduler preemption after blast-radius review: it changes every Showcase scene to compensate for a validation-only long-distance evidence sequence.
+- [x] Prove shared `FeatureRegionBuild` is tile-resumable and reject global feature-scheduler preemption after blast-radius review.
 
 ## Current required remediation
-- [ ] Reorder only the dormant `kentridge-macro-world` evidence flow: local CharacterMotor proof -> fully settled/captured Moordell -> real macro-road CharacterMotor traversal -> player-height Moordell road arrival -> Rossdam -> lake -> Fairy -> Orc -> ridge/pass -> network.
-- [ ] Preserve every real content-settled and renderer-coverage gate, normal load radius/budgets, and 60 s cap; no prestreaming or skipped target.
-- [ ] Add/adjust behavioral regression proving Moordell evidence precedes macro-road capture while the accepted later target order remains unchanged.
-- [ ] Re-run exact-SHA targeted CI only after source remediation and prove focused Unity suite plus supported 60-second real-player smoke are closure-quality green for that same source SHA, including every required target.
+- [x] Reorder only the dormant `kentridge-macro-world` evidence flow: local CharacterMotor proof -> fully settled/captured Moordell -> real macro-road CharacterMotor traversal -> player-height Moordell road arrival -> Rossdam -> lake -> Fairy -> Orc -> ridge/pass -> network.
+- [x] Preserve every real content-settled and renderer-coverage gate, normal load radius/budgets, and 60 s cap; no prestreaming or skipped target.
+- [x] Add behavioral regression through the real driver planning/sequencing path proving Moordell evidence precedes macro-road capture while accepted later target order remains unchanged.
+- [ ] Re-run exact-SHA targeted CI and prove the sequencing regression plus supported 60-second real-player smoke are closure-quality green for the same source SHA, including every required target.
 
 ## Exact runtime / visual gate
 - [ ] Exact built `KentridgePlayableSlice` reaches usable gameplay without startup/runtime exceptions and captures every required macro target inside 60 s.
@@ -31,9 +30,10 @@
 - [x] Player-height road evidence is supported by the driver and prior artifact; final exact run must retain it.
 
 ## Blast radius / cost
-- [x] No unrelated SceneIssue, no feature-branch `.github/test-request.json`, no custom CI transport/workflow, no CharacterMotor/load-radius/device-budget change.
+- [x] No unrelated SceneIssue implementation, no feature-branch `.github/test-request.json`, no custom CI transport/workflow, no CharacterMotor/load-radius/device-budget change.
 - [x] Terrain-relief sampling remains bounded to 25 x 16 = 400 deterministic catalogue queries.
-- [x] Current master baseline `e95324aeaef619cb49d84bf2b07f770184bead81` was already merged; branch comparison was ahead-only before this remediation.
+- [x] Current master `e17e858bfe0497c90b87db70fcfef80a142917a4` was merged before the final remediation test; its only delta was a separate road-presentation SceneIssue capture.
+- [x] Driver remediation is validation-profile-only; regression addition is PlayMode-test-only, so shared runtime blast radius remains unchanged.
 - [x] Baseline runtime metrics from run `33304172039`: assertions `0`, no swap growth, peak RSS `5,571,344 KB`, late FPS approximately `197/222/232/168/137`, final visible coverage `missingVisible=0 coverage=True`.
 - [ ] Measure final lake dimensions/depth/primitive cells, route tile/solve/constrained counts, feature voxel work/last-feature time, CPU/frame/FPS, memory, streaming convergence, and render/far-field telemetry against budgets.
 - [ ] Re-fetch current master and re-check exact feature diff immediately before final targeted CI.
