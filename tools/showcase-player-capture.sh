@@ -138,6 +138,11 @@ fi
 [[ -n "$OUTPUT_ROOT" ]] || { echo "ERROR: --output is required." >&2; exit 2; }
 [[ -n "$SCENE" && -f "$SCENE" && "$SCENE" == *.unity ]] || { echo "ERROR: a valid --scene or --scene-issue is required." >&2; exit 2; }
 
+# The standalone app may resolve relative command-line paths from its bundle/runtime directory.
+# Normalize the artifact root once so logs and presented-frame captures always return to the caller's
+# requested location regardless of how the player changes its working directory at launch.
+if [[ "$OUTPUT_ROOT" != /* ]]; then OUTPUT_ROOT="$PWD/$OUTPUT_ROOT"; fi
+
 validate_positive_int() {
   local value="$1" name="$2"
   [[ "$value" =~ ^[0-9]+$ && "$value" -gt 0 ]] || { echo "ERROR: $name must be a positive integer." >&2; exit 2; }
