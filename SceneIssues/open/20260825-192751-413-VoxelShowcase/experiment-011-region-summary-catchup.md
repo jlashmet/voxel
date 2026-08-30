@@ -43,6 +43,9 @@ A new exact-scene PlayMode behavioral regression, `ShowcaseRegionCommitBudgetTes
 - Expected tradeoff is strictly lower CPU/cache traffic on bulk finalization; no per-frame renderer or gameplay work is added.
 
 ## Validation required
+- A focused EditMode behavioral gate exercised the production method over a complete 262,144-brick
+  region, checked all 4,096 occupied/fully-solid word pairs across empty, uniform, partial-mixed,
+  full-mixed, and word-boundary cases, and passed at 0.794 ms against the unchanged 25 ms budget.
 - Local invocation compiled and entered the real-scene test, then the repository wrapper killed
   Unity at 6,234 MB against the mandated 6,144 MB ceiling before assertions. This is an
   infrastructure result, not a product verdict.

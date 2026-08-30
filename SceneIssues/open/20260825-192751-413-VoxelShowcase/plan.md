@@ -17,5 +17,5 @@
 - CPU world truth, collision, replication, HLOD, budgets, and thresholds are unchanged.
 
 ## Remaining gates
-- Local policy 5/5, mirror slot/catalogue 21/21, arena/readback 4/4, material query 2/2, and bounded-water contract 1/1 pass. Local full-scene PlayMode exceeded the 6 GB ceiling before assertions and has no product verdict.
-- The local region-completion regression hit the mandated 6 GB watchdog before assertions, so it has no product verdict. A further exact CI transport needs fresh authorization; it must include region completion, mirror liveness, unchanged migration, and built-player capture. Keep the issue open until exact-SHA gates and visual inspection are green.
+- Local policy 5/5, mirror slot/catalogue 21/21, arena/readback 4/4, material query 2/2, bounded-water contract 1/1, and full-region summary semantics/budget 1/1 pass; the latter rebuilt 262,144 bricks in 0.794 ms versus 25 ms. Full-scene PlayMode hit the mandated 6 GB watchdog before assertions and has no product verdict.
+- Per developer direction, do not create another separate CI request; continue validation through local Unity/player workflows. Keep the issue open until full traversal and visual gates are green.
