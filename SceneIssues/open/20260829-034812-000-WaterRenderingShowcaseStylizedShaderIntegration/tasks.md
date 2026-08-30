@@ -12,9 +12,10 @@
 - [x] Refresh `fixes/agent-9` with current `origin/master` in merge commit `20adc71ba46ac929136c7f95c042fcb62a62a2e0`; no water-path conflicts were present.
 - [x] Correct stale resume-blocker assumptions: the canonical shader is the existing renderer-owned `Assets/VoxelEngine/Rendering/Runtime/Shaders/WaterSurface.shader`; focused tests do not reference a missing `WaterRenderingMaterialBinding`, and the render pass already owns/reuses one water material.
 - [ ] Trace all liquid classification/gameplay consumers so presentation changes cannot change swimming, buoyancy, collision, spreading, streaming, discovery, edits, or diagnostics.
-- [ ] Identify `WaterRenderingShowcase`, `VoxelShowcase`, and a second normal production water consumer (prefer Kentridge) and any remaining legacy water fallback.
-- [ ] Verify the active URP renderer-data asset serializes `WaterSurface.shader` so player builds retain and instantiate the production shader.
+- [ ] Identify `VoxelShowcase` and a second normal production water consumer (prefer Kentridge) and any remaining legacy water fallback.
+- [x] Verify the active URP renderer-data asset serializes `WaterSurface.shader` and the project GraphicsSettings selects the matching URP asset/renderer.
 - [ ] Verify material-presentation installation occurs before renderer water classification/extraction is consumed in normal player bootstrap.
+- [x] Discover that the required `Assets/Scenes/WaterRenderingShowcase.unity` is absent and current build settings contain only two enabled scenes, so build index 3 cannot yet exist.
 
 ## Shared implementation
 
@@ -33,7 +34,8 @@
 
 ## Showcase / portability
 
-- [ ] Validate `WaterRenderingShowcase` build index 3 uses standard WorldBuilder/voxel water authoring with no hand-authored production water planes.
+- [ ] Create `Assets/Scenes/WaterRenderingShowcase.unity` using the repository's standard showcase/world bootstrap and standard WorldBuilder/voxel water authoring; do not add hand-authored production water planes.
+- [ ] Add/verify `WaterRenderingShowcase` at enabled build index 3 without disturbing existing required build scenes.
 - [ ] Demonstrate still/deep, shoreline, river, waterfall/rapid, and terrain/rock/structure contact cases with readable near/wide views.
 - [ ] Add/validate a small production-authored portability case with at least two independently selectable water profiles; include waterfall where practical.
 - [ ] Verify `VoxelShowcase` automatically receives the shared presentation.
