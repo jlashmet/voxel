@@ -1,0 +1,138 @@
+using System;
+using System.Collections.Generic;
+
+namespace Game.WorldBuilder.Api
+{
+    /// <summary>
+    /// Deterministic presentation-only refinement of an authoritative resolved road polyline.
+    /// The resolver points remain unchanged; this view only rounds interior direction changes so
+    /// physical lowering and presentation queries can share a coherent curved centreline.
+    /// </summary>
+    public static class WorldRoadPresentationPath
+    {
+        private const int CurveTrimPermille = 240;
+        private const int QuadraticSteps = 4;
+
+        public static IReadOnlyList<ResolvedWorldRoadPoint> Build(ResolvedWorldRoad road)
+        {
+            if (road == null) throw new ArgumentNullException(nameof(road));
+            if (!road.IsResolved || road.Points.Count < 2)
+                throw new ArgumentException("Road presentation requires resolved geometry.", nameof(road));
+            if (road.Points.Count == 2)
+                return new[] { road.Points[0], road.Points[1] };
+
+            var result = new List<ResolvedWorldRoadPoint>(road.Points.Count * 5);
+            AddDistinct(result, road.Points[0]);
+            for (int i = 1; i + 1 < road.Points.Count; i++)
+            {
+                ResolvedWorldRoadPoint previous = road.Points[i - 1];
+                ResolvedWorldRoadPoint corner = road.Points[i];
+                ResolvedWorldRoadPoint next = road.Points[i + 1];
+                int previousRun = PlanarDistance(previous, corner);
+                int nextRun = PlanarDistance(corner, next);
+                int trim = Math.Min(previousRun, nextRun) * CurveTrimPermille / 1000;
+                int maximumByProfile = Math.Max(
+                    road.Intent.Profile.CoreRadiusDm,
+                    road.Intent.Profile.CoreRadiusDm + road.Intent.Profile.TransitionWidthDm);
+                trim = Math.Min(trim, maximumByProfile * 2);
+                if (trim < 2 || Collinear(previous, corner, next))
+                {
+                    AddDistinct(result, corner);
+                    continue;
+                }
+
+                ResolvedWorldRoadPoint entry = MoveToward(corner, previous, trim, previousRun);
+                ResolvedWorldRoadPoint exit = MoveToward(corner, next, trim, nextRun);
+                AddDistinct(result, entry);
+                for (int step = 1; step < QuadraticSteps; step++)
+                    AddDistinct(result, Quadratic(entry, corner, exit, step, QuadraticSteps));
+                AddDistinct(result, exit);
+            }
+            AddDistinct(result, road.Points[road.Points.Count - 1]);
+            return result.ToArray();
+        }
+
+        private static ResolvedWorldRoadPoint Quadratic(
+            ResolvedWorldRoadPoint a,
+            ResolvedWorldRoadPoint control,
+            ResolvedWorldRoadPoint b,
+            int numerator,
+            int denominator)
+        {
+            long inverse = denominator - numerator;
+            long divisor = (long)denominator * denominator;
+            return new ResolvedWorldRoadPoint(
+                DivideRounded(inverse * inverse * a.Xdm
+                    + 2L * inverse * numerator * control.Xdm
+                    + (long)numerator * numerator * b.Xdm, divisor),
+                DivideRounded(inverse * inverse * a.Ydm
+                    + 2L * inverse * numerator * control.Ydm
+                    + (long)numerator * numerator * b.Ydm, divisor),
+                DivideRounded(inverse * inverse * a.Zdm
+                    + 2L * inverse * numerator * control.Zdm
+                    + (long)numerator * numerator * b.Zdm, divisor));
+        }
+
+        private static ResolvedWorldRoadPoint MoveToward(
+            ResolvedWorldRoadPoint from,
+            ResolvedWorldRoadPoint to,
+            int distance,
+            int run)
+        {
+            return new ResolvedWorldRoadPoint(
+                from.Xdm + DivideRounded((long)(to.Xdm - from.Xdm) * distance, run),
+                from.Ydm + DivideRounded((long)(to.Ydm - from.Ydm) * distance, run),
+                from.Zdm + DivideRounded((long)(to.Zdm - from.Zdm) * distance, run));
+        }
+
+        private static bool Collinear(
+            ResolvedWorldRoadPoint a,
+            ResolvedWorldRoadPoint b,
+            ResolvedWorldRoadPoint c)
+        {
+            long abx = (long)b.Xdm - a.Xdm;
+            long abz = (long)b.Zdm - a.Zdm;
+            long bcx = (long)c.Xdm - b.Xdm;
+            long bcz = (long)c.Zdm - b.Zdm;
+            return abx * bcz == abz * bcx;
+        }
+
+        private static int PlanarDistance(ResolvedWorldRoadPoint a, ResolvedWorldRoadPoint b)
+        {
+            long dx = (long)b.Xdm - a.Xdm;
+            long dz = (long)b.Zdm - a.Zdm;
+            return Math.Max(1, IntegerSqrt(dx * dx + dz * dz));
+        }
+
+        private static void AddDistinct(List<ResolvedWorldRoadPoint> points, ResolvedWorldRoadPoint point)
+        {
+            if (points.Count == 0 || !points[points.Count - 1].Equals(point)) points.Add(point);
+        }
+
+        private static int DivideRounded(long numerator, long denominator)
+        {
+            if (denominator <= 0) return 0;
+            if (numerator >= 0) return (int)((numerator + denominator / 2) / denominator);
+            return (int)(-((-numerator + denominator / 2) / denominator));
+        }
+
+        private static int IntegerSqrt(long value)
+        {
+            if (value <= 0) return 0;
+            long low = 1;
+            long high = Math.Min(value, 3037000499L);
+            while (low <= high)
+            {
+                long middle = low + ((high - low) >> 1);
+                if (middle <= value / middle) low = middle + 1;
+                else high = middle - 1;
+            }
+            long root = high;
+            long next = root + 1;
+            if (next <= 3037000499L
+                && next * next - value <= value - root * root)
+                root = next;
+            return root > int.MaxValue ? int.MaxValue : (int)root;
+        }
+    }
+}
