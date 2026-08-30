@@ -30,6 +30,9 @@ namespace VoxelEngine.Showcase
         private float _modeTime;
         private MeasurementMode _measurementMode;
         private bool _ready;
+        private bool _unattendedCapture;
+        private float _captureTime;
+        private byte _captureViewPhase = byte.MaxValue;
 
         private enum MeasurementMode : byte
         {
@@ -78,7 +81,14 @@ namespace VoxelEngine.Showcase
 
             CreateLighting();
             _camera = CreateCamera();
-            ApplyView(Environment.GetEnvironmentVariable("VOXEL_WATER_SHOWCASE_VIEW") ?? "wide");
+            string requestedView = Environment.GetEnvironmentVariable("VOXEL_WATER_SHOWCASE_VIEW");
+            _unattendedCapture = string.IsNullOrWhiteSpace(requestedView)
+                && HasCommandLineArgument("-voxel-screenshot-dir");
+            _captureTime = 0f;
+            _captureViewPhase = byte.MaxValue;
+            ApplyView(_unattendedCapture ? "near" : requestedView ?? "wide");
+            if (_unattendedCapture)
+                _captureViewPhase = 0;
             _ready = true;
 
             Debug.Log(
@@ -90,6 +100,9 @@ namespace VoxelEngine.Showcase
         {
             _ready = false;
             _measurementMode = MeasurementMode.None;
+            _unattendedCapture = false;
+            _captureTime = 0f;
+            _captureViewPhase = byte.MaxValue;
 
             _world?.StopBackgroundWork();
             RenderingComposition.ResetTransientPresentation();
@@ -200,6 +213,12 @@ namespace VoxelEngine.Showcase
                 return;
             }
 
+            if (_unattendedCapture)
+            {
+                UpdateUnattendedCaptureView();
+                return;
+            }
+
             if (Input.GetKeyDown(KeyCode.Alpha1)) ApplyView("near");
             if (Input.GetKeyDown(KeyCode.Alpha2)) ApplyView("wide");
             if (Input.GetKeyDown(KeyCode.Alpha3)) ApplyView("elevated");
@@ -215,6 +234,28 @@ namespace VoxelEngine.Showcase
             if (Input.GetKey(KeyCode.Q)) delta -= Vector3.up;
             if (delta.sqrMagnitude > 0f)
                 _camera.transform.position += delta.normalized * speed;
+        }
+
+        private void UpdateUnattendedCaptureView()
+        {
+            _captureTime += Time.unscaledDeltaTime;
+            byte phase = _captureTime < 12f ? (byte)0 : _captureTime < 22f ? (byte)1 : (byte)2;
+            if (phase == _captureViewPhase)
+                return;
+
+            _captureViewPhase = phase;
+            ApplyView(phase == 0 ? "near" : phase == 1 ? "wide" : "waterfall");
+        }
+
+        private static bool HasCommandLineArgument(string expected)
+        {
+            string[] arguments = Environment.GetCommandLineArgs();
+            for (int i = 0; i < arguments.Length; i++)
+            {
+                if (string.Equals(arguments[i], expected, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+            return false;
         }
 
         private void ApplyView(string view)
