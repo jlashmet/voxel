@@ -22,11 +22,10 @@ namespace VoxelEngine.Showcase
             "Assets/Resources/VoxelShowcase/ShowcaseWorld.manifest.txt";
 
         private const int ManifestVersion = 1;
-        // Revision 7 replaces revision 6's constant-run, freestanding switchback topology with
-        // shared core-aware tier geometry: the path cuts into the near mountain shell, upper runs
-        // narrow with the tapered core, turn landings remain coincident, and residual supports bias
-        // inward to merge with the coherent mountain mass.
-        private const uint LandmarkContractRevision = 7;
+        // Revision 8 makes each switchback follow the receding mountain shell throughout its rise.
+        // The tier contract now carries both Z endpoints and subdivides the climb into deterministic
+        // shallow segments, so no upper ramp can finish detached from the natural core.
+        private const uint LandmarkContractRevision = 8;
         private const uint FnvOffsetBasis = 2166136261u;
         private const uint FnvPrime = 16777619u;
 
