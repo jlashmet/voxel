@@ -1,0 +1,35 @@
+Kentridge combat battle completion verification
+
+Exact tested feature SHA: d8b5c56e774191ca11c161d5b13d66b4e7803025
+CI request commit: 8cc6ff94dcbbca46b1c522d08752235b891b1851
+CI run: 33291387557
+Artifact: 9726095954
+
+Root-cause discriminator
+- Baseline Kentridge composition began production CombatService with 1 player + 3 enemies but production authority only exposed movement and manual CompleteCombat(). It had no HP, turn-consuming attack, active turn owner, autonomous enemy/player AI action, terminal team evaluation, or automatic teardown.
+- Chain-combat PendingReaction behavior was rejected as the primary freeze cause because that separate system is not composed into Kentridge and existing coordinator tests prove reactions can resolve/resume.
+- Async/animation wait was rejected because the Kentridge production path has no such awaited state.
+- Scene installer failure was rejected because existing exact-scene activation coverage passed.
+
+Behavioral regression
+- Requested fixture: VoxelEngine.Tests.PlayMode.KentridgeCombatEncounterTests
+- 3/3 cases passed.
+- ForestBanditBattle_FixedSeedAiBothTeamsCompletesDeterministicallyAcrossRepeatedRuns: fixed seed 20260829 repeatedly reaches the same bounded terminal result with no pending AI/combat work.
+- ForestBanditBattle_ExactKentridgeSceneMakesForwardProgressAndSettlesCleanly: loads KentridgePlayableSlice, activates the real forest encounter, fails on a 1.5s repeated no-progress condition, bounds the battle at 64 actions, asserts terminal winner/loser state, releases Combat input ownership, clears active turn/pending work, and proves proximity does not re-trigger the resolved encounter.
+- Exact-scene test runtime marker: [KentridgeCombat] battle-complete seed=20260829 winner=Enemy actions=4 turns=1 pending=False
+- Unity test process exit 0; peak RSS 6068 MB.
+
+Standalone exact-scene validation
+- Built Assets/Scenes/KentridgePlayableSlice.unity from the exact tested SHA.
+- Build process exit 0; peak RSS 6339 MB.
+- Standalone player ran for 30 seconds and exited 0.
+- Harness reported assertion failures 0.
+- player-run.log contained no Exception, Assertion, NullReference, MissingReference, ERROR, Error, or error lines.
+- Three full-resolution frames were inspected: t=9.1s shows the expected Kentridge loading screen; t=19.1s shows the intact Kentridge town/interior presentation with characters and source-backed world-layout overlay; t=29.2s remains visually intact with dialogue/UI active and no error overlay or broken rendering.
+- The standalone harness is stationary and therefore does not enter the distant forest ambush; autonomous battle completion itself is exercised by the exact-scene PlayMode regression above, while the standalone replay proves the same tested SHA builds and runs the exact scene cleanly.
+
+Blast radius / cost
+- Production changes are limited to Game.Combat.Runtime and Kentridge encounter composition; regression changes are limited to Kentridge PlayMode tests; no scene/prefab serialization and no chain-combat rule changes.
+- Battle state cost is O(P) memory and seeded target selection is O(P) per action; Kentridge P=4.
+- Autonomous stepping runs at a bounded 0.10s cadence and stops at terminal state; verified terminal result required 4 actions.
+- After startup/streaming, observed standalone FPS was generally about 61-73 fps through most sampled steady frames, with no evidence that the four-participant battle state materially changes world-generation/render budgets.
