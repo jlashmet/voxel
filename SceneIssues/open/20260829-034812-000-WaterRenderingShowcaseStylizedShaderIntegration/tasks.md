@@ -14,52 +14,49 @@
 - [x] Preserve per-vertex water material identity and canonical voxel extraction/cache authority.
 - [x] Remove hard-coded water IDs 11/16 from CPU/Burst/GPU solid classification; publish the installed semantic water mask through `SharedStatic` and `_SolidWaterMaterialMask`.
 - [x] Add arbitrary opaque water-ID regression proving solid exclusion/remap is presentation-driven.
-- [x] Audit compute copy: `VoxelBrickDensity.hlsl` now consumes the same installed semantic water mask.
+- [x] Audit compute copy: `VoxelBrickDensity.hlsl` consumes the same installed semantic water mask.
 
-## Showcase / visual evidence
-- [x] Register `WaterRenderingShowcase` at build index 3 without disturbing existing build indices.
-- [x] Author still/deep lake, shoreline, directional river, waterfall/rapid, and terrain/rock/structure contacts through standard voxel authoring.
-- [x] Provide near, wide, elevated, and square-on waterfall inspection modes; use existing 10-second real-player screenshot harness.
-- [x] Exact run `33323151755` built/launched cleanly but direct review rejected waterfall visibility.
-- [x] Exact run `33324084398` validated the first rendered repair but direct 32/42s review again showed only lip/base, no falling sheet.
-- [x] After repeated visual failure, stop shader-art speculation and isolate the production boundary per workflow rule.
+## Cascade boundary / addressing root cause
+- [x] Prove the authored Cascade curtain survives standard storage → `CpuWaterSurfaceChunkCache` extraction/upload/publication/visibility (`33336797164`).
+- [x] After repeated missing-curtain visuals, isolate the production draw boundary instead of continuing shader speculation.
+- [x] Identify missing arena vertex-base addressing for later water leases.
+- [x] Reject indirect `startInstance` as the transport after exact run `33337560328` remained visually broken.
+- [x] Run minimal GPU discriminator `33339119323`; prove Metal reports `SV_InstanceID=0` for this procedural path even with `startInstance=256`.
+- [x] Bind `_SurfaceVertexBase` explicitly per water draw, matching the solid renderer contract; restore indirect `startInstance=0` and remove temporary repro.
+- [x] Replace obsolete buffer-only test with `SecondWaterEntryBindsExplicitArenaOffsets` exercising actual water draw property state.
+- [x] Re-read master before corrected validation; master remained `ebdc2e4f63ef73153cd4e0ff5c62efe604f35470`.
+- [x] Exact run `33339706799` passes `WaterArenaDrawRegressionTests` plus 60-second built-player replay and visibly restores later river/waterfall geometry.
 
-## Cascade boundary/root-cause isolation
-- [x] Add focused exact 62x62x2 Cascade curtain regression through `ShowcaseWorld` storage into `CpuWaterSurfaceChunkCache`.
-- [x] Exact run `33336797164` on feature SHA `44947d3b0a4c60c09edbd0433cad389b984067bc` passed 5/5 production water PlayMode regressions and real-player build/capture.
-- [x] Use that run to prove authored Cascade survives storage, water-cache extraction, upload/publication, visibility, and non-empty indexed geometry.
-- [x] Directly reject run `33336797164` visual closure: 32s/42s square-on frames still show no falling sheet, locating the defect above cache publication.
-- [x] Trace shared arena addressing and identify the missing vertex-base defect: local water indices used `IndexStart`, but later aligned `VertexStart` was never applied by the water draw shader.
-- [x] Implement the first correction attempt: `SurfaceGeometryArena.UploadArgs` stores `VertexStart` in indirect `startInstance`; `WaterSurface.shader` consumes `SV_InstanceID` as the vertex base.
-- [x] Exact run `33337560328` passed that buffer-level regression and 60-second capture, but direct 32s/42s frames still show no falling sheet; wide frame also lacks later river water while early lake renders.
-- [x] Run the required minimal GPU discriminator: exact run `33339119323` proves Metal delivers `SV_InstanceID=0` even when indirect `startInstance=256`.
-- [x] Correct the proven cause: bind `_SurfaceVertexBase` explicitly in each water draw (matching the solid renderer's shared offset contract), consume it in `WaterSurface.shader`, restore indirect `startInstance` to zero, and remove the temporary repro shader.
-- [x] Replace the obsolete buffer-only regression with `SecondWaterEntryBindsExplicitArenaOffsets`, which forces a nonzero second lease and verifies actual water draw property state plus neutral `startInstance`.
+## Demonstrated waterfall visual defect
+- [x] Directly inspect `33339706799` time-separated frames; reject visual closure because waterfall is a bright rectangular cross-hatched wall with weak downward-flow readability/breakup and no convincing visible mist/spray.
+- [x] Confirm reusable API already supplies generic turbulence/edge-foam/impact-foam/mist controls; no scene-ID renderer API is needed.
+- [x] Identify shader cause: crossed high-frequency bands plus forced ~0.84 minimum alpha on every vertical waterfall fragment.
+- [x] Replace waterfall lattice with anisotropic descending strand/noise fields and coverage-driven vertical alpha breakup while leaving still/river branches unchanged.
+- [ ] Validate the updated waterfall shader in exact built-player near/wide/time-separated evidence; retain only if downward motion, aeration/breakup, foam and mist materially improve without regressing lake/river.
+- [ ] If shader quality passes but silhouette remains too rectangular, reshape only the showcase's ordinary Cascade voxel placement into an irregular stepped/fingered curtain; no bespoke render path.
 
 ## Reliability / cost
 - [x] Preserve spreading/inert gameplay semantics and storage/streaming/edit/diagnostic contracts; no swim/buoyancy subsystem exists to alter.
 - [x] Keep one renderer-owned water material and one `_WaterTime` path.
 - [x] Static profile cost remains six 32-entry `Vector4` arrays = 3,072 bytes plus one uint semantic mask.
-- [x] Prior player telemetry showed no frame-budget weakening (~1.2–2.8 ms average windows after startup, ~697.8 MiB allocated, ~846–848 MiB reserved); FrameTimingManager CPU/GPU values unavailable and not invented.
-- [x] Final arena-address correction adds only one scalar to the existing per-water-draw property block; no geometry allocation or draw call.
-- [ ] Re-measure final corrected built-player frame/memory/draw observations and inspect logs for runtime/shader/stripping errors.
+- [x] Arena correction adds one scalar to existing per-water-draw properties; no geometry allocation or draw call.
+- [x] `33339706799` player logs show no shader/pink/missing-resource/runtime failure; post-start telemetry remains sub-~1.3 ms p95 windows with ~698 MiB allocated and ~854–882 MiB reserved. FrameTimingManager GPU values are unavailable and not invented.
+- [ ] Re-measure final accepted built-player frame/memory/render observations and inspect logs.
 
 ## Exact-SHA gates
-- [x] Inspect completed failed run `33332518398`; compile failure was caused by putting runtime-dependent semantic regression in the dependency-pure EditMode assembly, then repaired by moving it to PlayMode.
-- [x] Run exact production water suite on `44947d3b...`; automation green but visual acceptance failed, so it is not a closing gate.
-- [x] Re-read `origin/master` before corrected validation; master remained `ebdc2e4f63ef73153cd4e0ff5c62efe604f35470` before the earlier arena attempt.
-- [x] Run `WaterArenaDrawRegressionTests` for the start-instance attempt through only `ci-test/fixes/agent-9`: run `33337560328` green with 60-second replay.
-- [x] Directly inspect that replay: early lake renders, later river and waterfall do not; visual gate fails and the start-instance transport is falsified.
-- [x] Run the minimal indirect-instance GPU discriminator through only `ci-test/fixes/agent-9`: run `33339119323` fails exactly because `SV_InstanceID=0` on Metal for nonzero indirect `startInstance`, confirming the product cause rather than infrastructure failure.
-- [ ] Re-read current `origin/master`; merge it if needed before corrected validation.
-- [ ] Run `WaterArenaDrawRegressionTests` on the exact corrected feature SHA with the 60-second WaterRenderingShowcase replay.
-- [ ] Directly inspect corrected near/wide/time-separated waterfall frames and compare downward flow, turbulence, aeration, irregular edges, lip/edge/base foam, and mist/spray to retained reference semantics.
-- [ ] Run `ShowcaseWaterPresentationRegressionTests` on the same accepted feature head so portability, arbitrary-ID/remap, solid-classification, and exact Cascade storage→cache coverage are all exact-SHA green.
-- [ ] Confirm corrected exact-SHA player build launches without startup/runtime/shader compile/stripping/pink/missing-resource failures.
-- [ ] Reconcile final build with `VoxelShowcase` and `WorldbuildingGalleryShowcase` shared-water paths.
-- [ ] Complete issue `resolutionSummary`, `regressionTest`, `fixCommit`, `status=fixed`, and `resolvedUtc` only after every acceptance item below is validated.
+- [x] `33337560328`: start-instance attempt test-green but visually rejected.
+- [x] `33339119323`: minimal Metal start-instance discriminator failed exactly at the expected assertion, proving product root cause rather than infrastructure.
+- [x] Correct request-schema-only failure `33339677889` after completion by resubmitting same exact feature parent with integer `replay_seconds`; no code failure/retry substitution.
+- [x] `33339706799`: explicit arena-base regression + 60-second player capture green; addressing visual defect fixed but art acceptance still open.
+- [ ] Re-read current `origin/master`; merge if needed before next exact visual request.
+- [ ] Run `WaterArenaDrawRegressionTests` on exact updated waterfall-shader feature SHA with 60-second WaterRenderingShowcase replay.
+- [ ] Directly accept/reject updated near/wide/time-separated waterfall frames against downward-flow, turbulence/aeration, irregular breakup, lip/edge/base foam, mist/spray and overall visual-quality requirements.
+- [ ] Run `ShowcaseWaterPresentationRegressionTests` on the same visually accepted feature head.
+- [ ] Confirm exact player build has no startup/runtime/shader compile/stripping/pink/missing-resource failure.
+- [ ] Reconcile accepted build with `VoxelShowcase` and `WorldbuildingGalleryShowcase` shared-water paths.
+- [ ] Complete issue `resolutionSummary`, `regressionTest`, `fixCommit`, `status=fixed`, `resolvedUtc` only after every acceptance item below is validated.
 - [ ] Move assigned issue directly `open/` → `closed/` after all exact-SHA gates pass.
-- [ ] Fetch/merge latest master again, then non-force promote the exact closed feature head to `origin/master`; fetch/merge/retry if master advanced.
+- [ ] Fetch/merge latest master again, then non-force promote exact closed feature head to `origin/master`; fetch/merge/retry if master advanced.
 
 ## Acceptance ledger
 - [ ] A1 — Built `WaterRenderingShowcase` is in normal build/harness path, launches cleanly, and uses standard voxel/WorldBuilder water authoring.
