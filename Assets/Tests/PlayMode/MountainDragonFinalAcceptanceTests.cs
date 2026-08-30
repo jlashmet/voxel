@@ -33,6 +33,10 @@ namespace VoxelEngine.Tests.PlayMode
             support.OfflineBakeFarFieldSuppressionIsScopedAndRestored();
             support.BoxCarveSkipsEmptyAtomicallyClearsUniformAndPreservesMixedAndPartialAccounting();
 
+            var bakeCoverage = new ShowcaseBakeExplicitStructureCoverageTests();
+            bakeCoverage.PlannerIncludesUpperDragonStructureLayerWithoutExpandingMountainSky();
+            bakeCoverage.SparseUpperDragonStructureBuildMatchesFullCatalogueSemanticOutput();
+
             FrustumFillAtomicallyAuthorsFullyInteriorEmptyBlockWithoutOverfillingBoundaryBlock();
             FrustumFillIfEmptyAtomicallyAuthorsEmptySkipsUniformAndPreservesMixedAndBoundaryBlocks();
 
