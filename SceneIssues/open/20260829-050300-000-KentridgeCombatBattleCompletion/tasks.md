@@ -4,13 +4,13 @@
 - [x] Confirm there are no capture/marked-region artifacts for this assignment.
 - [x] Trace the exact Kentridge encounter activation/combat lifecycle.
 - [x] Discriminate chain-AI pause, async wait, scene lifecycle, and missing battle-progression hypotheses.
-- [ ] Implement authoritative production battle turns/actions/outcome/teardown without regressing movement compatibility.
-- [ ] Add deterministic seeded AI control for both teams with explicit progress diagnostics.
-- [ ] Compose battle progression and terminal input-context release into Kentridge.
-- [ ] Add full end-to-end Kentridge AI-vs-AI regression with bounded no-progress watchdog and teardown assertions.
-- [ ] Validate blast radius and runtime cost against the four-participant encounter.
-- [ ] Promote this assignment to pending with fix/regression metadata after local/workflow gate readiness.
-- [ ] Request exactly one final targeted CI through `ci-test/fixes/agent-7`, pinned to the feature SHA.
+- [x] Implement authoritative production battle turns/actions/outcome/teardown without regressing movement compatibility.
+- [x] Add deterministic seeded AI control for both teams with explicit progress diagnostics.
+- [x] Compose battle progression and terminal input-context release into Kentridge.
+- [x] Add full end-to-end Kentridge AI-vs-AI regression with bounded no-progress watchdog and teardown assertions.
+- [x] Validate blast radius and runtime cost against the four-participant encounter.
+- [ ] Promote this assignment to pending with fix/regression metadata after exact-SHA workflow gates are green.
+- [ ] Request exactly one final targeted CI through `ci-test/fixes/agent-7`, pinned directly to this feature head.
 - [ ] Verify exact-SHA focused tests and exact built Kentridge scene validation are green.
 - [ ] Complete pending CI/verification metadata on `fixes/agent-7`.
 - [ ] Move assignment to closed, set `status=fixed` and `resolvedUtc`.
