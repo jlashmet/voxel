@@ -28,9 +28,12 @@ namespace VoxelEngine.Showcase
                     "Castle WorldObjects cannot load before the showcase castle plan is available.");
 
             if (_worldObjectScenes.TryGetLoaded(ShowcaseCastleWorldObjectParentId, out WorldObjectGeneratedScene existing))
+            {
+                EnsureExplorationInteractablesShowcaseLoaded();
                 return existing;
+            }
 
-            return _worldObjectScenes.LoadCastle(
+            WorldObjectGeneratedScene castle = _worldObjectScenes.LoadCastle(
                 geometry: null,
                 worldSeed: Seed,
                 parentId: ShowcaseCastleWorldObjectParentId,
@@ -38,6 +41,8 @@ namespace VoxelEngine.Showcase
                 // so the game-owned plan it wraps is passed directly.
                 plan: in _castlePlan.Value,
                 emissionMode: WorldObjectGeometryEmissionMode.None);
+            EnsureExplorationInteractablesShowcaseLoaded();
+            return castle;
         }
 
         /// <summary>Ensures the compact Primary-scene interaction showcase is loaded once with persistent state.</summary>
