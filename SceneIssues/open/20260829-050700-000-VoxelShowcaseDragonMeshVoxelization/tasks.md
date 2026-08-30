@@ -18,12 +18,14 @@
 
 ## Behavior-first regressions
 - [x] Add compile-intended importer contract tests before production code (`9164857ad304dc95a6e182e8e982251d5a918567`).
+- [x] Add compile-intended open/non-manifold topology policy contract before production topology handling (`32703c26a0a1f2d9a91b6ff3986b98d8f3e46142`).
 - [ ] Curved synthetic closed geometry proves conservative surface coverage and solid interior fill.
 - [ ] Same input/config produces stable ordered voxel/material output.
 - [ ] Off-origin transform, rotation/non-uniform scale, and mirrored orientation are covered.
 - [ ] Material mapping is deterministic through production importer output.
 - [ ] Thin curved/sheet feature retention is covered without global bloat.
 - [ ] Invalid indices/non-finite transforms/oversized bounds fail preflight before dense allocation.
+- [ ] Open/non-manifold input either rejects clearly or explicitly falls back to surface-only without invented interior.
 - [ ] Sparse artifact codec round-trips exactly and rejects malformed/out-of-bounds data.
 - [ ] Baked cells replay through `IStructureAuthoringSession` and normal occupancy reads.
 - [ ] Showcase selection/Space commit is single-trigger; idle/update repetition cannot duplicate placement.
@@ -34,9 +36,11 @@
 - [x] Conservatively rasterize triangle coverage rather than vertex-only quantization.
 - [x] Fill intended closed interiors using bounded exterior flood fill while preserving surface material ownership.
 - [x] Apply source transform before grid quantization, including non-uniform/mirrored transforms.
+- [x] Diagnose welded boundary/non-manifold topology and make open-source fill behavior explicit (`Reject` or safe `SurfaceOnly`) rather than silently inventing solids.
 - [x] Add deterministic sparse baked-cell codec/artifact and replay through `IStructureAuthoringSession`.
+- [x] Add generic Unity authoring bridge for nested `MeshFilter` hierarchies and reusable baked `SkinnedMeshRenderer` poses with deterministic submesh material mapping.
 - [x] Add isolated one-shot structure-selection state object; production VoxelShowcase input wiring still pending.
-- [ ] Add authoring/source adapter for the chosen third-party model and generate/commit the baked dragon artifact; ordinary runtime must never execute mesh voxelization.
+- [ ] Add source-specific authoring/bake configuration for the chosen third-party model and generate/commit the baked dragon artifact; ordinary runtime must never execute mesh voxelization.
 - [ ] Preserve major source material/color regions with deterministic palette mapping/quantization.
 - [ ] Instantiate baked dragon through normal `ShowcaseWorld`/WorldBuilder voxel authoring so collision/edit/destruction read the same storage.
 - [ ] Wire explicit VoxelShowcase structure-selection mode: scroll selects while active, Space commits once, ordinary controls unchanged outside mode.
