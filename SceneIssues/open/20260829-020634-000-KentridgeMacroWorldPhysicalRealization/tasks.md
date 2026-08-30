@@ -26,9 +26,9 @@
 - [x] Run `33292088730` proves the opening correction: gameplay by ~t15, local CharacterMotor 3.61 m, macro-road CharacterMotor 4.73 m, all four Moordell columns ready, and full-resolution `macro-moordell.png` captured.
 - [x] Classify run `33292088730` focused-test failure as native Unity/Burst infrastructure crash: no NUnit XML/assertion result; `single.log` terminates in `Burst.Compiler.IL.Hashing.CacheBuilder.ILHasher` SIGSEGV; built-player step succeeds with zero harness assertions.
 - [x] Discriminate Rossdam stall as real streaming cost rather than renderer convergence: target starts after Moordell and remains unready for ~35 s while renderer repeatedly reaches `jobs=0`, `missingVisible=0`; visual frames progressively gain lake/settlement content.
-- [ ] Bound Rossdam lake intent to a still-substantial 90 m x 45 m x 2.4 m physical basin, preserving carve/fill and semantic shoreline routing while reducing rounded-box bounding work to ~39% of the current first-pass volume.
-- [ ] Hold settlement readiness demand at the settlement centre until all four building columns settle, then move once to the derived survey camera and require stable renderer coverage.
-- [ ] Capture a player-height Moordell road-arrival view after settlement content is loaded so the built evidence visibly shows a generated hard route entering a settlement.
+- [x] Bound Rossdam lake intent to a still-substantial 90 m x 45 m x 2.4 m physical basin, preserving carve/fill and semantic shoreline routing while reducing rounded-box bounding work to ~39% of the prior first-pass volume.
+- [x] Keep production streaming demand at the target semantic focus on ground level while checking all settlement building columns; frame the elevated survey camera separately in `LateUpdate` so evidence does not queue an extra camera-height residency layer across the streaming disc.
+- [x] Add a player-height Moordell road-arrival capture after settlement content is loaded so built evidence can show a generated hard route entering a settlement.
 - [ ] Exact built `KentridgePlayableSlice` reaches usable gameplay without startup/runtime exceptions and leaves enough replay time for all macro targets.
 - [ ] Full-resolution exact-scene evidence shows four readable blockouts at Moordell, Rossdam, Fairy Village, and Orc Village.
 - [ ] Full-resolution evidence shows continuous roads/network, substantial Rossdam lake, Southern Ridge/pass response, geography-constrained route behavior, and representative real CharacterMotor traversal.
@@ -37,7 +37,7 @@
 - [x] No other SceneIssue, no feature-branch `.github/test-request.json`, no custom workflow/CI transport, no CharacterMotor/streaming-radius/device-budget change.
 - [x] Terrain-relief sampling remains bounded to 25 x 16 = 400 deterministic catalogue queries.
 - [x] Feature branch includes `origin/master` `0901be5a0640e3eec103cdf3c97aa12b8cd42a9e`; prior exact comparison is ahead-only and contains only this Kentridge feature/tests/docs beyond master.
-- [x] Existing production metrics: regions=6, settlements=6, generic buildings=16, hardRoutes=20, routeTiles=833, constrainedRoutes=5, solveSteps=1108, maxRoadRiseVoxels=2, waterDepthVoxels=46.
+- [x] Existing production metrics: regions=6, settlements=6, generic buildings=16, hardRoutes=20, routeTiles=833, constrainedRoutes=5, solveSteps=1108, maxRoadRiseVoxels=2, prior waterDepthVoxels=46.
 - [x] Existing scoped readiness regression: 1,090,380 feature voxels; prior last feature step ~2500 ms.
 - [x] Rejected run `33290154012`: elapsed=79 s, peak RSS=5859 MB, systemFree=31944 MB, swapGrowth=0 MB; post-start FPS generally >60.
 - [x] Run `33292088730` focused editor process before native Burst crash: elapsed=31 s, peak RSS=2287 MB, systemFree=29019 MB, swapGrowth=0 MB. Built player itself finishes 60 s with zero harness assertions and mostly high post-start FPS, but evidence remains incomplete.
