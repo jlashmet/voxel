@@ -41,8 +41,10 @@ namespace VoxelEngine.Tests.PlayMode
                 Assert.AreEqual(firstMetrics.GraphHash, secondMetrics.GraphHash, $"proof {proof} graph hash");
             }
 
-            Assert.Greater(first.WorldbuildingGalleryStructuralBridgeTerrainRelief, 0,
-                "bridge proving site must span real terrain relief");
+            Assert.GreaterOrEqual(first.WorldbuildingGalleryStructuralBridgeTerrainRelief, 40,
+                "bridge proving site must provide at least 4 m of natural gorge relief");
+            Assert.GreaterOrEqual(first.WorldbuildingGalleryStructuralCliffTerrainRise, 80,
+                "cliff proving site must provide at least 8 m of natural elevation change");
             Assert.AreEqual(StructuralAttachmentRejectReason.OrientationMismatch,
                 first.AuditWorldbuildingGalleryStructuralBridgeOrientationReject());
             Assert.AreEqual(StructuralAttachmentRejectReason.IncompatibleRoleOrTags,
