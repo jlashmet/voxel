@@ -43,6 +43,13 @@
 - [x] Explicit connector compatibility cannot be reused by unrelated underground consumers.
 - [ ] Ensure affected vegetation/hidden-space regressions are green on final exact SHA.
 
+## Reusability review
+
+- [ ] Audit `SpatialReservations.cs` and generic adapters for Kentridge role names, settlement IDs, road names, vegetation species, hidden-space identities, or gallery-only assumptions; generic core may depend only on reservation geometry, ownership, categories, precedence, masks, and deterministic policy.
+- [ ] Keep conflict/yield behavior data-driven through generic reservation categories/masks/precedence rather than hard-coded consumer pairs such as road-vs-tree or structure-vs-hidden-space.
+- [ ] Add a non-Kentridge fixture/regression that exercises the same reservation source/snapshot/query/conflict APIs with at least two unrelated consumer categories and 3D vertical separation.
+- [ ] Keep `WorldbuildingGalleryReservationInspection` presentation-only; visualization/debug inspection must never become reservation authority or alter conflict results.
+
 ## Determinism / lifecycle / cost
 
 - [x] Stable ids, insertion-order independence, equal-precedence stable-id tie, hard/clearance/soft/handoff outcomes.
