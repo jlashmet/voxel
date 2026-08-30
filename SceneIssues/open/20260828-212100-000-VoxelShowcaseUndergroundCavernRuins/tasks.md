@@ -28,7 +28,7 @@
 
 ## Final validation / closure
 - [ ] Review final diff/blast radius and quantify voxel/chunk work, vertices/indices/draws, light/shadow count, runtime FPS/memory evidence, and supported-device budget impact against the recorded baseline.
-- [ ] Merge current `origin/master` into repaired `fixes/agent-3` as a real two-parent merge if master advanced; reconcile only this cavern assignment's premature concurrent close and stop on conflicts outside the assignment.
+- [x] Merge current `origin/master` into repaired `fixes/agent-3` as real two-parent merge `b5d1d9e8...`; master parent `d4b31a7...` only added an unrelated SceneIssue and was preserved unchanged.
 - [ ] Build exactly one canonical final request on `ci-test/fixes/agent-3` from the exact feature SHA, with the cavern PlayMode filter and empty `scene_issue` / `replay_seconds`; do not edit feature `.github/test-request.json`, create extra transports, or replace queued/running CI.
 - [ ] Obtain green exact-SHA focused targeted CI.
 - [ ] Obtain green exact-SHA standalone `VoxelShowcase` traversal/capture with ruin-route completion and no startup/runtime exceptions or harness assertions.
