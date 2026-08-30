@@ -1,1 +1,0 @@
-This SceneIssue revamps validation architecture so changed modules run focused tests, player-visible modules use module-local scenes captured from a real built player, and every production change passes the built-player KentridgePlayableSlice integration gate. `issue.json` is authoritative.
