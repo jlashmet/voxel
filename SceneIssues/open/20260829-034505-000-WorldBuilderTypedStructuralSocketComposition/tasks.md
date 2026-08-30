@@ -139,4 +139,4 @@
 - [x] Qualify the two presentation log calls as `UnityEngine.Debug.Log` without changing structural behavior, budgets, or validation semantics; rerun the same persistent CI transport from the new exact source SHA.
 - [x] Diagnose run `33323976945`: focused PlayMode passed, but the real-player audit rejected the visual presentation with `VoxelBudgetExceeded` because the combined bridge context catalogue charged its full 1220×height×720 conservative bounds.
 - [x] Split bridge river, terrain shoulders, piers, castle sections, cliff sections, and facade variants into independently bounded authoritative voxel catalogues instead of raising `MaxCompositionVoxelCost` or `MaxFootprintVoxels`.
-- [ ] Correct split-presentation local bounds before CI: castle wall buttresses must remain inside declared footprints, and bridge pier declared height must cover the actual cap top for all selected terrain heights.
+- [x] Correct split-presentation local bounds before CI: castle wall buttresses remain inside declared footprints, and bridge pier declared height covers the actual cap top for every selected terrain height.
