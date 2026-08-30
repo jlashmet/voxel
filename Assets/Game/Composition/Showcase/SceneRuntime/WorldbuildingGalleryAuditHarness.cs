@@ -88,18 +88,23 @@ namespace VoxelEngine.Showcase
 
         private static readonly StructuralFrameSpec[] s_StructuralFrames =
         {
-            // Low diagonal views keep the bridge against its authored river/bank context rather than
-            // the distant far-field, while still fitting the full 122 m span in one establishing frame.
-            new("bridge-wide", 0, new Vector3(0.50f, 0.78f, 0.50f), new Vector3(-0.50f, -0.05f, -0.50f), 0.50f, 58f),
-            new("bridge-deck-junction", 0, new Vector3(0.16f, 0.86f, 0.50f), new Vector3(-0.10f, 0.02f, -0.75f), 0.12f, 15f),
-            new("castle-wide", 1, new Vector3(0.50f, 0.55f, 0.50f), new Vector3(0.55f, 0.12f, -0.75f), 0.68f, 50f),
-            new("castle-gate", 1, new Vector3(0.50f, 0.33f, 0.12f), new Vector3(0f, 0.02f, -1f), 0.18f, 16f),
-            // The cliff views deliberately look uphill from below the upper landing; this makes the
-            // terrain-supported level change and ramp/pedestal relationship legible in 2D evidence.
-            new("cliff-wide", 2, new Vector3(0.62f, 0.70f, 0.50f), new Vector3(-0.65f, -0.15f, -0.45f), 0.65f, 38f),
-            new("cliff-ramp-junction", 2, new Vector3(0.54f, 0.63f, 0.50f), new Vector3(-0.42f, -0.06f, -0.80f), 0.27f, 17f),
-            new("facade-civic", 3, new Vector3(0.22f, 0.52f, 0.84f), new Vector3(-0.08f, 0.02f, 1f), 0.19f, 18f),
-            new("facade-ornate", 3, new Vector3(0.78f, 0.52f, 0.84f), new Vector3(0.08f, 0.02f, 1f), 0.19f, 18f),
+            // Establishing and seam views stay above the bridge deck and look broadside across the
+            // authored river corridor so the crossing, understructure, piers and both grounded banks
+            // read together instead of placing the camera under/inside the refinement geometry.
+            new("bridge-wide", 0, new Vector3(0.50f, 0.45f, 0.50f), new Vector3(0f, 0.30f, -1f), 0.60f, 64f),
+            new("bridge-deck-junction", 0, new Vector3(0.12f, 0.88f, 0.50f), new Vector3(-0.35f, 0.35f, -1f), 0.16f, 20f),
+            new("castle-wide", 1, new Vector3(0.50f, 0.50f, 0.50f), new Vector3(0.50f, 0.18f, -0.75f), 0.55f, 44f),
+            new("castle-gate", 1, new Vector3(0.50f, 0.38f, 0.18f), new Vector3(0.12f, 0.12f, -1f), 0.22f, 20f),
+            // Cliff evidence needs visible vertical parallax: both cameras are above the connection
+            // and oblique to its run so lower landing, stepped rise, supports and upper settlement
+            // cannot collapse into the nearly-flat silhouette seen in the rejected frame set.
+            new("cliff-wide", 2, new Vector3(0.55f, 0.55f, 0.50f), new Vector3(-0.75f, 0.45f, -0.65f), 0.75f, 46f),
+            new("cliff-ramp-junction", 2, new Vector3(0.50f, 0.55f, 0.50f), new Vector3(-0.55f, 0.45f, -0.80f), 0.38f, 24f),
+            // The facade proof metric aggregates two variants. Aim at each true variant centre and
+            // offset the cameras outward so the other facade/unrelated gallery content falls behind
+            // the frame edge while roof, dormer, balcony and front relief remain readable.
+            new("facade-civic", 3, new Vector3(0.19f, 0.50f, 0.78f), new Vector3(-0.35f, 0.18f, 1f), 0.40f, 20f),
+            new("facade-ornate", 3, new Vector3(0.81f, 0.50f, 0.78f), new Vector3(0.35f, 0.18f, 1f), 0.40f, 20f),
         };
 
         private sealed class Reporter : MonoBehaviour
