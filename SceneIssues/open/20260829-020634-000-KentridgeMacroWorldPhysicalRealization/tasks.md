@@ -32,10 +32,12 @@
 - [x] Add a player-height Moordell road-arrival capture after settlement content is loaded.
 - [x] Inspect exact run `33292881845` / artifact `9726538126`: this is a managed product failure, not Burst infrastructure. NUnit reports resolved Rossdam width `888 dm` against the >=900 dm landmark floor.
 - [x] Reject `33292881845` visual evidence for closure: Moordell road-arrival proves structures exist, but diagonal settlement surveys terrain-occlude them; Fairy/Orc captures do not visibly show four blockout buildings.
-- [x] Reject the 60 s final capture window as insufficient for the required target set: Southern Ridge becomes content-ready near t59.4 and ridge/network captures never occur.
+- [x] Reject the original target schedule at the 60 s cutoff: Southern Ridge becomes content-ready near t59.4 and ridge/network captures never occur.
 - [x] Add deterministic nominal guard margin so fixed-seed Rossdam resolves to exactly `900 x 450 dm`, resolved depth `24 dm`, and aggregate water primitive scan `16,591,536` cells (below the 17M cap).
 - [x] Add validation-only near-overhead generic-settlement camera correction; CharacterMotor/streaming demand remains grounded at settlement focus and the separate player-height Moordell road-arrival view is preserved.
-- [x] Use a 75 s validation-only replay window for the corrected final exact request; do not change runtime/streaming budgets.
+- [x] CI admission run `33293402602` proves `replay_seconds` is hard-capped at 20..60; the 75 s request was rejected before Unity ran and produced no product/evidence result.
+- [ ] Reorder dormant validation targets to `Moordell -> Rossdam lake -> Rossdam settlement` so shared lake content is streamed once before the settlement wait; do not skip any readiness/capture gate.
+- [ ] Re-run the corrected exact source with supported `replay_seconds=60`; runtime/streaming budgets remain unchanged.
 - [ ] Exact built `KentridgePlayableSlice` reaches usable gameplay without startup/runtime exceptions and captures every macro target.
 - [ ] Full-resolution exact-scene evidence shows four readable blockouts at Moordell, Rossdam, Fairy Village, and Orc Village.
 - [ ] Full-resolution evidence shows continuous roads/network, substantial Rossdam lake, Southern Ridge/pass response, geography-constrained route behavior, and representative real CharacterMotor traversal.
@@ -49,8 +51,9 @@
 - [x] Rejected run `33290154012`: elapsed=79 s, peak RSS=5859 MB, systemFree=31944 MB, swapGrowth=0 MB; post-start FPS generally >60.
 - [x] Run `33292088730` focused editor process before native Burst crash: elapsed=31 s, peak RSS=2287 MB, systemFree=29019 MB, swapGrowth=0 MB.
 - [x] Run `33292881845` exact player: elapsed=70 s, peak RSS=5233 MB, systemFree=28711 MB, swapGrowth=0 MB; after startup one-second FPS windows are generally >60 and often >100.
-- [x] Re-check corrected feature diff against current master immediately before CI: current master remains `61d03336390ed9079498b183217cbf0ecf0abcd2`; feature is ahead-only/behind=0 and contains only this assignment beyond master.
+- [x] Re-check corrected feature diff against current master before the rejected 75 s request: master remained `61d03336390ed9079498b183217cbf0ecf0abcd2`; feature was ahead-only/behind=0 and contained only this assignment beyond master.
 - [ ] Measure final resolved lake footprint/depth/primitive scan cells, route solve counts, feature voxel work/last-feature time, CPU/frame/FPS, memory, streaming convergence, and far-field/render telemetry against existing budgets.
+- [ ] Re-check the exact source diff/current master immediately before the supported 60 s targeted request and again before promotion.
 
 ## Acceptance / closure
 - [ ] (1) Source-backed macro graph remains authoritative through shared WorldBuilder APIs.
