@@ -59,7 +59,7 @@
 - [x] Recursive/cyclic call graph and over-depth shared DAG are rejected deterministically at catalogue validation.
 - [x] Runtime max-depth overflow => explicit deterministic failure before runaway generation.
 - [x] Child-count / primitive-cost / voxel-cost / spatial-extent budget overflow => explicit actionable budget result without raising global budgets.
-- [x] Inspection output carries semantic structure id, child piece ids, socket ids, accepted/rejected decisions, aggregate report data, and final accepted `GraphHash`.
+- [x] Inspection output carries semantic structure id, child piece ids, socket ids, accepted/rejected decisions, aggregate report data, and final `GraphHash`.
 - [x] Regression proves structural children are emitted through production authoritative voxel authoring, including a child outside the root logical region.
 - [x] Rejected alternatives remain inspectable but do not change accepted `GraphHash` identity.
 - [x] Conservative voxel-authoring cost accepts the exact 16,777,216-voxel ceiling and rejects one voxel over before composition continues.
@@ -116,5 +116,7 @@
 - [x] Diagnose compile-gate run `33306897362`: `CharacterMotor` belongs to the SceneRuntime `VoxelEngine.Showcase` assembly, so lower-layer `ShowcaseWorld` cannot depend on it; keep route/preload data in `ShowcaseWorld` and execute traversal through a SceneRuntime extension using the existing production motor.
 - [x] Diagnose compile-gate run `33307182322`: SceneRuntime audit consumes `StructuralCompositionResult` / `StructuralAttachmentRejectReason` from `VoxelEngine.Structures.Runtime`; add the existing acyclic runtime assembly reference to `VoxelEngine.Showcase.asmdef` rather than moving planner contracts or widening lower layers.
 - [ ] Revalidate the corrected feature source after the SceneRuntime structural-runtime reference fix; prior compile failures produced no screenshots and satisfied no gate.
-- [x] Diagnose exact CI run `33308789329`: the inclusive support-lattice fix cleared `ClearanceBlocked`; the bridge now fails composition at `MissingSupport`, proving a second bridge proof-catalogue defect rather than a solver admission/compile failure.
-- [ ] Correct bridge pier terrain-support proof so deterministic bridge-site selection guarantees all three required support loci contact terrain within the physical pier reach, and align authored support-probe depth with the physical pier geometry without raising global budgets.
+- [x] Diagnose exact CI run `33308789329` from its durable artifact: bridge composition is green (`STRUCTURAL_GALLERY authored=True`, bridge result/cost emitted). The focused test actually fails later on `FixedString32Bytes` truncation for `upper-terrain-supported-platform`, while built-player structural traversal route 2 fails with ~30.9 m remaining.
+- [x] Reproduce bridge terrain/support contacts for seed `0x5EED1234`; all three intended pier loci satisfy even the physical 180-voxel reach, so no additional bridge support/site change is required.
+- [ ] Shorten the overlength cliff proof definition/socket names to fit their `FixedString32Bytes` contract without changing semantic identity or topology.
+- [ ] Correct the cliff/vertical built-player traversal route so production `CharacterMotor` reaches the authored upper endpoint on authoritative geometry.
