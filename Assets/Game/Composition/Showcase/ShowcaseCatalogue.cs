@@ -45,6 +45,8 @@ namespace VoxelEngine.Showcase
                 {
                     MountainLandmarkSpec mountainSpec =
                         ShowcaseMountainDragonLayout.CreateLandmark(seed);
+                    MountainLandmarkPresentationProfile mountainPresentation =
+                        ShowcaseMountainDragonLayout.CreatePresentationProfile();
                     var mountainMaterials = new MountainLandmarkMaterialSet(
                         rock: materialRoles.WorldgenDarkMasonry,
                         groundCover: materialRoles.WorldgenMoss,
@@ -55,6 +57,7 @@ namespace VoxelEngine.Showcase
                     FeatureCatalogue mountain = WorldBuilderMountainLandmarkMaterialCatalogue.Build(
                         in mountainSpec,
                         in mountainMaterials,
+                        in mountainPresentation,
                         Allocator.Temp);
                     try
                     {
