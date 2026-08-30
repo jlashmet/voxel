@@ -10,6 +10,7 @@ using MountingForce.WorldGen.Content.Kentridge;
 using MountingForce.WorldGen.Voxel;
 using UnityEngine;
 using VoxelEngine.Composition;
+using VoxelEngine.Showcase;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
 
 namespace Game.Kentridge.PlayableSlice
@@ -35,6 +36,9 @@ namespace Game.Kentridge.PlayableSlice
         private const uint Seed = 0x4B454E54u;
         private const float SettlementSurveyHeightMetres = 22f;
 
+        private static readonly FieldInfo s_WorldField = typeof(KentridgePlayableSlice).GetField(
+            "_world",
+            BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo s_MotorField = typeof(KentridgePlayableSlice).GetField(
             "_motor",
             BindingFlags.Instance | BindingFlags.NonPublic);
@@ -43,6 +47,7 @@ namespace Game.Kentridge.PlayableSlice
             BindingFlags.Instance | BindingFlags.NonPublic);
 
         private KentridgePlayableSlice _slice;
+        private ShowcaseWorld _world;
         private KentridgeCharacterHost _motor;
         private EvidenceTarget[] _targets;
         private string _screenshotDirectory;
@@ -95,14 +100,15 @@ namespace Game.Kentridge.PlayableSlice
             {
                 _slice = FindFirstObjectByType<KentridgePlayableSlice>();
                 if (_slice == null) return;
-                if (s_MotorField == null || s_YawField == null)
+                if (s_WorldField == null || s_MotorField == null || s_YawField == null)
                     throw new InvalidOperationException(
-                        "Macro evidence driver cannot resolve Kentridge CharacterMotor/yaw host state.");
+                        "Macro evidence driver cannot resolve Kentridge world/CharacterMotor/yaw host state.");
                 _screenshotDirectory = ReadArgument("-voxel-screenshot-dir");
             }
 
+            _world ??= s_WorldField.GetValue(_slice) as ShowcaseWorld;
             _motor ??= s_MotorField.GetValue(_slice) as KentridgeCharacterHost;
-            if (_motor == null || !_slice.GameplayControlEnabled) return;
+            if (_world == null || _motor == null || !_slice.GameplayControlEnabled) return;
 
             RestoreTimeScale();
 
@@ -181,7 +187,7 @@ namespace Game.Kentridge.PlayableSlice
                 HoldRoadHeading();
                 _slice.transform.position = _motor.EyePosition;
                 if (Time.realtimeSinceStartup - _roadCaptureStartedAt >= TargetMinimumDwellSeconds
-                    && HasStablePublishedCoverage())
+                    && HasStablePublishedCoverageAt(_motor.Position))
                 {
                     _roadCaptured = true;
                     Debug.Log(
@@ -201,7 +207,7 @@ namespace Game.Kentridge.PlayableSlice
             float targetElapsed = now - _targetStartedAt;
             if (!_targetCaptured
                 && targetElapsed >= TargetMinimumDwellSeconds
-                && HasStablePublishedCoverage())
+                && HasStablePublishedCoverage(target))
             {
                 _targetCaptured = true;
                 _targetCapturedAt = now;
@@ -223,9 +229,32 @@ namespace Game.Kentridge.PlayableSlice
             ApplyCamera(_targets[_targetIndex]);
         }
 
-        private bool HasStablePublishedCoverage()
+        private bool HasStablePublishedCoverageAt(Vector3 presentationPoint)
         {
-            if (!_slice.CurrentDemandContentSettled
+            return AdvanceStableCoverage(
+                _world.IsPresentationColumnContentSettled(presentationPoint));
+        }
+
+        private bool HasStablePublishedCoverage(EvidenceTarget target)
+        {
+            for (var i = 0; i < target.ContentDm.Length; i++)
+            {
+                Int2 point = target.ContentDm[i];
+                int ground = TerrainSampler.HeightAt(point.X, point.Y, Seed);
+                var worldPoint = new Vector3(
+                    point.X * DmToMetres,
+                    ground * DmToMetres,
+                    point.Y * DmToMetres);
+                if (!_world.IsPresentationColumnContentSettled(worldPoint))
+                    return AdvanceStableCoverage(false);
+            }
+
+            return AdvanceStableCoverage(true);
+        }
+
+        private bool AdvanceStableCoverage(bool contentSettled)
+        {
+            if (!contentSettled
                 || !RenderingComposition.HasCompletePublishedNearSurfaceCoverage())
             {
                 _stableCoverageFrames = 0;
@@ -256,6 +285,7 @@ namespace Game.Kentridge.PlayableSlice
                 "MACROEVIDENCE target=" + target.Label +
                 $" cameraDm=({target.CameraDm.X},{target.CameraDm.Y})" +
                 $" focusDm=({target.FocusDm.X},{target.FocusDm.Y})" +
+                $" contentColumns={target.ContentDm.Length}" +
                 $" cameraHeightM={target.CameraHeightMetres:0.0}");
         }
 
@@ -365,7 +395,9 @@ namespace Game.Kentridge.PlayableSlice
                 throw new InvalidOperationException(
                     "Macro evidence settlement '" + nodeId + "' does not expose the expected four blockout plots.");
 
+            var contentDm = new Int2[settlement.Buildings.Count];
             TopDownWorldBuildingBlockoutPlan first = settlement.Buildings[0];
+            contentDm[0] = first.CentreDm;
             int minX = first.CentreDm.X - first.HalfExtentXDm;
             int maxX = first.CentreDm.X + first.HalfExtentXDm;
             int minZ = first.CentreDm.Y - first.HalfExtentZDm;
@@ -373,6 +405,7 @@ namespace Game.Kentridge.PlayableSlice
             for (var i = 1; i < settlement.Buildings.Count; i++)
             {
                 TopDownWorldBuildingBlockoutPlan building = settlement.Buildings[i];
+                contentDm[i] = building.CentreDm;
                 minX = Math.Min(minX, building.CentreDm.X - building.HalfExtentXDm);
                 maxX = Math.Max(maxX, building.CentreDm.X + building.HalfExtentXDm);
                 minZ = Math.Min(minZ, building.CentreDm.Y - building.HalfExtentZDm);
@@ -414,7 +447,8 @@ namespace Game.Kentridge.PlayableSlice
                 bestCamera,
                 focusDm,
                 cameraHeightMetres: SettlementSurveyHeightMetres,
-                elevated: true);
+                elevated: true,
+                contentDm: contentDm);
         }
 
         private static Int2 ClosestRoutePoint(TopDownWorldPhysicalRoutePlan route, Int2 point)
@@ -539,19 +573,22 @@ namespace Game.Kentridge.PlayableSlice
             public Int2 FocusDm { get; }
             public float CameraHeightMetres { get; }
             public bool Elevated { get; }
+            public Int2[] ContentDm { get; }
 
             public EvidenceTarget(
                 string label,
                 Int2 cameraDm,
                 Int2 focusDm,
                 float cameraHeightMetres,
-                bool elevated)
+                bool elevated,
+                Int2[] contentDm = null)
             {
                 Label = label;
                 CameraDm = cameraDm;
                 FocusDm = focusDm;
                 CameraHeightMetres = cameraHeightMetres;
                 Elevated = elevated;
+                ContentDm = contentDm ?? new[] { focusDm };
             }
         }
     }
