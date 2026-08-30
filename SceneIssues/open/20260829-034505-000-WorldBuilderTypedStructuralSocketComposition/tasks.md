@@ -104,3 +104,4 @@
 - [x] Remove managed allocations from structural support probing; current production support scan is bounded and allocation-free.
 - [x] Ensure `GraphHash` represents the final accepted attachment graph while rejected alternatives remain inspectable diagnostics.
 - [x] Validate/document the conservative voxel-authoring cost model against authoritative region/instance budgets and regress its exact boundary behavior.
+- [ ] Fix explicit-catalogue region enumeration so accepted structural descendants outside root footprints are visited and rasterized; add a production-helper regression using the existing cross-region fixture.
