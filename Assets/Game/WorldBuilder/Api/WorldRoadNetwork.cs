@@ -192,7 +192,7 @@ namespace Game.WorldBuilder.Api
     public sealed class WorldRoadInfluence
     {
         private const int EdgeNoiseCellDm = 64;
-        private readonly IReadOnlyList<WorldRoadJunction> _junctions;
+        private readonly IReadOnlyList<ResolvedWorldRoadPoint> _presentation;
 
         public ResolvedWorldRoad Road { get; }
 
@@ -208,24 +208,23 @@ namespace Game.WorldBuilder.Api
             Road = road ?? throw new ArgumentNullException(nameof(road));
             if (!road.IsResolved || road.Points.Count < 2)
                 throw new ArgumentException("Road influence requires resolved geometry.", nameof(road));
-            _junctions = junctions;
+            _presentation = WorldRoadPresentationPath.Build(Road, junctions);
         }
 
         public bool TrySample(int xdm, int zdm, out WorldRoadInfluenceSample sample)
         {
             WorldRoadProfile profile = Road.Intent.Profile;
-            IReadOnlyList<ResolvedWorldRoadPoint> presentation = WorldRoadPresentationPath.Build(Road, _junctions);
             bool found = false;
             WorldRoadInfluenceSample best = default;
 
             // Physical roads lower the deterministic presentation polyline into bounded corridor
-            // pieces. Evaluate exactly the same presentation path here so ecology, placement,
+            // pieces. Evaluate exactly the same cached presentation path here so ecology, placement,
             // material coverage and physical grading remain one shared influence authority while
-            // the resolver's original route points remain unchanged.
-            for (var i = 0; i + 1 < presentation.Count; i++)
+            // the resolver's original route points remain unchanged and repeated queries allocate nothing.
+            for (var i = 0; i + 1 < _presentation.Count; i++)
             {
                 ClosestPoint(
-                    presentation[i], presentation[i + 1], xdm, zdm,
+                    _presentation[i], _presentation[i + 1], xdm, zdm,
                     out long distanceSquared, out int height,
                     out int centreX, out int centreZ);
 
