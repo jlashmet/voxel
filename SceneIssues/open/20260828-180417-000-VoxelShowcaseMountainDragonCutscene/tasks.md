@@ -15,18 +15,23 @@
 - [x] Replace insufficient managed `Environment.Exit(0)` with POSIX `_exit(0)` only on that exact successful CI path, after persistence/import/save/success logging.
 - [x] Run `33310677691` on exact source `2100df40287a...`: fresh bake, native exit, Unity reopen, structural PlayMode acceptance, 17/17 built-player traversal, capture, and final status all green.
 
-## Current-master visual quality gate
-- [x] Merge master visual-quality instructions (`dfbc43b086b6...`) and re-review exact built-player frames under the AAA rubric.
-- [x] Classify the previous mountain/path as `prototype/blockout quality`: dominant bright masonry, repeated primitive/frustum read, retaining-wall-like cut faces, weak terrain/material integration. Cube dragon remains explicitly permitted placeholder art.
-- [x] Generalize reusable mountain presentation to semantic `rock`, `groundCover`, `path`, and `placeholder` roles while preserving the existing single-material physical catalogue as compatibility behavior.
-- [x] Compose VoxelShowcase with dark-rock core, moss/ground-cover shoulders/support banks, dirt path, and unchanged red cube placeholder.
-- [x] Bump startup landmark contract revision from 3 to 4 so the previous single-material bake is rejected as visually stale.
-- [x] Add `MountainDragonVisualFinalAcceptanceTests.ProductionQualityMountainMaterialsAndEncounterAreReadyForBuiltPlayerReplay`, proving role separation changes only additive shoulder/support frustum material fields while preserving primitive sequence/count, path, placeholder, and the established structural acceptance.
-- [x] Add committed Unity `.meta` files for the new material-role source and visual acceptance test.
-- [x] Merge current `origin/master` `c2cdde7fef88...` immediately before the final request as second parent of `aac1ad310a8b...`; compare reports `behind_by=0` and master adds only an unrelated SceneIssue file.
-- [ ] Run the exact new final PlayMode filter plus built-player VoxelShowcase replay through the existing `ci-test/fixes/agent-4` transport only; leave the request untouched while queued/running.
-- [ ] Human-review exact approach/base/middle/upper/summit/dialogue frames and classify the mountain/path `production-quality`; if not, add concrete visual defects here and continue before closure.
-- [ ] Re-check final bake/runtime cost under unchanged 240 s / 14 GiB contracts after the visual material change.
+## Visual quality gate
+- [x] Merge master visual-quality instructions and re-review built-player frames under the AAA rubric.
+- [x] Classify the original bright-masonry mountain/path as `prototype/blockout quality`; cube dragon remains explicitly permitted placeholder art.
+- [x] Add reusable semantic mountain presentation roles (`rock`, `groundCover`, `path`, `placeholder`), compose VoxelShowcase with dark rock/moss/dirt/red-cube roles, and bump startup landmark contract revision to 4.
+- [x] Add `MountainDragonVisualFinalAcceptanceTests.ProductionQualityMountainMaterialsAndEncounterAreReadyForBuiltPlayerReplay` plus Unity metadata.
+- [x] Merge current `origin/master` `c2cdde7fef88...` before request `2773c67f655a...`; exact source `a6288a9411c5...` had `behind_by=0`.
+- [x] Leave exact run `33314740587` untouched through completion and inspect its NUnit result, bake log, standalone-player log, and exact built-player captures.
+- [x] Record run `33314740587` cost result: revision-4 fresh bake succeeded under unchanged 240 s / 14 GiB guards, logged `200 regions, 13.9 MiB`, signature `0x217FA141`, and reopened Unity normally.
+- [x] Classify requested-test failure: material-role regression itself passed; old prepared-startup acceptance still expected legacy mountain material `1` although production VoxelShowcase core rock is now `6`.
+- [x] Classify standalone-player failure: normal production movement reached grounded waypoint `16/17`, then the evidence harness hit its 58.0 s internal timeout; dialogue had already triggered in the summit frame, but final waypoint/capture was not completed.
+- [x] Human-review exact run `33314740587` frames as still `prototype/blockout quality`: repeated giant rounded support banks, pile-of-domes silhouette, hard/extruded path edges with weak terrain transition, and an engineered flat summit pad.
+- [ ] Correct only the stale prepared-bake material expectation while retaining generic single-material catalogue tests and exact path/placeholder semantics.
+- [ ] Restore deterministic evidence timing margin without changing route coordinates, movement speed, grounded/Y predicates, or gameplay behavior.
+- [ ] Replace repetitive segmented support blobs with a reusable natural ridge/support realization that blends into the mountain and avoids repeated cylindrical/domed forms; preserve continuous occupied support and headroom.
+- [ ] Improve mountain/summit/path terrain integration enough that exact built-player approach/base/middle/upper/summit/dialogue frames classify `production-quality`; add behavioral geometry regressions for the selected reusable invariant rather than screenshot-string/source checks.
+- [ ] Re-run one exact final PlayMode filter + same-run built-player replay through existing `ci-test/fixes/agent-4` only after product fixes and then-current master merge; leave it untouched while queued/running.
+- [ ] Re-check final bake/runtime cost under unchanged 240 s / 14 GiB contracts.
 
 ## Checked-in startup payload
 - [x] Confirm runtime requires both `ShowcaseWorld.bytes` and matching `ShowcaseWorld.manifest.txt`; the currently tracked 11,074,525-byte legacy payload is stale.
