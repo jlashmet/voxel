@@ -14,6 +14,9 @@ namespace MountingForce.WorldGen.Voxel
             SettlementPlan settlement = SettlementVoxelPlan.Resolve(seed, in settings);
             bool isKentridge = settlement.Theme.Id == Content.Kentridge.KentridgeDefinition.Id;
             bool organicKentridge = isKentridge && settlement.Routes.Count > 0;
+            SpatialReservationSnapshot structureReservations = isKentridge
+                ? Content.Kentridge.KentridgeTownPlanner.BuildReservationSnapshot(seed)
+                : null;
             var stageList = new List<FeatureCatalogue>(organicKentridge ? 8 : (isKentridge ? 25 : 9));
 
             Add(stageList, KentridgeGroundCoverCatalogue.Build(seed, settings, Allocator.Temp));
@@ -70,7 +73,8 @@ namespace MountingForce.WorldGen.Voxel
                 AddReserved(stageList, KentridgeHillsideArchitectureCatalogue.Build(seed, settings, Allocator.Temp), settlement, settings);
             }
 
-            Add(stageList, KentridgeSharedStructureVoxelCatalogue.Build(seed, settings, Allocator.Temp));
+            Add(stageList, KentridgeSharedStructureVoxelCatalogue.Build(
+                seed, settings, Allocator.Temp, settlement, structureReservations));
 
             if (isKentridge && !organicKentridge)
                 Add(stageList, KentridgeAnchorUndercroftCatalogue.Build(seed, settings, Allocator.Temp));
