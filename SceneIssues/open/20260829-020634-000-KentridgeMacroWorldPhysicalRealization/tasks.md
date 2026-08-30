@@ -33,10 +33,14 @@
 - [x] Exact request `4a00dc022631e62628f59a944c5410767dc9904d`, run `33288421041`, is workflow-green for source `f13bd8cf0e9e2bfcc4dfda3077eda391e61aefa4`; nested physical/storage acceptance and two-stage readiness regression pass.
 - [x] Reject full-residency readiness as closure remediation: the green run delayed opening to ~40 s and produced no custom `macro-*.png` captures in the 60 s replay, so settlement renderer acceptance remained unproven.
 - [x] Replace full-radius readiness with reusable presentation-scoped point/column readiness while preserving the two-stage publication guarantee.
-- [x] Gate opening only on its current presentation column plus renderer coverage; do not wait for unrelated radius-3 countryside.
 - [x] Gate each macro evidence target on the content it presents: current road/motor column, every generic settlement building-centre column, or semantic lake/ridge/network focus, then four renderer coverage frames.
 - [x] Refactor the production readiness regression to the scoped query while retaining the full nested macro physical/storage contract.
-- [ ] Exact built `KentridgePlayableSlice` reaches a usable rendered state without startup/runtime exceptions.
+- [x] Inspect exact-SHA run `33289185080` / artifact `9725476517` for source `81022f85d1aa2b29d231175e204d9682e6edbbdf`: workflow green, but opening still releases around 40 s, only road + Moordell custom captures finish, Rossdam stalls despite stable renderer coverage, and Moordell shows only two clearly readable buildings.
+- [x] Reject that green run as closure-quality evidence and record the scoped regression signal: 1,090,380 feature voxels, one drain step, 2500.10 ms final feature step.
+- [x] Separate normal opening startup from authored remote-content readiness: opening compatibility now waits only for generated terrain columns plus its existing renderer gate; explicit evidence continues using feature-settled presentation readiness.
+- [x] Prestream each target's exact semantic content columns through ordinary production streaming before survey capture; no radius/budget/replay increase.
+- [x] Raise settlement survey height 22 m -> 36 m from the same production-derived camera/focus footprint so front and rear four-building rows can be read together.
+- [ ] Exact built `KentridgePlayableSlice` reaches a usable rendered state without startup/runtime exceptions and without the prior ~40 s feature-settlement startup gate.
 - [ ] Full-resolution exact-scene evidence proves committed settlement shells become renderer/mesh-visible and shows four readable blockouts at Moordell, Rossdam, Fairy Village, and Orc Village.
 - [ ] Full-resolution evidence shows continuous roads/network without large holes, substantial lake and ridge/pass response, and representative CharacterMotor traversal.
 
@@ -47,8 +51,9 @@
 - [x] Refresh `fixes/agent-6` from `origin/master` before run `33288421041`; merge `2c6c501b4823fbb3b5a33ef30ac0e3ba119b1ab0` incorporates master `d4b31a700bae19b08ef765e874e26026620bde0e` with path-disjoint changes.
 - [x] Measure failed broad-readiness cost signal: radius-1 focused world produced 18,908,465 feature voxel writes, 1302.13 ms final blocking feature step; built player peaked ~92.9% CPU / 5708.5 MB RSS with zero swap growth.
 - [x] Keep final readiness evaluation presentation-scoped: surface/camera layers of one queried column; settlement evidence checks four building columns; no whole-world/residency scan, generation, duplicate geometry, extra residency, or replay-time inflation.
+- [x] Record corrected-run signal: presentation regression touched 1,090,380 feature voxels but reported a 2500.10 ms last feature step; treat final built-player telemetry as mandatory rather than inferring cost from voxel count alone.
 - [ ] Measure final remediation cost and record route solve/tile/building/feature counts plus built-player CPU/GPU/frame/memory/streaming telemetry against existing budgets.
-- [ ] Re-check current feature diff against current master before the corrected final CI.
+- [ ] Re-check current feature diff against current master before the next exact final CI.
 
 ## Acceptance / closure
 - [ ] (1) Source-backed macro graph remains authoritative through shared WorldBuilder APIs.
