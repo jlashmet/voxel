@@ -17,7 +17,7 @@
 
 ## Shared implementation
 - [x] Add reusable still/lake, river/stream, waterfall/rapid presentation profiles.
-- [x] Remove hard-coded game IDs from engine water extraction; classify from installed presentation data.
+- [x] Remove hard-coded game IDs from engine water extraction; classify water cache from installed presentation data.
 - [x] Preserve per-vertex water material identity through extraction.
 - [x] Keep one renderer-owned `Hidden/VoxelEngine/WaterSurface` material with no scene-local forks.
 - [x] Adapt package shallow/deep color, depth fade, contact/surface foam, animated normals/detail, highlights/refraction/wave direction.
@@ -27,6 +27,7 @@
 - [x] Source/asset audit shows no alternate normal water shader/material path; final player replay remains the stripping/fallback discriminator.
 - [x] Verify player-build retention has a production asset dependency: active `VoxelUniversalRenderer.asset` directly serializes `WaterSurface.shader`; do not add a global always-included exception unless the player build falsifies this.
 - [x] Exact run `33323151755` proved the player build retained and launched `WaterSurface.shader` without pink/missing-resource failure on candidate `d3729aa...`; visual quality still failed and requires a new exact repaired candidate.
+- [ ] Remove stale solid-extractor hard-coded water IDs 11/16 from CPU/Burst/GPU-equivalent classification paths; use the installed water presentation mask without changing gameplay semantics.
 
 ## Showcase / portability
 - [x] Add one bounded `ShowcaseWorld.AuthorVoxelBox` seam over its existing Storage.Api mutation/change path; validate positive bounds/size and cap authored volume; add no renderer/material knowledge.
@@ -42,12 +43,14 @@
 - [x] Verify `WorldbuildingGalleryShowcase` automatically reaches the same globally installed water presentation for its cave-authored water.
 
 ## Reusability review
-- [x] Audit engine rendering/extraction code: shared water cache/shader behavior is selected from semantic presentation/profile tables and `WaterMaterialMask`; no `GameMaterialIds` or showcase IDs control renderer water behavior.
+- [x] Audit water extraction/shader code: shared water cache/shader behavior is selected from semantic presentation/profile tables and `WaterMaterialMask`; no `GameMaterialIds` or showcase IDs control water-cache behavior.
 - [x] Keep reusable flow/foam/depth/turbulence/aeration parameters in `WaterPresentationDefinition`/`VoxelPresentationCatalogue`; `WaterRenderingShowcase` chooses material/profile placement and inspection only.
 - [x] Add regression `WaterProfiles_UseOpaqueMaterialIdsAndCanBeRemappedByPresentationData`: arbitrary IDs can share Still and one can remap to Waterfall through presentation data only; final exact CI still required.
 - [x] Confirm capture-only telemetry runs only under unattended screenshot evidence capture and is not a production renderer lifecycle dependency.
-- [ ] Audit the solid extractor classification boundary so a presentation-water material remains excluded from solid geometry even when its gameplay simulation is inert.
-- [ ] Review `FlowerBlue = Cascade` transitional alias blast radius before finalizing any Cascade classification change.
+- [x] Audit solid extractor classification boundary: `CpuTransvoxelChunkCache`, `ExactSnapshotMetadataJobs`, and `TransvoxelDensityJob` still hard-code IDs 11/16 as non-solid; `MipDensityJob` delegates to the same predicate. This is a confirmed reusable RiverWater defect, not the missing Cascade root cause because Cascade is ID16 and already excluded.
+- [x] Review `FlowerBlue = Cascade` transitional alias blast radius: only the alias declaration was found; no live usages reference `FlowerBlue`. Preserve ID16 Cascade semantics and do not change gameplay behavior.
+- [ ] Search compute/GPU solid-classification copies for the same stale ID assumptions before patching.
+- [ ] Add regression proving an arbitrary presentation-water ID is excluded from solid classification without relying on gameplay class or hard-coded IDs.
 
 ## Regression / reliability / cost
 - [x] Production installation regression covers still/river/waterfall profiles and excludes non-water material.
@@ -63,7 +66,9 @@
 - [x] Record pre-repair exact-player baseline: Apple M4 Max, ~1.5–2.1 ms 10-second average frame windows after startup, ~697.8 MiB allocated, ~861–864 MiB reserved, ~9 MiB mono used, 191 resident draw leases, zero lease failures. GPU/CPU FrameTimingManager values were unavailable (`-1`), so do not invent them.
 - [x] Re-measure repaired two-sided pass from run `33324084398`: ~1.2–2.8 ms average frame windows after startup, ~697.8 MiB allocated, ~846–848 MiB reserved; no frame-budget weakening. CPU/GPU FrameTimingManager values remained unavailable.
 - [x] Review feature-only diff against current master before resumed investigation: only assignment water code/tests/scene/build registration/docs are changed; `.github/test-request.json` is absent from the feature diff.
-- [ ] Add focused regression for the confirmed missing-sheet root cause before the next implementation change.
+- [x] Falsify water-cache starvation/vertical-bounds hypotheses: arena supports 2,048 entries, dirty work is camera-prioritized, and `CollectVisible` culls full brick AABBs rather than zero-thickness generated geometry.
+- [ ] Add focused regression proving the exact authored Cascade curtain survives canonical `ShowcaseWorld` storage readback and production water-cache geometry/material encoding.
+- [ ] Add focused regression for the confirmed missing-sheet root cause before the corrective implementation change.
 
 ## Rendered gate from exact run 33323151755
 - [x] Bake succeeded on exact feature parent `d3729aa0c971aa4973286fe61d024f500f6f308a`.
@@ -82,7 +87,9 @@
 - [x] Repaired exact run `33324084398` on source `3b3a55c...` completed green for automated tests/build/player capture.
 - [x] Directly inspect repaired frames and reject closure again: converged 32/42s square-on views still show no visible vertical waterfall sheet; only top lip/lower pool read. Framing hypothesis is falsified because authored sheet is directly in front of cliff and camera target.
 - [x] Trace shared shader/render pass: no vertical-face discard, `Cull Off`, waterfall profile forces high vertical alpha, and every visible water entry uses the same procedural draw path. If vertical Cascade reaches the water shader, it should be visible.
-- [ ] Determine whether inert Cascade is simultaneously emitted by solid extraction or missed by water discovery; preserve inert gameplay semantics.
+- [x] Falsify initial-discovery/admission and visibility-cap hypotheses: partial curtain bricks are discoverable; cache admission is mask-based; full brick bounds are used for frustum culling.
+- [ ] Determine whether exact authored Cascade cells survive canonical storage and become production water-cache vertices/material IDs.
+- [ ] If geometry survives the cache, continue discriminator at shared upload/material encoding/draw/depth boundary; do not change shader art speculatively.
 - [ ] Implement only the smallest shared production-path correction proven by the discriminator.
 
 ## Exact-SHA gates
@@ -92,7 +99,7 @@
 - [x] Inspect already-queued repaired request: run `33324084398` completed green on source `3b3a55c...` but failed direct visual acceptance; do not replace/reuse it as final CI.
 - [ ] Re-read current `origin/master` and final `fixes/agent-9`; merge before final CI if master advanced.
 - [ ] Submit exactly one canonical final targeted-CI request from `ci-test/fixes/agent-9` whose parent is the final feature SHA; never replace a queued request or create another transport branch.
-- [ ] Confirm focused behavioral regressions green on final exact SHA, including arbitrary-ID/remap and missing-sheet root-cause coverage.
+- [ ] Confirm focused behavioral regressions green on final exact SHA, including arbitrary-ID/remap, solid-classification, and missing-sheet root-cause coverage.
 - [ ] Confirm final exact-SHA built `WaterRenderingShowcase` launches without startup/runtime exceptions.
 - [ ] Download and inspect durable final real-player artifact, build/player logs, and converged near/wide/time-separated showcase frames.
 - [ ] Directly compare final built waterfall evidence with retained reference semantics: downward flow, turbulence, aeration, irregular edges, lip/edge/base foam, mist/spray.
