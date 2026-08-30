@@ -280,8 +280,8 @@ namespace VoxelEngine.Structures.Runtime
                             continue;
                         }
 
-                        if (PlacementBlocked(in catalogue, instances, in parent, in parentDefinition,
-                                parentIndex, in slot, childOrigin, childOrientation,
+                        if (PlacementBlocked(in catalogue, instances, in parent,
+                                parentIndex, in slot, worldAttach, childOrigin, childOrientation,
                                 childFootprint, in child.StructuralPiece))
                         {
                             if (!RejectAt(ref report, decisions, in parent, parentIndex, in slot,
@@ -541,7 +541,7 @@ namespace VoxelEngine.Structures.Runtime
 
         private static bool PlacementBlocked(in FeatureCatalogue catalogue,
             NativeList<StructuralInstance> instances, in StructuralInstance parent,
-            in FeatureDefinition parentDefinition, int parentIndex, in SlotSpec slot,
+            int parentIndex, in SlotSpec slot, int3 worldAttach,
             int3 childOrigin, byte childOrientation, int3 childFootprint,
             in StructuralPieceSpec piece)
         {
@@ -553,10 +553,8 @@ namespace VoxelEngine.Structures.Runtime
             Normalize(ref pieceMin, ref pieceMax);
             bool hasPieceClearance = NonEmpty(pieceMin, pieceMax);
 
-            int3 slotAnchor = parent.Position + RotatePoint(slot.LocalPosition,
-                parentDefinition.Footprint, parent.Orientation);
-            int3 slotMin = slotAnchor + RotateVector(slot.ClearanceMin, parent.Orientation);
-            int3 slotMax = slotAnchor + RotateVector(slot.ClearanceMax, parent.Orientation);
+            int3 slotMin = worldAttach + RotateVector(slot.ClearanceMin, parent.Orientation);
+            int3 slotMax = worldAttach + RotateVector(slot.ClearanceMax, parent.Orientation);
             Normalize(ref slotMin, ref slotMax);
             bool hasSlotClearance = NonEmpty(slotMin, slotMax);
 
