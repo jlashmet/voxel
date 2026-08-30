@@ -1,21 +1,23 @@
-# Plan — Water Rendering Showcase Stylized Shader Integration
+# Plan
 
-## Observed state / acceptance
-- Ticket has no captures; `issue.json`, the supplied `Assets/Stylized Water Shader/` package, and `WaterfallReference.shader` define the target.
-- The issue folder is missing the normal `repro.json`, `expected.json`, and `replay.json` contract files; restore those before capture/CI work.
-- Production water must keep the existing voxel/world-authoring geometry/gameplay path while replacing its presentation globally with one reusable stylized renderer.
-- Add built `WaterRenderingShowcase` through standard water authoring, covering still/deep, shoreline, river, waterfall, terrain/structure contact, near/wide and time-separated views. Also prove replacement in existing game scenes.
+## Observed behavior
 
-## Competing hypotheses / discriminator
-1. Existing production water already has a single material-selection seam, so integration is primarily a shared renderer/profile upgrade. Falsified if water materials/shaders are instantiated or selected independently by scenes/builders.
-2. The package Shader Graph assumptions cannot be driven by current voxel-water data, requiring new reusable profile/render semantics for flow, shoreline foam/depth, and waterfall behavior. Falsified if the standard production renderer already exposes equivalent body/profile inputs.
-3. Waterfall quality can reuse the horizontal surface model with only orientation/speed. Expected false: the approved reference requires turbulence, aeration, edge/lip/base foam and mist semantics beyond rotation/speed.
+`WaterRenderingShowcase` has no capture frames; the assignment, package assets, and `WaterfallReference.shader` define the target. Production already has one shared liquid topology/render path: voxel liquid faces are extracted by `CpuWaterSurfaceChunkCache`/`WaterBrickMeshBatchJob`, then rendered by `VoxelRenderPass` with `Hidden/VoxelEngine/WaterSurface`. The defect is architectural and visual: engine extraction hard-codes game IDs 11/16, while the water shader hard-codes ID 16 as a special cascade and otherwise exposes only one generic animated-water look. It lacks the imported package's reusable depth fade, shallow/deep response, contact/surface foam, normal/detail motion, refraction semantics, and distinct directional river profile.
 
-## Next discriminator
-Trace standard water authoring -> mesh/discovery -> renderer/material/shader binding and all current consumers. Inspect the package graph/support assets and `WaterfallReference.shader`, then identify the smallest engine-owned profile contract and renderer seam that can drive all required cases without scene-local materials/meshes.
+## Hypotheses and discriminator
 
-## Constraints / blast radius
-Preserve collision, buoyancy/swimming/wading, discovery, streaming, edits and diagnostics. No per-water-voxel objects or per-body unique materials. Retain culling/batching and device budgets; quantify CPU/GPU/memory/variants/draw-call impact. No workflow/package changes unless proven necessary.
+1. **One production water seam exists.** Falsified if normal scenes/builders bind independent water materials. **Result: supported.** Visible water chunks all use the same renderer-owned material and retain only opaque material ID per vertex.
+2. **The imported Stylized Water Shader contains presentation semantics not represented by production.** Falsified if equivalent profile/depth/foam/flow inputs already exist. **Result: supported.** The package material exposes deep/shallow color, depth fade, intersection/surface foam, normals, refraction, wave direction/speed/length/steepness; production does not.
+3. **A waterfall can be represented as merely faster/rotated lake water.** **Result: rejected.** `WaterfallReference.shader` requires downward streaking, turbulent breakup, aeration, lip/edge/base-impact foam, and mist/spray cues.
+
+## Selected fix
+
+Evolve the existing shared path, not add scene forks: introduce renderer-owned, semantic water-presentation rows selected by the existing per-vertex material index; derive liquid classification from those rows instead of engine-known game IDs; install game-owned still/river/waterfall profile mappings through composition; adapt the package's color/depth/foam/detail/refraction/wave behavior and the waterfall reference semantics into the shared water shader. Preserve authoritative voxel simulation, discovery, meshing, edits, collision/swimming/buoyancy behavior, batching/culling, and normal scene authoring.
+
+## Blast radius / cost
+
+Touch only shared material presentation, water extraction classification, water rendering/binding, game composition/profile definitions, focused regressions, and assigned showcase evidence. Keep one shared shader/material and bounded 32-row constant data; no per-body materials or new draw architecture. Measure water draw count/overdraw and avoid added CPU allocations or unbounded turbulence/foam work.
 
 ## Remaining gates
-Restore issue contract; implement shared production path + showcase; add production-path portability regressions; validate shader/build reliability; exact-SHA targeted CI; exact built showcase motion evidence; built existing-scene evidence (VoxelShowcase + another water scene if available); inspect visual quality/cost; then pending/closed bookkeeping and non-force master promotion.
+
+Implement + focused production-path regressions; validate showcase and portability bodies; exact-SHA targeted CI; exact-SHA built-player `WaterRenderingShowcase`, `VoxelShowcase`, and a second normal water scene; durable time-separated/wide/near evidence; visual/cost review; pending/closed metadata and non-force master promotion.
