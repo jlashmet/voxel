@@ -1,6 +1,7 @@
 using Game.Materials.Api;
 using Game.Materials.Runtime;
 using NUnit.Framework;
+using Unity.Mathematics;
 using VoxelEngine.Rendering.Api;
 using VoxelEngine.Rendering.Runtime;
 using VoxelEngine.Storage.Api;
@@ -78,6 +79,80 @@ namespace Game.Materials.Tests
                               | (1u << GameMaterialIds.RiverWater)
                               | (1u << GameMaterialIds.Cascade);
             Assert.That(VoxelPresentationCatalogue.WaterMaterialMask, Is.EqualTo(expectedMask));
+        }
+
+        [Test]
+        public void WaterProfiles_UseOpaqueMaterialIdsAndCanBeRemappedByPresentationData()
+        {
+            const byte firstOpaqueId = 3;
+            const byte secondOpaqueId = 27;
+            float4 albedo = new(0.2f, 0.5f, 0.7f, 1f);
+            var still = new WaterPresentationDefinition(
+                WaterPresentationProfile.Still,
+                new float4(0.2f, 0.7f, 0.8f, 0.45f),
+                new float4(0.03f, 0.18f, 0.24f, 2.5f),
+                new float2(1f, 0f),
+                0.15f,
+                1.2f,
+                0.5f,
+                0.08f,
+                0.82f,
+                0.2f,
+                0.3f,
+                2f,
+                0.4f);
+            var waterfall = new WaterPresentationDefinition(
+                WaterPresentationProfile.Waterfall,
+                new float4(0.25f, 0.72f, 0.84f, 0.72f),
+                new float4(0.05f, 0.22f, 0.28f, 1.6f),
+                new float2(0f, 1f),
+                1.9f,
+                1.6f,
+                0.9f,
+                0.04f,
+                0.74f,
+                0.6f,
+                0.75f,
+                3f,
+                1.1f,
+                turbulence: 0.95f,
+                edgeFoam: 0.9f,
+                impactFoam: 1f,
+                mist: 0.7f);
+
+            try
+            {
+                VoxelMaterialPresentationInstaller.Apply(new[]
+                {
+                    new MaterialPresentationDefinition(firstOpaqueId, albedo, water: still),
+                    new MaterialPresentationDefinition(secondOpaqueId, albedo, water: still),
+                });
+
+                uint expectedMask = (1u << firstOpaqueId) | (1u << secondOpaqueId);
+                Assert.That(VoxelPresentationCatalogue.WaterMaterialMask, Is.EqualTo(expectedMask));
+                Assert.That(VoxelPresentationCatalogue.WaterMotion[firstOpaqueId].x,
+                    Is.EqualTo((float)WaterPresentationProfile.Still));
+                Assert.That(VoxelPresentationCatalogue.WaterMotion[secondOpaqueId].x,
+                    Is.EqualTo((float)WaterPresentationProfile.Still));
+
+                VoxelMaterialPresentationInstaller.Apply(new[]
+                {
+                    new MaterialPresentationDefinition(firstOpaqueId, albedo, water: waterfall),
+                    new MaterialPresentationDefinition(secondOpaqueId, albedo, water: still),
+                });
+
+                Assert.That(VoxelPresentationCatalogue.WaterMaterialMask, Is.EqualTo(expectedMask));
+                Assert.That(VoxelPresentationCatalogue.WaterMotion[firstOpaqueId].x,
+                    Is.EqualTo((float)WaterPresentationProfile.Waterfall));
+                Assert.That(VoxelPresentationCatalogue.WaterMotion[secondOpaqueId].x,
+                    Is.EqualTo((float)WaterPresentationProfile.Still));
+                Assert.That(VoxelPresentationCatalogue.WaterCascade[firstOpaqueId].x, Is.EqualTo(0.95f));
+                Assert.That(VoxelPresentationCatalogue.WaterCascade[secondOpaqueId], Is.EqualTo(UnityEngine.Vector4.zero));
+            }
+            finally
+            {
+                VoxelMaterialPresentationInstaller.Apply(GameMaterialRenderingDefinitions.Create());
+            }
         }
 
         [Test]
