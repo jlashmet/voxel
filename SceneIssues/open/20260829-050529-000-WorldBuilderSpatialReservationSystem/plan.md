@@ -1,32 +1,37 @@
 # Plan — WorldBuilder Spatial Reservation System
 
-## Observed behavior / acceptance
+## Goal
 
-WorldBuilder spatial ownership is fragmented across settlement placement, roads, architecture, ecology and underground generation. This feature must provide one deterministic integer-space claim/query substrate without becoming a global first-writer registry or replacing route, socket, ecology or cave policy. Closure requires production Kentridge, road/macro, architecture, vegetation and underground consumers; stable diagnostics; bounded cost; gallery inspection; exact-SHA CI; and built-player evidence.
+Provide one deterministic, engine-free spatial claim/query substrate for WorldBuilder without replacing road solving, architecture compatibility, ecology policy, hidden-space topology, or presentation ownership. Close only after the real production seams consume the shared data, focused regressions pass, runtime/gallery evidence is durable, cost/blast radius are checked, and exact-SHA CI is green.
 
-## Resume gate (2026-08-30)
+## Resume gate — 2026-08-30
 
-The resumed feature branch is reconciled with current `origin/master` `e17e858bfe0497c90b87db70fcfef80a142917a4` by two-parent merge `f8d3a541640da797bcf8201c0688d49afd5a6e44`; `fixes/agent-7` is 0 commits behind master at this gate. The source audit confirms the canonical Kentridge tree planner and hidden-space adapters are already substantially migrated, while `TopDownWorldVoxelCatalogue.Build` currently resolves the canonical road network without invoking the reservation-policy validation seam. That production macro bypass is required work. Decorative-vegetation and gallery call sites must be classified against actual production ownership before changing them.
+`fixes/agent-7` was fetched and reconciled with then-current `origin/master` `dfbc43b086b60798d66ea36f49fabc8a0ad73297` by two-parent merge `1dd53c5cfd809845b6a5bb5d26eadf17bd44e4cc`; the incoming master delta was only the strengthened `AGENTS.md` visual-quality gate. `SceneIssues/feature-readme.md` is absent; `SceneIssues/README.md` is the repository's declared SceneIssue workflow authority.
 
-## Discriminators and results
+Source audit after reconciliation:
 
-Hypothesis A: a reusable production reservation/precedence service already exists and this work should adapt it. **Falsified** on current `master`; no competing canonical claim service exists.
+- Core reservation identity, 3D bounds/corridors, semantics, bounded snapshots, deterministic resolution, diagnostics/metrics, planner-local replay/release, and resolved local+global snapshots are implemented.
+- `KentridgeHiddenSpaceBatchPlanner` already consumes real 3D realization claims and a caller snapshot.
+- `KentridgeVegetationPlanner.ApplySpatialReservations` already filters the grouped tree+boulder plan against one shared snapshot; decorative moss/vines/ground plants are a separate visual dressing pass and do not own world occupancy.
+- Production combined Kentridge architecture uses `KentridgeSharedStructureVoxelCatalogue`, not the comparison-only `KentridgeGrammarVoxelCatalogue`; the production shared-structure path still needs a reservation query seam.
+- `TopDownWorldVoxelCatalogue.Build` still creates an implicit-road town snapshot before solving the canonical `WorldRoadNetwork`, creates a second tree snapshot with `WorldRoadNetwork.Empty`, and does not call `ValidateRoadHandoffs`. That is a real production authority/cost defect.
 
-Hypothesis B: the open typed-`StructuralSocket` feature is required before structural integration. **Falsified** for this assignment: current `master` still has no typed socket. The existing production boundary is `StructureSiteGeometry` plus architecture-resolved child/form extents. Reservations will validate only spatial clearance; compatibility/orientation/support remain architecture-owned.
+## Implementation
 
-Road audit result: `WorldRoadNetwork` is now canonical for resolved road geometry, shoulders and clearance. Reservation adapters must consume it directly and remove inferred production-road approximations.
+1. Preserve the existing Core contract; add only the smallest reusable query capability needed for a structure child/site to ignore its own host-owner claims without rebuilding a filtered snapshot per role.
+2. In `KentridgeCombinedVoxelCatalogueCanonical`, build the canonical `WorldRoadNetwork` and one caller-owned town reservation snapshot once, then thread the already-resolved `SettlementPlan` and snapshot into `KentridgeSharedStructureVoxelCatalogue`.
+3. In `KentridgeSharedStructureVoxelCatalogue`, validate each generated/bespoke realization's site-clearance claim against that shared snapshot, excluding only the matching host plot owner. Architecture retains form/orientation/support/piece-selection authority.
+4. In `TopDownWorldVoxelCatalogue`, solve the canonical road network once before reservation construction; use it for settlement and bounded tree snapshots, validate road handoffs once, and reuse the same network for road rasterization.
+5. Add focused regressions for exact half-open touching semantics, owner-excluded structure queries, production canonical-road handoff, deterministic precedence/tie behavior, compatibility, grouped vegetation, true-3D hidden space, replay/release, and bounded query work.
+6. Trace and validate the existing `WorldbuildingGalleryAuditHarness`/reservation inspection path; add only read-only visualization/evidence if a gap remains. Verify authored benchmark paths and highlight-policy requirements.
+7. Run repository-supported static/Unity tests, ProjectValidator, runtime/built-player gallery/playable-slice checks, and record query/snapshot/blast-radius evidence. No visual acceptance from code inspection alone.
+8. When implementation and runtime acceptance are complete, move open -> pending per `SceneIssues/README.md`; merge current master, perform the final targeted request only on `ci-test/fixes/agent-7` without replacing a queued request, and require exact feature SHA PASS.
+9. After the green exact-SHA gate, complete required metadata, move pending -> closed with `status=fixed` and `resolvedUtc`, merge current master again if required by the workflow, revalidate any changed tree, and promote the exact validated feature head to `origin/master` non-force. If master advances, fetch/merge/revalidate/retry.
 
-Inspection audit result: `WorldbuildingGalleryAuditHarness` is the existing built-player gallery hook. It will consume snapshots read-only; any debug GameObjects are presentation only and will have no authoritative colliders/state.
+## Blast radius / cost constraints
 
-## Selected implementation
-
-1. Keep the engine-free Core reservation contract already implemented: stable ids/provenance, 3D boxes/corridors, hard/clearance/protected/handoff/soft semantics, deterministic precedence, bounded snapshot buckets, planner-local replay/release, diagnostics and query metrics.
-2. Finish production adapters and policy seams without duplicating world generation: canonical `WorldRoadNetwork` + top-down settlement envelope/public arrival validation, architecture site/child clearance, caller-owned vegetation snapshot, and real hidden-space snapshot.
-3. Add focused production regressions for road/macro handoff, structure clearance/connector compatibility, vegetation suppression/device independence, hidden-space 3D behavior, regeneration/order stability, and build/query work metrics.
-4. Extend the existing gallery audit path with non-authoritative surface/underground/rejected-candidate reservation visualization and durable cost/diagnostic logging.
-5. Validate compile/static diff and blast radius, then issue exactly one final request through `ci-test/fixes/agent-7` using the repository-required PlayMode SceneIssue transport so focused regression and standalone-player validation run against the exact feature SHA.
-6. Only after every task and acceptance criterion is green: complete pending metadata, move open -> pending -> closed, set `status=fixed`/`resolvedUtc`, merge current `origin/master`, and promote the exact feature head to `origin/master` non-force.
-
-## Risk / budgets
-
-Preserve Kentridge fixed candidate ordering and 256-attempt cap. Do not duplicate road geometry math, eagerly materialize world claims, use Unity Physics as authority, weaken device budgets, or create per-claim authoritative GameObjects. Measure snapshot construction, bucket/candidate/narrow-phase work, allocations/memory where the harness supports it, and generation/regeneration impact before closure. Prefer one read-only validation/query pass at existing production boundaries over constructing duplicate authoritative reservation state.
+- No global first-writer registry, Physics authority, per-reservation GameObjects/colliders, duplicate road solver, or duplicate ecology/hidden-space policy.
+- Preserve Kentridge deterministic role/candidate ordering and existing generation budgets.
+- Reuse one road solve and one reservation source snapshot at each production stage; do not rebuild the full town once per architecture role.
+- Bound snapshots to caller windows; use query metrics (buckets, broad candidates, narrow tests, intersections) as durable cost evidence.
+- Scope changes to this assignment's Core/WorldBuilder production seams, tests, audit evidence, and SceneIssue metadata only.
