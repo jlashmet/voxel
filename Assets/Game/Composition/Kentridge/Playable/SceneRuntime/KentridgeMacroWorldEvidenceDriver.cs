@@ -34,7 +34,7 @@ namespace Game.Kentridge.PlayableSlice
         private const int StableCoverageFrames = 4;
         private const float DmToMetres = 0.1f;
         private const uint Seed = 0x4B454E54u;
-        private const float SettlementSurveyHeightMetres = 22f;
+        private const float SettlementSurveyHeightMetres = 36f;
 
         private static readonly FieldInfo s_WorldField = typeof(KentridgePlayableSlice).GetField(
             "_world",
@@ -64,6 +64,7 @@ namespace Game.Kentridge.PlayableSlice
         private float _roadCaptureStartedAt;
         private int _stableCoverageFrames;
         private int _targetIndex = -1;
+        private int _targetContentIndex;
         private float _targetStartedAt;
         private bool _targetCaptured;
         private float _targetCapturedAt;
@@ -202,8 +203,27 @@ namespace Game.Kentridge.PlayableSlice
                 BeginTarget(0);
 
             EvidenceTarget target = _targets[_targetIndex];
-            PinToTarget(target);
             float now = Time.realtimeSinceStartup;
+            if (!_targetCaptured && _targetContentIndex < target.ContentDm.Length)
+            {
+                Int2 contentPoint = target.ContentDm[_targetContentIndex];
+                if (!IsContentSettled(contentPoint))
+                {
+                    PinToContent(contentPoint, target.CameraHeightMetres);
+                    _stableCoverageFrames = 0;
+                    return;
+                }
+
+                Debug.Log(
+                    $"MACROEVIDENCE content-ready target={target.Label} index={_targetContentIndex} " +
+                    $"pointDm=({contentPoint.X},{contentPoint.Y})");
+                _targetContentIndex++;
+                _stableCoverageFrames = 0;
+                if (_targetContentIndex < target.ContentDm.Length) return;
+                _targetStartedAt = now;
+            }
+
+            PinToTarget(target);
             float targetElapsed = now - _targetStartedAt;
             if (!_targetCaptured
                 && targetElapsed >= TargetMinimumDwellSeconds
@@ -238,18 +258,20 @@ namespace Game.Kentridge.PlayableSlice
         private bool HasStablePublishedCoverage(EvidenceTarget target)
         {
             for (var i = 0; i < target.ContentDm.Length; i++)
-            {
-                Int2 point = target.ContentDm[i];
-                int ground = TerrainSampler.HeightAt(point.X, point.Y, Seed);
-                var worldPoint = new Vector3(
-                    point.X * DmToMetres,
-                    ground * DmToMetres,
-                    point.Y * DmToMetres);
-                if (!_world.IsPresentationColumnContentSettled(worldPoint))
+                if (!IsContentSettled(target.ContentDm[i]))
                     return AdvanceStableCoverage(false);
-            }
 
             return AdvanceStableCoverage(true);
+        }
+
+        private bool IsContentSettled(Int2 point)
+        {
+            int ground = TerrainSampler.HeightAt(point.X, point.Y, Seed);
+            var worldPoint = new Vector3(
+                point.X * DmToMetres,
+                ground * DmToMetres,
+                point.Y * DmToMetres);
+            return _world.IsPresentationColumnContentSettled(worldPoint);
         }
 
         private bool AdvanceStableCoverage(bool contentSettled)
@@ -276,6 +298,7 @@ namespace Game.Kentridge.PlayableSlice
         private void BeginTarget(int index)
         {
             _targetIndex = index;
+            _targetContentIndex = 0;
             _targetStartedAt = Time.realtimeSinceStartup;
             _targetCaptured = false;
             _targetCapturedAt = 0f;
@@ -500,6 +523,17 @@ namespace Game.Kentridge.PlayableSlice
             if (!physical.TryGetRoute(fromId, toId, out TopDownWorldPhysicalRoutePlan route))
                 throw new InvalidOperationException("Macro evidence plan has no route '" + fromId + "->" + toId + "'.");
             return route;
+        }
+
+        private void PinToContent(Int2 point, float cameraHeightMetres)
+        {
+            int ground = TerrainSampler.HeightAt(point.X, point.Y, Seed);
+            _motor.Position = new Vector3(
+                point.X * DmToMetres,
+                ground * DmToMetres + cameraHeightMetres,
+                point.Y * DmToMetres);
+            _motor.Velocity = Vector3.zero;
+            _slice.transform.position = _motor.EyePosition;
         }
 
         private void PinToTarget(EvidenceTarget target)
