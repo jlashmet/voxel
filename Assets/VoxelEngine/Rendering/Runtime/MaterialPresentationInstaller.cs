@@ -17,6 +17,7 @@ namespace VoxelEngine.Rendering.Runtime
         private static readonly int s_WaterDetail = Shader.PropertyToID("_WaterDetail");
         private static readonly int s_WaterFoam = Shader.PropertyToID("_WaterFoam");
         private static readonly int s_WaterCascade = Shader.PropertyToID("_WaterCascade");
+        private static readonly int s_SolidWaterMaterialMask = Shader.PropertyToID("_SolidWaterMaterialMask");
 
         public static void Apply(MaterialPresentationDefinition[] definitions)
         {
@@ -65,9 +66,10 @@ namespace VoxelEngine.Rendering.Runtime
 
             // Solid extraction is Burst/GPU-staging code and cannot read managed presentation
             // arrays directly. Publish the same semantic water mask through its Burst-safe mirror
-            // at the one authoritative installation boundary.
-            SolidMaterialClassification.SetWaterMaterialMask(
-                VoxelPresentationCatalogue.WaterMaterialMask);
+            // and the global compute-shader scalar at the one authoritative installation boundary.
+            uint waterMaterialMask = VoxelPresentationCatalogue.WaterMaterialMask;
+            SolidMaterialClassification.SetWaterMaterialMask(waterMaterialMask);
+            Shader.SetGlobalInt(s_SolidWaterMaterialMask, unchecked((int)waterMaterialMask));
 
             // Water profile rows are static application presentation state. Bind once when the
             // authoritative catalogue is installed rather than re-uploading six 32-row arrays for
