@@ -36,6 +36,14 @@ namespace VoxelEngine.Showcase
             return true;
         }
 
+        /// <summary>
+        /// Compatibility entry point for existing camera preload consumers. The former implementation
+        /// waited for the entire residency disc; readiness is now deliberately presentation-scoped to
+        /// the camera column so unrelated countryside cannot hold the opening gate.
+        /// </summary>
+        public bool IsCurrentDemandContentSettled(float3 cameraMetres) =>
+            IsPresentationColumnContentSettled(cameraMetres);
+
         private bool IsRegionContentSettled(int3 regionCoord)
         {
             if (!_generated.Contains(regionCoord)) return false;
