@@ -107,3 +107,4 @@
 - [x] Fix explicit-catalogue region enumeration so accepted structural descendants outside root footprints are visited and rasterized; add a production-helper regression using the existing cross-region fixture.
 - [ ] Ensure typed structural gallery proving content is present in both live-generate and normal bake startup modes through a bounded presence-check/compatibility repair; do not require a new bake merely to validate this feature.
 - [ ] Extend the existing gallery audit/player harness for feature frames, traversal assertions, and bridge/castle cost evidence; do not create a parallel validation harness.
+- [ ] Scope the structural audit phase to this exact SceneIssue id so unrelated capture-less WorldbuildingGallery validations keep their existing audit contract and runtime cost.
