@@ -785,7 +785,7 @@ namespace VoxelEngine.Showcase
             MaxPrimitives = maxPrimitives,
             Material = material,
             Slots = slots ?? Array.Empty<SlotSpec>(),
-        };
+        }
 
         private static StructuralPieceSpec Piece(uint id, StructuralSocketRole role, ulong tag,
             int3 ingress, Facing facing) => new()
@@ -871,11 +871,13 @@ namespace VoxelEngine.Showcase
             // The previous search stayed inside the intentionally calm settlement valley and selected
             // a 1.2 m grade; that cannot demonstrate a vertical structural composition. Keep the rise
             // bounded so every child/presentation catalogue remains below existing spatial/voxel caps.
+            // Sample a point inside the authored upper socket's ±10 X/Z support probe footprint;
+            // this makes selected rise and the planner's required terrain contact the same invariant.
             for (int z = -15400; z <= -14600; z += 80)
             for (int x = 1600; x <= 3200; x += 80)
             {
                 int low = TerrainQuery.HeightAt(x, z, Seed);
-                int high = TerrainQuery.HeightAt(x + run, z, Seed);
+                int high = TerrainQuery.HeightAt(x + run - 10, z + 10, Seed);
                 int rise = high - low;
                 if (rise < minimumRise || rise > maximumRise || low > BaseHeight + 180) continue;
                 if (rise <= bestRise) continue;
