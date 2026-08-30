@@ -133,6 +133,7 @@ namespace MountingForce.WorldGen.Voxel
             TopDownWorldVoxelPlan plan = Plan(layout, rootCentreDm, cellSizeDm);
             WorldRoadNetwork network = TopDownWorldRoadNetwork.Build(
                 layout, rootCentreDm, cellSizeDm, settings);
+            TopDownWorldReservationAdapter.ValidateRoadHandoffs(plan, network);
 
             FeatureCatalogue nodes = BuildNodeMarkers(plan, layout.Seed, settings, allocator);
             if (network.Routes.Count == 0) return nodes;
