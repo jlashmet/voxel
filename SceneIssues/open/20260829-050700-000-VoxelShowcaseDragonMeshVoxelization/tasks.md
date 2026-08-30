@@ -2,7 +2,7 @@
 
 ## Investigation
 - [x] Read `AGENTS.md` and canonical `SceneIssues/README.md`; confirm `SceneIssues/feature-readme.md` and `SceneIssues/test-workflow.md` are absent at this revision.
-- [x] Confirm `fixes/agent-1` starts from current `origin/master` before implementation.
+- [x] Confirm `fixes/agent-1` starts from/merges current `origin/master` before implementation.
 - [x] Re-check CI transport state: `ci-test/fixes/agent-1` already exists; leave it untouched until the single final targeted-CI request and never replace queued/running CI.
 - [x] Record execution limitation: no local Unity runner; exact-SHA CI is authoritative compiler/test/player validation.
 - [x] Trace voxel authoring/storage, material palette, showcase composition, collision/edit, and player-capture owners enough to keep the feature additive.
@@ -16,7 +16,8 @@
 - [x] Reject Cethiel/Drummyfish CC0 winged dragon as final proof asset: redistribution is clean, but the mirrored DAE has only ~633 position vertices and is visibly low-poly, below the detailed/production-quality gate.
 - [x] Select Delatronic `Dragon` (Blend Swap asset 15891 / historic id 80766) as the preferred source: CC-BY, detailed curved winged anatomy, Blender 2.7x source; verify Bitterli redistribution and Microsoft `DirectX-Graphics-Samples` PBRT/PLY mirror with asset-specific CC-BY license/provenance.
 - [x] Verify Microsoft's PBRT scene maps the dragon material to `Mesh008.ply`, `Mesh013.ply`, `Mesh014.ply`, and `Mesh015.ply`, with teeth separate and one shared scene transform; source files are real non-LFS payloads.
-- [ ] Vendor the selected Delatronic source bytes into this repository. Current connector can inspect/license/base64 binary PLYs but cannot losslessly transfer the multi-megabyte parts within response limits; do not substitute lower-quality geometry merely to fit tooling.
+- [x] Verify compact mirror `gkjohnson/3d-demo-data` `dragon.glb` is 1,651,276 bytes, Delatronic / CC BY 3.0, Draco-compressed without mesh simplification; verify independent `ErfanMo77/gltf-research-scenes` conversion reports 16 meshes / 831,812 scene triangles and preserves the same Blend Swap/Bitterli provenance.
+- [ ] Vendor the selected Delatronic source bytes into this repository. Current connectors can inspect/base64 binary source objects but still cannot losslessly transfer the multi-megabyte payload into this repo; do not substitute lower-quality geometry merely to fit tooling.
 - [ ] Commit exact source URL, author, license, original/mirrored format, vertex/triangle counts, original/mirror SHA-256, committed-source SHA-256, mirror blob/commit provenance, and required attribution/license text.
 - [ ] Verify committed source is meaningfully detailed/non-voxel-native with readable head, body, wings, limbs/feet, tail, and secondary silhouette detail.
 
@@ -29,7 +30,7 @@
 - [x] Material mapping is deterministic through production importer output.
 - [x] Thin curved/sheet feature retention is covered without global bloat.
 - [x] Invalid triangle indices and oversized bounds fail preflight before rasterization/dense allocation.
-- [ ] Add focused non-finite source/transform preflight regression.
+- [x] Focused non-finite source and non-finite transform preflight regressions reject before rasterization.
 - [x] Open/non-manifold input either rejects clearly or explicitly falls back to surface-only without invented interior.
 - [x] Sparse artifact codec round-trips exactly and rejects malformed/out-of-bounds data.
 - [x] Baked cells replay through `IStructureAuthoringSession` at arbitrary requested origin.
@@ -67,8 +68,9 @@
 - [ ] Record import/voxelization time, occupied voxel count, sparse brick/chunk count, serialized size, runtime resident/storage impact, and incremental render/world-build cost within repository budgets.
 - [ ] Verify ordinary runtime does not execute mesh voxelization and no `MeshCollider`/source-mesh gameplay fallback exists.
 - [x] Current feature-vs-master blast-radius review shows additions confined to mesh-import editor/runtime, showcase mesh-structure/selection helpers, focused EditMode tests, and this issue's plan/tasks; no workflow request or unrelated SceneIssue changes.
+- [x] Refresh-merged `origin/master` through `65e33762a0d0f1739e9a518484d119e551f01f81` during resumed implementation, preserving only unrelated master additions untouched.
 - [ ] Re-run full feature diff review after source/showcase/evidence implementation.
-- [ ] Refresh/merge current `origin/master` before final CI if it advanced (master was `c2cdde7fef88246a58236c0b02c323a7b507d496` at latest fetch and is 26 commits ahead of this feature's merge base).
+- [ ] Refresh/merge current `origin/master` again immediately before final CI if it advanced.
 - [ ] Issue one final exact-source PlayMode request only through `ci-test/fixes/agent-1`; do not replace queued/running CI.
 - [ ] Obtain green focused behavioral regression plus exact built-player `VoxelShowcase` validation in that final request.
 - [ ] Inspect all required built-player views directly for same-source silhouette/anatomy/material fidelity, grounding, negative spaces, and no holes/fused/bloated/broken parts.
