@@ -7,8 +7,9 @@
 - [ ] Trace existing mesh/SDF import, voxel stamp/storage, structure placement, material palette, showcase composition, collision/edit, and player-capture owners.
 - [ ] Inspect prior dragon/SDF work only as reusable-code evidence; do not modify another assignment.
 - [ ] Verify and document a detailed conventional dragon source with redistribution-compatible license, URL, author, format, triangle/vertex counts, checksum, and required attribution files.
-- [ ] Record at least two plausible implementation hypotheses and the smallest discriminator in `plan.md`.
-- [ ] Check blast radius against terrain/building voxel paths and authoritative voxel/world-truth invariants.
+- [x] Record at least two plausible implementation hypotheses and the smallest discriminator in `plan.md`; discriminator supports additive structure-authoring replay and finds no existing editor mesh voxelizer to generalize.
+- [x] Check blast radius against terrain/building voxel paths and authoritative voxel/world-truth invariants: keep importer/showcase additive, preserve existing WorldBuilder/terrain/storage/collision/edit semantics, and enforce bounded voxel-grid preflight.
+- [ ] Resolve exact VoxelShowcase runtime owner/capture hook and the smallest additive scene integration point.
 
 ## Implementation
 - [ ] Add reusable editor/build mesh→voxel API/configuration accepting source mesh/hierarchy, scale/transform, voxel resolution, occupancy/interior-fill policy, material mapping, and thin-feature policy.
@@ -16,11 +17,12 @@
 - [ ] Fill intended closed/nearly-closed interiors predictably; preflight/report unsupported/open/non-manifold cases.
 - [ ] Handle nested transforms, non-uniform transforms where supportable, mirrored orientation, pivot/bounds, and deterministic repeat conversion.
 - [ ] Preserve major material/color regions through deterministic normal voxel-material mapping.
-- [ ] Bake reusable sparse canonical voxel output; no runtime triangle voxelization or second gameplay geometry truth.
+- [ ] Serialize a reusable sparse baked-cell artifact and replay it through `IStructureAuthoringSession.Set`/normal WorldBuilder placement; no runtime triangle voxelization or second gameplay geometry truth.
 - [ ] Integrate baked dragon through normal WorldBuilder/voxel placement and canonical collision/edit/destruction path.
 - [ ] Add dedicated labeled `Mesh -> Voxels` comparison area to built `VoxelShowcase` with matched pose/scale/orientation/ground/lighting.
 - [ ] Add durable comparison-capture support for required six overall views and head/wing/feet/tail close-ups without creating a new CI transport.
 - [ ] Add source-vs-voxel surface-distance and fixed-view silhouette-IoU evidence.
+- [ ] Add importer preflight bounds/cost limits before dense flood-fill work and emit deterministic bake metrics.
 
 ## Regressions
 - [ ] Curved synthetic closed geometry proves triangle surface coverage and solid interior fill.
