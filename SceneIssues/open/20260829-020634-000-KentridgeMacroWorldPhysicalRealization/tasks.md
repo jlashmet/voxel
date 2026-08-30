@@ -39,7 +39,13 @@
 - [x] Reorder dormant validation targets to `Moordell -> Rossdam lake -> Rossdam settlement` so shared lake content is streamed once before the settlement wait; no readiness/capture gate is skipped.
 - [x] Run `33293551570`, exact source `2245eb810cbc7a09af4a4a33b32427f0ffce6d4b`, is product-red at compile: `KentridgeMacroWorldSettlementEvidenceCamera.cs` cannot resolve `MountingForceTopDownWorldDefinition`; focused test and player build both stop before execution.
 - [x] Add the missing `Game.WorldBuilder.Runtime` namespace import to the validation helper; no behavior/runtime budget change.
-- [ ] Re-run the corrected exact source with supported `replay_seconds=60`; runtime/streaming budgets remain unchanged.
+- [x] Run `33293664047`, exact source `72c5986b71d79473a1d7725b9d65085cf520509a`, with supported `replay_seconds=60`. Built-player capture succeeds with zero harness assertions; focused PlayMode produces no `single.xml` and crashes natively in the Burst child domain (`Burst.Compiler.IL.Server.EntryPointMethodGrouper`), so the editor result is infrastructure-red rather than a managed product assertion.
+- [x] Reject run `33293664047` / artifact `9726759390` for closure despite the infrastructure-red editor result: the player reaches Moordell, Rossdam, and Rossdam lake, makes Fairy content-ready at ~59 s, then the 60 s harness ends before Fairy capture, Orc, Southern Ridge/pass, or network overview.
+- [x] Reject the current settlement survey evidence: exact `macro-moordell.png` and `macro-rossdam.png` each visibly frame only one blockout building. The separate Moordell road-arrival frame shows multiple buildings but is not proof of all four at every settlement.
+- [x] Diagnose why the intended validation helper did not remediate the exact player: no `target-order=lake-before-rossdam` log appears, the driver still runs `Moordell -> Rossdam -> lake`, and its own diagonal 36 m survey camera remains active. Do not rely on the helper for closure.
+- [x] Diagnose Moordell road-arrival camera race: `ScreenCapture.CaptureScreenshot` queues the frame, `_moordellRoadArrivalPending` is cleared in the same `Update`, then `LateUpdate` reapplies the survey camera before capture. Preserve road-arrival camera mode until the queued screenshot frame completes.
+- [ ] Move lake-before-Rossdam ordering directly into `KentridgeMacroWorldEvidenceDriver.BuildTargetsAndRoadTraversal`; keep every existing real readiness/coverage gate and the 60 s CI cap.
+- [ ] Move near-overhead generic-settlement framing directly into the proven evidence driver and preserve the player-height Moordell road-arrival camera through its capture frame; remove the ineffective separate helper.
 - [ ] Exact built `KentridgePlayableSlice` reaches usable gameplay without startup/runtime exceptions and captures every macro target.
 - [ ] Full-resolution exact-scene evidence shows four readable blockouts at Moordell, Rossdam, Fairy Village, and Orc Village.
 - [ ] Full-resolution evidence shows continuous roads/network, substantial Rossdam lake, Southern Ridge/pass response, geography-constrained route behavior, and representative real CharacterMotor traversal.
@@ -53,6 +59,7 @@
 - [x] Rejected run `33290154012`: elapsed=79 s, peak RSS=5859 MB, systemFree=31944 MB, swapGrowth=0 MB; post-start FPS generally >60.
 - [x] Run `33292088730` focused editor process before native Burst crash: elapsed=31 s, peak RSS=2287 MB, systemFree=29019 MB, swapGrowth=0 MB.
 - [x] Run `33292881845` exact player: elapsed=70 s, peak RSS=5233 MB, systemFree=28711 MB, swapGrowth=0 MB; after startup one-second FPS windows are generally >60 and often >100.
+- [x] Run `33293664047` focused editor native crash: elapsed=32 s, peak RSS=3448 MB, systemFree=27274 MB, swapGrowth=0 MB. Exact player remains smooth after startup (generally >60 FPS, often >100 FPS) and reports zero harness assertions, but the evidence sequence is incomplete.
 - [x] Re-check corrected feature diff against current master before the rejected 75 s request: master remained `61d03336390ed9079498b183217cbf0ecf0abcd2`; feature was ahead-only/behind=0 and contained only this assignment beyond master.
 - [ ] Measure final resolved lake footprint/depth/primitive scan cells, route solve counts, feature voxel work/last-feature time, CPU/frame/FPS, memory, streaming convergence, and far-field/render telemetry against existing budgets.
 - [ ] Re-check the exact source diff/current master immediately before the next supported 60 s targeted request and again before promotion.
