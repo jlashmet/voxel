@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Game.WorldBuilder.Api;
 using NUnit.Framework;
 using Unity.Mathematics;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 using VoxelEngine.Structures.Api;
 using VoxelEngine.Structures.Runtime;
 
@@ -130,6 +131,63 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void SlopedDiagonalCrossSectionIsSymmetricBoundedAndChunkIndependent()
+        {
+            Primitive corridor = Corridor(
+                new int3(0, 20, 0),
+                new int3(100, 40, 100),
+                coreRadius: 12,
+                outerRadius: 24,
+                seed: Seed);
+
+            Assert.IsTrue(TerrainCorridorRasteriser.TrySample(
+                in corridor, 50, 50, out TerrainCorridorSample centre));
+            Assert.That(centre.TargetHeightVoxels, Is.InRange(30, 33),
+                "Cross-section shaping may only make a shallow bounded change to the resolved diagonal grade.");
+
+            Assert.IsTrue(TerrainCorridorRasteriser.TrySample(
+                in corridor, 44, 56, out TerrainCorridorSample left));
+            Assert.IsTrue(TerrainCorridorRasteriser.TrySample(
+                in corridor, 56, 44, out TerrainCorridorSample right));
+            Assert.AreEqual(left.DistanceDm, right.DistanceDm,
+                "Both sides of a diagonal corridor must use the same analytic cross-section distance.");
+            Assert.AreEqual(left.Coverage31, right.Coverage31,
+                "Shoulder coverage must not depend on which chunk/side evaluates the same world-space offset.");
+            Assert.AreEqual(left.TargetHeightVoxels, right.TargetHeightVoxels,
+                "Both shoulders must recover from the same resolved grade without side-specific bands.");
+
+            Assert.IsTrue(TerrainCorridorRasteriser.TrySample(
+                in corridor, 44, 56, out TerrainCorridorSample repeat));
+            Assert.AreEqual(left.Coverage31, repeat.Coverage31);
+            Assert.AreEqual(left.TargetHeightVoxels, repeat.TargetHeightVoxels);
+            Assert.AreEqual(left.SurfaceDetail31, repeat.SurfaceDetail31,
+                "World-space presentation metadata must be stable regardless of region/chunk evaluation order.");
+        }
+
+        [Test]
+        public void TrailVegetationSuppressionStillUsesSharedPresentationInfluence()
+        {
+            ResolvedWorldRoad road = Resolve(
+                "trail-vegetation",
+                WorldRoadProfiles.Trail,
+                new WorldRoadPlanPoint(0, 0),
+                new WorldRoadPlanPoint(100, 0));
+            var influence = new WorldRoadInfluence(road);
+
+            Assert.IsTrue(influence.TrySample(50, 0, out WorldRoadInfluenceSample core));
+            Assert.AreEqual(31, core.Coverage31);
+            Assert.AreEqual(26, core.VegetationSuppression31,
+                "Trail vegetation suppression must continue to derive from profile suppression and the shared 0..31 road influence.");
+
+            Assert.IsTrue(influence.TrySample(50, 20, out WorldRoadInfluenceSample shoulder));
+            Assert.That(shoulder.Coverage31, Is.InRange(1, 30));
+            Assert.AreEqual(
+                shoulder.Coverage31 * WorldRoadProfiles.Trail.VegetationSuppressionPermille / 1000,
+                shoulder.VegetationSuppression31,
+                "Vegetation recovery must track the same deterministic shoulder influence used by presentation.");
+        }
+
+        [Test]
         public void CurvedPresentationInfluenceMatchesGenericPhysicalCorridor()
         {
             var profile = new WorldRoadProfile(
@@ -190,6 +248,26 @@ namespace VoxelEngine.Tests.EditMode
             Assert.AreEqual(80, network.Junctions[0].Xdm);
             Assert.AreEqual(0, network.Junctions[0].Zdm);
             Assert.AreEqual(WorldRoadJunctionKind.Join, network.Junctions[0].Kind);
+        }
+
+        [Test]
+        public void PresentationKeepsExistingPrimitiveAndVertexStorageBudgets()
+        {
+            Assert.AreEqual(32, SmoothSurfaceVertex.Stride,
+                "Road presentation must reuse packed surface semantics instead of growing the shared surface vertex.");
+            Assert.AreEqual(17, ShapeOps.InstructionLength(ShapeOp.EmitTerrainCorridor),
+                "The existing bounded one-corridor instruction contract must not grow for presentation-only road detail.");
+
+            Primitive nonRoad = new Primitive
+            {
+                Shape = PrimitiveShape.Box,
+                Mode = PrimitiveMode.Add,
+                A = new int3(0, 0, 0),
+                B = new int3(4, 4, 4),
+            };
+            Assert.IsFalse(TerrainCorridorRasteriser.TrySample(
+                in nonRoad, 0, 0, out _),
+                "Generic non-corridor primitives must remain outside the road presentation path.");
         }
 
         private static Primitive Corridor(int3 a, int3 b, int coreRadius, int outerRadius, uint seed)
