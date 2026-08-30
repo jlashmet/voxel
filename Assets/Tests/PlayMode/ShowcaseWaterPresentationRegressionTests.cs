@@ -1,11 +1,16 @@
+using System.Collections;
+using System.Collections.Generic;
 using System.Reflection;
 using Game.Materials.Api;
 using Game.Materials.Runtime;
 using NUnit.Framework;
 using Unity.Mathematics;
+using UnityEngine;
+using UnityEngine.TestTools;
 using VoxelEngine.Composition;
 using VoxelEngine.Rendering.Api;
 using VoxelEngine.Rendering.Runtime;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 using VoxelEngine.Showcase;
 
 namespace VoxelEngine.Tests.PlayMode
@@ -121,6 +126,117 @@ namespace VoxelEngine.Tests.PlayMode
                 world.StopBackgroundWork();
                 world.Dispose();
             }
+        }
+
+        [UnityTest]
+        public IEnumerator ExactCascadeCurtainSurvivesShowcaseStorageIntoProductionWaterCache()
+        {
+            var world = new ShowcaseWorld(
+                0xA913u,
+                brickPoolCapacity: 8192,
+                loadRadiusRegions: 1,
+                unloadRadiusRegions: 2,
+                GameMaterialSimulationDefinitions.Create(),
+                maxMixedBrickAllocationBytes: 64L * 1024L * 1024L,
+                features: ShowcaseFeatureContent.HouseOnly,
+                startup: ShowcaseStartupSource.Generate);
+            var cache = new CpuWaterSurfaceChunkCache();
+            var cameraObject = new GameObject("Cascade storage-cache discriminator camera");
+            Camera camera = cameraObject.AddComponent<Camera>();
+
+            try
+            {
+                world.GenerateRegionBlocking(int3.zero);
+                VoxelMaterialPresentationInstaller.Apply(GameMaterialRenderingDefinitions.Create());
+
+                int fallBaseY = MaxSurfaceHeight(world, 304, 424, 194, 276) + 5;
+                int3 curtainMin = new int3(333, fallBaseY + 10, 199);
+                int3 curtainSize = new int3(62, 62, 2);
+                Assert.That(
+                    world.AuthorVoxelBox(curtainMin, curtainSize, GameMaterialIds.Cascade),
+                    Is.EqualTo(curtainSize.x * curtainSize.y * curtainSize.z),
+                    "The discriminator must author the exact primary Cascade curtain used by WaterRenderingShowcase.");
+
+                Assert.That(world.ReadStorage.TryAcquireRegion(int3.zero, out var view), Is.True);
+                AssertMaterial(view, curtainMin, GameMaterialIds.Cascade);
+                AssertMaterial(view, curtainMin + curtainSize - 1, GameMaterialIds.Cascade);
+
+                List<int3> curtainBricks = BricksCovering(curtainMin, curtainSize);
+                cache.InvalidateSurfaceBricks(world.ReadStorage, curtainBricks);
+                Assert.That(cache.DirtyCount, Is.GreaterThan(0),
+                    "Canonical storage discovery must admit the authored Cascade curtain into the water cache.");
+
+                Vector3 curtainCentre = (Vector3)((float3)curtainMin + (float3)curtainSize * 0.5f)
+                                      * ShowcaseWorld.VoxelSize;
+                camera.transform.position = curtainCentre + new Vector3(0f, 0f, -20f);
+                camera.transform.LookAt(curtainCentre);
+                camera.nearClipPlane = 0.05f;
+                camera.farClipPlane = 350f;
+
+                const int maxFrames = 120;
+                for (int frame = 0; frame < maxFrames && cache.CompletedBuildCount == 0; frame++)
+                {
+                    cache.Prepare(world.ReadStorage, camera, ShowcaseWorld.VoxelSize, budgetMs: 5.0);
+                    cache.TryPublishPending(int.MaxValue, out _);
+                    if (cache.CompletedBuildCount == 0)
+                        yield return null;
+                }
+
+                Assert.That(cache.CompletedBuildCount, Is.GreaterThan(0),
+                    "The exact authored Cascade curtain must complete production water-cache extraction.");
+                Assert.That(cache.ResidentCount, Is.GreaterThan(0),
+                    "The exact authored Cascade curtain must publish a resident production water-cache entry.");
+                Assert.That(cache.UploadedGeometryBytes, Is.GreaterThan(0),
+                    "The production water cache must encode and upload non-empty Cascade geometry from canonical storage.");
+
+                IReadOnlyList<CpuWaterSurfaceChunkCache.Entry> visible =
+                    cache.CollectVisible(camera, ShowcaseWorld.VoxelSize);
+                Assert.That(visible.Count, Is.GreaterThan(0),
+                    "The published Cascade geometry must survive through the cache visibility boundary.");
+                Assert.That(visible[0].IndexCount, Is.GreaterThan(0),
+                    "The visible production entry must contain real indexed water geometry, not only admission metadata.");
+            }
+            finally
+            {
+                cache.Dispose();
+                Object.DestroyImmediate(cameraObject);
+                world.StopBackgroundWork();
+                world.Dispose();
+            }
+        }
+
+        private static List<int3> BricksCovering(int3 min, int3 size)
+        {
+            const int blockEdgeLog2 = 3;
+            int3 maxInclusive = min + size - 1;
+            int3 minBrick = new int3(
+                min.x >> blockEdgeLog2,
+                min.y >> blockEdgeLog2,
+                min.z >> blockEdgeLog2);
+            int3 maxBrick = new int3(
+                maxInclusive.x >> blockEdgeLog2,
+                maxInclusive.y >> blockEdgeLog2,
+                maxInclusive.z >> blockEdgeLog2);
+            var result = new List<int3>();
+            for (int z = minBrick.z; z <= maxBrick.z; z++)
+            for (int y = minBrick.y; y <= maxBrick.y; y++)
+            for (int x = minBrick.x; x <= maxBrick.x; x++)
+                result.Add(new int3(x, y, z));
+            return result;
+        }
+
+        private static int MaxSurfaceHeight(
+            ShowcaseWorld world,
+            int minX,
+            int maxX,
+            int minZ,
+            int maxZ)
+        {
+            int max = 0;
+            for (int z = minZ; z <= maxZ; z += 8)
+            for (int x = minX; x <= maxX; x += 8)
+                max = math.max(max, world.SurfaceHeight(x, z));
+            return max;
         }
 
         private static void AssertMaterial(
