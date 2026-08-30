@@ -40,6 +40,9 @@ namespace VoxelEngine.Showcase
         private float _telemetryTime;
         private float _telemetryFrameSeconds;
         private int _telemetryFrameCount;
+        private bool _autoWalk;
+        private bool _autoSurvey;
+        private bool _autoRecede;
 
         private enum MeasurementMode : byte
         {
@@ -51,6 +54,57 @@ namespace VoxelEngine.Showcase
 
         public bool IsReady => _ready;
         public int ActiveActors => 0;
+
+        public bool AutoWalk
+        {
+            get => _autoWalk;
+            set
+            {
+                _autoWalk = value;
+                if (value) BeginMovement();
+                else EndMovement();
+            }
+        }
+
+        public bool AutoSurvey
+        {
+            get => _autoSurvey;
+            set
+            {
+                _autoSurvey = value;
+                if (value) BeginSurvey();
+                else EndSurvey();
+            }
+        }
+
+        public bool AutoRecede
+        {
+            get => _autoRecede;
+            set
+            {
+                _autoRecede = value;
+                if (value) BeginRecede();
+                else EndRecede();
+            }
+        }
+
+        public float SurveyHeightMetres { get; set; } = 12f;
+        public float SurveySpinDegreesPerSecond { get; set; } = 10f;
+        public float RecedeSpeedMetresPerSecond { get; set; } = 4f;
+        public float RecedeMaxDistanceMetres { get; set; } = 18f;
+
+        public float DistanceToLandmarkMetres
+        {
+            get
+            {
+                if (_camera == null) return 0f;
+                Vector3 delta = _camera.transform.position - _focus;
+                delta.y = 0f;
+                return delta.magnitude;
+            }
+        }
+
+        public string DescribeFarTerrain() => "FAR disabled water-showcase";
 
         private void OnEnable()
         {
@@ -108,6 +162,9 @@ namespace VoxelEngine.Showcase
         {
             _ready = false;
             _measurementMode = MeasurementMode.None;
+            _autoWalk = false;
+            _autoSurvey = false;
+            _autoRecede = false;
             _unattendedCapture = false;
             _captureTime = 0f;
             _captureViewPhase = byte.MaxValue;
@@ -373,12 +430,12 @@ namespace VoxelEngine.Showcase
                     break;
                 case MeasurementMode.Recede:
                     _camera.transform.position = _modeStartPosition
-                        - _camera.transform.forward * Mathf.Min(_modeTime * 4f, 18f)
+                        - _camera.transform.forward * Mathf.Min(_modeTime * RecedeSpeedMetresPerSecond, RecedeMaxDistanceMetres)
                         + Vector3.up * Mathf.Min(_modeTime * 1.4f, 7f);
                     break;
                 case MeasurementMode.Survey:
-                    float angle = _modeTime * 10f * Mathf.Deg2Rad;
-                    Vector3 offset = new Vector3(Mathf.Sin(angle) * 18f, 12f, -Mathf.Cos(angle) * 18f);
+                    float angle = _modeTime * SurveySpinDegreesPerSecond * Mathf.Deg2Rad;
+                    Vector3 offset = new Vector3(Mathf.Sin(angle) * 18f, SurveyHeightMetres, -Mathf.Cos(angle) * 18f);
                     _camera.transform.position = _focus + offset;
                     _camera.transform.rotation = Quaternion.LookRotation(_focus - _camera.transform.position, Vector3.up);
                     break;
