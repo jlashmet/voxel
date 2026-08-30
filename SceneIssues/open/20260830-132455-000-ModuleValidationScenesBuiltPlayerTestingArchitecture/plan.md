@@ -16,13 +16,15 @@
 - Run 33334407204 exposed unintended Kentridge PlayMode coupling; integration/fallback metadata is now integration-only while owning modules still require focused tests.
 - Run 33334839567 isolated relative standalone-player artifact paths as the second failure; the shared harness now normalizes the artifact root before launching the app.
 - Exact-SHA run 33335079315 is green: automatic planning selected Water + Kentridge, the Water focused test passed, built-player Kentridge produced 4 frames, built-player Water produced 3 frames, and automatic module validation completed in 167.71 seconds.
-- Direct review of that Water evidence rejected it as `prototype/blockout quality`: the startup-only patch does not visibly demonstrate still water, shallow shoreline, river flow, waterfall/cascade, and terrain contact. The validation composition must be upgraded before closure; automation green alone does not satisfy visual acceptance.
+- Direct review rejected that Water evidence as `prototype/blockout quality`; it showed only the old startup patch rather than the required representative Water relationships.
+- Exact-SHA run 33336383760 was green after the first richer tableau attempt, but its Water frames were flat clear-colour output. The player log proved the composition aborted before creating production meshes.
+- Minimal repro/root cause: `FarFieldStructureStore` samples each 512-voxel region at coarse column centres `16 + 32n` and records only sufficiently raised authored surfaces. The tableau also incorrectly checked a raised inner-pool probe against `BaseY`, guaranteeing rejection even when captured. Several rectangle start offsets never intersected the coarse-centre lattice at all. The fix authors every semantic rectangle directly on that lattice, lifts the deterministic review pedestal above terrain variation, and fail-fast probes still water, shoreline, river, cascade, receiving pool, and terrain contact before any screenshot can count.
 
 ## Blast radius / cost
-CI/orchestration, validation assets, tests, and docs only; no authoritative runtime behavior changed. Measured automatic validation cost is 167.71 seconds for the current Water + Kentridge path. The visual fix is confined to Water validation composition/content and must continue to exercise production Water rendering.
+CI/orchestration, validation assets, tests, and docs only; no authoritative gameplay runtime behavior changed. Measured automatic validation cost is 167.71 seconds for the earlier Water + Kentridge path. The current fix is confined to Water validation composition/content and deterministic ownership metadata; shared renderer/harness thresholds remain unchanged.
 
 ## Current commit
-Post-green visual-review checkpoint: 609b42778ff6f4d6a5a380723d5aef600710cace
+Root-cause fix checkpoint: e8c0513831ad2ec182eb1fdb100c5d6c08d1e001
 
 ## Remaining gates
 - [x] Inspect current validation architecture and identify reusable harness boundary.
