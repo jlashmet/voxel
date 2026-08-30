@@ -22,10 +22,11 @@ namespace VoxelEngine.Showcase
             "Assets/Resources/VoxelShowcase/ShowcaseWorld.manifest.txt";
 
         private const int ManifestVersion = 1;
-        // Revision 4 keeps the accepted naturalized geometry but assigns distinct semantic rock,
-        // ground-cover/support and path material roles. Dimensions are unchanged, so this explicit
-        // realization revision rejects the previous single-material mountain bake as visually stale.
-        private const uint LandmarkContractRevision = 4;
+        // Revision 5 keeps the established mountain placement/traversal contract while naturalizing
+        // the player-visible realization: broad foothill shoulders keep ground cover, repeated path
+        // support blobs consolidate into overlapping rock ridges, and the summit crest is narrower.
+        // The explicit bump rejects revision-4 bytes even though public landmark dimensions match.
+        private const uint LandmarkContractRevision = 5;
         private const uint FnvOffsetBasis = 2166136261u;
         private const uint FnvPrime = 16777619u;
 
