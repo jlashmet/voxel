@@ -56,6 +56,9 @@
 - [x] Keep exact request `670d9f16a920...` / run `33299149060` untouched through completion; classify it as a compile-only product failure before bake/test execution, so it supplies no new bake-cost evidence.
 - [x] Repair only the unsupported `int3` vector arithmetic in `ShowcaseWorld.BakeCoverage` and the focused test's signed region conversion; preserve the existing half-open footprint and floor-division contracts.
 - [x] Re-check compile-repair blast radius: exactly the bake planner plus its focused PlayMode regression changed; no runtime streaming, geometry, collision, movement, structure program, or bake-budget contract changed.
+- [x] Keep exact request `b68865a45a70...` / run `33300355968` untouched through completion and inspect its artifact: Unity compiled and generated/imported a corrected `200 regions, 18.2 MiB` startup image with content signature `0x7C8A5152`, then crossed the 240 s wrapper during shutdown; requested test was skipped while built-player capture still succeeded.
+- [ ] Add the smallest generic bake-only optimization that materializes an explicit fixed-altitude structure in an otherwise sparse vertical region without paying unnecessary terrain/landform work; do not change runtime streaming semantics.
+- [ ] Add focused behavioral coverage proving the optimized bake-only path is output-equivalent for the required explicit fixed structure and does not materialize unrelated sky.
 - [ ] Make the prepared startup payload include the upper vertical region containing the authored summit dragon placeholder without broadly materializing unrelated sky-only regions.
 - [x] Add `ShowcaseBakeExplicitStructureCoverageTests` proving the mountain-only catalogue plans exactly the dragon placeholder's lower/upper layers across the Y=512 boundary and does not expand the landform/headroom sky footprint.
 - [ ] Re-check bake time/memory blast radius after required-upper-layer capture; do not weaken the 240 s/14 GB contracts.
