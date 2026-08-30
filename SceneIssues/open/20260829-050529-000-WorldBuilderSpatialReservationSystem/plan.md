@@ -2,39 +2,36 @@
 
 ## Goal
 
-Provide one deterministic, engine-free spatial claim/query substrate for WorldBuilder without replacing road solving, architecture compatibility, ecology policy, hidden-space topology, or presentation ownership. Close only after real production seams consume the shared data, focused regressions pass, runtime/gallery evidence is durable, cost/blast radius are checked, and exact-SHA CI is green.
+Provide one deterministic, engine-free spatial claim/query substrate for WorldBuilder without replacing road solving, architecture compatibility, ecology policy, hidden-space topology, or presentation ownership. Close only after production consumers, focused regressions, built runtime evidence, cost/blast-radius checks, and exact-SHA CI are all green.
 
-## Resume gate — 2026-08-30
+## Current state — 2026-08-30
 
-`fixes/agent-7` was reconciled with then-current `origin/master` `5f07db5cd7677e84f617deb61c5b03a4b896159c` by two-parent merge `23d16dc51e49f17adf4c9bcedc9306c22e264bd1`. The issue is already in `pending`; do not move it backward. `SceneIssues/feature-readme.md`, `SceneIssues/README.md`, and `AGENTS.md` govern the remaining work.
+`fixes/agent-7` merged current `origin/master` `ebdc2e4f63ef73153cd4e0ff5c62efe604f35470` via two-parent merge `46b4e473ab6497d836053a072f3fe7050156756b`. Current workflow keeps unfinished work in `open/`, so the prior obsolete `pending/` state was reconciled back to `open/` without changing acceptance.
 
-Current source audit:
+The merge preserves both sides of the only production-code overlap: agent-7 reservation validation/injected `SettlementPlan` + snapshot support and master's per-program foundation sinking. Master’s new `KentridgePlotSurfaceSceneIssueRegressionTests` is included.
 
-- Core reservation identity, 3D geometry, semantics, bounded snapshots, deterministic resolution, diagnostics/metrics, planner-local replay/release, and resolved local+global snapshots are implemented.
-- `KentridgeHiddenSpaceBatchPlanner` consumes real 3D realization claims and a caller snapshot.
-- `KentridgeVegetationPlanner` filters grouped trees+boulders against one shared snapshot; decorative moss/vines/ground plants remain non-authoritative visual dressing.
-- Production Kentridge architecture is `KentridgeCombinedVoxelCatalogueCanonical` -> `KentridgeSharedStructureVoxelCatalogue` and validates production structure clearance against the shared reservation source while keeping architecture form/orientation/support/piece authority.
-- `TopDownWorldVoxelCatalogue.Build` solves the canonical `TopDownWorldRoadNetwork` exactly once, validates reservation handoffs on that solved network, and reuses it for rasterization; the focused macro-road handoff regression already exists.
-- Reuse review found one real policy leak: `WorldRoadReservationAdapter` hard-coded road-clearance yield to vegetation. The generic adapter now defaults to neutral configurable `clearanceYieldingConsumers`; Kentridge/macro composition explicitly supplies vegetation, preserving production behavior.
-- `SpatialReservationReusabilityTests.ClearanceYieldPolicyAndVerticalSeparationAreConsumerConfigured` is the independent non-Kentridge proof for configurable yield, unrelated consumers, and true 3D separation.
-- Gallery trace found the report builder was not wired into `WorldbuildingGalleryShowcase` or its built-player audit. `SpatialReservationGalleryOverlay` now copies the read-only report into one transient camera-space line mesh; the report also exposes the deliberate rejected candidate bounds. `WorldbuildingGalleryAuditHarness` captures a feature-specific reservation screenshot after the existing physical town evidence.
+Implemented acceptance seams remain:
+- engine-free deterministic 3D reservations, bounded snapshots, diagnostics and precedence;
+- Kentridge settlement, macro-road/handoff, production structure, vegetation and hidden-space consumers;
+- composition-configured road-clearance yielding plus an independent non-Kentridge reuse fixture;
+- presentation-only gallery inspection/overlay with deliberate rejected candidate evidence.
 
-## Remaining execution
+## Validation hypotheses / discriminator
 
-1. Run repository-supported compile/static and focused reservation/Kentridge/vegetation/hidden-space regressions; fix only demonstrated acceptance/correctness defects.
-2. Check `SceneTestHighlightPolicy.csv`/classifier requirements and repository-supported ProjectValidator gates.
-3. Merge current `origin/master`, then rerun affected focused gates on the reconciled exact feature SHA.
-4. Use built-player/runtime validation to capture `WorldbuildingGalleryShowcase` reservation evidence and physical town content; visually inspect surface hard/clearance/access, underground separation, and the red rejected candidate. Run the real `KentridgePlayableSlice` production traversal/scene validation required by acceptance.
-5. Record reservation build/query metrics from `SPATIAL_RESERVATION_COST`, allocation/memory from the built audit, and confirm generation/device/streaming budgets did not move.
-6. Review assignment-only blast radius and finish issue acceptance/evidence metadata.
-7. Verify `ci-test/fixes/agent-7` has no queued/running request. Use only that branch for the final exact-SHA targeted CI request; never edit `.github/test-request.json` on the feature branch or replace queued/running CI.
-8. After green exact-SHA CI, complete pending metadata, move pending -> closed with `status=fixed` and `resolvedUtc`, merge current master again if required, revalidate any changed tree, and non-force promote the exact feature head to `origin/master`. If master advances, fetch/merge/revalidate/retry.
+1. **Likely:** the reconciled implementation compiles and focused reservation/Kentridge/vegetation/hidden-space regressions remain green, including the incoming foundation-surface regression.
+2. **Alternative:** master’s foundation-depth change exposes an integration defect in the injected production structure path or scene evidence.
 
-## Blast radius / cost
+Discriminator: run the smallest affected exact-SHA regression/static set, then the required built `WorldbuildingGalleryShowcase` and `KentridgePlayableSlice` validations. Any product failure is fixed before another CI request; repeated identical acceptance failure twice requires a minimal repro/root-cause isolation.
 
-- No global registry, Physics authority, per-reservation authoritative GameObjects/colliders, duplicate road solver, or duplicate ecology/hidden-space policy.
-- The gallery uses one transient presentation mesh and copied report data; it cannot mutate reservation authority.
-- Preserve deterministic Kentridge candidate/role ordering and all existing budgets.
-- Keep one shared source snapshot plus bounded role-local filtered views rather than reconstructing town/road data per role.
-- Keep snapshots bounded and record query metrics/source-construction evidence.
-- Scope changes to this assignment's WorldBuilder/Core seams, focused tests/evidence, gallery presentation seam, and SceneIssue metadata only.
+## Remaining gates
+
+1. Check current scene highlight/classifier and ProjectValidator requirements.
+2. Run focused reservation/Kentridge/vegetation/hidden-space plus incoming foundation regression on the reconciled exact SHA.
+3. Run built-player gallery and Kentridge production-scene validation; visually inspect reservation overlay and physical content.
+4. Record `SPATIAL_RESERVATION_COST`, allocation/memory evidence, device/generation/streaming budget impact and assignment-only blast radius.
+5. Verify `ci-test/fixes/agent-7` is idle, then use it once for the final exact-SHA targeted request.
+6. After every acceptance gate is green, complete metadata, move `open/` directly to `closed/`, merge any newer master, revalidate affected work, and non-force promote the exact feature head.
+
+## Cost / ownership guardrails
+
+No global registry, Unity Physics authority, per-claim authoritative GameObjects/colliders, duplicate road solver, or duplicated ecology/hidden-space policy. Keep one shared source snapshot with bounded views and preserve existing deterministic/device budgets.
