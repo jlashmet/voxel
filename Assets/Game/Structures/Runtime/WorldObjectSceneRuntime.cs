@@ -99,7 +99,8 @@ namespace Game.Structures.Runtime
         /// <summary>
         /// Advances deterministic coarse runtime timers. A triggered object with Parameter0 > 0 uses that value
         /// as its reset delay in ticks. The timer is stored in the sparse state delta and therefore survives
-        /// streaming/save boundaries without persisting frame-level animation state.
+        /// streaming/save boundaries without persisting frame-level animation state. Expiration emits the same
+        /// Deactivated signal as an explicit reset so connected targets observe one semantic reset path.
         /// </summary>
         public int Tick(int ticks = 1)
         {
@@ -121,12 +122,15 @@ namespace Game.Structures.Runtime
                     RuntimeValue0 = current.RuntimeValue0,
                     RuntimeValue1 = Math.Max(0, remaining),
                 };
-                if (remaining <= 0)
+                bool expired = remaining <= 0;
+                if (expired)
                 {
                     delta.State &= ~(WorldObjectStateFlags.Triggered | WorldObjectStateFlags.Active);
                     delta.RuntimeValue1 = 0;
                 }
                 SetState(in delta);
+                if (expired)
+                    Propagate(descriptor.Id, WorldObjectSignal.Deactivated);
                 changed++;
             }
             return changed;
