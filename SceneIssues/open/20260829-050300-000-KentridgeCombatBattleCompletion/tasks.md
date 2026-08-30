@@ -10,7 +10,7 @@
 - [x] Add full end-to-end Kentridge AI-vs-AI regression with bounded no-progress watchdog and teardown assertions.
 - [x] Validate blast radius and runtime cost against the four-participant encounter.
 - [ ] Promote this assignment to pending with fix/regression metadata after exact-SHA workflow gates are green.
-- [ ] Request exactly one final targeted CI through `ci-test/fixes/agent-7`, pinned directly to this feature head.
+- [x] Request exactly one final targeted CI through `ci-test/fixes/agent-7`, pinned directly to feature SHA `9eda40e9d44d09ed82bb0b4daa5c2ff9ae13c315` (transport commit `b0dff2a530a5c6d3a2af781ba7ad4fd904c41cc7`).
 - [ ] Verify exact-SHA focused tests and exact built Kentridge scene validation are green.
 - [ ] Complete pending CI/verification metadata on `fixes/agent-7`.
 - [ ] Move assignment to closed, set `status=fixed` and `resolvedUtc`.
