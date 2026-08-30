@@ -35,12 +35,24 @@ StructuredBuffer<uint> _MaterialDefaultStyle;
 
 #define COMPATIBILITY_JOIN 0
 #define CONTINUITY_DISCONTINUOUS 0
-#define SURFACE_STYLE_MATERIAL_DEFAULT 0
-#define SURFACE_STYLE_SMOOTH 1
+#define SURFACE_STYLE_MATERIAL_DEFAULT 0u
+#define SURFACE_STYLE_SMOOTH 1u
+#define SURFACE_STYLE_MATERIAL_BLEND 16u
+#define SURFACE_STYLE_RECONSTRUCTION_MASK 15u
 
 #define PERSISTENT_LOOKUP_MAGIC 0x47505540u
 #define DIRECTORY_WORDS_PER_ENTRY 5u
 #define DIRECTORY_OCCUPIED 1u
+
+bool IsMaterialBlendSurface(uint surface)
+{
+    return ((surface & 0xFFFFu) & SURFACE_STYLE_MATERIAL_BLEND) != 0u;
+}
+
+uint ReconstructionStyleId(uint surface)
+{
+    return (surface & 0xFFFFu) & SURFACE_STYLE_RECONSTRUCTION_MASK;
+}
 
 struct StyleDefinition
 {
@@ -53,6 +65,7 @@ struct StyleDefinition
 StyleDefinition LoadStyle(uint styleId)
 {
     StyleDefinition style;
+    styleId &= SURFACE_STYLE_RECONSTRUCTION_MASK;
     uint packed = styleId < STYLE_COUNT ? _StyleWords[styleId] : 0u;
     style.reconstruction = packed & 0xFFu;
     style.curvature = (packed >> 8) & 0xFFu;
@@ -87,6 +100,10 @@ JoinRule LoadJoin(uint groupA, uint groupB)
 
 float CoatingDisplacement(uint surface)
 {
+    // In material-blend mode the coating byte is the secondary material ID. Treating it as a
+    // coating would move otherwise identical geometry whenever that material index happened to
+    // coincide with snow/moss/etc. The blend marker makes the two interpretations disjoint.
+    if (IsMaterialBlendSurface(surface)) return 0.0;
     uint coating = (surface >> 16) & 0xFFu;
     uint word1 = _CoatingWords[coating * COATING_WORDS + 1];
     return (word1 & 0xFFu) * (1.0 / 64.0);
@@ -108,10 +125,12 @@ float CurvatureFactor(StyleDefinition style)
 
 uint ResolveSurface(uint material, uint surface)
 {
-    uint style = surface & 0xFFFFu;
+    uint authoredStyle = surface & 0xFFFFu;
+    uint blendMarker = authoredStyle & SURFACE_STYLE_MATERIAL_BLEND;
+    uint style = authoredStyle & SURFACE_STYLE_RECONSTRUCTION_MASK;
     if (style == SURFACE_STYLE_MATERIAL_DEFAULT) style = _MaterialDefaultStyle[material & 0xFFu];
     if (style == SURFACE_STYLE_MATERIAL_DEFAULT) style = SURFACE_STYLE_SMOOTH;
-    return (surface & 0xFFFF0000u) | style;
+    return (surface & 0xFFFF0000u) | blendMarker | (style & SURFACE_STYLE_RECONSTRUCTION_MASK);
 }
 
 uint DecodeSurfaceStorage(uint packedStorage)

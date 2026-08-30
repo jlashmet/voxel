@@ -151,6 +151,10 @@ namespace VoxelEngine.Storage.Api
 
         public SurfaceStyleReadDefinition Get(ushort styleId)
         {
+            // The high persisted style bit is a presentation marker, not a catalogue identity.
+            // Normalize it at the shared lookup boundary so every CPU reconstruction consumer
+            // sees the same underlying style without having to know about material blending.
+            styleId = SurfaceStyles.ReconstructionStyle(styleId);
             if (styleId < _styles.Length) return _styles[styleId];
             return FallbackStyle(styleId);
         }

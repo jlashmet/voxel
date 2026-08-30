@@ -94,6 +94,10 @@ namespace VoxelEngine.Structures.Runtime
                 && math.all(max + 2 >= subVolumeMin);
             if (!geometryIntersects && !boundaryIntersects) return result;
 
+            if (primitive.Mode == PrimitiveMode.TerrainCorridor)
+                return TerrainCorridorRasteriser.Rasterise(
+                    in primitive, subVolumeMin, subVolumeMax, reads, mutations);
+
             int x0 = math.max(min.x, subVolumeMin.x), x1 = math.min(max.x, subVolumeMax.x - 1);
             int y0 = math.max(min.y, subVolumeMin.y), y1 = math.min(max.y, subVolumeMax.y - 1);
             int z0 = math.max(min.z, subVolumeMin.z), z1 = math.min(max.z, subVolumeMax.z - 1);
@@ -516,6 +520,8 @@ namespace VoxelEngine.Structures.Runtime
                 case PrimitiveShape.Annulus:
                 case PrimitiveShape.ArcWedge:
                     return CurvedPrimitiveEmitter.Contains(in primitive, voxel);
+                case PrimitiveShape.TerrainCorridor:
+                    return TerrainCorridorRasteriser.Contains(in primitive, voxel);
                 default: return false;
             }
         }
