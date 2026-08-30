@@ -43,6 +43,9 @@ A new exact-scene PlayMode behavioral regression, `ShowcaseRegionCommitBudgetTes
 - Expected tradeoff is strictly lower CPU/cache traffic on bulk finalization; no per-frame renderer or gameplay work is added.
 
 ## Validation required
+- Local invocation compiled and entered the real-scene test, then the repository wrapper killed
+  Unity at 6,234 MB against the mandated 6,144 MB ceiling before assertions. This is an
+  infrastructure result, not a product verdict.
 - Exact targeted CI must include the new region-completion regression, the existing mirror-recovery liveness regression, and the unchanged moving GPU migration gate.
 - The built-player capture must again load `Assets/Scenes/VoxelShowcase.unity`; inspect every captured frame and the marked telemetry region.
 - Do not close the issue unless moving p99 is `<25 ms`, region completion stays within its gate, coverage remains intact, and the exact-SHA run is green.

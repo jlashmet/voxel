@@ -18,5 +18,4 @@
 
 ## Remaining gates
 - Local policy 5/5, mirror slot/catalogue 21/21, arena/readback 4/4, material query 2/2, and bounded-water contract 1/1 pass. Local full-scene PlayMode exceeded the 6 GB ceiling before assertions and has no product verdict.
-- Run the new region-completion regression locally if the wrapper stays within limits. A further exact CI transport needs fresh authorization; it must include region completion, mirror liveness, unchanged migration, and built-player capture. Keep the issue open until exact-SHA gates and visual inspection are green.
-
+- The local region-completion regression hit the mandated 6 GB watchdog before assertions, so it has no product verdict. A further exact CI transport needs fresh authorization; it must include region completion, mirror liveness, unchanged migration, and built-player capture. Keep the issue open until exact-SHA gates and visual inspection are green.

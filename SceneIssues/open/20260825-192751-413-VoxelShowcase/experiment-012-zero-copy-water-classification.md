@@ -15,3 +15,4 @@ Exact feature `5443cd73f5991d37dffbe5a2f1023ea162d35013`; request `5dfb7a91bd5d7
 ## Action / gate
 Add a `RegionReadView` query that scans only borrowed material bytes for water ids and use it for water-brick classification. Preserve pinned snapshots for meshing and immediate mutation invalidation. Run focused storage and bounded-water tests locally; rerun unchanged exact thresholds only with a newly authorized CI transport.
 
+Local result: `StorageRegionReadViewTests` passed 2/2 and the bounded-water contract passed 1/1 through `tools/unity-run.sh`.
