@@ -34,7 +34,8 @@ namespace Game.Kentridge.PlayableSlice
         private const int StableCoverageFrames = 4;
         private const float DmToMetres = 0.1f;
         private const uint Seed = 0x4B454E54u;
-        private const float SettlementSurveyHeightMetres = 36f;
+        private const float SettlementSurveyHeightMetres = 70f;
+        private const int SettlementSurveyHorizontalOffsetDm = 60;
 
         private static readonly FieldInfo s_WorldField = typeof(KentridgePlayableSlice).GetField(
             "_world",
@@ -260,7 +261,6 @@ namespace Game.Kentridge.PlayableSlice
                     && HasStablePublishedCoverageAt(_motor.Position))
                 {
                     _moordellRoadArrivalCaptured = true;
-                    _moordellRoadArrivalPending = false;
                     _targetCapturedAt = now;
                     _stableCoverageFrames = 0;
                     Debug.Log(
@@ -396,8 +396,7 @@ namespace Game.Kentridge.PlayableSlice
 
             var targets = new List<EvidenceTarget>(7)
             {
-                SettlementSurvey(physical, MountingForceTopDownWorldDefinition.Moordell),
-                SettlementSurvey(physical, MountingForceTopDownWorldDefinition.Rossdam)
+                SettlementSurvey(physical, MountingForceTopDownWorldDefinition.Moordell)
             };
 
             if (!physical.TryGetRegion(KentridgeTopDownWorldPhysicalIntent.RossdamLake, out TopDownWorldRegionPlan lake))
@@ -421,6 +420,7 @@ namespace Game.Kentridge.PlayableSlice
                 lake.CentreDm,
                 cameraHeightMetres: 24f,
                 elevated: true));
+            targets.Add(SettlementSurvey(physical, MountingForceTopDownWorldDefinition.Rossdam));
 
             targets.Add(SettlementSurvey(physical, MountingForceTopDownWorldDefinition.FairyVillage));
             targets.Add(SettlementSurvey(physical, MountingForceTopDownWorldDefinition.OrcVillage));
@@ -466,6 +466,7 @@ namespace Game.Kentridge.PlayableSlice
                 cameraHeightMetres: 40f,
                 elevated: true));
             _targets = targets.ToArray();
+            Debug.Log("MACROEVIDENCE target-order=moordell-lake-rossdam-fairy-orc-ridge-network");
         }
 
         private static EvidenceTarget SettlementSurvey(
@@ -496,38 +497,13 @@ namespace Game.Kentridge.PlayableSlice
             }
 
             var focusDm = new Int2((minX + maxX) / 2, (minZ + maxZ) / 2);
-            int halfSpanDm = Math.Max((maxX - minX) / 2, (maxZ - minZ) / 2);
-            int surveyOffsetDm = Math.Max(280, Math.Min(360, halfSpanDm + 70));
-            var offsets = new[]
-            {
-                new Int2(-surveyOffsetDm, -surveyOffsetDm),
-                new Int2(surveyOffsetDm, -surveyOffsetDm),
-                new Int2(-surveyOffsetDm, surveyOffsetDm),
-                new Int2(surveyOffsetDm, surveyOffsetDm)
-            };
-
-            int focusGround = TerrainSampler.HeightAt(focusDm.X, focusDm.Y, Seed);
-            Int2 bestCamera = new Int2(
-                focusDm.X + offsets[0].X,
-                focusDm.Y + offsets[0].Y);
-            int bestCameraGround = TerrainSampler.HeightAt(bestCamera.X, bestCamera.Y, Seed);
-            int bestAdvantage = bestCameraGround - focusGround;
-            for (var i = 1; i < offsets.Length; i++)
-            {
-                var candidate = new Int2(
-                    focusDm.X + offsets[i].X,
-                    focusDm.Y + offsets[i].Y);
-                int candidateGround = TerrainSampler.HeightAt(candidate.X, candidate.Y, Seed);
-                int advantage = candidateGround - focusGround;
-                if (advantage <= bestAdvantage) continue;
-                bestCamera = candidate;
-                bestCameraGround = candidateGround;
-                bestAdvantage = advantage;
-            }
+            var surveyCamera = new Int2(
+                focusDm.X + SettlementSurveyHorizontalOffsetDm,
+                focusDm.Y + SettlementSurveyHorizontalOffsetDm);
 
             return new EvidenceTarget(
                 nodeId,
-                bestCamera,
+                surveyCamera,
                 focusDm,
                 cameraHeightMetres: SettlementSurveyHeightMetres,
                 elevated: true,
