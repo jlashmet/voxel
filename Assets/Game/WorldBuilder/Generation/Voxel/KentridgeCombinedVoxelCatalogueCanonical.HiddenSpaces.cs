@@ -20,8 +20,9 @@ namespace MountingForce.WorldGen.Voxel
                 return Build(seed, settings, allocator);
 
             SettlementPlan plan = SettlementVoxelPlan.Resolve(seed, in settings);
+            SpatialReservationSnapshot reservations = KentridgeTownPlanner.BuildReservationSnapshot(plan.Seed);
             IReadOnlyList<KentridgeHiddenSpaceGeometry> geometries =
-                KentridgeHiddenSpaceBatchPlanner.Resolve(plan, requests);
+                KentridgeHiddenSpaceBatchPlanner.Resolve(plan, requests, reservations);
             return BuildWithHiddenSpaceGeometry(plan, settings, geometries, allocator);
         }
 
