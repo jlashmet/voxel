@@ -66,15 +66,15 @@ namespace Game.WorldBuilder.Runtime
                     // Stable seeded variation is part of the authoring contract. These nominal
                     // margins resolve to exactly 450 x 225 dm half-extents and 24 dm depth for
                     // Kentridge's fixed seed instead of letting negative variation shrink the
-                    // landmark below its 90 m x 45 m acceptance floor. The semantic southward
-                    // offset keeps the bounded lake on the real direct Rossdam road so GoAround
-                    // remains an exercised geography solution rather than metadata-only intent.
+                    // landmark below its 90 m x 45 m acceptance floor. The northwest offset keeps
+                    // the northern fighting-area junction dry while the outbound northern road and
+                    // direct Rossdam approach still require real dry-ground GoAround solutions.
                     halfExtentXDm: 456,
                     halfExtentZDm: 228,
                     elevationDeltaDm: -23,
                     variationDm: 12,
-                    offsetXDm: -300,
-                    offsetZDm: -210,
+                    offsetXDm: -400,
+                    offsetZDm: -155,
                     source: "first macro geography pass: substantial bounded lake separating the Moordell corridor from Rossdam approach while remaining streamable at gameplay budgets"),
                 new TopDownWorldRegionSpec(
                     SouthernRidge,
@@ -111,13 +111,6 @@ namespace Game.WorldBuilder.Runtime
                     TopDownWorldRouteRegionSolutionKind.GoAround,
                     clearanceDm: 75,
                     source: "northern road stays on dry ground around the lake's eastern shore"),
-                new TopDownWorldRouteRegionConstraintSpec(
-                    KentridgeTopDownWorldLayout.Forest,
-                    KentridgeTopDownWorldLayout.FightingArea1,
-                    RossdamLake,
-                    TopDownWorldRouteRegionSolutionKind.GoAround,
-                    clearanceDm: 75,
-                    source: "forest approach stays on dry ground around the lake after Rossdam's southward physical realization"),
                 new TopDownWorldRouteRegionConstraintSpec(
                     KentridgeTopDownWorldLayout.FightingArea1,
                     KentridgeTopDownWorldLayout.BanditHideout,
