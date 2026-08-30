@@ -7,6 +7,7 @@
 - [x] Add focused production regressions for mountain/path composition, castle ownership, ramp landings, support, headroom, startup bake, upper dragon structure coverage, proximity/cutscene, and exact dialogue `Hello, I'm Mr. Dragon.`
 - [x] Keep shared Box/Frustum raster fast paths output-equivalent and inside existing primitive/write-accounting contracts.
 - [x] Reconcile `fixes/agent-4` with current `origin/master` before new implementation; merge PR #174 brought only documentation/SceneIssue metadata and had no Mountain Dragon overlap.
+- [x] Refresh with current master/workflow before the remaining reuse pass; merge PR #177 updated only workflow guidance and unrelated master work.
 
 ## Bake / exact-CI infrastructure
 - [x] Add bake-only explicit fixed-altitude `Structure` coverage and sparse `FixedAltitudeStructures` scope so the startup image includes the upper dragon layer without broad sky materialization or runtime-streaming changes.
@@ -56,7 +57,6 @@
 
 ## Closure
 - [ ] Confirm every `issue.json` acceptance criterion and every checkbox above is complete.
-- [ ] Fill `status: pending`, `resolutionSummary`, `regressionTest`, and `fixCommit`; move only this capture `open -> pending` in a separate bookkeeping commit.
-- [ ] After green exact-SHA focused + built-player gates and accepted visual evidence, move only this capture `pending -> closed`, set `status: fixed` and `resolvedUtc`, preserving validation/capture provenance.
+- [ ] After green exact-SHA focused + built-player gates and accepted visual evidence, fill `resolutionSummary`, `regressionTest`, `fixCommit`, set `status: fixed` and `resolvedUtc`, and move only this assignment directly `open -> closed` in the feature branch.
 - [ ] Fetch and merge then-current `origin/master`; stop for any conflict outside this assignment and verify master ancestry.
 - [ ] Push the exact feature head to `origin/master` non-force; if master advanced, fetch/merge/retry. Do not self-select more work.
