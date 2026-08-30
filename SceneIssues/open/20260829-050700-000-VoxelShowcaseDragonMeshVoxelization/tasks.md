@@ -12,24 +12,28 @@
 - [x] Check blast radius/cost: importer/showcase additions only; bounded dense working set; no runtime voxelization or mesh gameplay truth.
 - [x] Resolve live VoxelShowcase runtime owner and input discrepancy; structure selection must be an explicit mode so ordinary movement/brush controls remain unchanged outside it.
 - [x] Reject the stale “original CC0 dragon” plan because acceptance explicitly requires a downloaded third-party mesh.
-- [x] Verify current external source leads: Meleagor Sketchfab dragon CC-BY ~21.6k tris but auth-gated; artist_71 OpenGameArt three-headed dragon CC-BY 4.0 ~24k tris/public archive; McGuire Chinese Dragon listed CC-BY 4.0 ~412.7k tris but very large.
-- [x] Reject artist_71 OpenGameArt three-headed dragon after visual inspection: despite license/detail, it has no wings and therefore cannot satisfy mandatory wing silhouette/close-up acceptance.
-- [ ] Obtain/commit a redistribution-safe third-party **winged** dragon source representation plus exact URL, author, license, original format, vertex/triangle counts, original downloaded-file SHA-256, committed-source SHA-256, and required attribution/license text.
-- [ ] Verify committed source is meaningfully detailed/non-voxel-native with readable head(s), body, wings, limbs/feet, tail, and secondary silhouette detail.
+- [x] Reject artist_71 OpenGameArt three-headed dragon after visual inspection: despite CC-BY 4.0/~24k-triangle detail, it has no wings and cannot satisfy mandatory wing silhouette/close-up acceptance.
+- [x] Reject Cethiel/Drummyfish CC0 winged dragon as final proof asset: redistribution is clean, but the mirrored DAE has only ~633 position vertices and is visibly low-poly, below the detailed/production-quality gate.
+- [x] Select Delatronic `Dragon` (Blend Swap asset 15891 / historic id 80766) as the preferred source: CC-BY, detailed curved winged anatomy, Blender 2.7x source; verify Bitterli redistribution and Microsoft `DirectX-Graphics-Samples` PBRT/PLY mirror with asset-specific CC-BY license/provenance.
+- [x] Verify Microsoft's PBRT scene maps the dragon material to `Mesh008.ply`, `Mesh013.ply`, `Mesh014.ply`, and `Mesh015.ply`, with teeth separate and one shared scene transform; source files are real non-LFS payloads.
+- [ ] Vendor the selected Delatronic source bytes into this repository. Current connector can inspect/license/base64 binary PLYs but cannot losslessly transfer the multi-megabyte parts within response limits; do not substitute lower-quality geometry merely to fit tooling.
+- [ ] Commit exact source URL, author, license, original/mirrored format, vertex/triangle counts, original/mirror SHA-256, committed-source SHA-256, mirror blob/commit provenance, and required attribution/license text.
+- [ ] Verify committed source is meaningfully detailed/non-voxel-native with readable head, body, wings, limbs/feet, tail, and secondary silhouette detail.
 
 ## Behavior-first regressions
 - [x] Add compile-intended importer contract tests before production code (`9164857ad304dc95a6e182e8e982251d5a918567`).
 - [x] Add compile-intended open/non-manifold topology policy contract before production topology handling (`32703c26a0a1f2d9a91b6ff3986b98d8f3e46142`).
-- [ ] Curved synthetic closed geometry proves conservative surface coverage and solid interior fill.
-- [ ] Same input/config produces stable ordered voxel/material output.
-- [ ] Off-origin transform, rotation/non-uniform scale, and mirrored orientation are covered.
-- [ ] Material mapping is deterministic through production importer output.
-- [ ] Thin curved/sheet feature retention is covered without global bloat.
-- [ ] Invalid indices/non-finite transforms/oversized bounds fail preflight before dense allocation.
-- [ ] Open/non-manifold input either rejects clearly or explicitly falls back to surface-only without invented interior.
-- [ ] Sparse artifact codec round-trips exactly and rejects malformed/out-of-bounds data.
-- [ ] Baked cells replay through `IStructureAuthoringSession` and normal occupancy reads.
-- [ ] Showcase selection/Space commit is single-trigger; idle/update repetition cannot duplicate placement.
+- [x] Curved synthetic closed geometry proves conservative surface coverage and solid interior fill.
+- [x] Same input/config produces stable ordered voxel/material output.
+- [x] Off-origin transform, rotation/non-uniform scale, and mirrored orientation are covered.
+- [x] Material mapping is deterministic through production importer output.
+- [x] Thin curved/sheet feature retention is covered without global bloat.
+- [x] Invalid triangle indices and oversized bounds fail preflight before rasterization/dense allocation.
+- [ ] Add focused non-finite source/transform preflight regression.
+- [x] Open/non-manifold input either rejects clearly or explicitly falls back to surface-only without invented interior.
+- [x] Sparse artifact codec round-trips exactly and rejects malformed/out-of-bounds data.
+- [x] Baked cells replay through `IStructureAuthoringSession` at arbitrary requested origin.
+- [x] Showcase selection/Space commit state is single-trigger; idle/update repetition cannot duplicate placement.
 - [ ] Add dragon-specific production regression proving required anatomical regions are non-empty/spatially plausible without source-string/count-only assertions.
 
 ## Implementation
@@ -41,7 +45,7 @@
 - [x] Add deterministic sparse baked-cell codec/artifact and replay through `IStructureAuthoringSession`.
 - [x] Add generic Unity authoring bridge for nested `MeshFilter` hierarchies and reusable baked `SkinnedMeshRenderer` poses with deterministic submesh material mapping.
 - [x] Add isolated one-shot structure-selection state object; production VoxelShowcase input wiring still pending.
-- [ ] Add source-specific authoring/bake configuration for the chosen third-party model and generate/commit the baked dragon artifact; ordinary runtime must never execute mesh voxelization.
+- [ ] Add source-specific authoring/bake configuration for the chosen Delatronic model and generate/commit the baked dragon artifact; ordinary runtime must never execute mesh voxelization.
 - [ ] Preserve major source material/color regions with deterministic palette mapping/quantization.
 - [ ] Instantiate baked dragon through normal `ShowcaseWorld`/WorldBuilder voxel authoring so collision/edit/destruction read the same storage.
 - [ ] Wire explicit VoxelShowcase structure-selection mode: scroll selects while active, Space commits once, ordinary controls unchanged outside mode.
@@ -62,11 +66,13 @@
 - [ ] Exact-SHA final CI compiles/passes focused importer/codec/authoring/showcase + dragon-specific regressions.
 - [ ] Record import/voxelization time, occupied voxel count, sparse brick/chunk count, serialized size, runtime resident/storage impact, and incremental render/world-build cost within repository budgets.
 - [ ] Verify ordinary runtime does not execute mesh voxelization and no `MeshCollider`/source-mesh gameplay fallback exists.
-- [ ] Review full feature diff for unrelated capture/workflow/request changes.
-- [ ] Refresh/merge current `origin/master` before final CI if it advanced.
+- [x] Current feature-vs-master blast-radius review shows additions confined to mesh-import editor/runtime, showcase mesh-structure/selection helpers, focused EditMode tests, and this issue's plan/tasks; no workflow request or unrelated SceneIssue changes.
+- [ ] Re-run full feature diff review after source/showcase/evidence implementation.
+- [ ] Refresh/merge current `origin/master` before final CI if it advanced (master was `c2cdde7fef88246a58236c0b02c323a7b507d496` at latest fetch and is 26 commits ahead of this feature's merge base).
 - [ ] Issue one final exact-source PlayMode request only through `ci-test/fixes/agent-1`; do not replace queued/running CI.
 - [ ] Obtain green focused behavioral regression plus exact built-player `VoxelShowcase` validation in that final request.
 - [ ] Inspect all required built-player views directly for same-source silhouette/anatomy/material fidelity, grounding, negative spaces, and no holes/fused/bloated/broken parts.
+- [ ] Classify exact built-player visual evidence `production-quality`; lower classifications fail under current `AGENTS.md`.
 - [ ] Confirm built-app destruction/world truth, one-shot spawn, metrics, and no startup/runtime exceptions.
 
 ## Promotion / closure
