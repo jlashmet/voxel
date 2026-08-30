@@ -26,7 +26,7 @@
 - [x] Keep production voxel extraction/cache authoritative for water geometry.
 - [x] Source/asset audit shows no alternate normal water shader/material path; final player replay remains the stripping/fallback discriminator.
 - [x] Verify player-build retention has a production asset dependency: active `VoxelUniversalRenderer.asset` directly serializes `WaterSurface.shader`; do not add a global always-included exception unless the player build falsifies this.
-- [ ] Prove player-build shader retention and no editor-only resource dependency with the exact player build.
+- [x] Exact run `33323151755` proved the player build retained and launched `WaterSurface.shader` without pink/missing-resource failure on candidate `d3729aa...`; visual quality still failed and requires a new exact repaired candidate.
 
 ## Showcase / portability
 - [x] Add one bounded `ShowcaseWorld.AuthorVoxelBox` seam over its existing Storage.Api mutation/change path; validate positive bounds/size and cap authored volume; add no renderer/material knowledge.
@@ -34,9 +34,9 @@
 - [x] Add thin `WaterRenderingShowcase` scene controller using `HouseOnly + Generate`, canonical material definitions/IDs, `RenderingWorldBinding`, and production surface extraction.
 - [x] Keep scene/controller limited to terrain/water placement, semantic selection, lighting/camera/inspection controls.
 - [x] Author still/deep lake, shoreline, directional river, waterfall/rapid, terrain/rock/structure contacts.
-- [x] Provide near, wide, elevated, and waterfall inspection view modes plus moving inspection controls; exact-built time-separated visual proof remains pending.
+- [x] Provide near, wide, elevated, and waterfall inspection view modes plus moving inspection controls.
 - [x] Reuse existing screenshot/SceneIssue replay/standalone-player harness contracts; add no parallel capture stack or CI transport.
-- [x] Make unattended real-player capture deterministically expose near, wide, then repeated waterfall views so the existing 10-second screenshot cadence proves framing plus time-separated animation without a second evidence transport.
+- [x] Make unattended real-player capture deterministically expose near, wide, then repeated waterfall views using the existing 10-second screenshot cadence.
 - [x] Add production portability outside the scene: independent Water/RiverWater/Cascade authoring through `ShowcaseWorld`, canonical read storage, normal presentation installation, and `RenderingComposition` world binding.
 - [x] Verify `VoxelShowcase` automatically receives shared presentation and restores water after a leaked diagnostic disable.
 - [x] Verify `WorldbuildingGalleryShowcase` automatically reaches the same globally installed water presentation for its cave-authored water.
@@ -49,25 +49,41 @@
 - [x] Extraction regression proves a material outside the installed water mask is not rendered as water.
 - [x] Render lifecycle/source tracing confirms one shared material and one `_WaterTime` update path.
 - [x] Production renderer-path portability coverage authors Water/RiverWater/Cascade through `ShowcaseWorld`, binds the ordinary `RenderingWorldBinding`, verifies installed profile arrays, and combines with focused extraction identity/seam regressions; no source-string-only assertion.
-- [ ] Run exact player build for shader compile/stripping/pink/missing-resource failures.
+- [x] Exact run `33323151755` built/launched the real player without shader compile/stripping/pink/missing-resource failures for the pre-repair candidate.
 - [x] Static memory cost: six 32-entry `Vector4` water tables = 3,072 bytes; no per-water-voxel GameObjects/material instances were added.
 - [x] Add capture-only frame timing and managed/native memory telemetry because the existing player harness records FPS but has no reusable GPU/memory sampler; keep it scene-local and inactive outside unattended evidence capture.
-- [ ] Record exact-player CPU/GPU/memory/render observations: draw/batching/culling, transparent overdraw risk, shader ALU/depth sampling, large bodies, and waterfall-only extras; do not weaken budgets.
+- [x] Record pre-repair exact-player baseline: Apple M4 Max, ~1.5–2.1 ms 10-second average frame windows after startup, ~697.8 MiB allocated, ~861–864 MiB reserved, ~9 MiB mono used, 191 resident draw leases, zero lease failures. GPU/CPU FrameTimingManager values were unavailable (`-1`), so do not invent them.
+- [ ] Re-measure the repaired two-sided waterfall pass and transparent-overdraw risk; do not weaken budgets.
 - [x] Review feature-only diff against current master: only assignment water code/tests/scene/build registration/docs are changed; `.github/test-request.json` is absent from the feature diff.
 
+## Rendered gate from exact run 33323151755
+- [x] Bake succeeded on exact feature parent `d3729aa0c971aa4973286fe61d024f500f6f308a`.
+- [x] Focused PlayMode regression passed 3/3.
+- [x] Real-player `WaterRenderingShowcase` build, launch and 60-second capture completed successfully.
+- [x] Download and inspect all six exact-built screenshots, player/build logs, FPS and telemetry.
+- [x] Reject visual closure: first near frame at ~2.3s is only clear sky before cold-view convergence; useful wide frame exists at ~12.3s.
+- [x] Reject waterfall evidence: 22/32/42/52s frames show a dark cliff with horizontal cyan lip/base slabs but no readable falling sheet, coherent downward motion, turbulent streaks, aeration, localized edge/lip/base foam or mist; waterfall-region image change is negligible.
+
+## Discovered rendered-gate repair
+- [x] Trace canonical `WaterBrickMeshBatchJob`: it emits all six exposed faces, so the fix must preserve canonical voxel geometry rather than add a bespoke scene mesh.
+- [x] Strengthen shared waterfall raster/pixel response: two-sided water pass, vertical-coordinate multi-scale animated breakup, bright aerated threads, stronger vertical waterfall opacity/foam/mist response.
+- [x] Keep exhibit repair as semantic authoring/inspection intent: use thinner exposed Cascade sheet/fingers and a nearly square-on waterfall camera; no plane/material fork.
+- [x] Hold unattended near/wide phases long enough for the existing 10-second capture cadence to record converged near and wide evidence before repeated waterfall frames.
+- [x] Add focused regression proving a vertical Cascade column emits canonical vertical sheet faces with Cascade material identity.
+- [ ] Re-run exact repaired SHA and directly validate visible near/wide/waterfall quality and time-separated motion.
+
 ## Exact-SHA gates
-- [x] Refresh/merge latest `origin/master` before final feature SHA attempt; current compare is `behind_by=0` after merge commit `ab8b3bc3efa3eac933ce861748664fb246dc1ea2`.
-- [x] Push current production/test/docs commits on `fixes/agent-9`; final SHA will be re-read after this task synchronization commit.
-- [x] Confirm existing `ci-test/fixes/agent-9` workflow history has no queued/running request to replace; latest listed request is completed.
-- [x] Inspect failed exact run `33320921998`: Unity stopped before tests/player evidence because `ShowcaseWaterPresentationRegressionTests` lacked the `VoxelEngine.Showcase` namespace import; add the compile repair on the feature branch and keep the failed transport as durable evidence rather than reusing it.
-- [ ] Re-read `origin/master` and `fixes/agent-9`; merge again before CI if master advanced.
-- [ ] Submit exactly one smallest final targeted-CI request from `ci-test/fixes/agent-9` whose parent is the exact final feature SHA.
-- [ ] Confirm focused behavioral regressions green on exact SHA.
-- [ ] Confirm exact-SHA built `WaterRenderingShowcase` launches without startup/runtime exceptions.
-- [ ] Download and inspect durable real-player artifact, build/player logs, and near/wide/time-separated showcase frames.
-- [ ] Directly compare built waterfall evidence with retained reference semantics: downward flow, turbulence, aeration, irregular edges, lip/edge/base foam, mist/spray.
+- [x] Refresh/merge latest `origin/master` before prior feature SHA attempt; compare was `behind_by=0` after merge commit `ab8b3bc3efa3eac933ce861748664fb246dc1ea2`.
+- [x] Inspect failed exact run `33320921998`: Unity stopped before tests/player evidence because `ShowcaseWaterPresentationRegressionTests` lacked the `VoxelEngine.Showcase` namespace import; repaired on feature branch.
+- [x] Submit canonical request for candidate `d3729aa...` through `ci-test/fixes/agent-9`; run `33323151755` completed green but failed direct visual acceptance and therefore was not used for closure.
+- [ ] Re-read current `origin/master` and repaired `fixes/agent-9`; merge before final CI if master advanced.
+- [ ] Submit the canonical final targeted-CI request from `ci-test/fixes/agent-9` whose parent is the exact repaired feature SHA; never replace a queued request or create another transport branch.
+- [ ] Confirm focused behavioral regressions green on repaired exact SHA.
+- [ ] Confirm repaired exact-SHA built `WaterRenderingShowcase` launches without startup/runtime exceptions.
+- [ ] Download and inspect durable repaired real-player artifact, build/player logs, and converged near/wide/time-separated showcase frames.
+- [ ] Directly compare repaired built waterfall evidence with retained reference semantics: downward flow, turbulence, aeration, irregular edges, lip/edge/base foam, mist/spray.
 - [ ] Reconcile exact final build with registered `VoxelShowcase` and verified `WorldbuildingGalleryShowcase` shared-water paths; do not create an extra CI transport.
-- [ ] Record built-player CPU/GPU/memory/draw/overdraw/variant/culling observations.
+- [ ] Record repaired built-player CPU/GPU/memory/draw/overdraw/variant/culling observations.
 - [ ] Complete `resolutionSummary`, `regressionTest`, `fixCommit`; move open → pending in prescribed bookkeeping commit.
 - [ ] After every gate and A1–A17 item is complete, move pending → closed; set `status=fixed` and `resolvedUtc`.
 - [ ] Merge latest master again, push feature exact head, then non-force promote exact head to `origin/master`; fetch/merge/retry if advanced.
