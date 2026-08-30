@@ -24,9 +24,9 @@
 - [x] Try reusable same-elevation duplicate full-height support-pair ridge consolidation with three moss foothills and a narrower summit crest; no primitive count was added.
 - [x] Leave exact revision-5 run `33316622225` untouched through completion and reject the candidate on cost: fresh bake timed out at 241 s / 11,459 MiB RSS / zero swap under the unchanged 240 s / 14 GiB guard; requested PlayMode was skipped and downstream captures are invalid because no revision-5 manifest was produced.
 - [x] Record the revision-5 cost discriminator in `experiment-008-ridge-bake-cost-discriminator.md`; revision-4 control baked in ~206 s, so duplicate full-height ridges added at least ~35 s.
-- [ ] Replace each duplicated full-height support pair with one full-height support-covering rock ridge plus one lower/narrow rock buttress; keep primitive count and all carve/ramp/path instructions unchanged while reducing support raster-volume proxy below the generic baseline.
-- [ ] Update the visual regression for deterministic ridge+buttress pairing and add the support-volume cost proxy; remove the obsolete duplicate-ridge assertion.
-- [ ] Bump startup landmark realization provenance to revision 6 so rejected revision-5 bytes cannot satisfy the changed realization.
+- [x] Replace each duplicated full-height support pair with one full-height support-covering rock ridge plus one lower/narrow rock buttress; keep primitive count and all carve/ramp/path instructions unchanged.
+- [x] Update the visual regression for deterministic ridge+buttress pairing and add a conservative support-volume cost proxy; current authored revision-6 proxy is ~57.3% of the generic support bound and the regression requires <75%.
+- [x] Bump startup landmark realization provenance to revision 6 so rejected revision-5 bytes cannot satisfy the changed realization.
 - [x] Refresh from current master `65e33762a0d0...` via merge `edddd087f1e6...`; master delta was only the unrelated GPU SceneIssue queue file.
 - [ ] Merge then-current master immediately before the final request, then run the exact visual-final PlayMode filter + same-run built-player replay through existing `ci-test/fixes/agent-4` only; leave it untouched while queued/running.
 - [ ] Human-review exact approach/base/middle/upper/summit/dialogue frames and require `production-quality`; if below bar, record concrete defects and continue before closure.
