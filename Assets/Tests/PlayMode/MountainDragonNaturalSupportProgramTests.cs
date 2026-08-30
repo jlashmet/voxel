@@ -142,7 +142,7 @@ namespace VoxelEngine.Tests.PlayMode
         }
 
         [Test]
-        public void BoxCarveSkipsCanonicalEmptyClearsFullMixedBlockAndPreservesPartialEdge()
+        public void BoxCarveSkipsEmptyAtomicallyClearsUniformAndPreservesMixedAndPartialAccounting()
         {
             var table = new RegionTable(1, Allocator.Temp);
             var pool = new BrickPool(4, Allocator.Temp);
@@ -176,46 +176,70 @@ namespace VoxelEngine.Tests.PlayMode
                     "Canonical-empty skip must not open a partial mutation.");
                 Assert.That(pool.AllocatedCount, Is.Zero,
                     "The boxed-carve fast path must not materialize canonical empty storage.");
-                Assert.That(reads.TryAcquireRegionContainingBlock(int3.zero, out RegionReadView emptyView), Is.True);
-                Assert.That(emptyView.TryGetWorldBlock(int3.zero, out VoxelReadBlock emptyBlock), Is.True);
-                Assert.That(emptyBlock.Kind, Is.EqualTo(VoxelReadBlockKind.Empty));
+
+                Assert.That(mutations.SetWholeBlock(int3.zero, MountainMaterial, false), Is.True,
+                    "Uniform-solid setup must replace the canonical empty block.");
+                reads.Refresh(in table, in pool);
+                Assert.That(reads.TryAcquireRegionContainingBlock(int3.zero, out RegionReadView uniformView), Is.True);
+                Assert.That(uniformView.TryGetWorldBlock(int3.zero, out VoxelReadBlock uniformBlock), Is.True);
+                Assert.That(uniformBlock.Kind, Is.EqualTo(VoxelReadBlockKind.Uniform));
+                Assert.That(uniformBlock.UniformMaterial, Is.EqualTo(MountainMaterial));
+
+                var uniformMutations = new CountingMutationStore(
+                    new RegionMutationStore(in table, in pool));
+                RasterResult uniformResult = PrimitiveRasteriser.RasterisePrimitive(
+                    in fullCarve,
+                    int3.zero,
+                    new int3(VoxelReadGrid.BlockEdge, VoxelReadGrid.BlockEdge, VoxelReadGrid.BlockEdge),
+                    reads,
+                    uniformMutations);
+                reads.Refresh(in table, in pool);
+
+                Assert.That(uniformMutations.WholeCellBlockCalls, Is.EqualTo(1),
+                    "A fully covered Uniform solid box-carve block must use one whole-cell replacement.");
+                Assert.That(uniformMutations.BeginCellBlockCalls, Is.Zero,
+                    "A fully covered Uniform block must not regress to the 512-cell partial mutation loop.");
+                Assert.That(uniformResult.VoxelsWritten, Is.EqualTo(VoxelReadGrid.VoxelsPerBlock),
+                    "Atomic Uniform carve must preserve exact 512-cell write accounting.");
+                Assert.That(reads.TryAcquireRegionContainingBlock(int3.zero, out RegionReadView uniformClearedView), Is.True);
+                Assert.That(uniformClearedView.TryGetWorldBlock(int3.zero, out VoxelReadBlock uniformClearedBlock), Is.True);
+                Assert.That(uniformClearedBlock.Kind, Is.EqualTo(VoxelReadBlockKind.Empty));
+                Assert.That(pool.AllocatedCount, Is.Zero,
+                    "Atomic Uniform clearing must not leave mixed-brick allocation behind.");
 
                 VoxelCell emptyWithBoundary = new VoxelCell
                 {
                     Boundary = VoxelBoundarySample.FromSignedQ4(-8)
                 };
+                mutations.Refresh(in table, in pool);
                 Assert.That(mutations.SetWholeCellBlock(int3.zero, in emptyWithBoundary, false), Is.True,
-                    "Test setup must create authored empty-side boundary state.");
+                    "Mixed setup must create authored empty-side boundary state.");
                 reads.Refresh(in table, in pool);
-
                 Assert.That(reads.TryAcquireRegionContainingBlock(int3.zero, out RegionReadView mixedView), Is.True);
                 Assert.That(mixedView.TryGetWorldBlock(int3.zero, out VoxelReadBlock mixedBlock), Is.True);
-                Assert.That(mixedBlock.Kind, Is.EqualTo(VoxelReadBlockKind.Mixed),
-                    "Empty-side boundary metadata must keep the block Mixed so it cannot use the empty skip.");
-                Assert.That(pool.AllocatedCount, Is.EqualTo(1));
+                Assert.That(mixedBlock.Kind, Is.EqualTo(VoxelReadBlockKind.Mixed));
 
-                var fullBlockMutations = new CountingMutationStore(
+                var mixedMutations = new CountingMutationStore(
                     new RegionMutationStore(in table, in pool));
                 RasterResult mixedResult = PrimitiveRasteriser.RasterisePrimitive(
                     in fullCarve,
                     int3.zero,
                     new int3(VoxelReadGrid.BlockEdge, VoxelReadGrid.BlockEdge, VoxelReadGrid.BlockEdge),
                     reads,
-                    fullBlockMutations);
+                    mixedMutations);
                 reads.Refresh(in table, in pool);
 
-                Assert.That(fullBlockMutations.WholeCellBlockCalls, Is.EqualTo(1),
-                    "A fully covered Mixed box-carve block must use one authoritative whole-cell replacement.");
-                Assert.That(fullBlockMutations.BeginCellBlockCalls, Is.Zero,
-                    "A fully covered box-carve block must not regress to the 512-cell partial mutation loop.");
+                Assert.That(mixedMutations.WholeCellBlockCalls, Is.Zero,
+                    "Mixed state must stay on the cell path so sparse write accounting remains exact.");
+                Assert.That(mixedMutations.BeginCellBlockCalls, Is.EqualTo(1),
+                    "Mixed boundary payload must be cleared through the existing partial-cell path.");
                 Assert.That(mixedResult.VoxelsWritten, Is.EqualTo(VoxelReadGrid.VoxelsPerBlock),
-                    "Whole-block carve must retain logical voxel-write accounting for a changed 8^3 block.");
-                Assert.That(reads.TryAcquireRegionContainingBlock(int3.zero, out RegionReadView clearedView), Is.True);
-                Assert.That(clearedView.TryGetWorldBlock(int3.zero, out VoxelReadBlock clearedBlock), Is.True);
-                Assert.That(clearedBlock.Kind, Is.EqualTo(VoxelReadBlockKind.Empty),
-                    "Whole-block carve must clear authored boundary payload and collapse to canonical Empty.");
-                Assert.That(pool.AllocatedCount, Is.Zero,
-                    "Clearing the last authored payload must release the mixed-brick allocation.");
+                    "This all-boundary Mixed fixture changes every cell and must still report 512 writes.");
+                Assert.That(reads.TryAcquireRegionContainingBlock(int3.zero, out RegionReadView mixedClearedView), Is.True);
+                Assert.That(mixedClearedView.TryGetWorldBlock(int3.zero, out VoxelReadBlock mixedClearedBlock), Is.True);
+                Assert.That(mixedClearedBlock.Kind, Is.EqualTo(VoxelReadBlockKind.Empty),
+                    "Mixed boundary clearing must collapse back to canonical Empty.");
+                Assert.That(pool.AllocatedCount, Is.Zero);
 
                 VoxelCell solidWithBoundary = new VoxelCell
                 {
@@ -272,7 +296,7 @@ namespace VoxelEngine.Tests.PlayMode
 
         private sealed class CountingMutationStore : IRegionMutationStore
         {
-            private RegionMutationStore _inner;
+            private readonly RegionMutationStore _inner;
 
             public CountingMutationStore(RegionMutationStore inner)
             {
