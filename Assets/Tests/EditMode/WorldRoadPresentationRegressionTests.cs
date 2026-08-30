@@ -261,7 +261,7 @@ namespace VoxelEngine.Tests.EditMode
             Primitive nonRoad = new Primitive
             {
                 Shape = PrimitiveShape.Box,
-                Mode = PrimitiveMode.Add,
+                Mode = PrimitiveMode.Fill,
                 A = new int3(0, 0, 0),
                 B = new int3(4, 4, 4),
             };
