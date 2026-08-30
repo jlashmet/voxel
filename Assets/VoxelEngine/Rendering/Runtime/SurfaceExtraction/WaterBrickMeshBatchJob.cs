@@ -7,9 +7,8 @@ using UnityEngine;
 namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 {
     /// <summary>
-    /// Greedy water surface extraction over a small immutable material snapshot batch. All mask,
-    /// merge, winding and vertex emission work runs off the frame thread. The main thread copies
-    /// only 896 material bytes per selected 8^3 brick (local payload + six boundary faces).
+    /// Greedy water surface extraction over a small immutable material snapshot batch. Liquid
+    /// identity is supplied as an opaque presentation mask; no game material IDs live here.
     /// </summary>
     [BurstCompile]
     internal struct WaterBrickMeshBatchJob : IJob
@@ -24,6 +23,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         [ReadOnly] public NativeArray<int3> BrickBaseVoxels;
         [ReadOnly] public NativeArray<byte> SnapshotMaterials;
+        public uint WaterMaterialMask;
         public int BatchCount;
         public float VoxelSize;
         public NativeArray<byte> MaskScratch;
@@ -197,6 +197,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             };
 
         private static int Stride(int axis) => axis == 0 ? 1 : axis == 1 ? Edge : Edge * Edge;
-        private static bool IsWater(byte material) => material == 11 || material == 16;
+        private bool IsWater(byte material) =>
+            material < 32 && (WaterMaterialMask & (1u << material)) != 0;
     }
 }
