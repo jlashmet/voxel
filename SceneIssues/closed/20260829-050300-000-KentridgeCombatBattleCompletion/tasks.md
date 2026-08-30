@@ -13,5 +13,5 @@
 - [x] Request exactly one final targeted CI through `ci-test/fixes/agent-7`, pinned directly to feature SHA `d8b5c56e774191ca11c161d5b13d66b4e7803025` (transport commit `8cc6ff94dcbbca46b1c522d08752235b891b1851`).
 - [x] Verify exact-SHA focused tests and exact built Kentridge scene validation are green (run `33291387557`: 3/3 tests passed; standalone player 30s, exit 0, 0 harness assertions).
 - [x] Complete pending CI/verification metadata on `fixes/agent-7`.
-- [ ] Move assignment to closed, set `status=fixed` and `resolvedUtc`.
+- [x] Move assignment to closed, set `status=fixed` and `resolvedUtc`.
 - [ ] Merge current `origin/master` into `fixes/agent-7`, push feature, then advance `origin/master` non-force to the exact branch head.

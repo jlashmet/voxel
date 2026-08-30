@@ -4,7 +4,7 @@
   "scene": "Kentridge",
   "scenePath": "Assets/Scenes/KentridgePlayableSlice.unity",
   "component": "Combat / battle flow / AI turns",
-  "status": "pending",
+  "status": "fixed",
   "created_at": "2026-08-29T05:03:00Z",
   "source": "manual user-authored issue",
   "resolutionSummary": "Production Kentridge combat previously had no battle-progression authority after proximity activation: the CombatService only supported movement plus manual completion. Added authoritative HP, turn-consuming attacks, terminal team evaluation, a fixed-seed AI battle driver for both teams, Kentridge autonomous stepping/teardown, and high-signal terminal diagnostics. Exact-SHA CI passed all three focused regressions, including repeated fixed-seed completion and an exact Kentridge scene no-progress watchdog, and the same SHA built and ran KentridgePlayableSlice in the standalone player for 30 seconds with exit status 0 and zero harness assertion failures.",
@@ -31,7 +31,7 @@
       "title": "Kentridge combat can freeze before battle completion",
       "description": "Combat in Kentridge can enter a frozen or stalled state where the battle no longer advances. This blocks battle completion and makes combat progression unreliable. Fix the underlying stall and add a full end-to-end regression that runs a battle with AI controlling both sides from battle start through a terminal result.",
       "expected": "A Kentridge battle must progress autonomously with AI controlling every combatant on both teams, never stall waiting for player input or an unresolvable turn state, reach a deterministic terminal victory/defeat condition within a bounded number of turns/actions, and cleanly exit or settle the combat state. The automated test must fail on any hang, stalled turn/phase, repeated no-progress state, missing terminal outcome, unhandled error, or timeout.",
-      "status": "verified",
+      "status": "fixed",
       "signature": "kentridge-combat-full-battle-ai-vs-ai-completion",
       "evidence": [
         "User report: combat in Kentridge freezes and does not complete.",
@@ -51,5 +51,6 @@
         "Validate the exact Kentridge battle in the built application after the automated regression is green; demonstrate that AI can control both sides through battle completion without a freeze."
       ]
     }
-  ]
+  ],
+  "resolvedUtc": "2026-08-30T04:15:27Z"
 }
