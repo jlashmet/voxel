@@ -6,7 +6,7 @@ Provide one deterministic, engine-free spatial claim/query substrate for WorldBu
 
 ## Current state — 2026-08-30
 
-`fixes/agent-7` was at `ce04c014d683df5451ce2f1ca490eef70f768880` before this 16:43 PDT bookkeeping refresh. Current `origin/master` is still unchanged at `ebdc2e4f63ef73153cd4e0ff5c62efe604f35470`, so there is no new master integration to merge yet. The feature work makes the spatial-reservation gallery evidence visible on boot and adds a production-scene smoke assertion that the visible report includes hard, clearance, public-access, road, underground, and deliberate-rejection evidence.
+Current `origin/master` is still unchanged at `ebdc2e4f63ef73153cd4e0ff5c62efe604f35470`, so there is no new master integration to merge yet. A fresh `master...fixes/agent-7` comparison at 16:50 PDT is 89 commits ahead / 0 behind and remains confined to the reservation core/adapters, intended Kentridge consumers, gallery evidence, focused tests, and this SceneIssue bookkeeping. The feature work makes the spatial-reservation gallery evidence visible on boot and adds a production-scene smoke assertion that the visible report includes hard, clearance, public-access, road, underground, and deliberate-rejection evidence.
 
 Implemented acceptance seams remain:
 - engine-free deterministic 3D reservations, bounded snapshots, diagnostics and precedence;
@@ -15,9 +15,9 @@ Implemented acceptance seams remain:
 - presentation-only gallery inspection/overlay with deliberate rejected candidate evidence;
 - capture-less gallery audit support that records reservation query/build metrics and Unity allocated/reserved memory plus region residency.
 
-The `master...fixes/agent-7` blast-radius review changes no global/device/region budget files or CharacterMotor/world-generation tolerances. The delta remains limited to the reservation core/adapters, intended Kentridge consumers, gallery evidence, focused tests, and this SceneIssue bookkeeping.
+The fresh blast-radius review changes no global/device/region budget files or CharacterMotor/world-generation tolerance files. This independently completes the source-level blast-radius check; final metadata still needs exact-SHA commands/results and measured runtime costs from the final run.
 
-Original acceptance criterion (7) additionally requires a production typed-`StructuralSocket` consumer. Re-checked at 2026-08-30 16:43 PDT: prerequisite `SceneIssues/open/20260829-034505-000-WorldBuilderTypedStructuralSocketComposition` remains open on unchanged current master, and its execution checklist remains entirely unchecked on master. This is an external blocker, not grounds to narrow acceptance. Agent-7 will not import or implement another assignment's socket system; re-check and integrate the canonical production seam after that feature lands.
+Original acceptance criterion (7) additionally requires a production typed-`StructuralSocket` consumer. Re-checked at 2026-08-30 16:50 PDT: prerequisite `SceneIssues/open/20260829-034505-000-WorldBuilderTypedStructuralSocketComposition` remains open on unchanged current master and no canonical production typed-socket seam has landed there. This is an external blocker, not grounds to narrow acceptance. Agent-7 will not import or implement another assignment's socket system; re-check and integrate the canonical production seam after that feature lands.
 
 Current SceneIssue workflow has no separate scene classifier/highlight artifact gate. Its player-visible contract is direct exact-SHA built-player validation with durable evidence. The existing production smoke test proves the required evidence classes are present/visible and the capture-less audit harness emits the screenshot plus cost/memory data; visual inspection of that final durable evidence remains required.
 
@@ -36,7 +36,8 @@ Discriminator: merge the prerequisite only from current `master`, add the smalle
 2. Merge any newer master before final validation and re-review the assignment-only diff.
 3. Verify `ci-test/fixes/agent-7` is still idle, then use it only for the final exact-SHA request covering reservation/Kentridge/vegetation/hidden-space/foundation regressions and built-player evidence as narrowly as repository tooling permits.
 4. Record final `SPATIAL_RESERVATION_COST`, allocation/memory/region metrics, and directly inspect durable Worldbuilding Gallery + Kentridge runtime evidence.
-5. After every acceptance gate is green, complete metadata, move `open/` directly to `closed/`, merge current master if it advanced, revalidate affected work, and non-force promote the exact feature head.
+5. Record exact commands/results/cost/acceptance mapping in issue metadata.
+6. After every acceptance gate is green, complete metadata, move `open/` directly to `closed/`, merge current master if it advanced, revalidate affected work, and non-force promote the exact feature head.
 
 ## Cost / ownership guardrails
 
