@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "module": "kentridge-integration",
   "integrationGate": true,
+  "fallback": true,
   "productionPaths": [
     "Assets/Scenes/KentridgePlayableSlice.unity"
   ],
