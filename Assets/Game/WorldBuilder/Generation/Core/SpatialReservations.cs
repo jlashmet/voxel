@@ -704,7 +704,14 @@ namespace MountingForce.WorldGen
             SpatialReservationSnapshot.Create(_reservations, _window, _bucketSizeDm)
                 .Query(candidate, consumer, categoryMask);
 
-        public void Add(in SpatialReservation reservation) => _reservations.Add(reservation);
+        public void Add(in SpatialReservation reservation)
+        {
+            int index = IndexOf(reservation.Id);
+            if (index >= 0)
+                _reservations[index] = reservation;
+            else
+                _reservations.Add(reservation);
+        }
 
         public ReservationQueryResult TryAdd(
             in SpatialReservation reservation,
@@ -712,12 +719,43 @@ namespace MountingForce.WorldGen
             ReservationCategory categoryMask = ReservationCategory.All)
         {
             ReservationQueryResult result = Query(reservation, consumer, categoryMask);
-            if (result.IsAccepted) _reservations.Add(reservation);
+            if (result.IsAccepted) Add(reservation);
             return result;
+        }
+
+        public bool Release(ReservationId reservationId)
+        {
+            int index = IndexOf(reservationId);
+            if (index < 0) return false;
+            _reservations.RemoveAt(index);
+            return true;
+        }
+
+        public int ReleaseOwner(string ownerId)
+        {
+            if (string.IsNullOrWhiteSpace(ownerId))
+                throw new ArgumentException("Reservation owner id is required.", nameof(ownerId));
+
+            int removed = 0;
+            for (int i = _reservations.Count - 1; i >= 0; i--)
+            {
+                if (!string.Equals(_reservations[i].OwnerId, ownerId, StringComparison.Ordinal))
+                    continue;
+                _reservations.RemoveAt(i);
+                removed++;
+            }
+            return removed;
         }
 
         public SpatialReservationSnapshot Snapshot() =>
             SpatialReservationSnapshot.Create(_reservations, _window, _bucketSizeDm);
+
+        private int IndexOf(ReservationId reservationId)
+        {
+            for (int i = 0; i < _reservations.Count; i++)
+                if (_reservations[i].Id.Equals(reservationId)) return i;
+            return -1;
+        }
     }
 
     /// <summary>
