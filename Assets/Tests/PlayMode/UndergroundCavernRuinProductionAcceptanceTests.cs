@@ -26,6 +26,7 @@ namespace VoxelEngine.Tests.PlayMode
                 unloadRadiusRegions: 2);
 
             world.GenerateUndergroundCavernRuinsBlocking();
+            AssertRoundedDestinationCirculationPlan();
 
             Assert.That(world.HasUndergroundCavernRuins, Is.True);
             Assert.That(world.UndergroundCavernRockMaterialId, Is.EqualTo(GameMaterialIds.DarkStone),
@@ -87,9 +88,15 @@ namespace VoxelEngine.Tests.PlayMode
         [Test]
         public void DestinationCirculationPlanUsesOverlappingRoundedNodes()
         {
+            AssertRoundedDestinationCirculationPlan();
+        }
+
+        private static void AssertRoundedDestinationCirculationPlan()
+        {
             var cavern = new DecorationBounds { Min = new int3(-160, -700, -150), MaxExclusive = new int3(161, -520, 151) };
             var ruin = new DecorationBounds { Min = new int3(96, -700, -58), MaxExclusive = new int3(172, -638, 59) };
             UndergroundCavernCirculationPlan plan = UndergroundCavernCirculationProtection.ResolvePlan(in cavern, in ruin, Facing.East, 20, 32);
+            UndergroundCavernCirculationPlan repeated = UndergroundCavernCirculationProtection.ResolvePlan(in cavern, in ruin, Facing.East, 20, 32);
 
             Assert.That(plan.IsWellFormed, Is.True);
             Assert.That(plan.Radius, Is.GreaterThan(10));
@@ -99,6 +106,11 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(plan.End.x, Is.GreaterThan(ruin.Min.x));
             Assert.That(plan.Start.z, Is.EqualTo(plan.End.z));
             Assert.That(4 * plan.Radius * plan.Radius - plan.Spacing * plan.Spacing, Is.GreaterThanOrEqualTo(20 * 20));
+            Assert.That(repeated.Start, Is.EqualTo(plan.Start));
+            Assert.That(repeated.End, Is.EqualTo(plan.End));
+            Assert.That(repeated.NodeCount, Is.EqualTo(plan.NodeCount));
+            Assert.That(repeated.Radius, Is.EqualTo(plan.Radius));
+            Assert.That(repeated.Spacing, Is.EqualTo(plan.Spacing));
         }
 
         private static int WalkProductionRoute(ShowcaseWorld world)
