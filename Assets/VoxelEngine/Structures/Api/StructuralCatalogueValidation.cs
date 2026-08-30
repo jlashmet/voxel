@@ -35,10 +35,17 @@ namespace VoxelEngine.Structures.Api
                 }
             }
 
+            // Compute the longest outgoing structural path from every definition. Memoising this
+            // path length is safe for shared DAG nodes because it is independent of the caller's
+            // current depth; the previous "visited" memoisation was not and could hide a deeper
+            // route that reached the same child later. The active recursion stack still catches
+            // cycles deterministically.
             var state = new byte[catalogue.DefinitionCount];
+            var longestPath = new int[catalogue.DefinitionCount];
             for (int i = 0; i < catalogue.DefinitionCount; i++)
             {
-                if (!Visit(in catalogue, i, state, 0))
+                if (!TryLongestPath(in catalogue, i, state, longestPath, out int depth) ||
+                    depth > FeatureBudget.MaxCompositionDepth)
                     return false;
             }
 
@@ -84,30 +91,52 @@ namespace VoxelEngine.Structures.Api
 
             FeatureDefinition child = catalogue.Definitions[slot.DefinitionId];
             return child.StructuralPiece.PieceId != 0 &&
-                   StructuralSocketValidation.Compatible(in slot, in child.StructuralPiece);
+                   StructuralSocketValidation.Compatible(in slot, in child.StructuralPiece) &&
+                   StructuralSocketValidation.CanOrient(slot.Facing, child.StructuralPiece.Facing);
         }
 
-        private static bool Visit(in FeatureCatalogue catalogue, int definitionId, byte[] state, int depth)
+        private static bool TryLongestPath(in FeatureCatalogue catalogue, int definitionId,
+            byte[] state, int[] longestPath, out int depth)
         {
-            if (depth > FeatureBudget.MaxCompositionDepth)
+            if ((uint)definitionId >= (uint)catalogue.DefinitionCount)
+            {
+                depth = 0;
                 return false;
+            }
+
             if (state[definitionId] == 1)
+            {
+                depth = 0;
                 return false;
+            }
             if (state[definitionId] == 2)
+            {
+                depth = longestPath[definitionId];
                 return true;
+            }
 
             state[definitionId] = 1;
+            int longest = 0;
             FeatureDefinition definition = catalogue.Definitions[definitionId];
             for (int i = 0; i < definition.SlotCount; i++)
             {
                 SlotSpec slot = catalogue.Slots[definition.SlotOffset + i];
                 if (slot.SocketId == 0)
                     continue;
-                if (!Visit(in catalogue, slot.DefinitionId, state, depth + 1))
+                if (!TryLongestPath(in catalogue, slot.DefinitionId, state, longestPath, out int childDepth))
+                {
+                    depth = 0;
                     return false;
+                }
+
+                int throughChild = childDepth + 1;
+                if (throughChild > longest)
+                    longest = throughChild;
             }
 
             state[definitionId] = 2;
+            longestPath[definitionId] = longest;
+            depth = longest;
             return true;
         }
     }
