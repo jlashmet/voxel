@@ -34,21 +34,28 @@
 
 ## Fresh-bake regression loop
 - [x] Merge current master into the candidate and submit exact request `agent4-mountain-dragon-final-7f522cf-uniformcarve` on CI head `0988cfa0c9d8...` for feature source `7f522cf98183...`, without replacing queued/running work.
-- [x] Generate a fresh source-matched startup bake in run `33285254695`; bake completed in ~226 s under the 600 s watchdog (`ShowcaseWorld.bytes` 164,690,080 bytes, digest `b9af6884c926b4f795b8393d49f797910d8e527a`). This clears the prior 241 s bake blocker.
+- [x] Generate a fresh source-matched startup bake in run `33285254695`; bake completed in ~226 s under the 240 s Unity subprocess watchdog (`ShowcaseWorld.bytes` 164,690,080 bytes, digest `b9af6884c926b4f795b8393d49f797910d8e527a`). This cleared the prior bake blocker for the partially suppressed layout.
 - [x] Inspect the completed focused-test failure and capture artifacts: fresh-bake acceptance reaches semantic traversal validation, then reports first-turn landing floor voxel `(-435,264,-316)` as Empty (`0`) instead of Gravel (`13`); the separate 60 s player capture completed.
 - [x] Discriminate the missing landing: source geometry covers the voxel, primitive order is preserved, snapshot/storage reads current semantic state, and the failed cell is not directly eligible for the Uniform full-block fast path. Root cause is composition: castle-owned regions defer generic catalogue features and intentionally discard those deferrals after castle authoring.
-- [x] Confirm the concrete overlap: castle landmark center `(256,376)` and minimum 512-voxel ownership reach produce castle regions `x=-1..1, z=-1..1`; the Mountain Dragon footprint currently spans `x=-3..-1, z=-1..1`, and failed voxel `(-435,264,-316)` is region `(-1,0,-1)`.
+- [x] Confirm the concrete overlap: castle landmark center `(256,376)` and minimum 512-voxel ownership reach produce castle regions `x=-1..1, z=-1..1`; the Mountain Dragon footprint spans `x=-3..-1, z=-1..1`, and failed voxel `(-435,264,-316)` is region `(-1,0,-1)`.
 - [x] Add a focused behavioral regression before production implementation: `MountainDragonCastleRegionOwnershipTests` rejects any Mountain Dragon footprint/castle feature-suppression region overlap and is invoked by the exact final acceptance filter.
 - [x] Shift the Mountain Dragon footprint one 512-voxel region west (`OriginX - 512`) so its three X-region columns become `-4..-2`, preserving footprint size, primitive program, and route geometry while removing castle ownership overlap.
 - [x] Re-check dependent runtime/evidence coordinates and update only layout-derived artifacts that do not already derive from `ShowcaseMountainDragonLayout`; the issue-owned replay route's absolute X/look-X coordinates moved by exactly 51.2 m.
-- [x] Re-check blast radius/cost after the shift: X/Z footprint remains 3x3 region columns, entry terrain height changes 217 -> 218, authored base/summit Y become 219/499, the mountain stays in the same vertical region layer, carve volume/primitive count are unchanged, and the Uniform carve optimization remains intact.
+- [x] Confirm geometric/Y blast radius after shift: footprint remains 3x3, terrain 217 -> 218, base/summit Y 219/499, same vertical region layer, same primitive count and nominal carve volume.
+- [x] Submit the completed final request only through existing `ci-test/fixes/agent-4`: CI SHA `517acdd1e7498f703b1a8355f2dc026261f33e97`, exact feature parent `40e01319e0ddc05cd135d5c6d2577d71a398492c`, run `33287514117`.
+- [x] Inspect run `33287514117` attempts 1 and 2 without replacing the request: both source-matched fresh bakes were killed at 241 s before focused acceptance; attempt 1 peak RSS was 10.5 GB, below the 14 GB ceiling; fallback player failure was only missing fresh manifest provenance.
+- [x] Correct the cost model: moving out of castle ownership changes effective mountain authoring from 6 active footprint regions to all 9 (+50%); unchanged nominal footprint/primitive count does not imply unchanged bake cost.
+- [ ] Locate the newly exercised hot path responsible for the 9-region layout exceeding the 240 s bake contract.
+- [ ] Add a focused behavioral/cost regression before the next production optimization.
+- [ ] Implement an output-equivalent optimization preserving serialized voxel truth and observable write/primitive semantics.
+- [ ] Re-check optimization blast radius and measured cost.
 - [ ] Prove all authored landing floor/headroom columns survive with the optimized carve path and no castle-region suppression.
 
 ## Exact-SHA bake / built-player gate
-- [x] Commit the post-full-block candidate on `fixes/agent-4`, merge current master, then issue the previous exact-SHA request using only existing `ci-test/fixes/agent-4`; no extra transport was created.
-- [x] Generate and provenance-validate source-matched `ShowcaseWorld.bytes` + manifest on the Unity runner; run `33285254695` reached the focused test using the fresh payload.
-- [ ] Produce/commit the accepted source-matched generated startup payload + manifest before the one remaining final exact-SHA CI request, if repository workflow permits producing it without using the CI transport.
-- [ ] Run the exact focused acceptance filter green on the final feature SHA using only `ci-test/fixes/agent-4`.
+- [x] Use only existing `ci-test/fixes/agent-4` for targeted CI; no extra transport and no feature-branch `.github/test-request.json` edit.
+- [ ] Produce/commit the accepted source-matched generated startup payload + manifest before final closure, if repository workflow permits producing it without violating the CI transport contract.
+- [ ] After revised source and latest-master integration, issue a new exact-parent final request using only `ci-test/fixes/agent-4`.
+- [ ] Run the exact focused acceptance filter green on the final feature SHA.
 - [ ] Traverse the complete route via production `AutoWalk -> CharacterMotor.Step` with grounded Y proof.
 - [ ] Save and human-review approach/base/middle/upper/summit/dialogue captures, including `Hello, I'm Mr. Dragon.`
 - [ ] Record measured bake/runtime evidence and accepted payload provenance.
