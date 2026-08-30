@@ -1,20 +1,21 @@
 # Plan — Kentridge Awon + Medrare Opening Cutscenes
 
-## Evidence / result
-- No captures exist; acceptance is the issue contract plus pinned Mounting Force source `9491acd9efc3ad7413a13fd28f1686ed473b5672`.
-- Existing Logan opening remains the entry beat.
-- `kentridge-awon-house-back-room` is talk-triggered/play-once and its exact 22-line payload is ported verbatim.
-- Distinct post-Awon `kentridge-see-medrare` and `kentridge-medrare-join` events are preserved. The join retains zoom `0.5`, 1.5s wait, 2s Medrare approach, party join, and source dialogue id `5000` identity. Missing Medrare text payloads remain UNKNOWN rather than reconstructed.
-- Medrare-house source proves a play-once `Flame` grant after Awon and `medrare-to-church` after first-spell; both gates/actions are ported without invented dialogue. Later post-`meet-king` Medrare join remains out of scope.
-- Rejected and removed the resumed Michael/William/zombie reconstruction.
+## Observed defect / acceptance
+- No captures or marked regions exist; `issue.json` plus pinned `jlashmet/mounting-force@9491acd9efc3ad7413a13fd28f1686ed473b5672` are authoritative.
+- Prior closure left Medrare join text empty and its built-player run proved only generic scene startup, failing exact-dialogue and complete Logan -> Awon -> Medrare acceptance.
 
-## Validation
-- Campaign/story state persists one-shot completion, Medrare party membership, and Flame ownership through deterministic capture/restore.
-- Exact feature SHA `38bfc6f67a746b505089320634d51ccbaed1d102` validated by CI request `89289ab14a85070d8d887f88e60bd8024784300e`, run `33256802496`: all 3 focused PlayMode regressions passed; built `Assets/Scenes/KentridgePlayableSlice.unity`; real player ran 45s with exit status 0; final 1600x900 verification and artifact uploaded.
-- Capture-less SceneIssues use the real-player harness default resolution; captured-pose issues still require captured dimensions.
+## Competing hypotheses / discriminator
+1. `showLines:data:5000` identifies an unrecoverable dialogue payload. **Falsified:** `RPGCutScene.showLines` uses the integer only as `currentStop = index + lines`; dialogue is loaded from the cutscene `text` attribute.
+2. The Medrare join text file is absent. **Falsified:** pinned `MountingForce.xcodeproj/project.pbxproj` maps `kentridge-medrare-join.txt` to `Art/kentridge-medrare-join.txt`, which contains 17 authoritative lines.
+
+## Selected fix / results
+- Port all 17 Medrare/Weldon lines verbatim with source speaker order after the existing zoom `0.5`, 1.5s wait, and 2s Medrare approach.
+- Keep genuinely unrecovered `kentridge-see-medrare`, `medrare-first-spell`, and `medrare-to-church` text empty rather than inventing prose.
+- Focused regression asserts Logan continuation, exact 22-line Awon payload, exact 17-line Medrare payload/speakers/choreography, prerequisites, distinct events, party join, Flame/church continuation, replay suppression, and save/load state.
+- Exact SceneIssue built-player replay now arms a dormant Kentridge evidence harness: it waits for the real playable slice to complete Logan, then verifies the production Awon/Medrare rule path and emits `KENTRIDGE_OPENING result=PASS`; failure/incomplete replay exits nonzero.
 
 ## Blast radius / cost
-Changes are scoped to Kentridge opening content/composition, small event-driven story state/snapshot sets, focused tests, and validation startup parsing. No update loops, polling, hierarchy scans, packages/assets, or steady-state scene work were added.
+Feature diff is limited to Kentridge cutscene content, focused PlayMode regression, and an exact-issue-only validation harness plus two assembly references. No packages, workflows, generated content, other SceneIssues, normal-game polling, hierarchy scans, or steady-state work were added. The validation-only `Update`/scene lookup runs only when this exact SceneIssue (or explicit evidence flag) is launched.
 
-## Remaining gate
-The assignment is closed. Re-fetch current `master`, merge if it advanced without an assignment conflict, then non-force push the exact closed feature head to `master` and verify the closed issue exists there.
+## Remaining gates
+Merge current `master` if it advances; create one final exact-SHA request on `ci-test/fixes/agent-9`; require focused PlayMode green plus built `KentridgePlayableSlice` evidence containing `KENTRIDGE_OPENING result=PASS`; inspect artifacts/logs, then pending/closed bookkeeping and non-force promotion to `master`.
