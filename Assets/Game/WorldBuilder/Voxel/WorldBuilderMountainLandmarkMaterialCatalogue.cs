@@ -142,30 +142,59 @@ namespace Game.WorldBuilder.Voxel
                     int z1 = catalogue.Program[first + 4];
                     int x2 = catalogue.Program[second + 2];
                     int z2 = catalogue.Program[second + 4];
-                    int halfSpan = Math.Max(Math.Abs(x2 - x1), Math.Abs(z2 - z1)) / 2;
+                    int firstBaseRadius = catalogue.Program[first + 6];
+                    int secondBaseRadius = catalogue.Program[second + 6];
+                    int firstTopRadius = catalogue.Program[first + 7];
+                    int secondTopRadius = catalogue.Program[second + 7];
 
-                    // A shared broad top covers both authored support centres and the complete path
-                    // width between them. Duplicating the paired primitive preserves program shape
-                    // and budget accounting while FillIfEmpty makes the second copy an inexpensive
-                    // semantic no-op after the first has authored the ridge.
-                    int topRadius = Math.Max(
-                        Math.Max(catalogue.Program[first + 7], catalogue.Program[second + 7]),
-                        halfSpan + spec.PathWidth);
-                    int baseRadius = Math.Max(
-                        Math.Max(catalogue.Program[first + 6], catalogue.Program[second + 6]),
-                        topRadius + spec.PathWidth);
+                    // One full-height ridge spans both original support centres. Use the exact
+                    // midpoint (rather than the revision-5 jitter) so support coverage is explicit
+                    // and deterministic. The second existing primitive becomes a much cheaper low
+                    // buttress instead of duplicating this complete raster volume.
                     int centreX = (x1 + x2) / 2;
                     int centreZ = (z1 + z2) / 2;
+                    int coverRadius = Math.Max(
+                        Math.Max(Math.Abs(centreX - x1), Math.Abs(centreZ - z1)),
+                        Math.Max(Math.Abs(centreX - x2), Math.Abs(centreZ - z2)))
+                        + spec.PathWidth;
+                    int ridgeTopRadius = Math.Max(
+                        Math.Max(firstTopRadius, secondTopRadius),
+                        coverRadius);
+                    int ridgeBaseRadius = Math.Max(
+                        Math.Max(firstBaseRadius, secondBaseRadius),
+                        ridgeTopRadius + spec.PathWidth / 2);
 
-                    // Small deterministic offsets break ruler-straight repetition while the larger
-                    // top radius retains support beneath both original path spans.
-                    int jitter = (pairOrdinal % 3 - 1) * 4;
-                    if ((pairOrdinal & 1) == 0) centreZ += jitter;
-                    else centreX += jitter;
+                    ApplyRidge(
+                        catalogue,
+                        first,
+                        centreX,
+                        centreZ,
+                        ridgeBaseRadius,
+                        ridgeTopRadius,
+                        rockMaterial);
+
+                    int buttressHeight = Math.Max(spec.PathRise / 2, runHeight / 2);
+                    buttressHeight = Math.Max(1, Math.Min(runHeight - 1, buttressHeight));
+                    int buttressTopRadius = Math.Max(
+                        spec.PathWidth,
+                        Math.Min(firstTopRadius, secondTopRadius) * 3 / 4);
+                    int buttressBaseRadius = Math.Min(
+                        Math.Max(firstBaseRadius, secondBaseRadius),
+                        buttressTopRadius + spec.PathWidth / 2);
+                    bool anchorFirst = (pairOrdinal & 1) == 0;
+                    int buttressX = anchorFirst ? x1 : x2;
+                    int buttressZ = anchorFirst ? z1 : z2;
                     pairOrdinal++;
 
-                    ApplyRidge(catalogue, first, centreX, centreZ, baseRadius, topRadius, rockMaterial);
-                    ApplyRidge(catalogue, second, centreX, centreZ, baseRadius, topRadius, rockMaterial);
+                    ApplyButtress(
+                        catalogue,
+                        second,
+                        buttressX,
+                        buttressZ,
+                        buttressHeight,
+                        buttressBaseRadius,
+                        buttressTopRadius,
+                        rockMaterial);
                 }
 
                 runStart = runEnd;
@@ -183,6 +212,24 @@ namespace Game.WorldBuilder.Voxel
         {
             catalogue.Program[pc + 2] = centreX;
             catalogue.Program[pc + 4] = centreZ;
+            catalogue.Program[pc + 6] = baseRadius;
+            catalogue.Program[pc + 7] = topRadius;
+            catalogue.Program[pc + 9] = rockMaterial;
+        }
+
+        private static void ApplyButtress(
+            FeatureCatalogue catalogue,
+            int pc,
+            int centreX,
+            int centreZ,
+            int height,
+            int baseRadius,
+            int topRadius,
+            byte rockMaterial)
+        {
+            catalogue.Program[pc + 2] = centreX;
+            catalogue.Program[pc + 4] = centreZ;
+            catalogue.Program[pc + 5] = height;
             catalogue.Program[pc + 6] = baseRadius;
             catalogue.Program[pc + 7] = topRadius;
             catalogue.Program[pc + 9] = rockMaterial;
