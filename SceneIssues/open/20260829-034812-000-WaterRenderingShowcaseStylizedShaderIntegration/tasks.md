@@ -10,6 +10,7 @@
 - [x] Trace liquid/gameplay consumers: no swimming, buoyancy, wading, or generic liquid subsystem exists in the current tree; preserve existing material IDs, spreading/inert semantics, storage/streaming, discovery/meshing, edits, and diagnostics.
 - [x] Trace normal player bootstrap ordering: `GameMaterialPresentationBootstrap` installs presentation data `BeforeSceneLoad`, before scene-owned world/extraction/rendering setup.
 - [x] Identify normal production bindings: `VoxelShowcase` and Kentridge both construct `ShowcaseWorld` and bind its canonical storage/palette/surface/coating/profile inputs through `RenderingWorldBinding`.
+- [x] Identify bounded showcase composition: reuse existing `ShowcaseFeatureContent.HouseOnly` + `ShowcaseStartupSource.Generate` for terrain plus one representative structure without castle authoring or a new world mode.
 - [ ] Verify whether Kentridge or another existing normal production scene actually authors water profiles; choose the second built portability scene accordingly.
 - [x] Verify active URP renderer-data asset serializes `WaterSurface.shader` and matching URP asset is selected.
 - [x] Discover missing `WaterRenderingShowcase` and that build settings currently contain only indices 0/1.
@@ -29,12 +30,13 @@
 - [ ] Prove player-build shader retention and no editor-only resource dependency with an exact player build.
 
 ## Showcase / portability
-- [ ] Add the smallest `ShowcaseWorld` bounded standard-authoring seam needed by the dedicated scene; no custom water mesh/material path.
+- [ ] Add one bounded `ShowcaseWorld` box-authoring seam over its existing Storage.Api mutation/change path; validate bounds/size and add no renderer/material knowledge.
 - [ ] Create `Assets/Scenes/WaterRenderingShowcase.unity` through standard voxel storage/authoring and canonical renderer; no production proof planes/bespoke water meshes.
+- [ ] Add thin `WaterRenderingShowcase` scene controller using `HouseOnly + Generate`, canonical material definitions/IDs, `RenderingWorldBinding`, and production surface extraction.
 - [ ] Keep scene/controller limited to terrain/water placement, semantic selection, lighting/camera/inspection controls.
 - [ ] Demonstrate still/deep, shoreline, directional river, waterfall/rapid, terrain/rock/structure contacts.
 - [ ] Provide readable near, wide, elevated, and time-separated views; waterfall must show downward flow, turbulence, irregular edges, aeration, lip/edge/base foam, mist.
-- [ ] Reuse existing screenshot/replay/benchmark harness contracts for exact-built evidence and cost capture; do not add a parallel capture stack.
+- [ ] Reuse existing screenshot/replay/benchmark/standalone-player harness contracts for exact-built evidence and cost capture; do not add a parallel capture stack.
 - [ ] Add/verify production portability outside showcase with at least two independently selectable profiles and waterfall semantics.
 - [ ] Verify `VoxelShowcase` automatically receives shared presentation.
 - [ ] Verify Kentridge or another existing normal water scene automatically receives shared presentation.
@@ -46,7 +48,7 @@
 - [x] Extraction regression covers reciprocal boundary-neighbor suppression and keeps distinct profiles across seams.
 - [x] Extraction regression proves a material outside the installed water mask is not rendered as water.
 - [x] Render lifecycle/source tracing confirms one shared material and one `_WaterTime` update path.
-- [ ] Add only the missing production renderer-path portability/binding regression (actual shader/profile arrays; no source-string-only assertion).
+- [ ] Add production renderer-path portability/binding regression that independently authors Water/RiverWater/Cascade through `ShowcaseWorld` and verifies installed shader/profile arrays plus extracted identities; no source-string-only assertion.
 - [ ] Run player build for shader compile/stripping/pink/missing-resource failures.
 - [ ] Measure CPU/GPU/memory/render cost: 3,072-byte installed profile tables plus draw/batching/culling, transparent overdraw, shader ALU/texture/depth work, large bodies, waterfall extras; do not weaken budgets.
 - [ ] Review final feature-only diff for unrelated files and `.github/test-request.json` contamination.
