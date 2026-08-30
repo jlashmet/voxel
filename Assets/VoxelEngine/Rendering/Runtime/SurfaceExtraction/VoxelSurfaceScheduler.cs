@@ -1044,6 +1044,40 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 inFrustum += _allWorkers[i].LastVisibilityFrustumCount;
             }
             text.Append($" exits[known={knownExits} inBand={inBand} frustum={inFrustum}]");
+            ulong gpuRequested = 0, gpuMirrorReady = 0, gpuCountReady = 0;
+            ulong gpuWriteReady = 0, gpuCopied = 0, gpuPublished = 0;
+            ulong gpuEmpty = 0, gpuUnsupported = 0, gpuUnsupportedReconstruction = 0;
+            ulong gpuUnsupportedDecoration = 0, gpuStale = 0, gpuRetries = 0;
+            int gpuInFlight = 0, gpuPhaseMask = 0;
+            double gpuOldestMs = 0.0;
+            for (int i = 0; i < _allWorkers.Length; i++)
+            {
+                CpuTransvoxelChunkCache worker = _allWorkers[i];
+                gpuRequested += worker.GpuRequestedStageCount;
+                gpuMirrorReady += worker.GpuMirrorReadyStageCount;
+                gpuCountReady += worker.GpuCountReadyStageCount;
+                gpuWriteReady += worker.GpuWriteVerifiedStageCount;
+                gpuCopied += worker.GpuCopiedStageCount;
+                gpuPublished += worker.GpuCompletedBuildCount;
+                gpuEmpty += worker.GpuEmptyStageCount;
+                gpuUnsupported += worker.GpuUnsupportedStageCount;
+                gpuUnsupportedReconstruction += worker.GpuUnsupportedReconstructionStageCount;
+                gpuUnsupportedDecoration += worker.GpuUnsupportedDecorationStageCount;
+                gpuStale += worker.GpuStaleRejectedBuildCount;
+                gpuRetries += worker.GpuCounterRetryCount;
+                if (!worker.HasActiveGpuStage) continue;
+                gpuInFlight++;
+                gpuPhaseMask |= 1 << worker.ActiveGpuStagePhase;
+                gpuOldestMs = Math.Max(gpuOldestMs, worker.ActiveGpuStageAgeMs);
+            }
+            text.Append($" gpu[req={gpuRequested} mirror={gpuMirrorReady}"
+                        + $" count={gpuCountReady} write={gpuWriteReady}"
+                        + $" copy={gpuCopied} pub={gpuPublished} empty={gpuEmpty}"
+                        + $" unsupported={gpuUnsupported}"
+                        + $" unsupportedReconstruction={gpuUnsupportedReconstruction}"
+                        + $" unsupportedDecoration={gpuUnsupportedDecoration} stale={gpuStale}"
+                        + $" retry={gpuRetries} flight={gpuInFlight}"
+                        + $" phases=0x{gpuPhaseMask:X} oldestMs={gpuOldestMs:0.0}]");
             for (int r = 0; r < _rings.Length; r++)
             {
                 SurfaceRing ring = _rings[r];

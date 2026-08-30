@@ -989,7 +989,24 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public ulong GpuArenaFullBuildCount { get; private set; }
         public ulong GpuCountFailureBuildCount { get; private set; }
         public ulong GpuWriteFailureBuildCount { get; private set; }
+        public ulong GpuStaleRejectedBuildCount { get; private set; }
         public ulong GpuSnapshotlessStageCount { get; private set; }
+        public ulong GpuRequestedStageCount => _gpuExtraction?.ChunksRequested ?? 0UL;
+        public ulong GpuMirrorReadyStageCount => _gpuExtraction?.ChunksMirrorReady ?? 0UL;
+        public ulong GpuCountReadyStageCount => _gpuExtraction?.ChunksCountReady ?? 0UL;
+        public ulong GpuWriteVerifiedStageCount => _gpuExtraction?.ChunksWriteVerified ?? 0UL;
+        public ulong GpuCopiedStageCount => _gpuExtraction?.ChunksCopied ?? 0UL;
+        public ulong GpuEmptyStageCount => _gpuExtraction?.ChunksEmpty ?? 0UL;
+        public ulong GpuUnsupportedStageCount => _gpuExtraction?.ChunksUnsupported ?? 0UL;
+        public ulong GpuUnsupportedReconstructionStageCount =>
+            _gpuExtraction?.ChunksUnsupportedReconstruction ?? 0UL;
+        public ulong GpuUnsupportedDecorationStageCount =>
+            _gpuExtraction?.ChunksUnsupportedDecoration ?? 0UL;
+        public ulong GpuCounterRetryCount => _gpuExtraction == null ? 0UL
+            : _gpuExtraction.CountReadbackRetryCount + _gpuExtraction.WriteReadbackRetryCount;
+        public bool HasActiveGpuStage => _gpuExtraction?.HasActiveRequest ?? false;
+        public int ActiveGpuStagePhase => _gpuExtraction?.ActiveRequestPhase ?? 0;
+        public double ActiveGpuStageAgeMs => _gpuExtraction?.ActiveRequestAgeMs ?? 0.0;
         /// <summary>
         /// Worker slices that did nothing but observe an unfinished GPU readback.
         ///
@@ -4009,6 +4026,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         private void RejectPendingOrCompletedBuild(bool stale)
         {
+            bool rejectedGpu = _gpuStagePending || _gpuBuildPending || _build.GpuEligible;
             if (_entries.TryGetValue(_build.Coordinate, out Entry entry))
             {
                 entry.CancelUpload();
@@ -4018,7 +4036,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     RemoveEntry(_build.Coordinate);
                 }
             }
-            if (stale) StaleBuildCount++;
+            if (stale)
+            {
+                StaleBuildCount++;
+                if (rejectedGpu) GpuStaleRejectedBuildCount++;
+            }
             ResetCompletedBuild();
         }
 

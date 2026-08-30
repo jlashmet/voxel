@@ -9,6 +9,7 @@
 // on the GPU through drawing, per the plan's no-readback invariant.
 
 #pragma kernel CSSampleDensity
+#pragma kernel CSClassifyRawBricks
 #pragma kernel CSCountCells
 #pragma kernel CSWriteCells
 #pragma kernel CSCopyVertices
@@ -83,6 +84,7 @@ int _CopyIndexCount;
 // During the sample/count half only, word 0 is also a boolean unsupported-semantics marker. The
 // write path resets all counters before it starts, so the marker never enters geometry accounting.
 RWStructuredBuffer<uint> _Counters;
+RWStructuredBuffer<uint> _SampleDispatchArgs;
 int _VertexCapacity;
 int _IndexCapacity;
 
@@ -137,19 +139,18 @@ bool OwnsSelectedInsideSample(int3 cell, int selectedInsideCorner)
     return all(sample >= 0) && all(sample < _CellsPerAxis);
 }
 
-bool UnsupportedGpuSurface(uint material, uint surface)
+uint UnsupportedGpuSurface(uint material, uint surface)
 {
     surface = ResolveSurface(material, surface);
     StyleDefinition style = LoadStyle(surface & 0xFFFFu);
-    bool continuous = style.reconstruction == RECONSTRUCTION_SMOOTH
-                   || style.reconstruction == RECONSTRUCTION_ROUNDED;
-
     uint coating = (surface >> 16) & 0xFFu;
     uint coatingWord1 = _CoatingWords[coating * COATING_WORDS + 1];
     uint decorationShape = (coatingWord1 >> 8) & 0xFFu;
     uint decorationDensity = (coatingWord1 >> 16) & 0xFFu;
     bool decorated = decorationShape != 0u && decorationDensity != 0u;
-    return !continuous || decorated;
+    bool continuous = style.reconstruction == RECONSTRUCTION_SMOOTH
+                   || style.reconstruction == RECONSTRUCTION_ROUNDED;
+    return (!continuous ? 1u : 0u) | (decorated ? 2u : 0u);
 }
 
 // The CPU classifier used to walk every raw voxel before a near-ring build was even allowed to
@@ -181,10 +182,12 @@ void ClassifyRawBrick(int brickIndex)
     {
         uint material = (entry >> 8) & 0xFFu;
         if (!IsSolidSample(material)) return;
-        if (UnsupportedGpuSurface(material, 0u))
+        uint unsupported = UnsupportedGpuSurface(material, 0u);
+        if (unsupported != 0u)
         {
             uint ignored;
-            InterlockedOr(_Counters[0], 1u, ignored);
+            InterlockedOr(_Counters[0], unsupported, ignored);
+            _SampleDispatchArgs[0] = 0u;
         }
         return;
     }
@@ -199,12 +202,22 @@ void ClassifyRawBrick(int brickIndex)
         uint surfaceWord = _BrickSurfaceSemantics[slot * 256u + (voxel >> 1)];
         uint packedStorage = (surfaceWord >> ((voxel & 1u) * 16u)) & 0xFFFFu;
         uint surface = DecodeSurfaceStorage(packedStorage);
-        if (!UnsupportedGpuSurface(material, surface)) continue;
+        uint unsupported = UnsupportedGpuSurface(material, surface);
+        if (unsupported == 0u) continue;
 
         uint ignored;
-        InterlockedOr(_Counters[0], 1u, ignored);
+        InterlockedOr(_Counters[0], unsupported, ignored);
+        _SampleDispatchArgs[0] = 0u;
         return;
     }
+}
+
+[numthreads(64, 1, 1)]
+void CSClassifyRawBricks(uint3 id : SV_DispatchThreadID)
+{
+    int brickCount = _BrickCacheEdge * _BrickCacheEdge * _BrickCacheEdge;
+    if ((int)id.x >= brickCount) return;
+    ClassifyRawBrick((int)id.x);
 }
 
 // ---------------------------------------------------------------------------
@@ -216,9 +229,6 @@ void CSSampleDensity(uint3 id : SV_DispatchThreadID)
     int index = (int)id.x;
     int total = _GridSize * _GridSize * _GridSize;
     if (index >= total) return;
-
-    int brickCount = _BrickCacheEdge * _BrickCacheEdge * _BrickCacheEdge;
-    if (index < brickCount) ClassifyRawBrick(index);
 
     int gx = index % _GridSize;
     int yz = index / _GridSize;

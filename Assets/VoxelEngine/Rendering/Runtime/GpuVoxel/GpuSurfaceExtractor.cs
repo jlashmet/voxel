@@ -43,13 +43,19 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
     {
         public readonly int VertexCount;
         public readonly int IndexCount;
-        public readonly bool Unsupported;
+        public readonly uint UnsupportedMask;
+        public bool Unsupported => UnsupportedMask != 0u;
 
         public GpuExtractionCounts(int vertexCount, int indexCount, bool unsupported = false)
+            : this(vertexCount, indexCount, unsupported ? 1u : 0u)
+        {
+        }
+
+        internal GpuExtractionCounts(int vertexCount, int indexCount, uint unsupportedMask)
         {
             VertexCount = vertexCount;
             IndexCount = indexCount;
-            Unsupported = unsupported;
+            UnsupportedMask = unsupportedMask;
         }
 
         public bool IsEmpty => !Unsupported && (VertexCount == 0 || IndexCount == 0);
@@ -119,6 +125,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private static readonly int IdVertices = Shader.PropertyToID("_Vertices");
         private static readonly int IdIndices = Shader.PropertyToID("_Indices");
         private static readonly int IdCounters = Shader.PropertyToID("_Counters");
+        private static readonly int IdSampleDispatchArgs = Shader.PropertyToID("_SampleDispatchArgs");
         private static readonly int IdChunkOrigin = Shader.PropertyToID("_ChunkOriginVoxel");
         private static readonly int IdCellsPerAxis = Shader.PropertyToID("_CellsPerAxis");
         private static readonly int IdGridSize = Shader.PropertyToID("_GridSize");
@@ -169,6 +176,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         private readonly ComputeShader _shader;
         private readonly int _sampleKernel;
+        private readonly int _classifyKernel;
         private readonly int _countKernel;
         private readonly int _writeKernel;
         private readonly int _copyVerticesKernel;
@@ -184,6 +192,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private readonly ComputeBuffer _cellTriangleCounts;
         private readonly ComputeBuffer _brickCache;
         private readonly ComputeBuffer _counters;
+        private readonly ComputeBuffer _sampleDispatchArgs;
         private readonly ComputeBuffer _faceDensity;
         private readonly ComputeBuffer _faceMaterial;
         private readonly ComputeBuffer _faceSurface;
@@ -205,6 +214,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private readonly ComputeBuffer _defaultStyle;
 
         private readonly uint[] _counterStaging = new uint[4];
+        private readonly uint[] _sampleDispatchStaging = new uint[3];
         private readonly uint[] _pageStaging;
         private readonly uint[] _brickCacheStaging;
         private bool _disposed;
@@ -268,6 +278,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             FaceSamplesPerAxis = cellsPerAxis * 2 + 1;
 
             _sampleKernel = shader.FindKernel("CSSampleDensity");
+            _classifyKernel = shader.FindKernel("CSClassifyRawBricks");
             _countKernel = shader.FindKernel("CSCountCells");
             _writeKernel = shader.FindKernel("CSWriteCells");
             _copyVerticesKernel = shader.FindKernel("CSCopyVertices");
@@ -287,6 +298,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _cellVertexCounts = new ComputeBuffer(cells, sizeof(uint), ComputeBufferType.Structured);
             _cellTriangleCounts = new ComputeBuffer(cells, sizeof(uint), ComputeBufferType.Structured);
             _counters = new ComputeBuffer(4, sizeof(uint), ComputeBufferType.Structured);
+            _sampleDispatchArgs = new ComputeBuffer(3, sizeof(uint),
+                                                    ComputeBufferType.IndirectArguments);
             MaxPagesPerChunk = GpuMeshletPageArena.DefaultMaxPagesPerChunk;
             _chunkPages = new ComputeBuffer(MaxPagesPerChunk, sizeof(uint),
                                             ComputeBufferType.Structured);
@@ -390,6 +403,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                              vertexCapacity, indexCapacity);
 
             BindShared(_sampleKernel, mirror, tables);
+            BindShared(_classifyKernel, mirror, tables);
             BindShared(_countKernel, mirror, tables);
             BindShared(_writeKernel, mirror, tables);
 
@@ -399,6 +413,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _shader.SetBuffer(_sampleKernel, IdSampleMaterialWrite, _sampleMaterial);
             _shader.SetBuffer(_sampleKernel, IdSampleSurfaceWrite, _sampleSurface);
             _shader.SetBuffer(_sampleKernel, IdSampleBoundaryWrite, _sampleBoundary);
+            _shader.SetBuffer(_classifyKernel, IdSampleDispatchArgs, _sampleDispatchArgs);
             _shader.SetBuffer(_countKernel, IdCellVertexCountsWrite, _cellVertexCounts);
             _shader.SetBuffer(_countKernel, IdCellTriangleCountsWrite, _cellTriangleCounts);
 
@@ -409,7 +424,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             int regularCellsPerAxis = CellsPerAxis + 1;
             int cells = regularCellsPerAxis * regularCellsPerAxis * regularCellsPerAxis;
 
-            _shader.Dispatch(_sampleKernel, Groups(samples), 1, 1);
+            ResetSampleDispatch(samples);
+            _shader.Dispatch(_classifyKernel, Groups(BrickCacheEdge * BrickCacheEdge * BrickCacheEdge), 1, 1);
+            _shader.DispatchIndirect(_sampleKernel, _sampleDispatchArgs);
             _shader.Dispatch(_countKernel, Groups(cells), 1, 1);
             _shader.Dispatch(_writeKernel, Groups(cells), 1, 1);
 
@@ -486,7 +503,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             CounterReadbacks++;
             _counters.GetData(_counterStaging);
             return new GpuExtractionCounts((int)_counterStaging[2], (int)_counterStaging[3],
-                                           _counterStaging[0] != 0u);
+                                           _counterStaging[0]);
         }
 
         /// <summary>
@@ -519,18 +536,22 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                              request.SourceStep, request.VoxelSize, 0, 0);
 
             BindShared(_sampleKernel, mirror, tables);
+            BindShared(_classifyKernel, mirror, tables);
             BindShared(_countKernel, mirror, tables);
             _shader.SetBuffer(_sampleKernel, IdDensityWrite, _density);
             _shader.SetBuffer(_sampleKernel, IdSampleMaterialWrite, _sampleMaterial);
             _shader.SetBuffer(_sampleKernel, IdSampleSurfaceWrite, _sampleSurface);
             _shader.SetBuffer(_sampleKernel, IdSampleBoundaryWrite, _sampleBoundary);
+            _shader.SetBuffer(_classifyKernel, IdSampleDispatchArgs, _sampleDispatchArgs);
             _shader.SetBuffer(_countKernel, IdCellVertexCountsWrite, _cellVertexCounts);
             _shader.SetBuffer(_countKernel, IdCellTriangleCountsWrite, _cellTriangleCounts);
 
             int samples = GridSize * GridSize * GridSize;
             int regularCellsPerAxis = CellsPerAxis + 1;
             int cells = regularCellsPerAxis * regularCellsPerAxis * regularCellsPerAxis;
-            _shader.Dispatch(_sampleKernel, Groups(samples), 1, 1);
+            ResetSampleDispatch(samples);
+            _shader.Dispatch(_classifyKernel, Groups(BrickCacheEdge * BrickCacheEdge * BrickCacheEdge), 1, 1);
+            _shader.DispatchIndirect(_sampleKernel, _sampleDispatchArgs);
             _shader.Dispatch(_countKernel, Groups(cells), 1, 1);
 
             DispatchTransitionFaces(mirror, tables, request, countOnly: true);
@@ -790,6 +811,14 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _counters.SetData(_counterStaging);
         }
 
+        private void ResetSampleDispatch(int samples)
+        {
+            _sampleDispatchStaging[0] = (uint)Groups(samples);
+            _sampleDispatchStaging[1] = 1u;
+            _sampleDispatchStaging[2] = 1u;
+            _sampleDispatchArgs.SetData(_sampleDispatchStaging);
+        }
+
         private void SetChunkUniforms(int3 chunkOriginVoxel, int3 brickCacheOrigin,
                                       int sourceStep, float voxelSize,
                                       int vertexCapacity, int indexCapacity)
@@ -858,7 +887,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             GpuCounterPoll poll = PollCounters();
             if (poll != GpuCounterPoll.Ready) return poll;
             counts = new GpuExtractionCounts((int)_counterStaging[2], (int)_counterStaging[3],
-                                             _counterStaging[0] != 0u);
+                                             _counterStaging[0]);
             return GpuCounterPoll.Ready;
         }
 
@@ -1005,6 +1034,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _cellTriangleCounts?.Release();
             _brickCache?.Release();
             _counters?.Release();
+            _sampleDispatchArgs?.Release();
             _faceDensity?.Release();
             _faceMaterial?.Release();
             _faceSurface?.Release();
