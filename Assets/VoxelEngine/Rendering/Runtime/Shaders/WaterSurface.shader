@@ -137,12 +137,11 @@ Shader "Hidden/VoxelEngine/WaterSurface"
                 if (profile > 2.5)
                 {
                     float lateral = p.x + p.z * 0.73;
-                    float warp = (Fbm2(float2(lateral, p.y) * (1.45 * scale)
-                                      + float2(_WaterTime * 0.11, -_WaterTime * speed * 0.38)) - 0.5)
-                               * cascade.x * 3.4;
-                    phaseA = p.y * (4.6 / scale) - _WaterTime * speed * 5.2 + warp;
-                    phaseB = p.y * (8.1 / scale) - _WaterTime * speed * 7.1
-                           + lateral * 2.2 + warp * 1.8;
+                    float descendingWarp = Fbm2(float2(lateral * 1.15,
+                        p.y * 0.34 - _WaterTime * speed * 0.72));
+                    phaseA = lateral * (4.8 / scale) + descendingWarp * cascade.x * 4.2;
+                    phaseB = lateral * (8.3 / scale) - descendingWarp * cascade.x * 3.1
+                           + p.y * 0.22 - _WaterTime * speed * 0.95;
                 }
                 else if (profile > 1.5)
                 {
@@ -211,46 +210,54 @@ Shader "Hidden/VoxelEngine/WaterSurface"
                 float upFacing = saturate(input.normalWS.y * 2.4 - 0.45);
                 float verticalFacing = 1.0 - saturate(abs(input.normalWS.y) * 2.2);
                 float lateral = input.positionWS.x + input.positionWS.z * 0.73;
-                float2 fallUv = float2(lateral * 2.15,
-                                      input.positionWS.y * 2.85 - _WaterTime * motion.w * 1.65);
-                float waterfallWarp = Fbm2(fallUv);
-                float coarseBreakup = Fbm2(fallUv * 0.47 + float2(13.2, -_WaterTime * 0.31));
+
+                // Waterfall detail is deliberately anisotropic. The prior two crossed high-frequency
+                // sine bands read as a static lattice across a rectangular curtain. These fields
+                // keep most variation lateral while advecting slower noise downward, producing long
+                // descending strands, separated aerated gaps and occasional bright threads.
+                float descend = input.positionWS.y * 0.52 - _WaterTime * motion.w * 2.15;
+                float broadFlow = Fbm2(float2(lateral * 1.65, descend));
+                float strandWarp = Fbm2(float2(lateral * 0.72 + 17.4, descend * 0.46));
+                float strandWave = 0.5 + 0.5 * sin(lateral * 15.0 + strandWarp * 5.5);
                 float downwardStreaks = waterfall
-                    ? pow(saturate(0.5 + 0.5 * sin(input.positionWS.y * 17.0
-                              - _WaterTime * motion.w * 10.5
-                              + lateral * 5.2 + waterfallWarp * 7.0)), 3.0) : 0.0;
+                    ? smoothstep(0.38, 0.82, broadFlow * 0.72 + strandWave * 0.48) : 0.0;
                 float brightThreads = waterfall
-                    ? pow(saturate(0.5 + 0.5 * sin(input.positionWS.y * 29.0
-                              - _WaterTime * motion.w * 16.0
-                              - lateral * 8.3 + coarseBreakup * 5.5)), 7.0) : 0.0;
+                    ? pow(saturate(0.5 + 0.5 * sin(lateral * 28.0
+                              + strandWarp * 8.0 + descend * 0.16)), 8.0) : 0.0;
+                float breakupNoise = Fbm2(float2(lateral * 2.35 + 31.7, descend * 0.33));
+                float sheetCoverage = waterfall
+                    ? saturate(0.28 + downwardStreaks * 0.62
+                              + brightThreads * 0.34 + breakupNoise * cascade.x * 0.26)
+                    : 1.0;
                 float aeration = waterfall
-                    ? saturate(0.18 + cascade.x * (waterfallWarp * 0.62
-                              + downwardStreaks * 0.72 + brightThreads * 0.95))
+                    ? saturate(0.10 + cascade.x * (broadFlow * 0.48
+                              + downwardStreaks * 0.58 + brightThreads * 0.78))
                     : 0.0;
 
                 float lipFoam = waterfallMask * upFacing * cascade.y
-                              * smoothstep(0.38, 0.70, waterfallWarp);
+                              * smoothstep(0.38, 0.70, broadFlow);
                 float impactFoam = waterfallMask * upFacing * cascade.z
                                  * smoothstep(0.25, 0.66,
                                      Fbm2(input.positionWS.xz * 4.1 - _WaterTime * 0.8));
                 float edgeBreakup = waterfallMask * verticalFacing * cascade.y
-                                  * smoothstep(0.50, 0.80, coarseBreakup);
-                float mist = waterfallMask * verticalFacing * cascade.w
-                           * smoothstep(0.48, 0.80,
-                               Fbm2(float2(lateral, input.positionWS.y) * 1.35
-                                  + float2(_WaterTime * 0.17, -_WaterTime * 0.46)));
+                                  * (1.0 - smoothstep(0.34, 0.68, sheetCoverage));
+                float mist = waterfallMask * cascade.w
+                           * smoothstep(0.52, 0.82,
+                               Fbm2(float2(lateral * 0.84,
+                                   input.positionWS.y * 0.58 - _WaterTime * 0.72)));
 
-                float foam = saturate(surfaceFoam + contactFoam + aeration * 0.54
-                                    + lipFoam + impactFoam * 0.82 + edgeBreakup * 0.58);
+                float foam = saturate(surfaceFoam + contactFoam + aeration * 0.42
+                                    + lipFoam + impactFoam * 0.82
+                                    + edgeBreakup * 0.48 + brightThreads * 0.38);
 
                 float3 body = lerp(shallow.rgb, deep.rgb, depthT);
                 if (waterfall)
                 {
                     float verticalEnergy = verticalFacing * saturate(
-                        downwardStreaks * 0.62 + brightThreads * 0.95 + aeration * 0.42);
-                    body = lerp(body, float3(0.34, 0.70, 0.83), verticalFacing * 0.42);
-                    body = lerp(body, float3(0.88, 0.96, 0.98), verticalEnergy * 0.72);
-                    body *= 0.82 + 0.30 * coarseBreakup;
+                        downwardStreaks * 0.62 + brightThreads * 0.88 + aeration * 0.34);
+                    body = lerp(body, float3(0.26, 0.64, 0.78), verticalFacing * 0.34);
+                    body = lerp(body, float3(0.88, 0.96, 0.98), verticalEnergy * 0.64);
+                    body *= 0.80 + 0.28 * broadFlow;
                 }
 
                 float3 reflectedDirection = reflect(-toCamera, normal);
@@ -266,14 +273,21 @@ Shader "Hidden/VoxelEngine/WaterSurface"
 
                 float3 colour = lerp(body, reflectedSky, saturate(fresnel * 0.82 + 0.08));
                 colour += specularColour;
-                colour = lerp(colour, float3(0.86, 0.96, 0.98), foam * 0.86);
-                colour += float3(0.62, 0.79, 0.82) * mist * 0.34;
+                colour = lerp(colour, float3(0.86, 0.96, 0.98), foam * 0.82);
+                colour += float3(0.70, 0.84, 0.86) * mist * verticalFacing * 0.28;
 
                 float baseAlpha = lerp(shallow.a * 0.72, shallow.a, depthT);
                 float alpha = saturate(lerp(baseAlpha, 0.94, fresnel * 0.34)
-                                     + foam * 0.14 + mist * 0.08);
+                                     + foam * 0.14 + mist * 0.05);
                 if (waterfall)
-                    alpha = max(alpha, verticalFacing * (0.84 + 0.10 * aeration));
+                {
+                    // Keep the sheet readable without forcing every vertical fragment opaque.
+                    // Turbulence/edge semantics now visibly break the curtain into descending
+                    // strands; foam and mist restore opacity only where aeration warrants it.
+                    float cascadeAlpha = lerp(0.26, 0.78, sheetCoverage)
+                                       + aeration * 0.10 + foam * 0.08;
+                    alpha = lerp(alpha, saturate(cascadeAlpha), verticalFacing);
+                }
                 return float4(colour, alpha);
             }
             ENDHLSL
