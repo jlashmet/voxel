@@ -5,18 +5,25 @@
 - Pass requires sustained step-1/2 GPU completion, zero eligible CPU fallback/blocking waits, no visible holes, moving p95 <18 ms/p99 <25 ms, stationary p95 <8 ms, plus exact built-player pose inspection.
 
 ## Runtime evidence / hypotheses
-- H1 (**confirmed**): demand-scoped mirror recovery, exact footprints, optional empty halo, and obsolete-demand cancellation removed global recovery starvation while preserving Storage versions.
-- H2 (**falsified as complete fix**): compact payload scatter removed fragmented `SetData` fan-out and now compiles on Metal, but exact run `33279094247` still failed traversal at frame 3 (`gpu=8/0`, waits 248) and the built player retained ~191–198 ms admission spikes with 344 missing chunks at 51.4 s. Liveness passed; arena exhaustion remained absent.
-- H3 (**confirmed material fix**): snapshotless GPU admission, 128-block coverage cursors, concurrent demand recovery, and one new count dispatch/frame made liveness green and exact player coverage converge to zero missing without GPU fallback. Exact run `33281099872` still failed only moving p99: 75.912 ms versus 25 ms.
-- H4 (**leading**): the remaining tail is secondary water discovery, not shared-mirror solid work. On the same exact player, solid admission stayed ~0.5–3 ms while one 32-brick water classification slice reached 29.256 ms. A reused GPU staging-buffer hazard remains the alternative if bounding water does not move p99.
+- H1 (**confirmed material fix**): demand-scoped mirror recovery, exact footprints, optional empty halo, obsolete-demand cancellation, snapshotless GPU admission, bounded coverage cursors, and concurrent recovery removed global recovery starvation. The latest exact run keeps liveness green and reports zero frame-path blocking completions.
+- H2 (**falsified as remaining tail**): fragmented mirror payload flush and renderer admission changes improved fill/recovery but did not clear traversal. Exact run `33281099872` still failed moving p99 at 75.912 ms.
+- H3 (**falsified as remaining tail**): water discovery was sharing neither the presentation deadline nor region-view reuse. Experiment 010 bounded it and preserved immediate invalidation, but exact run `33282801017` still failed moving p99 at 79.164 ms while mirror liveness passed.
+- H4 (**selected**): the remaining tail tracks streamed-region completion. The exact run generated regions 199 -> 243 while moving, with up to 30 pending. Renderer prepare/admission slices stayed far below the 79 ms tail. Source inspection shows `StepRegion` is time-sliced but `FinishRegion` synchronously calls `RefreshRegionSummary` across all 262,144 bricks inside `Voxel.Streaming.RegionCommit` after the final slice.
 
 ## Selected integration
-- Preserve compact 64-record payload upload/scatter and transient count/write retry behavior from `origin/fixes/agent-2`.
-- Preserve the takeover branch's snapshotless production admission: GPU resolves/classifies raw mirror bricks; unsupported decorated/faceted/profile content explicitly re-enters the CPU fidelity path.
-- Reference-count demand footprints, verify coverage in 128-block cursors, evict only inactive undemanded entries, and admit at most one new count dispatch per frame. Geometry remains GPU-resident through draw.
-- CPU world truth, collision, replication, HLOD/water, stale-build rejection, arena budgets, and performance thresholds are unchanged.
-- Bound discovery-only water classification against its existing presentation deadline, checking every four bricks while keeping authoritative mutation invalidation immediate.
+- Preserve compact GPU payload upload/scatter, snapshotless production admission, demand-scoped mirror recovery, bounded descriptor/coverage work, water discovery deadline sharing, and stale-build/arena correctness already validated on this branch.
+- Replace the whole-region summary's per-brick summary read/modify/write loop with a word-oriented rebuild: scan the same authoritative brick/mixed occupancy data, assemble 64 summary bits locally, then write each occupied/fully-solid word once.
+- Leave normal per-block authoritative mutation behavior unchanged.
+- Add `ShowcaseRegionCommitBudgetTests.RegionCompletionFramesStayInsideTraversalBudget`: real VoxelShowcase traversal must cross four production region boundaries, commit new regions, keep completion-frame `StepStreaming` below 25 ms, preserve visible solids/far fallback, and keep renderer blocking completions at zero.
+- CPU world truth, collision, replication, HLOD/water, stale-build rejection, arena budgets, and the existing performance thresholds remain unchanged.
+
+## Blast radius / cost
+- Bulk occupancy-summary reconstruction only; no region data, commit order, change journal, collision, or rendering semantics change.
+- Complexity remains O(262,144 bricks + mixed occupancy words), with no allocation. Summary writes drop from per-brick read/modify/write traffic to 4,096 word-pair assignments, reducing cache/safety-check overhead on the unbudgeted region-finalization frame.
+- Ordinary edits continue through the existing single-block summary updater.
 
 ## Remaining gates
-- Local policy 5/5, mirror slot/catalogue 21/21, arena/no-geometry-readback 4/4, and post-master water deadline contract 1/1 passed. Local full-scene PlayMode exceeded the mandated 6 GB ceiling before assertions, so it has no product verdict.
-- Rerun the unchanged migration gate when another CI transport is authorized; verify water admission tail, moving p99, and startup fill. Keep the capture open until exact-SHA targeted CI and built-player gates are green.
+- Exact run `33282801017` is red only on moving p99 79.164 ms; its built-player capture converged to coherent final geometry and the mirror liveness regression passed.
+- Commit experiment 011 + bulk-summary optimization + exact-scene region-completion regression on `fixes/agent-2` without touching `.github/test-request.json` there.
+- Use `ci-test/fixes/agent-2` for one final exact-SHA request containing region-completion budget, mirror liveness, and unchanged GPU migration traversal, plus the exact VoxelShowcase built-player capture.
+- Inspect every returned capture and test/runtime log. Only after green exact-SHA validation move open -> pending -> closed, set `status=fixed`/`resolvedUtc`, merge current `origin/master` into `fixes/agent-2`, and push that exact branch head to `origin/master` non-force.
