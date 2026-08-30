@@ -11,6 +11,7 @@
 - [x] Resolve authored vegetation point `(900,455)` collision: master already had fixed preferred anchors against an organic seeded building layout; authored non-residential anchors now use deterministic bounded clearance search while preserving species/zone intent.
 - [x] Identify the sanctioned built-player gate: same `tests-single.yml` transport, `PlayMode` + focused test + `scene_issue` + `replay_seconds`; no extra CI branch/workflow required.
 - [x] Classify combined full-app run `33285741354`: built player compiled, launched for 60s, captured 4 screenshots, and exited 0, but the PlayMode acceptance exposed an in-scope `FixedString64Bytes` truncation for long macro-road definition name `world-road-macro:overworld-moordell->overworld-to-rossdam-s0p0` in `WorldRoadNetworkVoxelCatalogue.Build`.
+- [x] Inspect green combined run `33286511375` and its real-player artifact instead of treating workflow success as closure evidence: PlayMode regression passed 1/1 and the player ran 60s with zero harness assertions/exceptions, but the captured Dirt→Grass road edge shows a regular voxel/checker staircase and the four frames do not prove endpoint-to-endpoint continuity or both shoulders on uneven/sloped terrain. This is an acceptance failure, not a bookkeeping blocker.
 
 ## Implementation
 - [x] Make road/trail intent first-class on stable semantic endpoints with reusable profile data, provenance, and deterministic seed.
@@ -31,6 +32,7 @@
 - [x] Make optional road-edge irregularity spatially coherent without changing profile width/transition budgets or semantic↔physical sampling parity.
 - [x] Treat authored Kentridge non-residential tree coordinates as preferred anchors and relocate only blocked anchors through a deterministic <=120dm search; clear anchors remain unchanged.
 - [x] Bound generated road definition names to `FixedString64Bytes.UTF8MaxLengthInBytes` while preserving the segment/piece suffix and deterministic route traceability.
+- [ ] Remove the regular checker/stair-step Dirt→Grass presentation exposed by final-player evidence while preserving the shared 0..31 road influence, continuous shoulder recovery, slope/exposed-top correctness, destructibility, and bounded streaming representation. Do not reintroduce repeated strip primitives or a road-only cover mesh/shader island.
 
 ## Regressions implemented
 - [x] Modern Kentridge semantic routes map to traceable generic physical road definitions.
@@ -45,6 +47,7 @@
 - [x] Existing Kentridge named-landmark, diagonal-route, and connectivity coverage remains in `KentridgeOrganicLayoutTests`.
 - [x] Validate repaired/expanded `KentridgeRoadShoulderRegressionTests` on exact source `b5cac79f1ff4f289d643edeef3019e4c1d75a806`: run `33284733815`, 7/7 passed, Unity peak RSS 5119 MB.
 - [x] Add a production-catalogue regression using the observed long macro route ID; it lowers through `WorldRoadNetworkVoxelCatalogue.Build`, asserts fixed-string capacity, and preserves the `-sNpM` suffix. It lives in PlayMode so the final combined request can prove this repair and then launch the real player.
+- [ ] Add/extend regression coverage at the production surface-presentation boundary so non-core shoulder samples retain fractional road influence rather than collapsing to a periodic binary road/terrain mask.
 - [ ] Validate segment/chunk/LOD road geometry/material continuity in the built player.
 
 ## Validation / cost
@@ -53,7 +56,7 @@
 - [x] Refresh/merge current `origin/master` after the full-player name repair: feature merge `cd835ce4`, master `d4b31a70`.
 - [x] Obtain green focused exact-source EditMode regression through `ci-test/fixes/agent-1` only: run `33284733815`, 7/7 passed.
 - [x] Static cost audit: one analytic primitive + one explicit placement per bounded piece; definition/footprint budgets are enforced; `Primitive` adds no fields/stride; no road GameObjects or per-frame generation path; coherent edge variation is integer-only sample work; name repair adds no geometry/residency cost.
-- [ ] Obtain a green combined exact-source PlayMode + built-player request through the same `ci-test/fixes/agent-1` transport using `VoxelEngine.Tests.PlayMode.WorldRoadFeatureNameRegressionTests`, this issue's `scene_issue`, and a 60-second replay. Run `33285741354` is diagnostic only because its PlayMode half exposed the now-repaired long macro-road name bug.
+- [ ] Obtain a green combined exact-source PlayMode + built-player request through the same `ci-test/fixes/agent-1` transport after the visual shoulder repair. Run `33286511375` was green (PlayMode 1/1; capture/upload/status all green; 60s player, zero exceptions/assertions) but is diagnostic only because human inspection rejected the regular checker/stair-step shoulder artifact.
 - [ ] Run/inspect final repaired built application/player evidence for `Assets/Scenes/KentridgePlayableSlice.unity`; verify no startup/runtime exceptions.
 - [ ] Capture/inspect endpoint-to-endpoint road continuity and player-height traversal with collision/streaming active.
 - [ ] Inspect both shoulders on uneven/sloped terrain for natural Grass↔Dirt recovery with no repeated bands, staircase, exposed wall, or hard line.
