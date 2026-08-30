@@ -32,10 +32,14 @@
 - [x] Add/maintain behavioral regression for the water-surface realization rather than relying on source-string assertions.
 - [x] Record this failed lake-first/product-red attempt as `experiment-014-lake-first-route-intersection-and-cost.md` before final exact CI.
 
-## Newly discovered exact-SHA CI regression
+## Newly discovered exact-SHA CI regressions
 - [x] Resolve run `33301222246` product failure: hard route `forest -> fighting-area-1` is blocked by the remediated `rossdam-lake` footprint without an authored crossing/pass/route-around solution.
 - [x] Preserve Rossdam Lake's remediated physical footprint while adding the smallest authored semantic route solution required to keep the source-backed hard-road graph traversable.
-- [x] Add or extend a behavioral regression proving `forest -> fighting-area-1` has the intended semantic solution and remains dry/traversable rather than silently crossing lake geometry.
+- [x] Add a behavioral regression proving `forest -> fighting-area-1` has the intended semantic solution and remains dry/traversable rather than silently crossing lake geometry.
+- [ ] Record and resolve run `33302489798` product failure: the explicit `forest -> fighting-area-1` `GoAround` intent exists, but `BuildAround` reports that no dry detour can be built.
+- [ ] Discriminate whether Rossdam Lake now contains a route endpoint/corridor versus the reusable four-candidate detour solver being insufficient; use authoritative node coordinates before changing geometry or planner behavior.
+- [ ] Preserve accepted `900 x 450 x 24 dm` Rossdam dimensions and a genuine obstruction of the direct Rossdam approach while applying the smallest proven correction.
+- [ ] Extend focused regression coverage for the proven correction, including endpoint dryness and continuous dry route behavior.
 - [ ] Re-run exact-SHA targeted CI only after the source remediation and prove both the focused Unity suite and supported 60-second real-player smoke are closure-quality green for that same source SHA.
 
 ## Exact runtime / visual gate
