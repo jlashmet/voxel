@@ -111,13 +111,15 @@ namespace Game.WorldBuilder.Api
     /// Deterministic aggregate over resolved road geometry. All spatial consumers query this object
     /// rather than reproducing polyline-distance, shoulder, clearance, or local-frame logic.
     /// The aggregate stores route-local resolved points, derives exact shared-vertex junctions, and
-    /// evaluates tangent frames against the deterministic presentation path. Streaming order cannot
-    /// change its answers and merely nearby segments never become junctions.
+    /// caches presentation paths/influences after topology is known. Streaming order cannot change
+    /// its answers and repeated spatial queries allocate no presentation geometry.
     /// </summary>
     public sealed class WorldRoadNetwork
     {
         private readonly WorldRoadNetworkRoute[] _routes;
         private readonly WorldRoadJunction[] _junctions;
+        private readonly IReadOnlyList<ResolvedWorldRoadPoint>[] _presentationPaths;
+        private readonly WorldRoadInfluence[] _influences;
 
         public IReadOnlyList<WorldRoadNetworkRoute> Routes => _routes;
         public IReadOnlyList<WorldRoadJunction> Junctions => _junctions;
@@ -138,6 +140,13 @@ namespace Game.WorldBuilder.Api
                     throw new ArgumentException("Road network contains duplicate route id '" + _routes[i].Id + "'.", nameof(routes));
 
             _junctions = BuildJunctions(_routes);
+            _presentationPaths = new IReadOnlyList<ResolvedWorldRoadPoint>[_routes.Length];
+            _influences = new WorldRoadInfluence[_routes.Length];
+            for (var i = 0; i < _routes.Length; i++)
+            {
+                _presentationPaths[i] = WorldRoadPresentationPath.Build(_routes[i].Road, _junctions);
+                _influences[i] = new WorldRoadInfluence(_routes[i].Road, _junctions);
+            }
         }
 
         public bool TryGetRoute(string id, out WorldRoadNetworkRoute route)
@@ -164,10 +173,8 @@ namespace Game.WorldBuilder.Api
             for (var i = 0; i < _routes.Length; i++)
             {
                 WorldRoadNetworkRoute route = _routes[i];
-                var influence = new WorldRoadInfluence(route.Road, _junctions);
-                if (!influence.TrySample(xdm, zdm, out WorldRoadInfluenceSample roadSample)) continue;
-                IReadOnlyList<ResolvedWorldRoadPoint> presentation = WorldRoadPresentationPath.Build(route.Road, _junctions);
-                ClosestSegment(presentation, xdm, zdm, out int distance, out int tangentX, out int tangentZ);
+                if (!_influences[i].TrySample(xdm, zdm, out WorldRoadInfluenceSample roadSample)) continue;
+                ClosestSegment(_presentationPaths[i], xdm, zdm, out int distance, out int tangentX, out int tangentZ);
                 int clearanceCoverage = Coverage(distance, route.ClearanceRadiusDm);
                 var candidate = new WorldRoadNetworkSample(route, roadSample, tangentX, tangentZ, clearanceCoverage);
                 if (!found || Better(candidate, best)) { best = candidate; found = true; }
@@ -183,13 +190,11 @@ namespace Game.WorldBuilder.Api
             for (var i = 0; i < _routes.Length; i++)
             {
                 WorldRoadNetworkRoute route = _routes[i];
-                IReadOnlyList<ResolvedWorldRoadPoint> presentation = WorldRoadPresentationPath.Build(route.Road, _junctions);
-                ClosestSegment(presentation, xdm, zdm, out int distance, out int tangentX, out int tangentZ);
+                ClosestSegment(_presentationPaths[i], xdm, zdm, out int distance, out int tangentX, out int tangentZ);
                 if (distance > route.ClearanceRadiusDm) continue;
 
-                var influence = new WorldRoadInfluence(route.Road, _junctions);
                 WorldRoadInfluenceSample physical;
-                if (!influence.TrySample(xdm, zdm, out physical))
+                if (!_influences[i].TrySample(xdm, zdm, out physical))
                     physical = new WorldRoadInfluenceSample(distance, 0, 0, 0, false);
                 int clearanceCoverage = Coverage(distance, route.ClearanceRadiusDm);
                 var candidate = new WorldRoadNetworkSample(route, physical, tangentX, tangentZ, clearanceCoverage);
