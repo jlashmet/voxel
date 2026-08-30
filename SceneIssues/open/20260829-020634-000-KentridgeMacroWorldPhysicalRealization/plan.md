@@ -1,24 +1,27 @@
 # Plan
 
 ## Observed behavior / acceptance
-`captures` is empty, so `issue.json` is the acceptance contract. The source-backed Kentridge macro graph must physically realize every settlement, continuous terrain-aware hard routes, reusable regional geography, a substantial lake/ridge with semantic route response, and real CharacterMotor traversal. Closure also requires exact built-player visual evidence and measured cost. `SceneIssues/feature-readme.md` is absent; `SceneIssues/README.md` is the workflow authority.
+`captures` is empty, so `issue.json` is the acceptance contract. The source-backed Kentridge macro graph must physically realize every settlement, continuous terrain-aware hard routes, reusable regional geography, a substantial lake/ridge with semantic route response, real CharacterMotor traversal, and world-scale streaming cost within existing budgets. Closure also requires exact built-player visual evidence. `SceneIssues/feature-readme.md` is absent; `SceneIssues/README.md` is the workflow authority.
 
 ## Material results / hypotheses
 1. Macro generation is missing — rejected. Production acceptance repeatedly yields 20 hard routes, 16 generic buildings, 5 constrained routes, and max road rise 2 voxels.
-2. Persisted settlement payload never reaches rendering — rejected. The real boundary is two-stage terrain then feature publication; the presentation-column readiness regression proves the later feature commit/invalidation and persisted Moordell timber.
+2. Persisted settlement payload never reaches rendering — rejected. Two-stage terrain/feature publication is real and the scoped readiness regression proves settlement shell publication.
 3. Broad residency readiness is acceptable — rejected. It delayed opening ~40 s and was too expensive.
-4. Scoped readiness plus survey framing is enough — partly confirmed. Run `33289185080` made Moordell shells visible but only two were readable at 22 m and the 60 s replay stalled before later targets.
-5. Serially pinning each building centre will prestream evidence efficiently — **rejected by run `33290154012` / artifact `9725740286` (source `8cab72cc...`)**. CI/test/player all report success, but the 60 s player log reaches only `moordell index=0`; screenshots are opening/pub plus road traversal, not the required settlements/geography.
-6. The 12x validation opening boost shortens the dialogue — **rejected**. `TryAdvanceDialogue` intentionally uses `Time.realtimeSinceStartup`, so `Time.timeScale=12` does not shorten auto-dialogue waits. The player remains in the opening until ~40 s.
+4. Serially pinning each building centre is efficient — rejected by run `33290154012`; only Moordell column 0 completed in 60 s.
+5. `Time.timeScale=12` shortens opening dialogue — rejected because dialogue uses realtime.
+6. Validation-only dialogue dismissal + one stable survey demand fixes final evidence — partly confirmed by run `33292088730` / artifact `9726298626` (source `652f531c...`). Opening reaches gameplay around t=15, real CharacterMotor traversal succeeds, all four Moordell content columns settle, and `macro-moordell.png` is captured. Rossdam then stalls for ~35 s and never reports all content columns settled even though renderer work repeatedly reaches `jobs=0`, `missingVisible=0`.
+7. The Rossdam stall is evidence-only — rejected. The same demand visibly spends the replay progressively publishing lake/settlement content. Rossdam shares residency with the carved `1040 x 540 x 47`-voxel lake feature; its carve + water rounded-box bounds are roughly 42M voxel cells before clipping/rounding. This is a real streaming-cost problem against the assignment’s scale requirement, not a reason to weaken readiness.
+8. The focused test failure in run `33292088730` is a managed product assertion — rejected. `single.log` has no NUnit XML/assertion result and dies in native Mono/Burst `Burst.Compiler.IL.Hashing.CacheBuilder.ILHasher` with SIGSEGV while the later built-player step succeeds.
 
-## Selected fix / next discriminator
-- Keep normal gameplay, streaming radius, generation budgets, physical plan, roads, settlement geometry, and 60 s replay unchanged.
-- In the dormant `kentridge-macro-world` evidence driver only, dismiss pending opening dialogue as soon as each line is presented; retain the existing accelerated cutscene timeline and restore `Time.timeScale=1` before CharacterMotor evidence.
-- Remove serial content-centre demand churn. Hold the production-derived settlement survey demand and wait for all four building-centre presentation columns to settle under ordinary `ShowcaseWorld.StepStreaming`; then require four stable renderer-coverage frames before capture.
-- Preserve the production readiness regression and exact physical/storage acceptance.
+## Selected remediation
+- Keep normal generation budgets, streaming radius, CharacterMotor, macro topology, replay duration, and all hard-route semantics unchanged.
+- Bound the first-pass Rossdam lake to the smallest still-substantial contract size: 90 m x 45 m and 2.4 m authored depth (the production acceptance floor), retaining real basin carving, non-solid water fill, shoreline routing, and semantic `GoAround` constraints. This reduces the two rounded-box bounding workloads from roughly 42M to roughly 16.6M voxel cells (~39%) without weakening engine budgets.
+- For generic settlement evidence, warm/readiness-demand from the settlement centre so its four building regions are prioritized; only after all four are content-settled move to the derived survey camera and require stable renderer coverage. Do not hop between building centres.
+- After Moordell is ready, add a player-height road-arrival capture from the already traversed production route so acceptance includes a road visibly entering a loaded settlement, not only an isolated road and elevated survey.
+- Preserve exact physical/storage/readiness regressions; update expectations only where the deliberately bounded lake dimensions/depth are measured.
 
 ## Blast radius / cost
-Current `fixes/agent-6` includes master `0901be5a...` and only this feature/tests/docs in the feature diff. The remediation is validation-driver-only; no runtime budgets/radius, CharacterMotor, world topology, or unrelated SceneIssue changes. Existing measurements: 20 routes, 833 route tiles, 16 generic buildings, 1,090,380 feature voxels in the scoped readiness regression; failed player peak 5859 MB RSS, zero swap growth. Final exact player telemetry remains mandatory.
+Current `fixes/agent-6` includes master `0901be5a...` and only this Kentridge feature/tests/docs beyond it. Product change is limited to the high-level Rossdam region intent; evidence change remains dormant outside `validationProfile=kentridge-macro-world`. No device budget, load radius, terrain sampler, renderer, CharacterMotor, ecology, unrelated SceneIssue, or `.github/test-request.json` feature-branch change.
 
 ## Remaining gate
-Implement the validation scheduling correction, update focused evidence if needed, refresh from current master, issue one exact-SHA request on `ci-test/fixes/agent-6`, and inspect full-resolution artifacts. Close only if all four generic settlements, roads/network, lake, ridge/pass, constrained route, CharacterMotor traversal, no runtime exceptions, and budget evidence are visibly/behaviorally proven.
+Implement the bounded-lake and stable-centre evidence changes, record the failed run, refresh from current master, advance the existing final CI transport to the new exact feature SHA (do not replace queued work), and inspect focused results plus every full-resolution built-player artifact. Close only when all four generic settlements, player-height settlement road evidence, road/network survey, lake, ridge/pass, constrained route, CharacterMotor traversal, clean runtime, and measured cost are closure-quality.
