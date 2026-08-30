@@ -8,6 +8,7 @@
 - Accepted attachment decisions expose support-loss invalidation, support probe, and engine-neutral decoration-handoff metadata; `Game.Structures.Runtime.StructuralDecorationHandoffAdapter` maps those flags to the existing decoration-space/socket system without taking over micro-detail placement.
 - Structural composition simulation limits are reconciled with the authoritative device matrix as identical cross-tier limits. The 16,777,216-voxel composition cost is explicitly a conservative footprint-volume planning ceiling, not an actual voxel-write count and not a relaxation of per-region/per-instance raster budgets.
 - `WorldbuildingGalleryShowcase` already constructs the production `CharacterMotor`, snaps it to authoritative voxel ground, and routes normal plus `AutoWalk` movement through `_motor.Step(...)`. Traversal proof must reuse this path rather than introduce a test-only mover.
+- `WorldbuildingGalleryShowcase` normally restores a bake; typed structural proving content therefore must have a bounded stale-bake compatibility path as well as the live-generate path so built-player validation cannot silently exercise an old gallery image.
 - `fixes/agent-5` remains based on current `master` for this attempt; refresh again before each later substantive gate and final integration.
 
 ## Hypotheses / discriminators / results
@@ -18,7 +19,9 @@
 
 ## Selected remaining fix
 - Author four deterministic showcase proving cases (bridge, castle, cliff settlement, facade/roof variants) through the same production catalogue/voxel path; do not create scene-only structural geometry or another solver.
+- Integrate the proving catalogue into both gallery startup modes: generate it directly for `ShowcaseStartupSource.Generate`, and use a bounded presence-check/repair pass after bake restore so a stale bake cannot omit the new structures.
 - Reuse the exact scene's existing `CharacterMotor` path for bridge, gate, and vertical traversal evidence.
+- Extend the existing gallery audit/player harness for durable frames and cost/traversal evidence; do not add a parallel validation harness.
 - Record bridge/castle planning and bounded composition/raster/render proxies using the production harness, then audit final blast radius.
 - Keep `tasks.md` authoritative: do not submit final CI or move the assignment until every remaining proving-case, built-app, measurement, and closure checkbox is complete.
 

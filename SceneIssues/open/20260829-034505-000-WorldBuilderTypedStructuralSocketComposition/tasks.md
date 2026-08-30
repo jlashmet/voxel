@@ -104,4 +104,6 @@
 - [x] Remove managed allocations from structural support probing; current production support scan is bounded and allocation-free.
 - [x] Ensure `GraphHash` represents the final accepted attachment graph while rejected alternatives remain inspectable diagnostics.
 - [x] Validate/document the conservative voxel-authoring cost model against authoritative region/instance budgets and regress its exact boundary behavior.
-- [ ] Fix explicit-catalogue region enumeration so accepted structural descendants outside root footprints are visited and rasterized; add a production-helper regression using the existing cross-region fixture.
+- [x] Fix explicit-catalogue region enumeration so accepted structural descendants outside root footprints are visited and rasterized; add a production-helper regression using the existing cross-region fixture.
+- [ ] Ensure typed structural gallery proving content is present in both live-generate and normal bake startup modes through a bounded presence-check/compatibility repair; do not require a new bake merely to validate this feature.
+- [ ] Extend the existing gallery audit/player harness for feature frames, traversal assertions, and bridge/castle cost evidence; do not create a parallel validation harness.
