@@ -1,6 +1,8 @@
 using NUnit.Framework;
+using VoxelEngine.Composition;
 using VoxelEngine.Showcase;
 using VoxelEngine.Structures.Runtime;
+using VoxelEngine.Tiering.Api;
 
 namespace VoxelEngine.Tests.PlayMode
 {
@@ -54,10 +56,15 @@ namespace VoxelEngine.Tests.PlayMode
         [Test]
         public void RefinedCastleGatePreservesCanonicalCharacterMotorTraversal()
         {
-            // This regression authors the entire final presentation/refinement just like the gallery
-            // scene. Use the scene's brick-pool capacity: the 4K planner-only fixture intentionally
-            // cannot hold all of that authoritative voxel content and was never a production limit.
-            using var world = new ShowcaseWorld(Seed, FinalRefinementBrickPoolCapacity, 1, 2);
+            // This regression authors the entire final presentation/refinement just like the gallery.
+            // Mirror the gallery's device-tier budget path as well as its requested capacity. Passing
+            // only the capacity hits VoxelEngineBootstrap's conservative 256 MB unknown-device
+            // fallback and clamps this production-sized fixture to 127100 bricks on the CI runner.
+            long tierBytes = DeviceTierBudget.GetForTier(DeviceTierBudget.Detect()).BrickPoolCapacity;
+            int capacity = VoxelEngineBootstrap.ClampMixedBrickCapacityToBudget(
+                FinalRefinementBrickPoolCapacity,
+                tierBytes);
+            using var world = new ShowcaseWorld(Seed, capacity, 1, 2, tierBytes);
             world.EnsureWorldbuildingGalleryStructuralRefinementBlocking();
 
             ShowcaseWorld.GalleryStructuralTraversalReport traversal =
