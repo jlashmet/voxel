@@ -15,6 +15,7 @@ namespace VoxelEngine.Tests.PlayMode
     {
         private const uint Seed = 0x4B454E54u;
         private const int StrictRoadRiseVoxelsPerThreeMetres = 6;
+        private const long MaximumWaterPrimitiveBoundingCells = 17_000_000L;
 
         [Test]
         public void PhysicalMacroWorldHasWalkableRoutesAndADeepStreamedWaterBody()
@@ -43,6 +44,7 @@ namespace VoxelEngine.Tests.PlayMode
             AssertBanditSpurUsesDryAuthoredShoreline(physical, lake);
             AssertOrcVillageSkirtsSouthernRidge(intent, physical);
 
+            long waterPrimitiveBoundingCells = 0L;
             FeatureCatalogue waterCatalogue = default;
             try
             {
@@ -57,15 +59,25 @@ namespace VoxelEngine.Tests.PlayMode
                 StringAssert.StartsWith(
                     TopDownWorldWaterBodyVoxelCatalogue.DefinitionPrefix,
                     definition.Name.ToString());
-                Assert.That(definition.Footprint.x, Is.GreaterThanOrEqualTo(900));
-                Assert.That(definition.Footprint.z, Is.GreaterThanOrEqualTo(450));
+                Assert.That(definition.Footprint.x, Is.EqualTo(900),
+                    "The first-pass Rossdam lake must stay substantial without returning to its former streaming-cost footprint.");
+                Assert.That(definition.Footprint.z, Is.EqualTo(450),
+                    "The first-pass Rossdam lake must stay substantial without returning to its former streaming-cost footprint.");
+                Assert.That(
+                    TopDownWorldWaterBodyVoxelCatalogue.DepthVoxels(lake, settings.VoxelsPerDecimetre),
+                    Is.EqualTo(TopDownWorldWaterBodyVoxelCatalogue.MinimumDepthDm),
+                    "The first-pass lake uses the smallest accepted physical depth so carved-water streaming remains bounded.");
                 Assert.That(
                     definition.Footprint.y,
                     Is.GreaterThanOrEqualTo(TopDownWorldWaterBodyVoxelCatalogue.MinimumDepthDm));
-                AssertWaterProgramHasCarvedDepthAndNonSolidFill(
+                waterPrimitiveBoundingCells = AssertWaterProgramHasCarvedDepthAndNonSolidFill(
                     waterCatalogue,
                     definition,
                     settings.Materials.Resolve(MaterialRole.Water));
+                Assert.That(
+                    waterPrimitiveBoundingCells,
+                    Is.LessThanOrEqualTo(MaximumWaterPrimitiveBoundingCells),
+                    "The carved/fill lake primitive scan envelope must remain compatible with ordinary streamed feature budgets.");
             }
             finally
             {
@@ -80,7 +92,8 @@ namespace VoxelEngine.Tests.PlayMode
                 $"settlements={physical.Settlements.Count} buildings={physical.BuildingCount} " +
                 $"constrainedRoutes={physical.GeographyConstrainedRouteCount} solveSteps={physical.RouteSolveSteps} " +
                 $"maxRoadRiseVoxels={maximumRise} roadStepDm={TopDownWorldPhysicalPlanner.RouteTileStepDm} " +
-                $"waterDepthVoxels={TopDownWorldWaterBodyVoxelCatalogue.DepthVoxels(lake, settings.VoxelsPerDecimetre)}");
+                $"waterDepthVoxels={TopDownWorldWaterBodyVoxelCatalogue.DepthVoxels(lake, settings.VoxelsPerDecimetre)} " +
+                $"waterPrimitiveBoundingCells={waterPrimitiveBoundingCells}");
         }
 
         private static void AssertBanditSpurUsesDryAuthoredShoreline(
@@ -230,7 +243,7 @@ namespace VoxelEngine.Tests.PlayMode
             return maximumRise;
         }
 
-        private static void AssertWaterProgramHasCarvedDepthAndNonSolidFill(
+        private static long AssertWaterProgramHasCarvedDepthAndNonSolidFill(
             FeatureCatalogue catalogue,
             FeatureDefinition definition,
             byte waterMaterial)
@@ -238,6 +251,7 @@ namespace VoxelEngine.Tests.PlayMode
             bool carved = false;
             bool filledWater = false;
             int deepestCarve = 0;
+            long primitiveBoundingCells = 0L;
             int end = definition.ProgramOffset + definition.ProgramLength;
             for (int offset = definition.ProgramOffset; offset < end;)
             {
@@ -246,7 +260,10 @@ namespace VoxelEngine.Tests.PlayMode
                 Assert.That(length, Is.GreaterThan(0));
                 if (op == ShapeOp.EmitRoundedBox)
                 {
+                    int sizeX = catalogue.Program[offset + 5];
                     int sizeY = catalogue.Program[offset + 6];
+                    int sizeZ = catalogue.Program[offset + 7];
+                    primitiveBoundingCells += (long)sizeX * sizeY * sizeZ;
                     byte material = (byte)catalogue.Program[offset + 9];
                     var mode = (PrimitiveMode)catalogue.Program[offset + 12];
                     if (mode == PrimitiveMode.Carve)
@@ -267,6 +284,7 @@ namespace VoxelEngine.Tests.PlayMode
                 Is.GreaterThanOrEqualTo(TopDownWorldWaterBodyVoxelCatalogue.MinimumDepthDm),
                 "The lake must have player-readable physical depth rather than a surface repaint.");
             Assert.That(filledWater, Is.True, "The carved basin must use the configured water material.");
+            return primitiveBoundingCells;
         }
 
         private static VoxelWorldGenSettings Settings()
