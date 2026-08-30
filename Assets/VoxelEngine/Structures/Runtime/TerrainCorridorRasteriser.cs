@@ -84,14 +84,13 @@ namespace VoxelEngine.Structures.Runtime
                     sourceY + maximumCutFill);
 
                 byte localMaterial = sourceSurface.BaseMaterialId;
+                ushort localStyle = sourceSurface.Surface.ReconstructionStyleId;
                 int low = math.min(sourceY + 1, desiredY - topDepth + 1);
                 int high = math.max(sourceY, desiredY + clearAbove);
                 low = math.max(low, subVolumeMin.y);
                 high = math.min(high, subVolumeMax.y - 1);
                 if (low > high) continue;
 
-                bool roadCoverage = ShouldUsePrimaryMaterial(
-                    in primitive, x, z, sample.Coverage31);
                 for (int y = low; y <= high; y++)
                 {
                     int3 voxel = new int3(x, y, z);
@@ -110,8 +109,7 @@ namespace VoxelEngine.Structures.Runtime
 
                     if (inTop)
                     {
-                        if (roadCoverage || sample.InCore
-                            || next.BaseMaterialId == primitive.Material)
+                        if (sample.InCore || next.BaseMaterialId == primitive.Material)
                         {
                             next.BaseMaterialId = primitive.Material;
                             next.Surface = new VoxelSurfaceSemantics
@@ -119,14 +117,21 @@ namespace VoxelEngine.Structures.Runtime
                                 StyleId = SurfaceStyles.MaterialDefault,
                                 Detail = sample.Coverage31,
                             };
-                            next.Boundary = default;
                         }
                         else
                         {
-                            next.Surface.Detail = (byte)math.max(
-                                (int)next.Surface.Detail,
-                                (int)sample.Coverage31);
+                            // Preserve authoritative terrain material for destruction/collision and
+                            // carry the exact road influence as continuous presentation metadata.
+                            // This replaces the old hash/dither material choice which turned a
+                            // fractional shoulder into a visible periodic checker staircase.
+                            next.BaseMaterialId = localMaterial;
+                            next.Surface = VoxelSurfaceSemantics.MaterialBlend(
+                                localStyle,
+                                primitive.Material,
+                                sample.Coverage31,
+                                sourceSurface.Surface.Flags);
                         }
+                        next.Boundary = default;
                     }
 
                     if (current.Equals(next)) continue;
@@ -278,27 +283,6 @@ namespace VoxelEngine.Structures.Runtime
             surfaceY = 0;
             surface = default;
             return false;
-        }
-
-        private static bool ShouldUsePrimaryMaterial(
-            in Primitive primitive,
-            int worldX,
-            int worldZ,
-            int coverage31)
-        {
-            if (coverage31 >= 31) return true;
-            if (coverage31 <= 0) return false;
-
-            int scale = math.max(1, primitive.D.z);
-            int xdm = DivideRounded(worldX, scale);
-            int zdm = DivideRounded(worldZ, scale);
-            unchecked
-            {
-                uint h = (uint)primitive.D.y ^ 0x85EBCA6Bu;
-                h = (h ^ (uint)xdm) * 16777619u;
-                h = (h ^ (uint)zdm) * 16777619u;
-                return h % 31u < (uint)coverage31;
-            }
         }
 
         private static int DeterministicEdgeOffset(
