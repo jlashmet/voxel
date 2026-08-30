@@ -1,6 +1,7 @@
 using System;
 using UnityEngine;
 using VoxelEngine.Rendering.Api;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 
 namespace VoxelEngine.Rendering.Runtime
 {
@@ -61,6 +62,12 @@ namespace VoxelEngine.Rendering.Runtime
                 VoxelPresentationCatalogue.MaterialVariation[materialIndex] = ToVector4(definition.Variation);
                 VoxelPresentationCatalogue.SetWater(materialIndex, in definition.Water);
             }
+
+            // Solid extraction is Burst/GPU-staging code and cannot read managed presentation
+            // arrays directly. Publish the same semantic water mask through its Burst-safe mirror
+            // at the one authoritative installation boundary.
+            SolidMaterialClassification.SetWaterMaterialMask(
+                VoxelPresentationCatalogue.WaterMaterialMask);
 
             // Water profile rows are static application presentation state. Bind once when the
             // authoritative catalogue is installed rather than re-uploading six 32-row arrays for
