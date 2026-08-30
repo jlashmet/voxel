@@ -6,6 +6,17 @@ using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Structures.Runtime
 {
+    /// <summary>
+    /// Optional catalogue scope for callers that can prove a narrower generation contract.
+    /// Runtime streaming uses <see cref="All"/>. Offline composition may select a narrower scope
+    /// only when the skipped definitions are already known to be output-neutral for its seed state.
+    /// </summary>
+    public enum FeatureRegionBuildScope : byte
+    {
+        All = 0,
+        FixedAltitudeStructures = 1,
+    }
+
     /// <summary>A region's feature generation, resumable within a single primitive.</summary>
     public sealed class FeatureRegionBuild : IDisposable
     {
@@ -13,6 +24,7 @@ namespace VoxelEngine.Structures.Runtime
 
         private readonly int3 _regionMin;
         private readonly int3 _regionMax;
+        private readonly FeatureRegionBuildScope _scope;
         private NativeList<Primitive> _primitives;
         private NativeList<ResolvedAnchor> _anchors;
         private FeatureGenerationReport _report;
@@ -28,9 +40,12 @@ namespace VoxelEngine.Structures.Runtime
         private bool _markHardSurface;
         private bool _disposed;
 
-        public FeatureRegionBuild(int3 regionCoord)
+        public FeatureRegionBuild(
+            int3 regionCoord,
+            FeatureRegionBuildScope scope = FeatureRegionBuildScope.All)
         {
             RegionCoord = regionCoord;
+            _scope = scope;
             _regionMin = regionCoord * VoxelGrid.RegionVoxelEdge;
             _regionMax = _regionMin + VoxelGrid.RegionVoxelEdge;
             _primitives = new NativeList<Primitive>(64, Allocator.Persistent);
@@ -140,6 +155,12 @@ namespace VoxelEngine.Structures.Runtime
                 }
 
                 FeatureDefinition definition = catalogue.Definitions[rule.DefinitionId];
+                if (!Includes(in definition))
+                {
+                    MoveToNextRule();
+                    continue;
+                }
+
                 while (_explicitIndex < rule.ExplicitCount)
                 {
                     // Yield with the cursor parked. Returning true without an active instance is
@@ -181,6 +202,14 @@ namespace VoxelEngine.Structures.Runtime
             }
 
             return false;
+        }
+
+        private bool Includes(in FeatureDefinition definition)
+        {
+            return _scope == FeatureRegionBuildScope.All
+                || (_scope == FeatureRegionBuildScope.FixedAltitudeStructures
+                    && definition.Kind == FeatureKind.Structure
+                    && definition.BasePlane == BasePlaneRule.FixedAltitude);
         }
 
         private bool TryPrepareTile()
