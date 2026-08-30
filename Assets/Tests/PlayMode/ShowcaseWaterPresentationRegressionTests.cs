@@ -6,6 +6,7 @@ using Unity.Mathematics;
 using VoxelEngine.Composition;
 using VoxelEngine.Rendering.Api;
 using VoxelEngine.Rendering.Runtime;
+using VoxelEngine.Showcase;
 
 namespace VoxelEngine.Tests.PlayMode
 {
