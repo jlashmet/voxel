@@ -1,4 +1,5 @@
 using NUnit.Framework;
+using Unity.Mathematics;
 using VoxelEngine.Composition;
 using VoxelEngine.Showcase;
 using VoxelEngine.Structures.Runtime;
@@ -78,6 +79,32 @@ namespace VoxelEngine.Tests.PlayMode
                 $"feet={traversal.FinalFeetPosition}");
             Assert.LessOrEqual(traversal.EndDistanceMetres, 1.35f,
                 "refined gate traversal must retain the production motor acceptance distance");
+        }
+
+        [Test]
+        public void StructuralRefinementEnsureRestoresContentAfterResidencyEviction()
+        {
+            long tierBytes = DeviceTierBudget.GetForTier(DeviceTierBudget.Detect()).BrickPoolCapacity;
+            int capacity = VoxelEngineBootstrap.ClampMixedBrickCapacityToBudget(
+                FinalRefinementBrickPoolCapacity,
+                tierBytes);
+            using var world = new ShowcaseWorld(Seed, capacity, 1, 2, tierBytes);
+            world.EnsureWorldbuildingGalleryStructuralRefinementBlocking();
+            Assert.IsTrue(world.HasWorldbuildingGalleryStructuralCompositionContent(),
+                "precondition: final structural proof content should be resident after authoring");
+
+            int evictionsBefore = world.RegionsEvicted;
+            world.StepStreaming(new float3(10000f, 0f, 10000f), 0d);
+
+            Assert.Greater(world.RegionsEvicted, evictionsBefore,
+                "remote zero-budget streaming step should evict the distant structural proof regions");
+            Assert.IsFalse(world.HasWorldbuildingGalleryStructuralCompositionContent(),
+                "repro: cached structural authoring state must not masquerade as resident content");
+
+            world.EnsureWorldbuildingGalleryStructuralRefinementBlocking();
+
+            Assert.IsTrue(world.HasWorldbuildingGalleryStructuralCompositionContent(),
+                "final structural ensure must restore authored proof content after residency eviction");
         }
     }
 }
