@@ -378,6 +378,8 @@ namespace Game.WorldBuilder.Voxel
                 while (runEnd < drafts.Count && drafts[runEnd].Height == runHeight)
                     runEnd++;
 
+                int localBaseY = LocalSupportBaseY(runHeight, in spec);
+                int localHeight = runHeight - localBaseY;
                 int i = runStart;
                 for (; i + 1 < runEnd; i += 2)
                 {
@@ -396,18 +398,21 @@ namespace Game.WorldBuilder.Voxel
                         Math.Max(first.BaseRadius, second.BaseRadius),
                         ridgeTopRadius + spec.PathWidth / 2);
 
+                    // The shell-following path already overlaps the mountain. Production support is
+                    // therefore a local embankment into that shell, not a retaining tower from the
+                    // mountain base. Keeping the same top elevation preserves physical support while
+                    // bounding the rasterized volume by the path's own traversal scale.
                     EmitFrustum(
                         program,
-                        centreX, 0, centreZ,
-                        runHeight,
+                        centreX, localBaseY, centreZ,
+                        localHeight,
                         ridgeBaseRadius,
                         ridgeTopRadius,
                         1,
                         rockMaterial,
                         PrimitiveMode.FillIfEmpty);
 
-                    int buttressHeight = Math.Max(spec.PathRise / 2, runHeight / 2);
-                    buttressHeight = Math.Max(1, Math.Min(runHeight - 1, buttressHeight));
+                    int buttressHeight = Math.Max(1, localHeight * 2 / 3);
                     int buttressTopRadius = Math.Max(
                         spec.PathWidth,
                         Math.Min(first.TopRadius, second.TopRadius) * 3 / 4);
@@ -420,7 +425,7 @@ namespace Game.WorldBuilder.Voxel
 
                     EmitFrustum(
                         program,
-                        anchor.CentreX, 0, anchor.CentreZ,
+                        anchor.CentreX, localBaseY, anchor.CentreZ,
                         buttressHeight,
                         buttressBaseRadius,
                         buttressTopRadius,
@@ -430,11 +435,33 @@ namespace Game.WorldBuilder.Voxel
                 }
 
                 if (i < runEnd)
-                    EmitSupport(program, drafts[i], rockMaterial);
+                    EmitLocalizedSupport(program, drafts[i], localBaseY, rockMaterial);
 
                 runStart = runEnd;
             }
         }
+
+        private static int LocalSupportBaseY(int runHeight, in MountainLandmarkSpec spec)
+        {
+            int supportTopY = runHeight - 1;
+            int embedDepth = Math.Max(spec.PathRise, spec.PathWidth);
+            return Math.Max(0, supportTopY - embedDepth);
+        }
+
+        private static void EmitLocalizedSupport(
+            List<int> program,
+            SupportFrustumDraft draft,
+            int baseY,
+            byte rockMaterial) =>
+            EmitFrustum(
+                program,
+                draft.CentreX, baseY, draft.CentreZ,
+                draft.Height - baseY,
+                draft.BaseRadius,
+                draft.TopRadius,
+                1,
+                rockMaterial,
+                PrimitiveMode.FillIfEmpty);
 
         private static void EmitSupport(
             List<int> program,
