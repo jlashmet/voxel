@@ -27,7 +27,7 @@
 - [x] Source/asset audit shows no alternate normal water shader/material path; final player replay remains the stripping/fallback discriminator.
 - [x] Verify player-build retention has a production asset dependency: active `VoxelUniversalRenderer.asset` directly serializes `WaterSurface.shader`; do not add a global always-included exception unless the player build falsifies this.
 - [x] Exact run `33323151755` proved the player build retained and launched `WaterSurface.shader` without pink/missing-resource failure on candidate `d3729aa...`; visual quality still failed and requires a new exact repaired candidate.
-- [ ] Remove stale solid-extractor hard-coded water IDs 11/16 from CPU/Burst/GPU-equivalent classification paths; use the installed water presentation mask without changing gameplay semantics.
+- [x] Remove stale solid-extractor hard-coded water IDs 11/16 from CPU/Burst/GPU-equivalent classification paths; use the installed water presentation mask without changing gameplay semantics.
 
 ## Showcase / portability
 - [x] Add one bounded `ShowcaseWorld.AuthorVoxelBox` seam over its existing Storage.Api mutation/change path; validate positive bounds/size and cap authored volume; add no renderer/material knowledge.
@@ -49,8 +49,8 @@
 - [x] Confirm capture-only telemetry runs only under unattended screenshot evidence capture and is not a production renderer lifecycle dependency.
 - [x] Audit solid extractor classification boundary: `CpuTransvoxelChunkCache`, `ExactSnapshotMetadataJobs`, and `TransvoxelDensityJob` still hard-code IDs 11/16 as non-solid; `MipDensityJob` delegates to the same predicate. This is a confirmed reusable RiverWater defect, not the missing Cascade root cause because Cascade is ID16 and already excluded.
 - [x] Review `FlowerBlue = Cascade` transitional alias blast radius: only the alias declaration was found; no live usages reference `FlowerBlue`. Preserve ID16 Cascade semantics and do not change gameplay behavior.
-- [ ] Search compute/GPU solid-classification copies for the same stale ID assumptions before patching.
-- [ ] Add regression proving an arbitrary presentation-water ID is excluded from solid classification without relying on gameplay class or hard-coded IDs.
+- [x] Search compute/GPU solid-classification copies for the same stale ID assumptions before patching; `VoxelBrickDensity.hlsl` contained the equivalent 11/16 predicate and now consumes the installed semantic mask.
+- [x] Add regression proving an arbitrary presentation-water ID is excluded from solid classification without relying on gameplay class or hard-coded IDs.
 
 ## Regression / reliability / cost
 - [x] Production installation regression covers still/river/waterfall profiles and excludes non-water material.
@@ -67,7 +67,7 @@
 - [x] Re-measure repaired two-sided pass from run `33324084398`: ~1.2–2.8 ms average frame windows after startup, ~697.8 MiB allocated, ~846–848 MiB reserved; no frame-budget weakening. CPU/GPU FrameTimingManager values remained unavailable.
 - [x] Review feature-only diff against current master before resumed investigation: only assignment water code/tests/scene/build registration/docs are changed; `.github/test-request.json` is absent from the feature diff.
 - [x] Falsify water-cache starvation/vertical-bounds hypotheses: arena supports 2,048 entries, dirty work is camera-prioritized, and `CollectVisible` culls full brick AABBs rather than zero-thickness generated geometry.
-- [ ] Add focused regression proving the exact authored Cascade curtain survives canonical `ShowcaseWorld` storage readback and production water-cache geometry/material encoding.
+- [x] Add focused regression proving the exact authored Cascade curtain survives canonical `ShowcaseWorld` storage readback and production water-cache geometry/material encoding; exact CI remains the execution discriminator.
 - [ ] Add focused regression for the confirmed missing-sheet root cause before the corrective implementation change.
 
 ## Rendered gate from exact run 33323151755
