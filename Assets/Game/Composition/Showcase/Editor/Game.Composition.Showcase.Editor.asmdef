@@ -1,0 +1,21 @@
+{
+  "name": "Game.Composition.Showcase.Editor",
+  "rootNamespace": "VoxelEngine.Showcase.Editor",
+  "references": [
+    "Game.Composition.Showcase",
+    "VoxelEngine.MeshVoxelization.Editor",
+    "VoxelEngine.Structures.Runtime",
+    "Unity.Mathematics"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
