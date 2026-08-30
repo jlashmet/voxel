@@ -12,6 +12,7 @@
 - [x] Add a seventh synthetic proof town using a novel combination of existing capabilities without a new central switch case or `Author<ProofTown>` method.
 - [x] Prove the proof town defines residential, commercial, civic/communal, and landmark/infrastructure roles with deterministic seeded variation in the focused regression.
 - [x] Add focused regression proving extensible registration/composition and preservation of all six existing style contracts.
+- [x] Repair the focused regression compile gate by importing `VoxelEngine.Storage.Api` for the `IStructureAuthoringSession` coating/surface types; no production-scope change required.
 - [ ] Run exact built `WorldbuildingGalleryShowcase` and capture wide/player/close evidence for all six existing towns plus the proof town.
 - [ ] Directly inspect rendered evidence for distinctness, detail retention, circulation/grounding/intersections, and no visual regression.
 - [ ] Measure world-build work, memory/allocation, render/draw implications, and blast radius from the exact built-player logs.
