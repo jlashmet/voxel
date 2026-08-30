@@ -33,7 +33,10 @@ namespace VoxelEngine.Tests.PlayMode
                     spec.Origin.x + spec.CentreLocal,
                     spec.Origin.y + spec.MountainHeight + 1 + spec.PlaceholderSize / 2,
                     spec.Origin.z + spec.CentreLocal);
-                int3 dragonRegion = dragonCentre >> RegionVoxelEdgeLog2;
+                int3 dragonRegion = new int3(
+                    FloorDivRegion(dragonCentre.x),
+                    FloorDivRegion(dragonCentre.y),
+                    FloorDivRegion(dragonCentre.z));
 
                 CollectionAssert.Contains(regions, dragonRegion,
                     "The startup bake must materialise the upper region containing the dragon placeholder.");
@@ -46,6 +49,14 @@ namespace VoxelEngine.Tests.PlayMode
             {
                 mountain.Dispose();
             }
+        }
+
+        private static int FloorDivRegion(int voxel)
+        {
+            int edge = 1 << RegionVoxelEdgeLog2;
+            int quotient = voxel / edge;
+            int remainder = voxel % edge;
+            return remainder < 0 ? quotient - 1 : quotient;
         }
     }
 }
