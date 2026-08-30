@@ -1,0 +1,31 @@
+Uploaded replacement source candidate — 2026-08-30
+
+User-provided archive:
+- Conversation upload filename: mountain_dragon_supported.zip
+- ZIP SHA-256: f48cab5ab5b7edf6a84cc7bf14797c73d0ac61bf597ef76a587589a4522aeb0f
+- Archive contains exactly one file: mountain_dragon_supported.stl
+- STL encoding: binary STL (CHITUBOX header)
+- STL byte size: 107,207,684
+- STL triangle count: 2,144,152
+- STL SHA-256: a01f600705a6daf79a8828474f227251a5680d4bb8bad4aa46659f9e06cf53d6
+- User states the model was obtained for free and is able to be used. No source URL, author name, or named license text was supplied; do not invent those fields. Exact third-party attribution/license metadata therefore remains an external prerequisite for final provenance acceptance.
+
+Support cleanup:
+- The uploaded file is a 3D-print "supported" export. Connectivity inspection separates one dominant dragon/scenic-base component from roughly 1,900 support/build components.
+- Retained dominant component: 1,763,914 triangles.
+- Support-free STL SHA-256: e6a0a8bee6a08193db1eb09afea5003d3a502d3c097cf061a165ecc9bb637813
+- Support-free bounds (source units): min (-15.736898, -9.433504, 5.000000), max (13.887766, 22.438090, 36.906857).
+- The retained component visibly contains the required head, body, two wings, limbs/feet, long curved tail, and scenic base; supports are not part of the dragon source geometry and must not enter the voxel bake.
+
+Deterministic committed-source derivation candidate:
+- Starting from the support-free STL, quantize source positions into 0.5-unit clusters, replace each cluster with the centroid of its source positions, drop degenerate triangles, then remove duplicate triangles while preserving first source winding.
+- Result is conventional OBJ triangle geometry, not voxels and not hand-authored replacement geometry.
+- Derived OBJ vertices: 13,431
+- Derived OBJ triangles: 29,734
+- Derived OBJ byte size: 860,349
+- Derived OBJ SHA-256: f1f44d59f7d9c775b600ac0b9ad066a15a3c652bf685a12b2344b8c383ff12b1
+- Deterministic gzip SHA-256: fd2f8253fcf5bc32b275640448511f59d20dcc7d01c307f99124b224431892d4
+- The 29,734-triangle source remains above the issue's practical ~20k detail floor while reducing connector transfer cost. Final built-source/voxel visual and quantitative gates still decide whether this derivation preserves enough anatomy; this derivation does not relax acceptance.
+
+Material limitation:
+- Binary STL carries no standard material/color regions. Source-color preservation cannot be claimed from this file. A deterministic semantic palette may be applied in showcase composition, but final acceptance must record that this is composition mapping rather than preservation of absent source materials; do not silently relabel it as source-material preservation.
