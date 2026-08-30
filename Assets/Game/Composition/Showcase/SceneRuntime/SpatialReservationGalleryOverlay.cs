@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using MountingForce.WorldGen;
 using MountingForce.WorldGen.Voxel;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -208,7 +209,7 @@ namespace VoxelEngine.Showcase
                 _bodyStyle);
             ReservationQueryMetrics metrics = _report.RejectedCandidateMetrics;
             GUI.Label(new Rect(32f, 103f, width - 28f, 28f),
-                $"claims={_report.SourceClaimCount}  query buckets={metrics.BucketsVisited} candidates={metrics.CandidatesVisited}",
+                $"claims={_report.SourceClaimCount}  query buckets={metrics.BucketsVisited} candidates={metrics.BroadPhaseCandidates}",
                 _bodyStyle);
             GUI.Label(new Rect(32f, 132f, width - 28f, 58f),
                 "Rejected candidate: " + _report.RejectedCandidateDescription,
