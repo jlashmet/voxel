@@ -25,6 +25,11 @@ namespace VoxelEngine.Tests.PlayMode
         [Test]
         public void CurrentDemandReadinessWaitsForFeaturePublicationAndCommittedSettlementShell()
         {
+            // Keep the complete macro physical/storage contract inside the final exact-SHA target,
+            // then add the production streaming discriminator that was missing from the prior gate.
+            new KentridgeMacroWorldPhysicalStorageAcceptanceTests()
+                .PhysicalMacroWorldReachesProductionStorageWithSettlementShellAndRoof();
+
             TopDownWorldLayout layout = MountingForceTopDownWorldDefinition.Build(Seed);
             TopDownWorldPhysicalIntentSpec intent = KentridgeTopDownWorldPhysicalIntent.Build();
             VoxelWorldGenSettings settings = Settings();
