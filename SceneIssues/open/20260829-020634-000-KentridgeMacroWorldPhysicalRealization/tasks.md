@@ -37,8 +37,8 @@
 - [x] Attempt the smallest explicit `forest -> fighting-area-1` `GoAround` plus focused dry-route regression; exact run `33302489798` proves that attempt invalid because the route endpoint itself is inside the blocker.
 - [x] Record run `33302489798` in experiment/CI evidence; do not rerun that product-red source.
 - [x] Discriminate endpoint engulfment versus shared detour-solver insufficiency using authoritative graph coordinates: `fighting-area-1` is inside current road-expanded lake bounds, so the shared solver is correct.
-- [ ] Move Rossdam Lake northwest to nominal offsets `(-400,-155)` while preserving resolved `900 x 450 x 24 dm`; keep `fighting-area-1` dry, its outbound north road constrained, and direct Rossdam approach genuinely constrained.
-- [ ] Remove the now-unnecessary inbound `forest -> fighting-area-1` lake constraint and replace the temporary regression with endpoint-dry + inbound-dry + outbound/Rossdam-constrained behavioral assertions.
+- [x] Move Rossdam Lake northwest to nominal offsets `(-400,-155)` while preserving resolved `900 x 450 x 24 dm`; keep `fighting-area-1` dry, its outbound north road constrained, and direct Rossdam approach genuinely constrained.
+- [x] Remove the now-unnecessary inbound `forest -> fighting-area-1` lake constraint and replace the temporary regression with endpoint-dry + inbound-dry + outbound/Rossdam-constrained behavioral assertions.
 - [ ] Re-run exact-SHA targeted CI only after the source remediation and prove both the focused Unity suite and supported 60-second real-player smoke are closure-quality green for that same source SHA.
 
 ## Exact runtime / visual gate
