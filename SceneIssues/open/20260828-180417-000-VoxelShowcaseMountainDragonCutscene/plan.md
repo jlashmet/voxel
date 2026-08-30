@@ -1,26 +1,20 @@
 # Plan
 
 ## Acceptance
-Built `VoxelShowcase` must show a substantial grounded mountain with a readable winding ascent, normal grounded traversal from approach/base to summit, a visibly supported dragon placeholder, and proximity dialogue `Hello, I'm Mr. Dragon.` Closure requires a source-matched startup bake, green focused acceptance, complete production `AutoWalk -> CharacterMotor.Step` traversal, and human-reviewed approach/base/middle/upper/summit/dialogue captures from the exact built player.
+Built `VoxelShowcase` must show a substantial grounded mountain, readable winding ascent, normal grounded traversal to the summit, visibly supported dragon placeholder, and proximity dialogue `Hello, I'm Mr. Dragon.` Closure requires a source-matched startup bake, green exact focused acceptance, complete production `AutoWalk -> CharacterMotor.Step` traversal, and human-reviewed approach/base/middle/upper/summit/dialogue captures.
 
-## Proven implementation state
-The mountain/path/cutscene behavior is composed through shared WorldBuilder/game modules. The mountain footprint was moved one 512-voxel region west to avoid castle-owned feature suppression; the resulting nine-region authoring cost was brought under the bake guard with output-equivalent block/raster fast paths. Alternating X ramps were narrowed between explicit flat end landings so the walking envelope remains clear while the tier elevations and route coordinates are preserved.
+## Proven state
+WorldBuilder/shared modules own the mountain, path, placeholder, and encounter. The footprint is west of castle-owned feature suppression; alternating ramps have explicit clear landings; the 24-voxel headroom contract is covered. Output-equivalent Box/Frustum raster fast paths and CI-only successful-bake shutdown keep the nine-region source bake near the 240 s guard without changing runtime semantics. Current master `e95324aeaef6...` is already an ancestor of the feature branch.
 
-The batch-bake shutdown tail was the last measured bake blocker. `ShowcaseWorldBaker` now permits immediate successful process termination only for the exact GitHub Actions batch invocation of `VoxelEngine.Showcase.Editor.ShowcaseWorldBaker.BakeShowcaseWorld`; interactive bakes, non-CI batches, `-runTests`, and other execute methods retain normal lifecycle ownership. Exact run `33296679805` proved a fresh source-matched bake completed in 224 s, the following Unity invocation reopened immediately, and the focused test consumed that generated payload. This restores about 16 s of process-level margin under the 240 s wrapper.
+Run `33298125653` on source `2106820d31cb...` proved a fresh current-master bake completed in 225 s at ~5.37 GB RSS with no swap growth and Unity reopened. The real player then completed all 17 grounded/Y-checked waypoints in 57.4 s; named captures visibly show the mountain/path, supported red summit placeholder, and `Hello, I'm Mr. Dragon.`
 
-## Latest failed gate and fixes
-Run `33296679805` then exposed two narrower validation issues rather than production-generation failures:
+## Latest discriminator / selected fix
+The only failed assertion in `33298125653` was startup-bake dragon material at `(-1112,530,200)`. The placeholder's fixed-altitude 60-voxel footprint crosses world Y 512, but offline baking materialised only terrain surface layers, so its Y=1 region was absent from `CaptureBake`; runtime streaming later generated that same layer, explaining why the built-player capture was correct.
 
-1. The highest 24-voxel headroom probe crossed from world Y 511 to Y 512 at `(-1277,512,62)`. The sparse startup bake intentionally does not materialize empty sky-only vertical regions. `MountainDragonPathHeadroomBakeTests` now treats an absent region as material `0` only for headroom probes; path-floor and support probes remain strict and still fail if their containing region/material is absent.
-2. The built player successfully cleared the castle detour and reached grounded waypoint `12/17` before the route's 55 s internal timer. The assignment-owned route keeps every coordinate, grounded check, expected Y offset, motor speed, and capture name unchanged, but reduces six screenshot settle holds from 6.25 s total to 0.6 s and raises the internal route timeout to 58 s. This recovers about 5.65 s while remaining inside the workflow's fixed 60 s replay ceiling and preserving normal production movement.
-
-## Integration / blast radius
-The two latest changes are test/evidence-only: one semantic reader correction in a PlayMode regression and one assignment-owned JSON timing budget. They do not change voxel output, runtime movement speed, mountain geometry, collision, world streaming, or gameplay composition. Current `origin/master` has advanced beyond the feature branch; merge it before the next request, inheriting unrelated road-generation/lifecycle work while preserving the Mountain Dragon rasterizer optimizations. Resolve only the shared `PrimitiveRasteriser` overlap by combining master road-shape semantics with the feature's proven fast paths.
+Selected fix: `ShowcaseWorld.BakeCoverage` generically plans only explicit `Structure + FixedAltitude` footprint regions inside the startup disc, then `GenerateForBakeBlocking` materialises those regions after the terrain disc. This includes the dragon's lower/upper layers without making mountain/headroom sky resident. A focused regression requires exactly those two layers for the mountain-only catalogue. Blast radius is bake-only; gallery baking, runtime streaming, movement, geometry, and rasterisation are unchanged.
 
 ## Remaining gates
-1. Update `tasks.md` with run `33296679805`, the two completed corrective changes, and the pending validation work.
-2. Merge current `origin/master` into `fixes/agent-4` as a real two-parent merge and verify master is an ancestor.
-3. Use only `ci-test/fixes/agent-4` for the next exact-parent final request; do not replace it while queued/running.
-4. Require a clean fresh/cache-valid bake, exact focused acceptance green, complete grounded 17-waypoint built-player traversal, and durable/human-reviewed captures for approach, base, middle, upper, summit, and dialogue.
-5. Confirm accepted source-matched startup payload/manifest provenance and commit the accepted generated payload/evidence if repository workflow permits it without creating a second CI transport.
-6. Only after every checklist/acceptance item is green, complete pending metadata, move only this assignment `open -> pending -> closed`, set `status=fixed` and `resolvedUtc`, merge the then-current `origin/master`, and push the exact feature head to `origin/master` non-force; fetch/merge/retry if master advanced.
+1. Issue one exact-parent PlayMode request through `ci-test/fixes/agent-4`; leave it untouched while queued/running.
+2. Require fresh/cache-valid bake <240 s and <14 GB, Unity reopen, green `MountainDragonFinalAcceptanceTests.NaturalizedMountainBakeAndEncounterAreReadyForBuiltPlayerReplay`, and complete built-player replay/captures.
+3. Record accepted bake/source provenance and payload/manifest evidence if retrievable through the existing transport.
+4. Only after every checklist/acceptance item is green, complete metadata, move only this assignment `open -> pending -> closed`, set `status=fixed`/`resolvedUtc`, merge then-current master, and push the exact head to `origin/master` non-force.
