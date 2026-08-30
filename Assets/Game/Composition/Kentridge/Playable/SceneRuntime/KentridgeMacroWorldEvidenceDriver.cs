@@ -45,10 +45,16 @@ namespace Game.Kentridge.PlayableSlice
         private static readonly FieldInfo s_YawField = typeof(KentridgePlayableSlice).GetField(
             "_yaw",
             BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo s_PresentationField = typeof(KentridgePlayableSlice).GetField(
+            "_presentation",
+            BindingFlags.Instance | BindingFlags.NonPublic);
 
         private KentridgePlayableSlice _slice;
         private ShowcaseWorld _world;
         private KentridgeCharacterHost _motor;
+        private object _openingPresentation;
+        private PropertyInfo _pendingDialogueProperty;
+        private MethodInfo _dismissPendingDialogueMethod;
         private EvidenceTarget[] _targets;
         private string _screenshotDirectory;
         private float _gameplayStartedAt = -1f;
@@ -64,7 +70,7 @@ namespace Game.Kentridge.PlayableSlice
         private float _roadCaptureStartedAt;
         private int _stableCoverageFrames;
         private int _targetIndex = -1;
-        private int _targetContentIndex;
+        private bool _targetContentReadyLogged;
         private float _targetStartedAt;
         private bool _targetCaptured;
         private float _targetCapturedAt;
@@ -101,15 +107,20 @@ namespace Game.Kentridge.PlayableSlice
             {
                 _slice = FindFirstObjectByType<KentridgePlayableSlice>();
                 if (_slice == null) return;
-                if (s_WorldField == null || s_MotorField == null || s_YawField == null)
+                if (s_WorldField == null || s_MotorField == null || s_YawField == null || s_PresentationField == null)
                     throw new InvalidOperationException(
-                        "Macro evidence driver cannot resolve Kentridge world/CharacterMotor/yaw host state.");
+                        "Macro evidence driver cannot resolve Kentridge world/CharacterMotor/yaw/presentation host state.");
                 _screenshotDirectory = ReadArgument("-voxel-screenshot-dir");
             }
 
             _world ??= s_WorldField.GetValue(_slice) as ShowcaseWorld;
             _motor ??= s_MotorField.GetValue(_slice) as KentridgeCharacterHost;
-            if (_world == null || _motor == null || !_slice.GameplayControlEnabled) return;
+            if (_world == null || _motor == null) return;
+            if (!_slice.GameplayControlEnabled)
+            {
+                DismissPendingOpeningDialogue();
+                return;
+            }
 
             RestoreTimeScale();
 
@@ -204,30 +215,25 @@ namespace Game.Kentridge.PlayableSlice
 
             EvidenceTarget target = _targets[_targetIndex];
             float now = Time.realtimeSinceStartup;
-            if (!_targetCaptured && _targetContentIndex < target.ContentDm.Length)
+            PinToTarget(target);
+            if (!_targetCaptured && !AreTargetContentSettled(target))
             {
-                Int2 contentPoint = target.ContentDm[_targetContentIndex];
-                if (!IsContentSettled(contentPoint))
-                {
-                    PinToContent(contentPoint, target.CameraHeightMetres);
-                    _stableCoverageFrames = 0;
-                    return;
-                }
-
-                Debug.Log(
-                    $"MACROEVIDENCE content-ready target={target.Label} index={_targetContentIndex} " +
-                    $"pointDm=({contentPoint.X},{contentPoint.Y})");
-                _targetContentIndex++;
                 _stableCoverageFrames = 0;
-                if (_targetContentIndex < target.ContentDm.Length) return;
-                _targetStartedAt = now;
+                return;
             }
 
-            PinToTarget(target);
+            if (!_targetCaptured && !_targetContentReadyLogged)
+            {
+                _targetContentReadyLogged = true;
+                _targetStartedAt = now;
+                Debug.Log(
+                    $"MACROEVIDENCE content-ready target={target.Label} columns={target.ContentDm.Length}");
+            }
+
             float targetElapsed = now - _targetStartedAt;
             if (!_targetCaptured
                 && targetElapsed >= TargetMinimumDwellSeconds
-                && HasStablePublishedCoverage(target))
+                && AdvanceStableCoverage(true))
             {
                 _targetCaptured = true;
                 _targetCapturedAt = now;
@@ -249,19 +255,39 @@ namespace Game.Kentridge.PlayableSlice
             ApplyCamera(_targets[_targetIndex]);
         }
 
+        private void DismissPendingOpeningDialogue()
+        {
+            _openingPresentation ??= s_PresentationField.GetValue(_slice);
+            if (_openingPresentation == null) return;
+
+            Type presentationType = _openingPresentation.GetType();
+            _pendingDialogueProperty ??= presentationType.GetProperty(
+                "Pending",
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            _dismissPendingDialogueMethod ??= presentationType.GetMethod(
+                "DismissPending",
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            if (_pendingDialogueProperty == null || _dismissPendingDialogueMethod == null)
+                throw new InvalidOperationException(
+                    "Macro evidence driver cannot resolve Kentridge pending-dialogue presentation state.");
+
+            if (_pendingDialogueProperty.GetValue(_openingPresentation) == null) return;
+            _dismissPendingDialogueMethod.Invoke(_openingPresentation, null);
+            Debug.Log("MACROEVIDENCE opening-dialogue-dismissed");
+        }
+
         private bool HasStablePublishedCoverageAt(Vector3 presentationPoint)
         {
             return AdvanceStableCoverage(
                 _world.IsPresentationColumnContentSettled(presentationPoint));
         }
 
-        private bool HasStablePublishedCoverage(EvidenceTarget target)
+        private bool AreTargetContentSettled(EvidenceTarget target)
         {
             for (var i = 0; i < target.ContentDm.Length; i++)
                 if (!IsContentSettled(target.ContentDm[i]))
-                    return AdvanceStableCoverage(false);
-
-            return AdvanceStableCoverage(true);
+                    return false;
+            return true;
         }
 
         private bool IsContentSettled(Int2 point)
@@ -298,7 +324,7 @@ namespace Game.Kentridge.PlayableSlice
         private void BeginTarget(int index)
         {
             _targetIndex = index;
-            _targetContentIndex = 0;
+            _targetContentReadyLogged = false;
             _targetStartedAt = Time.realtimeSinceStartup;
             _targetCaptured = false;
             _targetCapturedAt = 0f;
@@ -523,17 +549,6 @@ namespace Game.Kentridge.PlayableSlice
             if (!physical.TryGetRoute(fromId, toId, out TopDownWorldPhysicalRoutePlan route))
                 throw new InvalidOperationException("Macro evidence plan has no route '" + fromId + "->" + toId + "'.");
             return route;
-        }
-
-        private void PinToContent(Int2 point, float cameraHeightMetres)
-        {
-            int ground = TerrainSampler.HeightAt(point.X, point.Y, Seed);
-            _motor.Position = new Vector3(
-                point.X * DmToMetres,
-                ground * DmToMetres + cameraHeightMetres,
-                point.Y * DmToMetres);
-            _motor.Velocity = Vector3.zero;
-            _slice.transform.position = _motor.EyePosition;
         }
 
         private void PinToTarget(EvidenceTarget target)
