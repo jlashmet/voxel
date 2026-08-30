@@ -6,7 +6,7 @@
 - [x] Confirm no competing canonical reservation service exists on reconciled master.
 - [x] Keep road solving/grade in `WorldRoadNetwork`, form/orientation/support in architecture, species/density in ecology, hidden-space topology in its planner, and rendering in presentation.
 - [x] Confirm typed `StructuralSocket` is not required by the current production seam; do not import another assignment.
-- [x] Reconcile current master into `fixes/agent-7` before implementation (`1dd53c5cfd809845b6a5bb5d26eadf17bd44e4cc`).
+- [x] Reconcile current master into `fixes/agent-7` before implementation (`d256dc2044c88b254751448012b60a138e716f27`, current master `65e33762a0d0f1739e9a518484d119e551f01f81`).
 - [x] Reconcile plan/checklist to the actual post-merge production paths before implementation.
 
 ## Canonical reservation contract
