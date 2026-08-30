@@ -76,7 +76,8 @@ namespace VoxelEngine.Tests.EditMode
                     new ReservationBoundsDm(0, 0, 0, 100, 100, 100)),
                 SpatialReservation.Box(
                     "clear", ReservationCategory.Building, ReservationSemantics.Clearance,
-                    new ReservationBoundsDm(150, 0, 0, 250, 100, 100)),
+                    new ReservationBoundsDm(150, 0, 0, 250, 100, 100),
+                    yieldingConsumers: ReservationConsumerKind.Vegetation),
                 SpatialReservation.Box(
                     "soft", ReservationCategory.Geographic, ReservationSemantics.SoftYield,
                     new ReservationBoundsDm(300, 0, 0, 400, 100, 100)),
