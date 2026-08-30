@@ -1,3 +1,4 @@
+using Game.WorldBuilder.Api;
 using Game.WorldBuilder.Runtime;
 using MountingForce.WorldGen;
 using MountingForce.WorldGen.Content.Kentridge;
@@ -33,7 +34,7 @@ namespace VoxelEngine.Tests.PlayMode
             {
                 combined = KentridgeCombinedVoxelCatalogue.Build(
                     Seed,
-                    VoxelWorldGenSettings.Default,
+                    Settings(),
                     Allocator.Persistent);
                 Assert.That(combined.IsCreated, Is.True);
 
@@ -98,7 +99,7 @@ namespace VoxelEngine.Tests.PlayMode
 
                 TestContext.WriteLine(
                     "KENTRIDGE_VERTICAL_RESIDENCY " +
-                    $"definition={definition.Name} placement={placement.Position} upperRegion={upperRegion} " +
+                    $"placement={placement.Position} footprint={footprint} upperRegion={upperRegion} " +
                     $"presentationLayer={presentationLayer} steps={steps} featureVoxels={world.FeatureVoxelsBuilt}");
             }
             finally
@@ -160,6 +161,25 @@ namespace VoxelEngine.Tests.PlayMode
                 bestVerticalSpan,
                 Is.GreaterThan(0),
                 "Kentridge production composition must retain an authored feature that crosses a vertical region boundary for this regression.");
+        }
+
+        private static VoxelWorldGenSettings Settings()
+        {
+            return new VoxelWorldGenSettings(
+                1,
+                new VoxelMaterialMap(
+                    foundationStone: 20,
+                    masonry: 18,
+                    darkMasonry: 6,
+                    timber: 2,
+                    glass: 4,
+                    warmWindow: 15,
+                    roofTile: 8,
+                    slate: 7,
+                    cloth: 9,
+                    moss: 14,
+                    water: 11,
+                    roadSurface: 13));
         }
     }
 }
