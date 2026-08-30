@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "runSeconds": 60,
+  "capture": {
+    "width": 1600,
+    "height": 900,
+    "intervalSeconds": 10,
+    "minimumFrames": 4
+  },
+  "timeline": {
+    "autoDialogue": 0.5,
+    "autowalkAfter": 30,
+    "surveyAfter": 50,
+    "surveyHeight": 55,
+    "surveySpin": 0
+  },
+  "assertions": {
+    "requiredLogPatterns": [],
+    "forbiddenLogPatterns": [
+      "NullReferenceException",
+      "MissingReferenceException",
+      "Shader error"
+    ]
+  }
+}
