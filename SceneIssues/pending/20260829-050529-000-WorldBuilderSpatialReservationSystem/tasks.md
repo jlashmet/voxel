@@ -45,11 +45,11 @@
 
 ## Reusability review
 
-- [ ] Audit `SpatialReservations.cs` and generic adapters for Kentridge role names, settlement IDs, road names, vegetation species, hidden-space identities, or gallery-only assumptions; generic core may depend only on reservation geometry, ownership, categories, precedence, masks, and deterministic policy.
-- [ ] Keep conflict/yield behavior data-driven through generic reservation categories/masks/precedence rather than hard-coded consumer pairs such as road-vs-tree or structure-vs-hidden-space.
-- [ ] Move the discovered `WorldRoadReservationAdapter` road-clearance -> vegetation yield choice out of the shared adapter and into explicit composition/configuration while preserving production behavior.
-- [ ] Add a non-Kentridge fixture/regression that exercises the same reservation source/snapshot/query/conflict APIs with at least two unrelated consumer categories and 3D vertical separation.
-- [ ] Keep `WorldbuildingGalleryReservationInspection` presentation-only; visualization/debug inspection must never become reservation authority or alter conflict results.
+- [x] Audit `SpatialReservations.cs` and generic adapters for Kentridge role names, settlement IDs, road names, vegetation species, hidden-space identities, or gallery-only assumptions; generic core depends only on reservation geometry, ownership, categories, precedence, masks, and deterministic policy.
+- [x] Keep conflict/yield behavior data-driven through generic reservation categories/masks/precedence rather than hard-coded consumer pairs such as road-vs-tree or structure-vs-hidden-space.
+- [x] Move the discovered `WorldRoadReservationAdapter` road-clearance -> vegetation yield choice out of the shared adapter and into explicit composition/configuration while preserving production behavior (`WorldRoadReservationAdapter.BuildClaims(..., clearanceYieldingConsumers)` defaults neutral; Kentridge/macro composition passes vegetation explicitly).
+- [x] Add a non-Kentridge fixture/regression that exercises the same reservation source/snapshot/query/conflict APIs with at least two unrelated consumer categories and 3D vertical separation (`SpatialReservationReusabilityTests.ClearanceYieldPolicyAndVerticalSeparationAreConsumerConfigured`).
+- [x] Keep `WorldbuildingGalleryReservationInspection` presentation-only; runtime visualization copies its read-only report into one transient mesh with no colliders or placement authority.
 
 ## Determinism / lifecycle / cost
 
@@ -62,10 +62,10 @@
 
 ## Gallery / runtime evidence
 
-- [ ] Trace `WorldbuildingGalleryReservationInspection` from the actual audit/showcase runtime path and prove presentation-only behavior.
-- [ ] Add a presentation-only runtime/gallery renderer for the inspection primitives; the existing report builder alone does not satisfy the visualization acceptance criterion.
-- [ ] Ensure surface hard/clearance/access, underground 3D claims and a deliberate rejected candidate are visibly/readably inspectable against corresponding physical content.
-- [ ] Verify issue benchmark scene paths and update stale evidence paths.
+- [x] Trace `WorldbuildingGalleryReservationInspection` from the actual audit/showcase runtime path and prove presentation-only behavior: `SpatialReservationGalleryOverlay` installs only in `WorldbuildingGalleryShowcase` and consumes the copied report; `WorldbuildingGalleryAuditHarness` enables it only for this feature's evidence capture.
+- [x] Add a presentation-only runtime/gallery renderer for the inspection primitives; one camera-space line mesh visualizes the report without authoritative GameObjects/colliders per claim.
+- [ ] Ensure surface hard/clearance/access, underground 3D claims and a deliberate rejected candidate are visibly/readably inspectable against corresponding physical content; renderer and feature-specific screenshot are implemented, visual gate still required.
+- [x] Verify issue benchmark scene path remains `Assets/Scenes/WorldbuildingGalleryShowcase.unity`; Kentridge production validation remains separately required below.
 - [ ] Satisfy current `SceneTestHighlightPolicy.csv`/classifier requirements for affected scenes.
 - [ ] Run exact built `WorldbuildingGalleryShowcase` and visually inspect required captures.
 - [ ] Run real `KentridgePlayableSlice` built/runtime traversal check.
