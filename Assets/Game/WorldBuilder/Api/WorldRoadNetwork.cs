@@ -205,34 +205,48 @@ namespace Game.WorldBuilder.Api
         public bool TrySample(int xdm, int zdm, out WorldRoadInfluenceSample sample)
         {
             WorldRoadProfile profile = Road.Intent.Profile;
-            long bestDistanceSquared = long.MaxValue;
-            int bestHeight = 0;
-            int bestCentreX = 0;
-            int bestCentreZ = 0;
+            bool found = false;
+            WorldRoadInfluenceSample best = default;
+
+            // Physical roads are lowered into bounded corridor pieces and therefore rasterize as the
+            // union of segment-local influence fields. Evaluate the semantic polyline the same way:
+            // strongest coverage wins, then nearest segment for deterministic height/tie selection.
             for (var i = 0; i + 1 < Road.Points.Count; i++)
             {
                 ClosestPoint(
                     Road.Points[i], Road.Points[i + 1], xdm, zdm,
                     out long distanceSquared, out int height,
                     out int centreX, out int centreZ);
-                if (distanceSquared >= bestDistanceSquared) continue;
-                bestDistanceSquared = distanceSquared;
-                bestHeight = height;
-                bestCentreX = centreX;
-                bestCentreZ = centreZ;
+
+                int distance = IntegerSqrt(distanceSquared);
+                int edge = DeterministicEdgeOffset(
+                    Road.Intent.Seed, centreX, centreZ, profile.EdgeVariationDm);
+                int core = Math.Max(0, profile.CoreRadiusDm + edge);
+                int outer = Math.Max(core, profile.CoreRadiusDm + profile.TransitionWidthDm + edge);
+                if (distance > outer) continue;
+
+                int coverage = distance <= core || outer == core
+                    ? 31
+                    : ((outer - distance) * 31 + (outer - core) / 2) / (outer - core);
+                coverage = Clamp(coverage, 0, 31);
+                if (coverage <= 0) continue;
+
+                int vegetation = Clamp(
+                    coverage * profile.VegetationSuppressionPermille / 1000, 0, 31);
+                var candidate = new WorldRoadInfluenceSample(
+                    distance, height, (byte)coverage, (byte)vegetation, distance <= core);
+                if (!found
+                    || candidate.Coverage31 > best.Coverage31
+                    || candidate.Coverage31 == best.Coverage31
+                       && candidate.DistanceDm < best.DistanceDm)
+                {
+                    best = candidate;
+                    found = true;
+                }
             }
 
-            int distance = IntegerSqrt(bestDistanceSquared);
-            int edge = DeterministicEdgeOffset(
-                Road.Intent.Seed, bestCentreX, bestCentreZ, profile.EdgeVariationDm);
-            int core = Math.Max(0, profile.CoreRadiusDm + edge);
-            int outer = Math.Max(core, profile.CoreRadiusDm + profile.TransitionWidthDm + edge);
-            if (distance > outer) { sample = default; return false; }
-            int coverage = distance <= core || outer == core ? 31 : ((outer - distance) * 31 + (outer - core) / 2) / (outer - core);
-            coverage = Clamp(coverage, 0, 31);
-            int vegetation = Clamp(coverage * profile.VegetationSuppressionPermille / 1000, 0, 31);
-            sample = new WorldRoadInfluenceSample(distance, bestHeight, (byte)coverage, (byte)vegetation, distance <= core);
-            return coverage > 0;
+            sample = best;
+            return found;
         }
 
         private static void ClosestPoint(
@@ -403,13 +417,13 @@ namespace Game.WorldBuilder.Api
 
             while (true)
             {
-                int current = -1; long best = long.MaxValue;
+                int current = -1; long bestScore = long.MaxValue;
                 for (var i = 0; i < count; i++)
                 {
                     if (!open[i]) continue;
                     Cell(i, minX, minZ, width, out int cx, out int cz);
                     long score = cost[i] + Heuristic(cx, cz, tx, tz, spacing, profile.TraversalCostPermille);
-                    if (score < best || score == best && (current < 0 || i < current)) { best = score; current = i; }
+                    if (score < bestScore || score == bestScore && (current < 0 || i < current)) { bestScore = score; current = i; }
                 }
                 if (current < 0 || current == goal) break;
                 open[current] = false; closed[current] = true;
