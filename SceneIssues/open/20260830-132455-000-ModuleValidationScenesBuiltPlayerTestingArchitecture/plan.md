@@ -23,12 +23,15 @@
 - Scene-local correction `2630225f948252e077ab54d76c7de1df41a737fe` narrowed/increased river meander, removed long river grade plateaus, and narrowed the cascade. Exact-head run `33380385114` then passed end-to-end, but every retained frame still showed a flat ribbon and a two-shelf cascade.
 - Repeated-symptom minimal composition repro/root cause: `AuthorRiver` authored the whole ribbon at one Y, while the cascade rounded a 36-voxel interpolation from only `BaseY+1` to `BaseY`, so it could only produce two horizontal levels. The terrain apron also authored only one top voxel per column, leaving visible floating/terraced sheets around the channel.
 - Scene-local correction `7f714588439974667047428147d45e452e234ee6` addresses only that demonstrated composition defect: terrain and banks are solid columns, the river is narrower/supported, and the cascade descends across five discrete levels using production Water/Cascade materials and the unchanged generic harness.
+- Exact-head run `33382206223` failed the required Water player gate rather than infrastructure: the primary tableau reached near-field readiness, but the independent liquid-publication probe remained `resident=0, dirty=0, visible=0, completed=0`, and retained frames contained terrain but no Water.
+- Root cause is the tableau's authoring path, not readiness policy. `CreateStructureAuthoring(..., writeBudget)` feeds `VoxelBrush.WriteBudget`, a hard ceiling on slow per-voxel writes; `FillColumnBulk` is explicitly counted separately and does not consume that ceiling. The new solid apron attempted about 394,685 slow writes before later Water authoring against the fixture's existing 180,000 budget, so later slow writes were deterministically dropped.
+- Narrow correction `cf18ba6f75a450c9b3fb01387c8e4e38754fb832` keeps the existing 180,000 budget and visual semantics: buried portions of solid terrain columns use the existing semantic `FillColumnBulk` API, while each visible top voxel still uses `Set` so authored surface style/coating behavior remains unchanged. Conservative slow-write demand for the complete tableau falls to about 115,176, below the unchanged budget. No renderer, harness, probe, or acceptance rule changed.
 
 ## Blast radius / cost
-CI/orchestration, validation assets/tests/docs, composition-owned Water tableau/probes, semantic Water vertex addressing, and Water presentation mesh/shader. Top-surface geometry increases to at most one quad per exposed voxel while side/bottom extraction stays greedy. The evidence-window addition is generic opt-in metadata and defaults to zero, so existing scenarios retain behavior. The latest visual correction is confined to the Water module validation tableau composition.
+CI/orchestration, validation assets/tests/docs, composition-owned Water tableau/probes, semantic Water vertex addressing, and Water presentation mesh/shader. Top-surface geometry increases to at most one quad per exposed voxel while side/bottom extraction stays greedy. The evidence-window addition is generic opt-in metadata and defaults to zero, so existing scenarios retain behavior. The latest authoring correction is confined to the Water module validation tableau and reuses the existing public bulk-column authoring capability.
 
 ## Current commit
-The next exact-SHA request must target the feature head containing `7f714588439974667047428147d45e452e234ee6` plus this plan/task bookkeeping; fetch the branch head before creating the request.
+The next exact-SHA request must target the feature head containing `cf18ba6f75a450c9b3fb01387c8e4e38754fb832` plus this plan/task bookkeeping; fetch the branch head before creating the request.
 
 ## Remaining gates
 - [x] Implement generic metadata/discovery, fail-closed execution, Water migration, docs, and independent reuse proof.
@@ -37,5 +40,5 @@ The next exact-SHA request must target the feature head containing `7f7145884399
 - [x] After two failed scene fixes, isolate the planar-slab renderer symptom and add a minimal behavioral regression before another fix.
 - [x] Validate the topology/shader regression and automatic Water + Kentridge path on exact source; cost remains practical.
 - [x] Validate the generic evidence-window behavior on exact source and reject pre-ready/prototype evidence rather than weakening visual acceptance.
-- [ ] Run exact-SHA CI for the current scene-local stepped-cascade/solid-terrain correction and inspect every retained Water frame as production-quality evidence.
+- [ ] Run exact-SHA CI for the current scene-local grounded-tableau authoring correction and inspect every retained Water frame as production-quality evidence.
 - [ ] Review all 18 acceptance criteria, complete metadata, move open -> closed, merge current master, rerun required exact-head gates, and promote exact head.
