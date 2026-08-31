@@ -33,10 +33,13 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
                 ForestCanopyCluster cluster = clusters[i];
                 if (cluster.MemberCount == 0 || cluster.MeanFoliageHealth <= 0.001f) continue;
 
+                float health = Mathf.Clamp01(cluster.MeanFoliageHealth);
+                float horizontalFullness = Mathf.Lerp(0.68f, 1f, health);
+                float verticalFullness = Mathf.Lerp(0.46f, 1f, health);
                 Vector3 position = (Vector3)cluster.CentreMetres;
-                float width = Mathf.Max(1f, cluster.HalfExtentMetres.x * 2f);
-                float depth = Mathf.Max(1f, cluster.HalfExtentMetres.y * 2f);
-                float height = Mathf.Max(1f, cluster.MaxHeightMetres * 0.72f);
+                float width = Mathf.Max(1f, cluster.HalfExtentMetres.x * 2f * horizontalFullness);
+                float depth = Mathf.Max(1f, cluster.HalfExtentMetres.y * 2f * horizontalFullness);
+                float height = Mathf.Max(1f, cluster.MaxHeightMetres * 0.72f * verticalFullness);
                 position.y = Mathf.Max(position.y, height * 0.5f);
                 _matrices.Add(Matrix4x4.TRS(
                     position,
