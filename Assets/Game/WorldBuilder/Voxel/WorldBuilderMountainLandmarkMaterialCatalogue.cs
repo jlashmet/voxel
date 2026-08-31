@@ -137,7 +137,7 @@ namespace Game.WorldBuilder.Voxel
                 FixedAltitude = spec.Origin.y,
                 Footprint = new int3(
                     spec.FootprintEdge,
-                    spec.MountainHeight + WorldBuilderMountainLandmarkCatalogue.PathHeadroomVoxels + 2,
+                    spec.MountainHeight + spec.PathHeadroomVoxels + 2,
                     spec.FootprintEdge),
                 MaxSlope = 8,
                 Precedence = 100,
@@ -481,9 +481,7 @@ namespace Game.WorldBuilder.Voxel
             List<int> program,
             in MountainLandmarkSpec spec)
         {
-            int clearanceWidth = math.min(
-                spec.PathWidth,
-                WorldBuilderMountainLandmarkCatalogue.PathClearanceWidthVoxels);
+            int clearanceWidth = spec.PathClearanceWidthVoxels;
             int clearanceInset = (spec.PathWidth - clearanceWidth) / 2;
             MountainPathTierGeometry lastTier = default;
             int endY = 0;
@@ -497,14 +495,13 @@ namespace Game.WorldBuilder.Voxel
                 for (int segment = 0; segment < tier.SegmentCount; segment++)
                 {
                     MountainPathSegmentGeometry geometry = tier.SegmentGeometry(segment);
-                    int carveDepth = math.max(
-                        clearanceWidth,
-                        geometry.Depth - clearanceInset * 2);
+                    int carveDepth = math.min(clearanceWidth, geometry.Depth);
+                    int carveInset = math.max(0, (geometry.Depth - carveDepth) / 2);
                     EmitBox(
                         program,
-                        geometry.MinX, geometry.StartY + 1, geometry.MinZ + clearanceInset,
+                        geometry.MinX, geometry.StartY + 1, geometry.MinZ + carveInset,
                         geometry.Run,
-                        geometry.Rise + WorldBuilderMountainLandmarkCatalogue.PathHeadroomVoxels,
+                        geometry.Rise + spec.PathHeadroomVoxels,
                         carveDepth,
                         0,
                         PrimitiveMode.Carve);
@@ -519,7 +516,7 @@ namespace Game.WorldBuilder.Voxel
                 program,
                 lastTier.HighLandingMinX + clearanceInset, endY + 1, finalZMin,
                 clearanceWidth,
-                finalRise + WorldBuilderMountainLandmarkCatalogue.PathHeadroomVoxels,
+                finalRise + spec.PathHeadroomVoxels,
                 finalZSize,
                 0,
                 PrimitiveMode.Carve);
@@ -532,7 +529,7 @@ namespace Game.WorldBuilder.Voxel
                 program,
                 topMinX, spec.MountainHeight + 1, topZ + clearanceInset,
                 topSizeX,
-                WorldBuilderMountainLandmarkCatalogue.PathHeadroomVoxels,
+                spec.PathHeadroomVoxels,
                 clearanceWidth,
                 0,
                 PrimitiveMode.Carve);
