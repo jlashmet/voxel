@@ -22,7 +22,16 @@
 - [x] Add `WaterSprayFeatheringRegressionTests.SprayPassKeepsImpactHingeTransparentWhileFreeMistRemainsVisible` as a focused raster discriminator for the surviving hard planar base-spray defect (`349e50e23cd3d6da213b696f13add2a7a6a21b9d`, meta `5c7ec8bdb96796bec7839f240be63609060ca0aa`).
 - [x] Isolate current spray defect before another fix: canonical trapezoids are broadest at the impact hinge, while the spray shader begins visibility at `v=0.015`; exact red run `33402041555` reports 302 lit pixels in the first ~7% above that hinge. This makes the broad planar carrier visible where impact foam should own contact.
 - [x] Fix only the isolated raster cause: keep canonical geometry/cardinality/depth behavior and move free-mist rise feathering to `smoothstep(0.12, 0.32, sprayUv.y)` so the shared planar hinge is fully transparent while mist remains above it (`ec95915d91c803fc8eaa1e35031456b63d7fdeb9`).
-- [ ] Fix the surviving higher-band planar/triangular spray wedges visible in exact built-player run `33405237070` without regressing hinge transparency or removing readable free mist; the hinge-only raster discriminator is necessary but not sufficient for visual acceptance.
+
+## Higher-band spray wedge root-cause isolation
+- [x] Isolate the post-hinge symptom before another visual change: production carriers retain roughly 52-59% of their impact span at the crown while the spray mask still fades only over `v=0.54..1.0`, leaving broad crown geometry eligible for opacity. This is higher-band geometry/mask coupling, distinct from the already-approved transparent hinge.
+- [x] Add `WaterSprayFeatheringRegressionTests.SprayPassDoesNotAdvertiseBroadCarrierAsHigherBandWedge` on `b52d42fd4d0293691680007eac7936e91762be97`; the fixture holds a representative broad tapered carrier constant, requires hinge transparency and readable mid-band mist, then caps higher-band lit area.
+- [x] Apply one focused shared-renderer correction: keep carrier generation/cardinality and waterfall body behavior unchanged, but move only the spray upper falloff from `smoothstep(0.54, 1.0, v)` to `smoothstep(0.46, 0.72, v)` (`82506d54aeac9b26c7a154c7df7f612949ae4b49`).
+- [ ] Let focused pre-fix discriminator run `33410018946` complete without replacement and record its result; request SHA `05408481a0a79f8c5d34869ddfe87e5f2556769c` is based exactly on `b52d42fd...`.
+- [ ] Re-run `WaterSprayFeatheringRegressionTests` on the exact resulting fixed feature SHA and require both hinge and higher-band assertions green with readable free mist.
+- [ ] Re-run `WaterArenaDrawRegressionTests` + automatic module validation + 60-second built `WaterRenderingShowcase` replay on that same exact feature SHA.
+- [ ] Directly inspect saved built-player high-pitch/time-separated waterfall evidence and verify the higher-band planar/triangular wedges are absent while impact transparency and free mist remain legible.
+- [ ] Record the exact resulting accepted feature SHA here after the higher-band follow-up lands.
 
 ## Exact-SHA evidence already established
 - [x] `33385919424` green `WaterArenaDrawRegressionTests` + module + 60s replay on `a1a3594d...`; direct visual reject led to semantic-edge isolation.
@@ -38,9 +47,10 @@
 - [x] Directly review `33405237070`: time-separated waterfall frames still show obvious bright triangular/planar spray wedges above the receiving-water contact band (including side and center footprints). This fails the explicit visual gate despite green automation; closure rejected.
 
 ## Next exact-head gates
-- [x] Run `WaterSprayFeatheringRegressionTests` on the fixed exact feature head and require hinge band = 0 while free mist remains visible (`33402597873`).
-- [x] On the same accepted exact head, run `WaterArenaDrawRegressionTests` + automatic module validation + 60-second `WaterRenderingShowcase` replay (`33405237070` on `59607ead...`; automation green, visual gate rejected).
+- [x] Run `WaterSprayFeatheringRegressionTests` on the hinge-fixed exact feature head and require hinge band = 0 while free mist remains visible (`33402597873`).
+- [x] On that hinge-fixed exact head, run `WaterArenaDrawRegressionTests` + automatic module validation + 60-second `WaterRenderingShowcase` replay (`33405237070` on `59607ead...`; automation green, visual gate rejected).
 - [x] Directly inspect near/wide/time-separated built screenshots from `33405237070`; hard planar/triangular spray remains, so visual acceptance is rejected and a focused product fix is required.
+- [ ] Complete the higher-band spray wedge exact-head gates above.
 - [ ] After the spray-wedge fix is visually accepted, run `ShowcaseWaterPresentationRegressionTests` on the same accepted exact head.
 - [ ] Run `WaterSprayProductionPathRegressionTests.CascadeSprayFlagSurvivesCanonicalStorageCacheAndGpuUpload` on the same accepted exact head.
 - [ ] Confirm exact player build has no startup/runtime/shader compile/stripping/pink/missing-resource failure.
