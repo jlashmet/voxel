@@ -15,6 +15,8 @@
     "Game.WorldBuilder.Api",
     "Game.WorldBuilder.Runtime",
     "Game.WorldBuilder.Voxel",
+    "MountingForce.WorldGen.Core",
+    "MountingForce.WorldGen.Architecture",
     "VoxelEngine.Composition.Api",
     "VoxelEngine.Composition",
     "VoxelEngine.Storage.Api",
