@@ -1,4 +1,5 @@
 using NUnit.Framework;
+using UnityEngine;
 using VoxelEngine.Showcase;
 
 namespace VoxelEngine.Tests.EditMode
@@ -12,20 +13,20 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void ShippedConfiguration_SelectsMinimumRingCountThatGuaranteesTwelveKilometres()
         {
-            int rings = VoxelFarTerrain.CalculateRequiredRingCount(
+            int rings = FarTerrainCoverageMath.CalculateRequiredRingCount(
                 InnerRadiusMetres,
                 OuterRadiusMetres,
                 Resolution);
 
             Assert.That(rings, Is.EqualTo(6));
             Assert.That(
-                VoxelFarTerrain.CalculateGuaranteedCardinalCoverageMetres(
+                FarTerrainCoverageMath.GuaranteedCardinalCoverageMetres(
                     InnerRadiusMetres,
                     Resolution,
                     rings - 1),
                 Is.GreaterThanOrEqualTo(OuterRadiusMetres));
             Assert.That(
-                VoxelFarTerrain.CalculateGuaranteedCardinalCoverageMetres(
+                FarTerrainCoverageMath.GuaranteedCardinalCoverageMetres(
                     InnerRadiusMetres,
                     Resolution,
                     rings - 2),
@@ -39,14 +40,14 @@ namespace VoxelEngine.Tests.EditMode
         public void ShippedConfiguration_CoversEveryCardinalSideAcrossCameraSnapPhases(
             float cameraAxisMetres)
         {
-            int rings = VoxelFarTerrain.CalculateRequiredRingCount(
+            int rings = FarTerrainCoverageMath.CalculateRequiredRingCount(
                 InnerRadiusMetres,
                 OuterRadiusMetres,
                 Resolution);
             int outerRing = rings - 1;
 
             Assert.That(
-                VoxelFarTerrain.CalculateSnappedCardinalCoverageMetres(
+                FarTerrainCoverageMath.SnappedCardinalCoverageMetres(
                     cameraAxisMetres,
                     InnerRadiusMetres,
                     Resolution,
@@ -55,7 +56,7 @@ namespace VoxelEngine.Tests.EditMode
                 Is.GreaterThanOrEqualTo(OuterRadiusMetres),
                 "negative X/Z cardinal side under-covered");
             Assert.That(
-                VoxelFarTerrain.CalculateSnappedCardinalCoverageMetres(
+                FarTerrainCoverageMath.SnappedCardinalCoverageMetres(
                     cameraAxisMetres,
                     InnerRadiusMetres,
                     Resolution,
@@ -68,18 +69,39 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void RequiredRingCount_ReturnsGuardWhenRequestedRadiusCannotBeCovered()
         {
-            int rings = VoxelFarTerrain.CalculateRequiredRingCount(
+            bool covered = FarTerrainCoverageMath.TryCalculateRequiredRingCount(
                 InnerRadiusMetres,
                 100000000f,
-                Resolution);
+                Resolution,
+                out int rings,
+                out float guaranteedCoverageMetres);
 
-            Assert.That(rings, Is.EqualTo(VoxelFarTerrain.MaxRings));
-            Assert.That(
-                VoxelFarTerrain.CalculateGuaranteedCardinalCoverageMetres(
-                    InnerRadiusMetres,
-                    Resolution,
-                    rings - 1),
-                Is.LessThan(100000000f));
+            Assert.That(covered, Is.False);
+            Assert.That(rings, Is.EqualTo(FarTerrainCoverageMath.MaxRings));
+            Assert.That(guaranteedCoverageMetres, Is.LessThan(100000000f));
+        }
+
+        [Test]
+        public void VoxelFarTerrain_UsesGuaranteedCoverageRingCount()
+        {
+            VoxelFarTerrain far = VoxelFarTerrain.Create(
+                parent: null,
+                seed: 1,
+                innerRadiusMetres: InnerRadiusMetres,
+                outerRadiusMetres: OuterRadiusMetres);
+            try
+            {
+                Assert.That(
+                    far.RingCount,
+                    Is.EqualTo(FarTerrainCoverageMath.CalculateRequiredRingCount(
+                        InnerRadiusMetres,
+                        OuterRadiusMetres,
+                        Resolution)));
+            }
+            finally
+            {
+                Object.DestroyImmediate(far.gameObject);
+            }
         }
     }
 }
