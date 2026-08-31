@@ -1,0 +1,17 @@
+{
+  "formatVersion": 3,
+  "id": "20260830-120242-000-WorldBuilderRoadPresentationQuality",
+  "capturedUtc": "2026-08-30T12:02:42.0000000Z",
+  "note": "FEATURE / WORLDBUILDER / ROAD PRESENTATION QUALITY FOLLOW-UP. See plan.md and tasks.md for the complete investigation, implementation, exact-SHA CI, budget, and built-player visual evidence. The closed shared road-network architecture remains the sole semantic/route authority; this issue delivered only reusable presentation/physical-realization improvements on top of it.",
+  "status": "fixed",
+  "resolvedUtc": "2026-08-31T21:28:00.0000000Z",
+  "resolutionSummary": "Added reusable road presentation refinement, formed terrain-aware crown/shoulders and bounded grading, deterministic shared wear, exact-topology junction handling, continuous terrain-corridor arbitration that makes primitive subdivision/write order physically invisible, and voxel-precision physical cross-section interpolation. Narrow Kentridge composition fixes prevent plot/frontage terrain from overwriting the road grading envelope. Final exact-head run 33440924688 passed the full road presentation regression suite plus repository-derived automatic module/player validation; built Kentridge player evidence passed the required curve, shoulders, junction, non-flat cross-section, continuity, vegetation, traversal, and frontage review. Existing storage/primitive/program budgets were not weakened.",
+  "regressionTest": "VoxelEngine.Tests.EditMode.WorldRoadPresentationRegressionTests; VoxelEngine.Tests.EditMode.WorldRoadContinuousFieldRegressionTests; KentridgeRoadCompositionRegressionTests; targeted CI run 33440924688",
+  "fixCommit": "4670c82dc2b2f8e4e036d6c7dc13f70c864df364",
+  "unityVersion": "6000.5.6f1",
+  "platform": "Architecture",
+  "sceneName": "KentridgePlayableSlice",
+  "scenePath": "Assets/Scenes/KentridgePlayableSlice.unity",
+  "sceneBuildIndex": 0,
+  "captures": []
+}

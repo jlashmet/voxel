@@ -192,14 +192,35 @@ namespace Game.WorldBuilder.Api
     public sealed class WorldRoadInfluence
     {
         private const int EdgeNoiseCellDm = 64;
+        private readonly IReadOnlyList<ResolvedWorldRoadPoint> _presentation;
+        private readonly int _surfaceShoulderWidthDm;
 
         public ResolvedWorldRoad Road { get; }
 
         public WorldRoadInfluence(ResolvedWorldRoad road)
+            : this(road, null, road?.Intent.Profile.TransitionWidthDm ?? 0)
+        {
+        }
+
+        public WorldRoadInfluence(
+            ResolvedWorldRoad road,
+            IReadOnlyList<WorldRoadJunction> junctions)
+            : this(road, junctions, road?.Intent.Profile.TransitionWidthDm ?? 0)
+        {
+        }
+
+        public WorldRoadInfluence(
+            ResolvedWorldRoad road,
+            IReadOnlyList<WorldRoadJunction> junctions,
+            int surfaceShoulderWidthDm)
         {
             Road = road ?? throw new ArgumentNullException(nameof(road));
             if (!road.IsResolved || road.Points.Count < 2)
                 throw new ArgumentException("Road influence requires resolved geometry.", nameof(road));
+            if (surfaceShoulderWidthDm < 0)
+                throw new ArgumentOutOfRangeException(nameof(surfaceShoulderWidthDm));
+            _surfaceShoulderWidthDm = surfaceShoulderWidthDm;
+            _presentation = WorldRoadPresentationPath.Build(Road, junctions);
         }
 
         public bool TrySample(int xdm, int zdm, out WorldRoadInfluenceSample sample)
@@ -208,13 +229,14 @@ namespace Game.WorldBuilder.Api
             bool found = false;
             WorldRoadInfluenceSample best = default;
 
-            // Physical roads are lowered into bounded corridor pieces and therefore rasterize as the
-            // union of segment-local influence fields. Evaluate the semantic polyline the same way:
-            // strongest coverage wins, then nearest segment for deterministic height/tie selection.
-            for (var i = 0; i + 1 < Road.Points.Count; i++)
+            // Physical roads lower the deterministic presentation polyline into bounded corridor
+            // pieces. Evaluate exactly the same cached presentation path here so ecology, placement,
+            // material coverage and physical grading remain one shared influence authority while
+            // the resolver's original route points remain unchanged and repeated queries allocate nothing.
+            for (var i = 0; i + 1 < _presentation.Count; i++)
             {
                 ClosestPoint(
-                    Road.Points[i], Road.Points[i + 1], xdm, zdm,
+                    _presentation[i], _presentation[i + 1], xdm, zdm,
                     out long distanceSquared, out int height,
                     out int centreX, out int centreZ);
 
@@ -222,7 +244,7 @@ namespace Game.WorldBuilder.Api
                 int edge = DeterministicEdgeOffset(
                     Road.Intent.Seed, centreX, centreZ, profile.EdgeVariationDm);
                 int core = Math.Max(0, profile.CoreRadiusDm + edge);
-                int outer = Math.Max(core, profile.CoreRadiusDm + profile.TransitionWidthDm + edge);
+                int outer = Math.Max(core, profile.CoreRadiusDm + _surfaceShoulderWidthDm + edge);
                 if (distance > outer) continue;
 
                 int coverage = distance <= core || outer == core
@@ -233,8 +255,10 @@ namespace Game.WorldBuilder.Api
 
                 int vegetation = Clamp(
                     coverage * profile.VegetationSuppressionPermille / 1000, 0, 31);
+                int targetHeight = height
+                    + WorldRoadPresentationPath.CrossSectionOffsetDm(distance, core, outer);
                 var candidate = new WorldRoadInfluenceSample(
-                    distance, height, (byte)coverage, (byte)vegetation, distance <= core);
+                    distance, targetHeight, (byte)coverage, (byte)vegetation, distance <= core);
                 if (!found
                     || candidate.Coverage31 > best.Coverage31
                     || candidate.Coverage31 == best.Coverage31
