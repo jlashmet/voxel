@@ -14,9 +14,10 @@ namespace VoxelEngine.Showcase
         /// unrelated regions elsewhere in the streaming residency disc.
         ///
         /// The query is observational only. It checks the same bounded surface-layer span used by
-        /// streaming for this X/Z column, plus the caller's explicit Y layer when that lies outside
-        /// the terrain span. It does not generate, expand residency, scan world history, traverse
-        /// voxels/meshes, or allocate.
+        /// streaming for this X/Z column, plus every authored feature layer that the vertical
+        /// residency query has accepted for the column, plus the caller's explicit Y layer when
+        /// that lies outside both sets. It does not generate, expand residency, scan world history,
+        /// traverse voxels/meshes, or allocate after the feature-layer cache is warm.
         /// </summary>
         public bool IsPresentationColumnContentSettled(float3 presentationMetres)
         {
@@ -29,8 +30,17 @@ namespace VoxelEngine.Showcase
                 if (!IsRegionContentSettled(new int3(pointRegion.x, ry, pointRegion.z)))
                     return false;
 
-            if ((pointRegion.y < minLayer || pointRegion.y > maxLayer)
-                && !IsRegionContentSettled(pointRegion))
+            int[] featureLayers = GetFeatureLayersForColumn(pointRegion.x, pointRegion.z);
+            bool pointLayerCovered = pointRegion.y >= minLayer && pointRegion.y <= maxLayer;
+            for (var i = 0; i < featureLayers.Length; i++)
+            {
+                int featureLayer = featureLayers[i];
+                if (!IsRegionContentSettled(new int3(pointRegion.x, featureLayer, pointRegion.z)))
+                    return false;
+                if (featureLayer == pointRegion.y) pointLayerCovered = true;
+            }
+
+            if (!pointLayerCovered && !IsRegionContentSettled(pointRegion))
                 return false;
 
             return true;
