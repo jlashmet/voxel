@@ -57,6 +57,7 @@ namespace VoxelEngine.Tests.PlayMode
                 int impactCount = 0;
                 int edgeCount = 0;
                 int sprayCount = 0;
+                uint sprayUvCorners = 0u;
                 Vector3 sprayMin = new(float.PositiveInfinity, float.PositiveInfinity, float.PositiveInfinity);
                 Vector3 sprayMax = new(float.NegativeInfinity, float.NegativeInfinity, float.NegativeInfinity);
                 for (int i = 0; i < vertices.Length; i++)
@@ -75,6 +76,10 @@ namespace VoxelEngine.Tests.PlayMode
                     if ((vertex.Material & SmoothSurfaceVertex.WaterSprayFlag) != 0)
                     {
                         sprayCount++;
+                        uint localCorner = vertex.Active
+                                         & (SmoothSurfaceVertex.WaterSprayUFlag
+                                            | SmoothSurfaceVertex.WaterSprayVFlag);
+                        sprayUvCorners |= 1u << (int)localCorner;
                         sprayMin = Vector3.Min(sprayMin, vertex.Position);
                         sprayMax = Vector3.Max(sprayMax, vertex.Position);
                     }
@@ -91,6 +96,8 @@ namespace VoxelEngine.Tests.PlayMode
                     "A true lower boundary must emit a layered reusable spray fan into the same canonical water mesh.");
                 Assert.That(sprayCount % 12, Is.Zero,
                     "Each canonical impact boundary emits three ordinary spray quads, not a secondary renderer path.");
+                Assert.That(sprayUvCorners & 0xFu, Is.EqualTo(0xFu),
+                    "Canonical spray quads must carry all four local corners so the shared shader can feather their borders.");
                 Assert.That(sprayMax.y - sprayMin.y, Is.GreaterThanOrEqualTo(voxelSize * 5.5f),
                     "Impact mist needs a multi-voxel vertical footprint so it remains readable beside a multi-metre fall.");
                 float horizontalSpan = Mathf.Max(sprayMax.x - sprayMin.x, sprayMax.z - sprayMin.z);
@@ -248,28 +255,29 @@ namespace VoxelEngine.Tests.PlayMode
                 Position = new Vector3(-0.8f, -0.8f, 0f),
                 Normal = Vector3.back,
                 Material = packed,
-                Active = 1u,
+                Active = 0u,
             });
             vertices.Add(new SmoothSurfaceVertex
             {
                 Position = new Vector3(0.8f, -0.8f, 0f),
                 Normal = Vector3.back,
                 Material = packed,
-                Active = 1u,
+                Active = SmoothSurfaceVertex.WaterSprayUFlag,
             });
             vertices.Add(new SmoothSurfaceVertex
             {
                 Position = new Vector3(0.8f, 0.8f, 0f),
                 Normal = Vector3.back,
                 Material = packed,
-                Active = 1u,
+                Active = SmoothSurfaceVertex.WaterSprayUFlag
+                       | SmoothSurfaceVertex.WaterSprayVFlag,
             });
             vertices.Add(new SmoothSurfaceVertex
             {
                 Position = new Vector3(-0.8f, 0.8f, 0f),
                 Normal = Vector3.back,
                 Material = packed,
-                Active = 1u,
+                Active = SmoothSurfaceVertex.WaterSprayVFlag,
             });
         }
 
