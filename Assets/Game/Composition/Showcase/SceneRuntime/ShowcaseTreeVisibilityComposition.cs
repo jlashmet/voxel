@@ -18,8 +18,16 @@ namespace VoxelEngine.Showcase
     {
         [SerializeField] private float m_SectorSizeMetres = 64f;
         [SerializeField] private float m_FullTreeExitMetres = 120f;
-        [SerializeField] private float m_SimplifiedTreeExitMetres = 480f;
-        [SerializeField] private float m_CanopyExitMetres = 1800f;
+
+        // ProceduralTreeRenderer already supplies progressively simplified geometry and a crossed-card
+        // impostor to roughly the 1.4 km range. Hand canopy ownership over shortly before that legacy
+        // horizon instead of at the old 480 m experiment threshold: this leaves a small readiness
+        // overlap without double-rendering individual trees and canopy massing across an entire kilometre.
+        [SerializeField] private float m_SimplifiedTreeExitMetres = 1200f;
+
+        // Forest massing is the horizon representation, so ordinary member trees may contribute to
+        // deterministic canopy clusters throughout the same 12 km macro-world range as landmarks.
+        [SerializeField] private float m_CanopyExitMetres = 12000f;
         [SerializeField] private float m_LandmarkExitMetres = 12000f;
         [SerializeField] private float m_TierHysteresisMetres = 20f;
         [SerializeField] private float m_LandmarkScaleThreshold = 2.25f;
