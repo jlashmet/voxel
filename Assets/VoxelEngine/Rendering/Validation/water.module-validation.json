@@ -3,7 +3,7 @@
   "module": "water",
   "productionPaths": [
     "Assets/VoxelEngine/Rendering/Runtime/**",
-    "Assets/Game/Composition/Showcase/SceneRuntime/WaterStartupFallbackValidationShowcase.cs"
+    "Assets/Game/Composition/Showcase/SceneRuntime/WaterRenderingShowcase.cs"
   ],
   "sharedPaths": [
     "Assets/VoxelEngine/Rendering/Api/**",
@@ -12,7 +12,7 @@
   "tests": [
     {
       "platform": "PlayMode",
-      "filter": "VoxelEngine.Tests.PlayMode.CastleLowerRiverWaterRepairPlayModeTests.StartupFallbackPreservesAuthoredWaterHeightAndMaterial"
+      "filter": "VoxelEngine.Tests.PlayMode.ShowcaseWaterPresentationRegressionTests.VoxelShowcaseLoadRestoresWaterAfterDiagnosticDisable"
     },
     {
       "platform": "EditMode",
