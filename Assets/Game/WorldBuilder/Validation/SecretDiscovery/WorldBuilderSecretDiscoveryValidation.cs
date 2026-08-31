@@ -66,7 +66,7 @@ namespace Game.WorldBuilder.Validation
             int3 caveEntrance = new int3(CaveAnchorX, surfaceY - 18, CaveAnchorZ);
             PreloadAround(caveEntrance);
 
-            IStructureAuthoringSession authoring = StructuresComposition.CreateAuthoringSession(
+            IStructureAuthoringSession authoring = VoxelEngine.Composition.StructuresComposition.CreateAuthoringSession(
                 _world.ReadStorage,
                 _world.MutationStorage,
                 _world.Palette,
@@ -108,7 +108,7 @@ namespace Game.WorldBuilder.Validation
             if (cave.TraversalCandidates.Count < 2)
                 throw new InvalidOperationException("Validation cave did not produce enough traversal terminals.");
 
-            Campaign campaign = Campaign.Create("worldbuilder-secret-discovery-validation");
+            CampaignBuilder campaign = Campaign.Create("worldbuilder-secret-discovery-validation");
             RegionHandle region = campaign.World.Region("generated-cave");
             SiteRef approach = region.Site("approach", SiteArchetype.Ruin);
             SiteRef hidden = region.Site(
