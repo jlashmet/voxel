@@ -1,8 +1,13 @@
 using System;
 using System.Reflection;
 using Game.Kentridge.PlayableSlice;
+using Game.WorldBuilder.Runtime;
+using MountingForce.WorldGen;
+using MountingForce.WorldGen.Content.Kentridge;
+using MountingForce.WorldGen.Voxel;
 using NUnit.Framework;
 using UnityEngine;
+using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
 
 namespace VoxelEngine.Tests.PlayMode
 {
@@ -10,6 +15,14 @@ namespace VoxelEngine.Tests.PlayMode
     {
         private const BindingFlags InstancePrivate = BindingFlags.Instance | BindingFlags.NonPublic;
         private const BindingFlags StaticPrivate = BindingFlags.Static | BindingFlags.NonPublic;
+        private const uint Seed = 0x4B454E54u;
+        private const float DmToMetres = 0.1f;
+        private const float SettlementSurveyHeightMetres = 70f;
+        private const int SettlementSurveyHorizontalOffsetDm = 60;
+        private const int BuildingFoundationInsetDm = 6;
+        private const int BuildingRoofDm = 24;
+        private const float EvidenceAspect = 1600f / 900f;
+        private const float ViewportMargin = 0.04f;
 
         [Test]
         public void MoordellSettlesBeforeMacroRoadAndLaterTargetsKeepAcceptedOrder()
@@ -105,7 +118,7 @@ namespace VoxelEngine.Tests.PlayMode
         }
 
         [Test]
-        public void SettlementNearFieldCompositionWidensLensWithoutChangingNormalLens()
+        public void SettlementNearFieldCompositionContainsProjectedAuthoredBuildingBounds()
         {
             Type compositionType = typeof(KentridgePlayableSlice).Assembly.GetType(
                 "Game.Kentridge.PlayableSlice.KentridgeMacroWorldSettlementSurveyComposition",
@@ -116,25 +129,148 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(resolveFieldOfView, Is.Not.Null);
 
             float widened = (float)resolveFieldOfView.Invoke(null, new object[] { 58f });
-            float alreadyWide = (float)resolveFieldOfView.Invoke(null, new object[] { 80f });
+            float alreadyWide = (float)resolveFieldOfView.Invoke(null, new object[] { 100f });
 
-            Assert.That(widened, Is.EqualTo(72f).Within(0.001f),
-                "The validation settlement survey must widen the production 58-degree lens enough to contain the four-plot envelope without moving its authored camera/focus pose.");
-            Assert.That(alreadyWide, Is.EqualTo(80f).Within(0.001f),
+            Assert.That(widened, Is.EqualTo(90f).Within(0.001f),
+                "The validation settlement survey must use the full projected 3D building envelope, not the earlier flat footprint/intersection approximation.");
+            Assert.That(alreadyWide, Is.EqualTo(100f).Within(0.001f),
                 "The validation composition must not narrow a camera that already has a wider lens.");
 
-            const float genericHalfXMetres = 25.8f;
-            const float genericHalfZMetres = 24.2f;
-            float diagonalEnvelopeHalfSpan =
-                (genericHalfXMetres + genericHalfZMetres) / Mathf.Sqrt(2f);
-            const float flatTerrainCameraToFocusHeight = 62f;
-            float normalHalfSpan = flatTerrainCameraToFocusHeight * Mathf.Tan(58f * 0.5f * Mathf.Deg2Rad);
-            float readableHalfSpan = flatTerrainCameraToFocusHeight * Mathf.Tan(widened * 0.5f * Mathf.Deg2Rad);
+            TopDownWorldLayout layout = MountingForceTopDownWorldDefinition.Build(Seed);
+            TopDownWorldPhysicalPlan physical = TopDownWorldPhysicalPlanner.Plan(
+                layout,
+                KentridgeTopDownWorldPhysicalIntent.Build(),
+                KentridgeDefinition.TownCentreDm,
+                MountingForceTopDownWorldDefinition.CellSizeDm,
+                voxelsPerDecimetre: 1);
 
-            Assert.That(normalHalfSpan, Is.LessThan(diagonalEnvelopeHalfSpan),
-                "The minimal repro must retain the demonstrated root cause: the normal scene lens cannot fully contain the generic settlement envelope on the diagonal survey axis.");
-            Assert.That(readableHalfSpan, Is.GreaterThan(diagonalEnvelopeHalfSpan + 5f),
-                "The widened validation lens must provide explicit containment margin rather than another edge-intersection-only framing.");
+            AssertProjectedSettlementContainment(
+                physical,
+                MountingForceTopDownWorldDefinition.Moordell,
+                widened);
+            AssertProjectedSettlementContainment(
+                physical,
+                MountingForceTopDownWorldDefinition.Rossdam,
+                widened);
+        }
+
+        private static void AssertProjectedSettlementContainment(
+            TopDownWorldPhysicalPlan physical,
+            string nodeId,
+            float fieldOfView)
+        {
+            Assert.That(physical.TryGetSettlement(nodeId, out TopDownWorldSettlementPlan settlement), Is.True);
+            Assert.That(settlement.Buildings.Count, Is.GreaterThanOrEqualTo(4));
+
+            TopDownWorldBuildingBlockoutPlan first = settlement.Buildings[0];
+            int minX = first.CentreDm.X - first.HalfExtentXDm;
+            int maxX = first.CentreDm.X + first.HalfExtentXDm;
+            int minZ = first.CentreDm.Y - first.HalfExtentZDm;
+            int maxZ = first.CentreDm.Y + first.HalfExtentZDm;
+            for (var i = 1; i < settlement.Buildings.Count; i++)
+            {
+                TopDownWorldBuildingBlockoutPlan building = settlement.Buildings[i];
+                minX = Math.Min(minX, building.CentreDm.X - building.HalfExtentXDm);
+                maxX = Math.Max(maxX, building.CentreDm.X + building.HalfExtentXDm);
+                minZ = Math.Min(minZ, building.CentreDm.Y - building.HalfExtentZDm);
+                maxZ = Math.Max(maxZ, building.CentreDm.Y + building.HalfExtentZDm);
+            }
+
+            var focusDm = new Int2((minX + maxX) / 2, (minZ + maxZ) / 2);
+            var cameraDm = new Int2(
+                focusDm.X + SettlementSurveyHorizontalOffsetDm,
+                focusDm.Y + SettlementSurveyHorizontalOffsetDm);
+            int cameraGround = TerrainSampler.HeightAt(cameraDm.X, cameraDm.Y, Seed);
+            int focusGround = TerrainSampler.HeightAt(focusDm.X, focusDm.Y, Seed);
+
+            var host = new GameObject("SettlementProjectedContainmentCamera");
+            try
+            {
+                var camera = host.AddComponent<Camera>();
+                camera.aspect = EvidenceAspect;
+                camera.fieldOfView = fieldOfView;
+                camera.transform.position = new Vector3(
+                    cameraDm.X * DmToMetres,
+                    cameraGround * DmToMetres + SettlementSurveyHeightMetres,
+                    cameraDm.Y * DmToMetres);
+                Vector3 focus = new Vector3(
+                    focusDm.X * DmToMetres,
+                    focusGround * DmToMetres + 8f,
+                    focusDm.Y * DmToMetres);
+                camera.transform.rotation = Quaternion.LookRotation(
+                    (focus - camera.transform.position).normalized,
+                    Vector3.up);
+
+                for (var i = 0; i < settlement.Buildings.Count; i++)
+                {
+                    TopDownWorldBuildingBlockoutPlan building = settlement.Buildings[i];
+                    SampleGroundRange(building, out int minimumGround, out int maximumGround);
+                    int minBuildingX = building.CentreDm.X - building.HalfExtentXDm - BuildingFoundationInsetDm;
+                    int maxBuildingX = building.CentreDm.X + building.HalfExtentXDm + BuildingFoundationInsetDm;
+                    int minBuildingZ = building.CentreDm.Y - building.HalfExtentZDm - BuildingFoundationInsetDm;
+                    int maxBuildingZ = building.CentreDm.Y + building.HalfExtentZDm + BuildingFoundationInsetDm;
+                    int topDm = maximumGround + building.HeightDm + BuildingRoofDm;
+
+                    AssertProjectedCorner(camera, nodeId, i, minBuildingX, minimumGround, minBuildingZ);
+                    AssertProjectedCorner(camera, nodeId, i, minBuildingX, topDm, maxBuildingZ);
+                    AssertProjectedCorner(camera, nodeId, i, maxBuildingX, minimumGround, minBuildingZ);
+                    AssertProjectedCorner(camera, nodeId, i, maxBuildingX, topDm, maxBuildingZ);
+                    AssertProjectedCorner(camera, nodeId, i, minBuildingX, topDm, minBuildingZ);
+                    AssertProjectedCorner(camera, nodeId, i, maxBuildingX, topDm, minBuildingZ);
+                    AssertProjectedCorner(camera, nodeId, i, minBuildingX, minimumGround, maxBuildingZ);
+                    AssertProjectedCorner(camera, nodeId, i, maxBuildingX, minimumGround, maxBuildingZ);
+                }
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(host);
+            }
+        }
+
+        private static void SampleGroundRange(
+            TopDownWorldBuildingBlockoutPlan building,
+            out int minimumGround,
+            out int maximumGround)
+        {
+            minimumGround = int.MaxValue;
+            maximumGround = int.MinValue;
+            for (var z = 0; z < 5; z++)
+            {
+                int zDm = Mathf.RoundToInt(Mathf.Lerp(
+                    building.CentreDm.Y - building.HalfExtentZDm,
+                    building.CentreDm.Y + building.HalfExtentZDm,
+                    z / 4f));
+                for (var x = 0; x < 5; x++)
+                {
+                    int xDm = Mathf.RoundToInt(Mathf.Lerp(
+                        building.CentreDm.X - building.HalfExtentXDm,
+                        building.CentreDm.X + building.HalfExtentXDm,
+                        x / 4f));
+                    int ground = TerrainSampler.HeightAt(xDm, zDm, Seed);
+                    minimumGround = Math.Min(minimumGround, ground);
+                    maximumGround = Math.Max(maximumGround, ground);
+                }
+            }
+        }
+
+        private static void AssertProjectedCorner(
+            Camera camera,
+            string nodeId,
+            int buildingIndex,
+            int xDm,
+            int yDm,
+            int zDm)
+        {
+            Vector3 viewport = camera.WorldToViewportPoint(new Vector3(
+                xDm * DmToMetres,
+                yDm * DmToMetres,
+                zDm * DmToMetres));
+            Assert.That(viewport.z, Is.GreaterThan(0f),
+                $"{nodeId} building {buildingIndex} corner is behind the settlement survey camera.");
+            Assert.That(viewport.x, Is.InRange(ViewportMargin, 1f - ViewportMargin),
+                $"{nodeId} building {buildingIndex} corner x={viewport.x:0.000} is not fully contained.");
+            Assert.That(viewport.y, Is.InRange(ViewportMargin, 1f - ViewportMargin),
+                $"{nodeId} building {buildingIndex} corner y={viewport.y:0.000} is not fully contained.");
         }
 
         private static void AssertContinuation(
