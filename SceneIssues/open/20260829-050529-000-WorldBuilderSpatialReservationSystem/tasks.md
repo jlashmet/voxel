@@ -5,7 +5,7 @@
 - [x] Trace Kentridge town, canonical road, architecture, ecology/vegetation, hidden-space and gallery ownership.
 - [x] Confirm no competing canonical reservation service exists on reconciled master.
 - [x] Keep road solving/grade in `WorldRoadNetwork`, form/orientation/support in architecture, species/density in ecology, hidden-space topology in its planner, and rendering in presentation.
-- [ ] Acceptance blocker: criterion (7) requires one production typed-`StructuralSocket` consumer of the shared reservation clearance/overlap path. Re-checked 2026-08-30 16:50 PDT: prerequisite feature `20260829-034505-000-WorldBuilderTypedStructuralSocketComposition` remains `open` on unchanged current `origin/master` (`ebdc2e4f63ef73153cd4e0ff5c62efe604f35470`) and no canonical production typed-socket seam has landed on authoritative master, so integrating it here would take another assignment's scope. Do not weaken or mark this acceptance complete; re-check after that prerequisite lands.
+- [ ] Acceptance blocker: criterion (7) requires one production typed-`StructuralSocket` consumer of the shared reservation clearance/overlap path. Re-checked 2026-08-30 16:59 PDT: prerequisite feature `20260829-034505-000-WorldBuilderTypedStructuralSocketComposition` remains `open` on unchanged current `origin/master` (`ebdc2e4f63ef73153cd4e0ff5c62efe604f35470`) and its execution checklist is still entirely unchecked, so no canonical production typed-socket seam exists on this branch to integrate without taking another assignment's scope. Do not weaken or mark this acceptance complete; re-check after that prerequisite lands.
 - [x] Reconcile current master into `fixes/agent-7` before implementation (`d256dc2044c88b254751448012b60a138e716f27`, current master `65e33762a0d0f1739e9a518484d119e551f01f81`); resumed again and merged `7f935b26cc7aa8aff971d3488e9f9629108e419a` via `a2639073b1cb61e5fc050d3254d232c116d054e5`, `5f07db5cd7677e84f617deb61c5b03a4b896159c` via `23d16dc51e49f17adf4c9bcedc9306c22e264bd1`, and current master `ebdc2e4f63ef73153cd4e0ff5c62efe604f35470` via two-parent merge `46b4e473ab6497d836053a072f3fe7050156756b`.
 - [x] Reconcile the obsolete `pending/` state to the current authoritative `open/` workflow without changing acceptance.
 - [x] Reconcile plan/checklist to the actual post-merge production paths.
@@ -60,7 +60,7 @@
 - [x] Add macro-road production regression; architecture shared-source/host-filter regression is covered by `SpatialReservationProductionIntegrationTests`.
 - [ ] Record representative snapshot/source construction and query metrics after integration; `WorldbuildingGalleryReservationInspection` and the PlayMode smoke test already emit `SPATIAL_RESERVATION_COST`, but final values must come from the final exact-SHA run.
 - [x] Check repository-supported allocation/memory evidence where available: the existing capture-less `WorldbuildingGalleryAuditHarness` records Unity profiler allocated/reserved/unused-reserved memory plus resident/pending regions, and separately emits reservation build/query metrics.
-- [x] Verify generation/device budgets and unrelated world-generation behavior did not move: fresh `master...fixes/agent-7` review at 2026-08-30 16:50 PDT is 89 commits ahead / 0 behind and changes only reservation core/adapters, intended Kentridge consumers, gallery evidence, focused tests, and this SceneIssue bookkeeping; no global/device/region budget files or CharacterMotor/world-generation tolerance files changed.
+- [x] Verify generation/device budgets and unrelated world-generation behavior did not move: `master...fixes/agent-7` changes no global/device/region budget files; reservation queries stay bounded and existing budget/tolerance constants are untouched.
 
 ## Gallery / runtime evidence
 
@@ -76,12 +76,12 @@
 
 - [x] Follow current `SceneIssues/feature-readme.md`, common `SceneIssues/README.md`, and `AGENTS.md`; unfinished work remains in `open/`.
 - [x] Never edit `.github/test-request.json` on `fixes/agent-7`, create extra transports, or replace queued CI.
-- [x] Fetch/merge current master through `ebdc2e4f63ef73153cd4e0ff5c62efe604f35470` into feature head via `46b4e473ab6497d836053a072f3fe7050156756b`; current master remained unchanged at the 2026-08-30 16:50 PDT blocker re-check.
+- [x] Fetch/merge current master through `ebdc2e4f63ef73153cd4e0ff5c62efe604f35470` into feature head via `46b4e473ab6497d836053a072f3fe7050156756b`; current master remained unchanged at the 2026-08-30 16:59 PDT blocker re-check.
 - [ ] Run focused `SpatialReservationTests` + affected Kentridge/vegetation/hidden-space and incoming foundation-surface regressions plus repository compile/static/ProjectValidator gates on the reconciled exact SHA.
 - [ ] Run required scene/runtime/built-player/visual gates and capture durable evidence.
-- [ ] Record final commands/results/cost/acceptance mapping in issue metadata. Assignment-only blast radius has been independently re-reviewed and remains bounded; final cost and exact-SHA results are unavailable until the typed-socket prerequisite lands and the final CI run is appropriate.
+- [ ] Review assignment-only blast radius and record commands/results/cost/acceptance mapping in issue metadata. Source-level blast-radius review is complete and `master...fixes/agent-7` remains limited to reservation core/adapters, intended Kentridge consumers, gallery evidence, focused tests, and this SceneIssue bookkeeping; final cost/acceptance metadata remains blocked on exact-SHA runtime evidence.
 - [ ] Complete every required acceptance checkbox; keep the assignment in `open/` until gates pass.
-- [ ] Use `ci-test/fixes/agent-7` only for the final targeted-CI request; last verified idle/stale at the prior observed head `8cc6ff94dcbbca46b1c522d08752235b891b1851`; do not publish until the typed-socket prerequisite lands and the feature tree is final.
+- [ ] Use `ci-test/fixes/agent-7` only for the final targeted-CI request; re-verified idle/stale at `8cc6ff94dcbbca46b1c522d08752235b891b1851` at 2026-08-30 16:59 PDT; do not publish until the typed-socket prerequisite lands and the feature tree is final.
 - [ ] Obtain green exact-SHA CI and record request/run/tested-SHA evidence.
 - [ ] Complete metadata, then move `open/` -> `closed/` with `status=fixed` and `resolvedUtc` only when every acceptance criterion is complete.
 - [ ] Merge current master again if required; revalidate any changed tree.
