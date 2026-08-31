@@ -127,17 +127,47 @@ namespace VoxelEngine.Showcase
 
         private static void BuildCue(Transform root, int stage, Vector3 p)
         {
+            Color stone = new Color(0.26f, 0.29f, 0.25f);
+            Color weathering = new Color(0.34f, 0.25f, 0.15f);
+            Color seam = new Color(0.20f, 0.23f, 0.21f);
+
             if (stage == 0)
             {
-                Prop(root, PrimitiveType.Sphere, "Clue Trace A", p + Vector3.left * 0.3f,
-                    new Vector3(0.55f, 0.15f, 0.3f), new Color(0.26f, 0.29f, 0.25f));
-                Prop(root, PrimitiveType.Sphere, "Clue Trace B", p + new Vector3(0.3f, 0.03f, 0.2f),
-                    new Vector3(0.42f, 0.12f, 0.24f), new Color(0.26f, 0.29f, 0.25f));
+                // A low trail of displaced stones reads as environmental evidence rather than a marker.
+                Prop(root, PrimitiveType.Sphere, "Clue Trace A", p + new Vector3(-1.2f, 0f, -0.18f),
+                    new Vector3(0.72f, 0.18f, 0.38f), stone);
+                Prop(root, PrimitiveType.Sphere, "Clue Trace B", p + new Vector3(-0.58f, 0.03f, 0.10f),
+                    new Vector3(0.58f, 0.15f, 0.34f), stone);
+                Prop(root, PrimitiveType.Sphere, "Clue Trace C", p + new Vector3(0.02f, 0.01f, -0.08f),
+                    new Vector3(0.64f, 0.16f, 0.36f), weathering);
+                Prop(root, PrimitiveType.Sphere, "Clue Trace D", p + new Vector3(0.66f, 0.04f, 0.14f),
+                    new Vector3(0.54f, 0.14f, 0.30f), stone);
+                Prop(root, PrimitiveType.Sphere, "Clue Trace E", p + new Vector3(1.22f, 0f, -0.10f),
+                    new Vector3(0.70f, 0.17f, 0.36f), stone);
                 return;
             }
-            Color color = stage == 1 ? new Color(0.30f, 0.24f, 0.16f) : new Color(0.22f, 0.25f, 0.23f);
-            Prop(root, PrimitiveType.Cube, stage == 1 ? "Clue Weathered Slab" : "Clue Masonry Seam",
-                p, stage == 1 ? new Vector3(1.2f, 0.12f, 0.52f) : new Vector3(0.9f, 0.72f, 0.16f), color);
+
+            if (stage == 1)
+            {
+                // The same weathering tone becomes a broad physical notch in a grounded slab.
+                Prop(root, PrimitiveType.Cube, "Clue Weathered Slab", p,
+                    new Vector3(1.9f, 0.18f, 0.78f), weathering);
+                Prop(root, PrimitiveType.Cube, "Clue Weathered Notch A", p + new Vector3(-0.34f, 0.12f, 0.02f),
+                    new Vector3(0.58f, 0.08f, 0.14f), seam);
+                Prop(root, PrimitiveType.Cube, "Clue Weathered Notch B", p + new Vector3(0.40f, 0.12f, -0.03f),
+                    new Vector3(0.46f, 0.08f, 0.14f), seam);
+                return;
+            }
+
+            // The final pre-solve cue turns the repeated material language into a human-scale masonry seam.
+            Prop(root, PrimitiveType.Cube, "Clue Masonry Seam Left", p + new Vector3(-0.62f, 0.58f, 0f),
+                new Vector3(0.22f, 1.40f, 0.22f), seam);
+            Prop(root, PrimitiveType.Cube, "Clue Masonry Seam Right", p + new Vector3(0.62f, 0.58f, 0f),
+                new Vector3(0.22f, 1.40f, 0.22f), seam);
+            Prop(root, PrimitiveType.Cube, "Clue Masonry Seam Lintel", p + new Vector3(0f, 1.20f, 0f),
+                new Vector3(1.46f, 0.20f, 0.22f), seam);
+            Prop(root, PrimitiveType.Cube, "Clue Masonry Weathering", p + new Vector3(0f, 0.38f, -0.02f),
+                new Vector3(0.86f, 0.12f, 0.26f), weathering);
         }
 
         private static void Prop(Transform root, PrimitiveType type, string name, Vector3 p, Vector3 scale, Color color)
