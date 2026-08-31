@@ -21,13 +21,17 @@
 - [x] Experiment 022 replaces the falsified scalar footprint model with exact 16:9 projection of the production-plan 3D building envelopes (foundation inset, terrain relief, wall and roof height) and widens only validation settlement surveys to 90° while preserving the established semantic camera/focus pose and production streaming/LOD policy.
 - [x] Exact run `33383144783` proves the projected 90° containment regression and built-player startup, but is evidence-incomplete: Moordell still has one content-pending required building column at t59, so no macro settlement frame is emitted inside 60 s.
 - [x] Experiment 023 isolates a demonstrated generic blockout publication cost: each fallback body was a fully solid brick volume despite acceptance requiring only a readable blockout. Replace it with four shared exterior wall boxes while preserving footprint, height, foundation, roof, placement bounds, materials, and collision silhouette; add an independent synthetic-dimension regression proving a hollow centre and <25% former body volume.
+- [x] Experiment 024 isolates settlement-lens execution order and ensures the validation-only 90° lens executes after the evidence driver's survey pose.
+- [x] Exact run `33405010658` on feature source `6037a817eea51eaa9f3c4ac45b7f1774c5310b7a` passes the independent generic blockout-shell regression and the unchanged real-player step. Rossdam publication reports `100113/119958/100074/118170` ready indices across its four blockouts versus experiment 019's ~1.03–1.20M solid bodies.
+- [x] Inspect run `33405010658` full-resolution Moordell/Rossdam/lake frames. Visual closure is rejected: Moordell does not read as four clean complete blockouts; Rossdam shows only a subset clearly with the lower structure clipped; the lake-detour view remains a thin distant strip.
 
 ## Current exact gate
 - [x] Projected-authored-bounds containment regression is exact-source green on run `33383144783`.
-- [ ] Run the independent generic blockout-shell regression on the exact current feature SHA through `ci-test/fixes/agent-6` and inspect its unchanged 60 s built-player replay for convergence/visual evidence.
-- [ ] After focused green, inspect full-resolution Moordell/Rossdam frames; do not accept workflow green without visual closure.
+- [x] Run the independent generic blockout-shell regression on the exact current feature SHA through `ci-test/fixes/agent-6` and inspect its unchanged 60 s built-player replay for convergence/visual evidence (`33405010658`, green).
+- [x] After focused green, inspect full-resolution Moordell/Rossdam frames; do not accept workflow green without visual closure. Result: closure-red.
+- [ ] Add the next discriminating regression/diagnostic for the surviving contradiction: prove the captured settlement frame has the intended end-of-frame 90° lens/pose and that each generic blockout remains readable at the production step-2 survey representation before changing geometry again.
 - [ ] Verify full-resolution Moordell/Rossdam/Fairy/Orc surveys show all four readable authored settlement blockouts with streets/open space and arrival/exit.
-- [ ] Re-check Rossdam lake framing; it must read as substantial authored water plus constrained route, not the thin distant strip seen in earlier artifacts.
+- [ ] Re-check Rossdam lake framing; it must read as substantial authored water plus constrained route, not the thin distant strip still visible in run `33405010658`.
 - [ ] Capture Southern Ridge/pass and final `macro-network-overview` inside the unchanged 60 s replay.
 - [ ] Re-run final exact-SHA targeted CI and prove focused regression + supported 60 s real-player smoke are closure-quality green for the same final feature SHA.
 
@@ -49,10 +53,11 @@
 - [x] Exact run `33373258471`: after startup, late player FPS is generally ~127–332 with p95 frame time mostly ~3–12 ms while remote settlement feature publication proceeds.
 - [x] Exact run `33376804313`: late Moordell/Rossdam publication remains generally ~133–346 FPS with p95 frame time mostly ~3–13 ms; Rossdam becomes content-ready around t56 and capture-ready before t57.
 - [x] Exact run `33383144783`: focused projected-containment test passes; player stays runtime-clean, but Moordell convergence exceeds 33 s after macro start and remains one required column pending at t59, demonstrating substantial target-publication variance.
-- [ ] Quantify shell body voxel reduction on authored Kentridge blockouts against experiment 019's ~1.03–1.20M solid structures and measure resulting target convergence.
+- [x] Run `33405010658`: targeted test passes in `0.007716s`; CI reports `elapsed=69s`, final RSS `549MB`, peak RSS `5251MB`, no positive swap growth. Moordell becomes capture-ready around t40; Rossdam around t52; late FPS during Rossdam publication is generally ~300–375 before the lake phase and ~130–250 while the new lake target streams.
+- [x] Quantify shell body reduction at Rossdam: ready publication indices are ~100k–120k per blockout, roughly an order of magnitude below experiment 019's ~1.03–1.20M solid structures while retaining four ready visible chunks per building.
 - [ ] Quantify actual additional vertical resident/generated region count from feature-aware residency against baseline; prove no horizontal interest-radius/device-budget change numerically.
 - [ ] Measure final lake dimensions/depth/primitive cells, route tile/solve/constrained counts, feature work/time, CPU/FPS, memory, streaming convergence, and render/far-field telemetry against budgets.
-- [ ] Quantify fixed-60-second target phase timing after visual framing closes; run `33376804313` captures Moordell around t40 and Rossdam around t56, while `33383144783` does not reach Moordell capture by t60.
+- [ ] Quantify fixed-60-second target phase timing after visual framing closes; run `33405010658` reaches Moordell around t40, Rossdam around t52, lake capture around t58, and only Fairy readiness by the end of the replay.
 - [ ] Re-fetch current master and re-check exact feature diff immediately before final targeted CI.
 
 ## Acceptance / closure
