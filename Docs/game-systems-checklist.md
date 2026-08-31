@@ -70,7 +70,8 @@ These are existing foundations and are not candidates to rebuild from scratch.
   - Route character interaction intent through stable WorldObject identity into the existing authoritative behavior/state runtime, with narrow actor/context validation and semantic cross-domain adapters.
 - [x] **14. [Game session & campaign orchestration](game-systems/14-game-session-campaign-orchestration.md)**
   - Assemble and coordinate one authoritative gameplay runtime graph for new/resumed sessions while keeping campaign sequencing and domain rules in their owning systems/content.
-- [ ] **15. Victory / failure / completion flow**
+- [x] **15. [Game outcome & completion policy](game-systems/15-game-outcome-completion-policy.md)**
+  - Resolve exactly one immutable server-authoritative gameplay outcome from authored terminal policy while keeping combat completion, session orchestration, and technical network shutdown distinct.
 - [ ] **16. Save / session persistence**
 - [ ] **17. Production HUD**
 - [ ] **18. Inventory UI**
