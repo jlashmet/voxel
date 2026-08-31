@@ -12,6 +12,7 @@
         "VoxelEngine.Terrain.Api",
         "VoxelEngine.Rendering.Api",
         "VoxelEngine.Structures.Api",
+        "VoxelEngine.Structures.Runtime",
         "VoxelEngine.Tiering.Api",
         "MountingForce.WorldGen.Voxel",
         "Unity.Burst",

@@ -5,34 +5,36 @@ usage() {
   cat <<'EOF'
 Usage:
   bash tools/showcase-player-capture.sh --unity <Unity binary> --output <artifact dir> \
-    [--scene <scene.unity> | --test-filter <Unity test filter>] [options]
+    [--scene <scene.unity> | --scene-issue <SceneIssues/.../issue.json>] [options]
 
-Builds the selected Unity scene as a real macOS player. Normal visual capture records actual
-presented frames every 10 seconds. Stationary benchmark mode instead holds the production scene
-still after convergence, measures without screenshots, then captures one presented frame afterward.
+Generic standalone-player build/capture mechanism. Feature/module policy belongs in declarative
+scenario metadata or SceneIssue capture metadata, never in scene/test-name branches here.
 
 Options:
-  --unity PATH             Unity executable (required)
-  --output DIR             Artifact root (required)
-  --scene PATH             Scene to build
-  --test-filter FILTER     Resolve a known screenshot/benchmark test to its real scene
-  --if-configured          Exit successfully when FILTER is not a configured real-player test
-  --run-seconds N          Player run duration / stationary timeout
-  --auto-dialogue N        Auto-advance scene dialogue every N seconds
-  --autowalk-after N       Enable the showcase scripted walk after N seconds
-  --converging-builds N    Override only visible-convergence voxel build concurrency
-  --survey-after N         Enable showcase survey camera after N seconds
-  --survey-height N        Survey camera height
-  --survey-spin N          Survey spin degrees/second
-  --stationary-sample N    Measure N settled seconds with no motion or screenshots
-  --scene-issue PATH       Replay a saved SceneIssues/.../issue.json camera/view
+  --unity PATH
+  --output DIR
+  --scene PATH
+  --scene-issue PATH
+  --run-seconds N
+  --width N
+  --height N
+  --screenshot-every N
+  --minimum-frames N
+  --auto-dialogue N
+  --autowalk-after N
+  --converging-builds N
+  --survey-after N
+  --survey-height N
+  --survey-spin N
+  --stationary-sample N
+  --require-log-pattern TEXT
+  --forbid-log-pattern TEXT
 EOF
 }
 
 UNITY_PATH=""
 OUTPUT_ROOT=""
 SCENE=""
-TEST_FILTER=""
 RUN_SECONDS=""
 AUTO_DIALOGUE=""
 AUTOWALK_AFTER=""
@@ -45,17 +47,36 @@ SCENE_ISSUE=""
 ISSUE_CAPTURE_COUNT=0
 PLAYER_WIDTH=1600
 PLAYER_HEIGHT=900
-KENTRIDGE_EVIDENCE=0
-IF_CONFIGURED=0
+SCREENSHOT_EVERY=10
+MINIMUM_FRAMES=2
+REQUIRED_LOG_PATTERNS_FILE=""
+FORBIDDEN_LOG_PATTERNS_FILE=""
+
+append_pattern() {
+  local kind="$1"
+  local value="$2"
+  local file
+  if [[ "$kind" == required ]]; then
+    file="${REQUIRED_LOG_PATTERNS_FILE:-${TMPDIR:-/tmp}/voxel-required-log-patterns-$$}"
+    REQUIRED_LOG_PATTERNS_FILE="$file"
+  else
+    file="${FORBIDDEN_LOG_PATTERNS_FILE:-${TMPDIR:-/tmp}/voxel-forbidden-log-patterns-$$}"
+    FORBIDDEN_LOG_PATTERNS_FILE="$file"
+  fi
+  printf '%s\n' "$value" >> "$file"
+}
 
 while (( $# > 0 )); do
   case "$1" in
     --unity) UNITY_PATH="$2"; shift 2 ;;
     --output) OUTPUT_ROOT="$2"; shift 2 ;;
     --scene) SCENE="$2"; shift 2 ;;
-    --test-filter) TEST_FILTER="$2"; shift 2 ;;
-    --if-configured) IF_CONFIGURED=1; shift ;;
+    --scene-issue) SCENE_ISSUE="$2"; shift 2 ;;
     --run-seconds) RUN_SECONDS="$2"; shift 2 ;;
+    --width) PLAYER_WIDTH="$2"; shift 2 ;;
+    --height) PLAYER_HEIGHT="$2"; shift 2 ;;
+    --screenshot-every) SCREENSHOT_EVERY="$2"; shift 2 ;;
+    --minimum-frames) MINIMUM_FRAMES="$2"; shift 2 ;;
     --auto-dialogue) AUTO_DIALOGUE="$2"; shift 2 ;;
     --autowalk-after) AUTOWALK_AFTER="$2"; shift 2 ;;
     --converging-builds) CONVERGING_BUILDS="$2"; shift 2 ;;
@@ -63,172 +84,78 @@ while (( $# > 0 )); do
     --survey-height) SURVEY_HEIGHT="$2"; shift 2 ;;
     --survey-spin) SURVEY_SPIN="$2"; shift 2 ;;
     --stationary-sample) STATIONARY_SAMPLE="$2"; shift 2 ;;
-    --scene-issue) SCENE_ISSUE="$2"; shift 2 ;;
+    --require-log-pattern) append_pattern required "$2"; shift 2 ;;
+    --forbid-log-pattern) append_pattern forbidden "$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "ERROR: unknown argument '$1'" >&2; usage >&2; exit 2 ;;
   esac
 done
 
+cleanup_patterns() {
+  [[ -z "$REQUIRED_LOG_PATTERNS_FILE" ]] || rm -f "$REQUIRED_LOG_PATTERNS_FILE"
+  [[ -z "$FORBIDDEN_LOG_PATTERNS_FILE" ]] || rm -f "$FORBIDDEN_LOG_PATTERNS_FILE"
+}
+trap cleanup_patterns EXIT
+
 if [[ -n "$SCENE_ISSUE" ]]; then
+  if [[ -n "$SCENE" ]]; then
+    echo "ERROR: use either --scene or --scene-issue, not both." >&2
+    exit 2
+  fi
   case "$SCENE_ISSUE" in
-    SceneIssues/open/*/issue.json|SceneIssues/pending/*/issue.json|SceneIssues/closed/*/issue.json) ;;
-    /*) ;;
-    *)
-      echo "ERROR: --scene-issue must name SceneIssues/open|pending|closed/<id>/issue.json." >&2
-      exit 2
-      ;;
+    SceneIssues/open/*/issue.json|SceneIssues/pending/*/issue.json|SceneIssues/closed/*/issue.json|/*) ;;
+    *) echo "ERROR: invalid --scene-issue path." >&2; exit 2 ;;
   esac
   if [[ "$SCENE_ISSUE" != /* ]]; then SCENE_ISSUE="$PWD/$SCENE_ISSUE"; fi
   [[ -f "$SCENE_ISSUE" ]] || { echo "ERROR: scene issue does not exist: $SCENE_ISSUE" >&2; exit 2; }
   ISSUE_METADATA="$(python3 - "$SCENE_ISSUE" <<'PY'
-import json
-import sys
-
-with open(sys.argv[1], encoding='utf-8') as handle:
-    value = json.load(handle)
-scene = value.get('scenePath') or ''
-if not isinstance(scene, str) or not scene.startswith('Assets/Scenes/') or not scene.endswith('.unity'):
+import json, sys
+from pathlib import Path
+path=Path(sys.argv[1])
+value=json.loads(path.read_text(encoding='utf-8'))
+scene=value.get('scenePath') or ''
+if not isinstance(scene,str) or not scene.startswith('Assets/') or not scene.endswith('.unity'):
     raise SystemExit('ERROR: scene issue has no valid scenePath')
-frames = value.get('captures') or []
-if not isinstance(frames, list):
+frames=value.get('captures') or []
+if not isinstance(frames,list):
     raise SystemExit('ERROR: scene issue captures must be an array')
 if frames:
-    frame = frames[0]
-    width = frame.get('screenWidth') or value.get('screenWidth') or 0
-    height = frame.get('screenHeight') or value.get('screenHeight') or 0
-    if not isinstance(width, int) or not isinstance(height, int) or width <= 0 or height <= 0:
-        raise SystemExit('ERROR: scene issue has no valid captured screen dimensions')
+    first=frames[0]
+    width=first.get('screenWidth') or value.get('screenWidth') or 0
+    height=first.get('screenHeight') or value.get('screenHeight') or 0
 else:
-    # Feature/world issues can intentionally have no immutable recorded pose. Keep recorded-pose
-    # validation strict, but use the existing player default for capture-less built-scene evidence.
-    width = value.get('screenWidth') or 1600
-    height = value.get('screenHeight') or 900
-    if not isinstance(width, int) or not isinstance(height, int) or width <= 0 or height <= 0:
-        raise SystemExit('ERROR: capture-less scene issue has no valid validation screen dimensions')
+    width=value.get('screenWidth') or 1600
+    height=value.get('screenHeight') or 900
+if not isinstance(width,int) or not isinstance(height,int) or width <= 0 or height <= 0:
+    raise SystemExit('ERROR: scene issue has invalid screen dimensions')
 print(f'{scene}\t{width}\t{height}\t{len(frames)}')
 PY
 )"
-  IFS=$'\t' read -r ISSUE_SCENE PLAYER_WIDTH PLAYER_HEIGHT ISSUE_CAPTURE_COUNT <<< "$ISSUE_METADATA"
-  if [[ -n "$SCENE" && "$SCENE" != "$ISSUE_SCENE" ]]; then
-    echo "ERROR: --scene does not match scene issue scenePath '$ISSUE_SCENE'." >&2
-    exit 2
-  fi
-  SCENE="$ISSUE_SCENE"
-
-  # Capture-less architecture/world SceneIssues have no recorded camera pose to replay. For the
-  # Kentridge production scene, advance the unattended opening quickly enough that a 60-second
-  # feature replay can exercise the same CharacterMotor/collision/streaming path a player uses,
-  # then switch once to a fixed survey for route/LOD context. Recorded-pose SceneIssues deliberately
-  # skip this profile so their camera evidence remains immutable.
-  if [[ "$SCENE" == "Assets/Scenes/KentridgePlayableSlice.unity" ]] && (( ISSUE_CAPTURE_COUNT == 0 )); then
-    : "${AUTO_DIALOGUE:=0.5}"
-    : "${AUTOWALK_AFTER:=30}"
-    : "${SURVEY_AFTER:=50}"
-    : "${SURVEY_HEIGHT:=55}"
-    : "${SURVEY_SPIN:=0}"
-    KENTRIDGE_EVIDENCE=1
-  fi
+  IFS=$'\t' read -r SCENE PLAYER_WIDTH PLAYER_HEIGHT ISSUE_CAPTURE_COUNT <<< "$ISSUE_METADATA"
 fi
 
-if [[ -n "$TEST_FILTER" && -z "$SCENE_ISSUE" ]]; then
-  if [[ -n "$SCENE" ]]; then
-    echo "ERROR: use either --scene or --test-filter, not both." >&2
-    exit 2
-  fi
-
-  case "$TEST_FILTER" in
-    VoxelEngine.Tests.PlayMode.CastleLowerRiverWaterRepairPlayModeTests.StartupFallbackPreservesAuthoredWaterHeightAndMaterial)
-      SCENE="Assets/Scenes/WaterStartupFallbackValidation.unity"
-      : "${RUN_SECONDS:=20}"
-      ;;
-    VoxelEngine.Tests.PlayMode.ArchLookdevSceneTests|VoxelEngine.Tests.PlayMode.ArchLookdevSceneTests.*)
-      SCENE="Assets/Scenes/ArchLookdev.unity"
-      : "${RUN_SECONDS:=30}"
-      ;;
-    VoxelEngine.Tests.PlayMode.TerrainLookdevScreenshotTests|VoxelEngine.Tests.PlayMode.TerrainLookdevScreenshotTests.*)
-      SCENE="Assets/Scenes/TerrainLookdev.unity"
-      : "${RUN_SECONDS:=30}"
-      ;;
-    VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests|VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests.*|\
-    VoxelEngine.Tests.PlayMode.WorldBuilderProductionScenePlayTests|VoxelEngine.Tests.PlayMode.WorldBuilderProductionScenePlayTests.*)
-      # Kentridge is an integration scene, so its visual proof must come from the same standalone
-      # player path as the showcase benchmarks rather than a PlayMode RenderTexture. Keep the
-      # authored opening camera stationary long enough to survive real-player startup/worldgen and
-      # capture the complete conversation. Only after that move once to a fixed overview so the
-      # final frame can show the post-opening world without a continuously moving survey exposing
-      # unpublished chunks and turning later screenshots into fallback-terrain evidence.
-      SCENE="Assets/Scenes/KentridgePlayableSlice.unity"
-      : "${RUN_SECONDS:=100}"
-      : "${AUTO_DIALOGUE:=1.5}"
-      : "${SURVEY_AFTER:=90}"
-      : "${SURVEY_HEIGHT:=55}"
-      : "${SURVEY_SPIN:=0}"
-      KENTRIDGE_EVIDENCE=1
-      ;;
-    VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests.SmallVoxelShowcaseMovingBuild12)
-      SCENE="Assets/Scenes/SmallVoxelShowcase.unity"
-      : "${RUN_SECONDS:=90}"
-      : "${AUTOWALK_AFTER:=20}"
-      : "${CONVERGING_BUILDS:=12}"
-      ;;
-    VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests.SmallVoxelShowcaseMovingBuild8)
-      SCENE="Assets/Scenes/SmallVoxelShowcase.unity"
-      : "${RUN_SECONDS:=90}"
-      : "${AUTOWALK_AFTER:=20}"
-      : "${CONVERGING_BUILDS:=8}"
-      ;;
-    VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests|VoxelEngine.Tests.PlayMode.StationaryRenderBenchmarkTests.*)
-      SCENE="Assets/Scenes/VoxelShowcase.unity"
-      : "${RUN_SECONDS:=120}"
-      : "${STATIONARY_SAMPLE:=10}"
-      ;;
-    VoxelEngine.Tests.PlayMode.ShowcaseTraversalPerformanceTests.ContinuousPlayerTraversalNeverStuttersOrOpensNearFarGap)
-      # The PlayMode version is valuable for coverage/blocking assertions and now gets a bounded
-      # multi-worker pool in tests-single.yml so it can reach movement. Frame timing still belongs
-      # to the production VoxelShowcase real player rather than the Editor test loop.
-      SCENE="Assets/Scenes/VoxelShowcase.unity"
-      : "${RUN_SECONDS:=150}"
-      : "${AUTOWALK_AFTER:=60}"
-      # Diagnostic A/B for the measured job-pool starvation hypothesis. This changes only the
-      # visible-convergence ceiling (12 -> 8); the production converged ceiling remains zero.
-      : "${CONVERGING_BUILDS:=8}"
-      ;;
-    VoxelEngine.Tests.PlayMode.CastleScreenshotTests|VoxelEngine.Tests.PlayMode.CastleScreenshotTests.*|\
-    VoxelEngine.Tests.PlayMode.CastleExteriorLookdevTests|VoxelEngine.Tests.PlayMode.CastleExteriorLookdevTests.*)
-      SCENE="Assets/Scenes/VoxelShowcase.unity"
-      : "${RUN_SECONDS:=60}"
-      : "${SURVEY_AFTER:=10}"
-      : "${SURVEY_HEIGHT:=55}"
-      : "${SURVEY_SPIN:=30}"
-      ;;
-    VoxelEngine.Tests.PlayMode.ExplorationInteractablesSecretsShowcaseTests|VoxelEngine.Tests.PlayMode.ExplorationInteractablesSecretsShowcaseTests.*)
-      SCENE="Assets/Game/Scenes/InteractablesShowcase.unity"
-      : "${RUN_SECONDS:=30}"
-      ;;
-    *)
-      if (( IF_CONFIGURED )); then
-        echo "No real-player screenshot/benchmark profile for '$TEST_FILTER'; skipping capture."
-        exit 0
-      fi
-      echo "ERROR: no real-player screenshot/benchmark profile for '$TEST_FILTER'." >&2
-      exit 2
-      ;;
-  esac
-fi
-
-[[ -n "$UNITY_PATH" ]] || { echo "ERROR: --unity is required." >&2; exit 2; }
-[[ -x "$UNITY_PATH" ]] || { echo "ERROR: Unity is not executable: $UNITY_PATH" >&2; exit 2; }
+[[ -n "$UNITY_PATH" && -x "$UNITY_PATH" ]] || { echo "ERROR: --unity must be an executable." >&2; exit 2; }
 [[ -n "$OUTPUT_ROOT" ]] || { echo "ERROR: --output is required." >&2; exit 2; }
-[[ -n "$SCENE" ]] || { echo "ERROR: --scene or --test-filter is required." >&2; exit 2; }
-[[ -f "$SCENE" ]] || { echo "ERROR: scene does not exist: $SCENE" >&2; exit 2; }
-if [[ -n "$STATIONARY_SAMPLE" ]]; then
-  : "${RUN_SECONDS:=120}"
-  if [[ -n "$AUTOWALK_AFTER" || -n "$SURVEY_AFTER" ]]; then
-    echo "ERROR: stationary sampling cannot be combined with autowalk or survey motion." >&2
-    exit 2
-  fi
-else
-  : "${RUN_SECONDS:=30}"
+[[ -n "$SCENE" && -f "$SCENE" && "$SCENE" == *.unity ]] || { echo "ERROR: a valid --scene or --scene-issue is required." >&2; exit 2; }
+
+# The standalone app may resolve relative command-line paths from its bundle/runtime directory.
+# Normalize the artifact root once so logs and presented-frame captures always return to the caller's
+# requested location regardless of how the player changes its working directory at launch.
+if [[ "$OUTPUT_ROOT" != /* ]]; then OUTPUT_ROOT="$PWD/$OUTPUT_ROOT"; fi
+
+validate_positive_int() {
+  local value="$1" name="$2"
+  [[ "$value" =~ ^[0-9]+$ && "$value" -gt 0 ]] || { echo "ERROR: $name must be a positive integer." >&2; exit 2; }
+}
+validate_positive_int "$PLAYER_WIDTH" width
+validate_positive_int "$PLAYER_HEIGHT" height
+validate_positive_int "$SCREENSHOT_EVERY" screenshot-every
+validate_positive_int "$MINIMUM_FRAMES" minimum-frames
+: "${RUN_SECONDS:=30}"
+if [[ ! "$RUN_SECONDS" =~ ^[0-9]+([.][0-9]+)?$ ]]; then echo "ERROR: run-seconds must be numeric." >&2; exit 2; fi
+if [[ -n "$STATIONARY_SAMPLE" && ( -n "$AUTOWALK_AFTER" || -n "$SURVEY_AFTER" ) ]]; then
+  echo "ERROR: stationary sampling cannot be combined with movement." >&2
+  exit 2
 fi
 
 BUILD_DIR="$OUTPUT_ROOT/Player"
@@ -238,10 +165,8 @@ PLAYER_LOG="$OUTPUT_ROOT/player-run.log"
 FPS_LOG="$OUTPUT_ROOT/fps.txt"
 STATIONARY_LOG="$OUTPUT_ROOT/stationary.txt"
 
-cleanup() {
-  rm -rf "$BUILD_DIR"
-}
-trap cleanup EXIT
+cleanup_build() { rm -rf "$BUILD_DIR"; }
+trap 'cleanup_build; cleanup_patterns' EXIT
 
 wait_for_unity_quiet() {
   local deadline=$((SECONDS + 900))
@@ -256,229 +181,86 @@ wait_for_unity_quiet() {
 }
 
 rm -rf "$BUILD_DIR" "$SHOTS_DIR"
-mkdir -p "$OUTPUT_ROOT" "$BUILD_DIR"
-if [[ -z "$STATIONARY_SAMPLE" ]]; then mkdir -p "$SHOTS_DIR"; fi
-
+mkdir -p "$OUTPUT_ROOT" "$BUILD_DIR" "$SHOTS_DIR"
 wait_for_unity_quiet
 
 BUILD_ARGS=(-batchmode -nographics -quit)
 if [[ -n "$STATIONARY_SAMPLE" ]]; then BUILD_ARGS+=(-voxelFrameTimingStats); fi
 
 echo "Building real player for $SCENE"
-UNITY_MAX_RSS_MB="${UNITY_MAX_RSS_MB:-12288}" \
-UNITY_MAX_MINUTES="${UNITY_MAX_MINUTES:-25}" \
+UNITY_MAX_RSS_MB="${UNITY_MAX_RSS_MB:-12288}" UNITY_MAX_MINUTES="${UNITY_MAX_MINUTES:-25}" \
 UNITY_BIN="$UNITY_PATH" tools/unity-run.sh \
-  "${BUILD_ARGS[@]}" \
-  -projectPath "$PWD" \
+  "${BUILD_ARGS[@]}" -projectPath "$PWD" \
   -executeMethod VoxelEngine.Showcase.Editor.ShowcasePlayerBuild.Build \
-  -voxelScene "$SCENE" \
-  -voxelBuildOutput "$BUILD_DIR" \
-  -logFile "$BUILD_LOG"
+  -voxelScene "$SCENE" -voxelBuildOutput "$BUILD_DIR" -logFile "$BUILD_LOG"
 
 APP="$(find "$BUILD_DIR" -maxdepth 1 -type d -name '*.app' -print -quit)"
-[[ -n "$APP" && -d "$APP" ]] || {
-  echo "ERROR: player build produced no .app under $BUILD_DIR" >&2
-  exit 1
-}
+[[ -n "$APP" && -d "$APP" ]] || { echo "ERROR: player build produced no .app." >&2; exit 1; }
+BIN="$(find "$APP/Contents/MacOS" -maxdepth 1 -type f -perm -111 -print -quit)"
+[[ -n "$BIN" && -x "$BIN" ]] || { echo "ERROR: player build produced no executable." >&2; exit 1; }
 
-APP_BIN_DIR="$APP/Contents/MacOS"
-BIN="$(find "$APP_BIN_DIR" -maxdepth 1 -type f -perm -111 -print -quit)"
-[[ -n "$BIN" && -x "$BIN" ]] || {
-  echo "ERROR: no executable found in $APP_BIN_DIR" >&2
-  exit 1
-}
-
-PLAYER_ARGS=(
-  -logFile "$PLAYER_LOG"
-  -screen-width "$PLAYER_WIDTH" -screen-height "$PLAYER_HEIGHT" -screen-fullscreen 0
-  -voxel-uncapped
-)
-
-if [[ -n "$SCENE_ISSUE" ]]; then
-  PLAYER_ARGS+=( -voxel-scene-issue "$SCENE_ISSUE" )
-fi
-
+PLAYER_ARGS=(-logFile "$PLAYER_LOG" -screen-width "$PLAYER_WIDTH" -screen-height "$PLAYER_HEIGHT" -screen-fullscreen 0 -voxel-uncapped)
+if [[ -n "$SCENE_ISSUE" ]]; then PLAYER_ARGS+=( -voxel-scene-issue "$SCENE_ISSUE" ); fi
 if [[ -n "$STATIONARY_SAMPLE" ]]; then
-  PLAYER_ARGS+=(
-    -voxel-stationary-sample-seconds "$STATIONARY_SAMPLE"
-    -voxel-stationary-timeout-seconds "$RUN_SECONDS"
-    -voxel-stationary-screenshot-dir "$SHOTS_DIR"
-  )
-  echo "Running stationary benchmark for ${STATIONARY_SAMPLE}s after convergence; screenshot after measurement"
+  PLAYER_ARGS+=( -voxel-stationary-sample-seconds "$STATIONARY_SAMPLE" -voxel-stationary-timeout-seconds "$RUN_SECONDS" -voxel-stationary-screenshot-dir "$SHOTS_DIR" )
 else
-  PLAYER_ARGS+=(
-    -voxel-fps-log
-    -voxel-run-seconds "$RUN_SECONDS"
-    -voxel-screenshot-dir "$SHOTS_DIR"
-    -voxel-screenshot-every 10
-  )
-
-  if [[ -n "$AUTO_DIALOGUE" ]]; then
-    PLAYER_ARGS+=( -voxel-auto-dialogue "$AUTO_DIALOGUE" )
-  fi
-  if [[ -n "$AUTOWALK_AFTER" ]]; then
-    PLAYER_ARGS+=( -voxel-autowalk-after "$AUTOWALK_AFTER" )
-  fi
-  if [[ -n "$CONVERGING_BUILDS" ]]; then
-    PLAYER_ARGS+=( -voxel-converging-builds "$CONVERGING_BUILDS" )
-  fi
-  if [[ -n "$SURVEY_AFTER" ]]; then
-    PLAYER_ARGS+=( -voxel-survey-after "$SURVEY_AFTER" )
-  fi
-  if [[ -n "$SURVEY_HEIGHT" ]]; then
-    PLAYER_ARGS+=( -voxel-survey-height "$SURVEY_HEIGHT" )
-  fi
-  if [[ -n "$SURVEY_SPIN" ]]; then
-    PLAYER_ARGS+=( -voxel-survey-spin "$SURVEY_SPIN" )
-  fi
-  echo "Running real player for ${RUN_SECONDS}s; screenshots every 10s"
-  if [[ -n "$SCENE_ISSUE" ]]; then
-    echo "Scene-issue replay resolution: ${PLAYER_WIDTH}x${PLAYER_HEIGHT}"
-  fi
-  if [[ -n "$CONVERGING_BUILDS" ]]; then
-    echo "Real-player converging build ceiling override: $CONVERGING_BUILDS (converged remains 0)"
-  fi
+  PLAYER_ARGS+=( -voxel-fps-log -voxel-run-seconds "$RUN_SECONDS" -voxel-screenshot-dir "$SHOTS_DIR" -voxel-screenshot-every "$SCREENSHOT_EVERY" )
+  [[ -z "$AUTO_DIALOGUE" ]] || PLAYER_ARGS+=( -voxel-auto-dialogue "$AUTO_DIALOGUE" )
+  [[ -z "$AUTOWALK_AFTER" ]] || PLAYER_ARGS+=( -voxel-autowalk-after "$AUTOWALK_AFTER" )
+  [[ -z "$CONVERGING_BUILDS" ]] || PLAYER_ARGS+=( -voxel-converging-builds "$CONVERGING_BUILDS" )
+  [[ -z "$SURVEY_AFTER" ]] || PLAYER_ARGS+=( -voxel-survey-after "$SURVEY_AFTER" )
+  [[ -z "$SURVEY_HEIGHT" ]] || PLAYER_ARGS+=( -voxel-survey-height "$SURVEY_HEIGHT" )
+  [[ -z "$SURVEY_SPIN" ]] || PLAYER_ARGS+=( -voxel-survey-spin "$SURVEY_SPIN" )
 fi
 
+echo "Running real player for ${RUN_SECONDS}s"
 "$BIN" "${PLAYER_ARGS[@]}" &
 PID=$!
-
 ( sleep $(( ${RUN_SECONDS%.*} + 120 )); kill -9 "$PID" 2>/dev/null || true ) &
 WATCHDOG=$!
 status=0
 wait "$PID" || status=$?
 kill "$WATCHDOG" 2>/dev/null || true
 wait "$WATCHDOG" 2>/dev/null || true
-
-echo "player exit status: $status"
-if (( status != 0 )); then
-  exit "$status"
-fi
+(( status == 0 )) || exit "$status"
 
 if [[ -n "$STATIONARY_SAMPLE" ]]; then
-  if [[ -s "$PLAYER_LOG" ]]; then
-    grep 'STATIONARY result=' "$PLAYER_LOG" > "$STATIONARY_LOG" || true
-  fi
-  if ! grep -q 'STATIONARY result=PASS' "$STATIONARY_LOG" 2>/dev/null; then
-    echo "ERROR: stationary benchmark did not publish a passing result." >&2
-    tail -80 "$PLAYER_LOG" >&2 || true
-    exit 1
-  fi
-  if [[ ! -s "$SHOTS_DIR/stationary-final.png" ]]; then
-    echo "ERROR: stationary benchmark produced no post-measurement screenshot." >&2
-    tail -80 "$PLAYER_LOG" >&2 || true
-    exit 1
-  fi
-  cat "$STATIONARY_LOG"
-  echo "stationary post-measurement screenshot: $SHOTS_DIR/stationary-final.png"
-  exit 0
+  grep 'STATIONARY result=' "$PLAYER_LOG" > "$STATIONARY_LOG" || true
+  grep -q 'STATIONARY result=PASS' "$STATIONARY_LOG" || { echo "ERROR: stationary benchmark did not pass." >&2; exit 1; }
+  [[ -s "$SHOTS_DIR/stationary-final.png" ]] || { echo "ERROR: stationary benchmark produced no screenshot." >&2; exit 1; }
+else
+  grep 'FPSLOG' "$PLAYER_LOG" > "$FPS_LOG" 2>/dev/null || true
 fi
 
-if [[ -s "$PLAYER_LOG" ]]; then
-  grep 'FPSLOG' "$PLAYER_LOG" > "$FPS_LOG" || true
+if [[ -n "$REQUIRED_LOG_PATTERNS_FILE" ]]; then
+  while IFS= read -r pattern; do
+    grep -Fq -- "$pattern" "$PLAYER_LOG" || { echo "ERROR: required player-log pattern missing: $pattern" >&2; exit 1; }
+  done < "$REQUIRED_LOG_PATTERNS_FILE"
+fi
+if [[ -n "$FORBIDDEN_LOG_PATTERNS_FILE" ]]; then
+  while IFS= read -r pattern; do
+    if grep -Fq -- "$pattern" "$PLAYER_LOG"; then echo "ERROR: forbidden player-log pattern found: $pattern" >&2; exit 1; fi
+  done < "$FORBIDDEN_LOG_PATTERNS_FILE"
 fi
 
-if [[ -s "$FPS_LOG" ]]; then
-  echo "=== REAL PLAYER FPS TAIL ==="
-  tail -20 "$FPS_LOG"
-fi
-
-if [[ -s "$PLAYER_LOG" ]] && grep -q 'PREPARESECTIONS' "$PLAYER_LOG"; then
-  echo "=== REAL PLAYER PREPARE SECTIONS ==="
-  grep 'PREPARESECTIONS' "$PLAYER_LOG" | tail -30
-fi
-
-if [[ -s "$PLAYER_LOG" ]] && grep -q 'SURFACE t=' "$PLAYER_LOG"; then
-  echo "=== REAL PLAYER SURFACE TAIL ==="
-  grep 'SURFACE t=' "$PLAYER_LOG" | tail -30
-fi
-if [[ -s "$PLAYER_LOG" ]] && grep -q 'RINGS ' "$PLAYER_LOG"; then
-  echo "=== REAL PLAYER RINGS TAIL ==="
-  grep 'RINGS ' "$PLAYER_LOG" | tail -30
-fi
-
-if [[ "$TEST_FILTER" == "VoxelEngine.Tests.PlayMode.ShowcaseTraversalPerformanceTests.ContinuousPlayerTraversalNeverStuttersOrOpensNearFarGap" ]]; then
-  python3 tools/validate-showcase-traversal.py \
-    --player-log "$PLAYER_LOG" \
-    --fps-log "$FPS_LOG" \
-    --autowalk-after "$AUTOWALK_AFTER"
-fi
-
-shots="$(find "$SHOTS_DIR" -name '*.png' -size +1k | wc -l | tr -d ' ')"
+shots="$(find "$SHOTS_DIR" -type f -name '*.png' -size +1k | wc -l | tr -d ' ')"
 echo "real-player screenshots captured: $shots"
-if (( shots < 2 )); then
-  echo "ERROR: expected at least 2 real-player screenshots, found $shots." >&2
-  echo "A runner without a logged-in window server can launch the player but render no screenshots." >&2
+if (( shots < MINIMUM_FRAMES )); then
+  echo "ERROR: expected at least $MINIMUM_FRAMES real-player screenshot(s), found $shots." >&2
   exit 1
 fi
 
 if [[ -n "$SCENE_ISSUE" ]]; then
   if (( ISSUE_CAPTURE_COUNT > 0 )) && ! grep -q 'SCENEISSUE camera pinned' "$PLAYER_LOG" 2>/dev/null; then
     echo "ERROR: scene-issue player never confirmed the recorded camera was pinned." >&2
-    tail -80 "$PLAYER_LOG" >&2 || true
     exit 1
   fi
-
-  if [[ "$SCENE" == "Assets/Scenes/WorldbuildingGalleryShowcase.unity" ]] && (( ISSUE_CAPTURE_COUNT == 0 )); then
-    AUDIT_DIR="$SHOTS_DIR/TownArchitectureAudit"
-    audit_shots="$(find "$AUDIT_DIR" -type f -name '*.png' -size +1k 2>/dev/null | wc -l | tr -d ' ')"
-    if (( audit_shots < 18 )) || ! grep -q 'TOWNARCH_AUDIT result=PASS' "$PLAYER_LOG" 2>/dev/null; then
-      echo "ERROR: capture-less town architecture audit did not produce all 18 built-player views (found $audit_shots)." >&2
-      tail -120 "$PLAYER_LOG" >&2 || true
-      exit 1
-    fi
-    echo "town architecture audit views: $audit_shots"
-  fi
-
   FINAL_SHOT="$(find "$SHOTS_DIR" -type f -name '*.png' -size +1k | sort | tail -1)"
-  [[ -n "$FINAL_SHOT" ]] || {
-    echo "ERROR: scene-issue replay produced no final verification frame." >&2
-    exit 1
-  }
-
   SHOT_WIDTH="$(sips -g pixelWidth "$FINAL_SHOT" 2>/dev/null | awk '/pixelWidth:/ {print $2}')"
   SHOT_HEIGHT="$(sips -g pixelHeight "$FINAL_SHOT" 2>/dev/null | awk '/pixelHeight:/ {print $2}')"
   if [[ -z "$SHOT_WIDTH" || -z "$SHOT_HEIGHT" ]] || (( SHOT_WIDTH < PLAYER_WIDTH || SHOT_HEIGHT < PLAYER_HEIGHT )); then
-    echo "ERROR: scene-issue verification frame ${SHOT_WIDTH:-?}x${SHOT_HEIGHT:-?} is smaller than captured ${PLAYER_WIDTH}x${PLAYER_HEIGHT}." >&2
+    echo "ERROR: scene-issue verification frame is smaller than requested capture dimensions." >&2
     exit 1
   fi
-
   cp "$FINAL_SHOT" "$OUTPUT_ROOT/verification-final.png"
-  echo "scene-issue final verification: $OUTPUT_ROOT/verification-final.png (${SHOT_WIDTH}x${SHOT_HEIGHT})"
-fi
-
-# Artifact quota exhaustion can make otherwise successful Kentridge capture opaque to a remote
-# reviewer. Emit four deliberately small, single-line JPEG payloads from representative frames so
-# the real presented output can still be inspected from the job log. This is diagnostic evidence
-# only; the workflow's strict visual artifact upload remains the completion gate.
-if (( KENTRIDGE_EVIDENCE )); then
-  EVIDENCE_DIR="$OUTPUT_ROOT/KentridgeEvidence"
-  mkdir -p "$EVIDENCE_DIR"
-  index=0
-  while IFS= read -r shot; do
-    case "$index" in
-      2|4|6|7)
-        name="$(basename "$shot" .png)"
-        preview="$EVIDENCE_DIR/${name}.jpg"
-        sips -s format jpeg -s formatOptions 30 -Z 220 "$shot" --out "$preview" >/dev/null
-        printf 'KENTRIDGE_EVIDENCE %s ' "$(basename "$shot")"
-        base64 < "$preview" | tr -d '\n'
-        printf '\n'
-        ;;
-    esac
-    index=$((index + 1))
-  done < <(find "$SHOTS_DIR" -type f -name '*.png' -size +1k | sort)
-
-  # Preserve the original presented frames for strict artifact proof, but leave small copies in
-  # Screenshots so the generic workflow preview step cannot flood the job log by re-encoding every
-  # 1600x900 frame. The artifact upload is recursive, so FullResolutionScreenshots remains part of
-  # the same strict visual artifact whenever GitHub storage is available.
-  FULL_RES_DIR="$OUTPUT_ROOT/FullResolutionScreenshots"
-  rm -rf "$FULL_RES_DIR"
-  mkdir -p "$FULL_RES_DIR"
-  while IFS= read -r shot; do
-    [[ -s "$shot" ]] || continue
-    cp "$shot" "$FULL_RES_DIR/$(basename "$shot")"
-    sips -Z 96 "$shot" >/dev/null
-  done < <(find "$SHOTS_DIR" -type f -name '*.png' -size +1k | sort)
 fi
