@@ -1,5 +1,7 @@
 using System;
 using System.IO;
+using System.Reflection;
+using Game.Composition.Kentridge.Playable;
 using Game.WorldBuilder.Api;
 using Game.WorldBuilder.Runtime;
 using MountingForce.WorldGen;
@@ -7,6 +9,7 @@ using MountingForce.WorldGen.Content.Kentridge;
 using MountingForce.WorldGen.Voxel;
 using UnityEngine;
 using VoxelEngine.Composition;
+using VoxelEngine.Showcase;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
 
 namespace Game.Kentridge.PlayableSlice
@@ -25,9 +28,17 @@ namespace Game.Kentridge.PlayableSlice
         private const float SurveyHeightMetres = 70f;
         private const float CameraPositionToleranceMetres = 2f;
         private const float DiagnosticVerticalExtentMetres = 40f;
+        private const int StableCoverageFrames = 4;
+
+        private static readonly FieldInfo s_WorldField = typeof(KentridgePlayableSlice).GetField(
+            "_world",
+            BindingFlags.Instance | BindingFlags.NonPublic);
 
         private readonly BuildingEvidence[] _rossdamBuildings = new BuildingEvidence[4];
         private Vector3 _expectedCameraPosition;
+        private KentridgePlayableSlice _slice;
+        private ShowcaseWorld _world;
+        private int _stableCoverageFrames;
         private bool _initialized;
         private bool _recorded;
 
@@ -117,8 +128,29 @@ namespace Game.Kentridge.PlayableSlice
             if (camera == null) return;
             if ((camera.transform.position - _expectedCameraPosition).sqrMagnitude
                 > CameraPositionToleranceMetres * CameraPositionToleranceMetres)
+            {
+                _stableCoverageFrames = 0;
                 return;
-            if (!RenderingComposition.HasCompletePublishedNearSurfaceCoverage()) return;
+            }
+
+            _slice ??= FindFirstObjectByType<KentridgePlayableSlice>();
+            if (_slice == null || s_WorldField == null)
+            {
+                _stableCoverageFrames = 0;
+                return;
+            }
+
+            _world ??= s_WorldField.GetValue(_slice) as ShowcaseWorld;
+            if (_world == null
+                || !AreRossdamColumnsSettled()
+                || !RenderingComposition.HasCompletePublishedNearSurfaceCoverage())
+            {
+                _stableCoverageFrames = 0;
+                return;
+            }
+
+            _stableCoverageFrames++;
+            if (_stableCoverageFrames < StableCoverageFrames) return;
 
             Plane[] planes = GeometryUtility.CalculateFrustumPlanes(camera);
             for (var i = 0; i < _rossdamBuildings.Length; i++)
@@ -150,6 +182,22 @@ namespace Game.Kentridge.PlayableSlice
             }
 
             _recorded = true;
+        }
+
+        private bool AreRossdamColumnsSettled()
+        {
+            for (var i = 0; i < _rossdamBuildings.Length; i++)
+            {
+                BuildingEvidence building = _rossdamBuildings[i];
+                int groundDm = TerrainSampler.HeightAt(building.CentreXDm, building.CentreZDm, Seed);
+                var worldPoint = new Vector3(
+                    building.CentreXDm * DmToMetres,
+                    groundDm * DmToMetres,
+                    building.CentreZDm * DmToMetres);
+                if (!_world.IsPresentationColumnContentSettled(worldPoint)) return false;
+            }
+
+            return true;
         }
 
         private static bool TryReadValidationProfile(out string profile)
