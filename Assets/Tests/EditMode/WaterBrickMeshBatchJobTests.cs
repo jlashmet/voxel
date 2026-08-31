@@ -9,6 +9,39 @@ namespace VoxelEngine.Tests.EditMode
     public sealed class WaterBrickMeshBatchJobTests
     {
         [Test]
+        public void FlatWaterTop_EmitsPerVoxelTopQuads_ForWaveDeformation()
+        {
+            using var brickBases = new NativeArray<int3>(new[] { int3.zero }, Allocator.Temp);
+            var snapshotData = new byte[WaterBrickMeshBatchJob.SnapshotStride];
+            for (int z = 0; z < WaterBrickMeshBatchJob.Edge; z++)
+            for (int x = 0; x < WaterBrickMeshBatchJob.Edge; x++)
+                snapshotData[x + z * WaterBrickMeshBatchJob.Edge * WaterBrickMeshBatchJob.Edge] = GameMaterialIds.Water;
+
+            using var snapshots = new NativeArray<byte>(snapshotData, Allocator.Temp);
+            using var scratch = new NativeArray<byte>(WaterBrickMeshBatchJob.FaceArea, Allocator.Temp);
+            using var vertices = new NativeList<SmoothSurfaceVertex>(4096, Allocator.Temp);
+            using var indices = new NativeList<uint>(8192, Allocator.Temp);
+            using var overflow = new NativeArray<int>(1, Allocator.Temp);
+
+            Execute(brickBases, snapshots, scratch, vertices, indices, overflow,
+                1u << GameMaterialIds.Water);
+
+            Assert.That(overflow[0], Is.Zero, "The minimal flat-water repro must fit the mesh buffers.");
+
+            int upwardVertexCount = 0;
+            for (int i = 0; i < vertices.Length; i++)
+            {
+                if (vertices[i].Normal.y > 0.99f)
+                    upwardVertexCount++;
+            }
+
+            int expectedTopQuads = WaterBrickMeshBatchJob.Edge * WaterBrickMeshBatchJob.Edge;
+            Assert.That(upwardVertexCount, Is.EqualTo(expectedTopQuads * 4),
+                "A flat water brick needs one top quad per voxel so vertex-stage waves have interior geometry; " +
+                "greedily collapsing the entire top to four corner vertices reproduces the planar-slab defect.");
+        }
+
+        [Test]
         public void Execute_PreservesWaterMaterialIdentityAtNegativeCoordinates()
         {
             using var brickBases = new NativeArray<int3>(new[] { new int3(-8, -8, -8) }, Allocator.Temp);
