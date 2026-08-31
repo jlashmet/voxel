@@ -328,6 +328,7 @@ namespace MountingForce.WorldGen.Voxel
             }
 
             var settlements = new List<TopDownWorldSettlementPlan>();
+            var settlementById = new Dictionary<string, TopDownWorldSettlementPlan>(StringComparer.Ordinal);
             for (var i = 0; i < layout.Nodes.Count; i++)
             {
                 TopDownWorldNodeSpec node = layout.Nodes[i].Node;
@@ -344,7 +345,9 @@ namespace MountingForce.WorldGen.Voxel
                         ? BuildGenericSettlement(layout.Seed, node, centre, spec.MinimumBuildingCount)
                         : Array.Empty<TopDownWorldBuildingBlockoutPlan>();
                 if (!ValidateBuildings(node, centre, buildings, out error)) return false;
-                settlements.Add(new TopDownWorldSettlementPlan(node, centre, spec.RealizationKind, buildings));
+                var settlement = new TopDownWorldSettlementPlan(node, centre, spec.RealizationKind, buildings);
+                settlements.Add(settlement);
+                settlementById.Add(node.Id, settlement);
             }
 
             var routeConstraintByKey = new Dictionary<string, List<TopDownWorldRouteRegionConstraintSpec>>(StringComparer.Ordinal);
@@ -397,12 +400,19 @@ namespace MountingForce.WorldGen.Voxel
                     return false;
                 }
 
+                Int2 routeFrom = from;
+                Int2 routeTo = to;
+                if (settlementById.TryGetValue(route.FromId, out TopDownWorldSettlementPlan fromSettlement))
+                    routeFrom = ResolveSettlementRouteGate(fromSettlement, to, route.CorridorWidthDm);
+                if (settlementById.TryGetValue(route.ToId, out TopDownWorldSettlementPlan toSettlement))
+                    routeTo = ResolveSettlementRouteGate(toSettlement, from, route.CorridorWidthDm);
+
                 routeConstraintByKey.TryGetValue(route.Key, out List<TopDownWorldRouteRegionConstraintSpec> constraints);
                 if (!TrySolveRoute(
                         layout.Seed,
                         route,
-                        from,
-                        to,
+                        routeFrom,
+                        routeTo,
                         regions,
                         regionById,
                         constraints,
@@ -410,7 +420,18 @@ namespace MountingForce.WorldGen.Voxel
                         out TopDownWorldPhysicalRoutePlan solved,
                         out error))
                     return false;
-                routes.Add(solved);
+
+                List<Int2> tiles = AttachSettlementApproaches(from, routeFrom, solved.Tiles, routeTo, to);
+                int margin = route.CorridorWidthDm / 2;
+                if (!ValidateBlockingRegions(route, tiles, regions, regionById, constraints, margin, out error))
+                    return false;
+                if (!ValidateSlope(route, tiles, layout.Seed, voxelsPerDecimetre, out error)) return false;
+
+                routes.Add(new TopDownWorldPhysicalRoutePlan(
+                    route,
+                    tiles,
+                    solved.GeographyConstrained,
+                    solved.SolveSteps + Math.Max(0, tiles.Count - solved.Tiles.Count)));
             }
 
             plan = new TopDownWorldPhysicalPlan(nodes, regions, settlements, routes);
@@ -525,6 +546,65 @@ namespace MountingForce.WorldGen.Voxel
                 }
             }
             return true;
+        }
+
+        private static Int2 ResolveSettlementRouteGate(
+            TopDownWorldSettlementPlan settlement,
+            Int2 otherEndpoint,
+            int corridorWidthDm)
+        {
+            if (settlement == null
+                || settlement.RealizationKind != TopDownWorldSettlementRealizationKind.GenericBlockout
+                || settlement.Buildings.Count == 0)
+                return settlement?.CentreDm ?? otherEndpoint;
+
+            Int2 centre = settlement.CentreDm;
+            int deltaX = otherEndpoint.X - centre.X;
+            int deltaZ = otherEndpoint.Y - centre.Y;
+            bool alongX = Math.Abs(deltaX) >= Math.Abs(deltaZ);
+            int direction = alongX ? Math.Sign(deltaX) : Math.Sign(deltaZ);
+            if (direction == 0) direction = 1;
+
+            int roadRadius = Math.Max(1, corridorWidthDm / 2);
+            int distance = GenericSettlementStreetHalfWidthDm + roadRadius + 1;
+            for (var i = 0; i < settlement.Buildings.Count; i++)
+            {
+                TopDownWorldBuildingBlockoutPlan building = settlement.Buildings[i];
+                int candidate = alongX
+                    ? Math.Abs(building.CentreDm.X - centre.X) + building.HalfExtentXDm
+                    : Math.Abs(building.CentreDm.Y - centre.Y) + building.HalfExtentZDm;
+                distance = Math.Max(distance, candidate + BuildingClearanceDm + roadRadius + 1);
+            }
+
+            return alongX
+                ? new Int2(centre.X + direction * distance, centre.Y)
+                : new Int2(centre.X, centre.Y + direction * distance);
+        }
+
+        private static List<Int2> AttachSettlementApproaches(
+            Int2 from,
+            Int2 routeFrom,
+            IReadOnlyList<Int2> solved,
+            Int2 routeTo,
+            Int2 to)
+        {
+            var tiles = new List<Int2>();
+            AppendPath(tiles, BuildWaypoints(new[] { from, routeFrom }));
+            AppendPath(tiles, solved);
+            AppendPath(tiles, BuildWaypoints(new[] { routeTo, to }));
+            return tiles;
+        }
+
+        private static void AppendPath(List<Int2> destination, IReadOnlyList<Int2> source)
+        {
+            for (var i = 0; i < source.Count; i++)
+            {
+                if (destination.Count > 0
+                    && destination[destination.Count - 1].X == source[i].X
+                    && destination[destination.Count - 1].Y == source[i].Y)
+                    continue;
+                destination.Add(source[i]);
+            }
         }
 
         private static bool TrySolveRoute(
