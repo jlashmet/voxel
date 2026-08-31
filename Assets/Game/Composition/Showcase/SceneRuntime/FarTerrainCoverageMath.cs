@@ -97,6 +97,29 @@ namespace VoxelEngine.Showcase
         }
 
         /// <summary>
+        /// Returns true only when the current camera has a gap-free authoritative prefix through
+        /// every ring required by the configured radius. This is the retirement invariant for the
+        /// coarse startup fallback; merely publishing the outer slot is not sufficient.
+        /// </summary>
+        public static bool CanRetireStartupFallback(
+            int currentAuthoritativePrefixRingCount,
+            float innerRadiusMetres,
+            float outerRadiusMetres,
+            int resolution)
+        {
+            if (!TryCalculateRequiredRingCount(
+                    innerRadiusMetres,
+                    outerRadiusMetres,
+                    resolution,
+                    out int requiredRingCount,
+                    out float guaranteedCoverageMetres))
+                return false;
+
+            return currentAuthoritativePrefixRingCount >= requiredRingCount
+                && guaranteedCoverageMetres >= Mathf.Max(0f, outerRadiusMetres);
+        }
+
+        /// <summary>
         /// Actual coverage from a camera coordinate to one cardinal side for a concrete snap phase.
         /// Passing the same phase for X and Z exercises all four cardinal sides because the clipmap
         /// uses identical independent floor snapping on both axes.
