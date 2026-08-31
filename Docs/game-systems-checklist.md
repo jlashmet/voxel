@@ -68,7 +68,8 @@ These are existing foundations and are not candidates to rebuild from scratch.
   - Translate semantic encounter/site/NPC intent through the realized generated world into the narrow context needed by encounter gameplay, without duplicating WorldBuilder placement logic.
 - [x] **13. [Authoritative world-object interaction bridge](game-systems/13-authoritative-world-object-interaction-bridge.md)**
   - Route character interaction intent through stable WorldObject identity into the existing authoritative behavior/state runtime, with narrow actor/context validation and semantic cross-domain adapters.
-- [ ] **14. End-to-end campaign/game-flow director**
+- [x] **14. [Game session & campaign orchestration](game-systems/14-game-session-campaign-orchestration.md)**
+  - Assemble and coordinate one authoritative gameplay runtime graph for new/resumed sessions while keeping campaign sequencing and domain rules in their owning systems/content.
 - [ ] **15. Victory / failure / completion flow**
 - [ ] **16. Save / session persistence**
 - [ ] **17. Production HUD**
