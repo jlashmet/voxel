@@ -364,12 +364,17 @@ namespace VoxelEngine.Showcase
                 _ringHeightValid[ring] = true;
                 _ringOrigin[ring] = _heightJobOrigin;
 
+                bool completingFallback = ring == _startupFallbackRing;
                 float requestedHole = _holeRadiusMetres;
                 bool staleCriticalPublication = ring == 0
                     && !OriginFor(cameraPosition, _ringSpacing[0]).Equals(_heightJobOrigin);
-                if (staleCriticalPublication) _holeRadiusMetres = 0f;
-                RebuildRingFromCachedHeights(ring, _ringOrigin[ring], _ringSpacing[ring]);
-                if (staleCriticalPublication) _holeRadiusMetres = requestedHole;
+                if (!completingFallback)
+                {
+                    if (staleCriticalPublication) _holeRadiusMetres = 0f;
+                    RebuildRingFromCachedHeights(ring, _ringOrigin[ring], _ringSpacing[ring]);
+                    if (staleCriticalPublication) _holeRadiusMetres = requestedHole;
+                    _ringBuiltStructureVersion[ring] = structureVersion;
+                }
 
                 if (_startupFallbackRing >= 0
                     && ring != _startupFallbackRing
@@ -379,16 +384,12 @@ namespace VoxelEngine.Showcase
                     BuildStartupFallback(
                         _ringMeshes[_startupFallbackRing], _startupFallbackCoverageRing);
                 }
-                if (ring == _startupFallbackRing)
-                {
-                    _startupFallbackRing = -1;
-                    _startupFallbackCoverageRing = -1;
-                }
-                _ringBuiltStructureVersion[ring] = structureVersion;
+
+                bool retiredFallback = TryRetireStartupFallback(cameraPosition, structureVersion);
                 if (ring == 0)
                     _builtHoleRadiusMetres = staleCriticalPublication ? 0f : _holeRadiusMetres;
                 _ringWorkCursor = (ring + 1) % _ringMeshes.Count;
-                rebuiltThisFrame = true;
+                rebuiltThisFrame = !completingFallback || retiredFallback;
             }
 
             if (_startupFallbackRing >= 0)
@@ -482,6 +483,7 @@ namespace VoxelEngine.Showcase
         {
             if (ring < 0 || ring >= _ringMeshes.Count || !_ringHeightValid[ring])
                 return false;
+            if (ring == _startupFallbackRing) return false;
 
             if (_heightJobScheduled && _heightJobRing == ring)
                 return false;
@@ -490,6 +492,41 @@ namespace VoxelEngine.Showcase
             if (!targetOrigin.Equals(_ringOrigin[ring])) return false;
             if (_ringBuiltStructureVersion[ring] != structureVersion) return true;
             return ring == 0 && Mathf.Abs(_holeRadiusMetres - _builtHoleRadiusMetres) >= 1f;
+        }
+
+        private int CurrentAuthoritativePrefixRingCount(Vector3 cameraPosition)
+        {
+            int count = 0;
+            for (int ring = 0; ring < _ringHeightValid.Count; ring++)
+            {
+                if (!_ringHeightValid[ring]) break;
+                int spacing = _ringSpacing[ring];
+                if (!OriginFor(cameraPosition, spacing).Equals(_ringOrigin[ring])) break;
+                count++;
+            }
+            return count;
+        }
+
+        private bool TryRetireStartupFallback(Vector3 cameraPosition, int structureVersion)
+        {
+            if (_startupFallbackRing < 0) return false;
+            int authoritativePrefix = CurrentAuthoritativePrefixRingCount(cameraPosition);
+            if (!FarTerrainCoverageMath.CanRetireStartupFallback(
+                    authoritativePrefix,
+                    m_InnerRadiusMetres,
+                    m_OuterRadiusMetres,
+                    m_Resolution))
+                return false;
+
+            int fallbackRing = _startupFallbackRing;
+            RebuildRingFromCachedHeights(
+                fallbackRing,
+                _ringOrigin[fallbackRing],
+                _ringSpacing[fallbackRing]);
+            _ringBuiltStructureVersion[fallbackRing] = structureVersion;
+            _startupFallbackRing = -1;
+            _startupFallbackCoverageRing = -1;
+            return true;
         }
 
         private int2 OriginFor(Vector3 cameraPosition, int spacing)
