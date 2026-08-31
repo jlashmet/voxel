@@ -8,9 +8,10 @@ namespace Game.Kentridge.PlayableSlice
     /// <summary>
     /// Validation-only composition for readable macro settlement evidence. The evidence driver
     /// deliberately keeps streaming demand at each semantic settlement focus; this component only
-    /// lowers the already-selected survey camera from the coarse source-step-2 view into the exact
-    /// near ring before the frame is rendered. Production world generation, residency, renderer
-    /// policy, budgets, and normal gameplay cameras are unchanged.
+    /// moves the already-selected survey camera along its authored view ray from the coarse
+    /// source-step-2 view into the exact near ring before the frame is rendered. Moving on that ray
+    /// preserves the driver's semantic focus and framing. Production world generation, residency,
+    /// renderer policy, budgets, and normal gameplay cameras are unchanged.
     /// </summary>
     internal sealed class KentridgeMacroWorldSettlementSurveyComposition : MonoBehaviour
     {
@@ -20,6 +21,7 @@ namespace Game.Kentridge.PlayableSlice
         private const float DriverSettlementSurveyHeightMetres = 70f;
         private const float ReadableSettlementSurveyHeightMetres = 45f;
         private const float HeightToleranceMetres = 1.5f;
+        private const float MinimumDownwardView = 0.05f;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void InstallForAssignedProfile()
@@ -46,8 +48,20 @@ namespace Game.Kentridge.PlayableSlice
             if (Mathf.Abs(configuredHeight - DriverSettlementSurveyHeightMetres) > HeightToleranceMetres)
                 return;
 
-            position.y = terrainMetres + ReadableSettlementSurveyHeightMetres;
-            camera.transform.position = position;
+            camera.transform.position = ResolveReadableSurveyPosition(
+                position,
+                camera.transform.forward);
+        }
+
+        private static Vector3 ResolveReadableSurveyPosition(Vector3 position, Vector3 forward)
+        {
+            if (forward.sqrMagnitude < 0.0001f) return position;
+            forward.Normalize();
+            float downward = -forward.y;
+            if (downward < MinimumDownwardView) return position;
+
+            float verticalDrop = DriverSettlementSurveyHeightMetres - ReadableSettlementSurveyHeightMetres;
+            return position + forward * (verticalDrop / downward);
         }
 
         private static bool TryReadValidationProfile(out string profile)
