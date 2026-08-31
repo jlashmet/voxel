@@ -46,13 +46,13 @@ namespace VoxelEngine.Tests.EditMode
                 settings,
                 Allocator.Temp);
             int firstRoad = FirstDefinitionWithPrefix(combined, "world-road-");
-            int lastPlot = LastDefinitionWithPrefix(combined, "kentridge-plot-");
+            int lastPlotSurface = LastDefinitionFromStage(combined, plots);
 
             Assert.That(firstRoad, Is.GreaterThanOrEqualTo(0), "Combined Kentridge catalogue must contain road landforms.");
-            Assert.That(lastPlot, Is.GreaterThanOrEqualTo(0), "Combined Kentridge catalogue must contain plot-surface landforms.");
+            Assert.That(lastPlotSurface, Is.GreaterThanOrEqualTo(0), "Combined Kentridge catalogue must contain plot-surface landforms.");
             Assert.That(
                 firstRoad,
-                Is.GreaterThan(lastPlot),
+                Is.GreaterThan(lastPlotSurface),
                 "A later plot-surface carve/fill can overwrite a road grading-only point at " + overlap
                 + ". When these landforms overlap, Kentridge composition must finish plot pads before the authoritative road grading pass.");
         }
@@ -150,10 +150,16 @@ namespace VoxelEngine.Tests.EditMode
             return -1;
         }
 
-        private static int LastDefinitionWithPrefix(in FeatureCatalogue catalogue, string prefix)
+        private static int LastDefinitionFromStage(
+            in FeatureCatalogue catalogue,
+            in FeatureCatalogue stage)
         {
             for (int i = catalogue.Definitions.Length - 1; i >= 0; i--)
-                if (catalogue.Definitions[i].Name.ToString().StartsWith(prefix)) return i;
+            {
+                string combinedName = catalogue.Definitions[i].Name.ToString();
+                for (int stageIndex = 0; stageIndex < stage.Definitions.Length; stageIndex++)
+                    if (combinedName == stage.Definitions[stageIndex].Name.ToString()) return i;
+            }
             return -1;
         }
 
