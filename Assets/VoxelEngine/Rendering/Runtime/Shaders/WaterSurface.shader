@@ -270,7 +270,7 @@ Shader "Hidden/VoxelEngine/WaterSurface"
                 if (waterfall && verticalFacing > 0.5)
                 {
                     float boundaryTopology = saturate(lipTopology + impactTopology);
-                    float coverageCutoff = lerp(0.18, 0.10, boundaryTopology);
+                    float coverageCutoff = lerp(0.26, 0.10, boundaryTopology);
                     clip(sheetCoverage - coverageCutoff);
                 }
 
