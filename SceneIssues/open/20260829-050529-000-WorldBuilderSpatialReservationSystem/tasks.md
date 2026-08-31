@@ -58,19 +58,19 @@
 - [x] Stable ids, insertion-order independence, equal-precedence stable-id tie, hard/clearance/soft/handoff outcomes.
 - [x] Replay/release ownership regression and bounded-window query-work regression authored.
 - [x] Add macro-road production regression; architecture shared-source/host-filter regression is covered by `SpatialReservationProductionIntegrationTests`.
-- [ ] Record representative snapshot/source construction and query metrics after integration; `WorldbuildingGalleryReservationInspection` and the PlayMode smoke test already emit `SPATIAL_RESERVATION_COST`, but final values must come from the final exact-SHA run.
-- [x] Check repository-supported allocation/memory evidence where available: the existing capture-less `WorldbuildingGalleryAuditHarness` records Unity profiler allocated/reserved/unused-reserved memory plus resident/pending regions, and separately emits reservation build/query metrics.
+- [ ] Record representative snapshot/source construction and query metrics from the module-local built-player validation run; final values must come from the final exact-SHA run.
+- [x] Check repository-supported allocation/memory evidence where available; final memory evidence may come from the integration/Kentridge runtime gate, but focused visual acceptance must not depend on Worldbuilding Gallery.
 - [x] Verify generation/device budgets and unrelated world-generation behavior did not move: `master...fixes/agent-7` changes no global/device/region budget files; reservation queries stay bounded and existing budget/tolerance constants are untouched.
 
-## Gallery / runtime evidence
+## Module-local runtime evidence
 
-- [x] Trace `WorldbuildingGalleryReservationInspection` through the runtime path and prove presentation-only behavior.
-- [x] Add a presentation-only runtime/gallery renderer for inspection primitives.
-- [ ] Ensure surface hard/clearance/access, underground 3D claims and a deliberate rejected candidate are visibly/readably inspectable against corresponding physical content. The production smoke test now asserts all five evidence classes and visible-on-boot overlay state; durable built-player inspection is still required.
-- [x] Verify benchmark scene remains `Assets/Scenes/WorldbuildingGalleryShowcase.unity`; Kentridge production validation remains separately required.
-- [x] Resolve current scene highlight/classifier requirement: authoritative `SceneIssues/README.md` defines no separate classifier/highlight artifact; it requires direct exact-SHA built-player validation and durable evidence. `WorldbuildingGalleryShowcaseSmokeTests` asserts visible-on-boot reservation evidence classes, while `WorldbuildingGalleryAuditHarness` emits the durable reservation screenshot/cost evidence. The actual built-player inspection remains separately unchecked below.
-- [ ] Run exact built `WorldbuildingGalleryShowcase` and visually inspect required captures.
-- [ ] Run real `KentridgePlayableSlice` built/runtime traversal check.
+- [x] Retire `WorldbuildingGalleryShowcase` as the focused validation surface for this assignment; existing gallery inspection code is non-gating presentation only.
+- [x] Add module-local validation scene `Assets/Game/WorldBuilder/Generation/Validation/SpatialReservations/SpatialReservationValidation.unity` with dedicated runtime composition `SpatialReservationValidationShowcase`.
+- [x] Add agent-8-compatible declarative module metadata `spatial-reservations.module-validation.json` and separate built-player scenario `spatial-reservations.player-scenario.json`; no feature-specific logic is added to the shared harness.
+- [x] Local scene consumes a deterministic production `KentridgeTownPlanner.BuildReservationSnapshot` and visibly distinguishes hard occupancy, clearance, road, public access, and a deliberate rejected overlap; it owns no placement authority or colliders.
+- [ ] Extend/verify the local scene evidence for the required underground 3D claim once the final validation tree is ready; do not fall back to Worldbuilding Gallery.
+- [ ] Run the exact built module-local `SpatialReservationValidation.unity` player and directly inspect required captures.
+- [ ] Run real `KentridgePlayableSlice` built/runtime traversal check as the integration/regression gate, not as the module's focused validation scene.
 
 ## Validation / closure
 
@@ -78,8 +78,8 @@
 - [x] Never edit `.github/test-request.json` on `fixes/agent-7`, create extra transports, or replace queued CI.
 - [x] Fetch/merge current master through `ebdc2e4f63ef73153cd4e0ff5c62efe604f35470` into feature head via `46b4e473ab6497d836053a072f3fe7050156756b`; current master remained unchanged at the 2026-08-30 16:59 PDT blocker re-check.
 - [ ] Run focused `SpatialReservationTests` + affected Kentridge/vegetation/hidden-space and incoming foundation-surface regressions plus repository compile/static/ProjectValidator gates on the reconciled exact SHA.
-- [ ] Run required scene/runtime/built-player/visual gates and capture durable evidence.
-- [ ] Review assignment-only blast radius and record commands/results/cost/acceptance mapping in issue metadata. Source-level blast-radius review is complete and `master...fixes/agent-7` remains limited to reservation core/adapters, intended Kentridge consumers, gallery evidence, focused tests, and this SceneIssue bookkeeping; final cost/acceptance metadata remains blocked on exact-SHA runtime evidence.
+- [ ] Run required module-local scene/runtime/built-player/visual gates plus Kentridge integration and capture durable evidence.
+- [ ] Review assignment-only blast radius and record commands/results/cost/acceptance mapping in issue metadata. Source-level blast-radius review remains limited to reservation core/adapters, intended Kentridge consumers, module-local validation evidence, focused tests, and this SceneIssue bookkeeping; final cost/acceptance metadata remains blocked on exact-SHA runtime evidence.
 - [ ] Complete every required acceptance checkbox; keep the assignment in `open/` until gates pass.
 - [ ] Use `ci-test/fixes/agent-7` only for the final targeted-CI request; re-verified idle/stale at `8cc6ff94dcbbca46b1c522d08752235b891b1851` at 2026-08-30 16:59 PDT; do not publish until the typed-socket prerequisite lands and the feature tree is final.
 - [ ] Obtain green exact-SHA CI and record request/run/tested-SHA evidence.
