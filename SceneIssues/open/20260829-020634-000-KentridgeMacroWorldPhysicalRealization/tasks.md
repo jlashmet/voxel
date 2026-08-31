@@ -25,12 +25,13 @@
 - [x] Exact run `33405010658` on feature source `6037a817eea51eaa9f3c4ac45b7f1774c5310b7a` passes the independent generic blockout-shell regression and the unchanged real-player step. Rossdam publication reports `100113/119958/100074/118170` ready indices across its four blockouts versus experiment 019's ~1.03–1.20M solid bodies.
 - [x] Inspect run `33405010658` full-resolution Moordell/Rossdam/lake frames. Visual closure is rejected: Moordell does not read as four clean complete blockouts; Rossdam shows only a subset clearly with the lower structure clipped; the lake-detour view remains a thin distant strip.
 - [x] Add experiment 025 validation-only end-of-frame survey discriminator after the 90° lens; it records actual FOV/pose and all four authored building-centre viewport positions without mutating camera/world state.
+- [x] Classify exact run `33409727597`: product compile failure before tests/player build because Experiment 025 omitted `MountingForce.WorldGen.Voxel`, leaving `TopDownWorldPhysicalPlan` unresolved. Add only the missing namespace; do not retry unchanged.
 
 ## Current exact gate
 - [x] Projected-authored-bounds containment regression is exact-source green on run `33383144783`.
 - [x] Run the independent generic blockout-shell regression on the exact current feature SHA through `ci-test/fixes/agent-6` and inspect its unchanged 60 s built-player replay for convergence/visual evidence (`33405010658`, green).
 - [x] After focused green, inspect full-resolution Moordell/Rossdam frames; do not accept workflow green without visual closure. Result: closure-red.
-- [ ] Run experiment 025 on exact current feature SHA through `ci-test/fixes/agent-6`; inspect `MACROEVIDENCE end-frame-survey` for actual 90° FOV/pose and four-centre containment, then inspect the corresponding full-resolution settlement frames before any geometry change.
+- [ ] Run corrected experiment 025 on exact current feature SHA through `ci-test/fixes/agent-6`; inspect `MACROEVIDENCE end-frame-survey` for actual 90° FOV/pose and four-centre containment, then inspect the corresponding full-resolution settlement frames before any geometry change.
 - [ ] Verify full-resolution Moordell/Rossdam/Fairy/Orc surveys show all four readable authored settlement blockouts with streets/open space and arrival/exit.
 - [ ] Re-check Rossdam lake framing; it must read as substantial authored water plus constrained route, not the thin distant strip still visible in run `33405010658`.
 - [ ] Capture Southern Ridge/pass and final `macro-network-overview` inside the unchanged 60 s replay.
