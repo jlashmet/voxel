@@ -12,8 +12,8 @@ namespace VoxelEngine.Tests.EditMode
     {
         private const string SourceDirectory =
             "SceneIssues/open/20260829-050700-000-VoxelShowcaseDragonMeshVoxelization/source";
-        private const string Base64Alphabet =
-            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        private const string DiagnosticDirectory =
+            "SceneIssues/open/20260829-050700-000-VoxelShowcaseDragonMeshVoxelization/diagnostics";
 
         [Test]
         public void ReconstructObjBytes_CommittedArchiveMatchesPinnedIdentity()
@@ -24,54 +24,55 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void DiagnosePart13TransferLoss_MissingProbeBoundaryCharacterHasUniquePinnedIdentity()
+        public void DiagnosePart13TransferLoss_HistoricalTailLocatesPinnedCharacter()
         {
-            string sourceDirectory = Path.Combine(Directory.GetCurrentDirectory(), SourceDirectory);
+            string root = Directory.GetCurrentDirectory();
+            string sourceDirectory = Path.Combine(root, SourceDirectory);
+            string diagnosticDirectory = Path.Combine(root, DiagnosticDirectory);
             string part13 = ReadSourcePiece(sourceDirectory, "mountain_dragon_clean.obj.gz.b64.part13");
-            string probe = ReadSourcePiece(sourceDirectory, "_probe13first5k");
+            string prefixProbe = ReadSourcePiece(sourceDirectory, "_probe13first5k");
+            string historicalTail = ReadSourcePiece(diagnosticDirectory, "historical-part13.02");
 
             Assert.Multiple(() =>
             {
                 Assert.That(part13, Has.Length.EqualTo(19_999),
                     "The minimal repro is scoped to the demonstrated one-character part13 transfer loss.");
-                Assert.That(probe, Has.Length.EqualTo(4_999),
-                    "The historical chunk deliberately staged as a 5k transport probe must reproduce the observed loss.");
-                Assert.That(part13.StartsWith(probe, StringComparison.Ordinal), Is.True,
-                    "The historical 4,999-character probe must be the exact current part13 prefix before searching its boundary.");
+                Assert.That(prefixProbe, Has.Length.EqualTo(4_999),
+                    "The historical first probe must reproduce the observed 4,999-character prefix.");
+                Assert.That(historicalTail, Has.Length.EqualTo(5_001),
+                    "The immutable historical tail fixture must remain the exact staged 5,001-character blob.");
+                Assert.That(part13.StartsWith(prefixProbe, StringComparison.Ordinal), Is.True,
+                    "The historical prefix probe must be the exact current part13 prefix.");
             });
+
+            string observedTailWindow = part13.Substring(prefixProbe.Length, historicalTail.Length - 1);
+            int divergence = FirstDifference(historicalTail, observedTailWindow);
+            Assert.That(divergence, Is.LessThan(historicalTail.Length),
+                "The historical 5,001-character tail unexpectedly equals the 5,000-character observed window.");
+
+            char recoveredCharacter = historicalTail[divergence];
+            string repairedTailWindow = observedTailWindow.Insert(divergence, recoveredCharacter.ToString());
+            Assert.That(repairedTailWindow, Is.EqualTo(historicalTail),
+                $"Historical tail is not the observed current window plus one deletion. First divergence={divergence}; " +
+                $"historical={Context(historicalTail, divergence)}; observed={Context(observedTailWindow, divergence)}.");
+
+            int part13InsertionOffset = prefixProbe.Length + divergence;
+            string repairedPart13 = part13.Insert(part13InsertionOffset, recoveredCharacter.ToString());
 
             var encoded = new StringBuilder(320_000);
             for (int part = 0; part < 13; part++)
                 encoded.Append(ReadSourcePiece(sourceDirectory, $"mountain_dragon_clean.obj.gz.b64.part{part:00}"));
-
-            int insertionOffset = encoded.Length + probe.Length;
-            encoded.Append(part13);
+            encoded.Append(repairedPart13);
             for (int part = 14; part < 16; part++)
                 encoded.Append(ReadSourcePiece(sourceDirectory, $"mountain_dragon_clean.obj.gz.b64.part{part:00}"));
 
-            Assert.That(encoded, Has.Length.EqualTo(319_999));
+            Assert.That(encoded, Has.Length.EqualTo(320_000));
+            byte[] compressed = Convert.FromBase64String(encoded.ToString());
+            Assert.That(Sha256Hex(compressed), Is.EqualTo(MountainDragonSourceArchive.ExpectedGzipSha256),
+                $"Historical tail localized candidate '{recoveredCharacter}' at part13 offset {part13InsertionOffset}, " +
+                "but that candidate does not match the pinned gzip identity.");
 
-            char? match = null;
-            byte[] matchedCompressed = null;
-            for (int i = 0; i < Base64Alphabet.Length; i++)
-            {
-                string candidate = encoded.ToString().Insert(insertionOffset, Base64Alphabet[i].ToString());
-                byte[] compressed = Convert.FromBase64String(candidate);
-                if (!string.Equals(Sha256Hex(compressed), MountainDragonSourceArchive.ExpectedGzipSha256,
-                        StringComparison.Ordinal))
-                    continue;
-
-                Assert.That(match.HasValue, Is.False,
-                    "More than one Base64 character at the demonstrated transfer boundary matched the pinned gzip identity.");
-                match = Base64Alphabet[i];
-                matchedCompressed = compressed;
-            }
-
-            Assert.That(match.HasValue, Is.True,
-                $"No Base64 character inserted at logical part13 offset {probe.Length} matched pinned gzip SHA-256 " +
-                MountainDragonSourceArchive.ExpectedGzipSha256 + ".");
-
-            byte[] obj = Decompress(matchedCompressed);
+            byte[] obj = Decompress(compressed);
             Assert.Multiple(() =>
             {
                 Assert.That(obj, Has.Length.EqualTo(MountainDragonSourceArchive.ExpectedObjByteCount));
@@ -79,8 +80,8 @@ namespace VoxelEngine.Tests.EditMode
             });
 
             TestContext.Out.WriteLine(
-                $"Recovered unique part13 transfer character '{match.Value}' at logical offset {probe.Length}; " +
-                $"full Base64 offset {insertionOffset} matches pinned gzip and OBJ identities.");
+                $"Recovered unique part13 transfer character '{recoveredCharacter}' at logical offset " +
+                $"{part13InsertionOffset}; full archive matches pinned gzip and OBJ identities.");
         }
 
         [Test]
@@ -118,6 +119,25 @@ namespace VoxelEngine.Tests.EditMode
             TestContext.Out.WriteLine("=== MOUNTAIN DRAGON HISTORICAL OBJ PREFIX ===");
             TestContext.Out.WriteLine(text.Substring(0, printableLength));
             TestContext.Out.WriteLine("=== END MOUNTAIN DRAGON HISTORICAL OBJ PREFIX ===");
+        }
+
+        private static int FirstDifference(string expected, string observed)
+        {
+            int length = Math.Min(expected.Length, observed.Length);
+            for (int i = 0; i < length; i++)
+            {
+                if (expected[i] != observed[i])
+                    return i;
+            }
+
+            return length;
+        }
+
+        private static string Context(string value, int offset)
+        {
+            int start = Math.Max(0, offset - 12);
+            int length = Math.Min(value.Length - start, 25);
+            return "'" + value.Substring(start, length) + "'";
         }
 
         private static string ReadSourcePiece(string sourceDirectory, string fileName)
