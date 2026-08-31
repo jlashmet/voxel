@@ -66,6 +66,37 @@ namespace VoxelEngine.Tests.EditMode
                 "Changing incident-piece order at a junction must not expose independent endpoint cross-sections.");
         }
 
+        [Test]
+        public void PhysicalCrossSectionMustNotTurnOneDecimetreCrownIntoMultiVoxelTerrace()
+        {
+            const int scale = 4;
+            Primitive corridor = ScaledCorridor(scale);
+            int sampleX = 20 * scale;
+            int previousHeight = 0;
+            int largestAdjacentJump = 0;
+            bool hasPrevious = false;
+            bool sawCrossSectionChange = false;
+
+            for (int worldZ = 0; worldZ <= 18 * scale; worldZ++)
+            {
+                Assert.IsTrue(TerrainCorridorRasteriser.TrySample(
+                    in corridor, sampleX, worldZ, out TerrainCorridorSample sample));
+                if (hasPrevious)
+                {
+                    int jump = math.abs(sample.TargetHeightVoxels - previousHeight);
+                    largestAdjacentJump = math.max(largestAdjacentJump, jump);
+                    sawCrossSectionChange |= jump > 0;
+                }
+                previousHeight = sample.TargetHeightVoxels;
+                hasPrevious = true;
+            }
+
+            Assert.IsTrue(sawCrossSectionChange,
+                "The fixture must traverse a non-flat crown rather than a constant target plane.");
+            Assert.LessOrEqual(largestAdjacentJump, 1,
+                "A physical cross-section sampled on adjacent voxel columns must progress at voxel precision; rounding to whole decimetres and multiplying by scale creates the visible multi-voxel terrace.");
+        }
+
         private static int RasterisedTopAtProbe(params Primitive[] corridors)
         {
             var table = new RegionTable(expectedResident: 4, Allocator.Temp);
@@ -109,6 +140,22 @@ namespace VoxelEngine.Tests.EditMode
                 Radius = 24,
                 C = new int3(20, 4, 24),
                 D = new int3(0, unchecked((int)Seed), 1),
+            };
+        }
+
+        private static Primitive ScaledCorridor(int scale)
+        {
+            return new Primitive
+            {
+                Shape = PrimitiveShape.TerrainCorridor,
+                Mode = PrimitiveMode.TerrainCorridor,
+                Material = 13,
+                A = new int3(0, 10 * scale, 0),
+                B = new int3(40 * scale, 10 * scale, 0),
+                InnerRadius = 18 * scale,
+                Radius = 24 * scale,
+                C = new int3(20 * scale, 4 * scale, 24 * scale),
+                D = new int3(0, unchecked((int)Seed), scale),
             };
         }
     }
