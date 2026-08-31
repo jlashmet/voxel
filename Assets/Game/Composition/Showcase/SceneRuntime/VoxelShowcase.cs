@@ -6,6 +6,7 @@ using VoxelEngine.Vegetation.Api;
 using VoxelEngine.Collision.Api;
 using VoxelEngine.Composition;
 using VoxelEngine.Storage.Api;
+using VoxelEngine.Structures.Runtime.MeshImport;
 using VoxelEngine.Tiering.Api;
 
 namespace VoxelEngine.Showcase
@@ -104,6 +105,11 @@ namespace VoxelEngine.Showcase
         [SerializeField] private int m_MinBrushRadius = 2;
         [SerializeField] private int m_MaxBrushRadius = 40;
 
+        [Header("Mesh Structures")]
+        [Tooltip("Baked sparse mountain-dragon artifact. Runtime decodes only voxel cells; the source mesh is never gameplay authority.")]
+        [SerializeField] private TextAsset m_MountainDragonVoxelBake;
+        [SerializeField] private float m_StructurePlacementDistanceMetres = 12f;
+
         [Header("Networking")]
         [SerializeField] private string m_NetworkAddress = "127.0.0.1";
         [SerializeField] private int m_NetworkPort = 7979;
@@ -114,6 +120,7 @@ namespace VoxelEngine.Showcase
         private ShowcaseMultiplayerSession _multiplayer;
         private IShowcaseExplosionWorld _explosionWorld;
         private IShowcaseExplosionNetwork _explosionNetwork;
+        private StructurePlacementInputRouter _structurePlacementInput;
         private bool _multiplayerRequested;
         private bool _spawned;
         private bool _castleLightsPublished;
@@ -131,6 +138,8 @@ namespace VoxelEngine.Showcase
         private double _lastEditMs;
         private string _lastEditLabel = "—";
         private string _networkPortText = "7979";
+
+        private static readonly string[] StructurePlacementNames = { "Mountain Dragon" };
 
         private sealed class TornadoShot
         {
@@ -155,6 +164,8 @@ namespace VoxelEngine.Showcase
 
         public int ActiveTornadoCount => _tornadoes.Count;
         public bool FlashlightEnabled => _flashlightEnabled;
+        public bool StructurePlacementActive => _structurePlacementInput?.Active == true;
+        public string SelectedStructureName => _structurePlacementInput?.SelectedName ?? string.Empty;
 
         /// <summary>
         /// Opts this driver into the existing authoritative multiplayer session. The dedicated
@@ -200,6 +211,8 @@ namespace VoxelEngine.Showcase
             _gpuDebris = new GpuDebrisSystem();
             _motor = new CharacterMotor { WalkSpeed = m_WalkSpeed };
             _explosionWorld = new ShowcaseWorldExplosionAdapter(_world);
+            _structurePlacementInput = new StructurePlacementInputRouter(
+                new StructurePlacementSelection(StructurePlacementNames));
 
             // Keep the production surface scheduler live from the first rendered frame. The
             // castle is published incrementally, and ready chunk geometry already remains visible
@@ -257,6 +270,8 @@ namespace VoxelEngine.Showcase
             RenderingComposition.ClearWorld();
             RenderingComposition.SetSurfaceBuildEnabled(true);
 
+            _structurePlacementInput?.Cancel();
+            _structurePlacementInput = null;
             _multiplayer?.Dispose();
             _multiplayer = null;
             _explosionNetwork = null;
@@ -618,6 +633,7 @@ namespace VoxelEngine.Showcase
             float forward = (Input.GetKey(KeyCode.W) ? 1f : 0f) - (Input.GetKey(KeyCode.S) ? 1f : 0f);
             float strafe = (Input.GetKey(KeyCode.D) ? 1f : 0f) - (Input.GetKey(KeyCode.A) ? 1f : 0f);
             bool sprint = Input.GetKey(KeyCode.LeftShift);
+            bool movementSpace = !StructurePlacementActive && Input.GetKey(KeyCode.Space);
 
             if (_multiplayer?.IsActive == true)
             {
@@ -626,7 +642,7 @@ namespace VoxelEngine.Showcase
                     Time.deltaTime,
                     new float2(strafe, forward),
                     sprint,
-                    Input.GetKey(KeyCode.Space),
+                    movementSpace,
                     (float3)transform.forward);
                 transform.position = _motor.EyePosition;
                 return;
@@ -654,7 +670,7 @@ namespace VoxelEngine.Showcase
             if (m_FlyMode)
             {
                 var move = transform.forward * forward + transform.right * strafe;
-                if (Input.GetKey(KeyCode.Space)) move += Vector3.up;
+                if (movementSpace) move += Vector3.up;
                 if (Input.GetKey(KeyCode.LeftControl)) move -= Vector3.up;
 
                 if (move.sqrMagnitude > 1e-6f)
@@ -682,7 +698,7 @@ namespace VoxelEngine.Showcase
             var wish = flatForward * forward + flatRight * strafe;
             if (wish.sqrMagnitude > 1f) wish.Normalize();
 
-            _motor.Step(_world, wish, sprint, Input.GetKey(KeyCode.Space), Time.deltaTime);
+            _motor.Step(_world, wish, sprint, movementSpace, Time.deltaTime);
             transform.position = _motor.EyePosition;
         }
 
@@ -737,6 +753,42 @@ namespace VoxelEngine.Showcase
 
         // -- input ---------------------------------------------------------------
 
+        public bool BeginStructurePlacementMode()
+        {
+            if (_world == null || _multiplayer?.IsActive == true || _structurePlacementInput == null)
+                return false;
+            _structurePlacementInput.Begin();
+            return true;
+        }
+
+        public void CancelStructurePlacementMode() => _structurePlacementInput?.Cancel();
+
+        private bool TryPlaceSelectedStructure(int selectedIndex)
+        {
+            if (selectedIndex != 0 || _world == null || m_MountainDragonVoxelBake == null)
+            {
+                _lastEditLabel = "mountain dragon bake unavailable";
+                return false;
+            }
+
+            BakedVoxelStructure bake = BakedVoxelStructureCodec.Decode(m_MountainDragonVoxelBake.text);
+            MountainDragonVoxelBakePolicy.ValidateBakeEnvelope(bake);
+
+            Vector3 forward = Vector3.ProjectOnPlane(transform.forward, Vector3.up);
+            if (forward.sqrMagnitude < 1e-6f) forward = Vector3.forward;
+            forward.Normalize();
+            Vector3 targetMetres = transform.position + forward * m_StructurePlacementDistanceMetres;
+            int voxelX = Mathf.RoundToInt(targetMetres.x / ShowcaseWorld.VoxelSize);
+            int voxelZ = Mathf.RoundToInt(targetMetres.z / ShowcaseWorld.VoxelSize);
+            int voxelY = _world.SurfaceHeight(voxelX, voxelZ) + 1;
+
+            MeshStructurePlacementResult result = _world.PlaceBakedMeshStructure(
+                bake, new int3(voxelX, voxelY, voxelZ));
+            _lastEditMs = result.PlacementMilliseconds;
+            _lastEditLabel = $"placed {SelectedStructureName}: {result.VoxelsWritten:N0} voxels";
+            return true;
+        }
+
         private void HandleKeys()
         {
             SyncCursorLock();
@@ -744,6 +796,15 @@ namespace VoxelEngine.Showcase
             if (Input.GetKeyDown(KeyCode.Escape)) SetCursorLocked(!_mouseLook);
 
             bool networked = _multiplayer?.IsActive == true;
+            if (networked && StructurePlacementActive)
+                CancelStructurePlacementMode();
+
+            if (!networked && Input.GetKeyDown(KeyCode.B))
+            {
+                if (StructurePlacementActive) CancelStructurePlacementMode();
+                else BeginStructurePlacementMode();
+            }
+
             if (!networked && Input.GetKeyDown(KeyCode.F))
             {
                 m_FlyMode = !m_FlyMode;
@@ -759,8 +820,16 @@ namespace VoxelEngine.Showcase
             if (!networked && Input.GetKeyDown(KeyCode.E)) TryInteract();
 
             float scroll = Input.GetAxisRaw("Mouse ScrollWheel");
-            if (Mathf.Abs(scroll) > 0.01f)
-                m_BrushRadius = Mathf.Clamp(m_BrushRadius + (scroll > 0f ? 2 : -2),
+            int scrollDelta = Mathf.Abs(scroll) > 0.01f ? (scroll > 0f ? 1 : -1) : 0;
+            StructurePlacementInputResult placementInput = _structurePlacementInput == null || networked
+                ? default
+                : _structurePlacementInput.Route(
+                    scrollDelta,
+                    Input.GetKeyDown(KeyCode.Space),
+                    TryPlaceSelectedStructure);
+
+            if (!placementInput.ConsumeScroll && scrollDelta != 0)
+                m_BrushRadius = Mathf.Clamp(m_BrushRadius + (scrollDelta > 0 ? 2 : -2),
                                             m_MinBrushRadius, m_MaxBrushRadius);
         }
 
@@ -1165,8 +1234,20 @@ namespace VoxelEngine.Showcase
 
             DrawNetworkPanel();
 
-            // Keep only contextual gameplay guidance; the persistent diagnostics overlay is gone.
-            if (InteractionPromptVisible)
+            // Placement mode owns wheel + Space. Outside it, the ordinary brush and movement
+            // meanings remain untouched.
+            if (StructurePlacementActive)
+            {
+                var placement = new GUIStyle(GUI.skin.box)
+                {
+                    fontSize = 16,
+                    fontStyle = FontStyle.Bold,
+                    alignment = TextAnchor.MiddleCenter,
+                };
+                GUI.Box(new Rect(Screen.width * 0.5f - 250f, Screen.height - 96f, 500f, 40f),
+                        $"BUILD  {SelectedStructureName}   WHEEL SELECT   SPACE PLACE   B CANCEL", placement);
+            }
+            else if (InteractionPromptVisible)
             {
                 var prompt = new GUIStyle(GUI.skin.box)
                 {
