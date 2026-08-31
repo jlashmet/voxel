@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
-using UnityEngine.Rendering;
 using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 using VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel;
 using VoxelEngine.Storage.Api;
@@ -56,8 +55,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private bool _countDispatchPending;
         private bool _writeDispatchPending;
         private bool _copyDispatchPending;
-        private bool _copyFencePending;
-        private GraphicsFence _copyFence;
+        private bool _copyQueuedForPublication;
         private int _copyIndexCount;
         private ulong _stageStorageGeneration;
         private bool _coverageRequested;
@@ -80,6 +78,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private bool _countBatchFailed;
         private GpuExtractionCounts _countBatchCounts;
         private SurfaceGeometryLease _countBatchLease;
+        private bool _countBatchGeometryPublished;
+        private bool _pagedBatchReady;
+        private bool _pagedBatchFailed;
+        private int _pagedHandle = -1;
         private double _stageRequestStartedSeconds;
 
         public GpuVoxelBrickMirror Mirror => _mirror;
@@ -391,12 +393,25 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                     return false;
                 _coverageReady = true;
             }
+            if (!GpuSurfaceMirrorCoordinator.TryBeginExtraction(
+                    request.BrickCacheOrigin, _brickCacheEdge))
+                return false;
             ConfigurePersistentLookupHeader();
-            _staged = request;
+            int handle = GpuSurfaceMirrorCoordinator.PrepareChunkHandle(
+                request.ChunkOriginVoxel, request.SourceStep,
+                request.Generation != 0 ? request.Generation : generation);
+            if (handle < 0)
+            {
+                GpuSurfaceMirrorCoordinator.EndExtraction(
+                    request.BrickCacheOrigin, _brickCacheEdge);
+                return false;
+            }
+            _staged = new GpuChunkExtraction(
+                request.ChunkOriginVoxel, request.BrickCacheOrigin,
+                request.SourceStep, request.VoxelSize, request.TransitionFaceMask,
+                handle, request.Generation != 0 ? request.Generation : generation);
             _hasStaged = true;
             ChunksMirrorReady++;
-            GpuSurfaceMirrorCoordinator.BeginExtraction(
-                request.BrickCacheOrigin, _brickCacheEdge);
             _sharedExtractionActive = true;
             return true;
         }
@@ -477,13 +492,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             }
             if (counts.IsEmpty)
             {
-                // The count itself completed successfully, so this is not a GPU failure. Keep the
-                // staged extraction alive and let the normal publication path install a zero-index
-                // ready entry. CpuTransvoxelChunkCache still needs a non-zero arena sizing token,
-                // but the authoritative zero remains in _stagedCounts. BeginWriteRange recognizes
-                // that zero and deliberately skips the redundant geometry write dispatch.
+                // The count itself completed successfully, so this is not a GPU failure. Return
+                // the authoritative empty result unchanged. CpuTransvoxelChunkCache publishes air
+                // atomically without an arena lease and removes any older drawable representation.
                 ChunksEmpty++;
-                counts = new GpuExtractionCounts(1, 1);
             }
             return poll;
         }
@@ -515,12 +527,14 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         }
 
         internal bool CompleteBatchedCount(uint token, in GpuExtractionCounts counts, bool failed,
-                                           in SurfaceGeometryLease lease = default)
+                                           in SurfaceGeometryLease lease = default,
+                                           bool geometryPublished = false)
         {
             if (_disposed || !_hasStaged || token != _countBatchToken) return false;
             _countBatchCounts = counts;
             _countBatchFailed = failed;
             _countBatchLease = lease;
+            _countBatchGeometryPublished = geometryPublished;
             _countBatchResultReady = true;
             return true;
         }
@@ -530,6 +544,33 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             lease = _countBatchLease;
             _countBatchLease = default;
             return lease.IsValid;
+        }
+
+        internal bool CompletePagedBatch(uint token, int handle)
+        {
+            if (_disposed || !_hasStaged || token != _countBatchToken || handle < 0) return false;
+            _pagedHandle = handle;
+            _pagedBatchReady = true;
+            return true;
+        }
+
+        internal bool FailPagedBatch(uint token)
+        {
+            if (_disposed || !_hasStaged || token != _countBatchToken) return false;
+            _pagedHandle = -1;
+            _pagedBatchFailed = true;
+            _pagedBatchReady = true;
+            return true;
+        }
+
+        internal bool TryTakePagedBatch(out int handle, out bool failed)
+        {
+            handle = _pagedHandle;
+            failed = _pagedBatchFailed;
+            if (!_pagedBatchReady) return false;
+            _pagedBatchReady = false;
+            _pagedBatchFailed = false;
+            return true;
         }
 
         public void BeginWriteRange(ComputeBuffer vertices, ComputeBuffer indices,
@@ -547,6 +588,17 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _writeVertexCapacity = vertexCapacity;
             _writeIndexStart = indexStart;
             _writeIndexCapacity = indexCapacity;
+
+            if (_countBatchGeometryPublished)
+            {
+                _countBatchGeometryPublished = false;
+                _copyIndexCount = _stagedCounts.IndexCount;
+                _writeDispatchPending = false;
+                _copyDispatchPending = false;
+                _copyQueuedForPublication = true;
+                ChunksCopied++;
+                return;
+            }
 
             // A completed zero count is already the authoritative payload. Dispatching the write
             // kernel just to prove that it writes zero vertices/indices adds a second async
@@ -566,6 +618,20 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         public GpuSurfaceExtractor.GpuCounterPoll TryCompleteWriteRange(out int indexCount)
         {
+            double pollStarted = Time.realtimeSinceStartupAsDouble;
+            try
+            {
+                return TryCompleteWriteRangeCore(out indexCount);
+            }
+            finally
+            {
+                GpuSurfaceMirrorCoordinator.RecordCompletionPoll(
+                    (Time.realtimeSinceStartupAsDouble - pollStarted) * 1000.0);
+            }
+        }
+
+        private GpuSurfaceExtractor.GpuCounterPoll TryCompleteWriteRangeCore(out int indexCount)
+        {
             ThrowIfDisposed();
             indexCount = 0;
             if (!_hasStaged) return GpuSurfaceExtractor.GpuCounterPoll.Failed;
@@ -581,10 +647,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                     return GpuSurfaceExtractor.GpuCounterPoll.Pending;
                 return GpuSurfaceExtractor.GpuCounterPoll.Pending;
             }
-            if (_copyFencePending)
+            if (_copyQueuedForPublication)
             {
-                if (!_copyFence.passed) return GpuSurfaceExtractor.GpuCounterPoll.Pending;
-                _copyFencePending = false;
+                _copyQueuedForPublication = false;
                 indexCount = _copyIndexCount;
                 ChunksWriteCompleted++;
                 ChunksWritten++;
@@ -599,15 +664,20 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (!GpuSurfaceMirrorCoordinator.TryReserveExtractionDispatch(Time.frameCount))
                 return false;
 
-            _extractor.WriteRangeToScratch(
-                _mirror, _tables, _staged, _writeVertexCapacity, _writeIndexCapacity);
-            _writeDispatchPending = false;
+            double dispatchStarted = Time.realtimeSinceStartupAsDouble;
             _copyIndexCount = _stagedCounts.IndexCount;
-            // Write, arena copy and args publication are one ordered compute-queue stage. The
-            // fence keeps this context's scratch unavailable until every command has drained, so
-            // charging the short copy a second global frame ticket only cuts throughput without
-            // adding a lifetime guarantee.
-            DispatchCopyAndFence();
+            _extractor.WriteScratchCopyAndPublish(
+                _mirror, _tables, _staged,
+                _writeVertexCapacity, _writeIndexCapacity,
+                _writeVertices, _writeIndices, _writeArgs, _writeArgsWordStart,
+                _writeVertexStart, _stagedCounts.VertexCount,
+                _writeIndexStart, _copyIndexCount);
+            _writeDispatchPending = false;
+            _copyDispatchPending = false;
+            _copyQueuedForPublication = true;
+            ChunksCopied++;
+            GpuSurfaceMirrorCoordinator.RecordWriteDispatch(
+                (Time.realtimeSinceStartupAsDouble - dispatchStarted) * 1000.0);
             return true;
         }
 
@@ -617,22 +687,27 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (!GpuSurfaceMirrorCoordinator.TryReserveExtractionDispatch(Time.frameCount))
                 return false;
 
-            DispatchCopyAndFence();
+            DispatchCopyAndPublish();
             return true;
         }
 
-        private void DispatchCopyAndFence()
+        private void DispatchCopyAndPublish()
         {
-            _extractor.CopyCompletedWriteRange(
-                _writeVertices, _writeIndices, _writeArgs, _writeArgsWordStart,
-                _writeVertexStart, _stagedCounts.VertexCount,
-                _writeIndexStart, _copyIndexCount);
-            _copyFence = Graphics.CreateGraphicsFence(
-                GraphicsFenceType.AsyncQueueSynchronisation,
-                SynchronisationStageFlags.ComputeProcessing);
-            _copyFencePending = true;
+            double dispatchStarted = Time.realtimeSinceStartupAsDouble;
+            if (!_stagedCounts.IsEmpty)
+                throw new InvalidOperationException(
+                    "Non-empty production writes must be submitted as one write/copy batch.");
+            _extractor.PublishEmpty(_writeArgs, _writeArgsWordStart);
+            // Every call above is submitted to Unity's graphics queue. Its ordering is the lifetime
+            // guarantee: a later scratch write, arena reuse, or indirect draw cannot overtake this
+            // write -> copy -> args-publication chain. The CPU therefore publishes ownership
+            // without a fence poll or completion readback; args remain the GPU-side visibility
+            // record and are written last.
+            _copyQueuedForPublication = true;
             _copyDispatchPending = false;
             ChunksCopied++;
+            GpuSurfaceMirrorCoordinator.RecordCopyDispatch(
+                (Time.realtimeSinceStartupAsDouble - dispatchStarted) * 1000.0);
         }
 
         public GpuExtractionCounts StagedCounts => _stagedCounts;
@@ -666,7 +741,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             if (!_hasStaged && !_sharedExtractionActive && !_stageAdmissionPending
                 && !_countDispatchPending && !_writeDispatchPending && !_copyDispatchPending
-                && !_copyFencePending
+                && !_copyQueuedForPublication
                 && !_countBatchLease.IsValid
                 && _legacyPinnedBricks.Count == 0)
                 return;
@@ -676,7 +751,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _countDispatchPending = false;
             _writeDispatchPending = false;
             _copyDispatchPending = false;
-            _copyFencePending = false;
+            _copyQueuedForPublication = false;
             _copyIndexCount = 0;
             _stageStorageGeneration = 0;
             _coverageRequested = false;
@@ -687,6 +762,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _countBatchResultReady = false;
             _countBatchFailed = false;
             _countBatchCounts = default;
+            _countBatchGeometryPublished = false;
+            _pagedBatchReady = false;
+            _pagedBatchFailed = false;
+            _pagedHandle = -1;
             _surfaceArena?.Release(in _countBatchLease);
             _countBatchLease = default;
             _writeVertices = null;

@@ -173,15 +173,17 @@ namespace VoxelEngine.Tests.EditMode
                     Assert.AreEqual(0u, words[word + 6] % 256u);
                     Assert.AreEqual(0u, words[word + 7] % 512u);
                 }
-                Assert.AreEqual(words[4 + 6] + words[12 + 6], words[0]);
-                Assert.AreEqual(words[4 + 7] + words[12 + 7], words[1]);
+                int firstWord = GpuSurfaceExtractor.BatchHeaderWords;
+                int secondWord = firstWord + GpuSurfaceExtractor.BatchRecordWords;
+                Assert.AreEqual(words[firstWord + 6] + words[secondWord + 6], words[0]);
+                Assert.AreEqual(words[firstWord + 7] + words[secondWord + 7], words[1]);
                 Assert.AreEqual(2u, words[2]);
-                Assert.AreEqual(0u, words[4 + 1]);
-                Assert.AreEqual(1u, words[12 + 1]);
-                Assert.AreEqual(0u, words[4 + 4]);
-                Assert.AreEqual(words[4 + 6], words[12 + 4]);
-                Assert.AreEqual(0u, words[4 + 5]);
-                Assert.AreEqual(words[4 + 7], words[12 + 5]);
+                Assert.AreEqual(0u, words[firstWord + 1]);
+                Assert.AreEqual(1u, words[secondWord + 1]);
+                Assert.AreEqual(0u, words[firstWord + 4]);
+                Assert.AreEqual(words[firstWord + 6], words[secondWord + 4]);
+                Assert.AreEqual(0u, words[firstWord + 5]);
+                Assert.AreEqual(words[firstWord + 7], words[secondWord + 5]);
             }
             finally
             {

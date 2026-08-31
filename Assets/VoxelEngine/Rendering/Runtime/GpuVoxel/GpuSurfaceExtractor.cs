@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.InteropServices;
 using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
@@ -21,15 +22,20 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         /// resolution, which is the common case.
         /// </summary>
         public readonly int TransitionFaceMask;
+        public readonly int Handle;
+        public readonly ulong Generation;
 
         public GpuChunkExtraction(int3 chunkOriginVoxel, int3 brickCacheOrigin,
-                                  int sourceStep, float voxelSize, int transitionFaceMask = 0)
+                                  int sourceStep, float voxelSize, int transitionFaceMask = 0,
+                                  int handle = 0, ulong generation = 0)
         {
             ChunkOriginVoxel = chunkOriginVoxel;
             BrickCacheOrigin = brickCacheOrigin;
             SourceStep = sourceStep;
             VoxelSize = voxelSize;
             TransitionFaceMask = transitionFaceMask;
+            Handle = handle;
+            Generation = generation;
         }
     }
 
@@ -95,6 +101,82 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
     public sealed class GpuSurfaceExtractor : IDisposable
     {
         private const int ThreadGroupSize = 64;
+
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct BatchChunkDescriptor
+        {
+            internal int OriginX;
+            internal int OriginY;
+            internal int OriginZ;
+            internal int SourceStep;
+            internal uint TransitionFaceMask;
+            internal float VoxelSize;
+            internal uint Handle;
+            internal uint GenerationLow;
+            internal uint GenerationHigh;
+
+            internal const int Stride = sizeof(int) * 4 + sizeof(uint) + sizeof(float)
+                                      + sizeof(uint) * 3;
+        }
+
+        internal sealed class CountBatchResources : IDisposable
+        {
+            internal readonly int Capacity;
+            internal readonly ComputeBuffer Chunks;
+            internal readonly ComputeBuffer Density;
+            internal readonly ComputeBuffer SampleMaterial;
+            internal readonly ComputeBuffer SampleSurface;
+            internal readonly ComputeBuffer SampleBoundary;
+            internal readonly ComputeBuffer CellVertexCounts;
+            internal readonly ComputeBuffer CellTriangleCounts;
+            internal readonly ComputeBuffer FaceDensity;
+            internal readonly ComputeBuffer FaceMaterial;
+            internal readonly ComputeBuffer FaceSurface;
+            internal readonly BatchChunkDescriptor[] Descriptors;
+            internal readonly uint[] CounterZeros;
+
+            internal CountBatchResources(int capacity, int sampleCount, int cellCount,
+                                         int faceSampleCount)
+            {
+                Capacity = capacity;
+                Chunks = new ComputeBuffer(capacity, BatchChunkDescriptor.Stride,
+                                           ComputeBufferType.Structured);
+                Density = new ComputeBuffer(capacity * sampleCount, sizeof(float),
+                                            ComputeBufferType.Structured);
+                SampleMaterial = new ComputeBuffer(capacity * sampleCount, sizeof(uint),
+                                                   ComputeBufferType.Structured);
+                SampleSurface = new ComputeBuffer(capacity * sampleCount, sizeof(uint),
+                                                  ComputeBufferType.Structured);
+                SampleBoundary = new ComputeBuffer(capacity * sampleCount, sizeof(uint),
+                                                   ComputeBufferType.Structured);
+                CellVertexCounts = new ComputeBuffer(capacity * cellCount, sizeof(uint),
+                                                     ComputeBufferType.Structured);
+                CellTriangleCounts = new ComputeBuffer(capacity * cellCount, sizeof(uint),
+                                                       ComputeBufferType.Structured);
+                FaceDensity = new ComputeBuffer(capacity * 6 * faceSampleCount, sizeof(float),
+                                                ComputeBufferType.Structured);
+                FaceMaterial = new ComputeBuffer(capacity * 6 * faceSampleCount, sizeof(uint),
+                                                 ComputeBufferType.Structured);
+                FaceSurface = new ComputeBuffer(capacity * 6 * faceSampleCount, sizeof(uint),
+                                                ComputeBufferType.Structured);
+                Descriptors = new BatchChunkDescriptor[capacity];
+                CounterZeros = new uint[BatchHeaderWords + capacity * BatchRecordWords];
+            }
+
+            public void Dispose()
+            {
+                Chunks?.Release();
+                Density?.Release();
+                SampleMaterial?.Release();
+                SampleSurface?.Release();
+                SampleBoundary?.Release();
+                CellVertexCounts?.Release();
+                CellTriangleCounts?.Release();
+                FaceDensity?.Release();
+                FaceMaterial?.Release();
+                FaceSurface?.Release();
+            }
+        }
 
         private static readonly int IdDensity = Shader.PropertyToID("_Density");
         private static readonly int IdDensityWrite = Shader.PropertyToID("_DensityWrite");
@@ -182,12 +264,74 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             Shader.PropertyToID("_BatchVertexAlignment");
         private static readonly int IdBatchIndexAlignment =
             Shader.PropertyToID("_BatchIndexAlignment");
+        private static readonly int IdBatchChunks = Shader.PropertyToID("_BatchChunks");
+        private static readonly int IdBatchDensity = Shader.PropertyToID("_BatchDensity");
+        private static readonly int IdBatchDensityWrite = Shader.PropertyToID("_BatchDensityWrite");
+        private static readonly int IdBatchSampleMaterial =
+            Shader.PropertyToID("_BatchSampleMaterial");
+        private static readonly int IdBatchSampleMaterialWrite =
+            Shader.PropertyToID("_BatchSampleMaterialWrite");
+        private static readonly int IdBatchSampleSurface =
+            Shader.PropertyToID("_BatchSampleSurface");
+        private static readonly int IdBatchSampleSurfaceWrite =
+            Shader.PropertyToID("_BatchSampleSurfaceWrite");
+        private static readonly int IdBatchSampleBoundary =
+            Shader.PropertyToID("_BatchSampleBoundary");
+        private static readonly int IdBatchSampleBoundaryWrite =
+            Shader.PropertyToID("_BatchSampleBoundaryWrite");
+        private static readonly int IdBatchCellVertexCounts =
+            Shader.PropertyToID("_BatchCellVertexCounts");
+        private static readonly int IdBatchCellVertexCountsWrite =
+            Shader.PropertyToID("_BatchCellVertexCountsWrite");
+        private static readonly int IdBatchCellTriangleCounts =
+            Shader.PropertyToID("_BatchCellTriangleCounts");
+        private static readonly int IdBatchCellTriangleCountsWrite =
+            Shader.PropertyToID("_BatchCellTriangleCountsWrite");
+        private static readonly int IdBatchFaceDensity = Shader.PropertyToID("_BatchFaceDensity");
+        private static readonly int IdBatchFaceDensityWrite =
+            Shader.PropertyToID("_BatchFaceDensityWrite");
+        private static readonly int IdBatchFaceMaterial = Shader.PropertyToID("_BatchFaceMaterial");
+        private static readonly int IdBatchFaceMaterialWrite =
+            Shader.PropertyToID("_BatchFaceMaterialWrite");
+        private static readonly int IdBatchFaceSurface = Shader.PropertyToID("_BatchFaceSurface");
+        private static readonly int IdBatchFaceSurfaceWrite =
+            Shader.PropertyToID("_BatchFaceSurfaceWrite");
+        private static readonly int IdBatchVertices = Shader.PropertyToID("_BatchVertices");
+        private static readonly int IdBatchIndices = Shader.PropertyToID("_BatchIndices");
+        private static readonly int IdBatchDrawArgs = Shader.PropertyToID("_BatchDrawArgs");
+        private static readonly int IdBatchVertexDestinationBase =
+            Shader.PropertyToID("_BatchVertexDestinationBase");
+        private static readonly int IdBatchIndexDestinationBase =
+            Shader.PropertyToID("_BatchIndexDestinationBase");
+        private static readonly int IdBatchArgsWordStart = Shader.PropertyToID("_BatchArgsWordStart");
+        private static readonly int IdBatchPagedOutput = Shader.PropertyToID("_BatchPagedOutput");
+        private static readonly int IdBatchVertexPageSize = Shader.PropertyToID("_BatchVertexPageSize");
+        private static readonly int IdBatchIndexPageSize = Shader.PropertyToID("_BatchIndexPageSize");
+        private static readonly int IdBatchMaxVertexPages =
+            Shader.PropertyToID("_BatchMaxVertexPagesPerChunk");
+        private static readonly int IdBatchMaxIndexPages =
+            Shader.PropertyToID("_BatchMaxIndexPagesPerChunk");
+        private static readonly int IdBatchVertexPageTable =
+            Shader.PropertyToID("_BatchVertexPageTable");
+        private static readonly int IdBatchIndexPageTable =
+            Shader.PropertyToID("_BatchIndexPageTable");
 
         private readonly ComputeShader _shader;
         private readonly int _sampleKernel;
+        private readonly int _batchSampleKernel;
         private readonly int _countKernel;
+        private readonly int _batchCountKernel;
         private readonly int _countFacetedKernel;
+        private readonly int _batchCountFacetedKernel;
         private readonly int _countDecorationsKernel;
+        private readonly int _batchCountDecorationsKernel;
+        private readonly int _batchSampleFacesKernel;
+        private readonly int _batchCountTransitionsKernel;
+        private readonly int _batchWriteKernel;
+        private readonly int _batchWriteFacetedKernel;
+        private readonly int _batchWriteDecorationsKernel;
+        private readonly int _batchWriteTransitionsKernel;
+        private readonly int _batchPublishArgsKernel;
         private readonly int _writeKernel;
         private readonly int _writeFacetedKernel;
         private readonly int _writeDecorationsKernel;
@@ -228,8 +372,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private readonly ComputeBuffer _defaultStyle;
 
         private readonly uint[] _counterStaging = new uint[4];
+        private readonly int[] _int3Staging = new int[3];
         private readonly uint[] _pageStaging;
         private readonly uint[] _brickCacheStaging;
+        private readonly CommandBuffer _productionCommands;
         private bool _disposed;
 
         /// <summary>Pages one chunk's geometry may span. Matches the arena's own ceiling.</summary>
@@ -290,9 +436,20 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             FaceSamplesPerAxis = cellsPerAxis * 2 + 1;
 
             _sampleKernel = shader.FindKernel("CSSampleDensity");
+            _batchSampleKernel = shader.FindKernel("CSBatchSampleDensity");
             _countKernel = shader.FindKernel("CSCountCells");
+            _batchCountKernel = shader.FindKernel("CSBatchCountCells");
             _countFacetedKernel = shader.FindKernel("CSCountFacetedFaces");
+            _batchCountFacetedKernel = shader.FindKernel("CSBatchCountFacetedFaces");
             _countDecorationsKernel = shader.FindKernel("CSCountDecorations");
+            _batchCountDecorationsKernel = shader.FindKernel("CSBatchCountDecorations");
+            _batchSampleFacesKernel = shader.FindKernel("CSBatchSampleFaces");
+            _batchCountTransitionsKernel = shader.FindKernel("CSBatchCountTransitions");
+            _batchWriteKernel = shader.FindKernel("CSBatchWriteCells");
+            _batchWriteFacetedKernel = shader.FindKernel("CSBatchWriteFacetedFaces");
+            _batchWriteDecorationsKernel = shader.FindKernel("CSBatchWriteDecorations");
+            _batchWriteTransitionsKernel = shader.FindKernel("CSBatchWriteTransitions");
+            _batchPublishArgsKernel = shader.FindKernel("CSBatchPublishArgs");
             _writeKernel = shader.FindKernel("CSWriteCells");
             _writeFacetedKernel = shader.FindKernel("CSWriteFacetedFaces");
             _writeDecorationsKernel = shader.FindKernel("CSWriteDecorations");
@@ -344,6 +501,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 GpuSurfaceCataloguePacking.CoatingCount * GpuSurfaceCataloguePacking.CoatingWords,
                 sizeof(uint), ComputeBufferType.Structured);
             _defaultStyle = new ComputeBuffer(256, sizeof(uint), ComputeBufferType.Structured);
+            _productionCommands = new CommandBuffer { name = "Voxel GPU surface write batch" };
         }
 
         /// <summary>
@@ -572,7 +730,182 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         }
 
         internal const int BatchHeaderWords = 4;
-        internal const int BatchRecordWords = 8;
+        internal const int BatchRecordWords = 17;
+
+        internal CountBatchResources CreateCountBatchResources(int capacity)
+        {
+            if (capacity <= 0) throw new ArgumentOutOfRangeException(nameof(capacity));
+            int samples = GridSize * GridSize * GridSize;
+            int regularCellsPerAxis = CellsPerAxis + 1;
+            int cells = regularCellsPerAxis * regularCellsPerAxis * regularCellsPerAxis;
+            int faceSamples = FaceSamplesPerAxis * FaceSamplesPerAxis;
+            return new CountBatchResources(capacity, samples, cells, faceSamples);
+        }
+
+        /// <summary>
+        /// Dispatches four kernels total for the whole lane, using dispatch Y as the chunk index.
+        /// This is actual GPU batching: unlike recording N ordinary dispatches into one Unity
+        /// command buffer, Metal receives one encoder workload per phase rather than per chunk.
+        /// Transition faces join this path separately; callers must not silently omit them.
+        /// </summary>
+        internal void DispatchCountBatch(GpuVoxelBrickMirror mirror,
+                                         GpuTransvoxelTables tables,
+                                         GpuChunkExtraction[] requests,
+                                         int recordCount,
+                                         ComputeBuffer batchCounters,
+                                         CountBatchResources resources)
+        {
+            ThrowIfDisposed();
+            if (mirror == null) throw new ArgumentNullException(nameof(mirror));
+            if (tables == null) throw new ArgumentNullException(nameof(tables));
+            if (requests == null) throw new ArgumentNullException(nameof(requests));
+            if (batchCounters == null) throw new ArgumentNullException(nameof(batchCounters));
+            if (resources == null) throw new ArgumentNullException(nameof(resources));
+            if (recordCount <= 0 || recordCount > resources.Capacity
+                || recordCount > requests.Length)
+                throw new ArgumentOutOfRangeException(nameof(recordCount));
+
+            for (int i = 0; i < recordCount; i++)
+            {
+                int3 origin = requests[i].ChunkOriginVoxel;
+                resources.Descriptors[i] = new BatchChunkDescriptor
+                {
+                    OriginX = origin.x,
+                    OriginY = origin.y,
+                    OriginZ = origin.z,
+                    SourceStep = requests[i].SourceStep,
+                    TransitionFaceMask = unchecked((uint)requests[i].TransitionFaceMask),
+                    VoxelSize = requests[i].VoxelSize,
+                    Handle = unchecked((uint)requests[i].Handle),
+                    GenerationLow = (uint)requests[i].Generation,
+                    GenerationHigh = (uint)(requests[i].Generation >> 32),
+                };
+            }
+            resources.Chunks.SetData(resources.Descriptors, 0, 0, recordCount);
+            _brickCache.SetData(_brickCacheStaging);
+            batchCounters.SetData(resources.CounterZeros, 0, 0,
+                                  BatchHeaderWords + recordCount * BatchRecordWords);
+
+            SetChunkUniforms(int3.zero, int3.zero, 1, 1f, 0, 0);
+            BindBatchShared(_batchSampleKernel, mirror, tables, batchCounters, resources);
+            BindBatchShared(_batchCountKernel, mirror, tables, batchCounters, resources);
+            BindBatchShared(_batchCountFacetedKernel, mirror, tables, batchCounters, resources);
+            BindBatchShared(_batchCountDecorationsKernel, mirror, tables,
+                            batchCounters, resources);
+            BindBatchShared(_batchSampleFacesKernel, mirror, tables, batchCounters, resources);
+            BindBatchShared(_batchCountTransitionsKernel, mirror, tables,
+                            batchCounters, resources);
+            BindTransitionTables(_batchCountTransitionsKernel, tables);
+            _shader.SetInt(IdFaceSamplesPerAxis, FaceSamplesPerAxis);
+
+            int samples = GridSize * GridSize * GridSize;
+            int regularCellsPerAxis = CellsPerAxis + 1;
+            int cells = regularCellsPerAxis * regularCellsPerAxis * regularCellsPerAxis;
+            int semanticCells = CellsPerAxis * CellsPerAxis * CellsPerAxis;
+            _shader.Dispatch(_batchSampleKernel, Groups(samples), recordCount, 1);
+            _shader.Dispatch(_batchCountKernel, Groups(cells), recordCount, 1);
+            _shader.Dispatch(_batchCountFacetedKernel,
+                             Groups(semanticCells), recordCount, 1);
+            _shader.Dispatch(_batchCountDecorationsKernel,
+                             Groups(semanticCells), recordCount, 1);
+            int faceSamples = FaceSamplesPerAxis * FaceSamplesPerAxis;
+            _shader.Dispatch(_batchSampleFacesKernel, Groups(faceSamples), recordCount * 6, 1);
+            _shader.Dispatch(_batchCountTransitionsKernel,
+                             Groups(CellsPerAxis * CellsPerAxis), recordCount * 6, 1);
+        }
+
+        /// <summary>
+        /// Writes every surface category for every descriptor into its GPU-prefix range.
+        /// </summary>
+        internal void DispatchBaseWriteBatch(GpuVoxelBrickMirror mirror,
+                                             GpuTransvoxelTables tables,
+                                             int recordCount,
+                                             ComputeBuffer batchCounters,
+                                             CountBatchResources resources,
+                                             ComputeBuffer vertices,
+                                             ComputeBuffer indices,
+                                             int vertexDestinationBase = 0,
+                                             int indexDestinationBase = 0,
+                                             ComputeBuffer args = null,
+                                             int argsWordStart = 0,
+                                             GpuSurfacePageArena pageArena = null,
+                                             int frame = 0)
+        {
+            ThrowIfDisposed();
+            if (mirror == null) throw new ArgumentNullException(nameof(mirror));
+            if (tables == null) throw new ArgumentNullException(nameof(tables));
+            if (batchCounters == null) throw new ArgumentNullException(nameof(batchCounters));
+            if (resources == null) throw new ArgumentNullException(nameof(resources));
+            if (vertices == null) throw new ArgumentNullException(nameof(vertices));
+            if (indices == null) throw new ArgumentNullException(nameof(indices));
+            if (recordCount <= 0 || recordCount > resources.Capacity)
+                throw new ArgumentOutOfRangeException(nameof(recordCount));
+            if (vertexDestinationBase < 0)
+                throw new ArgumentOutOfRangeException(nameof(vertexDestinationBase));
+            if (indexDestinationBase < 0)
+                throw new ArgumentOutOfRangeException(nameof(indexDestinationBase));
+            _shader.SetInt(IdBatchVertexDestinationBase, vertexDestinationBase);
+            _shader.SetInt(IdBatchIndexDestinationBase, indexDestinationBase);
+            _shader.SetInt(IdBatchPagedOutput, pageArena != null ? 1 : 0);
+
+            BindBatchShared(_batchWriteKernel, mirror, tables, batchCounters, resources);
+            BindBatchShared(_batchWriteFacetedKernel, mirror, tables,
+                            batchCounters, resources);
+            BindBatchShared(_batchWriteDecorationsKernel, mirror, tables,
+                            batchCounters, resources);
+            BindBatchShared(_batchWriteTransitionsKernel, mirror, tables,
+                            batchCounters, resources);
+            BindTransitionTables(_batchWriteTransitionsKernel, tables);
+            _shader.SetBuffer(_batchWriteKernel, IdBatchVertices, vertices);
+            _shader.SetBuffer(_batchWriteKernel, IdBatchIndices, indices);
+            _shader.SetBuffer(_batchWriteFacetedKernel, IdBatchVertices, vertices);
+            _shader.SetBuffer(_batchWriteFacetedKernel, IdBatchIndices, indices);
+            _shader.SetBuffer(_batchWriteDecorationsKernel, IdBatchVertices, vertices);
+            _shader.SetBuffer(_batchWriteDecorationsKernel, IdBatchIndices, indices);
+            _shader.SetBuffer(_batchWriteTransitionsKernel, IdBatchVertices, vertices);
+            _shader.SetBuffer(_batchWriteTransitionsKernel, IdBatchIndices, indices);
+            if (pageArena != null)
+            {
+                int[] pagedKernels =
+                {
+                    _batchWriteKernel, _batchWriteFacetedKernel,
+                    _batchWriteDecorationsKernel, _batchWriteTransitionsKernel
+                };
+                foreach (int kernel in pagedKernels)
+                {
+                    _shader.SetBuffer(kernel, IdBatchVertexPageTable,
+                                      pageArena.VertexPageTable);
+                    _shader.SetBuffer(kernel, IdBatchIndexPageTable,
+                                      pageArena.IndexPageTable);
+                }
+                _shader.SetInt(IdBatchVertexPageSize, GpuSurfacePageArena.VertexPageSize);
+                _shader.SetInt(IdBatchIndexPageSize, GpuSurfacePageArena.IndexPageSize);
+                _shader.SetInt(IdBatchMaxVertexPages,
+                               GpuSurfacePageArena.MaxVertexPagesPerChunk);
+                _shader.SetInt(IdBatchMaxIndexPages,
+                               GpuSurfacePageArena.MaxIndexPagesPerChunk);
+            }
+            int regularAxis = CellsPerAxis + 1;
+            _shader.Dispatch(_batchWriteKernel,
+                             Groups(regularAxis * regularAxis * regularAxis), recordCount, 1);
+            _shader.Dispatch(_batchWriteFacetedKernel,
+                             Groups(CellsPerAxis * CellsPerAxis * CellsPerAxis), recordCount, 1);
+            _shader.Dispatch(_batchWriteDecorationsKernel,
+                             Groups(CellsPerAxis * CellsPerAxis * CellsPerAxis), recordCount, 1);
+            _shader.Dispatch(_batchWriteTransitionsKernel,
+                             Groups(CellsPerAxis * CellsPerAxis), recordCount * 6, 1);
+            if (args != null)
+            {
+                _shader.SetBuffer(_batchPublishArgsKernel, IdBatchCounters, batchCounters);
+                _shader.SetBuffer(_batchPublishArgsKernel, IdBatchDrawArgs, args);
+                _shader.SetInt(IdBatchRecordCount, recordCount);
+                _shader.SetInt(IdBatchArgsWordStart, argsWordStart);
+                _shader.Dispatch(_batchPublishArgsKernel, Groups(recordCount), 1, 1);
+            }
+            if (pageArena != null)
+                pageArena.PublishBatch(resources.Chunks, batchCounters,
+                                       recordCount, BatchRecordWords, frame);
+        }
 
         internal void PrefixCountBatch(ComputeBuffer batchCounters, int recordCount,
                                        int vertexAlignment, int indexAlignment)
@@ -601,6 +934,87 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             DispatchCount(mirror, tables, request);
             CopyCountToBatch(batchCounters, recordIndex);
+        }
+
+        /// <summary>
+        /// Records one chunk into a shared count command buffer. Parameters and bindings are
+        /// command-buffer state, so later chunks cannot overwrite this chunk before execution.
+        /// The coordinator submits the entire lane once, allowing Unity/Metal to encode many
+        /// chunks without opening a compute encoder and upload encoder for every dispatch.
+        /// </summary>
+        internal void RecordCountToBatch(CommandBuffer commands,
+                                         GpuVoxelBrickMirror mirror,
+                                         GpuTransvoxelTables tables,
+                                         in GpuChunkExtraction request,
+                                         ComputeBuffer batchCounters,
+                                         int recordIndex)
+        {
+            ThrowIfDisposed();
+            if (commands == null) throw new ArgumentNullException(nameof(commands));
+            if (mirror == null) throw new ArgumentNullException(nameof(mirror));
+            if (tables == null) throw new ArgumentNullException(nameof(tables));
+            if (batchCounters == null) throw new ArgumentNullException(nameof(batchCounters));
+
+            int wordStart = BatchHeaderWords + recordIndex * BatchRecordWords;
+            if (recordIndex < 0 || wordStart + 4 > batchCounters.count)
+                throw new ArgumentOutOfRangeException(nameof(recordIndex));
+
+            _brickCache.SetData(_brickCacheStaging);
+            ResetCounters();
+            RecordChunkUniforms(commands, request.ChunkOriginVoxel, request.BrickCacheOrigin,
+                                request.SourceStep, request.VoxelSize, 0, 0);
+
+            RecordBindShared(commands, _sampleKernel, mirror, tables);
+            RecordBindShared(commands, _countKernel, mirror, tables);
+            RecordBindShared(commands, _countFacetedKernel, mirror, tables);
+            RecordBindShared(commands, _countDecorationsKernel, mirror, tables);
+            commands.SetComputeBufferParam(_shader, _sampleKernel, IdDensityWrite, _density);
+            commands.SetComputeBufferParam(_shader, _sampleKernel, IdSampleMaterialWrite,
+                                           _sampleMaterial);
+            commands.SetComputeBufferParam(_shader, _sampleKernel, IdSampleSurfaceWrite,
+                                           _sampleSurface);
+            commands.SetComputeBufferParam(_shader, _sampleKernel, IdSampleBoundaryWrite,
+                                           _sampleBoundary);
+            commands.SetComputeBufferParam(_shader, _countKernel, IdCellVertexCountsWrite,
+                                           _cellVertexCounts);
+            commands.SetComputeBufferParam(_shader, _countKernel, IdCellTriangleCountsWrite,
+                                           _cellTriangleCounts);
+
+            int samples = GridSize * GridSize * GridSize;
+            int regularCellsPerAxis = CellsPerAxis + 1;
+            int cells = regularCellsPerAxis * regularCellsPerAxis * regularCellsPerAxis;
+            int semanticCells = CellsPerAxis * CellsPerAxis * CellsPerAxis;
+            commands.DispatchCompute(_shader, _sampleKernel, Groups(samples), 1, 1);
+            commands.DispatchCompute(_shader, _countKernel, Groups(cells), 1, 1);
+            commands.DispatchCompute(_shader, _countFacetedKernel, Groups(semanticCells), 1, 1);
+            commands.DispatchCompute(_shader, _countDecorationsKernel, Groups(semanticCells), 1, 1);
+            RecordTransitionFaces(commands, mirror, tables, request, countOnly: true);
+
+            commands.SetComputeBufferParam(_shader, _copyCountersToBatchKernel,
+                                           IdCounters, _counters);
+            commands.SetComputeBufferParam(_shader, _copyCountersToBatchKernel,
+                                           IdBatchCounters, batchCounters);
+            commands.SetComputeIntParam(_shader, IdBatchCounterWordStart, wordStart);
+            commands.DispatchCompute(_shader, _copyCountersToBatchKernel, 1, 1, 1);
+        }
+
+        internal void RecordPrefixCountBatch(CommandBuffer commands,
+                                             ComputeBuffer batchCounters,
+                                             int recordCount,
+                                             int vertexAlignment,
+                                             int indexAlignment)
+        {
+            if (commands == null) throw new ArgumentNullException(nameof(commands));
+            if (batchCounters == null) throw new ArgumentNullException(nameof(batchCounters));
+            if (recordCount <= 0
+                || BatchHeaderWords + recordCount * BatchRecordWords > batchCounters.count)
+                throw new ArgumentOutOfRangeException(nameof(recordCount));
+            commands.SetComputeBufferParam(_shader, _prefixBatchCountsKernel,
+                                           IdBatchCounters, batchCounters);
+            commands.SetComputeIntParam(_shader, IdBatchRecordCount, recordCount);
+            commands.SetComputeIntParam(_shader, IdBatchVertexAlignment, vertexAlignment);
+            commands.SetComputeIntParam(_shader, IdBatchIndexAlignment, indexAlignment);
+            commands.DispatchCompute(_shader, _prefixBatchCountsKernel, 1, 1, 1);
         }
 
         private void DispatchCount(GpuVoxelBrickMirror mirror, GpuTransvoxelTables tables,
@@ -764,6 +1178,42 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                                0, vertexCapacity, 0, indexCapacity);
         }
 
+        /// <summary>
+        /// Records generation, arena copies, and args publication as one ordered submission.
+        /// Production uses this path so Unity does not create a Metal encoder/state-upload pair
+        /// for every kernel in the chain.
+        /// </summary>
+        public void WriteScratchCopyAndPublish(
+            GpuVoxelBrickMirror mirror, GpuTransvoxelTables tables,
+            in GpuChunkExtraction request,
+            int vertexCapacity, int indexCapacity,
+            ComputeBuffer vertices, ComputeBuffer indices,
+            ComputeBuffer args, int argsWordStart,
+            int vertexStart, int vertexCount,
+            int indexStart, int indexCount)
+        {
+            ThrowIfDisposed();
+            EnsureWriteScratch(vertexCapacity, indexCapacity);
+            _productionCommands.Clear();
+            RecordWriteRange(_productionCommands, mirror, tables, request,
+                             _writeScratchVertices, _writeScratchIndices,
+                             0, vertexCapacity, 0, indexCapacity);
+            RecordCopyAndPublish(_productionCommands, vertices, indices, args, argsWordStart,
+                                 vertexStart, vertexCount, indexStart, indexCount);
+            Graphics.ExecuteCommandBuffer(_productionCommands);
+            _productionCommands.Clear();
+        }
+
+        public void PublishEmpty(ComputeBuffer args, int argsWordStart)
+        {
+            ThrowIfDisposed();
+            _productionCommands.Clear();
+            RecordCopyAndPublish(_productionCommands, null, null, args, argsWordStart,
+                                 0, 0, 0, 0);
+            Graphics.ExecuteCommandBuffer(_productionCommands);
+            _productionCommands.Clear();
+        }
+
         public void CopyCompletedWriteRange(ComputeBuffer vertices, ComputeBuffer indices,
                                             ComputeBuffer args, int argsWordStart,
                                             int vertexStart, int vertexCount,
@@ -822,6 +1272,91 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                     capacity, sizeof(uint), ComputeBufferType.Structured);
                 _writeScratchIndexCapacity = capacity;
             }
+        }
+
+        private void RecordWriteRange(CommandBuffer commands,
+                                      GpuVoxelBrickMirror mirror,
+                                      GpuTransvoxelTables tables,
+                                      in GpuChunkExtraction request,
+                                      ComputeBuffer vertices, ComputeBuffer indices,
+                                      int vertexStart, int vertexCapacity,
+                                      int indexStart, int indexCapacity)
+        {
+            if (commands == null) throw new ArgumentNullException(nameof(commands));
+            if (mirror == null) throw new ArgumentNullException(nameof(mirror));
+            if (tables == null) throw new ArgumentNullException(nameof(tables));
+            if (vertices == null) throw new ArgumentNullException(nameof(vertices));
+            if (indices == null) throw new ArgumentNullException(nameof(indices));
+            if (vertexCapacity <= 0) throw new ArgumentOutOfRangeException(nameof(vertexCapacity));
+            if (indexCapacity <= 0) throw new ArgumentOutOfRangeException(nameof(indexCapacity));
+
+            ResetCounters();
+            _pageStaging[0] = 0;
+            _chunkPages.SetData(_pageStaging, 0, 0, 1);
+            commands.SetComputeIntParam(_shader, IdVerticesPerPage,
+                                        Math.Max(1, vertexCapacity));
+            commands.SetComputeIntParam(_shader, IdIndicesPerPage,
+                                        Math.Max(1, indexCapacity));
+            commands.SetComputeIntParam(_shader, IdVertexWriteBase, vertexStart);
+            commands.SetComputeIntParam(_shader, IdIndexWriteBase, indexStart);
+            RecordChunkUniforms(commands, request.ChunkOriginVoxel, request.BrickCacheOrigin,
+                                request.SourceStep, request.VoxelSize,
+                                vertexCapacity, indexCapacity);
+
+            RecordBindShared(commands, _writeKernel, mirror, tables);
+            RecordBindShared(commands, _writeFacetedKernel, mirror, tables);
+            RecordBindShared(commands, _writeDecorationsKernel, mirror, tables);
+            commands.SetComputeBufferParam(_shader, _writeKernel, IdVertices, vertices);
+            commands.SetComputeBufferParam(_shader, _writeKernel, IdIndices, indices);
+            commands.SetComputeBufferParam(_shader, _writeFacetedKernel, IdVertices, vertices);
+            commands.SetComputeBufferParam(_shader, _writeFacetedKernel, IdIndices, indices);
+            commands.SetComputeBufferParam(_shader, _writeDecorationsKernel, IdVertices, vertices);
+            commands.SetComputeBufferParam(_shader, _writeDecorationsKernel, IdIndices, indices);
+
+            int regularCellsPerAxis = CellsPerAxis + 1;
+            int cells = regularCellsPerAxis * regularCellsPerAxis * regularCellsPerAxis;
+            int semanticCells = CellsPerAxis * CellsPerAxis * CellsPerAxis;
+            commands.DispatchCompute(_shader, _writeKernel, Groups(cells), 1, 1);
+            commands.DispatchCompute(_shader, _writeFacetedKernel, Groups(semanticCells), 1, 1);
+            commands.DispatchCompute(_shader, _writeDecorationsKernel, Groups(semanticCells), 1, 1);
+            RecordTransitionFaces(commands, mirror, tables, request, countOnly: false,
+                                  vertices, indices);
+        }
+
+        private void RecordCopyAndPublish(CommandBuffer commands,
+                                          ComputeBuffer vertices, ComputeBuffer indices,
+                                          ComputeBuffer args, int argsWordStart,
+                                          int vertexStart, int vertexCount,
+                                          int indexStart, int indexCount)
+        {
+            if (commands == null) throw new ArgumentNullException(nameof(commands));
+            if (args == null) throw new ArgumentNullException(nameof(args));
+            if (vertexCount > 0)
+            {
+                if (vertices == null) throw new ArgumentNullException(nameof(vertices));
+                commands.SetComputeBufferParam(_shader, _copyVerticesKernel,
+                                               IdCopyVerticesSource, _writeScratchVertices);
+                commands.SetComputeBufferParam(_shader, _copyVerticesKernel,
+                                               IdCopyVerticesDestination, vertices);
+                commands.SetComputeIntParam(_shader, IdCopyVertexDestinationBase, vertexStart);
+                commands.SetComputeIntParam(_shader, IdCopyVertexCount, vertexCount);
+                commands.DispatchCompute(_shader, _copyVerticesKernel, Groups(vertexCount), 1, 1);
+            }
+            if (indexCount > 0)
+            {
+                if (indices == null) throw new ArgumentNullException(nameof(indices));
+                commands.SetComputeBufferParam(_shader, _copyIndicesKernel,
+                                               IdCopyIndicesSource, _writeScratchIndices);
+                commands.SetComputeBufferParam(_shader, _copyIndicesKernel,
+                                               IdCopyIndicesDestination, indices);
+                commands.SetComputeIntParam(_shader, IdCopyIndexDestinationBase, indexStart);
+                commands.SetComputeIntParam(_shader, IdCopyIndexCount, indexCount);
+                commands.DispatchCompute(_shader, _copyIndicesKernel, Groups(indexCount), 1, 1);
+            }
+            commands.SetComputeBufferParam(_shader, _publishArgsKernel, IdDrawArgs, args);
+            commands.SetComputeIntParam(_shader, IdDrawArgsWordStart, argsWordStart);
+            commands.SetComputeIntParam(_shader, IdCopyIndexCount, indexCount);
+            commands.DispatchCompute(_shader, _publishArgsKernel, 1, 1, 1);
         }
 
         private static int GrowCapacity(int current, int required)
@@ -1128,6 +1663,167 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _shader.SetBuffer(kernel, IdChunkPages, _chunkPages);
         }
 
+        private void BindBatchShared(int kernel,
+                                     GpuVoxelBrickMirror mirror,
+                                     GpuTransvoxelTables tables,
+                                     ComputeBuffer batchCounters,
+                                     CountBatchResources resources)
+        {
+            _shader.SetBuffer(kernel, IdBrickMaterials, mirror.Materials);
+            _shader.SetBuffer(kernel, IdBrickSurface, mirror.SurfaceSemantics);
+            _shader.SetBuffer(kernel, IdBrickBoundary, mirror.BoundarySamples);
+            _shader.SetBuffer(kernel, IdBrickCache, _brickCache);
+            _shader.SetBuffer(kernel, IdStyleWords, _styleWords);
+            _shader.SetBuffer(kernel, IdJoinWords, _joinWords);
+            _shader.SetBuffer(kernel, IdCoatingWords, _coatingWords);
+            _shader.SetBuffer(kernel, IdDefaultStyle, _defaultStyle);
+            _shader.SetBuffer(kernel, IdCellClass, tables.CellClass);
+            _shader.SetBuffer(kernel, IdGeometryCounts, tables.GeometryCounts);
+            _shader.SetBuffer(kernel, IdCellIndices, tables.CellIndices);
+            _shader.SetBuffer(kernel, IdEdgeCodes, tables.EdgeCodes);
+            _shader.SetBuffer(kernel, IdBatchCounters, batchCounters);
+            _shader.SetBuffer(kernel, IdBatchChunks, resources.Chunks);
+            _shader.SetBuffer(kernel, IdBatchDensity, resources.Density);
+            _shader.SetBuffer(kernel, IdBatchDensityWrite, resources.Density);
+            _shader.SetBuffer(kernel, IdBatchSampleMaterial, resources.SampleMaterial);
+            _shader.SetBuffer(kernel, IdBatchSampleMaterialWrite, resources.SampleMaterial);
+            _shader.SetBuffer(kernel, IdBatchSampleSurface, resources.SampleSurface);
+            _shader.SetBuffer(kernel, IdBatchSampleSurfaceWrite, resources.SampleSurface);
+            _shader.SetBuffer(kernel, IdBatchSampleBoundary, resources.SampleBoundary);
+            _shader.SetBuffer(kernel, IdBatchSampleBoundaryWrite, resources.SampleBoundary);
+            _shader.SetBuffer(kernel, IdBatchCellVertexCounts, resources.CellVertexCounts);
+            _shader.SetBuffer(kernel, IdBatchCellVertexCountsWrite, resources.CellVertexCounts);
+            _shader.SetBuffer(kernel, IdBatchCellTriangleCounts, resources.CellTriangleCounts);
+            _shader.SetBuffer(kernel, IdBatchCellTriangleCountsWrite,
+                              resources.CellTriangleCounts);
+            _shader.SetBuffer(kernel, IdBatchFaceDensity, resources.FaceDensity);
+            _shader.SetBuffer(kernel, IdBatchFaceDensityWrite, resources.FaceDensity);
+            _shader.SetBuffer(kernel, IdBatchFaceMaterial, resources.FaceMaterial);
+            _shader.SetBuffer(kernel, IdBatchFaceMaterialWrite, resources.FaceMaterial);
+            _shader.SetBuffer(kernel, IdBatchFaceSurface, resources.FaceSurface);
+            _shader.SetBuffer(kernel, IdBatchFaceSurfaceWrite, resources.FaceSurface);
+            // Both branches of the paged-output selector are present in the compiled write
+            // kernels. Bind harmless uint SRVs for contiguous oracle paths; a page arena replaces
+            // them before paged production dispatch.
+            _shader.SetBuffer(kernel, IdBatchVertexPageTable, resources.CellVertexCounts);
+            _shader.SetBuffer(kernel, IdBatchIndexPageTable, resources.CellTriangleCounts);
+        }
+
+        private void RecordChunkUniforms(CommandBuffer commands,
+                                         int3 chunkOriginVoxel,
+                                         int3 brickCacheOrigin,
+                                         int sourceStep, float voxelSize,
+                                         int vertexCapacity, int indexCapacity)
+        {
+            _int3Staging[0] = chunkOriginVoxel.x;
+            _int3Staging[1] = chunkOriginVoxel.y;
+            _int3Staging[2] = chunkOriginVoxel.z;
+            commands.SetComputeIntParams(_shader, IdChunkOrigin, _int3Staging);
+            _int3Staging[0] = brickCacheOrigin.x;
+            _int3Staging[1] = brickCacheOrigin.y;
+            _int3Staging[2] = brickCacheOrigin.z;
+            commands.SetComputeIntParams(_shader, IdBrickCacheOrigin, _int3Staging);
+            commands.SetComputeIntParam(_shader, IdBrickCacheEdge, BrickCacheEdge);
+            commands.SetComputeIntParam(_shader, IdCellsPerAxis, CellsPerAxis);
+            commands.SetComputeIntParam(_shader, IdGridSize, GridSize);
+            commands.SetComputeIntParam(_shader, IdPadding, Padding);
+            commands.SetComputeIntParam(_shader, IdSourceStep, sourceStep);
+            commands.SetComputeFloatParam(_shader, IdVoxelSize, voxelSize);
+            commands.SetComputeIntParam(_shader, IdVertexCapacity, vertexCapacity);
+            commands.SetComputeIntParam(_shader, IdIndexCapacity, indexCapacity);
+        }
+
+        private void RecordBindTransitionTables(CommandBuffer commands, int kernel,
+                                                GpuTransvoxelTables tables)
+        {
+            commands.SetComputeBufferParam(_shader, kernel, IdTransitionCellClass,
+                                           tables.TransitionCellClass);
+            commands.SetComputeBufferParam(_shader, kernel, IdTransitionGeometryCounts,
+                                           tables.TransitionGeometryCounts);
+            commands.SetComputeBufferParam(_shader, kernel, IdTransitionCellIndices,
+                                           tables.TransitionCellIndices);
+            commands.SetComputeBufferParam(_shader, kernel, IdTransitionVertexData,
+                                           tables.TransitionVertexData);
+            commands.SetComputeIntParam(_shader, IdTransitionVertexStride,
+                                        tables.TransitionVertexStride);
+            commands.SetComputeIntParam(_shader, IdTransitionIndexStride,
+                                        tables.TransitionIndexStride);
+        }
+
+        private void RecordBindShared(CommandBuffer commands, int kernel,
+                                      GpuVoxelBrickMirror mirror,
+                                      GpuTransvoxelTables tables)
+        {
+            commands.SetComputeBufferParam(_shader, kernel, IdDensity, _density);
+            commands.SetComputeBufferParam(_shader, kernel, IdSampleMaterial, _sampleMaterial);
+            commands.SetComputeBufferParam(_shader, kernel, IdSampleSurface, _sampleSurface);
+            commands.SetComputeBufferParam(_shader, kernel, IdSampleBoundary, _sampleBoundary);
+            commands.SetComputeBufferParam(_shader, kernel, IdBrickMaterials, mirror.Materials);
+            commands.SetComputeBufferParam(_shader, kernel, IdBrickSurface,
+                                           mirror.SurfaceSemantics);
+            commands.SetComputeBufferParam(_shader, kernel, IdBrickBoundary,
+                                           mirror.BoundarySamples);
+            commands.SetComputeBufferParam(_shader, kernel, IdBrickCache, _brickCache);
+            commands.SetComputeBufferParam(_shader, kernel, IdStyleWords, _styleWords);
+            commands.SetComputeBufferParam(_shader, kernel, IdJoinWords, _joinWords);
+            commands.SetComputeBufferParam(_shader, kernel, IdCoatingWords, _coatingWords);
+            commands.SetComputeBufferParam(_shader, kernel, IdDefaultStyle, _defaultStyle);
+            commands.SetComputeBufferParam(_shader, kernel, IdCellClass, tables.CellClass);
+            commands.SetComputeBufferParam(_shader, kernel, IdGeometryCounts,
+                                           tables.GeometryCounts);
+            commands.SetComputeBufferParam(_shader, kernel, IdCellIndices, tables.CellIndices);
+            commands.SetComputeBufferParam(_shader, kernel, IdEdgeCodes, tables.EdgeCodes);
+            commands.SetComputeBufferParam(_shader, kernel, IdCellVertexCounts,
+                                           _cellVertexCounts);
+            commands.SetComputeBufferParam(_shader, kernel, IdCellTriangleCounts,
+                                           _cellTriangleCounts);
+            commands.SetComputeBufferParam(_shader, kernel, IdCounters, _counters);
+            commands.SetComputeBufferParam(_shader, kernel, IdChunkPages, _chunkPages);
+        }
+
+        private void RecordTransitionFaces(CommandBuffer commands,
+                                           GpuVoxelBrickMirror mirror,
+                                           GpuTransvoxelTables tables,
+                                           in GpuChunkExtraction request,
+                                           bool countOnly,
+                                           ComputeBuffer vertices = null,
+                                           ComputeBuffer indices = null)
+        {
+            if (request.TransitionFaceMask == 0) return;
+
+            commands.SetComputeIntParam(_shader, IdFaceSamplesPerAxis, FaceSamplesPerAxis);
+            commands.SetComputeIntParam(_shader, IdTransitionCountOnly, countOnly ? 1 : 0);
+            RecordBindShared(commands, _faceKernel, mirror, tables);
+            RecordBindShared(commands, _transitionKernel, mirror, tables);
+            RecordBindTransitionTables(commands, _transitionKernel, tables);
+            commands.SetComputeBufferParam(_shader, _faceKernel, IdFaceDensityWrite,
+                                           _faceDensity);
+            commands.SetComputeBufferParam(_shader, _faceKernel, IdFaceMaterialWrite,
+                                           _faceMaterial);
+            commands.SetComputeBufferParam(_shader, _faceKernel, IdFaceSurfaceWrite,
+                                           _faceSurface);
+            commands.SetComputeBufferParam(_shader, _transitionKernel, IdFaceDensity,
+                                           _faceDensity);
+            commands.SetComputeBufferParam(_shader, _transitionKernel, IdFaceMaterial,
+                                           _faceMaterial);
+            commands.SetComputeBufferParam(_shader, _transitionKernel, IdFaceSurface,
+                                           _faceSurface);
+            commands.SetComputeBufferParam(_shader, _transitionKernel, IdVertices,
+                vertices != null ? vertices : _transitionSink);
+            commands.SetComputeBufferParam(_shader, _transitionKernel, IdIndices,
+                indices != null ? indices : _transitionIndexSink);
+
+            for (int face = 0; face < 6; face++)
+            {
+                if ((request.TransitionFaceMask & (1 << face)) == 0) continue;
+                commands.SetComputeIntParam(_shader, IdFace, face);
+                commands.DispatchCompute(_shader, _faceKernel,
+                    Groups(FaceSamplesPerAxis * FaceSamplesPerAxis), 1, 1);
+                commands.DispatchCompute(_shader, _transitionKernel,
+                    Groups(CellsPerAxis * CellsPerAxis), 1, 1);
+            }
+        }
+
         private static int Groups(int items) => (items + ThreadGroupSize - 1) / ThreadGroupSize;
 
         private void ThrowIfDisposed()
@@ -1159,6 +1855,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _joinWords?.Release();
             _coatingWords?.Release();
             _defaultStyle?.Release();
+            _productionCommands?.Release();
         }
     }
 }

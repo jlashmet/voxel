@@ -258,8 +258,7 @@ if [[ -z "$STATIONARY_SAMPLE" ]]; then mkdir -p "$SHOTS_DIR"; fi
 
 wait_for_unity_quiet
 
-BUILD_ARGS=(-batchmode -nographics -quit)
-if [[ -n "$STATIONARY_SAMPLE" ]]; then BUILD_ARGS+=(-voxelFrameTimingStats); fi
+BUILD_ARGS=(-batchmode -nographics -quit -voxelFrameTimingStats)
 
 echo "Building real player for $SCENE"
 UNITY_MAX_RSS_MB="${UNITY_MAX_RSS_MB:-12288}" \
@@ -378,6 +377,11 @@ fi
 if [[ -s "$FPS_LOG" ]]; then
   echo "=== REAL PLAYER FPS TAIL ==="
   tail -20 "$FPS_LOG"
+fi
+
+if [[ -s "$PLAYER_LOG" ]] && grep -q 'FRAMEPIPE ' "$PLAYER_LOG"; then
+  echo "=== REAL PLAYER CPU/GPU FRAME PIPELINE TAIL ==="
+  grep 'FRAMEPIPE ' "$PLAYER_LOG" | tail -30
 fi
 
 if [[ -s "$PLAYER_LOG" ]] && grep -q 'PREPARESECTIONS' "$PLAYER_LOG"; then

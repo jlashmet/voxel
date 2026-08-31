@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
-using UnityEngine.Rendering;
 using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 using VoxelEngine.Storage.Api;
 
@@ -25,7 +24,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private const int TrackedRegionCapacity = 128;
         private const int BlocksPerTrackedRegionCapacity = 8192;
         private const int CoverageChecksPerPoll = 128;
-        private const int CountBatchCapacity = 2;
+        private const int CountBatchCapacity = 8;
+        internal const int MaxConcurrentExtractionChains = CountBatchCapacity;
         private const int CountBatchMaxFillFrames = 2;
         internal const int DefaultUploadBudgetBytes = 256 * 1024;
 
@@ -57,6 +57,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private static readonly List<VoxelChangeRecord> s_Changes = new(ChangeRecordsPerFrame);
 
         private static GpuVoxelBrickMirror s_Mirror;
+        private static GpuSurfacePageArena s_PageArena;
+        private static readonly Dictionary<ChunkHandleKey, int> s_ChunkHandles = new();
         private static IRegionReadSource s_Storage;
         private static IVoxelChangeSource s_ChangeSource;
         private static ulong s_ChangeCursor;
@@ -73,30 +75,79 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private static ulong s_CountBatchReadbacks;
         private static ulong s_CountBatchRecords;
         private static ulong s_CountBatchArenaWaits;
+        private static double s_MaxCountDispatchMsSinceReport;
+        private static double s_MaxWriteDispatchMsSinceReport;
+        private static double s_MaxCopyDispatchMsSinceReport;
+        private static double s_MaxCompletionPollMsSinceReport;
 
         private sealed class CountBatchLane
         {
             internal readonly GpuSurfaceExtractionContext[] Contexts =
                 new GpuSurfaceExtractionContext[CountBatchCapacity];
             internal readonly uint[] Tokens = new uint[CountBatchCapacity];
-            internal readonly GpuExtractionCounts[] Counts =
-                new GpuExtractionCounts[CountBatchCapacity];
-            internal readonly int[] VertexOffsets = new int[CountBatchCapacity];
-            internal readonly int[] IndexOffsets = new int[CountBatchCapacity];
-            internal readonly int[] VertexCapacities = new int[CountBatchCapacity];
-            internal readonly int[] IndexCapacities = new int[CountBatchCapacity];
-            internal readonly int[] ArgsOrdinals = new int[CountBatchCapacity];
+            internal readonly GpuChunkExtraction[] Requests =
+                new GpuChunkExtraction[CountBatchCapacity];
             internal ComputeBuffer Counters;
-            internal AsyncGPUReadbackRequest Readback;
             internal GpuSurfaceExtractor PrefixExtractor;
-            internal bool ReadbackPending;
-            internal bool ResultsReady;
-            internal bool ReadbackFailed;
+            internal GpuTransvoxelTables Tables;
+            internal GpuSurfaceExtractor.CountBatchResources Resources;
             internal int Count;
             internal int FirstDispatchFrame = -1;
-            internal int TotalVertexCapacity;
-            internal int TotalIndexCapacity;
-            internal int DrawCount;
+        }
+
+        private readonly struct ChunkHandleKey : IEquatable<ChunkHandleKey>
+        {
+            internal readonly int3 Origin;
+            internal readonly int SourceStep;
+            internal ChunkHandleKey(int3 origin, int sourceStep)
+            {
+                Origin = origin; SourceStep = sourceStep;
+            }
+            public bool Equals(ChunkHandleKey other) =>
+                SourceStep == other.SourceStep && math.all(Origin == other.Origin);
+            public override bool Equals(object obj) => obj is ChunkHandleKey other && Equals(other);
+            public override int GetHashCode() => HashCode.Combine(Origin.GetHashCode(), SourceStep);
+        }
+
+        internal static void ConfigurePageArena(GpuSurfacePageArena arena)
+        {
+            if (s_PageArena != null && !ReferenceEquals(s_PageArena, arena))
+                throw new InvalidOperationException("The world already owns a GPU surface page arena.");
+            s_PageArena = arena ?? throw new ArgumentNullException(nameof(arena));
+        }
+
+        internal static bool HasPageArena => s_PageArena != null;
+
+        internal static void FlushPageArenaCommands(int frame) =>
+            s_PageArena?.FlushHandleCommands(frame);
+
+        internal static void DetachPageArena(GpuSurfacePageArena arena, int frame)
+        {
+            if (!ReferenceEquals(s_PageArena, arena)) return;
+            s_PageArena.FlushHandleCommands(frame);
+            s_ChunkHandles.Clear();
+            s_PageArena = null;
+        }
+
+        internal static int PrepareChunkHandle(int3 origin, int sourceStep, ulong generation)
+        {
+            if (s_PageArena == null) return 0;
+            var key = new ChunkHandleKey(origin, sourceStep);
+            if (!s_ChunkHandles.TryGetValue(key, out int handle))
+            {
+                if (!s_PageArena.TryAcquireHandle(out handle)) return -1;
+                s_ChunkHandles.Add(key, handle);
+            }
+            s_PageArena.QueueGeneration(handle, generation);
+            return handle;
+        }
+
+        internal static void ReleaseChunkHandle(int3 origin, int sourceStep, ulong generation)
+        {
+            if (s_PageArena == null) return;
+            var key = new ChunkHandleKey(origin, sourceStep);
+            if (!s_ChunkHandles.Remove(key, out int handle)) return;
+            s_PageArena.QueueRelease(handle, generation);
         }
 
         private readonly struct ActiveFootprint : IEquatable<ActiveFootprint>
@@ -179,10 +230,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         }
 
         /// <summary>
-        /// Dispatches one worker's large count stage into its private sampled-field scratch, then
-        /// appends its four bookkeeping words to a shared transfer lane. On seal, one GPU prefix
-        /// pass adds aligned offsets/capacities and one arena search reserves the whole batch. A
-        /// lane seals at two descriptors or after a bounded delay, so no request waits forever.
+        /// Appends one immutable chunk descriptor to a cross-chunk lane. On seal, batch-wide GPU
+        /// count/prefix, page allocation, all-category generation, and publication execute without
+        /// transferring bookkeeping to the CPU. A lane seals at eight descriptors or after a
+        /// bounded delay, so sparse demand cannot wait forever.
         /// </summary>
         internal static bool TryDispatchCountBatch(GpuSurfaceExtractionContext context,
                                                    uint token,
@@ -199,23 +250,29 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             for (int i = 0; i < s_CountBatchLanes.Length; i++)
             {
                 CountBatchLane candidate = s_CountBatchLanes[i];
-                if (!candidate.ReadbackPending && candidate.Count < CountBatchCapacity)
+                if (candidate.Count < CountBatchCapacity)
                 {
                     lane = candidate;
                     break;
                 }
             }
-            if (lane == null || !TryReserveExtractionDispatch(frame)) return false;
+            if (lane == null) return false;
 
             int record = lane.Count++;
             if (record == 0)
             {
                 lane.FirstDispatchFrame = frame;
                 lane.PrefixExtractor = extractor;
+                lane.Tables = tables;
+                lane.Resources ??= extractor.CreateCountBatchResources(CountBatchCapacity);
             }
             lane.Contexts[record] = context;
             lane.Tokens[record] = token;
-            extractor.DispatchCountToBatch(s_Mirror, tables, request, lane.Counters, record);
+            lane.Requests[record] = request;
+            double dispatchStarted = Time.realtimeSinceStartupAsDouble;
+            s_MaxCountDispatchMsSinceReport = Math.Max(
+                s_MaxCountDispatchMsSinceReport,
+                (Time.realtimeSinceStartupAsDouble - dispatchStarted) * 1000.0);
             s_CountBatchRecords++;
             if (lane.Count == CountBatchCapacity) SealCountBatch(lane);
             return true;
@@ -240,97 +297,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             {
                 CountBatchLane lane = s_CountBatchLanes[laneIndex];
                 if (lane == null) continue;
-                if (lane.ReadbackPending)
-                {
-                    if (!lane.Readback.done && !lane.Readback.hasError) continue;
-                    lane.ReadbackFailed = lane.Readback.hasError;
-                    NativeArray<uint> data = lane.ReadbackFailed
-                        ? default
-                        : lane.Readback.GetData<uint>();
-                    lane.TotalVertexCapacity = lane.ReadbackFailed ? 0 : (int)data[0];
-                    lane.TotalIndexCapacity = lane.ReadbackFailed ? 0 : (int)data[1];
-                    lane.DrawCount = lane.ReadbackFailed ? 0 : (int)data[2];
-                    for (int record = 0; record < lane.Count; record++)
-                    {
-                        int word = GpuSurfaceExtractor.BatchHeaderWords
-                                 + record * GpuSurfaceExtractor.BatchRecordWords;
-                        lane.Counts[record] = lane.ReadbackFailed
-                            ? default
-                            : new GpuExtractionCounts(
-                                (int)data[word + 2], (int)data[word + 3], data[word]);
-                        lane.ArgsOrdinals[record] = lane.ReadbackFailed
-                            ? -1 : unchecked((int)data[word + 1]);
-                        lane.VertexOffsets[record] = lane.ReadbackFailed ? 0 : (int)data[word + 4];
-                        lane.IndexOffsets[record] = lane.ReadbackFailed ? 0 : (int)data[word + 5];
-                        lane.VertexCapacities[record] = lane.ReadbackFailed ? 0 : (int)data[word + 6];
-                        lane.IndexCapacities[record] = lane.ReadbackFailed ? 0 : (int)data[word + 7];
-                    }
-                    lane.ReadbackPending = false;
-                    lane.ResultsReady = true;
-                    s_CountBatchReadbacks++;
-                }
-
-                if (lane.ResultsReady)
-                {
-                    TryPublishCountBatch(lane);
-                    continue;
-                }
-
-                if (!lane.ReadbackPending && lane.Count > 0
-                    && frame - lane.FirstDispatchFrame >= CountBatchMaxFillFrames)
+                if (lane.Count > 0 && frame - lane.FirstDispatchFrame >= CountBatchMaxFillFrames)
                     SealCountBatch(lane);
             }
-        }
-
-        private static bool TryPublishCountBatch(CountBatchLane lane)
-        {
-            SurfaceGeometryArena arena = null;
-            SurfaceGeometryLease batchLease = default;
-            if (!lane.ReadbackFailed && lane.DrawCount > 0)
-            {
-                for (int record = 0; record < lane.Count; record++)
-                {
-                    if (lane.ArgsOrdinals[record] < 0) continue;
-                    SurfaceGeometryArena candidate = lane.Contexts[record]?.SurfaceArena;
-                    if (candidate == null || (arena != null && !ReferenceEquals(arena, candidate)))
-                    {
-                        lane.ReadbackFailed = true;
-                        break;
-                    }
-                    arena = candidate;
-                }
-
-                if (!lane.ReadbackFailed
-                    && !arena.TryAcquireBatch(lane.TotalVertexCapacity,
-                                              lane.TotalIndexCapacity,
-                                              lane.DrawCount, out batchLease))
-                {
-                    s_CountBatchArenaWaits++;
-                    return false;
-                }
-            }
-
-            for (int record = 0; record < lane.Count; record++)
-            {
-                SurfaceGeometryLease lease = default;
-                int argsOrdinal = lane.ArgsOrdinals[record];
-                if (!lane.ReadbackFailed && argsOrdinal >= 0)
-                {
-                    lease = new SurfaceGeometryLease(
-                        batchLease.VertexStart + lane.VertexOffsets[record],
-                        lane.VertexCapacities[record],
-                        batchLease.IndexStart + lane.IndexOffsets[record],
-                        lane.IndexCapacities[record],
-                        batchLease.ArgsWordStart
-                            + argsOrdinal * SurfaceGeometryArena.ArgsWordsPerDraw);
-                }
-
-                bool accepted = lane.Contexts[record]?.CompleteBatchedCount(
-                    lane.Tokens[record], lane.Counts[record], lane.ReadbackFailed, lease) ?? false;
-                if (!accepted && lease.IsValid) arena.Release(in lease);
-            }
-            ResetCountBatchLane(lane);
-            return true;
         }
 
         private static void ResetCountBatchLane(CountBatchLane lane)
@@ -339,33 +308,39 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             {
                 lane.Contexts[record] = null;
                 lane.Tokens[record] = 0;
-                lane.Counts[record] = default;
-                lane.VertexOffsets[record] = 0;
-                lane.IndexOffsets[record] = 0;
-                lane.VertexCapacities[record] = 0;
-                lane.IndexCapacities[record] = 0;
-                lane.ArgsOrdinals[record] = -1;
+                lane.Requests[record] = default;
             }
             lane.Count = 0;
             lane.FirstDispatchFrame = -1;
-            lane.ReadbackPending = false;
-            lane.ResultsReady = false;
-            lane.ReadbackFailed = false;
             lane.PrefixExtractor = null;
-            lane.TotalVertexCapacity = 0;
-            lane.TotalIndexCapacity = 0;
-            lane.DrawCount = 0;
+            lane.Tables = null;
         }
 
         private static void SealCountBatch(CountBatchLane lane)
         {
-            if (lane == null || lane.Count == 0 || lane.ReadbackPending) return;
+            if (lane == null || lane.Count == 0) return;
+            if (s_PageArena == null)
+                throw new InvalidOperationException(
+                    "Production GPU extraction requires the GPU-owned page arena.");
+            int frame = Time.frameCount;
+            s_PageArena.FlushHandleCommands(frame);
+            lane.PrefixExtractor.DispatchCountBatch(
+                s_Mirror, lane.Tables, lane.Requests, lane.Count,
+                lane.Counters, lane.Resources);
             lane.PrefixExtractor.PrefixCountBatch(
                 lane.Counters, lane.Count,
                 SurfaceGeometryArena.VertexAlignment,
                 SurfaceGeometryArena.IndexAlignment);
-            lane.Readback = AsyncGPUReadback.Request(lane.Counters);
-            lane.ReadbackPending = true;
+            s_PageArena.AllocateBatch(lane.Resources.Chunks, lane.Counters, lane.Count,
+                                      GpuSurfaceExtractor.BatchRecordWords, frame);
+            lane.PrefixExtractor.DispatchBaseWriteBatch(
+                s_Mirror, lane.Tables, lane.Count, lane.Counters, lane.Resources,
+                s_PageArena.Vertices, s_PageArena.Indices,
+                pageArena: s_PageArena, frame: frame);
+            for (int record = 0; record < lane.Count; record++)
+                lane.Contexts[record]?.CompletePagedBatch(
+                    lane.Tokens[record], lane.Requests[record].Handle);
+            ResetCountBatchLane(lane);
         }
 
         private static void ResetCountBatches()
@@ -375,10 +350,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 CountBatchLane lane = s_CountBatchLanes[i];
                 if (lane == null) continue;
                 for (int record = 0; record < lane.Count; record++)
-                    lane.Contexts[record]?.CompleteBatchedCount(
-                        lane.Tokens[record], default, failed: true);
+                    lane.Contexts[record]?.FailPagedBatch(lane.Tokens[record]);
                 lane.Counters?.Release();
                 lane.Counters = null;
+                lane.Resources?.Dispose();
+                lane.Resources = null;
                 ResetCountBatchLane(lane);
             }
             s_CountBatchReadbacks = 0;
@@ -455,11 +431,16 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             return covered;
         }
 
-        internal static void BeginExtraction(int3 brickCacheOrigin, int brickCacheEdge)
+        internal static bool TryBeginExtraction(int3 brickCacheOrigin, int brickCacheEdge)
         {
+            // A direct ComputeShader dispatch shares Metal's graphics queue with rendering. Do not
+            // admit more complete count/write/copy chains than one count lane can service; deeper
+            // queues increase presentation latency without increasing useful parallelism.
+            if (s_ActiveExtractionCount >= MaxConcurrentExtractionChains) return false;
             s_ActiveExtractionCount++;
             ChangeActiveFootprint(brickCacheOrigin, brickCacheEdge, 1);
             ChangeActiveRegionReaders(brickCacheOrigin, brickCacheEdge, 1);
+            return true;
         }
 
         internal static bool TryReserveExtractionDispatch(int frame)
@@ -470,6 +451,31 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (s_LastExtractionDispatchFrame == frame) return false;
             s_LastExtractionDispatchFrame = frame;
             return true;
+        }
+
+        internal static void RecordWriteDispatch(double milliseconds) =>
+            s_MaxWriteDispatchMsSinceReport = Math.Max(
+                s_MaxWriteDispatchMsSinceReport, Math.Max(0.0, milliseconds));
+
+        internal static void RecordCopyDispatch(double milliseconds) =>
+            s_MaxCopyDispatchMsSinceReport = Math.Max(
+                s_MaxCopyDispatchMsSinceReport, Math.Max(0.0, milliseconds));
+
+        internal static void RecordCompletionPoll(double milliseconds) =>
+            s_MaxCompletionPollMsSinceReport = Math.Max(
+                s_MaxCompletionPollMsSinceReport, Math.Max(0.0, milliseconds));
+
+        internal static string ConsumeExtractionDispatchTimings()
+        {
+            string result = $"countMax={s_MaxCountDispatchMsSinceReport:0.000}"
+                          + $" writeMax={s_MaxWriteDispatchMsSinceReport:0.000}"
+                          + $" copyMax={s_MaxCopyDispatchMsSinceReport:0.000}"
+                          + $" pollMax={s_MaxCompletionPollMsSinceReport:0.000}";
+            s_MaxCountDispatchMsSinceReport = 0.0;
+            s_MaxWriteDispatchMsSinceReport = 0.0;
+            s_MaxCopyDispatchMsSinceReport = 0.0;
+            s_MaxCompletionPollMsSinceReport = 0.0;
+            return result;
         }
 
         internal static void EndExtraction(int3 brickCacheOrigin, int brickCacheEdge)

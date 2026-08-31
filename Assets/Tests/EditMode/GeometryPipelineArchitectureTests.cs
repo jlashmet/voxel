@@ -364,6 +364,26 @@ namespace VoxelEngine.Tests.EditMode
                 "passData.TransvoxelEntries[i].Draw(cmd, passData.Material)", renderPass);
         }
 
+        [Test]
+        public void ProductionGpuSurfacePathHasNoCounterReadbackOrCpuRangePublication()
+        {
+            string coordinator = ReadRenderingSource(
+                Path.Combine("GpuVoxel", "GpuSurfaceMirrorCoordinator.cs"));
+            string cache = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+            string renderPass = ReadRenderingSource(
+                Path.Combine("RenderFeature", "VoxelRenderPass.cs"));
+
+            StringAssert.DoesNotContain("AsyncGPUReadback", coordinator);
+            StringAssert.DoesNotContain("TryPublishCountBatch", coordinator);
+            StringAssert.Contains("CompletePagedBatch", coordinator);
+            StringAssert.DoesNotContain("TryCompleteStage(out", cache);
+            StringAssert.DoesNotContain("TryTakeCountBatchLease", cache);
+            StringAssert.Contains("TryTakePagedBatch", cache);
+            StringAssert.Contains("PagedIndirectArgs", renderPass);
+            StringAssert.Contains("DrawProceduralIndirect", renderPass);
+        }
+
 
         [Test]
         public void GameplaySurfaceDiagnosticsAndIndirectArgsAvoidManagedFrameGarbage()

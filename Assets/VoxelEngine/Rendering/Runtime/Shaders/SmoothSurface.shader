@@ -41,6 +41,23 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
                 uint padding;
             };
             StructuredBuffer<SurfaceDrawMetadata> _SurfaceDrawMetadata;
+            struct PagedDrawMetadata
+            {
+                uint handle;
+                uint indexCount;
+                uint bank;
+                uint padding;
+            };
+            StructuredBuffer<PagedDrawMetadata> _PagedDrawMetadata;
+            StructuredBuffer<SurfaceVertex> _PagedSurfaceVertices;
+            StructuredBuffer<uint> _PagedSurfaceIndices;
+            StructuredBuffer<uint> _PagedVertexPageTable;
+            StructuredBuffer<uint> _PagedIndexPageTable;
+            uint _SurfacePagedDraw;
+            uint _PagedVertexPageSize;
+            uint _PagedIndexPageSize;
+            uint _PagedMaxVertexPagesPerChunk;
+            uint _PagedMaxIndexPagesPerChunk;
             uint _SurfaceDrawBase;
             uint _SurfaceIndexBase;
             uint _SurfaceVertexBase;
@@ -90,9 +107,21 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
 
             Varyings Vert(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
             {
-                SurfaceDrawMetadata draw = _SurfaceDrawMetadata[_SurfaceDrawBase + instanceID];
                 Varyings output;
-                if (vertexID >= draw.indexCount)
+                PagedDrawMetadata pagedDraw;
+                SurfaceDrawMetadata cpuDraw;
+                uint indexCount = 0u;
+                if (_SurfacePagedDraw != 0u)
+                {
+                    pagedDraw = _PagedDrawMetadata[instanceID];
+                    indexCount = pagedDraw.indexCount;
+                }
+                else
+                {
+                    cpuDraw = _SurfaceDrawMetadata[_SurfaceDrawBase + instanceID];
+                    indexCount = cpuDraw.indexCount;
+                }
+                if (vertexID >= indexCount)
                 {
                     output.positionCS = float4(0.0, 0.0, 0.0, 0.0);
                     output.positionWS = 0.0;
@@ -102,7 +131,28 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
                     output.blendCoverage = 0.0;
                     return output;
                 }
-                SurfaceVertex vertex = _SurfaceVertices[draw.vertexStart + _SurfaceIndices[draw.indexStart + vertexID]];
+                SurfaceVertex vertex;
+                if (_SurfacePagedDraw != 0u)
+                {
+                    uint indexPage = vertexID / _PagedIndexPageSize;
+                    uint indexTable = (pagedDraw.handle * 2u + pagedDraw.bank)
+                                    * _PagedMaxIndexPagesPerChunk + indexPage;
+                    uint physicalIndex = _PagedIndexPageTable[indexTable] * _PagedIndexPageSize
+                                       + vertexID % _PagedIndexPageSize;
+                    uint localVertex = _PagedSurfaceIndices[physicalIndex];
+                    uint vertexPage = localVertex / _PagedVertexPageSize;
+                    uint vertexTable = (pagedDraw.handle * 2u + pagedDraw.bank)
+                                     * _PagedMaxVertexPagesPerChunk + vertexPage;
+                    uint physicalVertex = _PagedVertexPageTable[vertexTable] * _PagedVertexPageSize
+                                        + localVertex % _PagedVertexPageSize;
+                    vertex = _PagedSurfaceVertices[physicalVertex];
+                }
+                else
+                {
+                    vertex = _SurfaceVertices[
+                        cpuDraw.vertexStart
+                      + _SurfaceIndices[cpuDraw.indexStart + vertexID]];
+                }
                 output.positionCS = TransformWorldToHClip(vertex.position);
                 output.positionWS = vertex.position;
                 output.normalNS = normalize(vertex.normal);

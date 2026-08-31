@@ -720,12 +720,16 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private const double SurfaceArenaIndicesPerVertex = 1.75;
         private const int SurfaceArenaMinVertexCapacity = 256 * 1024;
         public const int SurfaceArenaDrawCapacity = 16 * 1024;
+        private const int GpuHandleCapacity = 8 * 1024;
 
         private readonly SurfaceGeometryArena _geometryArena;
+        private readonly GpuSurfacePageArena _gpuPageArena;
+        private readonly GpuSurfaceDrawDispatcher _gpuDrawDispatcher;
         private readonly TransvoxelLookupTables _lookupTables;
         private readonly SurfaceRing[] _rings;
         private readonly CpuTransvoxelChunkCache[] _allWorkers;
         private readonly List<CpuTransvoxelChunkCache.Entry> _visibleSolids = new(256);
+        private readonly List<int> _visibleGpuHandles = new(256);
         private readonly SurfaceLodVisibilitySelector _lodVisibilitySelector = new();
         private readonly List<SurfaceLodNodeKey> _lodDrawableNodes = new(256);
         private readonly List<SurfaceLodNodeKey> _lodCurrentCompleteNodes = new(256);
@@ -1080,6 +1084,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         + $" countBatch={GpuSurfaceMirrorCoordinator.CountBatchRecords}/"
                         + $"{GpuSurfaceMirrorCoordinator.CountBatchReadbacks}"
                         + $" batchArenaWait={GpuSurfaceMirrorCoordinator.CountBatchArenaWaits}"
+                        + $" dispatchMs[{GpuSurfaceMirrorCoordinator.ConsumeExtractionDispatchTimings()}]"
                         + $" flight={gpuInFlight}"
                         + $" phases=0x{gpuPhaseMask:X} oldestMs={gpuOldestMs:0.0}]");
             for (int r = 0; r < _rings.Length; r++)
@@ -1131,6 +1136,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private ulong _observedWaterArenaAllocationFailures;
 
         public IReadOnlyList<CpuTransvoxelChunkCache.Entry> VisibleSolids => _visibleSolids;
+        internal IReadOnlyList<int> VisibleGpuHandles => _visibleGpuHandles;
+        internal GpuSurfacePageArena GpuPageArena => _gpuPageArena;
+        internal GpuSurfaceDrawDispatcher GpuDrawDispatcher => _gpuDrawDispatcher;
 
         /// <summary>
         /// The shared solid geometry buffers. Every visible chunk draws out of these, so the render
@@ -1141,7 +1149,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public IReadOnlyList<CpuWaterSurfaceChunkCache.Entry> VisibleWater => _water.Visible;
         public VoxelSurfaceMetrics Metrics => new(
             _allWorkers, _water, _lastChangeRecords, _discoveredSurfaceBricks.Count,
-            _visibleSolids.Count, SolidUploadBudgetBytes, _lastFrameSolidUploadedBytes,
+            _visibleSolids.Count + _visibleGpuHandles.Count,
+            SolidUploadBudgetBytes, _lastFrameSolidUploadedBytes,
             _lastFrameSolidUploadCompletions, _geometryArena.CommittedGpuBytes,
             _geometryArena.UsedGpuBytes,
             _geometryArena.UsedVertices, _geometryArena.VertexCapacity,
@@ -1190,11 +1199,31 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         public VoxelSurfaceScheduler(long surfaceGeometryBudgetBytes)
         {
-            SplitSurfaceArenaBudget(surfaceGeometryBudgetBytes,
+            ComputeShader pageShader = SystemInfo.supportsComputeShaders
+                ? Resources.Load<ComputeShader>("GpuSurfacePageArena") : null;
+            ComputeShader drawShader = SystemInfo.supportsComputeShaders
+                ? Resources.Load<ComputeShader>("GpuSurfaceDrawCompact") : null;
+            bool gpuPresentationAvailable = !CpuTransvoxelChunkCache.GpuCutoverDisabled
+                && pageShader != null && drawShader != null;
+            long gpuBudget = gpuPresentationAvailable
+                ? surfaceGeometryBudgetBytes * 3L / 4L : 0L;
+            long cpuBudget = Math.Max(1L, surfaceGeometryBudgetBytes - gpuBudget);
+            SplitSurfaceArenaBudget(cpuBudget,
                                     out int vertexCapacity, out int indexCapacity);
             _geometryArena = new SurfaceGeometryArena(vertexCapacity,
                                                        indexCapacity,
                                                        SurfaceArenaDrawCapacity);
+            if (gpuPresentationAvailable)
+            {
+                SplitSurfaceArenaBudget(gpuBudget,
+                    out int gpuVertexCapacity, out int gpuIndexCapacity);
+                _gpuPageArena = new GpuSurfacePageArena(
+                    pageShader, gpuVertexCapacity, gpuIndexCapacity,
+                    GpuHandleCapacity);
+                _gpuDrawDispatcher = new GpuSurfaceDrawDispatcher(
+                    drawShader, _gpuPageArena);
+                GpuSurfaceMirrorCoordinator.ConfigurePageArena(_gpuPageArena);
+            }
             _lookupTables = new TransvoxelLookupTables();
             _rings = new SurfaceRing[s_RingLayout.Length];
             int totalWorkers = 0;
@@ -1348,6 +1377,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 storage, journal, frame,
                 Math.Max(0.0, SolidBuildBudgetMs * budgetScale * 0.5),
                 GpuSurfaceMirrorCoordinator.DefaultUploadBudgetBytes);
+            GpuSurfaceMirrorCoordinator.FlushPageArenaCommands(frame);
             float ringCap = Math.Max(0f, MaxVoxelRingRadiusMetres);
             for (int r = 0; r < _rings.Length; r++)
             {
@@ -1674,6 +1704,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             double reuseStart = Time.realtimeSinceStartupAsDouble;
             _water.CollectVisible(camera, voxelSize);
+            _gpuDrawDispatcher?.Prepare(_visibleGpuHandles, frame);
             TrackReappearances(frame);
             LastVisibilityMainThreadMs = ElapsedMs(reuseStart);
             _visibilityTiming.Add(LastVisibilityMainThreadMs);
@@ -1685,6 +1716,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (TryReuseVisibility(camera, voxelSize, frame)) return;
 
             _visibleSolids.Clear();
+            _visibleGpuHandles.Clear();
             _lodDrawableNodes.Clear();
             _lodCurrentCompleteNodes.Clear();
             _lastVisibilityCandidateChecks = 0;
@@ -1753,7 +1785,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                                 var node = new SurfaceLodNodeKey(
                                     entry.SourceStep, entry.Coordinate);
                                 if (_lodVisibilitySelector.IsActive(node))
-                                    _visibleSolids.Add(entry);
+                                {
+                                    if (entry.IsGpuPaged)
+                                        _visibleGpuHandles.Add(entry.GpuHandle);
+                                    else
+                                        _visibleSolids.Add(entry);
+                                }
                             }
                         }
                     }
@@ -1765,6 +1802,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 }
 
                 _water.CollectVisible(camera, voxelSize);
+                _gpuDrawDispatcher?.Prepare(_visibleGpuHandles, frame);
             }
 
             int missingVisible = 0;
@@ -2185,6 +2223,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             _water.Dispose();
             for (int r = 0; r < _rings.Length; r++) _rings[r].Dispose();
+            GpuSurfaceMirrorCoordinator.DetachPageArena(_gpuPageArena, Time.frameCount);
+            _gpuDrawDispatcher?.Dispose();
+            _gpuPageArena?.Dispose();
             _lookupTables.Dispose();
             _geometryArena.Dispose();
         }

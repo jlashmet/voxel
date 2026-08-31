@@ -114,6 +114,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             public ComputeBuffer Indices => _arena.Indices;
             public ComputeBuffer Args => _arena.Args;
             public bool Ready;
+            public bool IsGpuPaged { get; private set; }
+            public int GpuHandle { get; private set; } = -1;
             public int IndexCount;
             public int LastUsedFrame;
             public long GpuBytes { get; private set; }
@@ -142,6 +144,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         "A surface entry must release its arena leases before reuse.");
                 Coordinate = coordinate;
                 IndexCount = 0;
+                IsGpuPaged = false;
+                GpuHandle = -1;
                 LastUsedFrame = 0;
                 GpuBytes = 0;
                 VertexCapacity = 0;
@@ -215,6 +219,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 _arena.UploadArgs((uint)indices.Length, in _stagingLease);
                 uploadedBytes += argsBytes;
 
+                ReleaseGpuPresentation();
                 SurfaceGeometryLease previous = _liveLease;
                 _liveLease = _stagingLease;
                 _stagingLease = default;
@@ -239,6 +244,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 // the single publication authority: swap the completed lease atomically, then
                 // retire the previous visible representation.
                 CancelUpload();
+                ReleaseGpuPresentation();
                 SurfaceGeometryLease previous = _liveLease;
                 _liveLease = lease;
                 IndexCount = indexCount;
@@ -247,6 +253,30 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 GpuBytes = _arena.ReservedBytes(in _liveLease);
                 Ready = true;
                 _arena.Release(in previous);
+            }
+
+            internal void PublishGpuPaged(int handle)
+            {
+                if (handle < 0) throw new ArgumentOutOfRangeException(nameof(handle));
+                CancelUpload();
+                _arena.Release(in _liveLease);
+                _liveLease = default;
+                IsGpuPaged = true;
+                GpuHandle = handle;
+                Ready = true;
+                IndexCount = -1;
+                GpuBytes = 0;
+                VertexCapacity = 0;
+                IndexCapacity = 0;
+            }
+
+            private void ReleaseGpuPresentation()
+            {
+                if (!IsGpuPaged) return;
+                GpuSurfaceMirrorCoordinator.ReleaseChunkHandle(
+                    Coordinate * VoxelsPerAxis, SourceStep, SourceVersion);
+                IsGpuPaged = false;
+                GpuHandle = -1;
             }
 
             private bool EnsureUploadStaging(int vertexCount, int indexCount)
@@ -283,7 +313,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             internal bool TryGetDrawMetadata(out SurfaceDrawMetadata metadata)
             {
                 metadata = default;
-                if (!Ready || IndexCount == 0 || Vertices == null || Indices == null)
+                if (IsGpuPaged || !Ready || IndexCount == 0 || Vertices == null || Indices == null)
                     return false;
 
                 metadata.IndexStart = (uint)_liveLease.IndexStart;
@@ -324,6 +354,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 _arena.Release(in _liveLease);
                 _liveLease = default;
                 Ready = false;
+                IsGpuPaged = false;
+                GpuHandle = -1;
                 IndexCount = 0;
                 GpuBytes = 0;
                 VertexCapacity = 0;
@@ -544,14 +576,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly bool _gpuCutoverConfigured;
         private readonly long _gpuMirrorBudgetBytes;
         private bool _gpuExtractionUnavailable;
-        private GpuSurfaceArenaBuild _gpuBuild;
-        private bool _gpuBuildPending;
-        // A GPU build now spans frames: phase 9 waits for the counting pass, phase 10 for the
-        // write pass. Both hold mirror pins, and phase 10 additionally holds a staging arena
-        // lease that must be released if the build is abandoned.
+        // A GPU build spans admission and one batched GPU publication. The CPU retains only the
+        // stable handle and immutable source generation; it never owns output counts or ranges.
         private bool _gpuStagePending;
-        private SurfaceGeometryLease _gpuStageLease;
-        private GpuExtractionCounts _gpuStageCounts;
         private SurfaceGeometryArena _geometryArena;
         private readonly bool _ownsGeometryArena;
         private TransvoxelLookupTables _lookupTables;
@@ -698,15 +725,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private GpuSurfaceExtractionContext EnsureGpuExtraction()
         {
             if (_gpuExtraction != null) return _gpuExtraction;
-            if (!_gpuCutoverConfigured || _gpuExtractionUnavailable) return null;
-
-            // The cutover is only worth taking where the counters can be collected without a
-            // pipeline flush. Blocking on them costs far more than the meshing it waits for.
-            if (!GpuSurfaceExtractor.SupportsAsyncCounters)
-            {
-                _gpuExtractionUnavailable = true;
-                return null;
-            }
+            if (!_gpuCutoverConfigured || _gpuExtractionUnavailable
+                || !GpuSurfaceMirrorCoordinator.HasPageArena) return null;
 
             _gpuExtraction = GpuSurfaceExtractionContext.TryCreate(
                 CellsPerAxis, Padding, _gpuMirrorBudgetBytes, BrickCacheEdge,
@@ -1008,10 +1028,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public int ActiveGpuStagePhase => _gpuExtraction?.ActiveRequestPhase ?? 0;
         public double ActiveGpuStageAgeMs => _gpuExtraction?.ActiveRequestAgeMs ?? 0.0;
         /// <summary>
-        /// Worker slices that did nothing but observe an unfinished GPU readback.
-        ///
-        /// A build owns its worker's only build slot for its whole life, so this is the cost of the
-        /// compute path in units of lost build opportunities, not milliseconds.
+        /// Legacy telemetry retained for capture-schema compatibility. The final paged path never
+        /// increments it because production performs no completion or counter readback.
         /// </summary>
         public ulong GpuReadbackWaitSlices { get; private set; }
         /// <summary>Build latency for chunks that completed on the GPU, against
@@ -1387,15 +1405,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         continue;
                     }
 
-                    if (_gpuBuildPending)
-                    {
-                        // The compute payload and args are complete. Keep the immutable Storage
-                        // pins until they drain under the normal frame deadline, then publish the
-                        // completed arena lease through Entry's existing atomic swap.
-                        _build.Phase = 8;
-                        continue;
-                    }
-
                     // Border invalidation intentionally discovers halo chunks. If the immutable
                     // snapshot proves this chunk owns no solid cells, publish a complete empty
                     // result without scanning/merging all 64^3 cells. Profile blocks still run
@@ -1419,116 +1428,23 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     continue;
                 }
 
-                if (_build.Phase == 8)
-                {
-                    if (!StepReleasePinnedSnapshotBlocks(deadline)) break;
-                    FinishGpuBuild(frame);
-                    continue;
-                }
-
                 if (_build.Phase == 9)
                 {
-                    GpuSurfaceExtractor.GpuCounterPoll poll =
-                        _gpuExtraction.TryCompleteStage(out GpuExtractionCounts counts);
-                    if (poll == GpuSurfaceExtractor.GpuCounterPoll.Pending)
+                    if (_gpuExtraction.TryTakePagedBatch(
+                            out int pagedHandle, out bool pagedFailed))
                     {
-                        GpuReadbackWaitSlices++;
-                        break;
-                    }
-
-                    if (poll == GpuSurfaceExtractor.GpuCounterPoll.Ready
-                        && counts.Unsupported)
-                    {
-                        _gpuExtraction.Release();
-                        _gpuStagePending = false;
-                        GpuUnsupportedBuildCount++;
-                        _build.GpuEligible = false;
-                        _build.GpuCpuSnapshotRequired = true;
-                        _build.SnapshotTaken = false;
-                        _build.Phase = 0;
+                        if (pagedFailed)
+                        {
+                            int3 retry = _build.Coordinate;
+                            _gpuExtraction.Release();
+                            _gpuStagePending = false;
+                            ResetCompletedBuild();
+                            MarkDirty(retry);
+                            continue;
+                        }
+                        FinishPagedGpuBuild(pagedHandle, frame);
                         continue;
                     }
-
-                    if (poll == GpuSurfaceExtractor.GpuCounterPoll.Ready && counts.IsEmpty)
-                    {
-                        _gpuExtraction.Release();
-                        _gpuStagePending = false;
-                        _build.SnapshotTaken = true;
-                        _vertices.Clear();
-                        _indices.Clear();
-                        _build.Phase = 11;
-                        continue;
-                    }
-
-                    if (poll == GpuSurfaceExtractor.GpuCounterPoll.Failed)
-                    {
-                        // Async counter collection can fail transiently on Metal under several
-                        // concurrent compute workers. The staged mirror footprint is still
-                        // immutable, so retry compute instead of rebuilding a CPU snapshot.
-                        GpuCountFailureBuildCount++;
-                        _gpuExtraction.RetryCount();
-                        GpuReadbackWaitSlices++;
-                        break;
-                    }
-
-                    if (!_gpuExtraction.TryTakeCountBatchLease(out SurfaceGeometryLease lease))
-                    {
-                        // A ready non-empty production count must arrive with its GPU-prefixed
-                        // sublease. Treat a missing lease as a batch failure and redispatch; never
-                        // fall back to an independent per-chunk allocator search here.
-                        GpuWriteFailureBuildCount++;
-                        _gpuExtraction.RetryCount();
-                        GpuReadbackWaitSlices++;
-                        break;
-                    }
-
-                    if (poll == GpuSurfaceExtractor.GpuCounterPoll.Ready && !counts.IsEmpty)
-                    {
-                        // The staging lease is invisible to the draw path until its args record is
-                        // written in phase 10, so the previously published geometry stays live.
-                        _gpuStageLease = lease;
-                        _gpuStageCounts = counts;
-                        _build.SnapshotTaken = true;
-                        SurfaceGeometryArena arena = GetGeometryArena();
-                        _gpuExtraction.BeginWriteRange(
-                            arena.Vertices, arena.Indices, arena.Args, lease.ArgsWordStart,
-                            lease.VertexStart, lease.VertexCapacity,
-                            lease.IndexStart, lease.IndexCapacity);
-                        _build.Phase = 10;
-                        continue;
-                    }
-                }
-
-                if (_build.Phase == 10)
-                {
-                    GpuSurfaceExtractor.GpuCounterPoll poll =
-                        _gpuExtraction.TryCompleteWriteRange(out int gpuIndexCount);
-                    if (poll == GpuSurfaceExtractor.GpuCounterPoll.Pending)
-                    {
-                        GpuReadbackWaitSlices++;
-                        break;
-                    }
-
-                    SurfaceGeometryArena arena = GetGeometryArena();
-                    if (poll == GpuSurfaceExtractor.GpuCounterPoll.Ready)
-                    {
-                        _gpuExtraction.Release();
-                        _gpuStagePending = false;
-                        _gpuBuild = new GpuSurfaceArenaBuild(
-                            GpuSurfaceArenaBuildStatus.Ready, in _gpuStageLease,
-                            _gpuStageCounts.VertexCount, gpuIndexCount);
-                        _gpuStageLease = default;
-                        _gpuBuildPending = true;
-                        _build.Phase = 8;
-                        continue;
-                    }
-
-                    arena.Release(in _gpuStageLease);
-                    _gpuStageLease = default;
-                    GpuWriteFailureBuildCount++;
-                    _gpuExtraction.RetryCount();
-                    _build.Phase = 9;
-                    GpuReadbackWaitSlices++;
                     break;
                 }
 
@@ -2084,7 +2000,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 // Keep the previous mesh drawable while a newer authoritative generation builds.
                 // CurrentBuildCoversDesiredGeneration above prevents visibility from recreating a
                 // duplicate dirty record for the exact generation already in flight.
-                if (entry.IndexCount == 0) return;
+                if (!entry.IsGpuPaged && entry.IndexCount == 0) return;
                 entry.LastUsedFrame = frame;
                 _visible.Add(entry);
                 return;
@@ -2724,10 +2640,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         /// <summary>
         /// Schedules the CPU Transvoxel chain for the chunk currently being built.
         ///
-        /// Separate from the snapshot step because the GPU back end can now fail after the snapshot
-        /// has already completed — an empty count, a full arena, or a lost readback — and that
-        /// chunk still has to be meshed. The origins are recomputed rather than passed in so a
-        /// late fallback cannot schedule against a stale neighbourhood.
+        /// Separate from the snapshot step because device/context admission can select the proven
+        /// CPU path after exact classification. The origins are recomputed rather than passed in
+        /// so that selection cannot schedule against a stale neighbourhood.
         /// </summary>
         private void ScheduleContinuousDensityExtraction(float voxelSize)
         {
@@ -3866,42 +3781,33 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             // Dispose is the one place Ready goes false, so it is a drawable-set change even when
             // the dictionary removal happened somewhere else.
             _readySetVersion++;
+            if (entry.IsGpuPaged)
+                GpuSurfaceMirrorCoordinator.ReleaseChunkHandle(
+                    entry.Coordinate * entry.VoxelsPerAxis,
+                    entry.SourceStep, entry.SourceVersion);
             entry.Dispose();
             _entryPool.Push(entry);
         }
 
-        private void FinishGpuBuild(int frame)
+        private void FinishPagedGpuBuild(int handle, int frame)
         {
-            if (!_gpuBuildPending || !_gpuBuild.IsReady)
-            {
-                RejectPendingOrCompletedBuild(stale: false);
-                return;
-            }
-            if (!BuildOwnsCurrentSlot())
-            {
-                RejectPendingOrCompletedBuild(stale: true);
-                return;
-            }
-            if (_desiredVersions.TryGetValue(_build.Coordinate, out ulong desired)
-                && desired > _build.SourceVersion)
+            if (!BuildOwnsCurrentSlot()
+                || _desiredVersions.TryGetValue(_build.Coordinate, out ulong desired)
+                   && desired > _build.SourceVersion)
             {
                 RejectPendingOrCompletedBuild(stale: true);
                 return;
             }
 
+            _gpuExtraction.Release();
+            _gpuStagePending = false;
             _emptyVersions.Remove(_build.Coordinate);
             if (!_entries.TryGetValue(_build.Coordinate, out Entry entry))
             {
                 entry = AcquireEntry(_build.Coordinate);
                 _entries.Add(_build.Coordinate, entry);
             }
-
-            GpuSurfaceArenaBuild completed = _gpuBuild;
-            entry.PublishCompletedGpuLease(completed.Lease, completed.IndexCount);
-            // Ownership moved into Entry; clear the staging record before reset so cleanup cannot
-            // release the now-live lease.
-            _gpuBuild = default;
-            _gpuBuildPending = false;
+            entry.PublishGpuPaged(handle);
             entry.LastUsedFrame = frame;
             entry.SourceVersion = _build.SourceVersion;
             entry.MaterialPaletteVersion = _build.MaterialPaletteVersion;
@@ -4027,7 +3933,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         private void RejectPendingOrCompletedBuild(bool stale)
         {
-            bool rejectedGpu = _gpuStagePending || _gpuBuildPending || _build.GpuEligible;
+            bool rejectedGpu = _gpuStagePending || _build.GpuEligible;
             if (_entries.TryGetValue(_build.Coordinate, out Entry entry))
             {
                 entry.CancelUpload();
@@ -4047,17 +3953,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         private void ReleasePendingGpuBuild()
         {
-            if (_gpuBuildPending && _gpuBuild.Lease.IsValid)
-                GetGeometryArena().Release(in _gpuBuild.Lease);
-            _gpuBuild = default;
-            _gpuBuildPending = false;
-
-            // A build abandoned mid-count or mid-write still owns mirror pins, an outstanding
-            // readback, and possibly a staging lease. None of them belong to the next chunk.
-            if (_gpuStageLease.IsValid)
-                GetGeometryArena().Release(in _gpuStageLease);
-            _gpuStageLease = default;
-            _gpuStageCounts = default;
             if (_gpuStagePending)
             {
                 _gpuExtraction?.Release();
@@ -4765,12 +4660,19 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             ReleasePinnedRegionMetadataImmediate();
             ReleasePinnedSnapshotBlocksImmediate();
             ReleasePendingGpuBuild();
-            _gpuExtraction?.Dispose();
-            _gpuExtraction = null;
-            foreach (Entry entry in _entries.Values) entry.Dispose();
+            foreach (Entry entry in _entries.Values)
+            {
+                if (entry.IsGpuPaged)
+                    GpuSurfaceMirrorCoordinator.ReleaseChunkHandle(
+                        entry.Coordinate * entry.VoxelsPerAxis,
+                        entry.SourceStep, entry.SourceVersion);
+                entry.Dispose();
+            }
             _entries.Clear();
             foreach (Entry entry in _entryPool) entry.Dispose();
             _entryPool.Clear();
+            _gpuExtraction?.Dispose();
+            _gpuExtraction = null;
             _known.Clear();
             _dirty.Clear();
             _desiredVersions.Clear();

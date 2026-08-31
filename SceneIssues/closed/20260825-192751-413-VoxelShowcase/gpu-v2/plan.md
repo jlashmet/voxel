@@ -1,27 +1,23 @@
 # Plan — VoxelShowcase GPU v2
 
 ## Observed defect / acceptance
-- VoxelShowcase has slow fill, seams, and hitches. Pass requires GPU FPS at least 2× an identical CPU-backend run, sustained completion, no eligible fallback/blocking waits or holes, moving p95 <18 ms/p99 <25 ms, stationary p95 <8 ms, and reviewed screenshots.
-- Deterministic integer CPU voxels remain authoritative; GPU geometry is presentation.
+- GPU extraction previously saturated Metal with about 5,100 compute and 5,000 upload encoders in 35 seconds; render-queue latency reached 260 ms while CPU main/render time stayed small.
+- Pass requires an identical 150 s GPU/CPU comparison, GPU FPS at least 2× CPU, moving p95 <18 ms/p99 <25 ms, stationary p95 <8 ms, sustained completion without fallback/holes, and reviewed screenshots.
+- Deterministic integer CPU voxels remain authoritative; GPU geometry is presentation only.
 
-## Evidence and hypotheses
-- **Confirmed foundation:** shared mirror, recovery, compact scatter, snapshotless admission, stale rejection, and old-mesh retention work; admission is 0.3–4 ms with zero lease failures.
-- **Falsified tails:** zero-copy water discovery and word summaries removed CPU costs but not traversal stalls; a 150 s run reached p95 970 ms with hundreds missing.
-- **Confirmed stall owner:** eight direct live-arena extractors caused 100–350 ms stalls. Private scratch plus one global stage produced late p95 15.7–17.6 ms/p99 16.8–17.9 ms, but 400–542 chunks remained missing. Two stages/frame restored stalls.
-- **Next discriminating experiment:** complete parallel semantic emission and GPU-owned batch publication, then measure whether one bounded batch raises publication throughput without exceeding timing gates.
+## Hypotheses / discriminating result
+- **Confirmed:** per-chunk Unity command buffers were not GPU batching. Dispatch-Y cross-chunk work is required.
+- **Falsified:** completion readback was the primary bottleneck. Removing it made poll cost zero but did not fix sustained throughput.
+- **Next experiment:** after the complete cutover passes focused tests, run the identical player harness and compare GPU/CPU Profiler and FPS evidence. This distinguishes encoder/dispatch relief from remaining kernel or raster cost.
 
-## Selected architecture
-- Follow render-graph practice: immutable mirror input; bounded unpublished scratch output; explicit ordering/fences; copy to an invisible arena lease; publish args/version last; retain old geometry until publication.
-- Implement all GPU-eligible semantics before scene measurement: continuous Smooth/Rounded, exact Planar/Sharp/Cubic, deterministic clump/fringe decorations, transitions, batched sizing/allocation/args, and fence-owned scratch reuse.
-- CPU observes completion/version, never geometry. Bound work/resources from the device matrix; prioritize holes.
+## Implemented final architecture
+- One shared, demand-filled GPU voxel mirror receives changed voxel pages plus compact metadata.
+- Near rings (steps 1/2) batch up to eight chunks across count, prefix, all-category generation, transitions, and publication. Unsupported semantic fallback is zero.
+- CPU assigns only stable chunk handles and desired generations. GPU page stacks allocate staging banks, generation-check atomic publication, retain the previous live mesh on stale/exhausted updates, and reclaim retired pages after four epochs.
+- Production has no GPU count, geometry, allocation, range, completion, or indirect-argument readback. The obsolete CPU arena bridge phases are removed from the worker/coordinator path.
+- CPU uploads visible stable handles only. GPU filters live records, buckets/compacts draw metadata, and builds 128 fixed indirect argument records. The shader fetches paged indices/vertices directly. Step 4 feature-preserving and step 8 block HLOD extraction remain CPU by design and use the separate CPU arena.
 
-## Material results
-- Baseline p95 16.7–17.5 ms, missing 598. Removing write verification without a scratch fence caused p95 201 ms; reverted.
-- 1,162/1,703 counts rejected for reconstruction versus one decoration. Serialized exact-face greedy emission removed fallback and raised publications, but p95 became 49.92 ms; reverted. Parallel compaction is required.
-- GPU classification skips density dispatch for unsupported chunks; throughput rose slightly, walking p99 remained 38.29 ms.
-- Parallel exact Planar/Sharp/Cubic and deterministic clump/fringe emission replace supported-semantic fallback; the raw scan was removed. Reserved write/copy/args/scratch are one fence-ordered stage, eliminating write readback and a third dispatch frame. Arena count/write is 7/7; policy is 5/5.
-- Double-buffered two-descriptor lanes now perform one shared transfer, GPU-aligned prefix/totals, one atomic arena reservation, version-tokened subleases, and GPU args. Workers retain private sampled fields. Metal semantic/publication/batch/pressure coverage is 8/8; per-chunk readback and allocation searches are gone.
-
-## Remaining gates
-- Complete stale/disposal and production coordinator coverage; keep retry, overflow, arena, and lifecycle gates green.
-- Run identical actual-app CPU/GPU 150 s captures, inspect screenshots, and split 64³ work only if timing shows a large-stage stall. Review the diff and keep the issue open unless every gate, including 2× FPS, passes.
+## Validation / remaining tasks
+- GPU page/batch/draw tests pass 16/16; semantic parity passes 8/8. Stale rejection, exhaustion old-mesh retention, retirement delay, handle reuse, all-category writes, and zero production readback are covered. The full architecture suite passes 44/45; its unrelated existing arena source-string assertion expects an older guard in an unchanged file.
+- Review the final diff, commit, and push the implementation.
+- Then—and only then—run the VoxelShowcase player harness, capture identical GPU/CPU 150 s measurements plus screenshots/Xcode evidence, fix any measured regression, and push the validated branch to remote `gpu-v2`.
