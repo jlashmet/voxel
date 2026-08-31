@@ -14,4 +14,10 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Game/Scenes/InteractablesShowcase.unity
     guid: 5d6769e479ef4df298bd5148e54c62e8
+  - enabled: 1
+    path: Assets/Scenes/VoxelShowcase.unity
+    guid: adc847cca2854dbb8b0250ee90231e2d
+  - enabled: 1
+    path: Assets/Scenes/WaterRenderingShowcase.unity
+    guid: 5f8a2f7e2b2148f0a35ab2d9fb9e5671
   m_configObjects: {}

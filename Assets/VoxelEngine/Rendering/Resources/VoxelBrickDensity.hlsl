@@ -33,6 +33,7 @@ StructuredBuffer<uint> _StyleWords;    // GpuSurfaceCataloguePacking.PackStyle
 StructuredBuffer<uint> _JoinWords;     // GpuSurfaceCataloguePacking.PackJoin
 StructuredBuffer<uint> _CoatingWords;  // 3 words per coating
 StructuredBuffer<uint> _MaterialDefaultStyle;
+uint _SolidWaterMaterialMask;
 
 #define STYLE_COUNT 32
 #define JOIN_GROUP_COUNT 16
@@ -123,10 +124,12 @@ float CoatingDisplacement(uint surface)
 
 // -- voxel reads -------------------------------------------------------------
 
-// Matches TransvoxelDensityJob.IsSolidSample. 11 and 16 are non-solid presentation materials.
+// Matches the shared semantic solid classifier: material IDs are opaque and the installed
+// presentation mask decides which renderer materials are water.
 bool IsSolidSample(uint material)
 {
-    return material != 0u && material != 11u && material != 16u;
+    if (material == 0u) return false;
+    return material >= 32u || (_SolidWaterMaterialMask & (1u << material)) == 0u;
 }
 
 float CurvatureFactor(StyleDefinition style)

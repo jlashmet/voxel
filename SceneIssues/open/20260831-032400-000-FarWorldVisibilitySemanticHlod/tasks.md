@@ -25,6 +25,42 @@ This is the code-grounded implementation delta for `004-far-world-visibility`. I
   - Report requested outer radius, guaranteed authoritative radius, ring count, per-ring spacing, and whether startup fallback is active.
   - Diagnostics are presentation/debug data only; they must not become authoritative world state.
 
+## Phase 0.5 — Make the entire far-terrain presentation visually coherent and performant
+
+- [ ] **T003A — Make far terrain derive the same visual terrain families from the same world-space facts as near terrain.**
+  - **Modify:** the `VoxelEngine/FarTerrain` shader/material path, `Assets/Game/Composition/Showcase/SceneRuntime/VoxelFarTerrain.cs`, and the narrowest existing terrain/material API needed to share renderer-neutral terrain classification inputs.
+  - Preserve the cheap analytic heightfield clipmap. Do **not** solve this by extending voxel residency or duplicating near voxel geometry/material ownership.
+  - Use deterministic world-space terrain facts already available to presentation (for example height/elevation, slope, biome/material family, rock/soil/grass relationships, and applicable authored surface overrides) so the far surface reads as the same world rather than a special smooth material regime.
+  - Keep shader/material decisions presentation-only; they must not become authoritative gameplay state and must not feed world generation.
+  - Prefer shared semantic/material-family inputs over copying a heavyweight near shader implementation verbatim when a cheaper far implementation can reproduce the same broad visual language.
+  - **Regression:** add focused tests for any extracted terrain-classification/material-family resolver so identical world positions/facts choose equivalent semantic surface families independent of camera position or clipmap ring.
+
+- [ ] **T003B — Decouple far-terrain surface detail frequency from clipmap vertex spacing.**
+  - **Modify:** the far-terrain shader/material implementation and composition parameters.
+  - Add world-space/triplanar macro color breakup, roughness variation, and presentation/detail normals at frequencies finer than the 12.8-204.8 m geometric sample spacing where visually useful.
+  - Use deterministic world-space coordinates/seeded presentation parameters so detail does not swim as the camera or clipmap origin moves.
+  - Progressively filter/fade high-frequency detail with projected distance/mip scale so distant terrain does not shimmer, alias, or retain inappropriate centimeter-scale noise at kilometer range.
+  - Geometry remains responsible for broad silhouette/valleys/ridges; shader detail must not masquerade as authoritative collision or voxel shape.
+  - If a small auxiliary normal/material clipmap texture is demonstrated to be cheaper/better than procedural evaluation, it may be used, but it must be camera-windowed presentation data derived from deterministic world facts and measured against the device matrix.
+  - **Built-player proof:** terrain-dominant views around ~0.5, 1, 3, 6, 10, and 12 km retain coherent rock/soil/grass/material character without obvious smooth-far-world appearance or temporal shimmer.
+
+- [ ] **T003C — Measure silhouette loss and add a denser inner far-terrain tier only if the current first ring remains visibly too coarse.**
+  - **Modify only if evidence requires it:** `VoxelFarTerrain.cs` clipmap layout/configuration and focused coverage/geometry tests.
+  - First validate T003A/T003B with the existing geometry. Separate shading/material defects from actual silhouette/shape loss.
+  - If built-player evidence still shows conspicuous flattening or loss of ridges/slopes near the resident boundary because the current first far ring is ~12.8 m spacing versus ~0.8 m outer near source spacing, add the minimum configurable **inner far** density/tier needed to remove the demonstrated defect.
+  - Keep the denser geometry spatially bounded to the inner far range; outer rings must remain aggressively coarse. Do not raise all 12 km terrain to the new density.
+  - Do not hard-code a presumed 6.4 m answer. Select spacing/range from measured perceptual need and device budgets.
+  - Preserve clipmap snapping/coverage guarantees and do not increase near voxel residency.
+  - **Regression:** geometry/coverage tests prove any new inner tier has deterministic spacing/extents and cannot create a coverage hole; built-player evidence around ~400 m-1 km proves materially improved silhouette continuity.
+
+- [ ] **T003D — Make the resident-terrain -> far-terrain transition visually continuous after whole-range fidelity is fixed.**
+  - **Modify:** `VoxelShowcase.cs`, `VoxelFarTerrain.cs`, and the narrowest material/transition configuration required.
+  - Treat this as a final continuity gate, not as a substitute for T003A/T003B. The entire far field must already look correct on its own.
+  - Across approximately the ~350-600 m transition region, near and far representations must agree closely enough on terrain height, broad normals, semantic material family, large-scale color, fog/atmospheric response, and lighting that the renderer boundary is not conspicuous.
+  - Use overlap/readiness and, if required, a bounded geometric/material blend or compatible normal/material evaluation; avoid a permanently expensive double-rendered band.
+  - Test approach/retreat from multiple headings and elevations, including clipmap snap changes.
+  - **Built-player proof:** no obvious hard seam, sudden flattening, color/material shift, normal/lighting jump, fog mismatch, popping, or exposed gap while crossing the boundary.
+
 ## Phase 1 — Produce semantic far-structure data before voxel residency
 
 - [ ] **T004 — Add a renderer-neutral far-presentation descriptor derived from existing WorldBuilder facts.**
@@ -116,7 +152,7 @@ This is the code-grounded implementation delta for `004-far-world-visibility`. I
 - [ ] **T015 — Make `VoxelFarTerrain` consume only terrain/surface fallback, not semantic structure identity.**
   - **Modify:** `Assets/Game/Composition/Showcase/SceneRuntime/VoxelFarTerrain.cs`, `VoxelShowcase.cs`, and `ShowcaseWorld.cs`.
   - Replace/rename the current generic `Structures` dependency with a surface-deviation/fallback contract whose meaning excludes semantic buildings handled by the proxy renderer.
-  - The terrain clipmap may still incorporate lowered/raised nonsemantic voxel surface deviations, but a castle/house must not depend on a 12.8–204.8 m terrain vertex landing inside its footprint to exist visually.
+  - The terrain clipmap may still incorporate lowered/raised nonsemantic voxel surface deviations, but a castle/house must not depend on a 12.8-204.8 m terrain vertex landing inside its footprint to exist visually.
   - **Regression:** a ~100 m castle remains represented at ~10 km even when no outer clipmap sample vertex falls inside its footprint; terrain sculpts still affect far terrain.
 
 - [ ] **T016 — Remove double representation for semantic castle/Kentridge structures only after proxy parity.**
@@ -221,6 +257,7 @@ This is the code-grounded implementation delta for `004-far-world-visibility`. I
     - `Assets/Tests/EditMode/WorldVisibilityManifestTests.cs`
     - `Assets/Tests/EditMode/FarStructureVisibilityTests.cs`
     - `Assets/Tests/EditMode/FarVegetationVisibilityTests.cs`
+    - focused terrain presentation/classification tests added by T003A/T003C where the logic is testable outside shaders.
   - Required cases:
     1. 12 km guaranteed terrain coverage across camera snap phases.
     2. Fallback retirement cannot reduce coverage.
@@ -232,55 +269,36 @@ This is the code-grounded implementation delta for `004-far-world-visibility`. I
     8. Manifest/cluster/vegetation query order and hashes are deterministic.
     9. Terrain sculpts and anonymous voxel fallback still work after semantic separation.
     10. Existing tree sever/removal state propagates into individual/canopy far presentation.
+    11. Any extracted far-terrain material-family/classification resolver is deterministic and camera/ring independent for the same world-space terrain facts.
+    12. Any added inner far-terrain density tier has deterministic spacing/extents and preserves guaranteed coverage through camera snap phases.
   - Use behavioral assertions; do not use source-string assertions as proof.
 
 - [ ] **T030 — Add built-player visibility fixtures/evidence for the actual perceptual requirements.**
   - Create/extend SceneIssue validation scenes using the canonical `SceneIssues/README.md` workflow rather than treating unit tests as visual acceptance.
-  - Required fixtures/captures: castle at 8/10/12 km; approach/retreat through proxy-to-voxel handoff; hillside settlement with many houses; forest valley; exceptional giant tree/rock landmark; persisted destroyed landmark.
-  - Move/rotate the camera through clipmap snap boundaries and HLOD thresholds; inspect for popping, holes, double images, terrain/building intersections, silhouette loss, and unstable cluster layouts.
-  - Rendered evidence must meet the repository's production-quality bar.
+  - Required structure/object fixtures/captures: castle at 8/10/12 km; approach/retreat through proxy-to-voxel handoff; hillside settlement with many houses; forest valley; exceptional giant tree/rock landmark; persisted destroyed landmark.
+  - Required **terrain-fidelity** fixtures/captures: terrain-dominant views around ~0.5 km, 1 km, 3 km, 6 km, 10 km, and 12 km; matched views emphasizing slope/rock/soil/grass transitions; and camera travel across approximately ~350-600 m from multiple headings/elevations.
+  - Move/rotate the camera through clipmap snap boundaries and HLOD thresholds.
+  - Inspect terrain for: conspicuous smooth/flat far-world appearance, loss of broad surface character, different material family/color, coarse-triangle lighting, normal discontinuity, fog/atmosphere mismatch, shimmer/aliasing, silhouette loss, seam/popping, and regression after any inner-density change.
+  - Inspect objects for: popping, holes, double images, terrain/building intersections, silhouette loss, and unstable cluster layouts.
+  - Rendered evidence must meet the repository's production-quality bar; passing coverage/structure tests does **not** waive terrain-fidelity acceptance.
 
 - [ ] **T031 — Validate CPU/GPU/memory cost against the authoritative device matrix.**
-  - Instrument/query existing metrics for: far-terrain ring builds, structure records queried, individual/cluster proxies selected, instanced batches/draw calls, vegetation sectors/instances/clusters, cache sizes, and handoff counts.
-  - Profile representative dense settlement + forest views on supported tiers against `specs/001-destructible-voxel-engine/device-matrix.md`.
+  - Instrument/query existing metrics for: far-terrain ring builds, **per-ring vertex/index counts, height/sample work, rebuild frequency/churn, far-terrain material/shader GPU cost**, structure records queried, individual/cluster proxies selected, instanced batches/draw calls, vegetation sectors/instances/clusters, cache sizes, and handoff counts.
+  - If T003C adds a denser inner tier, report its incremental CPU build/sampling cost, GPU vertices/draws, memory, and rebuild churn separately from the existing outer clipmap.
+  - Profile representative terrain-only, dense settlement, and forest views on supported tiers against `specs/001-destructible-voxel-engine/device-matrix.md`.
   - Device tiers may reduce presentation complexity/thresholds only; they must not change deterministic world truth, gameplay interest radius, collision, or authoritative simulation.
+  - Do not increase near voxel residency or make the full 12 km clipmap uniformly dense to pass visual acceptance.
 
 ## Phase 11 — Remove obsolete semantic-heightfield behavior after parity is proven
 
 - [ ] **T032 — Remove the legacy requirement that known semantic buildings be captured into `FarFieldStructureStore`.**
-  - **Modify:** `ShowcaseWorld.cs` and `FarFieldStructureStore.cs` after T029–T031 pass.
+  - **Modify:** `ShowcaseWorld.cs` and `FarFieldStructureStore.cs` after T029-T031 pass.
   - Stop castle/Kentridge semantic visibility from depending on post-build `CaptureRegion()`.
   - Retain capture for terrain deviation and anonymous/arbitrary voxel forms.
   - Remove `ApplyGuaranteedSentinelOverlay()` only if its validation purpose is replaced by deterministic regressions; otherwise keep it isolated as validation-only behavior.
 
 - [ ] **T033 — Update the far-world architecture docs to match final code boundaries and measured limits.**
   - **Modify:** `specs/004-far-world-visibility/plan.md` and `architecture-proposal.md` only where implementation evidence changes the proposal.
-  - Record final policy/config ownership, actual guaranteed far-terrain coverage, proxy/cluster handoff rules, persistent-state ownership, and measured budget results.
+  - Record final policy/config ownership, actual guaranteed far-terrain coverage, **far-terrain material/detail-frequency strategy, any measured inner far geometry tier**, proxy/cluster handoff rules, persistent-state ownership, and measured budget results.
   - Do not leave documentation claiming that the old five-ring heuristic guarantees 12 km if the final math/config differs.
-
-## Dependency / implementation order
-
-1. **T001–T003** can land first and independently: they fix a current far-terrain coverage defect and provide diagnostics.
-2. **T004–T008** establish semantic data before residency and the shared spatial query source.
-3. **T009–T016** provide independent structure rendering, stable near/far handoff, and remove semantic dependence on terrain sampling.
-4. **T017–T018** add settlement HLOD after individual semantic proxies work.
-5. **T019–T023** add vegetation/natural scatter tiers by extending existing state/rendering systems.
-6. **T024–T025** connect authoritative persistent coarse state.
-7. **T026–T028** complete composition integration and prove reuse outside the original castle path.
-8. **T029–T031** are required behavioral, built-player, and budget gates.
-9. **T032–T033** are cleanup/documentation only after parity and validation are proven.
-
-## Explicit non-tasks / prohibited shortcuts
-
-- Do **not** increase the resident voxel load radius to 10–12 km.
-- Do **not** keep full houses, castles, interiors, colliders, NPCs, or voxel bricks loaded merely because they are visible at distance.
-- Do **not** make a semantic castle/house depend on sparse outer `VoxelFarTerrain` vertex sampling.
-- Do **not** create a second structure truth alongside existing WorldBuilder planning outputs.
-- Do **not** create a second persistent tree state alongside `TreeWorldState`.
-- Do **not** put Unity rendering objects into WorldBuilder generation contracts.
-- Do **not** derive persistent/deterministic world state from GPU output or camera-dependent HLOD results.
-- Do **not** hard-code a ring count to repair 12 km coverage; compute guaranteed coverage from actual clipmap geometry and snapping.
-- Do **not** delete `FarFieldStructureStore` until terrain-sculpt and anonymous/arbitrary voxel fallback behavior is proven elsewhere.
-- Do **not** change `VoxelSurfaceScheduler`'s near source-step/ring LOD algorithm unless an independent demonstrated defect requires it; this feature needs, at most, a readiness handoff.
-- Do **not** encode Showcase/Kentridge coordinates or one-off scene policy in shared engine APIs.
-- Do **not** weaken the device-matrix budgets or deterministic-authority rules to make the new presentation system pass.
+  - Do not leave documentation implying that far-terrain visual quality is accepted merely because coverage is correct; record the final built-player fidelity evidence and performance tradeoff.

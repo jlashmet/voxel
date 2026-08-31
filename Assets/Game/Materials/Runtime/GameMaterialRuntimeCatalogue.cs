@@ -6,10 +6,6 @@ using VoxelEngine.Storage.Api;
 
 namespace Game.Materials.Runtime
 {
-    /// <summary>
-    /// One game-owned authored material row. Engine subsystems receive only their projection;
-    /// this type prevents simulation and rendering identities from drifting apart in content.
-    /// </summary>
     public readonly struct GameMaterialRuntimeDefinition
     {
         public readonly byte MaterialId;
@@ -74,9 +70,6 @@ namespace Game.Materials.Runtime
 
             Row(GameMaterialIds.Glass, true,
                 Sim(GameMaterialIds.Glass, 10, DestructionClass.Powder, SurfaceStyles.Sharp, 1u << Coatings.Wet),
-                // Pale and glossy, so a glazed opening reads as glass. It was an opaque
-                // orange-brown at the same value as the surrounding masonry, which made every
-                // window in every authored house disappear into its wall.
                 Solid(GameMaterialIds.Glass, 0.55f, 0.69f, 0.76f, roughness: 0.06f)),
 
             Row(GameMaterialIds.Bedrock, true,
@@ -112,7 +105,11 @@ namespace Game.Materials.Runtime
             Row(GameMaterialIds.Water, true,
                 Sim(GameMaterialIds.Water, 5, DestructionClass.Spreading, SurfaceStyles.Smooth, 0u,
                     placementSurfaceStyle: SurfaceStyles.MaterialDefault),
-                Solid(GameMaterialIds.Water, 0.10f, 0.43f, 0.56f, roughness: 0.18f)),
+                WaterStyle(GameMaterialIds.Water, WaterPresentationProfile.Still,
+                    new float4(0.26f, 0.70f, 0.78f, 0.66f),
+                    new float4(0.015f, 0.18f, 0.38f, 1.60f),
+                    new float2(1f, 0f), 0.14f, 0.55f, 0.16f, 0.012f, 0.62f,
+                    0.18f, 0.78f, 1.20f, 0.18f)),
 
             Row(GameMaterialIds.Gold, true,
                 Sim(GameMaterialIds.Gold, 180, DestructionClass.Crumble, SurfaceStyles.Sharp, 1u << Coatings.Soot),
@@ -132,16 +129,16 @@ namespace Game.Materials.Runtime
 
             Row(GameMaterialIds.LitWindow, true,
                 Sim(GameMaterialIds.LitWindow, 18, DestructionClass.Powder, SurfaceStyles.Sharp, 1u << Coatings.Wet),
-                // Kept below HDR emission, but intentionally much warmer and brighter than glass:
-                // the authored "warm window" role was previously a charcoal swatch and could not
-                // read as inhabited at any time of day.
                 Solid(GameMaterialIds.LitWindow, 0.96f, 0.52f, 0.16f, roughness: 0.18f)),
 
-            // These rows were historically unregistered in the simulation palette. They are now
-            // explicit but intentionally inert so ownership migration does not change gameplay.
             Row(GameMaterialIds.Cascade, true,
                 Sim(GameMaterialIds.Cascade, 0, DestructionClass.None, SurfaceStyles.Smooth, 0u),
-                Solid(GameMaterialIds.Cascade, 0.22f, 0.62f, 0.78f, roughness: 0.18f)),
+                WaterStyle(GameMaterialIds.Cascade, WaterPresentationProfile.Waterfall,
+                    new float4(0.56f, 0.84f, 0.92f, 0.82f),
+                    new float4(0.055f, 0.32f, 0.56f, 0.72f),
+                    new float2(0f, 1f), 1.75f, 0.30f, 0.34f, 0.006f, 0.34f,
+                    0.72f, 0.94f, 2.20f, 1.55f,
+                    turbulence: 0.86f, edgeFoam: 0.88f, impactFoam: 0.96f, mist: 0.58f)),
 
             Row(GameMaterialIds.Crystal, true,
                 Sim(GameMaterialIds.Crystal, 0, DestructionClass.None, SurfaceStyles.Smooth, 0u),
@@ -162,10 +159,19 @@ namespace Game.Materials.Runtime
             Row(GameMaterialIds.FlowerWhite, true,
                 Sim(GameMaterialIds.FlowerWhite, 0, DestructionClass.None, SurfaceStyles.Smooth, 0u),
                 Solid(GameMaterialIds.FlowerWhite, 1.00f, 1.00f, 1.00f)),
+
+            Row(GameMaterialIds.RiverWater, true,
+                Sim(GameMaterialIds.RiverWater, 5, DestructionClass.Spreading, SurfaceStyles.Smooth, 0u,
+                    placementSurfaceStyle: SurfaceStyles.MaterialDefault),
+                WaterStyle(GameMaterialIds.RiverWater, WaterPresentationProfile.Flowing,
+                    new float4(0.20f, 0.62f, 0.72f, 0.72f),
+                    new float4(0.010f, 0.15f, 0.32f, 1.15f),
+                    new float2(1f, 0.22f), 0.92f, 0.42f, 0.23f, 0.015f, 0.54f,
+                    0.34f, 0.84f, 1.55f, 0.82f)),
         };
 
         public const int Count = GameMaterialCatalogue.Count;
-        public const int SimulationCount = Count - 1; // Empty is presentation-only.
+        public const int SimulationCount = Count - 1;
 
         public static ReadOnlySpan<GameMaterialRuntimeDefinition> Definitions => s_Definitions;
 
@@ -209,6 +215,32 @@ namespace Game.Materials.Runtime
             new(materialIndex, new float4(r, g, b, 1f),
                 projection: projection, roughness: roughness);
 
+        private static MaterialPresentationDefinition WaterStyle(
+            byte materialIndex,
+            WaterPresentationProfile profile,
+            float4 shallow,
+            float4 deep,
+            float2 flowDirection,
+            float flowSpeed,
+            float waveScale,
+            float normalStrength,
+            float refractionStrength,
+            float smoothness,
+            float surfaceFoam,
+            float contactFoam,
+            float foamScale,
+            float foamSpeed,
+            float turbulence = 0f,
+            float edgeFoam = 0f,
+            float impactFoam = 0f,
+            float mist = 0f) =>
+            new(materialIndex, shallow,
+                roughness: math.saturate(1f - smoothness),
+                water: new WaterPresentationDefinition(profile, shallow, deep, flowDirection,
+                    flowSpeed, waveScale, normalStrength, refractionStrength, smoothness,
+                    surfaceFoam, contactFoam, foamScale, foamSpeed,
+                    turbulence, edgeFoam, impactFoam, mist));
+
         private static MaterialPresentationDefinition Textured(
             byte materialIndex,
             float r,
@@ -235,12 +267,6 @@ namespace Game.Materials.Runtime
                 chromaStrength: chromaStrength,
                 macroVariation: macroVariation);
 
-        /// <summary>
-        /// Low-frequency, colour-led terrain treatment. The old rows let a high-contrast source
-        /// texture and normal map dominate every metre of ground, producing the repeated embossed
-        /// pattern visible from town streets. This keeps enough luminance variation to avoid a flat
-        /// colour field while making the authored palette and terrain silhouette lead the image.
-        /// </summary>
         private static MaterialPresentationDefinition StylizedTerrain(
             byte materialIndex,
             float r,
@@ -249,26 +275,12 @@ namespace Game.Materials.Runtime
             int layer) =>
             new(materialIndex, new float4(r, g, b, 1f), layer, layer,
                 MaterialTextureProjection.Triplanar,
-                // Deliberately low, and deliberately not the lever that was wrong. Terrain is
-                // luminance-only, and the shader takes the luminance path wholesale when it is —
-                // the blended-texture path is discarded — so this value never reached a terrain
-                // pixel either way. Raising it would have looked like a fix and changed nothing.
                 textureBlend: 0.16f,
-                // Keep the source resolvable at eye level. This small tile is intentionally retained
-                // from the texture-restoration fix; enlarging it would recreate flat, untextured
-                // ground even though the repeated near-field normal pattern disappeared.
                 uvScale: 1f / 7f,
-                // The normal map is sampled only in the near field and feeds lighting, so it must
-                // support the terrain silhouette rather than replace it. 0.24 made the source's
-                // repeated relief dominate elevated views as bluish swirls; the old 0.035 treatment
-                // was too flat. Keep a restrained middle ground while luminance detail carries most
-                // of the visible texture.
                 normalStrength: 0.08f,
                 roughness: 0.88f,
                 luminanceOnly: true,
                 luminancePivot: 0.66f,
-                // The authored colour keeps deciding hue; these decide how much shape and how much
-                // of the source's own colour drift is allowed to show through it.
                 detailStrength: 0.58f,
                 chromaStrength: 0.10f,
                 macroVariation: 0.22f);

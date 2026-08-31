@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using VoxelEngine.Rendering.Api;
 
 namespace VoxelEngine.Rendering.Runtime
 {
@@ -76,10 +77,7 @@ namespace VoxelEngine.Rendering.Runtime
     /// application/game installs its semantic-free <c>MaterialPresentationDefinition</c> rows
     /// through Composition. Rendering therefore knows how to render material properties but not
     /// which game materials exist or which opaque index means stone, wood, water, and so on.
-    ///
-    /// Coating and reconstruction-style presentation remain code-backed here as a separate
-    /// migration concern. Texture arrays are still assembled from the render feature's existing
-    /// serialized texture sources.
+    /// Water classification is likewise derived solely from installed presentation rows.
     /// </summary>
     public static class VoxelPresentationCatalogue
     {
@@ -87,14 +85,19 @@ namespace VoxelEngine.Rendering.Runtime
         public const int MaxCoatings = 16;
         public const int MaxSurfaceStyles = 32;
 
-        // Existing texture-array layer used by the renderer-owned moss coating presentation.
-        // Base-material texture-layer selection is game-owned and contains no named constants here.
         private const int MossCoatingTextureLayer = 5;
 
         public static readonly Vector4[] MaterialAlbedo = new Vector4[MaxMaterials];
         public static readonly Vector4[] MaterialSampling = new Vector4[MaxMaterials];
         public static readonly Vector4[] MaterialSurface = new Vector4[MaxMaterials];
         public static readonly Vector4[] MaterialVariation = new Vector4[MaxMaterials];
+        public static readonly Vector4[] WaterShallow = new Vector4[MaxMaterials];
+        public static readonly Vector4[] WaterDeep = new Vector4[MaxMaterials];
+        public static readonly Vector4[] WaterMotion = new Vector4[MaxMaterials];
+        public static readonly Vector4[] WaterDetail = new Vector4[MaxMaterials];
+        public static readonly Vector4[] WaterFoam = new Vector4[MaxMaterials];
+        public static readonly Vector4[] WaterCascade = new Vector4[MaxMaterials];
+        public static uint WaterMaterialMask { get; private set; }
         public static readonly Vector4[] CoatingTint = new Vector4[MaxCoatings];
         public static readonly Vector4[] CoatingSampling = new Vector4[MaxCoatings];
         public static readonly Vector4[] CoatingResponse = new Vector4[MaxCoatings];
@@ -104,16 +107,10 @@ namespace VoxelEngine.Rendering.Runtime
 
         static VoxelPresentationCatalogue()
         {
-            // Every material row is a valid neutral slot. Game/application composition replaces
-            // the rows it owns before they are rendered; no game semantic identity lives here.
             for (int i = 0; i < MaxMaterials; i++)
                 SetMaterial(i, new VoxelMaterialPresentation(Color.white));
 
             SetCoating(0, new VoxelCoatingPresentation(Color.white));
-            // Layer 5 is the same authored grass artwork used by the ground material. The moss
-            // coating is a tint/response overlay, not a second grass-texturing path: keep the
-            // shared layer/scale metadata for ownership parity but give the independent coating
-            // texture zero visual weight so the already-presented base grass keeps its motif size.
             SetCoating(1, new VoxelCoatingPresentation(new Color(0.25f, 0.39f, 0.12f),
                 MossCoatingTextureLayer, 1f / 7f, 0f, 0.66f, 0.03f, 1f, 0.12f, 0.72f));
             SetCoating(2, new VoxelCoatingPresentation(new Color(0.88f, 0.91f, 0.94f),
@@ -122,7 +119,6 @@ namespace VoxelEngine.Rendering.Runtime
                 blendStrength: 0.58f, noiseStrength: 0.18f, roughness: 0.9f));
             SetCoating(4, new VoxelCoatingPresentation(new Color(0.12f, 0.20f, 0.23f),
                 blendStrength: 0.30f, roughness: 0.18f));
-            // HDR-hot noisy overlay used while a flammable voxel is actively burning.
             SetCoating(5, new VoxelCoatingPresentation(new Color(2.8f, 0.42f, 0.025f),
                 blendStrength: 0.94f, verticalFloor: 0.78f, verticalCeiling: 1f,
                 noiseStrength: 0.38f, roughness: 0.12f));
@@ -139,6 +135,35 @@ namespace VoxelEngine.Rendering.Runtime
             MaterialSurface[id] = value.Surface;
             MaterialVariation[id] = value.Variation;
         }
+
+        internal static void ResetWater()
+        {
+            WaterMaterialMask = 0u;
+            Array.Clear(WaterShallow, 0, WaterShallow.Length);
+            Array.Clear(WaterDeep, 0, WaterDeep.Length);
+            Array.Clear(WaterMotion, 0, WaterMotion.Length);
+            Array.Clear(WaterDetail, 0, WaterDetail.Length);
+            Array.Clear(WaterFoam, 0, WaterFoam.Length);
+            Array.Clear(WaterCascade, 0, WaterCascade.Length);
+        }
+
+        internal static void SetWater(int id, in WaterPresentationDefinition value)
+        {
+            if (!value.IsWater) return;
+            WaterMaterialMask |= 1u << id;
+            WaterShallow[id] = ToVector4(value.Shallow);
+            WaterDeep[id] = ToVector4(value.Deep);
+            WaterMotion[id] = ToVector4(value.Motion);
+            WaterDetail[id] = ToVector4(value.Detail);
+            WaterFoam[id] = ToVector4(value.Foam);
+            WaterCascade[id] = ToVector4(value.Cascade);
+        }
+
+        public static bool IsWaterMaterial(byte materialIndex) =>
+            materialIndex < MaxMaterials && (WaterMaterialMask & (1u << materialIndex)) != 0;
+
+        private static Vector4 ToVector4(Unity.Mathematics.float4 value) =>
+            new(value.x, value.y, value.z, value.w);
 
         private static void SetCoating(int id, in VoxelCoatingPresentation value)
         {
@@ -158,10 +183,6 @@ namespace VoxelEngine.Rendering.Runtime
         {
             Texture2D first = Array.Find(sources, texture => texture != null);
             if (first == null) return null;
-            // Runtime normalization is a migration bridge for the existing separately serialized
-            // textures. Cap it so eight uncompressed 2K layers per channel do not quietly consume
-            // hundreds of MB. A later import pipeline can bake compressed arrays without changing
-            // the catalogue or shader contract.
             int width = Mathf.Min(first.width, 1024);
             int height = Mathf.Min(first.height, 1024);
             var array = new Texture2DArray(width, height, sources.Length,
