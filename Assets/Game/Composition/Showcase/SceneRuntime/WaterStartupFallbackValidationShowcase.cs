@@ -91,9 +91,9 @@ namespace VoxelEngine.Showcase
             RenderingComposition.SetBuildBudgets(4.0, 2.0);
             RenderingComposition.ConfigureEnvironment(
                 Color.white,
-                new Vector3(-0.25f, -0.93f, -0.27f).normalized,
-                new Color(0.68f, 0.80f, 0.90f, 1f),
-                new Color(0.16f, 0.32f, 0.52f, 1f));
+                new Vector3(-0.35f, 0.82f, -0.45f).normalized,
+                new Color(0.78f, 0.84f, 0.88f, 1f),
+                new Color(0.34f, 0.44f, 0.54f, 1f));
             RenderingComposition.ConfigureWorld(
                 in renderingWorld,
                 _storage.Changes,
@@ -325,7 +325,7 @@ namespace VoxelEngine.Showcase
             cameraObject.tag = "MainCamera";
             Camera camera = cameraObject.AddComponent<Camera>();
             camera.clearFlags = CameraClearFlags.SolidColor;
-            camera.backgroundColor = new Color(0.24f, 0.42f, 0.64f, 1f);
+            camera.backgroundColor = new Color(0.55f, 0.68f, 0.78f, 1f);
             camera.fieldOfView = 42f;
             camera.nearClipPlane = 0.1f;
             camera.farClipPlane = 220f;
