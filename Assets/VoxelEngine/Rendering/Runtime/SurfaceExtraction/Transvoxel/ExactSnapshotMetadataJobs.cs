@@ -225,6 +225,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
         }
 
         private static bool IsSolid(byte material) =>
-            SolidMaterialClassification.IsSolid(material);
+            material != 0 && material != 11 && material != 16;
     }
 }

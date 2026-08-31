@@ -21,6 +21,7 @@ namespace VoxelEngine.Showcase
         public void GenerateForBakeBlocking(int startupRadiusRegions)
         {
             EnsureFreshForBake();
+            using var farFieldCapture = FarField.SuppressCapture();
             int radius = math.clamp(startupRadiusRegions, 0, LoadRadiusRegions);
 
             // Queue the deterministic landmark footprint, then materialise every terrain region
@@ -36,7 +37,9 @@ namespace VoxelEngine.Showcase
             // iteration poll could hit its guard before a perfectly healthy build completed.
             WaitForCastleDuringBake();
 
-            MaterialiseStartupDisc(RegionAt(SpawnPosition()), radius);
+            int3 startupCentre = RegionAt(SpawnPosition());
+            MaterialiseStartupDisc(startupCentre, radius);
+            MaterialiseExplicitFixedStructureBakeRegions(startupCentre, radius);
 
             if (_pendingFeatureRegions.Count != 0 || _featureBuild != null)
                 throw new InvalidOperationException(

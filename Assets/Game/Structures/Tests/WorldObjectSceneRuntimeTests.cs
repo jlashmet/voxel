@@ -47,36 +47,6 @@ namespace Game.Structures.Tests
         }
 
         [Test]
-        public void ResetAllRestoresDescriptorDefaultsWithoutSceneRespawn()
-        {
-            var a = new WorldObjectAuthoringSession(77u, 88u);
-            WorldObjectId lever = a.Place(1u, WorldObjectKind.Lever, B(0), new int3(0, 0, 1));
-            WorldObjectId secret = a.Place(2u, WorldObjectKind.SecretDoor, B(4), new int3(1, 0, 0),
-                defaultState: WorldObjectStateFlags.Hidden | WorldObjectStateFlags.Locked);
-            a.Connect(1u, WorldObjectSignal.Activated, 2u, WorldObjectAction.Reveal);
-            a.Connect(1u, WorldObjectSignal.Activated, 2u, WorldObjectAction.Unlock);
-            a.Connect(1u, WorldObjectSignal.Activated, 2u, WorldObjectAction.Open);
-
-            var runtime = new WorldObjectSceneRuntime(a.BuildObjects(), a.BuildConnections());
-            Assert.IsTrue(runtime.TryInteract(lever, WorldObjectInteraction.Primary, out _));
-            Assert.IsTrue(runtime.TryResolve(secret, out WorldObjectResolvedState changed));
-            Assert.IsTrue(changed.IsOpen);
-            Assert.IsFalse(changed.IsLocked);
-            Assert.IsFalse((changed.State & WorldObjectStateFlags.Hidden) != 0);
-
-            int resetCount = runtime.ResetAll();
-
-            Assert.GreaterOrEqual(resetCount, 2);
-            Assert.AreEqual(0, runtime.StateStore.Count);
-            Assert.IsTrue(runtime.TryResolve(secret, out WorldObjectResolvedState restored));
-            Assert.IsFalse(restored.IsOpen);
-            Assert.IsTrue(restored.IsLocked);
-            Assert.IsTrue((restored.State & WorldObjectStateFlags.Hidden) != 0);
-            Assert.AreEqual(0, restored.RuntimeValue0);
-            Assert.AreEqual(0, restored.RuntimeValue1);
-        }
-
-        [Test]
         public void TimedTrapResetsAfterConfiguredTicks()
         {
             var a = new WorldObjectAuthoringSession(55u, 66u);

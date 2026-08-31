@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "module": "mountain-dragon",
+  "integrationGate": false,
+  "fallback": false,
+  "productionPaths": [
+    "Assets/Game/Composition/Showcase/ShowcaseMountainDragonLayout.cs",
+    "Assets/Game/Composition/Showcase/MountainDragonEncounterRuntime.cs",
+    "Assets/Game/Composition/Showcase/SceneRuntime/MountainDragonShowcaseDriver.cs",
+    "Assets/Game/WorldBuilder/Voxel/WorldBuilderMountainLandmarkCatalogue.cs",
+    "Assets/Game/WorldBuilder/Voxel/WorldBuilderMountainLandmarkMaterialCatalogue.cs"
+  ],
+  "sharedPaths": [],
+  "tests": [
+    {
+      "platform": "PlayMode",
+      "filter": "VoxelEngine.Showcase.Tests.PlayMode.MountainDragonValidationSceneTests.FocusedValidationDriver_UsesProductionRouteAndCenteredHeadroom"
+    }
+  ],
+  "playerValidation": {
+    "scene": "Assets/Game/Composition/Showcase/Tests/Scenes/MountainDragonValidation.unity",
+    "scenario": "Assets/Game/Composition/Showcase/Tests/Scenes/mountain-dragon.player-scenario.json"
+  }
+}

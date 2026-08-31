@@ -6,7 +6,7 @@ namespace Game.Materials.Api
     /// </summary>
     public static class GameMaterialCatalogue
     {
-        public const int Count = 23;
+        public const int Count = 22;
         public const int BuildableCount = 4;
 
         public static bool IsCanonicalId(byte materialId) => materialId < Count;
@@ -37,7 +37,6 @@ namespace Game.Materials.Api
                 case GameMaterialIds.MasonryMedium: return "masonry medium";
                 case GameMaterialIds.MasonryLarge: return "masonry large";
                 case GameMaterialIds.FlowerWhite: return "flower white";
-                case GameMaterialIds.RiverWater: return "river water";
                 default: return "unknown";
             }
         }

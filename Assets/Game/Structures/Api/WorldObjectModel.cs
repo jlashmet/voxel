@@ -67,7 +67,6 @@ namespace Game.Structures.Api
         Teleporter = 45,
         Checkpoint = 46,
         SpawnPoint = 47,
-        Trapdoor = 48,
     }
 
     [Flags]

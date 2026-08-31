@@ -1,10 +1,8 @@
 using Game.Materials.Api;
 using Game.Materials.Runtime;
 using NUnit.Framework;
-using Unity.Mathematics;
 using VoxelEngine.Rendering.Api;
 using VoxelEngine.Rendering.Runtime;
-using VoxelEngine.Storage.Api;
 
 namespace Game.Materials.Tests
 {
@@ -53,126 +51,6 @@ namespace Game.Materials.Tests
         }
 
         [Test]
-        public void WaterProfiles_AreInstalledThroughOneSharedDataDrivenRendererContract()
-        {
-            MaterialPresentationDefinition[] definitions = GameMaterialRenderingDefinitions.Create();
-            MaterialPresentationDefinition still = definitions[GameMaterialIds.Water];
-            MaterialPresentationDefinition river = definitions[GameMaterialIds.RiverWater];
-            MaterialPresentationDefinition waterfall = definitions[GameMaterialIds.Cascade];
-
-            Assert.That(still.Water.Profile, Is.EqualTo(WaterPresentationProfile.Still));
-            Assert.That(river.Water.Profile, Is.EqualTo(WaterPresentationProfile.Flowing));
-            Assert.That(waterfall.Water.Profile, Is.EqualTo(WaterPresentationProfile.Waterfall));
-            Assert.That(river.Water.Motion.w, Is.GreaterThan(still.Water.Motion.w * 4f),
-                "A river must be a reusable directional-flow profile, not a faster lake branch in shader code.");
-            Assert.That(waterfall.Water.Cascade.x, Is.GreaterThan(0.8f));
-            Assert.That(waterfall.Water.Cascade.y, Is.GreaterThan(0.8f));
-            Assert.That(waterfall.Water.Cascade.z, Is.GreaterThan(0.9f));
-            Assert.That(waterfall.Water.Cascade.w, Is.GreaterThan(0.5f));
-
-            VoxelMaterialPresentationInstaller.Apply(definitions);
-            Assert.That(VoxelPresentationCatalogue.IsWaterMaterial(GameMaterialIds.Water), Is.True);
-            Assert.That(VoxelPresentationCatalogue.IsWaterMaterial(GameMaterialIds.RiverWater), Is.True);
-            Assert.That(VoxelPresentationCatalogue.IsWaterMaterial(GameMaterialIds.Cascade), Is.True);
-            Assert.That(VoxelPresentationCatalogue.IsWaterMaterial(GameMaterialIds.Stone), Is.False);
-            uint expectedMask = (1u << GameMaterialIds.Water)
-                              | (1u << GameMaterialIds.RiverWater)
-                              | (1u << GameMaterialIds.Cascade);
-            Assert.That(VoxelPresentationCatalogue.WaterMaterialMask, Is.EqualTo(expectedMask));
-        }
-
-        [Test]
-        public void WaterProfiles_UseOpaqueMaterialIdsAndCanBeRemappedByPresentationData()
-        {
-            const byte firstOpaqueId = 3;
-            const byte secondOpaqueId = 27;
-            float4 albedo = new(0.2f, 0.5f, 0.7f, 1f);
-            var still = new WaterPresentationDefinition(
-                WaterPresentationProfile.Still,
-                new float4(0.2f, 0.7f, 0.8f, 0.45f),
-                new float4(0.03f, 0.18f, 0.24f, 2.5f),
-                new float2(1f, 0f),
-                0.15f,
-                1.2f,
-                0.5f,
-                0.08f,
-                0.82f,
-                0.2f,
-                0.3f,
-                2f,
-                0.4f);
-            var waterfall = new WaterPresentationDefinition(
-                WaterPresentationProfile.Waterfall,
-                new float4(0.25f, 0.72f, 0.84f, 0.72f),
-                new float4(0.05f, 0.22f, 0.28f, 1.6f),
-                new float2(0f, 1f),
-                1.9f,
-                1.6f,
-                0.9f,
-                0.04f,
-                0.74f,
-                0.6f,
-                0.75f,
-                3f,
-                1.1f,
-                turbulence: 0.95f,
-                edgeFoam: 0.9f,
-                impactFoam: 1f,
-                mist: 0.7f);
-
-            try
-            {
-                VoxelMaterialPresentationInstaller.Apply(new[]
-                {
-                    new MaterialPresentationDefinition(firstOpaqueId, albedo, water: still),
-                    new MaterialPresentationDefinition(secondOpaqueId, albedo, water: still),
-                });
-
-                uint expectedMask = (1u << firstOpaqueId) | (1u << secondOpaqueId);
-                Assert.That(VoxelPresentationCatalogue.WaterMaterialMask, Is.EqualTo(expectedMask));
-                Assert.That(VoxelPresentationCatalogue.WaterMotion[firstOpaqueId].x,
-                    Is.EqualTo((float)WaterPresentationProfile.Still));
-                Assert.That(VoxelPresentationCatalogue.WaterMotion[secondOpaqueId].x,
-                    Is.EqualTo((float)WaterPresentationProfile.Still));
-
-                VoxelMaterialPresentationInstaller.Apply(new[]
-                {
-                    new MaterialPresentationDefinition(firstOpaqueId, albedo, water: waterfall),
-                    new MaterialPresentationDefinition(secondOpaqueId, albedo, water: still),
-                });
-
-                Assert.That(VoxelPresentationCatalogue.WaterMaterialMask, Is.EqualTo(expectedMask));
-                Assert.That(VoxelPresentationCatalogue.WaterMotion[firstOpaqueId].x,
-                    Is.EqualTo((float)WaterPresentationProfile.Waterfall));
-                Assert.That(VoxelPresentationCatalogue.WaterMotion[secondOpaqueId].x,
-                    Is.EqualTo((float)WaterPresentationProfile.Still));
-                Assert.That(VoxelPresentationCatalogue.WaterCascade[firstOpaqueId].x, Is.EqualTo(0.95f));
-                Assert.That(VoxelPresentationCatalogue.WaterCascade[secondOpaqueId], Is.EqualTo(UnityEngine.Vector4.zero));
-            }
-            finally
-            {
-                VoxelMaterialPresentationInstaller.Apply(GameMaterialRenderingDefinitions.Create());
-            }
-        }
-
-        [Test]
-        public void RiverProfile_ReusesWaterSimulation_WhileCascadePreservesInertGameplay()
-        {
-            ref readonly GameMaterialRuntimeDefinition still =
-                ref GameMaterialRuntimeCatalogue.Get(GameMaterialIds.Water);
-            ref readonly GameMaterialRuntimeDefinition river =
-                ref GameMaterialRuntimeCatalogue.Get(GameMaterialIds.RiverWater);
-            ref readonly GameMaterialRuntimeDefinition waterfall =
-                ref GameMaterialRuntimeCatalogue.Get(GameMaterialIds.Cascade);
-
-            Assert.That(still.Simulation.DestructionClass, Is.EqualTo(DestructionClass.Spreading));
-            Assert.That(river.Simulation.DestructionClass, Is.EqualTo(still.Simulation.DestructionClass));
-            Assert.That(river.Simulation.Hardness, Is.EqualTo(still.Simulation.Hardness));
-            Assert.That(waterfall.Simulation.DestructionClass, Is.EqualTo(DestructionClass.None),
-                "Presentation integration must not silently turn authored cascades into simulated spreading water.");
-        }
-
-        [Test]
         public void GrassAndMossCoatingShareAuthoredTextureDensity()
         {
             MaterialPresentationDefinition grass =
@@ -201,9 +79,17 @@ namespace Game.Materials.Tests
                 Assert.That(row.Sampling.z,
                     Is.EqualTo((float)MaterialTextureProjection.Triplanar));
                 Assert.That(row.Sampling.w, Is.LessThanOrEqualTo(0.16f));
+                // Terrain still needs normal relief at walking distance, but the source normal map
+                // must not dominate the geometric normal. At 0.24 the near-only normal path reads
+                // as bluish repeated swirls from elevated views; the old 0.035 treatment was too
+                // flat. Keep the authored compromise narrow so either regression is caught.
                 Assert.That(row.Surface.y, Is.InRange(0.05f, 0.08f));
                 Assert.That(row.Surface.w, Is.EqualTo(1f),
                     "Terrain detail should modulate luminance without importing source hue.");
+
+                // Keep the albedo/luminance source resolvable independently of normal strength.
+                // Re-enlarging the tile would hide the texture and recreate the older flat-ground
+                // regression even if the normal relief itself remained correct.
                 Assert.That(row.Surface.x, Is.GreaterThan(1f / 16f),
                     "Ground texture is tiled too large to resolve at eye level.");
             }

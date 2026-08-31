@@ -1,7 +1,6 @@
 using System;
 using UnityEngine;
 using VoxelEngine.Rendering.Api;
-using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 
 namespace VoxelEngine.Rendering.Runtime
 {
@@ -11,14 +10,6 @@ namespace VoxelEngine.Rendering.Runtime
     /// </summary>
     public static class VoxelMaterialPresentationInstaller
     {
-        private static readonly int s_WaterShallow = Shader.PropertyToID("_WaterShallow");
-        private static readonly int s_WaterDeep = Shader.PropertyToID("_WaterDeep");
-        private static readonly int s_WaterMotion = Shader.PropertyToID("_WaterMotion");
-        private static readonly int s_WaterDetail = Shader.PropertyToID("_WaterDetail");
-        private static readonly int s_WaterFoam = Shader.PropertyToID("_WaterFoam");
-        private static readonly int s_WaterCascade = Shader.PropertyToID("_WaterCascade");
-        private static readonly int s_SolidWaterMaterialMask = Shader.PropertyToID("_SolidWaterMaterialMask");
-
         public static void Apply(MaterialPresentationDefinition[] definitions)
         {
             if (definitions == null) throw new ArgumentNullException(nameof(definitions));
@@ -40,6 +31,9 @@ namespace VoxelEngine.Rendering.Runtime
                 seen |= bit;
             }
 
+            // Make application data authoritative. Any engine-backed legacy rows are erased before
+            // applying this catalogue, so an omitted game material cannot silently inherit semantic
+            // presentation from VoxelPresentationCatalogue.
             Vector4 neutralAlbedo = new(1f, 1f, 1f, 1f);
             Vector4 neutralSampling = Vector4.zero;
             Vector4 neutralSurface = new(1f / 36f, 0f, 0.76f, 0f);
@@ -51,7 +45,6 @@ namespace VoxelEngine.Rendering.Runtime
                 VoxelPresentationCatalogue.MaterialSurface[materialIndex] = neutralSurface;
                 VoxelPresentationCatalogue.MaterialVariation[materialIndex] = neutralVariation;
             }
-            VoxelPresentationCatalogue.ResetWater();
 
             for (int i = 0; i < definitions.Length; i++)
             {
@@ -61,25 +54,7 @@ namespace VoxelEngine.Rendering.Runtime
                 VoxelPresentationCatalogue.MaterialSampling[materialIndex] = ToVector4(definition.Sampling);
                 VoxelPresentationCatalogue.MaterialSurface[materialIndex] = ToVector4(definition.Surface);
                 VoxelPresentationCatalogue.MaterialVariation[materialIndex] = ToVector4(definition.Variation);
-                VoxelPresentationCatalogue.SetWater(materialIndex, in definition.Water);
             }
-
-            // Solid extraction is Burst/GPU-staging code and cannot read managed presentation
-            // arrays directly. Publish the same semantic water mask through its Burst-safe mirror
-            // and the global compute-shader scalar at the one authoritative installation boundary.
-            uint waterMaterialMask = VoxelPresentationCatalogue.WaterMaterialMask;
-            SolidMaterialClassification.SetWaterMaterialMask(waterMaterialMask);
-            Shader.SetGlobalInt(s_SolidWaterMaterialMask, unchecked((int)waterMaterialMask));
-
-            // Water profile rows are static application presentation state. Bind once when the
-            // authoritative catalogue is installed rather than re-uploading six 32-row arrays for
-            // every water chunk or every frame.
-            Shader.SetGlobalVectorArray(s_WaterShallow, VoxelPresentationCatalogue.WaterShallow);
-            Shader.SetGlobalVectorArray(s_WaterDeep, VoxelPresentationCatalogue.WaterDeep);
-            Shader.SetGlobalVectorArray(s_WaterMotion, VoxelPresentationCatalogue.WaterMotion);
-            Shader.SetGlobalVectorArray(s_WaterDetail, VoxelPresentationCatalogue.WaterDetail);
-            Shader.SetGlobalVectorArray(s_WaterFoam, VoxelPresentationCatalogue.WaterFoam);
-            Shader.SetGlobalVectorArray(s_WaterCascade, VoxelPresentationCatalogue.WaterCascade);
         }
 
         private static Vector4 ToVector4(Unity.Mathematics.float4 value) =>

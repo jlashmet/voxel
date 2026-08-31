@@ -1,5 +1,4 @@
 using System;
-using Game.WorldBuilder.Api;
 using MountingForce.WorldGen.Architecture;
 using MountingForce.WorldGen.Content.Kentridge;
 using Unity.Collections;
@@ -34,30 +33,6 @@ namespace MountingForce.WorldGen.Voxel
             Allocator allocator)
         {
             SettlementPlan plan = SettlementVoxelPlan.Resolve(seed, in settings);
-            SpatialReservationSnapshot reservations = null;
-            if (string.Equals(plan.Theme.Id, KentridgeDefinition.Id, StringComparison.Ordinal))
-            {
-                if (plan.Routes.Count > 0)
-                {
-                    WorldRoadNetwork roads = KentridgeWorldRoadNetwork.Build(plan, seed, settings);
-                    reservations = KentridgeSpatialReservationAdapter.Build(seed, plan, roads);
-                }
-                else
-                {
-                    reservations = KentridgeTownPlanner.BuildReservationSnapshot(plan);
-                }
-            }
-            return Build(seed, settings, allocator, plan, reservations);
-        }
-
-        internal static FeatureCatalogue Build(
-            uint seed,
-            VoxelWorldGenSettings settings,
-            Allocator allocator,
-            SettlementPlan plan,
-            SpatialReservationSnapshot reservations)
-        {
-            if (plan == null) throw new ArgumentNullException(nameof(plan));
             ArchitectureTheme theme = plan.Theme;
             int scale = settings.VoxelsPerDecimetre;
             BuildingPlot[] plots = PlotsByRole(plan);
@@ -70,8 +45,6 @@ namespace MountingForce.WorldGen.Voxel
                 BuildingPlot plot = plots[roleId];
                 StructureIntent intent = KentridgeDefinition.StructureIntent(plot);
                 StructureForm form = ArchitectureCompiler.Resolve(intent, theme, seed);
-                KentridgeStructureReservationValidation.Validate(
-                    plot, intent, theme, form, reservations);
                 programs[roleId] = form.IsGenerated
                     ? SharedGeneratedProgram(plot, form, theme, settings, seed)
                     : BespokeProgram(intent, form, theme, settings);

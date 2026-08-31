@@ -92,6 +92,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private const int VertexAlignment = 256;
         private const int IndexAlignment = 512;
 
+
         /// <summary>
         /// Frames a released range is quarantined before it may be handed out again. Unity queues
         /// at most <c>QualitySettings.maxQueuedFrames</c> frames ahead of the GPU; three covers
@@ -309,8 +310,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         }
 
         /// <summary>
-        /// Publishes a standard one-instance indirect draw record. Geometry offsets are explicit
-        /// draw state; they must not depend on backend-specific interpretation of startInstance.
+        /// Publishes a lease's draw record.
+        ///
+        /// The record carries the chunk's index base as the draw's start-vertex, and the page table
+        /// carries its vertex base. Between them the draw needs no per-chunk material state, which
+        /// is what lets the pass submit every visible chunk without copying a property block each
+        /// time — the cost that dominated the frame when it did.
         /// </summary>
         public void UploadArgs(uint indexCount, in SurfaceGeometryLease lease)
         {

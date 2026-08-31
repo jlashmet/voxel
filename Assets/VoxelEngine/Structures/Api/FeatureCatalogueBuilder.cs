@@ -12,7 +12,6 @@ namespace VoxelEngine.Structures.Api
         SpacingNotEnforceable = 4,
         EmptyCatalogue = 5,
         PrimitiveBudgetExceeded = 6,
-        InvalidStructuralComposition = 7,
     }
 
     /// <summary>
@@ -20,11 +19,22 @@ namespace VoxelEngine.Structures.Api
     ///
     /// The checks here are the ones that must hold before *anything* generates, because a
     /// catalogue that violates them produces a world that is wrong rather than a world that fails.
+    /// Deeper validation — footprint proofs over the parameter space, degenerate combinations,
+    /// slot cycles — belongs in <c>CatalogueValidation</c> and runs at authoring time.
     /// </summary>
     public static class FeatureCatalogueBuilder
     {
+        /// <summary>Format version this build implements.</summary>
         public const uint SupportedVersion = 1;
 
+        /// <summary>
+        /// Finalises a catalogue: checks the load-bearing invariants and computes the identity
+        /// hash.
+        ///
+        /// Refuses rather than repairs. A catalogue quietly corrected on one machine and not
+        /// another is two different worlds, which is the failure mode this whole design is built
+        /// to avoid.
+        /// </summary>
         public static CatalogueLoadResult Finalise(ref FeatureCatalogue catalogue)
         {
             if (catalogue.Version != SupportedVersion)
@@ -51,14 +61,17 @@ namespace VoxelEngine.Structures.Api
                     return CatalogueLoadResult.SpacingNotEnforceable;
             }
 
-            if (!StructuralCatalogueValidation.IsValid(in catalogue))
-                return CatalogueLoadResult.InvalidStructuralComposition;
-
             catalogue.Hash = ComputeHash(in catalogue);
             return CatalogueLoadResult.Ok;
         }
 
-        /// <summary>Hashes every generation-affecting pool, including structural composition.</summary>
+        /// <summary>
+        /// Hashes everything that affects the generated world.
+        ///
+        /// Deliberately covers the program body, material mapping and placement rules, not just
+        /// the definition headers: a single changed opcode or material slot changes the world,
+        /// and a hash that missed it would let two clients agree they share a world they do not.
+        /// </summary>
         public static ulong ComputeHash(in FeatureCatalogue catalogue)
         {
             ulong h = FeatureHash.Mix(catalogue.Version);
@@ -76,20 +89,6 @@ namespace VoxelEngine.Structures.Api
                 h = FeatureHash.Mix(h ^ (ulong)(uint)d.FixedAltitude);
                 h = FeatureHash.Mix(h ^ (ulong)(uint)d.Precedence);
                 h = FeatureHash.Mix(h ^ (ulong)(uint)d.MaxPrimitives);
-                h = FeatureHash.Mix(h ^ (ulong)(uint)d.SlotOffset);
-                h = FeatureHash.Mix(h ^ (ulong)(uint)d.SlotCount);
-
-                var piece = d.StructuralPiece;
-                h = FeatureHash.Mix(h ^ piece.PieceId);
-                h = FeatureHash.Mix(h ^ (ulong)piece.Role);
-                h = FeatureHash.Mix(h ^ piece.Offers);
-                h = FeatureHash.Mix(h ^ piece.Accepts);
-                h = FeatureHash.Mix(h ^ (ulong)(uint)piece.LocalPosition.x);
-                h = FeatureHash.Mix(h ^ (ulong)(uint)piece.LocalPosition.y);
-                h = FeatureHash.Mix(h ^ (ulong)(uint)piece.LocalPosition.z);
-                h = FeatureHash.Mix(h ^ (ulong)piece.Facing);
-                h = HashInt3(h, piece.ClearanceMin);
-                h = HashInt3(h, piece.ClearanceMax);
             }
 
             for (var i = 0; i < catalogue.Program.Length; i++)
@@ -103,33 +102,11 @@ namespace VoxelEngine.Structures.Api
                 h = FeatureHash.Mix(h ^ (ulong)(uint)p.Quantum);
             }
 
+            // Material pool entries are part of generation identity. Definitions address this pool
+            // by offset/count, so changing a semantic material assignment must invalidate the hash
+            // even when geometry, programs and placement remain byte-for-byte identical.
             for (var i = 0; i < catalogue.Materials.Length; i++)
                 h = FeatureHash.Mix(h ^ catalogue.Materials[i]);
-
-            for (var i = 0; i < catalogue.Slots.Length; i++)
-            {
-                var s = catalogue.Slots[i];
-                h = FeatureHash.Mix(h ^ s.SocketId);
-                h = FeatureHash.Mix(h ^ (ulong)s.Role);
-                h = FeatureHash.Mix(h ^ s.Offers);
-                h = FeatureHash.Mix(h ^ s.Accepts);
-                h = HashInt3(h, s.LocalPosition);
-                h = FeatureHash.Mix(h ^ (ulong)s.Facing);
-                h = FeatureHash.Mix(h ^ (ulong)(uint)s.DefinitionId);
-                h = HashInt3(h, s.LocalMin);
-                h = HashInt3(h, s.LocalMax);
-                h = HashInt3(h, s.ClearanceMin);
-                h = HashInt3(h, s.ClearanceMax);
-                h = FeatureHash.Mix(h ^ (ulong)(uint)s.CountMin);
-                h = FeatureHash.Mix(h ^ (ulong)(uint)s.CountMax);
-                h = FeatureHash.Mix(h ^ s.Capacity);
-                h = FeatureHash.Mix(h ^ (ulong)(uint)s.Spacing);
-                h = FeatureHash.Mix(h ^ (ulong)s.Flags);
-                h = HashInt3(h, s.SupportProbeMin);
-                h = HashInt3(h, s.SupportProbeMax);
-                h = FeatureHash.Mix(h ^ s.MinimumSupportContacts);
-                h = FeatureHash.Mix(h ^ (ulong)s.DecorationHandoff);
-            }
 
             for (var i = 0; i < catalogue.Rules.Length; i++)
             {
@@ -150,20 +127,16 @@ namespace VoxelEngine.Structures.Api
             for (var i = 0; i < catalogue.ExplicitPlacements.Length; i++)
             {
                 var e = catalogue.ExplicitPlacements[i];
-                h = HashInt3(h, e.Position);
+                h = FeatureHash.Mix(h ^ (ulong)(uint)e.Position.x);
+                h = FeatureHash.Mix(h ^ (ulong)(uint)e.Position.y);
+                h = FeatureHash.Mix(h ^ (ulong)(uint)e.Position.z);
                 h = FeatureHash.Mix(h ^ e.Orientation);
             }
 
             return h;
         }
 
-        private static ulong HashInt3(ulong h, Unity.Mathematics.int3 value)
-        {
-            h = FeatureHash.Mix(h ^ (ulong)(uint)value.x);
-            h = FeatureHash.Mix(h ^ (ulong)(uint)value.y);
-            return FeatureHash.Mix(h ^ (ulong)(uint)value.z);
-        }
-
+        /// <summary>Allocates the pools for a catalogue being built.</summary>
         public static FeatureCatalogue Allocate(
             int definitions, int rules, int parameters, int anchors, int slots,
             int programLength, int materials, int explicitPlacements, int overrides,

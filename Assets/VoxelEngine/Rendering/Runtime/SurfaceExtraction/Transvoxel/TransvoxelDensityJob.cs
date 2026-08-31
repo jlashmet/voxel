@@ -297,7 +297,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel
         }
 
         internal static bool IsSolidSample(byte material) =>
-            SolidMaterialClassification.IsSolid(material);
+            material != 0 && material != 11 && material != 16;
 
         private static float CurvatureFactor(in SurfaceStyleReadDefinition definition)
         {

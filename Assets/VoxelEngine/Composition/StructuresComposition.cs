@@ -160,52 +160,27 @@ namespace VoxelEngine.Composition
             bool hasPlacement = false;
             int3 min = new int3(int.MaxValue);
             int3 max = new int3(int.MinValue);
-            var structuralInstances = new NativeList<StructuralInstance>(Allocator.Temp);
-            try
+            for (int ruleIndex = 0; ruleIndex < catalogue.Rules.Length; ruleIndex++)
             {
-                for (int ruleIndex = 0; ruleIndex < catalogue.Rules.Length; ruleIndex++)
+                PlacementRule rule = catalogue.Rules[ruleIndex];
+                if ((uint)rule.DefinitionId >= (uint)catalogue.Definitions.Length) continue;
+                FeatureDefinition definition = catalogue.Definitions[rule.DefinitionId];
+                for (int i = 0; i < rule.ExplicitCount; i++)
                 {
-                    PlacementRule rule = catalogue.Rules[ruleIndex];
-                    if ((uint)rule.DefinitionId >= (uint)catalogue.Definitions.Length) continue;
-                    FeatureDefinition definition = catalogue.Definitions[rule.DefinitionId];
-                    for (int i = 0; i < rule.ExplicitCount; i++)
-                    {
-                        int placementIndex = rule.ExplicitOffset + i;
-                        if ((uint)placementIndex >= (uint)catalogue.ExplicitPlacements.Length) continue;
-                        ExplicitPlacement placement = catalogue.ExplicitPlacements[placementIndex];
-
-                        // Preserve the legacy root-footprint scan, including FixedAltitude handling,
-                        // then widen it with the exact accepted structural graph. The production
-                        // region generator already rasterises descendants independently; lookdev
-                        // must request every logical region those descendants occupy.
-                        int3 footprint = definition.Footprint;
-                        if ((placement.Orientation & 1) != 0)
-                            footprint = new int3(footprint.z, footprint.y, footprint.x);
-                        int baseY = definition.BasePlane == BasePlaneRule.FixedAltitude
-                            ? definition.FixedAltitude
-                            : placement.Position.y;
-                        int3 origin = new int3(placement.Position.x, baseY, placement.Position.z);
-                        min = math.min(min, origin);
-                        max = math.max(max, origin + footprint);
-
-                        if (definition.StructuralPiece.PieceId != 0)
-                        {
-                            StructuralCompositionReport composition = StructuralCompositionPlanner.ExpandRoot(
-                                in catalogue, seed, rule.DefinitionId, in placement, structuralInstances);
-                            if (composition.Result == StructuralCompositionResult.Ok)
-                            {
-                                min = math.min(min, composition.BoundsMin);
-                                max = math.max(max, composition.BoundsMax);
-                            }
-                        }
-
-                        hasPlacement = true;
-                    }
+                    int placementIndex = rule.ExplicitOffset + i;
+                    if ((uint)placementIndex >= (uint)catalogue.ExplicitPlacements.Length) continue;
+                    ExplicitPlacement placement = catalogue.ExplicitPlacements[placementIndex];
+                    int3 footprint = definition.Footprint;
+                    if ((placement.Orientation & 1) != 0)
+                        footprint = new int3(footprint.z, footprint.y, footprint.x);
+                    int baseY = definition.BasePlane == BasePlaneRule.FixedAltitude
+                        ? definition.FixedAltitude
+                        : placement.Position.y;
+                    int3 origin = new int3(placement.Position.x, baseY, placement.Position.z);
+                    min = math.min(min, origin);
+                    max = math.max(max, origin + footprint);
+                    hasPlacement = true;
                 }
-            }
-            finally
-            {
-                structuralInstances.Dispose();
             }
 
             if (!hasPlacement)

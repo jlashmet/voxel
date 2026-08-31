@@ -48,33 +48,6 @@ namespace Game.Structures.Runtime
             return entry.Scene;
         }
 
-        /// <summary>
-        /// Loads a deterministic descriptor/connection set authored by a composition layer while preserving the
-        /// same parent-owned sparse state and lifecycle notifications as built-in generated scenes.
-        /// </summary>
-        public WorldObjectGeneratedScene LoadAuthored(uint parentId,
-            WorldObjectDescriptor[] objects, WorldObjectConnection[] connections)
-        {
-            if (objects == null) throw new ArgumentNullException(nameof(objects));
-            if (connections == null) throw new ArgumentNullException(nameof(connections));
-            for (int i = 0; i < objects.Length; i++)
-                if (!objects[i].IsWellFormed || objects[i].ParentId != parentId)
-                    throw new ArgumentException("Authored world objects must be well formed and owned by parentId.", nameof(objects));
-            for (int i = 0; i < connections.Length; i++)
-                if (!connections[i].IsWellFormed)
-                    throw new ArgumentException("Authored world object connections must be well formed.", nameof(connections));
-
-            Entry entry = GetForLoad(parentId);
-            entry.Scene = new WorldObjectGeneratedScene
-            {
-                Objects = objects,
-                Connections = connections,
-                Runtime = new WorldObjectSceneRuntime(objects, connections, entry.State),
-            };
-            WorldObjectSceneLifecycle.PublishLoaded(this, parentId, entry.Scene);
-            return entry.Scene;
-        }
-
         public WorldObjectGeneratedScene LoadCastleForUnityDynamicPresentation(IStructureAuthoringSession geometry,
             uint worldSeed, uint parentId, in CastlePlan plan) =>
             LoadCastle(geometry, worldSeed, parentId, in plan, WorldObjectGeometryEmissionMode.StaticOnly);

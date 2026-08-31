@@ -47,7 +47,10 @@ namespace VoxelEngine.Showcase
                     "The baked showcase world must be loaded before runtime world generation starts.");
 
             LoadBake(LoadBakeResource(
-                ShowcaseWorldBakeCodec.ResourcePath, "Voxel Showcase", "Bake Showcase World"));
+                ShowcaseWorldBakeCodec.ResourcePath,
+                "Voxel Showcase",
+                "Bake Showcase World",
+                ShowcaseStartupBakeContract.ManifestResourcePath));
             ApplyBakedCastleSemanticRepairs();
             EnsureCastleWorldObjectSceneLoaded();
         }
@@ -61,7 +64,10 @@ namespace VoxelEngine.Showcase
         /// unrelated null or a decode error far from its cause.
         /// </summary>
         private static ShowcaseWorldBake LoadBakeResource(
-            string resourcePath, string sceneLabel, string bakeCommand)
+            string resourcePath,
+            string sceneLabel,
+            string bakeCommand,
+            string provenanceManifestResourcePath = null)
         {
             TextAsset asset = Resources.Load<TextAsset>(resourcePath);
             if (asset == null)
@@ -72,6 +78,15 @@ namespace VoxelEngine.Showcase
 
             try
             {
+                if (!string.IsNullOrEmpty(provenanceManifestResourcePath))
+                {
+                    TextAsset manifest = Resources.Load<TextAsset>(provenanceManifestResourcePath);
+                    if (manifest == null)
+                        throw new InvalidDataException(
+                            $"The {sceneLabel} startup bake provenance manifest is missing.");
+                    ShowcaseStartupBakeContract.Validate(asset.bytes, manifest.text);
+                }
+
                 return ShowcaseWorldBakeCodec.Deserialize(asset.bytes);
             }
             catch (Exception ex) when (ex is InvalidDataException
@@ -116,7 +131,7 @@ namespace VoxelEngine.Showcase
         /// <summary>
         /// Replaces the showcase feature catalogue with production-generated gameplay content.
         /// This must happen on a fresh world before any region is generated. Ownership of the
-        /// supplied catalogue transfers to this world and it is disposed with this world.
+        /// supplied catalogue transfers to this world and it is disposed with the world.
         ///
         /// ShowcaseWorld still contains the showcase castle bootstrap because the streaming,
         /// storage, collision, and rendering composition currently live in the same application

@@ -124,14 +124,6 @@ namespace VoxelEngine.Showcase
             _worldObjects = _worldObjectHost.AddComponent<WorldObjectRuntimeComposition>();
 
             _world.StartWorldbuildingGalleryBlocking(_worldObjects);
-            // The checked-in gallery bake predates the typed structural proof district. Run the
-            // same bounded production composition after either Bake or Generate startup so both
-            // modes expose the four proof assemblies from authoritative voxels.
-            _world.EnsureWorldbuildingGalleryStructuralCompositionBlocking();
-            // The final presentation remains authoritative voxel content. The refinement method
-            // includes the base presentation pass and adds bounded construction/grounding detail,
-            // so normal interactive play and the CI evidence harness see the same result.
-            _world.EnsureWorldbuildingGalleryStructuralRefinementBlocking();
 
             // Scatter after the world is populated and before the player is placed. Both systems
             // read the built surface to decide where not to go, so running them against a world

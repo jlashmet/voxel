@@ -14,15 +14,6 @@ namespace VoxelEngine.Structures.Runtime
         public int PrimitivesEmitted;
         public int VoxelsWritten;
 
-        /// <summary>Structural roots expanded while scanning this region.</summary>
-        public int StructuralRootsPlanned;
-
-        /// <summary>Accepted child pieces produced by those structural root expansions.</summary>
-        public int StructuralChildrenPlanned;
-
-        /// <summary>The most recent typed structural expansion result.</summary>
-        public StructuralCompositionResult LastCompositionResult;
-
         /// <summary>Set when a batch exceeded <see cref="FeatureBudget.MaxPrimitivesPerRegion"/>.</summary>
         public bool BudgetExceeded;
 
@@ -189,7 +180,10 @@ namespace VoxelEngine.Structures.Runtime
             int3 origin,
             byte orientation)
         {
-            int3 footprint = OrientedFootprint(definition.Footprint, orientation);
+            int3 footprint = definition.Footprint;
+            if ((orientation & 1) != 0)
+                footprint = new int3(footprint.z, footprint.y, footprint.x);
+
             int3 maxExclusive = origin + footprint;
 
             for (var i = 0; i < primitives.Length; i++)
@@ -202,14 +196,6 @@ namespace VoxelEngine.Structures.Runtime
 
             return true;
         }
-
-        /// <summary>
-        /// Cardinally oriented footprint used by both runtime validation and composed-piece region
-        /// filtering. Keeping it here prevents the planner and raster path from disagreeing about
-        /// whether a rotated child reaches a region.
-        /// </summary>
-        internal static int3 OrientedFootprint(int3 footprint, byte orientation) =>
-            (orientation & 1) == 0 ? footprint : new int3(footprint.z, footprint.y, footprint.x);
 
         /// <summary>
         /// The seed for one instance's draws. Derived from position rather than allocation order.

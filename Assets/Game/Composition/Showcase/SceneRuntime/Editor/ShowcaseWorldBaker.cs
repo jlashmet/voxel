@@ -1,5 +1,7 @@
 using System;
 using System.IO;
+using System.Runtime.InteropServices;
+using System.Text;
 using Game.Composition.Materials;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -19,6 +21,8 @@ namespace VoxelEngine.Showcase.Editor
         private const string ShowcaseScenePath = "Assets/Scenes/VoxelShowcase.unity";
         private const string OutputAssetPath =
             "Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes";
+        private const string ShowcaseBakeExecuteMethod =
+            "VoxelEngine.Showcase.Editor.ShowcaseWorldBaker.BakeShowcaseWorld";
 
         private const string GalleryScenePath =
             "Assets/Scenes/WorldbuildingGalleryShowcase.unity";
@@ -110,20 +114,30 @@ namespace VoxelEngine.Showcase.Editor
                         0.75f);
                 ShowcaseWorldBake bake = world.CaptureBake(startupRadius);
                 byte[] bytes = ShowcaseWorldBakeCodec.Serialize(bake);
+                string manifest = ShowcaseStartupBakeContract.CreateManifest(bytes);
 
                 string directory = Path.GetDirectoryName(OutputAssetPath);
                 if (string.IsNullOrEmpty(directory))
                     throw new InvalidOperationException("Invalid showcase bake output path.");
                 Directory.CreateDirectory(directory);
                 File.WriteAllBytes(OutputAssetPath, bytes);
+                File.WriteAllText(
+                    ShowcaseStartupBakeContract.ManifestAssetPath,
+                    manifest,
+                    new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
                 AssetDatabase.ImportAsset(OutputAssetPath, ImportAssetOptions.ForceUpdate);
+                AssetDatabase.ImportAsset(
+                    ShowcaseStartupBakeContract.ManifestAssetPath,
+                    ImportAssetOptions.ForceUpdate);
                 AssetDatabase.SaveAssets();
 
                 float mebibytes = bytes.Length / (1024f * 1024f);
                 Debug.Log(
                     $"Baked Voxel Showcase startup world: {bake.Regions.Count} regions, " +
                     $"{mebibytes:F1} MiB, seed 0x{bake.Seed:X8}, " +
-                    $"castle voxels {bake.CastleVoxels:N0}. Asset: {OutputAssetPath}");
+                    $"castle voxels {bake.CastleVoxels:N0}, content signature " +
+                    $"0x{ShowcaseStartupBakeContract.RequiredContentSignature:X8}. " +
+                    $"Asset: {OutputAssetPath}");
             }
             catch (Exception ex)
             {
@@ -140,6 +154,12 @@ namespace VoxelEngine.Showcase.Editor
                 if (!Application.isBatchMode)
                     EditorUtility.ClearProgressBar();
             }
+
+            CompleteSuccessfulBake(
+                Application.isBatchMode,
+                Environment.GetEnvironmentVariable("GITHUB_ACTIONS"),
+                Environment.GetCommandLineArgs(),
+                ExitSuccessfulCiBakeImmediately);
         }
 
         /// <summary>
@@ -255,6 +275,68 @@ namespace VoxelEngine.Showcase.Editor
                     EditorUtility.ClearProgressBar();
             }
         }
+
+        private static void CompleteSuccessfulBake(
+            bool isBatchMode,
+            string githubActions,
+            string[] commandLineArgs,
+            Action<int> exit)
+        {
+            if (!ShouldExitSuccessfulBake(isBatchMode, githubActions, commandLineArgs))
+                return;
+            if (exit == null)
+                throw new ArgumentNullException(nameof(exit));
+
+            exit(0);
+        }
+
+        private static bool ShouldExitSuccessfulBake(
+            bool isBatchMode,
+            string githubActions,
+            string[] commandLineArgs)
+        {
+            if (!isBatchMode ||
+                !string.Equals(githubActions, "true", StringComparison.OrdinalIgnoreCase) ||
+                commandLineArgs == null)
+            {
+                return false;
+            }
+
+            string executeMethod = null;
+            for (int i = 0; i < commandLineArgs.Length; i++)
+            {
+                string argument = commandLineArgs[i];
+                if (string.Equals(argument, "-runTests", StringComparison.OrdinalIgnoreCase))
+                    return false;
+
+                if (!string.Equals(argument, "-executeMethod", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                if (i + 1 >= commandLineArgs.Length)
+                    return false;
+
+                executeMethod = commandLineArgs[++i];
+            }
+
+            return string.Equals(
+                executeMethod,
+                ShowcaseBakeExecuteMethod,
+                StringComparison.Ordinal);
+        }
+
+        private static void ExitSuccessfulCiBakeImmediately(int exitCode)
+        {
+#if UNITY_EDITOR_OSX || UNITY_EDITOR_LINUX
+            PosixImmediateExit(exitCode);
+#else
+            Environment.Exit(exitCode);
+#endif
+        }
+
+#if UNITY_EDITOR_OSX || UNITY_EDITOR_LINUX
+        [DllImport("libc", EntryPoint = "_exit")]
+        private static extern void PosixImmediateExit(int exitCode);
+#endif
 
         private static SerializedProperty RequireProperty(SerializedObject serialized, string name)
         {

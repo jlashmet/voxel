@@ -29,7 +29,6 @@ namespace Game.Materials.Api
         public const byte MasonryMedium = 19;
         public const byte MasonryLarge = 20;
         public const byte FlowerWhite = 21;
-        public const byte RiverWater = 22;
 
         public const byte TerrainTurf = Grass;
         public const byte TerrainLimestone = MasonryMedium;

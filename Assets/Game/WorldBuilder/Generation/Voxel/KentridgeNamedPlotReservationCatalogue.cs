@@ -6,9 +6,9 @@ using VoxelEngine.Structures.Api;
 namespace MountingForce.WorldGen.Voxel
 {
     /// <summary>
-    /// Applies the settlement's canonical named-site reservations before secondary urban catalogues
-    /// are combined with gameplay structures. Secondary stages own infill, courts, galleries and
-    /// access; they do not get to overwrite stable named lots and rely on precedence to hide collision.
+    /// Applies the settlement's declared named-plot spacing before secondary urban catalogues are
+    /// combined with gameplay structures. Secondary stages own infill, courts, galleries and access;
+    /// they do not get to overwrite stable named lots and rely on precedence to hide the collision.
     /// </summary>
     internal static class KentridgeNamedPlotReservationCatalogue
     {
@@ -21,8 +21,8 @@ namespace MountingForce.WorldGen.Voxel
             if (scale <= 0)
                 throw new ArgumentOutOfRangeException(nameof(settings));
 
-            SpatialReservationSnapshot reservations =
-                KentridgeTownPlanner.BuildReservationSnapshot(settlement.Seed);
+            int spacingDm = KentridgeTownPlanner.CompositionPolicy.Density.MinSpacingDm;
+            int spacing = checked(spacingDm * scale);
 
             try
             {
@@ -37,13 +37,8 @@ namespace MountingForce.WorldGen.Voxel
                     for (int read = first; read < end; read++)
                     {
                         ExplicitPlacement placement = catalogue.ExplicitPlacements[read];
-                        if (BlockedByNamedReservation(
-                            in definition,
-                            in placement,
-                            reservations,
-                            scale,
-                            ruleIndex,
-                            read))
+                        if (IntersectsNamedReservation(
+                            in definition, in placement, settlement, scale, spacing))
                             continue;
 
                         catalogue.ExplicitPlacements[write] = placement;
@@ -70,44 +65,38 @@ namespace MountingForce.WorldGen.Voxel
             }
         }
 
-        private static bool BlockedByNamedReservation(
+        private static bool IntersectsNamedReservation(
             in FeatureDefinition definition,
             in ExplicitPlacement placement,
-            SpatialReservationSnapshot reservations,
+            SettlementPlan settlement,
             int scale,
-            int ruleIndex,
-            int placementIndex)
+            int spacing)
         {
             bool quarterTurn = (placement.Orientation & 1) != 0;
             int width = quarterTurn ? definition.Footprint.z : definition.Footprint.x;
             int depth = quarterTurn ? definition.Footprint.x : definition.Footprint.z;
-            int minX = FloorDiv(placement.Position.x, scale);
-            int minZ = FloorDiv(placement.Position.z, scale);
-            int maxX = CeilDiv(checked(placement.Position.x + width), scale);
-            int maxZ = CeilDiv(checked(placement.Position.z + depth), scale);
+            int minX = placement.Position.x;
+            int minZ = placement.Position.z;
+            int maxX = checked(minX + width);
+            int maxZ = checked(minZ + depth);
 
-            SpatialReservation candidate = SpatialReservation.Box(
-                "kentridge-secondary:" + ruleIndex + ":" + placementIndex,
-                ReservationCategory.StructuralChild,
-                ReservationSemantics.HardOccupancy,
-                new ReservationBoundsDm(minX, -1000000, minZ, maxX, 1000000, maxZ),
-                precedence: 0,
-                compatibleConsumers: ReservationConsumerKind.None,
-                provenance: "KentridgeNamedPlotReservationCatalogue");
-            ReservationQueryResult result = reservations.Query(
-                candidate,
-                ReservationConsumerKind.StructuralChild,
-                ReservationCategory.Building | ReservationCategory.Plaza);
-            return result.Decision == ReservationDecision.Rejected;
+            for (int plotIndex = 0; plotIndex < settlement.Plots.Count; plotIndex++)
+            {
+                BuildingPlot plot = settlement.Plots[plotIndex];
+                Int3 footprintDm = SettlementFootprints.For(settlement, plot.Archetype);
+                int reservedMinX = checked(plot.PositionDm.X * scale - spacing);
+                int reservedMinZ = checked(plot.PositionDm.Y * scale - spacing);
+                int reservedMaxX = checked(
+                    (plot.PositionDm.X + footprintDm.X) * scale + spacing);
+                int reservedMaxZ = checked(
+                    (plot.PositionDm.Y + footprintDm.Z) * scale + spacing);
+
+                if (maxX > reservedMinX && minX < reservedMaxX
+                    && maxZ > reservedMinZ && minZ < reservedMaxZ)
+                    return true;
+            }
+
+            return false;
         }
-
-        private static int FloorDiv(int value, int divisor)
-        {
-            int quotient = value / divisor;
-            int remainder = value % divisor;
-            return remainder < 0 ? quotient - 1 : quotient;
-        }
-
-        private static int CeilDiv(int value, int divisor) => -FloorDiv(-value, divisor);
     }
 }
