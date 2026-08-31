@@ -6,7 +6,7 @@ Provide one deterministic, engine-free spatial claim/query substrate for WorldBu
 
 ## Current state — 2026-08-31
 
-Authoritative `origin/master` was re-fetched at `2ea5f5c95f89fbf0403dbefb50b782829583d304`. Agent-7 reconciled onto that tree with two-parent merge `8dc03acbd5e8359034a815021eb03b43b69020bf`; `master...fixes/agent-7` is now 0 behind. The reconciliation deliberately dropped agent-7's obsolete Worldbuilding Gallery validation diffs while preserving assignment-owned production work and the module-local validation assets.
+Authoritative `origin/master` was re-fetched at `2ea5f5c95f89fbf0403dbefb50b782829583d304`. Agent-7 reconciled onto that tree with two-parent merge `8dc03acbd5e8359034a815021eb03b43b69020bf`; `master...fixes/agent-7` was 0 behind at the last reconciliation check. The reconciliation deliberately dropped agent-7's obsolete Worldbuilding Gallery validation diffs while preserving assignment-owned production work and the module-local validation assets.
 
 Implemented acceptance seams:
 - engine-free deterministic 3D reservations, bounded snapshots, diagnostics and precedence;
@@ -25,7 +25,13 @@ The prerequisite typed structural socket feature is now landed on authoritative 
 - conservatively converts voxel min/max into integer-decimetre reservation bounds using floor-min / ceil-max conversion, including negative coordinates;
 - publishes a normal `StructuralChild` clearance claim and queries the existing `SpatialReservationSnapshot` as `ReservationConsumerKind.StructuralChild`.
 
-The focused regression `SpatialReservationStructuralSocketIntegrationTests.AcceptedTypedSocketUsesSharedReservationClearanceAgainstExternalWorldClaims` begins with a real `StructuralCompositionPlanner.ExpandRoot` typed-socket solve, consumes its accepted decision through the production adapter, rejects an intersecting external building through the shared reservation path, and accepts a vertically separated building. This is the criterion-(7) seam; structural composition remains authoritative for its own graph and socket semantics.
+The focused regression `SpatialReservationStructuralSocketIntegrationTests.AcceptedTypedSocketUsesSharedReservationClearanceAgainstExternalWorldClaims` begins with a real `StructuralCompositionPlanner.ExpandRoot` typed-socket solve, consumes its accepted decision through the production adapter, rejects an intersecting external building through the shared reservation path, and accepts a vertically separated building. Targeted run `33360994835` proved this regression green before the automatic module suite reached the next failure.
+
+### Solved-road production reservation boundary
+
+Targeted run `33360994835` then failed `SpatialReservationProductionIntegrationTests.CanonicalKentridgeStructureSitesPassSharedReservationValidation`: role 15 intersected raw planner claim `kentridge-route:organic-access-2:0`. Root-cause tracing showed a production-source mismatch rather than a shared conflict-policy defect: organic Kentridge physically lowers `KentridgeWorldRoadNetwork` through `WorldRoadNetworkVoxelCatalogue`, while structure validation was still consuming `KentridgeTownPlanner`'s pre-road route geometry.
+
+The correction keeps road solving authoritative and composition-owned. Canonical Kentridge now solves the organic `WorldRoadNetwork` once, derives structure reservations from that exact solved network through `KentridgeSpatialReservationAdapter`, and reuses the same network for road voxelization. The standalone shared-structure entry point likewise derives reservations from solved roads. The production regression now validates canonical structure sites against those solved production road claims. Shared conflict semantics are unchanged; roads are not ignored and the town planner is not given a second routing policy.
 
 ### Module-local validation architecture
 
@@ -41,15 +47,15 @@ The local scene consumes production Kentridge reservation and hidden-space compu
 
 ## Validation hypotheses / discriminator
 
-1. **Likely:** the merged typed-socket seam compiles and its production-computation regression passes together with existing reservation/Kentridge/vegetation/hidden-space coverage.
-2. **Alternative:** exact voxel-to-decimetre bounds or assembly dependencies expose a compile/bounds defect after reconciliation.
+1. **Likely:** solved production-road reservations remove the raw planner-route false conflict while preserving real road/structure exclusions; the four focused reservation suites then proceed to the module-local player gate.
+2. **Alternative:** the solved road itself still intersects canonical structure geometry, proving a real road/structure layout defect rather than a source-selection mismatch.
 
-Discriminator: run the narrow structural-socket reservation regression together with existing focused reservation tests on the exact final source SHA. If it fails, inspect the specific compile/assertion evidence and fix only the demonstrated cause. If the same acceptance symptom survives two materially different fixes, isolate a minimal repro/root cause before another change.
+Discriminator: run the exact feature SHA through the standard transport. If `CanonicalKentridgeStructureSitesPassSharedReservationValidation` fails again, inspect the solved claim id/bounds before any second layout or policy change. If the same acceptance symptom survives two materially different fixes, isolate a minimal repro/root cause before another change.
 
 ## Remaining gates
 
 1. Re-fetch `origin/master`; merge if it advanced and re-review the assignment-only diff.
-2. Verify `ci-test/fixes/agent-7` has no queued/running request, then use only that transport for the final exact-SHA validation.
+2. Verify `ci-test/fixes/agent-7` has no queued/running request, then use only that transport for exact-SHA validation.
 3. Run focused reservation tests including the typed-socket integration plus affected Kentridge/vegetation/hidden-space/foundation regressions and repository compile/static/ProjectValidator gates.
 4. Build/run the exact module-local `SpatialReservationValidation.unity` standalone player through the generic module-validation path and directly inspect required surface, underground, rejection, readiness, and cost evidence. Do not use Worldbuilding Gallery.
 5. Run the real Kentridge built/runtime traversal integration gate.
