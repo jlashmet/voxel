@@ -58,11 +58,12 @@ namespace VoxelEngine.Showcase
             int[] stops = { cave - 3, cave - 2, cave - 1 };
 
             var campaign = Campaign.Create("worldbuilding-gallery-secret-clues");
-            SiteRef approach = campaign.World.RequireSite("clue-approach", x => x.Archetype(SiteArchetype.Ruin));
-            SiteRef middle = campaign.World.RequireSite("clue-middle", x => x.Archetype(SiteArchetype.Ruin));
-            SiteRef threshold = campaign.World.RequireSite("clue-threshold", x => x.Archetype(SiteArchetype.Ruin));
-            SiteRef target = campaign.World.RequireSite("cave-target", x => x.Archetype(SiteArchetype.Ruin)
-                .RequireCapability(SiteCapability.SecretCandidateHost));
+            RegionHandle region = campaign.World.Region("gallery-secret-clue-region");
+            SiteRef approach = region.Site("clue-approach", SiteArchetype.Ruin);
+            SiteRef middle = region.Site("clue-middle", SiteArchetype.Ruin);
+            SiteRef threshold = region.Site("clue-threshold", SiteArchetype.Ruin);
+            SiteRef target = region.Site("cave-target", SiteArchetype.Ruin,
+                x => x.RequireCapability(SiteCapability.SecretCandidateHost));
             LootTableRef reward = campaign.Loot.Table("gallery-secret-reward", x => x.RollCount(1, 1)
                 .Guaranteed(LootCategory.Currency));
             SecretRef secret = campaign.World.RequireSecret("gallery-cave-secret", x => x.Inside(target)
