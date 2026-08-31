@@ -46,6 +46,8 @@ namespace VoxelEngine.Tests.PlayMode
                 int expectedCarveBoxCount = 2;
                 for (int level = 0; level < spec.SwitchbackCount; level++)
                     expectedCarveBoxCount += spec.PathTier(level).SegmentCount;
+                int authoredRouteSegmentCount = expectedCarveBoxCount - 2;
+                int maximumSegmentedPrimitiveEnvelope = authoredRouteSegmentCount * 4 + 12;
 
                 Assert.That(
                     spec.PathClearanceWidthVoxels,
@@ -102,8 +104,9 @@ namespace VoxelEngine.Tests.PlayMode
                 Assert.That(carveVoxelVolume, Is.LessThanOrEqualTo(MaximumTraversalCarveVoxels),
                     "Traversal clearance must remain below the measured one-time bake-cost envelope; "
                     + "full-width carving previously rasterized more than five million voxels.");
-                Assert.That(landform.MaxPrimitives, Is.LessThanOrEqualTo(80),
-                    "Naturalized Mountain Dragon support must stay within the feature's measured primitive envelope.");
+                Assert.That(landform.MaxPrimitives, Is.LessThanOrEqualTo(maximumSegmentedPrimitiveEnvelope),
+                    "Mountain Dragon primitive growth must remain linearly bounded by the authored "
+                    + "shell-following segment count instead of a stale pre-segmentation fixed cap.");
                 Assert.That(landform.MaxPrimitives, Is.LessThanOrEqualTo(FeatureBudget.MaxPrimitivesPerInstance),
                     "Mountain Dragon realization must remain inside the shared per-instance primitive budget.");
             }
