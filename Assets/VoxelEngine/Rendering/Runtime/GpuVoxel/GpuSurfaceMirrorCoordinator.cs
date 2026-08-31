@@ -223,8 +223,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         internal static bool TryReserveExtractionDispatch(int frame)
         {
             // Metal still serializes the large extraction kernels even when their outputs are
-            // private. Keep count, write, retry, and the short live-arena publication globally
-            // bounded to one stage per frame; multiple stages caused 80-305 ms traversal stalls.
+            // private. Keep each count or ordered write/copy/publication chain globally bounded to
+            // one stage per frame; multiple large stages caused 80-305 ms traversal stalls.
             if (s_LastExtractionDispatchFrame == frame) return false;
             s_LastExtractionDispatchFrame = frame;
             return true;

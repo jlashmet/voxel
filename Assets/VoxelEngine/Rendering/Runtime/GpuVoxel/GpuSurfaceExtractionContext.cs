@@ -557,7 +557,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 _mirror, _tables, _staged, _writeVertexCapacity, _writeIndexCapacity);
             _writeDispatchPending = false;
             _copyIndexCount = _stagedCounts.IndexCount;
-            _copyDispatchPending = true;
+            // Write, arena copy and args publication are one ordered compute-queue stage. The
+            // fence keeps this context's scratch unavailable until every command has drained, so
+            // charging the short copy a second global frame ticket only cuts throughput without
+            // adding a lifetime guarantee.
+            DispatchCopyAndFence();
             return true;
         }
 
@@ -567,6 +571,12 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (!GpuSurfaceMirrorCoordinator.TryReserveExtractionDispatch(Time.frameCount))
                 return false;
 
+            DispatchCopyAndFence();
+            return true;
+        }
+
+        private void DispatchCopyAndFence()
+        {
             _extractor.CopyCompletedWriteRange(
                 _writeVertices, _writeIndices, _writeArgs, _writeArgsWordStart,
                 _writeVertexStart, _stagedCounts.VertexCount,
@@ -577,7 +587,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _copyFencePending = true;
             _copyDispatchPending = false;
             ChunksCopied++;
-            return true;
         }
 
         public GpuExtractionCounts StagedCounts => _stagedCounts;
