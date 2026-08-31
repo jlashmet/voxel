@@ -67,10 +67,10 @@ namespace VoxelEngine.Tests.PlayMode
                 var mutations = new CountingMutationStore(new RegionMutationStore(in table, in pool));
                 int halfEdge = VoxelReadGrid.BlockEdge / 2;
                 Primitive frustum = CurvedPrimitiveEmitter.Frustum(
-                    new int3(halfEdge, 0, halfEdge),
-                    VoxelReadGrid.BlockEdge,
-                    VoxelReadGrid.BlockEdge,
-                    VoxelReadGrid.BlockEdge,
+                    new int3(halfEdge, -4, halfEdge),
+                    VoxelReadGrid.BlockEdge * 2,
+                    VoxelReadGrid.BlockEdge + 4,
+                    VoxelReadGrid.BlockEdge + 4,
                     1,
                     SolidMaterial,
                     SurfaceStyles.MaterialDefault,
@@ -86,7 +86,8 @@ namespace VoxelEngine.Tests.PlayMode
 
                 Assert.That(mutations.WholeCellBlockCalls, Is.EqualTo(1),
                     "A fully contained canonical-empty block should take the generic frustum whole-block path.");
-                Assert.That(mutations.BeginCellBlockCalls, Is.Zero);
+                Assert.That(mutations.BeginCellBlockCalls, Is.Zero,
+                    "The fixture keeps every tested centre more than two voxels inside the frustum boundary halo.");
                 Assert.That(result.VoxelsWritten, Is.EqualTo(VoxelReadGrid.VoxelsPerBlock));
                 reads.Refresh(in table, in pool);
                 Assert.That(reads.TryAcquireRegionContainingBlock(int3.zero, out RegionReadView view), Is.True);
