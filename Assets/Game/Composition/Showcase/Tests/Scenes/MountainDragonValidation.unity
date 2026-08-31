@@ -121,6 +121,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1101}
   - component: {fileID: 1102}
+  - component: {fileID: 1103}
   m_Layer: 0
   m_Name: Mountain Dragon Focused Validation
   m_TagString: Untagged
@@ -155,6 +156,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8ed9e4cc305541e3a4ed9f87f2c706d3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Game.Composition.Showcase.Tests.RuntimeSupport::VoxelEngine.Showcase.Tests.RuntimeSupport.MountainDragonValidationSceneDriver
+--- !u!114 &1103
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1100}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7a8f4b543a514e01a2c9b8c8fb615e92, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Game.Composition.Showcase.Tests.RuntimeSupport::VoxelEngine.Showcase.Tests.RuntimeSupport.MountainDragonValidationMaterialGuard
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
