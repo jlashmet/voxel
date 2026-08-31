@@ -76,7 +76,8 @@ These are existing foundations and are not candidates to rebuild from scratch.
   - Persist one coherent authoritative semantic revision, reuse subsystem/world persistence contracts, and restore through the normal runtime graph without replaying historical one-shot effects.
 - [x] **17. [Production gameplay HUD & semantic presentation](game-systems/17-production-gameplay-hud-semantic-presentation.md)**
   - Project authoritative/replicated gameplay truth into local HUD presentation models without creating duplicate gameplay state or coupling domain systems to Unity UI technology.
-- [ ] **18. Inventory UI**
+- [x] **18. [Inventory UI & authoritative inventory interaction](game-systems/18-inventory-ui-authoritative-inventory-interaction.md)**
+  - Present stable inventory snapshots and request semantic transfers/drops without introducing slot semantics, duplicate quantities, or UI-owned inventory authority.
 - [ ] **19. Quest / objective UI**
 - [ ] **20. Multiplayer teammate / session UI**
 - [ ] **21. Gameplay audio integration**
