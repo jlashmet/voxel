@@ -3,7 +3,6 @@ using Game.WorldBuilder.Api;
 using Game.WorldBuilder.Runtime;
 using MountingForce.WorldGen;
 using MountingForce.WorldGen.Architecture;
-using MountingForce.WorldGen.Content.Kentridge;
 
 namespace Game.Composition.WorldBuilderWorldGen.Runtime
 {
