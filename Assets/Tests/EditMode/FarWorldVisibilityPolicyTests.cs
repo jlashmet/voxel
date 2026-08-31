@@ -1,4 +1,5 @@
 using Game.WorldBuilder.Runtime;
+using MountingForce.WorldGen;
 using MountingForce.WorldGen.Architecture;
 using NUnit.Framework;
 using Unity.Mathematics;
