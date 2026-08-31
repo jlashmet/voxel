@@ -50,7 +50,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 for (int layer = 0; layer < Edge; layer++)
                 {
                     BuildMask(batch, axis, axisA, axisB, sign, layer);
-                    if (!MergeMask(brickBaseVoxel, axis, axisA, axisB,
+                    if (!MergeMask(batch, brickBaseVoxel, axis, axisA, axisB,
                                    sign, layer))
                         return false;
                 }
@@ -89,7 +89,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             }
         }
 
-        private bool MergeMask(int3 brickBaseVoxel, int axis, int axisA, int axisB,
+        private bool MergeMask(int batch, int3 brickBaseVoxel,
+                               int axis, int axisA, int axisB,
                                int sign, int layer)
         {
             for (int b = 0; b < Edge; b++)
@@ -121,14 +122,14 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 for (int ha = 0; ha < width; ha++)
                     MaskScratch[a + ha + (b + hb) * Edge] = 0;
 
-                if (!EmitQuad(material, brickBaseVoxel, axis, axisA, axisB,
+                if (!EmitQuad(batch, material, brickBaseVoxel, axis, axisA, axisB,
                               sign, layer, a, b, width, height))
                     return false;
             }
             return true;
         }
 
-        private bool EmitQuad(byte material, int3 brickBaseVoxel,
+        private bool EmitQuad(int batch, byte material, int3 brickBaseVoxel,
                               int axis, int axisA, int axisB, int sign, int layer,
                               int a, int b, int width, int height)
         {
@@ -149,12 +150,17 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             float3 normal = float3.zero;
             normal[axis] = sign;
 
+            int3 c0 = SourceCell(axis, axisA, axisB, layer, a, b);
+            int3 c1 = SourceCell(axis, axisA, axisB, layer, a + width - 1, b);
+            int3 c2 = SourceCell(axis, axisA, axisB, layer, a + width - 1, b + height - 1);
+            int3 c3 = SourceCell(axis, axisA, axisB, layer, a, b + height - 1);
+
+            uint baseMaterial = material;
             uint baseIndex = (uint)Vertices.Length;
-            uint m = material;
-            Vertices.AddNoResize(Vertex(p0, normal, m));
-            Vertices.AddNoResize(Vertex(p1, normal, m));
-            Vertices.AddNoResize(Vertex(p2, normal, m));
-            Vertices.AddNoResize(Vertex(p3, normal, m));
+            Vertices.AddNoResize(Vertex(p0, normal, baseMaterial | TopologyFlags(batch, c0, axis)));
+            Vertices.AddNoResize(Vertex(p1, normal, baseMaterial | TopologyFlags(batch, c1, axis)));
+            Vertices.AddNoResize(Vertex(p2, normal, baseMaterial | TopologyFlags(batch, c2, axis)));
+            Vertices.AddNoResize(Vertex(p3, normal, baseMaterial | TopologyFlags(batch, c3, axis)));
 
             bool flip = math.dot(math.cross(p1 - p0, p2 - p0), normal) < 0f;
             if (flip)
@@ -176,6 +182,74 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 Indices.AddNoResize(baseIndex + 3);
             }
             return true;
+        }
+
+        private uint TopologyFlags(int batch, int3 localCell, int faceAxis)
+        {
+            // Horizontal water surfaces retain the existing profile treatment. Vertical faces get
+            // scene-independent topology sampled from the same canonical voxel snapshot used to
+            // extract the face, so the shader can localize lip, impact, and side-edge responses.
+            if (faceAxis == 1)
+                return 0u;
+
+            uint flags = 0u;
+            if (!IsWaterAt(batch, localCell + new int3(0, 1, 0)))
+                flags |= SmoothSurfaceVertex.WaterLipFlag;
+            if (!IsWaterAt(batch, localCell + new int3(0, -1, 0)))
+                flags |= SmoothSurfaceVertex.WaterImpactFlag;
+
+            int tangentAxis = faceAxis == 0 ? 2 : 0;
+            int3 tangent = int3.zero;
+            tangent[tangentAxis] = 1;
+            if (!IsWaterAt(batch, localCell - tangent)
+                || !IsWaterAt(batch, localCell + tangent))
+                flags |= SmoothSurfaceVertex.WaterEdgeFlag;
+            return flags;
+        }
+
+        private bool IsWaterAt(int batch, int3 localCell) =>
+            IsWater(SampleMaterial(batch, localCell));
+
+        private byte SampleMaterial(int batch, int3 localCell)
+        {
+            int outsideAxis = -1;
+            int outsideSign = 0;
+            for (int axis = 0; axis < 3; axis++)
+            {
+                if ((uint)localCell[axis] < Edge)
+                    continue;
+                if (localCell[axis] != -1 && localCell[axis] != Edge)
+                    return 0;
+                if (outsideAxis >= 0)
+                    return 0;
+                outsideAxis = axis;
+                outsideSign = localCell[axis] < 0 ? -1 : 1;
+            }
+
+            int snapshotBase = batch * SnapshotStride;
+            if (outsideAxis < 0)
+            {
+                int index = localCell.x + localCell.y * Edge + localCell.z * Edge * Edge;
+                return SnapshotMaterials[snapshotBase + index];
+            }
+
+            int axisA = (outsideAxis + 1) % 3;
+            int axisB = (outsideAxis + 2) % 3;
+            if ((uint)localCell[axisA] >= Edge || (uint)localCell[axisB] >= Edge)
+                return 0;
+            int face = outsideAxis * 2 + (outsideSign > 0 ? 1 : 0);
+            int faceBase = snapshotBase + VoxelsPerBrick + face * FaceArea;
+            return SnapshotMaterials[faceBase + localCell[axisA] + localCell[axisB] * Edge];
+        }
+
+        private static int3 SourceCell(int axis, int axisA, int axisB,
+                                       int layer, int a, int b)
+        {
+            int3 cell = int3.zero;
+            cell[axis] = layer;
+            cell[axisA] = a;
+            cell[axisB] = b;
+            return cell;
         }
 
         private float3 Corner(int axis, int axisA, int axisB, int plane, int a, int b)
