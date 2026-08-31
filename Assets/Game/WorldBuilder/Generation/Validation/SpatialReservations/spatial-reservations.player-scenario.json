@@ -10,6 +10,7 @@
   "timeline": {},
   "assertions": {
     "requiredLogPatterns": [
+      "SPATIAL_RESERVATION_COST",
       "SPATIAL_RESERVATION_VALIDATION ready:"
     ],
     "forbiddenLogPatterns": [
