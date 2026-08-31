@@ -11,21 +11,23 @@ Contained source
 - Byte size: 107,207,684
 - Triangle count from STL record count: 2,144,152
 - SHA-256: a01f600705a6daf79a8828474f227251a5680d4bb8bad4aa46659f9e06cf53d6
+- Commercial-use permission: resolved. The project owner explicitly confirmed on 2026-08-31 that this exact dragon sculpture is free to use, including commercially; see `verification-source-license.txt`.
 
 Identity conclusion
 - ZIP and STL identities exactly match the values previously recorded in verification-uploaded-source.txt.
 - The original user-provided source bytes are therefore recovered independently of the contradictory repository-history part13 transfer.
-- Historical repository transfer pieces remain non-authoritative and must not be repaired/substituted merely to make reconstruction pass.
+- Historical repository transfer pieces remain diagnostic until an exact decompressed OBJ identity is proven; do not substitute them merely because cardinalities match.
 
 Derivation discriminator rerun from recovered STL
 - Quantization: 0.5 source-unit position clusters.
 - Dominant connected dragon/scenic-base source was selected before clustering.
-- After cluster mapping, degenerate-triangle removal, duplicate-triangle removal while preserving first source winding, and unused-cluster compaction:
+- After cluster mapping, degenerate-triangle removal, duplicate-triangle removal while preserving first source winding, and unused-cluster accounting:
   - used vertex clusters: 13,431
   - unique non-degenerate triangles: 29,734
 - These independently reproduce the geometric cardinalities recorded for the prior compact conventional OBJ derivation.
-- The prior OBJ text serializer is not committed, so this rerun does NOT claim byte identity with the previously recorded 860,349-byte OBJ / SHA-256 f1f44d59f7d9c775b600ac0b9ad066a15a3c652bf685a12b2344b8c383ff12b1 unless that exact hash is actually regenerated.
+- The historical serializer was subsequently recovered from the repository prefix discriminator: header `# support-free derived mesh; cluster 0.5`, centroid positions formatted to four decimals. Exact historical OBJ identity still requires the pinned 860,349-byte / SHA-256 f1f44d59f7d9c775b600ac0b9ad066a15a3c652bf685a12b2344b8c383ff12b1 result; matching serializer shape alone is not sufficient.
 
-Remaining acceptance blockers
-- Exact third-party provenance is still missing: source URL, author, named license/permission text, and any required attribution.
-- A valid deterministic derived source/archive still must be committed before bake generation can become authoritative.
+Remaining acceptance work
+- Exact upstream metadata remains incomplete: original source URL, author/creator, and named upstream license/permission text are not currently recorded. This is separate from the resolved commercial-use permission.
+- A valid deterministic derived source/archive still must be committed and pass exact OBJ reconstruction before bake generation becomes authoritative.
+- Production bake, matched Mesh -> Voxels staging, built-player dragon validation/captures, destruction/world-truth proof, costs, quantitative fidelity, and human production-quality review remain required.
