@@ -1,151 +1,82 @@
-using UnityEngine;
-
 namespace VoxelEngine.Showcase
 {
     /// <summary>
-    /// Pure clipmap coverage math shared by far-terrain composition and focused regressions.
-    /// Distances are configuration inputs; no camera, scene, storage, or renderer state is read.
+    /// Showcase compatibility surface for the engine-level clipmap coverage contract. Scene
+    /// composition keeps its existing call sites while the reusable/testable math lives in the
+    /// rendering runtime assembly.
     /// </summary>
     public static class FarTerrainCoverageMath
     {
-        public const float VoxelSizeMetres = 0.1f;
-        public const int MaxRings = 12;
+        public const float VoxelSizeMetres = Rendering.Runtime.FarTerrainCoverageMath.VoxelSizeMetres;
+        public const int MaxRings = Rendering.Runtime.FarTerrainCoverageMath.MaxRings;
 
-        public static int RingSpacingVoxels(float innerRadiusMetres, int resolution, int ring)
-        {
-            int safeResolution = Mathf.Max(1, resolution);
-            float innerVoxels = Mathf.Max(0f, innerRadiusMetres) / VoxelSizeMetres;
-            int baseSpacing = Mathf.Max(1, Mathf.NextPowerOfTwo(
-                Mathf.CeilToInt(innerVoxels * 2f / safeResolution)));
-            return baseSpacing << Mathf.Clamp(ring, 0, MaxRings - 1);
-        }
+        public static int RingSpacingVoxels(float innerRadiusMetres, int resolution, int ring) =>
+            Rendering.Runtime.FarTerrainCoverageMath.RingSpacingVoxels(
+                innerRadiusMetres, resolution, ring);
 
         public static float RingHalfExtentMetres(
             float innerRadiusMetres,
             int resolution,
-            int ring)
-        {
-            int spacing = RingSpacingVoxels(innerRadiusMetres, resolution, ring);
-            return spacing * Mathf.Max(1, resolution) * 0.5f * VoxelSizeMetres;
-        }
+            int ring) =>
+            Rendering.Runtime.FarTerrainCoverageMath.RingHalfExtentMetres(
+                innerRadiusMetres, resolution, ring);
 
-        /// <summary>
-        /// Conservative maximum distance between a camera axis coordinate and the clipmap's
-        /// floor-snapped centre on that axis. The true loss is strictly smaller than one spacing,
-        /// so subtracting a full spacing gives a deterministic lower bound for every snap phase.
-        /// </summary>
         public static float CameraSnapLossMetres(
             float innerRadiusMetres,
             int resolution,
-            int ring)
-        {
-            return RingSpacingVoxels(innerRadiusMetres, resolution, ring) * VoxelSizeMetres;
-        }
+            int ring) =>
+            Rendering.Runtime.FarTerrainCoverageMath.CameraSnapLossMetres(
+                innerRadiusMetres, resolution, ring);
 
         public static float GuaranteedCardinalCoverageMetres(
             float innerRadiusMetres,
             int resolution,
-            int ring)
-        {
-            return Mathf.Max(
-                0f,
-                RingHalfExtentMetres(innerRadiusMetres, resolution, ring)
-                - CameraSnapLossMetres(innerRadiusMetres, resolution, ring));
-        }
+            int ring) =>
+            Rendering.Runtime.FarTerrainCoverageMath.GuaranteedCardinalCoverageMetres(
+                innerRadiusMetres, resolution, ring);
 
         public static bool TryCalculateRequiredRingCount(
             float innerRadiusMetres,
             float outerRadiusMetres,
             int resolution,
             out int ringCount,
-            out float guaranteedCoverageMetres)
-        {
-            float requested = Mathf.Max(0f, outerRadiusMetres);
-            for (int ring = 0; ring < MaxRings; ring++)
-            {
-                guaranteedCoverageMetres = GuaranteedCardinalCoverageMetres(
-                    innerRadiusMetres,
-                    resolution,
-                    ring);
-                if (guaranteedCoverageMetres >= requested)
-                {
-                    ringCount = ring + 1;
-                    return true;
-                }
-            }
-
-            ringCount = MaxRings;
-            guaranteedCoverageMetres = GuaranteedCardinalCoverageMetres(
+            out float guaranteedCoverageMetres) =>
+            Rendering.Runtime.FarTerrainCoverageMath.TryCalculateRequiredRingCount(
                 innerRadiusMetres,
+                outerRadiusMetres,
                 resolution,
-                MaxRings - 1);
-            return false;
-        }
+                out ringCount,
+                out guaranteedCoverageMetres);
 
         public static int CalculateRequiredRingCount(
             float innerRadiusMetres,
             float outerRadiusMetres,
-            int resolution)
-        {
-            TryCalculateRequiredRingCount(
-                innerRadiusMetres,
-                outerRadiusMetres,
-                resolution,
-                out int ringCount,
-                out _);
-            return ringCount;
-        }
+            int resolution) =>
+            Rendering.Runtime.FarTerrainCoverageMath.CalculateRequiredRingCount(
+                innerRadiusMetres, outerRadiusMetres, resolution);
 
-        /// <summary>
-        /// Returns true only when the current camera has a gap-free authoritative prefix through
-        /// every ring required by the configured radius. This is the retirement invariant for the
-        /// coarse startup fallback; merely publishing the outer slot is not sufficient.
-        /// </summary>
         public static bool CanRetireStartupFallback(
             int currentAuthoritativePrefixRingCount,
             float innerRadiusMetres,
             float outerRadiusMetres,
-            int resolution)
-        {
-            if (!TryCalculateRequiredRingCount(
-                    innerRadiusMetres,
-                    outerRadiusMetres,
-                    resolution,
-                    out int requiredRingCount,
-                    out float guaranteedCoverageMetres))
-                return false;
+            int resolution) =>
+            Rendering.Runtime.FarTerrainCoverageMath.CanRetireStartupFallback(
+                currentAuthoritativePrefixRingCount,
+                innerRadiusMetres,
+                outerRadiusMetres,
+                resolution);
 
-            return currentAuthoritativePrefixRingCount >= requiredRingCount
-                && guaranteedCoverageMetres >= Mathf.Max(0f, outerRadiusMetres);
-        }
-
-        /// <summary>
-        /// Actual coverage from a camera coordinate to one cardinal side for a concrete snap phase.
-        /// Passing the same phase for X and Z exercises all four cardinal sides because the clipmap
-        /// uses identical independent floor snapping on both axes.
-        /// </summary>
         public static float SnappedCardinalCoverageMetres(
             float cameraAxisMetres,
             float innerRadiusMetres,
             int resolution,
             int ring,
-            bool positiveSide)
-        {
-            int spacing = RingSpacingVoxels(innerRadiusMetres, resolution, ring);
-            int centreVoxel = Mathf.FloorToInt(cameraAxisMetres / VoxelSizeMetres);
-            int snappedCentreVoxel = FloorTo(centreVoxel, spacing);
-            float snappedCentreMetres = snappedCentreVoxel * VoxelSizeMetres;
-            float halfExtent = RingHalfExtentMetres(innerRadiusMetres, resolution, ring);
-            float min = snappedCentreMetres - halfExtent;
-            float max = snappedCentreMetres + halfExtent;
-            return positiveSide ? max - cameraAxisMetres : cameraAxisMetres - min;
-        }
-
-        private static int FloorTo(int value, int step)
-        {
-            int quotient = value / step;
-            if (value % step != 0 && value < 0) quotient--;
-            return quotient * step;
-        }
+            bool positiveSide) =>
+            Rendering.Runtime.FarTerrainCoverageMath.SnappedCardinalCoverageMetres(
+                cameraAxisMetres,
+                innerRadiusMetres,
+                resolution,
+                ring,
+                positiveSide);
     }
 }
