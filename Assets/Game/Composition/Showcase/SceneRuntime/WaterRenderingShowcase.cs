@@ -218,15 +218,20 @@ namespace VoxelEngine.Showcase
             const int cliffHeight = 72;
             _world.AuthorVoxelBox(new int3(304, fallBaseY, 224), new int3(120, cliffHeight, 18), GameMaterialIds.DarkStone);
             _world.AuthorVoxelBox(new int3(329, fallBaseY + cliffHeight - 4, 205), new int3(70, 4, 19), GameMaterialIds.RiverWater);
-            _world.AuthorVoxelBox(new int3(333, fallBaseY + 10, 199), new int3(62, cliffHeight - 10, 2), GameMaterialIds.Cascade);
+
+            // Shape the falling water from overlapping semantic voxel ribbons instead of one
+            // rectangular slab. Varying lip height, foot height and depth gives the shared profile
+            // real silhouette edges to aerate while preserving ordinary storage/extraction/rendering.
+            _world.AuthorVoxelBox(new int3(333, fallBaseY + 19, 199), new int3(8, 47, 2), GameMaterialIds.Cascade);
+            _world.AuthorVoxelBox(new int3(341, fallBaseY + 13, 198), new int3(10, 55, 2), GameMaterialIds.Cascade);
+            _world.AuthorVoxelBox(new int3(351, fallBaseY + 10, 199), new int3(9, 62, 2), GameMaterialIds.Cascade);
+            _world.AuthorVoxelBox(new int3(360, fallBaseY + 15, 200), new int3(10, 55, 2), GameMaterialIds.Cascade);
+            _world.AuthorVoxelBox(new int3(370, fallBaseY + 9, 199), new int3(9, 63, 2), GameMaterialIds.Cascade);
+            _world.AuthorVoxelBox(new int3(379, fallBaseY + 16, 198), new int3(8, 51, 2), GameMaterialIds.Cascade);
+            _world.AuthorVoxelBox(new int3(387, fallBaseY + 22, 199), new int3(8, 42, 2), GameMaterialIds.Cascade);
+
             _world.AuthorVoxelBox(new int3(318, fallBaseY + 2, 176), new int3(92, 4, 49), GameMaterialIds.Cascade);
             _world.AuthorVoxelBox(new int3(324, fallBaseY + 6, 184), new int3(80, 2, 33), GameMaterialIds.RiverWater);
-
-            // Break the waterfall silhouette with semantic cascade fingers rather than a bespoke
-            // mesh. The shared waterfall profile supplies the downward streaks, aeration, edge/lip
-            // foam and spray/mist response for all of them.
-            _world.AuthorVoxelBox(new int3(329, fallBaseY + 20, 196), new int3(9, 34, 2), GameMaterialIds.Cascade);
-            _world.AuthorVoxelBox(new int3(390, fallBaseY + 15, 196), new int3(7, 42, 2), GameMaterialIds.Cascade);
 
             _focus = new Vector3(25.5f, (lakeY + 18) * ShowcaseWorld.VoxelSize, 16.8f);
         }
