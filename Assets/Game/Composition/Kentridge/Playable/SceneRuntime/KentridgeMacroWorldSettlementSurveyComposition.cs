@@ -13,6 +13,7 @@ namespace Game.Kentridge.PlayableSlice
     /// Production world generation, residency, LOD policy, renderer budgets, and normal gameplay
     /// cameras are unchanged.
     /// </summary>
+    [DefaultExecutionOrder(10000)]
     internal sealed class KentridgeMacroWorldSettlementSurveyComposition : MonoBehaviour
     {
         private const string ValidationProfile = "kentridge-macro-world";
