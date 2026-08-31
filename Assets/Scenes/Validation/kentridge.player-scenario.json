@@ -8,9 +8,9 @@
     "minimumFrames": 4
   },
   "timeline": {
-    "autoDialogue": 0.5,
-    "autowalkAfter": 30,
-    "surveyAfter": 50,
+    "autoDialogue": 0.2,
+    "autowalkAfter": 12,
+    "surveyAfter": 58,
     "surveyHeight": 55,
     "surveySpin": 0
   },
