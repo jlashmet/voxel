@@ -31,16 +31,39 @@ namespace VoxelEngine.Showcase
         private const int StillPoolWaterRadiusZ = 58;
 
         private IVoxelStorageRuntime _storage;
+        private Camera _camera;
+        private float _reviewStartedAt;
+        private int _cameraShot = -1;
 
         private void OnEnable()
         {
-            if (Application.isPlaying)
-                StartCoroutine(BuildReview());
+            if (!Application.isPlaying)
+                return;
+
+            _reviewStartedAt = Time.unscaledTime;
+            StartCoroutine(BuildReview());
+        }
+
+        private void Update()
+        {
+            if (!Application.isPlaying || _camera == null)
+                return;
+
+            float elapsed = Time.unscaledTime - _reviewStartedAt;
+            int shot = elapsed < 8f ? 0 : elapsed < 18f ? 1 : 2;
+            if (shot == _cameraShot)
+                return;
+
+            ApplyCameraShot(_camera, shot);
+            _cameraShot = shot;
         }
 
         private IEnumerator BuildReview()
         {
-            Camera camera = CreateCamera();
+            _camera = CreateCamera();
+            ApplyCameraShot(_camera, 0);
+            _cameraShot = 0;
+
             _storage = VoxelEngineBootstrap.CreateStorage(
                 expectedResidentRegions: 2,
                 mixedBrickCapacity: 8192,
@@ -67,10 +90,10 @@ namespace VoxelEngine.Showcase
             RenderingComposition.SetVoxelRingRadiusMetres(120f);
             RenderingComposition.SetBuildBudgets(4.0, 2.0);
             RenderingComposition.ConfigureEnvironment(
-                Color.white,
-                new Vector3(-0.45f, -0.82f, -0.35f).normalized,
-                new Color(0.52f, 0.70f, 0.84f, 1f),
-                new Color(0.12f, 0.28f, 0.48f, 1f));
+                new Color(1.2f, 1.16f, 1.08f, 1f),
+                new Vector3(-0.25f, -0.93f, -0.27f).normalized,
+                new Color(0.68f, 0.80f, 0.90f, 1f),
+                new Color(0.16f, 0.32f, 0.52f, 1f));
             RenderingComposition.ConfigureWorld(
                 in renderingWorld,
                 _storage.Changes,
@@ -108,7 +131,7 @@ namespace VoxelEngine.Showcase
 
             Debug.Log(
                 "WATER_VALIDATION ready: still pool, shallow shoreline, descending river, cascade, receiving pool, and terrain contacts use production near-field water presentation.");
-            camera.transform.hasChanged = false;
+            _camera.transform.hasChanged = false;
         }
 
         private static void RegisterGameMaterials(IVoxelStorageRuntime storage)
@@ -302,17 +325,37 @@ namespace VoxelEngine.Showcase
             cameraObject.tag = "MainCamera";
             Camera camera = cameraObject.AddComponent<Camera>();
             camera.clearFlags = CameraClearFlags.SolidColor;
-            camera.backgroundColor = new Color(0.29f, 0.43f, 0.61f, 1f);
-            camera.fieldOfView = 36f;
+            camera.backgroundColor = new Color(0.24f, 0.42f, 0.64f, 1f);
+            camera.fieldOfView = 42f;
             camera.nearClipPlane = 0.1f;
-            camera.farClipPlane = 240f;
+            camera.farClipPlane = 220f;
+            return camera;
+        }
 
-            Vector3 position = new Vector3(58f, 36f, 292f);
-            Vector3 target = new Vector3(84f, BaseY * 0.1f + 0.5f, 340f);
+        private static void ApplyCameraShot(Camera camera, int shot)
+        {
+            Vector3 position;
+            Vector3 target;
+            switch (shot)
+            {
+                case 0:
+                    position = new Vector3(88f, 32f, 92f);
+                    target = new Vector3(136f, BaseY * 0.1f + 0.4f, 160f);
+                    break;
+                case 1:
+                    position = new Vector3(160f, 34f, 210f);
+                    target = new Vector3(246f, BaseY * 0.1f + 0.6f, 305f);
+                    break;
+                default:
+                    position = new Vector3(175f, 34f, 342f);
+                    target = new Vector3(252f, BaseY * 0.1f + 0.4f, 430f);
+                    break;
+            }
+
             camera.transform.SetPositionAndRotation(
                 position,
                 Quaternion.LookRotation(target - position, Vector3.up));
-            return camera;
+            camera.transform.hasChanged = false;
         }
 
         private void OnDestroy()
@@ -321,6 +364,7 @@ namespace VoxelEngine.Showcase
             RenderingComposition.ClearWorld();
             _storage?.Dispose();
             _storage = null;
+            _camera = null;
         }
     }
 }
