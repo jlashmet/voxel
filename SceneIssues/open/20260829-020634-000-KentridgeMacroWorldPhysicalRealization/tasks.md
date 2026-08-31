@@ -38,7 +38,8 @@
 - [x] Prove the updated readiness regression on exact feature source `9d51fb9a947af76d0b8005c35288a7007dd6d9e6` through `ci-test/fixes/agent-6`; run `33354287850` is 1/1 green and the supported 60 s built-player step completes technically clean.
 - [x] Inspect run `33354287850` full-resolution evidence: settlement/lake visual closure remains red and Fairy/Orc/ridge/network remain uncaptured before 60 s.
 - [x] Isolate the surviving repeated settlement symptom before another fix in experiment 019: distinguish authoritative four-building voxel volumes from downstream render/framing or grounding/placement failure.
-- [ ] Add the experiment-019 production-data regression and classify Rossdam's four expected building volumes from authoritative storage.
+- [x] Add the experiment-019 production-data regression and classify Rossdam's four expected building volumes from authoritative storage. Exact run `33359142139` is green: all four production structures contain roughly 1.03–1.20M structure voxels, start at their grounded placement Y, and meet/exceed semantic wall-height span. Generation/storage/grounding are rejected as the surviving visual owner.
+- [ ] Experiment 020 root-cause discriminator: classify each Rossdam building against the actual survey-camera frustum and renderer publication/visibility state before another visual fix. Global `missingVisible=0` is insufficient because it does not prove all four authored bounds reached a ready draw representation.
 - [ ] Verify full-resolution Rossdam/Fairy/Orc surveys show all four readable authored settlement blockouts after the identified production owner is corrected.
 - [ ] Capture the final `macro-network-overview` inside the unchanged 60 s replay.
 - [ ] Re-check Rossdam lake framing; exact runs `33346099006` and `33354287850` expose only a thin distant water strip and must visibly read as the substantial authored water body plus constrained route.
@@ -84,4 +85,4 @@
 - [ ] (11) Blast radius and world-build/route/CPU/GPU/memory/streaming cost are measured against budgets.
 - [ ] Corrected final exact-SHA focused CI and built-player evidence are closure-quality green.
 - [ ] Every checkbox above is complete before closure.
-- [ ] After green exact gates, move this assignment directly `open -> closed`, set `status=fixed` and `resolvedUtc`, merge current `origin/master`, and non-force push that exact feature head to `origin/master`; retry if master advances.
+- [ ] After green exact gates, move this assignment directly `open -> closed`, set `status=fixed` and `resolvedUtc`, merge current master, and non-force push that exact feature head to master; retry if master advances.
