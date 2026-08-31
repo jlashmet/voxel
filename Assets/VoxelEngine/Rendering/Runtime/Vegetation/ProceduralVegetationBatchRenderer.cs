@@ -23,13 +23,6 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
 
         public int InstanceCount => _instanceCount;
 
-        /// <summary>
-        /// Number of reusable non-grass batch keys allocated so far. Visibility-window changes
-        /// clear member matrices but deliberately retain these lists so stable kinds do not churn
-        /// renderer batching state as sectors enter and leave view.
-        /// </summary>
-        public int BatchKindCount => _batches.Count;
-
         public void SetInstances(IReadOnlyList<VegetationInstance> instances)
         {
             Clear();
@@ -265,3 +258,154 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             var vertices = new List<Vector3>(64);
             var normals = new List<Vector3>(64);
             var uv = new List<Vector2>(64);
+            var triangles = new List<int>(96);
+
+            int cards;
+            float width;
+            float height;
+            float radius;
+            switch (form)
+            {
+                case VegetationGrowthForm.Shrub:
+                    cards = 8; width = 0.72f; height = 0.88f; radius = 0.22f; break;
+                case VegetationGrowthForm.Frond:
+                    cards = 6; width = 0.50f; height = 1.00f; radius = 0.13f; break;
+                case VegetationGrowthForm.Fungus:
+                    cards = 5; width = 0.46f; height = 0.66f; radius = 0.20f; break;
+                case VegetationGrowthForm.Aquatic:
+                    cards = 6; width = 0.28f; height = 0.90f; radius = 0.20f; break;
+                default:
+                    cards = 7; width = 0.30f; height = 1.00f; radius = 0.18f; break;
+            }
+
+            for (int i = 0; i < cards; i++)
+            {
+                float angle = i * 137.50776f;
+                float radians = angle * Mathf.Deg2Rad;
+                float r = radius * Mathf.Sqrt((i + 0.45f) / cards);
+                Vector3 centre = new Vector3(Mathf.Cos(radians) * r, 0f, Mathf.Sin(radians) * r);
+                float h = height * Mathf.Lerp(0.76f, 1.08f, ((i * 37) % 11) / 10f);
+                float w = width * Mathf.Lerp(0.82f, 1.12f, ((i * 53) % 13) / 12f);
+                AddVerticalCard(vertices, normals, uv, triangles, centre, w, h, angle);
+            }
+
+            return BuildMesh("Vegetation " + form + " Cluster", vertices, normals, uv, triangles);
+        }
+
+        private static Mesh BuildSurfacePatch()
+        {
+            var vertices = new List<Vector3>(16);
+            var normals = new List<Vector3>(16);
+            var uv = new List<Vector2>(16);
+            var triangles = new List<int>(24);
+            AddPlanarCard(vertices, normals, uv, triangles, new Vector2(0f, 0f), 1.00f, 0f, 0f);
+            AddPlanarCard(vertices, normals, uv, triangles, new Vector2(0.12f, -0.08f), 0.74f, 31f, 0.008f);
+            AddPlanarCard(vertices, normals, uv, triangles, new Vector2(-0.10f, 0.11f), 0.58f, -27f, 0.016f);
+            return BuildMesh("Vegetation Layered Surface Patch", vertices, normals, uv, triangles);
+        }
+
+        private static Mesh BuildVineCluster()
+        {
+            var vertices = new List<Vector3>(24);
+            var normals = new List<Vector3>(24);
+            var uv = new List<Vector2>(24);
+            var triangles = new List<int>(36);
+            AddVerticalCard(vertices, normals, uv, triangles, new Vector3(0f, 0f, 0f), 1.00f, 1.00f, 0f);
+            AddVerticalCard(vertices, normals, uv, triangles, new Vector3(-0.22f, 0.08f, 0.01f), 0.62f, 0.82f, -8f);
+            AddVerticalCard(vertices, normals, uv, triangles, new Vector3(0.23f, 0.18f, -0.01f), 0.56f, 0.70f, 10f);
+            return BuildMesh("Vegetation Branched Vine", vertices, normals, uv, triangles);
+        }
+
+        private static void AddVerticalCard(
+            List<Vector3> vertices, List<Vector3> normals, List<Vector2> uv, List<int> triangles,
+            Vector3 centre, float width, float height, float yawDegrees)
+        {
+            int start = vertices.Count;
+            Quaternion rotation = Quaternion.Euler(0f, yawDegrees, 0f);
+            Vector3 right = rotation * Vector3.right;
+            Vector3 normal = rotation * Vector3.forward;
+            Vector3 half = right * (width * 0.5f);
+            vertices.Add(centre - half);
+            vertices.Add(centre + half);
+            vertices.Add(centre + half + Vector3.up * height);
+            vertices.Add(centre - half + Vector3.up * height);
+            for (int i = 0; i < 4; i++) normals.Add(normal);
+            uv.Add(new Vector2(0, 0)); uv.Add(new Vector2(1, 0));
+            uv.Add(new Vector2(1, 1)); uv.Add(new Vector2(0, 1));
+            triangles.Add(start); triangles.Add(start + 1); triangles.Add(start + 2);
+            triangles.Add(start); triangles.Add(start + 2); triangles.Add(start + 3);
+        }
+
+        private static void AddPlanarCard(
+            List<Vector3> vertices, List<Vector3> normals, List<Vector2> uv, List<int> triangles,
+            Vector2 centre, float size, float angleDegrees, float depth)
+        {
+            int start = vertices.Count;
+            float a = angleDegrees * Mathf.Deg2Rad;
+            Vector2 right2 = new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * (size * 0.5f);
+            Vector2 up2 = new Vector2(-right2.y, right2.x);
+            Vector3 c = new Vector3(centre.x, centre.y, depth);
+            vertices.Add(c + new Vector3(-right2.x - up2.x, -right2.y - up2.y, 0f));
+            vertices.Add(c + new Vector3( right2.x - up2.x,  right2.y - up2.y, 0f));
+            vertices.Add(c + new Vector3( right2.x + up2.x,  right2.y + up2.y, 0f));
+            vertices.Add(c + new Vector3(-right2.x + up2.x, -right2.y + up2.y, 0f));
+            for (int i = 0; i < 4; i++) normals.Add(Vector3.forward);
+            uv.Add(new Vector2(0, 0)); uv.Add(new Vector2(1, 0));
+            uv.Add(new Vector2(1, 1)); uv.Add(new Vector2(0, 1));
+            triangles.Add(start); triangles.Add(start + 1); triangles.Add(start + 2);
+            triangles.Add(start); triangles.Add(start + 2); triangles.Add(start + 3);
+        }
+
+        private static Mesh BuildCylinder()
+        {
+            const int sides = 8;
+            Mesh mesh = NewMesh("Vegetation Woody Cylinder");
+            Vector3[] vertices = new Vector3[sides * 2];
+            Vector3[] normals = new Vector3[sides * 2];
+            Vector2[] uv = new Vector2[sides * 2];
+            Color[] colors = new Color[sides * 2];
+            int[] triangles = new int[sides * 6];
+            for (int i = 0; i < sides; i++)
+            {
+                float a = i * Mathf.PI * 2f / sides;
+                Vector3 radial = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
+                vertices[i * 2] = radial * 0.5f;
+                vertices[i * 2 + 1] = radial * 0.5f + Vector3.up;
+                normals[i * 2] = radial;
+                normals[i * 2 + 1] = radial;
+                uv[i * 2] = new Vector2(i / (float)sides, 0f);
+                uv[i * 2 + 1] = new Vector2(i / (float)sides, 1f);
+                colors[i * 2] = Color.white;
+                colors[i * 2 + 1] = Color.white;
+                int next = (i + 1) % sides;
+                int t = i * 6;
+                triangles[t] = i * 2; triangles[t + 1] = next * 2; triangles[t + 2] = next * 2 + 1;
+                triangles[t + 3] = i * 2; triangles[t + 4] = next * 2 + 1; triangles[t + 5] = i * 2 + 1;
+            }
+            mesh.vertices = vertices; mesh.normals = normals; mesh.uv = uv; mesh.colors = colors;
+            mesh.triangles = triangles; mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        private static Mesh BuildMesh(
+            string name, List<Vector3> vertices, List<Vector3> normals,
+            List<Vector2> uv, List<int> triangles)
+        {
+            Mesh mesh = NewMesh(name);
+            mesh.SetVertices(vertices);
+            mesh.SetNormals(normals);
+            mesh.SetUVs(0, uv);
+            Color[] colors = new Color[vertices.Count];
+            for (int i = 0; i < colors.Length; i++) colors[i] = Color.white;
+            mesh.colors = colors;
+            mesh.SetTriangles(triangles, 0);
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        private static Mesh NewMesh(string name)
+        {
+            return new Mesh { name = name, hideFlags = HideFlags.DontSave };
+        }
+    }
+}
