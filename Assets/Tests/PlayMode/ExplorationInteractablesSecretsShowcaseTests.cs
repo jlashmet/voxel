@@ -4,6 +4,7 @@ using Game.WorldBuilder.Api;
 using Game.WorldBuilder.Runtime;
 using NUnit.Framework;
 using Unity.Mathematics;
+using UnityEngine;
 using VoxelEngine.Showcase;
 
 namespace VoxelEngine.Tests.PlayMode
@@ -49,10 +50,27 @@ namespace VoxelEngine.Tests.PlayMode
             AssertHidden(scene.Runtime, hiddenButton, true);
             AssertHidden(scene.Runtime, panel, true);
             AssertHidden(scene.Runtime, marker, true);
+            Assert.IsFalse(scene.Runtime.TryInteract(hiddenButton, WorldObjectInteraction.Primary, out _),
+                "A concealed generic control must not expose an interaction affordance by id.");
+
+            var discoveries = new SecretDiscoveryState();
+            var bookshelfSecret = new SecretCandidateId("showcase.bookshelf-passage");
+            var highSecret = new SecretCandidateId("showcase.elevator-high-place");
+            var remoteSecret = new SecretCandidateId("showcase.remote-lever-route");
+            int events = 0;
+            discoveries.Discovered += _ => events++;
+
+            Assert.IsTrue(scene.Runtime.TryApply(hiddenButton, WorldObjectAction.Reveal),
+                "An explicit discovery/inspection affordance may reveal the hidden control.");
+            AssertHidden(scene.Runtime, hiddenButton, false);
             Assert.IsTrue(scene.Runtime.TryInteract(hiddenButton, WorldObjectInteraction.Primary, out _));
             AssertHidden(scene.Runtime, panel, false);
             AssertHidden(scene.Runtime, marker, false);
             AssertOpen(scene.Runtime, panel, true);
+            Assert.AreEqual(0, discoveries.Count,
+                "Exposing the passage is not itself canonical secret discovery.");
+            Assert.IsTrue(discoveries.TryDiscover(bookshelfSecret));
+            Assert.IsFalse(discoveries.TryDiscover(bookshelfSecret));
 
             WorldObjectId elevator = Id(ExplorationInteractablesSecretsShowcase.ElevatorKey);
             Assert.IsTrue(scene.Runtime.TryInteract(elevator, WorldObjectInteraction.Primary, out _));
@@ -70,20 +88,55 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.IsTrue(scene.Runtime.TryInteract(routeLever, WorldObjectInteraction.Primary, out _));
             AssertOpen(scene.Runtime, routeGate, false);
 
-            var discoveries = new SecretDiscoveryState();
-            var bookshelfSecret = new SecretCandidateId("showcase.bookshelf-passage");
-            var highSecret = new SecretCandidateId("showcase.elevator-high-place");
-            var remoteSecret = new SecretCandidateId("showcase.remote-lever-route");
-            int events = 0;
-            discoveries.Discovered += _ => events++;
-            Assert.IsTrue(discoveries.TryDiscover(bookshelfSecret));
-            Assert.IsFalse(discoveries.TryDiscover(bookshelfSecret));
             Assert.IsTrue(discoveries.TryDiscover(highSecret));
             Assert.IsFalse(discoveries.TryDiscover(highSecret));
             Assert.IsTrue(discoveries.TryDiscover(remoteSecret));
             Assert.IsFalse(discoveries.TryDiscover(remoteSecret));
             Assert.AreEqual(3, discoveries.Count);
             Assert.AreEqual(3, events);
+        }
+
+        [Test]
+        public void HiddenProxyHasNoRenderedOrClickableAffordanceUntilReveal()
+        {
+            WorldObjectGeneratedScene scene = Load(new WorldObjectSceneRegistry());
+            WorldObjectId hiddenButton = Id(ExplorationInteractablesSecretsShowcase.HiddenBookshelfButtonKey);
+            Assert.IsTrue(scene.Runtime.TryResolve(hiddenButton, out WorldObjectResolvedState hidden));
+            WorldObjectPresentationPlan plan = WorldObjectPresentationPlanner.Plan(in hidden);
+            Assert.IsFalse(plan.Visible);
+            Assert.IsFalse(plan.InteractionEnabled);
+
+            var host = new GameObject("WorldObject presentation regression");
+            try
+            {
+                UnityWorldObjectPresentationSink sink = host.AddComponent<UnityWorldObjectPresentationSink>();
+                sink.CreateOrUpdate(in plan);
+                Assert.AreEqual(1, host.transform.childCount);
+                GameObject proxy = host.transform.GetChild(0).gameObject;
+                MeshRenderer renderer = proxy.GetComponent<MeshRenderer>();
+                BoxCollider collider = proxy.GetComponent<BoxCollider>();
+                UnityWorldObjectProxyIdentity identity = proxy.GetComponent<UnityWorldObjectProxyIdentity>();
+                Assert.NotNull(renderer);
+                Assert.NotNull(collider);
+                Assert.NotNull(identity);
+                Assert.IsFalse(renderer.enabled);
+                Assert.IsFalse(collider.enabled);
+                Assert.IsFalse(identity.InteractionEnabled);
+
+                Assert.IsTrue(scene.Runtime.TryApply(hiddenButton, WorldObjectAction.Reveal));
+                Assert.IsTrue(scene.Runtime.TryResolve(hiddenButton, out WorldObjectResolvedState revealed));
+                plan = WorldObjectPresentationPlanner.Plan(in revealed);
+                sink.CreateOrUpdate(in plan);
+                Assert.IsTrue(plan.Visible);
+                Assert.IsTrue(plan.InteractionEnabled);
+                Assert.IsTrue(renderer.enabled);
+                Assert.IsTrue(collider.enabled);
+                Assert.IsTrue(identity.InteractionEnabled);
+            }
+            finally
+            {
+                Object.DestroyImmediate(host);
+            }
         }
 
         [Test]
