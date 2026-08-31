@@ -81,8 +81,13 @@ namespace VoxelEngine.Showcase.Editor
                 string piece = File.ReadAllText(pieces[i], Encoding.ASCII).Trim();
                 if (piece.Length == 0)
                     throw new InvalidOperationException($"Mountain-dragon source archive piece is empty: {pieces[i]}");
+                ValidateBase64Piece(piece, pieces[i], i == pieces.Length - 1);
                 base64.Append(piece);
             }
+
+            if ((base64.Length & 3) != 0)
+                throw new InvalidOperationException(
+                    $"Mountain-dragon source archive base64 length {base64.Length} is not divisible by four.");
 
             byte[] compressed;
             try
@@ -92,7 +97,9 @@ namespace VoxelEngine.Showcase.Editor
             catch (FormatException exception)
             {
                 throw new InvalidOperationException(
-                    "Mountain-dragon source archive base64 is malformed or incomplete.", exception);
+                    $"Mountain-dragon source archive base64 is malformed after validating {pieces.Length} pieces " +
+                    $"({base64.Length} characters).",
+                    exception);
             }
 
             if (compressed.Length > MaxCompressedBytes)
@@ -135,6 +142,46 @@ namespace VoxelEngine.Showcase.Editor
             Debug.Log(
                 $"Reconstructed mountain-dragon OBJ at {GeneratedAssetPath} " +
                 $"({ExpectedObjByteCount} bytes, SHA-256 {ExpectedObjSha256}).");
+        }
+
+        private static void ValidateBase64Piece(string piece, string path, bool isFinalPiece)
+        {
+            for (int i = 0; i < piece.Length; i++)
+            {
+                char value = piece[i];
+                bool alphabet =
+                    (value >= 'A' && value <= 'Z') ||
+                    (value >= 'a' && value <= 'z') ||
+                    (value >= '0' && value <= '9') ||
+                    value == '+' || value == '/';
+                if (alphabet)
+                    continue;
+
+                if (value != '=')
+                    throw new InvalidOperationException(
+                        $"Mountain-dragon source archive piece {Path.GetFileName(path)} contains invalid base64 " +
+                        $"character U+{(int)value:X4} at offset {i}.");
+
+                if (!isFinalPiece)
+                    throw new InvalidOperationException(
+                        $"Mountain-dragon source archive piece {Path.GetFileName(path)} contains base64 padding " +
+                        $"before the final transfer piece at offset {i}.");
+
+                int remaining = piece.Length - i;
+                if (remaining > 2)
+                    throw new InvalidOperationException(
+                        $"Mountain-dragon source archive final piece {Path.GetFileName(path)} has base64 padding " +
+                        $"before its final two characters at offset {i}.");
+
+                for (int suffix = i; suffix < piece.Length; suffix++)
+                {
+                    if (piece[suffix] != '=')
+                        throw new InvalidOperationException(
+                            $"Mountain-dragon source archive final piece {Path.GetFileName(path)} has non-padding " +
+                            $"content after '=' at offset {suffix}.");
+                }
+                break;
+            }
         }
 
         private static void ParsePieceSuffix(string path, out int part, out int? segment)
