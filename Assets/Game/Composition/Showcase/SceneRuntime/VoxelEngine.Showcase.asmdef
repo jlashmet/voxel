@@ -22,7 +22,9 @@
         "VoxelEngine.AmbientLife.Api",
         "VoxelEngine.Collision.Api",
         "Game.Structures.Api",
-        "Game.Structures.Runtime"
+        "Game.Structures.Runtime",
+        "Game.WorldBuilder.Api",
+        "Game.WorldBuilder.Runtime"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
