@@ -32,8 +32,10 @@
 - [x] Confirm reusable API already supplies generic turbulence/edge-foam/impact-foam/mist controls; no scene-ID renderer API is needed.
 - [x] Identify shader cause: crossed high-frequency bands plus forced ~0.84 minimum alpha on every vertical waterfall fragment.
 - [x] Replace waterfall lattice with anisotropic descending strand/noise fields and coverage-driven vertical alpha breakup while leaving still/river branches unchanged.
-- [ ] Validate the updated waterfall shader in exact built-player near/wide/time-separated evidence; retain only if downward motion, aeration/breakup, foam and mist materially improve without regressing lake/river.
-- [ ] If shader quality passes but silhouette remains too rectangular, reshape only the showcase's ordinary Cascade voxel placement into an irregular stepped/fingered curtain; no bespoke render path.
+- [x] Validate updated shader on exact run `33343405166`; 32s/42s built-player frames materially improve downward strand motion and remove the lattice without losing the waterfall curtain.
+- [x] Reject final visual closure on `33343405166` because the outer curtain remains a large rectangular slab with obvious stepped side columns and mist/spray is still visually weak.
+- [x] Reshape only the showcase's ordinary Cascade voxel placement into overlapping ribbons with varied lip/foot heights and depth; no bespoke render path.
+- [ ] Validate the irregular-ribbon composition in exact near/wide/time-separated built-player evidence; retain only if silhouette, downward motion, aeration/edge breakup, foam hierarchy and mist materially improve without regressing lake/river.
 
 ## Reliability / cost
 - [x] Preserve spreading/inert gameplay semantics and storage/streaming/edit/diagnostic contracts; no swim/buoyancy subsystem exists to alter.
@@ -48,9 +50,10 @@
 - [x] `33339119323`: minimal Metal start-instance discriminator failed exactly at the expected assertion, proving product root cause rather than infrastructure.
 - [x] Correct request-schema-only failure `33339677889` after completion by resubmitting same exact feature parent with integer `replay_seconds`; no code failure/retry substitution.
 - [x] `33339706799`: explicit arena-base regression + 60-second player capture green; addressing visual defect fixed but art acceptance still open.
-- [ ] Re-read current `origin/master`; merge if needed before next exact visual request.
-- [ ] Run `WaterArenaDrawRegressionTests` on exact updated waterfall-shader feature SHA with 60-second WaterRenderingShowcase replay.
-- [ ] Directly accept/reject updated near/wide/time-separated waterfall frames against downward-flow, turbulence/aeration, irregular breakup, lip/edge/base foam, mist/spray and overall visual-quality requirements.
+- [x] Re-read current `origin/master` before the shader and silhouette validation; master remains `ebdc2e4f63ef73153cd4e0ff5c62efe604f35470`.
+- [x] `33343405166`: `WaterArenaDrawRegressionTests` + 60-second player replay green on shader head `66438175b0d40b54e905d062020cebc478a2f244`; shader quality improved but silhouette rejected.
+- [ ] Run `WaterArenaDrawRegressionTests` on exact irregular-ribbon feature head with 60-second WaterRenderingShowcase replay.
+- [ ] Directly accept/reject final near/wide/time-separated waterfall frames against downward-flow, turbulence/aeration, irregular breakup, lip/edge/base foam, mist/spray and overall visual-quality requirements.
 - [ ] Run `ShowcaseWaterPresentationRegressionTests` on the same visually accepted feature head.
 - [ ] Confirm exact player build has no startup/runtime/shader compile/stripping/pink/missing-resource failure.
 - [ ] Reconcile accepted build with `VoxelShowcase` and `WorldbuildingGalleryShowcase` shared-water paths.
