@@ -145,7 +145,10 @@ namespace Game.WorldBuilder.Api
             for (var i = 0; i < _routes.Length; i++)
             {
                 _presentationPaths[i] = WorldRoadPresentationPath.Build(_routes[i].Road, _junctions);
-                _influences[i] = new WorldRoadInfluence(_routes[i].Road, _junctions);
+                _influences[i] = new WorldRoadInfluence(
+                    _routes[i].Road,
+                    _junctions,
+                    _routes[i].ShoulderWidthDm);
             }
         }
 
