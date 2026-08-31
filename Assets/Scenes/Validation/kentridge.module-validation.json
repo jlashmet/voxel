@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "module": "kentridge-integration",
+  "integrationGate": true,
+  "fallback": true,
+  "productionPaths": [
+    "Assets/Scenes/KentridgePlayableSlice.unity"
+  ],
+  "sharedPaths": [
+    "Assets/**"
+  ],
+  "tests": [],
+  "playerValidation": {
+    "scene": "Assets/Scenes/KentridgePlayableSlice.unity",
+    "scenario": "Assets/Scenes/Validation/kentridge.player-scenario.json"
+  }
+}
