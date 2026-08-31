@@ -64,7 +64,8 @@ These are existing foundations and are not candidates to rebuild from scratch.
   - Bridge existing world-object interactions to authoritative inventory transactions with race-safe claims, container transfers, drops, and item-conservation guarantees.
 - [x] **11. [Unified quest & objective progression](game-systems/11-unified-quest-objective-progression.md)**
   - Consolidate quest steps and standalone campaign objectives onto one deterministic semantic progression runtime; gameplay reports facts and story decides consequences.
-- [ ] **12. WorldBuilder-to-gameplay encounter integration**
+- [x] **12. [WorldBuilder encounter realization bridge](game-systems/12-worldbuilder-encounter-realization-bridge.md)**
+  - Translate semantic encounter/site/NPC intent through the realized generated world into the narrow context needed by encounter gameplay, without duplicating WorldBuilder placement logic.
 - [ ] **13. WorldBuilder-to-gameplay interactable integration**
 - [ ] **14. End-to-end campaign/game-flow director**
 - [ ] **15. Victory / failure / completion flow**
