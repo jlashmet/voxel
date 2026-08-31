@@ -1,13 +1,13 @@
 # Tasks
 
 - [x] Inventory targeted CI, standalone-player capture, special-case mappings, and validation docs.
-- [x] Define deterministic module ownership metadata for production paths, focused tests, optional scene, and separate scenario.
+- [x] Define deterministic module ownership metadata for production paths and optional scene/separate scenario.
 - [x] Implement diff-driven validation planning with conservative shared/core expansion and fail-closed unresolved ownership.
-- [x] Automatically execute discovered focused tests, module player targets, and `KentridgePlayableSlice` for production diffs.
+- [x] Automatically execute discovered module validation and `KentridgePlayableSlice` for production diffs.
 - [x] Fail required zero-match/skipped tests, missing scenes/scenarios/captures, and failed Kentridge integration.
 - [x] Refactor module validation, Kentridge, and SceneIssue replay onto one generic standalone-player mechanism without test/scene-name policy.
 - [x] Migrate Water to module-local production validation scene/scenario plumbing.
-- [x] Prove discovery reuse with an independent non-Water fixture.
+- [x] Prove module discovery reuse with an independent non-Water fixture.
 - [x] Preserve useful focused regressions while removing PlayMode-only visual-acceptance semantics.
 - [x] Update contributor/SceneIssue/CI validation documentation.
 - [x] Add focused regressions for discovery, shared/core fallback, scene/scenario separation, mandatory gates, and generic evidence windows.
@@ -15,9 +15,15 @@
 - [x] Isolate/fix Water shared-arena vertex addressing.
 - [x] After two failed scene fixes, isolate planar-slab renderer root cause and add a behavioral regression before another fix.
 - [x] Preserve voxel-resolution upward Water tessellation and add deterministic presentation-only vertex displacement; keep authoritative voxels/collision unchanged.
-- [x] Validate automatic Water focused tests -> Water player -> Kentridge player and record practical runtime (179.82s on run `33375145205`).
+- [x] Validate the earlier automatic Water path and record practical runtime (179.82s on run `33375145205`).
 - [x] Exclude pre-readiness captures through generic `capture.evidenceAfterSeconds` metadata and parser coverage.
 - [x] Isolate/fix tableau authoring-budget exhaustion using existing `FillColumnBulk` semantics without increasing the slow-write budget.
+- [x] Document the corrected architecture: affected modules run **all module-owned EditMode and PlayMode tests by convention/assembly boundary**, with no per-test registration; module player validation remains declarative and Kentridge remains automatic.
+- [ ] Remove explicit per-test `tests` arrays/filter registration from module manifests and planner semantics.
+- [ ] Discover affected modules/test assemblies from module roots and Unity `.asmdef` ownership; run every EditMode/PlayMode test owned by each affected module.
+- [ ] Expand shared/core production changes through `.asmdef` dependency relationships where practical, retaining conservative/fail-closed fallback for unresolved ownership.
+- [ ] Add regression proof that adding a module-local test requires no metadata/planner change and is automatically selected.
+- [ ] Ensure the generic player-evidence regression participates in the repository Python validation discovery.
 - [ ] Replace the startup/prototype Water fixture with a representative production-quality module-local validation scene covering still water, shallow shoreline, river flow, waterfall/cascade, and terrain contact **without duplicating the canonical production Water showcase policy**.
   - Run `33385476451` / request `65c7dd24101fcf926ff740eb729bd6247708d78c` completed successfully: requested regression, automatic module plan, Water + Kentridge built-player validation, previews, artifact upload, and final status all passed.
   - Direct review of every retained Water frame (`t=8.2`, `14.2`, `20.2`, `26.2`) still rejected visual acceptance as prototype/blockout quality. Water was present and evidence timing valid, but the river was an engineered narrow levee/trench with abrupt outer walls, cascade grade seams remained rectangular, and both pools had exact analytic voxel-cut shorelines.
@@ -26,7 +32,8 @@
   - Direct review of all retained frames from `33388147850` still rejected production quality: the broad flat terrain pad and analytic sand rims dominate, and the water channel still reads as constructed against/above surrounding terrain rather than naturally carved through it.
   - Carved-terrain correction `392e59be377c48f50544b4160fddbb11f90932b8` was exercised by exact transport run `33390924383`; the requested regression, automatic module plan, Water built player, Kentridge built player, previews/artifact upload, and final status all passed.
   - After the second materially different scene-level correction path, ownership/reuse review isolated the more fundamental defect: Agent-8 was independently authoring Water showcase policy while agent-9 owns the production `WaterRenderingShowcase`.
-  - **Prerequisite cleared:** agent-9's canonical Water work landed on `master` in `0de38ba704be999c13c9c9aa59237efa65405144`. The module-local scene already attaches `VoxelEngine.Showcase.WaterRenderingShowcase`, so the root-cause integration is metadata-only: own the canonical `WaterRenderingShowcase.cs` production path and select `ShowcaseWaterPresentationRegressionTests.VoxelShowcaseLoadRestoresWaterAfterDiagnosticDisable` instead of startup-fallback behavior. No third visual tableau tweak was made.
-  - Exact run `33431392723` failed closed after request/plan success because `FlatWaterTop_EmitsPerVoxelTopQuads_ForWaveDeformation` matched zero EditMode tests. Merge-root-cause review found both that regression and its production top-tessellation invariant had been lost while taking newer canonical Water files from master; they are restored additively without removing the newer material-mask, topology, or spray behavior.
-  - Pending: exact-head CI and direct inspection of every retained Water standalone frame.
-- [ ] Review final diff against all 18 acceptance criteria and complete SceneIssue metadata/closure only after canonical Water reuse is integrated, production-quality standalone Water evidence is accepted, and green exact-SHA CI exists for the final feature head.
+  - **Prerequisite cleared:** agent-9's canonical Water work landed on `master` in `0de38ba704be999c13c9c9aa59237efa65405144`. The module-local scene already attaches `VoxelEngine.Showcase.WaterRenderingShowcase`; no third visual tableau tweak is required.
+  - Exact run `33431392723` failed closed because the then-explicit `FlatWaterTop_EmitsPerVoxelTopQuads_ForWaveDeformation` filter matched zero EditMode tests. Merge-root-cause review found both that regression and its production top-tessellation invariant had been lost while taking newer canonical Water files from master; they were restored additively.
+  - Run `33432210469` passed the previous exact-head architecture. Direct artifact review then exposed that `evidenceAfterSeconds` did not parse real filenames such as `t002.3s-stationary.png`; the generic evidence parser fix is on the feature branch and must be exercised by the corrected exact-head architecture.
+  - Pending: corrected exact-head CI and direct inspection of every retained post-readiness Water standalone frame.
+- [ ] Review final diff against all 18 acceptance criteria and complete SceneIssue metadata/closure only after convention-based module test discovery, canonical Water reuse, production-quality standalone Water evidence, and green exact-SHA CI exist for the final feature head.
