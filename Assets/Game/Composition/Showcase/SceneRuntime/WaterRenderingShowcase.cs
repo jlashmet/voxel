@@ -219,16 +219,13 @@ namespace VoxelEngine.Showcase
             _world.AuthorVoxelBox(new int3(304, fallBaseY, 224), new int3(120, cliffHeight, 18), GameMaterialIds.DarkStone);
             _world.AuthorVoxelBox(new int3(329, fallBaseY + cliffHeight - 4, 205), new int3(70, 4, 19), GameMaterialIds.RiverWater);
 
-            // Shape the falling water from overlapping semantic voxel ribbons instead of one
-            // rectangular slab. Varying lip height, foot height and depth gives the shared profile
-            // real silhouette edges to aerate while preserving ordinary storage/extraction/rendering.
-            _world.AuthorVoxelBox(new int3(333, fallBaseY + 19, 199), new int3(8, 47, 2), GameMaterialIds.Cascade);
-            _world.AuthorVoxelBox(new int3(341, fallBaseY + 13, 198), new int3(10, 55, 2), GameMaterialIds.Cascade);
-            _world.AuthorVoxelBox(new int3(351, fallBaseY + 10, 199), new int3(9, 62, 2), GameMaterialIds.Cascade);
-            _world.AuthorVoxelBox(new int3(360, fallBaseY + 15, 200), new int3(10, 55, 2), GameMaterialIds.Cascade);
-            _world.AuthorVoxelBox(new int3(370, fallBaseY + 9, 199), new int3(9, 63, 2), GameMaterialIds.Cascade);
-            _world.AuthorVoxelBox(new int3(379, fallBaseY + 16, 198), new int3(8, 51, 2), GameMaterialIds.Cascade);
-            _world.AuthorVoxelBox(new int3(387, fallBaseY + 22, 199), new int3(8, 42, 2), GameMaterialIds.Cascade);
+            // Compose one connected fall from a few overlapping semantic bands rather than a row
+            // of shallow parallel ribbons. The overlaps keep the body continuous while varied lip,
+            // foot and front depth provide irregular silhouette for the shared waterfall profile.
+            _world.AuthorVoxelBox(new int3(333, fallBaseY + 18, 199), new int3(22, 50, 3), GameMaterialIds.Cascade);
+            _world.AuthorVoxelBox(new int3(349, fallBaseY + 12, 198), new int3(24, 60, 4), GameMaterialIds.Cascade);
+            _world.AuthorVoxelBox(new int3(368, fallBaseY + 10, 199), new int3(23, 62, 3), GameMaterialIds.Cascade);
+            _world.AuthorVoxelBox(new int3(384, fallBaseY + 17, 198), new int3(13, 51, 4), GameMaterialIds.Cascade);
 
             _world.AuthorVoxelBox(new int3(318, fallBaseY + 2, 176), new int3(92, 4, 49), GameMaterialIds.Cascade);
             _world.AuthorVoxelBox(new int3(324, fallBaseY + 6, 184), new int3(80, 2, 33), GameMaterialIds.RiverWater);
