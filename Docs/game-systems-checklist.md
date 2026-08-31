@@ -58,7 +58,8 @@ These are existing foundations and are not candidates to rebuild from scratch.
   - Stable party/member/slot identities and readiness/session orchestration above the existing transport; party leadership remains distinct from server gameplay authority.
 - [x] **08. [Player disconnect, reconnect & continuity](game-systems/08-player-disconnect-reconnect-continuity.md)**
   - Connections are temporary; preserve durable party-member, player-slot, and controlled-character identity across unexpected disconnects and authoritative resynchronization.
-- [ ] **09. Production inventory integration**
+- [x] **09. [Gameplay inventory ownership & transactions](game-systems/09-gameplay-inventory-ownership-transactions.md)**
+  - Generalize the existing deterministic inventory runtime with stable inventory identity, authoritative add/remove/transfer transactions, semantic change events, and reuse across characters and containers.
 - [ ] **10. Loot / pickup gameplay**
 - [ ] **11. Production quest / objective integration**
 - [ ] **12. WorldBuilder-to-gameplay encounter integration**
