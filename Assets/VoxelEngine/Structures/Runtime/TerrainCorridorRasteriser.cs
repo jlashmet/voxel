@@ -193,7 +193,9 @@ namespace VoxelEngine.Structures.Runtime
         /// shared by both envelopes. Packed programs keep the cross-section bounded to the visible
         /// surface radius, hold grading fully formed through that shoulder, then blend density back
         /// to source terrain across the wider grading radius. Plain-scale programs preserve the
-        /// original single tapered envelope exactly.
+        /// original single tapered envelope exactly. The semantic centreline remains authored in
+        /// decimetres, while crown/shoulder vertical interpolation is evaluated in voxel units so
+        /// higher-resolution worlds do not amplify a one-decimetre rounding step into a terrace.
         /// </summary>
         public static bool TrySample(
             in Primitive primitive,
@@ -298,10 +300,12 @@ namespace VoxelEngine.Structures.Runtime
                     ? 31
                     : Coverage(distance, surfaceOuter, gradingOuter);
             int crossSectionDistance = math.min(distance, surfaceOuter);
-            targetHeightDm += CrossSectionOffsetDm(
-                crossSectionDistance,
-                core,
-                surfaceOuter);
+            int targetHeightVoxels = targetHeightDm * scale
+                + CrossSectionOffsetVoxels(
+                    crossSectionDistance,
+                    core,
+                    surfaceOuter,
+                    scale);
             byte surfaceDetail = SurfaceDetail(
                 unchecked((uint)primitive.D.y),
                 xdm,
@@ -311,7 +315,7 @@ namespace VoxelEngine.Structures.Runtime
                 surfaceCoverage);
             sample = new TerrainCorridorSample(
                 distance,
-                targetHeightDm * scale,
+                targetHeightVoxels,
                 (byte)gradingCoverage,
                 (byte)surfaceCoverage,
                 surfaceDetail,
@@ -346,19 +350,27 @@ namespace VoxelEngine.Structures.Runtime
                 31);
         }
 
-        private static int CrossSectionOffsetDm(int distanceDm, int coreDm, int outerDm)
+        private static int CrossSectionOffsetVoxels(
+            int distanceDm,
+            int coreDm,
+            int outerDm,
+            int scale)
         {
             if (coreDm <= 0) return 0;
-            int crown = math.clamp(coreDm / 12, 1, 3);
+            int crownDm = math.clamp(coreDm / 12, 1, 3);
+            int crownVoxels = crownDm * scale;
             if (distanceDm <= coreDm)
-                return DivideRounded((long)crown * (coreDm - distanceDm), coreDm);
+                return DivideRounded(
+                    (long)crownVoxels * (coreDm - distanceDm),
+                    coreDm);
 
-            int shoulderWidth = outerDm - coreDm;
-            if (shoulderWidth <= 0) return 0;
-            int shoulderDrop = math.clamp(shoulderWidth / 10, 1, 3);
+            int shoulderWidthDm = outerDm - coreDm;
+            if (shoulderWidthDm <= 0) return 0;
+            int shoulderDropDm = math.clamp(shoulderWidthDm / 10, 1, 3);
+            int shoulderDropVoxels = shoulderDropDm * scale;
             return -DivideRounded(
-                (long)shoulderDrop * (distanceDm - coreDm),
-                shoulderWidth);
+                (long)shoulderDropVoxels * (distanceDm - coreDm),
+                shoulderWidthDm);
         }
 
         private static byte SurfaceDetail(
