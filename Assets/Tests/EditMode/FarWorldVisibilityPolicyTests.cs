@@ -1,3 +1,4 @@
+using Game.WorldBuilder.Runtime;
 using MountingForce.WorldGen.Architecture;
 using NUnit.Framework;
 using Unity.Mathematics;
@@ -49,6 +50,21 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(policy.Select(record, new float2(-65f, 5f)), Is.EqualTo(FarStructureTier.Far));
             Assert.That(policy.Select(record, new float2(-55f, 5f)), Is.EqualTo(FarStructureTier.Far));
             Assert.That(policy.Select(record, new float2(-44f, 5f)), Is.EqualTo(FarStructureTier.Mid));
+        }
+
+        [Test]
+        public void ClusterSelection_HoldsFarRepresentationUntilMemberMidEnterThreshold()
+        {
+            StructureFarPresentation member = Record(8UL, StructureVisibilityClass.OrdinaryStructure, 100);
+            WorldVisibilityClusterBuilder.Cluster cluster = WorldVisibilityClusterBuilder.Build(
+                new[] { member },
+                sectorSizeDm: 1000)[0];
+            var policy = Policy();
+
+            Assert.That(policy.SelectCluster(cluster, new float2(-44f, 5f)), Is.EqualTo(FarStructureTier.Culled));
+            Assert.That(policy.SelectCluster(cluster, new float2(-65f, 5f)), Is.EqualTo(FarStructureTier.Far));
+            Assert.That(policy.SelectCluster(cluster, new float2(-50f, 5f)), Is.EqualTo(FarStructureTier.Far));
+            Assert.That(policy.SelectCluster(cluster, new float2(-44f, 5f)), Is.EqualTo(FarStructureTier.Culled));
         }
 
         [Test]
