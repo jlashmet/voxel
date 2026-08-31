@@ -59,7 +59,16 @@ namespace VoxelEngine.Tests.EditMode
                     Min = new int3(0, 0, 0),
                     MaxExclusive = new int3(4, 5, 1),
                 },
-                new int3(0, 0, 1));
+                new int3(0, 0, 1),
+                defaultState: WorldObjectStateFlags.None);
+            WorldObjectDescriptor authoredPanel = authoring.BuildObjects().Single();
+            Assert.Multiple(() =>
+            {
+                Assert.That((authoredPanel.Capabilities & WorldObjectCapabilities.Destructible) != 0, Is.True,
+                    "Authored-breakable route must retain the reusable catalog's destructible capability.");
+                Assert.That((authoredPanel.DefaultState & WorldObjectStateFlags.Hidden) == 0, Is.True,
+                    "This resolved clue route models an exposed breakable panel rather than the catalog's hidden baseline.");
+            });
 
             var registry = new WorldObjectSceneRegistry();
             WorldObjectGeneratedScene scene = registry.LoadAuthored(
