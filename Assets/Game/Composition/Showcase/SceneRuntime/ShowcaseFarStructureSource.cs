@@ -17,13 +17,13 @@ namespace VoxelEngine.Showcase
         private const float DmToMetres = 0.1f;
 
         private readonly IWorldVisibilitySource _source;
-        private readonly Func<StructureFarPresentation, FarStructureTier> _selectTier;
+        private readonly Func<StructureFarPresentation, float2, FarStructureTier> _selectTier;
         private readonly Func<float2, float> _groundHeightMetres;
         private readonly List<FarStructureInstance> _instances = new List<FarStructureInstance>();
 
         public ShowcaseFarStructureSource(
             IWorldVisibilitySource source,
-            Func<StructureFarPresentation, FarStructureTier> selectTier,
+            Func<StructureFarPresentation, float2, FarStructureTier> selectTier,
             Func<float2, float> groundHeightMetres)
         {
             _source = source ?? throw new ArgumentNullException(nameof(source));
@@ -47,7 +47,7 @@ namespace VoxelEngine.Showcase
             for (int i = 0; i < records.Count; i++)
             {
                 StructureFarPresentation record = records[i];
-                FarStructureTier tier = _selectTier(record);
+                FarStructureTier tier = _selectTier(record, cameraXZMetres);
                 if (tier == FarStructureTier.Culled)
                     continue;
 
