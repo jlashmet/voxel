@@ -59,6 +59,7 @@ Shader "Hidden/VoxelEngine/WaterSurface"
                 float3 positionWS : TEXCOORD0;
                 float3 normalWS : TEXCOORD1;
                 nointerpolation uint material : TEXCOORD2;
+                float3 topology : TEXCOORD3;
             };
 
             Varyings Vert(uint vertexID : SV_VertexID)
@@ -68,11 +69,16 @@ Shader "Hidden/VoxelEngine/WaterSurface"
                 // SV_InstanceID for this procedural path.
                 SurfaceVertex vertex = _SurfaceVertices[
                     _SurfaceVertexBase + _SurfaceIndices[_SurfaceIndexBase + vertexID]];
+                uint topologyFlags = vertex.material >> 24;
                 Varyings output;
                 output.positionCS = TransformWorldToHClip(vertex.position);
                 output.positionWS = vertex.position;
                 output.normalWS = normalize(vertex.normal);
-                output.material = min(vertex.material, 31u);
+                output.material = min(vertex.material & 0xFFu, 31u);
+                output.topology = float3(
+                    (topologyFlags & 1u) != 0u ? 1.0 : 0.0,
+                    (topologyFlags & 2u) != 0u ? 1.0 : 0.0,
+                    (topologyFlags & 4u) != 0u ? 1.0 : 0.0);
                 return output;
             }
 
@@ -210,6 +216,9 @@ Shader "Hidden/VoxelEngine/WaterSurface"
                 float upFacing = saturate(input.normalWS.y * 2.4 - 0.45);
                 float verticalFacing = 1.0 - saturate(abs(input.normalWS.y) * 2.2);
                 float lateral = input.positionWS.x + input.positionWS.z * 0.73;
+                float lipTopology = saturate(input.topology.x);
+                float impactTopology = saturate(input.topology.y);
+                float edgeTopology = saturate(input.topology.z);
 
                 // Waterfall detail is deliberately anisotropic. The prior two crossed high-frequency
                 // sine bands read as a static lattice across a rectangular curtain. These fields
@@ -234,21 +243,25 @@ Shader "Hidden/VoxelEngine/WaterSurface"
                               + downwardStreaks * 0.58 + brightThreads * 0.78))
                     : 0.0;
 
-                float lipFoam = waterfallMask * upFacing * cascade.y
-                              * smoothstep(0.38, 0.70, broadFlow);
-                float impactFoam = waterfallMask * upFacing * cascade.z
-                                 * smoothstep(0.25, 0.66,
-                                     Fbm2(input.positionWS.xz * 4.1 - _WaterTime * 0.8));
-                float edgeBreakup = waterfallMask * verticalFacing * cascade.y
-                                  * (1.0 - smoothstep(0.34, 0.68, sheetCoverage));
-                float mist = waterfallMask * cascade.w
-                           * smoothstep(0.52, 0.82,
-                               Fbm2(float2(lateral * 0.84,
-                                   input.positionWS.y * 0.58 - _WaterTime * 0.72)));
+                // The reference waterfall localizes these treatments by sheet UV. Canonical voxel
+                // extraction instead supplies interpolated topology weights, preserving the same
+                // semantic distinction without introducing scene geometry or material IDs here.
+                float lipFoam = waterfallMask * verticalFacing * lipTopology * cascade.y
+                              * smoothstep(0.32, 0.68, broadFlow);
+                float impactNoise = Fbm2(float2(lateral * 2.8,
+                    descend * 0.22 - _WaterTime * 0.35));
+                float impactFoam = waterfallMask * verticalFacing * impactTopology * cascade.z
+                                 * smoothstep(0.22, 0.62, impactNoise);
+                float edgeBreakup = waterfallMask * verticalFacing * edgeTopology * cascade.y
+                                  * (0.42 + 0.58 * (1.0 - smoothstep(0.30, 0.70, sheetCoverage)));
+                float mistNoise = Fbm2(float2(lateral * 0.92 + 41.3,
+                    descend * 0.18 - _WaterTime * 0.58));
+                float mist = waterfallMask * verticalFacing * impactTopology * cascade.w
+                           * smoothstep(0.30, 0.72, mistNoise);
 
                 float foam = saturate(surfaceFoam + contactFoam + aeration * 0.42
-                                    + lipFoam + impactFoam * 0.82
-                                    + edgeBreakup * 0.48 + brightThreads * 0.38);
+                                    + lipFoam + impactFoam * 0.92
+                                    + edgeBreakup * 0.56 + brightThreads * 0.38);
 
                 float3 body = lerp(shallow.rgb, deep.rgb, depthT);
                 if (waterfall)
@@ -274,18 +287,18 @@ Shader "Hidden/VoxelEngine/WaterSurface"
                 float3 colour = lerp(body, reflectedSky, saturate(fresnel * 0.82 + 0.08));
                 colour += specularColour;
                 colour = lerp(colour, float3(0.86, 0.96, 0.98), foam * 0.82);
-                colour += float3(0.70, 0.84, 0.86) * mist * verticalFacing * 0.28;
+                colour += float3(0.70, 0.84, 0.86) * mist * 0.40;
 
                 float baseAlpha = lerp(shallow.a * 0.72, shallow.a, depthT);
                 float alpha = saturate(lerp(baseAlpha, 0.94, fresnel * 0.34)
-                                     + foam * 0.14 + mist * 0.05);
+                                     + foam * 0.14 + mist * 0.07);
                 if (waterfall)
                 {
                     // Keep the sheet readable without forcing every vertical fragment opaque.
                     // Turbulence/edge semantics now visibly break the curtain into descending
-                    // strands; foam and mist restore opacity only where aeration warrants it.
+                    // strands; topology-localized foam/mist restore opacity only at real boundaries.
                     float cascadeAlpha = lerp(0.26, 0.78, sheetCoverage)
-                                       + aeration * 0.10 + foam * 0.08;
+                                       + aeration * 0.10 + foam * 0.08 + mist * 0.05;
                     alpha = lerp(alpha, saturate(cascadeAlpha), verticalFacing);
                 }
                 return float4(colour, alpha);
