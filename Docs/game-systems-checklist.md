@@ -60,7 +60,8 @@ These are existing foundations and are not candidates to rebuild from scratch.
   - Connections are temporary; preserve durable party-member, player-slot, and controlled-character identity across unexpected disconnects and authoritative resynchronization.
 - [x] **09. [Gameplay inventory ownership & transactions](game-systems/09-gameplay-inventory-ownership-transactions.md)**
   - Generalize the existing deterministic inventory runtime with stable inventory identity, authoritative add/remove/transfer transactions, semantic change events, and reuse across characters and containers.
-- [ ] **10. Loot / pickup gameplay**
+- [x] **10. [World loot, pickup & item transfer](game-systems/10-world-loot-pickup-item-transfer.md)**
+  - Bridge existing world-object interactions to authoritative inventory transactions with race-safe claims, container transfers, drops, and item-conservation guarantees.
 - [ ] **11. Production quest / objective integration**
 - [ ] **12. WorldBuilder-to-gameplay encounter integration**
 - [ ] **13. WorldBuilder-to-gameplay interactable integration**
