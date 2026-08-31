@@ -5,24 +5,26 @@
 - [x] Preserve source-backed `TopDownWorldLayout` / `MountingForceTopDownWorldDefinition` as topology authority through shared WorldBuilder APIs.
 - [x] Add reusable deterministic geography, terrain-aware hard-route solving, generic settlement blockouts/streets, continuous hard-route surfaces, Rossdam basin, Southern Ridge/pass, and real CharacterMotor traversal.
 - [x] Production/storage regressions cover determinism, reachability, roads, settlements, blocking geography, explicit route solutions, bounded slopes, all 16 generic building shells, water realization, and two-stage presentation readiness.
-- [x] Prove shared planner reuse with independent non-Kentridge `a`/`b` blocked-water fixture; no Kentridge policy in shared planner/catalogue APIs.
+- [x] Prove physical-planner reuse with independent non-Kentridge `a`/`b` blocked-water fixture; no Kentridge policy in shared planner/catalogue APIs.
 - [x] Feature-aware vertical residency/readiness publish authored upper Y-layers without widening horizontal interest or changing device/scheduler policy (`33346099006`, `33354287850`).
-- [x] Experiments 019/020 prove Rossdam structures are authoritative/grounded and each authored bound has ready visible production geometry after settled readiness (`33359142139`, `33370392969`).
-- [x] After two materially different failed camera corrections, isolate framing root cause; exact projected 3D envelope containment replaces the insufficient scalar/frustum-intersection models.
+- [x] Experiments 019/020 prove Rossdam structures are planned/grounded and authored bounds have ready production geometry after settled readiness (`33359142139`, `33370392969`).
+- [x] After two materially different failed camera corrections, isolate framing root cause; exact projected 3D envelope containment replaces insufficient scalar/frustum-intersection models.
 - [x] Replace demonstrated-cost solid fallback body with four bounded wall boxes; independent fixture proves hollow centre and <25% former body volume. Exact `33405010658` is regression/player green and reduces Rossdam publication to ~100k–120k indices per blockout.
-- [x] Inspect `33405010658` full-resolution evidence: visual closure remains red at Moordell/Rossdam and Rossdam lake reads as a thin distant strip.
-- [x] Ensure validation-only 90° lens executes after evidence survey pose; add end-frame Experiment 025 read-only camera/centre diagnostic.
-- [x] Classify `33409727597` as product compile failure from missing `MountingForce.WorldGen.Voxel`; fix only that cause.
-- [x] Run corrected Experiment 025 on exact feature `e1f734cbd9a6436fff5c7620d9557773b957d9b7`: request `1477dce4a1ecf01ce2e22b9953e650e4255fecbb`, run `33410426650` is green. Moordell/Rossdam capture at 90° with all four authored centres contained.
-- [x] Inspect `33410426650` full-resolution Moordell/Rossdam frames: still closure-red. Pale regions follow terrain contours and multiple contained authored centres do not read as roofs; framing is rejected.
+- [x] Ensure validation-only 90-degree lens executes after evidence survey pose; corrected Experiment 025 exact run `33410426650` proves all four Moordell/Rossdam authored centres are contained while visual closure remains red.
+- [x] Experiment 026 exact run `33417092425`: all sampled Moordell/Rossdam building centres have stable production coverage but authoritative top solid equals procedural terrain (`delta=0`) at every centre. Camera/timing/readiness/renderer-only hypotheses are rejected; geometry/publication cardinality is selected.
+
+## Spatial reservation integration
+- [x] Merge current master `b64e9456b150b374dc950ab11f02a2427412cc66` into `fixes/agent-6` at `9e6f0c47651fb8b9f797ce6e1000088e28022c5a` so Agent 7's WorldBuilder spatial reservation system is available.
+- [x] Integrate resolved `TopDownWorldPhysicalPlan` occupancy with shared `SpatialReservationSnapshot`: settlement envelopes, generic building footprint/clearance, resolved road segments, and settlement-arrival public-access handoffs. Geography/route solving remains owned by `TopDownWorldPhysicalPlanner` (`82482e000b2c7d5c441be4dfd16532b96de78fc2`).
+- [x] Add independent non-Kentridge `alpha`/`beta` fixture proving shared reservations reject a resolved road through a generic building.
+- [ ] Run exact-SHA targeted CI for the new spatial-reservation integration and inspect any production conflict rather than weakening reservation semantics.
 
 ## Current exact gate
-- [ ] Experiment 026: at each authored settlement building centre, pair existing production visible-surface coverage/source-step diagnostics with bounded authoritative `ShowcaseWorld.SurfaceQuery.TryFindTopSolid` top Y/material/delta-from-terrain observation. Validation-only; no camera/world/render/streaming mutation. Use the result to distinguish publication/readiness from renderer/LOD/presentation before any geometry/material change.
-- [ ] Fix only the owner selected by Experiment 026 and add/retain a focused behavioral regression when the selected invariant is testable independently.
+- [ ] Fix only the geometry/publication owner selected by Experiment 026; trace generic shell explicit placement through production feature generation into authoritative storage and add/retain a focused behavioral regression.
 - [ ] Verify full-resolution Moordell/Rossdam/Fairy/Orc surveys show all four readable grounded authored blockouts with streets/open space and road arrival/exit.
 - [ ] Re-check Rossdam lake framing: substantial authored water plus constrained route, not a thin distant strip.
 - [ ] Capture Southern Ridge/pass and final `macro-network-overview` inside the unchanged 60 s replay.
-- [ ] Re-run final exact-SHA targeted CI and prove focused regression + supported 60 s real-player smoke are closure-quality green for the same final feature SHA.
+- [ ] Re-run final exact-SHA targeted CI and prove focused regression + repository-derived module validation + supported real-player smoke are closure-quality green for the same final feature SHA.
 
 ## Runtime / cost
 - [x] Player-height road evidence and representative real CharacterMotor traversal are supported by prior exact artifacts; final exact run must retain both.
@@ -43,7 +45,7 @@
 - [ ] (6) Built world visibly contains a substantial lake + ridge and at least one geography-altered hard route.
 - [ ] (7) Regional terrain visibly reads as differentiated countryside rather than a flat debug plane.
 - [ ] (8) No second scene-local graph/direct voxel-writing/static destination hierarchy.
-- [ ] (9) Focused behavioral regressions cover determinism, reachability, roads, settlements, constraints, blocked-route failure, bounded water cost, evidence sequencing, feature-aware vertical residency, two-stage readiness, settlement-survey containment, and generic blockout-shell cost.
+- [ ] (9) Focused behavioral regressions cover determinism, reachability, roads, settlements, constraints, blocked-route failure, shared spatial reservation integration, bounded water cost, evidence sequencing, feature-aware vertical residency, two-stage readiness, settlement-survey containment, and generic blockout-shell cost.
 - [ ] (10) Exact built-player evidence covers settlements, roads entering/leaving settlements, network survey, geography, constrained route, and CharacterMotor traversal without runtime exceptions.
 - [ ] (11) Blast radius and world-build/route/CPU/GPU/memory/streaming cost are measured against budgets.
 - [ ] Every checkbox above is complete before closure.
