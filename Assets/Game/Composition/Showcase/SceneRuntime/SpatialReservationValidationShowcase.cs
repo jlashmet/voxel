@@ -1,15 +1,18 @@
 using System;
 using System.Collections.Generic;
 using MountingForce.WorldGen;
+using MountingForce.WorldGen.Architecture;
 using MountingForce.WorldGen.Content.Kentridge;
+using MountingForce.WorldGen.Voxel;
 using UnityEngine;
 
 namespace VoxelEngine.Showcase
 {
     /// <summary>
     /// Module-local built-player validation surface for the spatial reservation system.
-    /// It renders a deterministic read-only projection of production Kentridge reservation claims
-    /// plus one deliberately rejected candidate. It owns no placement authority.
+    /// It renders a deterministic read-only projection of production Kentridge reservation claims,
+    /// one production hidden-space claim, and one deliberately rejected candidate. It owns no
+    /// placement authority.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class SpatialReservationValidationShowcase : MonoBehaviour
@@ -25,6 +28,7 @@ namespace VoxelEngine.Showcase
 
         private void Awake()
         {
+            SettlementPlan plan = KentridgeTownPlanner.Build(EvidenceSeed);
             _snapshot = KentridgeTownPlanner.BuildReservationSnapshot(EvidenceSeed);
             SpatialReservation hard = FindFirst(
                 claim => claim.Category == ReservationCategory.Building
@@ -39,6 +43,7 @@ namespace VoxelEngine.Showcase
             SpatialReservation access = FindFirst(
                 claim => claim.Category == ReservationCategory.PublicAccess,
                 "public access");
+            SpatialReservation underground = BuildProductionUndergroundClaim(plan);
 
             _rejected = SpatialReservation.Box(
                 "validation:deliberate-rejected-candidate",
@@ -61,10 +66,12 @@ namespace VoxelEngine.Showcase
             AddClaim(clearance, new Color(0.12f, 0.78f, 0.95f, 0.55f), "Clearance");
             AddClaim(road, new Color(0.95f, 0.72f, 0.12f, 0.68f), "Road");
             AddClaim(access, new Color(0.25f, 0.88f, 0.32f, 0.68f), "Public access");
+            AddClaim(underground, new Color(0.82f, 0.22f, 0.95f, 0.70f), "Underground");
             AddClaim(_rejected, new Color(0.95f, 0.12f, 0.10f, 0.62f), "Rejected candidate");
 
             Debug.Log(
                 "SPATIAL_RESERVATION_VALIDATION ready: claims=" + _snapshot.Reservations.Count
+                + " underground=" + underground.OwnerId
                 + " decision=" + _rejection.Decision
                 + " reason=" + _rejection.Reason);
         }
@@ -78,6 +85,29 @@ namespace VoxelEngine.Showcase
             }
             throw new InvalidOperationException(
                 "Spatial reservation validation found no production " + description + " claim.");
+        }
+
+        private static SpatialReservation BuildProductionUndergroundClaim(SettlementPlan plan)
+        {
+            for (int i = 0; i < plan.Plots.Count; i++)
+            {
+                BuildingPlot plot = plan.Plots[i];
+                var request = new SiteHiddenSpaceRequest(
+                    "spatial-reservation-validation:" + plot.RoleId,
+                    plot.RoleId,
+                    minimumCount: 0,
+                    targetCount: 1,
+                    entrance: HiddenSpaceEntranceKind.BreakableMatchingWall);
+                IReadOnlyList<KentridgeHiddenSpaceGeometry> candidates =
+                    KentridgeHiddenSpacePlanner.Resolve(plot, plan.Seed, request);
+                if (candidates.Count == 0) continue;
+                return WorldBuilderReservationFactory.HiddenSpaceVolume(
+                    candidates[0].Realization,
+                    new Int3(plot.PositionDm.X, 0, plot.PositionDm.Y));
+            }
+
+            throw new InvalidOperationException(
+                "Spatial reservation validation could not realize a production hidden-space claim.");
         }
 
         private void BuildEnvironment()
@@ -166,14 +196,14 @@ namespace VoxelEngine.Showcase
         private void OnGUI()
         {
             EnsureStyles();
-            GUI.Box(new Rect(18f, 18f, 610f, 164f), GUIContent.none);
-            GUI.Label(new Rect(32f, 28f, 580f, 28f),
+            GUI.Box(new Rect(18f, 18f, 690f, 164f), GUIContent.none);
+            GUI.Label(new Rect(32f, 28f, 660f, 28f),
                 "Spatial Reservations — module validation", _headingStyle);
-            GUI.Label(new Rect(32f, 60f, 580f, 44f),
-                "WHITE hard occupancy   CYAN clearance   YELLOW road   GREEN public access   RED rejected overlap",
+            GUI.Label(new Rect(32f, 60f, 660f, 44f),
+                "WHITE hard   CYAN clearance   YELLOW road   GREEN access   MAGENTA underground   RED rejected",
                 _bodyStyle);
-            GUI.Label(new Rect(32f, 108f, 580f, 56f),
-                "Production Kentridge reservation snapshot; local scene is presentation-only.\n"
+            GUI.Label(new Rect(32f, 108f, 660f, 56f),
+                "Production Kentridge reservation + hidden-space computations; local scene is presentation-only.\n"
                 + "Rejected candidate: " + _rejection.Describe(),
                 _bodyStyle);
         }
