@@ -9,6 +9,7 @@
     "Game.Composition.WorldObjects.Runtime",
     "Game.Composition.Campaign",
     "Game.Composition.Campaign.Runtime",
+    "Game.Composition.CaveWorldBuilder",
     "Game.Cutscenes.Api",
     "Game.Cutscenes.Runtime",
     "Game.Quests.Api",
