@@ -48,7 +48,8 @@ These are existing foundations and are not candidates to rebuild from scratch.
   - Vitality belongs to the character/actor rather than combat; defeat is an authoritative event-driven state transition.
 - [x] **03. [Gameplay character runtime](game-systems/03-gameplay-character-runtime.md)**
   - One generic authoritative character runtime for players, NPCs, recruits, and enemies; enemies are a composition, not a separate actor hierarchy.
-- [ ] **04. Reusable enemy AI / perception / targeting**
+- [x] **04. [Character AI, autonomous life, perception & intent](game-systems/04-character-ai-autonomous-life-perception-intent.md)**
+  - Characters can pursue persistent lives outside combat; shared semantic perception, planning, and intent also support tactical AI and simulation LOD.
 - [ ] **05. Encounter spawning / encounter lifecycle**
 - [ ] **06. Multiplayer replication for combat/gameplay state**
 - [ ] **07. Multiplayer lobby / party / join flow**
