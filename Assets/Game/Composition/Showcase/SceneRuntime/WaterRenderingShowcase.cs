@@ -220,12 +220,13 @@ namespace VoxelEngine.Showcase
             _world.AuthorVoxelBox(new int3(329, fallBaseY + cliffHeight - 4, 205), new int3(70, 4, 19), GameMaterialIds.RiverWater);
 
             // Compose one connected fall from a few overlapping semantic bands rather than a row
-            // of shallow parallel ribbons. The overlaps keep the body continuous while varied lip,
-            // foot and front depth provide irregular silhouette for the shared waterfall profile.
-            _world.AuthorVoxelBox(new int3(333, fallBaseY + 18, 199), new int3(22, 50, 3), GameMaterialIds.Cascade);
-            _world.AuthorVoxelBox(new int3(349, fallBaseY + 12, 198), new int3(24, 60, 4), GameMaterialIds.Cascade);
-            _world.AuthorVoxelBox(new int3(368, fallBaseY + 10, 199), new int3(23, 62, 3), GameMaterialIds.Cascade);
-            _world.AuthorVoxelBox(new int3(384, fallBaseY + 17, 198), new int3(13, 51, 4), GameMaterialIds.Cascade);
+            // of shallow parallel ribbons. Keep every lower boundary one voxel above the receiving
+            // river so canonical Cascade impact topology and spray are generated at the pool rather
+            // than several voxels up the cliff; width/front-depth variation supplies the silhouette.
+            _world.AuthorVoxelBox(new int3(333, fallBaseY + 9, 199), new int3(22, 59, 3), GameMaterialIds.Cascade);
+            _world.AuthorVoxelBox(new int3(349, fallBaseY + 9, 198), new int3(24, 63, 4), GameMaterialIds.Cascade);
+            _world.AuthorVoxelBox(new int3(368, fallBaseY + 9, 199), new int3(23, 63, 3), GameMaterialIds.Cascade);
+            _world.AuthorVoxelBox(new int3(384, fallBaseY + 9, 198), new int3(13, 59, 4), GameMaterialIds.Cascade);
 
             _world.AuthorVoxelBox(new int3(318, fallBaseY + 2, 176), new int3(92, 4, 49), GameMaterialIds.Cascade);
             _world.AuthorVoxelBox(new int3(324, fallBaseY + 6, 184), new int3(80, 2, 33), GameMaterialIds.RiverWater);
