@@ -39,6 +39,8 @@
 - [x] Isolate the repeated flat-veil symptom before another fix: low-coverage Waterfall fragments are alpha-blended but the body pass is `ZWrite On`, so nearly transparent fragments still occlude overlapping bands; alpha modulation cannot create real silhouette holes.
 - [x] Isolate weak-impact cause in authored production geometry: receiving RiverWater tops at `fallBaseY + 7`, while the four Cascade feet start at `+10`, `+12`, `+17`, and `+18`; canonical lower-boundary spray is therefore emitted above the pool instead of at receiving-water contact.
 - [x] Implement the isolated flat-veil and impact-contact fixes without changing still/river depth behavior or shared storage/extraction contracts (`3b1729c9...`, `da6445f9...`, regression lock `fb4db36b...`).
+- [x] Exact run `33385090491` on `c8d55b655806f85564600d9d42b832d2493038fe` is a product failure: 3/4 focused tests pass; cutout coverage is only ~2.5% (5,776 still vs 5,630 Cascade pixels), while the same head builds/replays successfully. Direct replay evidence still shows a nearly rectangular translucent veil, so do not weaken the 5% regression.
+- [x] Strengthen only the isolated vertical Waterfall body cutoff from `0.18` to `0.26`, preserving the `0.10` lip/impact boundary cutoff and leaving still/river/spray paths unchanged (`54fe3ca6f0995d5872a585a129df652f77d03a59`).
 
 ## Reliability / cost
 - [x] Preserve spreading/inert gameplay semantics and storage/streaming/edit/diagnostic contracts; no swim/buoyancy subsystem exists to alter.
