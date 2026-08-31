@@ -129,6 +129,74 @@ namespace VoxelEngine.Tests.PlayMode
             }
         }
 
+        [UnityTest]
+        public IEnumerator RepresentativeCacheJobGetsWorkerTimeWithinTwoSeconds()
+        {
+            var world = new ShowcaseWorld(
+                0xA913u,
+                brickPoolCapacity: 8192,
+                loadRadiusRegions: 1,
+                unloadRadiusRegions: 2,
+                GameMaterialSimulationDefinitions.Create(),
+                maxMixedBrickAllocationBytes: 64L * 1024L * 1024L,
+                features: ShowcaseFeatureContent.HouseOnly,
+                startup: ShowcaseStartupSource.Generate);
+            var cache = new CpuWaterSurfaceChunkCache();
+            var cameraObject = new GameObject("Cascade spray worker-time root-cause probe camera");
+            Camera camera = cameraObject.AddComponent<Camera>();
+
+            try
+            {
+                world.GenerateRegionBlocking(int3.zero);
+                VoxelMaterialPresentationInstaller.Apply(GameMaterialRenderingDefinitions.Create());
+
+                int3 ribbonMin = new int3(333, 400, 199);
+                int3 ribbonSize = new int3(8, 47, 2);
+                Assert.That(
+                    world.AuthorVoxelBox(ribbonMin, ribbonSize, GameMaterialIds.Cascade),
+                    Is.EqualTo(ribbonSize.x * ribbonSize.y * ribbonSize.z));
+                cache.InvalidateSurfaceBricks(world.ReadStorage, BricksCovering(ribbonMin, ribbonSize));
+
+                Vector3 centre = (Vector3)((float3)ribbonMin + (float3)ribbonSize * 0.5f)
+                               * ShowcaseWorld.VoxelSize;
+                camera.transform.position = centre + new Vector3(0f, 0f, -20f);
+                camera.transform.LookAt(centre);
+                camera.nearClipPlane = 0.05f;
+                camera.farClipPlane = 350f;
+
+                double start = Time.realtimeSinceStartupAsDouble;
+                int yields = 0;
+                while (cache.CompletedBuildCount == 0
+                       && Time.realtimeSinceStartupAsDouble - start < 2.0)
+                {
+                    cache.Prepare(world.ReadStorage, camera, ShowcaseWorld.VoxelSize, budgetMs: 5.0);
+                    JobHandle.ScheduleBatchedJobs();
+                    cache.TryPublishPending(int.MaxValue, out _);
+                    if (cache.CompletedBuildCount == 0)
+                    {
+                        yields++;
+                        yield return null;
+                    }
+                }
+
+                double elapsed = Time.realtimeSinceStartupAsDouble - start;
+                Assert.That(cache.CompletedBuildCount, Is.GreaterThan(0),
+                    $"Representative water-cache job still did not publish after {elapsed:F3}s/{yields} yields. " +
+                    $"dirty={cache.DirtyCount} runningJobs={cache.RunningJobCount} " +
+                    $"pendingUploads={cache.PendingUploadCount} meshOverflow={cache.MeshOverflowCount} " +
+                    $"staleBuilds={cache.StaleBuildCount}.");
+                Debug.Log($"WATER_SPRAY_ROOT_CAUSE cache-published elapsed={elapsed:F3}s yields={yields}");
+            }
+            finally
+            {
+                cache.Dispose();
+                Object.DestroyImmediate(cameraObject);
+                world.StopBackgroundWork();
+                world.Dispose();
+                VoxelMaterialPresentationInstaller.Apply(GameMaterialRenderingDefinitions.Create());
+            }
+        }
+
         private static SurfaceGeometryLease ReadLiveLease(CpuWaterSurfaceChunkCache.Entry entry)
         {
             FieldInfo field = typeof(CpuWaterSurfaceChunkCache.Entry).GetField("_liveLease", InstanceNonPublic);
