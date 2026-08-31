@@ -283,12 +283,16 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That((byte)combined.Program[offset + 8], Is.EqualTo(settings.Materials.Resolve(MaterialRole.FoundationStone)));
 
             offset += ShapeOps.InstructionLength(ShapeOp.EmitBox);
-            Assert.That((ShapeOp)combined.Program[offset], Is.EqualTo(ShapeOp.EmitBox));
-            Assert.That(combined.Program[offset + 3], Is.EqualTo(foundationTop),
-                "Timber must begin above the sampled terrain high point.");
-            Assert.That((byte)combined.Program[offset + 8], Is.EqualTo(settings.Materials.Resolve(MaterialRole.Timber)));
+            for (var wall = 0; wall < 4; wall++)
+            {
+                Assert.That((ShapeOp)combined.Program[offset], Is.EqualTo(ShapeOp.EmitBox),
+                    "Generic building shell must retain all four bounded timber wall boxes.");
+                Assert.That(combined.Program[offset + 3], Is.EqualTo(foundationTop),
+                    "Timber walls must begin above the sampled terrain high point.");
+                Assert.That((byte)combined.Program[offset + 8], Is.EqualTo(settings.Materials.Resolve(MaterialRole.Timber)));
+                offset += ShapeOps.InstructionLength(ShapeOp.EmitBox);
+            }
 
-            offset += ShapeOps.InstructionLength(ShapeOp.EmitBox);
             Assert.That((ShapeOp)combined.Program[offset], Is.EqualTo(ShapeOp.EmitPrism));
             Assert.That(combined.Program[offset + 3], Is.EqualTo(roofBase));
             Assert.That((byte)combined.Program[offset + 9], Is.EqualTo(settings.Materials.Resolve(MaterialRole.RoofTile)));
