@@ -79,6 +79,7 @@ namespace MountingForce.WorldGen.Voxel
                     root,
                     selection.CellSizeDm,
                     settings);
+                TopDownWorldPhysicalReservationAdapter.Validate(physical);
                 macro = TopDownWorldPhysicalVoxelCatalogue.Build(
                     selection.Layout,
                     intent,
