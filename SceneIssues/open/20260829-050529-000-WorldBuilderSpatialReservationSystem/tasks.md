@@ -58,8 +58,8 @@
 - [x] Stable ids, insertion-order independence, equal-precedence stable-id tie, hard/clearance/soft/handoff outcomes.
 - [x] Replay/release ownership regression and bounded-window query-work regression authored.
 - [x] Add macro-road production regression; architecture shared-source/host-filter regression is covered by `SpatialReservationProductionIntegrationTests`.
-- [ ] Record representative snapshot/source construction and query metrics from the module-local built-player validation run; final values must come from the final exact-SHA run.
-- [x] Check repository-supported allocation/memory evidence where available; final memory evidence may come from the integration/Kentridge runtime gate, but focused visual acceptance must not depend on Worldbuilding Gallery.
+- [ ] Record representative snapshot/source construction and query metrics from the module-local built-player validation run; the scene now emits `SPATIAL_RESERVATION_COST` with build ticks, bounded query work, and Unity allocated/reserved memory, but final values must come from the final exact-SHA run.
+- [x] Check repository-supported allocation/memory evidence where available; final focused evidence now comes from the module-local scene rather than Worldbuilding Gallery.
 - [x] Verify generation/device budgets and unrelated world-generation behavior did not move: `master...fixes/agent-7` changes no global/device/region budget files; reservation queries stay bounded and existing budget/tolerance constants are untouched.
 
 ## Module-local runtime evidence
@@ -68,8 +68,8 @@
 - [x] Add module-local validation scene `Assets/Game/WorldBuilder/Generation/Validation/SpatialReservations/SpatialReservationValidation.unity` with dedicated runtime composition `SpatialReservationValidationShowcase`.
 - [x] Add agent-8-compatible declarative module metadata `spatial-reservations.module-validation.json` and separate built-player scenario `spatial-reservations.player-scenario.json`; no feature-specific logic is added to the shared harness.
 - [x] Local scene consumes a deterministic production `KentridgeTownPlanner.BuildReservationSnapshot` and visibly distinguishes hard occupancy, clearance, road, public access, and a deliberate rejected overlap; it owns no placement authority or colliders.
-- [ ] Extend/verify the local scene evidence for the required underground 3D claim once the final validation tree is ready; do not fall back to Worldbuilding Gallery.
-- [ ] Run the exact built module-local `SpatialReservationValidation.unity` player and directly inspect required captures.
+- [x] Add required underground 3D evidence directly to the local scene through the production `KentridgeHiddenSpacePlanner` + `WorldBuilderReservationFactory.HiddenSpaceVolume` path; do not fall back to Worldbuilding Gallery.
+- [ ] Run the exact built module-local `SpatialReservationValidation.unity` player and directly inspect all required surface/underground/rejection captures.
 - [ ] Run real `KentridgePlayableSlice` built/runtime traversal check as the integration/regression gate, not as the module's focused validation scene.
 
 ## Validation / closure
