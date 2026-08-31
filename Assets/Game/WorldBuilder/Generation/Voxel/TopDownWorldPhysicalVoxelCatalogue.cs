@@ -22,6 +22,7 @@ namespace MountingForce.WorldGen.Voxel
         private const int BuildingFoundationDm = 8;
         private const int BuildingRoofDm = 24;
         private const int BuildingFoundationInsetDm = 6;
+        private const int BuildingWallThicknessDm = 4;
         private const int BuildingTerrainSamplesPerAxis = 5;
         private const int StreetSpanDm = 500;
 
@@ -373,6 +374,9 @@ namespace MountingForce.WorldGen.Voxel
             int inset = BuildingFoundationInsetDm * scale;
             int normalFoundationHeight = BuildingFoundationDm * scale;
             int foundationTop = terrainRelief + normalFoundationHeight;
+            int wallHeight = Math.Max(scale, height - normalFoundationHeight);
+            int wallThickness = Math.Max(scale, BuildingWallThicknessDm * scale);
+            int innerDepth = Math.Max(scale, depth - wallThickness * 2);
             int roofBase = terrainRelief + height;
             int roofHeight = BuildingRoofDm * scale;
             return new[]
@@ -381,10 +385,27 @@ namespace MountingForce.WorldGen.Voxel
                 0, 0, 0,
                 width + inset * 2, foundationTop, depth + inset * 2,
                 foundation, 0, 0, (int)PrimitiveMode.Fill,
+
+                // Readable generic blockouts only need an exterior shell. Four bounded wall boxes
+                // preserve the authored footprint, height, collision silhouette, and roof support
+                // without publishing the former solid interior volume into every covered region.
                 (int)ShapeOp.EmitBox, 0,
                 inset, foundationTop, inset,
-                width, Math.Max(scale, height - normalFoundationHeight), depth,
+                width, wallHeight, wallThickness,
                 timber, 0, 0, (int)PrimitiveMode.Fill,
+                (int)ShapeOp.EmitBox, 0,
+                inset, foundationTop, inset + depth - wallThickness,
+                width, wallHeight, wallThickness,
+                timber, 0, 0, (int)PrimitiveMode.Fill,
+                (int)ShapeOp.EmitBox, 0,
+                inset, foundationTop, inset + wallThickness,
+                wallThickness, wallHeight, innerDepth,
+                timber, 0, 0, (int)PrimitiveMode.Fill,
+                (int)ShapeOp.EmitBox, 0,
+                inset + width - wallThickness, foundationTop, inset + wallThickness,
+                wallThickness, wallHeight, innerDepth,
+                timber, 0, 0, (int)PrimitiveMode.Fill,
+
                 (int)ShapeOp.EmitPrism, 0,
                 0, roofBase, 0,
                 width + inset * 2, roofHeight, depth + inset * 2,
