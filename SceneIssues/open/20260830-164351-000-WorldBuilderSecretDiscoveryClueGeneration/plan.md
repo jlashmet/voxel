@@ -9,8 +9,8 @@ WorldBuilder needs deterministic `Secret -> Route(s) -> Clue(s)` planning with s
 - **A: hidden-secret selection is missing/non-deterministic.** Falsified: production `SecretPlanner` already resolves authoritative secret candidates deterministically and fails closed.
 - **B: clue generation needs a second hidden-location solver.** Rejected: route/clue planning must consume `ResolvedSecretPlan` and existing stable site/secret identities.
 - **C: deterministic route/readability/clue planning is missing.** Supported and implemented on this branch with stable route/clue IDs, semantic anchors, clue policy, bypass semantics, diagnostics, and focused regressions.
-- **D: canonical interactable/discovery integration is now available on master.** Rechecked 2026-08-31 against master `2ea5f5c95f89fbf0403dbefb50b782829583d304`; falsified. `20260830-014314-000-ExplorationInteractablesSecretsShowcase` remains open. Do not duplicate its runtime authority.
-- **E: production generated secret voxel geometry exists for bypass validation.** Falsified by source tracing: `WorldBuilderVoxelCatalogue` does not consume resolved secret/route plans, so no production secret-route voxel provenance exists to scan honestly.
+- **D: canonical interactable/discovery integration is now available on master.** Rechecked 2026-08-31 against master `8d8fccd1198e36d164c92fc80760580de12efe51`; falsified. `20260830-014314-000-ExplorationInteractablesSecretsShowcase` remains open, and no newer master commit provides its canonical discovery authority. Do not duplicate its runtime authority.
+- **E: production generated secret voxel geometry exists for bypass validation.** Rechecked against master `8d8fccd1198e36d164c92fc80760580de12efe51`; still falsified. Newly landed spatial-reservation work adds generic reservation/compatibility plumbing but does not make `WorldBuilderVoxelCatalogue` consume resolved secret/route plans or provide secret-route voxel provenance to scan honestly.
 
 ## Implemented / validated
 
