@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Game.WorldBuilder.Api;
+using Game.WorldBuilder.Runtime;
 using MountingForce.WorldGen.Architecture;
 using NUnit.Framework;
 using Unity.Mathematics;
@@ -66,6 +67,31 @@ namespace VoxelEngine.Tests.EditMode
                 _ => 0f);
 
             Assert.That(adapter.Query(float2.zero, 20f), Is.Empty);
+        }
+
+        [Test]
+        public void Query_RemovedLandmarkStaysAbsentWithoutChangingSemanticManifest()
+        {
+            StructureFarPresentation landmark = Record(
+                77UL, 5UL, 0, 0, StructureVisibilityClass.Landmark);
+            var source = new FakeVisibilitySource(landmark);
+            var state = new StructureVisualStateStore();
+            var adapter = new ShowcaseFarStructureSource(
+                source,
+                (_, __) => FarStructureTier.Horizon,
+                _ => 0f,
+                null,
+                state);
+
+            Assert.That(adapter.Query(float2.zero, 100f), Has.Count.EqualTo(1));
+            Assert.That(state.Remove(landmark.StructureKey), Is.True);
+            Assert.That(adapter.Query(float2.zero, 100f), Is.Empty,
+                "coarse CPU state must suppress the far proxy after voxel regions can unload");
+            Assert.That(source.TryGet(landmark.StructureKey, out _), Is.True,
+                "visual removal must not mutate the semantic planning manifest");
+
+            Assert.That(state.Restore(landmark.StructureKey), Is.True);
+            Assert.That(adapter.Query(float2.zero, 100f), Has.Count.EqualTo(1));
         }
 
         [Test]
