@@ -10,6 +10,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
     /// Greedy water surface extraction over a small immutable material snapshot batch. All mask,
     /// merge, winding and vertex emission work runs off the frame thread. The main thread copies
     /// only 896 material bytes per selected 8^3 brick (local payload + six boundary faces).
+    /// Upward-facing water is intentionally emitted at voxel resolution so the presentation shader
+    /// has interior vertices available for geometric wave deformation; side/bottom faces stay greedy.
     /// </summary>
     [BurstCompile]
     internal struct WaterBrickMeshBatchJob : IJob
@@ -92,6 +94,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private bool MergeMask(int3 brickBaseVoxel, int axis, int axisA, int axisB,
                                int sign, int layer)
         {
+            bool preserveTopTessellation = axis == 1 && sign > 0;
             for (int b = 0; b < Edge; b++)
             for (int a = 0; a < Edge; a++)
             {
@@ -99,12 +102,15 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 if (material == 0) continue;
 
                 int width = 1;
-                while (a + width < Edge
-                       && MaskScratch[a + width + b * Edge] == material)
-                    width++;
+                if (!preserveTopTessellation)
+                {
+                    while (a + width < Edge
+                           && MaskScratch[a + width + b * Edge] == material)
+                        width++;
+                }
 
                 int height = 1;
-                bool extend = true;
+                bool extend = !preserveTopTessellation;
                 while (b + height < Edge && extend)
                 {
                     for (int k = 0; k < width; k++)
