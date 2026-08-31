@@ -79,6 +79,13 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(covered, Is.False);
             Assert.That(rings, Is.EqualTo(FarTerrainCoverageMath.MaxRings));
             Assert.That(guaranteedCoverageMetres, Is.LessThan(100000000f));
+            Assert.That(
+                FarTerrainCoverageMath.CanRetireStartupFallback(
+                    rings,
+                    InnerRadiusMetres,
+                    100000000f,
+                    Resolution),
+                Is.False);
         }
 
         [Test]
@@ -102,6 +109,42 @@ namespace VoxelEngine.Tests.EditMode
             {
                 Object.DestroyImmediate(far.gameObject);
             }
+        }
+
+        [Test]
+        public void StartupFallback_RetiresOnlyAfterGapFreeRequiredAuthoritativePrefix()
+        {
+            int requiredRings = FarTerrainCoverageMath.CalculateRequiredRingCount(
+                InnerRadiusMetres,
+                OuterRadiusMetres,
+                Resolution);
+
+            Assert.That(requiredRings, Is.EqualTo(6));
+            Assert.That(
+                FarTerrainCoverageMath.CanRetireStartupFallback(
+                    requiredRings - 1,
+                    InnerRadiusMetres,
+                    OuterRadiusMetres,
+                    Resolution),
+                Is.False,
+                "publishing the outer slot must not retire fallback while a required ring is missing or stale");
+            Assert.That(
+                FarTerrainCoverageMath.CanRetireStartupFallback(
+                    requiredRings,
+                    InnerRadiusMetres,
+                    OuterRadiusMetres,
+                    Resolution),
+                Is.True);
+
+            float coverageImmediatelyAfterRetirement =
+                FarTerrainCoverageMath.GuaranteedCardinalCoverageMetres(
+                    InnerRadiusMetres,
+                    Resolution,
+                    requiredRings - 1);
+            Assert.That(
+                coverageImmediatelyAfterRetirement,
+                Is.GreaterThanOrEqualTo(OuterRadiusMetres),
+                "fallback retirement must never shrink requested far coverage");
         }
     }
 }
