@@ -59,7 +59,7 @@ Shader "Hidden/VoxelEngine/WaterSurface"
                 float3 positionWS : TEXCOORD0;
                 float3 normalWS : TEXCOORD1;
                 nointerpolation uint material : TEXCOORD2;
-                float3 topology : TEXCOORD3;
+                float4 topology : TEXCOORD3;
             };
 
             Varyings Vert(uint vertexID : SV_VertexID)
@@ -75,10 +75,11 @@ Shader "Hidden/VoxelEngine/WaterSurface"
                 output.positionWS = vertex.position;
                 output.normalWS = normalize(vertex.normal);
                 output.material = min(vertex.material & 0xFFu, 31u);
-                output.topology = float3(
+                output.topology = float4(
                     (topologyFlags & 1u) != 0u ? 1.0 : 0.0,
                     (topologyFlags & 2u) != 0u ? 1.0 : 0.0,
-                    (topologyFlags & 4u) != 0u ? 1.0 : 0.0);
+                    (topologyFlags & 4u) != 0u ? 1.0 : 0.0,
+                    (topologyFlags & 8u) != 0u ? 1.0 : 0.0);
                 return output;
             }
 
@@ -193,6 +194,28 @@ Shader "Hidden/VoxelEngine/WaterSurface"
                 bool waterfall = waterfallMask > 0.5;
                 bool flowing = motion.x > 1.5 && !waterfall;
 
+                // Spray vertices are ordinary canonical water geometry tagged by extraction at a
+                // true vertical impact boundary. Non-waterfall profiles clip them entirely, so the
+                // shared mesh path can carry the semantic without changing still/river appearance.
+                if (input.topology.w > 0.5)
+                {
+                    if (!waterfall)
+                        clip(-1.0);
+                    float sprayLateral = input.positionWS.x + input.positionWS.z * 0.73;
+                    float sprayRise = input.positionWS.y * 0.64 - _WaterTime * motion.w * 0.74;
+                    float sprayNoise = Fbm2(float2(sprayLateral * 1.38 + 53.2, sprayRise));
+                    float sprayBreakup = Fbm2(float2(sprayLateral * 3.10 - 11.7,
+                                                      sprayRise * 0.62 + _WaterTime * 0.31));
+                    float sprayDensity = saturate(cascade.w)
+                                       * smoothstep(0.24, 0.68,
+                                                    sprayNoise * 0.72 + sprayBreakup * 0.48);
+                    clip(sprayDensity - 0.10);
+                    float3 sprayColour = lerp(float3(0.66, 0.84, 0.89),
+                                              float3(0.96, 0.99, 1.00), sprayDensity);
+                    float sprayAlpha = saturate(0.10 + sprayDensity * 0.46);
+                    return float4(sprayColour, sprayAlpha);
+                }
+
                 float3 normal = AnimatedNormal(input.positionWS, input.normalWS,
                                                motion, detail, cascade);
                 float3 toCamera = normalize(_CameraPosition.xyz - input.positionWS);
@@ -295,8 +318,8 @@ Shader "Hidden/VoxelEngine/WaterSurface"
                 if (waterfall)
                 {
                     // Keep the sheet readable without forcing every vertical fragment opaque.
-                    // Turbulence/edge semantics now visibly break the curtain into descending
-                    // strands; topology-localized foam/mist restore opacity only at real boundaries.
+                    // Turbulence/edge semantics visibly break the curtain into descending strands;
+                    // topology-localized foam restores opacity only at real boundaries.
                     float cascadeAlpha = lerp(0.26, 0.78, sheetCoverage)
                                        + aeration * 0.10 + foam * 0.08 + mist * 0.05;
                     alpha = lerp(alpha, saturate(cascadeAlpha), verticalFacing);
