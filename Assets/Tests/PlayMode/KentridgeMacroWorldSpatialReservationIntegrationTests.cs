@@ -56,6 +56,36 @@ namespace VoxelEngine.Tests.PlayMode
         }
 
         [Test]
+        public void KentridgeResolvedRoadsRespectGenericSettlementBuildingClearance()
+        {
+            TopDownWorldLayout layout = MountingForceTopDownWorldDefinition.Build(Seed);
+            TopDownWorldPhysicalPlan physical = TopDownWorldPhysicalVoxelCatalogue.Plan(
+                layout,
+                KentridgeTopDownWorldPhysicalIntent.Build(),
+                LegacyKentridgeDefinition.TownCentreDm,
+                MountingForceTopDownWorldDefinition.CellSizeDm,
+                Settings());
+
+            Assert.DoesNotThrow(
+                () => TopDownWorldPhysicalReservationAdapter.Validate(physical),
+                "The real Kentridge route solution must satisfy generic building footprint and clearance reservations before catalogue publication.");
+            Assert.That(
+                physical.TryGetRoute(
+                    MountingForceTopDownWorldDefinition.SouthFightingArea,
+                    MountingForceTopDownWorldDefinition.OrcVillage,
+                    out TopDownWorldPhysicalRoutePlan orcRoute),
+                Is.True);
+            Assert.That(
+                physical.TryGetSettlement(
+                    MountingForceTopDownWorldDefinition.OrcVillage,
+                    out TopDownWorldSettlementPlan orcSettlement),
+                Is.True);
+            Int2 last = orcRoute.Tiles[orcRoute.Tiles.Count - 1];
+            Assert.That(last.X, Is.EqualTo(orcSettlement.CentreDm.X));
+            Assert.That(last.Y, Is.EqualTo(orcSettlement.CentreDm.Y));
+        }
+
+        [Test]
         public void SharedSpatialReservationsRejectIndependentRoadThroughBuildingFixture()
         {
             var alpha = new TopDownWorldNodeSpec(
