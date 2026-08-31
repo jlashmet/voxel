@@ -32,9 +32,10 @@
 - [x] `33401066675` green `ShowcaseWaterPresentationRegressionTests` + module + 60s replay on exact `e82176c81508464c590183902009706fb4d800d7`.
 - [x] Directly review `33401066675`: outer curtain sides are improved/irregular and body behavior remains stable, but hard triangular/planar base spray persists; visual closure rejected.
 - [x] `33402041555` intentionally red focused spray-hinge regression on exact `5c7ec8bdb96796bec7839f240be63609060ca0aa`: hinge band had 302 lit pixels; standalone showcase still built/replayed successfully.
+- [x] `33402597873` green `WaterSprayFeatheringRegressionTests` + automatic module validation + 60s replay on exact `8085f42b73dd07e17453a0a0803b5b24aa6b80f9`; the focused discriminator now proves the impact hinge is transparent while free mist remains visible.
 
 ## Next exact-head gates
-- [ ] Run `WaterSprayFeatheringRegressionTests` on the current fixed exact feature head and require hinge band = 0 while free mist remains visible.
+- [x] Run `WaterSprayFeatheringRegressionTests` on the fixed exact feature head and require hinge band = 0 while free mist remains visible (`33402597873`).
 - [ ] On the same accepted exact head, run `WaterArenaDrawRegressionTests` + automatic module validation + 60-second `WaterRenderingShowcase` replay.
 - [ ] Directly inspect near/wide/time-separated built screenshots; reject if hard planar/triangular base spray remains or downward flow/turbulence/aeration/edge/lip/base behavior regresses.
 - [ ] Run `ShowcaseWaterPresentationRegressionTests` on the same visually accepted exact head.
