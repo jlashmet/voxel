@@ -1,80 +1,46 @@
 # Tasks
 
-## Architecture / canonical production path
-- [x] Resume `fixes/agent-5`, follow current `AGENTS.md` / feature/common SceneIssues rules, keep this assignment isolated, and use only `ci-test/fixes/agent-5` for targeted CI.
-- [x] Consolidate structural composition on existing `FeatureDefinition` + typed `SlotSpec` + `ShapeOp.CallSlot` + `FeatureCatalogue`; no second structural solver.
-- [x] Keep stable socket identity, semantic role/tags, facing, integer transforms, clearance, cardinality/capacity, support probes, required/optional behavior, support-loss invalidation, decoration handoff, and graph diagnostics data-driven/inspectable.
-- [x] Make deterministic child selection generation-order independent; enforce compatibility, orientation, clearance/overlap, spacing, support, capacity, recursion/depth, child, primitive, voxel, and spatial budgets.
-- [x] Preserve one semantic structure while child pieces remain independently bounded/streamable authoritative voxel/collision/destruction/storage content.
-- [x] Keep decoration handoff as an adapter into existing decoration sockets; no structural micro-detail subsystem.
-- [x] Include socket/composed graph identity in deterministic hashing and expose accepted/rejected diagnostics plus final `GraphHash`.
+## Canonical production path / established regressions
+- [x] Resume `fixes/agent-5`, follow `AGENTS.md` / feature/common SceneIssues rules, keep the assignment isolated, and use only `ci-test/fixes/agent-5` for targeted CI.
+- [x] Consolidate structural composition on `FeatureDefinition` + typed `SlotSpec` + `ShapeOp.CallSlot` + `FeatureCatalogue`; no second structural solver.
+- [x] Keep stable socket identity, semantic role/tags, facing, integer transforms, clearance, cardinality/capacity, support probes, required/optional behavior, graph diagnostics, and deterministic hashing data-driven/inspectable.
+- [x] Enforce deterministic child selection plus compatibility, orientation, clearance/overlap, spacing, support, capacity, recursion/depth, child, primitive, voxel, and spatial budgets.
+- [x] Preserve independently bounded/streamable authoritative voxel/collision/destruction/storage children and decoration handoff through existing adapters.
+- [x] Regress determinism/variation, generation-order independence, required/optional behavior, incompatibility, orientation, clearance, support, capacity, recursion/depth, budget failures, graph hashing, cross-region rasterization/provenance, decoration handoff, and conservative voxel-cost boundaries.
+- [x] Prove reuse with independent fixtures/consumers and focused coverage for bridge, castle/tower, cliff/platform, and facade/roof families.
+- [x] Preserve existing production `CharacterMotor` bridge/gate/cliff traversal and negative-contract regressions without tolerance changes.
+- [x] Keep global composition/region/device budgets and shared terrain/storage/renderer APIs unchanged.
 
-## Authoritative realization / regression
-- [x] Expand accepted children to physical placements before per-region rasterization; discover descendants outside root logical region.
-- [x] Charge structural roots/children against resumable region scanning and existing deterministic budgets without weakening global/device limits.
-- [x] Regress seed determinism/variation, generation-order independence, required/optional behavior, incompatible semantics, orientation, clearance, support, capacity, recursion/depth, child/primitive/voxel/spatial budget failures, inspection metadata, and graph hashing.
-- [x] Regress exact conservative voxel-cost boundary (16,777,216 accepted; one over rejected).
-- [x] Regress authoritative cross-region rasterization/provenance and decoration-handoff adaptation.
-- [x] Prove reuse with independent fixture/consumer coverage and focused PlayMode coverage over the four production gallery proof catalogues.
-- [x] Add focused final-refinement castle traversal regression using the same showcase traversal audit as the built-player harness; expose that showcase helper publicly rather than duplicate motor logic.
-- [x] Keep planner-only tests on a small 4096-brick world; after `33334360953` proved the production-sized request was clamped to 127100 by the constructor's fallback, mirror the gallery `DeviceTierBudget` path for only the full-refinement regression.
-- [x] Regress meaningful proof terrain rather than `>0`: bridge natural relief >=40 voxels and cliff natural rise >=80 voxels, with showcase-only acceptance diagnostics.
-- [x] Regress structural proof re-entry after production residency eviction: author final refinement, evict via zero-budget remote `StepStreaming`, require cached-content probe to go false, then require the same public ensure to restore authoritative proof content. Green in focused PlayMode on `33341092099`, `33342682886`, and `33343416007`.
+## Module-owned focused validation
+- [x] Stop using `WorldbuildingGalleryShowcase` as the focused correctness/visual acceptance surface for typed socket composition; keep it only as broad integration/demo coverage.
+- [x] Add `Assets/VoxelEngine/Structures/Tests/RuntimeSupport/VoxelEngine.Structures.Tests.RuntimeSupport.asmdef` as a player-compatible assembly referencing production Structures runtime/API only; no NUnit/TestRunner/editor dependency.
+- [x] Add `TypedStructuralSocketCompositionSceneDriver` under `Tests/RuntimeSupport`; production code has no dependency back to Tests.
+- [x] Route all four demonstrations through the real `StructuralCompositionPlanner.ExpandRoot` production API; do not duplicate socket alignment/compatibility logic in the driver.
+- [x] Add deterministic production-result assertions for BridgeSpan, Tower, Platform, and Facade: `Ok`, one child/decision, accepted decision, and exact returned child parent/socket/position/attachment-position/orientation agreement.
+- [x] Add required incompatible rejection coverage expecting `StructuralCompositionResult.Incompatible` + `StructuralAttachmentRejectReason.IncompatibleRoleOrTags`.
+- [x] Add module-owned `Assets/VoxelEngine/Structures/Tests/Scenes/TypedStructuralSocketComposition.unity` with only bounded validation presentation (four solved lanes, attachment markers, simple ground/camera/light, PASS/FAIL overlay).
+- [x] Add `VoxelEngine.Structures.Tests.PlayMode.asmdef` and `TypedStructuralSocketCompositionSceneTests` so the focused semantic gate is independent of broad top-level showcase scenes.
+- [x] Confirm the focused assembly/driver/test compile and execute in Unity 6000.5.6f1 via targeted CI.
 
-## Required proving cases
-- [x] Bridge graph: terrain anchors, repeated independently bounded span/support pieces, road/traversal continuation sockets, incompatible/orientation rejection, multi-region authoritative geometry, continuous traversable deck.
-- [x] Castle graph: >=2 wall runs, >=2 towers, gatehouse/opening, continuation sockets, correct joins, incompatible roof/facade/bridge rejection, traversable entrance.
-- [x] Cliff graph: two elevations, terrain-supported anchors, platforms/building plus traversable vertical connection, unsupported rejection.
-- [x] Facade/roof graph: facade + roof attachment and two style variants through the same semantic contracts; meso-scale sockets only.
-- [x] Production `CharacterMotor` traverses bridge, gate, and cliff/vertical connection without tolerance changes.
-- [x] Integrate all four proof cases into the exact built `WorldbuildingGalleryShowcase` and existing audit harness.
+## CI evidence for focused validation
+- [x] Source SHA `79acce98d6594f98b70d4f291a3c9a480f98a72c` contains the focused module validation implementation.
+- [x] Run `33351150212` / transport `5d47b909c13948e4106d4e6a00bdeed77d8b6d69`: focused PlayMode class executed 1 test and passed (Unity status 0).
+- [x] Diagnose the later failure in `33351150212` before another fix: legacy SceneIssue capture ignored the module scene, built `Assets/Scenes/WorldbuildingGalleryShowcase.unity`, and failed its unrelated 18-view town audit. This is capture-infrastructure coupling, not a semantic socket failure.
+- [ ] Record the final result of semantic-only run `33351379322` / transport `19c1690b722b7685d06b3ca1d1dda8080684d764` using the same focused test without a SceneIssue capture request.
 
-## Presentation / art quality
-- [x] Use authoritative voxels, not GameObject-only meshes or a parallel solver, for construction hierarchy, materials, grounding, and environment context.
-- [x] Partition presentation into bounded river/bank/pier, castle, cliff, and facade catalogues after `33323976945` correctly rejected a monolithic presentation footprint.
-- [x] Correct split-piece bounds and preserve the canonical 32-voxel castle passage; `33330327732` proved the former refinement base blocked route 1.
-- [x] After repeated visual failure, isolate the composition cause instead of further camera-only tweaks: `33334360953` measured only 12 voxels of bridge relief and the cliff proof lived in the same deliberately calm valley.
-- [x] Move bridge/cliff proof-site policy to deterministic valley/mountain transition terrain; fail closed below 40-voxel gorge relief / 80-voxel cliff rise. Support-probe-aligned fixed-seed reproduction yields 48 / 95 voxels.
-- [x] Apply bounded composition readability polish required by prior evidence: gate portal hierarchy without blocking traversal, stepped cliff connection/support read, facade front-envelope relief, and elevated/unobstructed audit framing.
-- [x] After `33341092099` showed the relocated bridge/cliff cameras inside/behind mountain terrain, flip only those structural evidence views to the valley-facing side at `e0859a1140b524e93594fa5ebc3adc0244aa1492`; do not alter proof geometry or terrain.
-- [x] Keep the structural SceneIssue within the CI replay cap by skipping its unrelated 21 town-architecture screenshots and going directly to the eight structural frames; other gallery SceneIssues retain the existing town audit. Focused residency regression remains the eviction/re-entry proof.
-- [x] After `33342682886` repeated empty remote frames despite valley-facing positions, isolate the minimal render-residency repro before another visual fix: the harness pins only the camera in `LateUpdate`, while production `WorldbuildingGalleryShowcase.Update` resets/streams from its central `CharacterMotor`; castle/ornate stay visible because they remain near that renderer origin, while remote bridge/cliff and farther civic do not.
-- [x] Align the production scene motor with the pinned structural evidence pose only during the eight-frame audit (`0b9c02fe27172c7a8aaa51c62d776792234316ee`), keeping normal streaming/render scheduling on the camera actually presented without changing production movement/storage/render APIs.
-- [x] Fix the stale CI wrapper contract (`831da6e5e873d54e1c485a02fa5c9d06f573e586`): semantic `STRUCTURAL_AUDIT result=PASS` requires >=8 structural PNGs; capture-less gallery runs without that marker retain the existing >=18 town-view requirement.
-- [x] After exact green `33343416007` still produced terrain-only structural frames, isolate the next lifecycle root cause before another framing change: cross-proof camera streaming evicts authoritative proof districts after the one initial ensure; castle frame 4 had `pending=0` but no castle, proving eviction rather than render lag. Bridge frames also showed 33 then 8 pending regions, proving they were captured before near-field convergence.
-- [x] Restore proof content once per proof-family relocation using the existing public structural ensure after the production streamer moves, then fail closed until `PendingRegionLoads == 0` before capture (`32fc898f42ed5ec6779a035842ed370d86acd6bd`). No storage pinning, renderer API, budget, terrain, solver, or motor changes.
-- [ ] Bridge-wide visibly reads as a monumental crossing over substantial gorge/river between grounded masses.
-- [ ] Bridge close view is above/along the traversable deck and clearly shows deck edge, rail/truss cadence, abutment/pier contact, and continuation seam.
-- [ ] Bridge architecture reads beyond slab/support blockout with abutment massing, pier hierarchy, span cadence/cross-bracing, edge detail, and grounding.
-- [ ] Castle-wide/gate read as finished stylized voxel fortification with tower/gatehouse silhouette, wall-walk/cornice hierarchy, gate depth, intentional materials, and no floating/placeholder slabs.
-- [ ] Cliff-wide unmistakably communicates a supported multi-level settlement and steep level change; no floating foreground slab.
-- [ ] Cliff close view shows a believable walkable vertical connection with grounded posts/rails/supports and enough elevation/parallax to prove the rise.
-- [ ] Civic/ornate facade views isolate each variant at useful scale, avoid unrelated occlusion/cutoffs, and clearly show facade/roof/balcony/dormer/material hierarchy.
-- [ ] Inspect every final full-resolution structural frame and classify each `production-quality`; any lesser classification keeps the issue open.
+## Focused standalone player / visual confirmation
+- [ ] Route standalone built-player validation to the exact scene `Assets/VoxelEngine/Structures/Tests/Scenes/TypedStructuralSocketComposition.unity` using the generic module-validation runner once that shared prerequisite is merged.
+- [ ] Capture a clean focused overview from the built player and inspect it at full resolution; add close-ups only if they materially improve evidence.
+- [ ] Confirm the built focused scene reports PASS and visibly presents all four intended solved root/child compositions without unrelated gallery content.
+- [ ] Do not satisfy these tasks by copying the scene under `Assets/Scenes`, re-coupling to `WorldbuildingGalleryShowcase`, weakening acceptance, or modifying shared CI opportunistically.
 
-## Exact-SHA validation evidence
-- [x] `33314706183`: focused PlayMode, three traversals, negative contracts, and eight frames passed before visual rework.
-- [x] `33323976945`: presentation `VoxelBudgetExceeded` fixed by partitioning content rather than raising budgets.
-- [x] `33324919718` source `3fa2e905…`: focused PlayMode + exact built-player audit green; all traversals/negative contracts pass; eight frames emitted. Aggregate proof: 20 children, 51 primitives, 24,606,640 conservative voxels, 15 regions, 40 instances, 16,564,128 writes; authoring 1710.726 ms incl. 914.307 ms presentation; 71 resident regions; 2558.19 MB reported allocation; 15 render-proxy regions.
-- [x] `33330327732`: exact player exposed route-1 refined-gate obstruction; fixed without motor/route tolerance change.
-- [x] `33331734570`: exact player passed all three traversals/negative contracts and emitted eight frames; focused full-refinement test exposed the too-small fixture path.
-- [x] `33334360953`: exact player again passed all three traversals/negative contracts, emitted all eight frames, and `STRUCTURAL_AUDIT result=PASS`; focused test exposed device-budget clamping to 127100. Full-resolution evidence also demonstrated the insufficient bridge/cliff terrain relief root cause.
-- [x] `33336816661`: compilation stopped before tests because the preceding cliff-site edit dropped the `Def(...) => new()` initializer terminator; restored at `5f0109998cdf0f53ae57024f91169bf940ff6848` without changing the support-probe-aligned site fix.
-- [x] `33338219310`: Windows compile and focused PlayMode class passed; built-player audit failed before structural captures with `structural-content-missing` after 21 town views evicted the proof district while refinement's lifetime authoring flag stayed true. Root cause isolated before another CI request.
-- [x] `33341092099`: Windows compile + all three focused PlayMode tests green, including residency re-entry; exact player reacquired the proof district, all three traversals/negative contracts passed with zero assertion failures. The 60 s replay stopped after structural frame 5/8, and direct frame inspection exposed mountain-side terrain occlusion in bridge/cliff evidence; fixed only in audit framing.
-- [x] `33342551997`: request resolver rejected `replay_seconds=120` because targeted CI supports only 20..60 seconds; Unity never started. Treated as request/infrastructure failure, not product evidence.
-- [x] `33342682886`: focused PlayMode 3/3 green; built player all three traversals/negatives green, eight structural PNGs, `STRUCTURAL_AUDIT result=PASS`, zero harness assertion failures. CI wrapper still red because it demanded 18 unrelated town frames. Full-resolution frames also isolated the camera/motor streaming-origin mismatch; therefore this run is diagnostic, not final visual acceptance.
-- [x] `33343416007` source `1f5f9b6e…`: exact workflow fully green, focused 3/3 green, built player all traversals/negatives and eight-frame semantic audit green. Diagnostic cost: 20 children, 51 primitives, 26,363,440 conservative voxels, 13 regions, 38 instances, 5,608,208 writes; authoring 5749.357 ms incl. 4391.769 ms presentation; 410 resident regions; 2501.98 MB allocation; 13 render-proxy regions. Full-resolution visual acceptance failed because proof districts were evicted between evidence-site relocations, so this is not the final acceptance run.
-- [ ] Run one final exact-SHA PlayMode + exact-scene built-player request on the same CI transport after proof-family re-entry and near-field settle.
-- [ ] Final focused class is green and final built-player `CharacterMotor` traverses bridge, gate, vertical connection; required negative contracts pass.
-- [ ] Record final measured cost and inspect all durable source frames.
+## Blocker
+- [x] Record external prerequisite: current shared `tests-single.yml` / `showcase-player-capture.sh` SceneIssue route only supports legacy `Assets/Scenes/...` replay/capture and forces gallery-specific audit contracts.
+- [x] Record that generic module-validation infrastructure currently exists only on unmerged `fixes/agent-8`; agent 5 remains self-contained and does not depend on that branch.
+- [ ] Revisit the focused standalone player/capture task after the generic runner lands; continue any independent acceptance/correctness work in the meantime.
 
-## Reusability / blast radius / closure
-- [x] Generic solver contains no bridge/castle/cliff special cases; different families consume the same typed contracts.
-- [x] No global composition/region/device budget or `CharacterMotor` tolerance is weakened.
-- [x] Proof-site thresholds and terrain choice remain showcase composition policy; shared terrain/solver APIs are unchanged.
-- [x] Merge current master workflow guidance before final attempt; latest integrated master is `ebdc2e4f63ef73153cd4e0ff5c62efe604f35470`.
-- [ ] Review final feature diff and measured cost; verify only assignment-required structural contracts/runtime, focused tests/adapters, gallery proof/presentation/audit, targeted player-capture validation, and this SceneIssue differ from master.
-- [ ] Complete `issue.json` `resolutionSummary`, `regressionTest`, and `fixCommit` only after all final exact-SHA mechanical/player/visual gates are green.
-- [ ] Move only this assignment directly `open -> closed`, set `status=fixed` and `resolvedUtc`, after every acceptance/task above is complete.
-- [ ] Fetch latest `origin/master`, merge if advanced, revalidate affected work as needed, push feature branch, then non-force push that exact head to `origin/master`; retry if master advances.
+## Closure
+- [ ] Review final feature diff/cost and verify changes are limited to assignment-required structural production work, regressions/adapters, module-owned focused validation, and this SceneIssue.
+- [ ] Complete `issue.json` `resolutionSummary`, `regressionTest`, and `fixCommit` only after final semantic and focused built-player/visual gates are green.
+- [ ] Move only this assignment directly `open -> closed`, set `status=fixed` and `resolvedUtc`, after every required acceptance/task above is complete.
+- [ ] Fetch latest `origin/master`, merge if advanced, revalidate affected work as needed, push feature branch, then non-force push the exact validated head to `origin/master`; retry if master advances.
