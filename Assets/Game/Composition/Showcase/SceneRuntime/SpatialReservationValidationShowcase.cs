@@ -66,12 +66,24 @@ namespace VoxelEngine.Showcase
                     "Spatial reservation validation expected the deliberate overlap to be rejected.");
 
             BuildEnvironment();
-            AddClaim(hard, new Color(0.92f, 0.92f, 0.92f, 0.72f), "Hard occupancy");
-            AddClaim(clearance, new Color(0.12f, 0.78f, 0.95f, 0.55f), "Clearance");
-            AddClaim(road, new Color(0.95f, 0.72f, 0.12f, 0.68f), "Road");
-            AddClaim(access, new Color(0.25f, 0.88f, 0.32f, 0.68f), "Public access");
-            AddClaim(underground, new Color(0.82f, 0.22f, 0.95f, 0.70f), "Underground");
-            AddClaim(_rejected, new Color(0.95f, 0.12f, 0.10f, 0.62f), "Rejected candidate");
+
+            // Presentation-only evidence layout. The geometry and decisions above remain production-derived;
+            // fixed display positions prevent unrelated Kentridge world extents from making one claim occlude
+            // another in the module-local validation capture.
+            AddEvidenceClaim(hard, new Color(0.92f, 0.92f, 0.92f, 1f),
+                "Hard occupancy", new Vector3(-3.9f, 0.72f, 2.7f), 1.25f);
+            AddEvidenceClaim(clearance, new Color(0.12f, 0.78f, 0.95f, 1f),
+                "Clearance", new Vector3(-2.35f, 0.72f, 2.7f), 1.25f);
+            AddEvidenceClaim(road, new Color(0.95f, 0.72f, 0.12f, 1f),
+                "Road", new Vector3(-0.55f, 0.62f, 2.7f), 1.75f);
+            AddEvidenceClaim(access, new Color(0.25f, 0.88f, 0.32f, 1f),
+                "Public access", new Vector3(1.25f, 0.62f, 2.7f), 1.75f);
+            AddEvidenceClaim(_rejected, new Color(0.95f, 0.12f, 0.10f, 1f),
+                "Rejected candidate", new Vector3(2.85f, 0.72f, 2.7f), 1.25f);
+
+            AddSurfaceSlice(new Vector3(4.25f, 0.52f, 2.7f));
+            AddEvidenceClaim(underground, new Color(0.82f, 0.22f, 0.95f, 1f),
+                "Underground", new Vector3(4.25f, -0.72f, 2.7f), 1.30f);
 
             ReservationQueryMetrics metrics = _rejection.Metrics;
             Debug.Log(
@@ -134,7 +146,7 @@ namespace VoxelEngine.Showcase
                 camera = cameraObject.AddComponent<Camera>();
                 cameraObject.tag = "MainCamera";
             }
-            camera.transform.position = new Vector3(0f, 4.4f, -10.5f);
+            camera.transform.position = new Vector3(0.15f, 5.2f, -10.6f);
             camera.transform.rotation = Quaternion.Euler(18f, 0f, 0f);
             camera.fieldOfView = 48f;
             camera.clearFlags = CameraClearFlags.SolidColor;
@@ -150,39 +162,50 @@ namespace VoxelEngine.Showcase
             GameObject floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
             floor.name = "Validation Ground";
             _spawned.Add(floor);
-            floor.transform.position = new Vector3(0f, -1.55f, 2.6f);
-            floor.transform.localScale = new Vector3(10.5f, 0.15f, 7.2f);
+            floor.transform.position = new Vector3(0.1f, -1.48f, 2.7f);
+            floor.transform.localScale = new Vector3(10.5f, 0.10f, 3.0f);
             RemoveCollider(floor);
-            floor.GetComponent<Renderer>().sharedMaterial = CreateMaterial(new Color(0.16f, 0.18f, 0.20f, 1f));
+            floor.GetComponent<Renderer>().sharedMaterial =
+                CreateMaterial(new Color(0.16f, 0.18f, 0.20f, 1f));
         }
 
-        private void AddClaim(SpatialReservation claim, Color colour, string label)
+        private void AddEvidenceClaim(
+            SpatialReservation claim,
+            Color colour,
+            string label,
+            Vector3 displayCentre,
+            float maxDisplaySize)
         {
-            ReservationBoundsDm window = _snapshot.Window;
-            float centreX = (window.MinX + window.MaxX) * 0.5f;
-            float centreY = (window.MinY + window.MaxY) * 0.5f;
-            float centreZ = (window.MinZ + window.MaxZ) * 0.5f;
-            float xScale = 8.0f / Math.Max(1, window.MaxX - window.MinX);
-            float yScale = 3.2f / Math.Max(1, window.MaxY - window.MinY);
-            float zScale = 5.6f / Math.Max(1, window.MaxZ - window.MinZ);
-
             ReservationBoundsDm bounds = claim.Bounds;
-            Vector3 centre = new Vector3(
-                ((bounds.MinX + bounds.MaxX) * 0.5f - centreX) * xScale,
-                ((bounds.MinY + bounds.MaxY) * 0.5f - centreY) * yScale,
-                ((bounds.MinZ + bounds.MaxZ) * 0.5f - centreZ) * zScale + 2.6f);
+            float width = Math.Max(1, bounds.MaxX - bounds.MinX);
+            float height = Math.Max(1, bounds.MaxY - bounds.MinY);
+            float depth = Math.Max(1, bounds.MaxZ - bounds.MinZ);
+            float largest = Math.Max(width, Math.Max(height, depth));
+            float scale = maxDisplaySize / largest;
             Vector3 size = new Vector3(
-                Math.Max(0.18f, (bounds.MaxX - bounds.MinX) * xScale),
-                Math.Max(0.18f, (bounds.MaxY - bounds.MinY) * yScale),
-                Math.Max(0.18f, (bounds.MaxZ - bounds.MinZ) * zScale));
+                Math.Max(0.24f, width * scale),
+                Math.Max(0.24f, height * scale),
+                Math.Max(0.24f, depth * scale));
 
             GameObject box = GameObject.CreatePrimitive(PrimitiveType.Cube);
             box.name = label + " — " + claim.OwnerId;
             _spawned.Add(box);
-            box.transform.position = centre;
+            box.transform.position = displayCentre;
             box.transform.localScale = size;
             RemoveCollider(box);
             box.GetComponent<Renderer>().sharedMaterial = CreateMaterial(colour);
+        }
+
+        private void AddSurfaceSlice(Vector3 centre)
+        {
+            GameObject slice = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            slice.name = "Surface reference above underground claim";
+            _spawned.Add(slice);
+            slice.transform.position = centre;
+            slice.transform.localScale = new Vector3(1.55f, 0.10f, 1.25f);
+            RemoveCollider(slice);
+            slice.GetComponent<Renderer>().sharedMaterial =
+                CreateMaterial(new Color(0.48f, 0.50f, 0.54f, 1f));
         }
 
         private Material CreateMaterial(Color colour)
@@ -210,14 +233,15 @@ namespace VoxelEngine.Showcase
         private void OnGUI()
         {
             EnsureStyles();
-            GUI.Box(new Rect(18f, 18f, 690f, 164f), GUIContent.none);
-            GUI.Label(new Rect(32f, 28f, 660f, 28f),
+            GUI.Box(new Rect(18f, 18f, 760f, 182f), GUIContent.none);
+            GUI.Label(new Rect(32f, 28f, 730f, 28f),
                 "Spatial Reservations — module validation", _headingStyle);
-            GUI.Label(new Rect(32f, 60f, 660f, 44f),
-                "WHITE hard   CYAN clearance   YELLOW road   GREEN access   MAGENTA underground   RED rejected",
+            GUI.Label(new Rect(32f, 60f, 730f, 48f),
+                "LEFT→RIGHT: WHITE hard   CYAN clearance   YELLOW road   GREEN access   RED rejected   MAGENTA underground",
                 _bodyStyle);
-            GUI.Label(new Rect(32f, 108f, 660f, 56f),
-                "Production Kentridge reservation + hidden-space computations; local scene is presentation-only.\n"
+            GUI.Label(new Rect(32f, 108f, 730f, 76f),
+                "Production Kentridge reservation + hidden-space computations; fixed positions are presentation-only.\n"
+                + "Red is the exact hard-overlap candidate, separated only for readability; magenta is shown below a surface slice.\n"
                 + "Rejected candidate: " + _rejection.Describe(),
                 _bodyStyle);
         }
