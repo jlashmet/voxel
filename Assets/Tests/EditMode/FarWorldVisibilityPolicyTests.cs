@@ -97,6 +97,49 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(policy.Select(landmark, camera), Is.Not.EqualTo(FarStructureTier.Culled));
         }
 
+        [TestCase(8000f, false)]
+        [TestCase(10000f, false)]
+        [TestCase(12000f, false)]
+        [TestCase(8000f, true)]
+        [TestCase(10000f, true)]
+        [TestCase(12000f, true)]
+        public void HorizonLandmark_RemainsSelectedAtRequiredCardinalAndDiagonalRanges(
+            float distanceMetres,
+            bool diagonal)
+        {
+            StructureFarPresentation landmark = Record(
+                0xCA57UL,
+                StructureVisibilityClass.HorizonLandmark,
+                sizeDm: 1200);
+            var policy = new FarWorldVisibilityPolicy(
+                new FarWorldVisibilityPolicy.Thresholds(
+                    midEnterPixels: 20f,
+                    midExitPixels: 16f,
+                    farEnterPixels: 8f,
+                    farExitPixels: 6f,
+                    horizonEnterPixels: 3f,
+                    horizonExitPixels: 2f),
+                new FarWorldVisibilityPolicy.DistanceCaps(
+                    ordinaryMetres: 800f,
+                    settlementAnchorMetres: 4000f,
+                    landmarkMetres: 10000f,
+                    horizonLandmarkMetres: 12050f),
+                verticalFovDegrees: 90f,
+                viewportHeightPixels: 1000);
+
+            float2 centre = new float2(60f, 60f);
+            float2 offset = diagonal
+                ? new float2(distanceMetres * math.rsqrt(2f), distanceMetres * math.rsqrt(2f))
+                : new float2(distanceMetres, 0f);
+            float2 camera = centre + offset;
+
+            Assert.That(
+                FarWorldVisibilityPolicy.ProjectedPixels(landmark, camera, 90f, 1000),
+                Is.GreaterThanOrEqualTo(3f),
+                "the declared horizon landmark must remain above the configured horizon threshold");
+            Assert.That(policy.Select(landmark, camera), Is.EqualTo(FarStructureTier.Horizon));
+        }
+
         private static FarWorldVisibilityPolicy Policy() =>
             new FarWorldVisibilityPolicy(Thresholds, DistanceCaps, 90f, 1000);
 
