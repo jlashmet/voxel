@@ -24,10 +24,26 @@ namespace Game.Kentridge.PlayableSlice
         private const float CameraPositionToleranceMetres = 2f;
         private const float DiagnosticVerticalExtentMetres = 40f;
 
-        private TopDownWorldSettlementPlan _rossdam;
+        private readonly BuildingEvidence[] _rossdamBuildings = new BuildingEvidence[4];
         private Vector3 _expectedCameraPosition;
         private bool _initialized;
         private bool _recorded;
+
+        private readonly struct BuildingEvidence
+        {
+            internal readonly int CentreXDm;
+            internal readonly int CentreZDm;
+            internal readonly int HalfExtentXDm;
+            internal readonly int HalfExtentZDm;
+
+            internal BuildingEvidence(int centreXDm, int centreZDm, int halfExtentXDm, int halfExtentZDm)
+            {
+                CentreXDm = centreXDm;
+                CentreZDm = centreZDm;
+                HalfExtentXDm = halfExtentXDm;
+                HalfExtentZDm = halfExtentZDm;
+            }
+        }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void InstallForAssignedProfile()
@@ -52,22 +68,28 @@ namespace Game.Kentridge.PlayableSlice
                 voxelsPerDecimetre: 1);
             if (!physical.TryGetSettlement(
                     MountingForceTopDownWorldDefinition.Rossdam,
-                    out _rossdam)
-                || _rossdam.Buildings.Count < 4)
+                    out var rossdam)
+                || rossdam.Buildings.Count < _rossdamBuildings.Length)
             {
                 Debug.LogError("MACROEVIDENCE rossdam-publication unavailable-settlement");
                 enabled = false;
                 return;
             }
 
-            TopDownWorldBuildingBlockoutPlan first = _rossdam.Buildings[0];
+            var first = rossdam.Buildings[0];
             int minX = first.CentreDm.X - first.HalfExtentXDm;
             int maxX = first.CentreDm.X + first.HalfExtentXDm;
             int minZ = first.CentreDm.Y - first.HalfExtentZDm;
             int maxZ = first.CentreDm.Y + first.HalfExtentZDm;
-            for (var i = 1; i < _rossdam.Buildings.Count; i++)
+            for (var i = 0; i < _rossdamBuildings.Length; i++)
             {
-                TopDownWorldBuildingBlockoutPlan building = _rossdam.Buildings[i];
+                var building = rossdam.Buildings[i];
+                _rossdamBuildings[i] = new BuildingEvidence(
+                    building.CentreDm.X,
+                    building.CentreDm.Y,
+                    building.HalfExtentXDm,
+                    building.HalfExtentZDm);
+                if (i == 0) continue;
                 minX = Math.Min(minX, building.CentreDm.X - building.HalfExtentXDm);
                 maxX = Math.Max(maxX, building.CentreDm.X + building.HalfExtentXDm);
                 minZ = Math.Min(minZ, building.CentreDm.Y - building.HalfExtentZDm);
@@ -97,17 +119,17 @@ namespace Game.Kentridge.PlayableSlice
             if (!RenderingComposition.HasCompletePublishedNearSurfaceCoverage()) return;
 
             Plane[] planes = GeometryUtility.CalculateFrustumPlanes(camera);
-            for (var i = 0; i < _rossdam.Buildings.Count; i++)
+            for (var i = 0; i < _rossdamBuildings.Length; i++)
             {
-                TopDownWorldBuildingBlockoutPlan building = _rossdam.Buildings[i];
-                int groundDm = TerrainSampler.HeightAt(building.CentreDm.X, building.CentreDm.Y, Seed);
+                BuildingEvidence building = _rossdamBuildings[i];
+                int groundDm = TerrainSampler.HeightAt(building.CentreXDm, building.CentreZDm, Seed);
                 float width = (building.HalfExtentXDm * 2 + 2) * DmToMetres;
                 float depth = (building.HalfExtentZDm * 2 + 2) * DmToMetres;
                 var bounds = new Bounds(
                     new Vector3(
-                        building.CentreDm.X * DmToMetres,
+                        building.CentreXDm * DmToMetres,
                         groundDm * DmToMetres + DiagnosticVerticalExtentMetres * 0.5f,
-                        building.CentreDm.Y * DmToMetres),
+                        building.CentreZDm * DmToMetres),
                     new Vector3(width, DiagnosticVerticalExtentMetres, depth));
                 bool inFrustum = GeometryUtility.TestPlanesAABB(planes, bounds);
                 bool queried = RenderingSurfaceCoverageDiagnostics.TryQueryVisibleSolidBounds(
@@ -116,7 +138,7 @@ namespace Game.Kentridge.PlayableSlice
                     out SurfaceBoundsCoverage coverage);
                 Debug.Log(
                     $"MACROEVIDENCE rossdam-publication building={i}" +
-                    $" centreDm=({building.CentreDm.X},{building.CentreDm.Y})" +
+                    $" centreDm=({building.CentreXDm},{building.CentreZDm})" +
                     $" frustum={inFrustum}" +
                     $" queried={queried}" +
                     $" visibleChunks={coverage.VisibleChunkCount}" +
