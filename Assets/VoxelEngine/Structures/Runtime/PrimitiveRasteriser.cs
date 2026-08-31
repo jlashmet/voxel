@@ -149,88 +149,6 @@ namespace VoxelEngine.Structures.Runtime
                 int by1 = math.min(y1, blockVoxelMin.y + VoxelReadGrid.BlockEdgeMask);
                 int bz0 = math.max(z0, blockVoxelMin.z);
                 int bz1 = math.min(z1, blockVoxelMin.z + VoxelReadGrid.BlockEdgeMask);
-                bool fullBlock = bx0 == blockVoxelMin.x
-                    && bx1 == blockVoxelMin.x + VoxelReadGrid.BlockEdgeMask
-                    && by0 == blockVoxelMin.y
-                    && by1 == blockVoxelMin.y + VoxelReadGrid.BlockEdgeMask
-                    && bz0 == blockVoxelMin.z
-                    && bz1 == blockVoxelMin.z + VoxelReadGrid.BlockEdgeMask;
-
-                bool boxCarve = primitive.Mode == PrimitiveMode.Carve
-                    && primitive.Shape == PrimitiveShape.Box;
-                VoxelReadBlockKind boxCarveBlockKind = default;
-                if (boxCarve)
-                {
-                    boxCarveBlockKind = read.BlockKindOrEmpty(worldBlock);
-
-                    // Axis-aligned voids often overlap large volumes already encoded as canonical
-                    // Empty. A box has no authored boundary halo, so those blocks are exact no-ops.
-                    // Mixed is deliberately not treated as empty: it may contain authored empty-side
-                    // boundary samples that carving must clear.
-                    if (boxCarveBlockKind == VoxelReadBlockKind.Empty)
-                        continue;
-                }
-
-                bool frustumFillMode = primitive.Shape == PrimitiveShape.Frustum
-                    && (primitive.Mode == PrimitiveMode.Fill
-                        || primitive.Mode == PrimitiveMode.FillIfEmpty);
-                if (frustumFillMode)
-                {
-                    VoxelReadBlockKind blockKind = read.BlockKindOrEmpty(worldBlock);
-
-                    // FillIfEmpty can never change a Uniform block: Uniform stores one non-empty
-                    // material for all 512 cells, so every membership hit would immediately take
-                    // the existing current.IsSolid guard. The boundary-halo pass still runs below
-                    // and remains free to materialize near-surface samples when the material matches.
-                    if (primitive.Mode == PrimitiveMode.FillIfEmpty
-                        && blockKind == VoxelReadBlockKind.Uniform)
-                        continue;
-
-                    // Convex FillIfEmpty frusta can cover large canonical-Empty volumes. For a
-                    // complete storage block, the eight extreme voxel centres bound the rectangular
-                    // set of centres. Frustum radius varies monotonically along its axis, so if all
-                    // eight extremes are inside, every one of the block's 8^3 centres is inside as
-                    // well. Fill and FillIfEmpty therefore have the same exact result on canonical
-                    // Empty: one identical whole-cell block and 512 logical writes. Mixed and
-                    // boundary blocks deliberately retain the cell path.
-                    if (blockKind == VoxelReadBlockKind.Empty
-                        && fullBlock
-                        && FrustumContainsFullBlock(in primitive, blockVoxelMin))
-                    {
-                        ushort style = primitive.SurfaceStyle;
-                        if (markHardSurface && style == SurfaceStyles.MaterialDefault)
-                            style = SurfaceStyles.Planar;
-                        VoxelCell fill = new VoxelCell
-                        {
-                            BaseMaterialId = primitive.Material,
-                            Surface = new VoxelSurfaceSemantics
-                            {
-                                StyleId = style,
-                                CoatingId = primitive.Coating,
-                                Flags = primitive.SurfaceFlags,
-                                Detail = (byte)math.min(31, primitive.SurfaceDetail)
-                            }
-                        };
-                        if (mutations.SetWholeCellBlock(worldBlock, in fill, false))
-                            result.VoxelsWritten += VoxelReadGrid.VoxelsPerBlock;
-                        continue;
-                    }
-                }
-
-                // For a fully covered non-empty Uniform block, every one of the 8^3 cells differs
-                // from the carve's default result. Storage can therefore perform one authoritative
-                // whole-cell replacement while preserving the existing 512-write accounting.
-                // Mixed blocks stay on the per-cell path because sparse payload would otherwise
-                // change RasterResult.VoxelsWritten even though final voxel data matched.
-                if (boxCarve
-                    && boxCarveBlockKind == VoxelReadBlockKind.Uniform
-                    && fullBlock)
-                {
-                    VoxelCell empty = default;
-                    if (mutations.SetWholeCellBlock(worldBlock, in empty, false))
-                        result.VoxelsWritten += VoxelReadGrid.VoxelsPerBlock;
-                    continue;
-                }
 
                 VoxelBlockMutation mutation = default;
                 bool mutationOpen = false;
@@ -341,36 +259,6 @@ namespace VoxelEngine.Structures.Runtime
             }
         }
 
-        private static bool FrustumContainsFullBlock(in Primitive primitive, int3 blockVoxelMin)
-        {
-            int edge = VoxelReadGrid.BlockEdgeMask;
-            for (int z = 0; z <= edge; z += edge)
-            for (int y = 0; y <= edge; y += edge)
-            for (int x = 0; x <= edge; x += edge)
-                if (!CurvedPrimitiveEmitter.Contains(
-                        in primitive, blockVoxelMin + new int3(x, y, z)))
-                    return false;
-            return true;
-        }
-
-        private static bool FrustumFillBlockIsBeyondBoundaryHalo(
-            in Primitive primitive, int3 blockVoxelMin)
-        {
-            int edge = VoxelReadGrid.BlockEdgeMask;
-            for (int z = 0; z <= edge; z += edge)
-            for (int y = 0; y <= edge; y += edge)
-            for (int x = 0; x <= edge; x += edge)
-            {
-                if (!CurvedPrimitiveEmitter.TryBoundaryDistanceQ4(
-                        in primitive,
-                        blockVoxelMin + new int3(x, y, z),
-                        out int distanceQ4)
-                    || distanceQ4 <= 32)
-                    return false;
-            }
-            return true;
-        }
-
         private static void RasteriseSurfacePaint(
             in Primitive primitive,
             int x0, int x1, int z0, int z1,
@@ -443,27 +331,6 @@ namespace VoxelEngine.Structures.Runtime
                 int by1 = math.min(max.y, blockVoxelMin.y + VoxelReadGrid.BlockEdgeMask);
                 int bz0 = math.max(min.z, blockVoxelMin.z);
                 int bz1 = math.min(max.z, blockVoxelMin.z + VoxelReadGrid.BlockEdgeMask);
-                bool fullBlock = bx0 == blockVoxelMin.x
-                    && bx1 == blockVoxelMin.x + VoxelReadGrid.BlockEdgeMask
-                    && by0 == blockVoxelMin.y
-                    && by1 == blockVoxelMin.y + VoxelReadGrid.BlockEdgeMask
-                    && bz0 == blockVoxelMin.z
-                    && bz1 == blockVoxelMin.z + VoxelReadGrid.BlockEdgeMask;
-
-                // The halo needs only samples within +/-2 voxels of an analytic surface. A convex
-                // frustum has monotonic radius along its extrusion axis; within an axis-aligned
-                // block, radial clearance is smallest at radial-plane corners and cap clearance is
-                // smallest at axial endpoints. If every extreme centre is already >2 voxels inside,
-                // every centre in the block is too. Skip 512 signed-distance evaluations while
-                // preserving every block that can contribute a boundary sample. FillIfEmpty has
-                // the same no-op halo outcome for such deep-interior blocks regardless of whether
-                // its geometry pass filled Empty storage or skipped pre-existing Uniform solids.
-                if ((primitive.Mode == PrimitiveMode.Fill
-                        || primitive.Mode == PrimitiveMode.FillIfEmpty)
-                    && primitive.Shape == PrimitiveShape.Frustum
-                    && fullBlock
-                    && FrustumFillBlockIsBeyondBoundaryHalo(in primitive, blockVoxelMin))
-                    continue;
 
                 VoxelBlockMutation mutation = default;
                 bool mutationOpen = false;
@@ -570,21 +437,6 @@ namespace VoxelEngine.Structures.Runtime
                 _hasView = false;
             }
 
-            public VoxelReadBlockKind BlockKindOrEmpty(int3 worldBlock)
-            {
-                int3 regionCoord = worldBlock >> VoxelReadGrid.BlocksPerRegionEdgeLog2;
-                if (!_hasView || math.any(regionCoord != _regionCoord))
-                {
-                    _regionCoord = regionCoord;
-                    _hasView = _source != null && _source.TryAcquireRegion(regionCoord, out _view);
-                }
-
-                if (!_hasView) return VoxelReadBlockKind.Empty;
-                return _view.TryGetWorldBlock(worldBlock, out VoxelReadBlock block)
-                    ? block.Kind
-                    : VoxelReadBlockKind.Empty;
-            }
-
             public VoxelCell ReadCell(int3 worldVoxel)
             {
                 int3 regionCoord = worldVoxel >> VoxelGrid.RegionVoxelEdgeLog2;
@@ -661,7 +513,7 @@ namespace VoxelEngine.Structures.Runtime
                 case PrimitiveShape.Ramp: return BoxEmitter.RampContains(in primitive, voxel);
                 case PrimitiveShape.Cylinder: return CylinderEmitter.Contains(in primitive, voxel);
                 case PrimitiveShape.Prism: return PrismEmitter.Contains(in primitive, voxel);
-                case PrimitiveShape.Capsule: return CapsuleChainEmitter.ContainsQ4(in primitive, voxel, 8);
+                case PrimitiveShape.Capsule: return CapsuleChainEmitter.Contains(in primitive, voxel);
                 case PrimitiveShape.RoundedBox:
                 case PrimitiveShape.Ellipsoid:
                 case PrimitiveShape.Frustum:

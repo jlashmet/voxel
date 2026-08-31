@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
@@ -44,7 +43,6 @@ namespace VoxelEngine.Showcase
         private readonly Dictionary<int2, int[]> _columns = new();
         private readonly Dictionary<int2, int[]> _authoredTerrain = new();
         private readonly Dictionary<int2, byte[]> _authoredTerrainMaterials = new();
-        private bool _captureEnabled = true;
 
         /// <summary>Regions holding positive built-content silhouettes.</summary>
         public int RecordedRegionCount => _columns.Count;
@@ -60,20 +58,6 @@ namespace VoxelEngine.Showcase
         public int Version { get; private set; }
 
         /// <summary>
-        /// Temporarily suppresses coarse presentation capture while semantic storage is authored.
-        /// Offline bakers use this because far-field data is not part of a <see cref="ShowcaseWorldBake"/>;
-        /// <see cref="ShowcaseWorld.LoadBake"/> rebuilds it from the restored semantic regions.
-        /// Runtime generation leaves capture enabled and therefore keeps the ordinary distant
-        /// presentation behavior unchanged.
-        /// </summary>
-        public IDisposable SuppressCapture()
-        {
-            bool restoreEnabled = _captureEnabled;
-            _captureEnabled = false;
-            return new CaptureSuppressionScope(this, restoreEnabled);
-        }
-
-        /// <summary>
         /// Scans an authored region after its current generation stage and records both tall built
         /// silhouettes and any surface that was deliberately sculpted below the analytic terrain.
         ///
@@ -83,7 +67,6 @@ namespace VoxelEngine.Showcase
         /// </summary>
         public void CaptureRegion(int3 regionCoord, IRegionReadSource storage, uint seed)
         {
-            if (!_captureEnabled) return;
             if (storage == null || !storage.TryAcquireRegion(regionCoord, out RegionReadView region))
                 return;
 
@@ -328,26 +311,6 @@ namespace VoxelEngine.Showcase
             int quotient = value / divisor;
             if (value % divisor != 0 && (value < 0) != (divisor < 0)) quotient--;
             return quotient;
-        }
-
-        private sealed class CaptureSuppressionScope : IDisposable
-        {
-            private FarFieldStructureStore _owner;
-            private readonly bool _restoreEnabled;
-
-            public CaptureSuppressionScope(FarFieldStructureStore owner, bool restoreEnabled)
-            {
-                _owner = owner;
-                _restoreEnabled = restoreEnabled;
-            }
-
-            public void Dispose()
-            {
-                FarFieldStructureStore owner = _owner;
-                if (owner == null) return;
-                _owner = null;
-                owner._captureEnabled = _restoreEnabled;
-            }
         }
     }
 }

@@ -45,20 +45,14 @@ namespace VoxelEngine.Showcase
                 {
                     MountainLandmarkSpec mountainSpec =
                         ShowcaseMountainDragonLayout.CreateLandmark(seed);
-                    MountainLandmarkPresentationProfile mountainPresentation =
-                        ShowcaseMountainDragonLayout.CreatePresentationProfile();
-                    var mountainMaterials = new MountainLandmarkMaterialSet(
-                        rock: materialRoles.WorldgenDarkMasonry,
-                        groundCover: materialRoles.WorldgenMoss,
-                        path: materialRoles.WorldgenRoadSurface,
+                    FeatureCatalogue mountain = WorldBuilderMountainLandmarkCatalogue.Build(
+                        in mountainSpec,
+                        mountainMaterial: materialRoles.WorldgenFoundation,
+                        pathMaterial: materialRoles.WorldgenRoadSurface,
                         // The current placeholder is intentionally a bright red cube. Reuse the
                         // game's authored red presentation role until real dragon art replaces it.
-                        placeholder: materialRoles.WorldgenCloth);
-                    FeatureCatalogue mountain = WorldBuilderMountainLandmarkMaterialCatalogue.Build(
-                        in mountainSpec,
-                        in mountainMaterials,
-                        in mountainPresentation,
-                        Allocator.Temp);
+                        placeholderMaterial: materialRoles.WorldgenCloth,
+                        allocator: Allocator.Temp);
                     try
                     {
                         FeatureCatalogue townAndHouse =

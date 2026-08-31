@@ -24,17 +24,6 @@ namespace VoxelEngine.Composition
     }
 
     /// <summary>
-    /// Composition-owned catalogue scope. The default remains the full runtime contract; the
-    /// narrower option exists for offline composition that has already proved skipped definitions
-    /// output-neutral for the requested storage state.
-    /// </summary>
-    internal enum FeatureRegionBuildScope : byte
-    {
-        All = 0,
-        FixedAltitudeStructures = 1,
-    }
-
-    /// <summary>
     /// Composition bridge for Structures.Runtime feature evaluation. Concrete generation and
     /// rasterisation remain implementation details of Structures.Runtime.
     /// </summary>
@@ -66,16 +55,8 @@ namespace VoxelEngine.Composition
     {
         private readonly VoxelEngine.Structures.Runtime.FeatureRegionBuild _build;
 
-        public FeatureRegionBuild(
-            int3 regionCoord,
-            FeatureRegionBuildScope scope = FeatureRegionBuildScope.All)
-        {
-            VoxelEngine.Structures.Runtime.FeatureRegionBuildScope runtimeScope =
-                scope == FeatureRegionBuildScope.FixedAltitudeStructures
-                    ? VoxelEngine.Structures.Runtime.FeatureRegionBuildScope.FixedAltitudeStructures
-                    : VoxelEngine.Structures.Runtime.FeatureRegionBuildScope.All;
-            _build = new VoxelEngine.Structures.Runtime.FeatureRegionBuild(regionCoord, runtimeScope);
-        }
+        public FeatureRegionBuild(int3 regionCoord) =>
+            _build = new VoxelEngine.Structures.Runtime.FeatureRegionBuild(regionCoord);
 
         public int3 RegionCoord => _build.RegionCoord;
         public bool IsComplete => _build.IsComplete;

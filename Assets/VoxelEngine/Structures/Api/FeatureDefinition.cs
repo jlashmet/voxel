@@ -61,6 +61,12 @@ namespace VoxelEngine.Structures.Api
         public BasePlaneRule BasePlane;
 
         /// <summary>
+        /// Optional composition ingress. PieceId == 0 means this definition is not eligible as a
+        /// structural child; ordinary legacy feature generation remains unchanged.
+        /// </summary>
+        public StructuralPieceSpec StructuralPiece;
+
+        /// <summary>
         /// Maximum extent in voxels.
         ///
         /// Load-bearing rather than advisory: it bounds the neighbourhood every region in the

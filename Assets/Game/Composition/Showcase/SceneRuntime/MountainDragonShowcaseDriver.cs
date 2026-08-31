@@ -1,12 +1,11 @@
-using Game.Cutscenes.Presentation;
 using UnityEngine;
 
 namespace VoxelEngine.Showcase
 {
     /// <summary>
     /// Scene-facing adapter for the reusable mountain encounter. It only converts the showcase
-    /// transform into authored voxel coordinates and binds shared cutscene presentation; proximity,
-    /// story decisions, and UI behavior stay in WorldBuilder/Story/Campaign/Cutscenes.
+    /// transform into authored voxel coordinates and presents the cutscene cue; proximity and
+    /// story decisions stay in WorldBuilder/Story/Campaign.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class MountainDragonShowcaseDriver : MonoBehaviour
@@ -30,9 +29,6 @@ namespace VoxelEngine.Showcase
         private void Awake()
         {
             _encounter = new MountainDragonEncounterRuntime(ShowcaseSeed);
-            CutsceneDialogueOverlay overlay = GetComponent<CutsceneDialogueOverlay>();
-            if (overlay == null) overlay = gameObject.AddComponent<CutsceneDialogueOverlay>();
-            overlay.Bind(_encounter);
         }
 
         private void Update()
@@ -42,6 +38,23 @@ namespace VoxelEngine.Showcase
             int z = Mathf.FloorToInt(transform.position.z / ShowcaseWorld.VoxelSize);
             int elapsedMilliseconds = Mathf.Max(0, Mathf.RoundToInt(Time.deltaTime * 1000f));
             _encounter.Update(x, z, elapsedMilliseconds);
+        }
+
+        private void OnGUI()
+        {
+            if (_encounter == null || string.IsNullOrEmpty(_encounter.ActiveDialogue)) return;
+
+            var style = new GUIStyle(GUI.skin.box)
+            {
+                fontSize = 20,
+                fontStyle = FontStyle.Bold,
+                alignment = TextAnchor.MiddleCenter,
+                wordWrap = true,
+            };
+            GUI.Box(
+                new Rect(Screen.width * 0.5f - 220f, Screen.height - 180f, 440f, 64f),
+                _encounter.ActiveDialogue,
+                style);
         }
     }
 }
