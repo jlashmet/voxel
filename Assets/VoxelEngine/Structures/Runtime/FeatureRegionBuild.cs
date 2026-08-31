@@ -28,6 +28,11 @@ namespace VoxelEngine.Structures.Runtime
         private bool _activeRasterisedAny;
         private bool _tileReady;
         private bool _markHardSurface;
+        private bool _activeTrace;
+        private int _activeTraceDefinitionId;
+        private FeatureKind _activeTraceKind;
+        private int3 _activeTracePosition;
+        private int _activeTraceStartVoxels;
         private bool _disposed;
 
         public FeatureRegionBuild(int3 regionCoord)
@@ -266,12 +271,27 @@ namespace VoxelEngine.Structures.Runtime
             in FeatureDefinition definition,
             in ExplicitPlacement placement)
         {
+            int3 orientedFootprint = FeatureGeneration.OrientedFootprint(
+                definition.Footprint, placement.Orientation);
+            FeatureGenerationTrace.Candidate(
+                RegionCoord,
+                definitionId,
+                definition.Kind,
+                placement.Position,
+                orientedFootprint);
+
             EvaluationResult evaluation = FeatureGeneration.EvaluateInstance(
                 in catalogue, seed, definitionId, in definition, in placement,
                 _primitives, _anchors);
             _report.LastEvaluationResult = evaluation;
             if (evaluation != EvaluationResult.Ok)
             {
+                FeatureGenerationTrace.EvaluationRejected(
+                    RegionCoord,
+                    definitionId,
+                    definition.Kind,
+                    placement.Position,
+                    evaluation);
                 _report.BudgetExceeded |= evaluation == EvaluationResult.PrimitiveLimitExceeded;
                 return false;
             }
@@ -282,6 +302,20 @@ namespace VoxelEngine.Structures.Runtime
             _activePrimitiveIndex = 0;
             _activeRasterisedAny = false;
             _tileReady = false;
+            _activeTrace = FeatureGenerationTrace.ShouldTrace(definition.Kind);
+            if (_activeTrace)
+            {
+                _activeTraceDefinitionId = definitionId;
+                _activeTraceKind = definition.Kind;
+                _activeTracePosition = placement.Position;
+                _activeTraceStartVoxels = _report.VoxelsWritten;
+                FeatureGenerationTrace.EvaluationAccepted(
+                    RegionCoord,
+                    definitionId,
+                    definition.Kind,
+                    placement.Position,
+                    _primitives.Length);
+            }
             _activeInstance = true;
             return true;
         }
@@ -359,6 +393,17 @@ namespace VoxelEngine.Structures.Runtime
         private void CompleteActiveInstance()
         {
             if (_activeRasterisedAny) _report.InstancesRasterised++;
+            if (_activeTrace)
+            {
+                FeatureGenerationTrace.Completed(
+                    RegionCoord,
+                    _activeTraceDefinitionId,
+                    _activeTraceKind,
+                    _activeTracePosition,
+                    _activeRasterisedAny,
+                    _report.VoxelsWritten - _activeTraceStartVoxels);
+            }
+            _activeTrace = false;
             _activeInstance = false;
             _primitives.Clear();
             _anchors.Clear();
