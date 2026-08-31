@@ -144,9 +144,9 @@ namespace Game.WorldBuilder.Voxel
     }
 
     /// <summary>
-    /// Integer-only authored intent for a substantial mountain landmark. The scene chooses scale,
-    /// placement and materials; this adapter owns the reusable voxel realization, including the
-    /// switchback ascent, summit and placeholder footprint.
+    /// Integer-only authored intent for a substantial mountain landmark. The composition chooses
+    /// placement, materials, and a semantic physical traversal envelope; this adapter owns the
+    /// reusable voxel realization, including the switchback ascent, summit and placeholder footprint.
     /// </summary>
     public readonly struct MountainLandmarkSpec
     {
@@ -160,6 +160,10 @@ namespace Game.WorldBuilder.Voxel
         public int PathRise { get; }
         public int SwitchbackCount { get; }
         public int PlaceholderSize { get; }
+        public MountainLandmarkTraversalProfile TraversalProfile { get; }
+
+        public int PathHeadroomVoxels => TraversalProfile.HeadroomVoxels;
+        public int PathClearanceWidthVoxels => TraversalProfile.ClearanceWidthVoxels;
 
         public MountainLandmarkSpec(
             int3 origin,
@@ -171,7 +175,8 @@ namespace Game.WorldBuilder.Voxel
             int pathRun,
             int pathRise,
             int switchbackCount,
-            int placeholderSize)
+            int placeholderSize,
+            in MountainLandmarkTraversalProfile traversalProfile)
         {
             if (footprintEdge <= 0 || footprintEdge > FeatureBudget.MaxFootprintVoxels)
                 throw new ArgumentOutOfRangeException(nameof(footprintEdge));
@@ -189,6 +194,12 @@ namespace Game.WorldBuilder.Voxel
                 throw new ArgumentOutOfRangeException(nameof(pathRise));
             if (placeholderSize <= 0 || placeholderSize >= summitRadius * 2)
                 throw new ArgumentOutOfRangeException(nameof(placeholderSize));
+            if (traversalProfile.HeadroomVoxels <= 0)
+                throw new ArgumentOutOfRangeException(nameof(traversalProfile));
+            if (traversalProfile.ClearanceWidthVoxels <= 0 || traversalProfile.ClearanceWidthVoxels > pathWidth)
+                throw new ArgumentException(
+                    "Traversal clearance must fit inside the authored path width.",
+                    nameof(traversalProfile));
 
             Origin = origin;
             FootprintEdge = footprintEdge;
@@ -200,6 +211,23 @@ namespace Game.WorldBuilder.Voxel
             PathRise = pathRise;
             SwitchbackCount = switchbackCount;
             PlaceholderSize = placeholderSize;
+            TraversalProfile = traversalProfile;
+
+            for (int level = 0; level < SwitchbackCount; level++)
+            {
+                MountainPathTierGeometry tier = PathTier(level);
+                for (int segment = 0; segment < tier.SegmentCount; segment++)
+                {
+                    MountainPathSegmentGeometry geometry = tier.SegmentGeometry(segment);
+                    int horizontalAdvance = geometry.Run - geometry.PathWidth;
+                    if (!TraversalProfile.SupportsRamp(horizontalAdvance, geometry.Rise))
+                    {
+                        throw new ArgumentException(
+                            $"Traversal profile rejects mountain path tier {level} segment {segment} grade.",
+                            nameof(traversalProfile));
+                    }
+                }
+            }
         }
 
         public int CentreLocal => FootprintEdge / 2;
@@ -310,9 +338,6 @@ namespace Game.WorldBuilder.Voxel
         public const string LandformDefinitionName = "worldbuilder-mountain-landmark";
         public const string PlaceholderDefinitionName = "worldbuilder-mountain-placeholder";
 
-        public const int PathHeadroomVoxels = 24;
-        public const int PathClearanceWidthVoxels = 16;
-
         private const int SupportSegmentSpan = 96;
         private const int MinimumSupportTopRadius = 40;
         private const int MaximumSupportFlare = 112;
@@ -352,7 +377,7 @@ namespace Game.WorldBuilder.Voxel
                 FixedAltitude = spec.Origin.y,
                 Footprint = new int3(
                     spec.FootprintEdge,
-                    spec.MountainHeight + PathHeadroomVoxels + 2,
+                    spec.MountainHeight + spec.PathHeadroomVoxels + 2,
                     spec.FootprintEdge),
                 MaxSlope = 8,
                 Precedence = 100,
@@ -509,7 +534,7 @@ namespace Game.WorldBuilder.Voxel
             List<int> program,
             in MountainLandmarkSpec spec)
         {
-            int clearanceWidth = math.min(spec.PathWidth, PathClearanceWidthVoxels);
+            int clearanceWidth = spec.PathClearanceWidthVoxels;
             int clearanceInset = (spec.PathWidth - clearanceWidth) / 2;
             MountainPathTierGeometry lastTier = default;
             int endY = 0;
@@ -528,7 +553,7 @@ namespace Game.WorldBuilder.Voxel
                     EmitBox(
                         program,
                         geometry.MinX, geometry.StartY + 1, geometry.MinZ + carveInset,
-                        geometry.Run, geometry.Rise + PathHeadroomVoxels, carveDepth,
+                        geometry.Run, geometry.Rise + spec.PathHeadroomVoxels, carveDepth,
                         0,
                         PrimitiveMode.Carve);
                 }
@@ -541,7 +566,7 @@ namespace Game.WorldBuilder.Voxel
             EmitBox(
                 program,
                 lastTier.HighLandingMinX + clearanceInset, endY + 1, finalZMin,
-                clearanceWidth, finalRise + PathHeadroomVoxels, finalZSize,
+                clearanceWidth, finalRise + spec.PathHeadroomVoxels, finalZSize,
                 0,
                 PrimitiveMode.Carve);
 
@@ -552,7 +577,7 @@ namespace Game.WorldBuilder.Voxel
             EmitBox(
                 program,
                 topMinX, spec.MountainHeight + 1, topZ + clearanceInset,
-                topSizeX, PathHeadroomVoxels, clearanceWidth,
+                topSizeX, spec.PathHeadroomVoxels, clearanceWidth,
                 0,
                 PrimitiveMode.Carve);
         }
