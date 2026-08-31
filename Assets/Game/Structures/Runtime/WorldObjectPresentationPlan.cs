@@ -16,6 +16,7 @@ namespace Game.Structures.Runtime
         public int3 RotationDegrees;
         public bool UsesDynamicProxy;
         public bool Visible;
+        public bool InteractionEnabled;
         public bool BlocksNavigation;
         public bool LightActive;
         public bool ParticleActive;
@@ -29,13 +30,15 @@ namespace Game.Structures.Runtime
         public static WorldObjectPresentationPlan Plan(in WorldObjectResolvedState state)
         {
             WorldObjectDescriptor d = state.Descriptor;
+            bool visible = !state.IsDestroyed && (state.State & WorldObjectStateFlags.Hidden) == 0;
             var plan = new WorldObjectPresentationPlan
             {
                 Id = d.Id,
                 Kind = d.Kind,
                 BaselineBounds = d.Bounds,
                 UsesDynamicProxy = RequiresDynamicProxy(d.Kind),
-                Visible = !state.IsDestroyed && (state.State & WorldObjectStateFlags.Hidden) == 0,
+                Visible = visible,
+                InteractionEnabled = visible && (d.Capabilities & WorldObjectCapabilities.Interactable) != 0,
                 BlocksNavigation = !state.IsDestroyed &&
                     (d.Capabilities & WorldObjectCapabilities.BlocksNavigation) != 0,
                 LightActive = !state.IsDestroyed &&
@@ -55,6 +58,14 @@ namespace Game.Structures.Runtime
                     if (open)
                     {
                         plan.RotationDegrees = new int3(0, 90, 0);
+                        plan.BlocksNavigation = false;
+                    }
+                    break;
+
+                case WorldObjectKind.Trapdoor:
+                    if (open)
+                    {
+                        plan.RotationDegrees = new int3(-90, 0, 0);
                         plan.BlocksNavigation = false;
                     }
                     break;
@@ -123,6 +134,8 @@ namespace Game.Structures.Runtime
 
                 case WorldObjectKind.BreakableWall:
                     plan.Visible = !state.IsDestroyed;
+                    plan.InteractionEnabled = !state.IsDestroyed &&
+                        (d.Capabilities & WorldObjectCapabilities.Interactable) != 0;
                     plan.BlocksNavigation = !state.IsDestroyed;
                     break;
 
@@ -153,6 +166,7 @@ namespace Game.Structures.Runtime
             switch (kind)
             {
                 case WorldObjectKind.Door:
+                case WorldObjectKind.Trapdoor:
                 case WorldObjectKind.Gate:
                 case WorldObjectKind.Portcullis:
                 case WorldObjectKind.Drawbridge:
