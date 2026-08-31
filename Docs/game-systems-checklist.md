@@ -78,7 +78,8 @@ These are existing foundations and are not candidates to rebuild from scratch.
   - Project authoritative/replicated gameplay truth into local HUD presentation models without creating duplicate gameplay state or coupling domain systems to Unity UI technology.
 - [x] **18. [Inventory UI & authoritative inventory interaction](game-systems/18-inventory-ui-authoritative-inventory-interaction.md)**
   - Present stable inventory snapshots and request semantic transfers/drops without introducing slot semantics, duplicate quantities, or UI-owned inventory authority.
-- [ ] **19. Quest / objective UI**
+- [x] **19. [Quest & objective UI / progression presentation](game-systems/19-quest-objective-ui-progression-presentation.md)**
+  - Present unified authoritative progression through snapshot-driven journal and tracked-objective views while keeping tracking, selection, and presentation metadata local/non-authoritative.
 - [ ] **20. Multiplayer teammate / session UI**
 - [ ] **21. Gameplay audio integration**
 - [ ] **22. Combat / interaction VFX and feedback**
