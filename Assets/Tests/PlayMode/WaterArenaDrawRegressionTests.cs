@@ -3,6 +3,9 @@ using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
+using Game.Materials.Api;
+using Game.Materials.Runtime;
+using VoxelEngine.Rendering.Runtime;
 using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 
 namespace VoxelEngine.Tests.PlayMode
@@ -93,6 +96,79 @@ namespace VoxelEngine.Tests.PlayMode
         }
 
         [Test]
+        public void SprayTaggedArenaGeometryRasterizesOnlyForWaterfallProfile()
+        {
+            var arena = new SurfaceGeometryArena(1024, 2048, 8);
+            var entry = new CpuWaterSurfaceChunkCache.Entry(int3.zero, arena);
+            var vertices = new NativeList<SmoothSurfaceVertex>(4, Allocator.Temp);
+            var indices = new NativeList<uint>(6, Allocator.Temp);
+            Material material = null;
+            RenderTexture target = null;
+            Texture2D readback = null;
+            var commandBuffer = new CommandBuffer { name = "Water spray raster visibility discriminator" };
+
+            try
+            {
+                VoxelMaterialPresentationInstaller.Apply(GameMaterialRenderingDefinitions.Create());
+                uint sprayFlags = SmoothSurfaceVertex.WaterImpactFlag
+                                | SmoothSurfaceVertex.WaterEdgeFlag
+                                | SmoothSurfaceVertex.WaterSprayFlag;
+                AddSprayQuad(vertices, GameMaterialIds.Cascade, sprayFlags);
+                indices.Add(0u);
+                indices.Add(1u);
+                indices.Add(2u);
+                indices.Add(0u);
+                indices.Add(2u);
+                indices.Add(3u);
+
+                int byteBudget = vertices.Length * SmoothSurfaceVertex.Stride
+                               + indices.Length * sizeof(uint)
+                               + SurfaceGeometryArena.ArgsWordsPerDraw * sizeof(uint);
+                Assert.That(entry.AdvanceUpload(vertices, indices, byteBudget, out _), Is.True);
+
+                Shader shader = Shader.Find("Hidden/VoxelEngine/WaterSurface");
+                Assert.That(shader, Is.Not.Null);
+                material = new Material(shader);
+                target = new RenderTexture(96, 96, 24, RenderTextureFormat.ARGB32)
+                {
+                    name = "Water spray raster visibility discriminator target"
+                };
+                target.Create();
+                readback = new Texture2D(96, 96, TextureFormat.RGBA32, false);
+
+                int cascadePixels = RenderAndCountVisiblePixels(
+                    entry, material, commandBuffer, target, readback);
+                Assert.That(cascadePixels, Is.GreaterThan(0),
+                    "A spray-tagged canonical arena draw with an installed waterfall profile must rasterize visible pixels.");
+
+                vertices.Clear();
+                AddSprayQuad(vertices, GameMaterialIds.Water, sprayFlags);
+                Assert.That(entry.AdvanceUpload(vertices, indices, byteBudget, out _), Is.True);
+                int stillPixels = RenderAndCountVisiblePixels(
+                    entry, material, commandBuffer, target, readback);
+                Assert.That(stillPixels, Is.Zero,
+                    "The same spray-tagged canonical arena geometry must remain clipped for a non-waterfall profile.");
+            }
+            finally
+            {
+                RenderTexture.active = null;
+                entry.Dispose();
+                commandBuffer.Release();
+                if (readback != null) Object.DestroyImmediate(readback);
+                if (target != null)
+                {
+                    target.Release();
+                    Object.DestroyImmediate(target);
+                }
+                if (material != null) Object.DestroyImmediate(material);
+                vertices.Dispose();
+                indices.Dispose();
+                arena.Dispose();
+                VoxelMaterialPresentationInstaller.Apply(GameMaterialRenderingDefinitions.Create());
+            }
+        }
+
+        [Test]
         public void SecondWaterEntryBindsExplicitArenaOffsets()
         {
             var arena = new SurfaceGeometryArena(1024, 2048, 8);
@@ -148,6 +224,70 @@ namespace VoxelEngine.Tests.PlayMode
                 indices.Dispose();
                 arena.Dispose();
             }
+        }
+
+        private static void AddSprayQuad(NativeList<SmoothSurfaceVertex> vertices,
+                                         byte material, uint flags)
+        {
+            uint packed = material | flags;
+            vertices.Add(new SmoothSurfaceVertex
+            {
+                Position = new Vector3(-0.8f, -0.8f, 0f),
+                Normal = Vector3.back,
+                Material = packed,
+                Active = 1u,
+            });
+            vertices.Add(new SmoothSurfaceVertex
+            {
+                Position = new Vector3(0.8f, -0.8f, 0f),
+                Normal = Vector3.back,
+                Material = packed,
+                Active = 1u,
+            });
+            vertices.Add(new SmoothSurfaceVertex
+            {
+                Position = new Vector3(0.8f, 0.8f, 0f),
+                Normal = Vector3.back,
+                Material = packed,
+                Active = 1u,
+            });
+            vertices.Add(new SmoothSurfaceVertex
+            {
+                Position = new Vector3(-0.8f, 0.8f, 0f),
+                Normal = Vector3.back,
+                Material = packed,
+                Active = 1u,
+            });
+        }
+
+        private static int RenderAndCountVisiblePixels(
+            CpuWaterSurfaceChunkCache.Entry entry, Material material,
+            CommandBuffer commandBuffer, RenderTexture target, Texture2D readback)
+        {
+            commandBuffer.Clear();
+            commandBuffer.SetRenderTarget(target);
+            commandBuffer.ClearRenderTarget(true, true, Color.black);
+            commandBuffer.SetViewProjectionMatrices(Matrix4x4.identity, Matrix4x4.identity);
+            commandBuffer.SetGlobalFloat(Shader.PropertyToID("_WaterTime"), 1.25f);
+            var properties = new MaterialPropertyBlock();
+            entry.Draw(commandBuffer, material, properties);
+            Graphics.ExecuteCommandBuffer(commandBuffer);
+
+            RenderTexture previous = RenderTexture.active;
+            RenderTexture.active = target;
+            readback.ReadPixels(new Rect(0, 0, target.width, target.height), 0, 0, false);
+            readback.Apply(false, false);
+            RenderTexture.active = previous;
+
+            Color32[] pixels = readback.GetPixels32();
+            int visible = 0;
+            for (int i = 0; i < pixels.Length; i++)
+            {
+                Color32 pixel = pixels[i];
+                if (pixel.r > 8 || pixel.g > 8 || pixel.b > 8)
+                    visible++;
+            }
+            return visible;
         }
     }
 }
