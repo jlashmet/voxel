@@ -65,9 +65,6 @@ Shader "Hidden/VoxelEngine/WaterSurface"
 
             Varyings Vert(uint vertexID : SV_VertexID)
             {
-                // Arena indices are local to each immutable vertex lease. Bind the vertex base
-                // explicitly per draw: Metal does not expose an indirect draw's startInstance as
-                // SV_InstanceID for this procedural path.
                 SurfaceVertex vertex = _SurfaceVertices[
                     _SurfaceVertexBase + _SurfaceIndices[_SurfaceIndexBase + vertexID]];
                 uint topologyFlags = vertex.material >> 24;
@@ -187,6 +184,12 @@ Shader "Hidden/VoxelEngine/WaterSurface"
 
             float4 Frag(Varyings input) : SV_Target
             {
+                // Spray is deliberately excluded from the depth-writing body pass. It is rendered
+                // by VoxelWaterSpray below, where translucent feathering cannot stamp fan-shaped
+                // holes into subsequently blended water through the depth buffer.
+                if (input.topology.w > 0.5)
+                    clip(-1.0);
+
                 uint material = min(input.material, 31u);
                 float4 shallow = _WaterShallow[material];
                 float4 deep = _WaterDeep[material];
@@ -197,35 +200,6 @@ Shader "Hidden/VoxelEngine/WaterSurface"
                 float waterfallMask = step(2.5, motion.x);
                 bool waterfall = waterfallMask > 0.5;
                 bool flowing = motion.x > 1.5 && !waterfall;
-
-                // Spray vertices are ordinary canonical water geometry tagged by extraction at a
-                // true vertical impact boundary. Non-waterfall profiles clip them entirely. Their
-                // two-bit local coordinate lets the shared path feather each generated sheet so the
-                // impact volume reads as broken mist instead of revealing the fan triangulation.
-                if (input.topology.w > 0.5)
-                {
-                    if (!waterfall)
-                        clip(-1.0);
-                    float2 sprayUv = saturate(input.sprayUv);
-                    float acrossEnvelope = saturate(4.0 * sprayUv.x * (1.0 - sprayUv.x));
-                    float riseEnvelope = smoothstep(0.015, 0.16, sprayUv.y)
-                                       * (1.0 - smoothstep(0.54, 1.0, sprayUv.y));
-                    float softEnvelope = pow(acrossEnvelope, 0.55) * pow(riseEnvelope, 0.62);
-                    float sprayLateral = input.positionWS.x + input.positionWS.z * 0.73;
-                    float sprayRise = input.positionWS.y * 0.64 - _WaterTime * motion.w * 0.74;
-                    float sprayNoise = Fbm2(float2(sprayLateral * 1.38 + 53.2, sprayRise));
-                    float sprayBreakup = Fbm2(float2(sprayLateral * 3.10 - 11.7,
-                                                      sprayRise * 0.62 + _WaterTime * 0.31));
-                    float sprayDensity = saturate(cascade.w) * softEnvelope
-                                       * smoothstep(0.25, 0.70,
-                                                    sprayNoise * 0.72 + sprayBreakup * 0.48);
-                    clip(sprayDensity - 0.035);
-                    float3 sprayColour = lerp(float3(0.62, 0.82, 0.87),
-                                              float3(0.94, 0.99, 1.00),
-                                              saturate(sprayDensity * 2.1));
-                    float sprayAlpha = saturate(sprayDensity * 0.62);
-                    return float4(sprayColour, sprayAlpha);
-                }
 
                 float3 normal = AnimatedNormal(input.positionWS, input.normalWS,
                                                motion, detail, cascade);
@@ -247,16 +221,12 @@ Shader "Hidden/VoxelEngine/WaterSurface"
                 float surfaceFoam = smoothstep(0.68, 0.93, surfacePattern) * foamParams.x;
                 float contactFoam = contact * foamParams.y;
 
-                float upFacing = saturate(input.normalWS.y * 2.4 - 0.45);
                 float verticalFacing = 1.0 - saturate(abs(input.normalWS.y) * 2.2);
                 float lateral = input.positionWS.x + input.positionWS.z * 0.73;
                 float lipTopology = saturate(input.topology.x);
                 float impactTopology = saturate(input.topology.y);
                 float edgeTopology = saturate(input.topology.z);
 
-                // Waterfall detail is deliberately anisotropic. Broad downward noise drives the body
-                // while narrow threads are modulated along the fall so they break into aerated runs
-                // instead of reading as unbroken luminous columns across voxel ribbon boundaries.
                 float descend = input.positionWS.y * 0.52 - _WaterTime * motion.w * 2.15;
                 float broadFlow = Fbm2(float2(lateral * 1.65, descend));
                 float strandWarp = Fbm2(float2(lateral * 0.72 + 17.4, descend * 0.46));
@@ -279,9 +249,6 @@ Shader "Hidden/VoxelEngine/WaterSurface"
                               + downwardStreaks * 0.36 + brightThreads * 0.74))
                     : 0.0;
 
-                // The reference waterfall localizes these treatments by sheet UV. Canonical voxel
-                // extraction instead supplies interpolated topology weights, preserving the same
-                // semantic distinction without introducing scene geometry or material IDs here.
                 float lipFoam = waterfallMask * verticalFacing * lipTopology * cascade.y
                               * smoothstep(0.32, 0.68, broadFlow);
                 float impactNoise = Fbm2(float2(lateral * 2.8,
@@ -330,15 +297,122 @@ Shader "Hidden/VoxelEngine/WaterSurface"
                                      + foam * 0.14 + mist * 0.07);
                 if (waterfall)
                 {
-                    // Keep the sheet present but let the darker body/noise carry most of its mass.
-                    // Bright threads and real topology-localized foam restore opacity selectively,
-                    // avoiding the parallel translucent-slab read seen in close built captures.
                     float cascadeAlpha = lerp(0.12, 0.64, sheetCoverage)
                                        + brightThreads * 0.12 + aeration * 0.06
                                        + foam * 0.10 + mist * 0.04;
                     alpha = lerp(alpha, saturate(cascadeAlpha), verticalFacing);
                 }
                 return float4(colour, alpha);
+            }
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Name "VoxelWaterSpray"
+            Tags { "LightMode"="SRPDefaultUnlit" }
+            Cull Off
+            ZWrite Off
+            ZTest LEqual
+            Blend SrcAlpha OneMinusSrcAlpha
+
+            HLSLPROGRAM
+            #pragma target 4.5
+            #pragma vertex VertSpray
+            #pragma fragment FragSpray
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+
+            struct SurfaceVertex
+            {
+                float3 position;
+                float3 normal;
+                uint material;
+                uint active;
+            };
+
+            StructuredBuffer<SurfaceVertex> _SurfaceVertices;
+            StructuredBuffer<uint> _SurfaceIndices;
+            uint _SurfaceIndexBase;
+            uint _SurfaceVertexBase;
+            float4 _WaterMotion[32];
+            float4 _WaterCascade[32];
+            float _WaterTime;
+
+            struct SprayVaryings
+            {
+                float4 positionCS : SV_POSITION;
+                float3 positionWS : TEXCOORD0;
+                nointerpolation uint material : TEXCOORD1;
+                nointerpolation float spray : TEXCOORD2;
+                float2 sprayUv : TEXCOORD3;
+            };
+
+            SprayVaryings VertSpray(uint vertexID : SV_VertexID)
+            {
+                SurfaceVertex vertex = _SurfaceVertices[
+                    _SurfaceVertexBase + _SurfaceIndices[_SurfaceIndexBase + vertexID]];
+                uint topologyFlags = vertex.material >> 24;
+                SprayVaryings output;
+                output.positionCS = TransformWorldToHClip(vertex.position);
+                output.positionWS = vertex.position;
+                output.material = min(vertex.material & 0xFFu, 31u);
+                output.spray = (topologyFlags & 8u) != 0u ? 1.0 : 0.0;
+                output.sprayUv = float2(
+                    (vertex.active & 1u) != 0u ? 1.0 : 0.0,
+                    (vertex.active & 2u) != 0u ? 1.0 : 0.0);
+                return output;
+            }
+
+            float HashSpray21(float2 p)
+            {
+                p = frac(p * float2(123.34, 456.21));
+                p += dot(p, p + 45.32);
+                return frac(p.x * p.y);
+            }
+
+            float ValueSprayNoise(float2 p)
+            {
+                float2 i = floor(p);
+                float2 f = frac(p);
+                float2 u = f * f * (3.0 - 2.0 * f);
+                return lerp(lerp(HashSpray21(i), HashSpray21(i + float2(1,0)), u.x),
+                            lerp(HashSpray21(i + float2(0,1)), HashSpray21(i + float2(1,1)), u.x), u.y);
+            }
+
+            float FbmSpray2(float2 p)
+            {
+                return ValueSprayNoise(p) * 0.67
+                     + ValueSprayNoise(p * 2.07 + 19.1) * 0.33;
+            }
+
+            float4 FragSpray(SprayVaryings input) : SV_Target
+            {
+                if (input.spray < 0.5)
+                    clip(-1.0);
+
+                uint material = min(input.material, 31u);
+                float4 motion = _WaterMotion[material];
+                if (motion.x <= 2.5)
+                    clip(-1.0);
+                float4 cascade = _WaterCascade[material];
+                float2 sprayUv = saturate(input.sprayUv);
+                float acrossEnvelope = saturate(4.0 * sprayUv.x * (1.0 - sprayUv.x));
+                float riseEnvelope = smoothstep(0.015, 0.16, sprayUv.y)
+                                   * (1.0 - smoothstep(0.54, 1.0, sprayUv.y));
+                float softEnvelope = pow(acrossEnvelope, 0.55) * pow(riseEnvelope, 0.62);
+                float sprayLateral = input.positionWS.x + input.positionWS.z * 0.73;
+                float sprayRise = input.positionWS.y * 0.64 - _WaterTime * motion.w * 0.74;
+                float sprayNoise = FbmSpray2(float2(sprayLateral * 1.38 + 53.2, sprayRise));
+                float sprayBreakup = FbmSpray2(float2(sprayLateral * 3.10 - 11.7,
+                                                       sprayRise * 0.62 + _WaterTime * 0.31));
+                float sprayDensity = saturate(cascade.w) * softEnvelope
+                                   * smoothstep(0.25, 0.70,
+                                                sprayNoise * 0.72 + sprayBreakup * 0.48);
+                clip(sprayDensity - 0.035);
+                float3 sprayColour = lerp(float3(0.62, 0.82, 0.87),
+                                          float3(0.94, 0.99, 1.00),
+                                          saturate(sprayDensity * 2.1));
+                return float4(sprayColour, saturate(sprayDensity * 0.62));
             }
             ENDHLSL
         }
