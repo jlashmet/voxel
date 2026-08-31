@@ -177,8 +177,20 @@ namespace VoxelEngine.Showcase
                 float halfWidth = Mathf.Lerp(40f, 34f, t);
                 for (int x = 180; x <= 330; x++)
                 {
-                    if (Mathf.Abs(x - centre) <= halfWidth)
+                    float dx = Mathf.Abs(x - centre);
+                    if (dx <= halfWidth)
+                    {
+                        authoring.Set(originX + x, y - 1, originZ + z, GameMaterialIds.Stone);
                         authoring.Set(originX + x, y, originZ + z, GameMaterialIds.Cascade);
+                    }
+                    else if (dx <= halfWidth + 6f)
+                    {
+                        authoring.Set(originX + x, y, originZ + z, GameMaterialIds.Stone);
+                    }
+                    else if (dx <= halfWidth + 12f)
+                    {
+                        authoring.Set(originX + x, y - 1, originZ + z, GameMaterialIds.Stone);
+                    }
                 }
             }
 
@@ -238,7 +250,9 @@ namespace VoxelEngine.Showcase
                     {
                         continue;
                     }
-                    authoring.Set(originX + x, waterY - 2, originZ + z, GameMaterialIds.Stone);
+
+                    int bankY = dx <= halfWater + 7f ? waterY : waterY - 1;
+                    authoring.Set(originX + x, bankY, originZ + z, GameMaterialIds.Stone);
                 }
             }
         }
@@ -252,8 +266,11 @@ namespace VoxelEngine.Showcase
                 int y = RiverHeight(z);
                 for (int x = 170; x <= 335; x++)
                 {
-                    if (Mathf.Abs(x - centre) <= halfWidth)
-                        authoring.Set(originX + x, y, originZ + z, GameMaterialIds.Water);
+                    if (Mathf.Abs(x - centre) > halfWidth)
+                        continue;
+
+                    authoring.Set(originX + x, y - 1, originZ + z, GameMaterialIds.Sand);
+                    authoring.Set(originX + x, y, originZ + z, GameMaterialIds.Water);
                 }
             }
         }
