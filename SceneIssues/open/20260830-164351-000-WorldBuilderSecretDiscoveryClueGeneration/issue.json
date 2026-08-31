@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "id": "20260830-164351-000-WorldBuilderSecretDiscoveryClueGeneration",
   "createdUtc": "2026-08-30T16:43:51Z",
-  "updatedUtc": "2026-08-30T16:43:51Z",
+  "updatedUtc": "2026-08-31T11:27:00Z",
   "project": {
     "path": "/Users/jlashmet/workspace/voxel",
     "unityVersion": "6000.2.6f2"
@@ -12,6 +12,7 @@
     "path": "Assets/Scenes/WorldbuildingGalleryShowcase.unity",
     "buildIndex": 1
   },
+  "scenePath": "Assets/Scenes/WorldbuildingGalleryShowcase.unity",
   "issueType": "feature",
   "severity": "major",
   "summary": "Implement reusable deterministic WorldBuilder secret, route, and clue planning so generated optional areas are discoverable from semantic evidence, integrate with reusable interactable routes and canonical discovery credit, and explicitly control voxel bypass behavior.",
