@@ -149,10 +149,15 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
 
         private static Mesh BuildProxyMesh(string proxyKey, FarStructureTier tier)
         {
+            bool settlementCluster = Contains(proxyKey, "settlement-cluster");
             bool castle = Contains(proxyKey, "castle") || Contains(proxyKey, "keep") || Contains(proxyKey, "fort");
             var builder = new ProxyMeshBuilder();
 
-            if (tier == FarStructureTier.Horizon)
+            if (settlementCluster)
+            {
+                AddSettlementCluster(builder, tier);
+            }
+            else if (tier == FarStructureTier.Horizon)
             {
                 builder.AddBox(new Vector3(0f, 0.45f, 0f), new Vector3(1f, 0.9f, 1f));
                 if (castle)
@@ -181,6 +186,44 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
             }
 
             return builder.Build();
+        }
+
+        private static void AddSettlementCluster(ProxyMeshBuilder builder, FarStructureTier tier)
+        {
+            if (tier == FarStructureTier.Horizon)
+            {
+                AddClusterHouse(builder, -0.28f, -0.12f, 0.44f, 0.34f, 0.42f);
+                AddClusterHouse(builder, 0.18f, 0.05f, 0.50f, 0.42f, 0.50f);
+                AddClusterHouse(builder, 0.38f, -0.30f, 0.38f, 0.28f, 0.36f);
+                return;
+            }
+
+            AddClusterHouse(builder, -0.34f, -0.28f, 0.40f, 0.28f, 0.36f);
+            AddClusterHouse(builder, 0.02f, -0.34f, 0.54f, 0.36f, 0.48f);
+            AddClusterHouse(builder, 0.34f, -0.06f, 0.46f, 0.30f, 0.40f);
+            AddClusterHouse(builder, -0.20f, 0.24f, 0.58f, 0.34f, 0.46f);
+            AddClusterHouse(builder, 0.22f, 0.30f, 0.42f, 0.28f, 0.34f);
+        }
+
+        private static void AddClusterHouse(
+            ProxyMeshBuilder builder,
+            float x,
+            float z,
+            float topY,
+            float width,
+            float depth)
+        {
+            float bodyHeight = topY * 0.72f;
+            builder.AddBox(
+                new Vector3(x, bodyHeight * 0.5f, z),
+                new Vector3(width, bodyHeight, depth));
+            builder.AddRoofPrism(
+                x,
+                z,
+                bodyHeight,
+                width,
+                depth,
+                topY - bodyHeight);
         }
 
         private static void AddTower(ProxyMeshBuilder builder, float x, float z, FarStructureTier tier)
