@@ -5,7 +5,7 @@
 - [x] Keep water authoring in canonical `ShowcaseWorld`/Storage and rendering in the shared renderer; no bespoke proof mesh/material path.
 - [x] Keep material IDs opaque in shared code; scene/game IDs remain composition policy.
 - [x] Prove portability with independently authored Water/RiverWater/Cascade through ordinary `RenderingWorldBinding`, plus existing `VoxelShowcase` and `WorldbuildingGalleryShowcase` consumers.
-- [x] Merge current master before validation; branch contains master `ebdc2e4f63ef73153cd4e0ff5c62efe604f35470` via merge `84fecff091649390e7ee8a67228a636219191e21`.
+- [x] Merge current master before validation; branch initially contained master `ebdc2e4f63ef73153cd4e0ff5c62efe604f35470` via merge `84fecff091649390e7ee8a67228a636219191e21`, then merged advanced master `2ea5f5c95f89fbf0403dbefb50b782829583d304` via `87000073f2ca648922a18ae0788ed9008a55dd18` before spray validation.
 
 ## Shared implementation / reuse
 - [x] Add reusable still, flowing/river, and waterfall presentation profiles.
@@ -46,6 +46,7 @@
 - [x] Directly reject `33346565021`: coherent downward strands and irregular ribbons remain, but mist still exists only on sheet fragments and creates no free spray volume. This demonstrates a geometric limitation, not another shader scalar-tuning hypothesis.
 - [x] Add one reusable `WaterSprayFlag` semantic and canonical impact-spray quad at true lower vertical-water boundaries in `WaterBrickMeshBatchJob`; keep the same water mesh/buffer/material/draw and clip spray geometry for non-waterfall profiles.
 - [x] Extend the independent vertical-water fixture to require spray quad emission while preserving arbitrary opaque material identity.
+- [x] Add a production-path spray regression that exercises ordinary Cascade authoring through Storage → `CpuWaterSurfaceChunkCache` → shared GPU arena and checks `WaterSprayFlag` survives publication.
 
 ## Reliability / cost
 - [x] Preserve spreading/inert gameplay semantics and storage/streaming/edit/diagnostic contracts; no swim/buoyancy subsystem exists to alter.
@@ -66,10 +67,12 @@
 - [x] `33345745137`: exact irregular-ribbon head passes `WaterArenaDrawRegressionTests` + 60-second player replay; direct quality review still rejects lip/base/mist closure.
 - [x] Re-read current `origin/master` before topology/spray work; master remains `ebdc2e4f63ef73153cd4e0ff5c62efe604f35470`.
 - [x] `33346565021`: focused topology regression plus 60-second WaterRenderingShowcase replay passes on exact topology head; direct review rejects free-spray acceptance.
-- [ ] Re-read current `origin/master` immediately before spray exact request; merge if needed.
-- [ ] Run `WaterArenaDrawRegressionTests` plus 60-second WaterRenderingShowcase replay on exact spray feature head.
+- [x] Re-read current `origin/master` immediately before spray exact request; master advanced to `2ea5f5c95f89fbf0403dbefb50b782829583d304` and was merged into the feature branch.
+- [x] `33354768733` completed failure before tests/player capture because the new production-path regression lacked `using VoxelEngine.Rendering.Runtime;` after the master merge; fixed the compile cause on feature branch. This is a code failure, not an infrastructure retry.
+- [ ] Run `WaterArenaDrawRegressionTests` plus 60-second WaterRenderingShowcase replay on exact corrected spray feature head.
 - [ ] Directly accept/reject near/wide/time-separated waterfall frames against downward-flow, turbulence/aeration, irregular breakup, lip/edge/base foam, free mist/spray and overall visual-quality requirements.
 - [ ] Run `ShowcaseWaterPresentationRegressionTests` on the same visually accepted feature head.
+- [ ] Run `WaterSprayProductionPathRegressionTests.CascadeSprayFlagSurvivesCanonicalStorageCacheAndGpuUpload` on the same accepted head.
 - [ ] Confirm exact player build has no startup/runtime/shader compile/stripping/pink/missing-resource failure.
 - [ ] Reconcile accepted build with `VoxelShowcase` and `WorldbuildingGalleryShowcase` shared-water paths.
 - [ ] Complete issue `resolutionSummary`, `regressionTest`, `fixCommit`, `status=fixed`, `resolvedUtc` only after every acceptance item below is validated.
