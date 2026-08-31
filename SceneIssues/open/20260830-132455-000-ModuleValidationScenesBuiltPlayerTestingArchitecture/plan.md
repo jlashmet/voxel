@@ -1,31 +1,30 @@
 # Plan
 
 ## Acceptance
-- CI deterministically maps production diffs to owning modules, focused tests, player-visible module validation targets, and the canonical built-player Kentridge gate.
-- Module validation scenes/scenarios are module-owned; scene and scenario are distinct metadata.
-- One generic standalone-player harness executes all visual targets; no test-name/scene-name feature policy remains in shared infrastructure.
-- Water demonstrates the migration and automatic discovery path.
-- Exact-SHA validation fails closed on missing/zero-match/skipped required targets and remains practical for routine iteration.
+- CI maps production diffs to owning modules, focused tests, player-visible module validation targets, and the canonical built-player Kentridge gate.
+- Module validation scene and scenario metadata stay module-owned and distinct.
+- One generic standalone-player harness executes visual targets without test-name or scene-name feature policy.
+- Water proves the migration and automatic discovery path.
+- Exact-SHA validation fails closed on missing, zero-match, skipped, or failed required targets and remains practical for routine iteration.
 
 ## Results / selected approach
-- Reused the existing standalone-player build/capture path; added declarative `*.module-validation.json`, separate `*.player-scenario.json`, and diff-driven planning with shared/core expansion and Kentridge fallback. An independent Structures fixture proves reuse without planner changes.
-- Required focused tests/player targets fail closed on missing/zero-match/skipped/failed tests, missing scene/scenario, failed required/forbidden logs, or insufficient captures.
-- Water visual failures were isolated instead of hidden: production Water belongs to the near-field `VoxelRenderPass`/`CpuWaterSurfaceChunkCache`, not the far clipmap. Camera scale, tint, and scene lighting were corrected separately.
-- Root production draw defect: Water indices are chunk-local but vertices occupy nonzero shared-arena leases. Water draw submission now supplies semantic `_SurfaceVertexBase = _liveLease.VertexStart`; the shader adds it only when dereferencing local indices.
-- Correct exact-source run `33362755513` proved that fix: Water became visible while focused tests, automatic Water + Kentridge players, previews, and artifact upload passed.
-- Visible Water still failed production-quality as broad floating/cutting slabs. First scene-local correction `d48c5c2315c96b7a1d9cc33f662c267634c8b6d1` added immediate beds and stepped edge shoulders. Exact run `33367217621` passed focused regression plus automatic Water + Kentridge validation, but direct frames still showed the same blockout symptom; grounding improved contact without fixing oversized slab composition, and the first capture remained blank while the large tableau converged.
-- Second materially different correction `582f290a09dbb8b2b45d12cbb500f209ae079247` reduces authored footprint and vertical exaggeration, narrows/shortens the river and cascade, compacts both pools, softens apron relief, removes the decorative stone slab, reduces near-ring scope, and reframes the three shots. Shared Water rendering/API policy is unchanged.
-- If exact standalone evidence after this second correction still shows the same slab/blockout symptom, stop presentation changes and isolate a minimal repro/root cause before another fix.
+- Reused the standalone-player build/capture path with declarative `*.module-validation.json`, separate `*.player-scenario.json`, diff-driven planning, shared/core expansion, and Kentridge fallback. An independent Structures fixture proves reuse.
+- Required focused tests/player targets fail closed on missing evidence, missing scene/scenario, failed required/forbidden logs, or insufficient captures.
+- Earlier Water failures isolated separate causes instead of hiding them: near-field Water ownership, camera/lighting/composition, and shared-arena vertex addressing. Exact run `33362755513` proved the vertex-base correction made production Water visible.
+- Two materially different scene fixes then left the same broad planar-slab visual symptom. Exact run `33368234376` was green but remained prototype/blockout quality, so further scene tuning stopped.
+- Minimal repro/root cause: `WaterBrickMeshBatchJob` greedily merged contiguous upward Water faces into large coplanar quads with only corner vertices, while `WaterSurface.shader` changed fragment normals only. `WaterBrickMeshBatchJobTests.FlatWaterTop_EmitsPerVoxelTopQuads_ForWaveDeformation` captures the required topology.
+- Selected narrow production fix: `34ec82a0e82cf18d653c7fff5442605981fc123a` keeps upward Water faces at voxel tessellation while side/bottom faces stay greedy; `1668500c6c9d9bb639158813e201de3737063f55` adds deterministic vertex-stage displacement only for upward Water geometry. Authoritative voxels and collision remain unchanged.
 
 ## Blast radius / cost
-CI/orchestration, validation assets/tests/docs, composition-owned Water tableau/probes, semantic Water vertex addressing, and scene-local Water validation composition. Gameplay/storage truth is unchanged. Verified automatic Water + Kentridge path costs 163.0s.
+CI/orchestration, validation assets/tests/docs, composition-owned Water tableau/probes, semantic Water vertex addressing, and Water presentation mesh/shader. Top-surface geometry increases to at most one quad per exposed voxel while side/bottom extraction stays greedy. Verified automatic Water + Kentridge path cost was 163.0s before this topology change; exact-head CI must confirm practical cost and no mesh overflow.
 
 ## Current commit
-Scaled-tableau implementation begins at `582f290a09dbb8b2b45d12cbb500f209ae079247`; task/plan evidence commits follow on the same feature branch.
+Topology/shader implementation ends at `1668500c6c9d9bb639158813e201de3737063f55`; evidence commits follow on the same feature branch.
 
 ## Remaining gates
 - [x] Implement generic metadata/discovery, fail-closed execution, Water migration, docs, and independent reuse proof.
 - [x] Demonstrate automatic focused Water -> built-player Water -> built-player Kentridge flow and record cost/evidence.
 - [x] Isolate and fix the production Water shared-arena vertex-addressing defect.
-- [ ] Run exact-SHA CI for the scaled tableau and visually accept still pool, shallow shoreline, river flow, cascade, receiving pool, and terrain contacts as production-quality; if the same symptom remains, isolate minimal repro/root cause before another fix.
+- [x] After two failed scene fixes, isolate the planar-slab symptom and add a minimal behavioral regression before another fix.
+- [ ] Run exact-SHA CI for the topology/shader fix; verify focused regression, mesh overflow/performance behavior, and production-quality Water frames.
 - [ ] Review all 18 acceptance criteria, complete metadata, move open -> closed, merge current master, rerun required exact-head gates, and promote exact head.
