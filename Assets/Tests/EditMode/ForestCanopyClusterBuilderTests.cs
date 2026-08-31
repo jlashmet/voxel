@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using NUnit.Framework;
 using Unity.Mathematics;
 using VoxelEngine.Vegetation.Api;
@@ -27,7 +28,7 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(first[0].Revision, Is.EqualTo(second[0].Revision));
             Assert.That(first[0].MemberIds, Is.EqualTo(second[0].MemberIds));
             Assert.That(first[0].MemberCount, Is.EqualTo(2));
-            Assert.That(first[0].MemberIds, Does.Not.Contain(landmark.StableId));
+            Assert.That(first[0].MemberIds.Contains(landmark.StableId), Is.False);
         }
 
         [Test]
@@ -60,7 +61,7 @@ namespace VoxelEngine.Tests.EditMode
 
             Assert.That(after, Has.Count.EqualTo(2));
             Assert.That(after[0].MemberCount, Is.EqualTo(1));
-            Assert.That(after[0].MemberIds, Does.Contain(b.StableId));
+            Assert.That(after[0].MemberIds.Contains(b.StableId), Is.True);
             Assert.That(after[1].Revision, Is.EqualTo(before[1].Revision));
         }
 
