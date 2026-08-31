@@ -19,9 +19,12 @@
 - [x] Experiment 021 minimal repro isolates framing containment before a third correction: production generic settlement footprint is 51.6 m x 48.4 m, ~35.36 m diagonal half-span; the exact scene 58° lens covers only ~34.37 m per side at the original ~62 m camera-to-focus vertical separation. Experiment 020's AABB test proved intersection, not full containment.
 - [x] Exact run `33376804313` is workflow-green but visual-closure-red: the 72° flat-footprint regression passes while Moordell still clips the fourth blockout and Rossdam shows only one complete building plus a clipped structure.
 - [x] Experiment 022 replaces the falsified scalar footprint model with exact 16:9 projection of the production-plan 3D building envelopes (foundation inset, terrain relief, wall and roof height) and widens only validation settlement surveys to 90° while preserving the established semantic camera/focus pose and production streaming/LOD policy.
+- [x] Exact run `33383144783` proves the projected 90° containment regression and built-player startup, but is evidence-incomplete: Moordell still has one content-pending required building column at t59, so no macro settlement frame is emitted inside 60 s.
+- [x] Experiment 023 isolates a demonstrated generic blockout publication cost: each fallback body was a fully solid brick volume despite acceptance requiring only a readable blockout. Replace it with four shared exterior wall boxes while preserving footprint, height, foundation, roof, placement bounds, materials, and collision silhouette; add an independent synthetic-dimension regression proving a hollow centre and <25% former body volume.
 
 ## Current exact gate
-- [ ] Run the projected-authored-bounds containment regression on the exact current feature SHA through `ci-test/fixes/agent-6`; if it fails, use the reported viewport corner as the next discriminator instead of another visual-only camera tweak.
+- [x] Projected-authored-bounds containment regression is exact-source green on run `33383144783`.
+- [ ] Run the independent generic blockout-shell regression on the exact current feature SHA through `ci-test/fixes/agent-6` and inspect its unchanged 60 s built-player replay for convergence/visual evidence.
 - [ ] After focused green, inspect full-resolution Moordell/Rossdam frames; do not accept workflow green without visual closure.
 - [ ] Verify full-resolution Moordell/Rossdam/Fairy/Orc surveys show all four readable authored settlement blockouts with streets/open space and arrival/exit.
 - [ ] Re-check Rossdam lake framing; it must read as substantial authored water plus constrained route, not the thin distant strip seen in earlier artifacts.
@@ -45,9 +48,11 @@
 - [x] Exact run `33346099006`: focused residency green; combined peak ~`5824MB`, no swap growth, late FPS generally >100 and often 200–360.
 - [x] Exact run `33373258471`: after startup, late player FPS is generally ~127–332 with p95 frame time mostly ~3–12 ms while remote settlement feature publication proceeds.
 - [x] Exact run `33376804313`: late Moordell/Rossdam publication remains generally ~133–346 FPS with p95 frame time mostly ~3–13 ms; Rossdam becomes content-ready around t56 and capture-ready before t57.
+- [x] Exact run `33383144783`: focused projected-containment test passes; player stays runtime-clean, but Moordell convergence exceeds 33 s after macro start and remains one required column pending at t59, demonstrating substantial target-publication variance.
+- [ ] Quantify shell body voxel reduction on authored Kentridge blockouts against experiment 019's ~1.03–1.20M solid structures and measure resulting target convergence.
 - [ ] Quantify actual additional vertical resident/generated region count from feature-aware residency against baseline; prove no horizontal interest-radius/device-budget change numerically.
 - [ ] Measure final lake dimensions/depth/primitive cells, route tile/solve/constrained counts, feature work/time, CPU/FPS, memory, streaming convergence, and render/far-field telemetry against budgets.
-- [ ] Quantify fixed-60-second target phase timing after visual framing closes; run `33376804313` captures Moordell around t40 and Rossdam around t56, then begins the lake target at t57, so later evidence still misses cutoff.
+- [ ] Quantify fixed-60-second target phase timing after visual framing closes; run `33376804313` captures Moordell around t40 and Rossdam around t56, while `33383144783` does not reach Moordell capture by t60.
 - [ ] Re-fetch current master and re-check exact feature diff immediately before final targeted CI.
 
 ## Acceptance / closure
@@ -59,7 +64,7 @@
 - [ ] (6) Built world visibly contains a substantial lake + ridge and at least one geography-altered hard route.
 - [ ] (7) Regional terrain visibly reads as differentiated countryside rather than a flat debug plane.
 - [ ] (8) No second scene-local graph/direct voxel-writing/static destination hierarchy.
-- [ ] (9) Focused behavioral regressions cover determinism, reachability, roads, settlements, constraints, blocked-route failure, bounded water cost, evidence sequencing, feature-aware vertical residency, two-stage readiness, and settlement-survey containment.
+- [ ] (9) Focused behavioral regressions cover determinism, reachability, roads, settlements, constraints, blocked-route failure, bounded water cost, evidence sequencing, feature-aware vertical residency, two-stage readiness, settlement-survey containment, and generic blockout-shell cost.
 - [ ] (10) Exact built-player evidence covers settlements, roads entering/leaving settlements, network survey, geography, constrained route, and CharacterMotor traversal without runtime exceptions.
 - [ ] (11) Blast radius and world-build/route/CPU/GPU/memory/streaming cost are measured against budgets.
 - [ ] Corrected final exact-SHA focused CI and built-player evidence are closure-quality green.
