@@ -67,11 +67,10 @@
 - [x] Automatic module plan/static check and all four reservation suites pass on that exact source.
 - [x] Repository/workflow audit found no separate current `ProjectValidator` target; Unity compile/build plus the module-plan static test are the concrete current gates and are green.
 - [x] Required module-local built-player/visual gate and canonical Kentridge built-player integration gate are green with durable evidence.
-- [x] Final assignment compare against `origin/master` `2ea5f5c95f89fbf0403dbefb50b782829583d304` is 0 behind and assignment-scoped.
+- [x] Final assignment compare against pre-promotion `origin/master` `2ea5f5c95f89fbf0403dbefb50b782829583d304` was 0 behind and assignment-scoped.
 - [x] Blast radius, cost, acceptance mapping, exact-SHA CI evidence, and prior blockers/root causes are recorded in `plan.md` / issue metadata.
-- [x] Every acceptance criterion is validated; closure bookkeeping may proceed.
-- [x] Verify transport is idle after final run completion.
-- [x] Obtain green exact-SHA CI and record request/run/tested-SHA evidence.
-- [ ] Set issue metadata to fixed/resolved and move this directory directly `open/` -> `closed/`.
-- [ ] Re-fetch current `origin/master`; merge only if advanced, and revalidate any changed product tree.
-- [ ] Push the final feature head to `origin/master` non-force; if master advances, fetch/merge/revalidate/retry.
+- [x] Every acceptance criterion is validated.
+- [x] Final CI transport was idle after run `33366247235` completed successfully.
+- [x] Issue metadata is fixed/resolved and the complete assignment directory moved directly `open/` -> `closed/` in commit `8f41a2364780e32d8744b85c10146c3a192846cb`.
+- [x] Final `origin/master` re-fetch found `2ea5f5c95f89fbf0403dbefb50b782829583d304`, already an ancestor of the feature head; merge was therefore a no-op with no changed product tree to revalidate.
+- [x] Non-force promotion to `origin/master` succeeded at closed feature head `8f41a2364780e32d8744b85c10146c3a192846cb`; this final checklist-only fast-forward is promoted immediately afterward so master and feature finish identical.
