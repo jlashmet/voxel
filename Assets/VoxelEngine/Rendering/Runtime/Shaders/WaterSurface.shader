@@ -53,13 +53,29 @@ Shader "Hidden/VoxelEngine/WaterSurface"
                 nointerpolation uint material : TEXCOORD2;
             };
 
+            float3 DeformedPosition(float3 p, float3 normal, uint material)
+            {
+                if (normal.y < 0.99)
+                    return p;
+
+                float phaseA = dot(p.xz, float2(0.78, 0.46)) * 1.55 + _WaterTime * 1.15;
+                float phaseB = dot(p.xz, float2(-0.42, 0.91)) * 2.15 - _WaterTime * 0.82;
+                float phaseC = dot(p.xz, float2(1.17, -0.31)) * 0.92 + _WaterTime * 0.46;
+                float amplitude = material == 16u ? 0.045 : 0.085;
+                float displacement = (sin(phaseA) * 0.52 + sin(phaseB) * 0.31 + sin(phaseC) * 0.17)
+                                   * amplitude;
+                p.y += displacement;
+                return p;
+            }
+
             Varyings Vert(uint vertexID : SV_VertexID)
             {
                 uint localVertex = _SurfaceIndices[_SurfaceIndexBase + vertexID];
                 SurfaceVertex vertex = _SurfaceVertices[_SurfaceVertexBase + localVertex];
+                float3 positionWS = DeformedPosition(vertex.position, vertex.normal, vertex.material);
                 Varyings output;
-                output.positionCS = TransformWorldToHClip(vertex.position);
-                output.positionWS = vertex.position;
+                output.positionCS = TransformWorldToHClip(positionWS);
+                output.positionWS = positionWS;
                 output.normalWS = normalize(vertex.normal);
                 output.material = vertex.material;
                 return output;
