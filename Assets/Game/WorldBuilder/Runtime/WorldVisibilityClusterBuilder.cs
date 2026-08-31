@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
+using MountingForce.WorldGen;
 using MountingForce.WorldGen.Architecture;
-using MountingForce.WorldGen.Content.Kentridge;
 
 namespace Game.WorldBuilder.Runtime
 {
