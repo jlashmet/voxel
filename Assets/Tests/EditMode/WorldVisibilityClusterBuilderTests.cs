@@ -1,6 +1,8 @@
 using System.Linq;
 using Game.WorldBuilder.Runtime;
+using MountingForce.WorldGen;
 using MountingForce.WorldGen.Architecture;
+using MountingForce.WorldGen.Content.Kentridge;
 using NUnit.Framework;
 
 namespace VoxelEngine.Tests.EditMode
