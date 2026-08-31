@@ -66,17 +66,34 @@ namespace VoxelEngine.Tests.PlayMode
                 world.ConfigureGeneratedContentForGameplay(combined);
                 combined = default;
 
-                Assert.That(world.IsGenerated(upperRegion), Is.False);
-                int featureVoxelsBefore = world.FeatureVoxelsBuilt;
+                int3 presentationRegion = new int3(
+                    upperRegion.x,
+                    presentationLayer,
+                    upperRegion.z);
+                world.GenerateRegionBlocking(presentationRegion);
 
+                Assert.That(
+                    world.IsCurrentDemandContentSettled(presentationMetres),
+                    Is.True,
+                    "The fixture must first establish the historical race state: the bounded terrain/presentation layer is already final.");
+                Assert.That(
+                    world.IsGenerated(upperRegion),
+                    Is.False,
+                    "The fixture must keep the authored upper shell absent before ordinary streaming resumes.");
+                Assert.That(
+                    world.IsPresentationColumnContentSettled(presentationMetres),
+                    Is.False,
+                    "Presentation readiness must not report a ground column final while an authored upper feature layer in the same X/Z column is still absent.");
+
+                int featureVoxelsBefore = world.FeatureVoxelsBuilt;
                 int steps = 0;
                 while ((!world.IsGenerated(upperRegion)
                         || !world.IsPresentationColumnContentSettled(presentationMetres))
                        && steps++ < MaximumStreamingSteps)
                 {
                     // StepStreaming is the production per-frame ShowcaseWorld update path. Do not
-                    // call GenerateRegionBlocking or move the viewer into the upper region: this
-                    // regression exists specifically to prove authored vertical residency does it.
+                    // move the viewer into the upper region: this regression exists specifically
+                    // to prove authored vertical residency and final publication do it.
                     world.StepStreaming(presentationMetres, StreamingBudgetMs);
                 }
 
@@ -91,7 +108,7 @@ namespace VoxelEngine.Tests.PlayMode
                 Assert.That(
                     world.FeatureVoxelsBuilt,
                     Is.GreaterThan(featureVoxelsBefore),
-                    "The residency transition must include real feature rasterization, not only terrain queue bookkeeping.");
+                    "The residency transition must include real feature rasterization in the upper authored layer, not only terrain queue bookkeeping.");
                 Assert.That(
                     world.ReadStorage.TryAcquireRegion(upperRegion, out RegionReadView _),
                     Is.True,
