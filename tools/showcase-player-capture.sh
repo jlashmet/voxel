@@ -416,14 +416,28 @@ if [[ -n "$SCENE_ISSUE" ]]; then
   fi
 
   if [[ "$SCENE" == "Assets/Scenes/WorldbuildingGalleryShowcase.unity" ]] && (( ISSUE_CAPTURE_COUNT == 0 )); then
-    AUDIT_DIR="$SHOTS_DIR/TownArchitectureAudit"
-    audit_shots="$(find "$AUDIT_DIR" -type f -name '*.png' -size +1k 2>/dev/null | wc -l | tr -d ' ')"
-    if (( audit_shots < 18 )) || ! grep -q 'TOWNARCH_AUDIT result=PASS' "$PLAYER_LOG" 2>/dev/null; then
-      echo "ERROR: capture-less town architecture audit did not produce all 18 built-player views (found $audit_shots)." >&2
-      tail -120 "$PLAYER_LOG" >&2 || true
-      exit 1
+    # Capture-less gallery features may publish a dedicated semantic audit instead of the generic
+    # town-architecture tour. Validate whichever built-player contract actually reported PASS,
+    # rather than hard-coding 18 town frames for every feature that shares this scene.
+    if grep -q 'STRUCTURAL_AUDIT result=PASS' "$PLAYER_LOG" 2>/dev/null; then
+      STRUCTURAL_DIR="$SHOTS_DIR/StructuralCompositionAudit"
+      structural_shots="$(find "$STRUCTURAL_DIR" -type f -name '*.png' -size +1k 2>/dev/null | wc -l | tr -d ' ')"
+      if (( structural_shots < 8 )); then
+        echo "ERROR: structural composition audit reported PASS but produced only $structural_shots/8 built-player views." >&2
+        tail -120 "$PLAYER_LOG" >&2 || true
+        exit 1
+      fi
+      echo "structural composition audit views: $structural_shots"
+    else
+      AUDIT_DIR="$SHOTS_DIR/TownArchitectureAudit"
+      audit_shots="$(find "$AUDIT_DIR" -type f -name '*.png' -size +1k 2>/dev/null | wc -l | tr -d ' ')"
+      if (( audit_shots < 18 )) || ! grep -q 'TOWNARCH_AUDIT result=PASS' "$PLAYER_LOG" 2>/dev/null; then
+        echo "ERROR: capture-less town architecture audit did not produce all 18 built-player views (found $audit_shots)." >&2
+        tail -120 "$PLAYER_LOG" >&2 || true
+        exit 1
+      fi
+      echo "town architecture audit views: $audit_shots"
     fi
-    echo "town architecture audit views: $audit_shots"
   fi
 
   FINAL_SHOT="$(find "$SHOTS_DIR" -type f -name '*.png' -size +1k | sort | tail -1)"
