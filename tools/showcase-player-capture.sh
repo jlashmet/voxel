@@ -201,6 +201,10 @@ if [[ -n "$TEST_FILTER" && -z "$SCENE_ISSUE" ]]; then
       : "${SURVEY_HEIGHT:=55}"
       : "${SURVEY_SPIN:=30}"
       ;;
+    VoxelEngine.Tests.PlayMode.ExplorationInteractablesSecretsShowcaseTests|VoxelEngine.Tests.PlayMode.ExplorationInteractablesSecretsShowcaseTests.*)
+      SCENE="Assets/Game/Scenes/InteractablesShowcase.unity"
+      : "${RUN_SECONDS:=30}"
+      ;;
     *)
       if (( IF_CONFIGURED )); then
         echo "No real-player screenshot/benchmark profile for '$TEST_FILTER'; skipping capture."
