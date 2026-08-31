@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Game.WorldBuilder.Api;
 using MountingForce.WorldGen.Architecture;
@@ -58,18 +59,7 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void Query_CulledPolicyOmitsRecord()
         {
-            var record = new StructureFarPresentation(
-                1UL,
-                2UL,
-                new Int2(0, 0),
-                new Int2(100, 100),
-                50,
-                (FrontageDirection)0,
-                (StructureArchetype)0,
-                3UL,
-                4UL,
-                StructureVisibilityClass.OrdinaryStructure,
-                5UL);
+            var record = Record(1UL, 1UL, 0, 0, StructureVisibilityClass.OrdinaryStructure);
             var adapter = new ShowcaseFarStructureSource(
                 new FakeVisibilitySource(record),
                 (_, __) => FarStructureTier.Culled,
@@ -78,29 +68,148 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(adapter.Query(float2.zero, 20f), Is.Empty);
         }
 
+        [Test]
+        public void Query_FarClusterBoundsDenseSettlementAndPreservesLandmarkWithoutDoubleMembers()
+        {
+            var records = new List<StructureFarPresentation>();
+            for (int i = 0; i < 12; i++)
+            {
+                int x = (i % 4) * 120;
+                int z = (i / 4) * 120;
+                records.Add(Record(
+                    (ulong)(100 + i),
+                    settlementKey: 0xCAFEUL,
+                    minX: x,
+                    minZ: z,
+                    visibility: StructureVisibilityClass.OrdinaryStructure));
+            }
+            records.Add(Record(
+                999UL,
+                settlementKey: 0xCAFEUL,
+                minX: 180,
+                minZ: 120,
+                visibility: StructureVisibilityClass.Landmark));
+
+            var source = new FakeVisibilitySource(records.ToArray());
+            var adapter = new ShowcaseFarStructureSource(
+                source,
+                (_, __) => FarStructureTier.Mid,
+                _ => 0f,
+                new ShowcaseFarStructureSource.ClusterConfiguration(
+                    sectorSizeDm: 1000,
+                    selectTier: (_, __) => FarStructureTier.Far));
+
+            IReadOnlyList<FarStructureInstance> instances = adapter.Query(new float2(20f, 15f), 100f);
+
+            Assert.That(instances, Has.Count.EqualTo(2),
+                "twelve ordinary buildings should collapse to one cluster while the landmark remains independent");
+            Assert.That(ContainsStableId(instances, 999UL), Is.True);
+            Assert.That(CountProxy(instances, "settlement-cluster"), Is.EqualTo(1));
+            Assert.That(CountOrdinaryMemberIds(instances, 100UL, 111UL), Is.EqualTo(0),
+                "active cluster representation must suppress its individual ordinary members");
+        }
+
+        [Test]
+        public void Query_InactiveClusterReturnsMembersInsteadOfDoubleRenderingClusterAndMembers()
+        {
+            StructureFarPresentation first = Record(
+                10UL, 7UL, 0, 0, StructureVisibilityClass.OrdinaryStructure);
+            StructureFarPresentation second = Record(
+                11UL, 7UL, 120, 0, StructureVisibilityClass.OrdinaryStructure);
+            var adapter = new ShowcaseFarStructureSource(
+                new FakeVisibilitySource(first, second),
+                (_, __) => FarStructureTier.Mid,
+                _ => 0f,
+                new ShowcaseFarStructureSource.ClusterConfiguration(
+                    sectorSizeDm: 1000,
+                    selectTier: (_, __) => FarStructureTier.Culled));
+
+            IReadOnlyList<FarStructureInstance> instances = adapter.Query(float2.zero, 50f);
+
+            Assert.That(instances, Has.Count.EqualTo(2));
+            Assert.That(CountProxy(instances, "settlement-cluster"), Is.EqualTo(0));
+            Assert.That(ContainsStableId(instances, 10UL), Is.True);
+            Assert.That(ContainsStableId(instances, 11UL), Is.True);
+        }
+
+        private static StructureFarPresentation Record(
+            ulong key,
+            ulong settlementKey,
+            int minX,
+            int minZ,
+            StructureVisibilityClass visibility)
+        {
+            return new StructureFarPresentation(
+                key,
+                settlementKey,
+                new Int2(minX, minZ),
+                new Int2(minX + 100, minZ + 100),
+                80,
+                (FrontageDirection)0,
+                (StructureArchetype)0,
+                3UL,
+                4UL,
+                visibility,
+                5UL);
+        }
+
+        private static bool ContainsStableId(IReadOnlyList<FarStructureInstance> instances, ulong stableId)
+        {
+            for (int i = 0; i < instances.Count; i++)
+                if (instances[i].StableId == stableId) return true;
+            return false;
+        }
+
+        private static int CountProxy(IReadOnlyList<FarStructureInstance> instances, string proxyKey)
+        {
+            int count = 0;
+            for (int i = 0; i < instances.Count; i++)
+                if (string.Equals(instances[i].ProxyKey, proxyKey, StringComparison.Ordinal)) count++;
+            return count;
+        }
+
+        private static int CountOrdinaryMemberIds(
+            IReadOnlyList<FarStructureInstance> instances,
+            ulong first,
+            ulong last)
+        {
+            int count = 0;
+            for (int i = 0; i < instances.Count; i++)
+                if (instances[i].StableId >= first && instances[i].StableId <= last) count++;
+            return count;
+        }
+
         private sealed class FakeVisibilitySource : IWorldVisibilitySource
         {
-            private readonly StructureFarPresentation _record;
+            private readonly StructureFarPresentation[] _records;
 
-            public FakeVisibilitySource(StructureFarPresentation record)
+            public FakeVisibilitySource(params StructureFarPresentation[] records)
             {
-                _record = record;
+                _records = records ?? Array.Empty<StructureFarPresentation>();
             }
 
             public int QueryCount { get; private set; }
 
             public bool TryGet(ulong structureKey, out StructureFarPresentation value)
             {
-                value = _record;
-                return structureKey == _record.StructureKey;
+                for (int i = 0; i < _records.Length; i++)
+                {
+                    if (_records[i].StructureKey != structureKey) continue;
+                    value = _records[i];
+                    return true;
+                }
+
+                value = default;
+                return false;
             }
 
             public IReadOnlyList<StructureFarPresentation> Query(WorldVisibilityBoundsDm bounds)
             {
                 QueryCount++;
-                return bounds.Intersects(_record)
-                    ? new[] { _record }
-                    : System.Array.Empty<StructureFarPresentation>();
+                var matches = new List<StructureFarPresentation>();
+                for (int i = 0; i < _records.Length; i++)
+                    if (bounds.Intersects(_records[i])) matches.Add(_records[i]);
+                return matches;
             }
         }
     }
