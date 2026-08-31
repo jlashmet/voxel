@@ -55,8 +55,10 @@ namespace VoxelEngine.Showcase
                 minimumPlaceholderCrestMargin: 12,
                 supportForm: MountainLandmarkSupportForm.RidgeAndButtress);
 
-        private static MountainLandmarkSpec CreateLandmarkAtBaseY(int baseY) =>
-            new MountainLandmarkSpec(
+        private static MountainLandmarkSpec CreateLandmarkAtBaseY(int baseY)
+        {
+            MountainLandmarkTraversalProfile traversal = CreateTraversalProfile();
+            return new MountainLandmarkSpec(
                 new int3(OriginX, baseY, OriginZ),
                 FootprintEdge,
                 MountainRadius,
@@ -66,6 +68,8 @@ namespace VoxelEngine.Showcase
                 PathRun,
                 PathRise,
                 SwitchbackCount,
-                PlaceholderSize);
+                PlaceholderSize,
+                in traversal);
+        }
     }
 }
