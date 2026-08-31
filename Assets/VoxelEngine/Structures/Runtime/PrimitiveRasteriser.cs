@@ -163,10 +163,10 @@ namespace VoxelEngine.Structures.Runtime
                 {
                     boxCarveBlockKind = read.BlockKindOrEmpty(worldBlock);
 
-                    // Mountain headroom and other axis-aligned voids often overlap large volumes
-                    // already encoded as canonical Empty. A box has no authored boundary halo, so
-                    // those blocks are exact no-ops. Mixed is deliberately not treated as empty:
-                    // it may contain authored empty-side boundary samples that carving must clear.
+                    // Axis-aligned voids often overlap large volumes already encoded as canonical
+                    // Empty. A box has no authored boundary halo, so those blocks are exact no-ops.
+                    // Mixed is deliberately not treated as empty: it may contain authored empty-side
+                    // boundary samples that carving must clear.
                     if (boxCarveBlockKind == VoxelReadBlockKind.Empty)
                         continue;
                 }
@@ -186,13 +186,13 @@ namespace VoxelEngine.Structures.Runtime
                         && blockKind == VoxelReadBlockKind.Uniform)
                         continue;
 
-                    // Mountain support is dominated by convex FillIfEmpty frusta into canonical
-                    // Empty storage. For a complete storage block, the eight extreme voxel centres
-                    // bound the rectangular set of centres. Frustum radius varies monotonically
-                    // along its axis, so if all eight extremes are inside, every one of the block's
-                    // 8^3 centres is inside as well. Fill and FillIfEmpty therefore have the same
-                    // exact result on canonical Empty: one identical whole-cell block and 512
-                    // logical writes. Mixed and boundary blocks deliberately retain the cell path.
+                    // Convex FillIfEmpty frusta can cover large canonical-Empty volumes. For a
+                    // complete storage block, the eight extreme voxel centres bound the rectangular
+                    // set of centres. Frustum radius varies monotonically along its axis, so if all
+                    // eight extremes are inside, every one of the block's 8^3 centres is inside as
+                    // well. Fill and FillIfEmpty therefore have the same exact result on canonical
+                    // Empty: one identical whole-cell block and 512 logical writes. Mixed and
+                    // boundary blocks deliberately retain the cell path.
                     if (blockKind == VoxelReadBlockKind.Empty
                         && fullBlock
                         && FrustumContainsFullBlock(in primitive, blockVoxelMin))
@@ -661,7 +661,7 @@ namespace VoxelEngine.Structures.Runtime
                 case PrimitiveShape.Ramp: return BoxEmitter.RampContains(in primitive, voxel);
                 case PrimitiveShape.Cylinder: return CylinderEmitter.Contains(in primitive, voxel);
                 case PrimitiveShape.Prism: return PrismEmitter.Contains(in primitive, voxel);
-                case PrimitiveShape.Capsule: return CapsuleChainEmitter.Contains(in primitive, voxel);
+                case PrimitiveShape.Capsule: return CapsuleChainEmitter.ContainsQ4(in primitive, voxel, 8);
                 case PrimitiveShape.RoundedBox:
                 case PrimitiveShape.Ellipsoid:
                 case PrimitiveShape.Frustum:
