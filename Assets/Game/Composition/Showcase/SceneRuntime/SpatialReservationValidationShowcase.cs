@@ -1,10 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using MountingForce.WorldGen;
 using MountingForce.WorldGen.Architecture;
 using MountingForce.WorldGen.Content.Kentridge;
 using MountingForce.WorldGen.Voxel;
 using UnityEngine;
+using UnityEngine.Profiling;
+using Debug = UnityEngine.Debug;
 
 namespace VoxelEngine.Showcase
 {
@@ -28,6 +31,7 @@ namespace VoxelEngine.Showcase
 
         private void Awake()
         {
+            long started = Stopwatch.GetTimestamp();
             SettlementPlan plan = KentridgeTownPlanner.Build(EvidenceSeed);
             _snapshot = KentridgeTownPlanner.BuildReservationSnapshot(EvidenceSeed);
             SpatialReservation hard = FindFirst(
@@ -69,6 +73,16 @@ namespace VoxelEngine.Showcase
             AddClaim(underground, new Color(0.82f, 0.22f, 0.95f, 0.70f), "Underground");
             AddClaim(_rejected, new Color(0.95f, 0.12f, 0.10f, 0.62f), "Rejected candidate");
 
+            ReservationQueryMetrics metrics = _rejection.Metrics;
+            Debug.Log(
+                "SPATIAL_RESERVATION_COST build_ticks=" + (Stopwatch.GetTimestamp() - started)
+                + " claims=" + _snapshot.Reservations.Count
+                + " query_buckets=" + metrics.BucketsVisited
+                + " query_candidates=" + metrics.BroadPhaseCandidates
+                + " query_tests=" + metrics.NarrowPhaseTests
+                + " allocated_bytes=" + Profiler.GetTotalAllocatedMemoryLong()
+                + " reserved_bytes=" + Profiler.GetTotalReservedMemoryLong()
+                + " unused_reserved_bytes=" + Profiler.GetTotalUnusedReservedMemoryLong());
             Debug.Log(
                 "SPATIAL_RESERVATION_VALIDATION ready: claims=" + _snapshot.Reservations.Count
                 + " underground=" + underground.OwnerId
