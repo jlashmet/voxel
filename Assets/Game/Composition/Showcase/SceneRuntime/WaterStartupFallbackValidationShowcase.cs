@@ -136,7 +136,7 @@ namespace VoxelEngine.Showcase
             }
 
             Debug.Log(
-                "WATER_VALIDATION ready: still pool, shallow shoreline, descending river, cascade, receiving pool, and terrain contacts use production near-field water presentation.");
+                "WATER_VALIDATION ready: still pool, shallow shoreline, meandering river, cascade, receiving pool, and terrain contacts use production near-field water presentation.");
             _camera.transform.hasChanged = false;
         }
 
@@ -182,7 +182,7 @@ namespace VoxelEngine.Showcase
                 float t = Mathf.InverseLerp(CascadeStartZ, CascadeEndZ, z);
                 int y = Mathf.RoundToInt(Mathf.Lerp(BaseY + 1, BaseY, t));
                 float centre = RiverCentreX(z);
-                float halfWidth = Mathf.Lerp(14f, 10f, t);
+                float halfWidth = Mathf.Lerp(9f, 7f, t);
                 for (int x = 195; x <= 295; x++)
                 {
                     float dx = Mathf.Abs(x - centre);
@@ -281,22 +281,18 @@ namespace VoxelEngine.Showcase
         {
             float t = Mathf.InverseLerp(RiverStartZ, CascadeEndZ, z);
             return 238f
-                + Mathf.Sin(t * Mathf.PI * 1.65f) * 14f
-                + Mathf.Sin(t * Mathf.PI * 3.1f) * 5f;
+                + Mathf.Sin(t * Mathf.PI * 1.65f) * 18f
+                + Mathf.Sin(t * Mathf.PI * 3.1f) * 6f;
         }
 
         private static float RiverHalfWidth(int z)
         {
             float t = Mathf.InverseLerp(RiverStartZ, CascadeEndZ, z);
-            return Mathf.Lerp(14f, 10f, t) + Mathf.Sin(t * Mathf.PI * 2.2f) * 2f;
+            return Mathf.Lerp(9f, 7f, t) + Mathf.Sin(t * Mathf.PI * 2.2f) * 1.5f;
         }
 
         private static int RiverHeight(int z)
         {
-            if (z <= 230)
-                return BaseY + 3;
-            if (z <= 280)
-                return BaseY + 2;
             return BaseY + 1;
         }
 
