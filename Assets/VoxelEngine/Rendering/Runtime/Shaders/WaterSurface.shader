@@ -274,7 +274,7 @@ Shader "Hidden/VoxelEngine/WaterSurface"
                         input.positionWS.y * 0.47 - _WaterTime * motion.w * 0.24,
                         warpedLateral * 0.18 + 73.1));
                     float edgeErosion = edgeTopology * cascade.x
-                                      * lerp(0.02, 0.14, edgeNoise);
+                                      * lerp(0.04, 0.24, edgeNoise);
                     float coverageCutoff = lerp(0.26, 0.10, boundaryTopology);
                     coverageCutoff = min(0.46,
                         coverageCutoff + edgeErosion * (1.0 - boundaryTopology * 0.65));
