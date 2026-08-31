@@ -13,6 +13,10 @@
     {
       "platform": "PlayMode",
       "filter": "VoxelEngine.Tests.PlayMode.CastleLowerRiverWaterRepairPlayModeTests.StartupFallbackPreservesAuthoredWaterHeightAndMaterial"
+    },
+    {
+      "platform": "EditMode",
+      "filter": "VoxelEngine.Tests.EditMode.WaterBrickMeshBatchJobTests.FlatWaterTop_EmitsPerVoxelTopQuads_ForWaveDeformation"
     }
   ],
   "playerValidation": {
