@@ -90,6 +90,32 @@ gate to production changes. Do not manually choose module validation scenes, sce
 profiles, or player-build commands. Visual acceptance comes only from standalone-player output;
 PlayMode screenshots/RenderTextures are diagnostics or behavioral regressions, not visual proof.
 
+### Test and validation scene fidelity
+
+Dedicated test/validation scenes should isolate the feature under test, but they must exercise the
+same production realization and presentation paths that the shipped game uses whenever those paths
+already exist.
+
+- Reuse the real voxel storage, authoring, meshing, rendering, material/coating, terrain,
+  tree/vegetation, structure-generation, lighting, and presentation systems that apply to the feature.
+  A validation scene is a focused production consumer, not a parallel miniature renderer or art stack.
+- Do not substitute `GameObject.CreatePrimitive`, hand-built cubes/planes, custom one-off meshes,
+  ad-hoc materials/shaders, fake trees/rocks, or bespoke lighting for existing production systems merely
+  to make the target behavior visible. Such stand-ins may be used only for narrowly scoped non-visual
+  behavioral fixtures where rendered fidelity is not evidence or acceptance.
+- When validating generated content, create it through the repository's production generators,
+  authoring sessions, semantic configuration, and runtime composition. Do not manually reconstruct the
+  expected generated result in the scene bootstrap.
+- Test-only code may provide deterministic inputs, camera/player setup, instrumentation, assertions,
+  and bounded orchestration. It must not reimplement the product's geometry, materials, vegetation,
+  interaction behavior, or other visual/runtime realization being validated.
+- If the production path is difficult to invoke in isolation, fix or expose the reusable production
+  composition boundary instead of building a visually similar test-only substitute. Record a genuine
+  unavailable prerequisite as a blocker rather than lowering scene fidelity.
+- Before accepting a player-visible validation scene, compare its rendered systems to a representative
+  production scene. Unexpected custom shapes/materials, primitive-looking terrain/props, or missing
+  production vegetation/rendering are validation defects even when behavioral assertions pass.
+
 Coordinator-assigned SceneIssues have stricter branch, evidence, and closure rules. Follow
 [SceneIssues/README.md](SceneIssues/README.md); it is the sole workflow authority for those tasks.
 

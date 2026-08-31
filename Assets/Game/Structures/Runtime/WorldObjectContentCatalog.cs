@@ -26,6 +26,7 @@ namespace Game.Structures.Runtime
             switch (kind)
             {
                 case WorldObjectKind.Door:
+                case WorldObjectKind.Trapdoor:
                     return P(kind, SignalTarget | WorldObjectCapabilities.BlocksNavigation | WorldObjectCapabilities.Lockable |
                         WorldObjectCapabilities.Destructible);
                 case WorldObjectKind.Gate:
