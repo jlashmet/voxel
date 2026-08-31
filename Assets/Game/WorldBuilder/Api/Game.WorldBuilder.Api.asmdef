@@ -4,7 +4,8 @@
   "references": [
     "Game.Cutscenes.Api",
     "Game.Quests.Api",
-    "MountingForce.WorldGen.Architecture"
+    "MountingForce.WorldGen.Architecture",
+    "MountingForce.WorldGen.Core"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
