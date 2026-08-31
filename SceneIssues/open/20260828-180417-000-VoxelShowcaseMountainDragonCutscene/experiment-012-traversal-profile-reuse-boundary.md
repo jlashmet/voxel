@@ -13,5 +13,6 @@ The reusable WorldBuilder mountain API still encoded the VoxelShowcase player en
 
 ## Validation
 - The earlier module-local convention gate `33356149526` is green on pre-wiring source `038623cc...`; it is not evidence for this change.
-- Exact traversal-profile request `33356599940` targets source `9dfa538f43dec4e085b0b4b2073b2bcca823282f` and is currently queued. Leave it untouched until completion.
-- Known old tests may still refer to removed reusable constants. Use the exact CI compile/test result as the discriminator, migrate only demonstrated stale references, then rerun through `ci-test/fixes/agent-4`.
+- Exact request `33356599940` on source `9dfa538f43dec4e085b0b4b2073b2bcca823282f` completed with compiler errors only. Artifact `9745399150` showed exactly four stale regression references: two `MountainDragonNaturalSupportProgramTests` references to removed `PathClearanceWidthVoxels` and two `MountainDragonPathHeadroomBakeTests` references to removed `PathHeadroomVoxels`. No constructor/product assertion failure was reached.
+- Migrated those exact regressions to `spec.PathClearanceWidthVoxels` / `ShowcaseMountainDragonLayout.CreateTraversalProfile().HeadroomVoxels`; no production geometry changed in the compiler-fix commits.
+- Exact retry `33357005029` targets request `a25100c3...`, whose parent is source `f89a59d0d16adeacc5dd6eebf532febab9b224be`. It is queued and must not be replaced while queued/running.
