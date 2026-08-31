@@ -20,6 +20,8 @@
 - [x] Punch true low-coverage holes only in vertical Waterfall body fragments so transparent breakup does not still stamp depth; keep pool/river depth behavior unchanged (`3b1729c9c8a98af4c8692b13b7450c196c524f8e`).
 - [x] Lower authored showcase Cascade feet into the receiving-water contact band so canonical impact topology/spray occurs at the pool instead of suspended above it (`da6445f9d4cfbee8b6763dbc77b3d8b6a380b703`).
 - [x] Add behavioral regressions for waterfall cutout coverage and receiving-water contact before the next visual gate (`WaterfallBodyPunchesRealCoverageWhileStillWaterRemainsContinuous`; `ExactCascadeCurtainImpactsBesideReceivingWaterAndSurvivesProductionCache`, latest lock `fb4db36bd0346ce477e5b059f16a0248ac568ab4`).
+- [x] Add independent production-shader edge regression proving semantic side-edge topology erodes only Cascade silhouette coverage and leaves still water unchanged (`WaterfallEdgeCoverageRegressionTests`).
+- [x] Make existing `WaterEdgeFlag` topology participate in vertical Waterfall coverage with descending-noise edge erosion; do not change global cutoff, extraction/storage, still/river behavior, or scene policy (`ed5997d8fabfed8cd08e70fc9cc3ad99c4c2752a`).
 
 ## Root-cause / visual history
 - [x] Fix Metal procedural-indirect arena addressing with explicit `_SurfaceVertexBase` (`33339706799`).
@@ -41,6 +43,9 @@
 - [x] Implement the isolated flat-veil and impact-contact fixes without changing still/river depth behavior or shared storage/extraction contracts (`3b1729c9...`, `da6445f9...`, regression lock `fb4db36b...`).
 - [x] Exact run `33385090491` on `c8d55b655806f85564600d9d42b832d2493038fe` is a product failure: 3/4 focused tests pass; cutout coverage is only ~2.5% (5,776 still vs 5,630 Cascade pixels), while the same head builds/replays successfully. Direct replay evidence still shows a nearly rectangular translucent veil, so do not weaken the 5% regression.
 - [x] Strengthen only the isolated vertical Waterfall body cutoff from `0.18` to `0.26`, preserving the `0.10` lip/impact boundary cutoff and leaving still/river/spray paths unchanged (`54fe3ca6f0995d5872a585a129df652f77d03a59`).
+- [x] Exact run `33385919424` on `a1a3594dc3c32332ff8bfbe1883552c6d8aa62b6` passes `WaterArenaDrawRegressionTests`, automatic module validation and the 60-second built replay; direct visual closure is rejected. Internal holes now move/read clearly, but wide and 32/42/52-second close frames retain straight pane-like side silhouettes and hard triangular base shapes.
+- [x] Stop global-cutoff tuning and isolate the surviving outer-edge root cause against `WaterfallReference.shader`: the reference perturbs sheet width, while production `edgeTopology` affects foam/color but not coverage. Existing semantic edge topology must drive localized waterfall edge erosion before any further aesthetic change.
+- [x] Add the independent semantic-edge raster discriminator and implement waterfall-only edge erosion through the existing `WaterEdgeFlag` path (`b493767b...`, `ed5997d8...`).
 
 ## Reliability / cost
 - [x] Preserve spreading/inert gameplay semantics and storage/streaming/edit/diagnostic contracts; no swim/buoyancy subsystem exists to alter.
@@ -53,8 +58,10 @@
 - [x] Historical addressing/topology/spray/cache/raster gates listed above are green on their recorded exact heads.
 - [x] `33375101254`: tapered-spray + connected-curtain regression/module/60-second replay green; direct visual acceptance rejected.
 - [x] `33376859708`: turbulent-carrier `WaterArenaDrawRegressionTests` + module validation + 60-second replay green on `ece306a6ab867701628a0db45dc9e230891353d7`; direct visual acceptance rejected.
-- [ ] Run `WaterArenaDrawRegressionTests` plus 60-second WaterRenderingShowcase replay on the next root-cause-fix exact head.
+- [x] `33385919424`: stronger-cutoff `WaterArenaDrawRegressionTests` + module validation + 60-second replay green on `a1a3594dc3c32332ff8bfbe1883552c6d8aa62b6`; direct visual acceptance rejected, triggering semantic-edge root-cause isolation rather than another global-cutoff tune.
+- [ ] Run `WaterfallEdgeCoverageRegressionTests` and `WaterArenaDrawRegressionTests` plus 60-second WaterRenderingShowcase replay on the semantic-edge exact head.
 - [ ] Directly accept/reject near/wide/time-separated waterfall frames against downward flow, turbulence/aeration, irregular breakup, lip/edge/base foam, free mist/spray and production-quality requirements.
+- [ ] If hard triangular base spray remains after edge acceptance, isolate its canonical geometry/raster cause before another spray change.
 - [ ] Run `ShowcaseWaterPresentationRegressionTests` on the same visually accepted feature head.
 - [ ] Run `WaterSprayProductionPathRegressionTests.CascadeSprayFlagSurvivesCanonicalStorageCacheAndGpuUpload` on the same accepted head.
 - [ ] Confirm exact player build has no startup/runtime/shader compile/stripping/pink/missing-resource failure.
