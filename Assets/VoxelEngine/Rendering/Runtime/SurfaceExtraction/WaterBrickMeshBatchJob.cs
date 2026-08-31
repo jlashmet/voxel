@@ -206,8 +206,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             // One sub-metre skirt was technically rasterized but disappeared against a several-
             // metre waterfall. Three differently pitched sheets create a bounded, reusable impact
-            // volume while remaining ordinary canonical geometry. Noise clipping in the shared
-            // shader breaks these sheets into intermittent mist rather than a solid wedge.
+            // volume while remaining ordinary canonical geometry. Each corner also carries a tiny
+            // local UV in the existing auxiliary word so the shared shader can fade sheet borders
+            // rather than exposing the triangulated fan as hard geometry.
             EmitSprayQuad(edge0, edge1,
                 normal * (VoxelSize * 5.5f) + new float3(0f, VoxelSize * 2.2f, 0f),
                 normal, sprayMaterial);
@@ -228,10 +229,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             float3 p2 = edge1 + plumeOffset;
             float3 p3 = edge0 + plumeOffset;
             uint baseIndex = (uint)Vertices.Length;
-            Vertices.AddNoResize(Vertex(p0, normal, sprayMaterial));
-            Vertices.AddNoResize(Vertex(p1, normal, sprayMaterial));
-            Vertices.AddNoResize(Vertex(p2, normal, sprayMaterial));
-            Vertices.AddNoResize(Vertex(p3, normal, sprayMaterial));
+            Vertices.AddNoResize(SprayVertex(p0, normal, sprayMaterial, 0u));
+            Vertices.AddNoResize(SprayVertex(p1, normal, sprayMaterial,
+                SmoothSurfaceVertex.WaterSprayUFlag));
+            Vertices.AddNoResize(SprayVertex(p2, normal, sprayMaterial,
+                SmoothSurfaceVertex.WaterSprayUFlag | SmoothSurfaceVertex.WaterSprayVFlag));
+            Vertices.AddNoResize(SprayVertex(p3, normal, sprayMaterial,
+                SmoothSurfaceVertex.WaterSprayVFlag));
             AddQuadIndices(baseIndex, p0, p1, p2, normal);
         }
 
@@ -342,6 +346,16 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 Normal = new Vector3(normal.x, normal.y, normal.z),
                 Material = material,
                 Active = FullyLitOcclusion,
+            };
+
+        private static SmoothSurfaceVertex SprayVertex(float3 position, float3 normal,
+                                                       uint material, uint sprayUvBits) =>
+            new()
+            {
+                Position = new Vector3(position.x, position.y, position.z),
+                Normal = new Vector3(normal.x, normal.y, normal.z),
+                Material = material,
+                Active = FullyLitOcclusion | sprayUvBits,
             };
 
         private static int Stride(int axis) => axis == 0 ? 1 : axis == 1 ? Edge : Edge * Edge;
