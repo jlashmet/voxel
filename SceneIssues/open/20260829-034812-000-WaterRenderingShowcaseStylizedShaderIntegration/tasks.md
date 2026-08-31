@@ -24,8 +24,8 @@
 - [x] After two materially different visual fixes, stop tuning and isolate reusable root cause from `WaterfallReference.shader` versus production.
 - [x] Add generic lip/base/edge topology in reserved `SmoothSurfaceVertex.Material` flag byte with independent arbitrary-material regression.
 - [x] `33346565021` passes topology regression/player replay but proves shader-local mist cannot create free spray volume.
-- [x] Add reusable `WaterSprayFlag` plus canonical impact-spray quad at true lower vertical-water boundaries; same water mesh/buffer/material/draw, clipped for non-waterfall profiles.
-- [x] Extend independent extraction fixture to require spray quad emission and opaque material preservation.
+- [x] Add reusable `WaterSprayFlag` plus canonical impact-spray geometry at true lower vertical-water boundaries; same water mesh/buffer/material/draw, clipped for non-waterfall profiles.
+- [x] Extend independent extraction fixture to require spray geometry emission and opaque material preservation.
 - [x] Add production-path spray regression through Storage → `CpuWaterSurfaceChunkCache` → shared GPU arena.
 - [x] `33355120310` passes extraction/arena regressions, module validation, and 60-second WaterRenderingShowcase replay; direct review still rejects visible free spray.
 
@@ -35,14 +35,17 @@
 - [x] Add nonblocking `JobHandle.ScheduleBatchedJobs()` without `Complete()`; `33358290720` reproduces the same pre-publication state, triggering mandatory minimal root-cause isolation.
 - [x] Add temporary wall-clock worker-time probe. Exact run `33361014521` passes the same production cache path with a two-second bound and also passes automatic `kentridge-integration` built-player validation. Root cause: fixed 120-yield bound was too short in wall-clock time; cache job is not stuck.
 - [x] Replace the original discriminator's yield-count bound with the proven two-second realtime bound; retain nonblocking batch flush and remove the temporary probe. No production rendering code changed.
-- [ ] Run `WaterSprayProductionPathRegressionTests.CascadeSprayFlagSurvivesCanonicalStorageCacheAndGpuUpload` on the exact wall-clock-harness feature head and prove or deny `WaterSprayFlag` survival through Storage → production cache → GPU arena before another visual correction.
+- [x] `33361724893` runs corrected `WaterSprayProductionPathRegressionTests.CascadeSprayFlagSurvivesCanonicalStorageCacheAndGpuUpload` and proves `WaterSprayFlag` survives Storage → production cache → GPU arena.
+- [x] `33362961099` runs `WaterArenaDrawRegressionTests.SprayTaggedArenaGeometryRasterizesOnlyForWaterfallProfile` on source `6e8b574b7055e960a482f54c465ea62099be9b2a`: real canonical arena/shader draw rasterizes spray pixels for Cascade and clips the same semantic geometry for still water.
+- [x] Isolate the remaining visibility defect to spray footprint: the prior single skirt was only ~0.4 m outward × ~0.6 m high at 0.25 m voxels and disappeared against the multi-metre fall.
+- [x] Candidate `bf6e2c4756b8b90b688b680a7dfe2e9d519e229b` emits three differently pitched canonical impact-spray sheets and adds reusable world-space extent coverage; no new draw/material/scene renderer path.
 
 ## Reliability / cost
 - [x] Preserve spreading/inert gameplay semantics and storage/streaming/edit/diagnostic contracts; no swim/buoyancy subsystem exists to alter.
 - [x] Keep one renderer-owned water material and one `_WaterTime` path.
 - [x] Static profile cost remains six 32-entry `Vector4` arrays = 3,072 bytes plus one uint semantic mask.
 - [x] Arena correction adds one scalar to existing per-water-draw properties; no geometry allocation or draw call.
-- [x] Topology/spray reuse the existing 32-byte vertex stride; spray adds one ordinary quad only at exposed vertical lower boundaries.
+- [x] Topology/spray reuse the existing 32-byte vertex stride; accepted candidate adds at most three ordinary spray quads per exposed vertical lower boundary and no additional draw/material path.
 - [x] `33355120310` spray replay: arena `1,886,976/34,408,080` vertices, `2,841,088/60,214,140` indices, `191/16,384` draws, `leaseFail=0`; allocated ~698.4 MiB, reserved ~861.6–863.6 MiB, average-frame samples ~0.89–1.40 ms. GPU FrameTimingManager data unavailable and not inferred.
 - [ ] Complete final accepted-head CPU/GPU/memory/render-cost statement after visual acceptance; do not weaken budgets or invent unavailable GPU timing.
 
@@ -56,9 +59,9 @@
 - [x] `33357865312`: diagnostics isolate one running job and zero downstream failures.
 - [x] `33358290720`: explicit batch flush still hits same short-bound state.
 - [x] `33361014521`: two-second wall-clock root-cause probe passes; automatic `kentridge-integration` builds/runs `KentridgePlayableSlice` for 60 seconds and passes.
-- [ ] Run corrected original production-path discriminator on exact wall-clock-harness head.
-- [ ] If spray survives GPU publication, isolate downstream renderer visibility/presentation cause before another visual change; otherwise fix only the proven canonical extraction/upload defect.
-- [ ] Run `WaterArenaDrawRegressionTests` plus 60-second WaterRenderingShowcase replay on exact corrected candidate head.
+- [x] `33361724893`: corrected original production-path discriminator passes; spray flag survives canonical storage/cache/GPU publication.
+- [x] `33362961099`: downstream raster visibility discriminator passes; canonical spray branch is reachable and profile-gated correctly.
+- [ ] Run `WaterArenaDrawRegressionTests` plus 60-second WaterRenderingShowcase replay on exact layered-spray candidate head.
 - [ ] Directly accept/reject near/wide/time-separated waterfall frames against downward-flow, turbulence/aeration, irregular breakup, lip/edge/base foam, free mist/spray and overall visual-quality requirements.
 - [ ] Run `ShowcaseWaterPresentationRegressionTests` on the same visually accepted feature head.
 - [ ] Run `WaterSprayProductionPathRegressionTests.CascadeSprayFlagSurvivesCanonicalStorageCacheAndGpuUpload` on the same accepted head.
