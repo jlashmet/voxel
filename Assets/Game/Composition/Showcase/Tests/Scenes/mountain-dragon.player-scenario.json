@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "runSeconds": 20,
+  "capture": {
+    "width": 1600,
+    "height": 900,
+    "intervalSeconds": 5,
+    "minimumFrames": 3
+  },
+  "timeline": {},
+  "assertions": {
+    "requiredLogPatterns": [
+      "[MountainDragonValidation] PASS"
+    ],
+    "forbiddenLogPatterns": [
+      "NullReferenceException",
+      "MissingReferenceException",
+      "Shader error",
+      "[MountainDragonValidation] FAIL"
+    ]
+  }
+}
