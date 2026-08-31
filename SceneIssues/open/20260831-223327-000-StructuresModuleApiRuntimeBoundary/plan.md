@@ -1,5 +1,11 @@
 # Plan — Structures module API/runtime boundary
 
+## Baseline
+
+Starting feature/master SHA: `8fa7a2bc061d0b41b583a0ba43c29573c8d3ab9e`.
+
+At baseline, `Assets/Game/Structures/Runtime/Game.Structures.Runtime.asmdef` directly references `VoxelEngine.Structures.Runtime`, and `Assets/Game/Structures/Runtime/CastleCaveAuthoring.cs` aliases/uses `VoxelEngine.Structures.Runtime.CaveAuthoring` and `VoxelEngine.Structures.Runtime.CaveAuthoringResult`.
+
 ## Observed behavior
 
 `Game.Structures.Runtime` references `VoxelEngine.Structures.Runtime`, and `CastleCaveAuthoring` directly aliases the concrete engine `CaveAuthoring` and `CaveAuthoringResult` runtime types. The existing architecture test only prevents `VoxelEngine -> Game`; it does not enforce API-only dependencies between sibling/vertical modules.
@@ -25,4 +31,4 @@ Introduce an API result plus narrow `ICaveAuthoring`-style interface matching th
 
 ## Blast radius / remaining gates
 
-Expected blast radius is Structures API/runtime/composition constructors, castle authoring call sites/tests, and CI architecture tests. No cave algorithm rewrite, visual redesign, or campaign-policy change is intended. Remaining gates: compile after boundary removal, focused cave/castle behavior regressions, architecture rule regressions and full scan, exact-SHA targeted/module validation, final diff review.
+Expected blast radius is Structures API/runtime/composition constructors, castle authoring call sites/tests, and CI architecture tests. No cave algorithm rewrite, visual redesign, or campaign-policy change is intended. Remaining gates: complete call/composition inventory, compile after boundary removal, focused cave/castle behavior regressions, architecture rule regressions and full scan, exact-SHA targeted/module validation, final diff review.
