@@ -24,8 +24,11 @@ namespace MountingForce.WorldGen.Voxel
                 Add(stageList, KentridgeTerraceSurfaceCorrectionCatalogue.Build(seed, settings, Allocator.Temp));
             }
 
-            // This stage now selects inferred organic-route rasterization when Routes are present.
-            Add(stageList, KentridgeDirectedTownSurfaceCatalogue.Build(seed, settings, Allocator.Temp));
+            // Legacy authored streets retain their established public-space ordering. Organic routes
+            // are deferred until after plot landforms so authoritative road grading is the final writer
+            // anywhere its wider grading envelope overlaps a plot pad.
+            if (!organicKentridge)
+                Add(stageList, KentridgeDirectedTownSurfaceCatalogue.Build(seed, settings, Allocator.Temp));
 
             if (isKentridge && !organicKentridge)
             {
@@ -37,6 +40,9 @@ namespace MountingForce.WorldGen.Voxel
             // Plot-driven stages remain valid for both layouts because they derive from SettlementPlan.Plots.
             Add(stageList, KentridgeTerraceSupportCatalogue.Build(seed, settings, Allocator.Temp));
             Add(stageList, KentridgeVerticalPlacementAdapter.BuildPlotSurfaces(seed, settings, Allocator.Temp));
+
+            if (organicKentridge)
+                Add(stageList, KentridgeDirectedTownSurfaceCatalogue.Build(seed, settings, Allocator.Temp));
 
             if (isKentridge && !organicKentridge)
                 Add(stageList, KentridgeUrbanSidewalkCatalogue.Build(seed, settings, Allocator.Temp));
