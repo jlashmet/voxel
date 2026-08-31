@@ -93,7 +93,7 @@ namespace Game.WorldBuilder.Validation
                     " clues=" + first.Plan.Clues.Count +
                     " channels=" + first.Plan.Clues.Select(x => x.Channel).Distinct().Count() +
                     " routes=" + first.Plan.Routes.Count +
-                    " deterministic=true bypassRejected=true");
+                    " deterministic=true bypassRejected=true markerShader=Sprites/Default");
             }
             catch (Exception exception)
             {
@@ -197,9 +197,17 @@ namespace Game.WorldBuilder.Validation
             marker.name = name;
             marker.transform.position = position;
             marker.transform.localScale = scale;
+
             Renderer renderer = marker.GetComponent<Renderer>();
-            if (renderer != null && renderer.material != null)
-                renderer.material.color = color;
+            Require(renderer != null, "validation marker missing renderer: " + name);
+            Shader shader = Shader.Find("Sprites/Default");
+            Require(shader != null, "validation marker shader unavailable in player: Sprites/Default");
+
+            var material = new Material(shader)
+            {
+                color = color
+            };
+            renderer.sharedMaterial = material;
         }
 
         private static string Join(SecretDiscoveryPlanningResult result)
