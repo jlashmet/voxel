@@ -9,6 +9,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using VoxelEngine.Composition;
 using VoxelEngine.Showcase;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
 using VoxelEngine.Structures.Runtime;
 using VoxelEngine.Vegetation.Api;
