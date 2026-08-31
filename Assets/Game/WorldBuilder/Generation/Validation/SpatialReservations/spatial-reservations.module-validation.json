@@ -4,6 +4,7 @@
   "productionPaths": [
     "Assets/Game/WorldBuilder/Generation/Core/SpatialReservations.cs",
     "Assets/Game/WorldBuilder/Generation/Voxel/WorldBuilderSpatialReservationAdapters.cs",
+    "Assets/Game/WorldBuilder/Generation/Voxel/StructuralSocketReservationAdapter.cs",
     "Assets/Game/WorldBuilder/Generation/Voxel/KentridgeStructureReservationValidation.cs",
     "Assets/Game/Composition/Showcase/SceneRuntime/SpatialReservationValidationShowcase.cs"
   ],
@@ -14,6 +15,18 @@
     {
       "platform": "EditMode",
       "filter": "VoxelEngine.Tests.EditMode.SpatialReservationTests"
+    },
+    {
+      "platform": "EditMode",
+      "filter": "VoxelEngine.Tests.EditMode.SpatialReservationProductionIntegrationTests"
+    },
+    {
+      "platform": "EditMode",
+      "filter": "VoxelEngine.Tests.EditMode.SpatialReservationReusabilityTests"
+    },
+    {
+      "platform": "EditMode",
+      "filter": "VoxelEngine.Tests.EditMode.SpatialReservationStructuralSocketIntegrationTests"
     }
   ],
   "playerValidation": {
