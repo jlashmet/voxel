@@ -57,6 +57,72 @@ namespace VoxelEngine.Tests.EditMode
                 + ". When these landforms overlap, Kentridge composition must finish plot pads before the authoritative road grading pass.");
         }
 
+        [Test]
+        public void OrganicPublicApproachMustNotCrossRaisedPlotLip()
+        {
+            SettlementPlan plan = KentridgeDefinition.Build(KentridgePlayableSliceSeed);
+            VoxelWorldGenSettings settings = Settings().For(plan);
+            WorldRoadNetwork network = KentridgeWorldRoadNetwork.Build(
+                plan,
+                KentridgePlayableSliceSeed,
+                settings);
+            using FeatureCatalogue plots = KentridgePlotSurfaceCatalogue.Build(
+                KentridgePlayableSliceSeed,
+                settings,
+                Allocator.Temp);
+
+            int worstRiseDm = int.MinValue;
+            int worstRole = -1;
+            int3 worstPoint = default;
+            bool sampled = false;
+
+            for (int plotIndex = 0; plotIndex < plan.Plots.Count; plotIndex++)
+            {
+                BuildingPlot plot = plan.Plots[plotIndex];
+                if (plot.Archetype == StructureArchetype.Well) continue;
+                Assert.IsTrue(
+                    KentridgeGameplaySiteAccessResolver.TryResolve(plan, plot.RoleId, 1, out KentridgeGameplaySiteAccess access),
+                    "Every routed Kentridge building must expose its realized public entrance.");
+                Assert.IsTrue(
+                    network.TryGetRoute(plot.Access.TargetId, out WorldRoadNetworkRoute route),
+                    "Every routed Kentridge plot must resolve to the same semantic road used by its gameplay access.");
+
+                List<Primitive> pad = EvaluatePlotPlacement(plots, plot, KentridgePlayableSliceSeed);
+                var influence = new WorldRoadInfluence(route.Road, network.Junctions, route.ShoulderWidthDm);
+                int3 entrance = new int3(
+                    access.Entrance.Position.X,
+                    access.Entrance.Position.Y,
+                    access.Entrance.Position.Z);
+                int3 exterior = new int3(
+                    access.ExteriorApproach.Position.X,
+                    access.ExteriorApproach.Position.Y,
+                    access.ExteriorApproach.Position.Z);
+
+                for (int step = 0; step <= KentridgeGameplaySiteAccessResolver.ApproachDistanceDecimetres; step++)
+                {
+                    int denominator = KentridgeGameplaySiteAccessResolver.ApproachDistanceDecimetres;
+                    int x = entrance.x + (exterior.x - entrance.x) * step / denominator;
+                    int z = entrance.z + (exterior.z - entrance.z) * step / denominator;
+                    if (!influence.TrySample(x, z, out WorldRoadInfluenceSample road)) continue;
+                    if (!TryLastFillTop(pad, x, z, out int plotTop)) continue;
+
+                    sampled = true;
+                    int riseDm = plotTop - road.TargetHeightDm;
+                    if (riseDm <= worstRiseDm) continue;
+                    worstRiseDm = riseDm;
+                    worstRole = plot.RoleId;
+                    worstPoint = new int3(x, plotTop, z);
+                }
+            }
+
+            Assert.IsTrue(sampled, "The fixed production fixture must exercise a road approach while it still crosses its authored plot surface.");
+            Assert.That(
+                worstRiseDm,
+                Is.LessThanOrEqualTo(3),
+                "A public road approach crosses a plot feather " + worstRiseDm + " dm above its road target for role " + worstRole
+                + " at " + worstPoint + ". A frontage pad must meet the authoritative road within the shared bounded cross-section instead of forcing the later road pass to carve a visible trench through a raised parcel lip.");
+        }
+
         private static List<Primitive> EvaluateAll(in FeatureCatalogue catalogue, uint seed)
         {
             var result = new List<Primitive>();
@@ -94,6 +160,82 @@ namespace VoxelEngine.Tests.EditMode
                 anchors.Dispose();
             }
             return result;
+        }
+
+        private static List<Primitive> EvaluatePlotPlacement(
+            in FeatureCatalogue catalogue,
+            BuildingPlot plot,
+            uint seed)
+        {
+            int definitionId = (int)plot.Archetype;
+            PlacementRule rule = catalogue.Rules[definitionId];
+            ExplicitPlacement selected = default;
+            bool found = false;
+            for (int i = 0; i < rule.ExplicitCount; i++)
+            {
+                ExplicitPlacement placement = catalogue.ExplicitPlacements[rule.ExplicitOffset + i];
+                if (placement.Position.x != plot.PositionDm.X
+                    || placement.Position.z != plot.PositionDm.Y
+                    || placement.Orientation != (byte)plot.Frontage)
+                    continue;
+                selected = placement;
+                found = true;
+                break;
+            }
+            Assert.IsTrue(found, "The plot-surface stage must contain every settlement plot placement.");
+
+            var result = new List<Primitive>();
+            var primitives = new NativeList<Primitive>(Allocator.Temp);
+            var anchors = new NativeList<ResolvedAnchor>(Allocator.Temp);
+            try
+            {
+                FeatureDefinition definition = catalogue.Definitions[definitionId];
+                ParameterSet parameters = FeatureGeneration.ResolveParameters(
+                    in catalogue,
+                    in definition,
+                    in selected,
+                    definitionId,
+                    selected.Position,
+                    seed);
+                EvaluationResult evaluation = ShapeProgram.Evaluate(
+                    in catalogue,
+                    definitionId,
+                    in parameters,
+                    selected.Position,
+                    selected.Orientation,
+                    seed,
+                    FeatureGeneration.InstanceSeed(seed, definitionId, selected.Position),
+                    primitives,
+                    anchors);
+                Assert.AreEqual(EvaluationResult.Ok, evaluation);
+                for (int p = 0; p < primitives.Length; p++) result.Add(primitives[p]);
+            }
+            finally
+            {
+                primitives.Dispose();
+                anchors.Dispose();
+            }
+            return result;
+        }
+
+        private static bool TryLastFillTop(
+            IReadOnlyList<Primitive> primitives,
+            int x,
+            int z,
+            out int top)
+        {
+            bool found = false;
+            top = 0;
+            for (int i = 0; i < primitives.Count; i++)
+            {
+                Primitive primitive = primitives[i];
+                if (primitive.Shape != PrimitiveShape.Box || primitive.Mode != PrimitiveMode.Fill) continue;
+                primitive.Bounds(out int3 min, out int3 max);
+                if (x < min.x || x > max.x || z < min.z || z > max.z) continue;
+                top = max.y;
+                found = true;
+            }
+            return found;
         }
 
         private static bool TryFindGradeOnlyPlotOverlap(
