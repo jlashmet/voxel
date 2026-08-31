@@ -54,7 +54,8 @@ These are existing foundations and are not candidates to rebuild from scratch.
   - Encounters are temporary authoritative gameplay situations, distinct from cutscenes and combat; they coordinate membership, activation, resolution, and cleanup for persistent and temporary characters.
 - [x] **06. [Gameplay-state replication](game-systems/06-gameplay-state-replication.md)**
   - Extend the existing authoritative custom network spine with explicit gameplay snapshots/deltas for characters, vitality, encounters, combat, inventory, quests, and campaign state.
-- [ ] **07. Multiplayer lobby / party / join flow**
+- [x] **07. [Multiplayer party & session formation](game-systems/07-multiplayer-party-session-formation.md)**
+  - Stable party/member/slot identities and readiness/session orchestration above the existing transport; party leadership remains distinct from server gameplay authority.
 - [ ] **08. Multiplayer reconnect / session UX**
 - [ ] **09. Production inventory integration**
 - [ ] **10. Loot / pickup gameplay**
