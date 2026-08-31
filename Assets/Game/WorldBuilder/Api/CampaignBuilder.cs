@@ -15,7 +15,6 @@ namespace Game.WorldBuilder.Api
         internal readonly List<ObjectiveSpec> Objectives = new List<ObjectiveSpec>();
         internal readonly List<SecretPolicySpec> SecretPolicies = new List<SecretPolicySpec>();
         internal readonly List<RequiredSecretSpec> RequiredSecrets = new List<RequiredSecretSpec>();
-        internal readonly List<SecretClueSpec> SecretClues = new List<SecretClueSpec>();
         internal readonly List<LootTableSpec> LootTables = new List<LootTableSpec>();
 
         public WorldBlueprintBuilder World { get; }
@@ -43,7 +42,6 @@ namespace Game.WorldBuilder.Api
                 Objectives.ToArray(),
                 SecretPolicies.ToArray(),
                 RequiredSecrets.ToArray(),
-                SecretClues.ToArray(),
                 LootTables.ToArray());
     }
 
@@ -228,10 +226,265 @@ namespace Game.WorldBuilder.Api
         internal ObjectiveSpec Build()
         {
             if (!_hasTarget)
-                throw new InvalidOperationException($"Objective '{_ref}' must target a site.");
+                throw new InvalidOperationException($"Objective '{_ref}' requires a target site.");
             if (_completion == null)
-                throw new InvalidOperationException($"Objective '{_ref}' must define completion semantics.");
+                throw new InvalidOperationException($"Objective '{_ref}' requires a completion rule.");
             return new ObjectiveSpec(_ref, _target, _completion);
+        }
+    }
+
+    public sealed class CutsceneBuilder
+    {
+        private readonly CutsceneRef _ref;
+        private readonly CutsceneDefinition _definition;
+        private readonly List<CutsceneActorBindingSpec> _actorBindings = new List<CutsceneActorBindingSpec>();
+        private SiteRef _site;
+        private bool _hasSite;
+
+        public CutsceneRef Ref => _ref;
+        public CutsceneDefinition Definition => _definition;
+
+        internal CutsceneBuilder(CutsceneRef @ref, CutsceneDefinition definition)
+        {
+            _ref = @ref;
+            _definition = definition ?? throw new ArgumentNullException(nameof(definition));
+        }
+
+        public CutsceneBuilder At(SiteRef site)
+        {
+            _site = site;
+            _hasSite = true;
+            return this;
+        }
+
+        public CutsceneBuilder Bind(CutsceneActorId actor, CutsceneActorTargetSpec target)
+        {
+            _actorBindings.Add(new CutsceneActorBindingSpec(actor, target));
+            return this;
+        }
+
+        internal CutsceneSpec Build()
+        {
+            if (!_hasSite)
+                throw new InvalidOperationException($"Cutscene '{_ref}' requires a site.");
+            return new CutsceneSpec(_ref, _definition, _site, _actorBindings.ToArray());
+        }
+    }
+
+    public sealed class StoryRuleBuilder
+    {
+        private readonly StoryRuleRef _ref;
+        private IStoryTriggerSpec _trigger;
+        private readonly List<IStoryConditionSpec> _conditions = new List<IStoryConditionSpec>();
+        private readonly List<IStoryEffectSpec> _effects = new List<IStoryEffectSpec>();
+
+        internal StoryRuleBuilder(StoryRuleRef @ref) => _ref = @ref;
+
+        public StoryRuleBuilder When(IStoryTriggerSpec trigger)
+        {
+            _trigger = trigger ?? throw new ArgumentNullException(nameof(trigger));
+            return this;
+        }
+
+        public StoryRuleBuilder If(IStoryConditionSpec condition)
+        {
+            _conditions.Add(condition ?? throw new ArgumentNullException(nameof(condition)));
+            return this;
+        }
+
+        public StoryRuleBuilder Then(IStoryEffectSpec effect)
+        {
+            _effects.Add(effect ?? throw new ArgumentNullException(nameof(effect)));
+            return this;
+        }
+
+        internal StoryRuleSpec Build()
+        {
+            if (_trigger == null)
+                throw new InvalidOperationException($"Story rule '{_ref}' requires a trigger.");
+            if (_effects.Count == 0)
+                throw new InvalidOperationException($"Story rule '{_ref}' requires at least one effect.");
+            return new StoryRuleSpec(_ref, _trigger, _conditions.ToArray(), _effects.ToArray());
+        }
+    }
+
+    public sealed class SecretPolicyBlueprintBuilder
+    {
+        private readonly CampaignBuilder _campaign;
+        internal SecretPolicyBlueprintBuilder(CampaignBuilder campaign) => _campaign = campaign;
+
+        public SecretPolicyRef Policy(string id, Action<SecretPolicyBuilder> configure)
+        {
+            var policyRef = new SecretPolicyRef(id);
+            var builder = new SecretPolicyBuilder(policyRef);
+            configure?.Invoke(builder);
+            _campaign.SecretPolicies.Add(builder.Build());
+            return policyRef;
+        }
+    }
+
+    public sealed class SecretPolicyBuilder
+    {
+        private readonly SecretPolicyRef _ref;
+        private SecretScope _scope = SecretScope.ExplorableSites;
+        private readonly List<SecretEntranceType> _entranceTypes = new List<SecretEntranceType>();
+        private SecretDistribution _distribution;
+        private bool _hasDistribution;
+        private bool _requiresHiddenSpace;
+        private ContainerArchetype _container = ContainerArchetype.TreasureChest;
+        private LootTableRef _reward;
+        private bool _hasReward;
+
+        internal SecretPolicyBuilder(SecretPolicyRef @ref) => _ref = @ref;
+
+        public SecretPolicyBuilder Scope(SecretScope scope)
+        {
+            _scope = scope;
+            return this;
+        }
+
+        public SecretPolicyBuilder Entrance(SecretEntranceType entrance)
+        {
+            _entranceTypes.Add(entrance);
+            return this;
+        }
+
+        public SecretPolicyBuilder Distribution(SecretDistribution distribution)
+        {
+            _distribution = distribution;
+            _hasDistribution = true;
+            return this;
+        }
+
+        public SecretPolicyBuilder RequireHiddenSpace()
+        {
+            _requiresHiddenSpace = true;
+            return this;
+        }
+
+        public SecretPolicyBuilder Container(ContainerArchetype container)
+        {
+            _container = container;
+            return this;
+        }
+
+        public SecretPolicyBuilder RewardWith(LootTableRef reward)
+        {
+            _reward = reward;
+            _hasReward = true;
+            return this;
+        }
+
+        internal SecretPolicySpec Build()
+        {
+            if (_entranceTypes.Count == 0)
+                throw new InvalidOperationException($"Secret policy '{_ref}' requires at least one entrance type.");
+            if (!_hasDistribution)
+                throw new InvalidOperationException($"Secret policy '{_ref}' requires a distribution.");
+            if (!_hasReward)
+                throw new InvalidOperationException($"Secret policy '{_ref}' requires a reward table.");
+
+            return new SecretPolicySpec(
+                _ref,
+                _scope,
+                _entranceTypes.ToArray(),
+                _distribution,
+                _requiresHiddenSpace,
+                _container,
+                _reward);
+        }
+    }
+
+    public sealed class LootBlueprintBuilder
+    {
+        private readonly CampaignBuilder _campaign;
+        internal LootBlueprintBuilder(CampaignBuilder campaign) => _campaign = campaign;
+
+        public LootTableRef Table(string id, Action<LootTableBuilder> configure)
+        {
+            var tableRef = new LootTableRef(id);
+            var builder = new LootTableBuilder(tableRef);
+            configure?.Invoke(builder);
+            _campaign.LootTables.Add(builder.Build());
+            return tableRef;
+        }
+    }
+
+    public sealed class LootTableBuilder
+    {
+        private readonly LootTableRef _ref;
+        private int _minimumRolls;
+        private int _maximumRolls;
+        private bool _hasRollCount;
+        private readonly List<LootCategory> _guaranteed = new List<LootCategory>();
+        private readonly List<GuaranteedLootItem> _guaranteedItems = new List<GuaranteedLootItem>();
+        private readonly List<WeightedLootCategory> _weighted = new List<WeightedLootCategory>();
+        private readonly List<WeightedLootItem> _weightedItems = new List<WeightedLootItem>();
+
+        internal LootTableBuilder(LootTableRef @ref) => _ref = @ref;
+
+        public LootTableBuilder RollCount(int minimum, int maximum)
+        {
+            if (minimum < 0) throw new ArgumentOutOfRangeException(nameof(minimum));
+            if (maximum < minimum) throw new ArgumentOutOfRangeException(nameof(maximum));
+            _minimumRolls = minimum;
+            _maximumRolls = maximum;
+            _hasRollCount = true;
+            return this;
+        }
+
+        public LootTableBuilder Guaranteed(LootCategory category)
+        {
+            _guaranteed.Add(category);
+            return this;
+        }
+
+        public LootTableBuilder Guaranteed(LootItemId item, int quantity)
+            => Guaranteed(item, LootQuantityRange.Exactly(quantity));
+
+        public LootTableBuilder Guaranteed(LootItemId item, int minimumQuantity, int maximumQuantity)
+            => Guaranteed(item, new LootQuantityRange(minimumQuantity, maximumQuantity));
+
+        public LootTableBuilder Guaranteed(LootItemId item, LootQuantityRange quantity)
+        {
+            _guaranteedItems.Add(new GuaranteedLootItem(item, quantity));
+            return this;
+        }
+
+        public LootTableBuilder Weighted(LootCategory category, int weight)
+        {
+            _weighted.Add(new WeightedLootCategory(category, weight));
+            return this;
+        }
+
+        public LootTableBuilder Weighted(LootItemId item, int weight, int quantity = 1)
+            => Weighted(item, weight, LootQuantityRange.Exactly(quantity));
+
+        public LootTableBuilder Weighted(
+            LootItemId item,
+            int weight,
+            int minimumQuantity,
+            int maximumQuantity)
+            => Weighted(item, weight, new LootQuantityRange(minimumQuantity, maximumQuantity));
+
+        public LootTableBuilder Weighted(LootItemId item, int weight, LootQuantityRange quantity)
+        {
+            _weightedItems.Add(new WeightedLootItem(item, weight, quantity));
+            return this;
+        }
+
+        internal LootTableSpec Build()
+        {
+            if (!_hasRollCount)
+                throw new InvalidOperationException($"Loot table '{_ref}' requires a roll count.");
+            return new LootTableSpec(
+                _ref,
+                _minimumRolls,
+                _maximumRolls,
+                _guaranteed.ToArray(),
+                _guaranteedItems.ToArray(),
+                _weighted.ToArray(),
+                _weightedItems.ToArray());
         }
     }
 }
