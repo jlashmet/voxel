@@ -369,6 +369,7 @@ namespace VoxelEngine.Showcase
                 bool previousFlyMode = (bool)flyModeField.GetValue(showcase);
                 flyModeField.SetValue(showcase, true);
                 _pinnedMotor = sceneMotor;
+                int preparedProof = -1;
 
                 for (int frame = 0; frame < s_StructuralFrames.Length; frame++)
                 {
@@ -390,18 +391,56 @@ namespace VoxelEngine.Showcase
                     _pinnedRotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
                     _pinCamera = true;
 
-                    // Load a bounded strip through the actual view, not just its endpoints. The
-                    // production scene then keeps this neighbourhood resident from the pinned motor.
+                    // Seed the line of sight immediately, then yield one frame so the production
+                    // scene streams/evicts from this newly pinned motor position. A proof-family
+                    // relocation can evict the other authored structural districts; restore those
+                    // authoritative voxels after that eviction using the public ensure contract.
                     world.PrepareWorldbuildingGalleryStructuralEvidence(_pinnedPosition, target);
                     yield return null;
-                    yield return new WaitForSecondsRealtime(1.0f);
+                    if (spec.Proof != preparedProof)
+                    {
+                        world.EnsureWorldbuildingGalleryStructuralRefinementBlocking();
+                        if (!world.HasWorldbuildingGalleryStructuralCompositionContent())
+                        {
+                            Debug.LogError($"STRUCTURAL_AUDIT result=FAIL reason=proof-reentry-missing proof={spec.Proof}");
+                            _pinCamera = false;
+                            _pinnedMotor = null;
+                            flyModeField.SetValue(showcase, previousFlyMode);
+                            yield break;
+                        }
+                        preparedProof = spec.Proof;
+                    }
+
+                    // Do not capture while the production near-field streamer is still filling the
+                    // camera neighbourhood. That produced terrain-only evidence even though the
+                    // authoritative proof was present. Fail closed rather than accepting an
+                    // incomplete renderer snapshot as production-quality evidence.
+                    const float streamingSettleTimeoutSeconds = 4f;
+                    float settleSeconds = 0f;
+                    while (world.PendingRegionLoads > 0 && settleSeconds < streamingSettleTimeoutSeconds)
+                    {
+                        yield return null;
+                        settleSeconds += Time.unscaledDeltaTime;
+                    }
+                    if (world.PendingRegionLoads > 0)
+                    {
+                        Debug.LogError($"STRUCTURAL_AUDIT result=FAIL reason=evidence-streaming-not-settled " +
+                            $"frame={frame + 1} proof={spec.Proof} pending={world.PendingRegionLoads}");
+                        _pinCamera = false;
+                        _pinnedMotor = null;
+                        flyModeField.SetValue(showcase, previousFlyMode);
+                        yield break;
+                    }
+
+                    yield return new WaitForSecondsRealtime(0.65f);
                     yield return new WaitForEndOfFrame();
 
                     string path = Path.Combine(structuralDirectory, $"{frame + 1:00}-{spec.Name}.png");
                     ScreenCapture.CaptureScreenshot(path);
                     Debug.Log($"STRUCTURAL_AUDIT frame={frame + 1}/{s_StructuralFrames.Length} " +
-                        $"name={spec.Name} proof={spec.Proof} camera={_pinnedPosition} target={target}");
-                    yield return new WaitForSecondsRealtime(0.35f);
+                        $"name={spec.Name} proof={spec.Proof} camera={_pinnedPosition} target={target} " +
+                        $"pending={world.PendingRegionLoads}");
+                    yield return new WaitForSecondsRealtime(0.25f);
                 }
 
                 _pinCamera = false;
