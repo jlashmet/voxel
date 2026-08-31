@@ -105,27 +105,36 @@ namespace VoxelEngine.Tests.PlayMode
         }
 
         [Test]
-        public void SettlementNearFieldCompositionDolliesAlongExistingSurveyFocusRay()
+        public void SettlementNearFieldCompositionWidensLensWithoutChangingNormalLens()
         {
             Type compositionType = typeof(KentridgePlayableSlice).Assembly.GetType(
                 "Game.Kentridge.PlayableSlice.KentridgeMacroWorldSettlementSurveyComposition",
                 throwOnError: true);
-            MethodInfo resolvePosition = compositionType.GetMethod(
-                "ResolveReadableSurveyPosition",
+            MethodInfo resolveFieldOfView = compositionType.GetMethod(
+                "ResolveReadableSurveyFieldOfView",
                 StaticPrivate);
-            Assert.That(resolvePosition, Is.Not.Null);
+            Assert.That(resolveFieldOfView, Is.Not.Null);
 
-            var start = new Vector3(43f, 100f, 538f);
-            var focus = new Vector3(37f, 38f, 532f);
-            Vector3 forward = (focus - start).normalized;
-            var resolved = (Vector3)resolvePosition.Invoke(null, new object[] { start, forward });
+            float widened = (float)resolveFieldOfView.Invoke(null, new object[] { 58f });
+            float alreadyWide = (float)resolveFieldOfView.Invoke(null, new object[] { 80f });
 
-            Assert.That(resolved.y, Is.EqualTo(start.y - 25f).Within(0.001f),
-                "The validation composition must move the 70 m settlement survey down by exactly the intended 25 m vertical component.");
-            Assert.That(Vector3.Cross(resolved - start, forward).magnitude, Is.LessThan(0.001f),
-                "The near-field correction must dolly on the existing semantic focus ray rather than vertically displacing the camera and changing framing.");
-            Assert.That(Vector3.Angle(focus - start, focus - resolved), Is.LessThan(0.01f),
-                "The authored settlement focus must remain centred after entering the near-field survey distance.");
+            Assert.That(widened, Is.EqualTo(72f).Within(0.001f),
+                "The validation settlement survey must widen the production 58-degree lens enough to contain the four-plot envelope without moving its authored camera/focus pose.");
+            Assert.That(alreadyWide, Is.EqualTo(80f).Within(0.001f),
+                "The validation composition must not narrow a camera that already has a wider lens.");
+
+            const float genericHalfXMetres = 25.8f;
+            const float genericHalfZMetres = 24.2f;
+            float diagonalEnvelopeHalfSpan =
+                (genericHalfXMetres + genericHalfZMetres) / Mathf.Sqrt(2f);
+            const float flatTerrainCameraToFocusHeight = 62f;
+            float normalHalfSpan = flatTerrainCameraToFocusHeight * Mathf.Tan(58f * 0.5f * Mathf.Deg2Rad);
+            float readableHalfSpan = flatTerrainCameraToFocusHeight * Mathf.Tan(widened * 0.5f * Mathf.Deg2Rad);
+
+            Assert.That(normalHalfSpan, Is.LessThan(diagonalEnvelopeHalfSpan),
+                "The minimal repro must retain the demonstrated root cause: the normal scene lens cannot fully contain the generic settlement envelope on the diagonal survey axis.");
+            Assert.That(readableHalfSpan, Is.GreaterThan(diagonalEnvelopeHalfSpan + 5f),
+                "The widened validation lens must provide explicit containment margin rather than another edge-intersection-only framing.");
         }
 
         private static void AssertContinuation(
