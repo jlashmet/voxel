@@ -39,8 +39,8 @@ namespace Game.WorldBuilder.Api
     }
 
     /// <summary>
-    /// Deterministically resolved clue step. SourceSite is a concrete generated site, while SourceRole/Npc
-    /// preserve semantic provenance. TargetCandidate and TargetEntrance come directly from the canonical
+    /// Deterministically resolved clue step. Concrete source/target sites are outputs of authoritative
+    /// WorldBuilder resolution. TargetCandidate and TargetEntrance come directly from the canonical
     /// resolved secret plan, preventing clue planning from choosing a second hidden location.
     /// </summary>
     public sealed class ResolvedSecretCluePlan
@@ -53,6 +53,8 @@ namespace Game.WorldBuilder.Api
         public SiteRef SourceRole { get; }
         public NpcRef SourceNpc { get; }
         public ResolvedSiteId SourceSite { get; }
+        public SiteRef TargetRole { get; }
+        public ResolvedSiteId TargetSite { get; }
         public SecretCandidateId TargetCandidate { get; }
         public string TargetEntrance { get; }
         public string ContentKey { get; }
@@ -67,6 +69,8 @@ namespace Game.WorldBuilder.Api
             SiteRef sourceRole,
             NpcRef sourceNpc,
             ResolvedSiteId sourceSite,
+            SiteRef targetRole,
+            ResolvedSiteId targetSite,
             SecretCandidateId targetCandidate,
             string targetEntrance,
             string contentKey,
@@ -80,6 +84,8 @@ namespace Game.WorldBuilder.Api
             SourceRole = sourceRole;
             SourceNpc = sourceNpc;
             SourceSite = sourceSite;
+            TargetRole = targetRole;
+            TargetSite = targetSite;
             TargetCandidate = targetCandidate;
             TargetEntrance = WorldIdRules.Require(targetEntrance, nameof(targetEntrance));
             ContentKey = contentKey ?? throw new ArgumentNullException(nameof(contentKey));
