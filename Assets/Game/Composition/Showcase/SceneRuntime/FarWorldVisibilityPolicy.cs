@@ -7,8 +7,8 @@ using VoxelEngine.Rendering.Api;
 namespace VoxelEngine.Showcase
 {
     /// <summary>
-    /// Scene-composition policy for semantic far-structure visibility. Thresholds are screen-space
-    /// pixels and remain configurable here rather than becoming renderer constants.
+    /// Scene-composition policy for semantic far-structure visibility. Screen-space thresholds and
+    /// semantic distance caps are configuration here rather than renderer constants.
     /// </summary>
     public sealed class FarWorldVisibilityPolicy
     {
@@ -47,7 +47,48 @@ namespace VoxelEngine.Showcase
             public float HorizonExitPixels { get; }
         }
 
+        public readonly struct DistanceCaps
+        {
+            public DistanceCaps(
+                float ordinaryMetres,
+                float settlementAnchorMetres,
+                float landmarkMetres,
+                float horizonLandmarkMetres)
+            {
+                if (!(ordinaryMetres > 0f)) throw new ArgumentOutOfRangeException(nameof(ordinaryMetres));
+                if (!(settlementAnchorMetres >= ordinaryMetres)) throw new ArgumentOutOfRangeException(nameof(settlementAnchorMetres));
+                if (!(landmarkMetres >= settlementAnchorMetres)) throw new ArgumentOutOfRangeException(nameof(landmarkMetres));
+                if (!(horizonLandmarkMetres >= landmarkMetres)) throw new ArgumentOutOfRangeException(nameof(horizonLandmarkMetres));
+
+                OrdinaryMetres = ordinaryMetres;
+                SettlementAnchorMetres = settlementAnchorMetres;
+                LandmarkMetres = landmarkMetres;
+                HorizonLandmarkMetres = horizonLandmarkMetres;
+            }
+
+            public float OrdinaryMetres { get; }
+            public float SettlementAnchorMetres { get; }
+            public float LandmarkMetres { get; }
+            public float HorizonLandmarkMetres { get; }
+
+            public float For(StructureVisibilityClass visibilityClass)
+            {
+                switch (visibilityClass)
+                {
+                    case StructureVisibilityClass.SettlementAnchor:
+                        return SettlementAnchorMetres;
+                    case StructureVisibilityClass.Landmark:
+                        return LandmarkMetres;
+                    case StructureVisibilityClass.HorizonLandmark:
+                        return HorizonLandmarkMetres;
+                    default:
+                        return OrdinaryMetres;
+                }
+            }
+        }
+
         private readonly Thresholds _thresholds;
+        private readonly DistanceCaps _distanceCaps;
         private readonly float _verticalFovDegrees;
         private readonly int _viewportHeightPixels;
         private readonly Dictionary<ulong, FarStructureTier> _previous =
@@ -55,6 +96,7 @@ namespace VoxelEngine.Showcase
 
         public FarWorldVisibilityPolicy(
             Thresholds thresholds,
+            DistanceCaps distanceCaps,
             float verticalFovDegrees,
             int viewportHeightPixels)
         {
@@ -64,13 +106,21 @@ namespace VoxelEngine.Showcase
                 throw new ArgumentOutOfRangeException(nameof(viewportHeightPixels));
 
             _thresholds = thresholds;
+            _distanceCaps = distanceCaps;
             _verticalFovDegrees = verticalFovDegrees;
             _viewportHeightPixels = viewportHeightPixels;
         }
 
         public FarStructureTier Select(StructureFarPresentation record, float2 cameraXZMetres)
         {
-            float pixels = ProjectedPixels(record, cameraXZMetres, _verticalFovDegrees, _viewportHeightPixels);
+            float distance = DistanceMetres(record, cameraXZMetres);
+            if (distance > _distanceCaps.For(record.VisibilityClass))
+            {
+                _previous.Remove(record.StructureKey);
+                return FarStructureTier.Culled;
+            }
+
+            float pixels = ProjectedPixels(record, distance, _verticalFovDegrees, _viewportHeightPixels);
             bool horizonAllowed = record.VisibilityClass != StructureVisibilityClass.OrdinaryStructure;
             FarStructureTier previous = _previous.TryGetValue(record.StructureKey, out FarStructureTier value)
                 ? value
@@ -98,6 +148,17 @@ namespace VoxelEngine.Showcase
             StructureFarPresentation record,
             float2 cameraXZMetres,
             float verticalFovDegrees,
+            int viewportHeightPixels) =>
+            ProjectedPixels(
+                record,
+                DistanceMetres(record, cameraXZMetres),
+                verticalFovDegrees,
+                viewportHeightPixels);
+
+        private static float ProjectedPixels(
+            StructureFarPresentation record,
+            float distanceMetres,
+            float verticalFovDegrees,
             int viewportHeightPixels)
         {
             if (!(verticalFovDegrees > 1f && verticalFovDegrees < 179f))
@@ -105,19 +166,25 @@ namespace VoxelEngine.Showcase
             if (viewportHeightPixels <= 0)
                 throw new ArgumentOutOfRangeException(nameof(viewportHeightPixels));
 
+            float width = (record.FootprintMaxDm.X - record.FootprintMinDm.X) * DmToMetres;
+            float depth = (record.FootprintMaxDm.Y - record.FootprintMinDm.Y) * DmToMetres;
+            float height = record.HeightDm * DmToMetres;
+            float diameter = math.max(height, math.max(width, depth));
+            float focalPixels = viewportHeightPixels * 0.5f /
+                                math.tan(math.radians(verticalFovDegrees) * 0.5f);
+            return diameter / math.max(0.1f, distanceMetres) * focalPixels;
+        }
+
+        private static float DistanceMetres(
+            StructureFarPresentation record,
+            float2 cameraXZMetres)
+        {
             float minX = record.FootprintMinDm.X * DmToMetres;
             float minZ = record.FootprintMinDm.Y * DmToMetres;
             float maxX = record.FootprintMaxDm.X * DmToMetres;
             float maxZ = record.FootprintMaxDm.Y * DmToMetres;
             float2 center = new float2((minX + maxX) * 0.5f, (minZ + maxZ) * 0.5f);
-            float distance = math.max(0.1f, math.distance(cameraXZMetres, center));
-            float width = maxX - minX;
-            float depth = maxZ - minZ;
-            float height = record.HeightDm * DmToMetres;
-            float diameter = math.max(height, math.max(width, depth));
-            float focalPixels = viewportHeightPixels * 0.5f /
-                                math.tan(math.radians(verticalFovDegrees) * 0.5f);
-            return diameter / distance * focalPixels;
+            return math.max(0.1f, math.distance(cameraXZMetres, center));
         }
 
         private FarStructureTier SelectWithHysteresis(
