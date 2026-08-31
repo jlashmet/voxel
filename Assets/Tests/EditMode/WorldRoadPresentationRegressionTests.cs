@@ -75,11 +75,47 @@ namespace VoxelEngine.Tests.EditMode
             Assert.AreEqual(0, sample.Influence.DistanceDm,
                 "Topology-aware presentation must not round an actual shared junction away from its authoritative vertex.");
 
-            var routeInfluence = new WorldRoadInfluence(turning.Road, network.Junctions);
+            var routeInfluence = new WorldRoadInfluence(turning.Road, network.Junctions, turning.ShoulderWidthDm);
             Assert.IsTrue(routeInfluence.TrySample(80, 0, out WorldRoadInfluenceSample routeSample));
             Assert.AreEqual(sample.Influence.Coverage31, routeSample.Coverage31);
             Assert.AreEqual(sample.Influence.TargetHeightDm, routeSample.TargetHeightDm,
                 "Aggregate and reusable route influence must share the same topology-aware presentation field.");
+        }
+
+        [Test]
+        public void NetworkSurfaceInfluenceUsesAuthoredShoulderInsteadOfGradingTransition()
+        {
+            var profile = new WorldRoadProfile(
+                "surface-vs-grade",
+                "road-surface",
+                carriagewayWidthDm: 24,
+                transitionWidthDm: 30,
+                maximumGradePermille: 220,
+                maximumCutFillDm: 20,
+                edgeVariationDm: 0);
+            ResolvedWorldRoad road = Resolve(
+                "surface-vs-grade-route",
+                profile,
+                new WorldRoadPlanPoint(0, 0),
+                new WorldRoadPlanPoint(100, 0));
+            var route = new WorldRoadNetworkRoute(
+                road,
+                WorldRoadSemanticClass.Vehicle,
+                shoulderWidthDm: 5,
+                clearanceWidthDm: 8);
+            var network = new WorldRoadNetwork(new[] { route });
+
+            Assert.AreEqual(17, route.SurfaceRadiusDm);
+            Assert.AreEqual(42, route.GradeRadiusDm,
+                "The broader grading envelope must remain available independently of visible shoulder width.");
+            Assert.IsTrue(network.TrySample(50, 16, out WorldRoadNetworkSample shoulder));
+            Assert.That(shoulder.Influence.Coverage31, Is.InRange(1, 30));
+            Assert.IsFalse(network.TrySample(50, 18, out _),
+                "Network surface/material/ecology influence must stop at the authored shoulder instead of painting the grading transition.");
+
+            var genericProfileInfluence = new WorldRoadInfluence(road);
+            Assert.IsTrue(genericProfileInfluence.TrySample(50, 18, out _),
+                "Standalone generic profile influence must retain its profile transition contract; only network route surface policy narrows it.");
         }
 
         [Test]
