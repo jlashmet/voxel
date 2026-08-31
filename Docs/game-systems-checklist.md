@@ -66,7 +66,8 @@ These are existing foundations and are not candidates to rebuild from scratch.
   - Consolidate quest steps and standalone campaign objectives onto one deterministic semantic progression runtime; gameplay reports facts and story decides consequences.
 - [x] **12. [WorldBuilder encounter realization bridge](game-systems/12-worldbuilder-encounter-realization-bridge.md)**
   - Translate semantic encounter/site/NPC intent through the realized generated world into the narrow context needed by encounter gameplay, without duplicating WorldBuilder placement logic.
-- [ ] **13. WorldBuilder-to-gameplay interactable integration**
+- [x] **13. [Authoritative world-object interaction bridge](game-systems/13-authoritative-world-object-interaction-bridge.md)**
+  - Route character interaction intent through stable WorldObject identity into the existing authoritative behavior/state runtime, with narrow actor/context validation and semantic cross-domain adapters.
 - [ ] **14. End-to-end campaign/game-flow director**
 - [ ] **15. Victory / failure / completion flow**
 - [ ] **16. Save / session persistence**
