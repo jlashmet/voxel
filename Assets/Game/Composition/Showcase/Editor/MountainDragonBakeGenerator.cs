@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.IO;
 using System.Text;
 using UnityEditor;
@@ -16,6 +17,7 @@ namespace VoxelEngine.Showcase.Editor
     public static class MountainDragonBakeGenerator
     {
         public const string DefaultArtifactPath = "Artifacts/SingleTest/mountain-dragon.mvx";
+        public const string DefaultMetricsPath = "Artifacts/SingleTest/mountain-dragon-bake-metrics.txt";
 
         public readonly struct Result
         {
@@ -59,22 +61,55 @@ namespace VoxelEngine.Showcase.Editor
             return new Result(bake, stats, encoded);
         }
 
+        public static string FormatMetrics(in Result result)
+        {
+            BakedVoxelStructure bake = result.Bake;
+            long denseCells = (long)bake.Size.x * bake.Size.y * bake.Size.z;
+            var text = new StringBuilder(384);
+            text.Append("sourceTriangles=").Append(bake.SourceTriangleCount).Append('\n');
+            text.Append("voxelSize=").Append(bake.VoxelSize.ToString("R", CultureInfo.InvariantCulture)).Append('\n');
+            text.Append("gridOrigin=").Append(bake.GridOrigin.x).Append(',').Append(bake.GridOrigin.y).Append(',').Append(bake.GridOrigin.z).Append('\n');
+            text.Append("size=").Append(bake.Size.x).Append(',').Append(bake.Size.y).Append(',').Append(bake.Size.z).Append('\n');
+            text.Append("denseEnvelopeCells=").Append(denseCells).Append('\n');
+            text.Append("authoredVoxelCount=").Append(result.Stats.CellCount).Append('\n');
+            text.Append("surfaceVoxelCount=").Append(result.Stats.SurfaceCellCount).Append('\n');
+            text.Append("connectedComponents=").Append(result.Stats.ConnectedComponentCount).Append('\n');
+            text.Append("materialCount=").Append(result.Stats.MaterialCount).Append('\n');
+            text.Append("sparseBrickCount=").Append(result.Stats.SparseBrickCount).Append('\n');
+            text.Append("boundaryEdges=").Append(bake.BoundaryEdgeCount).Append('\n');
+            text.Append("nonManifoldEdges=").Append(bake.NonManifoldEdgeCount).Append('\n');
+            text.Append("interiorFilled=").Append(bake.InteriorFilled).Append('\n');
+            text.Append("voxelizationMilliseconds=").Append(bake.VoxelizationMilliseconds.ToString("F3", CultureInfo.InvariantCulture)).Append('\n');
+            text.Append("serializedBytes=").Append(result.SerializedByteCount).Append('\n');
+            return text.ToString();
+        }
+
         public static Result GeneratePinnedBakeAndWriteArtifact(string outputPath = null)
         {
             Result result = GeneratePinnedBake();
-            string relativeOrAbsolute = string.IsNullOrWhiteSpace(outputPath)
-                ? DefaultArtifactPath
-                : outputPath;
-            string fullPath = Path.IsPathRooted(relativeOrAbsolute)
-                ? relativeOrAbsolute
-                : Path.Combine(Directory.GetCurrentDirectory(), relativeOrAbsolute);
+            string fullPath = ResolveOutputPath(
+                string.IsNullOrWhiteSpace(outputPath) ? DefaultArtifactPath : outputPath);
             string directory = Path.GetDirectoryName(fullPath);
             if (string.IsNullOrEmpty(directory))
                 throw new InvalidOperationException("Mountain-dragon bake output directory could not be resolved.");
 
             Directory.CreateDirectory(directory);
             File.WriteAllText(fullPath, result.Encoded, new UTF8Encoding(false));
+
+            string metricsPath = string.IsNullOrWhiteSpace(outputPath)
+                ? ResolveOutputPath(DefaultMetricsPath)
+                : Path.ChangeExtension(fullPath, ".metrics.txt");
+            string metricsDirectory = Path.GetDirectoryName(metricsPath);
+            if (string.IsNullOrEmpty(metricsDirectory))
+                throw new InvalidOperationException("Mountain-dragon metrics output directory could not be resolved.");
+            Directory.CreateDirectory(metricsDirectory);
+            File.WriteAllText(metricsPath, FormatMetrics(in result), new UTF8Encoding(false));
             return result;
         }
+
+        private static string ResolveOutputPath(string relativeOrAbsolute) =>
+            Path.IsPathRooted(relativeOrAbsolute)
+                ? relativeOrAbsolute
+                : Path.Combine(Directory.GetCurrentDirectory(), relativeOrAbsolute);
     }
 }
