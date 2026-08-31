@@ -4,6 +4,7 @@ using System.Reflection;
 using Game.Materials.Api;
 using Game.Materials.Runtime;
 using NUnit.Framework;
+using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.TestTools;
@@ -232,17 +233,37 @@ namespace VoxelEngine.Tests.PlayMode
                 camera.nearClipPlane = 0.05f;
                 camera.farClipPlane = 350f;
 
-                const int maxFrames = 120;
-                for (int frame = 0; frame < maxFrames && cache.CompletedBuildCount == 0; frame++)
+                // A coroutine can burn through a fixed number of yields faster than the scheduled
+                // production extraction job receives worker time. Keep this discriminator
+                // nonblocking and bound it by the same wall-clock policy as the canonical spray
+                // production-path regression instead of reintroducing the known 120-yield race.
+                const double maxSeconds = 2.0;
+                double start = Time.realtimeSinceStartupAsDouble;
+                int yields = 0;
+                while (cache.CompletedBuildCount == 0)
                 {
                     cache.Prepare(world.ReadStorage, camera, ShowcaseWorld.VoxelSize, budgetMs: 5.0);
+                    JobHandle.ScheduleBatchedJobs();
                     cache.TryPublishPending(int.MaxValue, out _);
-                    if (cache.CompletedBuildCount == 0)
-                        yield return null;
+                    if (cache.CompletedBuildCount > 0)
+                        break;
+                    if (Time.realtimeSinceStartupAsDouble - start >= maxSeconds)
+                        break;
+
+                    yields++;
+                    yield return null;
                 }
 
+                double elapsed = Time.realtimeSinceStartupAsDouble - start;
                 Assert.That(cache.CompletedBuildCount, Is.GreaterThan(0),
-                    "The exact authored Cascade curtain must complete production water-cache extraction.");
+                    $"The exact authored Cascade curtain must complete production water-cache extraction within {maxSeconds:F1}s " +
+                    $"({elapsed:F3}s/{yields} yields). " +
+                    $"dirty={cache.DirtyCount} runningJobs={cache.RunningJobCount} " +
+                    $"pendingUploads={cache.PendingUploadCount} pendingBytes={cache.PendingUploadBytes} " +
+                    $"meshOverflow={cache.MeshOverflowCount} arenaFailures={cache.ArenaAllocationFailures} " +
+                    $"blockingCompletionViolations={cache.FramePathBlockingCompletionViolations} " +
+                    $"staleBuilds={cache.StaleBuildCount} residents={cache.ResidentCount} " +
+                    $"uploadedBytes={cache.UploadedGeometryBytes} residentGpuBytes={cache.ResidentGpuBytes}.");
                 Assert.That(cache.ResidentCount, Is.GreaterThan(0),
                     "The exact authored Cascade curtain must publish a resident production water-cache entry.");
                 Assert.That(cache.UploadedGeometryBytes, Is.GreaterThan(0),
