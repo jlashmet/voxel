@@ -75,6 +75,8 @@
 
 ## Validation / closure
 
+Validation history: exact-SHA run `33362347013` on source `91b5fba348af4d9c464e8131b47c18b62fdbc2a0` stopped at Unity compile because the solved-road composition fix omitted `Game.WorldBuilder.Api` imports in the two files naming `WorldRoadNetwork`. The narrow import fix is applied; behavioral/module/player gates remain unchecked until rerun.
+
 - [x] Follow current `SceneIssues/feature-readme.md`, common `SceneIssues/README.md`, and `AGENTS.md`; unfinished work remains in `open/`.
 - [x] Never edit `.github/test-request.json` on `fixes/agent-7`, create extra transports, or replace queued/running CI.
 - [ ] Re-fetch latest `origin/master`; merge if advanced and re-review assignment-only diff before exact-SHA validation.
