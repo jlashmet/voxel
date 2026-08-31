@@ -523,12 +523,11 @@ namespace Game.WorldBuilder.Voxel
                 for (int segment = 0; segment < tier.SegmentCount; segment++)
                 {
                     MountainPathSegmentGeometry geometry = tier.SegmentGeometry(segment);
-                    int carveDepth = math.max(
-                        clearanceWidth,
-                        geometry.Depth - clearanceInset * 2);
+                    int carveDepth = math.min(clearanceWidth, geometry.Depth);
+                    int carveInset = math.max(0, (geometry.Depth - carveDepth) / 2);
                     EmitBox(
                         program,
-                        geometry.MinX, geometry.StartY + 1, geometry.MinZ + clearanceInset,
+                        geometry.MinX, geometry.StartY + 1, geometry.MinZ + carveInset,
                         geometry.Run, geometry.Rise + PathHeadroomVoxels, carveDepth,
                         0,
                         PrimitiveMode.Carve);
