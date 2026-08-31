@@ -60,22 +60,30 @@ namespace VoxelEngine.Tests.PlayMode
                 camera.nearClipPlane = 0.05f;
                 camera.farClipPlane = 350f;
 
-                const int maxFrames = 120;
-                for (int frame = 0; frame < maxFrames && cache.CompletedBuildCount == 0; frame++)
+                // A Unity test coroutine can consume hundreds of yields in well under one second.
+                // Bound the nonblocking production-path wait by real time instead of yield count so
+                // the scheduled worker gets representative dispatch time. Never call Complete().
+                const double maxSeconds = 2.0;
+                double start = Time.realtimeSinceStartupAsDouble;
+                int yields = 0;
+                while (cache.CompletedBuildCount == 0)
                 {
                     cache.Prepare(world.ReadStorage, camera, ShowcaseWorld.VoxelSize, budgetMs: 5.0);
-                    // Production frames flush scheduled jobs at the player loop boundary. The Unity
-                    // test coroutine can advance its 120 yields in under half a second, leaving the
-                    // worker batch undispatched long enough to make this discriminator inconclusive.
-                    // Flush scheduling only; never block on JobHandle.Complete().
                     JobHandle.ScheduleBatchedJobs();
                     cache.TryPublishPending(int.MaxValue, out _);
-                    if (cache.CompletedBuildCount == 0)
-                        yield return null;
+                    if (cache.CompletedBuildCount > 0)
+                        break;
+                    if (Time.realtimeSinceStartupAsDouble - start >= maxSeconds)
+                        break;
+
+                    yields++;
+                    yield return null;
                 }
 
+                double elapsed = Time.realtimeSinceStartupAsDouble - start;
                 Assert.That(cache.CompletedBuildCount, Is.GreaterThan(0),
-                    $"Production water cache failed to publish within {maxFrames} frames. " +
+                    $"Production water cache failed to publish within {maxSeconds:F1}s " +
+                    $"({elapsed:F3}s/{yields} yields). " +
                     $"dirty={cache.DirtyCount} runningJobs={cache.RunningJobCount} " +
                     $"pendingUploads={cache.PendingUploadCount} pendingBytes={cache.PendingUploadBytes} " +
                     $"meshOverflow={cache.MeshOverflowCount} arenaFailures={cache.ArenaAllocationFailures} " +
@@ -118,74 +126,6 @@ namespace VoxelEngine.Tests.PlayMode
                     "The published production water-cache lease must retain Cascade material identity.");
                 Assert.That(sawSpray, Is.True,
                     "A true Cascade lower boundary must retain WaterSprayFlag through canonical storage, production extraction, arena upload, and publication.");
-            }
-            finally
-            {
-                cache.Dispose();
-                Object.DestroyImmediate(cameraObject);
-                world.StopBackgroundWork();
-                world.Dispose();
-                VoxelMaterialPresentationInstaller.Apply(GameMaterialRenderingDefinitions.Create());
-            }
-        }
-
-        [UnityTest]
-        public IEnumerator RepresentativeCacheJobGetsWorkerTimeWithinTwoSeconds()
-        {
-            var world = new ShowcaseWorld(
-                0xA913u,
-                brickPoolCapacity: 8192,
-                loadRadiusRegions: 1,
-                unloadRadiusRegions: 2,
-                GameMaterialSimulationDefinitions.Create(),
-                maxMixedBrickAllocationBytes: 64L * 1024L * 1024L,
-                features: ShowcaseFeatureContent.HouseOnly,
-                startup: ShowcaseStartupSource.Generate);
-            var cache = new CpuWaterSurfaceChunkCache();
-            var cameraObject = new GameObject("Cascade spray worker-time root-cause probe camera");
-            Camera camera = cameraObject.AddComponent<Camera>();
-
-            try
-            {
-                world.GenerateRegionBlocking(int3.zero);
-                VoxelMaterialPresentationInstaller.Apply(GameMaterialRenderingDefinitions.Create());
-
-                int3 ribbonMin = new int3(333, 400, 199);
-                int3 ribbonSize = new int3(8, 47, 2);
-                Assert.That(
-                    world.AuthorVoxelBox(ribbonMin, ribbonSize, GameMaterialIds.Cascade),
-                    Is.EqualTo(ribbonSize.x * ribbonSize.y * ribbonSize.z));
-                cache.InvalidateSurfaceBricks(world.ReadStorage, BricksCovering(ribbonMin, ribbonSize));
-
-                Vector3 centre = (Vector3)((float3)ribbonMin + (float3)ribbonSize * 0.5f)
-                               * ShowcaseWorld.VoxelSize;
-                camera.transform.position = centre + new Vector3(0f, 0f, -20f);
-                camera.transform.LookAt(centre);
-                camera.nearClipPlane = 0.05f;
-                camera.farClipPlane = 350f;
-
-                double start = Time.realtimeSinceStartupAsDouble;
-                int yields = 0;
-                while (cache.CompletedBuildCount == 0
-                       && Time.realtimeSinceStartupAsDouble - start < 2.0)
-                {
-                    cache.Prepare(world.ReadStorage, camera, ShowcaseWorld.VoxelSize, budgetMs: 5.0);
-                    JobHandle.ScheduleBatchedJobs();
-                    cache.TryPublishPending(int.MaxValue, out _);
-                    if (cache.CompletedBuildCount == 0)
-                    {
-                        yields++;
-                        yield return null;
-                    }
-                }
-
-                double elapsed = Time.realtimeSinceStartupAsDouble - start;
-                Assert.That(cache.CompletedBuildCount, Is.GreaterThan(0),
-                    $"Representative water-cache job still did not publish after {elapsed:F3}s/{yields} yields. " +
-                    $"dirty={cache.DirtyCount} runningJobs={cache.RunningJobCount} " +
-                    $"pendingUploads={cache.PendingUploadCount} meshOverflow={cache.MeshOverflowCount} " +
-                    $"staleBuilds={cache.StaleBuildCount}.");
-                Debug.Log($"WATER_SPRAY_ROOT_CAUSE cache-published elapsed={elapsed:F3}s yields={yields}");
             }
             finally
             {
