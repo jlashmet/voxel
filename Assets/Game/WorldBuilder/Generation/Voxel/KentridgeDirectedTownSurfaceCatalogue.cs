@@ -20,9 +20,26 @@ namespace MountingForce.WorldGen.Voxel
             if (plan.Routes.Count > 0)
             {
                 WorldRoadNetwork network = KentridgeWorldRoadNetwork.Build(plan, seed, settings);
-                return WorldRoadNetworkVoxelCatalogue.Build(network, settings, allocator, precedence: 20);
+                return BuildResolvedRoadNetwork(network, settings, allocator);
             }
 
+            return BuildLegacy(seed, settings, allocator);
+        }
+
+        internal static FeatureCatalogue BuildResolvedRoadNetwork(
+            WorldRoadNetwork network,
+            VoxelWorldGenSettings settings,
+            Allocator allocator)
+        {
+            if (network == null) throw new ArgumentNullException(nameof(network));
+            return WorldRoadNetworkVoxelCatalogue.Build(network, settings, allocator, precedence: 20);
+        }
+
+        private static FeatureCatalogue BuildLegacy(
+            uint seed,
+            VoxelWorldGenSettings settings,
+            Allocator allocator)
+        {
             FeatureCatalogue catalogue = KentridgeVerticalTownSurfaceCatalogue.Build(
                 seed, settings, allocator);
 

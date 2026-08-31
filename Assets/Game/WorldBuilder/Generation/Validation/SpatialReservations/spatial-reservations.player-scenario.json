@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "runSeconds": 24,
+  "capture": {
+    "width": 1600,
+    "height": 900,
+    "intervalSeconds": 8,
+    "minimumFrames": 2
+  },
+  "timeline": {},
+  "assertions": {
+    "requiredLogPatterns": [
+      "SPATIAL_RESERVATION_COST",
+      "SPATIAL_RESERVATION_VALIDATION ready:"
+    ],
+    "forbiddenLogPatterns": [
+      "NullReferenceException",
+      "MissingReferenceException",
+      "Shader error"
+    ]
+  }
+}

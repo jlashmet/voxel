@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Game.WorldBuilder.Api;
 using Unity.Collections;
 
 using VoxelEngine.Structures.Api;
@@ -14,6 +15,14 @@ namespace MountingForce.WorldGen.Voxel
             SettlementPlan settlement = SettlementVoxelPlan.Resolve(seed, in settings);
             bool isKentridge = settlement.Theme.Id == Content.Kentridge.KentridgeDefinition.Id;
             bool organicKentridge = isKentridge && settlement.Routes.Count > 0;
+            WorldRoadNetwork organicRoadNetwork = organicKentridge
+                ? KentridgeWorldRoadNetwork.Build(settlement, seed, settings)
+                : null;
+            SpatialReservationSnapshot structureReservations = isKentridge
+                ? (organicKentridge
+                    ? KentridgeSpatialReservationAdapter.Build(seed, settlement, organicRoadNetwork)
+                    : Content.Kentridge.KentridgeTownPlanner.BuildReservationSnapshot(settlement))
+                : null;
             var stageList = new List<FeatureCatalogue>(organicKentridge ? 8 : (isKentridge ? 25 : 9));
 
             Add(stageList, KentridgeGroundCoverCatalogue.Build(seed, settings, Allocator.Temp));
@@ -24,11 +33,11 @@ namespace MountingForce.WorldGen.Voxel
                 Add(stageList, KentridgeTerraceSurfaceCorrectionCatalogue.Build(seed, settings, Allocator.Temp));
             }
 
-            // Legacy authored streets retain their established public-space ordering. Organic routes
-            // are deferred until after plot landforms so authoritative road grading is the final writer
-            // anywhere its wider grading envelope overlaps a plot pad.
-            if (!organicKentridge)
-                Add(stageList, KentridgeDirectedTownSurfaceCatalogue.Build(seed, settings, Allocator.Temp));
+            // Organic Kentridge uses the same solved road network for reservation validation and rasterization.
+            Add(stageList, organicKentridge
+                ? KentridgeDirectedTownSurfaceCatalogue.BuildResolvedRoadNetwork(
+                    organicRoadNetwork, settings, Allocator.Temp)
+                : KentridgeDirectedTownSurfaceCatalogue.Build(seed, settings, Allocator.Temp));
 
             if (isKentridge && !organicKentridge)
             {
@@ -40,9 +49,6 @@ namespace MountingForce.WorldGen.Voxel
             // Plot-driven stages remain valid for both layouts because they derive from SettlementPlan.Plots.
             Add(stageList, KentridgeTerraceSupportCatalogue.Build(seed, settings, Allocator.Temp));
             Add(stageList, KentridgeVerticalPlacementAdapter.BuildPlotSurfaces(seed, settings, Allocator.Temp));
-
-            if (organicKentridge)
-                Add(stageList, KentridgeDirectedTownSurfaceCatalogue.Build(seed, settings, Allocator.Temp));
 
             if (isKentridge && !organicKentridge)
                 Add(stageList, KentridgeUrbanSidewalkCatalogue.Build(seed, settings, Allocator.Temp));
@@ -76,7 +82,8 @@ namespace MountingForce.WorldGen.Voxel
                 AddReserved(stageList, KentridgeHillsideArchitectureCatalogue.Build(seed, settings, Allocator.Temp), settlement, settings);
             }
 
-            Add(stageList, KentridgeSharedStructureVoxelCatalogue.Build(seed, settings, Allocator.Temp));
+            Add(stageList, KentridgeSharedStructureVoxelCatalogue.Build(
+                seed, settings, Allocator.Temp, settlement, structureReservations));
 
             if (isKentridge && !organicKentridge)
                 Add(stageList, KentridgeAnchorUndercroftCatalogue.Build(seed, settings, Allocator.Temp));
