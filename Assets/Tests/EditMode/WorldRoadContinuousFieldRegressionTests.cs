@@ -10,9 +10,9 @@ namespace VoxelEngine.Tests.EditMode
 {
     /// <summary>
     /// Physical road decomposition must be invisible. These fixtures deliberately sample inside
-    /// overlapping endpoint-clamped corridor fields where independent primitive writes currently
-    /// disagree. A continuous road field chooses the closest presentation segment first, so write
-    /// order and bounded-piece partitioning cannot change the resulting surface.
+    /// overlapping endpoint-clamped corridor fields where independent primitive writes disagree.
+    /// A continuous road field chooses the closest presentation segment first, so write order and
+    /// bounded-piece partitioning cannot change the resulting surface.
     /// </summary>
     public sealed class WorldRoadContinuousFieldRegressionTests
     {
@@ -70,6 +70,7 @@ namespace VoxelEngine.Tests.EditMode
         {
             var table = new RegionTable(expectedResident: 4, Allocator.Temp);
             var pool = new BrickPool(capacity: 16, Allocator.Temp);
+            var batch = new NativeArray<Primitive>(corridors, Allocator.Temp);
             try
             {
                 var mutations = new RegionMutationStore(in table, in pool);
@@ -80,16 +81,8 @@ namespace VoxelEngine.Tests.EditMode
 
                 int3 minimum = new int3(Probe.x, -32, Probe.z);
                 int3 maximum = new int3(Probe.x + 1, 64, Probe.z + 1);
-                for (int i = 0; i < corridors.Length; i++)
-                {
-                    Primitive corridor = corridors[i];
-                    TerrainCorridorRasteriser.Rasterise(
-                        in corridor,
-                        minimum,
-                        maximum,
-                        reads,
-                        mutations);
-                }
+                ContinuousTerrainCorridorRasteriser.Rasterise(
+                    batch, minimum, maximum, reads, mutations);
 
                 Assert.IsTrue(reads.TryFindTopSolid(
                     Probe.x, Probe.z, -32, 64, out int top, out _));
@@ -97,6 +90,7 @@ namespace VoxelEngine.Tests.EditMode
             }
             finally
             {
+                batch.Dispose();
                 table.Dispose();
                 pool.Dispose();
             }
