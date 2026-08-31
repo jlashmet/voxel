@@ -3,28 +3,20 @@
 ## Problem
 `ShowcaseWaypointReplayHarness` currently reflects into private `VoxelShowcase` fields (`_yaw`, `_pitch`, `_mouseLook`, `_motor`) and duplicates the driver's private AutoWalk turn policy as `24f` degrees/second. That makes acceptance replay brittle under ordinary internal refactors and leaks scene-driver implementation details into evidence code.
 
-A second independent production harness, `DeterministicAutoWalkHeadingHarness`, has the same problem: it reflects `_yaw` / `_mouseLook` (and private `LandmarkWorldPosition`) and duplicates the same `24f` AutoWalk turn rate. This is useful reuse evidence: the correct seam should serve both harnesses rather than being shaped only around the Mountain Dragon route.
+An independent second consumer, `DeterministicAutoWalkHeadingHarness`, reflects the same private heading/mouse-look state plus private landmark-position behavior and independently duplicates the same `24f` AutoWalk rate. That makes the reuse boundary demonstrated rather than hypothetical: both harnesses should consume one driver-owned semantic automation surface.
 
 ## Narrow seam
 The smallest semantic public surface is owned by `VoxelShowcase`, not by `CharacterMotor` exposure:
 - set a scripted view/heading while suppressing mouse-look input;
 - request the heading that should exist *after* the driver's own AutoWalk steering for the next normal movement step;
-- read grounded state, feet position, eye height, horizontal speed, and the driver's normal/sprint movement semantics needed by evidence replay;
-- expose landmark position semantically if the deterministic circular AutoWalk harness still needs it, rather than reflecting a private method.
+- read grounded state, feet position, eye height, and horizontal speed for acceptance assertions;
+- temporarily select replay sprint movement through a semantic driver control rather than mutating `CharacterMotor.WalkSpeed` from the harness.
 
-The driver must continue to call its existing normal `CharacterMotor.Step`; the seam must not teleport after the initial route start placement or expose the motor object itself. AutoWalk turn compensation should be computed by the driver from its own policy so neither harness duplicates the 24-deg/s implementation constant. The second harness is the independent consumer that proves the seam survives ordinary `VoxelShowcase` internal refactors.
+The driver must continue to call its existing normal `CharacterMotor.Step`; the seam must not teleport after the initial route start placement or expose the motor object itself. AutoWalk turn compensation should be computed by the driver from its own policy so neither harness duplicates the 24-deg/s implementation constant.
 
-## Read-only implementation discriminator
-Current source confirms the coupling is exactly the one described above:
-- `ShowcaseWaypointReplayHarness` binds `_yaw`, `_pitch`, `_mouseLook`, and `_motor` with `BindingFlags.NonPublic`, reads `CharacterMotor.Position/Grounded`, mutates `WalkSpeed`, and pre-compensates by `24f * Time.deltaTime` before setting `AutoWalk = true`.
-- `DeterministicAutoWalkHeadingHarness` independently reflects `_yaw`, `_mouseLook`, and private `LandmarkWorldPosition`, then performs the same `24f * Time.deltaTime` pre-compensation.
-- `VoxelShowcase.StepAutoWalk` is the sole owner of the real `24f` policy and `MovePlayer` subsequently builds the ordinary forward wish vector and calls `_motor.Step(...)`.
+## Current tooling blocker
+The connector can perform whole-file UTF-8 replacement and Git blob/tree writes, but the production `VoxelShowcase.cs` is large and current connector reads are truncated. No mounted checkout or partial-patch mutation is available in this worker. Reconstructing and replacing the entire shared scene driver from truncated chunks would create an unacceptable correctness/blast-radius risk for a narrow reuse change.
 
-Therefore the acceptance-preserving change is small in design: expose semantic scripted-control/observation methods on `VoxelShowcase`, consume them from both harnesses, and leave `MovePlayer` / `CharacterMotor.Step` unchanged.
+A separate small-file Git-object path is sufficient for new evidence-only files, and is being used for the accepted-bake handoff, but it does not make the required in-place `VoxelShowcase.cs` seam safe. Keep this requirement open until a complete-file/partial-patch edit path exists; do not move reflection into another helper or expose the private motor as a workaround.
 
-## Tooling blocker
-The currently available GitHub connector can create blobs/trees and can replace UTF-8 files, but its existing-file write action requires the complete replacement contents. Whole-file reads of `VoxelShowcase.cs` (about 58 KB) are truncated by the connector response budget; there is no partial-patch write action and the repository is not mounted in the local container. Fetching disjoint line ranges is sufficient for source understanding but reconstructing a production driver from those chunks would create an unacceptable risk of omission/line-boundary damage for a change whose required blast radius is only a few methods.
-
-The earlier assumption that blob/tree support alone cleared the blocker was therefore incorrect. Blob/tree writes still require a complete new blob; they do not provide patch application.
-
-Per SceneIssue rules, keep this external tooling prerequisite explicit and continue independent work. Do not move the reflection into another helper, expose `CharacterMotor` directly, weaken the reuse task, or mark it complete until a safe narrow edit lands and both consumers pass through the public seam.
+Per SceneIssue rules, record this external/tooling prerequisite and continue independent validated work. Do not weaken the task or mark it complete until the public seam is actually landed and both harness consumers pass through it.
