@@ -4,7 +4,7 @@
 - [x] Read `AGENTS.md`, `SceneIssues/README.md`, `SceneIssues/feature-readme.md`; maintain separate plan/tasks.
 - [x] Keep water authoring in canonical `ShowcaseWorld`/Storage and rendering in the shared renderer; no bespoke proof mesh/material path.
 - [x] Keep material IDs opaque in shared code; scene/game IDs remain composition policy.
-- [x] Prove portability with independently authored Water/RiverWater/Cascade through ordinary `RenderingWorldBinding`, plus existing `VoxelShowcase` and `WorldbuildingGalleryShowcase` consumers.
+- [x] Prove portability with independently authored Water/RiverWater/Cascade through ordinary production-path fixtures; `VoxelShowcase` is a canonical consumer. Do not count `WorldbuildingGalleryShowcase` as water portability evidence; it uses bounded gallery meshes. Kentridge uses the canonical `ShowcaseWorld` + `RenderingWorldBinding`, but visible-water content still must be proven before A5.
 - [x] Merge current master before validation; branch initially contained master `ebdc2e4f63ef73153cd4e0ff5c62efe604f35470` via merge `84fecff091649390e7ee8a67228a636219191e21`, then merged advanced master `2ea5f5c95f89fbf0403dbefb50b782829583d304` via `87000073f2ca648922a18ae0788ed9008a55dd18` before spray validation.
 
 ## Shared implementation / reuse
@@ -50,9 +50,10 @@
 - [x] Exact corrected spray run `33355120310` passes `WaterArenaDrawRegressionTests`, automatic module validation and a 60-second standalone showcase replay.
 - [x] Directly reject `33355120310` 32.2s/42.2s/52.2s frames: coherent strands and irregular ribbons remain, but impact spray is not visibly free of the bright sheet bottoms.
 - [x] Run production-path discriminator `33356900725`; it fails before the spray assertion because `CompletedBuildCount` stays zero for 120 frames, so it is inconclusive about flag survival rather than evidence of a production spray loss.
-- [x] Add cache-state diagnostics to the discriminator without increasing the 120-frame timeout or changing production rendering.
-- [ ] Re-run the diagnostic discriminator and isolate whether non-completion is mesh overflow, job completion, upload, arena allocation, stale rebuild, residency, or harness setup.
-- [ ] Prove or deny `WaterSprayFlag` survival through Storage → production cache → GPU arena before another visual correction.
+- [x] Add cache-state diagnostics to the discriminator without increasing the 120-frame bound or changing production rendering.
+- [x] Diagnostic run `33357865312` isolates the non-completion state: `dirty=1 runningJobs=1 pendingUploads=0 pendingBytes=0 meshOverflow=0 arenaFailures=0 blockingCompletionViolations=0 staleBuilds=0 residents=0 uploadedBytes=0 residentGpuBytes=0`; the 120-yield test finishes in ~0.46 s, so the worker batch is not becoming dispatch-ready in this test harness.
+- [x] Fix only the discriminator harness by calling nonblocking `JobHandle.ScheduleBatchedJobs()` after `cache.Prepare`; retain the 120-frame bound and never call `Complete()`.
+- [ ] Re-run the production-path discriminator with explicit job-batch flush and prove or deny `WaterSprayFlag` survival through Storage → production cache → GPU arena before another visual correction.
 
 ## Reliability / cost
 - [x] Preserve spreading/inert gameplay semantics and storage/streaming/edit/diagnostic contracts; no swim/buoyancy subsystem exists to alter.
@@ -61,29 +62,30 @@
 - [x] Arena correction adds one scalar to existing per-water-draw properties; no geometry allocation or draw call.
 - [x] `33339706799` player logs show no shader/pink/missing-resource/runtime failure; post-start telemetry remains sub-~1.3 ms p95 windows with ~698 MiB allocated and ~854–882 MiB reserved. FrameTimingManager GPU values are unavailable and not invented.
 - [x] `33346565021` topology head reports `avgFrameMs=1.090`, `allocatedMiB=697.9`, `reservedMiB=847.6`, `monoUsedMiB=9.1` at 30s; CPU/GPU FrameTimingManager values are `-1` and not inferred.
-- [ ] Measure exact spray-head arena geometry/frame/memory cost and inspect player/build logs; spray adds one quad per exposed vertical lower boundary but no vertex-stride/buffer/draw-path increase.
+- [x] `33355120310` spray-head replay keeps the shared arena at `1,886,976 / 34,408,080` vertices, `2,841,088 / 60,214,140` indices and `191 / 16,384` draws with `leaseFail=0`; allocated memory stays 698.4 MiB, reserved 861.6–863.6 MiB, and 10–50s average frame samples remain ~0.89–1.40 ms. The 157 MB player build has no C# compile, shader compile, build-failure, pink/missing-shader, or runtime-exception signature; its three generic error counts are licensing-handshake messages. FrameTimingManager GPU data remains unavailable and is not inferred.
+- [ ] Complete final accepted-head CPU/GPU/memory/render-cost statement after visual acceptance; do not weaken budgets or invent unavailable GPU timing.
 
 ## Exact-SHA gates
 - [x] `33337560328`: start-instance attempt test-green but visually rejected.
 - [x] `33339119323`: minimal Metal start-instance discriminator failed exactly at the expected assertion, proving product root cause rather than infrastructure.
 - [x] Correct request-schema-only failure `33339677889` after completion by resubmitting same exact feature parent with integer `replay_seconds`; no code failure/retry substitution.
 - [x] `33339706799`: explicit arena-base regression + 60-second player capture green; addressing visual defect fixed but art acceptance still open.
-- [x] Re-read current `origin/master` before shader/ribbon validation; master remains `ebdc2e4f63ef73153cd4e0ff5c62efe604f35470`.
-- [x] `33343405166`: `WaterArenaDrawRegressionTests` + 60-second player replay green on shader head `66438175b0d40b54e905d062020cebc478a2f244`; shader quality improved but silhouette rejected.
+- [x] `33343405166`: `WaterArenaDrawRegressionTests` + 60-second player replay green; shader quality improved but silhouette rejected.
 - [x] `33345745137`: exact irregular-ribbon head passes `WaterArenaDrawRegressionTests` + 60-second player replay; direct quality review still rejects lip/base/mist closure.
-- [x] Re-read current `origin/master` before topology/spray work; master remains `ebdc2e4f63ef73153cd4e0ff5c62efe604f35470`.
-- [x] `33346565021`: focused topology regression plus 60-second WaterRenderingShowcase replay passes on exact topology head; direct review rejects free-spray acceptance.
+- [x] `33346565021`: focused topology regression plus 60-second WaterRenderingShowcase replay passes; direct review rejects free-spray acceptance.
 - [x] Re-read current `origin/master` immediately before spray exact request; master advanced to `2ea5f5c95f89fbf0403dbefb50b782829583d304` and was merged into the feature branch.
-- [x] `33354768733` completed failure before tests/player capture because the new production-path regression lacked `using VoxelEngine.Rendering.Runtime;` after the master merge; fixed the compile cause on feature branch. This is a code failure, not an infrastructure retry.
-- [x] `33355120310`: `WaterArenaDrawRegressionTests` + automatic module validation + 60-second WaterRenderingShowcase replay green on corrected spray head; direct visual review still rejects free spray/mist.
-- [x] `33356900725`: production-path spray discriminator completes with test failure at `CompletedBuildCount > 0`; no cache publication occurred, so the spray flag assertion was never reached.
-- [ ] Run diagnostic production-path discriminator on exact diagnostic head.
-- [ ] After the root cause is corrected, run `WaterArenaDrawRegressionTests` plus 60-second WaterRenderingShowcase replay on exact candidate head.
+- [x] `33354768733` completed failure before tests/player capture because the new production-path regression lacked `using VoxelEngine.Rendering.Runtime;` after the master merge; fixed the compile cause on feature branch.
+- [x] `33355120310`: `WaterArenaDrawRegressionTests` + automatic module validation + 60-second WaterRenderingShowcase replay green; direct visual review still rejects free spray/mist.
+- [x] `33356900725`: production-path spray discriminator fails before flag assertion because no cache publication occurs.
+- [x] `33357559750`: accidental stale-head CI request was allowed to complete untouched; it is non-authoritative and not used as evidence.
+- [x] `33357865312`: authoritative diagnostic discriminator reports one still-running mesh job and zero downstream failure counters, isolating test-runner job dispatch as the harness blocker.
+- [ ] Run corrected production-path discriminator on the exact harness-flush head.
+- [ ] After downstream root cause is proven/corrected, run `WaterArenaDrawRegressionTests` plus 60-second WaterRenderingShowcase replay on exact candidate head.
 - [ ] Directly accept/reject near/wide/time-separated waterfall frames against downward-flow, turbulence/aeration, irregular breakup, lip/edge/base foam, free mist/spray and overall visual-quality requirements.
 - [ ] Run `ShowcaseWaterPresentationRegressionTests` on the same visually accepted feature head.
 - [ ] Run `WaterSprayProductionPathRegressionTests.CascadeSprayFlagSurvivesCanonicalStorageCacheAndGpuUpload` on the same accepted head.
 - [ ] Confirm exact player build has no startup/runtime/shader compile/stripping/pink/missing-resource failure.
-- [ ] Reconcile accepted build with `VoxelShowcase` and `WorldbuildingGalleryShowcase` shared-water paths.
+- [ ] Reconcile accepted build with `VoxelShowcase` and one actual production scene containing water; prefer Kentridge only if visible water content is proven there.
 - [ ] Complete issue `resolutionSummary`, `regressionTest`, `fixCommit`, `status=fixed`, `resolvedUtc` only after every acceptance item below is validated.
 - [ ] Move assigned issue directly `open/` → `closed/` after all exact-SHA gates pass.
 - [ ] Fetch/merge latest master again, then non-force promote exact closed feature head to `origin/master`; fetch/merge/retry if master advanced.
