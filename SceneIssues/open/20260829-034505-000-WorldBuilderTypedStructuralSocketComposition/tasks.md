@@ -26,7 +26,7 @@
 - [x] Source SHA `79acce98d6594f98b70d4f291a3c9a480f98a72c` contains the focused module validation implementation.
 - [x] Run `33351150212` / transport `5d47b909c13948e4106d4e6a00bdeed77d8b6d69`: focused PlayMode class executed 1 test and passed (Unity status 0).
 - [x] Diagnose the later failure in `33351150212` before another fix: legacy SceneIssue capture ignored the module scene, built `Assets/Scenes/WorldbuildingGalleryShowcase.unity`, and failed its unrelated 18-view town audit. This is capture-infrastructure coupling, not a semantic socket failure.
-- [ ] Record the final result of semantic-only run `33351379322` / transport `19c1690b722b7685d06b3ca1d1dda8080684d764` using the same focused test without a SceneIssue capture request.
+- [x] Run `33351379322` / transport `19c1690b722b7685d06b3ca1d1dda8080684d764`: same focused PlayMode test from source SHA `79acce98d6594f98b70d4f291a3c9a480f98a72c`; requested test, capture/no-op, result classification/upload, final status, and workflow all completed green.
 
 ## Focused standalone player / visual confirmation
 - [ ] Route standalone built-player validation to the exact scene `Assets/VoxelEngine/Structures/Tests/Scenes/TypedStructuralSocketComposition.unity` using the generic module-validation runner once that shared prerequisite is merged.
@@ -36,8 +36,8 @@
 
 ## Blocker
 - [x] Record external prerequisite: current shared `tests-single.yml` / `showcase-player-capture.sh` SceneIssue route only supports legacy `Assets/Scenes/...` replay/capture and forces gallery-specific audit contracts.
-- [x] Record that generic module-validation infrastructure currently exists only on unmerged `fixes/agent-8`; agent 5 remains self-contained and does not depend on that branch.
-- [ ] Revisit the focused standalone player/capture task after the generic runner lands; continue any independent acceptance/correctness work in the meantime.
+- [x] Record that generic module-validation infrastructure was available only on unmerged `fixes/agent-8` when this blocker was identified; agent 5 remains self-contained and does not depend on that branch.
+- [ ] Re-check current master for the generic runner; if still absent, leave standalone player/capture explicitly blocked and continue only independent acceptance/correctness work.
 
 ## Closure
 - [ ] Review final feature diff/cost and verify changes are limited to assignment-required structural production work, regressions/adapters, module-owned focused validation, and this SceneIssue.
