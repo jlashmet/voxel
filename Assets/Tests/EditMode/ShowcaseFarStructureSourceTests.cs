@@ -26,14 +26,22 @@ namespace VoxelEngine.Tests.EditMode
                 StructureVisibilityClass.Landmark,
                 0xABCDUL);
             var source = new FakeVisibilitySource(record);
+            float2 policyCamera = new float2(-1f, -1f);
             var adapter = new ShowcaseFarStructureSource(
                 source,
-                _ => FarStructureTier.Far,
+                (_, camera) =>
+                {
+                    policyCamera = camera;
+                    return FarStructureTier.Far;
+                },
                 xz => xz.x + xz.y);
 
-            IReadOnlyList<FarStructureInstance> instances = adapter.Query(new float2(20f, 35f), 30f);
+            var cameraXZ = new float2(20f, 35f);
+            IReadOnlyList<FarStructureInstance> instances = adapter.Query(cameraXZ, 30f);
 
             Assert.That(source.QueryCount, Is.EqualTo(1));
+            Assert.That(policyCamera.x, Is.EqualTo(cameraXZ.x));
+            Assert.That(policyCamera.y, Is.EqualTo(cameraXZ.y));
             Assert.That(instances, Has.Count.EqualTo(1));
             FarStructureInstance instance = instances[0];
             Assert.That(instance.StableId, Is.EqualTo(0x1234UL));
@@ -64,7 +72,7 @@ namespace VoxelEngine.Tests.EditMode
                 5UL);
             var adapter = new ShowcaseFarStructureSource(
                 new FakeVisibilitySource(record),
-                _ => FarStructureTier.Culled,
+                (_, __) => FarStructureTier.Culled,
                 _ => 0f);
 
             Assert.That(adapter.Query(float2.zero, 20f), Is.Empty);
