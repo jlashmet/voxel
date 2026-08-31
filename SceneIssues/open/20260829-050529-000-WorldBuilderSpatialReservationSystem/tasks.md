@@ -62,7 +62,7 @@
 - [x] Stable ids, insertion-order independence, equal-precedence stable-id tie, hard/clearance/soft/handoff outcomes.
 - [x] Replay/release ownership regression and bounded-window query-work regression authored.
 - [x] Macro-road production regression and architecture shared-source/host-filter regression authored.
-- [ ] Record representative snapshot/source construction and query metrics from the final module-local built-player run; scene emits `SPATIAL_RESERVATION_COST` with build ticks, bounded query work, and Unity allocated/reserved memory.
+- [ ] Record representative snapshot/source construction and query metrics from the final module-local built-player run; prior green run measured 81 claims, 4 query buckets, 14 broad-phase candidates/tests, 65,577,760 allocated bytes and 155,123,712 reserved bytes, but final evidence must come from the presentation-fix exact SHA.
 - [x] No global/device/region budget files or CharacterMotor/world-generation tolerances changed; re-check final diff after exact-SHA reconciliation.
 
 ## Module-local runtime evidence
@@ -70,16 +70,19 @@
 - [x] `WorldbuildingGalleryShowcase` is non-gating for this assignment and must not be used as the focused validation surface.
 - [x] Add module-local validation scene `Assets/Game/WorldBuilder/Generation/Validation/SpatialReservations/SpatialReservationValidation.unity` with dedicated runtime composition `SpatialReservationValidationShowcase`.
 - [x] Add generic module-validation metadata `spatial-reservations.module-validation.json` and separate built-player scenario `spatial-reservations.player-scenario.json`; no feature-specific logic is added to the shared harness.
-- [x] Local scene consumes deterministic production Kentridge reservation data and visibly distinguishes hard occupancy, clearance, road, public access, underground, and a deliberate rejected overlap; it owns no placement authority or colliders.
+- [x] Local scene consumes deterministic production Kentridge reservation data for hard, clearance, road, public access, underground, and a deliberate rejected overlap; it owns no placement authority or colliders.
 - [x] Underground evidence uses production `KentridgeHiddenSpacePlanner` + `WorldBuilderReservationFactory.HiddenSpaceVolume`; do not fall back to Worldbuilding Gallery.
-- [ ] Run the exact built module-local `SpatialReservationValidation.unity` player and directly inspect all required surface/underground/rejection captures.
-- [ ] Run real `KentridgePlayableSlice` built/runtime traversal check as the integration/regression gate, not as the module's focused validation scene.
+- [x] Directly inspect run `33364666745` captures and identify the demonstrated occlusion defect rather than accepting technically green but unreadable evidence.
+- [x] Correct only module-local presentation: fixed evidence-card layout plus underground-below-surface slice; production reservation geometry/decisions remain authoritative and unchanged.
+- [ ] Run the presentation-fix exact built module-local `SpatialReservationValidation.unity` player and directly inspect all required surface/underground/rejection captures.
+- [ ] Run real `KentridgePlayableSlice` built/runtime traversal check on the final exact SHA as the integration/regression gate, not as the module's focused validation scene.
 
 ## Validation / closure
 
 Validation history:
 - exact-SHA run `33362347013` on source `91b5fba348af4d9c464e8131b47c18b62fdbc2a0` stopped at Unity compile because the solved-road composition fix omitted `Game.WorldBuilder.Api` imports in the two files naming `WorldRoadNetwork`; the narrow import fix is applied.
 - exact-SHA run `33362910546` on source `3740f611045635578f61816bbdbcc88b07c3fc77` stopped before test execution with Unity macOS bus error 10 / exit 138 at ~3.5 GB peak RSS. Treat as proven infrastructure failure, not behavioral evidence. After that completed run, the adapter's redundant seed-based settlement rebuild was replaced by `BuildReservationSnapshot(plan)`.
+- exact-SHA run `33364666745` on source `75e075c86f209d0f67481d45e5067656db7c5e3b` passed requested production integration, all four automatic reservation suites, Kentridge real-player validation, and the dedicated local player. Durable local logs contained readiness/cost markers, but direct screenshot review showed the floor/full-window projection occluded required road/access/rejected/underground evidence. Closure withheld; presentation-only fix applied.
 
 - [x] Follow current `SceneIssues/feature-readme.md`, common `SceneIssues/README.md`, and `AGENTS.md`; unfinished work remains in `open/`.
 - [x] Never edit `.github/test-request.json` on `fixes/agent-7`, create extra transports, or replace queued/running CI.
