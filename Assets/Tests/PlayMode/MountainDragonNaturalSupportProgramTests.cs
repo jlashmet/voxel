@@ -45,6 +45,9 @@ namespace VoxelEngine.Tests.PlayMode
                 int expectedClearanceWidth = System.Math.Min(
                     spec.PathWidth,
                     WorldBuilderMountainLandmarkCatalogue.PathClearanceWidthVoxels);
+                int expectedCarveBoxCount = 2;
+                for (int level = 0; level < spec.SwitchbackCount; level++)
+                    expectedCarveBoxCount += spec.PathTier(level).SegmentCount;
 
                 Assert.That(
                     WorldBuilderMountainLandmarkCatalogue.PathClearanceWidthVoxels,
@@ -95,8 +98,9 @@ namespace VoxelEngine.Tests.PlayMode
                     "Switchback support must not regress to tall ground-to-path rectangular retaining walls.");
                 Assert.That(frustumCount, Is.GreaterThanOrEqualTo(20),
                     "The path and silhouette must be supported by multiple tapered landform masses.");
-                Assert.That(carveBoxCount, Is.EqualTo(spec.SwitchbackCount * 2 + 1),
-                    "Every ramp, turn, final ascent, and summit approach must retain explicit headroom carving.");
+                Assert.That(carveBoxCount, Is.EqualTo(expectedCarveBoxCount),
+                    "Every authored shell-following ramp segment, final ascent, and summit approach "
+                    + "must retain explicit headroom carving.");
                 Assert.That(carveVoxelVolume, Is.LessThanOrEqualTo(MaximumTraversalCarveVoxels),
                     "Traversal clearance must remain below the measured one-time bake-cost envelope; "
                     + "full-width carving previously rasterized more than five million voxels.");
