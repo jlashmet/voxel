@@ -114,7 +114,7 @@ namespace VoxelEngine.Tests.PlayMode
                 Assert.AreEqual(1, host.transform.childCount);
                 GameObject proxy = host.transform.GetChild(0).gameObject;
                 MeshRenderer renderer = proxy.GetComponent<MeshRenderer>();
-                BoxCollider collider = proxy.GetComponent<BoxCollider>();
+                Collider collider = proxy.GetComponent<Collider>();
                 UnityWorldObjectProxyIdentity identity = proxy.GetComponent<UnityWorldObjectProxyIdentity>();
                 Assert.NotNull(renderer);
                 Assert.NotNull(collider);
