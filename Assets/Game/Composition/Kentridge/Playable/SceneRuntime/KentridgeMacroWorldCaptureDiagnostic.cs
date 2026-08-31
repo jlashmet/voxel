@@ -1,11 +1,16 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
+using Game.Composition.Kentridge.Playable;
 using Game.WorldBuilder.Api;
 using Game.WorldBuilder.Runtime;
 using MountingForce.WorldGen;
 using MountingForce.WorldGen.Content.Kentridge;
 using MountingForce.WorldGen.Voxel;
 using UnityEngine;
+using VoxelEngine.Composition;
+using VoxelEngine.Showcase;
+using VoxelEngine.Storage.Api;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
 
 namespace Game.Kentridge.PlayableSlice
@@ -13,8 +18,9 @@ namespace Game.Kentridge.PlayableSlice
     /// <summary>
     /// Validation-only end-of-frame discriminator for macro settlement captures. It observes the
     /// already-authored survey camera after the settlement-lens composition has run and reports the
-    /// actual FOV/pose plus viewport locations of all authored generic blockout centres. It never
-    /// changes camera, streaming, world generation, rendering, or residency state.
+    /// actual FOV/pose plus viewport and authoritative/published surface state at all authored
+    /// generic blockout centres. It never changes camera, streaming, world generation, rendering,
+    /// residency, or replay state.
     /// </summary>
     [DefaultExecutionOrder(20000)]
     internal sealed class KentridgeMacroWorldCaptureDiagnostic : MonoBehaviour
@@ -26,8 +32,22 @@ namespace Game.Kentridge.PlayableSlice
         private const float HeightToleranceMetres = 1.5f;
         private const int SurveyHorizontalOffsetDm = 60;
         private const float CameraMatchToleranceMetres = 2f;
+        private const int TopProbeBelowTerrainVoxels = 16;
+        private const int TopProbeAboveTerrainVoxels = 400;
+        private const float CentreCoverageWidthMetres = 4f;
+        private const float CentreCoverageHeightMetres = 40f;
+        private const int StableReadyFrames = 4;
+
+        private static readonly FieldInfo s_WorldField = typeof(KentridgePlayableSlice).GetField(
+            "_world",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
         private readonly HashSet<string> _reported = new HashSet<string>(StringComparer.Ordinal);
         private Survey[] _surveys;
+        private KentridgePlayableSlice _slice;
+        private ShowcaseWorld _world;
+        private string _readySurvey;
+        private int _stableReadyFrames;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void InstallForAssignedProfile()
@@ -69,7 +89,11 @@ namespace Game.Kentridge.PlayableSlice
             int xDm = Mathf.RoundToInt(position.x / DmToMetres);
             int zDm = Mathf.RoundToInt(position.z / DmToMetres);
             float terrainMetres = TerrainSampler.HeightAt(xDm, zDm, Seed) * DmToMetres;
-            if (Mathf.Abs(position.y - terrainMetres - SurveyHeightMetres) > HeightToleranceMetres) return;
+            if (Mathf.Abs(position.y - terrainMetres - SurveyHeightMetres) > HeightToleranceMetres)
+            {
+                ResetReadyFrames();
+                return;
+            }
 
             for (var surveyIndex = 0; surveyIndex < _surveys.Length; surveyIndex++)
             {
@@ -77,14 +101,29 @@ namespace Game.Kentridge.PlayableSlice
                 float dx = position.x - survey.CameraDm.X * DmToMetres;
                 float dz = position.z - survey.CameraDm.Y * DmToMetres;
                 if (dx * dx + dz * dz > CameraMatchToleranceMetres * CameraMatchToleranceMetres) continue;
-                if (!_reported.Add(survey.Label)) return;
+                if (_reported.Contains(survey.Label)) return;
+                if (!IsCaptureReady(survey))
+                {
+                    ResetReadyFrames(survey.Label);
+                    return;
+                }
+
+                if (!string.Equals(_readySurvey, survey.Label, StringComparison.Ordinal))
+                {
+                    _readySurvey = survey.Label;
+                    _stableReadyFrames = 0;
+                }
+                _stableReadyFrames++;
+                if (_stableReadyFrames < StableReadyFrames) return;
+                _reported.Add(survey.Label);
 
                 bool allCentresInside = true;
                 var centres = new string[survey.BuildingCentresDm.Length];
                 for (var i = 0; i < survey.BuildingCentresDm.Length; i++)
                 {
                     Int2 centreDm = survey.BuildingCentresDm[i];
-                    float ground = TerrainSampler.HeightAt(centreDm.X, centreDm.Y, Seed) * DmToMetres;
+                    int groundVoxel = TerrainSampler.HeightAt(centreDm.X, centreDm.Y, Seed);
+                    float ground = groundVoxel * DmToMetres;
                     Vector3 viewport = camera.WorldToViewportPoint(new Vector3(
                         centreDm.X * DmToMetres,
                         ground + 8f,
@@ -93,7 +132,36 @@ namespace Game.Kentridge.PlayableSlice
                                   && viewport.x >= 0.04f && viewport.x <= 0.96f
                                   && viewport.y >= 0.04f && viewport.y <= 0.96f;
                     allCentresInside &= inside;
-                    centres[i] = $"b{i}=({viewport.x:0.000},{viewport.y:0.000},{viewport.z:0.0}) inside={inside}";
+
+                    bool hasTop = _world.SurfaceQuery.TryFindTopSolid(
+                        centreDm.X,
+                        centreDm.Y,
+                        groundVoxel - TopProbeBelowTerrainVoxels,
+                        groundVoxel + TopProbeAboveTerrainVoxels,
+                        out int topY,
+                        out VoxelCell topCell);
+                    int topDelta = hasTop ? topY - groundVoxel : int.MinValue;
+                    var coverageBounds = new Bounds(
+                        new Vector3(
+                            centreDm.X * DmToMetres,
+                            ground + CentreCoverageHeightMetres * 0.5f,
+                            centreDm.Y * DmToMetres),
+                        new Vector3(
+                            CentreCoverageWidthMetres,
+                            CentreCoverageHeightMetres,
+                            CentreCoverageWidthMetres));
+                    bool queried = RenderingSurfaceCoverageDiagnostics.TryQueryVisibleSolidBounds(
+                        coverageBounds,
+                        DmToMetres,
+                        out SurfaceBoundsCoverage coverage);
+                    centres[i] =
+                        $"b{i}=({viewport.x:0.000},{viewport.y:0.000},{viewport.z:0.0}) inside={inside}" +
+                        $" top={(hasTop ? topY.ToString() : "none")}" +
+                        $" delta={(hasTop ? topDelta.ToString() : "none")}" +
+                        $" material={(hasTop ? topCell.BaseMaterialId.ToString() : "none")}" +
+                        $" surfaceStyle={(hasTop ? topCell.Surface.ReconstructionStyleId.ToString() : "none")}" +
+                        $" coverage={queried}/{coverage.ReadyChunkCount}/{coverage.ReadyIndexCount}" +
+                        $" sourceStep={coverage.MinimumSourceStep}-{coverage.MaximumSourceStep}";
                 }
 
                 Vector3 euler = camera.transform.rotation.eulerAngles;
@@ -102,8 +170,37 @@ namespace Game.Kentridge.PlayableSlice
                     $"position=({position.x:0.0},{position.y:0.0},{position.z:0.0}) " +
                     $"euler=({euler.x:0.0},{euler.y:0.0},{euler.z:0.0}) allBuildingCentresInside={allCentresInside} " +
                     string.Join(" ", centres));
+                ResetReadyFrames();
                 return;
             }
+
+            ResetReadyFrames();
+        }
+
+        private bool IsCaptureReady(Survey survey)
+        {
+            _slice ??= FindFirstObjectByType<KentridgePlayableSlice>();
+            if (_slice == null || s_WorldField == null) return false;
+            _world ??= s_WorldField.GetValue(_slice) as ShowcaseWorld;
+            if (_world == null || !RenderingComposition.HasCompletePublishedNearSurfaceCoverage()) return false;
+
+            for (var i = 0; i < survey.BuildingCentresDm.Length; i++)
+            {
+                Int2 centreDm = survey.BuildingCentresDm[i];
+                int ground = TerrainSampler.HeightAt(centreDm.X, centreDm.Y, Seed);
+                var worldPoint = new Vector3(
+                    centreDm.X * DmToMetres,
+                    ground * DmToMetres,
+                    centreDm.Y * DmToMetres);
+                if (!_world.IsPresentationColumnContentSettled(worldPoint)) return false;
+            }
+            return true;
+        }
+
+        private void ResetReadyFrames(string survey = null)
+        {
+            _readySurvey = survey;
+            _stableReadyFrames = 0;
         }
 
         private static Survey BuildSurvey(TopDownWorldPhysicalPlan physical, string nodeId)
