@@ -20,12 +20,14 @@ namespace VoxelEngine.Showcase.Editor
         public readonly struct Result
         {
             public readonly BakedVoxelStructure Bake;
+            public readonly BakedVoxelStructureStats Stats;
             public readonly string Encoded;
             public readonly int SerializedByteCount;
 
-            public Result(BakedVoxelStructure bake, string encoded)
+            public Result(BakedVoxelStructure bake, BakedVoxelStructureStats stats, string encoded)
             {
                 Bake = bake ?? throw new ArgumentNullException(nameof(bake));
+                Stats = stats;
                 Encoded = encoded ?? throw new ArgumentNullException(nameof(encoded));
                 SerializedByteCount = Encoding.UTF8.GetByteCount(encoded);
             }
@@ -52,8 +54,9 @@ namespace VoxelEngine.Showcase.Editor
             MeshVoxelizationSettings settings = MountainDragonAuthoringPolicy.CreateVoxelizationSettings();
             BakedVoxelStructure bake = MeshVoxelizer.Voxelize(in source, in settings);
             MountainDragonVoxelBakePolicy.ValidateBakeEnvelope(bake);
+            BakedVoxelStructureStats stats = MeshVoxelizationMetrics.Analyze(bake);
             string encoded = BakedVoxelStructureCodec.Encode(bake);
-            return new Result(bake, encoded);
+            return new Result(bake, stats, encoded);
         }
 
         public static Result GeneratePinnedBakeAndWriteArtifact(string outputPath = null)
