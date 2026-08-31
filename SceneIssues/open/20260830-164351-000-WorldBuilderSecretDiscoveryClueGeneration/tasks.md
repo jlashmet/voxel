@@ -6,8 +6,8 @@
 - [x] Inspect the SceneIssue directory for captures/marked regions; none are present.
 - [x] Inspect `Docs/worldbuilder-secret-clues-design.md`, existing secret topology contracts, and production `SecretPlanner`.
 - [x] Discriminate root-cause hypotheses: canonical hidden-destination selection already exists; route/readability/clue planning is the missing WorldBuilder layer.
-- [x] Re-check current master for generic interactable/inspect/discovery prerequisite. `20260830-014314-000-ExplorationInteractablesSecretsShowcase` remains open and no verified reusable interaction/discovery API is present; built-player mechanism/discovery integration is externally blocked.
-- [x] Confirm module-local built-player validation architecture has landed on master; do not use it to fake the still-missing interaction/discovery prerequisite.
+- [x] Re-check the feature merge base (`2edf4c2e151492f67c4a1c1b846a9b7948284aba`) for generic interactable/discovery prerequisites. The accepted reusable `WorldObjectDescriptor` / `WorldObjectSceneRegistry` / `WorldObjectSceneRuntime` path and canonical `SecretDiscoveryState` are already present on this feature branch; the prior blocker text was stale.
+- [x] Confirm module-local built-player validation architecture has landed; use it for feature execution proof, not as a substitute for representative generated-world acceptance.
 - [x] Trace the actual WorldBuilder -> voxel realization path. `WorldBuilderVoxelCatalogue.Build` currently accepts only `AuthoredTownPlan` and forwards to the Kentridge settlement backend; there is no secret/route/clue input or secret-specific voxel realization in the production adapter. The raster/storage path also retains voxel material/surface semantics rather than secret-route provenance. Therefore semantic `SecretBypassEvidence` cannot honestly be claimed as validation of generated secret voxel geometry yet.
 
 ## Stable planning contracts
@@ -46,7 +46,7 @@
 - [x] Equivalent source alternatives can vary deterministically across seeds without generation-order dependence.
 - [x] NPC rumor source requires a resolved NPC with conversation capability.
 - [x] Add event-driven `SecretDiscoveryLedger` seam: starts undiscovered, clue observation does not reveal target, explicit discovery is idempotent in-memory, capture/restore is deterministic.
-- [ ] Replace/bind the temporary discovery seam to the canonical runtime discovery authority once that owning API lands; WorldBuilder must not become save/reward authority. **Blocked: owning interactables/discovery SceneIssue remains open on current master.**
+- [x] Bind `SecretDiscoveryLedger` to canonical `SecretDiscoveryState`; candidate identity, first-discovery event ownership, restore, and revisit behavior remain in the canonical authority rather than a WorldBuilder-local reward/save store.
 
 ## Behavioral regressions
 
@@ -64,6 +64,7 @@
 - [x] Pre-solve observability and circular-dependency regressions.
 - [x] Multiple natural + mechanism route identity regression.
 - [x] Protected-shell, authored-breakable leakage, and systemic-bypass policy regressions.
+- [ ] Production-boundary regression `SecretRouteWorldObjectIntegrationTests.MechanismAndNaturalRoutesShareCanonicalDiscoveryAcrossInteractionAndReload` is authored on feature SHA `481f63284edb549f1e4d8211738809cb82043f75`; targeted run `33416403719` is queued and must complete before this item is checked.
 
 ## CI evidence
 
@@ -72,27 +73,31 @@
 - [x] Exact source SHA `492133648d2f278e23bdfd501d8fb391d948a569`: run `33355968467` completed green, including focused `SecretCluePlannerTests` and repository-derived automatic module validation.
 - [x] Later module-player attempt reached compile and exposed a validation-fixture API misuse (`WorldBlueprintBuilder.RequireSite` did not exist); fixed by using the public `Region(...).Site(...)` authoring API rather than widening internals.
 - [x] Exact source SHA `d3de5b1fe3a5cf2b43b01ebff41cee41ff071242`: run `33360442372` completed green with 5 focused `SecretDiscoveryPlannerTests`, automatic `worldbuilder` + `kentridge-integration` module validation, and both real-player builds/runs. Full-resolution WorldBuilder screenshots exposed a magenta/error-material defect in the validation tableau.
-- [x] Fix the demonstrated validation-scene material defect with explicit supported `Sprites/Default` material and an availability assertion; no production planner behavior changed.
-- [x] Exact latest feature SHA `6f68a84ecbb5c2e081c3ab666a19a7903161a347`: run `33361608731` completed green through 5 focused tests, automatic module validation, Kentridge real-player validation, dedicated WorldBuilder real-player build/run, screenshot capture, artifact upload, and final `ci/single-test` status.
+- [x] Fix the demonstrated validation-scene material defect with an explicit supported material and availability assertion; no production planner behavior changed.
+- [x] Exact feature SHA `dc1bab0cad0170b448fef055e53842e30e6149a3`: run `33405791094` completed green, but full-resolution dedicated capture still read as a sparse primitive validation tableau; recorded in experiment 004.
+- [x] Exact feature SHA `c2b140825cbdc6b8eb294ae8dbf5ac2e94b6e037`: run `33415154135` completed green through focused regression, automatic module validation, standalone SceneIssue replay, screenshot previews, artifact upload, and final status.
+- [x] Inspect run `33415154135` full-resolution captures. The materially different enriched clue scene still fails the same production-quality visual symptom; per the two-fix rule, experiment 005 isolates the presentation root cause instead of performing another primitive polish pass.
+- [ ] Exact feature SHA `481f63284edb549f1e4d8211738809cb82043f75`: targeted run `33416403719` for reusable world-object/canonical-discovery integration is queued; do not replace while queued/running.
 
-## Built-player / representative acceptance — blocked on canonical integration
+## Built-player / representative acceptance
 
-- [x] Dedicated module-owned WorldBuilder validation scene builds and runs as a standalone player (30 s) without runtime exceptions; ready log reports `clues=2 channels=2 routes=2 deterministic=true bypassRejected=true markerShader=Sprites/Default`.
-- [x] Full-resolution dedicated WorldBuilder validation captures inspected after the shader fix: dark-green approach surface, cyan hidden-volume marker, orange route markers, and yellow clue markers render correctly; no magenta/error material remains.
-- [ ] Architectural generated secret with interactable-backed route is realized through the accepted reusable interactable abstraction, not a WorldBuilder/showcase-local interaction state machine. **Blocked: owning interactables SceneIssue remains open on current master.**
+- [x] Dedicated module-owned WorldBuilder validation scene builds and runs as a standalone player (30 s) without runtime exceptions and reports deterministic clue/route/canonical-discovery invariants.
+- [x] Exact built `WorldbuildingGalleryShowcase` replay in run `33415154135` reaches a usable rendered state without runtime exceptions.
+- [x] Full-resolution dedicated and gallery screenshots from run `33415154135` were inspected rather than relying on logs alone.
+- [ ] Architectural generated secret with interactable-backed route is realized through the accepted reusable interactable abstraction, not a WorldBuilder/showcase-local interaction state machine. **Behavioral reuse proof is pending run `33416403719`; representative generated-world realization remains blocked by the missing secret geometry path.**
 - [ ] Hidden ruin/chamber representative route/clue realization is exercised against generated content. **Blocked in part by missing production secret geometry realization in `WorldBuilderVoxelCatalogue`.**
 - [ ] Natural terrain/cave secret demonstrates traversal/environmental clues with no required interactable. **Planning semantics are covered; representative generated-content realization is not yet present.**
-- [ ] Multiple legitimate routes register one stable secret with the canonical discovery authority. **Blocked: canonical discovery authority not yet verified on master.**
-- [ ] Revisit/reload/repeated mechanism activation does not duplicate discovery credit or rewards. **Blocked: canonical discovery persistence/reward API not yet verified on master.**
-- [ ] Exact built `WorldbuildingGalleryShowcase` reaches usable rendered state without runtime exceptions and exercises representative generated clues/routes per issue acceptance.
-- [ ] Player follows intentional pre-solve evidence to the generated secret without universal glowing-secret markers or wall-spamming.
-- [ ] Full-resolution `WorldbuildingGalleryShowcase` screenshots inspected for clue readability, route legibility, accidental voxel bypasses, placeholder/sign-like evidence, and obvious capture-specific geometry.
+- [ ] Multiple legitimate routes register one stable secret with the canonical discovery authority. **Production-boundary regression is authored and pending targeted CI.**
+- [ ] Revisit/reload/repeated mechanism activation does not duplicate discovery credit or rewards. **Production-boundary regression is authored and pending targeted CI.**
+- [ ] Player follows intentional pre-solve evidence to the generated secret without universal glowing-secret markers or wall-spamming. The current gallery clue composition is environmental/non-glowing, but run `33415154135` captures do not make the chain legible enough to count as representative proof.
+- [ ] Full-resolution `WorldbuildingGalleryShowcase` screenshots pass clue readability, route legibility, accidental voxel bypass, placeholder/sign-like evidence, and capture-specific-geometry review. **Current captures fail representative readability: foreground foliage/unrelated gallery geometry dominate the clue views.**
+- [ ] Production-quality representative visual proof. **After two materially different primitive-scene fixes failed the same quality symptom, experiment 005 isolated the root cause: both the dedicated fixture and gallery clue realization construct clues with `GameObject.CreatePrimitive` instead of exercising the production generated-world presentation boundary. No third primitive polish pass is allowed.**
 
 ## Cost / blast radius / closure
 
 - [x] Planner implementation is one-shot/event-driven; there is no `MonoBehaviour`, `Update`, polling loop, or per-frame world search in the new planning/discovery code.
 - [x] Representative validation is bounded at 2 retained routes, 3 candidate clue anchors, 2 selected clues across 2 independent channels, plus one deliberately invalid protected-shell route used only for rejection evidence.
-- [x] Feature diff against current master is limited to the WorldBuilder secret planning API/runtime, dedicated module validation fixture, focused tests, and this SceneIssue; no adjacent production system refactors are included.
-- [ ] All required checkboxes and acceptance criteria green.
+- [x] Feature diff remains limited to WorldBuilder secret planning/runtime, issue-owned showcase/validation composition, focused tests, and this SceneIssue; no adjacent production-system refactor was introduced.
+- [ ] All required checkboxes and acceptance criteria green. **Blocked by generated secret voxel realization and representative production-boundary visual proof; do not close.**
 - [ ] Move SceneIssue directly `open -> closed`, set `status=fixed` and `resolvedUtc`.
 - [ ] Merge current `origin/master`, rerun/retry gates if SHA changes as required, then push exact feature head to `origin/master` non-force.
