@@ -12,7 +12,7 @@ This issue owns not only far-world coverage and object HLOD, but also the **visu
 - Near surface extraction already uses progressively coarser source steps; far terrain is a 96-cell geometric clipmap sampled analytically rather than from resident terrain voxels.
 - With the current ~409.6 m inner radius, far-ring spacing is approximately 12.8/25.6/51.2/102.4/204.8 m.
 - The outer resident voxel ring is approximately 0.8 m source spacing, so the first far ring introduces roughly a **16x geometry-sampling jump** at the representation boundary.
-- `VoxelFarTerrain` also uses a distinct far-terrain material/shading path. Coarse geometric normals plus a different surface treatment can make the entire far landscape look smoother and visually unrelated even when there is no literal seam or coverage hole.
+- `VoxelFarTerrain` uses a distinct far shader, but its vertex material-family albedo is already selected from the same game-owned `ShowcaseMaterialSet` and renderer presentation catalogue as near terrain. The remaining visible mismatch is therefore principally surface frequency/normal/lighting language plus any residual geometric silhouette loss.
 - `FarFieldStructureStore` retains authored raised/lowered surfaces in 16x16 columns per region (3.2 m columns) with a 2.4 m minimum raised-feature threshold, but `VoxelFarTerrain` point-samples that store only at clipmap vertices.
 - There are no dedicated persistent far representations for ordinary trees, boulders, shrubs, or other scatter.
 
@@ -47,7 +47,7 @@ Treat far terrain as two decoupled frequency domains:
 - **Geometry / low frequency:** the clipmap carries mountain silhouettes, valleys, ridges, and broad slopes. Keep outer rings aggressively coarse.
 - **Surface appearance / higher frequency:** derive material family, macro color, slope/rock/soil breakup, roughness, and presentation normals from deterministic world-space terrain inputs. These visual frequencies are allowed to be finer than the underlying triangles and are progressively filtered/faded with projected distance to avoid aliasing and shimmer.
 
-First make the material/normal language coherent. Then measure whether an additional bounded inner far-terrain annulus/tier is required for silhouette fidelity around the resident boundary. Any denser tier must be configurable, limited to the inner far range, and justified by CPU mesh-build, GPU vertex/draw, and memory measurements.
+The far shader now applies deterministic world-space triplanar macro luminance variation and presentation-only detail-normal perturbation, with distance filtering before kilometre-scale aliasing. It modulates the already-selected shared material-family albedo rather than introducing far-only material identity. Built-player evidence must determine whether this materially closes the visual gap and whether a bounded inner geometry tier is still required.
 
 Alongside terrain fidelity, add a small far-visibility data layer with semantic structure records, deterministic scatter-cell descriptors, projected-size/importance tier policy, structure HLOD, forest/canopy aggregation, and natural-landmark promotion. Full rationale, contracts, phases, tests, and migration details are in `architecture-proposal.md`.
 
@@ -56,6 +56,8 @@ Alongside terrain fidelity, add a small far-visibility data layer with semantic 
 Coverage math/fallback retirement (T001/T002), structure descriptors (T004), visibility manifest (T006), Kentridge planning population (T008), engine render contract (T009), semantic adapter (T010), cached instanced proxies (T011), projected-significance policy (T012), fallback suppression (T014), and deterministic settlement clusters (T017) are implemented with focused regressions.
 
 T001/T002 are concretely present in production: `VoxelFarTerrain.RingCount` delegates to testable guaranteed snapped-coverage math, logs when `MaxRings` cannot satisfy the requested extent, and startup fallback retirement requires a contiguous current authoritative ring prefix whose guaranteed coverage reaches the configured radius. `VoxelFarTerrainCoverageTests` covers the shipped 409.6 m -> 12 km case, representative/worst snap phases, impossible-range failure, independent reuse, and no-coverage-shrink fallback retirement.
+
+T003B implementation has started in `VoxelEngine/FarTerrain`: stable absolute-world-space macro variation is independent of ring origin/sample spacing, and higher-frequency presentation-normal detail fades out with distance. This is presentation only and leaves analytic geometry/collision/world truth unchanged. Shader compilation and built-player visual proof are still required before T003B can be checked complete.
 
 T018 support exists across `ShowcaseFarStructureSource`, `FarWorldVisibilityPolicy`, and `ProceduralFarStructureRenderer`. Regressions prove a dense settlement collapses to one far cluster while its landmark remains independent, inactive clusters return members without double rendering, and cluster hysteresis holds until member mid-enter threshold.
 
@@ -91,4 +93,4 @@ The engine render contract remains Game-agnostic: `VoxelEngine.Rendering.Api` re
 
 ## Blockers / remaining gates
 
-T003A-T003D remain required. T003A/T003B require safe integration of shared terrain-material/classification semantics into the far-terrain rendering path; T003C is conditional on measured residual geometry loss after those changes; T003D requires built-player transition proof. T020/T021, T026, and T028 still require renderer/composition hookup work. Final T029-T033 still require exact-head behavioral validation, purpose-built far-visibility/terrain captures, canonical Kentridge integration, device/budget evidence, cleanup, and documentation before closure.
+T003A-T003D remain required. T003A needs broader shared terrain classification beyond the already-shared base material-family selection if built-player evidence demonstrates slope/rock/soil mismatch; T003B now has an implementation candidate but still needs exact-head compile and visual proof. T003C is conditional on measured residual geometry loss after those changes; T003D requires built-player transition proof. T020/T021, T026, and T028 still require renderer/composition hookup work. Final T029-T033 still require exact-head behavioral validation, purpose-built far-visibility/terrain captures, canonical Kentridge integration, device/budget evidence, cleanup, and documentation before closure.
