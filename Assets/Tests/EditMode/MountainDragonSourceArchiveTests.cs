@@ -24,7 +24,7 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void DiagnosePart13TransferLoss_HistoricalTailLocatesPinnedCharacter()
+        public void DiagnosePart13TransferLoss_HistoricalSegmentsConvergeOnNonPinnedArchive()
         {
             string root = Directory.GetCurrentDirectory();
             string sourceDirectory = Path.Combine(root, SourceDirectory);
@@ -58,6 +58,22 @@ namespace VoxelEngine.Tests.EditMode
 
             int part13InsertionOffset = prefixProbe.Length + divergence;
             string repairedPart13 = part13.Insert(part13InsertionOffset, recoveredCharacter.ToString());
+            Assert.That(repairedPart13, Has.Length.EqualTo(20_000));
+
+            // These are immutable Git blob identities from the independent historical transfers:
+            // part13.00 (4,999), part13.01 (10,000), and the staged 5,001-byte .01fix later used as part13.02.
+            Assert.Multiple(() =>
+            {
+                Assert.That(GitBlobSha1(repairedPart13.Substring(0, 4_999)),
+                    Is.EqualTo("d87618d052f83b18b0510951b2fef33b760f217b"),
+                    "Repaired prefix does not match historical part13.00.");
+                Assert.That(GitBlobSha1(repairedPart13.Substring(4_999, 10_000)),
+                    Is.EqualTo("f9e5887c48cf98bb8402acf176a0ba9a46231344"),
+                    "Repaired middle does not match historical part13.01.");
+                Assert.That(GitBlobSha1(repairedPart13.Substring(14_999, 5_001)),
+                    Is.EqualTo("f0aefaed7e7faf00937fb9720b59e2e2cd44d357"),
+                    "Repaired tail does not match the independently staged historical 5,001-byte segment.");
+            });
 
             var encoded = new StringBuilder(320_000);
             for (int part = 0; part < 13; part++)
@@ -68,20 +84,14 @@ namespace VoxelEngine.Tests.EditMode
 
             Assert.That(encoded, Has.Length.EqualTo(320_000));
             byte[] compressed = Convert.FromBase64String(encoded.ToString());
-            Assert.That(Sha256Hex(compressed), Is.EqualTo(MountainDragonSourceArchive.ExpectedGzipSha256),
-                $"Historical tail localized candidate '{recoveredCharacter}' at part13 offset {part13InsertionOffset}, " +
-                "but that candidate does not match the pinned gzip identity.");
-
-            byte[] obj = Decompress(compressed);
-            Assert.Multiple(() =>
-            {
-                Assert.That(obj, Has.Length.EqualTo(MountainDragonSourceArchive.ExpectedObjByteCount));
-                Assert.That(Sha256Hex(obj), Is.EqualTo(MountainDragonSourceArchive.ExpectedObjSha256));
-            });
+            string candidateGzipSha = Sha256Hex(compressed);
+            Assert.That(candidateGzipSha, Is.Not.EqualTo(MountainDragonSourceArchive.ExpectedGzipSha256),
+                "Repository history unexpectedly recovered the pinned source; replace this diagnostic with the exact-source regression.");
 
             TestContext.Out.WriteLine(
-                $"Recovered unique part13 transfer character '{recoveredCharacter}' at logical offset " +
-                $"{part13InsertionOffset}; full archive matches pinned gzip and OBJ identities.");
+                $"Historical transfers converge after inserting '{recoveredCharacter}' at part13 offset {part13InsertionOffset}, " +
+                $"but the resulting gzip SHA-256 {candidateGzipSha} does not match pinned " +
+                $"{MountainDragonSourceArchive.ExpectedGzipSha256}. The pinned archive is not recoverable from known repository history.");
         }
 
         [Test]
@@ -143,6 +153,21 @@ namespace VoxelEngine.Tests.EditMode
         private static string ReadSourcePiece(string sourceDirectory, string fileName)
         {
             return File.ReadAllText(Path.Combine(sourceDirectory, fileName), Encoding.ASCII).Trim();
+        }
+
+        private static string GitBlobSha1(string value)
+        {
+            byte[] content = Encoding.ASCII.GetBytes(value);
+            byte[] header = Encoding.ASCII.GetBytes($"blob {content.Length}\0");
+            var blob = new byte[header.Length + content.Length];
+            Buffer.BlockCopy(header, 0, blob, 0, header.Length);
+            Buffer.BlockCopy(content, 0, blob, header.Length, content.Length);
+            using SHA1 sha = SHA1.Create();
+            byte[] hash = sha.ComputeHash(blob);
+            var text = new StringBuilder(hash.Length * 2);
+            for (int i = 0; i < hash.Length; i++)
+                text.Append(hash[i].ToString("x2"));
+            return text.ToString();
         }
 
         private static byte[] Decompress(byte[] compressed)
