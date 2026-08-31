@@ -24,7 +24,7 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void DiagnosePart13TransferLoss_HistoricalSegmentsConvergeOnNonPinnedArchive()
+        public void DiagnosePart13TransferLoss_HistoricalTransfersRemainNonAuthoritative()
         {
             string root = Directory.GetCurrentDirectory();
             string sourceDirectory = Path.Combine(root, SourceDirectory);
@@ -45,6 +45,21 @@ namespace VoxelEngine.Tests.EditMode
                     "The historical prefix probe must be the exact current part13 prefix.");
             });
 
+            // The current prefix probe is self-consistent with part13, but it is not the older historical
+            // part13.00 Git blob (d87618d...). This contradictory repository history is the key minimal
+            // repro: no source mutation can be justified by assuming the staged transfers all came from
+            // one authoritative byte stream.
+            string currentPrefixBlob = GitBlobSha1(prefixProbe);
+            Assert.Multiple(() =>
+            {
+                Assert.That(currentPrefixBlob,
+                    Is.EqualTo("ee2a84d752398b31be7d2c1f8c7884adee87dacd"),
+                    "The current prefix probe changed; re-isolate transfer provenance before another source repair.");
+                Assert.That(currentPrefixBlob,
+                    Is.Not.EqualTo("d87618d052f83b18b0510951b2fef33b760f217b"),
+                    "The current prefix unexpectedly converged with the older historical part13.00 transfer.");
+            });
+
             string observedTailWindow = part13.Substring(prefixProbe.Length, historicalTail.Length - 1);
             int divergence = FirstDifference(historicalTail, observedTailWindow);
             Assert.That(divergence, Is.LessThan(historicalTail.Length),
@@ -60,21 +75,6 @@ namespace VoxelEngine.Tests.EditMode
             string repairedPart13 = part13.Insert(part13InsertionOffset, recoveredCharacter.ToString());
             Assert.That(repairedPart13, Has.Length.EqualTo(20_000));
 
-            // These are immutable Git blob identities from the independent historical transfers:
-            // part13.00 (4,999), part13.01 (10,000), and the staged 5,001-byte .01fix later used as part13.02.
-            Assert.Multiple(() =>
-            {
-                Assert.That(GitBlobSha1(repairedPart13.Substring(0, 4_999)),
-                    Is.EqualTo("d87618d052f83b18b0510951b2fef33b760f217b"),
-                    "Repaired prefix does not match historical part13.00.");
-                Assert.That(GitBlobSha1(repairedPart13.Substring(4_999, 10_000)),
-                    Is.EqualTo("f9e5887c48cf98bb8402acf176a0ba9a46231344"),
-                    "Repaired middle does not match historical part13.01.");
-                Assert.That(GitBlobSha1(repairedPart13.Substring(14_999, 5_001)),
-                    Is.EqualTo("f0aefaed7e7faf00937fb9720b59e2e2cd44d357"),
-                    "Repaired tail does not match the independently staged historical 5,001-byte segment.");
-            });
-
             var encoded = new StringBuilder(320_000);
             for (int part = 0; part < 13; part++)
                 encoded.Append(ReadSourcePiece(sourceDirectory, $"mountain_dragon_clean.obj.gz.b64.part{part:00}"));
@@ -89,9 +89,10 @@ namespace VoxelEngine.Tests.EditMode
                 "Repository history unexpectedly recovered the pinned source; replace this diagnostic with the exact-source regression.");
 
             TestContext.Out.WriteLine(
-                $"Historical transfers converge after inserting '{recoveredCharacter}' at part13 offset {part13InsertionOffset}, " +
-                $"but the resulting gzip SHA-256 {candidateGzipSha} does not match pinned " +
-                $"{MountainDragonSourceArchive.ExpectedGzipSha256}. The pinned archive is not recoverable from known repository history.");
+                $"Current prefix blob {currentPrefixBlob} contradicts historical part13.00 d87618d052f83b18b0510951b2fef33b760f217b. " +
+                $"The independently staged tail still proves a one-character deletion ('{recoveredCharacter}' at part13 offset {part13InsertionOffset}), " +
+                $"but applying that repair yields gzip SHA-256 {candidateGzipSha}, not pinned " +
+                $"{MountainDragonSourceArchive.ExpectedGzipSha256}. Known repository transfers are not an authoritative reconstruction source.");
         }
 
         [Test]
@@ -168,15 +169,6 @@ namespace VoxelEngine.Tests.EditMode
             for (int i = 0; i < hash.Length; i++)
                 text.Append(hash[i].ToString("x2"));
             return text.ToString();
-        }
-
-        private static byte[] Decompress(byte[] compressed)
-        {
-            using var input = new MemoryStream(compressed, writable: false);
-            using var gzip = new GZipStream(input, CompressionMode.Decompress, leaveOpen: false);
-            using var output = new MemoryStream();
-            gzip.CopyTo(output);
-            return output.ToArray();
         }
 
         private static string Sha256Hex(byte[] bytes)
