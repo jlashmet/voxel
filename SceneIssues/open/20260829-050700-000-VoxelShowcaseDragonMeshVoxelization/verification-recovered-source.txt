@@ -1,0 +1,31 @@
+Recovered authoritative source verification — 2026-08-31
+
+Library source
+- File: mountain_dragon_supported.zip
+- Materialized size: 50,524,579 bytes
+- SHA-256: f48cab5ab5b7edf6a84cc7bf14797c73d0ac61bf597ef76a587589a4522aeb0f
+- Archive members: exactly one, mountain_dragon_supported.stl
+
+Contained source
+- Encoding/header: binary STL / CHITUBOX
+- Byte size: 107,207,684
+- Triangle count from STL record count: 2,144,152
+- SHA-256: a01f600705a6daf79a8828474f227251a5680d4bb8bad4aa46659f9e06cf53d6
+
+Identity conclusion
+- ZIP and STL identities exactly match the values previously recorded in verification-uploaded-source.txt.
+- The original user-provided source bytes are therefore recovered independently of the contradictory repository-history part13 transfer.
+- Historical repository transfer pieces remain non-authoritative and must not be repaired/substituted merely to make reconstruction pass.
+
+Derivation discriminator rerun from recovered STL
+- Quantization: 0.5 source-unit position clusters.
+- Dominant connected dragon/scenic-base source was selected before clustering.
+- After cluster mapping, degenerate-triangle removal, duplicate-triangle removal while preserving first source winding, and unused-cluster compaction:
+  - used vertex clusters: 13,431
+  - unique non-degenerate triangles: 29,734
+- These independently reproduce the geometric cardinalities recorded for the prior compact conventional OBJ derivation.
+- The prior OBJ text serializer is not committed, so this rerun does NOT claim byte identity with the previously recorded 860,349-byte OBJ / SHA-256 f1f44d59f7d9c775b600ac0b9ad066a15a3c652bf685a12b2344b8c383ff12b1 unless that exact hash is actually regenerated.
+
+Remaining acceptance blockers
+- Exact third-party provenance is still missing: source URL, author, named license/permission text, and any required attribution.
+- A valid deterministic derived source/archive still must be committed before bake generation can become authoritative.
