@@ -313,8 +313,12 @@ namespace VoxelEngine.Showcase
             int maxY,
             byte material)
         {
-            for (int y = minY; y <= maxY; y++)
-                authoring.Set(x, y, z, material);
+            if (maxY < minY)
+                return;
+
+            if (maxY > minY)
+                authoring.FillColumnBulk(x, minY, maxY, z, material);
+            authoring.Set(x, maxY, z, material);
         }
 
         private static void FillEllipse(
