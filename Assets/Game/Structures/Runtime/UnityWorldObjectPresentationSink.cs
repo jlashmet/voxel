@@ -81,10 +81,10 @@ namespace Game.Structures.Runtime
             if (_proxies.TryGetValue(plan.Id, out Proxy existing) && existing.Root != null)
                 return existing;
 
-            GameObject root = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            GameObject root = GameObject.CreatePrimitive(PrimitiveFor(plan.Kind));
             root.name = $"WorldObject_{plan.Kind}_{plan.Id}";
             root.transform.SetParent(transform, false);
-            bool canRender = ApplyProxyMaterial(root);
+            bool canRender = ApplyProxyMaterial(root, plan.Kind);
 
             int3 size = plan.BaselineBounds.Size;
             root.transform.localScale = new Vector3(
@@ -100,22 +100,39 @@ namespace Game.Structures.Runtime
                 Root = root,
                 Renderer = root.GetComponent<MeshRenderer>(),
                 CanRender = canRender,
-                Collider = root.GetComponent<BoxCollider>(),
+                Collider = root.GetComponent<Collider>(),
                 Identity = identity,
             };
             _proxies.Add(plan.Id, proxy);
             return proxy;
         }
 
+        private static PrimitiveType PrimitiveFor(WorldObjectKind kind)
+        {
+            switch (kind)
+            {
+                case WorldObjectKind.Lever:
+                case WorldObjectKind.Button:
+                case WorldObjectKind.Torch:
+                    return PrimitiveType.Cylinder;
+                case WorldObjectKind.Chest:
+                    return PrimitiveType.Capsule;
+                default:
+                    return PrimitiveType.Cube;
+            }
+        }
+
         /// <summary>
-        /// Replaces the primitive's built-in material with one the render pipeline can actually draw.
+        /// Replaces the primitive's built-in material with a render-pipeline-safe semantic material. The compact
+        /// kind palette is presentation only, but it keeps generated sources, traversal mechanisms, and discovery
+        /// markers visually distinguishable in diagnostics/showcases without teaching gameplay code about scenes.
         /// </summary>
-        private static bool ApplyProxyMaterial(GameObject root)
+        private static bool ApplyProxyMaterial(GameObject root, WorldObjectKind kind)
         {
             var renderer = root.GetComponent<MeshRenderer>();
             if (renderer == null) return false;
 
-            if (s_ProxyMaterial == null)
+            if (!s_ProxyMaterials.TryGetValue(kind, out Material material) || material == null)
             {
                 Shader shader = Shader.Find("Universal Render Pipeline/Lit")
                                 ?? Shader.Find("Universal Render Pipeline/Unlit");
@@ -125,16 +142,43 @@ namespace Game.Structures.Runtime
                     return false;
                 }
 
-                s_ProxyMaterial = new Material(shader)
+                material = new Material(shader)
                 {
-                    name = "World Object Proxy (Shared Runtime)",
+                    name = $"World Object Proxy ({kind})",
                     hideFlags = HideFlags.HideAndDontSave,
-                    color = new Color(0.32f, 0.30f, 0.27f, 1f),
+                    color = ColorForKind(kind),
                 };
+                s_ProxyMaterials[kind] = material;
             }
 
-            renderer.sharedMaterial = s_ProxyMaterial;
+            renderer.sharedMaterial = material;
             return true;
+        }
+
+        private static Color ColorForKind(WorldObjectKind kind)
+        {
+            switch (kind)
+            {
+                case WorldObjectKind.Lever:
+                case WorldObjectKind.Button:
+                case WorldObjectKind.PressurePlate:
+                    return new Color(0.76f, 0.52f, 0.20f, 1f);
+                case WorldObjectKind.Door:
+                case WorldObjectKind.Trapdoor:
+                case WorldObjectKind.Gate:
+                case WorldObjectKind.Portcullis:
+                    return new Color(0.28f, 0.43f, 0.58f, 1f);
+                case WorldObjectKind.Elevator:
+                case WorldObjectKind.Drawbridge:
+                    return new Color(0.30f, 0.55f, 0.42f, 1f);
+                case WorldObjectKind.RotatingWall:
+                    return new Color(0.48f, 0.34f, 0.56f, 1f);
+                case WorldObjectKind.Chest:
+                case WorldObjectKind.Torch:
+                    return new Color(0.72f, 0.58f, 0.24f, 1f);
+                default:
+                    return new Color(0.40f, 0.40f, 0.38f, 1f);
+            }
         }
 
         private static void ApplyParticleMaterial(ParticleSystem particles)
@@ -163,7 +207,8 @@ namespace Game.Structures.Runtime
             renderer.sharedMaterial = s_ParticleMaterial;
         }
 
-        private static Material s_ProxyMaterial;
+        private static readonly Dictionary<WorldObjectKind, Material> s_ProxyMaterials =
+            new Dictionary<WorldObjectKind, Material>();
         private static Material s_ParticleMaterial;
 
         private void ApplyTarget(Proxy proxy, in WorldObjectPresentationPlan plan)
@@ -233,7 +278,7 @@ namespace Game.Structures.Runtime
             public GameObject Root;
             public MeshRenderer Renderer;
             public bool CanRender;
-            public BoxCollider Collider;
+            public Collider Collider;
             public UnityWorldObjectProxyIdentity Identity;
             public Light Light;
             public ParticleSystem Particles;
