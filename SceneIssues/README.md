@@ -35,7 +35,9 @@ Commit production/test work to `fixes/agent-N`. `ci-test/fixes/agent-N` is that 
 
 Never replace queued/running CI. After a completed failure, inspect evidence, fix the product failure or retry proven infrastructure failure, then reuse the same transport. Do not create alternate CI branches, PRs, no-op commits, custom workflows, or permission probes.
 
-Use the smallest regression that proves the change. Player-visible acceptance requires exact-SHA built-player validation and durable evidence; editor-only tests are supplemental.
+The explicit request remains the exact-SHA trigger and fast targeted regression. For production diffs, CI additionally derives module validation from `*.module-validation.json` metadata: affected focused tests, affected module-local built-player scene/scenario validation, and the canonical built-player `KentridgePlayableSlice` integration gate. Agents must not manually enumerate those automatically required module/player targets. Required zero-match tests, missing scenes/scenarios, missing captures, skipped player targets, or failed required artifact proof are failures.
+
+Use the smallest regression that proves the change. Player-visible acceptance requires exact-SHA built-player validation and durable evidence; editor-only tests are supplemental. PlayMode screenshots or RenderTextures are not visual acceptance evidence.
 
 ## Completion and merge
 

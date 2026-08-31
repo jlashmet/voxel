@@ -79,8 +79,16 @@ delayed admission, an open interactive editor, or native import crashes are infr
 
 Targeted tests must finish within five minutes after starting. Use the smallest behavioral test
 that proves the invariant; a source-string assertion or a zero-test run is not sufficient evidence.
-Never call a failed, cancelled, or timed-out run successful because it produced an intermediate
-artifact.
+Never call a failed, cancelled, or timed-out run successful because it produced an intermediate artifact.
+
+For production diffs, module validation is repository-driven. Module owners declare production paths,
+focused EditMode/PlayMode tests, and optional player scene/scenario metadata in
+`*.module-validation.json`. Agents author module code/tests/scenes and push; CI derives the affected
+modules, runs their focused tests, runs affected player-visible module scenes through the shared
+standalone-player harness, and always attaches the built-player `KentridgePlayableSlice` integration
+gate to production changes. Do not manually choose module validation scenes, scenarios, screenshot
+profiles, or player-build commands. Visual acceptance comes only from standalone-player output;
+PlayMode screenshots/RenderTextures are diagnostics or behavioral regressions, not visual proof.
 
 Coordinator-assigned SceneIssues have stricter branch, evidence, and closure rules. Follow
 [SceneIssues/README.md](SceneIssues/README.md); it is the sole workflow authority for those tasks.
