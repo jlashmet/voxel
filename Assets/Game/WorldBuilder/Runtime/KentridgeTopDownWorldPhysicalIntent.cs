@@ -47,7 +47,7 @@ namespace Game.WorldBuilder.Runtime
                 new TopDownWorldRegionSpec(
                     RossdamCountryside,
                     "Rossdam Rolling Country",
-                    TopDownWorldRegionKind.Generic,
+                    TopDownWorldRegionKind.PlainsMeadow,
                     TopDownWorldRegionRelationKind.AnchoredAt,
                     KentridgeTopDownWorldLayout.RossdamRegion,
                     string.Empty,
@@ -55,7 +55,7 @@ namespace Game.WorldBuilder.Runtime
                     halfExtentZDm: 460,
                     elevationDeltaDm: 18,
                     variationDm: 20,
-                    source: "first macro geography pass: rolling country approaching Rossdam"),
+                    source: "first macro geography pass: rolling meadow country approaching Rossdam; use natural terrain surface rather than the generic masonry fallback"),
                 new TopDownWorldRegionSpec(
                     RossdamLake,
                     "Rossdam Lake",
