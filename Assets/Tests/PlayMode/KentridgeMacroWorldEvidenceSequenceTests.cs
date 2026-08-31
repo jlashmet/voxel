@@ -104,6 +104,30 @@ namespace VoxelEngine.Tests.PlayMode
             }
         }
 
+        [Test]
+        public void SettlementNearFieldCompositionDolliesAlongExistingSurveyFocusRay()
+        {
+            Type compositionType = typeof(KentridgePlayableSlice).Assembly.GetType(
+                "Game.Kentridge.PlayableSlice.KentridgeMacroWorldSettlementSurveyComposition",
+                throwOnError: true);
+            MethodInfo resolvePosition = compositionType.GetMethod(
+                "ResolveReadableSurveyPosition",
+                StaticPrivate);
+            Assert.That(resolvePosition, Is.Not.Null);
+
+            var start = new Vector3(43f, 100f, 538f);
+            var focus = new Vector3(37f, 38f, 532f);
+            Vector3 forward = (focus - start).normalized;
+            var resolved = (Vector3)resolvePosition.Invoke(null, new object[] { start, forward });
+
+            Assert.That(resolved.y, Is.EqualTo(start.y - 25f).Within(0.001f),
+                "The validation composition must move the 70 m settlement survey down by exactly the intended 25 m vertical component.");
+            Assert.That(Vector3.Cross(resolved - start, forward).magnitude, Is.LessThan(0.001f),
+                "The near-field correction must dolly on the existing semantic focus ray rather than vertically displacing the camera and changing framing.");
+            Assert.That(Vector3.Angle(focus - start, focus - resolved), Is.LessThan(0.01f),
+                "The authored settlement focus must remain centred after entering the near-field survey distance.");
+        }
+
         private static void AssertContinuation(
             MethodInfo resolveContinuation,
             bool targetCaptured,
