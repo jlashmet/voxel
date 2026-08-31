@@ -225,7 +225,7 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(physical.TryGetRegion(KentridgeTopDownWorldPhysicalIntent.NorthernWoodland, out var woodland), Is.True);
             Assert.That(woodland.Spec.Kind, Is.EqualTo(TopDownWorldRegionKind.ForestWoodland));
             Assert.That(physical.TryGetRegion(KentridgeTopDownWorldPhysicalIntent.RossdamCountryside, out var country), Is.True);
-            Assert.That(country.Spec.Kind, Is.EqualTo(TopDownWorldRegionKind.Generic));
+            Assert.That(country.Spec.Kind, Is.EqualTo(TopDownWorldRegionKind.PlainsMeadow));
         }
 
         private static void AssertExistingRichSettlementsPreserved(TopDownWorldPhysicalPlan physical)
