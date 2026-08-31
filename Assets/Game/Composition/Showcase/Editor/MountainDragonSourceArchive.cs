@@ -19,12 +19,12 @@ namespace VoxelEngine.Showcase.Editor
         public const string ExpectedGzipSha256 =
             "fd2f8253fcf5bc32b275640448511f59d20dcc7d01c307f99124b224431892d4";
         public const int ExpectedObjByteCount = 860349;
+        public const string GeneratedAssetPath =
+            "Assets/Generated/MeshVoxelization/mountain_dragon_clean.obj";
 
         private const string IssueSourceDirectory =
             "SceneIssues/open/20260829-050700-000-VoxelShowcaseDragonMeshVoxelization/source";
         private const string PartPattern = "mountain_dragon_clean.obj.gz.b64.part*";
-        private const string GeneratedAssetPath =
-            "Assets/Generated/MeshVoxelization/mountain_dragon_clean.obj";
         private const int MaxCompressedBytes = 2 * 1024 * 1024;
         private const int MaxObjBytes = 2 * 1024 * 1024;
 
