@@ -262,6 +262,18 @@ Shader "Hidden/VoxelEngine/WaterSurface"
                               + brightThreads * 0.18 + breakupNoise * cascade.x * 0.18
                               + fragmentedFlow * cascade.x * 0.28)
                     : 1.0;
+
+                // The body pass writes depth, so alpha alone cannot create waterfall breakup:
+                // nearly transparent front fragments still hide overlapping bands. Punch actual
+                // coverage holes only on vertical Waterfall faces while retaining more of the
+                // authored lip/impact boundary where reusable foam and spray originate.
+                if (waterfall && verticalFacing > 0.5)
+                {
+                    float boundaryTopology = saturate(lipTopology + impactTopology);
+                    float coverageCutoff = lerp(0.18, 0.10, boundaryTopology);
+                    clip(sheetCoverage - coverageCutoff);
+                }
+
                 float aeration = waterfall
                     ? saturate(0.03 + cascade.x * (broadFlow * 0.24
                               + downwardStreaks * 0.38 + brightThreads * 0.48
