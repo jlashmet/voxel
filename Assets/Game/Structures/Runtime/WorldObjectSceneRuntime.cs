@@ -56,6 +56,10 @@ namespace Game.Structures.Runtime
         {
             result = default;
             if (!TryResolve(id, out WorldObjectResolvedState current)) return false;
+            if ((current.State & WorldObjectStateFlags.Hidden) != 0 &&
+                current.Descriptor.Kind != WorldObjectKind.SecretDoor &&
+                current.Descriptor.Kind != WorldObjectKind.RotatingWall)
+                return false;
             if (!WorldObjectBehavior.TryInteract(in current, interaction, out result)) return false;
             if (result.Changed)
             {
