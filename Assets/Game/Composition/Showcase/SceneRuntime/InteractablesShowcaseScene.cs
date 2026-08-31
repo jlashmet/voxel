@@ -43,6 +43,7 @@ namespace VoxelEngine.Showcase
             ConfigureCamera();
             LoadFreshShowcase();
             if (m_CreateGalleryDressing) BuildGalleryDressing();
+            Debug.Log($"INTERACTABLES_SHOWCASE_READY objects={_scene.Objects.Length} connections={_scene.Connections.Length}");
         }
 
         private void Update()
@@ -199,14 +200,24 @@ namespace VoxelEngine.Showcase
             CreateBlock("Row Divider A", new Vector3(36f, 0.55f, 16f), new Vector3(76f, 0.15f, 0.35f));
             CreateBlock("Row Divider B", new Vector3(36f, 0.55f, 34f), new Vector3(76f, 0.15f, 0.35f));
 
-            CreateLabel("Legend", new Vector3(36f, 19f, -4f),
-                "SHARED WORLD OBJECT GALLERY", 0.46f);
-            CreateLabel("Direct Bay", new Vector3(36f, 13f, 1f),
-                "DIRECT + LINKED   •   DOORS / TRAPDOOR / PRESSURE / PORTCULLIS", 0.34f);
-            CreateLabel("Movement Bay", new Vector3(36f, 13f, 18f),
-                "MOVEMENT   •   ELEVATOR / DRAWBRIDGE LEVER / BUTTON → GATE", 0.34f);
-            CreateLabel("Secrets Bay", new Vector3(36f, 13f, 36f),
-                "SECRETS   •   HIDDEN CONTROL / HIGH PLACE / REMOTE ROUTE", 0.32f);
+            // Keep verification labels short and local to their stations. The prior centered bay-long copy crossed
+            // most of the playable geometry in real-player captures and made a dedicated scene read like debug UI.
+            CreateLabel("Direct Bay", new Vector3(4f, 15f, 3f), "DIRECT + LINKED", 0.22f);
+            CreateLabel("Normal Door Label", new Vector3(6f, 12.5f, 10f), "DOOR", 0.16f);
+            CreateLabel("Locked Door Label", new Vector3(17.5f, 12.5f, 10f), "LOCKED DOOR", 0.16f);
+            CreateLabel("Trapdoor Label", new Vector3(30f, 5f, 8f), "TRAPDOOR", 0.16f);
+            CreateLabel("Pressure Door Label", new Vector3(43.5f, 12.5f, 10f), "PLATE -> DOOR", 0.16f);
+            CreateLabel("Portcullis Label", new Vector3(57.5f, 12.5f, 10f), "PLATE -> PORTCULLIS", 0.16f);
+
+            CreateLabel("Movement Bay", new Vector3(4f, 15f, 20f), "MOVEMENT", 0.22f);
+            CreateLabel("Elevator Label", new Vector3(6f, 5f, 27f), "ELEVATOR", 0.16f);
+            CreateLabel("Drawbridge Label", new Vector3(25f, 9f, 27f), "LEVER -> DRAWBRIDGE", 0.16f);
+            CreateLabel("Button Gate Label", new Vector3(48f, 12.5f, 27f), "BUTTON -> GATE", 0.16f);
+
+            CreateLabel("Secrets Bay", new Vector3(4f, 15f, 38f), "SECRETS", 0.22f);
+            CreateLabel("Bookshelf Label", new Vector3(12f, 12.5f, 45f), "HIDDEN BUTTON -> PANEL", 0.16f);
+            CreateLabel("High Place Label", new Vector3(7f, 16.5f, 27f), "HIGH-PLACE CHEST", 0.16f);
+            CreateLabel("Remote Route Label", new Vector3(49f, 12.5f, 45f), "LEVER -> REMOTE GATE", 0.16f);
         }
 
         private void CreateBlock(string name, Vector3 voxelPosition, Vector3 voxelScale)
