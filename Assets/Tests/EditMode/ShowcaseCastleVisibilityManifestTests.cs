@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Game.Structures.Api;
 using Game.WorldBuilder.Api;
 using MountingForce.WorldGen.Architecture;
