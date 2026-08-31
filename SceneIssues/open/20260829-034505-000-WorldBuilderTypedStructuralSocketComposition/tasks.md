@@ -19,7 +19,7 @@
 - [x] Add focused final-refinement castle traversal regression using the same showcase traversal audit as the built-player harness; expose that showcase helper publicly rather than duplicate motor logic.
 - [x] Keep planner-only tests on a small 4096-brick world; after `33334360953` proved the production-sized request was clamped to 127100 by the constructor's fallback, mirror the gallery `DeviceTierBudget` path for only the full-refinement regression.
 - [x] Regress meaningful proof terrain rather than `>0`: bridge natural relief >=40 voxels and cliff natural rise >=80 voxels, with showcase-only acceptance diagnostics.
-- [x] Regress structural proof re-entry after production residency eviction: author final refinement, evict via zero-budget remote `StepStreaming`, require cached-content probe to go false, then require the same public ensure to restore authoritative proof content. Green in focused PlayMode on `33341092099`.
+- [x] Regress structural proof re-entry after production residency eviction: author final refinement, evict via zero-budget remote `StepStreaming`, require cached-content probe to go false, then require the same public ensure to restore authoritative proof content. Green in focused PlayMode on `33341092099` and `33342682886`.
 
 ## Required proving cases
 - [x] Bridge graph: terrain anchors, repeated independently bounded span/support pieces, road/traversal continuation sockets, incompatible/orientation rejection, multi-region authoritative geometry, continuous traversable deck.
@@ -38,6 +38,9 @@
 - [x] Apply bounded composition readability polish required by prior evidence: gate portal hierarchy without blocking traversal, stepped cliff connection/support read, facade front-envelope relief, and elevated/unobstructed audit framing.
 - [x] After `33341092099` showed the relocated bridge/cliff cameras inside/behind mountain terrain, flip only those structural evidence views to the valley-facing side at `e0859a1140b524e93594fa5ebc3adc0244aa1492`; do not alter proof geometry or terrain.
 - [x] Keep the structural SceneIssue within the CI replay cap by skipping its unrelated 21 town-architecture screenshots and going directly to the eight structural frames; other gallery SceneIssues retain the existing town audit. Focused residency regression remains the eviction/re-entry proof.
+- [x] After `33342682886` repeated empty remote frames despite valley-facing positions, isolate the minimal render-residency repro before another visual fix: the harness pins only the camera in `LateUpdate`, while production `WorldbuildingGalleryShowcase.Update` resets/streams from its central `CharacterMotor`; castle/ornate stay visible because they remain near that renderer origin, while remote bridge/cliff and farther civic do not.
+- [x] Align the production scene motor with the pinned structural evidence pose only during the eight-frame audit (`0b9c02fe27172c7a8aaa51c62d776792234316ee`), keeping normal streaming/render scheduling on the camera actually presented without changing production movement/storage/render APIs.
+- [x] Fix the stale CI wrapper contract (`831da6e5e873d54e1c485a02fa5c9d06f573e586`): semantic `STRUCTURAL_AUDIT result=PASS` requires >=8 structural PNGs; capture-less gallery runs without that marker retain the existing >=18 town-view requirement.
 - [ ] Bridge-wide visibly reads as a monumental crossing over substantial gorge/river between grounded masses.
 - [ ] Bridge close view is above/along the traversable deck and clearly shows deck edge, rail/truss cadence, abutment/pier contact, and continuation seam.
 - [ ] Bridge architecture reads beyond slab/support blockout with abutment massing, pier hierarchy, span cadence/cross-bracing, edge detail, and grounding.
@@ -58,7 +61,8 @@
 - [x] `33338219310`: Windows compile and focused PlayMode class passed; built-player audit failed before structural captures with `structural-content-missing` after 21 town views evicted the proof district while refinement's lifetime authoring flag stayed true. Root cause isolated before another CI request.
 - [x] `33341092099`: Windows compile + all three focused PlayMode tests green, including residency re-entry; exact player reacquired the proof district, all three traversals/negative contracts passed with zero assertion failures. The 60 s replay stopped after structural frame 5/8, and direct frame inspection exposed mountain-side terrain occlusion in bridge/cliff evidence; fixed only in audit framing.
 - [x] `33342551997`: request resolver rejected `replay_seconds=120` because targeted CI supports only 20..60 seconds; Unity never started. Treated as request/infrastructure failure, not product evidence.
-- [ ] Run one final exact-SHA PlayMode + exact-scene built-player request on the same CI transport at the supported 60-second maximum after structural-only capture routing.
+- [x] `33342682886`: focused PlayMode 3/3 green; built player all three traversals/negatives green, eight structural PNGs, `STRUCTURAL_AUDIT result=PASS`, zero harness assertion failures. CI wrapper still red because it demanded 18 unrelated town frames. Full-resolution frames also isolated the camera/motor streaming-origin mismatch; therefore this run is diagnostic, not final visual acceptance.
+- [ ] Run one final exact-SHA PlayMode + exact-scene built-player request on the same CI transport after motor/camera residency alignment and semantic wrapper validation.
 - [ ] Final focused class is green and final built-player `CharacterMotor` traverses bridge, gate, vertical connection; required negative contracts pass.
 - [ ] Record final measured cost and inspect all durable source frames.
 
@@ -67,7 +71,7 @@
 - [x] No global composition/region/device budget or `CharacterMotor` tolerance is weakened.
 - [x] Proof-site thresholds and terrain choice remain showcase composition policy; shared terrain/solver APIs are unchanged.
 - [x] Merge current master workflow guidance before final attempt; latest integrated master is `ebdc2e4f63ef73153cd4e0ff5c62efe604f35470`.
-- [ ] Review final feature diff and measured cost; verify only assignment-required structural contracts/runtime, focused tests/adapters, gallery proof/presentation/audit, and this SceneIssue differ from master.
+- [ ] Review final feature diff and measured cost; verify only assignment-required structural contracts/runtime, focused tests/adapters, gallery proof/presentation/audit, targeted player-capture validation, and this SceneIssue differ from master.
 - [ ] Complete `issue.json` `resolutionSummary`, `regressionTest`, and `fixCommit` only after all final exact-SHA mechanical/player/visual gates are green.
 - [ ] Move only this assignment directly `open -> closed`, set `status=fixed` and `resolvedUtc`, after every acceptance/task above is complete.
 - [ ] Fetch latest `origin/master`, merge if advanced, revalidate affected work as needed, push feature branch, then non-force push that exact head to `origin/master`; retry if master advances.
