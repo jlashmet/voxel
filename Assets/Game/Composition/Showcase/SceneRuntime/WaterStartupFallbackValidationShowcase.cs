@@ -90,7 +90,7 @@ namespace VoxelEngine.Showcase
             RenderingComposition.SetVoxelRingRadiusMetres(120f);
             RenderingComposition.SetBuildBudgets(4.0, 2.0);
             RenderingComposition.ConfigureEnvironment(
-                new Color(1.2f, 1.16f, 1.08f, 1f),
+                Color.white,
                 new Vector3(-0.25f, -0.93f, -0.27f).normalized,
                 new Color(0.68f, 0.80f, 0.90f, 1f),
                 new Color(0.16f, 0.32f, 0.52f, 1f));
