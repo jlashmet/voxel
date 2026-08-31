@@ -1,6 +1,5 @@
 using NUnit.Framework;
-using UnityEngine;
-using VoxelEngine.Showcase;
+using VoxelEngine.Rendering.Runtime;
 
 namespace VoxelEngine.Tests.EditMode
 {
@@ -89,26 +88,20 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void VoxelFarTerrain_UsesGuaranteedCoverageRingCount()
+        public void IndependentConsumer_UsesSameSemanticInputsWithoutShowcaseState()
         {
-            VoxelFarTerrain far = VoxelFarTerrain.Create(
-                parent: null,
-                seed: 1,
-                innerRadiusMetres: InnerRadiusMetres,
-                outerRadiusMetres: OuterRadiusMetres);
-            try
-            {
-                Assert.That(
-                    far.RingCount,
-                    Is.EqualTo(FarTerrainCoverageMath.CalculateRequiredRingCount(
-                        InnerRadiusMetres,
-                        OuterRadiusMetres,
-                        Resolution)));
-            }
-            finally
-            {
-                Object.DestroyImmediate(far.gameObject);
-            }
+            int rings = FarTerrainCoverageMath.CalculateRequiredRingCount(
+                innerRadiusMetres: 300f,
+                outerRadiusMetres: 9000f,
+                resolution: 64);
+
+            Assert.That(rings, Is.GreaterThan(1));
+            Assert.That(
+                FarTerrainCoverageMath.GuaranteedCardinalCoverageMetres(
+                    innerRadiusMetres: 300f,
+                    resolution: 64,
+                    ring: rings - 1),
+                Is.GreaterThanOrEqualTo(9000f));
         }
 
         [Test]
