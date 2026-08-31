@@ -35,3 +35,10 @@ Keep `VoxelFarTerrain` for broad analytic terrain and `FarFieldStructureStore` a
 ## Validation gates
 
 Implement in independently testable phases: coverage correctness -> visibility manifest -> semantic structure HLOD -> deterministic scatter -> canopy/forest HLOD -> natural landmark promotion -> transition/budget stress validation. Existing SceneIssues remain the implementation units; do not duplicate active macro-world or terrain-streaming work.
+
+## Execution blocker — 2026-08-31 agent-7
+
+- The assigned local execution environment has no repository worktree, and direct network cloning is unavailable.
+- The connected GitHub transport can create commits/files but exposes existing-file edits only as complete-file replacement; it does not provide a line/patch edit operation.
+- T001 requires a narrow modification to the ~900-line `VoxelFarTerrain.cs`. Reconstructing and replacing that whole renderer from paged connector output would create unjustified blast-radius/corruption risk, so production code is intentionally not rewritten through that path.
+- Independent work completed while blocked: added `VoxelFarTerrainCoverageTests.cs` plus Unity metadata. The regression encodes the required 409.6 m -> 12 km coverage behavior, minimum six-ring result, representative/worst-case snap phases, and `MaxRings` guard behavior. It is expected to remain red until the production helper/API patch can be made in a real worktree or with a patch-capable repository editor.
