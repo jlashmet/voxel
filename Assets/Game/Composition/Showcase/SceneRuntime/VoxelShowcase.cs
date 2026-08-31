@@ -128,6 +128,8 @@ namespace VoxelEngine.Showcase
         private int _relockFrames;
         private bool _flashlightEnabled;
         private float _yaw, _pitch;
+        private bool _automatedHeadingSet;
+        private float _automatedYaw;
         private double _lastEditMs;
         private string _lastEditLabel = "—";
         private string _networkPortText = "7979";
@@ -482,6 +484,50 @@ namespace VoxelEngine.Showcase
         /// </summary>
         public bool AutoWalk { get; set; }
 
+        /// <summary>Production-motor feet position exposed for deterministic movement evidence.</summary>
+        public Vector3 PlayerFeetPosition => _motor != null ? _motor.Position : transform.position;
+
+        /// <summary>Whether the production character motor currently has grounded support.</summary>
+        public bool PlayerGrounded => _motor != null && _motor.Grounded;
+
+        /// <summary>Current production walking speed, configurable by automation without exposing the motor.</summary>
+        public float PlayerWalkSpeedMetresPerSecond
+        {
+            get => _motor != null ? _motor.WalkSpeed : m_WalkSpeed;
+            set
+            {
+                m_WalkSpeed = value;
+                if (_motor != null) _motor.WalkSpeed = value;
+            }
+        }
+
+        /// <summary>Production sprint multiplier used by deterministic real-movement evidence.</summary>
+        public float PlayerSprintMultiplier => _motor != null ? _motor.SprintMultiplier : 1f;
+
+        /// <summary>World-space position of the landmark this showcase was composed around.</summary>
+        public Vector3 LandmarkPositionMetres => LandmarkWorldPosition();
+
+        /// <summary>
+        /// Supplies an absolute heading for automated movement while retaining the ordinary
+        /// VoxelShowcase movement, collision, and streaming path. The driver owns how AutoWalk
+        /// applies this heading, so evidence consumers do not duplicate its circular-turn policy.
+        /// </summary>
+        public void SetAutomatedHeading(float yawDegrees, float pitchDegrees = 0f)
+        {
+            _mouseLook = false;
+            _automatedHeadingSet = true;
+            _automatedYaw = yawDegrees;
+            _yaw = yawDegrees;
+            _pitch = pitchDegrees;
+            transform.rotation = Quaternion.Euler(_pitch, _yaw, 0f);
+        }
+
+        /// <summary>Returns subsequent AutoWalk frames to the ordinary circular heading policy.</summary>
+        public void ClearAutomatedHeading()
+        {
+            _automatedHeadingSet = false;
+        }
+
         /// <summary>
         /// Flies straight back from the landmark while keeping it centred, so every LOD ring
         /// boundary is crossed in view.
@@ -607,9 +653,11 @@ namespace VoxelEngine.Showcase
         /// </summary>
         private void StepAutoWalk()
         {
-            const float DegreesPerSecond = 24f;
             _autoWalkElapsed += Time.deltaTime;
-            _yaw += DegreesPerSecond * Time.deltaTime;
+            if (_automatedHeadingSet)
+                _yaw = _automatedYaw;
+            else
+                _yaw += 24f * Time.deltaTime;
             transform.rotation = Quaternion.Euler(_pitch, _yaw, 0f);
         }
 

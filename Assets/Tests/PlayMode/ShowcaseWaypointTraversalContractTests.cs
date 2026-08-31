@@ -1,4 +1,5 @@
 using NUnit.Framework;
+using UnityEngine;
 using VoxelEngine.Showcase;
 
 namespace VoxelEngine.Tests.PlayMode
@@ -47,6 +48,33 @@ namespace VoxelEngine.Tests.PlayMode
                     yTolerance: tolerance),
                 Is.False,
                 "An airborne fly/jump pass through the expected Y band must not certify grounded traversal.");
+        }
+
+        [Test]
+        public void AutomatedHeadingSurfaceAppliesSemanticHeadingWithoutMotorExposure()
+        {
+            var root = new GameObject("automated-heading-contract");
+            root.SetActive(false);
+            var showcase = root.AddComponent<VoxelShowcase>();
+
+            try
+            {
+                showcase.SetAutomatedHeading(63f, -12f);
+
+                Assert.That(Mathf.Abs(Mathf.DeltaAngle(showcase.transform.eulerAngles.y, 63f)),
+                            Is.LessThan(0.01f));
+                Assert.That(Mathf.Abs(Mathf.DeltaAngle(showcase.transform.eulerAngles.x, -12f)),
+                            Is.LessThan(0.01f));
+                Assert.That(showcase.PlayerGrounded, Is.False,
+                            "An uninitialized driver must not fabricate grounded production state.");
+
+                showcase.PlayerWalkSpeedMetresPerSecond = 9.5f;
+                Assert.That(showcase.PlayerWalkSpeedMetresPerSecond, Is.EqualTo(9.5f).Within(0.001f));
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+            }
         }
     }
 }

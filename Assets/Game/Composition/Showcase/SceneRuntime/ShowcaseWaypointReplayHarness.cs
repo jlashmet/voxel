@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using System.Reflection;
 using UnityEngine;
 
 namespace VoxelEngine.Showcase
@@ -8,9 +7,10 @@ namespace VoxelEngine.Showcase
     /// <summary>
     /// Replays an issue-owned waypoint route through the ordinary VoxelShowcase movement path.
     ///
-    /// The harness changes only the same heading and AutoWalk inputs used by the existing real-player
-    /// benchmark. VoxelShowcase still calls CharacterMotor.Step, collision still reads production
-    /// voxels, and streaming still follows the player transform; no waypoint teleports the player.
+    /// The harness supplies semantic automated headings and walk-speed configuration to
+    /// VoxelShowcase. VoxelShowcase still calls CharacterMotor.Step, collision still reads
+    /// production voxels, and streaming still follows the player transform; no waypoint teleports
+    /// the player and no evidence code reaches into private movement state.
     /// Route files are optional evidence fixtures referenced by SceneIssue metadata, so normal game
     /// launches and captured-pose replays are unchanged.
     /// </summary>
@@ -19,19 +19,8 @@ namespace VoxelEngine.Showcase
     {
         private const string SceneIssueArgument = "-voxel-scene-issue";
         private const string ScreenshotDirectoryArgument = "-voxel-screenshot-dir";
-        private const float ExistingAutoWalkDegreesPerSecond = 24f;
-
-        private static readonly FieldInfo YawField = typeof(VoxelShowcase).GetField(
-            "_yaw", BindingFlags.Instance | BindingFlags.NonPublic);
-        private static readonly FieldInfo PitchField = typeof(VoxelShowcase).GetField(
-            "_pitch", BindingFlags.Instance | BindingFlags.NonPublic);
-        private static readonly FieldInfo MouseLookField = typeof(VoxelShowcase).GetField(
-            "_mouseLook", BindingFlags.Instance | BindingFlags.NonPublic);
-        private static readonly FieldInfo MotorField = typeof(VoxelShowcase).GetField(
-            "_motor", BindingFlags.Instance | BindingFlags.NonPublic);
 
         private VoxelShowcase _showcase;
-        private CharacterMotor _motor;
         private RouteSpec _route;
         private string _screenshotDirectory;
         private int _index;
@@ -70,12 +59,6 @@ namespace VoxelEngine.Showcase
                     FindObjectsInactive.Include);
                 if (showcase == null)
                     throw new InvalidOperationException("Waypoint replay requires VoxelShowcase in the built scene.");
-                if (YawField == null || PitchField == null || MouseLookField == null || MotorField == null)
-                    throw new MissingFieldException("Waypoint replay could not bind VoxelShowcase movement state.");
-
-                CharacterMotor motor = MotorField.GetValue(showcase) as CharacterMotor;
-                if (motor == null)
-                    throw new InvalidOperationException("Waypoint replay requires the production CharacterMotor.");
 
                 string screenshotDirectory = Argument(ScreenshotDirectoryArgument);
                 if (string.IsNullOrEmpty(screenshotDirectory))
@@ -88,8 +71,7 @@ namespace VoxelEngine.Showcase
                 };
                 var replay = root.AddComponent<ShowcaseWaypointReplayHarness>();
                 replay._showcase = showcase;
-                replay._motor = motor;
-                replay._ordinaryWalkSpeed = motor.WalkSpeed;
+                replay._ordinaryWalkSpeed = showcase.PlayerWalkSpeedMetresPerSecond;
                 replay._route = route;
                 replay._screenshotDirectory = screenshotDirectory;
                 UnityEngine.Object.DontDestroyOnLoad(root);
@@ -116,8 +98,6 @@ namespace VoxelEngine.Showcase
                 return;
             }
 
-            MouseLookField.SetValue(_showcase, false);
-
             if (_complete)
             {
                 StopWalking();
@@ -138,8 +118,8 @@ namespace VoxelEngine.Showcase
                 ? waypoint.arrivalRadius
                 : _route.arrivalRadius;
             bool traversalStateMatches = ShowcaseWaypointTraversalContract.Matches(
-                _motor.Position.y,
-                _motor.Grounded,
+                _showcase.PlayerFeetPosition.y,
+                _showcase.PlayerGrounded,
                 waypoint.requireGrounded,
                 _hasVerticalAnchor,
                 _verticalAnchorY,
@@ -152,7 +132,7 @@ namespace VoxelEngine.Showcase
             {
                 if (waypoint.anchorVertical)
                 {
-                    _verticalAnchorY = _motor.Position.y;
+                    _verticalAnchorY = _showcase.PlayerFeetPosition.y;
                     _hasVerticalAnchor = true;
                     Debug.Log($"WAYPOINT_REPLAY vertical anchor '{waypoint.name}' feetY={_verticalAnchorY:0.00}");
                 }
@@ -163,7 +143,7 @@ namespace VoxelEngine.Showcase
                 StopWalking();
                 Debug.Log(
                     $"WAYPOINT_REPLAY reached {_index + 1}/{_route.waypoints.Length} '{waypoint.name}' "
-                    + $"at {player} feetY={_motor.Position.y:0.00} grounded={_motor.Grounded}");
+                    + $"at {player} feetY={_showcase.PlayerFeetPosition.y:0.00} grounded={_showcase.PlayerGrounded}");
             }
 
             if (_holding)
@@ -204,39 +184,35 @@ namespace VoxelEngine.Showcase
                 return;
             }
 
-            // VoxelShowcase.StepAutoWalk adds 24 degrees/second immediately before constructing the
-            // normal forward wish vector. Pre-compensate by that exact per-frame turn so the wish
-            // after StepAutoWalk points at the next waypoint while still using CharacterMotor.Step.
             float desiredYaw = Mathf.Atan2(delta.x, delta.y) * Mathf.Rad2Deg;
-            YawField.SetValue(
-                _showcase,
-                desiredYaw - ExistingAutoWalkDegreesPerSecond * Time.deltaTime);
-            PitchField.SetValue(_showcase, 0f);
+            _showcase.SetAutomatedHeading(desiredYaw);
             ApplyReplaySprint();
             _showcase.AutoWalk = true;
         }
 
         private void ApplyReplaySprint()
         {
-            if (_replaySprintApplied || _motor == null) return;
+            if (_replaySprintApplied || _showcase == null) return;
             // Evidence replay needs to fit the SceneIssue workflow's 60-second ceiling. Use the
             // production motor's own sprint multiplier, then restore ordinary walk speed whenever
             // the route pauses or exits. Collision, step-up and gravity all remain CharacterMotor.Step.
-            _motor.WalkSpeed = _ordinaryWalkSpeed * _motor.SprintMultiplier;
+            _showcase.PlayerWalkSpeedMetresPerSecond =
+                _ordinaryWalkSpeed * _showcase.PlayerSprintMultiplier;
             _replaySprintApplied = true;
         }
 
         private void StopWalking()
         {
             if (_showcase != null) _showcase.AutoWalk = false;
-            if (!_replaySprintApplied || _motor == null) return;
-            _motor.WalkSpeed = _ordinaryWalkSpeed;
+            if (!_replaySprintApplied || _showcase == null) return;
+            _showcase.PlayerWalkSpeedMetresPerSecond = _ordinaryWalkSpeed;
             _replaySprintApplied = false;
         }
 
         private void OnDisable()
         {
             StopWalking();
+            _showcase?.ClearAutomatedHeading();
         }
 
         private void ApplyLook(Waypoint waypoint)
@@ -246,9 +222,7 @@ namespace VoxelEngine.Showcase
             float dx = waypoint.lookX - player.x;
             float dz = waypoint.lookZ - player.z;
             float yaw = Mathf.Atan2(dx, dz) * Mathf.Rad2Deg;
-            YawField.SetValue(_showcase, yaw);
-            PitchField.SetValue(_showcase, waypoint.lookPitchDegrees);
-            _showcase.transform.rotation = Quaternion.Euler(waypoint.lookPitchDegrees, yaw, 0f);
+            _showcase.SetAutomatedHeading(yaw, waypoint.lookPitchDegrees);
         }
 
         private static void Validate(RouteSpec route)
