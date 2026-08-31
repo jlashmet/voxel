@@ -6,17 +6,6 @@ using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Structures.Runtime
 {
-    /// <summary>
-    /// Optional catalogue scope for callers that can prove a narrower generation contract.
-    /// Runtime streaming uses <see cref="All"/>. Offline composition may select a narrower scope
-    /// only when the skipped definitions are already known to be output-neutral for its seed state.
-    /// </summary>
-    public enum FeatureRegionBuildScope : byte
-    {
-        All = 0,
-        FixedAltitudeStructures = 1,
-    }
-
     /// <summary>A region's feature generation, resumable within a single primitive.</summary>
     public sealed class FeatureRegionBuild : IDisposable
     {
@@ -24,12 +13,13 @@ namespace VoxelEngine.Structures.Runtime
 
         private readonly int3 _regionMin;
         private readonly int3 _regionMax;
-        private readonly FeatureRegionBuildScope _scope;
         private NativeList<Primitive> _primitives;
         private NativeList<ResolvedAnchor> _anchors;
+        private NativeList<StructuralInstance> _structuralInstances;
         private FeatureGenerationReport _report;
         private int _ruleIndex;
         private int _explicitIndex;
+        private int _structuralInstanceIndex;
         private int _activePrimitiveIndex;
         private int3 _tileMin;
         private int3 _tileMax;
@@ -40,12 +30,9 @@ namespace VoxelEngine.Structures.Runtime
         private bool _markHardSurface;
         private bool _disposed;
 
-        public FeatureRegionBuild(
-            int3 regionCoord,
-            FeatureRegionBuildScope scope = FeatureRegionBuildScope.All)
+        public FeatureRegionBuild(int3 regionCoord)
         {
             RegionCoord = regionCoord;
-            _scope = scope;
             _regionMin = regionCoord * VoxelGrid.RegionVoxelEdge;
             _regionMax = _regionMin + VoxelGrid.RegionVoxelEdge;
             _primitives = new NativeList<Primitive>(64, Allocator.Persistent);
@@ -65,6 +52,10 @@ namespace VoxelEngine.Structures.Runtime
         /// world intersect nothing, and every one of them walked every placement of both towns
         /// before reporting that it had no work. The caller's frame budget cannot interrupt that,
         /// because it is only checked between slices, so the cost landed whole in one frame.
+        ///
+        /// Typed structural roots are charged by the number of physical pieces their bounded graph
+        /// plans. That keeps a monumental bridge or castle from smuggling hundreds of candidate
+        /// checks through one nominal explicit placement.
         ///
         /// Yielding on the scan is what puts those regions back under the caller's budget. It does
         /// not make the total work smaller — it makes it interruptible.
@@ -110,7 +101,8 @@ namespace VoxelEngine.Structures.Runtime
                     // this region queued.
                     if (scanBudget <= 0 && !_activeInstance) return false;
 
-                    // Invalid programs are reported but have no voxel work to charge.
+                    // Invalid programs or rejected structural roots are reported but have no voxel
+                    // work to charge.
                     if (!_activeInstance) continue;
                 }
 
@@ -145,6 +137,12 @@ namespace VoxelEngine.Structures.Runtime
         private bool TryBeginNextInstance(
             in FeatureCatalogue catalogue, uint seed, ref int scanBudget)
         {
+            // Once a structural root has been expanded, every accepted bounded child is just another
+            // physical feature placement. Feed it back through the same evaluator/raster path as an
+            // explicit root; this keeps voxels, collision, destruction and storage authoritative.
+            if (TryBeginNextStructuralInstance(in catalogue, seed))
+                return true;
+
             while (_ruleIndex < catalogue.Rules.Length)
             {
                 PlacementRule rule = catalogue.Rules[_ruleIndex];
@@ -155,12 +153,6 @@ namespace VoxelEngine.Structures.Runtime
                 }
 
                 FeatureDefinition definition = catalogue.Definitions[rule.DefinitionId];
-                if (!Includes(in definition))
-                {
-                    MoveToNextRule();
-                    continue;
-                }
-
                 while (_explicitIndex < rule.ExplicitCount)
                 {
                     // Yield with the cursor parked. Returning true without an active instance is
@@ -173,29 +165,65 @@ namespace VoxelEngine.Structures.Runtime
                     ExplicitPlacement placement = catalogue.ExplicitPlacements[index];
                     _report.InstancesConsidered++;
                     scanBudget--;
-                    if (!FeatureGeneration.FootprintIntersects(
-                            placement.Position, definition.Footprint, _regionMin, _regionMax))
-                        continue;
 
-                    EvaluationResult evaluation = FeatureGeneration.EvaluateInstance(
-                        in catalogue, seed, rule.DefinitionId, in definition, in placement,
-                        _primitives, _anchors);
-                    _report.LastEvaluationResult = evaluation;
-                    if (evaluation != EvaluationResult.Ok)
+                    if (definition.StructuralPiece.PieceId == 0)
                     {
-                        _report.BudgetExceeded |=
-                            evaluation == EvaluationResult.PrimitiveLimitExceeded;
-                        return true;
+                        if (!FeatureGeneration.FootprintIntersects(
+                                placement.Position, definition.Footprint, _regionMin, _regionMax))
+                            continue;
+
+                        if (TryBeginEvaluatedInstance(
+                                in catalogue, seed, rule.DefinitionId, in definition, in placement))
+                            return true;
+
+                        continue;
                     }
 
-                    _report.PrimitivesEmitted += _primitives.Length;
-                    _markHardSurface = definition.Kind == FeatureKind.Structure
-                                    || definition.Kind == FeatureKind.Infrastructure;
-                    _activePrimitiveIndex = 0;
-                    _activeRasterisedAny = false;
-                    _tileReady = false;
-                    _activeInstance = true;
-                    return true;
+                    // Composition is allowed to place independently bounded children outside the
+                    // root footprint. First apply a conservative constant-time reach test so a far
+                    // away region does not expand every structural root in the world.
+                    int3 rootFootprint = FeatureGeneration.OrientedFootprint(
+                        definition.Footprint, placement.Orientation);
+                    int3 reach = new int3(FeatureBudget.MaxCompositionExtentVoxels);
+                    int3 reachMin = placement.Position - reach;
+                    int3 reachMax = placement.Position + rootFootprint + reach;
+                    if (!BoundsIntersects(reachMin, reachMax, _regionMin, _regionMax))
+                        continue;
+
+                    EnsureStructuralInstances();
+                    StructuralCompositionReport composition = StructuralCompositionPlanner.ExpandRoot(
+                        in catalogue, seed, rule.DefinitionId, in placement, _structuralInstances);
+                    _report.StructuralRootsPlanned++;
+                    _report.StructuralChildrenPlanned += composition.ChildCount;
+                    _report.LastCompositionResult = composition.Result;
+
+                    // The explicit root already consumed one scan unit above. Charge every planned
+                    // descendant as well. The graph itself is bounded at 256 children, so one root
+                    // cannot turn this accounting into unbounded work before the next yield.
+                    scanBudget -= math.max(0, _structuralInstances.Length - 1);
+
+                    if (composition.Result != StructuralCompositionResult.Ok)
+                    {
+                        ClearStructuralInstances();
+                        if (scanBudget <= 0) return true;
+                        continue;
+                    }
+
+                    // Exact graph bounds eliminate conservative-reach false positives before any
+                    // shape program is evaluated. Individual piece footprints are checked below.
+                    if (!BoundsIntersects(
+                            composition.BoundsMin, composition.BoundsMax, _regionMin, _regionMax))
+                    {
+                        ClearStructuralInstances();
+                        if (scanBudget <= 0) return true;
+                        continue;
+                    }
+
+                    _structuralInstanceIndex = 0;
+                    if (TryBeginNextStructuralInstance(in catalogue, seed))
+                        return true;
+
+                    if (scanBudget <= 0) return true;
                 }
 
                 MoveToNextRule();
@@ -204,13 +232,76 @@ namespace VoxelEngine.Structures.Runtime
             return false;
         }
 
-        private bool Includes(in FeatureDefinition definition)
+        private bool TryBeginNextStructuralInstance(in FeatureCatalogue catalogue, uint seed)
         {
-            return _scope == FeatureRegionBuildScope.All
-                || (_scope == FeatureRegionBuildScope.FixedAltitudeStructures
-                    && definition.Kind == FeatureKind.Structure
-                    && definition.BasePlane == BasePlaneRule.FixedAltitude);
+            if (!_structuralInstances.IsCreated) return false;
+
+            while (_structuralInstanceIndex < _structuralInstances.Length)
+            {
+                StructuralInstance instance = _structuralInstances[_structuralInstanceIndex++];
+                if ((uint)instance.DefinitionId >= (uint)catalogue.DefinitionCount)
+                    continue;
+
+                FeatureDefinition definition = catalogue.Definitions[instance.DefinitionId];
+                int3 footprint = FeatureGeneration.OrientedFootprint(
+                    definition.Footprint, instance.Orientation);
+                if (!FeatureGeneration.FootprintIntersects(
+                        instance.Position, footprint, _regionMin, _regionMax))
+                    continue;
+
+                ExplicitPlacement placement = instance.Placement;
+                if (TryBeginEvaluatedInstance(
+                        in catalogue, seed, instance.DefinitionId, in definition, in placement))
+                    return true;
+            }
+
+            ClearStructuralInstances();
+            return false;
         }
+
+        private bool TryBeginEvaluatedInstance(
+            in FeatureCatalogue catalogue,
+            uint seed,
+            int definitionId,
+            in FeatureDefinition definition,
+            in ExplicitPlacement placement)
+        {
+            EvaluationResult evaluation = FeatureGeneration.EvaluateInstance(
+                in catalogue, seed, definitionId, in definition, in placement,
+                _primitives, _anchors);
+            _report.LastEvaluationResult = evaluation;
+            if (evaluation != EvaluationResult.Ok)
+            {
+                _report.BudgetExceeded |= evaluation == EvaluationResult.PrimitiveLimitExceeded;
+                return false;
+            }
+
+            _report.PrimitivesEmitted += _primitives.Length;
+            _markHardSurface = definition.Kind == FeatureKind.Structure
+                            || definition.Kind == FeatureKind.Infrastructure;
+            _activePrimitiveIndex = 0;
+            _activeRasterisedAny = false;
+            _tileReady = false;
+            _activeInstance = true;
+            return true;
+        }
+
+        private void EnsureStructuralInstances()
+        {
+            if (!_structuralInstances.IsCreated)
+                _structuralInstances = new NativeList<StructuralInstance>(16, Allocator.Persistent);
+        }
+
+        private void ClearStructuralInstances()
+        {
+            if (_structuralInstances.IsCreated) _structuralInstances.Clear();
+            _structuralInstanceIndex = 0;
+        }
+
+        private static bool BoundsIntersects(int3 min, int3 max, int3 volumeMin, int3 volumeMax) =>
+            min.x < volumeMax.x && max.x > volumeMin.x
+            && min.y < volumeMax.y && max.y > volumeMin.y
+            && min.z < volumeMax.z && max.z > volumeMin.z;
 
         private bool TryPrepareTile()
         {
@@ -293,6 +384,7 @@ namespace VoxelEngine.Structures.Runtime
             if (_disposed) return;
             if (_primitives.IsCreated) _primitives.Dispose();
             if (_anchors.IsCreated) _anchors.Dispose();
+            if (_structuralInstances.IsCreated) _structuralInstances.Dispose();
             _disposed = true;
         }
     }
