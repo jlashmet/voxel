@@ -2,21 +2,39 @@
 
 ## Acceptance and ownership
 
-Keep broad terrain in `VoxelFarTerrain`; known structures come from renderer-neutral WorldBuilder planning; settlement/vegetation HLOD derives from existing semantic truth; scene thresholds/readiness remain composition policy. Acceptance remains: 8/10/12 km landmark visibility without voxel residency, never-visited semantic visibility, deterministic structure/scatter distance representations, forested horizon massing, stable readiness+hysteresis handoffs, guaranteed clipmap coverage, semantic/fallback separation, built-player proof, and authoritative device-matrix budgets.
+Keep broad terrain in `VoxelFarTerrain`; known structures come from renderer-neutral WorldBuilder planning; settlement/vegetation HLOD derives from existing semantic truth; scene thresholds/readiness remain composition policy. Acceptance requires 8/10/12 km landmark visibility without voxel residency, never-visited semantic visibility, deterministic structure/scatter representations, forested horizon massing, stable readiness+hysteresis handoffs, guaranteed clipmap coverage, semantic/fallback separation, built-player proof, and device-matrix budgets.
 
 ## Hypotheses / discriminators
 
 - **H1 falsified:** sparse far-terrain point sampling cannot reliably preserve known structure silhouettes; semantic HLOD is required.
-- **H2 active:** deterministic fixed-sector queries plus aggregate canopy/settlement proxies can preserve distant density without persistent far object ownership.
+- **H2 active:** deterministic sector queries plus aggregate canopy/cluster proxies can preserve distant density without persistent far object ownership. Prove stable IDs/order and camera-window changes before renderer integration.
 
-## Progress
+## Selected approach / progress
 
-T001/T002, T004, T006, T008–T012, T014, and T017 have implementation/regression coverage pending final exact-head gates. T018 adds bounded settlement HLOD proofs: dense ordinary buildings collapse to one cluster, landmarks stay independent, members never double-render, and cluster/member hysteresis has no handoff gap.
+Coverage math/fallback retirement (T001/T002), structure descriptors (T004), visibility manifest (T006), Kentridge planning population (T008), engine render contract (T009), semantic adapter (T010), cached instanced proxies (T011), projected-significance policy (T012), fallback suppression (T014), and deterministic settlement clusters (T017) are implemented with focused regressions pending final exact-head validation.
 
-T019 adds stateless fixed-sector visibility queries over existing vegetation/tree truth with stable IDs/order and no skeleton/voxel generation. T022 adds deterministic canopy clusters derived from that truth; severed trees are omitted, landmark selection is injected, and damage changes only the affected cluster revision. T023 adds deterministic world-seed + fixed-sector ordinary boulder records plus explicit landmark/megafeature records. T024 adds CPU-owned coarse structure intact/removed state consumed by the far adapter without mutating semantic planning. T025’s data path reuses existing tree damage/severed truth through T019/T022 rather than adding a second damage model.
+T018 production support already existed across `ShowcaseFarStructureSource`, `FarWorldVisibilityPolicy`, and `ProceduralFarStructureRenderer`. Added regressions proving a 12-building settlement collapses to one far cluster while its landmark remains independent, inactive clusters return members without double rendering, and cluster hysteresis holds until the member mid-enter threshold.
 
-## Blockers / validation
+T019 is implemented as stateless `VegetationVisibility` queries over existing `VegetationInstance` and `ITreeWorldReadSource` truth. Fixed sectors use floor semantics including negatives; outputs carry stable semantic IDs/source indices and deterministic ordering; tree queries expose existing damage state and never request skeletons, voxel residency, or new persistence. Independent fake-source regressions cover order stability, negative sectors, camera-window membership changes, and no world-truth mutation.
 
-T003, T005/T007, T013, T015/T016, T020/T021 renderer hookup, T026, and T028 require edits in large `VoxelFarTerrain.cs`, `ShowcaseWorld.cs`, `VoxelShowcase.cs`, or equivalent composition/render integration surfaces. This connector can only replace complete files and there is no repository checkout, so unsafe wholesale rewrites remain blocked; acceptance is unchanged. T027 is the next independent reuse task if a manageable shipped consumer can be located.
+T022 derives deterministic forest canopy clusters from T019 tree visibility records while excluding independent landmark trees and severed trees; persistent foliage-health changes only invalidate the affected sector cluster revision.
 
-Runs `33414406079` and `33414859061` both failed the same `Int2` compile symptom. Root-cause isolation showed `Int2` is owned by `MountingForce.WorldGen`; the first attempted Kentridge namespace import was wrong. Current code imports the authoritative worldgen namespace in cluster/scatter production and focused tests. No further CI request is allowed until this corrected current head is used as the direct parent. Final T029–T033 still require full behavioral, built-player visual, budget, cleanup, documentation, exact-SHA green gates, close, merge-master, and non-force push to `origin/master`.
+T023 supplies renderer-neutral deterministic natural-scatter records for ordinary boulders from world seed + fixed sector and explicit landmark records for exceptional rock features.
+
+T024/T025 coarse presentation state is adapter-side and renderer-neutral: removed/restored structure state suppresses or restores far proxies without mutating the semantic planning manifest, and tree damage/severing flows through existing vegetation truth into canopy visibility.
+
+T027 reuse boundary identified in shipped campaign composition: `KentridgeCampaignGenerationPlan.Visibility` exposes the same `IWorldVisibilitySource` produced during pre-voxel campaign planning, independently of the showcase renderer path.
+
+## CI history / root causes
+
+Run `33409771197` failed because a Kentridge semantic test was missing its content namespace import; feature work corrected that product cause.
+
+Run `33414406079` repeated the `Int2` compile symptom. Minimal root-cause isolation showed `Int2` is owned by `MountingForce.WorldGen`, not `MountingForce.WorldGen.Content.Kentridge`; the production cluster/scatter files were corrected accordingly before another request.
+
+Run `33415875148` correctly targeted feature parent `865f5a7b...` and exposed only regression-source compile defects: two HLOD tests omitted `MountingForce.WorldGen`/Kentridge imports, the Kentridge planning test omitted its content import, and the canopy test used an NUnit containment form that bound to a string overload. Those exact causes are corrected on the current feature head; no third production fix was attempted for the prior symptom.
+
+## Blockers / remaining gates
+
+T003, T005/T007, T013, and T015/T016 require safe edits in large `VoxelFarTerrain.cs`, `ShowcaseWorld.cs`, or `VoxelShowcase.cs`; current connector writes replace complete files and the execution container has no repository checkout, so unsafe wholesale rewrites are not acceptable. Acceptance is unchanged; continue independent tasks.
+
+Final T029–T033 still require exact-head behavioral validation, built-player visual evidence, budget/device validation, cleanup, and documentation before closure. The next CI request must be a direct child of the current feature head and use only `ci-test/fixes/agent-7`.
