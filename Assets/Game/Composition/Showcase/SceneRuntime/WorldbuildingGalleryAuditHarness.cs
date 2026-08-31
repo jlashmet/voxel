@@ -4,6 +4,8 @@ using System.IO;
 using System.Reflection;
 using Unity.Mathematics;
 using UnityEngine;
+using VoxelEngine.Collision.Api;
+using VoxelEngine.Structures.Runtime;
 
 namespace VoxelEngine.Showcase
 {
@@ -12,7 +14,7 @@ namespace VoxelEngine.Showcase
     {
         private const string SceneIssueArgument = "-voxel-scene-issue";
         private const string ScreenshotDirectoryArgument = "-voxel-screenshot-dir";
-        private const string SpatialReservationFeatureId = "20260829-050529-000-WorldBuilderSpatialReservationSystem";
+        private const string StructuralCompositionIssueId = "20260829-034505-000-WorldBuilderTypedStructuralSocketComposition";
         private const int ViewsPerTown = 3;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -20,35 +22,38 @@ namespace VoxelEngine.Showcase
         {
             string issuePath = Argument(SceneIssueArgument);
             string screenshotDirectory = Argument(ScreenshotDirectoryArgument);
-            if (string.IsNullOrEmpty(issuePath) || string.IsNullOrEmpty(screenshotDirectory)
-                || !TryReadCaptureLessIssue(issuePath, out IssueRecord issue)) return;
+            if (string.IsNullOrEmpty(issuePath) || string.IsNullOrEmpty(screenshotDirectory)) return;
+
+            IssueRecord issue = ReadIssue(issuePath);
+            if (!IsCaptureLessGalleryIssue(issue)) return;
 
             var root = new GameObject("Worldbuilding Gallery Audit Harness") { hideFlags = HideFlags.DontSave };
             Reporter reporter = root.AddComponent<Reporter>();
             reporter.ScreenshotDirectory = screenshotDirectory;
-            reporter.CaptureSpatialReservationEvidence = string.Equals(
+            reporter.StructuralCompositionAudit = string.Equals(
                 issue.id,
-                SpatialReservationFeatureId,
+                StructuralCompositionIssueId,
                 StringComparison.Ordinal);
             UnityEngine.Object.DontDestroyOnLoad(root);
-            Debug.Log("TOWNARCH_AUDIT armed for capture-less SceneIssue validation.");
+            Debug.Log($"TOWNARCH_AUDIT armed for capture-less SceneIssue validation structural={reporter.StructuralCompositionAudit}.");
         }
 
-        private static bool TryReadCaptureLessIssue(string path, out IssueRecord record)
+        private static IssueRecord ReadIssue(string path)
         {
-            record = null;
             try
             {
-                record = JsonUtility.FromJson<IssueRecord>(File.ReadAllText(path));
-                return record != null && record.captures != null && record.captures.Length == 0 &&
-                       string.Equals(record.sceneName, "WorldbuildingGalleryShowcase", StringComparison.Ordinal);
+                return JsonUtility.FromJson<IssueRecord>(File.ReadAllText(path));
             }
             catch (Exception error)
             {
                 Debug.LogError($"TOWNARCH_AUDIT could not read SceneIssue: {error.Message}");
-                return false;
+                return null;
             }
         }
+
+        private static bool IsCaptureLessGalleryIssue(IssueRecord record) =>
+            record != null && record.captures != null && record.captures.Length == 0 &&
+            string.Equals(record.sceneName, "WorldbuildingGalleryShowcase", StringComparison.Ordinal);
 
         private static string Argument(string name)
         {
@@ -61,14 +66,56 @@ namespace VoxelEngine.Showcase
         [Serializable] private sealed class IssueRecord { public string id; public string sceneName; public IssueFrame[] captures; }
         [Serializable] private sealed class IssueFrame { }
 
+        private readonly struct StructuralFrameSpec
+        {
+            public readonly string Name;
+            public readonly int Proof;
+            public readonly Vector3 Target01;
+            public readonly Vector3 CameraDirection;
+            public readonly float DistanceScale;
+            public readonly float MinimumDistance;
+
+            public StructuralFrameSpec(string name, int proof, Vector3 target01,
+                Vector3 cameraDirection, float distanceScale, float minimumDistance)
+            {
+                Name = name;
+                Proof = proof;
+                Target01 = target01;
+                CameraDirection = cameraDirection;
+                DistanceScale = distanceScale;
+                MinimumDistance = minimumDistance;
+            }
+        }
+
+        private static readonly StructuralFrameSpec[] s_StructuralFrames =
+        {
+            // The bridge and cliff proofs now live on the deterministic valley/mountain transition.
+            // Frame them from the +Z valley-facing side: the opposite side climbs into the mountain
+            // and can place an otherwise valid evidence camera inside foreground terrain.
+            new("bridge-wide", 0, new Vector3(0.50f, 0.45f, 0.50f), new Vector3(0f, 0.30f, 1f), 0.60f, 64f),
+            new("bridge-deck-junction", 0, new Vector3(0.12f, 0.88f, 0.50f), new Vector3(-0.35f, 0.35f, 1f), 0.16f, 20f),
+            new("castle-wide", 1, new Vector3(0.50f, 0.50f, 0.50f), new Vector3(0.50f, 0.18f, -0.75f), 0.55f, 44f),
+            new("castle-gate", 1, new Vector3(0.50f, 0.38f, 0.18f), new Vector3(0.12f, 0.12f, -1f), 0.22f, 20f),
+            // Cliff evidence keeps the same elevated oblique parallax but approaches from the valley,
+            // so lower landing, stepped rise, supports and upper settlement remain visible together.
+            new("cliff-wide", 2, new Vector3(0.55f, 0.55f, 0.50f), new Vector3(-0.75f, 0.45f, 0.65f), 0.75f, 46f),
+            new("cliff-ramp-junction", 2, new Vector3(0.50f, 0.55f, 0.50f), new Vector3(-0.55f, 0.45f, 0.80f), 0.38f, 24f),
+            // The facade proof metric aggregates two variants. Aim at each true variant centre and
+            // offset the cameras outward so the other facade/unrelated gallery content falls behind
+            // the frame edge while roof, dormer, balcony and front relief remain readable.
+            new("facade-civic", 3, new Vector3(0.19f, 0.50f, 0.78f), new Vector3(-0.35f, 0.18f, 1f), 0.40f, 20f),
+            new("facade-ornate", 3, new Vector3(0.81f, 0.50f, 0.78f), new Vector3(0.35f, 0.18f, 1f), 0.40f, 20f),
+        };
+
         private sealed class Reporter : MonoBehaviour
         {
             internal string ScreenshotDirectory;
-            internal bool CaptureSpatialReservationEvidence;
+            internal bool StructuralCompositionAudit;
             private bool _started;
             private bool _pinCamera;
-            private bool _spatialReservationEvidencePassed;
+            private bool _structuralAuditPassed;
             private Transform _cameraTransform;
+            private CharacterMotor _pinnedMotor;
             private Vector3 _pinnedPosition;
             private Quaternion _pinnedRotation;
 
@@ -83,13 +130,23 @@ namespace VoxelEngine.Showcase
 
             private void LateUpdate()
             {
-                if (_pinCamera && _cameraTransform != null)
-                    _cameraTransform.SetPositionAndRotation(_pinnedPosition, _pinnedRotation);
+                if (!_pinCamera || _cameraTransform == null) return;
+
+                _cameraTransform.SetPositionAndRotation(_pinnedPosition, _pinnedRotation);
+                if (_pinnedMotor != null)
+                {
+                    // WorldbuildingGalleryShowcase streams around its production CharacterMotor in
+                    // Update. Keep that motor on the same evidence pose so the next frame prepares
+                    // near-voxel residency/rendering for the camera that will actually be presented.
+                    _pinnedMotor.Position = _pinnedPosition - Vector3.up * _pinnedMotor.EyeHeight;
+                    _pinnedMotor.Velocity = Vector3.zero;
+                }
             }
 
             private IEnumerator Capture(WorldbuildingGalleryShowcase showcase)
             {
-                FieldInfo worldField = typeof(WorldbuildingGalleryShowcase).GetField("_world", BindingFlags.Instance | BindingFlags.NonPublic);
+                const BindingFlags instancePrivate = BindingFlags.Instance | BindingFlags.NonPublic;
+                FieldInfo worldField = typeof(WorldbuildingGalleryShowcase).GetField("_world", instancePrivate);
                 if (worldField == null)
                 {
                     Debug.LogError("TOWNARCH_AUDIT result=FAIL reason=gallery-world-contract-unavailable");
@@ -116,9 +173,28 @@ namespace VoxelEngine.Showcase
                     yield break;
                 }
 
-                int expectedViews = world.WorldbuildingGalleryTownDistrictCount * ViewsPerTown;
+                CharacterMotor sceneMotor = null;
+                FieldInfo flyModeField = null;
+                if (StructuralCompositionAudit)
+                {
+                    FieldInfo motorField = typeof(WorldbuildingGalleryShowcase).GetField("_motor", instancePrivate);
+                    flyModeField = typeof(WorldbuildingGalleryShowcase).GetField("m_FlyMode", instancePrivate);
+                    sceneMotor = motorField?.GetValue(showcase) as CharacterMotor;
+                    if (sceneMotor == null || flyModeField == null || flyModeField.FieldType != typeof(bool))
+                    {
+                        Debug.LogError("STRUCTURAL_AUDIT result=FAIL reason=gallery-camera-streaming-contract-unavailable");
+                        yield break;
+                    }
+                }
+
+                // Structural composition has its own eight-frame evidence set below. Do not spend the
+                // bounded player replay capturing 21 unrelated town-architecture frames first; the
+                // focused regression independently proves structural re-entry after residency eviction.
+                int expectedViews = StructuralCompositionAudit
+                    ? 0
+                    : world.WorldbuildingGalleryTownDistrictCount * ViewsPerTown;
                 int totalStops = world.WorldbuildingGalleryTourStopCount;
-                if (expectedViews <= 0 || totalStops < expectedViews)
+                if (!StructuralCompositionAudit && (expectedViews <= 0 || totalStops < expectedViews))
                 {
                     Debug.LogError($"TOWNARCH_AUDIT result=FAIL reason=tour-too-short stops={totalStops} expectedViews={expectedViews}");
                     yield break;
@@ -168,14 +244,10 @@ namespace VoxelEngine.Showcase
                     yield break;
                 }
 
-                if (CaptureSpatialReservationEvidence)
+                if (StructuralCompositionAudit)
                 {
-                    yield return CaptureSpatialReservations(showcase);
-                    if (!_spatialReservationEvidencePassed)
-                    {
-                        Debug.LogError("TOWNARCH_AUDIT result=FAIL reason=spatial-reservation-evidence");
-                        yield break;
-                    }
+                    yield return CaptureStructural(showcase, sceneMotor, flyModeField, world);
+                    if (!_structuralAuditPassed) yield break;
                 }
 
                 long allocatedBytes = UnityEngine.Profiling.Profiler.GetTotalAllocatedMemoryLong();
@@ -190,52 +262,210 @@ namespace VoxelEngine.Showcase
                 Debug.Log($"TOWNARCH_AUDIT result=PASS captured={captured} expected={expectedViews}");
             }
 
-            private IEnumerator CaptureSpatialReservations(WorldbuildingGalleryShowcase showcase)
+            private IEnumerator CaptureStructural(
+                WorldbuildingGalleryShowcase showcase,
+                CharacterMotor sceneMotor,
+                FieldInfo flyModeField,
+                ShowcaseWorld world)
             {
-                SpatialReservationGalleryOverlay overlay = showcase.GetComponent<SpatialReservationGalleryOverlay>();
-                float waitSeconds = 0f;
-                while ((overlay == null || overlay.Report == null) && waitSeconds < 5f)
+                _structuralAuditPassed = false;
+                // Normal gallery startup authors the same refined authoritative-voxel pass. Requiring
+                // it here also keeps evidence robust if the harness runs against an alternate startup.
+                world.EnsureWorldbuildingGalleryStructuralRefinementBlocking();
+                if (!world.HasWorldbuildingGalleryStructuralCompositionContent())
                 {
+                    Debug.LogError("STRUCTURAL_AUDIT result=FAIL reason=structural-content-missing");
+                    yield break;
+                }
+
+                int totalChildren = 0;
+                int totalPrimitives = 0;
+                int totalVoxelBudget = 0;
+                int totalRegions = 0;
+                int totalInstances = 0;
+                int totalVoxelsWritten = 0;
+
+                for (int proof = 0; proof < ShowcaseWorld.WorldbuildingGalleryStructuralProofCaseCount; proof++)
+                {
+                    ShowcaseWorld.GalleryStructuralProofMetrics metrics =
+                        world.WorldbuildingGalleryStructuralProofMetrics(proof);
+                    if (metrics.Result != StructuralCompositionResult.Ok || metrics.ChildCount <= 0 ||
+                        metrics.PrimitiveCost <= 0 || metrics.VoxelCost <= 0 || metrics.RegionsVisited <= 0 ||
+                        metrics.InstancesRasterised <= 0 || metrics.VoxelsWritten <= 0 || metrics.GraphHash == 0UL)
+                    {
+                        Debug.LogError($"STRUCTURAL_AUDIT result=FAIL reason=invalid-proof-metrics proof={proof} " +
+                            $"name={metrics.Name} result={metrics.Result} children={metrics.ChildCount} " +
+                            $"primitives={metrics.PrimitiveCost} voxelBudget={metrics.VoxelCost} " +
+                            $"regions={metrics.RegionsVisited} instances={metrics.InstancesRasterised} " +
+                            $"voxelsWritten={metrics.VoxelsWritten} graph=0x{metrics.GraphHash:X16}");
+                        yield break;
+                    }
+
+                    double planningMs = world.AuditWorldbuildingGalleryStructuralPlanningMilliseconds(proof);
+                    totalChildren += metrics.ChildCount;
+                    totalPrimitives += metrics.PrimitiveCost;
+                    totalVoxelBudget += metrics.VoxelCost;
+                    totalRegions += metrics.RegionsVisited;
+                    totalInstances += metrics.InstancesRasterised;
+                    totalVoxelsWritten += metrics.VoxelsWritten;
+                    Debug.Log($"STRUCTURAL_COST proof={proof} name={metrics.Name} planningMs={planningMs:0.###} " +
+                        $"children={metrics.ChildCount} primitives={metrics.PrimitiveCost} voxelBudget={metrics.VoxelCost} " +
+                        $"regions={metrics.RegionsVisited} instances={metrics.InstancesRasterised} " +
+                        $"voxelsWritten={metrics.VoxelsWritten} graph=0x{metrics.GraphHash:X16} " +
+                        $"bounds={metrics.BoundsMin}..{metrics.BoundsMax}");
+                }
+
+                StructuralAttachmentRejectReason bridgeOrientation =
+                    world.AuditWorldbuildingGalleryStructuralBridgeOrientationReject();
+                StructuralAttachmentRejectReason castleSemantic =
+                    world.AuditWorldbuildingGalleryStructuralCastleSemanticReject();
+                StructuralAttachmentRejectReason bridgeSemantic =
+                    world.WorldbuildingGalleryStructuralBridgeNegativeReject;
+                StructuralAttachmentRejectReason cliffSupport =
+                    world.WorldbuildingGalleryStructuralCliffNegativeReject;
+                if (bridgeOrientation != StructuralAttachmentRejectReason.OrientationMismatch ||
+                    castleSemantic != StructuralAttachmentRejectReason.IncompatibleRoleOrTags ||
+                    bridgeSemantic == StructuralAttachmentRejectReason.None ||
+                    cliffSupport != StructuralAttachmentRejectReason.MissingTerrainSupport)
+                {
+                    Debug.LogError($"STRUCTURAL_AUDIT result=FAIL reason=negative-contract " +
+                        $"bridgeOrientation={bridgeOrientation} bridgeSemantic={bridgeSemantic} " +
+                        $"castleSemantic={castleSemantic} cliffSupport={cliffSupport}");
+                    yield break;
+                }
+
+                if (world.WorldbuildingGalleryStructuralBridgeTerrainRelief <= 0 ||
+                    world.WorldbuildingGalleryStructuralArchPrimitiveBaseline <= 0)
+                {
+                    Debug.LogError($"STRUCTURAL_AUDIT result=FAIL reason=site-or-detail-contract " +
+                        $"bridgeRelief={world.WorldbuildingGalleryStructuralBridgeTerrainRelief} " +
+                        $"archBaseline={world.WorldbuildingGalleryStructuralArchPrimitiveBaseline}");
+                    yield break;
+                }
+
+                for (int route = 0; route < ShowcaseWorld.WorldbuildingGalleryStructuralTraversalCount; route++)
+                {
+                    ShowcaseWorld.GalleryStructuralTraversalReport traversal =
+                        world.AuditWorldbuildingGalleryStructuralTraversal(route);
+                    Debug.Log($"STRUCTURAL_TRAVERSAL route={route} reached={traversal.Reached} steps={traversal.Steps} " +
+                        $"startDistance={traversal.StartDistanceMetres:0.###}m endDistance={traversal.EndDistanceMetres:0.###}m " +
+                        $"finalFeet={traversal.FinalFeetPosition}");
+                    if (!traversal.Reached || traversal.EndDistanceMetres >= traversal.StartDistanceMetres)
+                    {
+                        Debug.LogError($"STRUCTURAL_AUDIT result=FAIL reason=character-motor-traversal route={route}");
+                        yield break;
+                    }
+                }
+
+                string structuralDirectory = Path.Combine(ScreenshotDirectory, "StructuralCompositionAudit");
+                Directory.CreateDirectory(structuralDirectory);
+                foreach (string stale in Directory.GetFiles(structuralDirectory, "*.png")) File.Delete(stale);
+
+                // The evidence camera is several load radii from the gallery centre for the bridge
+                // and cliff proofs. The normal scene Update drives streaming from CharacterMotor,
+                // while this harness pins only the camera in LateUpdate. Put that same production
+                // motor in fly mode and keep it on the pinned pose so residency, renderer scheduling,
+                // and the presented camera all describe one location instead of two.
+                bool previousFlyMode = (bool)flyModeField.GetValue(showcase);
+                flyModeField.SetValue(showcase, true);
+                _pinnedMotor = sceneMotor;
+                int preparedProof = -1;
+
+                for (int frame = 0; frame < s_StructuralFrames.Length; frame++)
+                {
+                    StructuralFrameSpec spec = s_StructuralFrames[frame];
+                    ShowcaseWorld.GalleryStructuralProofMetrics metrics =
+                        world.WorldbuildingGalleryStructuralProofMetrics(spec.Proof);
+                    Vector3 min = new Vector3(metrics.BoundsMin.x, metrics.BoundsMin.y, metrics.BoundsMin.z) * ShowcaseWorld.VoxelSize;
+                    Vector3 max = new Vector3(metrics.BoundsMax.x, metrics.BoundsMax.y, metrics.BoundsMax.z) * ShowcaseWorld.VoxelSize;
+                    Vector3 span = max - min;
+                    Vector3 target = new Vector3(
+                        Mathf.Lerp(min.x, max.x, spec.Target01.x),
+                        Mathf.Lerp(min.y, max.y, spec.Target01.y),
+                        Mathf.Lerp(min.z, max.z, spec.Target01.z));
+                    float horizontalSpan = Mathf.Max(span.x, span.z);
+                    float distance = Mathf.Max(spec.MinimumDistance, horizontalSpan * spec.DistanceScale);
+                    Vector3 cameraDirection = spec.CameraDirection.normalized;
+                    _pinnedPosition = target + cameraDirection * distance;
+                    Vector3 direction = target - _pinnedPosition;
+                    _pinnedRotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
+                    _pinCamera = true;
+
+                    // Seed the line of sight immediately, then yield one frame so the production
+                    // scene streams/evicts from this newly pinned motor position. A proof-family
+                    // relocation can evict the other authored structural districts; restore those
+                    // authoritative voxels after that eviction using the public ensure contract.
+                    world.PrepareWorldbuildingGalleryStructuralEvidence(_pinnedPosition, target);
                     yield return null;
-                    waitSeconds += Time.unscaledDeltaTime;
-                    overlay = showcase.GetComponent<SpatialReservationGalleryOverlay>();
+                    if (spec.Proof != preparedProof)
+                    {
+                        world.EnsureWorldbuildingGalleryStructuralRefinementBlocking();
+                        if (!world.HasWorldbuildingGalleryStructuralCompositionContent())
+                        {
+                            Debug.LogError($"STRUCTURAL_AUDIT result=FAIL reason=proof-reentry-missing proof={spec.Proof}");
+                            _pinCamera = false;
+                            _pinnedMotor = null;
+                            flyModeField.SetValue(showcase, previousFlyMode);
+                            yield break;
+                        }
+                        preparedProof = spec.Proof;
+                    }
+
+                    // Do not capture while the production near-field streamer is still filling the
+                    // camera neighbourhood. That produced terrain-only evidence even though the
+                    // authoritative proof was present. Fail closed rather than accepting an
+                    // incomplete renderer snapshot as production-quality evidence.
+                    const float streamingSettleTimeoutSeconds = 4f;
+                    float settleSeconds = 0f;
+                    while (world.PendingRegionLoads > 0 && settleSeconds < streamingSettleTimeoutSeconds)
+                    {
+                        yield return null;
+                        settleSeconds += Time.unscaledDeltaTime;
+                    }
+                    if (world.PendingRegionLoads > 0)
+                    {
+                        Debug.LogError($"STRUCTURAL_AUDIT result=FAIL reason=evidence-streaming-not-settled " +
+                            $"frame={frame + 1} proof={spec.Proof} pending={world.PendingRegionLoads}");
+                        _pinCamera = false;
+                        _pinnedMotor = null;
+                        flyModeField.SetValue(showcase, previousFlyMode);
+                        yield break;
+                    }
+
+                    yield return new WaitForSecondsRealtime(0.65f);
+                    yield return new WaitForEndOfFrame();
+
+                    string path = Path.Combine(structuralDirectory, $"{frame + 1:00}-{spec.Name}.png");
+                    ScreenCapture.CaptureScreenshot(path);
+                    Debug.Log($"STRUCTURAL_AUDIT frame={frame + 1}/{s_StructuralFrames.Length} " +
+                        $"name={spec.Name} proof={spec.Proof} camera={_pinnedPosition} target={target} " +
+                        $"pending={world.PendingRegionLoads}");
+                    yield return new WaitForSecondsRealtime(0.25f);
                 }
-                if (overlay == null || overlay.Report == null)
+
+                _pinCamera = false;
+                _pinnedMotor = null;
+                flyModeField.SetValue(showcase, previousFlyMode);
+                yield return new WaitForSecondsRealtime(1f);
+                int captured = Directory.Exists(structuralDirectory)
+                    ? Directory.GetFiles(structuralDirectory, "*.png").Length : 0;
+                if (captured < s_StructuralFrames.Length)
                 {
-                    Debug.LogError("SPATIAL_RESERVATION_AUDIT result=FAIL reason=overlay-unavailable");
+                    Debug.LogError($"STRUCTURAL_AUDIT result=FAIL captured={captured} expected={s_StructuralFrames.Length}");
                     yield break;
                 }
 
-                string directory = Path.Combine(ScreenshotDirectory, "SpatialReservationAudit");
-                Directory.CreateDirectory(directory);
-                foreach (string stale in Directory.GetFiles(directory, "*.png")) File.Delete(stale);
-
-                overlay.SetVisible(true);
-                yield return null;
-                yield return new WaitForSecondsRealtime(0.5f);
-                yield return new WaitForEndOfFrame();
-                string path = Path.Combine(directory, "01-reservation-inspection.png");
-                ScreenCapture.CaptureScreenshot(path);
-                yield return new WaitForSecondsRealtime(0.5f);
-                overlay.SetVisible(false);
-
-                int captured = Directory.GetFiles(directory, "*.png").Length;
-                if (captured < 1)
-                {
-                    Debug.LogError("SPATIAL_RESERVATION_AUDIT result=FAIL reason=screenshot-missing");
-                    yield break;
-                }
-
-                var report = overlay.Report;
-                var metrics = report.RejectedCandidateMetrics;
-                Debug.Log(
-                    $"SPATIAL_RESERVATION_COST sourceClaims={report.SourceClaimCount} primitives={report.Primitives.Count + 1} " +
-                    $"buildTicks={report.BuildStopwatchTicks} queryBuckets={metrics.BucketsVisited} " +
-                    $"broadCandidates={metrics.BroadPhaseCandidates} narrowTests={metrics.NarrowPhaseTests}");
-                Debug.Log(
-                    $"SPATIAL_RESERVATION_AUDIT result=PASS rejected=visible underground=visible " +
-                    $"surface=visible screenshot={path}");
-                _spatialReservationEvidencePassed = true;
+                long allocatedBytes = UnityEngine.Profiling.Profiler.GetTotalAllocatedMemoryLong();
+                Debug.Log($"STRUCTURAL_COST totalAuthoringMs={world.WorldbuildingGalleryStructuralAuthoringMilliseconds:0.###} " +
+                    $"presentationMs={world.WorldbuildingGalleryStructuralPresentationAuthoringMilliseconds:0.###} " +
+                    $"children={totalChildren} primitives={totalPrimitives} voxelBudget={totalVoxelBudget} " +
+                    $"regions={totalRegions} instances={totalInstances} voxelsWritten={totalVoxelsWritten} " +
+                    $"residentRegions={world.RegionsGenerated} allocatedMB={allocatedBytes / (1024f * 1024f):0.##} " +
+                    $"renderProxyRegions={totalRegions} bridgeRelief={world.WorldbuildingGalleryStructuralBridgeTerrainRelief} " +
+                    $"archBaselinePrimitives={world.WorldbuildingGalleryStructuralArchPrimitiveBaseline}");
+                Debug.Log($"STRUCTURAL_AUDIT result=PASS captured={captured} traversals={ShowcaseWorld.WorldbuildingGalleryStructuralTraversalCount} " +
+                    $"bridgeOrientationReject={bridgeOrientation} castleSemanticReject={castleSemantic} cliffSupportReject={cliffSupport}");
+                _structuralAuditPassed = true;
             }
 
             private static string Sanitize(string value)
