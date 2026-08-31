@@ -4,72 +4,50 @@
 
 Provide one deterministic, engine-free spatial claim/query substrate for WorldBuilder without replacing road solving, structural compatibility/topology, ecology policy, hidden-space topology, or presentation ownership. Close only after production consumers, focused regressions, module-local built-player evidence, Kentridge integration, cost/blast-radius checks, and exact-SHA CI are all green.
 
-## Current state — 2026-08-31
+## Final implementation
 
-Authoritative `origin/master` was re-fetched at `2ea5f5c95f89fbf0403dbefb50b782829583d304`. Agent-7 reconciled onto that tree with two-parent merge `8dc03acbd5e8359034a815021eb03b43b69020bf`; `master...fixes/agent-7` was 0 behind at the last reconciliation check. The reconciliation deliberately dropped agent-7's obsolete Worldbuilding Gallery validation diffs while preserving assignment-owned production work and the module-local validation assets.
+The shared reservation core owns only stable semantic identity/provenance, integer-decimetre 3D geometry, categories/masks, hard/clearance/protected/handoff/soft semantics, deterministic precedence/diagnostics, and bounded snapshot queries. It does not use Unity Physics or mutable global first-writer state.
 
-Implemented acceptance seams:
-- engine-free deterministic 3D reservations, bounded snapshots, diagnostics and precedence;
-- Kentridge settlement, macro-road/handoff, production structure, vegetation and hidden-space consumers;
-- composition-configured road-clearance yielding plus an independent non-Kentridge reuse fixture;
-- focused deterministic and production-integration regressions;
-- module-local presentation-only reservation validation with no placement authority.
+Production composition integrates that substrate without taking policy from its existing owners:
+- Kentridge settlement placement publishes/query shared claims while retaining bounded deterministic site/topology policy.
+- `WorldRoadNetwork` remains road/grade authority. Organic Kentridge solves one road network, derives reservations from that exact solved network, and reuses it for rasterization.
+- `TopDownWorldReservationAdapter` exposes macro envelopes, solved roads, and compatible settlement-arrival handoffs.
+- typed structural sockets retain compatibility/topology/orientation/support ownership; `StructuralSocketReservationAdapter` uses an accepted solved attachment only for external WorldBuilder clearance.
+- ecology keeps species/density policy; vegetation uses configured reservation yield/suppression.
+- hidden-space topology stays in its planner while true 3D realization claims use the same reservation query path.
 
-### Typed structural socket integration
+The Kentridge adapter consumes its caller-supplied resolved `SettlementPlan` plus solved road network; it does not re-solve settlement data from seed. The production-structure regression source therefore matches the geometry physically rasterized by the road backend.
 
-The prerequisite typed structural socket feature is now landed on authoritative master. Agent-7 consumes its canonical `SlotSpec`, `StructuralAttachmentDecision`, and `StructuralCompositionPlanner` contracts; it does not copy compatibility, orientation selection, topology, support, capacity, recursion, or sibling-clearance solving.
+## Validation surface
 
-`StructuralSocketReservationAdapter` is the WorldBuilder boundary for external spatial claims. Given an accepted production attachment decision, its matching typed socket, the solved parent orientation, and the explicit voxels-per-decimetre conversion, it:
-- reproduces only the planner's cardinal vector transform for the socket-authored clearance volume;
-- derives the resolved half-open world clearance at the production attachment point;
-- conservatively converts voxel min/max into integer-decimetre reservation bounds using floor-min / ceil-max conversion, including negative coordinates;
-- publishes a normal `StructuralChild` clearance claim and queries the existing `SpatialReservationSnapshot` as `ReservationConsumerKind.StructuralChild`.
+Focused validation is module-local, not Worldbuilding Gallery:
+- scene: `Assets/Game/WorldBuilder/Generation/Validation/SpatialReservations/SpatialReservationValidation.unity`
+- scenario: `Assets/Game/WorldBuilder/Generation/Validation/SpatialReservations/spatial-reservations.player-scenario.json`
+- metadata: `Assets/Game/WorldBuilder/Generation/Validation/SpatialReservations/spatial-reservations.module-validation.json`
+- presentation: `Assets/Game/Composition/Showcase/SceneRuntime/SpatialReservationValidationShowcase.cs`
 
-The focused regression `SpatialReservationStructuralSocketIntegrationTests.AcceptedTypedSocketUsesSharedReservationClearanceAgainstExternalWorldClaims` begins with a real `StructuralCompositionPlanner.ExpandRoot` typed-socket solve, consumes its accepted decision through the production adapter, rejects an intersecting external building through the shared reservation path, and accepts a vertically separated building. Targeted run `33360994835` proved this regression green before the automatic module suite reached the next failure.
+The scene is presentation-only and owns no placement authority or colliders. Direct inspection of final run `33366247235` shows readable white hard occupancy, cyan clearance, yellow road, green public access, red rejected overlap, and magenta underground evidence below a neutral surface slice. The final Kentridge survey capture is coherent and traversable-looking with roads, structures, plaza, terrain, and traversal overlay present.
 
-### Solved-road production reservation boundary
+## Exact-SHA evidence
 
-Targeted run `33360994835` then failed `SpatialReservationProductionIntegrationTests.CanonicalKentridgeStructureSitesPassSharedReservationValidation`: role 15 intersected raw planner claim `kentridge-route:organic-access-2:0`. Root-cause tracing showed a production-source mismatch rather than a shared conflict-policy defect: organic Kentridge physically lowers `KentridgeWorldRoadNetwork` through `WorldRoadNetworkVoxelCatalogue`, while structure validation was still consuming `KentridgeTownPlanner`'s pre-road route geometry.
+Final product SHA: `a29fc6cb95f0c5f576105f8e88829ba55cbff5e2`.
 
-The correction keeps road solving authoritative and composition-owned. Canonical Kentridge now solves the organic `WorldRoadNetwork` once, derives structure reservations from that exact solved network through `KentridgeSpatialReservationAdapter`, and reuses the same network for road voxelization. The standalone shared-structure entry point likewise derives reservations from solved roads. The production regression now validates canonical structure sites against those solved production road claims. Shared conflict semantics are unchanged; roads are not ignored and the town planner is not given a second routing policy.
+Final CI transport request: `e4253ada651917bc8508710f10a097533b8cadda`; run `33366247235`; result `success`. The explicit affected Kentridge plot/foundation PlayMode regression passed, then automatic module validation passed:
+- `VoxelEngine.Tests.EditMode.SpatialReservationTests`
+- `VoxelEngine.Tests.EditMode.SpatialReservationProductionIntegrationTests`
+- `VoxelEngine.Tests.EditMode.SpatialReservationReusabilityTests`
+- `VoxelEngine.Tests.EditMode.SpatialReservationStructuralSocketIntegrationTests`
+- built `Assets/Scenes/KentridgePlayableSlice.unity`
+- built module-local `SpatialReservationValidation.unity`
 
-Exact-SHA run `33362347013` on source `91b5fba348af4d9c464e8131b47c18b62fdbc2a0` did not reach the behavioral assertion: Unity compile failed because the two production files newly naming `WorldRoadNetwork` omitted the existing `Game.WorldBuilder.Api` namespace import. This is a compile-boundary defect introduced by the solved-road composition fix, not a second occurrence of the role-15 conflict. The narrow correction adds only those imports; no reservation semantics or routing policy changed.
+The current workflow also ran `tools/tests/test_module_validation_plan.py` and full Unity compile/build through the focused and player gates. Repository/workflow search found no separate current `ProjectValidator` target, so no nonexistent gate is claimed.
 
-Exact-SHA run `33362910546` on source `3740f611045635578f61816bbdbcc88b07c3fc77` also did not reach assertions: Unity terminated with macOS bus error 10 / exit 138 at about 3.5 GB peak RSS. This is a proven runner/editor infrastructure crash, not product evidence. After that completed run, a read-only reuse review found that `KentridgeSpatialReservationAdapter.Build(seed, plan, roads)` still reconstructed settlement reservations from `seed` even though the exact resolved `SettlementPlan` was already supplied. That violated the intended single-solve seam and could make the adapter diverge from a caller-provided plan. The adapter now uses `KentridgeTownPlanner.BuildReservationSnapshot(plan)` and still validates `plan.Seed == seed`; no road solver or reservation policy changed.
+Final local-player cost marker:
+`SPATIAL_RESERVATION_COST build_ticks=347619 claims=81 query_buckets=4 query_candidates=14 query_tests=14 allocated_bytes=65560368 reserved_bytes=155123712 unused_reserved_bytes=89563344`.
+The ready marker reports 81 claims and the deliberate `ClearanceConflict` rejection. No NullReferenceException, MissingReferenceException, or shader-error marker was present.
 
-Exact-SHA run `33364666745` on source `75e075c86f209d0f67481d45e5067656db7c5e3b` passed the requested production-integration suite, all four automatically derived reservation suites, the real `KentridgePlayableSlice` player gate, and the dedicated module-local `SpatialReservationValidation.unity` player gate. Durable logs emitted `SPATIAL_RESERVATION_COST build_ticks=316065 claims=81 query_buckets=4 query_candidates=14 query_tests=14 allocated_bytes=65577760 reserved_bytes=155123712 unused_reserved_bytes=89545952` and a ready marker with the deliberate `ClearanceConflict` rejection. Direct capture review nevertheless found a presentation acceptance defect: the opaque floor and full-town coordinate projection occluded yellow road, green access, red rejection, and most underground evidence in all three identical module-local screenshots. The harness was technically green but the evidence was not visually inspectable, so closure was correctly withheld.
+## Blast radius / closure state
 
-The correction is presentation-only: keep all production-derived claims and rejection computation unchanged, but lay those already-computed claims out as fixed evidence cards inside the dedicated validation scene. The red card remains the exact rejected hard-overlap candidate but is separated visually for readability; magenta underground evidence is displayed below a neutral surface slice. No placement/reservation authority moves into the scene.
+Final compare against `origin/master` `2ea5f5c95f89fbf0403dbefb50b782829583d304` is 0 behind and contains only assignment-scoped WorldBuilder reservation/Kentridge integration, dedicated validation presentation/assets, and reservation regressions/bookkeeping. No CharacterMotor, global/device/region budget, or world-generation tolerance file is changed. Reservations remain compact derived data with bounded local queries; the validation scene creates presentation objects only.
 
-### Module-local validation architecture
-
-Focused player-visible validation for this feature does **not** use `Assets/Scenes/WorldbuildingGalleryShowcase.unity`.
-
-Agent-7 owns:
-- scene: `Assets/Game/WorldBuilder/Generation/Validation/SpatialReservations/SpatialReservationValidation.unity`;
-- scenario: `Assets/Game/WorldBuilder/Generation/Validation/SpatialReservations/spatial-reservations.player-scenario.json`;
-- module metadata: `Assets/Game/WorldBuilder/Generation/Validation/SpatialReservations/spatial-reservations.module-validation.json`;
-- composition: `Assets/Game/Composition/Showcase/SceneRuntime/SpatialReservationValidationShowcase.cs`.
-
-The local scene consumes production Kentridge reservation and hidden-space computations, visibly distinguishes hard occupancy / clearance / road / public access / underground claims plus a deliberate rejected overlap, removes primitive colliders, and emits `SPATIAL_RESERVATION_COST` and `SPATIAL_RESERVATION_VALIDATION ready:`. The Worldbuilding Gallery is non-gating and must not be used as focused acceptance evidence.
-
-## Validation hypotheses / discriminator
-
-1. **Likely:** the presentation-only evidence layout makes every required category legible while the same production reservation suites and Kentridge integration remain green.
-2. **Alternative:** the final local-scene capture reveals another framing/readability problem; fix only that demonstrated presentation defect, not production reservation semantics.
-
-If `CanonicalKentridgeStructureSitesPassSharedReservationValidation` fails behaviorally again, inspect the solved claim id/bounds and isolate a minimal repro/root cause before another layout or policy change. Do not weaken conflict semantics to make the test pass.
-
-## Remaining gates
-
-1. Re-fetch `origin/master`; merge if it advanced and re-review the assignment-only diff.
-2. Verify `ci-test/fixes/agent-7` has no queued/running request, then use only that transport for exact-SHA validation.
-3. Re-run focused reservation tests including typed-socket, hidden-space/vegetation coverage, compile/build and automatic module validation on the presentation-fix exact SHA.
-4. Re-run the exact module-local `SpatialReservationValidation.unity` standalone player and directly inspect all three captures for visible hard, clearance, road, access, rejected, and underground-below-surface evidence. Do not use Worldbuilding Gallery.
-5. Reconfirm real `KentridgePlayableSlice` built/runtime traversal integration.
-6. Record final query/build/memory/streaming evidence and final assignment-only blast radius.
-7. After every acceptance gate is green, complete issue metadata, move `open/` directly to `closed/`, merge current master if it advanced, revalidate affected work, and non-force promote the exact feature head.
-
-## Cost / ownership guardrails
-
-No global registry, Unity Physics authority, per-claim authoritative GameObjects/colliders, duplicate road solver, duplicated structural socket solver, or duplicated ecology/hidden-space policy. Keep one shared source snapshot with bounded views and preserve existing deterministic/device budgets. Module-local validation objects are presentation-only and must not become placement authority.
+All acceptance criteria are validated on the exact product SHA. Closure bookkeeping may now set `status=fixed`, record the exact evidence, move this directory directly from `open/` to `closed/`, re-fetch current master, and non-force promote the final feature head. If master advances before promotion, merge/revalidate/retry instead of forcing.
