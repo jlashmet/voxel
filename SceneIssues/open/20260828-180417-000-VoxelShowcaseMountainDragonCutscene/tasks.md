@@ -1,67 +1,61 @@
 # Tasks
 
-## Architecture / functional acceptance
-- [x] Compose mountain, winding ascent, summit destination, cube dragon, reusable proximity trigger, cutscene/dialogue through WorldBuilder/shared modules; no scene-local voxel/proximity/UI implementation.
-- [x] Production built-player replay uses normal `AutoWalk -> CharacterMotor.Step`, enforces grounded/Y arrival through all 17 waypoints, and requires 24-voxel headroom/support beneath the authored route.
-- [x] Move the mountain footprint clear of castle-owned feature suppression and preserve accessible landings/switchbacks.
-- [x] Add focused production regressions for mountain/path composition, castle ownership, ramp landings, support, headroom, startup bake, upper dragon structure coverage, proximity/cutscene, and exact dialogue `Hello, I'm Mr. Dragon.`
-- [x] Keep shared Box/Frustum raster fast paths output-equivalent and inside existing primitive/write-accounting contracts.
-- [x] Reconcile `fixes/agent-4` with current `origin/master` before new implementation; merge PR #174 brought only documentation/SceneIssue metadata and had no Mountain Dragon overlap.
-- [x] Refresh with current master/workflow before the remaining reuse pass; merge PR #177 updated only workflow guidance and unrelated master work.
+## Proven acceptance infrastructure / retained regressions
+- [x] Compose cube dragon, reusable proximity trigger, reusable cutscene/dialogue, and exact `Hello, I'm Mr. Dragon.` through shared modules rather than scene-local polling/UI.
+- [x] Built-player replay uses normal player movement via the public deterministic movement/replay seam; independent seam proof passed run `33391220613`.
+- [x] Keep generic Box/Frustum raster fast paths reusable/output-equivalent; independent proof passed run `33357975697`.
+- [x] Keep startup bake guards at 240 s / 14 GiB and preserve binary-safe accepted-payload handoff. Run `33371715298` proved the handoff path but its payload is not visually accepted.
+- [x] Keep focused module-local Mountain Dragon validation and player-safe shader evidence. Run `33406812093` passed; this does not substitute for production `VoxelShowcase` visual acceptance.
+- [x] Record old path/core minimal repro after repeated visual failures (`experiment-010-switchback-core-gap-minimal-repro.md`).
+- [x] Reject the old revision-6/8/9 path-driven mountain family after built-player review. The road terraces/support geometry define the landform and do not read as a natural mountain.
+- [x] Record reconstruction CI failures: `33447340071` failed compile due omitted proven dependencies; source `a109bf20...` restored them. Retry `33449145780` compiled and standalone replay succeeded but requested focused filter matched zero tests, so it is not acceptance evidence.
+- [x] Confirm no agent-4 CI is queued/running and current `origin/master` (`c73ab9d1...` at last check) is already an ancestor of the reconstructed feature; obsolete PR #182/#192 merge blocker removed.
 
-## Bake / exact-CI infrastructure
-- [x] Add bake-only explicit fixed-altitude `Structure` coverage and sparse `FixedAltitudeStructures` scope so the startup image includes the upper dragon layer without broad sky materialization or runtime-streaming changes.
-- [x] Prove scoped/full upper-dragon builds match semantic hash + serialized region bytes.
-- [x] Keep the 240 s / 14 GiB bake guards unchanged; prior accepted source bake measured ~5.37 GiB RSS / zero swap.
-- [x] Restrict immediate bake termination to exact successful GitHub-Actions batch `ShowcaseWorldBaker.BakeShowcaseWorld`; interactive/local/test/other batch invocations retain normal teardown.
-- [x] Replace insufficient managed `Environment.Exit(0)` with POSIX `_exit(0)` only on that exact successful CI path, after persistence/import/save/success logging.
-- [x] Run `33310677691` on exact source `2100df40287a...`: fresh bake, native exit, Unity reopen, structural PlayMode acceptance, 17/17 built-player traversal, capture, and final status all green.
+## Reusable mountain redesign
+- [ ] Replace path-coupled `MountainLandmarkSpec` ownership with a semantic parameterized mountain-landform contract: placement, footprint/aspect, height, summit character, deterministic seed, macro shape/ridge/asymmetry, and bounded roughness only. No road, switchback, traversal, dragon, or Showcase policy in the generic landform.
+- [ ] Implement one deterministic mountain surface authority used both for `HeightAt`/surface queries and for voxel realization, so routing evidence and rendered/collision geometry cannot diverge.
+- [ ] Support materially different mountain shapes from parameters (at minimum broad/massif versus narrow/asymmetric/ridged) without separate generators or scene-specific branches.
+- [ ] Separate reusable climate/presentation policy from shape: semantic altitude/slope bands choose rock/ground-cover/snow-like roles while concrete material ids remain caller-owned.
+- [ ] Remove old mountain-owned path tiers, ramp emission, path support masses, and path headroom carving from the production Mountain Dragon composition once the road-backed path is active.
 
-## Visual quality gate
-- [x] Merge master visual-quality instructions and classify the prior bright-masonry and revision-4 material-separated captures as still `prototype/blockout quality`; cube dragon remains explicitly permitted placeholder art.
-- [x] Add reusable semantic presentation roles and compose VoxelShowcase with dark rock, moss foothills, dirt path, and red cube.
-- [x] Leave exact run `33314740587` untouched through completion; its fresh revision-4 bake passed unchanged cost guards, while the stale material assertion and 58 s replay margin failed and exact frames exposed repeated support blobs / engineered summit geometry.
-- [x] Correct the prepared-bake mountain expectation from legacy material `1` to production dark-rock role `6`; retain generic single-material raster/catalogue tests.
-- [x] Restore deterministic evidence timing margin by changing route timeout `58.0 -> 59.0` only; coordinates, movement speed, arrival radius, grounded/Y predicates, gameplay, and workflow 60 s limit remain unchanged.
-- [x] Try reusable same-elevation duplicate full-height support-pair ridge consolidation with three moss foothills and a narrower summit crest; no primitive count was added.
-- [x] Leave exact revision-5 run `33316622225` untouched through completion and reject the candidate on cost: fresh bake timed out at 241 s / 11,459 MiB RSS / zero swap under the unchanged 240 s / 14 GiB guard; requested PlayMode was skipped and downstream captures are invalid because no revision-5 manifest was produced.
-- [x] Record the revision-5 cost discriminator in `experiment-008-ridge-bake-cost-discriminator.md`; revision-4 control baked in ~206 s, so duplicate full-height ridges added at least ~35 s.
-- [x] Replace each duplicated full-height support pair with one full-height support-covering rock ridge plus one lower/narrow rock buttress; keep primitive count and all carve/ramp/path instructions unchanged.
-- [x] Update the visual regression for deterministic ridge+buttress pairing and add a conservative support-volume cost proxy; current authored revision-6 proxy is ~57.3% of the generic support bound and the regression requires <75%.
-- [x] Bump startup landmark realization provenance to revision 6 so rejected revision-5 bytes cannot satisfy the changed realization.
-- [x] Refresh from current master `65e33762a0d0...`; no additional merge was needed before revision-6 request because master was already an ancestor.
-- [x] Run exact revision-6 request `33318216711` from source `c597b35512f1...` through existing `ci-test/fixes/agent-4` only and leave it untouched: fresh bake ~232 s under unchanged guard, focused visual-final PlayMode green, same-run player replay complete with 17-waypoint route / 16 grounded-required waypoints / exact dialogue.
-- [x] Human-review exact revision-6 approach/base/middle/upper/summit/dialogue frames and reject the candidate as `prototype/blockout quality`: exposed rounded/cylindrical berms, tiled retaining walls, slab road edges, causeway terraces, repeated upper supports, and artificial summit platform. Record in `experiment-009-revision6-visual-review.md`; reject its generated payload/manifest.
-- [x] Treat revision 6 as the third genuine failed fix attempt and stop production-code iteration until a minimal reproduction is committed.
-- [x] Isolate and record the route/core failure in `experiment-010-switchback-core-gap-minimal-repro.md`: every fixed-Z tier begins 10 voxels outside the tapered core and ends 79 voxels outside it, while the constant 360-voxel upper run cannot fit the 86-voxel near-summit radius.
-- [ ] Re-author the reusable path/core topology so switchback runs taper with elevation and integrate into one coherent mountain mass instead of requiring freestanding walls/berms; share the same geometry helpers with route evidence/waypoints and preserve winding ascent, normal grounded traversal, headroom, landings, and supported summit. Revision-8 shell-following segmentation plus revision-9 localized support are implemented, but exact visual-final acceptance is not yet green.
-- [ ] Preserve an exposed shell-hugging ascent: each walking lane must overlap the natural mountain flank enough to read as a cut terrace, but must not sit wholly outside the core as a freestanding causeway or wholly inside it as a trench/tunnel; validate this envelope at both low and high ends of every tier. Revision-8 regressions cover this shape; exact visual-final `33343768361` exposed a separate over-wide headroom carve that has since been corrected, but production visual acceptance remains pending.
-- [x] Add regressions proving each tier's complete walking lane is integrated with the tapered core or modest embankment envelope, upper run length narrows deterministically with elevation, traversal instructions/evidence use the same helpers, and support raster-cost proxy does not regress. Exact retry `33343346228` on source `08baffe6...` passed after the EditMode composition-API reference fix.
-- [x] Bump startup realization provenance for the topology change to revision 8 so rejected revision-6 bytes cannot satisfy the changed realization.
-- [x] Reduce the revision-8 semantic support realization below the existing <75% generic support-cost proxy without inflating the generic baseline or weakening the 240 s / 14 GiB guard. Revision-9 localized shell embankments plus the exact focused retry `33343346228` passed the unchanged support-cost regression.
-- [x] Correct the demonstrated centered-lane headroom regression from exact visual-final run `33343768361`: each shell-following segment's carve remains exactly the configured 16-voxel traversal width instead of inheriting Z retreat through `MountainPathSegmentGeometry.Depth` (observed width 33). Source `9174af573147...` fixed production width; source `a7693c7ca367...` aligned the segmented carve-count regression to `sum(SegmentCount)+2`; source `81d3a501ffe2...` additionally derived the segmented primitive envelope after the focused assertion exposed the stale fixed-80 budget. Exact run `33359276877` on `81d3a501ffe2...` passed the centered-headroom/support regression.
-- [x] Fix the demonstrated magenta/error-shader defect in the focused Mountain Dragon standalone validation scene without changing production rendering: source `5270d820a0cf8d95eb7aa77a7c6a164bc6114388` packages a validation-owned URP marker shader, applies it through `MountainDragonValidationMaterialGuard`, and adds a PlayMode regression that requires every staged renderer to have a supported shader. Exact run `33406812093` passed; the built module player applied the packaged shader to 27 renderers and its exact frame contains no magenta. This is focused evidence hygiene, not production `VoxelShowcase` visual acceptance.
-- [ ] Merge then-current master immediately before the next exact visual-final request, then use the existing `ci-test/fixes/agent-4` transport only and leave it untouched while queued/running. BLOCKED: refreshed master is `42de7b6447f6aaf5c4152362958d2fb8b9f5bcfa`; merge probe PR #182 was refreshed against feature head `a123afd323aa648f1f4d16423494da6d81db9479` and remains closed/unmerged with `mergeable=false`. Overlapping shared workflow/guidance, validation tooling, Kentridge validation files, and `FeatureRegionBuild` areas remain outside this assignment; do not resolve those unrelated conflicts here.
-- [ ] Human-review the next exact approach/base/middle/upper/summit/dialogue frames and require `production-quality`; exact run `33343768361` is rejected because approach/base/mid frames show large dark trench/overhang cavities caused by the then over-wide headroom carve.
-- [ ] Re-check final accepted bake/runtime cost under unchanged 240 s / 14 GiB contracts. The earlier `33337836269` capture replay reached only 8/17 route waypoints within its 45 s capture window, so it is not final traversal/dialogue evidence.
+## Existing road-system integration
+- [ ] Resolve the Mountain Dragon ascent through `WorldRoadIntent` / `WorldRoadResolver` using the mountain surface as `IWorldRoadTerrain`; do not create a parallel mountain-road resolver.
+- [ ] If necessary, add only a narrow reusable terrain-composition adapter so road resolution can sample authored mountain surface plus base terrain outside its footprint. Do not refactor Kentridge road policy.
+- [ ] Lower the resolved ascent through `WorldRoadNetwork` + `WorldRoadNetworkVoxelCatalogue` / generic terrain-corridor rasterization so existing road grade, cut/fill, shoulder, clearance, and presentation semantics remain authoritative.
+- [ ] Derive Mountain Dragon traversal waypoints/evidence from the same resolved road geometry rather than duplicated switchback coordinates.
+- [ ] Prove the road cuts/fills into the natural mountain within the configured `MaximumGradePermille` / `MaximumCutFillDm` bounds and does not create freestanding support towers/causeways.
 
-## Reusability review
-- [x] Remove VoxelShowcase/player-specific physical assumptions from reusable WorldBuilder mountain APIs. `MountainLandmarkSpec` consumes `MountainLandmarkTraversalProfile`; baseline and semantic catalogues derive headroom/clearance from it; Showcase owns voxel/body/margin/grade values. The independent non-Showcase `MountainLandmarkTraversalProfileTests` fixture passed exact-source run `33363384438` on source `81d3a501ffe2...`, including automatic module/player validation and SceneIssue standalone-player replay.
-- [x] Replace `WorldBuilderMountainLandmarkMaterialCatalogue` post-processing of compiled feature-program indices/order/material slots with semantic mountain authoring/configuration. Naturalization now emits directly from `MountainLandmarkSpec`, semantic material roles, and `MountainLandmarkPresentationProfile`; it does not patch a compiled definition/instruction stream.
-- [x] Replace `ShowcaseWaypointReplayHarness` reflection into private `VoxelShowcase` fields and its duplicated AutoWalk turn-rate policy with a narrow public replay/movement-control seam. Implementation is committed at `0fc4afba3b54656290b36d184ece02fbefc819cd`: `VoxelShowcase` owns semantic automated heading, production feet/grounded state, landmark position, and walk-speed configuration; both `ShowcaseWaypointReplayHarness` and independent `DeterministicAutoWalkHeadingHarness` consume that seam with no private reflection or duplicated 24-degree/second compensation. Initial exact run `33389185447` passed the focused seam/module checks but failed only the automatically derived SceneIssue replay because its request omitted the startup-bake provenance prerequisite; corrected same-transport retry `33391220613` included the production bake prerequisite and completed successfully.
-- [x] Generalize startup-bake provenance so the reusable mechanism accepts a caller-provided content/source signature; keep `ShowcaseMountainDragonLayout` and manual Mountain Dragon revision composition outside the generic provenance implementation. Implementation + independent fixture are committed, and exact focused retry `33343346228` passed after adding the missing `VoxelEngine.Composition.Api` EditMode assembly reference.
-- [x] Clean engine-level rasterizer comments/names that imply mountain-only behavior where the implementation is generic, and retain regression coverage proving the Box/Frustum fast paths remain reusable for non-Mountain-Dragon callers. Exact source `220eac9861c5...` run `33357975697` passed `PrimitiveRasteriserWholeBlockFastPathTests`, automatic module/player validation, and the SceneIssue standalone-player replay.
+## Independent reuse / correctness / cost
+- [ ] Add a non-Showcase fixture that builds at least two materially different mountain shape/climate combinations from the same reusable builder.
+- [ ] Prove deterministic shape/surface output for the same parameters/seed and materially different output for different shape parameters/seeds.
+- [ ] Prove surface-query and voxel-landform correspondence at representative base/flank/ridge/summit samples.
+- [ ] Prove road resolution against the generic mountain surface independently of Mountain Dragon composition, including a successful bounded-cut/fill ascent and a rejected over-grade/over-cut case.
+- [ ] Check feature primitive counts, raster/build cost, memory/bake blast radius, and shared-road behavior; keep existing global budgets and 240 s / 14 GiB guards unchanged.
+
+## Mountain Dragon composition
+- [ ] Recompose VoxelShowcase from: parameterized natural mountain + existing road ascent + usable summit + supported red cube dragon + existing proximity/cutscene dialogue.
+- [ ] Keep mountain placement clear of unrelated castle/feature ownership while ensuring the road entrance connects to normal accessible terrain.
+- [ ] Update/rewrite focused behavioral regressions to exercise the new production WorldBuilder mountain + road path rather than old path-tier internals.
+- [ ] Repair the focused exact-test filter/registration so the intended Mountain Dragon acceptance test is actually discoverable; do not weaken or rename acceptance merely to obtain green CI.
+- [ ] Bump startup-bake provenance for the redesigned landform/road realization so rejected old bytes cannot satisfy the new source.
+
+## Production visual / built-player acceptance
+- [ ] Merge then-current `origin/master` before the exact visual-final request; stop only for real conflicts outside this assignment.
+- [ ] Run exact-source focused + automatically derived module/player validation through only `ci-test/fixes/agent-4`; never replace a queued/running request.
+- [ ] Capture and human-review the exact production `VoxelShowcase` approach. It must read first as one substantial coherent natural mountain, not terraces/support structures.
+- [ ] Human-review path base and representative lower/mid/upper ascent. The existing road must read as carved/graded into the landform, with continuous supported walking surface and no trench/tunnel/causeway artifacts.
+- [ ] Verify normal grounded traversal base -> summit through the resolved road route without jumps/teleports and within the production replay contract.
+- [ ] Human-review summit: usable natural summit, cube dragon visibly/stably supported, normal approach triggers exact `Hello, I'm Mr. Dragon.` dialogue.
+- [ ] Re-check final accepted bake/runtime cost under unchanged 240 s / 14 GiB contracts.
 
 ## Checked-in startup payload
-- [x] Confirm runtime requires both `ShowcaseWorld.bytes` and matching `ShowcaseWorld.manifest.txt`; the currently tracked legacy payload is stale.
-- [x] Add Mountain-Dragon-only built-player evidence collection that preserves the fresh same-run `ShowcaseWorld.bytes`, matching manifest, source SHA, byte size, and SHA-256 beneath the existing `Artifacts/SingleTest/captures` upload tree. This changes no shared workflow and is inert outside this exact SceneIssue command line.
-- [x] Validate the bake evidence generation + runtime collector path on exact feature source `f37491efa888...` in run `33371715298`: focused production-baker test, automatic module validation, and standalone SceneIssue replay all passed. Artifact generation and runtime copies are byte-identical: `15,105,067` bytes, SHA-256 `bd3f3e666da4d2ec687313ad1a08992a88bbf87430f2ffde96240774ab5ae62c`, manifest content signature `A799B5B8`, bake elapsed `159.963 s` under unchanged guards.
+- [x] Runtime requires both `ShowcaseWorld.bytes` and matching `ShowcaseWorld.manifest.txt`; existing tracked payload is stale.
+- [x] Mountain-Dragon-only evidence collection preserves fresh same-run payload, manifest, source SHA, byte size, and SHA-256 under uploaded artifacts.
 - [ ] From the final visually accepted run, record exact payload size/SHA-256/content signature and manifest.
-- [ ] Replace tracked `Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes` with that exact accepted payload and add matching `ShowcaseWorld.manifest.txt` through a repository-sanctioned binary write path; do not weaken provenance, runtime-author the mountain, create a workflow, or create another CI transport. GitHub `create_blob(base64)` + tree/commit is available for exact binary promotion once the accepted artifact exists.
-- [ ] Validate a clean checkout consumes the exact checked-in accepted payload/manifest; satisfy any exact-source gate required by repository policy after the binary commit.
+- [ ] Replace tracked `Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes` with that exact accepted payload and add the matching manifest through the repository-sanctioned binary Git-object path.
+- [ ] Validate a clean checkout consumes the exact checked-in accepted payload/manifest and passes required exact-source gates.
 
 ## Closure
 - [ ] Confirm every `issue.json` acceptance criterion and every checkbox above is complete.
-- [ ] After green exact-SHA focused + built-player gates and accepted visual evidence, fill `resolutionSummary`, `regressionTest`, `fixCommit`, set `status: fixed` and `resolvedUtc`, and move only this assignment directly `open -> closed` in the feature branch.
-- [ ] Fetch and merge then-current `origin/master`; stop for any conflict outside this assignment and verify master ancestry.
-- [ ] Push the exact feature head to `origin/master` non-force; if master advanced, fetch/merge/retry. Do not self-select more work.
+- [ ] Fill `resolutionSummary`, `regressionTest`, `fixCommit`, set `status: fixed` and `resolvedUtc`, and move only this assignment directly `open -> closed` after green exact-SHA built-player + visual acceptance.
+- [ ] Fetch/merge then-current `origin/master`, verify ancestry, re-run any exact final-head gate required by policy, and non-force push the exact feature head to `origin/master`; if master advances, fetch/merge/retry.
