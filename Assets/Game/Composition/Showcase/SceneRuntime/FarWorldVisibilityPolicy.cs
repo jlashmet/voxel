@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Game.WorldBuilder.Runtime;
 using MountingForce.WorldGen.Architecture;
 using Unity.Mathematics;
 using VoxelEngine.Rendering.Api;
@@ -93,6 +94,8 @@ namespace VoxelEngine.Showcase
         private readonly int _viewportHeightPixels;
         private readonly Dictionary<ulong, FarStructureTier> _previous =
             new Dictionary<ulong, FarStructureTier>();
+        private readonly Dictionary<ulong, FarStructureTier> _clusterPrevious =
+            new Dictionary<ulong, FarStructureTier>();
 
         public FarWorldVisibilityPolicy(
             Thresholds thresholds,
@@ -134,14 +137,49 @@ namespace VoxelEngine.Showcase
             return selected;
         }
 
+        /// <summary>
+        /// Settlement clusters are a far-only representation. They activate only after the member
+        /// representation drops below the mid exit threshold, remain active until the mid enter
+        /// threshold on approach, and use the settlement-anchor distance cap.
+        /// </summary>
+        public FarStructureTier SelectCluster(
+            WorldVisibilityClusterBuilder.Cluster cluster,
+            float2 cameraXZMetres)
+        {
+            float distance = DistanceMetres(cluster, cameraXZMetres);
+            if (distance > _distanceCaps.SettlementAnchorMetres)
+            {
+                _clusterPrevious.Remove(cluster.ClusterKey);
+                return FarStructureTier.Culled;
+            }
+
+            float pixels = ProjectedPixels(cluster, distance, _verticalFovDegrees, _viewportHeightPixels);
+            FarStructureTier previous = _clusterPrevious.TryGetValue(
+                cluster.ClusterKey, out FarStructureTier value)
+                ? value
+                : FarStructureTier.Culled;
+            FarStructureTier selected = SelectClusterWithHysteresis(pixels, previous);
+            if (selected == FarStructureTier.Culled)
+                _clusterPrevious.Remove(cluster.ClusterKey);
+            else
+                _clusterPrevious[cluster.ClusterKey] = selected;
+            return selected;
+        }
+
         public void Forget(ulong structureKey)
         {
             _previous.Remove(structureKey);
         }
 
+        public void ForgetCluster(ulong clusterKey)
+        {
+            _clusterPrevious.Remove(clusterKey);
+        }
+
         public void ClearHistory()
         {
             _previous.Clear();
+            _clusterPrevious.Clear();
         }
 
         public static float ProjectedPixels(
@@ -155,20 +193,51 @@ namespace VoxelEngine.Showcase
                 verticalFovDegrees,
                 viewportHeightPixels);
 
+        public static float ProjectedPixels(
+            WorldVisibilityClusterBuilder.Cluster cluster,
+            float2 cameraXZMetres,
+            float verticalFovDegrees,
+            int viewportHeightPixels) =>
+            ProjectedPixels(
+                cluster,
+                DistanceMetres(cluster, cameraXZMetres),
+                verticalFovDegrees,
+                viewportHeightPixels);
+
         private static float ProjectedPixels(
             StructureFarPresentation record,
             float distanceMetres,
             float verticalFovDegrees,
             int viewportHeightPixels)
         {
-            if (!(verticalFovDegrees > 1f && verticalFovDegrees < 179f))
-                throw new ArgumentOutOfRangeException(nameof(verticalFovDegrees));
-            if (viewportHeightPixels <= 0)
-                throw new ArgumentOutOfRangeException(nameof(viewportHeightPixels));
-
+            ValidateProjection(verticalFovDegrees, viewportHeightPixels);
             float width = (record.FootprintMaxDm.X - record.FootprintMinDm.X) * DmToMetres;
             float depth = (record.FootprintMaxDm.Y - record.FootprintMinDm.Y) * DmToMetres;
             float height = record.HeightDm * DmToMetres;
+            return ProjectedPixels(width, depth, height, distanceMetres, verticalFovDegrees, viewportHeightPixels);
+        }
+
+        private static float ProjectedPixels(
+            WorldVisibilityClusterBuilder.Cluster cluster,
+            float distanceMetres,
+            float verticalFovDegrees,
+            int viewportHeightPixels)
+        {
+            ValidateProjection(verticalFovDegrees, viewportHeightPixels);
+            float width = (cluster.FootprintMaxDm.X - cluster.FootprintMinDm.X) * DmToMetres;
+            float depth = (cluster.FootprintMaxDm.Y - cluster.FootprintMinDm.Y) * DmToMetres;
+            float height = cluster.MaxHeightDm * DmToMetres;
+            return ProjectedPixels(width, depth, height, distanceMetres, verticalFovDegrees, viewportHeightPixels);
+        }
+
+        private static float ProjectedPixels(
+            float width,
+            float depth,
+            float height,
+            float distanceMetres,
+            float verticalFovDegrees,
+            int viewportHeightPixels)
+        {
             float diameter = math.max(height, math.max(width, depth));
             float focalPixels = viewportHeightPixels * 0.5f /
                                 math.tan(math.radians(verticalFovDegrees) * 0.5f);
@@ -183,6 +252,18 @@ namespace VoxelEngine.Showcase
             float minZ = record.FootprintMinDm.Y * DmToMetres;
             float maxX = record.FootprintMaxDm.X * DmToMetres;
             float maxZ = record.FootprintMaxDm.Y * DmToMetres;
+            float2 center = new float2((minX + maxX) * 0.5f, (minZ + maxZ) * 0.5f);
+            return math.max(0.1f, math.distance(cameraXZMetres, center));
+        }
+
+        private static float DistanceMetres(
+            WorldVisibilityClusterBuilder.Cluster cluster,
+            float2 cameraXZMetres)
+        {
+            float minX = cluster.FootprintMinDm.X * DmToMetres;
+            float minZ = cluster.FootprintMinDm.Y * DmToMetres;
+            float maxX = cluster.FootprintMaxDm.X * DmToMetres;
+            float maxZ = cluster.FootprintMaxDm.Y * DmToMetres;
             float2 center = new float2((minX + maxX) * 0.5f, (minZ + maxZ) * 0.5f);
             return math.max(0.1f, math.distance(cameraXZMetres, center));
         }
@@ -214,6 +295,38 @@ namespace VoxelEngine.Showcase
             if (horizonAllowed && pixels >= _thresholds.HorizonEnterPixels)
                 return FarStructureTier.Horizon;
             return FarStructureTier.Culled;
+        }
+
+        private FarStructureTier SelectClusterWithHysteresis(
+            float pixels,
+            FarStructureTier previous)
+        {
+            switch (previous)
+            {
+                case FarStructureTier.Far:
+                    if (pixels >= _thresholds.MidEnterPixels) return FarStructureTier.Culled;
+                    if (pixels >= _thresholds.FarExitPixels) return FarStructureTier.Far;
+                    if (pixels >= _thresholds.HorizonExitPixels) return FarStructureTier.Horizon;
+                    return FarStructureTier.Culled;
+                case FarStructureTier.Horizon:
+                    if (pixels >= _thresholds.MidEnterPixels) return FarStructureTier.Culled;
+                    if (pixels >= _thresholds.FarEnterPixels) return FarStructureTier.Far;
+                    if (pixels >= _thresholds.HorizonExitPixels) return FarStructureTier.Horizon;
+                    return FarStructureTier.Culled;
+                default:
+                    if (pixels >= _thresholds.MidExitPixels) return FarStructureTier.Culled;
+                    if (pixels >= _thresholds.FarEnterPixels) return FarStructureTier.Far;
+                    if (pixels >= _thresholds.HorizonEnterPixels) return FarStructureTier.Horizon;
+                    return FarStructureTier.Culled;
+            }
+        }
+
+        private static void ValidateProjection(float verticalFovDegrees, int viewportHeightPixels)
+        {
+            if (!(verticalFovDegrees > 1f && verticalFovDegrees < 179f))
+                throw new ArgumentOutOfRangeException(nameof(verticalFovDegrees));
+            if (viewportHeightPixels <= 0)
+                throw new ArgumentOutOfRangeException(nameof(viewportHeightPixels));
         }
     }
 }
