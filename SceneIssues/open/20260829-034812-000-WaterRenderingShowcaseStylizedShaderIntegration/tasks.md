@@ -22,6 +22,7 @@
 - [x] Add `WaterSprayFeatheringRegressionTests.SprayPassKeepsImpactHingeTransparentWhileFreeMistRemainsVisible` as a focused raster discriminator for the surviving hard planar base-spray defect (`349e50e23cd3d6da213b696f13add2a7a6a21b9d`, meta `5c7ec8bdb96796bec7839f240be63609060ca0aa`).
 - [x] Isolate current spray defect before another fix: canonical trapezoids are broadest at the impact hinge, while the spray shader begins visibility at `v=0.015`; exact red run `33402041555` reports 302 lit pixels in the first ~7% above that hinge. This makes the broad planar carrier visible where impact foam should own contact.
 - [x] Fix only the isolated raster cause: keep canonical geometry/cardinality/depth behavior and move free-mist rise feathering to `smoothstep(0.12, 0.32, sprayUv.y)` so the shared planar hinge is fully transparent while mist remains above it (`ec95915d91c803fc8eaa1e35031456b63d7fdeb9`).
+- [ ] Fix the surviving higher-band planar/triangular spray wedges visible in exact built-player run `33405237070` without regressing hinge transparency or removing readable free mist; the hinge-only raster discriminator is necessary but not sufficient for visual acceptance.
 
 ## Exact-SHA evidence already established
 - [x] `33385919424` green `WaterArenaDrawRegressionTests` + module + 60s replay on `a1a3594d...`; direct visual reject led to semantic-edge isolation.
@@ -33,12 +34,14 @@
 - [x] Directly review `33401066675`: outer curtain sides are improved/irregular and body behavior remains stable, but hard triangular/planar base spray persists; visual closure rejected.
 - [x] `33402041555` intentionally red focused spray-hinge regression on exact `5c7ec8bdb96796bec7839f240be63609060ca0aa`: hinge band had 302 lit pixels; standalone showcase still built/replayed successfully.
 - [x] `33402597873` green `WaterSprayFeatheringRegressionTests` + automatic module validation + 60s replay on exact `8085f42b73dd07e17453a0a0803b5b24aa6b80f9`; the focused discriminator now proves the impact hinge is transparent while free mist remains visible.
+- [x] `33405237070` green exact `WaterArenaDrawRegressionTests` + automatic module validation + 60s `WaterRenderingShowcase` replay for feature head `59607eadeb7f7c4f3bc9776f39882df576d25991` via request SHA `73380cb72699ffc31d8208d222990939f38bdda1`; no request was replaced or rerun.
+- [x] Directly review `33405237070`: time-separated waterfall frames still show obvious bright triangular/planar spray wedges above the receiving-water contact band (including side and center footprints). This fails the explicit visual gate despite green automation; closure rejected.
 
 ## Next exact-head gates
 - [x] Run `WaterSprayFeatheringRegressionTests` on the fixed exact feature head and require hinge band = 0 while free mist remains visible (`33402597873`).
-- [ ] On the same accepted exact head, run `WaterArenaDrawRegressionTests` + automatic module validation + 60-second `WaterRenderingShowcase` replay.
-- [ ] Directly inspect near/wide/time-separated built screenshots; reject if hard planar/triangular base spray remains or downward flow/turbulence/aeration/edge/lip/base behavior regresses.
-- [ ] Run `ShowcaseWaterPresentationRegressionTests` on the same visually accepted exact head.
+- [x] On the same accepted exact head, run `WaterArenaDrawRegressionTests` + automatic module validation + 60-second `WaterRenderingShowcase` replay (`33405237070` on `59607ead...`; automation green, visual gate rejected).
+- [x] Directly inspect near/wide/time-separated built screenshots from `33405237070`; hard planar/triangular spray remains, so visual acceptance is rejected and a focused product fix is required.
+- [ ] After the spray-wedge fix is visually accepted, run `ShowcaseWaterPresentationRegressionTests` on the same accepted exact head.
 - [ ] Run `WaterSprayProductionPathRegressionTests.CascadeSprayFlagSurvivesCanonicalStorageCacheAndGpuUpload` on the same accepted exact head.
 - [ ] Confirm exact player build has no startup/runtime/shader compile/stripping/pink/missing-resource failure.
 - [ ] Complete final CPU/GPU/memory/render-cost statement; do not weaken budgets or invent unavailable GPU timing.
@@ -50,5 +53,6 @@
 - [ ] Move the assigned issue directly from `open/` to `closed/` only after all gates are green.
 - [ ] Fetch and merge latest `origin/master` at final closure stage, rerun required exact-head gates if the merge changes the validated head, then non-force promote exact closed feature head to `origin/master`; fetch/merge/retry if master advances.
 
-## Current blocker
+## Current blockers
 - [ ] A5/A14 remain externally/content-blocked: no defensible second existing production scene with **visible** canonical water has yet been proven. Continue independent renderer/test validation without changing acceptance or modifying unrelated scenes merely to manufacture evidence.
+- [ ] Current `master` (`2edf4c2e151492f67c4a1c1b846a9b7948284aba`) and `fixes/agent-9` are materially diverged; a final-sync PR was confirmed non-mergeable and closed (`#185`) rather than forcing or dropping unrelated master changes. Resolve only in-scope conflicts before final exact-head validation/promotion.
