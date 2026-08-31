@@ -51,6 +51,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             public long GpuBytes { get; private set; }
             public ulong SourceVersion { get; internal set; }
             internal bool WaitingForArena { get; private set; }
+            internal bool HasSpray { get; private set; }
 
             internal Entry(int3 coordinate, SurfaceGeometryArena arena)
             {
@@ -68,6 +69,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 GpuBytes = 0;
                 SourceVersion = 0;
                 WaitingForArena = false;
+                HasSpray = false;
                 _stagingVertexCursor = 0;
                 _stagingIndexCursor = 0;
             }
@@ -133,10 +135,19 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 _stagingIndexCursor = 0;
                 IndexCount = indices.Length;
                 GpuBytes = _arena.ReservedBytes(in _liveLease);
+                HasSpray = ContainsSpray(vertices);
                 Ready = true;
                 WaitingForArena = false;
                 _arena.Release(in previous);
                 return true;
+            }
+
+            private static bool ContainsSpray(NativeList<SmoothSurfaceVertex> vertices)
+            {
+                for (int i = 0; i < vertices.Length; i++)
+                    if ((vertices[i].Material & SmoothSurfaceVertex.WaterSprayFlag) != 0u)
+                        return true;
+                return false;
             }
 
             private bool EnsureUploadStaging(int vertexCount, int indexCount)
@@ -181,6 +192,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 commandBuffer.DrawProceduralIndirect(Matrix4x4.identity, material, 0,
                     MeshTopology.Triangles, _arena.Args,
                     _liveLease.ArgsWordStart * sizeof(uint), properties);
+                if (HasSpray)
+                {
+                    commandBuffer.DrawProceduralIndirect(Matrix4x4.identity, material, 1,
+                        MeshTopology.Triangles, _arena.Args,
+                        _liveLease.ArgsWordStart * sizeof(uint), properties);
+                }
             }
 
             public void Dispose()
@@ -191,6 +208,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 Ready = false;
                 IndexCount = 0;
                 GpuBytes = 0;
+                HasSpray = false;
             }
         }
 
