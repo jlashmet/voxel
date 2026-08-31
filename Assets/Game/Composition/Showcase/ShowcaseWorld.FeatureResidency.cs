@@ -19,7 +19,20 @@ namespace VoxelEngine.Showcase
         /// </summary>
         private void QueueFeatureRegionsForColumn(int regionX, int regionZ)
         {
-            if (!_catalogue.IsCreated) return;
+            int[] layers = GetFeatureLayersForColumn(regionX, regionZ);
+            for (var i = 0; i < layers.Length; i++)
+                QueueRegion(new int3(regionX, layers[i], regionZ));
+        }
+
+        /// <summary>
+        /// Returns the authored vertical layers intersecting one horizontal residency column.
+        /// Residency and presentation readiness intentionally share this exact semantic query:
+        /// otherwise a caller can observe terrain as final while an upper authored shell that the
+        /// residency path already requested is still queued for generation or feature publication.
+        /// </summary>
+        private int[] GetFeatureLayersForColumn(int regionX, int regionZ)
+        {
+            if (!_catalogue.IsCreated) return System.Array.Empty<int>();
 
             if (_featureLayerCacheCatalogueHash != _catalogue.Hash)
             {
@@ -34,8 +47,7 @@ namespace VoxelEngine.Showcase
                 _featureLayerCache.Add(column, layers);
             }
 
-            for (var i = 0; i < layers.Length; i++)
-                QueueRegion(new int3(regionX, layers[i], regionZ));
+            return layers;
         }
 
         private int[] FindFeatureLayersForColumn(int regionX, int regionZ)
