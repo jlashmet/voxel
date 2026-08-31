@@ -5,71 +5,45 @@
 - [x] Keep water authoring in canonical `ShowcaseWorld`/Storage and rendering in the shared renderer; no bespoke proof mesh/material path.
 - [x] Keep material IDs opaque in shared code; scene/game IDs remain composition policy.
 - [x] Prove reusable still/river/Cascade semantics with independent production-path fixtures; do not count `WorldbuildingGalleryShowcase` as production-water evidence.
-- [x] Merge current master before validation; feature includes master `2ea5f5c95f89fbf0403dbefb50b782829583d304` via `87000073f2ca648922a18ae0788ed9008a55dd18`.
+- [x] Feature includes master `2ea5f5c95f89fbf0403dbefb50b782829583d304` via merge `87000073f2ca648922a18ae0788ed9008a55dd18`; merge current master again before final validation/promotion.
 
-## Shared implementation / reuse
-- [x] Add reusable still, flowing/river, and waterfall presentation profiles.
-- [x] Adapt shallow/deep color, depth/contact/surface foam, animated normals/detail, highlights/refraction/wave direction into canonical `Hidden/VoxelEngine/WaterSurface`.
-- [x] Add distinct river motion and waterfall downward flow/turbulence/aeration/breakup/lip-edge-base foam/mist cues.
-- [x] Preserve per-vertex water material identity and canonical voxel extraction/cache authority.
-- [x] Remove hard-coded water IDs from CPU/Burst/GPU solid classification; publish installed semantic water mask through shared runtime/GPU state.
-- [x] Add arbitrary opaque water-ID regression proving solid exclusion/remap is presentation-driven.
-- [x] Audit compute copy: `VoxelBrickDensity.hlsl` consumes the same installed semantic water mask.
+## Shared implementation / regressions
+- [x] Add reusable still, flowing/river, and waterfall presentation profiles in canonical `Hidden/VoxelEngine/WaterSurface`.
+- [x] Adapt shallow/deep color, foam/contact, animated detail, reflection/refraction and profile-specific motion through shared configuration.
+- [x] Preserve per-vertex water identity and replace hard-coded water IDs in solid/compute classification with the installed semantic mask.
+- [x] Add arbitrary opaque-water-ID regression proving classification is presentation-driven.
+- [x] Add reusable lip/base/edge topology plus `WaterSprayFlag` through canonical extraction/cache/GPU arena.
+- [x] Add independent extraction, production-cache, arena-raster, and selective second-spray-pass regressions.
+- [x] Keep spray in the same canonical mesh/material; render it in a second `ZWrite Off` pass only for entries that actually contain spray.
+- [x] Replace same-span spray fan with three tapered sheets using distinct impact footprints; regression requires taper and footprint diversity.
+- [x] Replace seven shallow showcase ribbons with four overlapping connected Cascade bands; scene owns only composition policy.
 
-## Addressing / waterfall root cause history
-- [x] Prove authored Cascade survives standard storage → `CpuWaterSurfaceChunkCache` extraction/upload/publication/visibility (`33336797164`).
-- [x] Isolate Metal procedural-indirect arena addressing and fix with explicit `_SurfaceVertexBase`; `33339706799` restores later water geometry.
-- [x] Replace cross-hatched waterfall lattice with anisotropic descending strand/noise fields; `33343405166` improves motion but remains visually incomplete.
-- [x] Reshape only showcase Cascade placement into overlapping ordinary voxel ribbons; `33345745137` improves silhouette but repeats weak lip/base/mist symptom.
-- [x] After two materially different visual fixes, stop tuning and isolate reusable root cause from `WaterfallReference.shader` versus production.
-- [x] Add generic lip/base/edge topology in reserved `SmoothSurfaceVertex.Material` flag byte with independent arbitrary-material regression.
-- [x] `33346565021` passes topology regression/player replay but proves shader-local mist cannot create free spray volume.
-- [x] Add reusable `WaterSprayFlag` plus canonical impact-spray geometry at true lower vertical-water boundaries; same water mesh/buffer/material/draw, clipped for non-waterfall profiles.
-- [x] Extend independent extraction fixture to require spray geometry emission and opaque material preservation.
-- [x] Add production-path spray regression through Storage → `CpuWaterSurfaceChunkCache` → shared GPU arena.
-- [x] `33355120310` passes extraction/arena regressions, module validation, and 60-second WaterRenderingShowcase replay; direct review still rejects visible free spray.
-
-## Production-path discriminator root cause
-- [x] `33356900725` fails before spray assertion because no cache build publishes within 120 coroutine yields; result is inconclusive about flag survival.
-- [x] `33357865312` adds diagnostics and isolates `dirty=1 runningJobs=1` with zero pending/upload/overflow/arena/blocking/stale failures after ~0.46 s.
-- [x] Add nonblocking `JobHandle.ScheduleBatchedJobs()` without `Complete()`; `33358290720` reproduces the same pre-publication state, triggering mandatory minimal root-cause isolation.
-- [x] Add temporary wall-clock worker-time probe. Exact run `33361014521` passes the same production cache path with a two-second bound and also passes automatic `kentridge-integration` built-player validation. Root cause: fixed 120-yield bound was too short in wall-clock time; cache job is not stuck.
-- [x] Replace the original discriminator's yield-count bound with the proven two-second realtime bound; retain nonblocking batch flush and remove the temporary probe. No production rendering code changed.
-- [x] `33361724893` proves `WaterSprayFlag` survives Storage → production cache → GPU arena.
-- [x] `33362961099` proves real canonical arena/shader spray geometry rasterizes for Cascade and clips for still water.
-- [x] Isolate the remaining invisibility defect to the prior sub-metre spray footprint; enlarge it as bounded canonical geometry with a reusable extent regression.
-- [x] `33364050913` passes the enlarged three-sheet fan regressions and 60-second exact showcase replay, but direct review rejects hard triangular/starburst spray geometry and an over-bright parallel-slab waterfall read.
-- [x] Add spray-local UV in existing `Active` low bits and feather/break up spray in the shared shader while reducing continuous waterfall brightness.
-- [x] `33364793999` passes the feathered-spray regression/module/replay exact gate, but direct review still rejects the same angular impact/starburst acceptance symptom.
-- [x] After two materially different presentation fixes, isolate a minimal renderer root cause before another fix: translucent spray was rendered in the body pass with `ZWrite On`, so low-alpha fragments occluded later transparent water and exposed the fan footprint as angular negative space.
-- [x] Candidate `3ec832584029b8432d190c7121db876120d24398` moves spray to a second pass with `ZWrite Off`; the canonical cache records `HasSpray` at publication and emits that extra draw only for spray-containing entries.
+## Root-cause / visual history
+- [x] Fix Metal procedural-indirect arena addressing with explicit `_SurfaceVertexBase` (`33339706799`).
+- [x] Two different early waterfall presentation fixes remained visually incomplete (`33343405166`, `33345745137`); isolate missing reusable topology/spray instead of continuing scene tuning.
+- [x] Prove shader-local mist cannot create free spray volume (`33346565021`); add canonical spray geometry.
+- [x] Isolate production-cache timing false negative: fixed 120-yield bound was too short; two-second wall-clock path passes (`33361014521`, `33361724893`).
+- [x] Prove Cascade spray-tagged canonical geometry rasterizes while still-water spray clips (`33362961099`).
+- [x] Enlarged spray fan and feathered fan both pass automation but fail the same angular/starburst symptom (`33364050913`, `33364793999`); isolate spray `ZWrite On` depth occlusion before another fix.
+- [x] Depth-neutral spray candidate removes that renderer defect; subsequent exact replay still shows broad facets/segmented curtain (`33368626887`).
+- [x] Isolate remaining geometry/composition causes; taper generic spray and compose connected showcase bands (`860b64df...`, `8e139017...`, `2a27c754...`).
+- [x] Exact run `33375101254` passes `WaterArenaDrawRegressionTests`, automatic module validation and 60-second built replay for feature SHA `43079c6f44d0745e553b149fa6f2a6f36a3ff280`.
+- [x] Directly review `33375101254`: reject visual closure. Starburst/negative-space failure is gone, but near/time-separated waterfall frames still show repetitive bright parallel bands, weak irregular breakup and weak free spray.
+- [x] Isolate the repeated-curtain root cause before another fix: fixed world-space sine carriers remain phase-aligned across overlapping bands; unlike `WaterfallReference.shader`, descending turbulence does not warp the carrier itself.
+- [x] Implement shared renderer fix on `50c4ad5d2a26497baa8b2cc90ee9d9fc48537f94`: warp the waterfall carrier with multi-scale descending turbulence, add falling-cell breakup, and reduce bright-thread dominance without scene-specific policy.
 
 ## Reliability / cost
 - [x] Preserve spreading/inert gameplay semantics and storage/streaming/edit/diagnostic contracts; no swim/buoyancy subsystem exists to alter.
 - [x] Keep one renderer-owned water material and one `_WaterTime` path.
 - [x] Static profile cost remains six 32-entry `Vector4` arrays = 3,072 bytes plus one uint semantic mask.
-- [x] Arena correction adds one scalar to existing per-water-draw properties; no geometry allocation or draw call.
-- [x] Topology/spray reuse the existing 32-byte vertex stride; at most three ordinary spray quads per exposed vertical lower boundary.
-- [x] Depth fix keeps one canonical material and adds one extra indirect draw only to entries containing spray; ordinary water entries remain one draw.
-- [x] `33355120310` spray replay: arena `1,886,976/34,408,080` vertices, `2,841,088/60,214,140` indices, `191/16,384` draws, `leaseFail=0`; allocated ~698.4 MiB, reserved ~861.6–863.6 MiB, average-frame samples ~0.89–1.40 ms. GPU FrameTimingManager data unavailable and not inferred.
+- [x] Spray uses the existing 32-byte vertex stride and unchanged three-sheet geometry cardinality; only spray-containing entries pay one additional indirect draw.
 - [ ] Complete final accepted-head CPU/GPU/memory/render-cost statement after visual acceptance; do not weaken budgets or invent unavailable GPU timing.
 
 ## Exact-SHA gates
-- [x] `33339706799`: explicit arena-base regression + 60-second player capture green.
-- [x] `33343405166`: strand shader regression + 60-second replay green; visual closure rejected.
-- [x] `33345745137`: irregular-ribbon replay green; visual closure rejected.
-- [x] `33346565021`: topology regression + replay green; free-spray acceptance rejected.
-- [x] `33355120310`: spray extraction/arena regression + automatic module validation + 60-second showcase replay green; visible spray rejected.
-- [x] `33356900725`: production-path discriminator blocked before publication.
-- [x] `33357865312`: diagnostics isolate one running job and zero downstream failures.
-- [x] `33358290720`: explicit batch flush still hits same short-bound state.
-- [x] `33361014521`: two-second wall-clock root-cause probe passes; automatic `kentridge-integration` builds/runs `KentridgePlayableSlice` for 60 seconds and passes.
-- [x] `33361724893`: corrected production-path discriminator passes.
-- [x] `33362961099`: downstream raster visibility discriminator passes.
-- [x] `33364050913`: layered-spray regressions + module validation + 60-second showcase replay green; direct visual review rejects hard fan geometry/slab quality.
-- [x] `33364793999`: feathered-spray regressions + module validation + 60-second showcase replay green; direct visual review rejects persistent angular negative-space/starburst artifact.
-- [ ] Run `WaterArenaDrawRegressionTests` plus 60-second WaterRenderingShowcase replay on exact depth-free-spray candidate head.
-- [ ] Directly accept/reject near/wide/time-separated waterfall frames against downward-flow, turbulence/aeration, irregular breakup, lip/edge/base foam, free mist/spray and overall visual-quality requirements.
+- [x] Historical addressing/topology/spray/cache/raster gates listed above are green on their recorded exact heads.
+- [x] `33375101254`: tapered-spray + connected-curtain regression/module/60-second replay green; direct visual acceptance rejected.
+- [ ] Run `WaterArenaDrawRegressionTests` plus 60-second WaterRenderingShowcase replay on exact current turbulent-carrier head.
+- [ ] Directly accept/reject near/wide/time-separated waterfall frames against downward flow, turbulence/aeration, irregular breakup, lip/edge/base foam, free mist/spray and production-quality requirements.
 - [ ] Run `ShowcaseWaterPresentationRegressionTests` on the same visually accepted feature head.
 - [ ] Run `WaterSprayProductionPathRegressionTests.CascadeSprayFlagSurvivesCanonicalStorageCacheAndGpuUpload` on the same accepted head.
 - [ ] Confirm exact player build has no startup/runtime/shader compile/stripping/pink/missing-resource failure.
