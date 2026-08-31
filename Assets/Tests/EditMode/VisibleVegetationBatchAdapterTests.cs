@@ -41,7 +41,7 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void Apply_ReusesPresentationScratchAsVisibleWindowMoves()
+        public void Apply_ReusesPresentationScratchAndBatchKeyAsVisibleWindowMoves()
         {
             VegetationInstance west = Vegetation(11u, new float3(5f, 0f, 5f));
             VegetationInstance east = Vegetation(22u, new float3(105f, 0f, 5f));
@@ -59,6 +59,7 @@ namespace VoxelEngine.Tests.EditMode
                 adapter.Apply(renderer, visible);
                 Assert.That(adapter.VisibleInstances, Is.SameAs(scratch));
                 Assert.That(adapter.VisibleInstances[0].Seed, Is.EqualTo(west.Seed));
+                Assert.That(renderer.BatchKindCount, Is.EqualTo(1));
 
                 VegetationVisibility.QueryVegetation(
                     all, 10f, new VisibilitySectorBounds(10, 0, 10, 0), visible);
@@ -67,6 +68,8 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.That(adapter.VisibleInstances, Is.SameAs(scratch),
                     "camera-sector churn should reuse the adapter's presentation scratch list");
                 Assert.That(renderer.InstanceCount, Is.EqualTo(1));
+                Assert.That(renderer.BatchKindCount, Is.EqualTo(1),
+                    "the existing kind batch must be cleared and reused rather than recreated");
                 Assert.That(adapter.VisibleInstances[0].Seed, Is.EqualTo(east.Seed));
             }
             finally
