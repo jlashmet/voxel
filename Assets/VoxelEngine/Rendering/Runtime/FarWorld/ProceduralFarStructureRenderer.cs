@@ -156,12 +156,16 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
             {
                 builder.AddBox(new Vector3(0f, 0.45f, 0f), new Vector3(1f, 0.9f, 1f));
                 if (castle)
-                    builder.AddBox(new Vector3(0f, 0.7f, 0f), new Vector3(0.32f, 0.6f, 0.32f));
+                {
+                    builder.AddBox(new Vector3(0f, 0.65f, 0f), new Vector3(0.32f, 0.5f, 0.32f));
+                    builder.AddRoofPrism(0f, 0f, 0.9f, 0.32f, 0.32f, 0.1f);
+                }
             }
             else if (castle)
             {
                 builder.AddBox(new Vector3(0f, 0.22f, 0f), new Vector3(1f, 0.44f, 1f));
-                builder.AddBox(new Vector3(0f, 0.58f, 0f), new Vector3(0.38f, 0.72f, 0.38f));
+                builder.AddBox(new Vector3(0f, 0.54f, 0f), new Vector3(0.38f, 0.64f, 0.38f));
+                builder.AddRoofPrism(0f, 0f, 0.86f, 0.38f, 0.38f, 0.14f);
                 AddTower(builder, -0.38f, -0.38f, tier);
                 AddTower(builder, 0.38f, -0.38f, tier);
                 AddTower(builder, -0.38f, 0.38f, tier);
@@ -182,7 +186,8 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
         private static void AddTower(ProxyMeshBuilder builder, float x, float z, FarStructureTier tier)
         {
             float width = tier == FarStructureTier.Mid ? 0.22f : 0.18f;
-            builder.AddBox(new Vector3(x, 0.56f, z), new Vector3(width, 0.76f, width));
+            builder.AddBox(new Vector3(x, 0.52f, z), new Vector3(width, 0.68f, width));
+            builder.AddRoofPrism(x, z, 0.86f, width, width, 0.12f);
         }
 
         private static bool Contains(string value, string token) =>
@@ -259,17 +264,26 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
                 AddQuad(b + 4, b + 5, b + 1, b + 0);
             }
 
-            public void AddRoofPrism(float baseY, float width, float depth, float roofHeight)
+            public void AddRoofPrism(float baseY, float width, float depth, float roofHeight) =>
+                AddRoofPrism(0f, 0f, baseY, width, depth, roofHeight);
+
+            public void AddRoofPrism(
+                float centerX,
+                float centerZ,
+                float baseY,
+                float width,
+                float depth,
+                float roofHeight)
             {
                 float hx = width * 0.5f;
                 float hz = depth * 0.5f;
                 int b = _vertices.Count;
-                _vertices.Add(new Vector3(-hx, baseY, -hz));
-                _vertices.Add(new Vector3(hx, baseY, -hz));
-                _vertices.Add(new Vector3(0f, baseY + roofHeight, -hz));
-                _vertices.Add(new Vector3(-hx, baseY, hz));
-                _vertices.Add(new Vector3(hx, baseY, hz));
-                _vertices.Add(new Vector3(0f, baseY + roofHeight, hz));
+                _vertices.Add(new Vector3(centerX - hx, baseY, centerZ - hz));
+                _vertices.Add(new Vector3(centerX + hx, baseY, centerZ - hz));
+                _vertices.Add(new Vector3(centerX, baseY + roofHeight, centerZ - hz));
+                _vertices.Add(new Vector3(centerX - hx, baseY, centerZ + hz));
+                _vertices.Add(new Vector3(centerX + hx, baseY, centerZ + hz));
+                _vertices.Add(new Vector3(centerX, baseY + roofHeight, centerZ + hz));
                 AddTri(b + 0, b + 1, b + 2);
                 AddTri(b + 4, b + 3, b + 5);
                 AddQuad(b + 0, b + 2, b + 5, b + 3);
