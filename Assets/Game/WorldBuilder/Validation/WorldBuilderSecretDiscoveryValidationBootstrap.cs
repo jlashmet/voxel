@@ -182,53 +182,183 @@ namespace Game.WorldBuilder.Validation
 
         private static void BuildFeatureScene()
         {
+            RenderSettings.fog = true;
+            RenderSettings.fogColor = new Color(0.30f, 0.36f, 0.34f, 1f);
+            RenderSettings.fogDensity = 0.009f;
+            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
+            RenderSettings.ambientLight = new Color(0.28f, 0.31f, 0.27f, 1f);
+
             Camera camera = new GameObject("Secret Clue Validation Camera").AddComponent<Camera>();
             camera.tag = "MainCamera";
-            camera.transform.position = new Vector3(0f, 5.2f, -12.8f);
-            camera.transform.LookAt(new Vector3(0f, 1.4f, 3.6f));
-            camera.fieldOfView = 48f;
-            camera.clearFlags = CameraClearFlags.SolidColor;
-            camera.backgroundColor = new Color(0.055f, 0.07f, 0.065f, 1f);
+            camera.transform.position = new Vector3(-5.8f, 3.8f, -11.2f);
+            camera.transform.LookAt(new Vector3(0.3f, 1.5f, 4.6f));
+            camera.fieldOfView = 49f;
+            camera.clearFlags = CameraClearFlags.Skybox;
 
             Light key = new GameObject("Late Afternoon Sun").AddComponent<Light>();
             key.type = LightType.Directional;
-            key.intensity = 1.35f;
-            key.transform.rotation = Quaternion.Euler(42f, -32f, 0f);
+            key.intensity = 1.15f;
+            key.color = new Color(1f, 0.90f, 0.72f, 1f);
+            key.shadows = LightShadows.Soft;
+            key.transform.rotation = Quaternion.Euler(38f, -28f, 0f);
 
-            Material ground = Material("Ground", new Color(0.17f, 0.20f, 0.16f, 1f));
-            Material stone = Material("Old Stone", new Color(0.34f, 0.35f, 0.31f, 1f));
-            Material weathered = Material("Weathered Stone", new Color(0.40f, 0.31f, 0.21f, 1f));
-            Material seam = Material("Deep Masonry Seam", new Color(0.12f, 0.13f, 0.11f, 1f));
-            Material moss = Material("Moss", new Color(0.16f, 0.27f, 0.14f, 1f));
+            Material soil = Material("Forest Soil", new Color(0.16f, 0.19f, 0.13f, 1f));
+            Material path = Material("Worn Earth", new Color(0.31f, 0.27f, 0.19f, 1f));
+            Material stone = Material("Old Limestone", new Color(0.40f, 0.41f, 0.36f, 1f));
+            Material stoneDark = Material("Old Limestone Shadow", new Color(0.28f, 0.30f, 0.26f, 1f));
+            Material weathered = Material("Ochre Weathering", new Color(0.46f, 0.34f, 0.20f, 1f));
+            Material seam = Material("Deep Masonry Seam", new Color(0.10f, 0.11f, 0.09f, 1f));
+            Material moss = Material("Moss", new Color(0.15f, 0.28f, 0.12f, 1f));
+            Material mossLight = Material("Sunlit Moss", new Color(0.27f, 0.39f, 0.16f, 1f));
+            Material bark = Material("Bark", new Color(0.20f, 0.15f, 0.10f, 1f));
+            Material foliage = Material("Foliage", new Color(0.14f, 0.31f, 0.12f, 1f));
+            Material foliageLight = Material("Foliage Highlight", new Color(0.25f, 0.43f, 0.18f, 1f));
 
-            Block("Ground", new Vector3(0f, -0.35f, 3.5f), new Vector3(14f, 0.5f, 18f), ground);
+            Block("Ground", new Vector3(0f, -0.48f, 4.5f), new Vector3(24f, 0.7f, 24f), soil);
+            BuildApproachPath(path, stone, weathered);
+            BuildRuinFacade(stone, stoneDark, weathered, seam, moss, mossLight);
+            BuildForestEdge(bark, foliage, foliageLight, stoneDark);
+        }
 
-            // Stage 1: a repeated, grounded trace of displaced stones leads toward the ruin rather than acting as a marker.
-            Stone("Displaced Stone A", new Vector3(-2.7f, 0.05f, -2.0f), new Vector3(1.2f, 0.24f, 0.7f), stone, -8f);
-            Stone("Displaced Stone B", new Vector3(-1.7f, 0.07f, -0.7f), new Vector3(1.0f, 0.22f, 0.62f), weathered, 12f);
-            Stone("Displaced Stone C", new Vector3(-0.7f, 0.04f, 0.5f), new Vector3(1.15f, 0.20f, 0.66f), stone, -5f);
-            Stone("Displaced Stone D", new Vector3(0.3f, 0.06f, 1.55f), new Vector3(0.92f, 0.20f, 0.58f), stone, 9f);
+        private static void BuildApproachPath(Material path, Material stone, Material weathered)
+        {
+            for (int i = 0; i < 7; i++)
+            {
+                float z = -4.0f + (i * 1.45f);
+                float x = -2.2f + (i * 0.42f);
+                Block("Worn Path " + i, new Vector3(x, -0.08f, z), new Vector3(3.6f, 0.06f, 1.7f), path);
+            }
 
-            // Stage 2: the same weathering language becomes a deliberate abrasion/notch at the threshold.
-            Block("Weathered Threshold", new Vector3(0.65f, 0.08f, 3.0f), new Vector3(3.0f, 0.18f, 1.0f), weathered);
-            Block("Threshold Notch Left", new Vector3(0.05f, 0.20f, 2.97f), new Vector3(0.75f, 0.08f, 0.18f), seam);
-            Block("Threshold Notch Right", new Vector3(1.22f, 0.20f, 3.04f), new Vector3(0.68f, 0.08f, 0.18f), seam);
+            Stone("Displaced Stone A", new Vector3(-2.65f, 0.04f, -2.75f), new Vector3(1.35f, 0.26f, 0.78f), stone, -13f);
+            Stone("Displaced Stone B", new Vector3(-1.72f, 0.06f, -1.35f), new Vector3(1.05f, 0.22f, 0.66f), weathered, 18f);
+            Stone("Displaced Stone C", new Vector3(-0.82f, 0.05f, 0.05f), new Vector3(1.20f, 0.22f, 0.70f), stone, -7f);
+            Stone("Displaced Stone D", new Vector3(0.05f, 0.05f, 1.38f), new Vector3(0.98f, 0.20f, 0.60f), stone, 11f);
+            Stone("Displaced Stone E", new Vector3(0.72f, 0.05f, 2.34f), new Vector3(0.78f, 0.17f, 0.50f), weathered, -4f);
 
-            // Ruin facade and concealed opening. The seam is physical construction evidence, not a glowing outline.
-            Block("Ruin Left Pier", new Vector3(-2.3f, 1.55f, 6.0f), new Vector3(2.6f, 3.8f, 1.0f), stone);
-            Block("Ruin Right Pier", new Vector3(2.3f, 1.55f, 6.0f), new Vector3(2.6f, 3.8f, 1.0f), stone);
-            Block("Ruin Lintel", new Vector3(0f, 3.15f, 6.0f), new Vector3(2.2f, 0.6f, 1.0f), stone);
-            Block("False Wall", new Vector3(0f, 1.45f, 6.02f), new Vector3(1.9f, 2.7f, 0.72f), stone);
-            Block("Masonry Seam Left", new Vector3(-0.98f, 1.45f, 5.60f), new Vector3(0.10f, 2.72f, 0.10f), seam);
-            Block("Masonry Seam Right", new Vector3(0.98f, 1.45f, 5.60f), new Vector3(0.10f, 2.72f, 0.10f), seam);
-            Block("Masonry Seam Top", new Vector3(0f, 2.83f, 5.60f), new Vector3(2.05f, 0.10f, 0.10f), seam);
-            Block("Repeated Weathering", new Vector3(0f, 0.78f, 5.56f), new Vector3(1.25f, 0.12f, 0.12f), weathered);
+            Block("Weathered Threshold", new Vector3(0.72f, 0.10f, 3.35f), new Vector3(3.35f, 0.18f, 1.05f), weathered);
+            Block("Threshold Notch Left", new Vector3(0.05f, 0.21f, 3.25f), new Vector3(0.82f, 0.09f, 0.16f), Material("Threshold Cut", new Color(0.12f, 0.12f, 0.10f, 1f)));
+            Block("Threshold Notch Right", new Vector3(1.35f, 0.21f, 3.42f), new Vector3(0.72f, 0.09f, 0.16f), Material("Threshold Cut 2", new Color(0.12f, 0.12f, 0.10f, 1f)));
+        }
 
-            // Uneven support and vegetation integrate the clue into the environment without obscuring it.
-            Stone("Rubble Left", new Vector3(-3.8f, 0.12f, 5.1f), new Vector3(1.4f, 0.55f, 1.0f), stone, 17f);
-            Stone("Rubble Right", new Vector3(3.6f, 0.10f, 5.35f), new Vector3(1.1f, 0.48f, 0.9f), stone, -14f);
-            Block("Moss Patch Left", new Vector3(-2.75f, 0.10f, 5.44f), new Vector3(0.95f, 0.08f, 0.42f), moss);
-            Block("Moss Patch Right", new Vector3(2.72f, 0.11f, 5.52f), new Vector3(0.82f, 0.08f, 0.40f), moss);
+        private static void BuildRuinFacade(
+            Material stone,
+            Material stoneDark,
+            Material weathered,
+            Material seam,
+            Material moss,
+            Material mossLight)
+        {
+            // Layered masonry creates a believable broken ruin silhouette instead of a box wall.
+            MasonryColumn("Left Buttress", -3.15f, 5.75f, 4, stone, stoneDark);
+            MasonryColumn("Right Buttress", 3.18f, 5.75f, 4, stone, stoneDark);
+            MasonryColumn("Left Inner Pier", -1.85f, 5.92f, 5, stone, stoneDark);
+            MasonryColumn("Right Inner Pier", 1.86f, 5.92f, 5, stone, stoneDark);
+
+            for (int row = 0; row < 2; row++)
+            {
+                for (int col = -2; col <= 2; col++)
+                {
+                    float x = col * 0.78f;
+                    float y = 3.55f + (row * 0.48f);
+                    float offset = ((row + col) & 1) == 0 ? 0.08f : -0.06f;
+                    Block("Broken Lintel " + row + "-" + col,
+                        new Vector3(x + offset, y, 5.92f),
+                        new Vector3(0.72f, 0.42f, 0.82f),
+                        ((row + col) & 1) == 0 ? stone : stoneDark);
+                }
+            }
+
+            // Concealed panel is built from individual courses; only construction relationships reveal it.
+            for (int row = 0; row < 5; row++)
+            {
+                int count = row % 2 == 0 ? 3 : 4;
+                float width = row % 2 == 0 ? 0.60f : 0.46f;
+                for (int col = 0; col < count; col++)
+                {
+                    float start = -(count - 1) * width * 0.5f;
+                    float x = start + (col * width);
+                    float y = 0.63f + (row * 0.52f);
+                    Material courseMaterial = row == 1 || row == 2 ? weathered : stone;
+                    Block("False Wall Course " + row + "-" + col,
+                        new Vector3(x, y, 5.72f),
+                        new Vector3(width - 0.035f, 0.47f, 0.52f),
+                        courseMaterial);
+                }
+            }
+
+            Block("Masonry Seam Left", new Vector3(-1.02f, 1.55f, 5.43f), new Vector3(0.08f, 2.95f, 0.08f), seam);
+            Block("Masonry Seam Right", new Vector3(1.02f, 1.55f, 5.43f), new Vector3(0.08f, 2.95f, 0.08f), seam);
+            Block("Masonry Seam Top", new Vector3(0f, 3.05f, 5.43f), new Vector3(2.10f, 0.08f, 0.08f), seam);
+            Block("Repeated Weathering", new Vector3(0f, 0.82f, 5.40f), new Vector3(1.34f, 0.11f, 0.09f), weathered);
+
+            Stone("Rubble Left A", new Vector3(-4.15f, 0.18f, 5.12f), new Vector3(1.45f, 0.62f, 1.05f), stoneDark, 18f);
+            Stone("Rubble Left B", new Vector3(-3.58f, 0.18f, 4.70f), new Vector3(0.86f, 0.48f, 0.78f), stone, -12f);
+            Stone("Rubble Right A", new Vector3(4.02f, 0.17f, 5.22f), new Vector3(1.22f, 0.55f, 0.92f), stone, -15f);
+            Stone("Rubble Right B", new Vector3(3.48f, 0.12f, 4.70f), new Vector3(0.78f, 0.40f, 0.70f), stoneDark, 14f);
+
+            Block("Moss Shelf Left", new Vector3(-2.58f, 1.68f, 5.42f), new Vector3(1.05f, 0.08f, 0.38f), moss);
+            Block("Moss Shelf Right", new Vector3(2.56f, 1.13f, 5.42f), new Vector3(0.92f, 0.08f, 0.34f), mossLight);
+            Vine("Ivy Left", new Vector3(-2.95f, 2.65f, 5.36f), 1.7f, mossLight);
+            Vine("Ivy Right", new Vector3(2.78f, 2.15f, 5.36f), 1.35f, moss);
+        }
+
+        private static void BuildForestEdge(Material bark, Material foliage, Material foliageLight, Material rock)
+        {
+            Tree("Oak Left", new Vector3(-7.5f, 0f, 5.7f), 1.15f, bark, foliage, foliageLight);
+            Tree("Oak Rear", new Vector3(6.8f, 0f, 8.4f), 1.30f, bark, foliage, foliageLight);
+            Tree("Oak Right", new Vector3(8.0f, 0f, 3.2f), 0.95f, bark, foliage, foliageLight);
+
+            Shrub("Shrub Left A", new Vector3(-5.2f, 0.05f, 2.5f), 1.2f, foliage, foliageLight);
+            Shrub("Shrub Left B", new Vector3(-4.9f, 0.05f, 6.6f), 1.0f, foliage, foliageLight);
+            Shrub("Shrub Right A", new Vector3(5.2f, 0.05f, 3.3f), 1.15f, foliage, foliageLight);
+            Shrub("Shrub Right B", new Vector3(4.9f, 0.05f, 7.0f), 0.95f, foliage, foliageLight);
+
+            Stone("Foreground Rock", new Vector3(-6.0f, 0.20f, -0.2f), new Vector3(2.4f, 0.75f, 1.5f), rock, -18f);
+            Stone("Right Bank Rock", new Vector3(6.0f, 0.20f, 1.2f), new Vector3(1.8f, 0.65f, 1.3f), rock, 12f);
+        }
+
+        private static void MasonryColumn(string name, float x, float z, int courses, Material light, Material dark)
+        {
+            for (int row = 0; row < courses; row++)
+            {
+                int count = row % 2 == 0 ? 2 : 3;
+                float width = count == 2 ? 0.72f : 0.52f;
+                for (int col = 0; col < count; col++)
+                {
+                    float start = -(count - 1) * width * 0.5f;
+                    float offset = ((row + col) & 1) == 0 ? 0.05f : -0.04f;
+                    Block(name + " " + row + "-" + col,
+                        new Vector3(x + start + (col * width) + offset, 0.42f + (row * 0.55f), z),
+                        new Vector3(width - 0.03f, 0.50f, 0.82f),
+                        ((row + col) & 1) == 0 ? light : dark);
+                }
+            }
+        }
+
+        private static void Tree(string name, Vector3 root, float scale, Material bark, Material foliage, Material highlight)
+        {
+            Block(name + " Trunk", root + new Vector3(0f, 1.85f * scale, 0f), new Vector3(0.45f, 3.7f, 0.45f) * scale, bark);
+            Stone(name + " Crown A", root + new Vector3(0f, 4.0f * scale, 0f), new Vector3(2.4f, 1.8f, 2.1f) * scale, foliage, 0f);
+            Stone(name + " Crown B", root + new Vector3(-1.0f, 3.65f, 0.3f) * scale, new Vector3(1.7f, 1.35f, 1.55f) * scale, highlight, 0f);
+            Stone(name + " Crown C", root + new Vector3(1.0f, 3.75f, -0.2f) * scale, new Vector3(1.8f, 1.45f, 1.6f) * scale, foliage, 0f);
+        }
+
+        private static void Shrub(string name, Vector3 position, float scale, Material foliage, Material highlight)
+        {
+            Stone(name + " A", position + new Vector3(-0.35f, 0.45f, 0f) * scale, new Vector3(1.25f, 0.85f, 1.0f) * scale, foliage, 0f);
+            Stone(name + " B", position + new Vector3(0.45f, 0.50f, 0.08f) * scale, new Vector3(1.15f, 0.95f, 1.0f) * scale, highlight, 0f);
+            Stone(name + " C", position + new Vector3(0.05f, 0.62f, -0.35f) * scale, new Vector3(1.0f, 1.0f, 0.9f) * scale, foliage, 0f);
+        }
+
+        private static void Vine(string name, Vector3 position, float height, Material material)
+        {
+            Block(name + " Stem", position, new Vector3(0.10f, height, 0.08f), material);
+            for (int i = 0; i < 4; i++)
+            {
+                float y = position.y - (height * 0.42f) + (i * height * 0.28f);
+                float side = i % 2 == 0 ? -0.16f : 0.16f;
+                Stone(name + " Leaf " + i, new Vector3(position.x + side, y, position.z - 0.03f), new Vector3(0.42f, 0.16f, 0.30f), material, side < 0f ? -25f : 25f);
+            }
         }
 
         private static Material Material(string name, Color color)
