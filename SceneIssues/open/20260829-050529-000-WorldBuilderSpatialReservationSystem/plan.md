@@ -35,6 +35,8 @@ The correction keeps road solving authoritative and composition-owned. Canonical
 
 Exact-SHA run `33362347013` on source `91b5fba348af4d9c464e8131b47c18b62fdbc2a0` did not reach the behavioral assertion: Unity compile failed because the two production files newly naming `WorldRoadNetwork` omitted the existing `Game.WorldBuilder.Api` namespace import. This is a compile-boundary defect introduced by the solved-road composition fix, not a second occurrence of the role-15 conflict. The narrow correction adds only those imports; no reservation semantics or routing policy changed.
 
+Exact-SHA run `33362910546` on source `3740f611045635578f61816bbdbcc88b07c3fc77` also did not reach assertions: Unity terminated with macOS bus error 10 / exit 138 at about 3.5 GB peak RSS. This is a proven runner/editor infrastructure crash, not product evidence. After that completed run, a read-only reuse review found that `KentridgeSpatialReservationAdapter.Build(seed, plan, roads)` still reconstructed settlement reservations from `seed` even though the exact resolved `SettlementPlan` was already supplied. That violated the intended single-solve seam and could make the adapter diverge from a caller-provided plan. The adapter now uses `KentridgeTownPlanner.BuildReservationSnapshot(plan)` and still validates `plan.Seed == seed`; no road solver or reservation policy changed.
+
 ### Module-local validation architecture
 
 Focused player-visible validation for this feature does **not** use `Assets/Scenes/WorldbuildingGalleryShowcase.unity`.
@@ -49,7 +51,7 @@ The local scene consumes production Kentridge reservation and hidden-space compu
 
 ## Validation hypotheses / discriminator
 
-1. **Likely:** with the missing API imports corrected, solved production-road reservations remove the raw planner-route false conflict while preserving real road/structure exclusions; the four focused reservation suites then proceed to the module-local player gate.
+1. **Likely:** with the compile imports corrected and the exact `SettlementPlan` reused, solved production-road reservations remove the raw planner-route false conflict while preserving real road/structure exclusions; the four focused reservation suites then proceed to the module-local player gate.
 2. **Alternative:** after compile succeeds, the solved road itself still intersects canonical structure geometry, proving a real road/structure layout defect rather than a source-selection mismatch.
 
 Discriminator: run the exact feature SHA through the standard transport. If `CanonicalKentridgeStructureSitesPassSharedReservationValidation` fails behaviorally again, inspect the solved claim id/bounds and isolate a minimal repro/root cause before another layout or policy change. Do not weaken conflict semantics to make the test pass.
