@@ -14,8 +14,13 @@ namespace MountingForce.WorldGen.Voxel
             SettlementPlan settlement = SettlementVoxelPlan.Resolve(seed, in settings);
             bool isKentridge = settlement.Theme.Id == Content.Kentridge.KentridgeDefinition.Id;
             bool organicKentridge = isKentridge && settlement.Routes.Count > 0;
+            WorldRoadNetwork organicRoadNetwork = organicKentridge
+                ? KentridgeWorldRoadNetwork.Build(settlement, seed, settings)
+                : null;
             SpatialReservationSnapshot structureReservations = isKentridge
-                ? Content.Kentridge.KentridgeTownPlanner.BuildReservationSnapshot(settlement)
+                ? (organicKentridge
+                    ? KentridgeSpatialReservationAdapter.Build(seed, settlement, organicRoadNetwork)
+                    : Content.Kentridge.KentridgeTownPlanner.BuildReservationSnapshot(settlement))
                 : null;
             var stageList = new List<FeatureCatalogue>(organicKentridge ? 8 : (isKentridge ? 25 : 9));
 
@@ -27,8 +32,11 @@ namespace MountingForce.WorldGen.Voxel
                 Add(stageList, KentridgeTerraceSurfaceCorrectionCatalogue.Build(seed, settings, Allocator.Temp));
             }
 
-            // This stage now selects inferred organic-route rasterization when Routes are present.
-            Add(stageList, KentridgeDirectedTownSurfaceCatalogue.Build(seed, settings, Allocator.Temp));
+            // Organic Kentridge uses the same solved road network for reservation validation and rasterization.
+            Add(stageList, organicKentridge
+                ? KentridgeDirectedTownSurfaceCatalogue.BuildResolvedRoadNetwork(
+                    organicRoadNetwork, settings, Allocator.Temp)
+                : KentridgeDirectedTownSurfaceCatalogue.Build(seed, settings, Allocator.Temp));
 
             if (isKentridge && !organicKentridge)
             {
