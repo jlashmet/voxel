@@ -26,6 +26,7 @@
 - [x] `TopDownWorldVoxelCatalogue.Build` solves the canonical `TopDownWorldRoadNetwork` once and reuses it for road voxelization.
 - [x] Validate road handoffs on that exact solved network before rasterization; do not solve roads twice.
 - [x] Focused production macro-road handoff regression (`SpatialReservationProductionIntegrationTests.MacroRoadHandoffKeepsLoweredCorridorInBothRegionBuckets`).
+- [x] Kentridge solved-road adapter reuses the caller-supplied resolved `SettlementPlan` rather than reconstructing settlement reservations from seed.
 
 ## Production architecture / typed structural composition
 
@@ -54,6 +55,7 @@
 - [x] Move road-clearance -> vegetation yield choice from shared adapter into explicit composition/configuration while preserving production behavior.
 - [x] Independent non-Kentridge reuse regression (`SpatialReservationReusabilityTests.ClearanceYieldPolicyAndVerticalSeparationAreConsumerConfigured`).
 - [x] Typed-socket adapter accepts generic solved socket data and explicit scale/category inputs; no Kentridge/Gallery policy is embedded in the shared seam.
+- [x] Kentridge reservation composition consumes its supplied resolved plan and solved road network without a second settlement solve.
 
 ## Determinism / lifecycle / cost
 
@@ -75,7 +77,9 @@
 
 ## Validation / closure
 
-Validation history: exact-SHA run `33362347013` on source `91b5fba348af4d9c464e8131b47c18b62fdbc2a0` stopped at Unity compile because the solved-road composition fix omitted `Game.WorldBuilder.Api` imports in the two files naming `WorldRoadNetwork`. The narrow import fix is applied; behavioral/module/player gates remain unchecked until rerun.
+Validation history:
+- exact-SHA run `33362347013` on source `91b5fba348af4d9c464e8131b47c18b62fdbc2a0` stopped at Unity compile because the solved-road composition fix omitted `Game.WorldBuilder.Api` imports in the two files naming `WorldRoadNetwork`; the narrow import fix is applied.
+- exact-SHA run `33362910546` on source `3740f611045635578f61816bbdbcc88b07c3fc77` stopped before test execution with Unity macOS bus error 10 / exit 138 at ~3.5 GB peak RSS. Treat as proven infrastructure failure, not behavioral evidence. After that completed run, the adapter's redundant seed-based settlement rebuild was replaced by `BuildReservationSnapshot(plan)`.
 
 - [x] Follow current `SceneIssues/feature-readme.md`, common `SceneIssues/README.md`, and `AGENTS.md`; unfinished work remains in `open/`.
 - [x] Never edit `.github/test-request.json` on `fixes/agent-7`, create extra transports, or replace queued/running CI.
