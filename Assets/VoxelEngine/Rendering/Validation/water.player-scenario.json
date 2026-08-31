@@ -5,7 +5,8 @@
     "width": 1600,
     "height": 900,
     "intervalSeconds": 10,
-    "minimumFrames": 2
+    "minimumFrames": 2,
+    "evidenceAfterSeconds": 4
   },
   "timeline": {},
   "assertions": {
