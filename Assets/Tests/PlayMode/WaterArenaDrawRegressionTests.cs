@@ -133,6 +133,74 @@ namespace VoxelEngine.Tests.PlayMode
         }
 
         [Test]
+        public void WaterfallBodyPunchesRealCoverageWhileStillWaterRemainsContinuous()
+        {
+            var arena = new SurfaceGeometryArena(1024, 2048, 8);
+            var entry = new CpuWaterSurfaceChunkCache.Entry(int3.zero, arena);
+            var vertices = new NativeList<SmoothSurfaceVertex>(4, Allocator.Temp);
+            var indices = new NativeList<uint>(6, Allocator.Temp);
+            Material material = null;
+            RenderTexture target = null;
+            Texture2D readback = null;
+            var commandBuffer = new CommandBuffer { name = "Waterfall body cutout discriminator" };
+
+            try
+            {
+                VoxelMaterialPresentationInstaller.Apply(GameMaterialRenderingDefinitions.Create());
+                AddBodyQuad(vertices, GameMaterialIds.Water);
+                AddQuadIndices(indices);
+
+                int byteBudget = vertices.Length * SmoothSurfaceVertex.Stride
+                               + indices.Length * sizeof(uint)
+                               + SurfaceGeometryArena.ArgsWordsPerDraw * sizeof(uint);
+                Assert.That(entry.AdvanceUpload(vertices, indices, byteBudget, out _), Is.True);
+
+                Shader shader = Shader.Find("Hidden/VoxelEngine/WaterSurface");
+                Assert.That(shader, Is.Not.Null);
+                material = new Material(shader);
+                target = new RenderTexture(96, 96, 24, RenderTextureFormat.ARGB32)
+                {
+                    name = "Waterfall body cutout discriminator target"
+                };
+                target.Create();
+                readback = new Texture2D(96, 96, TextureFormat.RGBA32, false);
+
+                int stillPixels = RenderAndCountVisiblePixels(
+                    entry, material, commandBuffer, target, readback);
+                Assert.That(stillPixels, Is.GreaterThan(0),
+                    "The control still-water body must rasterize as a continuous production surface.");
+
+                vertices.Clear();
+                AddBodyQuad(vertices, GameMaterialIds.Cascade);
+                Assert.That(entry.AdvanceUpload(vertices, indices, byteBudget, out _), Is.True);
+                int waterfallPixels = RenderAndCountVisiblePixels(
+                    entry, material, commandBuffer, target, readback);
+
+                Assert.That(waterfallPixels, Is.GreaterThan(0),
+                    "Waterfall breakup must retain coherent visible body coverage.");
+                Assert.That(waterfallPixels, Is.LessThan(stillPixels * 0.95f),
+                    "Vertical Waterfall fragments must punch real coverage holes instead of only lowering alpha while still stamping depth.");
+            }
+            finally
+            {
+                RenderTexture.active = null;
+                entry.Dispose();
+                commandBuffer.Release();
+                if (readback != null) Object.DestroyImmediate(readback);
+                if (target != null)
+                {
+                    target.Release();
+                    Object.DestroyImmediate(target);
+                }
+                if (material != null) Object.DestroyImmediate(material);
+                vertices.Dispose();
+                indices.Dispose();
+                arena.Dispose();
+                VoxelMaterialPresentationInstaller.Apply(GameMaterialRenderingDefinitions.Create());
+            }
+        }
+
+        [Test]
         public void SprayTaggedArenaGeometryRasterizesOnlyForWaterfallProfile()
         {
             var arena = new SurfaceGeometryArena(1024, 2048, 8);
@@ -151,12 +219,7 @@ namespace VoxelEngine.Tests.PlayMode
                                 | SmoothSurfaceVertex.WaterEdgeFlag
                                 | SmoothSurfaceVertex.WaterSprayFlag;
                 AddSprayQuad(vertices, GameMaterialIds.Cascade, sprayFlags);
-                indices.Add(0u);
-                indices.Add(1u);
-                indices.Add(2u);
-                indices.Add(0u);
-                indices.Add(2u);
-                indices.Add(3u);
+                AddQuadIndices(indices);
 
                 int byteBudget = vertices.Length * SmoothSurfaceVertex.Stride
                                + indices.Length * sizeof(uint)
@@ -270,6 +333,38 @@ namespace VoxelEngine.Tests.PlayMode
             }
         }
 
+        private static void AddBodyQuad(NativeList<SmoothSurfaceVertex> vertices, byte material)
+        {
+            vertices.Add(new SmoothSurfaceVertex
+            {
+                Position = new Vector3(-0.8f, -0.8f, 0f),
+                Normal = Vector3.back,
+                Material = material,
+                Active = 0u,
+            });
+            vertices.Add(new SmoothSurfaceVertex
+            {
+                Position = new Vector3(0.8f, -0.8f, 0f),
+                Normal = Vector3.back,
+                Material = material,
+                Active = 0u,
+            });
+            vertices.Add(new SmoothSurfaceVertex
+            {
+                Position = new Vector3(0.8f, 0.8f, 0f),
+                Normal = Vector3.back,
+                Material = material,
+                Active = 0u,
+            });
+            vertices.Add(new SmoothSurfaceVertex
+            {
+                Position = new Vector3(-0.8f, 0.8f, 0f),
+                Normal = Vector3.back,
+                Material = material,
+                Active = 0u,
+            });
+        }
+
         private static void AddSprayQuad(NativeList<SmoothSurfaceVertex> vertices,
                                          byte material, uint flags)
         {
@@ -303,6 +398,16 @@ namespace VoxelEngine.Tests.PlayMode
                 Material = packed,
                 Active = SmoothSurfaceVertex.WaterSprayVFlag,
             });
+        }
+
+        private static void AddQuadIndices(NativeList<uint> indices)
+        {
+            indices.Add(0u);
+            indices.Add(1u);
+            indices.Add(2u);
+            indices.Add(0u);
+            indices.Add(2u);
+            indices.Add(3u);
         }
 
         private static int RenderAndCountVisiblePixels(
