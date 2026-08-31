@@ -74,7 +74,8 @@ These are existing foundations and are not candidates to rebuild from scratch.
   - Resolve exactly one immutable server-authoritative gameplay outcome from authored terminal policy while keeping combat completion, session orchestration, and technical network shutdown distinct.
 - [x] **16. [Authoritative session persistence & restore](game-systems/16-authoritative-session-persistence-restore.md)**
   - Persist one coherent authoritative semantic revision, reuse subsystem/world persistence contracts, and restore through the normal runtime graph without replaying historical one-shot effects.
-- [ ] **17. Production HUD**
+- [x] **17. [Production gameplay HUD & semantic presentation](game-systems/17-production-gameplay-hud-semantic-presentation.md)**
+  - Project authoritative/replicated gameplay truth into local HUD presentation models without creating duplicate gameplay state or coupling domain systems to Unity UI technology.
 - [ ] **18. Inventory UI**
 - [ ] **19. Quest / objective UI**
 - [ ] **20. Multiplayer teammate / session UI**
