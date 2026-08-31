@@ -1,0 +1,4 @@
+Run 33325668040 / request dc23a51ee0a423a7c2a6a4011f4e85c82ed7d4e6 / source 773bc12ab86f4f0ef8ac9acc02a230c4803b1458
+Result: infrastructure failure before requested source validation.
+GitHub job 99295232549 failed at the shared runner gate `Wait for any running Unity editor`; the requested PlayMode test and real-player capture did not execute.
+Verdict: no product conclusion and no production-code change justified by this run. Reuse only ci-test/fixes/agent-5 for one infrastructure retry after refreshing current master.
