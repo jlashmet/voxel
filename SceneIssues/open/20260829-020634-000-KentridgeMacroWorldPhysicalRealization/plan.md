@@ -24,7 +24,7 @@
 - Experiment 025 adds a validation-only end-of-frame discriminator at execution order 20000, after the settlement-lens composition. It records actual camera FOV/pose and viewport positions for all four authored settlement building centres without mutating camera, streaming, worldgen, rendering, residency, or replay duration.
 
 ## Current gate
-Run the existing generic shell regression on exact feature source `ebb1a88a3ec28e428733ad802d88ae1ffa5132a6` through `ci-test/fixes/agent-6` with the unchanged 60 s real-player replay. Inspect `MACROEVIDENCE end-frame-survey` diagnostics and full-resolution settlement frames. If actual capture FOV/pose is not the intended 90° survey, fix that proven capture-order cause. If FOV/pose and all four authored centres are contained but buildings still fail to read, treat framing as rejected and isolate production step-2 shell/material/occlusion readability before any geometry change.
+Run the existing generic shell regression on exact current feature source `d1b97ae072eaf62837219aef989d71b9a54c2871` through `ci-test/fixes/agent-6` with the unchanged 60 s real-player replay. Inspect `MACROEVIDENCE end-frame-survey` diagnostics and full-resolution settlement frames. If actual capture FOV/pose is not the intended 90° survey, fix that proven capture-order cause. If FOV/pose and all four authored centres are contained but buildings still fail to read, treat framing as rejected and isolate production step-2 shell/material/occlusion readability before any geometry change.
 
 ## Remaining gates
 1. Prove all four readable authored blockouts at Moordell, Rossdam, Fairy Village, and Orc Village with streets/open space and road arrival/exit in full-resolution built-player evidence.
