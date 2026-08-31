@@ -86,8 +86,12 @@ namespace VoxelEngine.Tests.EditMode
         public void CanonicalKentridgeStructureSitesPassSharedReservationValidation()
         {
             const uint seed = 0x4B454E54u;
+            var materials = new VoxelMaterialMap(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);
+            var settings = new VoxelWorldGenSettings(1, materials);
             SettlementPlan plan = KentridgeTownPlanner.Build(seed);
-            SpatialReservationSnapshot source = KentridgeTownPlanner.BuildReservationSnapshot(seed);
+            WorldRoadNetwork roads = KentridgeWorldRoadNetwork.Build(plan, seed, settings);
+            SpatialReservationSnapshot source =
+                KentridgeSpatialReservationAdapter.Build(seed, plan, roads);
 
             for (int i = 0; i < plan.Plots.Count; i++)
             {
