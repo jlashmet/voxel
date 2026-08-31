@@ -110,6 +110,210 @@ namespace VoxelEngine.Tests.Features
             var tight = new ParameterSpec { Min = 0, Max = 10, Quantum = 4 };
             Assert.LessOrEqual(tight.Clamp(10), 10);
         }
+
+        [Test]
+        public void StructuralChildMayUseYawToSatisfySocketFacing()
+        {
+            FeatureCatalogue catalogue = StructuralCompositionFixture.Build(Allocator.Temp);
+            var child = catalogue.Definitions[StructuralCompositionFixture.ChildId];
+            var childPiece = child.StructuralPiece;
+            childPiece.Facing = Facing.North;
+            child.StructuralPiece = childPiece;
+            catalogue.Definitions[StructuralCompositionFixture.ChildId] = child;
+
+            try
+            {
+                Assert.AreEqual(CatalogueLoadResult.Ok, FeatureCatalogueBuilder.Finalise(ref catalogue),
+                    "a horizontal child that can be quarter-turned must remain a valid candidate");
+
+                using var instances = new NativeList<StructuralInstance>(Allocator.Temp);
+                using var decisions = new NativeList<StructuralAttachmentDecision>(Allocator.Temp);
+                StructuralCompositionReport report = StructuralCompositionPlanner.ExpandRoot(
+                    in catalogue, 7u, StructuralCompositionFixture.RootId,
+                    catalogue.ExplicitPlacements[0], instances, decisions);
+
+                Assert.AreEqual(StructuralCompositionResult.Ok, report.Result);
+                Assert.AreEqual(2, instances.Length);
+                Assert.AreEqual(3, instances[1].Orientation,
+                    "North ingress must yaw 270 degrees to oppose the East-facing parent socket");
+                Assert.AreEqual(1, decisions.Length);
+                Assert.IsTrue(decisions[0].Accepted);
+            }
+            finally
+            {
+                catalogue.Dispose();
+            }
+        }
+
+        [Test]
+        public void ImpossibleVerticalFacingIsRejectedWithOrientationDiagnostic()
+        {
+            FeatureCatalogue catalogue = StructuralCompositionFixture.Build(Allocator.Temp);
+            var child = catalogue.Definitions[StructuralCompositionFixture.ChildId];
+            var childPiece = child.StructuralPiece;
+            childPiece.Facing = Facing.Up;
+            child.StructuralPiece = childPiece;
+            catalogue.Definitions[StructuralCompositionFixture.ChildId] = child;
+
+            try
+            {
+                Assert.AreEqual(CatalogueLoadResult.InvalidStructuralComposition,
+                    FeatureCatalogueBuilder.Finalise(ref catalogue));
+
+                using var instances = new NativeList<StructuralInstance>(Allocator.Temp);
+                using var decisions = new NativeList<StructuralAttachmentDecision>(Allocator.Temp);
+                StructuralCompositionReport report = StructuralCompositionPlanner.ExpandRoot(
+                    in catalogue, 7u, StructuralCompositionFixture.RootId,
+                    catalogue.ExplicitPlacements[0], instances, decisions);
+
+                Assert.AreEqual(StructuralCompositionResult.Incompatible, report.Result);
+                Assert.AreEqual(1, instances.Length, "no rejected child may mutate the graph");
+                Assert.AreEqual(1, decisions.Length);
+                Assert.IsFalse(decisions[0].Accepted);
+                Assert.AreEqual(StructuralAttachmentRejectReason.OrientationMismatch,
+                    decisions[0].Rejection);
+            }
+            finally
+            {
+                catalogue.Dispose();
+            }
+        }
+
+        [Test]
+        public void OutOfRangeStructuralDefinitionIsRejectedBeforePlannerIndexing()
+        {
+            FeatureCatalogue catalogue = StructuralCompositionFixture.Build(Allocator.Temp);
+            SlotSpec slot = catalogue.Slots[0];
+            slot.DefinitionId = catalogue.DefinitionCount + 17;
+            catalogue.Slots[0] = slot;
+
+            try
+            {
+                Assert.AreEqual(CatalogueLoadResult.InvalidStructuralComposition,
+                    FeatureCatalogueBuilder.Finalise(ref catalogue));
+
+                using var instances = new NativeList<StructuralInstance>(Allocator.Temp);
+                using var decisions = new NativeList<StructuralAttachmentDecision>(Allocator.Temp);
+                StructuralCompositionReport report = StructuralCompositionPlanner.ExpandRoot(
+                    in catalogue, 7u, StructuralCompositionFixture.RootId,
+                    catalogue.ExplicitPlacements[0], instances, decisions);
+
+                Assert.AreEqual(StructuralCompositionResult.MalformedProgram, report.Result);
+                Assert.AreEqual(1, instances.Length, "malformed child id must not mutate output");
+                Assert.AreEqual(1, decisions.Length);
+                Assert.IsFalse(decisions[0].Accepted);
+                Assert.AreEqual(StructuralAttachmentRejectReason.MalformedDefinition,
+                    decisions[0].Rejection);
+            }
+            finally
+            {
+                catalogue.Dispose();
+            }
+        }
+
+        [Test]
+        public void SharedDagNodeCannotHideAnOverDepthStructuralPath()
+        {
+            // Slot order reaches the shared leaf directly first, then again through a 12-node
+            // chain. A visited-only DFS memo would mark the leaf complete at shallow depth and
+            // incorrectly accept the deeper route. Longest-path validation must reject 13 edges.
+            FeatureCatalogue catalogue = BuildSharedDagDepthCatalogue(Allocator.Temp);
+            try
+            {
+                Assert.AreEqual(FeatureBudget.MaxCompositionDepth, 12,
+                    "this fixture documents the intentional structural depth ceiling");
+                Assert.AreEqual(CatalogueLoadResult.InvalidStructuralComposition,
+                    FeatureCatalogueBuilder.Finalise(ref catalogue));
+            }
+            finally
+            {
+                catalogue.Dispose();
+            }
+        }
+
+        [Test]
+        public void StructuralCycleIsRejectedDeterministically()
+        {
+            FeatureCatalogue catalogue = BuildSharedDagDepthCatalogue(Allocator.Temp);
+            try
+            {
+                // Replace the final chain-to-leaf edge with a back edge to the root.
+                SlotSpec last = catalogue.Slots[catalogue.Slots.Length - 1];
+                last.DefinitionId = 0;
+                catalogue.Slots[catalogue.Slots.Length - 1] = last;
+
+                Assert.AreEqual(CatalogueLoadResult.InvalidStructuralComposition,
+                    FeatureCatalogueBuilder.Finalise(ref catalogue));
+            }
+            finally
+            {
+                catalogue.Dispose();
+            }
+        }
+
+        private static FeatureCatalogue BuildSharedDagDepthCatalogue(Allocator allocator)
+        {
+            const int sharedLeaf = 13;
+            const int definitionCount = sharedLeaf + 1;
+            const int slotCount = 14; // root->leaf, root->chain1, then chain1..chain12->next/leaf
+            const ulong type = 1UL << 28;
+
+            FeatureCatalogue catalogue = FeatureCatalogueBuilder.Allocate(
+                definitionCount, 0, 0, 0, slotCount, 0, 0, 0, 0, allocator);
+
+            int slotOffset = 0;
+            for (int definitionId = 0; definitionId < definitionCount; definitionId++)
+            {
+                int count = definitionId == 0 ? 2 : (definitionId < sharedLeaf ? 1 : 0);
+                catalogue.Definitions[definitionId] = new FeatureDefinition
+                {
+                    Name = $"depth-{definitionId}",
+                    Kind = FeatureKind.Structure,
+                    Footprint = new int3(1, 1, 1),
+                    StructuralPiece = new StructuralPieceSpec
+                    {
+                        PieceId = (uint)(1000 + definitionId),
+                        Role = StructuralSocketRole.Wall,
+                        Offers = type,
+                        Accepts = type,
+                        Facing = Facing.West,
+                    },
+                    SlotOffset = slotOffset,
+                    SlotCount = count,
+                    MaxPrimitives = 0,
+                };
+                slotOffset += count;
+            }
+
+            int slotIndex = 0;
+            catalogue.Slots[slotIndex++] = DepthSlot(2000, sharedLeaf, type); // shallow first
+            catalogue.Slots[slotIndex++] = DepthSlot(2001, 1, type);
+            for (int definitionId = 1; definitionId < sharedLeaf; definitionId++)
+            {
+                int child = definitionId == sharedLeaf - 1 ? sharedLeaf : definitionId + 1;
+                catalogue.Slots[slotIndex] = DepthSlot((uint)(2000 + slotIndex), child, type);
+                slotIndex++;
+            }
+
+            return catalogue;
+        }
+
+        private static SlotSpec DepthSlot(uint socketId, int childDefinition, ulong type) => new()
+        {
+            SocketId = socketId,
+            Role = StructuralSocketRole.Wall,
+            Offers = type,
+            Accepts = type,
+            Facing = Facing.East,
+            DefinitionId = childDefinition,
+            LocalMin = int3.zero,
+            LocalMax = int3.zero,
+            ClearanceMin = int3.zero,
+            ClearanceMax = int3.zero,
+            CountMin = 1,
+            CountMax = 1,
+            Capacity = 1,
+        };
     }
 
     /// <summary>
