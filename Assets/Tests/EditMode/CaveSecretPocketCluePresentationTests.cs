@@ -6,6 +6,7 @@ using Game.Structures.Runtime;
 using Game.WorldBuilder.Api;
 using NUnit.Framework;
 using Unity.Mathematics;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Tests.EditMode
@@ -29,7 +30,7 @@ namespace VoxelEngine.Tests.EditMode
             var candidates = new CaveTraversalCandidateSet();
             candidates.Items.Add(terminal);
 
-            Campaign campaign = Campaign.Create("cave-secret-clue-presentation");
+            CampaignBuilder campaign = Campaign.Create("cave-secret-clue-presentation");
             SiteRef hidden = campaign.World.Region("region").Site(
                 "hidden-cave", SiteArchetype.Ruin,
                 x => x.RequireCapability(SiteCapability.SecretCandidateHost));
@@ -89,7 +90,7 @@ namespace VoxelEngine.Tests.EditMode
             public int WriteBudget => int.MaxValue;
             public long TotalVoxelsWritten => _empty.Count;
             public byte Get(int x, int y, int z) => IsSolid(x, y, z) ? (byte)2 : (byte)0;
-            public byte GetCoating(int x, int y, int z) => Coated.Contains(new int3(x, y, z)) ? Coatings.Moss : Coatings.None;
+            public byte GetCoating(int x, int y, int z) => Coated.Contains(new int3(x, y, z)) ? Coatings.Moss : (byte)0;
             public bool IsSolid(int x, int y, int z) => !_empty.Contains(new int3(x, y, z));
             public void Set(int x, int y, int z, byte material)
             {
@@ -97,10 +98,10 @@ namespace VoxelEngine.Tests.EditMode
                 if (material == 0) _empty.Add(p); else _empty.Remove(p);
             }
             public void SetStyled(int x, int y, int z, byte material, ushort surfaceStyle,
-                byte coating = Coatings.None, VoxelSurfaceFlags flags = VoxelSurfaceFlags.None) => Set(x, y, z, material);
+                byte coating = 0, VoxelSurfaceFlags flags = VoxelSurfaceFlags.None) => Set(x, y, z, material);
             public void Coat(int x, int y, int z, byte coating)
             {
-                if (coating != Coatings.None) Coated.Add(new int3(x, y, z));
+                if (coating != 0) Coated.Add(new int3(x, y, z));
             }
             public void FillBulk(int3 min, int3 size, byte material) { }
             public void FillColumnBulk(int x, int minY, int maxYExclusive, int z, byte material) { }
