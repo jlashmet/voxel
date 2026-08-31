@@ -37,7 +37,7 @@
 ## Blocker
 - [x] Record external prerequisite: current shared `tests-single.yml` / `showcase-player-capture.sh` SceneIssue route only supports legacy `Assets/Scenes/...` replay/capture and forces gallery-specific audit contracts.
 - [x] Record that generic module-validation infrastructure was available only on unmerged `fixes/agent-8` when this blocker was identified; agent 5 remains self-contained and does not depend on that branch.
-- [ ] Re-check current master for the generic runner; if still absent, leave standalone player/capture explicitly blocked and continue only independent acceptance/correctness work.
+- [x] Re-check current `master` for the generic runner after semantic CI completed: the known module-validation descriptor is still absent, so focused standalone player/capture remains blocked on the shared prerequisite.
 
 ## Closure
 - [ ] Review final feature diff/cost and verify changes are limited to assignment-required structural production work, regressions/adapters, module-owned focused validation, and this SceneIssue.
