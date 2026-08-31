@@ -5,70 +5,47 @@
 - [x] Preserve source-backed `TopDownWorldLayout` / `MountingForceTopDownWorldDefinition` as topology authority through shared WorldBuilder APIs.
 - [x] Add reusable deterministic geography, terrain-aware hard-route solving, generic settlement blockouts/streets, continuous hard-route surfaces, Rossdam basin, Southern Ridge/pass, and real CharacterMotor traversal.
 - [x] Production/storage regressions cover determinism, reachability, roads, settlements, blocking geography, explicit route solutions, bounded slopes, all 16 generic building shells, water realization, and two-stage presentation readiness.
+- [x] Prove shared planner reuse with independent non-Kentridge `a`/`b` blocked-water fixture; no Kentridge policy in shared planner/catalogue APIs.
 
-## Proven remediation history
-- [x] Reject broad residency, serial building-centre prestreaming, external evidence helpers, remote blocking prewarm, and global feature-scheduler preemption.
-- [x] Keep streaming demand grounded at semantic focus while survey camera moves independently.
-- [x] Add validation-only opening-dialogue dismissal, restore normal time, player-height road evidence, near-overhead settlement framing, and supported <=60 s replay.
-- [x] Bound Rossdam water primitive scan below 10M cells while preserving accepted `900 x 450 x 24 dm` lake and full basin with 2 dm water sheet.
-- [x] Resolve route-intersection regressions: nominal lake offsets `(-400,-155)` keep endpoints dry while preserving genuine constrained outbound/Rossdam routes.
-- [x] Exact run `33304172039`: PlayMode green/standalone clean, closure-red at Moordell; recorded as experiment 016.
-- [x] Exact run `33311348299`: workflow/PlayMode green, closure-red; recover artifact `9732113329` and diagnose two deterministic driver handoffs.
-- [x] Prove generic smoke harness sets `AutoSurvey` at t=50 while Rossdam is pending in run `33311348299`, collapsing residency (`visible=275 -> 0`, `residentGround=116.6m -> 14.2m`).
-- [x] Prove queued `macro-moordell.png` loses survey framing during immediate Moordell -> macro-road continuation and is visually unacceptable.
-- [x] Later exact run `33346099006` rejects that ownership failure as the current blocker: macro driver retains Rossdam demand across the generic t=50 survey write and Rossdam converges/captures.
+## Proven remediation / root cause
+- [x] Reject broad residency, serial remote prestreaming, global scheduler preemption, skipped targets, widened load radius, and alternate evidence transports.
+- [x] Keep validation streaming demand at semantic focus while survey camera moves independently; retain macro-driver automation ownership over later generic smoke-harness writes.
+- [x] Add feature-aware vertical residency only for semantic feature Y-layers in already-demanded X/Z columns; exact run `33346099006` proves ordinary streaming publishes an upper authored layer without traversal forcing.
+- [x] Correct two-stage presentation readiness to include the same semantic feature Y-layers; exact run `33354287850` proves the lower-ready/upper-missing race remains false until the upper shell publishes.
+- [x] Experiment 019 exact run `33359142139`: all four Rossdam structures contain ~1.03–1.20M authoritative structure voxels, begin at grounded production placement Y, and retain authored wall-height span; generation/storage/grounding rejected.
+- [x] Experiment 020 readiness-aligned exact run `33370392969`: all four Rossdam bounds intersect the real survey frustum and each intersects four ready visible production solid chunks at source step 2 after all target columns settle; generation/readiness/frustum intersection/coarse publication rejected.
+- [x] Exact run `33372188117`: workflow green but vertical-only 45 m settlement-camera correction is closure-red because inherited 70 m rotation crops/mis-aims the survey.
+- [x] Exact run `33373258471`: focused focus-ray-dolly regression product-red (`0.027976°` vs `<0.01°`) while built player succeeds; same one-readable-building/cropping symptom remains after a second materially different camera fix.
+- [x] Experiment 021 minimal repro isolates framing containment before a third correction: production generic settlement footprint is 51.6 m x 48.4 m, ~35.36 m diagonal half-span; the exact scene 58° lens covers only ~34.37 m per side at the original ~62 m camera-to-focus vertical separation. Experiment 020's AABB test proved intersection, not full containment.
+- [x] Root-cause-driven correction keeps the established 70 m semantic pose and production LOD/streaming unchanged, widens only validation settlement surveys to 72°, restores the normal lens outside settlement surveys, and adds focused containment regression.
 
-## Current remediation
-- [x] Preserve sequence: local CharacterMotor -> Moordell survey -> macro-road CharacterMotor -> player-height Moordell road arrival -> Rossdam -> lake -> Fairy -> Orc -> ridge/pass -> network.
-- [x] Preserve real content-settled/renderer gates, normal load radius/budgets, and 60 s cap; no prestreaming or skipped target.
-- [x] Keep dormant macro driver authoritative over `AutoSurvey` / `AutoRecede` in `LateUpdate` so later generic smoke-harness writes cannot own subsequent streaming demand.
-- [x] Hold Moordell survey camera through existing post-capture dwell so queued screenshot rendering cannot inherit macro-road camera state.
-- [x] Add throttled per-column diagnostics bounded to existing target content columns; log exact centre and X/Z presentation region without generation or world scans.
-- [x] Extend focused regression to cover target order, macro-driver automation ownership, and post-capture survey hold.
-- [x] Re-check blast radius: production scheduler, CharacterMotor, residency/load radius, device budgets, render budgets, and gameplay behavior remain unchanged; correction is validation-profile-only.
-- [x] Exact run `33318399738` proves uninterrupted Rossdam convergence under normal gameplay streaming and no shared scheduler change is justified.
-- [x] Diagnose vertical-residency owner: static storage tests explicitly generate separate timber/roof Y-regions when a generic building crosses a 51.2 m vertical boundary, while ordinary residency previously demanded terrain-surface/viewer Y layers only and features are applied per exact generated 3D region.
-- [x] Refactor the oversized `ShowcaseWorld.cs` at the `RefreshPending`/residency boundary into focused residency partials; preserve behavior outside the extracted seam.
-- [x] Add feature-aware vertical residency: loaded X/Z columns queue only Y-regions intersecting semantic explicit feature bounds; no blanket extra layer or scene-specific preload policy.
-- [x] Add focused ordinary-`ShowcaseWorld.StepStreaming` regression with a deterministic production feature crossing a Y-region boundary; exact run `33346099006` proves it 1/1 green.
-- [x] Inspect exact run `33346099006` full-resolution artifact: Rossdam still shows only one unmistakable building and lake still reads as a thin distant strip; Fairy is ready at cutoff but uncaptured, with Orc/ridge/network absent.
-- [x] Isolate repeated-failure root cause before another fix in experiment 018: presentation readiness checked terrain/point Y but not the authored Y layers already requested by feature-aware residency.
-- [x] Implement shared readiness correction using the same cached semantic feature-layer query; no Kentridge coordinates, radius/budget changes, pre-generation, or weakened readiness.
-- [x] Extend the focused regression to create the lower-layer-ready/upper-layer-absent race and require presentation readiness to remain false until ordinary streaming publishes the upper shell.
-- [x] Prove the updated readiness regression on exact feature source `9d51fb9a947af76d0b8005c35288a7007dd6d9e6` through `ci-test/fixes/agent-6`; run `33354287850` is 1/1 green and the supported 60 s built-player step completes technically clean.
-- [x] Inspect run `33354287850` full-resolution evidence: settlement/lake visual closure remains red and Fairy/Orc/ridge/network remain uncaptured before 60 s.
-- [x] Isolate the surviving repeated settlement symptom before another fix in experiment 019: distinguish authoritative four-building voxel volumes from downstream render/framing or grounding/placement failure.
-- [x] Add the experiment-019 production-data regression and classify Rossdam's four expected building volumes from authoritative storage. Exact run `33359142139` is green: all four production structures contain roughly 1.03–1.20M structure voxels, start at their grounded placement Y, and meet/exceed semantic wall-height span. Generation/storage/grounding are rejected as the surviving visual owner.
-- [ ] Experiment 020 root-cause discriminator: classify each Rossdam building against the actual survey-camera frustum and renderer publication/visibility state before another visual fix. Exact run `33369153241` is focused-test + 60 s player green, but its first four per-building samples fired immediately on the Rossdam camera transition while the dedicated driver still reported all four Rossdam content columns pending; target-specific `content-ready` arrived ~13 s later. The full-resolution Rossdam capture still shows one readable building. Current validation-only correction waits for the same production `IsPresentationColumnContentSettled` state at all four Rossdam columns plus four stable publication frames before sampling; no production streaming/render/camera behavior changes. Next exact request is based on the current readiness-aligned feature head only.
-- [ ] Verify full-resolution Rossdam/Fairy/Orc surveys show all four readable authored settlement blockouts after the identified production owner is corrected.
-- [ ] Capture the final `macro-network-overview` inside the unchanged 60 s replay.
-- [ ] Re-check Rossdam lake framing; exact runs `33346099006` and `33354287850` expose only a thin distant water strip and must visibly read as the substantial authored water body plus constrained route.
-- [ ] Re-run final exact-SHA targeted CI and prove focused regression + supported 60 s real-player smoke are closure-quality green for the same source SHA.
-
-## Reusability review
-- [x] Audit `TopDownWorldPhysicalPlanner`, `TopDownWorldPhysicalIntent`, and generic physical/water catalogues for Kentridge/Rossdam/Fairy/Orc names, fixed landmark coordinates, evidence timing, or route exceptions; scene policy remains in `KentridgeTopDownWorldPhysicalIntent` or composition/evidence layers.
-- [x] Keep generic planner inputs semantic and data-driven: geography, settlement intent, route constraints, water bodies, and terrain relationships are supplied as intent rather than inferred from Kentridge-specific IDs or ordering.
-- [x] Independent non-Kentridge `a`/`b` blocked-water fixture proves the generic planner rejects an unsolved barrier and accepts semantic `GoAround` without Kentridge adapters or special cases.
-- [x] Keep the large `KentridgeMacroWorldEvidenceDriver` validation-only; no production world-generation, streaming, route-solving, or publication policy depends on the evidence driver.
+## Current exact gate
+- [ ] Exact run `33376804313` / wrapper `72639b4b36559aed26af056ea6b09706fe37cc01` for feature code source `5ca4d29efc8c538806f078e3393aa941526a5ede`: do not replace while queued/running. At last check job `99440020485` was queued with no runner and no steps started.
+- [ ] After completion, inspect focused result plus full-resolution Moordell/Rossdam frames; do not accept workflow green without visual closure.
+- [ ] Verify full-resolution Moordell/Rossdam/Fairy/Orc surveys show all four readable authored settlement blockouts with streets/open space and arrival/exit.
+- [ ] Re-check Rossdam lake framing; it must read as substantial authored water plus constrained route, not the thin distant strip seen in earlier artifacts.
+- [ ] Capture Southern Ridge/pass and final `macro-network-overview` inside the unchanged 60 s replay.
+- [ ] Re-run final exact-SHA targeted CI and prove focused regression + supported 60 s real-player smoke are closure-quality green for the same final feature SHA.
 
 ## Exact runtime / visual gate
 - [ ] Exact built `KentridgePlayableSlice` reaches usable gameplay without startup/runtime exceptions and captures every required macro target inside 60 s.
 - [ ] Full-resolution evidence shows at least four readable grounded blockouts at Moordell, Rossdam, Fairy Village, and Orc Village plus streets/open space and road arrival/exit.
 - [ ] Full-resolution evidence shows continuous roads/network, substantial Rossdam lake, Southern Ridge/pass, visibly geography-constrained route behavior, differentiated countryside, and representative real CharacterMotor traversal.
-- [x] Player-height road evidence is supported by the driver and prior artifact; final exact run must retain it.
+- [x] Player-height road evidence and representative real CharacterMotor traversal are supported by the driver and prior exact artifacts; final exact run must retain both.
 
 ## Blast radius / cost
 - [x] No unrelated SceneIssue implementation, no feature-branch `.github/test-request.json`, no custom CI transport/workflow, no CharacterMotor/load-radius/device-budget change.
 - [x] Terrain-relief sampling remains bounded to 25 x 16 = 400 deterministic catalogue queries.
 - [x] Shared `FeatureRegionBuild` scheduling remains unchanged.
-- [x] Per-column diagnostics are validation-only, bounded to existing target content, and throttled to <=1 Hz while pending.
-- [x] Moordell camera correction reuses existing dwell; no replay/residency/render budget increase.
+- [x] Feature-aware vertical residency cannot expand empty horizontal columns: it only adds semantic Y-layers after normal X/Z demand admission and shares a catalogue-hash cache with readiness.
+- [x] Validation diagnostics/camera corrections are profile-only and do not drive generation, streaming, renderer admission, or normal gameplay policy.
 - [x] Baseline run `33304172039`: assertions `0`, no swap growth, peak RSS `5,571,344 KB`, late FPS ~`197/222/232/168/137`, final `missingVisible=0 coverage=True`.
-- [x] Run `33318399738`: elapsed `73s`, final RSS `598MB`, peak RSS `5640MB`, swap growth `0MB`; settled-target FPS is typically ~150–370 with target-transition p95 frame time ~7–13 ms.
-- [x] Exact run `33346099006`: focused residency test green; combined process peak ~`5824MB`, no swap growth, late FPS generally >100 and often 200–360; visual closure remains red.
-- [x] Exact run `33354287850`: readiness-race regression green; built-player capture step completes with zero harness assertions and no technical crash, while visual/timing closure remains red.
-- [ ] Quantify additional vertical resident/generated regions from feature-aware residency and prove it does not expand empty columns or change horizontal interest radius/device budgets.
+- [x] Run `33318399738`: elapsed `73s`, final RSS `598MB`, peak RSS `5640MB`, swap growth `0MB`; settled-target FPS typically ~150–370.
+- [x] Exact run `33346099006`: focused residency green; combined peak ~`5824MB`, no swap growth, late FPS generally >100 and often 200–360.
+- [x] Exact run `33373258471`: after startup, late player FPS is generally ~127–332 with p95 frame time mostly ~3–12 ms while remote settlement feature publication proceeds.
+- [ ] Quantify actual additional vertical resident/generated region count from feature-aware residency against baseline; prove no horizontal interest-radius/device-budget change numerically.
 - [ ] Measure final lake dimensions/depth/primitive cells, route tile/solve/constrained counts, feature work/time, CPU/FPS, memory, streaming convergence, and render/far-field telemetry against budgets.
+- [ ] Quantify fixed-60-second target phase timing after visual framing closes; current completed run reaches Moordell content/capture around t42 and begins Rossdam around t44, so later evidence currently misses cutoff.
 - [ ] Re-fetch current master and re-check exact feature diff immediately before final targeted CI.
 
 ## Acceptance / closure
@@ -80,7 +57,7 @@
 - [ ] (6) Built world visibly contains a substantial lake + ridge and at least one geography-altered hard route.
 - [ ] (7) Regional terrain visibly reads as differentiated countryside rather than a flat debug plane.
 - [ ] (8) No second scene-local graph/direct voxel-writing/static destination hierarchy.
-- [ ] (9) Focused behavioral regressions cover determinism, reachability, roads, settlements, constraints, blocked-route failure, bounded water cost, evidence sequencing, feature-aware vertical residency, and two-stage readiness.
+- [ ] (9) Focused behavioral regressions cover determinism, reachability, roads, settlements, constraints, blocked-route failure, bounded water cost, evidence sequencing, feature-aware vertical residency, two-stage readiness, and settlement-survey containment.
 - [ ] (10) Exact built-player evidence covers settlements, roads entering/leaving settlements, network survey, geography, constrained route, and CharacterMotor traversal without runtime exceptions.
 - [ ] (11) Blast radius and world-build/route/CPU/GPU/memory/streaming cost are measured against budgets.
 - [ ] Corrected final exact-SHA focused CI and built-player evidence are closure-quality green.
