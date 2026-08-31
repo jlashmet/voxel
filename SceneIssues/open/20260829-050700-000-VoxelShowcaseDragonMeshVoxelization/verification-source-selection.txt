@@ -1,40 +1,33 @@
-Selected source: Delatronic — Dragon
-Current source page: https://blendswap.com/blend/15891
-Historic upstream id recorded by redistribution mirrors: http://www.blendswap.com/blends/view/80766
-Author: Delatronic
-License: CC-BY (redistribution mirrors identify CC BY 3.0 requirements)
-Original authoring format: Blender 2.7x / Cycles
+Mountain dragon source selection history — corrected 2026-08-30
 
-Auditable redistribution mirror:
-https://github.com/microsoft/DirectX-Graphics-Samples/tree/master/Samples/Desktop/D3D12Raytracing/src/D3D12RaytracingRealTimeDenoisedAmbientOcclusion/Assets/dragon
-Mirror license/readme provenance identifies Delatronic, Benedikt Bitterli Rendering Resources, the original Blend Swap URL, and CC-BY redistribution.
+CURRENT SELECTED GEOMETRY
+The active source for this SceneIssue is the user-provided `mountain_dragon_supported.zip`, not the earlier Delatronic/BlendSwap candidate below. Exact upload, cleanup, deterministic OBJ derivation, dimensions, triangle/vertex counts, and checksums are recorded in `verification-uploaded-source.txt`.
 
-Independent conversion/provenance mirror:
-https://github.com/ErfanMo77/gltf-research-scenes/tree/main/scenes/dragon
-Its PBRT-v4 scene assigns the Dragon material only to Mesh008/013/014/015 and its conversion metadata reports the complete reference scene as 16 meshes / 831,812 triangles / 9 materials. Its Git LFS pointers expose SHA-256 object identities for the exact source PLY payloads.
+Current committed authoring input identity:
+- Derived support-free conventional OBJ: 13,431 vertices / 29,734 triangles / 860,349 bytes
+- OBJ SHA-256: f1f44d59f7d9c775b600ac0b9ad066a15a3c652bf685a12b2344b8c383ff12b1
+- Deterministic gzip SHA-256: fd2f8253fcf5bc32b275640448511f59d20dcc7d01c307f99124b224431892d4
+- Repository transfer: contiguous `source/mountain_dragon_clean.obj.gz.b64.part00` through `part14`
 
-PBRT scene material ownership identifies dragon geometry as:
-- Mesh008.ply — 4,386,778 bytes — Git blob fa8316f8b1c698da1d539b04cb83992437439dc6 — SHA-256 f0d6d4a59b3f917b5f2412a53f18651021be4e3a80f698bab194090f1fc45b47
-- Mesh013.ply — 4,840,746 bytes — Git blob 27f7188faed577d4fb4a4130285ed5c97a024bdc — SHA-256 a0cace9524c2a7694b45a6f9340d256413a5f395fce7ffecc35b0b2b36380f65
-- Mesh014.ply — 12,277 bytes — Git blob 5c0ff63e4e32568d005ff136017225abc5b94aab — SHA-256 f269fced46a368b9e4abea226c4dea79c62d6fefc143b465674504442d67af52
-- Mesh015.ply — 49,110 bytes — Git blob c3bbd2718695bc8776b8b96626c31ab3e229d185 — SHA-256 3111eda2bf25d7c764c00563f049b4136f720a45c187ea68f4eaa8faa3f6d46c
+The uploaded source is a detailed curved winged dragon with readable head, body, two wings, limbs/feet, long curved tail, secondary surface detail, and scenic base after print-support removal. The binary STL contains no standard source material/color regions; composition palette mapping therefore must be recorded as intentional mapping rather than source-color preservation.
 
-The four Dragon-material files total 9,288,911 source bytes. Source-specific triangle/vertex totals still must be measured from the vendored payloads rather than inferred from the whole 831,812-triangle reference scene.
+PROVENANCE BLOCKER — DO NOT INFER OR INVENT
+The user states the uploaded model was obtained for free and is able to be used, but no source URL, author name, or named license/permission text was supplied. Exact third-party provenance/redistribution acceptance remains blocked until those fields are available. The hashes above identify geometry only; they do not establish redistribution rights.
 
-Visual/detail decision:
-- Accepted source family: conventional curved, detailed Western winged dragon; BlendSwap reviewer metadata explicitly calls out detail, body flow, and wings.
-- Rejected artist_71 OpenGameArt three-headed model: detailed but wingless.
-- Rejected Cethiel/Drummyfish CC0 model: winged but mirrored source is only ~633 position vertices and visibly low-poly.
-- Rejected Stanford scan derivatives encountered during fallback search: high triangle counts but wingless and therefore fail this issue's anatomy requirement.
-- Rejected text-based OBJ fallback search (2026-08-30): no candidate found that simultaneously had clear redistribution rights and met the detailed curved winged/full-anatomy bar; source quality was not reduced to fit connector transport.
-- Rejected same-repository `feature/sdf-dragon-statue` recovery (2026-08-30): its current head `50374e569299d1883e7595527859c01ef559f2ad` uniquely changes only `Assets/Game/Structures/Runtime/DragonStatueDetailedVoxelAuthoring.cs`, whose production entry point explicitly authors V10 from empty authoritative voxel state via `DragonStatueConceptV10HardSurfaceAuthoring`. `References/` contains no dragon source asset. This is hand-authored voxel geometry, not a downloaded third-party triangle mesh, so reusing it would fail the exact-source mesh-voxelization acceptance.
+HISTORICAL CANDIDATE — REJECTED / SUPERSEDED
+Before the user upload became available, Delatronic — Dragon from BlendSwap and redistribution mirrors was investigated as a candidate. That candidate had promising CC-BY attribution evidence and appropriate Western winged-dragon detail, but its main binary source payloads could not be transferred through the available connected tooling. It was therefore never vendored and is not the geometry being baked or validated by this feature.
 
-Transport experiments completed without changing the selected quality bar:
-- GitHub contents/base64 succeeds for the small binary Mesh014 payload, but the connected API does not return the >1 MB Mesh008/Mesh013 binaries.
-- Git blob fetch for Mesh008 fails in the connector's UTF-8 response decoder; cross-repository blob SHA reuse is not accepted by GitHub because blobs are repository-local.
-- Original Bitterli archive and GitHub Raw/CDN download routes were probed from the execution environment; binary transfer did not succeed.
-- The same-assignment fixes/agent-1-temp-check branch is strictly behind fixes/agent-1 and contains no additional asset/bake commit to recover.
-- Existing Git-blob reuse from the repository's older dragon branch was checked separately; no imported source blob exists there to reuse without network transfer.
+Historical references retained only to explain the selection path:
+- BlendSwap page: https://blendswap.com/blend/15891
+- Historic upstream id recorded by mirrors: http://www.blendswap.com/blends/view/80766
+- DirectX Graphics Samples redistribution mirror: https://github.com/microsoft/DirectX-Graphics-Samples/tree/master/Samples/Desktop/D3D12Raytracing/src/D3D12RaytracingRealTimeDenoisedAmbientOcclusion/Assets/dragon
+- glTF research-scene conversion mirror: https://github.com/ErfanMo77/gltf-research-scenes/tree/main/scenes/dragon
 
-Current blocker:
-The selected source's two main binary PLY payloads are larger than the connected repository API's transferable binary ceiling, while this execution environment has no writable voxel checkout and no network-capable shell. Do not replace the selected source with lower-quality/wingless or hand-authored voxel geometry merely to fit transport tooling. The SHA-256 identities above make the intended bytes unambiguous, but the source still must be physically vendored before the issue can pass acceptance or close.
+Other rejected alternatives remain rejected for acceptance reasons:
+- artist_71 OpenGameArt three-headed model: detailed but wingless.
+- Cethiel/Drummyfish CC0 model: winged but visibly too low-poly for the intended fidelity proof.
+- Stanford scan derivatives encountered during fallback search: high triangle counts but wingless.
+- text-based OBJ fallback search: no candidate simultaneously met redistribution and detailed curved full-anatomy requirements.
+- repository `feature/sdf-dragon-statue`: hand-authored voxel geometry, not downloaded conventional triangle-mesh input, so it cannot satisfy this feature's exact-source mesh-voxelization acceptance.
+
+This file is selection-history evidence only. `verification-uploaded-source.txt` is authoritative for the currently selected uploaded geometry and its derivation; final provenance acceptance still requires the missing URL/author/license metadata.
