@@ -36,9 +36,15 @@ Keep `VoxelFarTerrain` for broad analytic terrain and `FarFieldStructureStore` a
 
 Implement in independently testable phases: coverage correctness -> visibility manifest -> semantic structure HLOD -> deterministic scatter -> canopy/forest HLOD -> natural landmark promotion -> transition/budget stress validation. Existing SceneIssues remain the implementation units; do not duplicate active macro-world or terrain-streaming work.
 
-## Execution blocker — 2026-08-31 agent-7
+## Progress — 2026-08-31 agent-7
 
-- The assigned local execution environment has no repository worktree, and direct network cloning is unavailable.
-- The connected GitHub transport can create commits/files but exposes existing-file edits only as complete-file replacement; it does not provide a line/patch edit operation.
-- T001 requires a narrow integration modification to the ~900-line `VoxelFarTerrain.cs`. Reconstructing and replacing that whole renderer from paged connector output would create unjustified blast-radius/corruption risk, so that file is intentionally not rewritten through this path.
-- Independent work completed while blocked: added pure `FarTerrainCoverageMath` production helpers plus Unity metadata and `VoxelFarTerrainCoverageTests.cs`. The math regression proves the required 409.6 m -> 12 km coverage, minimum six-ring result, representative/worst-case snap phases, and `MaxRings` guard behavior. A behavioral integration test also asserts that `VoxelFarTerrain.RingCount` uses the helper result; that assertion is expected to remain red until the narrow `VoxelFarTerrain.cs` integration patch can be made in a real worktree or with a patch-capable repository editor.
+- T001 implementation complete pending CI: `FarTerrainCoverageMath` now computes spacing, half extent, snap loss, guaranteed coverage, and minimum guarded ring count; `VoxelFarTerrain` uses that result and emits an explicit one-time diagnostic when `MaxRings` cannot cover the requested range. The shipped 409.6 m -> 12 km case requires six rings by worst-case snap math.
+- T002 implementation complete pending CI: startup fallback retirement now requires a gap-free current authoritative ring prefix that covers the configured radius. The fallback mesh slot is protected from authoritative rebuild/presentation refresh until that invariant is satisfied.
+- Focused EditMode regression coverage exists in `VoxelFarTerrainCoverageTests.cs` for 12 km cardinal snap phases, the `MaxRings` guard, renderer ring-count integration, and no-shrink fallback retirement.
+
+## Active tooling blocker
+
+- The assigned environment has no local repository worktree and cannot resolve GitHub over the container network. Repository access is through the connected GitHub API only.
+- That connector can safely create small new files and can replace known blobs, but editing an existing file is whole-file replacement rather than a line patch.
+- T003's remaining integration belongs in the existing `VoxelShowcase.DescribeFarTerrain()` structured measurement surface. `VoxelShowcase.cs` is substantially larger than the far-terrain renderer; a whole-file reconstruction would create unjustified blast-radius risk after a trial renderer reconstruction demonstrated formatting churn. The trial was fully restored, and the current feature diff contains no accidental `noop` file or broad renderer formatting changes.
+- T003 acceptance is unchanged. Independent T004+ semantic-data work can proceed while a patch-capable worktree/editor is unavailable; T003 must be completed before closure.
