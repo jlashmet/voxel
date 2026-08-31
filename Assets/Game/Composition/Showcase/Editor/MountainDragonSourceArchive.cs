@@ -38,23 +38,50 @@ namespace VoxelEngine.Showcase.Editor
                 throw new DirectoryNotFoundException(
                     $"Mountain-dragon source directory was not found: {sourceDirectory}");
 
-            string[] parts = Directory.GetFiles(sourceDirectory, PartPattern, SearchOption.TopDirectoryOnly);
-            if (parts.Length == 0)
+            string[] pieces = Directory.GetFiles(sourceDirectory, PartPattern, SearchOption.TopDirectoryOnly);
+            if (pieces.Length == 0)
                 throw new InvalidOperationException("Mountain-dragon source archive contains no transfer parts.");
 
-            Array.Sort(parts, StringComparer.Ordinal);
-            var base64 = new StringBuilder(parts.Length * 20_000);
-            for (int i = 0; i < parts.Length; i++)
-            {
-                string expectedSuffix = $"part{i:00}";
-                if (!parts[i].EndsWith(expectedSuffix, StringComparison.Ordinal))
-                    throw new InvalidOperationException(
-                        $"Mountain-dragon source archive is not contiguous; expected {expectedSuffix} at index {i}.");
+            Array.Sort(pieces, StringComparer.Ordinal);
+            var base64 = new StringBuilder(pieces.Length * 20_000);
+            int currentPart = -1;
+            bool currentPartIsSegmented = false;
+            int expectedSegment = 0;
 
-                string part = File.ReadAllText(parts[i], Encoding.ASCII).Trim();
-                if (part.Length == 0)
-                    throw new InvalidOperationException($"Mountain-dragon source archive part is empty: {parts[i]}");
-                base64.Append(part);
+            for (int i = 0; i < pieces.Length; i++)
+            {
+                ParsePieceSuffix(pieces[i], out int part, out int? segment);
+                if (part != currentPart)
+                {
+                    int expectedPart = currentPart + 1;
+                    if (part != expectedPart)
+                        throw new InvalidOperationException(
+                            $"Mountain-dragon source archive is not contiguous; expected part{expectedPart:00}, got part{part:00}.");
+
+                    currentPart = part;
+                    currentPartIsSegmented = segment.HasValue;
+                    expectedSegment = 0;
+                    if (segment.HasValue && segment.Value != 0)
+                        throw new InvalidOperationException(
+                            $"Mountain-dragon source archive part{part:00} starts at segment {segment.Value:00}; expected 00.");
+                }
+                else
+                {
+                    if (!currentPartIsSegmented || !segment.HasValue)
+                        throw new InvalidOperationException(
+                            $"Mountain-dragon source archive part{part:00} mixes whole and segmented transport pieces.");
+
+                    expectedSegment++;
+                    if (segment.Value != expectedSegment)
+                        throw new InvalidOperationException(
+                            $"Mountain-dragon source archive part{part:00} is not segment-contiguous; " +
+                            $"expected {expectedSegment:00}, got {segment.Value:00}.");
+                }
+
+                string piece = File.ReadAllText(pieces[i], Encoding.ASCII).Trim();
+                if (piece.Length == 0)
+                    throw new InvalidOperationException($"Mountain-dragon source archive piece is empty: {pieces[i]}");
+                base64.Append(piece);
             }
 
             byte[] compressed;
@@ -76,7 +103,7 @@ namespace VoxelEngine.Showcase.Editor
             if (!string.Equals(compressedHash, ExpectedGzipSha256, StringComparison.Ordinal))
                 throw new InvalidOperationException(
                     $"Mountain-dragon source archive is incomplete or changed. " +
-                    $"Expected gzip SHA-256 {ExpectedGzipSha256}, got {compressedHash} from {parts.Length} parts.");
+                    $"Expected gzip SHA-256 {ExpectedGzipSha256}, got {compressedHash} from {pieces.Length} pieces.");
 
             byte[] obj = DecompressBounded(compressed, MaxObjBytes);
             if (obj.Length != ExpectedObjByteCount)
@@ -108,6 +135,28 @@ namespace VoxelEngine.Showcase.Editor
             Debug.Log(
                 $"Reconstructed mountain-dragon OBJ at {GeneratedAssetPath} " +
                 $"({ExpectedObjByteCount} bytes, SHA-256 {ExpectedObjSha256}).");
+        }
+
+        private static void ParsePieceSuffix(string path, out int part, out int? segment)
+        {
+            string fileName = Path.GetFileName(path);
+            int marker = fileName.LastIndexOf("part", StringComparison.Ordinal);
+            if (marker < 0)
+                throw new InvalidOperationException($"Mountain-dragon source archive piece has no part suffix: {path}");
+
+            string suffix = fileName.Substring(marker + 4);
+            string[] tokens = suffix.Split('.');
+            if (tokens.Length < 1 || tokens.Length > 2 || tokens[0].Length != 2 ||
+                !int.TryParse(tokens[0], out part) || part < 0)
+                throw new InvalidOperationException($"Mountain-dragon source archive has invalid part suffix: {fileName}");
+
+            segment = null;
+            if (tokens.Length == 2)
+            {
+                if (tokens[1].Length != 2 || !int.TryParse(tokens[1], out int parsedSegment) || parsedSegment < 0)
+                    throw new InvalidOperationException($"Mountain-dragon source archive has invalid segment suffix: {fileName}");
+                segment = parsedSegment;
+            }
         }
 
         private static byte[] DecompressBounded(byte[] compressed, int maxOutputBytes)
