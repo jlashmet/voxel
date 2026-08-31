@@ -109,15 +109,20 @@ namespace Game.WorldBuilder.Api
         }
     }
 
+    /// <summary>
+    /// Save-friendly combined snapshot for WorldBuilder clue observation plus the canonical physical
+    /// secret identities owned by SecretDiscoveryState. Candidate ids are retained instead of authored
+    /// SecretRef aliases so alternate entrances/routes cannot create duplicate discovery credit.
+    /// </summary>
     public sealed class SecretDiscoverySnapshot
     {
         public IReadOnlyList<string> ObservedClueIds { get; }
-        public IReadOnlyList<string> DiscoveredSecretIds { get; }
+        public IReadOnlyList<SecretCandidateId> DiscoveredCandidates { get; }
 
-        public SecretDiscoverySnapshot(string[] observedClueIds, string[] discoveredSecretIds)
+        public SecretDiscoverySnapshot(string[] observedClueIds, SecretCandidateId[] discoveredCandidates)
         {
             ObservedClueIds = observedClueIds ?? Array.Empty<string>();
-            DiscoveredSecretIds = discoveredSecretIds ?? Array.Empty<string>();
+            DiscoveredCandidates = discoveredCandidates ?? Array.Empty<SecretCandidateId>();
         }
     }
 }
