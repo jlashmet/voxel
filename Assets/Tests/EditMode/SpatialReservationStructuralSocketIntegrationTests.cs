@@ -97,15 +97,15 @@ namespace VoxelEngine.Tests.EditMode
 
         private static FeatureCatalogue BuildTypedSocketCatalogue(Allocator allocator)
         {
-            int[] rootProgram = new ProgramBuilder()
-                .Box(0, 0, 0, 8, 8, 8, 1, PrimitiveMode.Fill)
-                .Emit(ShapeOp.CallSlot, 0, 0)
-                .End()
-                .Build();
-            int[] childProgram = new ProgramBuilder()
-                .Box(0, 0, 0, 8, 8, 8, 2, PrimitiveMode.Fill)
-                .End()
-                .Build();
+            int[] rootProgram =
+            {
+                (int)ShapeOp.CallSlot, 0, 0,
+                (int)ShapeOp.End, 0,
+            };
+            int[] childProgram =
+            {
+                (int)ShapeOp.End, 0,
+            };
 
             FeatureCatalogue catalogue = FeatureCatalogueBuilder.Allocate(
                 definitions: 2,
