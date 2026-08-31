@@ -37,6 +37,10 @@ Exact-SHA run `33362347013` on source `91b5fba348af4d9c464e8131b47c18b62fdbc2a0`
 
 Exact-SHA run `33362910546` on source `3740f611045635578f61816bbdbcc88b07c3fc77` also did not reach assertions: Unity terminated with macOS bus error 10 / exit 138 at about 3.5 GB peak RSS. This is a proven runner/editor infrastructure crash, not product evidence. After that completed run, a read-only reuse review found that `KentridgeSpatialReservationAdapter.Build(seed, plan, roads)` still reconstructed settlement reservations from `seed` even though the exact resolved `SettlementPlan` was already supplied. That violated the intended single-solve seam and could make the adapter diverge from a caller-provided plan. The adapter now uses `KentridgeTownPlanner.BuildReservationSnapshot(plan)` and still validates `plan.Seed == seed`; no road solver or reservation policy changed.
 
+Exact-SHA run `33364666745` on source `75e075c86f209d0f67481d45e5067656db7c5e3b` passed the requested production-integration suite, all four automatically derived reservation suites, the real `KentridgePlayableSlice` player gate, and the dedicated module-local `SpatialReservationValidation.unity` player gate. Durable logs emitted `SPATIAL_RESERVATION_COST build_ticks=316065 claims=81 query_buckets=4 query_candidates=14 query_tests=14 allocated_bytes=65577760 reserved_bytes=155123712 unused_reserved_bytes=89545952` and a ready marker with the deliberate `ClearanceConflict` rejection. Direct capture review nevertheless found a presentation acceptance defect: the opaque floor and full-town coordinate projection occluded yellow road, green access, red rejection, and most underground evidence in all three identical module-local screenshots. The harness was technically green but the evidence was not visually inspectable, so closure was correctly withheld.
+
+The correction is presentation-only: keep all production-derived claims and rejection computation unchanged, but lay those already-computed claims out as fixed evidence cards inside the dedicated validation scene. The red card remains the exact rejected hard-overlap candidate but is separated visually for readability; magenta underground evidence is displayed below a neutral surface slice. No placement/reservation authority moves into the scene.
+
 ### Module-local validation architecture
 
 Focused player-visible validation for this feature does **not** use `Assets/Scenes/WorldbuildingGalleryShowcase.unity`.
@@ -51,18 +55,18 @@ The local scene consumes production Kentridge reservation and hidden-space compu
 
 ## Validation hypotheses / discriminator
 
-1. **Likely:** with the compile imports corrected and the exact `SettlementPlan` reused, solved production-road reservations remove the raw planner-route false conflict while preserving real road/structure exclusions; the four focused reservation suites then proceed to the module-local player gate.
-2. **Alternative:** after compile succeeds, the solved road itself still intersects canonical structure geometry, proving a real road/structure layout defect rather than a source-selection mismatch.
+1. **Likely:** the presentation-only evidence layout makes every required category legible while the same production reservation suites and Kentridge integration remain green.
+2. **Alternative:** the final local-scene capture reveals another framing/readability problem; fix only that demonstrated presentation defect, not production reservation semantics.
 
-Discriminator: run the exact feature SHA through the standard transport. If `CanonicalKentridgeStructureSitesPassSharedReservationValidation` fails behaviorally again, inspect the solved claim id/bounds and isolate a minimal repro/root cause before another layout or policy change. Do not weaken conflict semantics to make the test pass.
+If `CanonicalKentridgeStructureSitesPassSharedReservationValidation` fails behaviorally again, inspect the solved claim id/bounds and isolate a minimal repro/root cause before another layout or policy change. Do not weaken conflict semantics to make the test pass.
 
 ## Remaining gates
 
 1. Re-fetch `origin/master`; merge if it advanced and re-review the assignment-only diff.
 2. Verify `ci-test/fixes/agent-7` has no queued/running request, then use only that transport for exact-SHA validation.
-3. Run focused reservation tests including the typed-socket integration plus affected Kentridge/vegetation/hidden-space/foundation regressions and repository compile/static/ProjectValidator gates.
-4. Build/run the exact module-local `SpatialReservationValidation.unity` standalone player through the generic module-validation path and directly inspect required surface, underground, rejection, readiness, and cost evidence. Do not use Worldbuilding Gallery.
-5. Run the real Kentridge built/runtime traversal integration gate.
+3. Re-run focused reservation tests including typed-socket, hidden-space/vegetation coverage, compile/build and automatic module validation on the presentation-fix exact SHA.
+4. Re-run the exact module-local `SpatialReservationValidation.unity` standalone player and directly inspect all three captures for visible hard, clearance, road, access, rejected, and underground-below-surface evidence. Do not use Worldbuilding Gallery.
+5. Reconfirm real `KentridgePlayableSlice` built/runtime traversal integration.
 6. Record final query/build/memory/streaming evidence and final assignment-only blast radius.
 7. After every acceptance gate is green, complete issue metadata, move `open/` directly to `closed/`, merge current master if it advanced, revalidate affected work, and non-force promote the exact feature head.
 
