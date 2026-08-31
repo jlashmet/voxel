@@ -262,16 +262,7 @@ fi
 # cadence generic, but let declarative scenario metadata exclude frames taken before that semantic
 # evidence window. This prevents startup-clear frames from satisfying a visual gate without adding
 # module/scene-name policy to the shared harness.
-python3 - "$SHOTS_DIR" "$EVIDENCE_AFTER" <<'PY'
-import re, sys
-from pathlib import Path
-root=Path(sys.argv[1]); threshold=float(sys.argv[2])
-pattern=re.compile(r'_t([0-9]+(?:\.[0-9]+)?)\.png$')
-for shot in root.glob('*.png'):
-    match=pattern.search(shot.name)
-    if match and float(match.group(1)) < threshold:
-        shot.unlink()
-PY
+python3 tools/player-evidence.py --screenshots "$SHOTS_DIR" --evidence-after "$EVIDENCE_AFTER"
 
 shots="$(find "$SHOTS_DIR" -type f -name '*.png' -size +1k | wc -l | tr -d ' ')"
 echo "real-player screenshots captured: $shots"
