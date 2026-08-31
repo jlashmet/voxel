@@ -87,7 +87,7 @@ namespace VoxelEngine.Tests.PlayMode
                     for (int i = 0; i < referencedIndices.Length; i++)
                         maxVertex = math.max(maxVertex, referencedIndices[i]);
 
-                    var vertices = new SmoothSurfaceVertex[maxVertex + 1];
+                    var vertices = new SmoothSurfaceVertex[(int)maxVertex + 1];
                     entry.Vertices.GetData(vertices, 0, lease.VertexStart, vertices.Length);
                     for (int i = 0; i < vertices.Length; i++)
                     {
