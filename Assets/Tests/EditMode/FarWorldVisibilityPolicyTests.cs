@@ -17,6 +17,13 @@ namespace VoxelEngine.Tests.EditMode
                 horizonEnterPixels: 10f,
                 horizonExitPixels: 5f);
 
+        private static readonly FarWorldVisibilityPolicy.DistanceCaps DistanceCaps =
+            new FarWorldVisibilityPolicy.DistanceCaps(
+                ordinaryMetres: 200f,
+                settlementAnchorMetres: 800f,
+                landmarkMetres: 1200f,
+                horizonLandmarkMetres: 2000f);
+
         [Test]
         public void ProjectedPixels_DecreaseWithDistanceAndIncreaseWithStructureSize()
         {
@@ -35,7 +42,7 @@ namespace VoxelEngine.Tests.EditMode
         public void TierSelection_HoldsAcrossBoundaryUntilExitThreshold()
         {
             StructureFarPresentation record = Record(7UL, StructureVisibilityClass.Landmark, 100);
-            var policy = new FarWorldVisibilityPolicy(Thresholds, 90f, 1000);
+            var policy = Policy();
 
             Assert.That(policy.Select(record, new float2(-44f, 5f)), Is.EqualTo(FarStructureTier.Mid));
             Assert.That(policy.Select(record, new float2(-53f, 5f)), Is.EqualTo(FarStructureTier.Mid));
@@ -47,7 +54,7 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void SemanticClass_AllowsLandmarkHorizonWhileOrdinaryStructureCulls()
         {
-            var policy = new FarWorldVisibilityPolicy(Thresholds, 90f, 1000);
+            var policy = Policy();
             StructureFarPresentation landmark = Record(10UL, StructureVisibilityClass.Landmark, 100);
             StructureFarPresentation ordinary = Record(11UL, StructureVisibilityClass.OrdinaryStructure, 100);
 
@@ -58,6 +65,23 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(policy.Select(landmark, new float2(-595f, 5f)), Is.EqualTo(FarStructureTier.Horizon));
             Assert.That(policy.Select(landmark, new float2(-1100f, 5f)), Is.EqualTo(FarStructureTier.Culled));
         }
+
+        [Test]
+        public void SemanticDistanceCaps_CullOrdinaryBeforeLandmarkAtSameProjectedSize()
+        {
+            var policy = Policy();
+            StructureFarPresentation ordinary = Record(20UL, StructureVisibilityClass.OrdinaryStructure, 1000);
+            StructureFarPresentation landmark = Record(21UL, StructureVisibilityClass.Landmark, 1000);
+            float2 camera = new float2(-250f, 50f);
+
+            Assert.That(FarWorldVisibilityPolicy.ProjectedPixels(ordinary, camera, 90f, 1000),
+                Is.GreaterThan(Thresholds.HorizonEnterPixels));
+            Assert.That(policy.Select(ordinary, camera), Is.EqualTo(FarStructureTier.Culled));
+            Assert.That(policy.Select(landmark, camera), Is.Not.EqualTo(FarStructureTier.Culled));
+        }
+
+        private static FarWorldVisibilityPolicy Policy() =>
+            new FarWorldVisibilityPolicy(Thresholds, DistanceCaps, 90f, 1000);
 
         private static StructureFarPresentation Record(
             ulong key,
