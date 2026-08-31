@@ -9,8 +9,9 @@ namespace Game.Kentridge.PlayableSlice
     /// Validation-only composition for readable macro settlement evidence. The evidence driver
     /// keeps streaming demand and the authored semantic camera/focus pose unchanged; this component
     /// only widens the lens while that known settlement-survey pose is active so the complete
-    /// four-plot envelope is contained rather than merely intersecting the frustum. Production world
-    /// generation, residency, LOD policy, renderer budgets, and normal gameplay cameras are unchanged.
+    /// authored 3D building envelope is contained rather than merely intersecting the frustum.
+    /// Production world generation, residency, LOD policy, renderer budgets, and normal gameplay
+    /// cameras are unchanged.
     /// </summary>
     internal sealed class KentridgeMacroWorldSettlementSurveyComposition : MonoBehaviour
     {
@@ -19,7 +20,7 @@ namespace Game.Kentridge.PlayableSlice
         private const float DmToMetres = 0.1f;
         private const float DriverSettlementSurveyHeightMetres = 70f;
         private const float HeightToleranceMetres = 1.5f;
-        private const float ReadableSettlementFieldOfView = 72f;
+        private const float ReadableSettlementFieldOfView = 90f;
 
         private Camera _camera;
         private float _normalFieldOfView;
