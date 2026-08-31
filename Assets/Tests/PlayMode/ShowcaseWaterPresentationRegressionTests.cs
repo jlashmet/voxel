@@ -178,7 +178,7 @@ namespace VoxelEngine.Tests.PlayMode
         }
 
         [UnityTest]
-        public IEnumerator ExactCascadeCurtainSurvivesShowcaseStorageIntoProductionWaterCache()
+        public IEnumerator ExactCascadeCurtainImpactsBesideReceivingWaterAndSurvivesProductionCache()
         {
             var world = new ShowcaseWorld(
                 0xA913u,
@@ -199,16 +199,26 @@ namespace VoxelEngine.Tests.PlayMode
                 VoxelMaterialPresentationInstaller.Apply(GameMaterialRenderingDefinitions.Create());
 
                 int fallBaseY = MaxSurfaceHeight(world, 304, 424, 194, 276) + 5;
-                int3 curtainMin = new int3(333, fallBaseY + 10, 199);
-                int3 curtainSize = new int3(62, 62, 2);
+                int3 receivingMin = new int3(324, fallBaseY + 6, 184);
+                int3 receivingSize = new int3(80, 2, 33);
+                Assert.That(
+                    world.AuthorVoxelBox(receivingMin, receivingSize, GameMaterialIds.RiverWater),
+                    Is.EqualTo(receivingSize.x * receivingSize.y * receivingSize.z));
+
+                int3 curtainMin = new int3(333, fallBaseY + 9, 199);
+                int3 curtainSize = new int3(22, 59, 3);
                 Assert.That(
                     world.AuthorVoxelBox(curtainMin, curtainSize, GameMaterialIds.Cascade),
                     Is.EqualTo(curtainSize.x * curtainSize.y * curtainSize.z),
-                    "The discriminator must author the exact primary Cascade curtain used by WaterRenderingShowcase.");
+                    "The discriminator must author an exact primary Cascade band used by WaterRenderingShowcase.");
 
                 Assert.That(world.ReadStorage.TryAcquireRegion(int3.zero, out var view), Is.True);
                 AssertMaterial(view, curtainMin, GameMaterialIds.Cascade);
                 AssertMaterial(view, curtainMin + curtainSize - 1, GameMaterialIds.Cascade);
+                AssertMaterial(view, curtainMin - new int3(0, 2, 0), GameMaterialIds.RiverWater);
+                Assert.That(view.TryReadCell(curtainMin - new int3(0, 1, 0), out var impactGap), Is.True);
+                Assert.That(VoxelPresentationCatalogue.IsWaterMaterial(impactGap.BaseMaterialId), Is.False,
+                    "The exact authored band must leave only one non-water voxel before the receiving river, localizing canonical impact spray to the pool surface instead of up the cliff.");
 
                 List<int3> curtainBricks = BricksCovering(curtainMin, curtainSize);
                 cache.InvalidateSurfaceBricks(world.ReadStorage, curtainBricks);
