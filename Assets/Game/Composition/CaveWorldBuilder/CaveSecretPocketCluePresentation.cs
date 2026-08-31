@@ -17,7 +17,7 @@ namespace Game.Composition.CaveWorldBuilder
 
         public CaveSecretPocketCluePresentationConfig(byte boundaryCoating, int coveragePercent, uint seed)
         {
-            if (boundaryCoating == Coatings.None)
+            if (boundaryCoating == 0)
                 throw new ArgumentOutOfRangeException(nameof(boundaryCoating));
             if (coveragePercent < 1 || coveragePercent > 100)
                 throw new ArgumentOutOfRangeException(nameof(coveragePercent));
