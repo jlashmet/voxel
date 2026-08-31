@@ -7,11 +7,10 @@ namespace Game.Kentridge.PlayableSlice
 {
     /// <summary>
     /// Validation-only composition for readable macro settlement evidence. The evidence driver
-    /// deliberately keeps streaming demand at each semantic settlement focus; this component only
-    /// moves the already-selected survey camera along its authored view ray from the coarse
-    /// source-step-2 view into the exact near ring before the frame is rendered. Moving on that ray
-    /// preserves the driver's semantic focus and framing. Production world generation, residency,
-    /// renderer policy, budgets, and normal gameplay cameras are unchanged.
+    /// keeps streaming demand and the authored semantic camera/focus pose unchanged; this component
+    /// only widens the lens while that known settlement-survey pose is active so the complete
+    /// four-plot envelope is contained rather than merely intersecting the frustum. Production world
+    /// generation, residency, LOD policy, renderer budgets, and normal gameplay cameras are unchanged.
     /// </summary>
     internal sealed class KentridgeMacroWorldSettlementSurveyComposition : MonoBehaviour
     {
@@ -19,9 +18,12 @@ namespace Game.Kentridge.PlayableSlice
         private const uint Seed = 0x4B454E54u;
         private const float DmToMetres = 0.1f;
         private const float DriverSettlementSurveyHeightMetres = 70f;
-        private const float ReadableSettlementSurveyHeightMetres = 45f;
         private const float HeightToleranceMetres = 1.5f;
-        private const float MinimumDownwardView = 0.05f;
+        private const float ReadableSettlementFieldOfView = 72f;
+
+        private Camera _camera;
+        private float _normalFieldOfView;
+        private bool _fieldOfViewOverridden;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void InstallForAssignedProfile()
@@ -35,10 +37,25 @@ namespace Game.Kentridge.PlayableSlice
             host.AddComponent<KentridgeMacroWorldSettlementSurveyComposition>();
         }
 
+        private void OnDisable() => RestoreNormalFieldOfView();
+
+        private void OnDestroy() => RestoreNormalFieldOfView();
+
         private void LateUpdate()
         {
             Camera camera = Camera.main;
-            if (camera == null) return;
+            if (camera == null)
+            {
+                RestoreNormalFieldOfView();
+                return;
+            }
+
+            if (_camera != camera)
+            {
+                RestoreNormalFieldOfView();
+                _camera = camera;
+                _normalFieldOfView = camera.fieldOfView;
+            }
 
             Vector3 position = camera.transform.position;
             int xDm = Mathf.RoundToInt(position.x / DmToMetres);
@@ -46,23 +63,28 @@ namespace Game.Kentridge.PlayableSlice
             float terrainMetres = TerrainSampler.HeightAt(xDm, zDm, Seed) * DmToMetres;
             float configuredHeight = position.y - terrainMetres;
             if (Mathf.Abs(configuredHeight - DriverSettlementSurveyHeightMetres) > HeightToleranceMetres)
+            {
+                RestoreNormalFieldOfView();
                 return;
+            }
 
-            camera.transform.position = ResolveReadableSurveyPosition(
-                position,
-                camera.transform.forward);
+            if (!_fieldOfViewOverridden)
+            {
+                _normalFieldOfView = camera.fieldOfView;
+                _fieldOfViewOverridden = true;
+            }
+            camera.fieldOfView = ResolveReadableSurveyFieldOfView(_normalFieldOfView);
         }
 
-        private static Vector3 ResolveReadableSurveyPosition(Vector3 position, Vector3 forward)
+        private void RestoreNormalFieldOfView()
         {
-            if (forward.sqrMagnitude < 0.0001f) return position;
-            forward.Normalize();
-            float downward = -forward.y;
-            if (downward < MinimumDownwardView) return position;
-
-            float verticalDrop = DriverSettlementSurveyHeightMetres - ReadableSettlementSurveyHeightMetres;
-            return position + forward * (verticalDrop / downward);
+            if (!_fieldOfViewOverridden || _camera == null) return;
+            _camera.fieldOfView = _normalFieldOfView;
+            _fieldOfViewOverridden = false;
         }
+
+        private static float ResolveReadableSurveyFieldOfView(float normalFieldOfView) =>
+            Mathf.Max(normalFieldOfView, ReadableSettlementFieldOfView);
 
         private static bool TryReadValidationProfile(out string profile)
         {
