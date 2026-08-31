@@ -339,23 +339,22 @@ namespace VoxelEngine.Showcase
             switch (shot)
             {
                 case 0:
-                    position = new Vector3(88f, 32f, 92f);
-                    target = new Vector3(136f, BaseY * 0.1f + 0.4f, 160f);
+                    position = new Vector3(55f, 25f, 309f);
+                    target = new Vector3(65f, BaseY * 0.1f + 0.4f, 323f);
                     break;
                 case 1:
-                    position = new Vector3(160f, 34f, 210f);
-                    target = new Vector3(246f, BaseY * 0.1f + 0.6f, 305f);
+                    position = new Vector3(63f, 25f, 327f);
+                    target = new Vector3(76f, BaseY * 0.1f + 0.6f, 337f);
                     break;
                 default:
-                    position = new Vector3(175f, 34f, 342f);
-                    target = new Vector3(252f, BaseY * 0.1f + 0.4f, 430f);
+                    position = new Vector3(64f, 25f, 337f);
+                    target = new Vector3(77f, BaseY * 0.1f + 0.4f, 348f);
                     break;
             }
 
             camera.transform.SetPositionAndRotation(
                 position,
                 Quaternion.LookRotation(target - position, Vector3.up));
-            camera.transform.hasChanged = false;
         }
 
         private void OnDestroy()
