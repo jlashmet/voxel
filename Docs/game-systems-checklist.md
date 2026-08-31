@@ -56,7 +56,8 @@ These are existing foundations and are not candidates to rebuild from scratch.
   - Extend the existing authoritative custom network spine with explicit gameplay snapshots/deltas for characters, vitality, encounters, combat, inventory, quests, and campaign state.
 - [x] **07. [Multiplayer party & session formation](game-systems/07-multiplayer-party-session-formation.md)**
   - Stable party/member/slot identities and readiness/session orchestration above the existing transport; party leadership remains distinct from server gameplay authority.
-- [ ] **08. Multiplayer reconnect / session UX**
+- [x] **08. [Player disconnect, reconnect & continuity](game-systems/08-player-disconnect-reconnect-continuity.md)**
+  - Connections are temporary; preserve durable party-member, player-slot, and controlled-character identity across unexpected disconnects and authoritative resynchronization.
 - [ ] **09. Production inventory integration**
 - [ ] **10. Loot / pickup gameplay**
 - [ ] **11. Production quest / objective integration**
