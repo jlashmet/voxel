@@ -36,6 +36,7 @@ namespace Game.Structures.Runtime
             switch (current.Descriptor.Kind)
             {
                 case WorldObjectKind.Door:
+                case WorldObjectKind.Trapdoor:
                 case WorldObjectKind.Gate:
                 case WorldObjectKind.Portcullis:
                 case WorldObjectKind.Drawbridge:
@@ -218,6 +219,7 @@ namespace Game.Structures.Runtime
             switch (state.Descriptor.Kind)
             {
                 case WorldObjectKind.Door: Door(authoring, min, size, state.IsOpen); break;
+                case WorldObjectKind.Trapdoor: Trapdoor(authoring, min, size, state.IsOpen); break;
                 case WorldObjectKind.Gate: Gate(authoring, min, size, state.IsOpen, false); break;
                 case WorldObjectKind.Portcullis: Gate(authoring, min, size, state.IsOpen, true); break;
                 case WorldObjectKind.Drawbridge: Drawbridge(authoring, min, size, state.IsOpen); break;
@@ -284,6 +286,16 @@ namespace Game.Structures.Runtime
             if (open) Box(a, p, new int3(math.max(1, s.x / 6), s.y, s.z), GameMaterialIds.Wood);
             else Box(a, p, s, GameMaterialIds.Wood);
             Box(a, p + new int3(math.max(0, s.x - 2), s.y / 2, math.max(0, s.z - 1)), new int3(2, 2, 1), GameMaterialIds.Gold);
+        }
+
+        private static void Trapdoor(IStructureAuthoringSession a, int3 p, int3 s, bool open)
+        {
+            int thickness = math.max(1, math.min(s.y, 2));
+            if (open)
+                Box(a, p, new int3(s.x, math.max(thickness, s.z), thickness), GameMaterialIds.Wood);
+            else
+                Box(a, p, new int3(s.x, thickness, s.z), GameMaterialIds.Wood);
+            Box(a, p + new int3(math.max(0, s.x - 2), 0, math.max(0, s.z / 2)), new int3(2, 1, 1), GameMaterialIds.Gold);
         }
 
         private static void Gate(IStructureAuthoringSession a, int3 p, int3 s, bool open, bool bars)

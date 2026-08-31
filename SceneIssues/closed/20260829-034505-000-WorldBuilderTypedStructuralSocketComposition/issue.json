@@ -1,0 +1,17 @@
+{
+  "formatVersion": 3,
+  "id": "20260829-034505-000-WorldBuilderTypedStructuralSocketComposition",
+  "capturedUtc": "2026-08-29T03:45:05.0000000Z",
+  "note": "FEATURE / WORLDBUILDER / STRUCTURAL COMPOSITION FOUNDATION: Implement the reusable typed structural-socket composition foundation for generated voxel structures and large infrastructure. The original full acceptance contract is preserved in repository history at the pre-closure feature head c732425906aecc850448ab93ed79a7d304559eef and summarized by this closed issue's README, plan, tasks, experiments, and CI evidence.",
+  "status": "fixed",
+  "resolvedUtc": "2026-08-31T02:59:00Z",
+  "resolutionSummary": "Implemented canonical typed structural socket composition on the production Structures path, including deterministic compatibility/orientation/clearance/support/budget handling, independently bounded authoritative children, decoration handoff, bridge/castle/cliff/facade reuse coverage, and a module-owned focused validation scene with player-safe RuntimeSupport. Focused semantic CI run 33351379322 is green. Closed by explicit owner instruction on 2026-08-30; the focused standalone built-player visual capture was waived because the generic module-validation runner remained unmerged, and no claim is made that this waived capture ran or passed.",
+  "regressionTest": "VoxelEngine.Structures.Tests.PlayMode.TypedStructuralSocketCompositionSceneTests; targeted CI run 33351379322 green, plus established structural constraint/budget/region/reuse and CharacterMotor traversal regressions recorded in tasks.md.",
+  "fixCommit": "c732425906aecc850448ab93ed79a7d304559eef",
+  "unityVersion": "6000.5.6f1",
+  "platform": "Architecture",
+  "sceneName": "WorldbuildingGalleryShowcase",
+  "scenePath": "Assets/Scenes/WorldbuildingGalleryShowcase.unity",
+  "sceneBuildIndex": 1,
+  "captures": []
+}

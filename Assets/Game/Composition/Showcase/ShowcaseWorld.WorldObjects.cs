@@ -28,9 +28,12 @@ namespace VoxelEngine.Showcase
                     "Castle WorldObjects cannot load before the showcase castle plan is available.");
 
             if (_worldObjectScenes.TryGetLoaded(ShowcaseCastleWorldObjectParentId, out WorldObjectGeneratedScene existing))
+            {
+                EnsureExplorationInteractablesShowcaseLoaded();
                 return existing;
+            }
 
-            return _worldObjectScenes.LoadCastle(
+            WorldObjectGeneratedScene castle = _worldObjectScenes.LoadCastle(
                 geometry: null,
                 worldSeed: Seed,
                 parentId: ShowcaseCastleWorldObjectParentId,
@@ -38,14 +41,36 @@ namespace VoxelEngine.Showcase
                 // so the game-owned plan it wraps is passed directly.
                 plan: in _castlePlan.Value,
                 emissionMode: WorldObjectGeometryEmissionMode.None);
+            EnsureExplorationInteractablesShowcaseLoaded();
+            return castle;
+        }
+
+        /// <summary>Ensures the compact Primary-scene interaction showcase is loaded once with persistent state.</summary>
+        public WorldObjectGeneratedScene EnsureExplorationInteractablesShowcaseLoaded()
+        {
+            if (_worldObjectScenes.TryGetLoaded(ExplorationInteractablesSecretsShowcase.ParentId, out WorldObjectGeneratedScene existing))
+                return existing;
+
+            var authoring = new WorldObjectAuthoringSession(Seed, ExplorationInteractablesSecretsShowcase.ParentId);
+            ExplorationInteractablesSecretsShowcase.Author(authoring, ExplorationInteractablesSecretsShowcase.Origin);
+            return _worldObjectScenes.LoadAuthored(
+                ExplorationInteractablesSecretsShowcase.ParentId,
+                authoring.BuildObjects(),
+                authoring.BuildConnections());
         }
 
         public bool TryGetCastleWorldObjectScene(out WorldObjectGeneratedScene scene) =>
             _worldObjectScenes.TryGetLoaded(ShowcaseCastleWorldObjectParentId, out scene);
 
+        public bool TryGetExplorationInteractablesShowcase(out WorldObjectGeneratedScene scene) =>
+            _worldObjectScenes.TryGetLoaded(ExplorationInteractablesSecretsShowcase.ParentId, out scene);
+
         public int TickWorldObjects(int ticks = 1) => _worldObjectScenes.TickLoaded(ticks);
 
         public bool UnloadCastleWorldObjectScene() =>
             _worldObjectScenes.Unload(ShowcaseCastleWorldObjectParentId);
+
+        public bool UnloadExplorationInteractablesShowcase() =>
+            _worldObjectScenes.Unload(ExplorationInteractablesSecretsShowcase.ParentId);
     }
 }
