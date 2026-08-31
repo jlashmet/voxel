@@ -62,7 +62,8 @@ These are existing foundations and are not candidates to rebuild from scratch.
   - Generalize the existing deterministic inventory runtime with stable inventory identity, authoritative add/remove/transfer transactions, semantic change events, and reuse across characters and containers.
 - [x] **10. [World loot, pickup & item transfer](game-systems/10-world-loot-pickup-item-transfer.md)**
   - Bridge existing world-object interactions to authoritative inventory transactions with race-safe claims, container transfers, drops, and item-conservation guarantees.
-- [ ] **11. Production quest / objective integration**
+- [x] **11. [Unified quest & objective progression](game-systems/11-unified-quest-objective-progression.md)**
+  - Consolidate quest steps and standalone campaign objectives onto one deterministic semantic progression runtime; gameplay reports facts and story decides consequences.
 - [ ] **12. WorldBuilder-to-gameplay encounter integration**
 - [ ] **13. WorldBuilder-to-gameplay interactable integration**
 - [ ] **14. End-to-end campaign/game-flow director**
