@@ -23,12 +23,18 @@ namespace VoxelEngine.Showcase
         private const int RegionX = 1;
         private const int RegionZ = 6;
         private const int BaseY = 180;
-        private const int StillPoolCentreX = 136;
-        private const int StillPoolCentreZ = 160;
-        private const int StillPoolShelfRadiusX = 74;
-        private const int StillPoolShelfRadiusZ = 82;
-        private const int StillPoolWaterRadiusX = 52;
-        private const int StillPoolWaterRadiusZ = 58;
+        private const int StillPoolCentreX = 170;
+        private const int StillPoolCentreZ = 220;
+        private const int StillPoolShelfRadiusX = 42;
+        private const int StillPoolShelfRadiusZ = 36;
+        private const int StillPoolWaterRadiusX = 30;
+        private const int StillPoolWaterRadiusZ = 24;
+        private const int RiverStartZ = 180;
+        private const int RiverEndZ = 330;
+        private const int CascadeStartZ = 330;
+        private const int CascadeEndZ = 366;
+        private const int ReceivingPoolCentreX = 250;
+        private const int ReceivingPoolCentreZ = 390;
 
         private IVoxelStorageRuntime _storage;
         private Camera _camera;
@@ -72,7 +78,7 @@ namespace VoxelEngine.Showcase
             GameMaterialComposition.Install();
 
             IStructureAuthoringSession authoring =
-                VoxelEngineBootstrap.CreateStructureAuthoring(_storage, 350000);
+                VoxelEngineBootstrap.CreateStructureAuthoring(_storage, 180000);
             int originX = RegionX * 512;
             int originZ = RegionZ * 512;
             AuthorTableau(authoring, originX, originZ);
@@ -87,7 +93,7 @@ namespace VoxelEngine.Showcase
             RenderingComposition.ResetSurfacePassDiagnostics("water-validation-enabled");
             RenderingComposition.SetSurfaceBuildEnabled(false);
             RenderingComposition.SetFarBaseHeight(BaseY);
-            RenderingComposition.SetVoxelRingRadiusMetres(120f);
+            RenderingComposition.SetVoxelRingRadiusMetres(80f);
             RenderingComposition.SetBuildBudgets(4.0, 2.0);
             RenderingComposition.ConfigureEnvironment(
                 Color.white,
@@ -165,17 +171,19 @@ namespace VoxelEngine.Showcase
                 BaseY, GameMaterialIds.Water);
 
             FillEllipse(authoring, originX, originZ,
-                252, 440, 66, 44, BaseY - 2, GameMaterialIds.Stone);
+                ReceivingPoolCentreX, ReceivingPoolCentreZ,
+                36, 28, BaseY - 1, GameMaterialIds.Stone);
             FillEllipse(authoring, originX, originZ,
-                252, 440, 46, 32, BaseY, GameMaterialIds.Water);
+                ReceivingPoolCentreX, ReceivingPoolCentreZ,
+                26, 19, BaseY, GameMaterialIds.Water);
 
-            for (int z = 368; z <= 416; z++)
+            for (int z = CascadeStartZ; z <= CascadeEndZ; z++)
             {
-                float t = Mathf.InverseLerp(368f, 416f, z);
-                int y = Mathf.RoundToInt(Mathf.Lerp(BaseY + 5, BaseY, t));
+                float t = Mathf.InverseLerp(CascadeStartZ, CascadeEndZ, z);
+                int y = Mathf.RoundToInt(Mathf.Lerp(BaseY + 1, BaseY, t));
                 float centre = RiverCentreX(z);
-                float halfWidth = Mathf.Lerp(40f, 34f, t);
-                for (int x = 180; x <= 330; x++)
+                float halfWidth = Mathf.Lerp(14f, 10f, t);
+                for (int x = 195; x <= 295; x++)
                 {
                     float dx = Mathf.Abs(x - centre);
                     if (dx <= halfWidth)
@@ -183,35 +191,27 @@ namespace VoxelEngine.Showcase
                         authoring.Set(originX + x, y - 1, originZ + z, GameMaterialIds.Stone);
                         authoring.Set(originX + x, y, originZ + z, GameMaterialIds.Cascade);
                     }
-                    else if (dx <= halfWidth + 6f)
+                    else if (dx <= halfWidth + 4f)
                     {
                         authoring.Set(originX + x, y, originZ + z, GameMaterialIds.Stone);
                     }
-                    else if (dx <= halfWidth + 12f)
+                    else if (dx <= halfWidth + 8f)
                     {
                         authoring.Set(originX + x, y - 1, originZ + z, GameMaterialIds.Stone);
                     }
                 }
             }
-
-            for (int z = 432; z <= 472; z++)
-            for (int x = 272; x <= 314; x++)
-            {
-                int taper = (z - 432) / 4;
-                if (x <= 310 - taper)
-                    authoring.Set(originX + x, BaseY + 1, originZ + z, GameMaterialIds.Stone);
-            }
         }
 
         private static void AuthorTerrainApron(IStructureAuthoringSession authoring, int originX, int originZ)
         {
-            const float centreX = 222f;
-            const float centreZ = 258f;
-            const float radiusX = 218f;
-            const float radiusZ = 238f;
+            const float centreX = 220f;
+            const float centreZ = 290f;
+            const float radiusX = 165f;
+            const float radiusZ = 190f;
 
-            for (int z = 18; z <= 498; z++)
-            for (int x = 8; x <= 442; x++)
+            for (int z = 100; z <= 480; z++)
+            for (int x = 50; x <= 390; x++)
             {
                 float nx = (x - centreX) / radiusX;
                 float nz = (z - centreZ) / radiusZ;
@@ -219,11 +219,11 @@ namespace VoxelEngine.Showcase
                 if (d > 1f)
                     continue;
 
-                float relief = Mathf.Sin(x * 0.031f) * 1.6f
-                    + Mathf.Cos(z * 0.027f) * 1.2f
-                    + Mathf.Sin((x + z) * 0.019f) * 0.8f;
-                int y = BaseY - 5 + Mathf.RoundToInt(relief);
-                byte material = d > 0.82f || relief < -1.8f
+                float relief = Mathf.Sin(x * 0.041f) * 0.7f
+                    + Mathf.Cos(z * 0.035f) * 0.6f
+                    + Mathf.Sin((x + z) * 0.024f) * 0.4f;
+                int y = BaseY - 2 + Mathf.RoundToInt(relief);
+                byte material = d > 0.9f || relief < -1.1f
                     ? GameMaterialIds.Stone
                     : GameMaterialIds.Grass;
                 authoring.Set(originX + x, y, originZ + z, material);
@@ -232,13 +232,13 @@ namespace VoxelEngine.Showcase
 
         private static void AuthorRiverBanks(IStructureAuthoringSession authoring, int originX, int originZ)
         {
-            for (int z = 48; z <= 368; z++)
+            for (int z = RiverStartZ; z <= RiverEndZ; z++)
             {
                 float centre = RiverCentreX(z);
                 float halfWater = RiverHalfWidth(z);
-                float halfBank = halfWater + 18f;
+                float halfBank = halfWater + 9f;
                 int waterY = RiverHeight(z);
-                for (int x = 170; x <= 335; x++)
+                for (int x = 195; x <= 295; x++)
                 {
                     float dx = Mathf.Abs(x - centre);
                     if (dx <= halfWater || dx > halfBank)
@@ -251,7 +251,7 @@ namespace VoxelEngine.Showcase
                         continue;
                     }
 
-                    int bankY = dx <= halfWater + 7f ? waterY : waterY - 1;
+                    int bankY = dx <= halfWater + 4f ? waterY : waterY - 1;
                     authoring.Set(originX + x, bankY, originZ + z, GameMaterialIds.Stone);
                 }
             }
@@ -259,12 +259,12 @@ namespace VoxelEngine.Showcase
 
         private static void AuthorRiver(IStructureAuthoringSession authoring, int originX, int originZ)
         {
-            for (int z = 48; z <= 368; z++)
+            for (int z = RiverStartZ; z <= RiverEndZ; z++)
             {
                 float centre = RiverCentreX(z);
                 float halfWidth = RiverHalfWidth(z);
                 int y = RiverHeight(z);
-                for (int x = 170; x <= 335; x++)
+                for (int x = 195; x <= 295; x++)
                 {
                     if (Mathf.Abs(x - centre) > halfWidth)
                         continue;
@@ -277,25 +277,25 @@ namespace VoxelEngine.Showcase
 
         private static float RiverCentreX(int z)
         {
-            float t = Mathf.InverseLerp(48f, 416f, z);
-            return 250f
-                + Mathf.Sin(t * Mathf.PI * 1.65f) * 24f
-                + Mathf.Sin(t * Mathf.PI * 3.1f) * 8f;
+            float t = Mathf.InverseLerp(RiverStartZ, CascadeEndZ, z);
+            return 238f
+                + Mathf.Sin(t * Mathf.PI * 1.65f) * 14f
+                + Mathf.Sin(t * Mathf.PI * 3.1f) * 5f;
         }
 
         private static float RiverHalfWidth(int z)
         {
-            float t = Mathf.InverseLerp(48f, 416f, z);
-            return Mathf.Lerp(38f, 30f, t) + Mathf.Sin(t * Mathf.PI * 2.2f) * 4f;
+            float t = Mathf.InverseLerp(RiverStartZ, CascadeEndZ, z);
+            return Mathf.Lerp(14f, 10f, t) + Mathf.Sin(t * Mathf.PI * 2.2f) * 2f;
         }
 
         private static int RiverHeight(int z)
         {
-            if (z <= 176)
-                return BaseY + 7;
-            if (z <= 272)
-                return BaseY + 6;
-            return BaseY + 5;
+            if (z <= 230)
+                return BaseY + 3;
+            if (z <= 280)
+                return BaseY + 2;
+            return BaseY + 1;
         }
 
         private static void FillEllipse(
@@ -343,9 +343,9 @@ namespace VoxelEngine.Showcase
             Camera camera = cameraObject.AddComponent<Camera>();
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.backgroundColor = new Color(0.55f, 0.68f, 0.78f, 1f);
-            camera.fieldOfView = 42f;
+            camera.fieldOfView = 46f;
             camera.nearClipPlane = 0.1f;
-            camera.farClipPlane = 220f;
+            camera.farClipPlane = 120f;
             return camera;
         }
 
@@ -356,16 +356,16 @@ namespace VoxelEngine.Showcase
             switch (shot)
             {
                 case 0:
-                    position = new Vector3(55f, 25f, 309f);
-                    target = new Vector3(65f, BaseY * 0.1f + 0.4f, 323f);
+                    position = new Vector3(60.5f, 22.5f, 322f);
+                    target = new Vector3(68.2f, BaseY * 0.1f + 0.1f, 329.2f);
                     break;
                 case 1:
-                    position = new Vector3(63f, 25f, 327f);
-                    target = new Vector3(76f, BaseY * 0.1f + 0.6f, 337f);
+                    position = new Vector3(64f, 22f, 329.5f);
+                    target = new Vector3(74.2f, BaseY * 0.1f + 0.2f, 335.5f);
                     break;
                 default:
-                    position = new Vector3(64f, 25f, 337f);
-                    target = new Vector3(77f, BaseY * 0.1f + 0.4f, 348f);
+                    position = new Vector3(66f, 22.5f, 337.5f);
+                    target = new Vector3(76f, BaseY * 0.1f + 0.1f, 344.5f);
                     break;
             }
 
