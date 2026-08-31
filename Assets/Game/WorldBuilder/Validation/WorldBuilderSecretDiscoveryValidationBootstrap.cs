@@ -7,9 +7,9 @@ using UnityEngine;
 namespace Game.WorldBuilder.Validation
 {
     /// <summary>
-    /// Module-local built-player regression for secret discovery planning. This intentionally validates
-    /// WorldBuilder's reusable data/planning boundary without depending on the gallery showcase or the
-    /// separate interactable/discovery presentation authority.
+    /// Dedicated built-player feature scene for deterministic secret planning. The scene presents a real
+    /// three-stage environmental clue chain ending at a concealed masonry entrance; it deliberately avoids
+    /// debug spheres, glowing markers, text labels, or gallery-only composition.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class WorldBuilderSecretDiscoveryValidationBootstrap : MonoBehaviour
@@ -45,9 +45,9 @@ namespace Game.WorldBuilder.Validation
                     new SecretBypassEvidence(false, 12, 0));
                 var anchors = new[]
                 {
-                    Anchor("water-ripple", approach, SecretClueAnchorRole.ApproachEvidence, SecretClueChannel.Environmental),
-                    Anchor("stone-sightline", approach, SecretClueAnchorRole.SightlineHint, SecretClueChannel.Visual),
-                    Anchor("route-scratch", approach, SecretClueAnchorRole.RouteAdjacentEvidence, SecretClueChannel.Navigation)
+                    Anchor("displaced-stones", approach, SecretClueAnchorRole.ApproachEvidence, SecretClueChannel.Environmental),
+                    Anchor("weathered-slab", approach, SecretClueAnchorRole.SightlineHint, SecretClueChannel.Visual),
+                    Anchor("masonry-seam", approach, SecretClueAnchorRole.RouteAdjacentEvidence, SecretClueChannel.Navigation)
                 };
                 var spec = new SecretDiscoverySpec(
                     secret,
@@ -86,14 +86,15 @@ namespace Game.WorldBuilder.Validation
                 Require(bypass.Diagnostics.Any(x => x.Kind == SecretDiscoveryDiagnosticKind.ProtectedShellBypass),
                     "protected-shell bypass rejection did not report the expected diagnostic");
 
-                BuildTableau(first.Plan);
+                ValidateCanonicalDiscovery(canonical);
+                BuildFeatureScene();
                 Debug.Log(
                     ReadyLog +
                     " secret=" + first.Plan.Secret.Id +
                     " clues=" + first.Plan.Clues.Count +
                     " channels=" + first.Plan.Clues.Select(x => x.Channel).Distinct().Count() +
                     " routes=" + first.Plan.Routes.Count +
-                    " deterministic=true bypassRejected=true markerShader=Sprites/Default");
+                    " deterministic=true bypassRejected=true canonicalDiscovery=true featureScene=dedicated presentation=environmental");
             }
             catch (Exception exception)
             {
@@ -156,57 +157,114 @@ namespace Game.WorldBuilder.Validation
                 80f);
         }
 
-        private static void BuildTableau(ResolvedSecretDiscoveryPlan plan)
+        private static void ValidateCanonicalDiscovery(ResolvedSecretPlan canonical)
         {
-            Camera camera = new GameObject("Validation Camera").AddComponent<Camera>();
-            camera.transform.position = new Vector3(0f, 7f, -13f);
-            camera.transform.LookAt(new Vector3(0f, 1f, 1.5f));
-            camera.clearFlags = CameraClearFlags.SolidColor;
-            camera.backgroundColor = new Color(0.055f, 0.075f, 0.09f, 1f);
+            var authority = new SecretDiscoveryState();
+            var ledger = new SecretDiscoveryLedger(authority);
+            int events = 0;
+            authority.Discovered += _ => events++;
 
-            Light key = new GameObject("Validation Key Light").AddComponent<Light>();
-            key.type = LightType.Directional;
-            key.intensity = 1.25f;
-            key.transform.rotation = Quaternion.Euler(48f, -28f, 0f);
+            Require(!ledger.IsDiscovered(canonical), "secret started discovered");
+            Require(ledger.Discover(canonical), "first canonical discovery was not credited");
+            Require(!ledger.Discover(canonical), "revisit duplicated canonical discovery");
+            Require(events == 1, "canonical discovery emitted duplicate reward events");
 
-            CreateMarker("Approach", PrimitiveType.Cube, new Vector3(0f, -0.3f, 0f), new Vector3(10f, 0.4f, 8f), new Color(0.18f, 0.25f, 0.20f));
-            CreateMarker("Hidden Volume", PrimitiveType.Cube, new Vector3(0f, 1.0f, 3.5f), new Vector3(4.2f, 2.2f, 3.2f), new Color(0.10f, 0.58f, 0.72f));
-            CreateMarker("Primary Route", PrimitiveType.Cube, new Vector3(-1.5f, 0.35f, 1.0f), new Vector3(0.7f, 0.7f, 3.2f), new Color(0.72f, 0.47f, 0.18f));
-            CreateMarker("Alternate Route", PrimitiveType.Cube, new Vector3(1.5f, 0.35f, 1.0f), new Vector3(0.7f, 0.7f, 3.2f), new Color(0.72f, 0.47f, 0.18f));
-
-            Vector3[] cluePositions =
-            {
-                new Vector3(-3.1f, 0.55f, -2.0f),
-                new Vector3(3.0f, 0.55f, -1.4f),
-                new Vector3(0f, 0.55f, -3.0f)
-            };
-            for (var i = 0; i < plan.Clues.Count && i < cluePositions.Length; i++)
-            {
-                CreateMarker(
-                    "Clue " + plan.Clues[i].Id.Id,
-                    PrimitiveType.Sphere,
-                    cluePositions[i],
-                    Vector3.one * 0.8f,
-                    new Color(0.92f, 0.82f, 0.20f));
-            }
+            SecretDiscoverySnapshot snapshot = ledger.Capture();
+            var restoredAuthority = new SecretDiscoveryState();
+            var restored = new SecretDiscoveryLedger(restoredAuthority);
+            int restoredEvents = 0;
+            restoredAuthority.Discovered += _ => restoredEvents++;
+            restored.Restore(snapshot);
+            Require(restored.IsDiscovered(canonical), "restored canonical discovery identity was lost");
+            Require(!restored.Discover(canonical), "reload duplicated canonical discovery");
+            Require(restoredEvents == 0, "restore/revisit replayed canonical discovery event");
         }
 
-        private static void CreateMarker(string name, PrimitiveType primitive, Vector3 position, Vector3 scale, Color color)
+        private static void BuildFeatureScene()
         {
-            GameObject marker = GameObject.CreatePrimitive(primitive);
-            marker.name = name;
-            marker.transform.position = position;
-            marker.transform.localScale = scale;
+            Camera camera = new GameObject("Secret Clue Validation Camera").AddComponent<Camera>();
+            camera.tag = "MainCamera";
+            camera.transform.position = new Vector3(0f, 5.2f, -12.8f);
+            camera.transform.LookAt(new Vector3(0f, 1.4f, 3.6f));
+            camera.fieldOfView = 48f;
+            camera.clearFlags = CameraClearFlags.SolidColor;
+            camera.backgroundColor = new Color(0.055f, 0.07f, 0.065f, 1f);
 
-            Renderer renderer = marker.GetComponent<Renderer>();
-            Require(renderer != null, "validation marker missing renderer: " + name);
-            Shader shader = Shader.Find("Sprites/Default");
-            Require(shader != null, "validation marker shader unavailable in player: Sprites/Default");
+            Light key = new GameObject("Late Afternoon Sun").AddComponent<Light>();
+            key.type = LightType.Directional;
+            key.intensity = 1.35f;
+            key.transform.rotation = Quaternion.Euler(42f, -32f, 0f);
 
-            var material = new Material(shader)
+            Material ground = Material("Ground", new Color(0.17f, 0.20f, 0.16f, 1f));
+            Material stone = Material("Old Stone", new Color(0.34f, 0.35f, 0.31f, 1f));
+            Material weathered = Material("Weathered Stone", new Color(0.40f, 0.31f, 0.21f, 1f));
+            Material seam = Material("Deep Masonry Seam", new Color(0.12f, 0.13f, 0.11f, 1f));
+            Material moss = Material("Moss", new Color(0.16f, 0.27f, 0.14f, 1f));
+
+            Block("Ground", new Vector3(0f, -0.35f, 3.5f), new Vector3(14f, 0.5f, 18f), ground);
+
+            // Stage 1: a repeated, grounded trace of displaced stones leads toward the ruin rather than acting as a marker.
+            Stone("Displaced Stone A", new Vector3(-2.7f, 0.05f, -2.0f), new Vector3(1.2f, 0.24f, 0.7f), stone, -8f);
+            Stone("Displaced Stone B", new Vector3(-1.7f, 0.07f, -0.7f), new Vector3(1.0f, 0.22f, 0.62f), weathered, 12f);
+            Stone("Displaced Stone C", new Vector3(-0.7f, 0.04f, 0.5f), new Vector3(1.15f, 0.20f, 0.66f), stone, -5f);
+            Stone("Displaced Stone D", new Vector3(0.3f, 0.06f, 1.55f), new Vector3(0.92f, 0.20f, 0.58f), stone, 9f);
+
+            // Stage 2: the same weathering language becomes a deliberate abrasion/notch at the threshold.
+            Block("Weathered Threshold", new Vector3(0.65f, 0.08f, 3.0f), new Vector3(3.0f, 0.18f, 1.0f), weathered);
+            Block("Threshold Notch Left", new Vector3(0.05f, 0.20f, 2.97f), new Vector3(0.75f, 0.08f, 0.18f), seam);
+            Block("Threshold Notch Right", new Vector3(1.22f, 0.20f, 3.04f), new Vector3(0.68f, 0.08f, 0.18f), seam);
+
+            // Ruin facade and concealed opening. The seam is physical construction evidence, not a glowing outline.
+            Block("Ruin Left Pier", new Vector3(-2.3f, 1.55f, 6.0f), new Vector3(2.6f, 3.8f, 1.0f), stone);
+            Block("Ruin Right Pier", new Vector3(2.3f, 1.55f, 6.0f), new Vector3(2.6f, 3.8f, 1.0f), stone);
+            Block("Ruin Lintel", new Vector3(0f, 3.15f, 6.0f), new Vector3(2.2f, 0.6f, 1.0f), stone);
+            Block("False Wall", new Vector3(0f, 1.45f, 6.02f), new Vector3(1.9f, 2.7f, 0.72f), stone);
+            Block("Masonry Seam Left", new Vector3(-0.98f, 1.45f, 5.60f), new Vector3(0.10f, 2.72f, 0.10f), seam);
+            Block("Masonry Seam Right", new Vector3(0.98f, 1.45f, 5.60f), new Vector3(0.10f, 2.72f, 0.10f), seam);
+            Block("Masonry Seam Top", new Vector3(0f, 2.83f, 5.60f), new Vector3(2.05f, 0.10f, 0.10f), seam);
+            Block("Repeated Weathering", new Vector3(0f, 0.78f, 5.56f), new Vector3(1.25f, 0.12f, 0.12f), weathered);
+
+            // Uneven support and vegetation integrate the clue into the environment without obscuring it.
+            Stone("Rubble Left", new Vector3(-3.8f, 0.12f, 5.1f), new Vector3(1.4f, 0.55f, 1.0f), stone, 17f);
+            Stone("Rubble Right", new Vector3(3.6f, 0.10f, 5.35f), new Vector3(1.1f, 0.48f, 0.9f), stone, -14f);
+            Block("Moss Patch Left", new Vector3(-2.75f, 0.10f, 5.44f), new Vector3(0.95f, 0.08f, 0.42f), moss);
+            Block("Moss Patch Right", new Vector3(2.72f, 0.11f, 5.52f), new Vector3(0.82f, 0.08f, 0.40f), moss);
+        }
+
+        private static Material Material(string name, Color color)
+        {
+            Shader shader = Shader.Find("Universal Render Pipeline/Lit")
+                         ?? Shader.Find("Universal Render Pipeline/Unlit")
+                         ?? Shader.Find("Sprites/Default");
+            Require(shader != null, "validation material shader unavailable");
+            return new Material(shader)
             {
-                color = color
+                name = name,
+                color = color,
+                hideFlags = HideFlags.HideAndDontSave
             };
+        }
+
+        private static void Block(string name, Vector3 position, Vector3 scale, Material material)
+        {
+            GameObject value = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            value.name = name;
+            value.transform.position = position;
+            value.transform.localScale = scale;
+            Renderer renderer = value.GetComponent<Renderer>();
+            Require(renderer != null, "validation block missing renderer: " + name);
+            renderer.sharedMaterial = material;
+        }
+
+        private static void Stone(string name, Vector3 position, Vector3 scale, Material material, float yaw)
+        {
+            GameObject value = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            value.name = name;
+            value.transform.position = position;
+            value.transform.localScale = scale;
+            value.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+            Renderer renderer = value.GetComponent<Renderer>();
+            Require(renderer != null, "validation stone missing renderer: " + name);
             renderer.sharedMaterial = material;
         }
 

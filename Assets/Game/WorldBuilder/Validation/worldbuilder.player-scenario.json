@@ -11,7 +11,7 @@
   "assertions": {
     "requiredLogPatterns": [
       "WORLD_BUILDER_SECRET_DISCOVERY_VALIDATION ready:",
-      "deterministic=true bypassRejected=true"
+      "deterministic=true bypassRejected=true canonicalDiscovery=true featureScene=dedicated presentation=environmental"
     ],
     "forbiddenLogPatterns": [
       "WORLD_BUILDER_SECRET_DISCOVERY_VALIDATION FAIL:",
