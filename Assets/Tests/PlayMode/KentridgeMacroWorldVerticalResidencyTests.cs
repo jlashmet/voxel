@@ -8,7 +8,9 @@ using Unity.Collections;
 using Unity.Mathematics;
 using VoxelEngine.Showcase;
 using VoxelEngine.Storage.Api;
+using VoxelEngine.Storage.Runtime;
 using VoxelEngine.Structures.Api;
+using VoxelEngine.Structures.Runtime;
 
 namespace VoxelEngine.Tests.PlayMode
 {
@@ -17,6 +19,7 @@ namespace VoxelEngine.Tests.PlayMode
         private const uint Seed = 0x4B454E54u;
         private const double StreamingBudgetMs = 5000.0;
         private const int MaximumStreamingSteps = 64;
+        private const byte MacroTimberMaterial = 2;
 
         [Test]
         public void OrdinaryStreamingMakesTallAuthoredFeatureUpperRegionResidentWithoutTraversalForcing()
@@ -126,6 +129,137 @@ namespace VoxelEngine.Tests.PlayMode
             }
         }
 
+        [Test]
+        public void RossdamFourBlockoutBuildingsRasterizeIntoAuthoritativeStorage()
+        {
+            FeatureCatalogue combined = default;
+            var primitives = new NativeList<Primitive>(16, Allocator.Persistent);
+            var anchors = new NativeList<ResolvedAnchor>(4, Allocator.Persistent);
+            var table = new RegionTable(32, Allocator.Persistent);
+            var pool = new BrickPool(32768, Allocator.Persistent);
+
+            try
+            {
+                combined = KentridgeCombinedVoxelCatalogue.Build(
+                    Seed,
+                    Settings(),
+                    Allocator.Persistent);
+                Assert.That(combined.IsCreated, Is.True);
+
+                string prefix = "macro-town-building-" + KentridgeTopDownWorldLayout.Rossdam + "-";
+                int matchedBuildings = 0;
+                for (var ruleIndex = 0; ruleIndex < combined.Rules.Length; ruleIndex++)
+                {
+                    PlacementRule rule = combined.Rules[ruleIndex];
+                    if ((uint)rule.DefinitionId >= (uint)combined.Definitions.Length) continue;
+
+                    FeatureDefinition definition = combined.Definitions[rule.DefinitionId];
+                    if (!definition.Name.ToString().StartsWith(prefix, System.StringComparison.Ordinal)) continue;
+
+                    Assert.That(
+                        rule.ExplicitCount,
+                        Is.EqualTo(1),
+                        $"Rossdam blockout {definition.Name} must have one deterministic production placement.");
+                    Assert.That(
+                        rule.ExplicitOffset,
+                        Is.InRange(0, combined.ExplicitPlacements.Length - 1),
+                        $"Rossdam blockout {definition.Name} has an invalid explicit placement.");
+
+                    ExplicitPlacement placement = combined.ExplicitPlacements[rule.ExplicitOffset];
+                    ParameterSet parameters = FeatureGeneration.ResolveParameters(
+                        in combined,
+                        in definition,
+                        in placement,
+                        rule.DefinitionId,
+                        placement.Position,
+                        Seed);
+                    ulong instanceSeed = FeatureGeneration.InstanceSeed(
+                        Seed,
+                        rule.DefinitionId,
+                        placement.Position);
+
+                    primitives.Clear();
+                    anchors.Clear();
+                    EvaluationResult evaluation = ShapeProgram.Evaluate(
+                        in combined,
+                        rule.DefinitionId,
+                        in parameters,
+                        placement.Position,
+                        placement.Orientation,
+                        Seed,
+                        instanceSeed,
+                        primitives,
+                        anchors);
+                    Assert.That(
+                        evaluation,
+                        Is.EqualTo(EvaluationResult.Ok),
+                        $"Rossdam blockout {definition.Name} must evaluate its real production shape program.");
+
+                    Primitive timber = FindTimberPrimitive(primitives, definition.Name.ToString());
+                    timber.Bounds(out int3 min, out int3 max);
+                    int3 probe = new int3(
+                        min.x + math.max(0, (max.x - min.x) / 2),
+                        min.y + math.max(0, (max.y - min.y) / 2),
+                        min.z + math.max(0, (max.z - min.z) / 2));
+                    int3 region = new int3(
+                        probe.x >> VoxelGrid.RegionVoxelEdgeLog2,
+                        probe.y >> VoxelGrid.RegionVoxelEdgeLog2,
+                        probe.z >> VoxelGrid.RegionVoxelEdgeLog2);
+
+                    var reads = new RegionReadSource(in table, in pool);
+                    var mutations = new RegionMutationStore(in table, in pool);
+                    FeatureGeneration.GenerateRegion(
+                        in combined,
+                        Seed,
+                        region,
+                        reads,
+                        mutations);
+
+                    VoxelCell cell = VoxelAccess.GetCell(ref table, in pool, probe);
+                    Assert.That(
+                        cell.IsSolid,
+                        Is.True,
+                        $"Rossdam blockout {definition.Name} evaluated timber at {probe} but authoritative storage is empty there.");
+                    Assert.That(
+                        cell.BaseMaterialId,
+                        Is.EqualTo(MacroTimberMaterial),
+                        $"Rossdam blockout {definition.Name} evaluated timber at {probe} but authoritative storage contains material {cell.BaseMaterialId}.");
+
+                    matchedBuildings++;
+                    TestContext.WriteLine(
+                        "KENTRIDGE_ROSSDAM_AUTHORITATIVE " +
+                        $"definition={definition.Name} placement={placement.Position} timberBounds={min}..{max} " +
+                        $"probe={probe} region={region} material={cell.BaseMaterialId}");
+                }
+
+                Assert.That(
+                    matchedBuildings,
+                    Is.EqualTo(4),
+                    "The production Rossdam settlement must expose and rasterize all four semantic generic blockout buildings.");
+            }
+            finally
+            {
+                pool.Dispose();
+                table.Dispose();
+                anchors.Dispose();
+                primitives.Dispose();
+                if (combined.IsCreated) combined.Dispose();
+            }
+        }
+
+        private static Primitive FindTimberPrimitive(NativeList<Primitive> primitives, string definitionName)
+        {
+            for (var i = 0; i < primitives.Length; i++)
+            {
+                Primitive primitive = primitives[i];
+                if (primitive.Mode == PrimitiveMode.Fill && primitive.Material == MacroTimberMaterial)
+                    return primitive;
+            }
+
+            Assert.Fail($"Rossdam blockout {definitionName} emitted no production timber primitive.");
+            return default;
+        }
+
         private static void PrepareBoundaryCrossingExplicitPlacement(
             ref FeatureCatalogue catalogue,
             out ExplicitPlacement selectedPlacement,
@@ -198,7 +332,7 @@ namespace VoxelEngine.Tests.PlayMode
                     foundationStone: 20,
                     masonry: 18,
                     darkMasonry: 6,
-                    timber: 2,
+                    timber: MacroTimberMaterial,
                     glass: 4,
                     warmWindow: 15,
                     roofTile: 8,
