@@ -33,6 +33,7 @@
         "Game.Composition.WorldBuilderWorldGen.Runtime",
         "Game.Composition.WorldObjects.Runtime",
         "Game.Composition.Showcase",
+        "VoxelEngine.Showcase.Editor",
         "Game.Quests.Api",
         "Game.Story.Api",
         "Game.Story.Runtime",
