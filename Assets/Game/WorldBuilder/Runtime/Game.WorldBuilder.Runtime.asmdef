@@ -5,7 +5,8 @@
     "Game.WorldBuilder.Api",
     "Game.Cutscenes.Api",
     "Game.Quests.Api",
-    "MountingForce.WorldGen.Core"
+    "MountingForce.WorldGen.Core",
+    "MountingForce.WorldGen.Architecture"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
