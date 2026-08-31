@@ -7,7 +7,8 @@
     "Game.Structures.Runtime",
     "VoxelEngine.Structures.Api",
     "MountingForce.WorldGen.Core",
-    "Unity.Mathematics"
+    "Unity.Mathematics",
+    "Unity.Collections"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
