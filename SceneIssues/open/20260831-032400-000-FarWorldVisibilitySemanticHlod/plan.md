@@ -2,12 +2,25 @@
 
 ## Acceptance and ownership
 
-Keep broad terrain in `VoxelFarTerrain`; known structures come from renderer-neutral WorldBuilder planning; settlement/vegetation HLOD derives from existing semantic truth; scene thresholds/readiness remain composition policy. Acceptance requires 8/10/12 km landmark visibility without voxel residency, never-visited semantic visibility, deterministic structure/scatter representations, forested horizon massing, stable readiness+hysteresis handoffs, guaranteed clipmap coverage, semantic/fallback separation, built-player proof, and device-matrix budgets.
+Keep broad terrain in `VoxelFarTerrain`; known structures come from renderer-neutral WorldBuilder planning; settlement/vegetation HLOD derives from existing semantic truth; scene thresholds/readiness remain composition policy. Acceptance requires 8/10/12 km landmark visibility without voxel residency, never-visited semantic visibility, deterministic structure/scatter representations, forested horizon massing, stable readiness+hysteresis handoffs, guaranteed clipmap coverage, semantic/fallback separation, built-player proof, device-matrix budgets, **and visual fidelity of the entire far-terrain range rather than only seam/coverage correctness**.
+
+## Newly added required far-terrain fidelity scope
+
+The SceneIssue task list on `master` now includes **T003A-T003D**. These are new required closure work and are not implied complete by T001/T002 coverage work:
+
+- **T003A:** make far terrain derive the same visual terrain families from the same deterministic world-space facts as near terrain while keeping `VoxelFarTerrain` as the cheap analytic clipmap.
+- **T003B:** decouple far surface appearance from coarse clipmap vertex spacing using stable world-space macro/material variation and presentation/detail normals, with distance filtering to prevent shimmer/aliasing.
+- **T003C:** after T003A/T003B, measure actual silhouette loss from the ~12.8 m first far ring. Add only the minimum bounded/configurable inner far-terrain density tier if built-player evidence still demonstrates geometric flattening. Do not increase near voxel residency or uniformly densify 12 km.
+- **T003D:** after whole-range fidelity is correct, prove the ~350-600 m resident/far transition has no conspicuous height, normal, material/color, fog, lighting, flattening, popping, or seam discontinuity.
+
+T029-T031 are also extended on `master` to require terrain-dominant built-player evidence around ~0.5, 1, 3, 6, 10, and 12 km and to measure per-ring geometry/build churn plus far-terrain shader/GPU cost. Passing far coverage or structure HLOD alone is no longer sufficient for closure. Fetch/reconcile these task-list changes before final validation/closure; do not discard existing branch progress while doing so.
 
 ## Hypotheses / discriminators
 
 - **H1 falsified:** sparse far-terrain point sampling cannot reliably preserve known structure silhouettes; semantic HLOD is required.
 - **H2 active:** deterministic sector queries plus aggregate canopy/cluster proxies can preserve distant density without persistent far object ownership. Prove stable IDs/order and camera-window changes before renderer integration.
+- **H3 active:** most perceived far-terrain quality loss should be recoverable without materially increasing geometry by sharing world-space terrain/material semantics and adding distance-filtered shader detail independent of mesh spacing.
+- **H4 active:** if material/normal fidelity is fixed and the inner far field still looks geometrically flattened, measure the defect before adding a bounded denser inner clipmap tier.
 
 ## Selected approach / progress
 
@@ -37,4 +50,6 @@ Run `33415875148` correctly targeted feature parent `865f5a7b...` and exposed on
 
 T003, T005/T007, T013, and T015/T016 require safe edits in large `VoxelFarTerrain.cs`, `ShowcaseWorld.cs`, or `VoxelShowcase.cs`; current connector writes replace complete files and the execution container has no repository checkout, so unsafe wholesale rewrites are not acceptable. Acceptance is unchanged; continue independent tasks.
 
-Final T029–T033 still require exact-head behavioral validation, built-player visual evidence, budget/device validation, cleanup, and documentation before closure. The next CI request must be a direct child of the current feature head and use only `ci-test/fixes/agent-7`.
+**New required work T003A-T003D is also outstanding.** T003C is conditional on measured residual geometry loss after T003A/T003B; the acceptance outcome is not conditional. If an external/tooling prerequisite blocks safe implementation, record that blocker and continue independent work rather than weakening terrain-fidelity acceptance.
+
+Final T029-T033 still require exact-head behavioral validation, built-player visual evidence including the newly required terrain-distance captures, budget/device validation, cleanup, and documentation before closure. The next CI request must be a direct child of the current feature head and use only `ci-test/fixes/agent-7`.
