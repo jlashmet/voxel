@@ -1,22 +1,26 @@
 # Plan
 
 ## Acceptance
-- Production diffs deterministically select owning modules; **all EditMode and PlayMode tests owned by each affected module run automatically**. Agents do not register individual tests or maintain per-test filters.
+- Production diffs deterministically select owning modules; **all EditMode and module-scoped PlayMode tests owned by each affected lower-level module run automatically**. Agents do not register individual tests or maintain per-test filters.
+- **There is no repository-wide/top-level EditMode test assembly. EditMode tests live with the lower-level module they validate** (for example Rendering, Structures, Spatial). A production module change runs that module's complete EditMode suite.
+- Only genuinely high-level integration/smoke PlayMode coverage belongs at the top level. `KentridgePlayableSlice` remains the mandatory top-level built-player integration gate for production diffs.
 - Module ownership comes from repository/module structure and Unity assembly boundaries. Shared/core changes expand through the production assembly dependency graph where practical, with conservative fallback only when ownership/dependency inference is unavailable.
-- Module-local built-player validation is optional declarative metadata; canonical `KentridgePlayableSlice` remains the mandatory top-level built-player integration gate for production diffs.
-- Module scene/scenario metadata is declarative and separate; one generic player harness executes it fail-closed.
+- Module-local built-player validation is optional declarative metadata; module scene/scenario metadata is declarative and separate; one generic player harness executes it fail-closed.
 - Water proves migration/reuse with production rendering and production-quality standalone-player evidence.
 - Missing/zero-match/skipped/failed required targets fail validation; routine targeted cost remains practical.
 
 ## Architecture correction before closure
-The first implementation required each `*.module-validation.json` manifest to enumerate explicit test filters. That is unnecessary bookkeeping and creates a stale-registration failure mode. Replace it with convention/assembly-driven discovery:
+The first implementation required each `*.module-validation.json` manifest to enumerate explicit test filters. That is unnecessary bookkeeping and creates a stale-registration failure mode. A second intermediate idea—allowing broad top-level EditMode assemblies and selecting them by references—is also incorrect because EditMode tests are module-owned, not repository-owned. Replace both with module-local assembly discovery:
 
-1. A production diff identifies the owning Unity module/assembly from its module root and/or production `.asmdef`.
-2. CI discovers every test assembly belonging to that module and runs the complete EditMode and PlayMode test sets for those assemblies. Adding a test under the module requires no manifest edit.
-3. Test ownership is inferred from module-local test assembly definitions / module structure, not from hand-maintained test method or class lists.
-4. Shared/core production assembly changes expand to dependent production modules through `.asmdef` references where practical; unresolved shared ownership remains conservative/fail-closed rather than silently narrowing validation.
-5. Player-validation metadata remains only for things that cannot be inferred structurally: the module-local validation scene/scenario. Kentridge remains automatic and is not selected by agents.
-6. Remove explicit `tests` arrays and planner logic/tests that require per-test registration. Add regression coverage proving that a newly added module test is discovered without changing module metadata or planner code.
+1. A production diff identifies the owning lower-level Unity module/assembly from its module root and production `.asmdef`.
+2. Every lower-level module owns its own EditMode test assembly (and any module-scoped PlayMode test assembly). CI discovers and runs those complete assemblies. Adding a test under the module requires no manifest edit.
+3. Repository-wide/top-level EditMode assemblies are eliminated. Existing EditMode tests in the broad `VoxelEngine.Tests.EditMode` assembly are migrated into lower-level module test assemblies according to the production module they validate.
+4. Only high-level smoke/integration PlayMode tests remain top-level. These are integration gates, not a substitute for module-local EditMode coverage.
+5. Test ownership is inferred from module-local test assembly definitions / module structure, not from hand-maintained test method or class lists.
+6. Shared/core production assembly changes expand to dependent production modules through `.asmdef` references where practical; unresolved shared ownership remains conservative/fail-closed rather than silently narrowing validation.
+7. Player-validation metadata remains only for things that cannot be inferred structurally: the module-local validation scene/scenario. Kentridge remains automatic and is not selected by agents.
+8. Remove explicit `tests` arrays and planner logic/tests that require per-test registration. Add regression coverage proving that a newly added module test is discovered without changing module metadata or planner code.
+9. Validate that no top-level EditMode test assembly remains after migration; fail architecture validation if one is reintroduced.
 
 ## Implemented before architecture correction
 - Repository-driven `*.module-validation.json`, diff ownership/shared-core expansion, separate player scenarios, mandatory Kentridge integration, generic readiness/evidence windows, and independent Structures reuse fixture.
@@ -33,11 +37,13 @@ The first implementation required each `*.module-validation.json` manifest to en
 - The module-local Water scene already consumes the canonical `WaterRenderingShowcase` component. Integration therefore stays at the semantic metadata boundary: own `WaterRenderingShowcase.cs` instead of the removed startup prototype. No third bespoke tableau/camera/shader tweak is permitted or needed.
 
 ## Blast radius
-CI/orchestration, module/test discovery, validation assets/tests/docs, and the Water validation adapter/metadata. No new simulation/collision policy or adjacent-system refactor.
+CI/orchestration, module/test assembly discovery, migration of existing broad EditMode tests into their owning lower-level test assemblies, validation assets/tests/docs, and the Water validation adapter/metadata. No new simulation/collision policy or adjacent-system refactor.
 
 ## Remaining gates
-- [ ] Replace explicit test registration with convention/assembly-driven discovery that runs every affected module EditMode/PlayMode test.
+- [ ] Eliminate repository-wide/top-level EditMode test assembly ownership and migrate its tests into lower-level module-owned EditMode assemblies.
+- [ ] Replace explicit test registration with convention/assembly-driven discovery that runs every affected module EditMode/module-scoped PlayMode assembly.
 - [ ] Prove a new module test is automatically included without manifest/planner registration and prove shared/core dependency expansion remains conservative.
+- [ ] Prove architecture validation rejects a reintroduced top-level EditMode test assembly.
 - [ ] Run exact-head module tests, Water built-player, and mandatory Kentridge built-player validation.
 - [ ] Inspect every retained Water standalone frame and verify production quality/evidence-window pruning.
 - [ ] Review all 18 criteria; then complete metadata, move open -> closed, merge current master, and promote non-force.
