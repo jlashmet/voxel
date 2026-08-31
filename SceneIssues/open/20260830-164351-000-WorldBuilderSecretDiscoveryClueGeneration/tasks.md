@@ -32,33 +32,43 @@
 - [x] Protected shell rejects trivial bypass and undesignated breakable leakage when supplied topology evidence.
 - [x] Authored-breakable route requires designated breakables and rejects surrounding leakage.
 - [x] Multiple natural + mechanism routes preserve one canonical discovery identity.
-- [x] `SecretRouteWorldObjectIntegrationTests.MechanismAndNaturalRoutesShareCanonicalDiscoveryAcrossInteractionAndReload` passed targeted run `33419056074` on exact source `86138410045da72ecd2b23f4eca7167f4cb034e3`.
+- [x] `SecretRouteWorldObjectIntegrationTests.MechanismAndNaturalRoutesShareCanonicalDiscoveryAcrossInteractionAndReload` passed targeted run `33419056074`.
 - [x] Revisit/reload/repeated mechanism activation is idempotent through canonical `SecretDiscoveryState`.
-- [x] `SecretGeneratedCaveBypassIntegrationTests.VerifiedGeneratedCaveBarrierFeedsAuthoredBreakableBypassPolicy` passed targeted run `33420376990` on exact source `5c8fda4957b6d1b69c8f115e164f3228c437b822`.
+- [x] `SecretGeneratedCaveBypassIntegrationTests.VerifiedGeneratedCaveBarrierFeedsAuthoredBreakableBypassPolicy` passed targeted run `33420376990`.
 - [x] Generated cave regression authors a real `CaveSecretPocket`, resolves it through `CaveSecretPocketSecretCandidateProvider` / canonical `SecretPlanner`, scans actual barrier/connector/pocket occupancy, and feeds verified topology into bypass policy.
 - [x] Add reusable `CaveSecretPocketComposition` that selects production cave traversal semantics, authors the verified pocket, retries deterministic physical conflicts, and returns a canonical projection without owning scene/presentation state.
 - [x] Add behavioral regressions for deterministic fallback after a preferred-terminal physical conflict and for a no-match request causing zero voxel mutation.
-- [x] Declare automatic module validation for secret planning/runtime, cave bridge/composition, and focused regressions without a fake player scene.
-- [ ] Exact current-head CI compiles/runs `CaveSecretPocketCompositionTests` and all automatically required module tests.
+- [x] Add reusable semantic cave clue anchors and focused regression; exact run `33440180807` passed.
+- [x] Add deterministic normal-voxel-coating clue presentation that preserves verified false-wall occupancy.
+
+## Dedicated module-local validation scene
+
+- [x] Create `Assets/Game/WorldBuilder/Validation/SecretDiscovery/` scene rather than using the Worldbuilding Gallery as the development surface.
+- [x] Scene consumes production voxel world generation, production cave authoring, `CaveSecretPocketComposition`, production material/coating IDs, normal voxel rendering, and production vegetation/tree systems.
+- [x] Register the dedicated player scenario in `worldbuilder-secret-discovery.module-validation.json`.
+- [x] Add a behavioral regression for deterministic clue coating and preserved secret barrier topology.
+- [x] Run `33445911882`; it failed before visual capture on a compile error (`Coatings.None` did not exist).
+- [x] Fix that compiler defect by treating zero as the byte coating sentinel rather than introducing a new presentation dependency.
+- [ ] Exact current-head CI compiles/runs the focused regression and automatically required dedicated module validation.
+- [ ] Inspect full-resolution dedicated-scene screenshots; reject obscured, misframed, non-production, or visually ambiguous evidence.
 
 ## Built-player / representative acceptance
 
 - [x] Earlier exact `WorldbuildingGalleryShowcase` replay reached a usable rendered state without runtime exceptions.
 - [x] Full-resolution evidence was inspected; primitive validation/gallery clue implementations were not production-quality and were rejected.
 - [x] Two materially different primitive presentation fixes failed the same quality symptom; experiment 005 isolated the parallel-renderer root cause.
-- [x] Run `33433401020` proved the prior generated-cave focused test and Kentridge built-player module gate still pass after scope cleanup; overall run failed only because SceneIssue replay was invoked with the wrong path form. See `ci-operations.md`.
-- [ ] Exact-head targeted CI after production-boundary cleanup and reusable cave composition.
-- [ ] Representative generated secret/clue realization is visible through a production generated-world/presentation consumer rather than `GameObject.CreatePrimitive` or one-off gallery geometry.
-- [ ] Architectural/interactable-backed representative example through a supported generated feature, or documented limitation with an alternative supported generated feature per issue policy.
-- [ ] Natural terrain/cave representative example with environmental/traversal clues and no required interactable.
+- [ ] Representative natural terrain/cave route example with environmental/traversal clues and no required interactable is visually proven at gameplay scale.
+- [ ] Interactable-backed mechanism representative is visually proven through a supported generated feature, or unsupported architectural realization is documented and an allowed alternative supported generated feature is used.
 - [ ] Player can infer and reach representative secrets from intentional pre-solve evidence without universal glowing markers or wall-spamming.
+- [ ] Add only a thin final `WorldbuildingGalleryShowcase` acceptance consumer after reusable dedicated-scene proof is green.
 - [ ] Exact built `WorldbuildingGalleryShowcase` full-resolution screenshots pass clue readability, route legibility, accidental bypass, placeholder/sign-like evidence, and production-quality review.
 
 ## Cost / blast radius / closure
 
 - [x] Planner/discovery code is one-shot/event-driven; no per-frame search/polling loop was added.
-- [x] Cave composition attempts at most the bounded traversal candidate set (currently fixed-capacity) and stops immediately on non-physical authoring failures; no frame-loop cost was added.
-- [x] Current production diff is limited to reusable WorldBuilder planning/runtime, cave composition adapters, focused tests/module metadata, and this SceneIssue; showcase-local/primitive validation drift has been removed.
+- [x] Cave composition attempts at most the bounded traversal candidate set and stops immediately on non-physical authoring failures; no frame-loop cost was added.
+- [x] Dedicated validation presentation uses existing production renderer/material/vegetation paths rather than introducing a second player-visible renderer.
 - [ ] All required acceptance criteria and exact-SHA gates green.
+- [ ] Compare final feature head against current `origin/master` and document blast radius/cost.
 - [ ] Move assigned SceneIssue directly `open -> closed`, set `status=fixed` and `resolvedUtc`.
 - [ ] Merge current `origin/master`, revalidate if the exact SHA changes as required, then push exact feature head to `origin/master` non-force.
