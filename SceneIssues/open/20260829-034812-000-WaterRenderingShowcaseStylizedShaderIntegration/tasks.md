@@ -39,9 +39,13 @@
 - [x] Reject `33345745137` visual closure: the same acceptance symptom remains after two materially different fixes—layered flat sheets, weak lip/base foam, and no convincing mist/spray—so stop visual tweaking and isolate a minimal root cause.
 - [x] Compare production shader with durable `WaterfallReference.shader`: reference localizes lip/edge/base/mist by sheet-local UV, while production lacks top/base/side topology and can only apply mist on existing sheet fragments.
 - [x] Trace canonical extraction boundary: `WaterBrickMeshBatchJob` has voxel-neighborhood data during quad emission; `SmoothSurfaceVertex.Material` reserves bits 24..31 for flags, water currently writes only base ID, and no conflicting water flag ownership was found.
-- [ ] Add an independent vertical-water extraction regression proving reusable lip/base/edge topology semantics without showcase-specific IDs or placement.
-- [ ] Encode generic water topology in the reserved material flag byte and interpolate/decode it in the shared shader with no vertex-stride or draw-path increase.
-- [ ] Use topology semantics to localize existing waterfall lip/edge/impact/mist controls; validate before considering any additional effect path.
+- [x] Add an independent vertical-water extraction regression proving reusable lip/base/edge topology semantics without showcase-specific IDs or placement.
+- [x] Encode generic water topology in the reserved material flag byte and interpolate/decode it in the shared shader with no vertex-stride or draw-path increase.
+- [x] Use topology semantics to localize existing waterfall lip/edge/impact/mist controls.
+- [x] Exact topology run `33346565021` passes both `WaterArenaDrawRegressionTests`, including the independent material-7 fixture, plus the 60-second real-player replay on feature head `8494d0f517fc01199df43c572a4543d71a900f72`.
+- [x] Directly reject `33346565021`: coherent downward strands and irregular ribbons remain, but mist still exists only on sheet fragments and creates no free spray volume. This demonstrates a geometric limitation, not another shader scalar-tuning hypothesis.
+- [x] Add one reusable `WaterSprayFlag` semantic and canonical impact-spray quad at true lower vertical-water boundaries in `WaterBrickMeshBatchJob`; keep the same water mesh/buffer/material/draw and clip spray geometry for non-waterfall profiles.
+- [x] Extend the independent vertical-water fixture to require spray quad emission while preserving arbitrary opaque material identity.
 
 ## Reliability / cost
 - [x] Preserve spreading/inert gameplay semantics and storage/streaming/edit/diagnostic contracts; no swim/buoyancy subsystem exists to alter.
@@ -49,7 +53,8 @@
 - [x] Static profile cost remains six 32-entry `Vector4` arrays = 3,072 bytes plus one uint semantic mask.
 - [x] Arena correction adds one scalar to existing per-water-draw properties; no geometry allocation or draw call.
 - [x] `33339706799` player logs show no shader/pink/missing-resource/runtime failure; post-start telemetry remains sub-~1.3 ms p95 windows with ~698 MiB allocated and ~854–882 MiB reserved. FrameTimingManager GPU values are unavailable and not invented.
-- [ ] Re-measure final accepted built-player frame/memory/render observations and inspect logs.
+- [x] `33346565021` topology head reports `avgFrameMs=1.090`, `allocatedMiB=697.9`, `reservedMiB=847.6`, `monoUsedMiB=9.1` at 30s; CPU/GPU FrameTimingManager values are `-1` and not inferred.
+- [ ] Measure exact spray-head arena geometry/frame/memory cost and inspect player/build logs; spray adds one quad per exposed vertical lower boundary but no vertex-stride/buffer/draw-path increase.
 
 ## Exact-SHA gates
 - [x] `33337560328`: start-instance attempt test-green but visually rejected.
@@ -59,9 +64,11 @@
 - [x] Re-read current `origin/master` before shader/ribbon validation; master remains `ebdc2e4f63ef73153cd4e0ff5c62efe604f35470`.
 - [x] `33343405166`: `WaterArenaDrawRegressionTests` + 60-second player replay green on shader head `66438175b0d40b54e905d062020cebc478a2f244`; shader quality improved but silhouette rejected.
 - [x] `33345745137`: exact irregular-ribbon head passes `WaterArenaDrawRegressionTests` + 60-second player replay; direct quality review still rejects lip/base/mist closure.
-- [ ] Re-read current `origin/master`; merge if needed before topology exact request.
-- [ ] Run focused topology regression plus 60-second WaterRenderingShowcase replay on exact topology feature head.
-- [ ] Directly accept/reject final near/wide/time-separated waterfall frames against downward-flow, turbulence/aeration, irregular breakup, lip/edge/base foam, mist/spray and overall visual-quality requirements.
+- [x] Re-read current `origin/master` before topology/spray work; master remains `ebdc2e4f63ef73153cd4e0ff5c62efe604f35470`.
+- [x] `33346565021`: focused topology regression plus 60-second WaterRenderingShowcase replay passes on exact topology head; direct review rejects free-spray acceptance.
+- [ ] Re-read current `origin/master` immediately before spray exact request; merge if needed.
+- [ ] Run `WaterArenaDrawRegressionTests` plus 60-second WaterRenderingShowcase replay on exact spray feature head.
+- [ ] Directly accept/reject near/wide/time-separated waterfall frames against downward-flow, turbulence/aeration, irregular breakup, lip/edge/base foam, free mist/spray and overall visual-quality requirements.
 - [ ] Run `ShowcaseWaterPresentationRegressionTests` on the same visually accepted feature head.
 - [ ] Confirm exact player build has no startup/runtime/shader compile/stripping/pink/missing-resource failure.
 - [ ] Reconcile accepted build with `VoxelShowcase` and `WorldbuildingGalleryShowcase` shared-water paths.
