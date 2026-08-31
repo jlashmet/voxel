@@ -27,8 +27,8 @@
 - [x] Isolate the post-hinge symptom before another visual change: production carriers retain roughly 52-59% of their impact span at the crown while the spray mask still fades only over `v=0.54..1.0`, leaving broad crown geometry eligible for opacity. This is higher-band geometry/mask coupling, distinct from the already-approved transparent hinge.
 - [x] Add `WaterSprayFeatheringRegressionTests.SprayPassDoesNotAdvertiseBroadCarrierAsHigherBandWedge` on `b52d42fd4d0293691680007eac7936e91762be97`; the fixture holds a representative broad tapered carrier constant, requires hinge transparency and readable mid-band mist, then caps higher-band lit area.
 - [x] Apply one focused shared-renderer correction: keep carrier generation/cardinality and waterfall body behavior unchanged, but move only the spray upper falloff from `smoothstep(0.54, 1.0, v)` to `smoothstep(0.46, 0.72, v)` (`82506d54aeac9b26c7a154c7df7f612949ae4b49`).
-- [ ] Let focused pre-fix discriminator run `33410018946` complete without replacement and record its result; request SHA `05408481a0a79f8c5d34869ddfe87e5f2556769c` is based exactly on `b52d42fd...`.
-- [ ] Re-run `WaterSprayFeatheringRegressionTests` on the exact resulting fixed feature SHA and require both hinge and higher-band assertions green with readable free mist.
+- [x] Let focused pre-fix discriminator run `33410018946` complete without replacement and record its result; request SHA `05408481a0a79f8c5d34869ddfe87e5f2556769c` failed the requested focused test while the standalone 60-second replay succeeded, confirming a product-strength pre-fix discriminator rather than infrastructure.
+- [ ] Re-run `WaterSprayFeatheringRegressionTests` on the exact current fixed feature SHA and require both hinge and higher-band assertions green with readable free mist.
 - [ ] Re-run `WaterArenaDrawRegressionTests` + automatic module validation + 60-second built `WaterRenderingShowcase` replay on that same exact feature SHA.
 - [ ] Directly inspect saved built-player high-pitch/time-separated waterfall evidence and verify the higher-band planar/triangular wedges are absent while impact transparency and free mist remain legible.
 - [ ] Record the exact resulting accepted feature SHA here after the higher-band follow-up lands.
@@ -45,6 +45,7 @@
 - [x] `33402597873` green `WaterSprayFeatheringRegressionTests` + automatic module validation + 60s replay on exact `8085f42b73dd07e17453a0a0803b5b24aa6b80f9`; the focused discriminator now proves the impact hinge is transparent while free mist remains visible.
 - [x] `33405237070` green exact `WaterArenaDrawRegressionTests` + automatic module validation + 60s `WaterRenderingShowcase` replay for feature head `59607eadeb7f7c4f3bc9776f39882df576d25991` via request SHA `73380cb72699ffc31d8208d222990939f38bdda1`; no request was replaced or rerun.
 - [x] Directly review `33405237070`: time-separated waterfall frames still show obvious bright triangular/planar spray wedges above the receiving-water contact band (including side and center footprints). This fails the explicit visual gate despite green automation; closure rejected.
+- [x] `33410018946` intentionally red pre-fix higher-band discriminator on exact fixture head `b52d42fd...`; focused test failed and standalone replay succeeded.
 
 ## Next exact-head gates
 - [x] Run `WaterSprayFeatheringRegressionTests` on the hinge-fixed exact feature head and require hinge band = 0 while free mist remains visible (`33402597873`).
@@ -65,4 +66,4 @@
 
 ## Current blockers
 - [ ] A5/A14 remain externally/content-blocked: no defensible second existing production scene with **visible** canonical water has yet been proven. Continue independent renderer/test validation without changing acceptance or modifying unrelated scenes merely to manufacture evidence.
-- [ ] Current `master` (`2edf4c2e151492f67c4a1c1b846a9b7948284aba`) and `fixes/agent-9` are materially diverged; a final-sync PR was confirmed non-mergeable and closed (`#185`) rather than forcing or dropping unrelated master changes. Resolve only in-scope conflicts before final exact-head validation/promotion.
+- [ ] Final closure remains blocked until the higher-band fixed exact-head tests and built-player visual gate pass.
