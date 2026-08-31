@@ -168,7 +168,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             AddQuadIndices(baseIndex, p0, p1, p2, normal);
 
             // Surface-local mist can brighten an impact boundary, but convincing spray needs pixels
-            // outside the falling sheet. Emit one small semantic spray skirt at a true lower boundary
+            // outside the falling sheet. Emit a layered semantic spray fan at a true lower boundary
             // into the same canonical water mesh. The shader makes it visible only for profiles that
             // opt into waterfall mist, so still/river materials retain their existing appearance.
             if (axis != 1)
@@ -191,29 +191,48 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         private bool EmitImpactSpray(uint baseMaterial, float3 edge0, float3 edge1, float3 normal)
         {
-            if (Vertices.Length + 4 > Vertices.Capacity
-                || Indices.Length + 6 > Indices.Capacity)
+            const int SprayQuadCount = 3;
+            if (Vertices.Length + SprayQuadCount * 4 > Vertices.Capacity
+                || Indices.Length + SprayQuadCount * 6 > Indices.Capacity)
             {
                 Overflow[0] = 1;
                 return false;
             }
 
-            float3 plumeOffset = normal * (VoxelSize * 1.6f) + new float3(0f, VoxelSize * 2.4f, 0f);
-            float3 p0 = edge0;
-            float3 p1 = edge1;
-            float3 p2 = edge1 + plumeOffset;
-            float3 p3 = edge0 + plumeOffset;
             uint sprayMaterial = baseMaterial
                                | SmoothSurfaceVertex.WaterImpactFlag
                                | SmoothSurfaceVertex.WaterEdgeFlag
                                | SmoothSurfaceVertex.WaterSprayFlag;
+
+            // One sub-metre skirt was technically rasterized but disappeared against a several-
+            // metre waterfall. Three differently pitched sheets create a bounded, reusable impact
+            // volume while remaining ordinary canonical geometry. Noise clipping in the shared
+            // shader breaks these sheets into intermittent mist rather than a solid wedge.
+            EmitSprayQuad(edge0, edge1,
+                normal * (VoxelSize * 5.5f) + new float3(0f, VoxelSize * 2.2f, 0f),
+                normal, sprayMaterial);
+            EmitSprayQuad(edge0, edge1,
+                normal * (VoxelSize * 4.0f) + new float3(0f, VoxelSize * 4.8f, 0f),
+                normal, sprayMaterial);
+            EmitSprayQuad(edge0, edge1,
+                normal * (VoxelSize * 2.5f) + new float3(0f, VoxelSize * 6.0f, 0f),
+                normal, sprayMaterial);
+            return true;
+        }
+
+        private void EmitSprayQuad(float3 edge0, float3 edge1, float3 plumeOffset,
+                                   float3 normal, uint sprayMaterial)
+        {
+            float3 p0 = edge0;
+            float3 p1 = edge1;
+            float3 p2 = edge1 + plumeOffset;
+            float3 p3 = edge0 + plumeOffset;
             uint baseIndex = (uint)Vertices.Length;
             Vertices.AddNoResize(Vertex(p0, normal, sprayMaterial));
             Vertices.AddNoResize(Vertex(p1, normal, sprayMaterial));
             Vertices.AddNoResize(Vertex(p2, normal, sprayMaterial));
             Vertices.AddNoResize(Vertex(p3, normal, sprayMaterial));
             AddQuadIndices(baseIndex, p0, p1, p2, normal);
-            return true;
         }
 
         private void AddQuadIndices(uint baseIndex, float3 p0, float3 p1, float3 p2, float3 normal)
