@@ -35,10 +35,13 @@
 - [x] Isolate repeated-failure root cause before another fix in experiment 018: presentation readiness checked terrain/point Y but not the authored Y layers already requested by feature-aware residency.
 - [x] Implement shared readiness correction using the same cached semantic feature-layer query; no Kentridge coordinates, radius/budget changes, pre-generation, or weakened readiness.
 - [x] Extend the focused regression to create the lower-layer-ready/upper-layer-absent race and require presentation readiness to remain false until ordinary streaming publishes the upper shell.
-- [ ] Prove the updated readiness regression on the exact feature SHA through `ci-test/fixes/agent-6`.
-- [ ] Verify full-resolution Rossdam/Fairy/Orc surveys show all four readable authored settlement blockouts after readiness correction.
+- [x] Prove the updated readiness regression on exact feature source `9d51fb9a947af76d0b8005c35288a7007dd6d9e6` through `ci-test/fixes/agent-6`; run `33354287850` is 1/1 green and the supported 60 s built-player step completes technically clean.
+- [x] Inspect run `33354287850` full-resolution evidence: settlement/lake visual closure remains red and Fairy/Orc/ridge/network remain uncaptured before 60 s.
+- [x] Isolate the surviving repeated settlement symptom before another fix in experiment 019: distinguish authoritative four-building voxel volumes from downstream render/framing or grounding/placement failure.
+- [ ] Add the experiment-019 production-data regression and classify Rossdam's four expected building volumes from authoritative storage.
+- [ ] Verify full-resolution Rossdam/Fairy/Orc surveys show all four readable authored settlement blockouts after the identified production owner is corrected.
 - [ ] Capture the final `macro-network-overview` inside the unchanged 60 s replay.
-- [ ] Re-check Rossdam lake framing; the exact `33346099006` lake-detour capture exposes only a thin distant water strip and must visibly read as the substantial authored water body plus constrained route.
+- [ ] Re-check Rossdam lake framing; exact runs `33346099006` and `33354287850` expose only a thin distant water strip and must visibly read as the substantial authored water body plus constrained route.
 - [ ] Re-run final exact-SHA targeted CI and prove focused regression + supported 60 s real-player smoke are closure-quality green for the same source SHA.
 
 ## Reusability review
@@ -62,6 +65,7 @@
 - [x] Baseline run `33304172039`: assertions `0`, no swap growth, peak RSS `5,571,344 KB`, late FPS ~`197/222/232/168/137`, final `missingVisible=0 coverage=True`.
 - [x] Run `33318399738`: elapsed `73s`, final RSS `598MB`, peak RSS `5640MB`, swap growth `0MB`; settled-target FPS is typically ~150–370 with target-transition p95 frame time ~7–13 ms.
 - [x] Exact run `33346099006`: focused residency test green; combined process peak ~`5824MB`, no swap growth, late FPS generally >100 and often 200–360; visual closure remains red.
+- [x] Exact run `33354287850`: readiness-race regression green; built-player capture step completes with zero harness assertions and no technical crash, while visual/timing closure remains red.
 - [ ] Quantify additional vertical resident/generated regions from feature-aware residency and prove it does not expand empty columns or change horizontal interest radius/device budgets.
 - [ ] Measure final lake dimensions/depth/primitive cells, route tile/solve/constrained counts, feature work/time, CPU/FPS, memory, streaming convergence, and render/far-field telemetry against budgets.
 - [ ] Re-fetch current master and re-check exact feature diff immediately before final targeted CI.
