@@ -156,12 +156,68 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             int3 c3 = SourceCell(axis, axisA, axisB, layer, a, b + height - 1);
 
             uint baseMaterial = material;
+            uint f0 = TopologyFlags(batch, c0, axis);
+            uint f1 = TopologyFlags(batch, c1, axis);
+            uint f2 = TopologyFlags(batch, c2, axis);
+            uint f3 = TopologyFlags(batch, c3, axis);
             uint baseIndex = (uint)Vertices.Length;
-            Vertices.AddNoResize(Vertex(p0, normal, baseMaterial | TopologyFlags(batch, c0, axis)));
-            Vertices.AddNoResize(Vertex(p1, normal, baseMaterial | TopologyFlags(batch, c1, axis)));
-            Vertices.AddNoResize(Vertex(p2, normal, baseMaterial | TopologyFlags(batch, c2, axis)));
-            Vertices.AddNoResize(Vertex(p3, normal, baseMaterial | TopologyFlags(batch, c3, axis)));
+            Vertices.AddNoResize(Vertex(p0, normal, baseMaterial | f0));
+            Vertices.AddNoResize(Vertex(p1, normal, baseMaterial | f1));
+            Vertices.AddNoResize(Vertex(p2, normal, baseMaterial | f2));
+            Vertices.AddNoResize(Vertex(p3, normal, baseMaterial | f3));
+            AddQuadIndices(baseIndex, p0, p1, p2, normal);
 
+            // Surface-local mist can brighten an impact boundary, but convincing spray needs pixels
+            // outside the falling sheet. Emit one small semantic spray skirt at a true lower boundary
+            // into the same canonical water mesh. The shader makes it visible only for profiles that
+            // opt into waterfall mist, so still/river materials retain their existing appearance.
+            if (axis != 1)
+            {
+                bool impact0 = (f0 & SmoothSurfaceVertex.WaterImpactFlag) != 0;
+                bool impact1 = (f1 & SmoothSurfaceVertex.WaterImpactFlag) != 0;
+                bool impact2 = (f2 & SmoothSurfaceVertex.WaterImpactFlag) != 0;
+                bool impact3 = (f3 & SmoothSurfaceVertex.WaterImpactFlag) != 0;
+                if (axisA == 1 && impact0 && impact3)
+                {
+                    if (!EmitImpactSpray(baseMaterial, p0, p3, normal)) return false;
+                }
+                else if (axisB == 1 && impact0 && impact1)
+                {
+                    if (!EmitImpactSpray(baseMaterial, p0, p1, normal)) return false;
+                }
+            }
+            return true;
+        }
+
+        private bool EmitImpactSpray(uint baseMaterial, float3 edge0, float3 edge1, float3 normal)
+        {
+            if (Vertices.Length + 4 > Vertices.Capacity
+                || Indices.Length + 6 > Indices.Capacity)
+            {
+                Overflow[0] = 1;
+                return false;
+            }
+
+            float3 plumeOffset = normal * (VoxelSize * 1.6f) + new float3(0f, VoxelSize * 2.4f, 0f);
+            float3 p0 = edge0;
+            float3 p1 = edge1;
+            float3 p2 = edge1 + plumeOffset;
+            float3 p3 = edge0 + plumeOffset;
+            uint sprayMaterial = baseMaterial
+                               | SmoothSurfaceVertex.WaterImpactFlag
+                               | SmoothSurfaceVertex.WaterEdgeFlag
+                               | SmoothSurfaceVertex.WaterSprayFlag;
+            uint baseIndex = (uint)Vertices.Length;
+            Vertices.AddNoResize(Vertex(p0, normal, sprayMaterial));
+            Vertices.AddNoResize(Vertex(p1, normal, sprayMaterial));
+            Vertices.AddNoResize(Vertex(p2, normal, sprayMaterial));
+            Vertices.AddNoResize(Vertex(p3, normal, sprayMaterial));
+            AddQuadIndices(baseIndex, p0, p1, p2, normal);
+            return true;
+        }
+
+        private void AddQuadIndices(uint baseIndex, float3 p0, float3 p1, float3 p2, float3 normal)
+        {
             bool flip = math.dot(math.cross(p1 - p0, p2 - p0), normal) < 0f;
             if (flip)
             {
@@ -181,7 +237,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 Indices.AddNoResize(baseIndex + 2);
                 Indices.AddNoResize(baseIndex + 3);
             }
-            return true;
         }
 
         private uint TopologyFlags(int batch, int3 localCell, int faceAxis)
