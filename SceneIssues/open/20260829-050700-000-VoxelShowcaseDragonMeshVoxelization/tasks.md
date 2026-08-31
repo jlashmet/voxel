@@ -12,7 +12,7 @@
 - [x] Separate print-support geometry from the uploaded source: dominant dragon/scenic-base component is 1,763,914 triangles; support-free STL SHA-256 `e6a0a8bee6a08193db1eb09afea5003d3a502d3c097cf061a165ecc9bb637813`.
 - [x] Produce deterministic conventional support-free OBJ derivation candidate via 0.5-unit vertex clustering: 29,734 triangles / 860,349 bytes / SHA-256 `f1f44d59f7d9c775b600ac0b9ad066a15a3c652bf685a12b2344b8c383ff12b1`; do not treat this as voxels or hand-authored replacement geometry. Reconcile the previously recorded 13,431 vertex count against the recovered exact OBJ before final source documentation.
 - [x] Record exact upload/cleanup/derivation hashes, dimensions, and material limitation in `verification-uploaded-source.txt`.
-- [ ] Vendor the deterministic OBJ source/reconstructable archive into this repository without changing geometry. All contiguous repository parts `part00`-`part14` are committed and the reconstruction adapter/test pin gzip SHA-256 `fd2f8253fcf5bc32b275640448511f59d20dcc7d01c307f99124b224431892d4`, OBJ SHA-256 `f1f44d59f7d9c775b600ac0b9ad066a15a3c652bf685a12b2344b8c383ff12b1`, and 860,349 bytes; keep unchecked until exact-SHA execution proves reconstruction.
+- [ ] Vendor the deterministic OBJ source/reconstructable archive into this repository without changing geometry. Root-cause isolation established canonical logical parts `part00`-`part15`, with logical `part13` segmented as `.00`/`.01`/`.02`; the clean aggregate is 320,000 Base64 characters. The reconstruction adapter/test pin gzip SHA-256 `fd2f8253fcf5bc32b275640448511f59d20dcc7d01c307f99124b224431892d4`, OBJ SHA-256 `f1f44d59f7d9c775b600ac0b9ad066a15a3c652bf685a12b2344b8c383ff12b1`, and 860,349 bytes; keep unchecked until exact-source execution proves reconstruction.
 - [ ] Complete exact third-party provenance: source URL, author, and named license/permission text are still unavailable. User states the model was free and able to be used; record that statement but do not invent missing attribution/license fields or close provenance acceptance without them.
 - [x] Verify source candidate is detailed/non-voxel-native and contains readable head, body, wings, limbs/feet, long curved tail, secondary surface detail, and scenic base after support removal.
 - [x] Isolate source-topology root cause before bake: recovered clustered OBJ has open/non-manifold polygon topology, but a 0.30-unit conservative voxel raster forms a bounded dominant closed shell (43,758 surface cells + 54,342 enclosed interior cells in the discriminator). Do not weaken strict topology behavior implicitly.
@@ -40,6 +40,7 @@
 - [ ] Instantiate baked dragon through normal `ShowcaseWorld`/WorldBuilder voxel authoring so rendering/collision/edit/destruction share canonical storage.
 - [ ] Wire explicit VoxelShowcase selection mode: scroll selects while active and Space commits once; ordinary controls unchanged outside mode. Keep wiring in the canonical scene owner; do not create parallel/reflection input authority.
 - [ ] Add labeled `Mesh -> Voxels` comparison area with matched pose/scale/orientation/ground/lighting; source mesh is presentation-only with no collider/gameplay authority.
+- [ ] Add module-owned dragon validation scene/fixture for built-player proof; do not use Worldbuilding Gallery or the top-level showcase as the feature test fixture. Production `VoxelShowcase` integration remains separately required above.
 - [ ] Add durable capture support for front, side, rear, front 3/4, rear 3/4, elevated/top 3/4, plus head/horns, wing, feet/claws, and tail closeups. Semantic 10-view capture contract + coverage test are implemented; built-player integration and real evidence remain required.
 - [ ] Emit deterministic source triangle count, voxel resolution, authored voxel count, sparse brick/chunk count, voxelization duration, serialized size, resident/runtime placement/build cost.
 - [ ] Add destruction/world-truth validation instance proving voxel edits affect rendering/collision without source-mesh shell/collider fallback.
@@ -65,7 +66,7 @@
 - [ ] Re-run final feature diff review after source/showcase/evidence implementation.
 - [ ] Refresh/merge current `origin/master` immediately before final CI if advanced.
 - [ ] Issue one final exact-source request only through `ci-test/fixes/agent-1`; never replace queued/running CI.
-- [ ] Obtain green focused regression plus exact built-player `VoxelShowcase` validation and inspect all required views directly.
+- [ ] Obtain green focused regressions plus exact built-player module-owned dragon validation and inspect all required views directly.
 - [ ] Classify built-player visual evidence `production-quality`; lower classification fails.
 - [ ] Confirm built-app destruction/world truth, one-shot spawn, metrics, and no startup/runtime exceptions.
 
