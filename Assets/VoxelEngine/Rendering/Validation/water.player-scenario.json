@@ -10,9 +10,11 @@
   "timeline": {},
   "assertions": {
     "requiredLogPatterns": [
-      "WATER_VALIDATION ready:"
+      "WATER_VALIDATION ready:",
+      "WATER_VALIDATION liquid-ready:"
     ],
     "forbiddenLogPatterns": [
+      "WATER_VALIDATION liquid renderer did not converge:",
       "NullReferenceException",
       "MissingReferenceException",
       "Shader error"
