@@ -161,52 +161,59 @@ namespace VoxelEngine.Showcase
             AuthorRiverBanks(authoring, originX, originZ);
             AuthorRiver(authoring, originX, originZ);
 
-            FillEllipse(authoring, originX, originZ,
+            FillOrganicEllipse(authoring, originX, originZ,
                 StillPoolCentreX, StillPoolCentreZ,
                 StillPoolShelfRadiusX, StillPoolShelfRadiusZ,
-                BaseY - 1, GameMaterialIds.Sand);
-            FillEllipse(authoring, originX, originZ,
+                BaseY - 1, GameMaterialIds.Sand, 0.10f);
+            FillOrganicEllipse(authoring, originX, originZ,
                 StillPoolCentreX, StillPoolCentreZ,
                 StillPoolWaterRadiusX, StillPoolWaterRadiusZ,
-                BaseY, GameMaterialIds.Water);
+                BaseY, GameMaterialIds.Water, 0.08f);
 
-            FillEllipse(authoring, originX, originZ,
+            FillOrganicEllipse(authoring, originX, originZ,
                 ReceivingPoolCentreX, ReceivingPoolCentreZ,
-                36, 28, BaseY - 1, GameMaterialIds.Sand);
-            FillEllipse(authoring, originX, originZ,
+                36, 28, BaseY - 1, GameMaterialIds.Sand, 0.09f);
+            FillOrganicEllipse(authoring, originX, originZ,
                 ReceivingPoolCentreX, ReceivingPoolCentreZ,
-                26, 19, BaseY, GameMaterialIds.Water);
+                26, 19, BaseY, GameMaterialIds.Water, 0.07f);
 
             AuthorCascade(authoring, originX, originZ);
         }
 
         private static void AuthorCascade(IStructureAuthoringSession authoring, int originX, int originZ)
         {
-            const int cascadeStepLength = 6;
-            const int cascadeDrop = 4;
+            const int cascadeDrop = 3;
+            const float cascadeSpan = CascadeEndZ - CascadeStartZ + 1f;
 
             for (int z = CascadeStartZ; z <= CascadeEndZ; z++)
             {
-                int step = Mathf.Min(cascadeDrop, (z - CascadeStartZ) / cascadeStepLength);
-                int y = BaseY + cascadeDrop - step;
                 float t = Mathf.InverseLerp(CascadeStartZ, CascadeEndZ, z);
-                float centre = RiverCentreX(z);
-                float halfWidth = Mathf.Lerp(7f, 5f, t);
+                float centre = RiverCentreX(z) + Mathf.Sin(z * 0.31f) * 0.8f;
+                float halfWidth = Mathf.Lerp(6.5f, 4.5f, t) + Mathf.Sin(z * 0.43f) * 0.55f;
                 for (int x = 195; x <= 295; x++)
                 {
                     float dx = Mathf.Abs(x - centre);
+                    int stagger = ((x * 11 + z * 7) & 3) - 1;
+                    int step = Mathf.Clamp(
+                        Mathf.FloorToInt(((z - CascadeStartZ) + stagger) / cascadeSpan * (cascadeDrop + 1)),
+                        0,
+                        cascadeDrop);
+                    int y = BaseY + cascadeDrop - step;
+
                     if (dx <= halfWidth)
                     {
                         FillColumn(authoring, originX + x, originZ + z, BaseY - 3, y - 1, GameMaterialIds.Stone);
                         authoring.Set(originX + x, y, originZ + z, GameMaterialIds.Cascade);
                     }
-                    else if (dx <= halfWidth + 2f)
+                    else if (dx <= halfWidth + 2.5f)
                     {
                         FillColumn(authoring, originX + x, originZ + z, BaseY - 3, y - 1, GameMaterialIds.Sand);
                     }
-                    else if (dx <= halfWidth + 6f)
+                    else if (dx <= halfWidth + 10f)
                     {
-                        FillColumn(authoring, originX + x, originZ + z, BaseY - 3, y - 1, GameMaterialIds.Grass);
+                        float bankT = Mathf.InverseLerp(halfWidth + 2.5f, halfWidth + 10f, dx);
+                        int bankY = Mathf.RoundToInt(Mathf.Lerp(y - 1, BaseY - 2, bankT));
+                        FillColumn(authoring, originX + x, originZ + z, BaseY - 3, bankY, GameMaterialIds.Grass);
                     }
                 }
             }
@@ -245,7 +252,7 @@ namespace VoxelEngine.Showcase
             {
                 float centre = RiverCentreX(z);
                 float halfWater = RiverHalfWidth(z);
-                float halfBank = halfWater + 6f;
+                float halfBank = halfWater + 16f;
                 int waterY = RiverHeight(z);
                 for (int x = 195; x <= 295; x++)
                 {
@@ -260,9 +267,9 @@ namespace VoxelEngine.Showcase
                         continue;
                     }
 
-                    bool innerShoulder = dx <= halfWater + 2f;
-                    int bankY = innerShoulder ? waterY - 1 : waterY - 2;
-                    byte material = innerShoulder ? GameMaterialIds.Sand : GameMaterialIds.Grass;
+                    float bankT = Mathf.InverseLerp(halfWater, halfBank, dx);
+                    int bankY = Mathf.RoundToInt(Mathf.Lerp(waterY - 1, BaseY - 2, bankT));
+                    byte material = bankT < 0.28f ? GameMaterialIds.Sand : GameMaterialIds.Grass;
                     FillColumn(authoring, originX + x, originZ + z, BaseY - 3, bankY, material);
                 }
             }
@@ -297,12 +304,14 @@ namespace VoxelEngine.Showcase
         private static float RiverHalfWidth(int z)
         {
             float t = Mathf.InverseLerp(RiverStartZ, CascadeEndZ, z);
-            return Mathf.Lerp(7f, 5f, t) + Mathf.Sin(t * Mathf.PI * 2.2f);
+            return Mathf.Lerp(6.5f, 4.8f, t)
+                + Mathf.Sin(t * Mathf.PI * 2.2f)
+                + Mathf.Sin(z * 0.37f) * 0.65f;
         }
 
         private static int RiverHeight(int z)
         {
-            return BaseY + 4;
+            return BaseY + 3;
         }
 
         private static void FillColumn(
@@ -321,7 +330,7 @@ namespace VoxelEngine.Showcase
             authoring.Set(x, maxY, z, material);
         }
 
-        private static void FillEllipse(
+        private static void FillOrganicEllipse(
             IStructureAuthoringSession authoring,
             int originX,
             int originZ,
@@ -330,16 +339,27 @@ namespace VoxelEngine.Showcase
             int radiusX,
             int radiusZ,
             int y,
-            byte material)
+            byte material,
+            float edgeNoise)
         {
-            int minX = Mathf.Max(0, centreX - radiusX);
-            int maxX = Mathf.Min(511, centreX + radiusX);
-            int minZ = Mathf.Max(0, centreZ - radiusZ);
-            int maxZ = Mathf.Min(511, centreZ + radiusZ);
+            int padding = Mathf.CeilToInt(Mathf.Max(radiusX, radiusZ) * edgeNoise) + 1;
+            int minX = Mathf.Max(0, centreX - radiusX - padding);
+            int maxX = Mathf.Min(511, centreX + radiusX + padding);
+            int minZ = Mathf.Max(0, centreZ - radiusZ - padding);
+            int maxZ = Mathf.Min(511, centreZ + radiusZ + padding);
             for (int z = minZ; z <= maxZ; z++)
             for (int x = minX; x <= maxX; x++)
             {
-                if (IsInsideEllipse(x, z, centreX, centreZ, radiusX, radiusZ))
+                float dx = x - centreX;
+                float dz = z - centreZ;
+                float angle = Mathf.Atan2(dz, dx);
+                float ripple = Mathf.Sin(angle * 3f + centreX * 0.01f) * 0.55f
+                    + Mathf.Sin(angle * 7f + centreZ * 0.013f) * 0.30f
+                    + Mathf.Sin((x + z) * 0.19f) * 0.15f;
+                float scale = 1f + ripple * edgeNoise;
+                float nx = dx / (radiusX * scale);
+                float nz = dz / (radiusZ * scale);
+                if (nx * nx + nz * nz <= 1f)
                     authoring.Set(originX + x, y, originZ + z, material);
             }
         }
