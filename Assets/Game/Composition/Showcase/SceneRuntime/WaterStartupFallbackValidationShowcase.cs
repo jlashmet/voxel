@@ -56,7 +56,7 @@ namespace VoxelEngine.Showcase
                 return;
 
             float elapsed = Time.unscaledTime - _reviewStartedAt;
-            int shot = elapsed < 8f ? 0 : elapsed < 18f ? 1 : 2;
+            int shot = elapsed < 12f ? 0 : elapsed < 20f ? 1 : 2;
             if (shot == _cameraShot)
                 return;
 
@@ -172,7 +172,7 @@ namespace VoxelEngine.Showcase
 
             FillEllipse(authoring, originX, originZ,
                 ReceivingPoolCentreX, ReceivingPoolCentreZ,
-                36, 28, BaseY - 1, GameMaterialIds.Stone);
+                36, 28, BaseY - 1, GameMaterialIds.Sand);
             FillEllipse(authoring, originX, originZ,
                 ReceivingPoolCentreX, ReceivingPoolCentreZ,
                 26, 19, BaseY, GameMaterialIds.Water);
@@ -191,13 +191,13 @@ namespace VoxelEngine.Showcase
                         authoring.Set(originX + x, y - 1, originZ + z, GameMaterialIds.Stone);
                         authoring.Set(originX + x, y, originZ + z, GameMaterialIds.Cascade);
                     }
-                    else if (dx <= halfWidth + 4f)
+                    else if (dx <= halfWidth + 3f)
                     {
-                        authoring.Set(originX + x, y, originZ + z, GameMaterialIds.Stone);
+                        authoring.Set(originX + x, y - 1, originZ + z, GameMaterialIds.Sand);
                     }
-                    else if (dx <= halfWidth + 8f)
+                    else if (dx <= halfWidth + 7f)
                     {
-                        authoring.Set(originX + x, y - 1, originZ + z, GameMaterialIds.Stone);
+                        authoring.Set(originX + x, y - 2, originZ + z, GameMaterialIds.Grass);
                     }
                 }
             }
@@ -236,7 +236,7 @@ namespace VoxelEngine.Showcase
             {
                 float centre = RiverCentreX(z);
                 float halfWater = RiverHalfWidth(z);
-                float halfBank = halfWater + 9f;
+                float halfBank = halfWater + 7f;
                 int waterY = RiverHeight(z);
                 for (int x = 195; x <= 295; x++)
                 {
@@ -251,8 +251,10 @@ namespace VoxelEngine.Showcase
                         continue;
                     }
 
-                    int bankY = dx <= halfWater + 4f ? waterY : waterY - 1;
-                    authoring.Set(originX + x, bankY, originZ + z, GameMaterialIds.Stone);
+                    bool innerShoulder = dx <= halfWater + 3f;
+                    int bankY = innerShoulder ? waterY - 1 : waterY - 2;
+                    byte material = innerShoulder ? GameMaterialIds.Sand : GameMaterialIds.Grass;
+                    authoring.Set(originX + x, bankY, originZ + z, material);
                 }
             }
         }
