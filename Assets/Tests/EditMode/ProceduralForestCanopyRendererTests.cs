@@ -4,6 +4,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using VoxelEngine.Rendering.Runtime.Vegetation;
 using VoxelEngine.Vegetation.Api;
+using TreeInstance = VoxelEngine.Vegetation.Api.TreeInstance;
 
 namespace VoxelEngine.Tests.EditMode
 {
