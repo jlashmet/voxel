@@ -168,9 +168,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             AddQuadIndices(baseIndex, p0, p1, p2, normal);
 
             // Surface-local mist can brighten an impact boundary, but convincing spray needs pixels
-            // outside the falling sheet. Emit a layered semantic spray fan at a true lower boundary
-            // into the same canonical water mesh. The shader makes it visible only for profiles that
-            // opt into waterfall mist, so still/river materials retain their existing appearance.
+            // outside the falling sheet. Emit bounded semantic spray at a true lower boundary into
+            // the same canonical water mesh. The shader makes it visible only for profiles that opt
+            // into waterfall mist, so still/river materials retain their existing appearance.
             if (axis != 1)
             {
                 bool impact0 = (f0 & SmoothSurfaceVertex.WaterImpactFlag) != 0;
@@ -204,30 +204,33 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                                | SmoothSurfaceVertex.WaterEdgeFlag
                                | SmoothSurfaceVertex.WaterSprayFlag;
 
-            // One sub-metre skirt was technically rasterized but disappeared against a several-
-            // metre waterfall. Three differently pitched sheets create a bounded, reusable impact
-            // volume while remaining ordinary canonical geometry. Each corner also carries a tiny
-            // local UV in the existing auxiliary word so the shared shader can fade sheet borders
-            // rather than exposing the triangulated fan as hard geometry.
-            EmitSprayQuad(edge0, edge1,
+            // Three same-span quads pivoting around one impact edge produced a visible planar fan.
+            // Keep the reusable three-layer volume, but give each sheet a distinct lower footprint
+            // and a narrower, laterally shifted crown. This preserves ordinary canonical geometry
+            // and spray-local UVs while preventing neighbouring sheets from advertising one shared
+            // triangulated hinge line.
+            EmitSpraySheet(edge0, edge1, 0.06f, 0.94f, 0.24f, 0.76f,
                 normal * (VoxelSize * 5.5f) + new float3(0f, VoxelSize * 2.2f, 0f),
                 normal, sprayMaterial);
-            EmitSprayQuad(edge0, edge1,
+            EmitSpraySheet(edge0, edge1, 0.16f, 0.78f, 0.34f, 0.70f,
                 normal * (VoxelSize * 4.0f) + new float3(0f, VoxelSize * 4.8f, 0f),
                 normal, sprayMaterial);
-            EmitSprayQuad(edge0, edge1,
+            EmitSpraySheet(edge0, edge1, 0.31f, 0.91f, 0.48f, 0.79f,
                 normal * (VoxelSize * 2.5f) + new float3(0f, VoxelSize * 6.0f, 0f),
                 normal, sprayMaterial);
             return true;
         }
 
-        private void EmitSprayQuad(float3 edge0, float3 edge1, float3 plumeOffset,
-                                   float3 normal, uint sprayMaterial)
+        private void EmitSpraySheet(float3 edge0, float3 edge1,
+                                    float baseStart, float baseEnd,
+                                    float crownStart, float crownEnd,
+                                    float3 plumeOffset, float3 normal, uint sprayMaterial)
         {
-            float3 p0 = edge0;
-            float3 p1 = edge1;
-            float3 p2 = edge1 + plumeOffset;
-            float3 p3 = edge0 + plumeOffset;
+            float3 edge = edge1 - edge0;
+            float3 p0 = edge0 + edge * baseStart;
+            float3 p1 = edge0 + edge * baseEnd;
+            float3 p2 = edge0 + edge * crownEnd + plumeOffset;
+            float3 p3 = edge0 + edge * crownStart + plumeOffset;
             uint baseIndex = (uint)Vertices.Length;
             Vertices.AddNoResize(SprayVertex(p0, normal, sprayMaterial, 0u));
             Vertices.AddNoResize(SprayVertex(p1, normal, sprayMaterial,
