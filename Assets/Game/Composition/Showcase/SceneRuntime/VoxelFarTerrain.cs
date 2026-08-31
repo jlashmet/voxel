@@ -77,6 +77,7 @@ namespace VoxelEngine.Showcase
         private MeshRenderer _renderer;
         private Camera _camera;
         private bool _ownsMaterial;
+        private bool _coverageFailureLogged;
 
         // Height sampling is deliberately single-flight. The old implementation scheduled a Burst
         // job and immediately Complete()d it in LateUpdate, then could repeat that for every ring
@@ -251,13 +252,29 @@ namespace VoxelEngine.Showcase
         {
             get
             {
-                int rings = 1;
-                float reach = m_InnerRadiusMetres * 2f;
-                while (reach < m_OuterRadiusMetres && rings < 12) { reach *= 2f; rings++; }
+                bool covered = FarTerrainCoverageMath.TryCalculateRequiredRingCount(
+                    m_InnerRadiusMetres,
+                    m_OuterRadiusMetres,
+                    m_Resolution,
+                    out int rings,
+                    out float guaranteedCoverageMetres);
+                if (covered)
+                {
+                    _coverageFailureLogged = false;
+                    return rings;
+                }
+
+                if (!_coverageFailureLogged)
+                {
+                    Debug.LogError(
+                        $"VoxelFarTerrain: requested {m_OuterRadiusMetres:F1} m far radius "
+                        + $"cannot be guaranteed with MaxRings={FarTerrainCoverageMath.MaxRings}; "
+                        + $"worst-case snapped coverage is {guaranteedCoverageMetres:F1} m.");
+                    _coverageFailureLogged = true;
+                }
                 return rings;
             }
         }
-
         private void Awake()
         {
             _renderer = GetComponent<MeshRenderer>();
@@ -321,10 +338,10 @@ namespace VoxelEngine.Showcase
 
         public int SpacingForRing(int ring)
         {
-            float innerVoxels = m_InnerRadiusMetres / 0.1f;
-            int spacing = Mathf.Max(1, Mathf.NextPowerOfTwo(
-                Mathf.CeilToInt(innerVoxels * 2f / m_Resolution)));
-            return spacing << ring;
+            return FarTerrainCoverageMath.RingSpacingVoxels(
+                m_InnerRadiusMetres,
+                m_Resolution,
+                ring);
         }
 
         private void LateUpdate()
