@@ -33,10 +33,10 @@ This issue owns not only far-world coverage and object HLOD, but also the **visu
 
 ## Working hypotheses / discriminators
 
-- **H1:** Existing far-terrain structure sampling is sufficient if made conservative. Test a narrow castle footprint across outer-ring sample phases. If still silhouette-poor, semantic structure HLOD is required.
-- **H2:** Deterministic macro-cell scatter can reproduce convincing forests without persistent per-tree records. Compare regenerated cell identity/distribution across sessions and evaluate mid/far visual continuity.
-- **H3:** Most of the perceived far-terrain quality gap can be removed without materially increasing geometry by deriving far surface appearance from the same world-space terrain facts/material families as the near presentation and adding distance-filtered macro/detail normals, color, and roughness variation in the far shader.
-- **H4:** The current 12.8 m first far-ring spacing may still lose terrain silhouette/shape near the residency boundary after shading is corrected. Measure this separately. Add a denser inner far tier only if built-player evidence demonstrates residual geometric flattening; do not assume a fixed spacing before measurement.
+- **H1 falsified for semantic structures:** sparse far-terrain point sampling cannot reliably preserve known structure silhouettes; semantic HLOD is required.
+- **H2 active:** deterministic sector queries plus aggregate canopy/cluster proxies can preserve distant density without persistent far object ownership. Prove stable IDs/order and camera-window changes before renderer integration.
+- **H3 active:** most perceived far-terrain quality loss should be recoverable without materially increasing geometry by sharing world-space terrain/material semantics and adding distance-filtered shader detail independent of mesh spacing.
+- **H4 active:** if material/normal fidelity is fixed and the inner far field still looks geometrically flattened, measure the defect before adding a bounded denser inner clipmap tier.
 
 ## Selected direction
 
@@ -51,6 +51,22 @@ First make the material/normal language coherent. Then measure whether an additi
 
 Alongside terrain fidelity, add a small far-visibility data layer with semantic structure records, deterministic scatter-cell descriptors, projected-size/importance tier policy, structure HLOD, forest/canopy aggregation, and natural-landmark promotion. Full rationale, contracts, phases, tests, and migration details are in `architecture-proposal.md`.
 
+## Implementation progress
+
+Coverage math/fallback retirement (T001/T002), structure descriptors (T004), visibility manifest (T006), Kentridge planning population (T008), engine render contract (T009), semantic adapter (T010), cached instanced proxies (T011), projected-significance policy (T012), fallback suppression (T014), and deterministic settlement clusters (T017) are implemented with focused regressions.
+
+T001/T002 are concretely present in production: `VoxelFarTerrain.RingCount` delegates to testable guaranteed snapped-coverage math, logs when `MaxRings` cannot satisfy the requested extent, and startup fallback retirement requires a contiguous current authoritative ring prefix whose guaranteed coverage reaches the configured radius. `VoxelFarTerrainCoverageTests` covers the shipped 409.6 m -> 12 km case, representative/worst snap phases, impossible-range failure, independent reuse, and no-coverage-shrink fallback retirement.
+
+T018 support exists across `ShowcaseFarStructureSource`, `FarWorldVisibilityPolicy`, and `ProceduralFarStructureRenderer`. Regressions prove a dense settlement collapses to one far cluster while its landmark remains independent, inactive clusters return members without double rendering, and cluster hysteresis holds until member mid-enter threshold.
+
+T019 is implemented as stateless `VegetationVisibility` queries over existing `VegetationInstance` and `ITreeWorldReadSource` truth. Fixed sectors use floor semantics including negatives; outputs carry stable semantic IDs/source indices and deterministic ordering; tree queries expose existing damage state and never request skeletons, voxel residency, or new persistence.
+
+T022 derives deterministic forest canopy clusters from T019 tree visibility records while excluding independent landmark trees and severed trees; persistent foliage-health changes only invalidate the affected sector cluster revision. T023 supplies renderer-neutral deterministic natural-scatter records for ordinary boulders from world seed + fixed sector and explicit landmark records for exceptional rock features.
+
+T024/T025 coarse presentation state is adapter-side and renderer-neutral: removed/restored structure state suppresses or restores far proxies without mutating the semantic planning manifest, and tree damage/severing flows through existing vegetation truth into canopy visibility. The shipped campaign planning path separately exposes `KentridgeCampaignGenerationPlan.Visibility`, providing a real non-Showcase consumer of the renderer-neutral visibility source.
+
+T029 behavioral coverage includes explicit 8/10/12 km cardinal+diagonal horizon-landmark selection and a narrow 10 m semantic structure query proving the proxy path does not depend on a coarse far-terrain sample landing inside its footprint.
+
 ## Validation gates
 
 Implement in independently testable phases: coverage correctness -> **whole-range far-terrain material/normal/detail fidelity -> measured inner far geometry fidelity if still required -> near/far terrain transition proof** -> visibility manifest -> semantic structure HLOD -> deterministic scatter -> canopy/forest HLOD -> natural landmark promotion -> transition/budget stress validation.
@@ -58,3 +74,21 @@ Implement in independently testable phases: coverage correctness -> **whole-rang
 Built-player evidence must include terrain-dominant views at approximately 0.5, 1, 3, 6, 10, and 12 km plus camera travel across ~350-600 m from multiple directions/elevations. Inspect for smooth/flat far-world appearance, material-family changes, normal/lighting discontinuity, color/fog mismatch, shimmer/aliasing, silhouette loss, popping, and any seam.
 
 Performance validation must separately record far-terrain ring vertex counts, CPU sampling/build time, rebuild churn, shader/GPU cost, draw count, and memory. Existing SceneIssues remain the implementation units; do not duplicate active macro-world or terrain-streaming work.
+
+## CI history / root causes
+
+Run `33409771197` failed because a Kentridge semantic test was missing its content namespace import; feature work corrected that product cause.
+
+Run `33414406079` repeated the `Int2` compile symptom. Minimal root-cause isolation showed `Int2` is owned by `MountingForce.WorldGen`, not `MountingForce.WorldGen.Content.Kentridge`; production cluster/scatter files were corrected accordingly before another request.
+
+Run `33415875148` correctly targeted its intended feature parent and exposed regression-source compile defects only: two HLOD tests omitted worldgen/Kentridge imports, the Kentridge planning test omitted its content import, and the canopy test used an NUnit containment form that bound to a string overload. Those exact causes were corrected.
+
+Run `33418238980` is green for source SHA `8341b488...`: requested `ShowcaseFarStructureSourceTests`, automatic module validation, and standalone `KentridgePlayableSlice` SceneIssue replay all passed. The built-player capture remained near the Kentridge opening/interior, so this is supporting rather than final visual proof of 8/10/12 km HLOD, canopy HLOD, transition behavior, or the newly required terrain-distance fidelity captures.
+
+## Dependency / authority audit
+
+The engine render contract remains Game-agnostic: `VoxelEngine.Rendering.Api` references Vegetation/AmbientLife/Unity.Mathematics only and `FarWorldRendering.cs` contains render-ready values rather than WorldBuilder intent, storage, or residency state. `Game.WorldBuilder.Api` remains `noEngineReferences=true`; `WorldVisibilityManifest` owns only deterministic descriptors/sector membership and has no voxel/storage/render hooks. Structure removal state is a lightweight CPU-side presentation source keyed by existing semantic identity, while tree damage/sever state continues to come from the existing tree read source. No duplicate voxel/tree authority is introduced by these completed pieces.
+
+## Blockers / remaining gates
+
+T003A-T003D remain required. T003A/T003B require safe integration of shared terrain-material/classification semantics into the far-terrain rendering path; T003C is conditional on measured residual geometry loss after those changes; T003D requires built-player transition proof. T020/T021, T026, and T028 still require renderer/composition hookup work. Final T029-T033 still require exact-head behavioral validation, purpose-built far-visibility/terrain captures, canonical Kentridge integration, device/budget evidence, cleanup, and documentation before closure.
