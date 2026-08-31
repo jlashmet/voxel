@@ -16,18 +16,24 @@
 - Direct review of all retained Water frames (`t=8.2`, `14.2`, `20.2`, `26.2`) rejected production quality: narrow engineered levee/trench, abrupt walls, rectangular cascade seams, and analytic pool cuts.
 - Composition correction `39d7f99bdd9e3d22ba72561edd13123f5817eb95` broadened/graded banks, varied width, irregularized pool boundaries, and staggered cascade grades. Exact request `agent-8-water-terrain-integration-4e1f366` / run `33388147850` passed all automated gates for feature `4e1f3662c0bb9f71fa779e67007c7cb62fc5d4ff`.
 - Direct review of every retained Water frame from run `33388147850` still rejects production quality: the composition remains a flat test pad with broad analytic sand rims, and the channel still reads as authored above/against the surrounding terrain rather than carved through it.
-- Selected next correction `392e59be377c48f50544b4160fddbb11f90932b8` is still scene-local but materially changes the relationship: terrain apron heights are carved down toward pool basins and the meandering channel, river banks become a narrow shoreline rather than a raised embankment, the receiving pool is lower than the upstream water with a real stepped cascade, and evidence cameras move closer to shoreline/flow/contact. Renderer, authoritative Water state/collision, generic harness, readiness, and acceptance policy remain unchanged.
+- Carved-terrain correction `392e59be377c48f50544b4160fddbb11f90932b8` was exercised by exact transport run `33390924383`; requested focused regression, automatic module planning, Water player, Kentridge player, previews/artifact upload, and final status all completed successfully.
+- Reuse/root-cause review after that run found a stronger boundary than another scene-local visual tweak: agent-9 owns the production `WaterRenderingShowcase` and its semantic Water/river/waterfall composition. Its feature branch currently contains a minimal top-level scene whose only scene policy is attaching `VoxelEngine.Showcase.WaterRenderingShowcase`, plus a portable production-path regression (`PortableShowcaseWorldAuthorsIndependentWaterProfilesThroughCanonicalStorage`). Maintaining an independently authored Agent-8 Water tableau would duplicate showcase policy and is the wrong reuse boundary.
+- Selected integration approach: once agent-9's Water work reaches `master`, replace Agent-8's bespoke module tableau with a thin module-local validation scene beneath `Assets/VoxelEngine/Rendering/Validation` that attaches the same canonical `WaterRenderingShowcase` composition component, keep scenario/capture policy in the module-owned JSON, and point Water focused metadata at semantic production regressions rather than PlayMode visual proof. This preserves acceptance (14)'s module-local scene while reusing the production showcase implementation instead of forking it.
+
+## External prerequisite / blocker
+- As of the latest fetch, `master` is still `2edf4c2e151492f67c4a1c1b846a9b7948284aba`; agent-9's Water showcase remains on `fixes/agent-9` and is not available to Agent-8 through `origin/master` yet. Do not copy/cherry-pick another assignment or continue polishing the duplicate Agent-8 tableau. Continue only independent architecture/audit work until the canonical Water composition lands, then merge current master through the required closure flow and adapt module-local validation to reuse it.
 
 ## Blast radius / cost
-CI/orchestration, validation assets/tests/docs, Water validation composition/probes, Water mesh addressing/topology, and presentation shader only. The latest correction is scene-local and uses existing semantic authoring APIs; no authoritative simulation/collision behavior changes.
+CI/orchestration, validation assets/tests/docs, and the Water validation adapter/metadata. Water renderer corrections already isolated by behavioral regressions remain in scope only where acceptance/correctness requires them. The next Water scene change is intended to remove duplicated scene-specific policy by reusing the canonical production showcase composition; no authoritative simulation/collision behavior change is planned.
 
 ## Current commit
-Feature branch includes scene-local terrain-carving/evidence-composition correction `392e59be377c48f50544b4160fddbb11f90932b8`; plan/task bookkeeping follows before the next exact-head request.
+Feature head before this bookkeeping was `36d598669f02ad23310d55bd62258c5a803ad3b9`; exact transport run `33390924383` completed successfully for its direct-parent feature content. This bookkeeping intentionally advances the feature head, so another exact-head gate will be required before closure.
 
 ## Remaining gates
-- [x] Generic module discovery/execution, fail-closed behavior, Water migration, documentation, and independent reuse proof.
+- [x] Generic module discovery/execution, fail-closed behavior, Water migration plumbing, documentation, and independent reuse proof.
 - [x] Automatic Water -> Kentridge exact-SHA path and cost evidence.
 - [x] Isolate/fix Water vertex addressing and planar-top renderer root causes with behavioral regressions.
 - [x] Generic post-readiness evidence-window validation.
-- [ ] Run exact-SHA CI for the current carved-terrain composition correction and inspect every retained Water frame as production-quality evidence.
+- [ ] After canonical `WaterRenderingShowcase` is present on `master`, reuse it from the module-local Water validation scene and select semantic focused Water regressions without PlayMode visual-acceptance semantics.
+- [ ] Run exact-head CI for that reuse integration and inspect every retained Water standalone frame as production-quality evidence.
 - [ ] Review all 18 acceptance criteria; only then complete metadata, move open -> closed, merge current master, revalidate exact head as required, and promote non-force.
