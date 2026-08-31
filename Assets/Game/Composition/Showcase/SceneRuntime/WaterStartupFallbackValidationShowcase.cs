@@ -25,8 +25,8 @@ namespace VoxelEngine.Showcase
         private const int BaseY = 180;
         private const int StillPoolCentreX = 170;
         private const int StillPoolCentreZ = 220;
-        private const int StillPoolShelfRadiusX = 42;
-        private const int StillPoolShelfRadiusZ = 36;
+        private const int StillPoolShelfRadiusX = 35;
+        private const int StillPoolShelfRadiusZ = 29;
         private const int StillPoolWaterRadiusX = 30;
         private const int StillPoolWaterRadiusZ = 24;
         private const int RiverStartZ = 180;
@@ -35,6 +35,7 @@ namespace VoxelEngine.Showcase
         private const int CascadeEndZ = 366;
         private const int ReceivingPoolCentreX = 250;
         private const int ReceivingPoolCentreZ = 390;
+        private const int ReceivingPoolWaterY = BaseY - 3;
 
         private IVoxelStorageRuntime _storage;
         private Camera _camera;
@@ -164,18 +165,18 @@ namespace VoxelEngine.Showcase
             FillOrganicEllipse(authoring, originX, originZ,
                 StillPoolCentreX, StillPoolCentreZ,
                 StillPoolShelfRadiusX, StillPoolShelfRadiusZ,
-                BaseY - 1, GameMaterialIds.Sand, 0.10f);
+                BaseY - 1, GameMaterialIds.Sand, 0.16f);
             FillOrganicEllipse(authoring, originX, originZ,
                 StillPoolCentreX, StillPoolCentreZ,
                 StillPoolWaterRadiusX, StillPoolWaterRadiusZ,
-                BaseY, GameMaterialIds.Water, 0.08f);
+                BaseY, GameMaterialIds.Water, 0.12f);
 
             FillOrganicEllipse(authoring, originX, originZ,
                 ReceivingPoolCentreX, ReceivingPoolCentreZ,
-                36, 28, BaseY - 1, GameMaterialIds.Sand, 0.09f);
+                31, 23, ReceivingPoolWaterY - 1, GameMaterialIds.Sand, 0.15f);
             FillOrganicEllipse(authoring, originX, originZ,
                 ReceivingPoolCentreX, ReceivingPoolCentreZ,
-                26, 19, BaseY, GameMaterialIds.Water, 0.07f);
+                26, 19, ReceivingPoolWaterY, GameMaterialIds.Water, 0.11f);
 
             AuthorCascade(authoring, originX, originZ);
         }
@@ -189,7 +190,7 @@ namespace VoxelEngine.Showcase
             {
                 float t = Mathf.InverseLerp(CascadeStartZ, CascadeEndZ, z);
                 float centre = RiverCentreX(z) + Mathf.Sin(z * 0.31f) * 0.8f;
-                float halfWidth = Mathf.Lerp(6.5f, 4.5f, t) + Mathf.Sin(z * 0.43f) * 0.55f;
+                float halfWidth = Mathf.Lerp(6.2f, 4.3f, t) + Mathf.Sin(z * 0.43f) * 0.55f;
                 for (int x = 195; x <= 295; x++)
                 {
                     float dx = Mathf.Abs(x - centre);
@@ -198,22 +199,16 @@ namespace VoxelEngine.Showcase
                         Mathf.FloorToInt(((z - CascadeStartZ) + stagger) / cascadeSpan * (cascadeDrop + 1)),
                         0,
                         cascadeDrop);
-                    int y = BaseY + cascadeDrop - step;
+                    int y = BaseY - step;
 
                     if (dx <= halfWidth)
                     {
-                        FillColumn(authoring, originX + x, originZ + z, BaseY - 3, y - 1, GameMaterialIds.Stone);
+                        FillColumn(authoring, originX + x, originZ + z, BaseY - 6, y - 1, GameMaterialIds.Stone);
                         authoring.Set(originX + x, y, originZ + z, GameMaterialIds.Cascade);
                     }
                     else if (dx <= halfWidth + 2.5f)
                     {
-                        FillColumn(authoring, originX + x, originZ + z, BaseY - 3, y - 1, GameMaterialIds.Sand);
-                    }
-                    else if (dx <= halfWidth + 10f)
-                    {
-                        float bankT = Mathf.InverseLerp(halfWidth + 2.5f, halfWidth + 10f, dx);
-                        int bankY = Mathf.RoundToInt(Mathf.Lerp(y - 1, BaseY - 2, bankT));
-                        FillColumn(authoring, originX + x, originZ + z, BaseY - 3, bankY, GameMaterialIds.Grass);
+                        FillColumn(authoring, originX + x, originZ + z, BaseY - 6, y - 1, GameMaterialIds.Sand);
                     }
                 }
             }
@@ -239,11 +234,63 @@ namespace VoxelEngine.Showcase
                     + Mathf.Cos(z * 0.035f) * 0.6f
                     + Mathf.Sin((x + z) * 0.024f) * 0.4f;
                 int y = BaseY - 2 + Mathf.RoundToInt(relief);
+
+                if (z >= RiverStartZ && z <= RiverEndZ)
+                {
+                    float centre = RiverCentreX(z);
+                    float halfWater = RiverHalfWidth(z);
+                    float bankDistance = Mathf.Abs(x - centre) - halfWater;
+                    if (bankDistance < 20f)
+                    {
+                        float bankT = Mathf.Clamp01(bankDistance / 20f);
+                        bankT = bankT * bankT * (3f - 2f * bankT);
+                        int valleyY = Mathf.RoundToInt(Mathf.Lerp(RiverHeight(z) - 1, y, bankT));
+                        y = Mathf.Min(y, valleyY);
+                    }
+                }
+
+                y = LowerForPool(
+                    y, x, z,
+                    StillPoolCentreX, StillPoolCentreZ,
+                    StillPoolWaterRadiusX, StillPoolWaterRadiusZ,
+                    BaseY, 12f);
+                y = LowerForPool(
+                    y, x, z,
+                    ReceivingPoolCentreX, ReceivingPoolCentreZ,
+                    26, 19,
+                    ReceivingPoolWaterY, 14f);
+
                 byte material = d > 0.9f || relief < -1.1f
                     ? GameMaterialIds.Stone
                     : GameMaterialIds.Grass;
-                FillColumn(authoring, originX + x, originZ + z, BaseY - 5, y, material);
+                FillColumn(authoring, originX + x, originZ + z, BaseY - 7, y, material);
             }
+        }
+
+        private static int LowerForPool(
+            int terrainY,
+            int x,
+            int z,
+            int centreX,
+            int centreZ,
+            int waterRadiusX,
+            int waterRadiusZ,
+            int waterY,
+            float transition)
+        {
+            float dx = x - centreX;
+            float dz = z - centreZ;
+            float nx = dx / waterRadiusX;
+            float nz = dz / waterRadiusZ;
+            float normalized = Mathf.Sqrt(nx * nx + nz * nz);
+            float transitionNormalized = transition / Mathf.Max(waterRadiusX, waterRadiusZ);
+            if (normalized > 1f + transitionNormalized)
+                return terrainY;
+
+            float edgeT = Mathf.InverseLerp(0.82f, 1f + transitionNormalized, normalized);
+            edgeT = edgeT * edgeT * (3f - 2f * edgeT);
+            int basinY = Mathf.RoundToInt(Mathf.Lerp(waterY - 1, terrainY, edgeT));
+            return Mathf.Min(terrainY, basinY);
         }
 
         private static void AuthorRiverBanks(IStructureAuthoringSession authoring, int originX, int originZ)
@@ -252,12 +299,11 @@ namespace VoxelEngine.Showcase
             {
                 float centre = RiverCentreX(z);
                 float halfWater = RiverHalfWidth(z);
-                float halfBank = halfWater + 16f;
                 int waterY = RiverHeight(z);
                 for (int x = 195; x <= 295; x++)
                 {
                     float dx = Mathf.Abs(x - centre);
-                    if (dx <= halfWater || dx > halfBank)
+                    if (dx <= halfWater || dx > halfWater + 3.5f)
                         continue;
                     if (IsInsideEllipse(
                         x, z,
@@ -267,10 +313,7 @@ namespace VoxelEngine.Showcase
                         continue;
                     }
 
-                    float bankT = Mathf.InverseLerp(halfWater, halfBank, dx);
-                    int bankY = Mathf.RoundToInt(Mathf.Lerp(waterY - 1, BaseY - 2, bankT));
-                    byte material = bankT < 0.28f ? GameMaterialIds.Sand : GameMaterialIds.Grass;
-                    FillColumn(authoring, originX + x, originZ + z, BaseY - 3, bankY, material);
+                    FillColumn(authoring, originX + x, originZ + z, BaseY - 6, waterY - 1, GameMaterialIds.Sand);
                 }
             }
         }
@@ -287,7 +330,7 @@ namespace VoxelEngine.Showcase
                     if (Mathf.Abs(x - centre) > halfWidth)
                         continue;
 
-                    FillColumn(authoring, originX + x, originZ + z, BaseY - 3, y - 1, GameMaterialIds.Sand);
+                    FillColumn(authoring, originX + x, originZ + z, BaseY - 6, y - 1, GameMaterialIds.Sand);
                     authoring.Set(originX + x, y, originZ + z, GameMaterialIds.Water);
                 }
             }
@@ -311,7 +354,8 @@ namespace VoxelEngine.Showcase
 
         private static int RiverHeight(int z)
         {
-            return BaseY + 3;
+            float t = Mathf.InverseLerp(RiverStartZ, RiverEndZ, z);
+            return t < 0.58f ? BaseY : BaseY - 1;
         }
 
         private static void FillColumn(
@@ -386,7 +430,7 @@ namespace VoxelEngine.Showcase
             Camera camera = cameraObject.AddComponent<Camera>();
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.backgroundColor = new Color(0.55f, 0.68f, 0.78f, 1f);
-            camera.fieldOfView = 46f;
+            camera.fieldOfView = 42f;
             camera.nearClipPlane = 0.1f;
             camera.farClipPlane = 120f;
             return camera;
@@ -399,16 +443,16 @@ namespace VoxelEngine.Showcase
             switch (shot)
             {
                 case 0:
-                    position = new Vector3(60.5f, 22.5f, 322f);
-                    target = new Vector3(68.2f, BaseY * 0.1f + 0.1f, 329.2f);
+                    position = new Vector3(64.6f, 20.5f, 325.6f);
+                    target = new Vector3(68.2f, BaseY * 0.1f, 329.2f);
                     break;
                 case 1:
-                    position = new Vector3(64f, 22f, 329.5f);
-                    target = new Vector3(74.2f, BaseY * 0.1f + 0.2f, 335.5f);
+                    position = new Vector3(69.2f, 20.2f, 331.0f);
+                    target = new Vector3(74.4f, (BaseY - 1) * 0.1f, 335.5f);
                     break;
                 default:
-                    position = new Vector3(66f, 22.5f, 337.5f);
-                    target = new Vector3(76f, BaseY * 0.1f + 0.1f, 344.5f);
+                    position = new Vector3(72.7f, 20.4f, 339.0f);
+                    target = new Vector3(76.2f, ReceivingPoolWaterY * 0.1f, 345.7f);
                     break;
             }
 
