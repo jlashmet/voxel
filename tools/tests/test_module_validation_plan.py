@@ -51,14 +51,24 @@ class PlannerTests(unittest.TestCase):
             result=planner.plan(["Assets/Core/Clock.cs"],planner.discover(root))
             self.assertEqual(["water"],result["modules"])
 
-    def test_unknown_production_uses_integration_only_fallback(self):
+    def test_unknown_production_fallback_runs_all_known_owning_modules(self):
         td,root=self.fixture()
         with td:
             result=planner.plan(["Assets/Unknown/Foo.cs"],planner.discover(root))
-            self.assertEqual(["game-integration"],result["modules"])
-            self.assertEqual([],result["tests"])
-            self.assertEqual(["game-integration"],[item["module"] for item in result["playerValidations"]])
+            self.assertEqual(["water"],result["modules"])
+            self.assertEqual(["Tests.Water"],[item["filter"] for item in result["tests"]])
+            self.assertEqual(["water","game-integration"],[item["module"] for item in result["playerValidations"]])
             self.assertEqual(["Assets/Unknown/Foo.cs"],result["fallbackPaths"])
+
+    def test_fallback_scope_does_not_hide_unowned_production_outside_scope(self):
+        td,root=self.fixture()
+        with td:
+            fallback=root/"Assets/Game/game.module-validation.json"
+            data=json.loads(fallback.read_text(encoding="utf-8"))
+            data["sharedPaths"]=["Assets/Shared/**"]
+            fallback.write_text(json.dumps(data),encoding="utf-8")
+            with self.assertRaisesRegex(planner.ManifestError,"unowned production path without fallback"):
+                planner.plan(["Assets/Unknown/Foo.cs"],planner.discover(root))
 
     def test_nonproduction_change_is_noop(self):
         td,root=self.fixture()
@@ -78,6 +88,18 @@ class PlannerTests(unittest.TestCase):
             result=planner.plan(["Assets/Structures/Socket.cs"],planner.discover(root))
             self.assertEqual(["structures"],result["modules"])
             self.assertEqual("Tests.Structures",result["tests"][0]["filter"])
+
+    def test_unknown_production_fallback_includes_independent_manifest(self):
+        td,root=self.fixture()
+        with td:
+            write(root,"Assets/Structures/structures.module-validation.json",{
+                "schemaVersion":1,"module":"structures","productionPaths":["Assets/Structures/**"],"sharedPaths":[],
+                "tests":[{"platform":"EditMode","filter":"Tests.Structures"}]
+            })
+            result=planner.plan(["Assets/Unknown/Foo.cs"],planner.discover(root))
+            self.assertEqual(["structures","water"],result["modules"])
+            self.assertEqual(["Tests.Structures","Tests.Water"],[item["filter"] for item in result["tests"]])
+            self.assertEqual(["water","game-integration"],[item["module"] for item in result["playerValidations"]])
 
     def test_owning_module_cannot_omit_focused_tests(self):
         td,root=self.fixture()
