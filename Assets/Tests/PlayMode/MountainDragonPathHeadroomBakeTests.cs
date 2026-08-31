@@ -163,12 +163,13 @@ namespace VoxelEngine.Tests.PlayMode
             int3 floorVoxel,
             string label)
         {
-            for (int offset = 1; offset <= WorldBuilderMountainLandmarkCatalogue.PathHeadroomVoxels; offset++)
+            int requiredHeadroomVoxels = ShowcaseMountainDragonLayout.CreateTraversalProfile().HeadroomVoxels;
+            for (int offset = 1; offset <= requiredHeadroomVoxels; offset++)
             {
                 int3 sample = floorVoxel + new int3(0, offset, 0);
                 Assert.That(ReadMaterial(bake, snapshots, sample), Is.EqualTo((byte)0),
                     label + " is obstructed inside the required "
-                    + WorldBuilderMountainLandmarkCatalogue.PathHeadroomVoxels
+                    + requiredHeadroomVoxels
                     + "-voxel player-clear envelope at " + sample + ".");
             }
         }
