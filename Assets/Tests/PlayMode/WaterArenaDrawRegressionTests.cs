@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
@@ -58,6 +59,7 @@ namespace VoxelEngine.Tests.PlayMode
                 int edgeCount = 0;
                 int sprayCount = 0;
                 uint sprayUvCorners = 0u;
+                var sprayVertices = new List<Vector3>();
                 Vector3 sprayMin = new(float.PositiveInfinity, float.PositiveInfinity, float.PositiveInfinity);
                 Vector3 sprayMax = new(float.NegativeInfinity, float.NegativeInfinity, float.NegativeInfinity);
                 for (int i = 0; i < vertices.Length; i++)
@@ -80,6 +82,7 @@ namespace VoxelEngine.Tests.PlayMode
                                          & (SmoothSurfaceVertex.WaterSprayUFlag
                                             | SmoothSurfaceVertex.WaterSprayVFlag);
                         sprayUvCorners |= 1u << (int)localCorner;
+                        sprayVertices.Add(vertex.Position);
                         sprayMin = Vector3.Min(sprayMin, vertex.Position);
                         sprayMax = Vector3.Max(sprayMax, vertex.Position);
                     }
@@ -93,11 +96,25 @@ namespace VoxelEngine.Tests.PlayMode
                 Assert.That(edgeCount, Is.EqualTo(verticalCount),
                     "A one-voxel-wide ribbon must expose reusable side-edge topology on every vertical vertex.");
                 Assert.That(sprayCount, Is.GreaterThanOrEqualTo(12),
-                    "A true lower boundary must emit a layered reusable spray fan into the same canonical water mesh.");
+                    "A true lower boundary must emit layered reusable spray into the same canonical water mesh.");
                 Assert.That(sprayCount % 12, Is.Zero,
-                    "Each canonical impact boundary emits three ordinary spray quads, not a secondary renderer path.");
+                    "Each canonical impact boundary emits three ordinary spray sheets, not a secondary geometry path.");
                 Assert.That(sprayUvCorners & 0xFu, Is.EqualTo(0xFu),
-                    "Canonical spray quads must carry all four local corners so the shared shader can feather their borders.");
+                    "Canonical spray sheets must carry all four local corners so the shared shader can feather their borders.");
+                Assert.That(sprayVertices.Count % 4, Is.Zero);
+                float minBaseSpan = float.PositiveInfinity;
+                float maxBaseSpan = 0f;
+                for (int i = 0; i < sprayVertices.Count; i += 4)
+                {
+                    float baseSpan = Vector3.Distance(sprayVertices[i], sprayVertices[i + 1]);
+                    float crownSpan = Vector3.Distance(sprayVertices[i + 3], sprayVertices[i + 2]);
+                    minBaseSpan = Mathf.Min(minBaseSpan, baseSpan);
+                    maxBaseSpan = Mathf.Max(maxBaseSpan, baseSpan);
+                    Assert.That(crownSpan, Is.LessThan(baseSpan - voxelSize * 0.05f),
+                        "Each reusable spray sheet must taper away from impact instead of exposing a rectangular slab.");
+                }
+                Assert.That(maxBaseSpan - minBaseSpan, Is.GreaterThan(voxelSize * 0.1f),
+                    "Layered spray must use distinct lower footprints instead of pivoting three same-span planes around one hinge.");
                 Assert.That(sprayMax.y - sprayMin.y, Is.GreaterThanOrEqualTo(voxelSize * 5.5f),
                     "Impact mist needs a multi-voxel vertical footprint so it remains readable beside a multi-metre fall.");
                 float horizontalSpan = Mathf.Max(sprayMax.x - sprayMin.x, sprayMax.z - sprayMin.z);
@@ -145,10 +162,14 @@ namespace VoxelEngine.Tests.PlayMode
                                + indices.Length * sizeof(uint)
                                + SurfaceGeometryArena.ArgsWordsPerDraw * sizeof(uint);
                 Assert.That(entry.AdvanceUpload(vertices, indices, byteBudget, out _), Is.True);
+                Assert.That(entry.HasSpray, Is.True,
+                    "Publishing spray-tagged canonical geometry must enable only that entry's spray pass.");
 
                 Shader shader = Shader.Find("Hidden/VoxelEngine/WaterSurface");
                 Assert.That(shader, Is.Not.Null);
                 material = new Material(shader);
+                Assert.That(material.passCount, Is.GreaterThanOrEqualTo(2),
+                    "Water material must retain a dedicated depth-writing body pass and depth-neutral spray pass.");
                 target = new RenderTexture(96, 96, 24, RenderTextureFormat.ARGB32)
                 {
                     name = "Water spray raster visibility discriminator target"
@@ -164,6 +185,7 @@ namespace VoxelEngine.Tests.PlayMode
                 vertices.Clear();
                 AddSprayQuad(vertices, GameMaterialIds.Water, sprayFlags);
                 Assert.That(entry.AdvanceUpload(vertices, indices, byteBudget, out _), Is.True);
+                Assert.That(entry.HasSpray, Is.True);
                 int stillPixels = RenderAndCountVisiblePixels(
                     entry, material, commandBuffer, target, readback);
                 Assert.That(stillPixels, Is.Zero,
@@ -216,6 +238,8 @@ namespace VoxelEngine.Tests.PlayMode
                                + indices.Length * sizeof(uint)
                                + SurfaceGeometryArena.ArgsWordsPerDraw * sizeof(uint);
                 Assert.That(entry.AdvanceUpload(vertices, indices, byteBudget, out _), Is.True);
+                Assert.That(entry.HasSpray, Is.False,
+                    "Ordinary water entries must not pay the extra spray draw without spray-tagged geometry.");
 
                 Shader shader = Shader.Find("Hidden/VoxelEngine/WaterSurface");
                 Assert.That(shader, Is.Not.Null);
