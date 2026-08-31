@@ -1,0 +1,20 @@
+VoxelShowcase Dragon Mesh Voxelization — source permission record
+Recorded: 2026-08-31
+Assignment: 20260829-050700-000-VoxelShowcaseDragonMeshVoxelization
+
+Source artifact identity
+- User-provided archive: mountain_dragon_supported.zip
+- ZIP SHA-256: f48cab5ab5b7edf6a84cc7bf14797c73d0ac61bf597ef76a587589a4522aeb0f
+- Contained STL: mountain_dragon_supported.stl
+- STL SHA-256: a01f600705a6daf79a8828474f227251a5680d4bb8bad4aa46659f9e06cf53d6
+
+Permission / commercial-use status
+- The project owner explicitly confirmed in the assignment conversation on 2026-08-31 that this dragon sculpture is free to use, including commercially.
+- Treat commercial use as permitted for this source in this project; do not continue to classify commercial-use permission itself as an unresolved blocker.
+
+Provenance fields still requiring exact source metadata if demanded by acceptance
+- Original source URL: not currently recorded in the repository evidence.
+- Original author/creator: not currently recorded in the repository evidence.
+- Named upstream license/permission text: not currently recorded in the repository evidence.
+
+This file records the project-owner commercial-use confirmation without inventing missing upstream attribution or license metadata. Source byte identity remains pinned by the hashes above.
