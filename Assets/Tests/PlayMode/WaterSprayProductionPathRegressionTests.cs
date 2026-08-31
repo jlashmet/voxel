@@ -68,7 +68,14 @@ namespace VoxelEngine.Tests.PlayMode
                         yield return null;
                 }
 
-                Assert.That(cache.CompletedBuildCount, Is.GreaterThan(0));
+                Assert.That(cache.CompletedBuildCount, Is.GreaterThan(0),
+                    $"Production water cache failed to publish within {maxFrames} frames. " +
+                    $"dirty={cache.DirtyCount} runningJobs={cache.RunningJobCount} " +
+                    $"pendingUploads={cache.PendingUploadCount} pendingBytes={cache.PendingUploadBytes} " +
+                    $"meshOverflow={cache.MeshOverflowCount} arenaFailures={cache.ArenaAllocationFailures} " +
+                    $"blockingCompletionViolations={cache.FramePathBlockingCompletionViolations} " +
+                    $"staleBuilds={cache.StaleBuildCount} residents={cache.ResidentCount} " +
+                    $"uploadedBytes={cache.UploadedGeometryBytes} residentGpuBytes={cache.ResidentGpuBytes}.");
                 IReadOnlyList<CpuWaterSurfaceChunkCache.Entry> visible =
                     cache.CollectVisible(camera, ShowcaseWorld.VoxelSize);
                 Assert.That(visible.Count, Is.GreaterThan(0));
