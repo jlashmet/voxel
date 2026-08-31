@@ -45,8 +45,6 @@ namespace VoxelEngine.Composition
     {
         private static readonly PropertyInfo s_ActivePassProperty = typeof(VoxelRenderBridge)
             .GetProperty("ActivePass", BindingFlags.Static | BindingFlags.NonPublic);
-        private static readonly FieldInfo s_SchedulerField = typeof(VoxelRenderPass)
-            .GetField("_scheduler", BindingFlags.Instance | BindingFlags.NonPublic);
 
         public static bool TryQueryVisibleSolidBounds(
             Bounds worldBounds,
@@ -54,12 +52,15 @@ namespace VoxelEngine.Composition
             out SurfaceBoundsCoverage coverage)
         {
             coverage = default;
-            if (voxelSizeMetres <= 0f || s_ActivePassProperty == null || s_SchedulerField == null)
+            if (voxelSizeMetres <= 0f || s_ActivePassProperty == null)
                 return false;
 
-            var pass = s_ActivePassProperty.GetValue(null) as VoxelRenderPass;
+            object pass = s_ActivePassProperty.GetValue(null);
             if (pass == null) return false;
-            var scheduler = s_SchedulerField.GetValue(pass) as VoxelSurfaceScheduler;
+            FieldInfo schedulerField = pass.GetType()
+                .GetField("_scheduler", BindingFlags.Instance | BindingFlags.NonPublic);
+            if (schedulerField == null) return false;
+            var scheduler = schedulerField.GetValue(pass) as VoxelSurfaceScheduler;
             if (scheduler == null) return false;
 
             int visible = 0;
