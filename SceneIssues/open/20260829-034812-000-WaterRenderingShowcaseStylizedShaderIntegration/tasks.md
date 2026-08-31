@@ -17,9 +17,9 @@
 - [x] Keep spray in the same canonical mesh/material; render it in a second `ZWrite Off` pass only for entries that actually contain spray.
 - [x] Replace same-span spray fan with three tapered sheets using distinct impact footprints; regression requires taper and footprint diversity.
 - [x] Replace seven shallow showcase ribbons with four overlapping connected Cascade bands; scene owns only composition policy.
-- [ ] Punch true low-coverage holes only in vertical Waterfall body fragments so transparent breakup does not still stamp depth; keep pool/river depth behavior unchanged.
-- [ ] Lower authored showcase Cascade feet into the receiving-water contact band so canonical impact topology/spray occurs at the pool instead of suspended above it.
-- [ ] Add behavioral regressions for waterfall cutout coverage and receiving-water contact before the next visual gate.
+- [x] Punch true low-coverage holes only in vertical Waterfall body fragments so transparent breakup does not still stamp depth; keep pool/river depth behavior unchanged (`3b1729c9c8a98af4c8692b13b7450c196c524f8e`).
+- [x] Lower authored showcase Cascade feet into the receiving-water contact band so canonical impact topology/spray occurs at the pool instead of suspended above it (`da6445f9d4cfbee8b6763dbc77b3d8b6a380b703`).
+- [x] Add behavioral regressions for waterfall cutout coverage and receiving-water contact before the next visual gate (`WaterfallBodyPunchesRealCoverageWhileStillWaterRemainsContinuous`; `ExactCascadeCurtainImpactsBesideReceivingWaterAndSurvivesProductionCache`, latest lock `fb4db36bd0346ce477e5b059f16a0248ac568ab4`).
 
 ## Root-cause / visual history
 - [x] Fix Metal procedural-indirect arena addressing with explicit `_SurfaceVertexBase` (`33339706799`).
@@ -38,6 +38,7 @@
 - [x] Directly review `33376859708`: reject visual closure. Carrier banding is softer and the starburst remains gone, but close frames still read as a flat rectangular veil with weak breakup and only thin impact wisps.
 - [x] Isolate the repeated flat-veil symptom before another fix: low-coverage Waterfall fragments are alpha-blended but the body pass is `ZWrite On`, so nearly transparent fragments still occlude overlapping bands; alpha modulation cannot create real silhouette holes.
 - [x] Isolate weak-impact cause in authored production geometry: receiving RiverWater tops at `fallBaseY + 7`, while the four Cascade feet start at `+10`, `+12`, `+17`, and `+18`; canonical lower-boundary spray is therefore emitted above the pool instead of at receiving-water contact.
+- [x] Implement the isolated flat-veil and impact-contact fixes without changing still/river depth behavior or shared storage/extraction contracts (`3b1729c9...`, `da6445f9...`, regression lock `fb4db36b...`).
 
 ## Reliability / cost
 - [x] Preserve spreading/inert gameplay semantics and storage/streaming/edit/diagnostic contracts; no swim/buoyancy subsystem exists to alter.
