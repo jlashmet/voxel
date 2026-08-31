@@ -6,13 +6,14 @@ using VoxelEngine.Structures.Api;
 namespace VoxelEngine.Structures.Runtime
 {
     /// <summary>
-    /// Opt-in, low-volume diagnostics for tracing authored structure instances through the
-    /// streaming feature-generation pipeline. Disabled unless the player is launched with
-    /// <c>--feature-generation-trace</c>.
+    /// Low-volume diagnostics for tracing authored structure instances through the streaming
+    /// feature-generation pipeline. Enabled for generic SceneIssue diagnostic replays or when a
+    /// player is launched explicitly with <c>--feature-generation-trace</c>; normal players stay silent.
     /// </summary>
     internal static class FeatureGenerationTrace
     {
         private const string CommandLineFlag = "--feature-generation-trace";
+        private const string SceneIssueFlag = "-voxel-scene-issue";
         private const string Prefix = "FEATUREGEN_TRACE";
         private static readonly bool s_enabled = ResolveEnabled();
 
@@ -77,7 +78,8 @@ namespace VoxelEngine.Structures.Runtime
             string[] args = Environment.GetCommandLineArgs();
             for (int i = 0; i < args.Length; i++)
             {
-                if (string.Equals(args[i], CommandLineFlag, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(args[i], CommandLineFlag, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(args[i], SceneIssueFlag, StringComparison.OrdinalIgnoreCase))
                     return true;
             }
             return false;
