@@ -2,23 +2,27 @@
 
 ## Defect / acceptance
 
-WorldBuilder needs deterministic `Secret -> Route(s) -> Clue(s)` planning with stable identity, semantic pre-solve evidence, readability policy, explicit voxel-bypass policy, reusable interactable realization, canonical idempotent discovery credit, and representative built-player proof. This SceneIssue has no captures/marked regions.
+WorldBuilder needs deterministic `Secret -> Route(s) -> Clue(s)` planning with stable identity, semantic pre-solve evidence, readability policy, explicit voxel-bypass policy, reusable route/discovery integration, and representative built-player proof. This SceneIssue has no captures or marked regions, so its exact built-scene replay is the visual evidence source.
 
 ## Hypotheses and discriminators
 
-- **A: hidden-secret selection is missing/non-deterministic.** Falsified: production `SecretPlanner` already resolves authoritative secret candidates deterministically and fails closed.
-- **B: clue generation needs a second hidden-location solver.** Rejected: route/clue planning must consume `ResolvedSecretPlan` and existing stable site/secret identities.
-- **C: deterministic route/readability/clue planning is missing.** Supported and implemented on this branch with stable route/clue IDs, semantic anchors, clue policy, bypass semantics, diagnostics, and focused regressions.
-- **D: canonical interactable/discovery integration is now available on master.** Rechecked 2026-08-31 against master `8d8fccd1198e36d164c92fc80760580de12efe51`; falsified. `20260830-014314-000-ExplorationInteractablesSecretsShowcase` remains open, and no newer master commit provides its canonical discovery authority. Do not duplicate its runtime authority.
-- **E: production generated secret voxel geometry exists for bypass validation.** Rechecked against master `8d8fccd1198e36d164c92fc80760580de12efe51`; still falsified. Newly landed spatial-reservation work adds generic reservation/compatibility plumbing but does not make `WorldBuilderVoxelCatalogue` consume resolved secret/route plans or provide secret-route voxel provenance to scan honestly.
+- **A: hidden-secret selection is missing/non-deterministic.** Falsified: production `SecretPlanner` already resolves authoritative candidates deterministically and fails closed.
+- **B: clue generation needs a second hidden-location solver.** Rejected: clue/route planning consumes canonical `ResolvedSecretPlan` identity.
+- **C: deterministic route/readability/clue planning was missing.** Supported and implemented with stable IDs, semantic anchors, readability/diversity policy, bypass semantics, diagnostics, and focused regressions.
+- **D: canonical interaction/discovery integration is unavailable.** Falsified after master advanced to `2edf4c2e151492f67c4a1c1b846a9b7948284aba`; the reusable discovery authority is now available and the regression proves one discovery event across revisit/reload.
+- **E: the validated gallery lacked representative clue realization.** Supported: planner/module validation existed, but `WorldbuildingGalleryShowcase` did not compose clue presentation against its real generated content. A scene-local presentation-only cave chain now binds deterministic semantic clues to existing tour landmarks and one canonical cave candidate/entrance.
 
-## Implemented / validated
+## Repeated-failure root cause isolation
 
-Planning contracts, `SecretCluePlanner`, `SecretDiscoveryPlanner`, explicit bypass policies, a narrow non-authoritative discovery ledger seam, focused behavioral regressions, and a module-owned standalone validation scene are complete. Exact feature SHA `6f68a84ecbb5c2e081c3ab666a19a7903161a347` passed targeted run `33361608731`, including focused tests, repository-derived module validation, Kentridge integration, dedicated WorldBuilder standalone-player execution, screenshots, artifacts, and final status. Full-resolution captures showed readable supported materials after the validation-scene shader fix. Planner work is one-shot/event-driven and bounded.
+Two materially different CI attempts failed before behavior execution. Artifact inspection isolated the causes before another fix: (1) the new scene composition called internal `WorldBlueprintBuilder.RequireSite`, producing four `CS1061` errors; public production composition must use `Region(...).Site(...)`; (2) the SceneIssue replay harness requires root `scenePath`, while this record previously only had nested `scene.path`. Both causes are now corrected without changing acceptance.
 
-## Remaining blockers / closure gates
+## Implemented / validated so far
 
-1. Bind interactable-backed routes and discovery metadata to the canonical reusable runtime once the owning SceneIssue lands on master; prove one stable discovery identity and revisit/reload/repeated-activation idempotence.
-2. Add/consume the production secret-geometry realization path, then validate `ProtectedShell` / `AuthoredBreakablesOnly` against actual generated voxels.
-3. Compose architectural, ruin/chamber, and natural traversal examples into `WorldbuildingGalleryShowcase`; run exact built-player validation and inspect gameplay-scale evidence for clue readability, route legibility, accidental bypass, placeholder/sign language, and runtime exceptions.
-4. Keep this issue open until every acceptance item is proven. Then close with `status=fixed`/`resolvedUtc`, merge current master, revalidate the resulting exact SHA as required, and push that exact head to master non-force.
+Planning contracts, `SecretCluePlanner`, `SecretDiscoveryPlanner`, explicit bypass policies, canonical discovery ledger integration, focused behavioral regressions, and module-owned standalone validation are present. Prior exact-SHA runs proved deterministic planner behavior and the WorldBuilder module player scene. Gallery clue realization is presentation-only: no interaction/discovery authority or save state was added; clues target the canonical cave identity and observation alone cannot discover it.
+
+## Remaining gates
+
+1. Run focused exact-SHA regression plus repository-derived module/integration gates.
+2. Replay this SceneIssue through the standalone player using exact `WorldbuildingGalleryShowcase`; require the gallery clue ready log and no runtime exceptions.
+3. Inspect full-resolution built-player evidence for gameplay-scale readability, grounding/material separation, absence of glowing/sign-marker language, and obvious accidental bypass/route confusion; record cost/blast radius.
+4. Do not close until every required acceptance item is proven. After green gates, close `open -> closed`, set `status=fixed`/`resolvedUtc`, merge current master, revalidate if the exact feature SHA changes, and push that exact head to master non-force.
