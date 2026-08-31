@@ -1,1 +1,3 @@
-exact archive tail staged through part23; remaining verified blobs attached by git tree commit
+exact archive payload assembled; validation pending exact-SHA focused test
+obj=f1f44d59f7d9c775b600ac0b9ad066a15a3c652bf685a12b2344b8c383ff12b1
+gzip=fd2f8253fcf5bc32b275640448511f59d20dcc7d01c307f99124b224431892d4
