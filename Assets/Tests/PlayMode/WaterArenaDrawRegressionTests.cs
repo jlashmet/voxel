@@ -52,6 +52,7 @@ namespace VoxelEngine.Tests.PlayMode
                 int lipCount = 0;
                 int impactCount = 0;
                 int edgeCount = 0;
+                int sprayCount = 0;
                 for (int i = 0; i < vertices.Length; i++)
                 {
                     SmoothSurfaceVertex vertex = vertices[i];
@@ -65,6 +66,7 @@ namespace VoxelEngine.Tests.PlayMode
                     if ((vertex.Material & SmoothSurfaceVertex.WaterLipFlag) != 0) lipCount++;
                     if ((vertex.Material & SmoothSurfaceVertex.WaterImpactFlag) != 0) impactCount++;
                     if ((vertex.Material & SmoothSurfaceVertex.WaterEdgeFlag) != 0) edgeCount++;
+                    if ((vertex.Material & SmoothSurfaceVertex.WaterSprayFlag) != 0) sprayCount++;
                 }
 
                 Assert.That(verticalCount, Is.GreaterThan(0));
@@ -74,6 +76,10 @@ namespace VoxelEngine.Tests.PlayMode
                     "The canonical extractor must mark the lower impact boundary of a vertical water ribbon.");
                 Assert.That(edgeCount, Is.EqualTo(verticalCount),
                     "A one-voxel-wide ribbon must expose reusable side-edge topology on every vertical vertex.");
+                Assert.That(sprayCount, Is.GreaterThan(0),
+                    "A true lower boundary must emit reusable spray geometry into the same canonical water mesh.");
+                Assert.That(sprayCount % 4, Is.Zero,
+                    "Canonical impact spray is emitted as ordinary quad geometry, not a secondary renderer path.");
             }
             finally
             {
