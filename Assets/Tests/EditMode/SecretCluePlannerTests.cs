@@ -163,38 +163,44 @@ namespace VoxelEngine.Tests.EditMode
             out NpcSiteAssignment[] npcs)
         {
             var game = Campaign.Create("secret-clue-fixture");
-            trail = game.World.RequireSite("trail", site => site.Archetype(SiteArchetype.Ruin));
-            shelter = game.World.RequireSite("shelter", site => site.Archetype(SiteArchetype.Ruin));
-            vault = game.World.RequireSite("vault", site => site
+            SiteRef localTrail = game.World.RequireSite("trail", site => site.Archetype(SiteArchetype.Ruin));
+            SiteRef localShelter = game.World.RequireSite("shelter", site => site.Archetype(SiteArchetype.Ruin));
+            SiteRef localVault = game.World.RequireSite("vault", site => site
                 .Archetype(SiteArchetype.Ruin)
                 .RequireCapability(SiteCapability.SecretCandidateHost));
-            rumorNpc = game.World.RequireNpc("road-keeper", npc => npc.PlaceAt(shelter).RequireConversation());
+            NpcRef localRumorNpc = game.World.RequireNpc("road-keeper", npc =>
+                npc.PlaceAt(localShelter).RequireConversation());
             LootTableRef reward = game.Loot.Table("cache-loot", loot => loot
                 .RollCount(1, 1).Guaranteed(LootCategory.Currency));
-            secret = game.World.RequireSecret("hidden-cache", required => required
-                .Inside(vault)
+            SecretRef localSecret = game.World.RequireSecret("hidden-cache", required => required
+                .Inside(localVault)
                 .Entrance(SecretEntranceType.DestroyableFalseWall)
                 .RequireHiddenSpace()
                 .RewardWith(reward));
 
+            trail = localTrail;
+            shelter = localShelter;
+            vault = localVault;
+            rumorNpc = localRumorNpc;
+            secret = localSecret;
             secretPlan = new ResolvedSecretPlan(
-                secret,
-                vault,
+                localSecret,
+                localVault,
                 new SecretCandidateId("generated/hidden-cache-room"),
                 "generated/false-wall-west",
                 ContainerArchetype.TreasureChest,
                 reward);
             sites = new[]
             {
-                new SiteRoleBinding(trail, new ResolvedSiteId("generated/trail")),
-                new SiteRoleBinding(shelter, new ResolvedSiteId("generated/shelter")),
-                new SiteRoleBinding(vault, new ResolvedSiteId("generated/vault"))
+                new SiteRoleBinding(localTrail, new ResolvedSiteId("generated/trail")),
+                new SiteRoleBinding(localShelter, new ResolvedSiteId("generated/shelter")),
+                new SiteRoleBinding(localVault, new ResolvedSiteId("generated/vault"))
             };
             npcs = new[]
             {
                 new NpcSiteAssignment(
-                    rumorNpc,
-                    shelter,
+                    localRumorNpc,
+                    localShelter,
                     new ResolvedSiteId("generated/shelter"),
                     requiresConversation: true)
             };
