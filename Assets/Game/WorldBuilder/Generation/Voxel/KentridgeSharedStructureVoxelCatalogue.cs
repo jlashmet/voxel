@@ -33,10 +33,19 @@ namespace MountingForce.WorldGen.Voxel
             Allocator allocator)
         {
             SettlementPlan plan = SettlementVoxelPlan.Resolve(seed, in settings);
-            SpatialReservationSnapshot reservations =
-                string.Equals(plan.Theme.Id, KentridgeDefinition.Id, StringComparison.Ordinal)
-                    ? KentridgeTownPlanner.BuildReservationSnapshot(seed)
-                    : null;
+            SpatialReservationSnapshot reservations = null;
+            if (string.Equals(plan.Theme.Id, KentridgeDefinition.Id, StringComparison.Ordinal))
+            {
+                if (plan.Routes.Count > 0)
+                {
+                    WorldRoadNetwork roads = KentridgeWorldRoadNetwork.Build(plan, seed, settings);
+                    reservations = KentridgeSpatialReservationAdapter.Build(seed, plan, roads);
+                }
+                else
+                {
+                    reservations = KentridgeTownPlanner.BuildReservationSnapshot(plan);
+                }
+            }
             return Build(seed, settings, allocator, plan, reservations);
         }
 
