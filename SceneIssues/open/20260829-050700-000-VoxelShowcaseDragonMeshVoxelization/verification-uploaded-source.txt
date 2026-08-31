@@ -8,7 +8,8 @@ User-provided archive:
 - STL byte size: 107,207,684
 - STL triangle count: 2,144,152
 - STL SHA-256: a01f600705a6daf79a8828474f227251a5680d4bb8bad4aa46659f9e06cf53d6
-- User states the model was obtained for free and is able to be used. No source URL, author name, or named license text was supplied; do not invent those fields. Exact third-party attribution/license metadata therefore remains an external prerequisite for final provenance acceptance.
+- Commercial-use permission is confirmed by the project owner: on 2026-08-31 the owner explicitly stated that this exact dragon sculpture is free to use, including commercially. The durable repository record is `verification-source-license.txt`.
+- Original source URL, author/creator, and named upstream license/permission text were not supplied. Do not invent those fields; complete them separately if exact upstream metadata is required by acceptance. Commercial-use permission itself is not an unresolved blocker.
 
 Support cleanup:
 - The uploaded file is a 3D-print "supported" export. Connectivity inspection separates one dominant dragon/scenic-base component from roughly 1,900 support/build components.
@@ -20,11 +21,12 @@ Support cleanup:
 Deterministic committed-source derivation candidate:
 - Starting from the support-free STL, quantize source positions into 0.5-unit clusters, replace each cluster with the centroid of its source positions, drop degenerate triangles, then remove duplicate triangles while preserving first source winding.
 - Result is conventional OBJ triangle geometry, not voxels and not hand-authored replacement geometry.
-- Derived OBJ vertices: 13,431
-- Derived OBJ triangles: 29,734
-- Derived OBJ byte size: 860,349
-- Derived OBJ SHA-256: f1f44d59f7d9c775b600ac0b9ad066a15a3c652bf685a12b2344b8c383ff12b1
-- Deterministic gzip SHA-256: fd2f8253fcf5bc32b275640448511f59d20dcc7d01c307f99124b224431892d4
+- Derived OBJ vertices: 13,431 used vertex clusters.
+- Derived OBJ triangles: 29,734.
+- Historical derived OBJ byte size: 860,349.
+- Historical derived OBJ SHA-256: f1f44d59f7d9c775b600ac0b9ad066a15a3c652bf685a12b2344b8c383ff12b1.
+- Historical deterministic gzip SHA-256: fd2f8253fcf5bc32b275640448511f59d20dcc7d01c307f99124b224431892d4.
+- A 2026-08-31 serializer discriminator recovered the historical text format (`# support-free derived mesh; cluster 0.5`, four-decimal centroid vertices) from the repository transfer. Exact byte identity is still enforced by the pinned OBJ hash rather than inferred from matching cardinality/prefix.
 - The 29,734-triangle source remains above the issue's practical ~20k detail floor while reducing connector transfer cost. Final built-source/voxel visual and quantitative gates still decide whether this derivation preserves enough anatomy; this derivation does not relax acceptance.
 
 Material limitation:
