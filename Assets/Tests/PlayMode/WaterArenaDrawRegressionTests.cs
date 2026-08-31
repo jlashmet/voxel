@@ -10,6 +10,83 @@ namespace VoxelEngine.Tests.PlayMode
     public sealed class WaterArenaDrawRegressionTests
     {
         [Test]
+        public void VerticalWaterFixtureEmitsReusableBoundaryTopology()
+        {
+            const byte water = 7;
+            var brickBases = new NativeArray<int3>(1, Allocator.Temp,
+                NativeArrayOptions.ClearMemory);
+            var snapshot = new NativeArray<byte>(WaterBrickMeshBatchJob.SnapshotStride,
+                Allocator.Temp, NativeArrayOptions.ClearMemory);
+            var mask = new NativeArray<byte>(WaterBrickMeshBatchJob.FaceArea, Allocator.Temp,
+                NativeArrayOptions.ClearMemory);
+            var vertices = new NativeList<SmoothSurfaceVertex>(256, Allocator.Temp);
+            var indices = new NativeList<uint>(384, Allocator.Temp);
+            var overflow = new NativeArray<int>(1, Allocator.Temp,
+                NativeArrayOptions.ClearMemory);
+
+            try
+            {
+                // Independent one-voxel-wide vertical ribbon. Material 7 is intentionally arbitrary:
+                // shared extraction only receives the semantic water mask, never a game material ID.
+                for (int y = 2; y <= 5; y++)
+                    snapshot[3 + y * WaterBrickMeshBatchJob.Edge
+                               + 3 * WaterBrickMeshBatchJob.Edge * WaterBrickMeshBatchJob.Edge] = water;
+
+                var job = new WaterBrickMeshBatchJob
+                {
+                    BrickBaseVoxels = brickBases,
+                    SnapshotMaterials = snapshot,
+                    WaterMaterialMask = 1u << water,
+                    BatchCount = 1,
+                    VoxelSize = 0.25f,
+                    MaskScratch = mask,
+                    Vertices = vertices,
+                    Indices = indices,
+                    Overflow = overflow,
+                };
+                job.Execute();
+
+                Assert.That(overflow[0], Is.Zero);
+                Assert.That(vertices.Length, Is.GreaterThan(0));
+                int verticalCount = 0;
+                int lipCount = 0;
+                int impactCount = 0;
+                int edgeCount = 0;
+                for (int i = 0; i < vertices.Length; i++)
+                {
+                    SmoothSurfaceVertex vertex = vertices[i];
+                    Assert.That(vertex.Material & SmoothSurfaceVertex.BaseMaterialMask,
+                                Is.EqualTo((uint)water),
+                        "Topology packing must preserve opaque low-byte water identity.");
+                    if (Mathf.Abs(vertex.Normal.y) > 0.01f)
+                        continue;
+
+                    verticalCount++;
+                    if ((vertex.Material & SmoothSurfaceVertex.WaterLipFlag) != 0) lipCount++;
+                    if ((vertex.Material & SmoothSurfaceVertex.WaterImpactFlag) != 0) impactCount++;
+                    if ((vertex.Material & SmoothSurfaceVertex.WaterEdgeFlag) != 0) edgeCount++;
+                }
+
+                Assert.That(verticalCount, Is.GreaterThan(0));
+                Assert.That(lipCount, Is.GreaterThan(0),
+                    "The canonical extractor must mark the top boundary of a vertical water ribbon.");
+                Assert.That(impactCount, Is.GreaterThan(0),
+                    "The canonical extractor must mark the lower impact boundary of a vertical water ribbon.");
+                Assert.That(edgeCount, Is.EqualTo(verticalCount),
+                    "A one-voxel-wide ribbon must expose reusable side-edge topology on every vertical vertex.");
+            }
+            finally
+            {
+                brickBases.Dispose();
+                snapshot.Dispose();
+                mask.Dispose();
+                vertices.Dispose();
+                indices.Dispose();
+                overflow.Dispose();
+            }
+        }
+
+        [Test]
         public void SecondWaterEntryBindsExplicitArenaOffsets()
         {
             var arena = new SurfaceGeometryArena(1024, 2048, 8);
