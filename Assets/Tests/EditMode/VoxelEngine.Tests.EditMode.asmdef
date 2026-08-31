@@ -25,6 +25,7 @@
         "Game.Composition.Campaign",
         "Game.Composition.Campaign.Content",
         "Game.Composition.Campaign.Runtime",
+        "Game.Composition.CaveWorldBuilder",
         "Game.Composition.Kentridge.Api",
         "Game.Composition.Kentridge.Runtime",
         "Game.Composition.WorldBuilderWorldGen",
