@@ -108,10 +108,12 @@ namespace Game.WorldBuilder.Validation
             out SiteRoleBinding[] sites)
         {
             var campaign = Campaign.Create("worldbuilder-secret-discovery-validation");
-            SiteRef localApproach = campaign.World.RequireSite("garden-approach", value => value.Archetype(SiteArchetype.Ruin));
-            SiteRef hidden = campaign.World.RequireSite("hidden-chamber", value => value
-                .Archetype(SiteArchetype.Ruin)
-                .RequireCapability(SiteCapability.SecretCandidateHost));
+            RegionHandle validationRegion = campaign.World.Region("validation-region");
+            SiteRef localApproach = validationRegion.Site("garden-approach", SiteArchetype.Ruin);
+            SiteRef hidden = validationRegion.Site(
+                "hidden-chamber",
+                SiteArchetype.Ruin,
+                value => value.RequireCapability(SiteCapability.SecretCandidateHost));
             LootTableRef reward = campaign.Loot.Table("secret-reward", loot => loot
                 .RollCount(1, 1)
                 .Guaranteed(LootCategory.Currency));
