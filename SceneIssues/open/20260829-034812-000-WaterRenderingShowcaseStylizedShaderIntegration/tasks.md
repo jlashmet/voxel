@@ -39,14 +39,18 @@
 - [x] `33362961099` proves real canonical arena/shader spray geometry rasterizes for Cascade and clips for still water.
 - [x] Isolate the remaining invisibility defect to the prior sub-metre spray footprint; enlarge it as bounded canonical geometry with a reusable extent regression.
 - [x] `33364050913` passes the enlarged three-sheet fan regressions and 60-second exact showcase replay, but direct review rejects hard triangular/starburst spray geometry and an over-bright parallel-slab waterfall read.
-- [x] Candidate `4cdc5cd9cf7e6b49dc070bef0cfe59a4a0f3477c` carries four spray-local corners in existing `Active` low bits for shared-shader feathering and reduces continuous bright waterfall columns without adding a renderer/material/draw path.
+- [x] Add spray-local UV in existing `Active` low bits and feather/break up spray in the shared shader while reducing continuous waterfall brightness.
+- [x] `33364793999` passes the feathered-spray regression/module/replay exact gate, but direct review still rejects the same angular impact/starburst acceptance symptom.
+- [x] After two materially different presentation fixes, isolate a minimal renderer root cause before another fix: translucent spray was rendered in the body pass with `ZWrite On`, so low-alpha fragments occluded later transparent water and exposed the fan footprint as angular negative space.
+- [x] Candidate `3ec832584029b8432d190c7121db876120d24398` moves spray to a second pass with `ZWrite Off`; the canonical cache records `HasSpray` at publication and emits that extra draw only for spray-containing entries.
 
 ## Reliability / cost
 - [x] Preserve spreading/inert gameplay semantics and storage/streaming/edit/diagnostic contracts; no swim/buoyancy subsystem exists to alter.
 - [x] Keep one renderer-owned water material and one `_WaterTime` path.
 - [x] Static profile cost remains six 32-entry `Vector4` arrays = 3,072 bytes plus one uint semantic mask.
 - [x] Arena correction adds one scalar to existing per-water-draw properties; no geometry allocation or draw call.
-- [x] Topology/spray reuse the existing 32-byte vertex stride; at most three ordinary spray quads per exposed vertical lower boundary and no additional draw/material path.
+- [x] Topology/spray reuse the existing 32-byte vertex stride; at most three ordinary spray quads per exposed vertical lower boundary.
+- [x] Depth fix keeps one canonical material and adds one extra indirect draw only to entries containing spray; ordinary water entries remain one draw.
 - [x] `33355120310` spray replay: arena `1,886,976/34,408,080` vertices, `2,841,088/60,214,140` indices, `191/16,384` draws, `leaseFail=0`; allocated ~698.4 MiB, reserved ~861.6–863.6 MiB, average-frame samples ~0.89–1.40 ms. GPU FrameTimingManager data unavailable and not inferred.
 - [ ] Complete final accepted-head CPU/GPU/memory/render-cost statement after visual acceptance; do not weaken budgets or invent unavailable GPU timing.
 
@@ -63,7 +67,8 @@
 - [x] `33361724893`: corrected production-path discriminator passes.
 - [x] `33362961099`: downstream raster visibility discriminator passes.
 - [x] `33364050913`: layered-spray regressions + module validation + 60-second showcase replay green; direct visual review rejects hard fan geometry/slab quality.
-- [ ] Run `WaterArenaDrawRegressionTests` plus 60-second WaterRenderingShowcase replay on exact feathered-spray candidate head.
+- [x] `33364793999`: feathered-spray regressions + module validation + 60-second showcase replay green; direct visual review rejects persistent angular negative-space/starburst artifact.
+- [ ] Run `WaterArenaDrawRegressionTests` plus 60-second WaterRenderingShowcase replay on exact depth-free-spray candidate head.
 - [ ] Directly accept/reject near/wide/time-separated waterfall frames against downward-flow, turbulence/aeration, irregular breakup, lip/edge/base foam, free mist/spray and overall visual-quality requirements.
 - [ ] Run `ShowcaseWaterPresentationRegressionTests` on the same visually accepted feature head.
 - [ ] Run `WaterSprayProductionPathRegressionTests.CascadeSprayFlagSurvivesCanonicalStorageCacheAndGpuUpload` on the same accepted head.
