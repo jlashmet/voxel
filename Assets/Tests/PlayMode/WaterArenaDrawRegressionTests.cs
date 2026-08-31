@@ -16,6 +16,7 @@ namespace VoxelEngine.Tests.PlayMode
         public void VerticalWaterFixtureEmitsReusableBoundaryTopology()
         {
             const byte water = 7;
+            const float voxelSize = 0.25f;
             var brickBases = new NativeArray<int3>(1, Allocator.Temp,
                 NativeArrayOptions.ClearMemory);
             var snapshot = new NativeArray<byte>(WaterBrickMeshBatchJob.SnapshotStride,
@@ -41,7 +42,7 @@ namespace VoxelEngine.Tests.PlayMode
                     SnapshotMaterials = snapshot,
                     WaterMaterialMask = 1u << water,
                     BatchCount = 1,
-                    VoxelSize = 0.25f,
+                    VoxelSize = voxelSize,
                     MaskScratch = mask,
                     Vertices = vertices,
                     Indices = indices,
@@ -56,6 +57,8 @@ namespace VoxelEngine.Tests.PlayMode
                 int impactCount = 0;
                 int edgeCount = 0;
                 int sprayCount = 0;
+                Vector3 sprayMin = new(float.PositiveInfinity, float.PositiveInfinity, float.PositiveInfinity);
+                Vector3 sprayMax = new(float.NegativeInfinity, float.NegativeInfinity, float.NegativeInfinity);
                 for (int i = 0; i < vertices.Length; i++)
                 {
                     SmoothSurfaceVertex vertex = vertices[i];
@@ -69,7 +72,12 @@ namespace VoxelEngine.Tests.PlayMode
                     if ((vertex.Material & SmoothSurfaceVertex.WaterLipFlag) != 0) lipCount++;
                     if ((vertex.Material & SmoothSurfaceVertex.WaterImpactFlag) != 0) impactCount++;
                     if ((vertex.Material & SmoothSurfaceVertex.WaterEdgeFlag) != 0) edgeCount++;
-                    if ((vertex.Material & SmoothSurfaceVertex.WaterSprayFlag) != 0) sprayCount++;
+                    if ((vertex.Material & SmoothSurfaceVertex.WaterSprayFlag) != 0)
+                    {
+                        sprayCount++;
+                        sprayMin = Vector3.Min(sprayMin, vertex.Position);
+                        sprayMax = Vector3.Max(sprayMax, vertex.Position);
+                    }
                 }
 
                 Assert.That(verticalCount, Is.GreaterThan(0));
@@ -79,10 +87,15 @@ namespace VoxelEngine.Tests.PlayMode
                     "The canonical extractor must mark the lower impact boundary of a vertical water ribbon.");
                 Assert.That(edgeCount, Is.EqualTo(verticalCount),
                     "A one-voxel-wide ribbon must expose reusable side-edge topology on every vertical vertex.");
-                Assert.That(sprayCount, Is.GreaterThan(0),
-                    "A true lower boundary must emit reusable spray geometry into the same canonical water mesh.");
-                Assert.That(sprayCount % 4, Is.Zero,
-                    "Canonical impact spray is emitted as ordinary quad geometry, not a secondary renderer path.");
+                Assert.That(sprayCount, Is.GreaterThanOrEqualTo(12),
+                    "A true lower boundary must emit a layered reusable spray fan into the same canonical water mesh.");
+                Assert.That(sprayCount % 12, Is.Zero,
+                    "Each canonical impact boundary emits three ordinary spray quads, not a secondary renderer path.");
+                Assert.That(sprayMax.y - sprayMin.y, Is.GreaterThanOrEqualTo(voxelSize * 5.5f),
+                    "Impact mist needs a multi-voxel vertical footprint so it remains readable beside a multi-metre fall.");
+                float horizontalSpan = Mathf.Max(sprayMax.x - sprayMin.x, sprayMax.z - sprayMin.z);
+                Assert.That(horizontalSpan, Is.GreaterThanOrEqualTo(voxelSize * 8f),
+                    "Impact mist needs a multi-voxel outward footprint rather than a sub-metre skirt hidden by the curtain.");
             }
             finally
             {
