@@ -7,6 +7,7 @@
         "Game.Composition.Showcase",
         "Game.Composition.WorldObjects.Runtime",
         "Game.WorldBuilder.Api",
+        "Game.WorldBuilder.Runtime",
         "VoxelEngine.Storage.Api",
         "VoxelEngine.Composition.Api",
         "VoxelEngine.Composition",
