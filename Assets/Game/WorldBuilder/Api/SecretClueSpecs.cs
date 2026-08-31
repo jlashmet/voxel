@@ -207,15 +207,23 @@ namespace Game.WorldBuilder.Api
         }
     }
 
-    public sealed partial class WorldBlueprintBuilder
+    /// <summary>
+    /// Small standalone authoring entry point. Clue recipes are kept separate from physical secret
+    /// selection so a campaign/content package can supply or reuse clue sets without changing the
+    /// canonical `SecretPlanner` path.
+    /// </summary>
+    public static class SecretClues
     {
-        public SecretClueId Clue(string id, SecretRef secret, Action<SecretClueBuilder> configure)
+        public static SecretClueSpec Define(
+            string id,
+            SecretRef secret,
+            Action<SecretClueBuilder> configure)
         {
-            var clueId = new SecretClueId(id);
-            var builder = new SecretClueBuilder(clueId, secret);
+            var builder = new SecretClueBuilder(new SecretClueId(id), secret);
             configure?.Invoke(builder);
-            _campaign.SecretClues.Add(builder.Build());
-            return clueId;
+            return builder.Build();
         }
+
+        public static string MemoryTopic(SecretRef secret) => "memory://secrets/" + secret.Id;
     }
 }
