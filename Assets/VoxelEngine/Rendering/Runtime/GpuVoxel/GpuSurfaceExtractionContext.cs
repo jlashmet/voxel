@@ -73,7 +73,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private int _writeIndexStart;
         private int _writeIndexCapacity;
         private int _countReadbackRetries;
-        private int _writeReadbackRetries;
         private double _stageRequestStartedSeconds;
 
         public GpuVoxelBrickMirror Mirror => _mirror;
@@ -86,7 +85,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         public ulong ChunksRequested { get; private set; }
         public ulong ChunksMirrorReady { get; private set; }
         public ulong ChunksCountReady { get; private set; }
-        public ulong ChunksWriteVerified { get; private set; }
+        public ulong ChunksWriteCompleted { get; private set; }
         public ulong ChunksCopied { get; private set; }
         public ulong ChunksRefusedNoSlot { get; private set; }
         public ulong ChunksEmpty { get; private set; }
@@ -95,7 +94,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         public ulong ChunksUnsupportedDecoration { get; private set; }
         public ulong ChunksOverflowed { get; private set; }
         public ulong CountReadbackRetryCount { get; private set; }
-        public ulong WriteReadbackRetryCount { get; private set; }
         public long MirrorCommittedBytes => _mirror.CommittedBytes;
         public bool HasActiveRequest => _stageRequestStartedSeconds > 0.0;
         public double ActiveRequestAgeMs => !HasActiveRequest ? 0.0
@@ -456,7 +454,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 // staged extraction alive and let the normal publication path install a zero-index
                 // ready entry. CpuTransvoxelChunkCache still needs a non-zero arena sizing token,
                 // but the authoritative zero remains in _stagedCounts. BeginWriteRange recognizes
-                // that zero and deliberately skips the redundant write/verification dispatch.
+                // that zero and deliberately skips the redundant geometry write dispatch.
                 ChunksEmpty++;
                 counts = new GpuExtractionCounts(1, 1);
             }
@@ -465,7 +463,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         /// <summary>
         /// Re-dispatches count for the same immutable staged footprint after a transient Metal
-        /// counter-readback or count/write agreement failure. Region readers remain registered, so
+        /// counter-readback failure. Region readers remain registered, so
         /// journal recovery cannot mutate the sampled mirror between attempts.
         /// </summary>
         internal void RetryCount()
@@ -503,7 +501,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _writeVertexCapacity = vertexCapacity;
             _writeIndexStart = indexStart;
             _writeIndexCapacity = indexCapacity;
-            _writeReadbackRetries = 0;
 
             // A completed zero count is already the authoritative payload. Dispatching the write
             // kernel just to prove that it writes zero vertices/indices adds a second async
@@ -543,45 +540,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 if (!_copyFence.passed) return GpuSurfaceExtractor.GpuCounterPoll.Pending;
                 _copyFencePending = false;
                 indexCount = _copyIndexCount;
+                ChunksWriteCompleted++;
                 ChunksWritten++;
                 return GpuSurfaceExtractor.GpuCounterPoll.Ready;
             }
-
-            GpuSurfaceExtractor.GpuCounterPoll poll = _extractor.TryCompleteWriteRange(
-                _writeVertexCapacity, _writeIndexCapacity, out GpuExtractionResult result);
-            if (poll == GpuSurfaceExtractor.GpuCounterPoll.Pending) return poll;
-            if (poll == GpuSurfaceExtractor.GpuCounterPoll.Failed)
-            {
-                // Re-running a failed verification transfer is safe: the write targets the same
-                // invisible staging lease, so a second dispatch only overwrites that unpublished
-                // range. Do not route a transient async readback failure into CPU topology work.
-                if (_writeReadbackRetries < MaxCounterReadbackRetries
-                    && _writeVertices != null && _writeIndices != null)
-                {
-                    _writeReadbackRetries++;
-                    WriteReadbackRetryCount++;
-                    _writeDispatchPending = true;
-                    TryDispatchPendingWrite();
-                    return GpuSurfaceExtractor.GpuCounterPoll.Pending;
-                }
-                return poll;
-            }
-
-            _writeReadbackRetries = 0;
-            if (result.Overflowed
-                || result.VertexCount != _stagedCounts.VertexCount
-                || result.IndexCount != _stagedCounts.IndexCount)
-            {
-                ChunksOverflowed++;
-                return GpuSurfaceExtractor.GpuCounterPoll.Failed;
-            }
-
-            ChunksWriteVerified++;
-            _copyIndexCount = result.IndexCount;
-            _copyDispatchPending = true;
-            if (!TryDispatchPendingCopy())
-                return GpuSurfaceExtractor.GpuCounterPoll.Pending;
-            return GpuSurfaceExtractor.GpuCounterPoll.Pending;
+            return GpuSurfaceExtractor.GpuCounterPoll.Failed;
         }
 
         private bool TryDispatchPendingWrite()
@@ -590,11 +553,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (!GpuSurfaceMirrorCoordinator.TryReserveExtractionDispatch(Time.frameCount))
                 return false;
 
-            _extractor.BeginWriteRange(
-                _mirror, _tables, _staged, _writeVertices, _writeIndices,
-                _writeVertexStart, _writeVertexCapacity,
-                _writeIndexStart, _writeIndexCapacity);
+            _extractor.WriteRangeToScratch(
+                _mirror, _tables, _staged, _writeVertexCapacity, _writeIndexCapacity);
             _writeDispatchPending = false;
+            _copyIndexCount = _stagedCounts.IndexCount;
+            _copyDispatchPending = true;
             return true;
         }
 
@@ -664,7 +627,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _lastCoveragePollFrame = -1;
             _hasStaged = false;
             _countReadbackRetries = 0;
-            _writeReadbackRetries = 0;
             _writeVertices = null;
             _writeIndices = null;
             _writeArgs = null;

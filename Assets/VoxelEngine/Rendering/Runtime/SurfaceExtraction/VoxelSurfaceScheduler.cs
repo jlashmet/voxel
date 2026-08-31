@@ -1056,7 +1056,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 gpuRequested += worker.GpuRequestedStageCount;
                 gpuMirrorReady += worker.GpuMirrorReadyStageCount;
                 gpuCountReady += worker.GpuCountReadyStageCount;
-                gpuWriteReady += worker.GpuWriteVerifiedStageCount;
+                gpuWriteReady += worker.GpuWriteCompletedStageCount;
                 gpuCopied += worker.GpuCopiedStageCount;
                 gpuPublished += worker.GpuCompletedBuildCount;
                 gpuEmpty += worker.GpuEmptyStageCount;

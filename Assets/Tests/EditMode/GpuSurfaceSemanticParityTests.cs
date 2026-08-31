@@ -1,10 +1,8 @@
-using System.Collections;
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
 using UnityEditor;
 using UnityEngine;
-using UnityEngine.TestTools;
 using VoxelEngine.Rendering.Runtime.GpuVoxel;
 using VoxelEngine.Storage.Api;
 
@@ -89,8 +87,8 @@ namespace VoxelEngine.Tests.EditMode
             Assert.AreEqual(clumps * 48, moss.IndexCount - plain.IndexCount);
         }
 
-        [UnityTest]
-        public IEnumerator ScratchCopyPublishesGpuArgsAfterVerifiedGeometry()
+        [Test]
+        public void ReservedScratchWritePublishesArgsWithoutASecondReadback()
         {
             using var mirror = new GpuVoxelBrickMirror(8);
             using var tables = GpuTransvoxelTables.CreateDefault();
@@ -99,8 +97,7 @@ namespace VoxelEngine.Tests.EditMode
             PublishRepeatedHalfBrick(mirror, extractor, SurfaceStyles.Smooth, 0,
                                      out NativeArray<byte> voxels,
                                      out NativeArray<ushort> semantics,
-                                     out NativeArray<byte> boundaries,
-                                     Allocator.Persistent);
+                                     out NativeArray<byte> boundaries);
             var request = new GpuChunkExtraction(int3.zero, new int3(-1), 1, 1f);
             GpuExtractionCounts counts = extractor.Count(mirror, tables, request);
             const int vertexStart = 128;
@@ -114,25 +111,16 @@ namespace VoxelEngine.Tests.EditMode
             var args = new ComputeBuffer(8, sizeof(uint), ComputeBufferType.IndirectArguments);
             try
             {
-                extractor.BeginWriteRange(mirror, tables, request, vertices, indices,
-                    vertexStart, counts.VertexCount, indexStart, counts.IndexCount);
-                GpuExtractionResult result = default;
-                GpuSurfaceExtractor.GpuCounterPoll poll = GpuSurfaceExtractor.GpuCounterPoll.Pending;
-                for (int frame = 0; frame < 120 && poll == GpuSurfaceExtractor.GpuCounterPoll.Pending;
-                     frame++)
-                {
-                    poll = extractor.TryCompleteWriteRange(
-                        counts.VertexCount, counts.IndexCount, out result);
-                    if (poll == GpuSurfaceExtractor.GpuCounterPoll.Pending) yield return null;
-                }
-                Assert.AreEqual(GpuSurfaceExtractor.GpuCounterPoll.Ready, poll);
-                Assert.IsFalse(result.Overflowed);
-
+                ulong readbacksAfterCount = extractor.CounterReadbacks;
+                extractor.WriteRangeToScratch(
+                    mirror, tables, request, counts.VertexCount, counts.IndexCount);
                 extractor.CopyCompletedWriteRange(vertices, indices, args, argsStart,
-                    vertexStart, result.VertexCount, indexStart, result.IndexCount);
+                    vertexStart, counts.VertexCount, indexStart, counts.IndexCount);
                 var argsReadback = new uint[8];
                 args.GetData(argsReadback); // verification-only synchronization
-                Assert.AreEqual((uint)result.IndexCount, argsReadback[argsStart]);
+                Assert.AreEqual(readbacksAfterCount, extractor.CounterReadbacks,
+                    "Reserved production writes must not request per-chunk verification counters.");
+                Assert.AreEqual((uint)counts.IndexCount, argsReadback[argsStart]);
                 Assert.AreEqual(1u, argsReadback[argsStart + 1]);
                 Assert.AreEqual(0u, argsReadback[argsStart + 2]);
                 Assert.AreEqual(0u, argsReadback[argsStart + 3]);

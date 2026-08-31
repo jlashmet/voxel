@@ -994,7 +994,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public ulong GpuRequestedStageCount => _gpuExtraction?.ChunksRequested ?? 0UL;
         public ulong GpuMirrorReadyStageCount => _gpuExtraction?.ChunksMirrorReady ?? 0UL;
         public ulong GpuCountReadyStageCount => _gpuExtraction?.ChunksCountReady ?? 0UL;
-        public ulong GpuWriteVerifiedStageCount => _gpuExtraction?.ChunksWriteVerified ?? 0UL;
+        public ulong GpuWriteCompletedStageCount => _gpuExtraction?.ChunksWriteCompleted ?? 0UL;
         public ulong GpuCopiedStageCount => _gpuExtraction?.ChunksCopied ?? 0UL;
         public ulong GpuEmptyStageCount => _gpuExtraction?.ChunksEmpty ?? 0UL;
         public ulong GpuUnsupportedStageCount => _gpuExtraction?.ChunksUnsupported ?? 0UL;
@@ -1002,8 +1002,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _gpuExtraction?.ChunksUnsupportedReconstruction ?? 0UL;
         public ulong GpuUnsupportedDecorationStageCount =>
             _gpuExtraction?.ChunksUnsupportedDecoration ?? 0UL;
-        public ulong GpuCounterRetryCount => _gpuExtraction == null ? 0UL
-            : _gpuExtraction.CountReadbackRetryCount + _gpuExtraction.WriteReadbackRetryCount;
+        public ulong GpuCounterRetryCount => _gpuExtraction?.CountReadbackRetryCount ?? 0UL;
         public bool HasActiveGpuStage => _gpuExtraction?.HasActiveRequest ?? false;
         public int ActiveGpuStagePhase => _gpuExtraction?.ActiveRequestPhase ?? 0;
         public double ActiveGpuStageAgeMs => _gpuExtraction?.ActiveRequestAgeMs ?? 0.0;

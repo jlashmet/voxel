@@ -19,7 +19,7 @@
 - Baseline p95 16.7–17.5 ms, missing 598. Removing write verification without a scratch fence caused p95 201 ms; reverted.
 - 1,162/1,703 counts rejected for reconstruction versus one decoration. Serialized exact-face greedy emission removed fallback and raised publications, but p95 became 49.92 ms; reverted. Parallel compaction is required.
 - GPU classification skips density dispatch for unsupported chunks; throughput rose slightly, walking p99 remained 38.29 ms.
-- Parallel per-cell exact Planar/Sharp/Cubic and deterministic clump/fringe emission now replace supported-semantic fallback. Metal semantic/publication parity is 5/5 and arena count/write coverage is 7/7. The obsolete raw unsupported scan was removed; publication args and scratch lifetime are GPU-ordered behind an explicit fence.
+- Parallel per-cell exact Planar/Sharp/Cubic and deterministic clump/fringe emission now replace supported-semantic fallback. Metal semantic/publication parity is 5/5 and arena count/write coverage is 7/7. The obsolete raw unsupported scan was removed. Production now performs one count readback per chunk; reserved write, arena copy, args, and scratch lifetime are GPU-ordered behind an explicit fence with no write verification readback. Policy coverage is 5/5.
 
 ## Remaining gates
 - Replace per-chunk readbacks with bounded descriptor batches, GPU prefix allocation/meshing/args, version-safe publication, and explicit fences. Split 64³ work into bounded units if necessary.

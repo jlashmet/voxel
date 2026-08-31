@@ -228,10 +228,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         /// <summary>
         /// Times two integers of bookkeeping have been copied back from the GPU.
         ///
-        /// This is the transfer the no-readback invariant permits, and it is bounded: one per count
-        /// pass and one per write pass, regardless of how much geometry the chunk holds. What the
-        /// invariant forbids is a readback that grows with the surface, because that puts the CPU
-        /// back on the critical path the migration exists to get it off.
+        /// Production requests one bounded count transfer while it still uses CPU arena leases.
+        /// Write-counter transfers are retained only by blocking/oracle APIs; the frame path orders
+        /// its reserved write, copy, args, and completion fence entirely on the GPU.
         /// </summary>
         public ulong CounterReadbacks { get; private set; }
 
@@ -671,9 +670,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         }
 
         /// <summary>
-        /// Writes the staged chunk into an arena range and asks for the verification counters
-        /// without waiting. The non-blocking counterpart of <see cref="WriteRange"/>; complete it
-        /// with <see cref="TryCompleteWriteRange"/>.
+        /// Oracle-only asynchronous write verification. Production uses
+        /// <see cref="WriteRangeToScratch"/> and an explicit copy fence instead.
         /// </summary>
         public void BeginWriteRange(GpuVoxelBrickMirror mirror, GpuTransvoxelTables tables,
                                     in GpuChunkExtraction request,
@@ -681,14 +679,27 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                                     int vertexStart, int vertexCapacity,
                                     int indexStart, int indexCapacity)
         {
-            // Production writes into private scratch first. The arena buffers passed here remain
-            // untouched until the verified output is copied as a short publication stage; this
-            // avoids a long extraction UAV write overlapping raster reads of the live arena.
+            // Write into private scratch first so verification never touches a live arena range.
             EnsureWriteScratch(vertexCapacity, indexCapacity);
             DispatchWriteRange(mirror, tables, request,
                                _writeScratchVertices, _writeScratchIndices,
                                0, vertexCapacity, 0, indexCapacity);
             RequestCounters();
+        }
+
+        /// <summary>
+        /// Queues a count-reserved production write into private scratch without requesting a
+        /// second counter readback. The caller orders copy/publication with a graphics fence.
+        /// Count/write equality remains covered by <see cref="WriteRange"/> and GPU oracle tests.
+        /// </summary>
+        public void WriteRangeToScratch(GpuVoxelBrickMirror mirror, GpuTransvoxelTables tables,
+                                        in GpuChunkExtraction request,
+                                        int vertexCapacity, int indexCapacity)
+        {
+            EnsureWriteScratch(vertexCapacity, indexCapacity);
+            DispatchWriteRange(mirror, tables, request,
+                               _writeScratchVertices, _writeScratchIndices,
+                               0, vertexCapacity, 0, indexCapacity);
         }
 
         public void CopyCompletedWriteRange(ComputeBuffer vertices, ComputeBuffer indices,
