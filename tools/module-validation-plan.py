@@ -94,14 +94,20 @@ def plan(changed_paths: list[str], manifests: list[dict]) -> dict:
     production=[p for p in changed if is_production(p)]
     selected={}
     fallback_used=[]
+    owning=[m for m in manifests if not m["fallback"]]
+    fallback_manifests=[m for m in manifests if m["fallback"]]
     for p in changed:
-        direct=[m for m in manifests if not m["fallback"] and any(matches(p,pat) for pat in m["productionPaths"])]
-        dependents=[m for m in manifests if not m["fallback"] and any(matches(p,pat) for pat in m["sharedPaths"])]
+        direct=[m for m in owning if any(matches(p,pat) for pat in m["productionPaths"])]
+        dependents=[m for m in owning if any(matches(p,pat) for pat in m["sharedPaths"])]
         matches_now=direct+dependents
         if not matches_now and is_production(p):
-            matches_now=[m for m in manifests if m["fallback"] and
-                         any(matches(p,pat) for pat in (m["productionPaths"]+m["sharedPaths"]))]
-            if matches_now:
+            fallback_match=any(any(matches(p,pat) for pat in (m["productionPaths"]+m["sharedPaths"]))
+                               for m in fallback_manifests)
+            if fallback_match:
+                # Unknown production ownership must never degrade to integration-only validation.
+                # A declared fallback scope means "validate every known owning module", which is
+                # intentionally broad but preserves focused tests and module-local player gates.
+                matches_now=list(owning)
                 fallback_used.append(p)
         if is_production(p) and not matches_now:
             raise ManifestError("unowned production path without fallback: "+p)
