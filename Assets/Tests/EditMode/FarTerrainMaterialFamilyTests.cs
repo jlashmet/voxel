@@ -1,5 +1,7 @@
+using System;
+using System.Linq;
+using System.Reflection;
 using NUnit.Framework;
-using VoxelEngine.Composition.Api;
 using VoxelEngine.Terrain.Api;
 
 namespace VoxelEngine.Tests.EditMode
@@ -20,16 +22,11 @@ namespace VoxelEngine.Tests.EditMode
                 subsurface: 3,
                 lowSurface: lowSurface,
                 surface: highSurface);
-            ShowcaseMaterialSet farMaterials = CreateShowcaseMaterials(lowSurface, highSurface);
-            int height = ShowcaseWorld.BaseHeightVoxels + offsetFromSplit;
+            int splitHeight = ShowcaseBaseHeight();
+            int height = splitHeight + offsetFromSplit;
 
-            byte nearFamily = nearMaterials.SurfaceAt(height, ShowcaseWorld.BaseHeightVoxels);
-            byte farFamily = VoxelFarTerrain.ResolveFarSurfaceMaterial(
-                farMaterials,
-                isStructure: false,
-                hasAuthoredTerrain: false,
-                authoredTerrainMaterial: 0,
-                height: height);
+            byte nearFamily = nearMaterials.SurfaceAt(height, splitHeight);
+            byte farFamily = ResolveFarSurface(lowSurface, highSurface, height);
 
             Assert.That(farFamily, Is.EqualTo(nearFamily));
         }
@@ -39,44 +36,59 @@ namespace VoxelEngine.Tests.EditMode
         {
             const byte lowSurface = 5;
             const byte highSurface = 9;
-            ShowcaseMaterialSet materials = CreateShowcaseMaterials(lowSurface, highSurface);
-            int fixedWorldHeight = ShowcaseWorld.BaseHeightVoxels + 37;
+            int fixedWorldHeight = ShowcaseBaseHeight() + 37;
 
-            // The far material resolver receives only deterministic world/material facts. Camera
-            // position and clipmap ring are deliberately absent from the contract, so the same
+            // ResolveFarSurfaceMaterial receives deterministic world/material facts only. Camera
+            // position and clipmap ring are deliberately absent from its contract, so the same
             // world sample cannot change family when clipmap ownership moves around it.
-            byte first = VoxelFarTerrain.ResolveFarSurfaceMaterial(
-                materials, false, false, 0, fixedWorldHeight);
-            byte second = VoxelFarTerrain.ResolveFarSurfaceMaterial(
-                materials, false, false, 0, fixedWorldHeight);
+            byte first = ResolveFarSurface(lowSurface, highSurface, fixedWorldHeight);
+            byte second = ResolveFarSurface(lowSurface, highSurface, fixedWorldHeight);
 
             Assert.That(first, Is.EqualTo(highSurface));
             Assert.That(second, Is.EqualTo(first));
         }
 
-        private static ShowcaseMaterialSet CreateShowcaseMaterials(byte lowSurface, byte highSurface)
+        private static byte ResolveFarSurface(byte lowSurface, byte highSurface, int height)
         {
-            return new ShowcaseMaterialSet(
-                terrainDeep: 2,
-                terrainSubsurface: 3,
-                terrainLowSurface: lowSurface,
-                terrainHighSurface: highSurface,
-                gate: 4,
-                referenceArch: 6,
-                farStructure: 8,
-                worldgenFoundation: 8,
-                worldgenMasonry: 8,
-                worldgenDarkMasonry: 10,
-                worldgenTimber: 4,
-                worldgenGlass: 12,
-                worldgenWarmWindow: 13,
-                worldgenRoofTile: 14,
-                worldgenSlate: 15,
-                worldgenCloth: 16,
-                worldgenMoss: 17,
-                worldgenWater: 18,
-                worldgenRoadSurface: 3,
-                structuralMask: 0u);
+            Type farTerrainType = FindType("VoxelEngine.Showcase.VoxelFarTerrain");
+            MethodInfo resolver = farTerrainType.GetMethod(
+                "ResolveFarSurfaceMaterial",
+                BindingFlags.Public | BindingFlags.Static);
+            Assert.That(resolver, Is.Not.Null, "far terrain must expose its semantic material resolver");
+
+            Type materialSetType = resolver.GetParameters()[0].ParameterType;
+            object materialSet = Activator.CreateInstance(
+                materialSetType,
+                new object[]
+                {
+                    (byte)2, (byte)3, lowSurface, highSurface,
+                    (byte)4, (byte)6, (byte)8,
+                    (byte)8, (byte)8, (byte)10, (byte)4, (byte)12, (byte)13,
+                    (byte)14, (byte)15, (byte)16, (byte)17, (byte)18, (byte)3, 0u,
+                });
+
+            return (byte)resolver.Invoke(
+                null,
+                new[] { materialSet, false, false, (object)(byte)0, height });
+        }
+
+        private static int ShowcaseBaseHeight()
+        {
+            Type showcaseWorldType = FindType("VoxelEngine.Showcase.ShowcaseWorld");
+            FieldInfo field = showcaseWorldType.GetField(
+                "BaseHeightVoxels",
+                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.That(field, Is.Not.Null, "showcase terrain split must remain discoverable");
+            return (int)field.GetRawConstantValue();
+        }
+
+        private static Type FindType(string fullName)
+        {
+            Type type = AppDomain.CurrentDomain.GetAssemblies()
+                .Select(assembly => assembly.GetType(fullName, false))
+                .FirstOrDefault(candidate => candidate != null);
+            Assert.That(type, Is.Not.Null, $"required runtime type '{fullName}' was not loaded");
+            return type;
         }
     }
 }
