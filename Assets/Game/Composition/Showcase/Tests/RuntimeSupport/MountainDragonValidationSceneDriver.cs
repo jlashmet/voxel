@@ -44,7 +44,7 @@ namespace VoxelEngine.Showcase.Tests.RuntimeSupport
 
                 _complete = true;
                 _passed = true;
-                _detail = "PASS: shell-following route + 16-voxel centered headroom + focused mountain staging";
+                _detail = $"PASS: shell-following route + {spec.PathClearanceWidthVoxels}-voxel centered headroom + focused mountain staging";
                 Debug.Log("[MountainDragonValidation] " + _detail);
             }
             catch (Exception exception)
@@ -80,8 +80,9 @@ namespace VoxelEngine.Showcase.Tests.RuntimeSupport
                         throw new InvalidOperationException($"Tier {level} segment {segment} misses shell at low end.");
                     if (!(geometry.EndLocalZ < coreEnd && geometry.EndLocalZ + spec.PathWidth > coreEnd))
                         throw new InvalidOperationException($"Tier {level} segment {segment} misses shell at high end.");
-                    if (geometry.Run - spec.PathWidth <= geometry.Rise)
-                        throw new InvalidOperationException($"Tier {level} segment {segment} is too steep for normal traversal.");
+                    int horizontalAdvance = geometry.Run - spec.PathWidth;
+                    if (!spec.TraversalProfile.SupportsRamp(horizontalAdvance, geometry.Rise))
+                        throw new InvalidOperationException($"Tier {level} segment {segment} exceeds the configured traversal grade.");
                 }
 
                 if (level > 0)
@@ -128,11 +129,11 @@ namespace VoxelEngine.Showcase.Tests.RuntimeSupport
                         if (segmentCarveCount < expectedSegmentCarves)
                         {
                             int carveDepth = catalogue.Program[pc + 7];
-                            if (carveDepth != WorldBuilderMountainLandmarkCatalogue.PathClearanceWidthVoxels)
+                            if (carveDepth != spec.PathClearanceWidthVoxels)
                             {
                                 throw new InvalidOperationException(
                                     $"Segment headroom carve {segmentCarveCount} is {carveDepth} voxels wide; expected " +
-                                    WorldBuilderMountainLandmarkCatalogue.PathClearanceWidthVoxels + ".");
+                                    spec.PathClearanceWidthVoxels + ".");
                             }
                             segmentCarveCount++;
                         }
