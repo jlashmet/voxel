@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -19,7 +18,6 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
         private readonly Matrix4x4[] _scratch = new Matrix4x4[MaxInstancesPerDraw];
         private Mesh _mesh;
         private Material _material;
-        private bool _ownsMaterial;
 
         public int InstanceCount => _matrices.Count;
         public int EstimatedDrawCount => (_matrices.Count + MaxInstancesPerDraw - 1) / MaxInstancesPerDraw;
@@ -55,7 +53,6 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             EnsureResources();
             if (_mesh == null || _material == null) return;
 
-            ProceduralTreeMaterials.ApplyLighting();
             for (int start = 0; start < _matrices.Count; start += MaxInstancesPerDraw)
             {
                 int count = Mathf.Min(MaxInstancesPerDraw, _matrices.Count - start);
@@ -78,25 +75,18 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
             if (_mesh == null) _mesh = BuildCanopyMesh();
             if (_material != null) return;
 
-            if (ProceduralTreeMaterials.Ensure())
-            {
-                _material = ProceduralTreeMaterials.Impostor;
-                _ownsMaterial = false;
-                return;
-            }
-
-            Shader shader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Unlit/Color");
+            Shader shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
             if (shader == null) return;
             _material = new Material(shader)
             {
-                name = "ForestCanopyFallback",
+                name = "Forest Canopy Cluster (Shared Runtime)",
+                enableInstancing = true,
                 hideFlags = HideFlags.DontSave,
             };
-            if (_material.HasProperty("_BaseColor"))
-                _material.SetColor("_BaseColor", new Color(0.16f, 0.34f, 0.12f, 1f));
-            else if (_material.HasProperty("_Color"))
-                _material.SetColor("_Color", new Color(0.16f, 0.34f, 0.12f, 1f));
-            _ownsMaterial = true;
+            Color canopy = new Color(0.16f, 0.34f, 0.12f, 1f);
+            if (_material.HasProperty("_BaseColor")) _material.SetColor("_BaseColor", canopy);
+            if (_material.HasProperty("_Color")) _material.SetColor("_Color", canopy);
+            if (_material.HasProperty("_Smoothness")) _material.SetFloat("_Smoothness", 0.05f);
         }
 
         private static Mesh BuildCanopyMesh()
@@ -137,9 +127,8 @@ namespace VoxelEngine.Rendering.Runtime.Vegetation
         {
             if (_mesh != null) Destroy(_mesh);
             _mesh = null;
-            if (_ownsMaterial && _material != null) Destroy(_material);
+            if (_material != null) Destroy(_material);
             _material = null;
-            _ownsMaterial = false;
         }
     }
 }
