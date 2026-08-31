@@ -71,6 +71,37 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void Query_NarrowSemanticStructureDoesNotDependOnFarTerrainSampleLandingInsideFootprint()
+        {
+            var narrow = new StructureFarPresentation(
+                0x5151UL,
+                0x77UL,
+                new Int2(99950, -25),
+                new Int2(100050, 25),
+                900,
+                (FrontageDirection)0,
+                (StructureArchetype)0,
+                0x22UL,
+                0x33UL,
+                StructureVisibilityClass.HorizonLandmark,
+                0x44UL);
+            var source = new FakeVisibilitySource(narrow);
+            var adapter = new ShowcaseFarStructureSource(
+                source,
+                (_, __) => FarStructureTier.Horizon,
+                _ => 0f);
+
+            IReadOnlyList<FarStructureInstance> instances = adapter.Query(float2.zero, 12000f);
+
+            Assert.That(source.QueryCount, Is.EqualTo(1));
+            Assert.That(instances, Has.Count.EqualTo(1),
+                "semantic visibility must not require a coarse far-terrain vertex to hit a 10 m footprint");
+            Assert.That(instances[0].StableId, Is.EqualTo(narrow.StructureKey));
+            Assert.That(instances[0].Scale.x, Is.EqualTo(10f).Within(0.001f));
+            Assert.That(instances[0].Tier, Is.EqualTo(FarStructureTier.Horizon));
+        }
+
+        [Test]
         public void Query_RemovedLandmarkStaysAbsentWithoutChangingSemanticManifest()
         {
             StructureFarPresentation landmark = Record(
