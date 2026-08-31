@@ -22,6 +22,7 @@
 - [x] Add behavioral regressions for waterfall cutout coverage and receiving-water contact before the next visual gate (`WaterfallBodyPunchesRealCoverageWhileStillWaterRemainsContinuous`; `ExactCascadeCurtainImpactsBesideReceivingWaterAndSurvivesProductionCache`, latest lock `fb4db36bd0346ce477e5b059f16a0248ac568ab4`).
 - [x] Add independent production-shader edge regression proving semantic side-edge topology erodes only Cascade silhouette coverage and leaves still water unchanged (`WaterfallEdgeCoverageRegressionTests`).
 - [x] Make existing `WaterEdgeFlag` topology participate in vertical Waterfall coverage with descending-noise edge erosion; do not change global cutoff, extraction/storage, still/river behavior, or scene policy (`ed5997d8fabfed8cd08e70fc9cc3ad99c4c2752a`).
+- [x] Strengthen only the isolated edge-local erosion amplitude after exact raster evidence showed the first semantic-edge implementation was active but under-strength; keep all body/boundary cutoffs and non-waterfall paths unchanged (`5bcf7cd4918c8746dd874699a873292240335c91`).
 
 ## Root-cause / visual history
 - [x] Fix Metal procedural-indirect arena addressing with explicit `_SurfaceVertexBase` (`33339706799`).
@@ -46,6 +47,7 @@
 - [x] Exact run `33385919424` on `a1a3594dc3c32332ff8bfbe1883552c6d8aa62b6` passes `WaterArenaDrawRegressionTests`, automatic module validation and the 60-second built replay; direct visual closure is rejected. Internal holes now move/read clearly, but wide and 32/42/52-second close frames retain straight pane-like side silhouettes and hard triangular base shapes.
 - [x] Stop global-cutoff tuning and isolate the surviving outer-edge root cause against `WaterfallReference.shader`: the reference perturbs sheet width, while production `edgeTopology` affects foam/color but not coverage. Existing semantic edge topology must drive localized waterfall edge erosion before any further aesthetic change.
 - [x] Add the independent semantic-edge raster discriminator and implement waterfall-only edge erosion through the existing `WaterEdgeFlag` path (`b493767b...`, `ed5997d8...`).
+- [x] Exact run `33386958512` on `95dd98a92e9496f1cbfd0b3d8ac1dfc6c343a5aa` is a product-strength failure, not infrastructure: `WaterfallEdgeCoverageRegressionTests` measures 5,328 untagged Cascade pixels versus 5,267 semantic-edge pixels (~1.15% loss), short of the locked 2% discriminator. The exact head still builds and replays the showcase for 60 seconds, and direct evidence shows irregular sides, so preserve the semantic-edge design and strengthen only its local amplitude.
 
 ## Reliability / cost
 - [x] Preserve spreading/inert gameplay semantics and storage/streaming/edit/diagnostic contracts; no swim/buoyancy subsystem exists to alter.
@@ -59,7 +61,9 @@
 - [x] `33375101254`: tapered-spray + connected-curtain regression/module/60-second replay green; direct visual acceptance rejected.
 - [x] `33376859708`: turbulent-carrier `WaterArenaDrawRegressionTests` + module validation + 60-second replay green on `ece306a6ab867701628a0db45dc9e230891353d7`; direct visual acceptance rejected.
 - [x] `33385919424`: stronger-cutoff `WaterArenaDrawRegressionTests` + module validation + 60-second replay green on `a1a3594dc3c32332ff8bfbe1883552c6d8aa62b6`; direct visual acceptance rejected, triggering semantic-edge root-cause isolation rather than another global-cutoff tune.
-- [ ] Run `WaterfallEdgeCoverageRegressionTests` and `WaterArenaDrawRegressionTests` plus 60-second WaterRenderingShowcase replay on the semantic-edge exact head.
+- [x] `33386958512`: first semantic-edge exact head builds/replays, but the focused edge discriminator fails at ~1.15% coverage reduction versus required 2%; classify as product-strength failure and do not retry unchanged.
+- [ ] Re-run `WaterfallEdgeCoverageRegressionTests` on the strengthened semantic-edge exact head.
+- [ ] Run `WaterArenaDrawRegressionTests` plus 60-second WaterRenderingShowcase replay on the same semantic-edge exact head.
 - [ ] Directly accept/reject near/wide/time-separated waterfall frames against downward flow, turbulence/aeration, irregular breakup, lip/edge/base foam, free mist/spray and production-quality requirements.
 - [ ] If hard triangular base spray remains after edge acceptance, isolate its canonical geometry/raster cause before another spray change.
 - [ ] Run `ShowcaseWaterPresentationRegressionTests` on the same visually accepted feature head.
