@@ -42,15 +42,13 @@ namespace VoxelEngine.Tests.PlayMode
                 int tallGroundSupportBoxes = 0;
                 int carveBoxCount = 0;
                 long carveVoxelVolume = 0;
-                int expectedClearanceWidth = System.Math.Min(
-                    spec.PathWidth,
-                    WorldBuilderMountainLandmarkCatalogue.PathClearanceWidthVoxels);
+                int expectedClearanceWidth = spec.PathClearanceWidthVoxels;
                 int expectedCarveBoxCount = 2;
                 for (int level = 0; level < spec.SwitchbackCount; level++)
                     expectedCarveBoxCount += spec.PathTier(level).SegmentCount;
 
                 Assert.That(
-                    WorldBuilderMountainLandmarkCatalogue.PathClearanceWidthVoxels,
+                    spec.PathClearanceWidthVoxels,
                     Is.GreaterThanOrEqualTo(
                         ProductionMotorWidthVoxels + RequiredLateralMarginVoxels * 2),
                     "The centered traversal lane must preserve at least 0.5 m lateral clearance "
