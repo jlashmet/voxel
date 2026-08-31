@@ -1,16 +1,16 @@
 {
   "schemaVersion": 1,
-  "runSeconds": 60,
+  "runSeconds": 80,
   "capture": {
     "width": 1600,
     "height": 900,
     "intervalSeconds": 10,
-    "minimumFrames": 4
+    "minimumFrames": 6
   },
   "timeline": {
     "autoDialogue": 0.2,
     "autowalkAfter": 12,
-    "surveyAfter": 58,
+    "surveyAfter": 78,
     "surveyHeight": 55,
     "surveySpin": 0
   },
