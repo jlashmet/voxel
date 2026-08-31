@@ -1,7 +1,8 @@
 {
-    "name": "VoxelEngine.Tests.EditMode",
+    "name": "Game.WorldBuilder.Tests.EditMode",
     "rootNamespace": "VoxelEngine.Tests.EditMode",
     "references": [
+        "VoxelEngine.Tests.Support",
         "VoxelEngine.Storage.Runtime",
         "VoxelEngine.Storage.Api",
         "VoxelEngine.Simulation.Api",
@@ -55,18 +56,12 @@
         "Game.Structures.Runtime",
         "Game.Materials.Api"
     ],
-    "includePlatforms": [
-        "Editor"
-    ],
+    "includePlatforms": ["Editor"],
     "excludePlatforms": [],
     "allowUnsafeCode": true,
     "overrideReferences": true,
-    "precompiledReferences": [
-        "nunit.framework.dll"
-    ],
+    "precompiledReferences": ["nunit.framework.dll"],
     "autoReferenced": false,
-    "defineConstraints": [
-        "UNITY_INCLUDE_TESTS"
-    ],
+    "defineConstraints": ["UNITY_INCLUDE_TESTS"],
     "versionDefines": []
 }
