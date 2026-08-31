@@ -298,7 +298,7 @@ namespace MountingForce.WorldGen.Voxel
             if (plan.Seed != seed)
                 throw new ArgumentException("Settlement plan seed does not match the reservation seed.", nameof(plan));
 
-            SpatialReservationSnapshot settlement = KentridgeTownPlanner.BuildReservationSnapshot(seed);
+            SpatialReservationSnapshot settlement = KentridgeTownPlanner.BuildReservationSnapshot(plan);
             var claims = new List<SpatialReservation>(settlement.Reservations.Count + roads.Routes.Count * 8);
             for (int i = 0; i < settlement.Reservations.Count; i++)
             {
