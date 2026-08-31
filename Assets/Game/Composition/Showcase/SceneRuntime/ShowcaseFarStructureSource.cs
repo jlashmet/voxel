@@ -37,14 +37,16 @@ namespace VoxelEngine.Showcase
         private readonly Func<StructureFarPresentation, float2, FarStructureTier> _selectTier;
         private readonly Func<float2, float> _groundHeightMetres;
         private readonly ClusterConfiguration _clusters;
+        private readonly IStructureVisualStateSource _visualState;
         private readonly List<FarStructureInstance> _instances = new List<FarStructureInstance>();
+        private readonly List<StructureFarPresentation> _activeRecords = new List<StructureFarPresentation>();
         private readonly HashSet<ulong> _clusteredMembers = new HashSet<ulong>();
 
         public ShowcaseFarStructureSource(
             IWorldVisibilitySource source,
             Func<StructureFarPresentation, float2, FarStructureTier> selectTier,
             Func<float2, float> groundHeightMetres)
-            : this(source, selectTier, groundHeightMetres, null)
+            : this(source, selectTier, groundHeightMetres, null, null)
         {
         }
 
@@ -53,11 +55,22 @@ namespace VoxelEngine.Showcase
             Func<StructureFarPresentation, float2, FarStructureTier> selectTier,
             Func<float2, float> groundHeightMetres,
             ClusterConfiguration clusters)
+            : this(source, selectTier, groundHeightMetres, clusters, null)
+        {
+        }
+
+        public ShowcaseFarStructureSource(
+            IWorldVisibilitySource source,
+            Func<StructureFarPresentation, float2, FarStructureTier> selectTier,
+            Func<float2, float> groundHeightMetres,
+            ClusterConfiguration clusters,
+            IStructureVisualStateSource visualState)
         {
             _source = source ?? throw new ArgumentNullException(nameof(source));
             _selectTier = selectTier ?? throw new ArgumentNullException(nameof(selectTier));
             _groundHeightMetres = groundHeightMetres ?? throw new ArgumentNullException(nameof(groundHeightMetres));
             _clusters = clusters;
+            _visualState = visualState;
         }
 
         public IReadOnlyList<FarStructureInstance> Query(float2 cameraXZMetres, float radiusMetres)
@@ -73,7 +86,8 @@ namespace VoxelEngine.Showcase
             WorldVisibilityBoundsDm sourceBounds = _clusters == null
                 ? requestedBounds
                 : AlignToClusterSectors(requestedBounds, _clusters.SectorSizeDm);
-            IReadOnlyList<StructureFarPresentation> records = _source.Query(sourceBounds);
+            IReadOnlyList<StructureFarPresentation> queriedRecords = _source.Query(sourceBounds);
+            IReadOnlyList<StructureFarPresentation> records = FilterRemoved(queriedRecords);
 
             _instances.Clear();
             _clusteredMembers.Clear();
@@ -97,6 +111,22 @@ namespace VoxelEngine.Showcase
             }
 
             return _instances;
+        }
+
+        private IReadOnlyList<StructureFarPresentation> FilterRemoved(
+            IReadOnlyList<StructureFarPresentation> records)
+        {
+            if (_visualState == null) return records;
+
+            _activeRecords.Clear();
+            for (int i = 0; i < records.Count; i++)
+            {
+                StructureFarPresentation record = records[i];
+                if (_visualState.Get(record.StructureKey) == StructureVisualState.Removed)
+                    continue;
+                _activeRecords.Add(record);
+            }
+            return _activeRecords;
         }
 
         private void AddActiveClusters(
