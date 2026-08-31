@@ -19,6 +19,7 @@
 #pragma kernel CSCopyIndices
 #pragma kernel CSPublishArgs
 #pragma kernel CSCopyCountersToBatch
+#pragma kernel CSPrefixBatchCounts
 #pragma kernel CSSampleFace
 #pragma kernel CSTransitionCells
 
@@ -93,6 +94,9 @@ int _DrawArgsWordStart;
 RWStructuredBuffer<uint> _Counters;
 RWStructuredBuffer<uint> _BatchCounters;
 int _BatchCounterWordStart;
+int _BatchRecordCount;
+int _BatchVertexAlignment;
+int _BatchIndexAlignment;
 int _VertexCapacity;
 int _IndexCapacity;
 
@@ -828,6 +832,52 @@ void CSCopyCountersToBatch(uint3 id : SV_DispatchThreadID)
     _BatchCounters[_BatchCounterWordStart + 1] = _Counters[1];
     _BatchCounters[_BatchCounterWordStart + 2] = _Counters[2];
     _BatchCounters[_BatchCounterWordStart + 3] = _Counters[3];
+}
+
+uint AlignBatchCount(uint value, uint alignment)
+{
+    return ((value + alignment - 1u) / alignment) * alignment;
+}
+
+// Header: total vertex capacity, total index capacity, live draw records, reserved.
+// Record: unsupported, args ordinal, vertex count, index count, vertex prefix, index prefix,
+// aligned vertex capacity, aligned index capacity.
+[numthreads(1, 1, 1)]
+void CSPrefixBatchCounts(uint3 id : SV_DispatchThreadID)
+{
+    uint vertexTotal = 0u;
+    uint indexTotal = 0u;
+    uint drawCount = 0u;
+    for (int record = 0; record < _BatchRecordCount; record++)
+    {
+        int word = 4 + record * 8;
+        uint unsupported = _BatchCounters[word + 0];
+        uint vertexCount = _BatchCounters[word + 2];
+        uint indexCount = _BatchCounters[word + 3];
+        if (unsupported != 0u || vertexCount == 0u || indexCount == 0u)
+        {
+            _BatchCounters[word + 1] = 0xFFFFFFFFu;
+            _BatchCounters[word + 4] = 0u;
+            _BatchCounters[word + 5] = 0u;
+            _BatchCounters[word + 6] = 0u;
+            _BatchCounters[word + 7] = 0u;
+            continue;
+        }
+
+        uint vertexCapacity = AlignBatchCount(vertexCount, (uint)_BatchVertexAlignment);
+        uint indexCapacity = AlignBatchCount(indexCount, (uint)_BatchIndexAlignment);
+        _BatchCounters[word + 1] = drawCount++;
+        _BatchCounters[word + 4] = vertexTotal;
+        _BatchCounters[word + 5] = indexTotal;
+        _BatchCounters[word + 6] = vertexCapacity;
+        _BatchCounters[word + 7] = indexCapacity;
+        vertexTotal += vertexCapacity;
+        indexTotal += indexCapacity;
+    }
+    _BatchCounters[0] = vertexTotal;
+    _BatchCounters[1] = indexTotal;
+    _BatchCounters[2] = drawCount;
+    _BatchCounters[3] = 0u;
 }
 
 // ---------------------------------------------------------------------------

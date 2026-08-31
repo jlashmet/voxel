@@ -1,7 +1,7 @@
 # Plan — VoxelShowcase GPU v2
 
 ## Observed defect / acceptance
-- VoxelShowcase has slow fill, seams, and hitches. Pass requires sustained GPU completion, no GPU-eligible CPU fallback/blocking waits, no holes, moving p95 <18 ms/p99 <25 ms, stationary p95 <8 ms, and reviewed screenshots.
+- VoxelShowcase has slow fill, seams, and hitches. Pass requires GPU FPS at least 2× an identical CPU-backend run, sustained completion, no eligible fallback/blocking waits or holes, moving p95 <18 ms/p99 <25 ms, stationary p95 <8 ms, and reviewed screenshots.
 - Deterministic integer CPU voxels remain authoritative; GPU geometry is presentation.
 
 ## Evidence and hypotheses
@@ -19,10 +19,9 @@
 - Baseline p95 16.7–17.5 ms, missing 598. Removing write verification without a scratch fence caused p95 201 ms; reverted.
 - 1,162/1,703 counts rejected for reconstruction versus one decoration. Serialized exact-face greedy emission removed fallback and raised publications, but p95 became 49.92 ms; reverted. Parallel compaction is required.
 - GPU classification skips density dispatch for unsupported chunks; throughput rose slightly, walking p99 remained 38.29 ms.
-- Parallel per-cell exact Planar/Sharp/Cubic and deterministic clump/fringe emission now replace supported-semantic fallback. Metal semantic/publication parity is 5/5 and arena count/write coverage is 7/7. The obsolete raw unsupported scan was removed. Production now performs one count readback per chunk; reserved write, arena copy, args, and scratch lifetime are GPU-ordered as one stage behind an explicit fence, eliminating both the write readback and a third dispatch frame. Policy coverage is 5/5.
-- Count results now use two-descriptor, double-buffered shared transfer lanes with a bounded seal timeout and stale-generation rejection; workers retain private sampled fields for write. Metal semantic/publication/batch coverage is 6/6. Per-chunk count readback requests are gone, but CPU arena allocation remains.
+- Parallel exact Planar/Sharp/Cubic and deterministic clump/fringe emission replace supported-semantic fallback; the raw scan was removed. Reserved write/copy/args/scratch are one fence-ordered stage, eliminating write readback and a third dispatch frame. Arena count/write is 7/7; policy is 5/5.
+- Double-buffered two-descriptor lanes now perform one shared transfer, GPU-aligned prefix/totals, one atomic arena reservation, version-tokened subleases, and GPU args. Workers retain private sampled fields. Metal semantic/publication/batch/pressure coverage is 8/8; per-chunk readback and allocation searches are gone.
 
 ## Remaining gates
-- Replace CPU arena allocation with GPU prefix allocation/meshing/args and version-safe batch publication. Split 64³ work into bounded units if necessary.
-- Add admission, retry, overflow, stale, disposal, arena, and lifecycle coverage.
-- Do not run VoxelShowcase while semantic fallback or per-chunk handshakes remain. Then run the 150 s capture, inspect screenshots, review the diff, and keep the issue open unless every gate passes.
+- Complete stale/disposal and production coordinator coverage; keep retry, overflow, arena, and lifecycle gates green.
+- Run identical actual-app CPU/GPU 150 s captures, inspect screenshots, and split 64³ work only if timing shows a large-stage stall. Review the diff and keep the issue open unless every gate, including 2× FPS, passes.

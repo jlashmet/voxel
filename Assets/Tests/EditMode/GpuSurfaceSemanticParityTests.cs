@@ -4,6 +4,7 @@ using Unity.Mathematics;
 using UnityEditor;
 using UnityEngine;
 using VoxelEngine.Rendering.Runtime.GpuVoxel;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Tests.EditMode
@@ -148,30 +149,84 @@ namespace VoxelEngine.Tests.EditMode
             GpuExtractionCounts expectedFirst = extractor.Count(mirror, tables, first);
             GpuExtractionCounts expectedSecond = extractor.Count(mirror, tables, second);
             GpuExtractionCounts[] expected = { expectedFirst, expectedSecond };
-            var batch = new ComputeBuffer(8, sizeof(uint), ComputeBufferType.Structured);
+            var batch = new ComputeBuffer(
+                GpuSurfaceExtractor.BatchHeaderWords + 2 * GpuSurfaceExtractor.BatchRecordWords,
+                sizeof(uint), ComputeBufferType.Structured);
             try
             {
                 ulong readbacksAfterOracle = extractor.CounterReadbacks;
                 extractor.DispatchCountToBatch(mirror, tables, first, batch, 0);
                 extractor.DispatchCountToBatch(mirror, tables, second, batch, 1);
-                var words = new uint[8];
+                extractor.PrefixCountBatch(batch, 2, vertexAlignment: 256, indexAlignment: 512);
+                var words = new uint[batch.count];
                 batch.GetData(words); // one verification-only transfer for both descriptors
 
                 Assert.AreEqual(readbacksAfterOracle, extractor.CounterReadbacks,
                     "Appending batch records must not create per-descriptor readbacks.");
                 for (int record = 0; record < 2; record++)
                 {
-                    int word = record * 4;
+                    int word = GpuSurfaceExtractor.BatchHeaderWords
+                             + record * GpuSurfaceExtractor.BatchRecordWords;
                     Assert.AreEqual(0u, words[word]);
                     Assert.AreEqual((uint)expected[record].VertexCount, words[word + 2]);
                     Assert.AreEqual((uint)expected[record].IndexCount, words[word + 3]);
+                    Assert.AreEqual(0u, words[word + 6] % 256u);
+                    Assert.AreEqual(0u, words[word + 7] % 512u);
                 }
+                Assert.AreEqual(words[4 + 6] + words[12 + 6], words[0]);
+                Assert.AreEqual(words[4 + 7] + words[12 + 7], words[1]);
+                Assert.AreEqual(2u, words[2]);
+                Assert.AreEqual(0u, words[4 + 1]);
+                Assert.AreEqual(1u, words[12 + 1]);
+                Assert.AreEqual(0u, words[4 + 4]);
+                Assert.AreEqual(words[4 + 6], words[12 + 4]);
+                Assert.AreEqual(0u, words[4 + 5]);
+                Assert.AreEqual(words[4 + 7], words[12 + 5]);
             }
             finally
             {
                 batch.Release();
                 voxels.Dispose(); semantics.Dispose(); boundaries.Dispose();
             }
+        }
+
+        [Test]
+        public void ContiguousBatchReservationCanRetireIndependentSubleases()
+        {
+            using var arena = new SurfaceGeometryArena(2048, 4096, 8);
+            Assert.IsTrue(arena.TryAcquireBatch(512, 1024, 2, out SurfaceGeometryLease batch));
+            var first = new SurfaceGeometryLease(
+                batch.VertexStart, 256, batch.IndexStart, 512, batch.ArgsWordStart);
+            var second = new SurfaceGeometryLease(
+                batch.VertexStart + 256, 256,
+                batch.IndexStart + 512, 512,
+                batch.ArgsWordStart + SurfaceGeometryArena.ArgsWordsPerDraw);
+
+            arena.Release(in second);
+            arena.Release(in first);
+            arena.RetireExpiredLeases(3);
+
+            Assert.AreEqual(0, arena.UsedVertices);
+            Assert.AreEqual(0, arena.UsedIndices);
+            Assert.AreEqual(0, arena.UsedArgsRecords);
+            Assert.IsTrue(arena.TryAcquireBatch(512, 1024, 2, out SurfaceGeometryLease reused));
+            Assert.AreEqual(batch.VertexStart, reused.VertexStart);
+            Assert.AreEqual(batch.IndexStart, reused.IndexStart);
+            Assert.AreEqual(batch.ArgsWordStart, reused.ArgsWordStart);
+        }
+
+        [Test]
+        public void BatchReservationFailureIsAtomicAtDrawPressureLimit()
+        {
+            using var arena = new SurfaceGeometryArena(2048, 4096, 8)
+            {
+                MaxActiveLeases = 1,
+            };
+
+            Assert.IsFalse(arena.TryAcquireBatch(512, 1024, 2, out _));
+            Assert.AreEqual(0, arena.UsedVertices);
+            Assert.AreEqual(0, arena.UsedIndices);
+            Assert.AreEqual(0, arena.UsedArgsRecords);
         }
 
         private GpuExtractionResult ExtractSmooth(byte coating)

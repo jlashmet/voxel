@@ -177,6 +177,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private static readonly int IdBatchCounters = Shader.PropertyToID("_BatchCounters");
         private static readonly int IdBatchCounterWordStart =
             Shader.PropertyToID("_BatchCounterWordStart");
+        private static readonly int IdBatchRecordCount = Shader.PropertyToID("_BatchRecordCount");
+        private static readonly int IdBatchVertexAlignment =
+            Shader.PropertyToID("_BatchVertexAlignment");
+        private static readonly int IdBatchIndexAlignment =
+            Shader.PropertyToID("_BatchIndexAlignment");
 
         private readonly ComputeShader _shader;
         private readonly int _sampleKernel;
@@ -190,6 +195,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private readonly int _copyIndicesKernel;
         private readonly int _publishArgsKernel;
         private readonly int _copyCountersToBatchKernel;
+        private readonly int _prefixBatchCountsKernel;
         private readonly int _faceKernel;
         private readonly int _transitionKernel;
 
@@ -232,9 +238,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         /// <summary>
         /// Times two integers of bookkeeping have been copied back from the GPU.
         ///
-        /// Production requests one bounded count transfer while it still uses CPU arena leases.
-        /// Write-counter transfers are retained only by blocking/oracle APIs; the frame path orders
-        /// its reserved write, copy, args, and completion fence entirely on the GPU.
+        /// Production coalesces count records through the world-scoped batch coordinator, so it
+        /// does not increment this per-extractor counter. Counter transfers here are retained only
+        /// by blocking/oracle APIs; write/copy/args completion stays entirely GPU-ordered.
         /// </summary>
         public ulong CounterReadbacks { get; private set; }
 
@@ -294,6 +300,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _copyIndicesKernel = shader.FindKernel("CSCopyIndices");
             _publishArgsKernel = shader.FindKernel("CSPublishArgs");
             _copyCountersToBatchKernel = shader.FindKernel("CSCopyCountersToBatch");
+            _prefixBatchCountsKernel = shader.FindKernel("CSPrefixBatchCounts");
             _faceKernel = shader.FindKernel("CSSampleFace");
             _transitionKernel = shader.FindKernel("CSTransitionCells");
 
@@ -547,20 +554,43 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         }
 
         /// <summary>
-        /// Copies the current count result into one shared four-word batch record. The sampled
-        /// field remains private to this extractor for its later write pass; only bounded sizing
-        /// metadata is coalesced for one asynchronous transfer.
+        /// Copies the current four-word count result into one shared batch record. A later prefix
+        /// kernel fills the record's aligned offsets/capacities; the sampled field remains private
+        /// to this extractor for its write pass.
         /// </summary>
         internal void CopyCountToBatch(ComputeBuffer batchCounters, int recordIndex)
         {
             ThrowIfDisposed();
             if (batchCounters == null) throw new ArgumentNullException(nameof(batchCounters));
-            if (recordIndex < 0 || (recordIndex + 1) * 4 > batchCounters.count)
+            int wordStart = BatchHeaderWords + recordIndex * BatchRecordWords;
+            if (recordIndex < 0 || wordStart + 4 > batchCounters.count)
                 throw new ArgumentOutOfRangeException(nameof(recordIndex));
             _shader.SetBuffer(_copyCountersToBatchKernel, IdCounters, _counters);
             _shader.SetBuffer(_copyCountersToBatchKernel, IdBatchCounters, batchCounters);
-            _shader.SetInt(IdBatchCounterWordStart, recordIndex * 4);
+            _shader.SetInt(IdBatchCounterWordStart, wordStart);
             _shader.Dispatch(_copyCountersToBatchKernel, 1, 1, 1);
+        }
+
+        internal const int BatchHeaderWords = 4;
+        internal const int BatchRecordWords = 8;
+
+        internal void PrefixCountBatch(ComputeBuffer batchCounters, int recordCount,
+                                       int vertexAlignment, int indexAlignment)
+        {
+            // A context may be cancelled after its count record was copied but before the shared
+            // lane seals. Prefixing uses only the still-live shader asset and lane buffer, so it
+            // deliberately remains valid after this extractor's private buffers are disposed.
+            if (batchCounters == null) throw new ArgumentNullException(nameof(batchCounters));
+            if (recordCount <= 0
+                || BatchHeaderWords + recordCount * BatchRecordWords > batchCounters.count)
+                throw new ArgumentOutOfRangeException(nameof(recordCount));
+            if (vertexAlignment <= 0) throw new ArgumentOutOfRangeException(nameof(vertexAlignment));
+            if (indexAlignment <= 0) throw new ArgumentOutOfRangeException(nameof(indexAlignment));
+            _shader.SetBuffer(_prefixBatchCountsKernel, IdBatchCounters, batchCounters);
+            _shader.SetInt(IdBatchRecordCount, recordCount);
+            _shader.SetInt(IdBatchVertexAlignment, vertexAlignment);
+            _shader.SetInt(IdBatchIndexAlignment, indexAlignment);
+            _shader.Dispatch(_prefixBatchCountsKernel, 1, 1, 1);
         }
 
         internal void DispatchCountToBatch(GpuVoxelBrickMirror mirror,

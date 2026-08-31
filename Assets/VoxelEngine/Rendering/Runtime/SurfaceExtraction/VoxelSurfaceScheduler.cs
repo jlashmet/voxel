@@ -1079,6 +1079,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         + $" retry={gpuRetries}"
                         + $" countBatch={GpuSurfaceMirrorCoordinator.CountBatchRecords}/"
                         + $"{GpuSurfaceMirrorCoordinator.CountBatchReadbacks}"
+                        + $" batchArenaWait={GpuSurfaceMirrorCoordinator.CountBatchArenaWaits}"
                         + $" flight={gpuInFlight}"
                         + $" phases=0x{gpuPhaseMask:X} oldestMs={gpuOldestMs:0.0}]");
             for (int r = 0; r < _rings.Length; r++)

@@ -4,6 +4,7 @@ using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 using VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel;
 using VoxelEngine.Storage.Api;
 
@@ -33,6 +34,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private readonly GpuVoxelBrickMirror _mirror;
         private readonly GpuTransvoxelTables _tables;
         private readonly GpuSurfaceExtractor _extractor;
+        private readonly SurfaceGeometryArena _surfaceArena;
         private readonly int _brickCacheEdge;
         private readonly uint[] _materialDefaultStyles = new uint[256];
         private bool _cataloguesUploaded;
@@ -77,11 +79,13 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private bool _countBatchResultReady;
         private bool _countBatchFailed;
         private GpuExtractionCounts _countBatchCounts;
+        private SurfaceGeometryLease _countBatchLease;
         private double _stageRequestStartedSeconds;
 
         public GpuVoxelBrickMirror Mirror => _mirror;
         public GpuTransvoxelTables Tables => _tables;
         public GpuSurfaceExtractor Extractor => _extractor;
+        internal SurfaceGeometryArena SurfaceArena => _surfaceArena;
         public int BrickCacheEdge => _brickCacheEdge;
 
         public ulong ChunksStaged { get; private set; }
@@ -111,11 +115,13 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             : 1;
 
         private GpuSurfaceExtractionContext(ComputeShader shader, int cellsPerAxis, int padding,
-                                            GpuVoxelBrickMirror mirror, int brickCacheEdge)
+                                            GpuVoxelBrickMirror mirror, int brickCacheEdge,
+                                            SurfaceGeometryArena surfaceArena)
         {
             _mirror = mirror ?? throw new ArgumentNullException(nameof(mirror));
             _tables = GpuTransvoxelTables.CreateDefault();
             _extractor = new GpuSurfaceExtractor(shader, cellsPerAxis, padding, brickCacheEdge);
+            _surfaceArena = surfaceArena;
             _brickCacheEdge = _extractor.BrickCacheEdge;
         }
 
@@ -131,6 +137,16 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                                                             int brickCacheEdge,
                                                             ComputeShader shader = null)
         {
+            return TryCreate(cellsPerAxis, padding, mirrorBudgetBytes, brickCacheEdge,
+                             surfaceArena: null, shader: shader);
+        }
+
+        internal static GpuSurfaceExtractionContext TryCreate(int cellsPerAxis, int padding,
+                                                               long mirrorBudgetBytes,
+                                                               int brickCacheEdge,
+                                                               SurfaceGeometryArena surfaceArena,
+                                                               ComputeShader shader = null)
+        {
             if (!SystemInfo.supportsComputeShaders) return null;
             if (brickCacheEdge < 0) throw new ArgumentOutOfRangeException(nameof(brickCacheEdge));
 
@@ -142,7 +158,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             {
                 mirror = GpuSurfaceMirrorCoordinator.Acquire(mirrorBudgetBytes);
                 return new GpuSurfaceExtractionContext(
-                    shader, cellsPerAxis, padding, mirror, brickCacheEdge);
+                    shader, cellsPerAxis, padding, mirror, brickCacheEdge, surfaceArena);
             }
             catch (Exception e)
             {
@@ -498,12 +514,22 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             return true;
         }
 
-        internal void CompleteBatchedCount(uint token, in GpuExtractionCounts counts, bool failed)
+        internal bool CompleteBatchedCount(uint token, in GpuExtractionCounts counts, bool failed,
+                                           in SurfaceGeometryLease lease = default)
         {
-            if (_disposed || !_hasStaged || token != _countBatchToken) return;
+            if (_disposed || !_hasStaged || token != _countBatchToken) return false;
             _countBatchCounts = counts;
             _countBatchFailed = failed;
+            _countBatchLease = lease;
             _countBatchResultReady = true;
+            return true;
+        }
+
+        internal bool TryTakeCountBatchLease(out SurfaceGeometryLease lease)
+        {
+            lease = _countBatchLease;
+            _countBatchLease = default;
+            return lease.IsValid;
         }
 
         public void BeginWriteRange(ComputeBuffer vertices, ComputeBuffer indices,
@@ -641,6 +667,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (!_hasStaged && !_sharedExtractionActive && !_stageAdmissionPending
                 && !_countDispatchPending && !_writeDispatchPending && !_copyDispatchPending
                 && !_copyFencePending
+                && !_countBatchLease.IsValid
                 && _legacyPinnedBricks.Count == 0)
                 return;
             if (_coverageRequested)
@@ -660,6 +687,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _countBatchResultReady = false;
             _countBatchFailed = false;
             _countBatchCounts = default;
+            _surfaceArena?.Release(in _countBatchLease);
+            _countBatchLease = default;
             _writeVertices = null;
             _writeIndices = null;
             _writeArgs = null;

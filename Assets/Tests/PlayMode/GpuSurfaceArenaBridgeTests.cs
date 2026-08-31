@@ -180,6 +180,40 @@ namespace VoxelEngine.Tests.PlayMode
             arena.Release(oldLease);
         }
 
+        [Test]
+        public void ReleasedContextRejectsStaleBatchCompletionAndRetiresItsUnconsumedLease()
+        {
+            using var arena = new SurfaceGeometryArena(32768, 65536, 8);
+            using GpuSurfaceExtractionContext context = GpuSurfaceExtractionContext.TryCreate(
+                CellsPerAxis, Padding,
+                mirrorBudgetBytes: GpuBrickBufferLayout.BytesPerMixedBrick * 8L,
+                brickCacheEdge: ProductionBrickCacheEdge,
+                surfaceArena: arena,
+                shader: _shader);
+            Assert.NotNull(context);
+            context.SetCatalogues(SurfaceCatalogueView.CreateBuiltIns(), default, default);
+            using NativeArray<TransvoxelDensityBrick> bricks =
+                CreateHalfSolidSnapshot(context.BrickCacheEdge);
+            var request = new GpuChunkExtraction(
+                int3.zero, new int3(-1), sourceStep: 1, voxelSize: 0.1f);
+            Assert.AreEqual(GpuStageOutcome.Staged,
+                context.TryStage(bricks, default, default, default, request, generation: 1));
+            GpuExtractionCounts counts = context.StagedCounts;
+            Assert.IsTrue(arena.TryAcquire(counts.VertexCount, counts.IndexCount,
+                                           out SurfaceGeometryLease lease));
+
+            Assert.IsTrue(context.CompleteBatchedCount(
+                0, counts, failed: false, lease: lease));
+            context.Release();
+            Assert.IsFalse(context.CompleteBatchedCount(
+                0, counts, failed: false, lease: lease),
+                "A completion from the released generation must not reinstall its arena range.");
+            arena.RetireExpiredLeases(3);
+            Assert.AreEqual(0, arena.UsedVertices);
+            Assert.AreEqual(0, arena.UsedIndices);
+            Assert.AreEqual(0, arena.UsedArgsRecords);
+        }
+
         private GpuSurfaceExtractionContext CreateContext()
         {
             GpuSurfaceExtractionContext context = GpuSurfaceExtractionContext.TryCreate(

@@ -709,7 +709,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             }
 
             _gpuExtraction = GpuSurfaceExtractionContext.TryCreate(
-                CellsPerAxis, Padding, _gpuMirrorBudgetBytes, BrickCacheEdge);
+                CellsPerAxis, Padding, _gpuMirrorBudgetBytes, BrickCacheEdge,
+                GetGeometryArena());
             if (_gpuExtraction == null) _gpuExtractionUnavailable = true;
             return _gpuExtraction;
         }
@@ -1459,7 +1460,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         continue;
                     }
 
-                    SurfaceGeometryArena arena = GetGeometryArena();
                     if (poll == GpuSurfaceExtractor.GpuCounterPoll.Failed)
                     {
                         // Async counter collection can fail transiently on Metal under several
@@ -1471,12 +1471,14 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         break;
                     }
 
-                    if (!arena.TryAcquire(counts.VertexCount, counts.IndexCount,
-                                          out SurfaceGeometryLease lease))
+                    if (!_gpuExtraction.TryTakeCountBatchLease(out SurfaceGeometryLease lease))
                     {
-                        // The previously published lease stays visible. Let ordinary arena
-                        // retirement create capacity and retry reservation on a later slice.
-                        GpuArenaFullBuildCount++;
+                        // A ready non-empty production count must arrive with its GPU-prefixed
+                        // sublease. Treat a missing lease as a batch failure and redispatch; never
+                        // fall back to an independent per-chunk allocator search here.
+                        GpuWriteFailureBuildCount++;
+                        _gpuExtraction.RetryCount();
+                        GpuReadbackWaitSlices++;
                         break;
                     }
 
@@ -1487,6 +1489,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         _gpuStageLease = lease;
                         _gpuStageCounts = counts;
                         _build.SnapshotTaken = true;
+                        SurfaceGeometryArena arena = GetGeometryArena();
                         _gpuExtraction.BeginWriteRange(
                             arena.Vertices, arena.Indices, arena.Args, lease.ArgsWordStart,
                             lease.VertexStart, lease.VertexCapacity,

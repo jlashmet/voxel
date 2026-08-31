@@ -89,8 +89,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
     internal sealed class SurfaceGeometryArena : IDisposable
     {
         public const int ArgsWordsPerDraw = 4;
-        private const int VertexAlignment = 256;
-        private const int IndexAlignment = 512;
+        internal const int VertexAlignment = 256;
+        internal const int IndexAlignment = 512;
 
 
         /// <summary>
@@ -203,16 +203,44 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         public bool TryAcquire(int vertexCount, int indexCount, out SurfaceGeometryLease lease)
         {
+            int vertices = Align(math.max(1, vertexCount), VertexAlignment);
+            int indices = Align(math.max(1, indexCount), IndexAlignment);
+            return TryAcquireAligned(vertices, indices, ArgsWordsPerDraw, out lease);
+        }
+
+        /// <summary>
+        /// Reserves one contiguous range for a GPU-prefixed descriptor batch. The caller splits
+        /// the returned range at the aligned offsets produced by the prefix kernel; each sublease
+        /// can then retire independently because the range allocator accepts exact subranges.
+        /// </summary>
+        internal bool TryAcquireBatch(int alignedVertexCount, int alignedIndexCount, int drawCount,
+                                      out SurfaceGeometryLease lease)
+        {
+            if (alignedVertexCount <= 0) throw new ArgumentOutOfRangeException(nameof(alignedVertexCount));
+            if (alignedIndexCount <= 0) throw new ArgumentOutOfRangeException(nameof(alignedIndexCount));
+            if (drawCount <= 0) throw new ArgumentOutOfRangeException(nameof(drawCount));
+            if (alignedVertexCount % VertexAlignment != 0)
+                throw new ArgumentException("Batch vertex capacity must already be aligned.",
+                                            nameof(alignedVertexCount));
+            if (alignedIndexCount % IndexAlignment != 0)
+                throw new ArgumentException("Batch index capacity must already be aligned.",
+                                            nameof(alignedIndexCount));
+            return TryAcquireAligned(alignedVertexCount, alignedIndexCount,
+                                     drawCount * ArgsWordsPerDraw, out lease);
+        }
+
+        private bool TryAcquireAligned(int vertices, int indices, int argsWords,
+                                       out SurfaceGeometryLease lease)
+        {
             lease = default;
             if (_disposed) return false;
-            if (UsedArgsRecords >= _maxActiveLeases)
+            int requestedDraws = argsWords / ArgsWordsPerDraw;
+            if (UsedArgsRecords + requestedDraws > _maxActiveLeases)
             {
                 AllocationFailureCount++;
                 return false;
             }
 
-            int vertices = Align(math.max(1, vertexCount), VertexAlignment);
-            int indices = Align(math.max(1, indexCount), IndexAlignment);
             if (!_vertexRanges.TryAllocate(vertices, out int vertexStart))
             {
                 AllocationFailureCount++;
@@ -224,7 +252,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 AllocationFailureCount++;
                 return false;
             }
-            if (!_argsRanges.TryAllocate(ArgsWordsPerDraw, out int argsStart))
+            if (!_argsRanges.TryAllocate(argsWords, out int argsStart))
             {
                 _indexRanges.Release(indexStart, indices);
                 _vertexRanges.Release(vertexStart, vertices);
