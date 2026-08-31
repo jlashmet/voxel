@@ -20,13 +20,18 @@
 - [x] Isolate/fix tableau authoring-budget exhaustion using existing `FillColumnBulk` semantics without increasing the slow-write budget.
 - [x] Document corrected convention-based test selection with no per-test registration.
 - [x] Document the stronger module boundary: **no top-level EditMode test assembly**; EditMode tests belong to lower-level modules such as Rendering, Structures, and Spatial. Only genuine high-level smoke/integration PlayMode coverage remains top-level.
+- [x] Document final architecture decision: **delete the `*.module-validation.json` concept entirely**. Module/test/player-target registration is convention/structure driven; `*.player-scenario.json` remains only as executable scenario behavior.
 - [ ] Inventory the current broad `VoxelEngine.Tests.EditMode` contents and map every test to its lower-level owning production module.
 - [ ] Create/migrate lower-level module-owned EditMode test assemblies and remove the repository-wide/top-level EditMode assembly once all tests have owners.
-- [ ] Remove explicit per-test `tests` arrays/filter registration from module manifests and planner semantics.
+- [ ] Delete all `*.module-validation.json` manifests and remove their schema/parser/planner semantics, production/shared path registration, explicit `tests` arrays, and manifest-specific fixtures/docs.
 - [ ] Discover affected modules/test assemblies from module roots and Unity `.asmdef` ownership; run every EditMode/module-scoped PlayMode test owned by each affected module.
+- [ ] Discover module-local built-player targets directly from each affected module's `Validation/` convention; resolve each scene plus separate `*.player-scenario.json` without a module manifest.
+- [ ] Keep `*.player-scenario.json` limited to executable scenario behavior such as run duration, captures/evidence windows, movement/timeline actions, and required/forbidden runtime assertions; do not put module ownership or test registration into it.
 - [ ] Expand shared/core production changes through `.asmdef` dependency relationships where practical, retaining conservative/fail-closed fallback for unresolved ownership.
 - [ ] Add regression proof that adding a module-local test requires no metadata/planner change and is automatically selected.
 - [ ] Add architecture regression that fails if a repository-wide/top-level EditMode test assembly is reintroduced.
+- [ ] Add regression proof that a module-local validation scene/scenario is discovered by convention alone and missing/ambiguous pairing fails closed.
+- [ ] Add regression protection preventing required validation from depending on reintroduced `*.module-validation.json` registration semantics.
 - [ ] Ensure the generic player-evidence regression participates in the repository Python validation discovery.
 - [ ] Replace the startup/prototype Water fixture with a representative production-quality module-local validation scene covering still water, shallow shoreline, river flow, waterfall/cascade, and terrain contact **without duplicating the canonical production Water showcase policy**.
   - Run `33385476451` / request `65c7dd24101fcf926ff740eb729bd6247708d78c` completed successfully: requested regression, automatic module plan, Water + Kentridge built-player validation, previews, artifact upload, and final status all passed.
@@ -37,7 +42,7 @@
   - Carved-terrain correction `392e59be377c48f50544b4160fddbb11f90932b8` was exercised by exact transport run `33390924383`; the requested regression, automatic module plan, Water built player, Kentridge built player, previews/artifact upload, and final status all passed.
   - After the second materially different scene-level correction path, ownership/reuse review isolated the more fundamental defect: Agent-8 was independently authoring Water showcase policy while agent-9 owns the production `WaterRenderingShowcase`.
   - **Prerequisite cleared:** agent-9's canonical Water work landed on `master` in `0de38ba704be999c13c9c9aa59237efa65405144`. The module-local scene already attaches `VoxelEngine.Showcase.WaterRenderingShowcase`; no third visual tableau tweak is required.
-  - Exact run `33431392723` failed closed because the then-explicit `FlatWaterTop_EmitsPerVoxelTopQuads_ForWaveDeformation` filter matched zero EditMode tests. Merge-root-cause review found both that regression and its production top-tessellation invariant had been lost while taking newer canonical Water files from master; they were restored additively.
+  - Exact run `33431392723` failed closed because the then-explicit `FlatWaterTop_EmitsPerVoxelTopQuads_ForWaveDeformation` filter matched zero EditMode tests. This is now recorded as direct evidence for deleting individual-test registration rather than repairing manifest bookkeeping.
   - Run `33432210469` passed the previous exact-head architecture. Direct artifact review then exposed that `evidenceAfterSeconds` did not parse real filenames such as `t002.3s-stationary.png`; the generic evidence parser fix is on the feature branch and must be exercised by the corrected exact-head architecture.
   - Pending: corrected exact-head CI and direct inspection of every retained post-readiness Water standalone frame.
-- [ ] Review final diff against all 18 acceptance criteria and complete SceneIssue metadata/closure only after module-owned EditMode assembly migration, convention-based discovery, canonical Water reuse, production-quality standalone Water evidence, and green exact-SHA CI exist for the final feature head.
+- [ ] Review final diff against all 18 acceptance criteria and complete SceneIssue metadata/closure only after module-owned EditMode assembly migration, manifest-free convention discovery, canonical Water reuse, production-quality standalone Water evidence, and green exact-SHA CI exist for the final feature head.
