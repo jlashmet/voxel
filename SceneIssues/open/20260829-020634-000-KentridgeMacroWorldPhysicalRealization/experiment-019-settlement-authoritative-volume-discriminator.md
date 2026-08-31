@@ -21,18 +21,29 @@ The shared `TopDownWorldBuildingBlockoutPlan` authors four generic buildings aro
 2. **Voxelization/catalogue is incomplete.** Fewer than four expected building volumes receive structure voxels, indicating a planner/program/catalogue/rasterization defect.
 3. **Grounding/placement is wrong.** Four features are authored but their occupied vertical ranges are materially buried, floating, or displaced relative to the semantic settlement/building bounds, so only one reads above terrain.
 
-## Next discriminator
+## First discriminator attempt — selector-red, not production-red
 
-Add the smallest PlayMode regression that uses the real production semantic settlement/catalogue data rather than synthetic building geometry. For a production settlement such as Rossdam, enumerate the four expected semantic generic building definitions/placements, drive normal production generation for their occupied regions, and inspect authoritative voxel storage inside each expected building volume.
+Feature source `aa4952b5706a9bf706ff9b955d36aa39f43a6819`, CI wrapper `bcb41fb7edfb13b3ee14878ba232f87d66e609ce`, run `33357649096` completed with the focused test red. The failure was `matchedBuildings = 0` before any authoritative voxel probe ran. This does **not** classify the production volume hypotheses.
 
-For every expected building, record/count:
+Root cause is in the regression selector: it attempted to discover Rossdam by a `FeatureDefinition.Name` prefix. Production catalogue authoring derives definition names from `settlement.Node.Id`, but that fixed-size catalogue name is not the semantic membership API and must not be used as the authoritative settlement lookup surface.
 
-- authored non-terrain structure-material voxels,
-- occupied minimum/maximum Y and resulting vertical span,
-- semantic placement/footprint bounds,
-- relationship of occupied lower/upper Y to the intended grounded placement.
+## Corrected discriminator
 
-The test should fail distinctly when an expected building volume is empty or lacks meaningful above-ground vertical occupancy. If all four authoritative volumes are healthy, stop modifying voxelization/readiness and investigate render publication/framing. If the volumes are absent or vertically misplaced, fix only that identified production owner.
+Use the same semantic/production data path that authors the catalogue:
+
+1. Build the source-backed layout and `KentridgeTopDownWorldPhysicalIntent`.
+2. Build the production `TopDownWorldPhysicalPlan` and obtain Rossdam with `TryGetSettlement(KentridgeTopDownWorldLayout.Rossdam, ...)`.
+3. Require its four real `TopDownWorldBuildingBlockoutPlan` entries.
+4. Build the real combined catalogue and match each planned building to exactly one `FeatureKind.Structure` explicit placement by the exact X/Z centre used by production authoring; do not inspect definition names.
+5. Generate every 3D region intersecting that placement's production footprint through normal `FeatureGeneration.GenerateRegion` into authoritative `RegionTable`/`BrickPool` storage.
+6. Bounded-scan that footprint for the production foundation/timber/roof materials and record occupied voxel count, min/max Y, and vertical span.
+7. Require non-empty structure occupancy, occupied minimum Y equal to the production grounded placement, and vertical span at least the semantic planned wall height.
+
+The corrected test is committed at `74001f9d98041eb56dbce310f8caa1341221ef90`. It remains a discriminator only; no production world generation, rendering, streaming radius/budget, camera, or replay duration changed.
+
+## Classification rule
+
+If all four corrected authoritative volumes are healthy, stop modifying voxelization/readiness and investigate downstream render publication/framing. If any volume is absent or vertically misplaced, fix only that identified production owner. A compile/test-construction failure must be fixed as a regression defect and is not evidence for either production hypothesis.
 
 ## Guardrails
 
