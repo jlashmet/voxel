@@ -174,6 +174,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private static readonly int IdCopyIndexCount = Shader.PropertyToID("_CopyIndexCount");
         private static readonly int IdDrawArgs = Shader.PropertyToID("_DrawArgs");
         private static readonly int IdDrawArgsWordStart = Shader.PropertyToID("_DrawArgsWordStart");
+        private static readonly int IdBatchCounters = Shader.PropertyToID("_BatchCounters");
+        private static readonly int IdBatchCounterWordStart =
+            Shader.PropertyToID("_BatchCounterWordStart");
 
         private readonly ComputeShader _shader;
         private readonly int _sampleKernel;
@@ -186,6 +189,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private readonly int _copyVerticesKernel;
         private readonly int _copyIndicesKernel;
         private readonly int _publishArgsKernel;
+        private readonly int _copyCountersToBatchKernel;
         private readonly int _faceKernel;
         private readonly int _transitionKernel;
 
@@ -289,6 +293,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _copyVerticesKernel = shader.FindKernel("CSCopyVertices");
             _copyIndicesKernel = shader.FindKernel("CSCopyIndices");
             _publishArgsKernel = shader.FindKernel("CSPublishArgs");
+            _copyCountersToBatchKernel = shader.FindKernel("CSCopyCountersToBatch");
             _faceKernel = shader.FindKernel("CSSampleFace");
             _transitionKernel = shader.FindKernel("CSTransitionCells");
 
@@ -539,6 +544,33 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             DispatchCount(mirror, tables, request);
             RequestCounters();
+        }
+
+        /// <summary>
+        /// Copies the current count result into one shared four-word batch record. The sampled
+        /// field remains private to this extractor for its later write pass; only bounded sizing
+        /// metadata is coalesced for one asynchronous transfer.
+        /// </summary>
+        internal void CopyCountToBatch(ComputeBuffer batchCounters, int recordIndex)
+        {
+            ThrowIfDisposed();
+            if (batchCounters == null) throw new ArgumentNullException(nameof(batchCounters));
+            if (recordIndex < 0 || (recordIndex + 1) * 4 > batchCounters.count)
+                throw new ArgumentOutOfRangeException(nameof(recordIndex));
+            _shader.SetBuffer(_copyCountersToBatchKernel, IdCounters, _counters);
+            _shader.SetBuffer(_copyCountersToBatchKernel, IdBatchCounters, batchCounters);
+            _shader.SetInt(IdBatchCounterWordStart, recordIndex * 4);
+            _shader.Dispatch(_copyCountersToBatchKernel, 1, 1, 1);
+        }
+
+        internal void DispatchCountToBatch(GpuVoxelBrickMirror mirror,
+                                           GpuTransvoxelTables tables,
+                                           in GpuChunkExtraction request,
+                                           ComputeBuffer batchCounters,
+                                           int recordIndex)
+        {
+            DispatchCount(mirror, tables, request);
+            CopyCountToBatch(batchCounters, recordIndex);
         }
 
         private void DispatchCount(GpuVoxelBrickMirror mirror, GpuTransvoxelTables tables,

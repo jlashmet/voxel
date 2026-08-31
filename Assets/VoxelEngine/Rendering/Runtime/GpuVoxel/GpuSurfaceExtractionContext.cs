@@ -73,6 +73,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private int _writeIndexStart;
         private int _writeIndexCapacity;
         private int _countReadbackRetries;
+        private uint _countBatchToken;
+        private bool _countBatchResultReady;
+        private bool _countBatchFailed;
+        private GpuExtractionCounts _countBatchCounts;
         private double _stageRequestStartedSeconds;
 
         public GpuVoxelBrickMirror Mirror => _mirror;
@@ -325,8 +329,12 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (!TryCaptureStorageGeneration(out _stageStorageGeneration)) return false;
             if (!BeginPersistentStage(_staged, _stageStorageGeneration)) return false;
 
-            _extractor.BeginCount(_mirror, _tables, _staged);
+            unchecked { _countBatchToken++; }
+            _countBatchResultReady = false;
+            _countBatchFailed = false;
+            _countDispatchPending = true;
             _stageAdmissionPending = false;
+            TryDispatchPendingCount();
             return true;
         }
 
@@ -367,9 +375,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                     return false;
                 _coverageReady = true;
             }
-            if (!GpuSurfaceMirrorCoordinator.TryReserveExtractionDispatch(Time.frameCount))
-                return false;
-
             ConfigurePersistentLookupHeader();
             _staged = request;
             _hasStaged = true;
@@ -416,8 +421,14 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             }
             if (!_hasStaged) return GpuSurfaceExtractor.GpuCounterPoll.Failed;
 
-            GpuSurfaceExtractor.GpuCounterPoll poll = _extractor.TryCompleteCount(out counts);
-            if (poll == GpuSurfaceExtractor.GpuCounterPoll.Pending) return poll;
+            if (!_countBatchResultReady)
+                return GpuSurfaceExtractor.GpuCounterPoll.Pending;
+
+            _countBatchResultReady = false;
+            GpuSurfaceExtractor.GpuCounterPoll poll = _countBatchFailed
+                ? GpuSurfaceExtractor.GpuCounterPoll.Failed
+                : GpuSurfaceExtractor.GpuCounterPoll.Ready;
+            counts = _countBatchCounts;
             if (poll == GpuSurfaceExtractor.GpuCounterPoll.Failed)
             {
                 // A failed async counter transfer is not evidence that this supported chunk needs
@@ -470,7 +481,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             ThrowIfDisposed();
             if (!_hasStaged) throw new InvalidOperationException("No GPU chunk is staged.");
-            _extractor.CancelPendingCounters();
+            unchecked { _countBatchToken++; }
+            _countBatchResultReady = false;
+            _countBatchFailed = false;
             _countDispatchPending = true;
             TryDispatchPendingCount();
         }
@@ -478,12 +491,19 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private bool TryDispatchPendingCount()
         {
             if (!_countDispatchPending) return true;
-            if (!GpuSurfaceMirrorCoordinator.TryReserveExtractionDispatch(Time.frameCount))
+            if (!GpuSurfaceMirrorCoordinator.TryDispatchCountBatch(
+                    this, _countBatchToken, _extractor, _tables, _staged, Time.frameCount))
                 return false;
-
-            _extractor.BeginCount(_mirror, _tables, _staged);
             _countDispatchPending = false;
             return true;
+        }
+
+        internal void CompleteBatchedCount(uint token, in GpuExtractionCounts counts, bool failed)
+        {
+            if (_disposed || !_hasStaged || token != _countBatchToken) return;
+            _countBatchCounts = counts;
+            _countBatchFailed = failed;
+            _countBatchResultReady = true;
         }
 
         public void BeginWriteRange(ComputeBuffer vertices, ComputeBuffer indices,
@@ -636,6 +656,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _lastCoveragePollFrame = -1;
             _hasStaged = false;
             _countReadbackRetries = 0;
+            unchecked { _countBatchToken++; }
+            _countBatchResultReady = false;
+            _countBatchFailed = false;
+            _countBatchCounts = default;
             _writeVertices = null;
             _writeIndices = null;
             _writeArgs = null;

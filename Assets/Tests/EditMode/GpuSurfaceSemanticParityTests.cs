@@ -132,6 +132,48 @@ namespace VoxelEngine.Tests.EditMode
             }
         }
 
+        [Test]
+        public void SharedCountBufferCarriesTwoDescriptorsInOneTransfer()
+        {
+            using var mirror = new GpuVoxelBrickMirror(8);
+            using var tables = GpuTransvoxelTables.CreateDefault();
+            using var extractor = new GpuSurfaceExtractor(_shader, Cells, 2);
+            extractor.SetCatalogues(SurfaceCatalogueView.CreateBuiltIns(), default, null);
+            PublishRepeatedHalfBrick(mirror, extractor, SurfaceStyles.Smooth, 0,
+                                     out NativeArray<byte> voxels,
+                                     out NativeArray<ushort> semantics,
+                                     out NativeArray<byte> boundaries);
+            var first = new GpuChunkExtraction(int3.zero, new int3(-1), 1, 1f);
+            var second = new GpuChunkExtraction(new int3(8, 0, 0), new int3(-1), 1, 1f);
+            GpuExtractionCounts expectedFirst = extractor.Count(mirror, tables, first);
+            GpuExtractionCounts expectedSecond = extractor.Count(mirror, tables, second);
+            GpuExtractionCounts[] expected = { expectedFirst, expectedSecond };
+            var batch = new ComputeBuffer(8, sizeof(uint), ComputeBufferType.Structured);
+            try
+            {
+                ulong readbacksAfterOracle = extractor.CounterReadbacks;
+                extractor.DispatchCountToBatch(mirror, tables, first, batch, 0);
+                extractor.DispatchCountToBatch(mirror, tables, second, batch, 1);
+                var words = new uint[8];
+                batch.GetData(words); // one verification-only transfer for both descriptors
+
+                Assert.AreEqual(readbacksAfterOracle, extractor.CounterReadbacks,
+                    "Appending batch records must not create per-descriptor readbacks.");
+                for (int record = 0; record < 2; record++)
+                {
+                    int word = record * 4;
+                    Assert.AreEqual(0u, words[word]);
+                    Assert.AreEqual((uint)expected[record].VertexCount, words[word + 2]);
+                    Assert.AreEqual((uint)expected[record].IndexCount, words[word + 3]);
+                }
+            }
+            finally
+            {
+                batch.Release();
+                voxels.Dispose(); semantics.Dispose(); boundaries.Dispose();
+            }
+        }
+
         private GpuExtractionResult ExtractSmooth(byte coating)
         {
             using var mirror = new GpuVoxelBrickMirror(8);

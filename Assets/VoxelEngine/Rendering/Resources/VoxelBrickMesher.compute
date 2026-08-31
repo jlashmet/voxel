@@ -18,6 +18,7 @@
 #pragma kernel CSCopyVertices
 #pragma kernel CSCopyIndices
 #pragma kernel CSPublishArgs
+#pragma kernel CSCopyCountersToBatch
 #pragma kernel CSSampleFace
 #pragma kernel CSTransitionCells
 
@@ -90,6 +91,8 @@ int _DrawArgsWordStart;
 // During the sample/count half only, word 0 is also a boolean unsupported-semantics marker. The
 // write path resets all counters before it starts, so the marker never enters geometry accounting.
 RWStructuredBuffer<uint> _Counters;
+RWStructuredBuffer<uint> _BatchCounters;
+int _BatchCounterWordStart;
 int _VertexCapacity;
 int _IndexCapacity;
 
@@ -813,6 +816,18 @@ void CSPublishArgs(uint3 id : SV_DispatchThreadID)
     _DrawArgs[_DrawArgsWordStart + 1] = 1u;
     _DrawArgs[_DrawArgsWordStart + 2] = 0u;
     _DrawArgs[_DrawArgsWordStart + 3] = 0u;
+}
+
+// Count dispatches retain their large sampled fields in separate private extractors. Copying the
+// four-word result into a shared batch buffer lets one bounded transfer complete several chunk
+// descriptors without moving any sampled field or geometry through the CPU.
+[numthreads(1, 1, 1)]
+void CSCopyCountersToBatch(uint3 id : SV_DispatchThreadID)
+{
+    _BatchCounters[_BatchCounterWordStart + 0] = _Counters[0];
+    _BatchCounters[_BatchCounterWordStart + 1] = _Counters[1];
+    _BatchCounters[_BatchCounterWordStart + 2] = _Counters[2];
+    _BatchCounters[_BatchCounterWordStart + 3] = _Counters[3];
 }
 
 // ---------------------------------------------------------------------------

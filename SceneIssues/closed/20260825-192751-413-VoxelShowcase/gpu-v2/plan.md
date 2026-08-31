@@ -20,8 +20,9 @@
 - 1,162/1,703 counts rejected for reconstruction versus one decoration. Serialized exact-face greedy emission removed fallback and raised publications, but p95 became 49.92 ms; reverted. Parallel compaction is required.
 - GPU classification skips density dispatch for unsupported chunks; throughput rose slightly, walking p99 remained 38.29 ms.
 - Parallel per-cell exact Planar/Sharp/Cubic and deterministic clump/fringe emission now replace supported-semantic fallback. Metal semantic/publication parity is 5/5 and arena count/write coverage is 7/7. The obsolete raw unsupported scan was removed. Production now performs one count readback per chunk; reserved write, arena copy, args, and scratch lifetime are GPU-ordered as one stage behind an explicit fence, eliminating both the write readback and a third dispatch frame. Policy coverage is 5/5.
+- Count results now use two-descriptor, double-buffered shared transfer lanes with a bounded seal timeout and stale-generation rejection; workers retain private sampled fields for write. Metal semantic/publication/batch coverage is 6/6. Per-chunk count readback requests are gone, but CPU arena allocation remains.
 
 ## Remaining gates
-- Replace per-chunk readbacks with bounded descriptor batches, GPU prefix allocation/meshing/args, version-safe publication, and explicit fences. Split 64³ work into bounded units if necessary.
+- Replace CPU arena allocation with GPU prefix allocation/meshing/args and version-safe batch publication. Split 64³ work into bounded units if necessary.
 - Add admission, retry, overflow, stale, disposal, arena, and lifecycle coverage.
 - Do not run VoxelShowcase while semantic fallback or per-chunk handshakes remain. Then run the 150 s capture, inspect screenshots, review the diff, and keep the issue open unless every gate passes.

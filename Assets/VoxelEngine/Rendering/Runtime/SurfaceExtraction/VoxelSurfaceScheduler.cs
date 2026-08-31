@@ -1076,7 +1076,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         + $" unsupported={gpuUnsupported}"
                         + $" unsupportedReconstruction={gpuUnsupportedReconstruction}"
                         + $" unsupportedDecoration={gpuUnsupportedDecoration} stale={gpuStale}"
-                        + $" retry={gpuRetries} flight={gpuInFlight}"
+                        + $" retry={gpuRetries}"
+                        + $" countBatch={GpuSurfaceMirrorCoordinator.CountBatchRecords}/"
+                        + $"{GpuSurfaceMirrorCoordinator.CountBatchReadbacks}"
+                        + $" flight={gpuInFlight}"
                         + $" phases=0x{gpuPhaseMask:X} oldestMs={gpuOldestMs:0.0}]");
             for (int r = 0; r < _rings.Length; r++)
             {

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Rendering;
 using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Rendering.Runtime.GpuVoxel
@@ -23,6 +24,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private const int TrackedRegionCapacity = 128;
         private const int BlocksPerTrackedRegionCapacity = 8192;
         private const int CoverageChecksPerPoll = 128;
+        private const int CountBatchCapacity = 2;
+        private const int CountBatchMaxFillFrames = 2;
         internal const int DefaultUploadBudgetBytes = 256 * 1024;
 
         private static readonly Queue<int3> s_RecoveryRegions = new(TrackedRegionCapacity);
@@ -65,6 +68,21 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private static uint s_CoverageEpoch;
         private static ulong s_OptionalNonResidentHaloBlocksAccepted;
         private static ulong s_ConcurrentDemandRecoverySlices;
+        private static readonly CountBatchLane[] s_CountBatchLanes = new CountBatchLane[2];
+        private static ulong s_CountBatchReadbacks;
+        private static ulong s_CountBatchRecords;
+
+        private sealed class CountBatchLane
+        {
+            internal readonly GpuSurfaceExtractionContext[] Contexts =
+                new GpuSurfaceExtractionContext[CountBatchCapacity];
+            internal readonly uint[] Tokens = new uint[CountBatchCapacity];
+            internal ComputeBuffer Counters;
+            internal AsyncGPUReadbackRequest Readback;
+            internal bool ReadbackPending;
+            internal int Count;
+            internal int FirstDispatchFrame = -1;
+        }
 
         private readonly struct ActiveFootprint : IEquatable<ActiveFootprint>
         {
@@ -142,6 +160,120 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (Time.realtimeSinceStartupAsDouble < deadline)
                 ProcessRecovery(deadline, Math.Max(0, uploadBudgetBytes));
             s_Mirror.FlushPendingUploads();
+            AdvanceCountBatches(frame);
+        }
+
+        /// <summary>
+        /// Dispatches one worker's large count stage into its private sampled-field scratch, then
+        /// appends only its four bookkeeping words to a shared transfer lane. A lane is sealed at
+        /// two descriptors or after a bounded fill delay, so no request can wait indefinitely.
+        /// </summary>
+        internal static bool TryDispatchCountBatch(GpuSurfaceExtractionContext context,
+                                                   uint token,
+                                                   GpuSurfaceExtractor extractor,
+                                                   GpuTransvoxelTables tables,
+                                                   in GpuChunkExtraction request,
+                                                   int frame)
+        {
+            if (context == null || extractor == null || tables == null || s_Mirror == null)
+                return false;
+            EnsureCountBatchLanes();
+
+            CountBatchLane lane = null;
+            for (int i = 0; i < s_CountBatchLanes.Length; i++)
+            {
+                CountBatchLane candidate = s_CountBatchLanes[i];
+                if (!candidate.ReadbackPending && candidate.Count < CountBatchCapacity)
+                {
+                    lane = candidate;
+                    break;
+                }
+            }
+            if (lane == null || !TryReserveExtractionDispatch(frame)) return false;
+
+            int record = lane.Count++;
+            if (record == 0) lane.FirstDispatchFrame = frame;
+            lane.Contexts[record] = context;
+            lane.Tokens[record] = token;
+            extractor.DispatchCountToBatch(s_Mirror, tables, request, lane.Counters, record);
+            s_CountBatchRecords++;
+            if (lane.Count == CountBatchCapacity) SealCountBatch(lane);
+            return true;
+        }
+
+        private static void EnsureCountBatchLanes()
+        {
+            for (int i = 0; i < s_CountBatchLanes.Length; i++)
+            {
+                if (s_CountBatchLanes[i] == null) s_CountBatchLanes[i] = new CountBatchLane();
+                CountBatchLane lane = s_CountBatchLanes[i];
+                lane.Counters ??= new ComputeBuffer(
+                    CountBatchCapacity * 4, sizeof(uint), ComputeBufferType.Structured);
+            }
+        }
+
+        private static void AdvanceCountBatches(int frame)
+        {
+            for (int laneIndex = 0; laneIndex < s_CountBatchLanes.Length; laneIndex++)
+            {
+                CountBatchLane lane = s_CountBatchLanes[laneIndex];
+                if (lane == null) continue;
+                if (lane.ReadbackPending)
+                {
+                    if (!lane.Readback.done && !lane.Readback.hasError) continue;
+                    bool failed = lane.Readback.hasError;
+                    NativeArray<uint> data = failed
+                        ? default
+                        : lane.Readback.GetData<uint>();
+                    for (int record = 0; record < lane.Count; record++)
+                    {
+                        GpuExtractionCounts counts = failed ? default : new GpuExtractionCounts(
+                            (int)data[record * 4 + 2], (int)data[record * 4 + 3],
+                            data[record * 4]);
+                        lane.Contexts[record]?.CompleteBatchedCount(
+                            lane.Tokens[record], counts, failed);
+                        lane.Contexts[record] = null;
+                        lane.Tokens[record] = 0;
+                    }
+                    lane.Count = 0;
+                    lane.FirstDispatchFrame = -1;
+                    lane.ReadbackPending = false;
+                    s_CountBatchReadbacks++;
+                    continue;
+                }
+
+                if (lane.Count > 0
+                    && frame - lane.FirstDispatchFrame >= CountBatchMaxFillFrames)
+                    SealCountBatch(lane);
+            }
+        }
+
+        private static void SealCountBatch(CountBatchLane lane)
+        {
+            if (lane == null || lane.Count == 0 || lane.ReadbackPending) return;
+            lane.Readback = AsyncGPUReadback.Request(lane.Counters);
+            lane.ReadbackPending = true;
+        }
+
+        private static void ResetCountBatches()
+        {
+            for (int i = 0; i < s_CountBatchLanes.Length; i++)
+            {
+                CountBatchLane lane = s_CountBatchLanes[i];
+                if (lane == null) continue;
+                for (int record = 0; record < lane.Count; record++)
+                    lane.Contexts[record]?.CompleteBatchedCount(
+                        lane.Tokens[record], default, failed: true);
+                lane.Counters?.Release();
+                lane.Counters = null;
+                lane.Count = 0;
+                lane.FirstDispatchFrame = -1;
+                lane.ReadbackPending = false;
+                Array.Clear(lane.Contexts, 0, lane.Contexts.Length);
+                Array.Clear(lane.Tokens, 0, lane.Tokens.Length);
+            }
+            s_CountBatchReadbacks = 0;
+            s_CountBatchRecords = 0;
         }
 
         internal static void RequestCoverage(int3 brickCacheOrigin, int brickCacheEdge,
@@ -250,6 +382,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         internal static ulong OptionalNonResidentHaloBlocksAccepted =>
             s_OptionalNonResidentHaloBlocksAccepted;
         internal static ulong ConcurrentDemandRecoverySlices => s_ConcurrentDemandRecoverySlices;
+        internal static ulong CountBatchReadbacks => s_CountBatchReadbacks;
+        internal static ulong CountBatchRecords => s_CountBatchRecords;
 
         private static void AttachWorld(IRegionReadSource storage, IVoxelChangeSource changes)
         {
@@ -711,6 +845,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             s_LastExtractionDispatchFrame = -1;
             s_OptionalNonResidentHaloBlocksAccepted = 0;
             s_ConcurrentDemandRecoverySlices = 0;
+            ResetCountBatches();
             ClearRecoveryQueues();
             ClearReadyBlocks();
             s_ChangedReadyScratch.Clear();
