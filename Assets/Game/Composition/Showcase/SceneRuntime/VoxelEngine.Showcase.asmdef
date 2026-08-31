@@ -15,6 +15,8 @@
         "VoxelEngine.Structures.Runtime",
         "VoxelEngine.Tiering.Api",
         "MountingForce.WorldGen.Voxel",
+        "MountingForce.WorldGen.Core",
+        "MountingForce.WorldGen.Architecture",
         "Unity.Burst",
         "Unity.Collections",
         "Unity.Mathematics",
@@ -22,7 +24,10 @@
         "VoxelEngine.Vegetation.Api",
         "VoxelEngine.AmbientLife.Api",
         "VoxelEngine.Collision.Api",
-        "Game.Structures.Api"
+        "Game.Structures.Api",
+        "Game.Structures.Runtime",
+        "Game.WorldBuilder.Api",
+        "Game.WorldBuilder.Runtime"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
