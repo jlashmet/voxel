@@ -38,6 +38,8 @@ namespace VoxelEngine.Composition
     /// <summary>
     /// Diagnostics-only query over the most recent production surface-pass draw set. It never
     /// advances the renderer, discovers chunks, requests residency, or changes budgets.
+    /// This belongs beside RenderingComposition because Composition.Api intentionally has no
+    /// dependency on Rendering.Runtime.
     /// </summary>
     public static class RenderingSurfaceCoverageDiagnostics
     {
