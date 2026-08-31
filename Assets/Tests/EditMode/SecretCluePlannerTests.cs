@@ -48,20 +48,35 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(result.Clues[2].SourceRole, Is.EqualTo(vault));
             Assert.That(result.Clues.All(x => x.MemoryTopic == "memory://secrets/hidden-cache"), Is.True);
 
-            var ledger = new SecretDiscoveryLedger();
-            Assert.That(ledger.IsDiscovered(secret), Is.False,
+            var authority = new SecretDiscoveryState();
+            var ledger = new SecretDiscoveryLedger(authority);
+            Assert.That(ledger.IsDiscovered(secretPlan), Is.False,
                 "The generated world knows the target, but player memory must begin undiscovered.");
             ledger.Observe(result.Clues[0]);
             ledger.Observe(result.Clues[1]);
             ledger.Observe(result.Clues[2]);
-            Assert.That(ledger.IsDiscovered(secret), Is.False,
+            Assert.That(ledger.IsDiscovered(secretPlan), Is.False,
                 "Observing clues alone does not silently reveal the secret target.");
-            ledger.Discover(secret);
+
+            var rewardEvents = 0;
+            authority.Discovered += _ => rewardEvents++;
+            Assert.That(ledger.Discover(secretPlan), Is.True);
+            Assert.That(ledger.Discover(secretPlan), Is.False,
+                "Revisiting the same canonical candidate must not duplicate discovery credit.");
+            Assert.That(rewardEvents, Is.EqualTo(1),
+                "Reward consumers listening to canonical discovery must receive one event only.");
 
             SecretDiscoverySnapshot saved = ledger.Capture();
-            var restored = new SecretDiscoveryLedger();
+            var restoredAuthority = new SecretDiscoveryState();
+            var restored = new SecretDiscoveryLedger(restoredAuthority);
+            var restoredRewardEvents = 0;
+            restoredAuthority.Discovered += _ => restoredRewardEvents++;
             restored.Restore(saved);
-            Assert.That(restored.IsDiscovered(secret), Is.True);
+            Assert.That(restored.IsDiscovered(secretPlan), Is.True);
+            Assert.That(restored.Discover(secretPlan), Is.False,
+                "Reloading and revisiting the same candidate must remain idempotent.");
+            Assert.That(restoredRewardEvents, Is.Zero,
+                "Restore/revisit must not replay discovery reward events.");
             Assert.That(restored.HasObserved(result.Clues[0].Id), Is.True);
             Assert.That(restored.HasObserved(result.Clues[2].Id), Is.True);
         }
