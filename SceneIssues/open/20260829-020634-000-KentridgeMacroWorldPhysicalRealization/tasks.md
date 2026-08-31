@@ -17,11 +17,12 @@
 - [x] Exact run `33372188117`: workflow green but vertical-only 45 m settlement-camera correction is closure-red because inherited 70 m rotation crops/mis-aims the survey.
 - [x] Exact run `33373258471`: focused focus-ray-dolly regression product-red (`0.027976°` vs `<0.01°`) while built player succeeds; same one-readable-building/cropping symptom remains after a second materially different camera fix.
 - [x] Experiment 021 minimal repro isolates framing containment before a third correction: production generic settlement footprint is 51.6 m x 48.4 m, ~35.36 m diagonal half-span; the exact scene 58° lens covers only ~34.37 m per side at the original ~62 m camera-to-focus vertical separation. Experiment 020's AABB test proved intersection, not full containment.
-- [x] Root-cause-driven correction keeps the established 70 m semantic pose and production LOD/streaming unchanged, widens only validation settlement surveys to 72°, restores the normal lens outside settlement surveys, and adds focused containment regression.
+- [x] Exact run `33376804313` is workflow-green but visual-closure-red: the 72° flat-footprint regression passes while Moordell still clips the fourth blockout and Rossdam shows only one complete building plus a clipped structure.
+- [x] Experiment 022 replaces the falsified scalar footprint model with exact 16:9 projection of the production-plan 3D building envelopes (foundation inset, terrain relief, wall and roof height) and widens only validation settlement surveys to 90° while preserving the established semantic camera/focus pose and production streaming/LOD policy.
 
 ## Current exact gate
-- [ ] Exact run `33376804313` / wrapper `72639b4b36559aed26af056ea6b09706fe37cc01` for feature code source `5ca4d29efc8c538806f078e3393aa941526a5ede`: do not replace while queued/running. At last check job `99440020485` was queued with no runner and no steps started.
-- [ ] After completion, inspect focused result plus full-resolution Moordell/Rossdam frames; do not accept workflow green without visual closure.
+- [ ] Run the projected-authored-bounds containment regression on the exact current feature SHA through `ci-test/fixes/agent-6`; if it fails, use the reported viewport corner as the next discriminator instead of another visual-only camera tweak.
+- [ ] After focused green, inspect full-resolution Moordell/Rossdam frames; do not accept workflow green without visual closure.
 - [ ] Verify full-resolution Moordell/Rossdam/Fairy/Orc surveys show all four readable authored settlement blockouts with streets/open space and arrival/exit.
 - [ ] Re-check Rossdam lake framing; it must read as substantial authored water plus constrained route, not the thin distant strip seen in earlier artifacts.
 - [ ] Capture Southern Ridge/pass and final `macro-network-overview` inside the unchanged 60 s replay.
@@ -43,9 +44,10 @@
 - [x] Run `33318399738`: elapsed `73s`, final RSS `598MB`, peak RSS `5640MB`, swap growth `0MB`; settled-target FPS typically ~150–370.
 - [x] Exact run `33346099006`: focused residency green; combined peak ~`5824MB`, no swap growth, late FPS generally >100 and often 200–360.
 - [x] Exact run `33373258471`: after startup, late player FPS is generally ~127–332 with p95 frame time mostly ~3–12 ms while remote settlement feature publication proceeds.
+- [x] Exact run `33376804313`: late Moordell/Rossdam publication remains generally ~133–346 FPS with p95 frame time mostly ~3–13 ms; Rossdam becomes content-ready around t56 and capture-ready before t57.
 - [ ] Quantify actual additional vertical resident/generated region count from feature-aware residency against baseline; prove no horizontal interest-radius/device-budget change numerically.
 - [ ] Measure final lake dimensions/depth/primitive cells, route tile/solve/constrained counts, feature work/time, CPU/FPS, memory, streaming convergence, and render/far-field telemetry against budgets.
-- [ ] Quantify fixed-60-second target phase timing after visual framing closes; current completed run reaches Moordell content/capture around t42 and begins Rossdam around t44, so later evidence currently misses cutoff.
+- [ ] Quantify fixed-60-second target phase timing after visual framing closes; run `33376804313` captures Moordell around t40 and Rossdam around t56, then begins the lake target at t57, so later evidence still misses cutoff.
 - [ ] Re-fetch current master and re-check exact feature diff immediately before final targeted CI.
 
 ## Acceptance / closure
