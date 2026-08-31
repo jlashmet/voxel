@@ -40,6 +40,7 @@ namespace VoxelEngine.Tests.EditMode
             Assert.IsTrue(
                 TryFindGradeOnlyPlotOverlap(roadPrimitives, plotPrimitives, out int3 overlap),
                 "The production Kentridge fixture must contain a real plot landform overlapping the road grading-only envelope; otherwise this regression would not reproduce the built-player trench interaction.");
+            TestContext.WriteLine("ROAD_PRESENTATION_EVIDENCE overlap_dm=" + overlap);
 
             using FeatureCatalogue combined = KentridgeCombinedVoxelCatalogue.Build(
                 KentridgePlayableSliceSeed,
@@ -116,6 +117,9 @@ namespace VoxelEngine.Tests.EditMode
             }
 
             Assert.IsTrue(sampled, "The fixed production fixture must exercise a road approach while it still crosses its authored plot surface.");
+            TestContext.WriteLine(
+                "ROAD_PRESENTATION_EVIDENCE public_approach_role=" + worstRole
+                + " point_dm=" + worstPoint + " rise_dm=" + worstRiseDm);
             Assert.That(
                 worstRiseDm,
                 Is.LessThanOrEqualTo(3),
