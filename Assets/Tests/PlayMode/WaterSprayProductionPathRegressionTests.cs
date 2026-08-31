@@ -4,6 +4,7 @@ using System.Reflection;
 using Game.Materials.Api;
 using Game.Materials.Runtime;
 using NUnit.Framework;
+using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.TestTools;
@@ -63,6 +64,11 @@ namespace VoxelEngine.Tests.PlayMode
                 for (int frame = 0; frame < maxFrames && cache.CompletedBuildCount == 0; frame++)
                 {
                     cache.Prepare(world.ReadStorage, camera, ShowcaseWorld.VoxelSize, budgetMs: 5.0);
+                    // Production frames flush scheduled jobs at the player loop boundary. The Unity
+                    // test coroutine can advance its 120 yields in under half a second, leaving the
+                    // worker batch undispatched long enough to make this discriminator inconclusive.
+                    // Flush scheduling only; never block on JobHandle.Complete().
+                    JobHandle.ScheduleBatchedJobs();
                     cache.TryPublishPending(int.MaxValue, out _);
                     if (cache.CompletedBuildCount == 0)
                         yield return null;
