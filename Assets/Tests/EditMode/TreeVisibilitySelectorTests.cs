@@ -76,6 +76,25 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(individuals[0].Tier, Is.EqualTo(TreePresentationTier.Simplified));
         }
 
+        [Test]
+        public void Select_ForestMemberRemainsCanopyVisibleAtTenAndTwelveKilometres()
+        {
+            var individuals = new List<SelectedTreePresentation>();
+            var canopy = new List<TreeVisibilityEntry>();
+            var selector = new TreeVisibilitySelector();
+            var policy = new TreeVisibilityTierPolicy(120f, 1200f, 12000f, 12000f, 20f);
+
+            selector.Select(new[] { Entry(31UL, 0, 10000f) }, float3.zero, in policy, null, individuals, canopy);
+            Assert.That(individuals, Is.Empty);
+            Assert.That(canopy.Count, Is.EqualTo(1));
+            Assert.That(canopy[0].StableId, Is.EqualTo(31UL));
+
+            selector.Select(new[] { Entry(31UL, 0, 12000f) }, float3.zero, in policy, null, individuals, canopy);
+            Assert.That(individuals, Is.Empty);
+            Assert.That(canopy.Count, Is.EqualTo(1),
+                "ordinary forest members must contribute to deterministic canopy massing at the configured horizon");
+        }
+
         private static TreeVisibilityEntry Entry(
             ulong stableId, int sourceIndex, float x, bool severed = false)
         {
