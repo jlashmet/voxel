@@ -436,12 +436,12 @@ Shader "Hidden/VoxelEngine/WaterSurface"
                 float4 cascade = _WaterCascade[material];
                 float2 sprayUv = saturate(input.sprayUv);
                 float acrossEnvelope = saturate(4.0 * sprayUv.x * (1.0 - sprayUv.x));
-                // The canonical spray sheets are intentionally broadest at their impact edge. Let
-                // body impact foam own that contact band and keep the depth-neutral spray fully
-                // transparent until it has risen away from the shared planar hinge; otherwise the
-                // first few percent of each trapezoid advertise their triangle/plane silhouette.
+                // The carrier is deliberately broader than the visible plume so one reusable mesh
+                // can support multiple waterfall scales. Let body impact foam own the lower hinge,
+                // keep the mid-band mist readable, and fade before the broad trapezoid crown can
+                // advertise its planar/triangular silhouette at higher viewing pitches.
                 float riseEnvelope = smoothstep(0.12, 0.32, sprayUv.y)
-                                   * (1.0 - smoothstep(0.54, 1.0, sprayUv.y));
+                                   * (1.0 - smoothstep(0.46, 0.72, sprayUv.y));
                 float softEnvelope = pow(acrossEnvelope, 0.55) * pow(riseEnvelope, 0.62);
                 float sprayLateral = input.positionWS.x + input.positionWS.z * 0.73;
                 float sprayRise = input.positionWS.y * 0.64 - _WaterTime * motion.w * 0.74;
