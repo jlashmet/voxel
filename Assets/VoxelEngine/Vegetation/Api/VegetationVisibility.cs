@@ -136,10 +136,14 @@ namespace VoxelEngine.Vegetation.Api
         {
             ulong hash = FnvOffset;
             hash = HashUInt(hash, instance.Seed);
-            hash = HashInt(hash, Quantize(instance.PositionMetres.x));
-            hash = HashInt(hash, Quantize(instance.PositionMetres.y));
-            hash = HashInt(hash, Quantize(instance.PositionMetres.z));
+            hash = HashInt(hash, QuantizePosition(instance.PositionMetres.x));
+            hash = HashInt(hash, QuantizePosition(instance.PositionMetres.y));
+            hash = HashInt(hash, QuantizePosition(instance.PositionMetres.z));
+            hash = HashInt(hash, QuantizeUnit(instance.SurfaceNormal.x));
+            hash = HashInt(hash, QuantizeUnit(instance.SurfaceNormal.y));
+            hash = HashInt(hash, QuantizeUnit(instance.SurfaceNormal.z));
             hash = HashByte(hash, (byte)instance.Kind);
+            hash = HashInt(hash, QuantizeScale(instance.Scale));
             return hash;
         }
 
@@ -147,17 +151,20 @@ namespace VoxelEngine.Vegetation.Api
         {
             ulong hash = FnvOffset;
             hash = HashUInt(hash, instance.Seed);
-            hash = HashInt(hash, Quantize(instance.PositionMetres.x));
-            hash = HashInt(hash, Quantize(instance.PositionMetres.y));
-            hash = HashInt(hash, Quantize(instance.PositionMetres.z));
+            hash = HashInt(hash, QuantizePosition(instance.PositionMetres.x));
+            hash = HashInt(hash, QuantizePosition(instance.PositionMetres.y));
+            hash = HashInt(hash, QuantizePosition(instance.PositionMetres.z));
             hash = HashByte(hash, (byte)instance.Species);
+            hash = HashInt(hash, QuantizeScale(instance.Scale));
             return hash;
         }
 
         private static int Sector(float metres, float sectorSizeMetres) =>
             (int)math.floor(metres / sectorSizeMetres);
 
-        private static int Quantize(float metres) => checked((int)math.round(metres * 10f));
+        private static int QuantizePosition(float metres) => checked((int)math.round(metres * 10f));
+        private static int QuantizeUnit(float value) => checked((int)math.round(value * 4096f));
+        private static int QuantizeScale(float value) => checked((int)math.round(value * 4096f));
 
         private static void ValidateSectorSize(float sectorSizeMetres)
         {
