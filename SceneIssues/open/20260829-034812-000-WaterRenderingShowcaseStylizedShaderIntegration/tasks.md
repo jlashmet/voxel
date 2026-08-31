@@ -17,6 +17,9 @@
 - [x] Keep spray in the same canonical mesh/material; render it in a second `ZWrite Off` pass only for entries that actually contain spray.
 - [x] Replace same-span spray fan with three tapered sheets using distinct impact footprints; regression requires taper and footprint diversity.
 - [x] Replace seven shallow showcase ribbons with four overlapping connected Cascade bands; scene owns only composition policy.
+- [ ] Punch true low-coverage holes only in vertical Waterfall body fragments so transparent breakup does not still stamp depth; keep pool/river depth behavior unchanged.
+- [ ] Lower authored showcase Cascade feet into the receiving-water contact band so canonical impact topology/spray occurs at the pool instead of suspended above it.
+- [ ] Add behavioral regressions for waterfall cutout coverage and receiving-water contact before the next visual gate.
 
 ## Root-cause / visual history
 - [x] Fix Metal procedural-indirect arena addressing with explicit `_SurfaceVertexBase` (`33339706799`).
@@ -31,6 +34,10 @@
 - [x] Directly review `33375101254`: reject visual closure. Starburst/negative-space failure is gone, but near/time-separated waterfall frames still show repetitive bright parallel bands, weak irregular breakup and weak free spray.
 - [x] Isolate the repeated-curtain root cause before another fix: fixed world-space sine carriers remain phase-aligned across overlapping bands; unlike `WaterfallReference.shader`, descending turbulence does not warp the carrier itself.
 - [x] Implement shared renderer fix on `50c4ad5d2a26497baa8b2cc90ee9d9fc48537f94`: warp the waterfall carrier with multi-scale descending turbulence, add falling-cell breakup, and reduce bright-thread dominance without scene-specific policy.
+- [x] Exact run `33376859708` passes `WaterArenaDrawRegressionTests`, automatic module validation and 60-second built replay for feature SHA `ece306a6ab867701628a0db45dc9e230891353d7`.
+- [x] Directly review `33376859708`: reject visual closure. Carrier banding is softer and the starburst remains gone, but close frames still read as a flat rectangular veil with weak breakup and only thin impact wisps.
+- [x] Isolate the repeated flat-veil symptom before another fix: low-coverage Waterfall fragments are alpha-blended but the body pass is `ZWrite On`, so nearly transparent fragments still occlude overlapping bands; alpha modulation cannot create real silhouette holes.
+- [x] Isolate weak-impact cause in authored production geometry: receiving RiverWater tops at `fallBaseY + 7`, while the four Cascade feet start at `+10`, `+12`, `+17`, and `+18`; canonical lower-boundary spray is therefore emitted above the pool instead of at receiving-water contact.
 
 ## Reliability / cost
 - [x] Preserve spreading/inert gameplay semantics and storage/streaming/edit/diagnostic contracts; no swim/buoyancy subsystem exists to alter.
@@ -42,7 +49,8 @@
 ## Exact-SHA gates
 - [x] Historical addressing/topology/spray/cache/raster gates listed above are green on their recorded exact heads.
 - [x] `33375101254`: tapered-spray + connected-curtain regression/module/60-second replay green; direct visual acceptance rejected.
-- [ ] Run `WaterArenaDrawRegressionTests` plus 60-second WaterRenderingShowcase replay on exact current turbulent-carrier head.
+- [x] `33376859708`: turbulent-carrier `WaterArenaDrawRegressionTests` + module validation + 60-second replay green on `ece306a6ab867701628a0db45dc9e230891353d7`; direct visual acceptance rejected.
+- [ ] Run `WaterArenaDrawRegressionTests` plus 60-second WaterRenderingShowcase replay on the next root-cause-fix exact head.
 - [ ] Directly accept/reject near/wide/time-separated waterfall frames against downward flow, turbulence/aeration, irregular breakup, lip/edge/base foam, free mist/spray and production-quality requirements.
 - [ ] Run `ShowcaseWaterPresentationRegressionTests` on the same visually accepted feature head.
 - [ ] Run `WaterSprayProductionPathRegressionTests.CascadeSprayFlagSurvivesCanonicalStorageCacheAndGpuUpload` on the same accepted head.
