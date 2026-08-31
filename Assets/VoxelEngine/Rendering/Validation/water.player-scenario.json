@@ -4,8 +4,8 @@
   "capture": {
     "width": 1600,
     "height": 900,
-    "intervalSeconds": 10,
-    "minimumFrames": 2,
+    "intervalSeconds": 6,
+    "minimumFrames": 3,
     "evidenceAfterSeconds": 4
   },
   "timeline": {},
