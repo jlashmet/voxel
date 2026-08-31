@@ -136,7 +136,7 @@ namespace VoxelEngine.Showcase
             }
 
             Debug.Log(
-                "WATER_VALIDATION ready: still pool, shallow shoreline, meandering river, cascade, receiving pool, and terrain contacts use production near-field water presentation.");
+                "WATER_VALIDATION ready: still pool, shallow shoreline, meandering river, stepped cascade, receiving pool, and terrain contacts use production near-field water presentation.");
             _camera.transform.hasChanged = false;
         }
 
@@ -177,27 +177,36 @@ namespace VoxelEngine.Showcase
                 ReceivingPoolCentreX, ReceivingPoolCentreZ,
                 26, 19, BaseY, GameMaterialIds.Water);
 
+            AuthorCascade(authoring, originX, originZ);
+        }
+
+        private static void AuthorCascade(IStructureAuthoringSession authoring, int originX, int originZ)
+        {
+            const int cascadeStepLength = 6;
+            const int cascadeDrop = 4;
+
             for (int z = CascadeStartZ; z <= CascadeEndZ; z++)
             {
+                int step = Mathf.Min(cascadeDrop, (z - CascadeStartZ) / cascadeStepLength);
+                int y = BaseY + cascadeDrop - step;
                 float t = Mathf.InverseLerp(CascadeStartZ, CascadeEndZ, z);
-                int y = Mathf.RoundToInt(Mathf.Lerp(BaseY + 1, BaseY, t));
                 float centre = RiverCentreX(z);
-                float halfWidth = Mathf.Lerp(9f, 7f, t);
+                float halfWidth = Mathf.Lerp(7f, 5f, t);
                 for (int x = 195; x <= 295; x++)
                 {
                     float dx = Mathf.Abs(x - centre);
                     if (dx <= halfWidth)
                     {
-                        authoring.Set(originX + x, y - 1, originZ + z, GameMaterialIds.Stone);
+                        FillColumn(authoring, originX + x, originZ + z, BaseY - 3, y - 1, GameMaterialIds.Stone);
                         authoring.Set(originX + x, y, originZ + z, GameMaterialIds.Cascade);
                     }
-                    else if (dx <= halfWidth + 3f)
+                    else if (dx <= halfWidth + 2f)
                     {
-                        authoring.Set(originX + x, y - 1, originZ + z, GameMaterialIds.Sand);
+                        FillColumn(authoring, originX + x, originZ + z, BaseY - 3, y - 1, GameMaterialIds.Sand);
                     }
-                    else if (dx <= halfWidth + 7f)
+                    else if (dx <= halfWidth + 6f)
                     {
-                        authoring.Set(originX + x, y - 2, originZ + z, GameMaterialIds.Grass);
+                        FillColumn(authoring, originX + x, originZ + z, BaseY - 3, y - 1, GameMaterialIds.Grass);
                     }
                 }
             }
@@ -226,7 +235,7 @@ namespace VoxelEngine.Showcase
                 byte material = d > 0.9f || relief < -1.1f
                     ? GameMaterialIds.Stone
                     : GameMaterialIds.Grass;
-                authoring.Set(originX + x, y, originZ + z, material);
+                FillColumn(authoring, originX + x, originZ + z, BaseY - 5, y, material);
             }
         }
 
@@ -236,7 +245,7 @@ namespace VoxelEngine.Showcase
             {
                 float centre = RiverCentreX(z);
                 float halfWater = RiverHalfWidth(z);
-                float halfBank = halfWater + 7f;
+                float halfBank = halfWater + 6f;
                 int waterY = RiverHeight(z);
                 for (int x = 195; x <= 295; x++)
                 {
@@ -251,10 +260,10 @@ namespace VoxelEngine.Showcase
                         continue;
                     }
 
-                    bool innerShoulder = dx <= halfWater + 3f;
+                    bool innerShoulder = dx <= halfWater + 2f;
                     int bankY = innerShoulder ? waterY - 1 : waterY - 2;
                     byte material = innerShoulder ? GameMaterialIds.Sand : GameMaterialIds.Grass;
-                    authoring.Set(originX + x, bankY, originZ + z, material);
+                    FillColumn(authoring, originX + x, originZ + z, BaseY - 3, bankY, material);
                 }
             }
         }
@@ -271,7 +280,7 @@ namespace VoxelEngine.Showcase
                     if (Mathf.Abs(x - centre) > halfWidth)
                         continue;
 
-                    authoring.Set(originX + x, y - 1, originZ + z, GameMaterialIds.Sand);
+                    FillColumn(authoring, originX + x, originZ + z, BaseY - 3, y - 1, GameMaterialIds.Sand);
                     authoring.Set(originX + x, y, originZ + z, GameMaterialIds.Water);
                 }
             }
@@ -281,19 +290,31 @@ namespace VoxelEngine.Showcase
         {
             float t = Mathf.InverseLerp(RiverStartZ, CascadeEndZ, z);
             return 238f
-                + Mathf.Sin(t * Mathf.PI * 1.65f) * 18f
-                + Mathf.Sin(t * Mathf.PI * 3.1f) * 6f;
+                + Mathf.Sin(t * Mathf.PI * 1.8f) * 19f
+                + Mathf.Sin(t * Mathf.PI * 4.2f) * 7f;
         }
 
         private static float RiverHalfWidth(int z)
         {
             float t = Mathf.InverseLerp(RiverStartZ, CascadeEndZ, z);
-            return Mathf.Lerp(9f, 7f, t) + Mathf.Sin(t * Mathf.PI * 2.2f) * 1.5f;
+            return Mathf.Lerp(7f, 5f, t) + Mathf.Sin(t * Mathf.PI * 2.2f);
         }
 
         private static int RiverHeight(int z)
         {
-            return BaseY + 1;
+            return BaseY + 4;
+        }
+
+        private static void FillColumn(
+            IStructureAuthoringSession authoring,
+            int x,
+            int z,
+            int minY,
+            int maxY,
+            byte material)
+        {
+            for (int y = minY; y <= maxY; y++)
+                authoring.Set(x, y, z, material);
         }
 
         private static void FillEllipse(
