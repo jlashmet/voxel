@@ -193,21 +193,33 @@ namespace Game.WorldBuilder.Api
     {
         private const int EdgeNoiseCellDm = 64;
         private readonly IReadOnlyList<ResolvedWorldRoadPoint> _presentation;
+        private readonly int _surfaceShoulderWidthDm;
 
         public ResolvedWorldRoad Road { get; }
 
         public WorldRoadInfluence(ResolvedWorldRoad road)
-            : this(road, null)
+            : this(road, null, road?.Intent.Profile.TransitionWidthDm ?? 0)
         {
         }
 
         public WorldRoadInfluence(
             ResolvedWorldRoad road,
             IReadOnlyList<WorldRoadJunction> junctions)
+            : this(road, junctions, road?.Intent.Profile.TransitionWidthDm ?? 0)
+        {
+        }
+
+        public WorldRoadInfluence(
+            ResolvedWorldRoad road,
+            IReadOnlyList<WorldRoadJunction> junctions,
+            int surfaceShoulderWidthDm)
         {
             Road = road ?? throw new ArgumentNullException(nameof(road));
             if (!road.IsResolved || road.Points.Count < 2)
                 throw new ArgumentException("Road influence requires resolved geometry.", nameof(road));
+            if (surfaceShoulderWidthDm < 0)
+                throw new ArgumentOutOfRangeException(nameof(surfaceShoulderWidthDm));
+            _surfaceShoulderWidthDm = surfaceShoulderWidthDm;
             _presentation = WorldRoadPresentationPath.Build(Road, junctions);
         }
 
@@ -232,7 +244,7 @@ namespace Game.WorldBuilder.Api
                 int edge = DeterministicEdgeOffset(
                     Road.Intent.Seed, centreX, centreZ, profile.EdgeVariationDm);
                 int core = Math.Max(0, profile.CoreRadiusDm + edge);
-                int outer = Math.Max(core, profile.CoreRadiusDm + profile.TransitionWidthDm + edge);
+                int outer = Math.Max(core, profile.CoreRadiusDm + _surfaceShoulderWidthDm + edge);
                 if (distance > outer) continue;
 
                 int coverage = distance <= core || outer == core
