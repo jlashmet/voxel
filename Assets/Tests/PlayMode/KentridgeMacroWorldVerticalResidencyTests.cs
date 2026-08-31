@@ -38,8 +38,8 @@ namespace VoxelEngine.Tests.PlayMode
                     Allocator.Persistent);
                 Assert.That(combined.IsCreated, Is.True);
 
-                FindTallExplicitPlacement(
-                    combined,
+                PrepareBoundaryCrossingExplicitPlacement(
+                    ref combined,
                     out ExplicitPlacement placement,
                     out FeatureDefinition definition,
                     out int3 upperRegion);
@@ -99,7 +99,7 @@ namespace VoxelEngine.Tests.PlayMode
 
                 TestContext.WriteLine(
                     "KENTRIDGE_VERTICAL_RESIDENCY " +
-                    $"placement={placement.Position} footprint={footprint} upperRegion={upperRegion} " +
+                    $"definition={definition.Name} placement={placement.Position} footprint={footprint} upperRegion={upperRegion} " +
                     $"presentationLayer={presentationLayer} steps={steps} featureVoxels={world.FeatureVoxelsBuilt}");
             }
             finally
@@ -109,8 +109,8 @@ namespace VoxelEngine.Tests.PlayMode
             }
         }
 
-        private static void FindTallExplicitPlacement(
-            FeatureCatalogue catalogue,
+        private static void PrepareBoundaryCrossingExplicitPlacement(
+            ref FeatureCatalogue catalogue,
             out ExplicitPlacement selectedPlacement,
             out FeatureDefinition selectedDefinition,
             out int3 selectedUpperRegion)
@@ -118,49 +118,59 @@ namespace VoxelEngine.Tests.PlayMode
             selectedPlacement = default;
             selectedDefinition = default;
             selectedUpperRegion = default;
-            int bestVerticalSpan = 0;
+            int selectedPlacementIndex = -1;
+            int bestHeight = 1;
 
             for (var ruleIndex = 0; ruleIndex < catalogue.Rules.Length; ruleIndex++)
             {
-                var rule = catalogue.Rules[ruleIndex];
+                PlacementRule rule = catalogue.Rules[ruleIndex];
                 if ((uint)rule.DefinitionId >= (uint)catalogue.Definitions.Length) continue;
+
                 FeatureDefinition definition = catalogue.Definitions[rule.DefinitionId];
+                if (definition.Footprint.y <= bestHeight || definition.ProgramLength <= 0) continue;
+
+                int placementStart = math.max(0, rule.ExplicitOffset);
                 int placementEnd = math.min(
                     rule.ExplicitOffset + rule.ExplicitCount,
                     catalogue.ExplicitPlacements.Length);
+                if (placementStart >= placementEnd) continue;
 
-                for (int placementIndex = math.max(0, rule.ExplicitOffset);
-                     placementIndex < placementEnd;
-                     placementIndex++)
-                {
-                    ExplicitPlacement placement = catalogue.ExplicitPlacements[placementIndex];
-                    int3 footprint = definition.Footprint;
-                    if ((placement.Orientation & 1) != 0)
-                        footprint = new int3(footprint.z, footprint.y, footprint.x);
-                    if (footprint.x <= 0 || footprint.y <= 0 || footprint.z <= 0) continue;
-
-                    int lowerLayer = placement.Position.y >> VoxelGrid.RegionVoxelEdgeLog2;
-                    int upperLayer = (placement.Position.y + footprint.y - 1)
-                                     >> VoxelGrid.RegionVoxelEdgeLog2;
-                    int verticalSpan = upperLayer - lowerLayer;
-                    if (verticalSpan <= bestVerticalSpan) continue;
-
-                    int centreX = placement.Position.x + footprint.x / 2;
-                    int centreZ = placement.Position.z + footprint.z / 2;
-                    selectedPlacement = placement;
-                    selectedDefinition = definition;
-                    selectedUpperRegion = new int3(
-                        centreX >> VoxelGrid.RegionVoxelEdgeLog2,
-                        upperLayer,
-                        centreZ >> VoxelGrid.RegionVoxelEdgeLog2);
-                    bestVerticalSpan = verticalSpan;
-                }
+                selectedPlacementIndex = placementStart;
+                selectedDefinition = definition;
+                bestHeight = definition.Footprint.y;
             }
 
             Assert.That(
-                bestVerticalSpan,
-                Is.GreaterThan(0),
-                "Kentridge production composition must retain an authored feature that crosses a vertical region boundary for this regression.");
+                selectedPlacementIndex,
+                Is.GreaterThanOrEqualTo(0),
+                "The production catalogue must expose at least one real explicit feature with a nontrivial vertical raster program for the residency fixture.");
+
+            ExplicitPlacement placement = catalogue.ExplicitPlacements[selectedPlacementIndex];
+            int regionEdge = 1 << VoxelGrid.RegionVoxelEdgeLog2;
+            int currentLayer = placement.Position.y >> VoxelGrid.RegionVoxelEdgeLog2;
+            int nextBoundaryY = (currentLayer + 1) * regionEdge;
+            placement.Position.y = nextBoundaryY - 1;
+            catalogue.ExplicitPlacements[selectedPlacementIndex] = placement;
+
+            int3 footprint = selectedDefinition.Footprint;
+            if ((placement.Orientation & 1) != 0)
+                footprint = new int3(footprint.z, footprint.y, footprint.x);
+
+            int lowerLayer = placement.Position.y >> VoxelGrid.RegionVoxelEdgeLog2;
+            int upperLayer = (placement.Position.y + footprint.y - 1)
+                             >> VoxelGrid.RegionVoxelEdgeLog2;
+            Assert.That(
+                upperLayer,
+                Is.GreaterThan(lowerLayer),
+                "The fixture must deterministically reposition the production feature across a vertical region boundary.");
+
+            int centreX = placement.Position.x + footprint.x / 2;
+            int centreZ = placement.Position.z + footprint.z / 2;
+            selectedPlacement = placement;
+            selectedUpperRegion = new int3(
+                centreX >> VoxelGrid.RegionVoxelEdgeLog2,
+                upperLayer,
+                centreZ >> VoxelGrid.RegionVoxelEdgeLog2);
         }
 
         private static VoxelWorldGenSettings Settings()
