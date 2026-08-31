@@ -52,7 +52,8 @@ These are existing foundations and are not candidates to rebuild from scratch.
   - Characters can pursue persistent lives outside combat; shared semantic perception, planning, and intent also support tactical AI and simulation LOD.
 - [x] **05. [Encounter activation, membership & lifecycle](game-systems/05-encounter-activation-membership-lifecycle.md)**
   - Encounters are temporary authoritative gameplay situations, distinct from cutscenes and combat; they coordinate membership, activation, resolution, and cleanup for persistent and temporary characters.
-- [ ] **06. Multiplayer replication for combat/gameplay state**
+- [x] **06. [Gameplay-state replication](game-systems/06-gameplay-state-replication.md)**
+  - Extend the existing authoritative custom network spine with explicit gameplay snapshots/deltas for characters, vitality, encounters, combat, inventory, quests, and campaign state.
 - [ ] **07. Multiplayer lobby / party / join flow**
 - [ ] **08. Multiplayer reconnect / session UX**
 - [ ] **09. Production inventory integration**
