@@ -1,7 +1,10 @@
 using System.Collections.Generic;
 using Game.WorldBuilder.Runtime;
+using Game.WorldBuilder.Voxel;
 using MountingForce.WorldGen;
 using NUnit.Framework;
+using VoxelEngine.Structures.Api;
+using VoxelEngine.Structures.Runtime;
 
 namespace VoxelEngine.Tests.EditMode
 {
@@ -43,28 +46,67 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void ExceptionalRock_CanRemainExplicitLandmarkRecord()
+        public void SignificantScatter_AutomaticallyPromotesOnceWhileOrdinaryPopulationStaysOutOfSparseIndex()
         {
-            var landmark = new NaturalScatterRecord(
-                0x1234UL,
-                new Int2(250, -350),
-                120,
-                800,
-                NaturalScatterKind.RockSpire,
-                NaturalScatterImportance.HorizonLandmark,
-                9UL);
+            // 12 km reference horizon, one milliradian minimum projected significance.
+            var policy = new NaturalScatterPromotionPolicy(
+                referenceDistanceDm: 120000,
+                minimumProjectedMicroradians: 1000);
+            var baker = new FeaturePresentationBaker();
+            var manifest = new FeaturePresentationManifest(sectorSizeVoxels: 512);
 
-            IReadOnlyList<NaturalScatterRecord> visible = NaturalScatterVisibilityIndex.Query(
-                new[] { landmark },
-                1000,
-                0,
-                -1,
-                0,
-                -1);
+            IReadOnlyList<NaturalScatterRecord> ordinary =
+                NaturalScatterVisibilityIndex.GenerateOrdinaryBoulders(923u, 4, -3, 1000, 128);
+            for (int i = 0; i < ordinary.Count; i++)
+            {
+                bool promoted = NaturalScatterPresentationPromotion.TryBake(
+                    in ordinary[i], in policy, material: 1, baker, out FeaturePresentationBake bake);
+                if (promoted) manifest.Upsert(bake);
+            }
 
-            Assert.That(visible, Has.Count.EqualTo(1));
-            Assert.That(visible[0].Importance, Is.EqualTo(NaturalScatterImportance.HorizonLandmark));
-            Assert.That(visible[0].StableId, Is.EqualTo(0x1234UL));
+            Assert.That(manifest.Count, Is.Zero,
+                "Mass-population boulders must not create one sparse presentation record per member.");
+
+            var giantRock = new NaturalScatterRecord(
+                stableId: 0xC0FFEEUL,
+                positionDm: new Int2(25000, -31000),
+                radiusDm: 900,
+                heightDm: 1400,
+                kind: NaturalScatterKind.RockSpire,
+                importance: NaturalScatterImportance.Ordinary,
+                revision: 77UL);
+
+            Assert.That(policy.ShouldPromote(in giantRock), Is.True,
+                "Intrinsic projected significance should promote an exceptional-size member without a named-content registration.");
+            Assert.That(NaturalScatterPresentationPromotion.TryBake(
+                in giantRock, in policy, material: 1, baker, out FeaturePresentationBake first), Is.True);
+            manifest.Upsert(first);
+
+            Assert.That(first.SourceId, Is.EqualTo(giantRock.StableId));
+            Assert.That(first.Kind, Is.EqualTo(FeatureKind.Scatter));
+            Assert.That(manifest.Count, Is.EqualTo(1));
+
+            Assert.That(NaturalScatterPresentationPromotion.TryBake(
+                in giantRock, in policy, material: 1, baker, out FeaturePresentationBake repeated), Is.True);
+            manifest.Upsert(repeated);
+
+            Assert.That(repeated.SourceId, Is.EqualTo(first.SourceId));
+            Assert.That(repeated.Revision, Is.EqualTo(first.Revision));
+            Assert.That(repeated.BoundsMin, Is.EqualTo(first.BoundsMin));
+            Assert.That(repeated.BoundsMax, Is.EqualTo(first.BoundsMax));
+            Assert.That(manifest.Count, Is.EqualTo(1),
+                "Repeated derivation of the same authoritative scatter member must replace, not duplicate, its sparse presentation.");
+
+            var namedOverride = new NaturalScatterRecord(
+                stableId: 0x1234UL,
+                positionDm: new Int2(-5000, 7000),
+                radiusDm: 20,
+                heightDm: 30,
+                kind: NaturalScatterKind.NaturalArch,
+                importance: NaturalScatterImportance.HorizonLandmark,
+                revision: 9UL);
+            Assert.That(policy.ShouldPromote(in namedOverride), Is.True,
+                "Semantic importance remains an optional override for otherwise sub-threshold members.");
         }
     }
 }
