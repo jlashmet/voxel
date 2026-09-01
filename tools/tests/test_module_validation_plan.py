@@ -4,121 +4,148 @@ import tempfile
 import unittest
 from pathlib import Path
 
-SCRIPT=Path(__file__).resolve().parents[1]/"module-validation-plan.py"
-spec=importlib.util.spec_from_file_location("module_validation_plan",SCRIPT)
-planner=importlib.util.module_from_spec(spec)
+SCRIPT = Path(__file__).resolve().parents[1] / "module-validation-plan.py"
+spec = importlib.util.spec_from_file_location("module_validation_plan", SCRIPT)
+planner = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(planner)
 
+
 def write(root, rel, data="x"):
-    path=root/rel
-    path.parent.mkdir(parents=True,exist_ok=True)
-    path.write_text(json.dumps(data) if isinstance(data,dict) else data,encoding="utf-8")
+    path = root / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data) if isinstance(data, (dict, list)) else data, encoding="utf-8")
     return path
+
+
+def asmdef(root, rel, name, references=None, guid=None):
+    path = write(root, rel, {"name": name, "references": references or []})
+    if guid:
+        write(root, rel + ".meta", f"fileFormatVersion: 2\nguid: {guid}\n")
+    return path
+
 
 class PlannerTests(unittest.TestCase):
     def fixture(self):
-        td=tempfile.TemporaryDirectory()
-        root=Path(td.name)
-        write(root,"Assets/Water/Validation.unity")
-        write(root,"Assets/Water/water.player-scenario.json","{}")
-        write(root,"Assets/Game/Kentridge.unity")
-        write(root,"Assets/Game/kentridge.player-scenario.json","{}")
-        write(root,"Assets/Water/water.module-validation.json",{
-            "schemaVersion":1,"module":"water",
-            "productionPaths":["Assets/Water/Runtime/**"],"sharedPaths":["Assets/Core/**"],
-            "tests":[{"platform":"PlayMode","filter":"Tests.Water"}],
-            "playerValidation":{"scene":"Assets/Water/Validation.unity","scenario":"Assets/Water/water.player-scenario.json"}
-        })
-        write(root,"Assets/Game/game.module-validation.json",{
-            "schemaVersion":1,"module":"game-integration","integrationGate":True,"fallback":True,
-            "productionPaths":["Assets/Game/**"],"sharedPaths":["Assets/**"],
-            "tests":[],
-            "playerValidation":{"scene":"Assets/Game/Kentridge.unity","scenario":"Assets/Game/kentridge.player-scenario.json"}
-        })
-        return td,root
+        td = tempfile.TemporaryDirectory()
+        root = Path(td.name)
+        asmdef(root, "Assets/Foundation/Runtime/Foundation.Runtime.asmdef", "Foundation.Runtime", guid="11111111111111111111111111111111")
+        asmdef(root, "Assets/Foundation/Tests/EditMode/Foundation.Tests.EditMode.asmdef", "Foundation.Tests.EditMode")
+        write(root, "Assets/Foundation/Runtime/Clock.cs")
 
-    def test_owned_water_is_narrow_plus_integration(self):
-        td,root=self.fixture()
-        with td:
-            result=planner.plan(["Assets/Water/Runtime/Foo.cs"],planner.discover(root))
-            self.assertEqual(["water"],result["modules"])
-            self.assertEqual(["Tests.Water"],[item["filter"] for item in result["tests"]])
-            self.assertEqual(["water","game-integration"],[item["module"] for item in result["playerValidations"]])
+        asmdef(root, "Assets/Water/Runtime/Water.Runtime.asmdef", "Water.Runtime", ["GUID:11111111111111111111111111111111"])
+        asmdef(root, "Assets/Water/Tests/EditMode/Water.Tests.EditMode.asmdef", "Water.Tests.EditMode")
+        asmdef(root, "Assets/Water/Tests/PlayMode/Water.Tests.PlayMode.asmdef", "Water.Tests.PlayMode")
+        write(root, "Assets/Water/Runtime/Surface.cs")
+        write(root, "Assets/Water/Demo/Scenes/WaterDemo.unity")
+        write(root, "Assets/Water/Demo/Scenes/WaterDemo.player-scenario.json", "{}")
 
-    def test_shared_core_expands_declared_dependents(self):
-        td,root=self.fixture()
-        with td:
-            result=planner.plan(["Assets/Core/Clock.cs"],planner.discover(root))
-            self.assertEqual(["water"],result["modules"])
+        asmdef(root, "Assets/Structures/Runtime/Structures.Runtime.asmdef", "Structures.Runtime")
+        asmdef(root, "Assets/Structures/Tests/EditMode/Structures.Tests.EditMode.asmdef", "Structures.Tests.EditMode")
+        write(root, "Assets/Structures/Runtime/Socket.cs")
 
-    def test_unknown_production_fallback_runs_all_known_owning_modules(self):
-        td,root=self.fixture()
-        with td:
-            result=planner.plan(["Assets/Unknown/Foo.cs"],planner.discover(root))
-            self.assertEqual(["water"],result["modules"])
-            self.assertEqual(["Tests.Water"],[item["filter"] for item in result["tests"]])
-            self.assertEqual(["water","game-integration"],[item["module"] for item in result["playerValidations"]])
-            self.assertEqual(["Assets/Unknown/Foo.cs"],result["fallbackPaths"])
+        write(root, planner.KENTRIDGE_SCENE)
+        write(root, planner.KENTRIDGE_SCENARIO, "{}")
+        return td, root
 
-    def test_fallback_scope_does_not_hide_unowned_production_outside_scope(self):
-        td,root=self.fixture()
+    def test_water_production_runs_every_owned_test_assembly_player_and_kentridge(self):
+        td, root = self.fixture()
         with td:
-            fallback=root/"Assets/Game/game.module-validation.json"
-            data=json.loads(fallback.read_text(encoding="utf-8"))
-            data["sharedPaths"]=["Assets/Shared/**"]
-            fallback.write_text(json.dumps(data),encoding="utf-8")
-            with self.assertRaisesRegex(planner.ManifestError,"unowned production path without fallback"):
-                planner.plan(["Assets/Unknown/Foo.cs"],planner.discover(root))
+            result = planner.plan(["Assets/Water/Runtime/Surface.cs"], planner.discover(root))
+            self.assertEqual(["Assets/Water"], result["modules"])
+            self.assertEqual(
+                [("EditMode", "Water.Tests.EditMode"), ("PlayMode", "Water.Tests.PlayMode")],
+                [(item["platform"], item["assembly"]) for item in result["tests"]],
+            )
+            self.assertEqual(
+                ["Assets/Water/Demo/Scenes/WaterDemo.unity", planner.KENTRIDGE_SCENE],
+                [item["scene"] for item in result["playerValidations"]],
+            )
+            self.assertTrue(result["hasProductionChanges"])
+            self.assertTrue(result["hasValidationWork"])
+
+    def test_shared_dependency_expands_known_dependents_from_asmdefs(self):
+        td, root = self.fixture()
+        with td:
+            result = planner.plan(["Assets/Foundation/Runtime/Clock.cs"], planner.discover(root))
+            self.assertEqual(["Assets/Foundation", "Assets/Water"], result["modules"])
+            self.assertEqual(
+                ["Foundation.Tests.EditMode", "Water.Tests.EditMode", "Water.Tests.PlayMode"],
+                [item["assembly"] for item in result["tests"]],
+            )
+
+    def test_independent_module_is_discovered_without_planner_registration(self):
+        td, root = self.fixture()
+        with td:
+            result = planner.plan(["Assets/Structures/Runtime/Socket.cs"], planner.discover(root))
+            self.assertEqual(["Assets/Structures"], result["modules"])
+            self.assertEqual(["Structures.Tests.EditMode"], [item["assembly"] for item in result["tests"]])
+
+    def test_new_test_assembly_is_selected_without_metadata_or_planner_change(self):
+        td, root = self.fixture()
+        with td:
+            asmdef(root, "Assets/Structures/Tests/PlayMode/New.Structures.Tests.PlayMode.asmdef", "New.Structures.Tests.PlayMode")
+            result = planner.plan(["Assets/Structures/Runtime/Socket.cs"], planner.discover(root))
+            self.assertEqual(
+                ["Structures.Tests.EditMode", "New.Structures.Tests.PlayMode"],
+                [item["assembly"] for item in result["tests"]],
+            )
+
+    def test_validation_scene_and_scenario_are_discovered_by_pairing_convention(self):
+        td, root = self.fixture()
+        with td:
+            result = planner.plan(["Assets/Water/Demo/Scenes/WaterDemo.unity"], planner.discover(root))
+            self.assertFalse(result["hasProductionChanges"])
+            self.assertEqual(["Assets/Water"], result["modules"])
+            self.assertEqual(1, len(result["playerValidations"]))
+            self.assertEqual("Assets/Water/Demo/Scenes/WaterDemo.player-scenario.json", result["playerValidations"][0]["scenario"])
+
+    def test_missing_scene_scenario_pair_fails_closed(self):
+        td, root = self.fixture()
+        with td:
+            (root / "Assets/Water/Demo/Scenes/WaterDemo.player-scenario.json").unlink()
+            with self.assertRaisesRegex(planner.ConventionError, "missing paired scenario"):
+                planner.discover(root)
+
+    def test_orphan_scenario_fails_closed(self):
+        td, root = self.fixture()
+        with td:
+            write(root, "Assets/Water/Demo/Scenes/Orphan.player-scenario.json", "{}")
+            with self.assertRaisesRegex(planner.ConventionError, "missing paired scene"):
+                planner.discover(root)
+
+    def test_obsolete_manifest_registration_fails_closed(self):
+        td, root = self.fixture()
+        with td:
+            write(root, "Assets/Water/water.module-validation.json", "{}")
+            with self.assertRaisesRegex(planner.ConventionError, "obsolete"):
+                planner.discover(root)
+
+    def test_repository_wide_editmode_assembly_is_rejected(self):
+        td, root = self.fixture()
+        with td:
+            asmdef(root, "Assets/Tests/EditMode/VoxelEngine.Tests.EditMode.asmdef", "VoxelEngine.Tests.EditMode")
+            with self.assertRaisesRegex(planner.ConventionError, "repository-wide"):
+                planner.discover(root)
+
+    def test_unknown_production_path_uses_broad_safe_fallback(self):
+        td, root = self.fixture()
+        with td:
+            result = planner.plan(["Assets/Unknown/Foo.cs"], planner.discover(root))
+            self.assertEqual(["Assets/Foundation", "Assets/Structures", "Assets/Water"], result["modules"])
+            self.assertEqual(["Assets/Unknown/Foo.cs"], result["fallbackPaths"])
+            self.assertEqual(planner.KENTRIDGE_SCENE, result["playerValidations"][-1]["scene"])
 
     def test_nonproduction_change_is_noop(self):
-        td,root=self.fixture()
+        td, root = self.fixture()
         with td:
-            result=planner.plan(["README.md"],planner.discover(root))
+            result = planner.plan(["README.md"], planner.discover(root))
             self.assertFalse(result["hasProductionChanges"])
-            self.assertEqual([],result["tests"])
-            self.assertEqual([],result["playerValidations"])
+            self.assertFalse(result["hasValidationWork"])
+            self.assertEqual([], result["tests"])
+            self.assertEqual([], result["playerValidations"])
 
-    def test_independent_manifest_added_without_planner_code_change(self):
-        td,root=self.fixture()
-        with td:
-            write(root,"Assets/Structures/structures.module-validation.json",{
-                "schemaVersion":1,"module":"structures","productionPaths":["Assets/Structures/**"],"sharedPaths":[],
-                "tests":[{"platform":"EditMode","filter":"Tests.Structures"}]
-            })
-            result=planner.plan(["Assets/Structures/Socket.cs"],planner.discover(root))
-            self.assertEqual(["structures"],result["modules"])
-            self.assertEqual("Tests.Structures",result["tests"][0]["filter"])
 
-    def test_unknown_production_fallback_includes_independent_manifest(self):
-        td,root=self.fixture()
-        with td:
-            write(root,"Assets/Structures/structures.module-validation.json",{
-                "schemaVersion":1,"module":"structures","productionPaths":["Assets/Structures/**"],"sharedPaths":[],
-                "tests":[{"platform":"EditMode","filter":"Tests.Structures"}]
-            })
-            result=planner.plan(["Assets/Unknown/Foo.cs"],planner.discover(root))
-            self.assertEqual(["structures","water"],result["modules"])
-            self.assertEqual(["Tests.Structures","Tests.Water"],[item["filter"] for item in result["tests"]])
-            self.assertEqual(["water","game-integration"],[item["module"] for item in result["playerValidations"]])
-
-    def test_owning_module_cannot_omit_focused_tests(self):
-        td,root=self.fixture()
-        with td:
-            manifest=root/"Assets/Water/water.module-validation.json"
-            data=json.loads(manifest.read_text(encoding="utf-8"))
-            data["tests"]=[]
-            manifest.write_text(json.dumps(data),encoding="utf-8")
-            with self.assertRaises(planner.ManifestError):
-                planner.discover(root)
-
-    def test_scene_and_scenario_files_are_required(self):
-        td,root=self.fixture()
-        with td:
-            (root/"Assets/Water/water.player-scenario.json").unlink()
-            with self.assertRaises(planner.ManifestError):
-                planner.discover(root)
-
-if __name__=="__main__":
-    suite=unittest.defaultTestLoader.discover(str(Path(__file__).parent), pattern="test_*validation*.py")
-    result=unittest.TextTestRunner(verbosity=2).run(suite)
+if __name__ == "__main__":
+    suite = unittest.defaultTestLoader.loadTestsFromTestCase(PlannerTests)
+    result = unittest.TextTestRunner(verbosity=2).run(suite)
     raise SystemExit(0 if result.wasSuccessful() else 1)
