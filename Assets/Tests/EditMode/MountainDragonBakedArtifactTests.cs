@@ -39,6 +39,26 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void CheckedInBake_PlacesThroughNormalShowcaseWorldAuthoringPath()
+        {
+            const int brickPoolCapacity = 4096;
+            using var world = new ShowcaseWorld(
+                seed: 0xD12A60u,
+                brickPoolCapacity: brickPoolCapacity,
+                loadRadiusRegions: 1,
+                unloadRadiusRegions: 2);
+
+            int3 origin = new int3(0, ShowcaseWorld.RegionVoxelEdge * 2, 0);
+            MeshStructurePlacementResult placement = world.PlaceMountainDragon(origin);
+
+            Assert.That(placement.VoxelsRequested, Is.EqualTo(MountainDragonBakedArtifact.ExpectedCellCount));
+            Assert.That(placement.VoxelsWritten, Is.EqualTo(MountainDragonBakedArtifact.ExpectedCellCount),
+                "Mountain Dragon must enter the same authoritative structure-authoring storage as normal authored voxels.");
+            Assert.That(placement.RegionsPrepared, Is.EqualTo(1),
+                "The pinned dragon fits inside one Showcase region at the regression origin.");
+        }
+
+        [Test]
         public void CheckedInBake_CorruptTransportFailsClosed()
         {
             TextAsset payload = Resources.Load<TextAsset>(MountainDragonBakedArtifact.ResourcePath);
