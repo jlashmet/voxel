@@ -9,54 +9,57 @@
 ## Current baseline inventory
 
 - `Game.Combat.Runtime.CombatService` is currently authoritative for life state through its private `_hitPoints` dictionary, with fixed `ParticipantHitPoints = 6` and `AttackDamage = 2`. Team identity is carried directly on `CombatParticipant`.
-- `KentridgeForestBanditEncounter` is a scene-local composition/runtime owner. In `Awake` it constructs `InputContextService`, `UnityPlayerInputReader`, and `CombatService`; in `BeginBanditCombat` it creates player/enemy `CombatParticipant` identities by hand; it directly spawns the three bandit GameObjects and owns encounter completion/cleanup.
-- `Game.Composition.Kentridge.Playable.asmdef` directly references both `Game.Combat.Runtime` and `Game.Input.Runtime`, so the desired API-only cross-module boundary is not yet true at this composition seam.
-- `Assets/Game/Composition/CombatEnvironmentRuntime` is a separate older `MountingForce.CombatPrototype`/environment composition path rather than a consumer of the production `Game.Combat.Runtime` seam; do not fold that adjacent experiment into this ticket without an acceptance-driven defect.
-- `Game.Input.Api` exists and is already referenced by `Game.Combat.Runtime`. Its current semantic surface is `IPlayerInputReader` + `PlayerInputSnapshot` and `IInputContextService`; `CombatInputController` consumes movement semantically and has no raw key/button polling.
-- Production `Assets/Game/Characters` is now present on master, including engine-free `Game.Characters.Api.CharacterId`. Production `Assets/Game/Vitality` and production `Assets/Game/Encounters` / `Game.Encounters.Api` remain absent.
-- The nominal GameSystem01 replacement scene from the earlier generated description is also not present; binding acceptance for this ticket is the checked-in plan/tasks and `KentridgePlayableSlice` issue metadata.
+- `KentridgeForestBanditEncounter` remains a scene-local composition/runtime owner: it constructs Input/Combat services, creates participant identities by hand, starts combat, and settles scene state.
+- `Game.Composition.Kentridge.Playable.asmdef` still directly references `Game.Combat.Runtime` and `Game.Input.Runtime`; final API-only composition migration waits for the production Vitality seam and T01-015.
+- `Assets/Game/Composition/CombatEnvironmentRuntime` is the separate older `MountingForce.CombatPrototype` experiment and remains out of scope unless a demonstrated acceptance defect requires it.
+- `Game.Input.Api` is already semantic and `CombatInputController` has no raw key/button polling.
+- Production Characters and Encounters are now present. `Game.Characters.Api` owns `CharacterId`; `Game.Encounters.Api` owns Encounter identity, membership, activation, queued combat requests, and terminal Encounter resolution consumption.
+- Production `Assets/Game/Vitality` / `Game.Vitality.Api` is still absent from current master.
+- The nominal GameSystem01 replacement scene from the earlier generated description is not present; assembled proof for this ticket remains Kentridge plus the repository's automatic module/player validation path.
 
 ## Dependency blocker
 
-Character identity is no longer blocked: T01-003 now uses the real `Game.Characters.Api.CharacterId`. Implementation tasks that require `Game.Vitality.Api` or `Game.Encounters.Api` remain blocked until those prerequisite contracts land on `origin/master`. Acceptance is unchanged. Do not invent shadow Vitality/Encounter contracts in Combat: doing so would create the duplicate runtime/API paths this integration ticket exists to remove.
+Character and Encounter contracts are no longer blocked and are consumed directly. The remaining external prerequisite is production `Game.Vitality.Api`; do not invent a substitute life-state contract or create a second HP authority. Until Vitality lands, continue independent work that does not entrench the existing Combat-owned `_hitPoints` store.
 
-Independent work that remains valid while blocked: keep the branch merged with current master, consume landed prerequisite APIs directly, inventory existing authority/bypasses, verify API/runtime references, and avoid committing dependency-shaped substitutes for missing modules.
+## Reusable boundaries now established
 
-## Intended reusable boundaries once prerequisites land
-
-- **Character binding:** composition maps production `CharacterId` plus production team identity to a combat participant identity through API contracts only; Combat must never hold Character runtime objects. T01-003 implements this as `CombatParticipant.FromCharacter(CharacterId, CombatTeam)`, preserving the CharacterId and deriving the Combat participant id from the same stable serialized value.
-- **Vitality binding:** Combat submits accepted damage through a semantic Vitality API and reads resulting alive/defeated truth from Vitality. Combat retains no second authoritative HP store.
-- **Encounter binding:** Encounters requests combat participation/activation and consumes a minimal `CombatResolved` fact. Combat does not own spawn/despawn policy, encounter cleanup, campaign outcome, or final-boss semantics.
-- **Input binding:** Combat consumes semantic `Game.Input.Api` state/context. Scene composition may supply the production implementation, but reusable Combat code contains no Unity key/button or Kentridge-specific policy.
-- **Composition:** scene/Kentridge code selects participants, authored encounter policy, presentation, and concrete production implementations. Reusable module APIs remain scene-agnostic.
+- **Character binding:** `CombatParticipant.FromCharacter(CharacterId, CombatTeam)` preserves the production CharacterId and derives only the Combat-local participant id/team view. Combat never holds Character runtime objects.
+- **Encounter start:** `CombatStartRequest`/`CombatStartResult` use the real `EncounterId` and already-mapped Combat participants. Encounter role-to-team mapping remains composition policy.
+- **Combat result:** `CombatResolved` contains only `EncounterId`, `CombatSessionId`, and `CombatTeam`. It contains no `EncounterResolution`, cleanup, campaign, or game-victory policy.
+- **Encounter ownership runtime:** `EncounterCombatCoordinator` is a thin engine-free adapter over the existing `CombatService`; it associates one Encounter with the Combat session and emits one terminal `CombatResolved` fact. `EncounterRegistry` remains the authority that accepts that fact via `ApplyCombatResolved`.
+- **Vitality binding:** still pending. Combat must eventually submit accepted damage through `Game.Vitality.Api` and read alive/defeated truth from Vitality, retaining no second authoritative HP store.
+- **Input binding:** Combat consumes semantic `Game.Input.Api` state/context; scene composition supplies implementations.
+- **Composition:** scene/Kentridge code owns authored role-to-team mapping, winner-to-EncounterResolution mapping, presentation, spawn/despawn policy, and concrete runtime construction.
 
 ## Combat state preservation boundary
 
-Vitality migration must change only the production life-state authority needed by `Game.Combat.Runtime.CombatService`; it must not absorb Combat orchestration. The existing Combat assembly also contains an older `MountingForce.CombatPrototype` surface used for tactical/chain-combat blast-radius coverage. Preserve its combat-specific responsibilities in place unless a demonstrated acceptance defect requires otherwise:
+Vitality migration must change only production life-state authority needed by `Game.Combat.Runtime.CombatService`; it must not absorb Combat orchestration. Preserve the older `MountingForce.CombatPrototype` blast-radius responsibilities unless a demonstrated defect requires otherwise:
 
-- `ChainRoundReadinessCoordinator`: per-command-group ready ownership, tracked round, and enemy-phase handoff.
-- `ChainEnemyTacticalAI`: deterministic committed intents, planned round, current intent cursor, and enemy-phase progress.
-- `ChainReactionReservationCoordinator`: physical-event reservation/claim ownership and opportunity synchronization.
-- `ChainExecutionPlan`: ordered collaborative plan, revision/history, undo/redo, and reaction attachment semantics.
-- `ChainCombatBoard`: board/motion/round/reaction authority consumed by the above coordinators.
+- `ChainRoundReadinessCoordinator`: round/readiness and enemy-phase handoff.
+- `ChainEnemyTacticalAI`: deterministic committed intents and enemy-phase progress.
+- `ChainReactionReservationCoordinator`: reaction reservation/claim ownership.
+- `ChainExecutionPlan`: collaborative plan/history/undo/redo/reaction attachment semantics.
+- `ChainCombatBoard`: board/motion/round/reaction state.
 
-Those prototype classes currently contain their own experimental unit HP as part of that separate combat lab. This ticket does **not** opportunistically refactor that adjacent model merely because it lives in the same assembly; T01-031 treats it as blast radius. T01-030 removes duplicate **production** life authority and documents any justified internal experimental state.
+Those prototype classes may contain experimental unit HP as part of that separate lab; this ticket removes duplicate **production** life authority and does not opportunistically refactor the experiment.
 
-## Implementation
+## Implementation status and next work
 
-1. Define semantic integration contracts in APIs: encounter participant/character binding to combat participant/team, combat-start request/result, and combat-resolution fact.
-2. Adapt the existing Combat runtime so participant health/alive truth comes from system 02 rather than combat-owned prototype health.
-3. Route accepted combat damage/defeat through Vitality; Combat observes resulting alive/defeated state.
-4. Have Encounters request/own combat participation and consume `CombatResolved`; ordinary Combat completion never resolves the game directly.
-5. Replace scene-local `new CombatService`, local input context services, and raw Kentridge combat bootstrap code with production composition.
-6. Keep combat input semantic through `Game.Input.Api`; no key/button knowledge in Combat.
+1. **Done:** semantic Character/Encounter integration contracts (`CombatParticipant.FromCharacter`, `CombatStartRequest/Result`, `CombatResolved`).
+2. **Done:** engine-free `EncounterCombatCoordinator` over the existing Combat runtime, preserving Encounter ownership and emitting one terminal result.
+3. **Blocked on Vitality:** replace `_hitPoints` production authority with system 02 and route accepted damage/defeat through Vitality.
+4. **Done at reusable seam:** real `EncounterRegistry` requests/owns combat participation and consumes terminal resolution in the independent integration fixture. Kentridge wiring/removal of local bootstrap remains T01-015.
+5. **Blocked on final production composition/Vitality seam:** replace scene-local `new CombatService`, local Input runtime bootstrap, and direct runtime assembly coupling in Kentridge.
+6. **Already semantic:** keep Combat input through `Game.Input.Api`; no raw key/button knowledge in Combat.
 
 ## Tests / proof
 
-- `CombatCharacterBindingTests` provides the first independent non-Kentridge fixture, proving stable CharacterId-to-Combat binding without scene policy;
-- module tests remain required for vitality-backed participants, repeated resolution idempotency, and encounter-to-combat mapping once those real APIs land;
-- Kentridge remains assembled integration proof later in #24.
+- `CombatCharacterBindingTests`: independent non-Kentridge CharacterId binding.
+- `CombatEncounterContractTests`: real EncounterId start/result and policy-free terminal fact shape.
+- `EncounterCombatIntegrationTests`: real `EncounterRegistry` membership/activation queue mapped to Combat, bounded deterministic Combat completion, exactly-once terminal fact polling, and idempotent repeated `ApplyCombatResolved` with no second Encounter revision.
+- Existing `CombatAuthorityMigrationTests`, `CombatInputModuleBoundaryTests`, and `KentridgeCombatEncounterTests` remain blast-radius/integration coverage.
+- Vitality-backed participant tests and final Kentridge production-path proof remain pending.
 
 ## Do not build
 
-No new combat engine, final-boss flag, game-victory logic, or scene-specific combat policy in shared modules.
+No new combat engine, final-boss flag, game-victory logic, scene-specific combat policy in shared modules, substitute Vitality contract, or opportunistic refactor of the older CombatPrototype path.
