@@ -15,11 +15,15 @@
 - [x] Prove signed negative-Z feature streaming/publication retains Fairy authored timber (`33474641146`).
 - [x] Prove the real playable three-catalogue composition retains Fairy authored timber; exact source `cdc48695...` passed `33476499718`.
 
-## Current built-player discriminator
-- [x] Identify the prior end-frame settlement diagnostic as invalid: it sampled each intentionally hollow generic-building centre.
-- [x] On feature source `fb4bc6dad612f759987db5163d0d7b9e1b664405`, change validation only to read the same authored back timber-wall and roof voxels proven by storage acceptance at the actual Moordell/Rossdam/Fairy/Orc survey frames; no gameplay/camera/streaming/generation change.
-- [ ] Monitor exact request `b2226c2e824dcd51c0fd30a6421bf2b1df06c15c` / run `33480730488` without replacing it; classify terminal result and inspect the real-player shell/roof diagnostics plus screenshots.
-- [ ] If shell+roof storage is present at Fairy/Orc capture time, change only scene-specific evidence framing; if absent, isolate the demonstrated storage/publication owner before another production change.
+## Current built-player root cause
+- [x] Identify the prior end-frame settlement diagnostic as invalid because it sampled intentionally hollow generic-building centres.
+- [x] Run corrected authored wall/roof probes on exact source `fb4bc6dad612f759987db5163d0d7b9e1b664405`; run `33480730488` is green but built-player authoritative storage reads `material=0` at every Moordell/Rossdam/Fairy/Orc shell/roof probe while editor storage still proves all 16 buildings.
+- [x] Inspect full-resolution Fairy/Orc captures from `33480730488`; terrain/corridor content is visible but the required four-building settlements are absent, so camera/framing is not the current owner.
+- [x] Isolate the one-shot macro selection boundary: `KentridgeCombinedVoxelCatalogue` appends macro content only after `TopDownWorldLayoutSelection.TryConsume`, while `KentridgePlayableSlice.OnEnable` does not itself establish the selection.
+- [x] Add behavioral repro `PlayableKentridgeCatalogueRequiresExplicitOneShotMacroSelection`: with the handoff empty Fairy/Orc macro definitions are absent; with the existing source-backed semantic selection both are present. See experiment 028.
+- [ ] Validate the focused one-shot selection repro on the sole `ci-test/fixes/agent-6` transport.
+- [ ] If the repro is green, select the existing source-backed macro layout in Kentridge playable composition before its existing production catalogue build; do not change shared selection/planner/streaming semantics.
+- [ ] Re-run built-player authored shell/roof probes and require Fairy/Orc storage plus readable captures before changing any evidence framing.
 
 ## Remaining visual acceptance
 - [ ] Full-resolution Moordell/Rossdam/Fairy/Orc surveys visibly show readable grounded authored blockouts, internal street/open space, and road arrival/exit.
