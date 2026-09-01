@@ -8,9 +8,9 @@ using VoxelEngine.Storage.Api;
 namespace VoxelEngine.Showcase
 {
     /// <summary>
-    /// Scene-owned material policy for the Mountain Dragon comparison fixture. The canonical bake
-    /// remains DarkStone world data; only this fixture requests cubic reconstruction and a fully
-    /// rough GPU presentation for the Dragon material.
+    /// Scene-owned GPU presentation override for the Mountain Dragon comparison fixture. Geometry
+    /// reconstruction is authored by PlaceMountainDragon; this fixture only makes the same Dragon
+    /// material fully rough so cubic faces do not read as polished blocks.
     /// </summary>
     public static class MountainDragonMattePresentation
     {
@@ -33,31 +33,6 @@ namespace VoxelEngine.Showcase
                 + " surface_style=" + DragonSurfaceStyle
                 + " roughness=" + DragonRoughness.ToString("F1")
                 + " smoothness=" + DragonSmoothness.ToString("F1"));
-        }
-
-        public static MaterialDefinition[] CreateSimulationDefinitions()
-        {
-            MaterialDefinition[] definitions = GameMaterialSimulationDefinitions.Create();
-            for (int i = 0; i < definitions.Length; i++)
-            {
-                MaterialDefinition definition = definitions[i];
-                if (definition.MaterialId != MountainDragonPalettePolicy.DragonMaterial)
-                    continue;
-
-                definitions[i] = new MaterialDefinition(
-                    definition.MaterialId,
-                    definition.Hardness,
-                    definition.DestructionClass,
-                    DragonSurfaceStyle,
-                    definition.AllowedCoatings,
-                    definition.Flammable,
-                    definition.PlacementSurfaceStyle,
-                    definition.PlacementCoating);
-                return definitions;
-            }
-
-            throw new System.InvalidOperationException(
-                "Mountain Dragon material is missing from the game simulation catalogue.");
         }
 
         public static MaterialPresentationDefinition[] CreateDefinitions()
