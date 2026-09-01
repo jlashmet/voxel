@@ -9,8 +9,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
     /// <summary>
     /// Greedy water surface extraction over a small immutable material snapshot batch. Liquid
     /// identity is supplied as an opaque presentation mask; no game material IDs live here.
-    /// Upward-facing water intentionally remains voxel-resolution so vertex-stage presentation
-    /// deformation has interior geometry; side and bottom faces retain greedy merging.
     /// </summary>
     [BurstCompile]
     internal struct WaterBrickMeshBatchJob : IJob
@@ -95,7 +93,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                                int axis, int axisA, int axisB,
                                int sign, int layer)
         {
-            bool preserveTopTessellation = axis == 1 && sign > 0;
             for (int b = 0; b < Edge; b++)
             for (int a = 0; a < Edge; a++)
             {
@@ -103,15 +100,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 if (material == 0) continue;
 
                 int width = 1;
-                if (!preserveTopTessellation)
-                {
-                    while (a + width < Edge
-                           && MaskScratch[a + width + b * Edge] == material)
-                        width++;
-                }
+                while (a + width < Edge
+                       && MaskScratch[a + width + b * Edge] == material)
+                    width++;
 
                 int height = 1;
-                bool extend = !preserveTopTessellation;
+                bool extend = true;
                 while (b + height < Edge && extend)
                 {
                     for (int k = 0; k < width; k++)
