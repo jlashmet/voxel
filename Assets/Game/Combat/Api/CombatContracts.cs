@@ -76,10 +76,6 @@ namespace Game.Combat.Api
         }
     }
 
-    /// <summary>
-    /// Semantic request used by composition after Encounters has selected membership and composition has mapped
-    /// encounter roles to combat teams. Combat owns neither encounter activation policy nor role-to-team policy.
-    /// </summary>
     public sealed class CombatStartRequest
     {
         public EncounterId EncounterId { get; }
@@ -114,10 +110,6 @@ namespace Game.Combat.Api
         }
     }
 
-    /// <summary>
-    /// Minimal combat-owned terminal fact. Composition may translate the winning team into an EncounterResolution;
-    /// Combat intentionally carries no campaign, cleanup, or encounter-resolution policy.
-    /// </summary>
     public readonly struct CombatResolved
     {
         public EncounterId EncounterId { get; }
@@ -132,6 +124,12 @@ namespace Game.Combat.Api
             SessionId = sessionId;
             WinningTeam = winningTeam;
         }
+    }
+
+    public interface IEncounterCombatCoordinator
+    {
+        CombatStartResult Start(CombatStartRequest request);
+        bool TryTakeResolved(out CombatResolved resolved);
     }
 
     public sealed class CombatEncounterRequest
