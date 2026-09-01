@@ -37,7 +37,9 @@ Subsystem identity/versioning is semantic and stable. `GameplayProjectionId` plu
 
 Exact-SHA validation for source `44e7da5284923ab96b382f75a5867434377a36d6` used the sole transport `ci-test/fixes/agent-2` with request commit `4a431a603c0908c007ae4556a59deb7a815c4f2c`; run `33504339974`, job `99844708050` passed focused EditMode, automatic module validation, standalone SceneIssue replay, artifacts, and final status. An earlier run `33501651756` exposed obsolete `*.module-validation.json` registration; that 006-owned manifest was removed without altering planner infrastructure.
 
-After current master landed GameSystem07, the branch was merged to current master and the transport blockers were reclassified as actionable. New exact-head validation is required after transport integration. Vitality/Progression/Continuity/Outcome remain external prerequisite blockers.
+Transport-backed convergence is now implemented through the existing authoritative tick, Net gameplay-state packet hook, EVENT repair request, connection/admission paths, and a UTP loopback fixture covering two existing clients, repair-after-gap, late join, disconnect/reconnect, and a transactional Inventory projection alongside Characters. Exact-SHA request `1b741e0a9e0b6ffe461b938a0a74874e3aea6a8e` for source `257b9b150292f1e2be8562cf844f0d66dddb2516` failed before tests ran because an obsolete parallel `Game.GameplayReplication.Networking` assembly remained from an earlier transport attempt and no longer implemented the generic repair-handler seam. That duplicate assembly/folder was removed through implementation head `b23fb13f6f9525cfed7c1380c45208314dd00c88`; the canonical `Game.GameplayReplication.Transport` implementation remains. Re-run exact-head validation on the sole CI transport.
+
+Vitality/Progression/Continuity/Outcome remain external prerequisite blockers. Do not recreate their ownership in replication.
 
 ## Do not build
 
