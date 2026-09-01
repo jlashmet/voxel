@@ -1,58 +1,32 @@
 # Tasks
 
+## Completed architecture
 - [x] Inventory targeted CI, standalone-player capture, special-case mappings, and validation docs.
-- [x] Define deterministic module ownership metadata for production paths and optional scene/separate scenario.
-- [x] Implement diff-driven validation planning with conservative shared/core expansion and fail-closed unresolved ownership.
-- [x] Automatically execute discovered module validation and `KentridgePlayableSlice` for production diffs.
-- [x] Fail required zero-match/skipped tests, missing scenes/scenarios/captures, and failed Kentridge integration.
-- [x] Refactor module validation, Kentridge, and SceneIssue replay onto one generic standalone-player mechanism without test/scene-name policy.
-- [x] Migrate Water to module-local production validation scene/scenario plumbing.
-- [x] Prove module discovery reuse with an independent non-Water fixture.
-- [x] Preserve useful focused regressions while removing PlayMode-only visual-acceptance semantics.
-- [x] Update contributor/SceneIssue/CI validation documentation.
-- [x] Add focused regressions for discovery, shared/core fallback, scene/scenario separation, mandatory gates, and generic evidence windows.
-- [x] Require readiness/world-layout evidence so screenshots alone cannot satisfy Water/Kentridge gates.
-- [x] Isolate/fix Water shared-arena vertex addressing.
-- [x] After two failed scene fixes, isolate planar-slab renderer root cause and add a behavioral regression before another fix.
-- [x] Preserve voxel-resolution upward Water tessellation and add deterministic presentation-only vertex displacement; keep authoritative voxels/collision unchanged.
-- [x] Validate the earlier automatic Water path and record practical runtime (179.82s on run `33375145205`).
-- [x] Exclude pre-readiness captures through generic `capture.evidenceAfterSeconds` metadata and parser coverage.
-- [x] Isolate/fix tableau authoring-budget exhaustion using existing `FillColumnBulk` semantics without increasing the slow-write budget.
-- [x] Document corrected convention-based test selection with no per-test registration.
-- [x] Document the stronger module boundary: **no top-level EditMode test assembly**; EditMode tests belong to lower-level modules such as Rendering, Structures, and Spatial. Only genuine high-level smoke/integration PlayMode coverage remains top-level.
-- [x] Document final architecture decision: **delete the `*.module-validation.json` concept entirely**. Module/test/player-target registration is convention/structure driven; `*.player-scenario.json` remains only as executable scenario behavior.
-- [x] Inventory the former broad `VoxelEngine.Tests.EditMode` contents and migrate them to lower-level owning production modules; the current tree has no `Assets/Tests/EditMode` assembly.
-- [x] Create/migrate lower-level module-owned EditMode test assemblies and remove the repository-wide/top-level EditMode assembly once all tests have owners.
-- [x] Delete all `*.module-validation.json` manifests and remove their schema/parser/planner semantics, production/shared path registration, explicit `tests` arrays, and manifest-specific fixtures/docs.
-- [x] Discover affected modules/test assemblies from module roots and Unity `.asmdef` ownership; run every EditMode/module-scoped PlayMode test owned by each affected module.
-- [x] Discover module-local built-player targets directly from each affected module's `Validation/` convention; resolve each scene plus separate `*.player-scenario.json` without a module manifest.
-- [x] Keep `*.player-scenario.json` limited to executable scenario behavior such as run duration, captures/evidence windows, movement/timeline actions, and required/forbidden runtime assertions; do not put module ownership or test registration into it.
-- [x] Expand shared/core production changes through `.asmdef` dependency relationships where practical, retaining conservative/fail-closed fallback for unresolved ownership.
-- [x] Add regression proof that adding a module-local test requires no metadata/planner change and is automatically selected.
-- [x] Add architecture regression that fails if a repository-wide/top-level EditMode test assembly is reintroduced.
-- [x] Add regression proof that a module-local validation scene/scenario is discovered by convention alone and missing/ambiguous pairing fails closed.
-- [x] Add regression protection preventing required validation from depending on reintroduced `*.module-validation.json` registration semantics.
-- [x] Ensure the generic player-evidence regression participates in repository Python validation discovery (`tools/tests/test_*.py`).
-- [x] Reconcile `tools/tests/test_run_module_validation.py` with the final assembly-based runner contract. Source audit found the regression still supplied legacy `filter` metadata and expected obsolete error text; fixed at `925b4c6af0791597a91d451d0c917b6eb90d85f5`.
-- [x] Reclassify and clear the SpatialReservations manifest blocker: the owning SceneIssue was already closed on master, so the lingering manifest was stale merged residue rather than active externally owned work. Removed only the obsolete registration at `a50d42d4c3e05b00e158fa6957e02de2bd57ba74`.
-- [x] Isolate/fix top-level PlayMode ownership ambiguity exposed by run `33469098939`. Root cause: `Assets/Tests/PlayMode/VoxelEngine.Tests.PlayMode.asmdef` was incorrectly treated as module root `Assets`, causing every lower-level runtime assembly (first observed `Game.Composition.CharacterEquipment.Editor`) to have two owners. Added a regression preserving top-level PlayMode as integration/smoke while excluding it from lower-level production ownership, and fixed `_module_roots` generically.
-- [x] Fix the migrated Rendering internal-test boundary exposed by exact-head run `33469680497`. Planning and Python regressions passed, then Unity compile produced `CS0122` from legitimate internal Rendering consumers whose assembly identities changed during migration. Added only the required `InternalsVisibleTo` declarations for `VoxelEngine.Rendering.Tests.EditMode`, `VoxelEngine.Storage.Tests.EditMode`, and `Game.WorldBuilder.Tests.EditMode`; production visibility remains unchanged.
-- [x] After exact-head run `33472056643` produced a second Unity compilation failure, isolate a minimal repro/root cause before another fix. The failing WorldBuilder builder/ref members (`RequireSite`, `RequireRegion`, `RequireNpc`, `Story.Objective`, `Story.Cutscene`, one-argument refs) are intentionally internal and compiled previously only because `Game.WorldBuilder.Api` friended the old monolithic `VoxelEngine.Tests.EditMode`. Add `Game.WorldBuilder.Tests.EditMode` as the migrated replacement friend; do not rewrite test semantics or widen production APIs.
-- [x] Inspect exact-head run `33474565849` rather than treating its status-2 exit as infrastructure. Planning and all 20 Python regressions passed; `Game.Composition.CharacterEquipment.Tests` passed; `Game.WorldBuilder.Tests.EditMode` then ran 351 tests with 288 passing and 63 failing across 34 files. Failures span stale showcase paths, Kentridge geometry/reservations, constitution rules, game/worldgen assembly boundaries, and other contracts, proving this is a broad stale-branch problem rather than another friend-access/compiler symptom.
-- [ ] Reconcile current master into the feature branch before another exact-head validation. Audit: feature is 216 commits behind master at merge base `142b1134bd9d6a9eb1d60e55a296afaf6d9e7b3e`; master has continued changing the same former top-level EditMode tests and WorldBuilder/Structures contracts that this feature renamed under WorldBuilder. A normal master -> `fixes/agent-8` reconciliation attempt via temporary PR #199 reported merge conflicts and was closed unmerged. Local git networking is unavailable in this environment. Do not weaken/delete the 63 tests or duplicate upstream fixes; resolve only feature/master overlaps when a normal merge-capable workspace is available.
-- [ ] Validate the thin canonical Water module scene in the exact-current-head built player. The scene attaches production `VoxelEngine.Showcase.WaterRenderingShowcase` plus the generic readiness probe under `Assets/VoxelEngine/Rendering/Validation/Water`; no bespoke Agent-8 tableau remains.
-  - Earlier exact runs `33385476451`, `33388147850`, and `33390924383` passed behavioral/player gates but their Agent-8-authored tableaus were rejected in direct visual review.
-  - After the second materially different scene correction, reuse review isolated the architectural defect: Agent-8 duplicated Water composition policy owned by agent-9.
-  - Agent-9's canonical Water work landed on master in `0de38ba704be999c13c9c9aa59237efa65405144`, clearing the prerequisite; the current validation scene delegates to that canonical composition.
-  - Run `33432210469` passed the previous architecture; direct artifact review then exposed a generic evidence filename parser defect, now covered by the repository Python regression suite. That run used superseded `WaterStartupFallbackValidation`, so its screenshots are not final canonical `WaterDemo` acceptance evidence.
-  - Run `33463299020` failed before Unity because one obsolete interactables registration manifest remained; that source defect was fixed.
-  - Run `33464201573` validated exact feature `7d88992a6a296c4dcb743c6ad219ec7ebfec77a3` and failed before Unity because stale SpatialReservations registration residue remained; that residue is now removed.
-  - Run `33469098939` then failed before Unity on the top-level PlayMode ownership ambiguity described above; the planner regression/fix is now on the feature branch.
-  - Run `33469680497` validated exact feature `af0bbf774f65a4cf0d610802aa9aa9938a32f781`; planning and Python/planner regressions passed, but Unity compilation failed on migrated Rendering test friend access; corrected without widening production APIs.
-  - Run `33472056643` validated exact feature `8461063f9fa233190f8d16308fff9be3b1b83b5d`; planning and all 20 repository Python regressions passed, but Unity compilation exposed the remaining WorldBuilder API test-friend migration. The minimal repro/root cause is recorded above and corrected on the feature branch.
-  - Run `33474565849` validated exact feature `805ecc15c2091bf4e6ef1ef85df37d2c1b01120d`; compilation was clean and automatic execution advanced into the WorldBuilder suite, where stale branch/master divergence produced 63 real test failures before player validation could start.
-  - Static audit confirms current `WaterDemo.unity` is a thin production consumer and `WaterDemo.player-scenario.json` contains only executable timing/capture/assertion behavior. Final acceptance requires a fresh exact-current-head built-player run after master reconciliation.
-- [ ] Review final diff against all 18 acceptance criteria and complete SceneIssue metadata/closure only after canonical Water reuse, production-quality standalone Water evidence, and green exact-SHA CI exist for the final feature head.
-  - Source/regression audit currently supports criteria 1-13 and 15-17: structural ownership/discovery, complete assembly selection, shared/core expansion, convention player pairing, mandatory Kentridge, generic shared player runner, executable-only scenarios, fail-closed zero/skipped/missing targets, no top-level EditMode assembly, no manifest registration, and updated workflow docs are present with focused regressions.
-  - Criteria 14 and the final proof portion of 5/6/7/13 require the exact-head canonical Water -> Kentridge run and direct standalone-frame review.
-  - Criterion 18 has prior measured automatic-path runtime of 179.82s, but final-head cost still needs confirmation after the architecture migration.
+- [x] Implement diff-driven module ownership with conservative shared/core expansion and fail-closed unresolved ownership.
+- [x] Automatically execute every discovered module-owned EditMode/module-scoped PlayMode assembly and mandatory `KentridgePlayableSlice` for production diffs.
+- [x] Fail required zero-match/skipped tests, missing scene/scenario pairs, missing captures, and failed Kentridge integration.
+- [x] Refactor module validation, Kentridge, and SceneIssue replay onto one generic standalone-player build/capture path without test-name/scene-name policy.
+- [x] Remove `*.module-validation.json` registration semantics and migrate module-local player targets to convention-discovered scene + `*.player-scenario.json` pairs.
+- [x] Migrate Water to a thin module-local validation scene using production `VoxelEngine.Showcase.WaterRenderingShowcase`; scenario contains executable behavior only.
+- [x] Prove discovery reuse with independent non-Water module/test fixtures.
+- [x] Preserve focused regressions while removing PlayMode-only visual-acceptance semantics.
+- [x] Update `AGENTS.md`, SceneIssue workflow, CI semantics, and validation documentation.
+- [x] Remove repository-wide/top-level EditMode test assembly; migrate tests into lower-level owning module assemblies. Top-level PlayMode remains integration/smoke only and does not own production paths.
+- [x] Add planner/runner regressions for automatic module discovery, new assembly discovery without registration, shared dependency expansion, top-level PlayMode exclusion, convention player pairing, missing/orphan pairs, manifest rejection, zero/skipped test failure, and generic evidence windows.
+
+## Corrective validation history
+- [x] Run `33469098939`: isolate/fix top-level PlayMode synthetic `Assets` ownership ambiguity and add regression before retry.
+- [x] Run `33469680497`: isolate/fix migrated Rendering/Storage/WorldBuilder internal-test friend boundaries without widening production APIs.
+- [x] Run `33472056643`: after a second compile failure, isolate minimal WorldBuilder friend-assembly root cause before another fix; migrate legacy `VoxelEngine.Tests.EditMode` friend to `Game.WorldBuilder.Tests.EditMode`.
+- [x] Run `33474565849`: planning and all 20 Python regressions passed; compilation clean; first automatic suite passed; `Game.WorldBuilder.Tests.EditMode` ran 351 tests with 288 pass / 63 fail. Failure spread across 34 files established stale branch/master divergence rather than another access/compiler symptom.
+- [x] Reconcile current master instead of rewriting stale tests/adjacent production. Feature was 216 commits behind at merge base `142b1134bd9d6a9eb1d60e55a296afaf6d9e7b3e`; two delete-vs-modify moved-test conflicts were resolved by carrying master versions into migrated locations and temporarily restoring legacy paths. Master merged normally at `0b941fc62c87841bca949df32cf9ee3d6a4ded67` through PR #201; no force/synthetic merge.
+- [x] Preserve master’s five newly added top-level EditMode regressions while maintaining module ownership: Kentridge road composition, terrain grading envelope, world-road presentation -> WorldBuilder; road surface detail -> Rendering; continuous terrain corridor rasterisation -> new Structures EditMode assembly. Delete temporary/top-level copies. `Assets/Tests/EditMode` has no test directory/assembly after cleanup.
+- [x] Confirm latest feature compare against master is `behind_by: 0` before exact-head validation.
+
+## Final gates
+- [ ] Run exact-current-head automatic module tests, Water built-player validation, and mandatory Kentridge built-player validation using only `ci-test/fixes/agent-8`.
+- [ ] Inspect every retained Water post-readiness standalone-player frame; reject pre-readiness evidence and verify production-quality canonical Water reuse.
+- [ ] Confirm final automatic validation runtime/cost remains practical; prior full automatic path measured 179.82s but final architecture needs exact-head measurement.
+- [ ] Review all 18 acceptance criteria against exact-head results. Criteria 1-13 and 15-17 have source/regression support; criterion 14 and final proof for 5/6/7/13 require canonical Water -> Kentridge standalone execution; criterion 18 requires final runtime measurement.
+- [ ] After green exact-SHA proof, update `issue.json` status/resolution fields, move the assignment directory directly `open` -> `closed`, then fetch/merge current master again if it advanced. Revalidate if that changes the feature materially.
+- [ ] Push the exact final feature head to `origin/master` non-force; if master advances, fetch/merge/retry. Do not promote the CI transport request commit.
