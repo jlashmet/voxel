@@ -1,5 +1,7 @@
 using Game.WorldBuilder.Api;
 using Game.WorldBuilder.Runtime;
+using MountingForce.WorldGen;
+using MountingForce.WorldGen.Voxel;
 using NUnit.Framework;
 
 namespace VoxelEngine.Tests.PlayMode
@@ -46,6 +48,79 @@ namespace VoxelEngine.Tests.PlayMode
 
             Assert.That(relaxedCount, Is.EqualTo(1),
                 "Endpoint relaxation is scene policy and must stay narrowly authored rather than becoming a global planner fallback.");
+        }
+
+        [Test]
+        public void EndpointEscapeSurvivesGenericSettlementApproachAttachment()
+        {
+            const string fromId = "fixture-route";
+            const string settlementId = "fixture-settlement";
+            const string blockerId = "fixture-ridge";
+            var from = new TopDownWorldNodeSpec(fromId, "Fixture Route", TopDownWorldNodeKind.Route);
+            var settlement = new TopDownWorldNodeSpec(
+                settlementId,
+                "Fixture Settlement",
+                TopDownWorldNodeKind.Settlement);
+            var route = new TopDownWorldRouteSpec(
+                fromId,
+                settlementId,
+                new TopDownWorldGridPoint(5, 0),
+                "independent endpoint-gate regression");
+            var layout = new TopDownWorldLayout(
+                fromId,
+                1u,
+                new[]
+                {
+                    new TopDownWorldNodePlacement(from, new TopDownWorldGridPoint(-5, 0)),
+                    new TopDownWorldNodePlacement(settlement, new TopDownWorldGridPoint(0, 0))
+                },
+                new[] { route });
+            var intent = new TopDownWorldPhysicalIntentSpec(
+                new[]
+                {
+                    new TopDownWorldRegionSpec(
+                        blockerId,
+                        "Fixture Ridge",
+                        TopDownWorldRegionKind.MountainRidge,
+                        TopDownWorldRegionRelationKind.AnchoredAt,
+                        settlementId,
+                        string.Empty,
+                        halfExtentXDm: 100,
+                        halfExtentZDm: 100,
+                        elevationDeltaDm: 0,
+                        offsetXDm: -250)
+                },
+                new[]
+                {
+                    new TopDownWorldRouteRegionConstraintSpec(
+                        fromId,
+                        settlementId,
+                        blockerId,
+                        TopDownWorldRouteRegionSolutionKind.GoAround,
+                        clearanceDm: 45,
+                        relaxationMode: TopDownWorldConstraintRelaxationMode.EndpointEscape)
+                },
+                new[]
+                {
+                    new TopDownWorldSettlementPhysicalSpec(
+                        settlementId,
+                        TopDownWorldSettlementRealizationKind.GenericBlockout,
+                        minimumBuildingCount: 4)
+                });
+
+            bool planned = TopDownWorldPhysicalPlanner.TryPlan(
+                layout,
+                intent,
+                new Int2(0, 0),
+                cellSizeDm: 100,
+                voxelsPerDecimetre: 1,
+                out _,
+                out string error);
+
+            Assert.That(
+                planned,
+                Is.True,
+                "A semantic endpoint escape solved against a generic settlement route gate must remain valid after the gate-to-centre approach is attached. " + error);
         }
     }
 }
