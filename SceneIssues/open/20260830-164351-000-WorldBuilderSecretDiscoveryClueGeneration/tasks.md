@@ -6,9 +6,8 @@
 - [x] Inspect SceneIssue captures/marked regions; none are present.
 - [x] Inspect `Docs/worldbuilder-secret-clues-design.md`, canonical secret topology, reusable world-object interaction, and discovery authority.
 - [x] Discriminate hypotheses: canonical hidden-destination selection already exists; deterministic route/readability/clue planning was the missing layer.
-- [x] Merge current master and re-read production-validation requirements.
-- [x] Remove showcase-local primitive clue realization and its presentation regression after user/scope correction.
-- [x] Remove the dedicated primitive WorldBuilder validation scene/module declaration because it duplicated production presentation instead of consuming it.
+- [x] Remove primitive/parallel player-visible validation approaches after they failed production-quality review.
+- [x] Per user correction, remove all `WorldbuildingGalleryShowcase` secret acceptance integration and Gallery-specific regression fixtures.
 
 ## Stable planning contracts
 
@@ -43,34 +42,32 @@
 
 ## Dedicated module-local validation scene
 
-- [x] Create `Assets/Game/WorldBuilder/Validation/SecretDiscovery/` scene rather than using the Worldbuilding Gallery as the development surface.
-- [x] Scene consumes production voxel world generation, production cave authoring, `CaveSecretPocketComposition`, production material/coating IDs, normal voxel rendering, and production vegetation/tree systems.
+- [x] Create `Assets/Game/WorldBuilder/Validation/SecretDiscovery/` as the sole visual acceptance surface.
+- [x] Scene consumes production voxel world generation, production cave authoring, `CaveSecretPocketComposition`, production material/coating IDs, normal voxel rendering, production vegetation/tree systems, and production destruction.
 - [x] Register the dedicated player scenario in `worldbuilder-secret-discovery.module-validation.json`.
 - [x] Add a behavioral regression for deterministic clue coating and preserved secret barrier topology.
-- [x] Run `33445911882`; it failed before visual capture on a compile error (`Coatings.None` did not exist).
-- [x] Fix that compiler defect by treating zero as the byte coating sentinel rather than introducing a new presentation dependency.
-- [x] Exact feature `1a30df7a27fe2b1a86a2ebace0b645ee310a27da` passed focused regression and automatically required module validation in run `33508045854`.
-- [x] Inspect run `33508045854` full-resolution evidence: dedicated scene used production rendering, but Gallery authored-breakable audit remained visually invalid and was rejected.
-- [ ] Exact current-head CI compiles/runs after the refined terminal-interior camera correction.
-- [ ] Inspect full-resolution dedicated-scene and Gallery screenshots; reject obscured, misframed, non-production, or visually ambiguous evidence.
+- [x] Exact feature `1a30df7a27fe2b1a86a2ebace0b645ee310a27da` passed focused regression and automatically required module validation in run `33508045854`; its static exterior-only evidence was rejected as insufficient.
+- [x] Replace the static camera with a deterministic authored-geometry walkthrough: exterior entrance -> entrance interior -> deeper cave -> clue approach -> clue/wall close view -> breach -> hidden pocket reveal.
+- [x] Destroy the authored false wall during the built-player sequence through `ShowcaseWorld.Explode` and require a wall-destroyed log event.
+- [x] Expand player capture to 24 seconds at 3-second intervals with at least seven frames.
+- [ ] Exact current-head CI compiles and runs the walkthrough after the already-queued stale request completes.
+- [ ] Full-resolution frames visibly show cave-entry progression rather than repeated/static exterior framing.
+- [ ] At least two pre-destruction frames make the environmental clue treatment and destroyable false wall readable at gameplay scale.
+- [ ] A post-destruction frame clearly shows the breached wall and what is behind it.
+- [ ] Final reveal frame clearly shows the hidden pocket from inside the opened route.
 
 ## Built-player / representative acceptance
 
-- [x] Earlier exact `WorldbuildingGalleryShowcase` replay reached a usable rendered state without runtime exceptions.
-- [x] Full-resolution evidence was inspected; primitive validation/gallery clue implementations were not production-quality and were rejected.
-- [x] Two materially different primitive presentation fixes failed the same quality symptom; experiment 005 isolated the parallel-renderer root cause.
-- [x] Experiment 011 isolated and then refined the authored-breakable camera failure: the 17-voxel helper position sits at the far edge of the final 18-voxel segment and exact run `33508045854` still rendered outside valid tunnel space.
-- [ ] Representative natural terrain/cave route example with environmental/traversal clues and no required interactable is visually proven at gameplay scale.
-- [ ] Interactable-backed mechanism representative is visually proven through a supported generated feature, or unsupported architectural realization is documented and an allowed alternative supported generated feature is used.
-- [ ] Player can infer and reach representative secrets from intentional pre-solve evidence without universal glowing markers or wall-spamming.
-- [x] Add only a thin final `WorldbuildingGalleryShowcase` acceptance consumer after reusable dedicated-scene proof is green.
-- [ ] Exact built `WorldbuildingGalleryShowcase` full-resolution screenshots pass clue readability, route legibility, accidental bypass, placeholder/sign-like evidence, and production-quality review.
+- [ ] Player can infer the authored secret from intentional pre-solve environmental evidence without universal glowing markers or wall-spamming.
+- [ ] False wall remains intact and blocks traversal before the destruction step.
+- [ ] Production destruction opens the authored route and normal traversal space is visually reachable afterward.
+- [ ] Built-player run has no startup/runtime exceptions and all required log assertions are present.
 
 ## Cost / blast radius / closure
 
 - [x] Planner/discovery code is one-shot/event-driven; no per-frame search/polling loop was added.
 - [x] Cave composition attempts at most the bounded traversal candidate set and stops immediately on non-physical authoring failures; no frame-loop cost was added.
-- [x] Dedicated validation presentation uses existing production renderer/material/vegetation paths rather than introducing a second player-visible renderer.
+- [x] Dedicated validation presentation uses existing production renderer/material/vegetation/destruction paths rather than introducing a second player-visible renderer.
 - [ ] All required acceptance criteria and exact-SHA gates green.
 - [ ] Compare final feature head against current `origin/master` and document blast radius/cost.
 - [ ] Move assigned SceneIssue directly `open -> closed`, set `status=fixed` and `resolvedUtc`.
