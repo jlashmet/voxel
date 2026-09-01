@@ -26,7 +26,9 @@ namespace VoxelEngine.Showcase
         private const int VoxelOriginX = 220;
         private const int ExhibitOriginZ = 160;
         private const int MinimumSourceSeparationVoxels = 700;
-        private const float FirstViewSeconds = 4f;
+        // Harness screenshots arrive every three seconds. Offset transitions to the midpoint
+        // between captures so each durable frame owns exactly one semantic comparison view.
+        private const float FirstViewSeconds = 1.5f;
         private const float LaterViewSeconds = 3f;
 
         private ShowcaseWorld _world;
@@ -99,7 +101,7 @@ namespace VoxelEngine.Showcase
                     "Mountain Dragon validation requires the semantic ten-view capture plan.");
             _viewIndex = 0;
             ApplyView(_views[_viewIndex]);
-            _nextViewTime = FirstViewSeconds;
+            _nextViewTime = Time.realtimeSinceStartup + FirstViewSeconds;
 
             Debug.Log(
                 "MOUNTAIN_DRAGON_VALIDATION_COST placement_ms=" + placement.PlacementMilliseconds.ToString("F3")
@@ -166,7 +168,10 @@ namespace VoxelEngine.Showcase
         {
             _sourceCamera = CreateCamera("Source Mesh Camera", new Rect(0f, 0f, 0.5f, 1f));
             _voxelCamera = CreateCamera("Voxelized Camera", new Rect(0.5f, 0f, 0.5f, 1f));
-            _sourceCamera.gameObject.tag = "MainCamera";
+            // Production voxel rendering schedules around Camera.main. The authoritative voxel
+            // side therefore owns that role; making the distant presentation camera Main caused
+            // the right half to show only a tiny source mesh down the separation axis.
+            _voxelCamera.gameObject.tag = "MainCamera";
         }
 
         private static Camera CreateCamera(string name, Rect viewport)
