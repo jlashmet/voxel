@@ -305,8 +305,11 @@ namespace Game.Encounters.Runtime
 
         private static bool LifecycleShapeValid(EncounterSnapshot snapshot)
         {
-            bool terminal = snapshot.Lifecycle == EncounterLifecycleState.Resolved || snapshot.Lifecycle == EncounterLifecycleState.Cleaned;
-            return terminal == snapshot.Resolution.HasValue &&
+            bool requiresResolution =
+                snapshot.Lifecycle == EncounterLifecycleState.Resolving ||
+                snapshot.Lifecycle == EncounterLifecycleState.Resolved ||
+                snapshot.Lifecycle == EncounterLifecycleState.Cleaned;
+            return requiresResolution == snapshot.Resolution.HasValue &&
                    (snapshot.Lifecycle == EncounterLifecycleState.Inactive || !string.IsNullOrWhiteSpace(snapshot.ActivationCause));
         }
 
