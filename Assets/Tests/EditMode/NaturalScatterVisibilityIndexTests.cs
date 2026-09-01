@@ -84,7 +84,7 @@ namespace VoxelEngine.Tests.EditMode
             manifest.Upsert(first);
 
             Assert.That(first.SourceId, Is.EqualTo(giantRock.StableId));
-            Assert.That(first.Kind, Is.EqualTo(FeatureKind.Scatter));
+            Assert.That(first.Kind, Is.EqualTo(FeatureKind.Landform));
             Assert.That(manifest.Count, Is.EqualTo(1));
 
             Assert.That(NaturalScatterPresentationPromotion.TryBake(
