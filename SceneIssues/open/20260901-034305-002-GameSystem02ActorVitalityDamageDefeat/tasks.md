@@ -32,6 +32,7 @@
 - [x] **T02-014 — Add replication projection seam.** Expose current semantic vitality state/events needed by system 06 without referencing GameplayReplication Runtime.
   - Evidence: API-level `TryGet`, `VitalitySnapshot`, and `Defeated` event expose semantic state/transitions; Runtime has no GameplayReplication dependency.
 - [ ] **T02-015 — Migrate combat health.** Adapt existing Combat participant health/alive access to Vitality API; remove duplicate authoritative combat health after behavior parity.
+  - **BLOCKED on System 01 participant binding:** current `Game.Combat.Api.CombatParticipant` exposes only `CombatParticipantId` + team. System 01 T01-003 owns the semantic Character-backed participant binding. Do not invent a `CombatParticipantId` -> `CharacterId` scope/key policy inside Combat or Vitality; resume migration when that binding lands/coordinates.
 - [x] **T02-016 — Migrate non-combat damage consumers.** Route any demonstrated environmental/world damage through the same API to prove vitality is actor-owned rather than combat-owned.
   - Evidence: repository-wide production searches found no demonstrated environmental/world damage consumer outside Combat/prototype life-state code, so there is no existing non-combat consumer to migrate. No synthetic production consumer was added; T02-022 supplies the independent reuse fixture.
 
@@ -46,11 +47,15 @@
 - [x] **T02-023 — Add snapshot/restore tests.** Alive and defeated state must round-trip exactly with stable CharacterId.
   - Evidence: `CaptureRestore_RoundTripsAliveAndDefeatedStateWithStableIdentity` plus duplicate restore atomicity regression.
 - [x] **T02-024 — Verify defeat does not resolve game.** Assert no direct dependency/call to Outcomes or session teardown.
-  - Evidence: runtime assembly regression asserts no `Game.Outcomes.Runtime` or `Game.Combat.Runtime` reference; final repository audit remains T02-031/T02-032.
+  - Evidence: runtime assembly regression asserts no `Game.Outcomes.Runtime` or `Game.Combat.Runtime` reference.
 - [ ] **T02-025 — Run automatic module tests and dependent Combat tests.** Do not manually enumerate CI tests.
+  - Exact-SHA request `49e2d5bb0153451263195b9c3c787bd2f8763a23` (feature parent `0fc4e0ae1f58f6ea7bfba405a4a2406c6c88d7de`) is queued on `ci-test/fixes/agent-9`; leave it untouched until completion.
 
 ## Cleanup / close
 
 - [ ] **T02-030 — Repository-wide duplicate-state search.** Remove or demote every remaining authoritative `health`/`isAlive` store outside Vitality where it represents the same character life truth.
-- [ ] **T02-031 — Boundary audit.** Confirm no external assembly references `Game.Vitality.Runtime` and no Unity object appears in Vitality API.
+  - Blocked behind T02-015: production `CombatService._hitPoints` remains intentionally untouched until the System 01 participant/Character binding exists; prototype life stores remain blast-radius targets for the final migration audit.
+- [x] **T02-031 — Boundary audit.** Confirm no external assembly references `Game.Vitality.Runtime` and no Unity object appears in Vitality API.
+  - Evidence: new API references only `Game.Characters.Api`; Runtime references API + Characters; only the Vitality test assembly references `Game.Vitality.Runtime` in the current feature diff. Reflection regressions assert no UnityEngine/API->Runtime and no Runtime->Combat/Outcomes dependencies.
 - [ ] **T02-032 — Close with ownership proof.** Document that character life state has exactly one owner and combat/game-outcome semantics remain separate.
+  - Blocked behind T02-015/T02-030 because production Combat still owns its legacy `_hitPoints` until participant identity binding is available.
