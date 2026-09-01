@@ -15,8 +15,10 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
     public sealed class ProceduralFarFeatureRenderer : MonoBehaviour, IFarFeatureRenderer
     {
         private const int MaxInstancesPerDraw = 1023;
+        private const int CylinderSegments = 12;
 
         private readonly Dictionary<BatchKey, List<Matrix4x4>> _batches = new();
+        private readonly Dictionary<string, FarFeatureGeometry> _geometrySources = new(StringComparer.Ordinal);
         private readonly Dictionary<string, Mesh> _meshCache = new(StringComparer.Ordinal);
         private readonly Dictionary<string, Material> _materialCache = new(StringComparer.Ordinal);
         private readonly Matrix4x4[] _drawMatrices = new Matrix4x4[MaxInstancesPerDraw];
@@ -35,6 +37,7 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
                 FarFeatureInstance instance = instances[i];
                 if (instance.Tier == FarFeatureTier.Culled) continue;
 
+                RegisterGeometry(instance);
                 var key = new BatchKey(instance.GeometryKey, instance.StyleKey, instance.Tier);
                 if (!_batches.TryGetValue(key, out List<Matrix4x4> matrices))
                 {
@@ -83,6 +86,12 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
         public string BatchKeyFor(FarFeatureInstance instance) =>
             new BatchKey(instance.GeometryKey, instance.StyleKey, instance.Tier).ToString();
 
+        internal Mesh ResolveMesh(FarFeatureInstance instance)
+        {
+            RegisterGeometry(instance);
+            return GetMesh(instance.GeometryKey);
+        }
+
         private void LateUpdate()
         {
             if (enabled) DrawNow();
@@ -94,14 +103,30 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
             _instanceCount = 0;
         }
 
+        private void RegisterGeometry(FarFeatureInstance instance)
+        {
+            if (instance.Geometry == null) return;
+            string key = instance.GeometryKey ?? string.Empty;
+            if (_geometrySources.TryGetValue(key, out FarFeatureGeometry existing)
+                && ReferenceEquals(existing, instance.Geometry))
+                return;
+
+            _geometrySources[key] = instance.Geometry;
+            if (_meshCache.TryGetValue(key, out Mesh stale))
+            {
+                _meshCache.Remove(key);
+                if (stale != null) DestroyImmediate(stale);
+            }
+        }
+
         private Mesh GetMesh(string geometryKey)
         {
             string key = geometryKey ?? string.Empty;
             if (_meshCache.TryGetValue(key, out Mesh mesh)) return mesh;
 
-            // T008 keeps geometry keys opaque. T010 replaces this neutral fallback with the
-            // generic baked-geometry payload while retaining the same render contract.
-            mesh = BuildFallbackMesh();
+            mesh = _geometrySources.TryGetValue(key, out FarFeatureGeometry geometry)
+                ? BuildGeometryMesh(geometry)
+                : BuildFallbackMesh();
             mesh.name = string.IsNullOrEmpty(key) ? "FarFeature-Default" : $"FarFeature-{key}";
             _meshCache.Add(key, mesh);
             return mesh;
@@ -123,17 +148,53 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
             return material;
         }
 
-        private static Mesh BuildFallbackMesh()
+        private static Mesh BuildGeometryMesh(FarFeatureGeometry geometry)
         {
-            var mesh = new Mesh { hideFlags = HideFlags.DontSave };
-            mesh.vertices = new[]
+            var vertices = new List<Vector3>(geometry.PrimitiveCount * 16);
+            var triangles = new List<int>(geometry.PrimitiveCount * 36);
+            for (int i = 0; i < geometry.PrimitiveCount; i++)
             {
-                new Vector3(-0.5f, 0f, -0.5f), new Vector3(0.5f, 0f, -0.5f),
-                new Vector3(0.5f, 1f, -0.5f), new Vector3(-0.5f, 1f, -0.5f),
-                new Vector3(-0.5f, 0f, 0.5f), new Vector3(0.5f, 0f, 0.5f),
-                new Vector3(0.5f, 1f, 0.5f), new Vector3(-0.5f, 1f, 0.5f),
-            };
-            mesh.triangles = new[]
+                FarFeatureGeometryPrimitive primitive = geometry.GetPrimitive(i);
+                switch (primitive.Shape)
+                {
+                    case FarFeatureGeometryShape.Cylinder:
+                    case FarFeatureGeometryShape.Annulus:
+                    case FarFeatureGeometryShape.ArcWedge:
+                        AppendCylinder(vertices, triangles, primitive.Min, primitive.Max, primitive.Axis);
+                        break;
+                    default:
+                        // Conservative generic massing for the remaining vocabulary. This deliberately
+                        // preserves each primitive's authored extent without any producer/type recipe.
+                        AppendBox(vertices, triangles, primitive.Min, primitive.Max);
+                        break;
+                }
+            }
+
+            if (vertices.Count == 0) return BuildFallbackMesh();
+            var mesh = new Mesh { hideFlags = HideFlags.DontSave };
+            if (vertices.Count > ushort.MaxValue) mesh.indexFormat = IndexFormat.UInt32;
+            mesh.SetVertices(vertices);
+            mesh.SetTriangles(triangles, 0);
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        private static void AppendBox(List<Vector3> vertices, List<int> triangles, float3 minValue, float3 maxValue)
+        {
+            Vector3 min = ToVector3(minValue);
+            Vector3 max = ToVector3(maxValue);
+            int start = vertices.Count;
+            vertices.Add(new Vector3(min.x, min.y, min.z));
+            vertices.Add(new Vector3(max.x, min.y, min.z));
+            vertices.Add(new Vector3(max.x, max.y, min.z));
+            vertices.Add(new Vector3(min.x, max.y, min.z));
+            vertices.Add(new Vector3(min.x, min.y, max.z));
+            vertices.Add(new Vector3(max.x, min.y, max.z));
+            vertices.Add(new Vector3(max.x, max.y, max.z));
+            vertices.Add(new Vector3(min.x, max.y, max.z));
+
+            int[] local =
             {
                 0, 2, 1, 0, 3, 2,
                 4, 5, 6, 4, 6, 7,
@@ -142,6 +203,79 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
                 1, 2, 6, 1, 6, 5,
                 0, 4, 7, 0, 7, 3,
             };
+            for (int i = 0; i < local.Length; i++) triangles.Add(start + local[i]);
+        }
+
+        private static void AppendCylinder(
+            List<Vector3> vertices,
+            List<int> triangles,
+            float3 min,
+            float3 max,
+            byte axis)
+        {
+            float3 center = (min + max) * 0.5f;
+            float3 half = math.max((max - min) * 0.5f, new float3(0.0001f));
+            int start = vertices.Count;
+            for (int end = -1; end <= 1; end += 2)
+            {
+                for (int segment = 0; segment < CylinderSegments; segment++)
+                {
+                    float angle = (2f * math.PI * segment) / CylinderSegments;
+                    float c = math.cos(angle);
+                    float s = math.sin(angle);
+                    vertices.Add(ToVector3(CylinderPoint(center, half, axis, end, c, s)));
+                }
+            }
+
+            int lowerCenter = vertices.Count;
+            vertices.Add(ToVector3(CylinderPoint(center, half, axis, -1, 0f, 0f)));
+            int upperCenter = vertices.Count;
+            vertices.Add(ToVector3(CylinderPoint(center, half, axis, 1, 0f, 0f)));
+
+            for (int segment = 0; segment < CylinderSegments; segment++)
+            {
+                int next = (segment + 1) % CylinderSegments;
+                int lower = start + segment;
+                int lowerNext = start + next;
+                int upper = start + CylinderSegments + segment;
+                int upperNext = start + CylinderSegments + next;
+                triangles.Add(lower);
+                triangles.Add(upperNext);
+                triangles.Add(upper);
+                triangles.Add(lower);
+                triangles.Add(lowerNext);
+                triangles.Add(upperNext);
+
+                triangles.Add(lowerCenter);
+                triangles.Add(lowerNext);
+                triangles.Add(lower);
+                triangles.Add(upperCenter);
+                triangles.Add(upper);
+                triangles.Add(upperNext);
+            }
+        }
+
+        private static float3 CylinderPoint(float3 center, float3 half, byte axis, int end, float c, float s)
+        {
+            switch (axis)
+            {
+                case 0:
+                    return center + new float3(end * half.x, c * half.y, s * half.z);
+                case 2:
+                    return center + new float3(c * half.x, s * half.y, end * half.z);
+                default:
+                    return center + new float3(c * half.x, end * half.y, s * half.z);
+            }
+        }
+
+        private static Mesh BuildFallbackMesh()
+        {
+            var vertices = new List<Vector3>(8);
+            var triangles = new List<int>(36);
+            AppendBox(vertices, triangles, new float3(-0.5f, 0f, -0.5f), new float3(0.5f, 1f, 0.5f));
+            var mesh = new Mesh { hideFlags = HideFlags.DontSave };
+            mesh.SetVertices(vertices);
+            mesh.SetTriangles(triangles, 0);
             mesh.RecalculateNormals();
             mesh.RecalculateBounds();
             return mesh;
@@ -154,6 +288,7 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
             foreach (Material material in _materialCache.Values)
                 if (material != null) DestroyImmediate(material);
             _meshCache.Clear();
+            _geometrySources.Clear();
             _materialCache.Clear();
         }
 
