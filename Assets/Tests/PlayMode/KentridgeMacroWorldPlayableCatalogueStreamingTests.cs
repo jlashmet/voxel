@@ -31,6 +31,67 @@ namespace VoxelEngine.Tests.PlayMode
         private const int MaximumDrainSteps = 16;
 
         [Test]
+        public void PlayableKentridgeCatalogueRequiresExplicitOneShotMacroSelection()
+        {
+            TopDownWorldLayout layout = MountingForceTopDownWorldDefinition.Build(Seed);
+            VoxelWorldGenSettings settings = Settings(kentridge: true);
+
+            // Establish a deterministic empty handoff before reproducing the playable catalogue call.
+            // Select/TryConsume is intentionally one-shot; no scene-global reset API is needed.
+            TopDownWorldLayoutSelection.Select(
+                layout,
+                KentridgeDefinition.TownCentreDm.X,
+                KentridgeDefinition.TownCentreDm.Y,
+                MountingForceTopDownWorldDefinition.CellSizeDm);
+            Assert.That(TopDownWorldLayoutSelection.TryConsume(Seed, out _), Is.True);
+
+            FeatureCatalogue withoutSelection = default;
+            FeatureCatalogue withSelection = default;
+            try
+            {
+                withoutSelection = KentridgeCombinedVoxelCatalogue.Build(
+                    Seed,
+                    settings,
+                    Allocator.Temp);
+                Assert.That(
+                    ContainsDefinitionStarting(withoutSelection, "macro-town-building-fairy-village-"),
+                    Is.False,
+                    "The production Kentridge catalogue cannot contain the macro settlement unless composition selects the semantic macro layout first.");
+                Assert.That(
+                    ContainsDefinitionStarting(withoutSelection, "macro-town-building-orc-village-"),
+                    Is.False);
+
+                TopDownWorldLayoutSelection.Select(
+                    layout,
+                    KentridgeDefinition.TownCentreDm.X,
+                    KentridgeDefinition.TownCentreDm.Y,
+                    MountingForceTopDownWorldDefinition.CellSizeDm);
+                withSelection = KentridgeCombinedVoxelCatalogue.Build(
+                    Seed,
+                    settings,
+                    Allocator.Temp);
+                Assert.That(
+                    ContainsDefinitionStarting(withSelection, "macro-town-building-fairy-village-"),
+                    Is.True,
+                    "The same production catalogue must include Fairy once the explicit semantic handoff is present.");
+                Assert.That(
+                    ContainsDefinitionStarting(withSelection, "macro-town-building-orc-village-"),
+                    Is.True,
+                    "The same production catalogue must include Orc once the explicit semantic handoff is present.");
+
+                TestContext.WriteLine(
+                    "MACRO_PLAYABLE_SELECTION " +
+                    $"withoutDefinitions={withoutSelection.Definitions.Length} " +
+                    $"withDefinitions={withSelection.Definitions.Length}");
+            }
+            finally
+            {
+                if (withSelection.IsCreated) withSelection.Dispose();
+                if (withoutSelection.IsCreated) withoutSelection.Dispose();
+            }
+        }
+
+        [Test]
         public void PlayableCatalogueRetainsFairySettlementAfterHightownAndCorridorCombine()
         {
             TopDownWorldLayout layout = MountingForceTopDownWorldDefinition.Build(Seed);
@@ -126,6 +187,14 @@ namespace VoxelEngine.Tests.PlayMode
                 if (hightownCatalogue.IsCreated) hightownCatalogue.Dispose();
                 if (kentridgeCatalogue.IsCreated) kentridgeCatalogue.Dispose();
             }
+        }
+
+        private static bool ContainsDefinitionStarting(FeatureCatalogue catalogue, string prefix)
+        {
+            for (var i = 0; i < catalogue.Definitions.Length; i++)
+                if (catalogue.Definitions[i].Name.ToString().StartsWith(prefix, StringComparison.Ordinal))
+                    return true;
+            return false;
         }
 
         private static int3 TimberWallProbe(TopDownWorldBuildingBlockoutPlan building, int scale)
