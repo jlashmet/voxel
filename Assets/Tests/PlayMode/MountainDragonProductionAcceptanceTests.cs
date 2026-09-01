@@ -71,9 +71,7 @@ namespace VoxelEngine.Tests.PlayMode
             {
                 ResolvedWorldRoadPoint a = route.Road.Points[i - 1];
                 ResolvedWorldRoadPoint b = route.Road.Points[i];
-                long dx = (long)b.Xdm - a.Xdm;
-                long dz = (long)b.Zdm - a.Zdm;
-                int horizontal = Math.Max(1, (int)Math.Sqrt(dx * dx + dz * dz));
+                int horizontal = ResolverPlanarDistance(a, b);
                 int rise = Math.Abs(b.Ydm - a.Ydm);
                 Assert.That((long)rise * 1000L,
                     Is.LessThanOrEqualTo((long)horizontal * route.Road.Intent.Profile.MaximumGradePermille),
@@ -181,6 +179,36 @@ namespace VoxelEngine.Tests.PlayMode
                 encounter.Update(encounterSummit.Xdm, encounterSummit.Zdm, 16),
                 Is.EqualTo(0),
                 "The one-shot proximity source must not restart the completed cutscene.");
+        }
+
+        private static int ResolverPlanarDistance(ResolvedWorldRoadPoint a, ResolvedWorldRoadPoint b)
+        {
+            long dx = (long)b.Xdm - a.Xdm;
+            long dz = (long)b.Zdm - a.Zdm;
+            return Math.Max(1, IntegerSqrtRounded(dx * dx + dz * dz));
+        }
+
+        private static int IntegerSqrtRounded(long value)
+        {
+            if (value <= 0) return 0;
+            long low = 1;
+            long high = Math.Min(value, 3037000499L);
+            while (low <= high)
+            {
+                long middle = low + ((high - low) >> 1);
+                if (middle <= value / middle) low = middle + 1;
+                else high = middle - 1;
+            }
+
+            long root = high;
+            long lowerError = value - root * root;
+            long next = root + 1;
+            if (next <= 3037000499L)
+            {
+                long upperError = next * next - value;
+                if (upperError <= lowerError) root = next;
+            }
+            return root > int.MaxValue ? int.MaxValue : (int)root;
         }
 
         private static List<Primitive> Evaluate(FeatureCatalogue catalogue, int definitionId, uint seed)
