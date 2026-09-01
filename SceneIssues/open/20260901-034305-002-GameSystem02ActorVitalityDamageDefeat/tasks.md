@@ -28,8 +28,8 @@
 - [ ] **T02-013 — Add capture/restore seam.** Expose API-level snapshot contribution needed by system 16 without referencing Persistence Runtime.
 - [ ] **T02-014 — Add replication projection seam.** Expose current semantic vitality state/events needed by system 06 without referencing GameplayReplication Runtime.
 - [ ] **T02-015 — Migrate combat health.** Adapt existing Combat participant health/alive access to Vitality API; remove duplicate authoritative combat health after behavior parity.
-- [ ] **T02-016 — Migrate non-combat damage consumers.** Route any demonstrated environmental/world damage through the same API to prove vitality is actor-owned rather than combat-owned.
-  - Evidence baseline: repository searches found no demonstrated production environmental/world damage consumer outside Combat/prototype life-state code. Do not invent one; T02-022 will provide the required independent non-combat reuse proof once the Vitality API exists.
+- [x] **T02-016 — Migrate non-combat damage consumers.** Route any demonstrated environmental/world damage through the same API to prove vitality is actor-owned rather than combat-owned.
+  - Evidence: repository-wide production searches found no demonstrated environmental/world damage consumer outside Combat/prototype life-state code, so there is no existing non-combat consumer to migrate. Per the acceptance rule, no synthetic production consumer was added; T02-022 remains the required independent non-combat reuse fixture once the Vitality API exists.
 
 ## Verification
 
