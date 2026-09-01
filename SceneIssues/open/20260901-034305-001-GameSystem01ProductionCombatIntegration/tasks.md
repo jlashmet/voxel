@@ -27,8 +27,8 @@
 - [x] **T01-021 — Add resolution/idempotency tests.** `EncounterCombatIntegrationTests` proves `EncounterCombatCoordinator.TryTakeResolved` emits one terminal fact per session under repeated polling and that the real `EncounterRegistry.ApplyCombatResolved` accepts an identical repeat without another revision mutation.
 - [x] **T01-022 — Add encounter mapping tests.** `EncounterCombatIntegrationTests` proves real `EncounterCombatRequest` membership maps through production CharacterIds into Combat participants and preserves the same `EncounterId` through start and terminal result; role-to-team and winner-to-EncounterResolution mappings remain explicit composition policy.
 - [ ] **T01-023 — Add independent reuse fixture.** Partial proof now includes non-Kentridge `CombatCharacterBindingTests`, `CombatEncounterContractTests`, and a real-registry `EncounterCombatIntegrationTests` fixture. Final checkbox remains open until Vitality is part of the same reusable production seam rather than Combat-owned HP.
-- [ ] **T01-024 — Run module-owned EditMode/PlayMode tests.** Convention-based ownership is now implemented: the three focused fixtures live under `Assets/Game/Combat/Tests` in `Game.Combat.Tests`, so `tools/module-validation-plan.py` can discover Combat structurally and production Combat diffs automatically select that assembly plus the Kentridge player integration gate. Exact-SHA validation is still pending. The prior attempt at `9409a59b1af180a760779902ccc9bfcf2600c9e8` failed before Unity because the harness explicitly rejects obsolete `*.module-validation.json`; that manifest was removed rather than retried.
-- [ ] **T01-025 — Run assembled integration proof.** Confirm Kentridge uses the production path; full built-player acceptance remains owned by system 24.
+- [x] **T01-024 — Run module-owned EditMode/PlayMode tests.** Convention-based ownership is implemented under `Assets/Game/Combat/Tests` in `Game.Combat.Tests`. Exact feature SHA `746de4cae082cc456c000153048166c0e4f967e3` passed targeted CI run `33503348443`: the planner selected `Game.Combat.Tests` plus dependent `Game.CharacterAI.Tests`, all module tests passed, and automatic Kentridge standalone-player integration built and ran successfully with seven real-player screenshots. The prior obsolete-manifest failure was fixed by adopting structural test discovery rather than retrying the rejected mechanism.
+- [ ] **T01-025 — Run assembled integration proof.** Current automatic Kentridge player gate is green, but this checkbox remains open until Kentridge itself uses the final Vitality-backed production Combat path rather than the scene-local bootstrap.
 
 ## Cleanup and close
 
@@ -38,11 +38,11 @@
 
 ## Active blocker evidence
 
-- Feature merged current master `8190813f624e9327bcbf9c968deac8aecb32a9a2` at merge commit `09ce469e095a69a347a0a252eb85d44298dd2512` before convention-based Combat validation ownership was added.
+- Feature last merged master `8190813f624e9327bcbf9c968deac8aecb32a9a2`; current master advanced to `1b6d5db96ea150bd0cb573bfaff7e220f19afbeb` after the green Combat validation run. No current-master change supplies production Vitality.
 - Present on master/feature: production Input, Characters, and Encounters. `Game.Encounters.Api` owns `EncounterId`, membership, activation, queued `EncounterCombatRequest`, and `ApplyCombatResolved`; it depends on Characters but not Combat, preserving the intended dependency direction.
-- Still absent from current master at the last prerequisite check: production `Assets/Game/Vitality` / `Game.Vitality.Api`. Agent-3 must not invent a substitute life-state contract.
+- Still absent from current master `1b6d5db96ea150bd0cb573bfaff7e220f19afbeb`: production `Assets/Game/Vitality` / `Game.Vitality.Api`. Agent-3 must not invent a substitute life-state contract.
 - Current concrete Kentridge seam remains `Assets/Game/Composition/Kentridge/Playable/KentridgeForestBanditEncounter.cs` plus `Game.Composition.Kentridge.Playable.asmdef`.
 - Known Combat-internal preservation surface: `ChainRoundReadinessCoordinator`, `ChainEnemyTacticalAI`, `ChainReactionReservationCoordinator`, `ChainExecutionPlan`, and `ChainCombatBoard` in the older `MountingForce.CombatPrototype` namespace.
-- Exact-SHA CI run `33500855298` for `9409a59b1af180a760779902ccc9bfcf2600c9e8` failed in `Derive automatic module validation plan` with `obsolete *.module-validation.json registration is not supported`; no Unity test ran. Corrective feature commit `6a2d117954bb38c9af6dd6dc2ca4fc8de6d1c262` removes that obsolete registration and adopts module-owned test assembly discovery.
+- Exact feature SHA `746de4cae082cc456c000153048166c0e4f967e3` has green `ci/single-test` status from run `33503348443`; module-owned Combat tests, dependent CharacterAI tests, and automatic Kentridge real-player validation all passed.
 - `ci-test/fixes/agent-3` remains the only authorized targeted-CI transport. Never replace a queued/running request.
 - Acceptance remains unchanged; the next blocked production authority tasks are T01-010/T01-011 pending real Vitality.
