@@ -36,7 +36,7 @@ namespace Game.CharacterAI.Tests
                 enemy,
                 new CombatPerceptionSource(combat, bindings),
                 new CombatTacticalIntentPolicy(),
-                new CombatTacticalIntentExecutor(driver));
+                new CombatTacticalIntentExecutor(driver.Step));
 
             AiIntentExecutionResult result = controller.Tick();
 
