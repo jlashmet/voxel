@@ -3,6 +3,7 @@
   "rootNamespace": "VoxelEngine.Showcase.Tests.RuntimeSupport",
   "references": [
     "Game.Composition.Showcase",
+    "Game.WorldBuilder.Api",
     "Game.WorldBuilder.Voxel",
     "VoxelEngine.Structures.Api",
     "Unity.Collections",
