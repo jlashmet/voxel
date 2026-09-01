@@ -21,7 +21,8 @@ namespace Game.WorldBuilder.Validation
     /// <summary>
     /// Focused built-player proof for generated secret discovery. The scene owns only validation
     /// orchestration and camera placement. Terrain/storage, cave generation, secret-pocket authoring,
-    /// clue coating, materials, voxel meshing, and tree rendering all execute through production paths.
+    /// clue coating, materials, voxel meshing, destruction, and tree rendering all execute through
+    /// production paths.
     /// </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(Camera))]
@@ -39,6 +40,11 @@ namespace Game.WorldBuilder.Validation
 
         private ShowcaseWorld _world;
         private readonly List<TreeInstance> _trees = new List<TreeInstance>();
+        private CaveAuthoringResult _cave;
+        private CaveSecretPocketProjection _projection;
+        private int3 _caveEntrance;
+        private float _sequenceStart;
+        private bool _wallDestroyed;
         private bool _ready;
 
         private void OnEnable()
@@ -171,7 +177,13 @@ namespace Game.WorldBuilder.Validation
             RenderingComposition.SetSurfaceBuildEnabled(true);
 
             PublishProductionTrees(surfaceY);
-            PlaceCamera(caveEntrance);
+
+            _cave = cave;
+            _projection = projection;
+            _caveEntrance = caveEntrance;
+            _wallDestroyed = false;
+            _sequenceStart = Time.time;
+            PlaceSequencePose(0f);
 
             _ready = true;
             Debug.Log(
@@ -185,12 +197,19 @@ namespace Game.WorldBuilder.Validation
         private void Update()
         {
             if (!_ready || _world == null) return;
+
+            float elapsed = Time.time - _sequenceStart;
+            if (!_wallDestroyed && elapsed >= 16f)
+                DestroySecretWall();
+
+            PlaceSequencePose(elapsed);
             _world.StepStreaming(transform.position, m_GenerateBudgetMs);
         }
 
         private void OnDisable()
         {
             _ready = false;
+            _wallDestroyed = false;
             VegetationComposition.ReplaceTreeWorld(Array.Empty<TreeInstance>());
             RenderingComposition.ResetTransientPresentation();
             RenderingComposition.ClearWorld();
@@ -234,17 +253,128 @@ namespace Game.WorldBuilder.Validation
             VegetationComposition.ReplaceTreeWorld(_trees);
         }
 
-        private void PlaceCamera(int3 caveEntrance)
+        /// <summary>
+        /// Drives a deterministic visual walkthrough of the production-authored cave. Each hold is
+        /// longer than the player harness capture interval so evidence includes the entrance, an
+        /// interior descent, the clue-bearing false wall at two gameplay distances, the breached
+        /// wall, and the hidden pocket beyond it.
+        /// </summary>
+        private void PlaceSequencePose(float elapsed)
         {
-            int eyeZ = caveEntrance.z - 72;
-            int eyeY = TerrainSampler.HeightAt(caveEntrance.x, eyeZ, m_Seed) + 18;
-            int surfaceY = TerrainSampler.HeightAt(caveEntrance.x, caveEntrance.z, m_Seed);
+            CaveSecretPocket pocket = _projection.Pocket;
+            int3 forward = FacingVector(pocket.Terminal.ExitFacing);
+            float3 barrierTarget = BoundsCentre(pocket.Barrier);
 
-            transform.position = (float3)new int3(caveEntrance.x, eyeY, eyeZ) * VoxelMetres;
-            Vector3 target = (Vector3)(new float3(caveEntrance.x, surfaceY + 2, caveEntrance.z + 8) * VoxelMetres);
+            if (elapsed < 2.5f)
+            {
+                PlaceExteriorEntrance();
+                return;
+            }
+
+            if (elapsed < 5.5f)
+            {
+                int3 eye = _caveEntrance + FacingVector(Facing.North) * 6 + new int3(0, 12, 0);
+                float3 target = (float3)(_caveEntrance + FacingVector(Facing.North) * 14 + new int3(0, 10, 0));
+                PlaceVoxelPose((float3)eye, target);
+                return;
+            }
+
+            if (elapsed < 8.5f)
+            {
+                float3 eye = (float3)_cave.MainPathEnd + new float3(0f, 12f, 0f);
+                float3 target = (float3)pocket.Terminal.Position + new float3(0f, 11f, 0f);
+                if (math.lengthsq(target - eye) < 4f)
+                    target = eye + (float3)FacingVector(pocket.Terminal.ExitFacing) * 12f;
+                PlaceVoxelPose(eye, target);
+                return;
+            }
+
+            if (elapsed < 11.5f)
+            {
+                int3 eye = pocket.Terminal.Position - forward * 12 + new int3(0, 12, 0);
+                PlaceVoxelPose((float3)eye, barrierTarget);
+                return;
+            }
+
+            if (elapsed < 16f)
+            {
+                int3 eye = pocket.Terminal.Position - forward * 6 + new int3(0, 12, 0);
+                PlaceVoxelPose((float3)eye, barrierTarget);
+                return;
+            }
+
+            if (elapsed < 19.5f)
+            {
+                int3 eye = pocket.Terminal.Position - forward * 6 + new int3(0, 12, 0);
+                PlaceVoxelPose((float3)eye, BoundsCentre(pocket.Pocket));
+                return;
+            }
+
+            float3 connectorEye = BoundsCentre(pocket.Connector);
+            connectorEye.y = pocket.Connector.Min.y + 12f;
+            float3 pocketTarget = BoundsCentre(pocket.Pocket);
+            pocketTarget.y = pocket.Pocket.Min.y + 11f;
+            PlaceVoxelPose(connectorEye, pocketTarget);
+        }
+
+        private void PlaceExteriorEntrance()
+        {
+            int eyeZ = _caveEntrance.z - 72;
+            int eyeY = TerrainSampler.HeightAt(_caveEntrance.x, eyeZ, m_Seed) + 18;
+            int surfaceY = TerrainSampler.HeightAt(_caveEntrance.x, _caveEntrance.z, m_Seed);
+
+            transform.position = (float3)new int3(_caveEntrance.x, eyeY, eyeZ) * VoxelMetres;
+            Vector3 target = (Vector3)(new float3(
+                _caveEntrance.x,
+                surfaceY + 2,
+                _caveEntrance.z + 8) * VoxelMetres);
+            LookAt(target);
+        }
+
+        private void PlaceVoxelPose(float3 eyeVoxels, float3 targetVoxels)
+        {
+            transform.position = (Vector3)(eyeVoxels * VoxelMetres);
+            LookAt((Vector3)(targetVoxels * VoxelMetres));
+        }
+
+        private void LookAt(Vector3 target)
+        {
             Vector3 direction = target - transform.position;
             if (direction.sqrMagnitude > 0.001f)
                 transform.rotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
+        }
+
+        private void DestroySecretWall()
+        {
+            CaveSecretPocket pocket = _projection.Pocket;
+            int3 barrierCentre = new int3(
+                (pocket.Barrier.Min.x + pocket.Barrier.MaxExclusive.x - 1) / 2,
+                (pocket.Barrier.Min.y + pocket.Barrier.MaxExclusive.y - 1) / 2,
+                (pocket.Barrier.Min.z + pocket.Barrier.MaxExclusive.z - 1) / 2);
+            int3 forward = FacingVector(pocket.Terminal.ExitFacing);
+            int changed = _world.Explode(barrierCentre, 9, (float3)forward);
+            if (changed <= 0)
+                throw new InvalidOperationException("Production destruction failed to breach the authored secret wall.");
+
+            _wallDestroyed = true;
+            Debug.Log(
+                "WorldBuilder secret validation wall destroyed: " +
+                $"voxels={changed} centre={barrierCentre} hiddenPocket={pocket.Pocket.Min}->{pocket.Pocket.MaxExclusive}");
+        }
+
+        private static float3 BoundsCentre(in DecorationBounds bounds) =>
+            ((float3)bounds.Min + (float3)bounds.MaxExclusive) * 0.5f;
+
+        private static int3 FacingVector(Facing facing)
+        {
+            switch (facing)
+            {
+                case Facing.North: return new int3(0, 0, 1);
+                case Facing.South: return new int3(0, 0, -1);
+                case Facing.East: return new int3(1, 0, 0);
+                case Facing.West: return new int3(-1, 0, 0);
+                default: throw new ArgumentOutOfRangeException(nameof(facing), facing, null);
+            }
         }
     }
 }
