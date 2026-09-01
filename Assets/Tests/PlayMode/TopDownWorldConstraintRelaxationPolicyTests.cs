@@ -51,7 +51,7 @@ namespace VoxelEngine.Tests.PlayMode
         }
 
         [Test]
-        public void EndpointEscapeSurvivesGenericSettlementApproachAttachment()
+        public void GoAroundRejectsGenericSettlementApproachWhenRouteGateFallsInsideBlocker()
         {
             const string fromId = "fixture-route";
             const string settlementId = "fixture-settlement";
@@ -117,10 +117,47 @@ namespace VoxelEngine.Tests.PlayMode
                 out _,
                 out string error);
 
+            Assert.That(planned, Is.False,
+                "EndpointEscape may relax the solved route endpoint overlap, but it must not silently authorize the attached settlement approach to cross blocking geography.");
+            StringAssert.Contains("leaves its authored geography solution", error);
+        }
+
+        [Test]
+        public void KentridgeOrcGoAroundPlansWithSettlementArrivalOutsideSouthernRidge()
+        {
+            const uint seed = 0x4B454E54u;
+            TopDownWorldLayout layout = MountingForceTopDownWorldDefinition.Build(seed);
+            TopDownWorldPhysicalIntentSpec intent = KentridgeTopDownWorldPhysicalIntent.Build();
+
+            bool planned = TopDownWorldPhysicalPlanner.TryPlan(
+                layout,
+                intent,
+                new Int2(0, 0),
+                MountingForceTopDownWorldDefinition.CellSizeDm,
+                voxelsPerDecimetre: 1,
+                out TopDownWorldPhysicalPlan physical,
+                out string error);
+
+            Assert.That(planned, Is.True,
+                "Kentridge composition must keep the Orc settlement arrival gate on the settlement side of Southern Ridge so GoAround remains a real dry detour. " + error);
             Assert.That(
-                planned,
-                Is.True,
-                "A semantic endpoint escape solved against a generic settlement route gate must remain valid after the gate-to-centre approach is attached. " + error);
+                physical.TryGetRegion(KentridgeTopDownWorldPhysicalIntent.SouthernRidge, out TopDownWorldRegionPlan ridge),
+                Is.True);
+            Assert.That(
+                physical.TryGetRoute(
+                    KentridgeTopDownWorldLayout.SouthFightingArea,
+                    KentridgeTopDownWorldLayout.OrcVillage,
+                    out TopDownWorldPhysicalRoutePlan orcRoute),
+                Is.True);
+
+            int margin = orcRoute.Route.CorridorWidthDm / 2;
+            for (var i = 0; i < orcRoute.Tiles.Count; i++)
+            {
+                Assert.That(
+                    ridge.Contains(orcRoute.Tiles[i], -margin),
+                    Is.False,
+                    "The final Orc road corridor must skirt Southern Ridge; EndpointEscape cannot become an implicit crossing after settlement approaches are attached.");
+            }
         }
     }
 }
