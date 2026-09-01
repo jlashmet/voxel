@@ -1,0 +1,19 @@
+{
+  "name": "Game.GameplayReplication.Tests",
+  "rootNamespace": "Game.GameplayReplication.Tests",
+  "references": [
+    "Game.GameplayReplication.Api",
+    "Game.GameplayReplication.Runtime"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

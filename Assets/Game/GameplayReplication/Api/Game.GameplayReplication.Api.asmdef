@@ -1,0 +1,14 @@
+{
+  "name": "Game.GameplayReplication.Api",
+  "rootNamespace": "Game.GameplayReplication.Api",
+  "references": [],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}
