@@ -4,7 +4,8 @@
   "references": [
     "Game.Combat.Api",
     "Game.Input.Api",
-    "Game.Vitality.Api"
+    "Game.Vitality.Api",
+    "Game.Characters.Api"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
