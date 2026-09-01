@@ -12,7 +12,7 @@
 - [x] Preserve focused regressions while removing PlayMode-only visual-acceptance semantics.
 - [x] Update `AGENTS.md`, SceneIssue workflow, CI semantics, and validation documentation.
 - [x] Remove repository-wide/top-level EditMode test assembly; migrate tests into lower-level owning module assemblies. Top-level PlayMode remains integration/smoke only and does not own production paths.
-- [x] Add planner/runner regressions for automatic module discovery, new assembly discovery without registration, shared dependency expansion, top-level PlayMode exclusion, convention player pairing, missing/orphan pairs, manifest rejection, zero/skipped test failure, and generic evidence windows.
+- [x] Add planner/runner regressions for automatic module discovery, new assembly discovery without registration, contract dependency expansion, top-level PlayMode exclusion, convention player pairing, missing/orphan pairs, manifest rejection, zero/skipped test failure, and generic evidence windows.
 
 ## Corrective validation history
 - [x] Run `33469098939`: isolate/fix top-level PlayMode synthetic `Assets` ownership ambiguity and add regression before retry.
@@ -27,6 +27,8 @@
 - [x] Add regressions and fix ownership semantics: test-only paths do not claim module production validation; deleted `*.module-validation.json` paths are non-production; validation-only asmdefs do not enter runtime dependency ownership; unowned top-level `Assets/Game/Composition/**` changes receive Kentridge integration without broad lower-level fallback; unknown non-composition production still uses broad safe fallback.
 - [x] Remove the WorldBuilder production friend delta by retaining existing `VoxelEngine.Tests.EditMode` assembly identity at the module-local WorldBuilder test path; reuse the established friend rather than widening production.
 - [x] Move Water liquid-publication validation support under `Assets/VoxelEngine/Rendering/Validation/Water`: preserve the probe Unity GUID, add a module-local validation asmdef, observe existing public read-only `VoxelRenderBridge.SurfaceMetrics` directly, remove redundant shared `RenderingSurfaceDiagnostics`, and remove the obsolete Rendering friend for the retired `Game.WorldBuilder.Tests.EditMode` identity.
+- [x] Run exact request `33483342821` on `cd9023674cf659b384a7dac5ba03423bef797c63`: all 24 Python architecture regressions passed and fallback paths were empty, but Rendering Runtime changes still expanded transitively to unrelated modules; compilation then failed before tests because the moved Water probe lacked the `SurfaceExtraction` namespace for `VoxelSurfaceMetrics`.
+- [x] Fix only those demonstrated causes: import the real public `VoxelSurfaceMetrics` namespace; expand known dependents only for module contract-surface changes (`/Api/` or asmdef) while ordinary Runtime implementation changes execute the owning module plus mandatory Kentridge. Add regression proving Runtime stays local and API still expands dependents.
 
 ## Final gates
 - [ ] Run exact-current-head automatic module tests, Water built-player validation, and mandatory Kentridge built-player validation using only `ci-test/fixes/agent-8`.
