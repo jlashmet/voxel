@@ -27,7 +27,7 @@
 - [ ] **T01-021 — Add resolution/idempotency tests.** Blocked on the production resolution contract from T01-005. `KentridgeCombatEncounterTests` currently proves a settled proximity battle does not restart while the player remains nearby, but it does not prove semantic `CombatResolved` consumption/idempotency through Encounters.
 - [ ] **T01-022 — Add encounter mapping tests.** Blocked on `Game.Encounters.Api`; current `KentridgeCombatEncounterTests` verifies the scene-local encounter path only.
 - [ ] **T01-023 — Add independent reuse fixture.** Blocked until the production API seams exist; fixture must consume those real seams, not local substitutes.
-- [ ] **T01-024 — Run module-owned EditMode/PlayMode tests.** Rely on automatic module validation discovery; do not manually register individual tests.
+- [ ] **T01-024 — Run module-owned EditMode/PlayMode tests.** Current `Assets/Game/Combat` tree has no `*.module-validation.json` manifest or module-local Validation directory; existing coverage is top-level `Assets/Tests` PlayMode. After the production diff exists, add/use the module-owned validation declaration required by current repository standards and rely on automatic discovery; do not manually register individual tests.
 - [ ] **T01-025 — Run assembled integration proof.** Confirm Kentridge uses the production path; full built-player acceptance remains owned by system 24.
 
 ## Cleanup and close
@@ -44,4 +44,5 @@
 - Current concrete Kentridge seam: `Assets/Game/Composition/Kentridge/Playable/KentridgeForestBanditEncounter.cs` plus `Game.Composition.Kentridge.Playable.asmdef`.
 - Known Combat-internal preservation surface: `ChainRoundReadinessCoordinator`, `ChainEnemyTacticalAI`, `ChainReactionReservationCoordinator`, `ChainExecutionPlan`, and `ChainCombatBoard` in the older `MountingForce.CombatPrototype` namespace.
 - Existing production-facing verification surface: `Assets/Tests/PlayMode/CombatAuthorityMigrationTests.cs`, `CombatInputModuleBoundaryTests.cs`, and `KentridgeCombatEncounterTests.cs`.
+- Current Combat module has no module-validation manifest; create the validation declaration with the real production migration rather than a docs-only placeholder.
 - Acceptance remains unchanged; continue by merging new `origin/master` prerequisite work when it becomes available, then resume at T01-002.
