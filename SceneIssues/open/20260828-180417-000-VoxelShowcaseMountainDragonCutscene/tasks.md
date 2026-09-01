@@ -12,9 +12,9 @@
 - [x] Confirm no agent-4 CI is queued/running and current `origin/master` (`c73ab9d1...` at last check) is already an ancestor of the reconstructed feature; obsolete PR #182/#192 merge blocker removed.
 
 ## Reusable mountain redesign
-- [ ] Replace path-coupled `MountainLandmarkSpec` ownership with a semantic parameterized mountain-landform contract: placement, footprint/aspect, height, summit character, deterministic seed, macro shape/ridge/asymmetry, and bounded roughness only. No road, switchback, traversal, dragon, or Showcase policy in the generic landform.
-- [ ] Implement one deterministic mountain surface authority used both for `HeightAt`/surface queries and for voxel realization, so routing evidence and rendered/collision geometry cannot diverge.
-- [ ] Support materially different mountain shapes from parameters (at minimum broad/massif versus narrow/asymmetric/ridged) without separate generators or scene-specific branches.
+- [x] Replace path-coupled `MountainLandmarkSpec` ownership with a semantic parameterized mountain-landform contract: placement, footprint/aspect, height, summit character, deterministic seed, macro shape/ridge/asymmetry, and bounded roughness only. No road, switchback, traversal, dragon, or Showcase policy in the generic landform.
+- [x] Implement one deterministic mountain surface authority used both for `HeightAt`/surface queries and for voxel realization, so routing evidence and rendered/collision geometry cannot diverge.
+- [x] Support materially different mountain shapes from parameters (at minimum broad/massif versus narrow/asymmetric/ridged) without separate generators or scene-specific branches.
 - [ ] Separate reusable climate/presentation policy from shape: semantic altitude/slope bands choose rock/ground-cover/snow-like roles while concrete material ids remain caller-owned.
 - [ ] Remove old mountain-owned path tiers, ramp emission, path support masses, and path headroom carving from the production Mountain Dragon composition once the road-backed path is active.
 
