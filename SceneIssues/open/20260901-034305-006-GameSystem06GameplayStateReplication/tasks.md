@@ -28,8 +28,8 @@
 
 ## Verification
 
-- [ ] **T06-020 — Projection determinism tests.** `GameplayReplicationRuntimeTests` covers stable source/projection/entry ordering and monotonic publication revisions; focused exact-SHA CI request is queued.
-- [ ] **T06-021 — Stale/gap/dedupe tests.** Fixture covers stale duplicate, forward gap, repair-required, snapshot repair and schema mismatch; focused exact-SHA CI request is queued.
+- [ ] **T06-020 — Projection determinism tests.** `GameplayReplicationRuntimeTests` covers stable source/projection/entry ordering, monotonic publication revisions, and deterministic adapters over Characters/Encounter/Combat/Inventory authorities; current focused request remains queued and will not be replaced.
+- [ ] **T06-021 — Stale/gap/dedupe tests.** Fixture covers stale duplicate, forward gap, repair-required, snapshot repair and schema mismatch; current focused request remains queued and will not be replaced.
 - [ ] **T06-022 — Existing UTP loopback integration.** Two clients converge on character/vitality plus at least one transactional domain. **BLOCKED:** no existing production UTP loopback/server spine is present, and Vitality API is absent.
 - [ ] **T06-023 — Late-join test.** Transport-independent snapshot repair semantics are covered; **BLOCKED** for required transport integration because the production network spine is absent.
 - [ ] **T06-024 — Reconnect test support.** Transport-independent repair-to-current semantics are covered; **BLOCKED** for reconnect transport integration because the production network spine is absent.
@@ -38,6 +38,6 @@
 
 ## Cleanup / close
 
-- [ ] **T06-030 — Remove parallel gameplay replication stores/codecs.** No pre-existing gameplay replication store/codec was found during T06-001 inventory; final audit remains after validation.
-- [ ] **T06-031 — Runtime-boundary audit.** Current API/Runtime/Adapters expose no raw transport identity as gameplay identity and consume owning APIs only; final audit remains after validation.
+- [x] **T06-030 — Remove parallel gameplay replication stores/codecs.** T06-001 inventory plus final feature diff found no pre-existing gameplay replication store/codec to migrate; 006 introduces one semantic client read store and no duplicate transport codec.
+- [x] **T06-031 — Runtime-boundary audit.** Final source/asmdef diff shows API/Runtime/Adapters only; Runtime depends only on replication API, adapters consume owning gameplay APIs plus replication API, and no raw transport/connection identity or presentation assembly crosses the gameplay contract.
 - [ ] **T06-032 — Close with convergence proof.** **BLOCKED:** authority/existing-client/late-joiner/reconnecting-client transport convergence cannot be proven until the required production network spine and missing owning APIs land.
