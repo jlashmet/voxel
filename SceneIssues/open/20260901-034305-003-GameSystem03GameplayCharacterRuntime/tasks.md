@@ -21,8 +21,8 @@
 - [x] **T03-013 — Migrate NPC/recruit ownership.** Represent persistent authored characters through the same lifecycle and registry.
 - [x] **T03-014 — Migrate enemy ownership.** Replace enemy-specific persistent actor state with Character composition; tactical behavior remains in AI/Combat.
 - [x] **T03-015 — Integrate movement/world queries.** Route authoritative movement/collision through existing world APIs while keeping voxel implementation details out of Characters.Api.
-- [ ] **T03-016 — Add narrow consumer seams.** Support Vitality, AI, Encounters, Sessions, replication, persistence, inventory binding, and cutscene actor resolution through API contracts only.
-- [ ] **T03-017 — Distinguish defeat from removal.** A defeated character remains a character until owning gameplay policy removes it.
+- [x] **T03-016 — Add narrow consumer seams.** Support Vitality, AI, Encounters, Sessions, replication, persistence, inventory binding, and cutscene actor resolution through API contracts only.
+- [x] **T03-017 — Distinguish defeat from removal.** A defeated character remains a character until owning gameplay policy removes it.
 
 ## Verification
 
