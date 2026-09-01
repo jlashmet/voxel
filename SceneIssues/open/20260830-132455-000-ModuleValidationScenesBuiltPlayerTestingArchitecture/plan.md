@@ -3,7 +3,7 @@
 ## Acceptance
 - Production diffs deterministically select owning modules; **all EditMode and module-scoped PlayMode tests owned by each affected lower-level module run automatically**. Agents do not register individual tests or maintain per-test filters.
 - **There is no repository-wide/top-level EditMode test assembly. EditMode tests live with the lower-level module they validate** (for example Rendering, Structures, Spatial). A production module change runs that module's complete EditMode suite.
-- Only genuinely high-level integration/smoke PlayMode coverage belongs at the top level. `KentridgePlayableSlice` remains the mandatory top-level built-player integration gate for production diffs.
+- Only genuinely high-level integration/smoke PlayMode coverage belongs at the top level and does **not** define production-module ownership. `KentridgePlayableSlice` remains the mandatory top-level built-player integration gate for production diffs.
 - Module ownership comes from repository/module structure and Unity assembly boundaries. Shared/core changes expand through production assembly dependencies where practical, with conservative fallback when inference is unavailable.
 - **There is no `*.module-validation.json` registration layer.** Module ownership, test ownership, and module-local player targets are convention/structure driven.
 - Player-visible modules own paired scene/scenario targets under module-local `Validation/`; scenario JSON contains executable behavior only.
@@ -11,7 +11,7 @@
 - Missing/zero-match/skipped/failed required targets fail validation; routine targeted cost remains practical.
 
 ## Selected architecture / implemented state
-- Module roots and complete module-local EditMode/PlayMode test assemblies are discovered structurally from `Assets/**/Tests/{EditMode,PlayMode}` and Unity `.asmdef` ownership.
+- Lower-level module roots and complete module-local EditMode/PlayMode test assemblies are discovered structurally from `Assets/**/Tests/{EditMode,PlayMode}` and Unity `.asmdef` ownership; repository-wide `Assets/Tests/PlayMode` is retained solely as high-level integration/smoke and excluded from production ownership.
 - Runtime `.asmdef` name/GUID references expand shared/core changes through dependent modules; unknown production ownership broadens conservatively.
 - Reintroduced top-level `Assets/Tests/EditMode` assemblies and `*.module-validation.json` registrations fail architecture validation.
 - Player targets are convention-discovered under `<Module>/Validation`; every scene requires an adjacent same-stem `*.player-scenario.json`, and orphan/missing pairs fail closed.
@@ -23,9 +23,9 @@
 ## Material results
 - Earlier manifest-driven runs proved the automatic Water -> Kentridge player path and isolated/fixed Water correctness/evidence issues; that registration architecture is superseded.
 - Agent-9's canonical Water implementation landed on master in `0de38ba704be999c13c9c9aa59237efa65405144`, clearing the reuse prerequisite.
-- Exact request for feature `1c82800896e40f34a1a4550865a83bd975a44428`, run `33463299020`, failed **before Unity** in automatic planning because a residual interactables manifest remained; that obsolete registration was removed.
-- Exact request run `33464201573` for feature `7d88992a6a296c4dcb743c6ad219ec7ebfec77a3` then failed before Unity because the already-completed SpatialReservations assignment had merged a legacy `spatial-reservations.module-validation.json` registration.
-- Resume audit confirmed the SpatialReservations SceneIssue had already been closed on master (`8f41a2364780e32d8744b85c10146c3a192846cb`) and `fixes/agent-7` had moved on to a different assignment. The manifest was therefore stale merged residue, not active externally owned work. Agent-8 removed only that obsolete registration at `a50d42d4c3e05b00e158fa6957e02de2bd57ba74`, directly satisfying this issue's repository-wide no-manifest acceptance without modifying another SceneIssue.
+- Run `33463299020` failed before Unity because a residual interactables manifest remained; that obsolete registration was removed.
+- Run `33464201573` then failed before Unity because the already-completed SpatialReservations assignment had merged a legacy `spatial-reservations.module-validation.json`; audit proved the SceneIssue was already closed and the file was stale residue, so agent-8 removed only that obsolete registration.
+- Exact request run `33469098939` for feature `53d2fa1029468984d6cfb76046d4968d0aca7ae3` exposed a second planner defect before Unity: `Assets/Tests/PlayMode/VoxelEngine.Tests.PlayMode.asmdef` created synthetic module root `Assets`, so every lower-level runtime assembly had two owners (first reported `Game.Composition.CharacterEquipment.Editor`). The root cause is now isolated and covered by a regression: top-level PlayMode remains available as integration/smoke but is excluded from lower-level production ownership. Planner fix landed at `d19241e8494ce68f9b34ce57f0b78c8559d1b7d7`.
 - Static audit confirms current `WaterDemo.unity` is a thin production consumer and `WaterDemo.player-scenario.json` contains only executable timing/capture/assertion behavior.
 
 ## Blast radius
@@ -34,6 +34,7 @@ CI/orchestration; module/test-assembly discovery; removal of module-registration
 ## Remaining gates
 - [x] Reconcile checklist items with the implemented module-owned assembly migration and convention regressions.
 - [x] Remove the stale SpatialReservations `*.module-validation.json` residue after verifying its owning SceneIssue was already closed.
+- [x] Isolate/fix top-level PlayMode falsely claiming production ownership; preserve it as high-level smoke/integration only.
 - [ ] Run exact-current-head automatic module tests, Water built-player, and mandatory Kentridge built-player validation using only `ci-test/fixes/agent-8`.
 - [ ] Inspect every retained Water standalone post-readiness frame and verify production quality/evidence-window pruning.
 - [ ] Review all 18 acceptance criteria; complete metadata/closure only after green exact-SHA proof.
