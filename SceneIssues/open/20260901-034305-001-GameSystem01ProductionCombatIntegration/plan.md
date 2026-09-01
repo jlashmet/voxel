@@ -11,6 +11,7 @@
 - `Game.Combat.Runtime.CombatService` is currently authoritative for life state through its private `_hitPoints` dictionary, with fixed `ParticipantHitPoints = 6` and `AttackDamage = 2`. Team identity is carried directly on `CombatParticipant`.
 - `KentridgeForestBanditEncounter` is a scene-local composition/runtime owner. In `Awake` it constructs `InputContextService`, `UnityPlayerInputReader`, and `CombatService`; in `BeginBanditCombat` it creates player/enemy `CombatParticipant` identities by hand; it directly spawns the three bandit GameObjects and owns encounter completion/cleanup.
 - `Game.Composition.Kentridge.Playable.asmdef` directly references both `Game.Combat.Runtime` and `Game.Input.Runtime`, so the desired API-only cross-module boundary is not yet true at this composition seam.
+- `Assets/Game/Composition/CombatEnvironmentRuntime` is a separate older `MountingForce.CombatPrototype`/environment composition path rather than a consumer of the production `Game.Combat.Runtime` seam; do not fold that adjacent experiment into this ticket without an acceptance-driven defect.
 - `Game.Input.Api` exists and is already referenced by `Game.Combat.Runtime`. Its current semantic surface is `IPlayerInputReader` + `PlayerInputSnapshot` and `IInputContextService`; `CombatInputController` consumes movement semantically and has no raw key/button polling.
 - The ticket's production Characters, Vitality, and Encounters module APIs are not present on the current master baseline. `Assets/Game/Characters`, `Assets/Game/Vitality`, and the corresponding production encounter API are absent, and the dependent SceneIssue folders listed by the approved breakdown are not present on master.
 - The nominal GameSystem01 replacement scene from the earlier generated description is also not present; binding acceptance for this ticket is the checked-in plan/tasks and `KentridgePlayableSlice` issue metadata.
@@ -28,6 +29,18 @@ Independent work that remains valid while blocked: inventory existing authority/
 - **Encounter binding:** Encounters requests combat participation/activation and consumes a minimal `CombatResolved` fact. Combat does not own spawn/despawn policy, encounter cleanup, campaign outcome, or final-boss semantics.
 - **Input binding:** Combat consumes semantic `Game.Input.Api` state/context. Scene composition may supply the production implementation, but reusable Combat code contains no Unity key/button or Kentridge-specific policy.
 - **Composition:** scene/Kentridge code selects participants, authored encounter policy, presentation, and concrete production implementations. Reusable module APIs remain scene-agnostic.
+
+## Combat state preservation boundary
+
+Vitality migration must change only the production life-state authority needed by `Game.Combat.Runtime.CombatService`; it must not absorb Combat orchestration. The existing Combat assembly also contains an older `MountingForce.CombatPrototype` surface used for tactical/chain-combat blast-radius coverage. Preserve its combat-specific responsibilities in place unless a demonstrated acceptance defect requires otherwise:
+
+- `ChainRoundReadinessCoordinator`: per-command-group ready ownership, tracked round, and enemy-phase handoff.
+- `ChainEnemyTacticalAI`: deterministic committed intents, planned round, current intent cursor, and enemy-phase progress.
+- `ChainReactionReservationCoordinator`: physical-event reservation/claim ownership and opportunity synchronization.
+- `ChainExecutionPlan`: ordered collaborative plan, revision/history, undo/redo, and reaction attachment semantics.
+- `ChainCombatBoard`: board/motion/round/reaction authority consumed by the above coordinators.
+
+Those prototype classes currently contain their own experimental unit HP as part of that separate combat lab. This ticket does **not** opportunistically refactor that adjacent model merely because it lives in the same assembly; T01-031 treats it as blast radius. T01-030 removes duplicate **production** life authority and documents any justified internal experimental state.
 
 ## Implementation
 
