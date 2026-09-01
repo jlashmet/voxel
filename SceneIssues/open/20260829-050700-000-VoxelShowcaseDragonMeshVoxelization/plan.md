@@ -12,17 +12,19 @@ Exact bake generation passed CI `33451568424`: 98,100 cells, 99×107×107, 0.30 
 
 Exact-parent run `33476063393` proved the corrected reusable fidelity metric and required module EditMode gates on feature SHA `645b7f37979103f4a1d8b57278f786469a6d2356`: requested pinned-source fidelity passed; automatic `MountainDragonBakedArtifactTests`, pinned-source fidelity, and independent box reuse all passed. The metric now bounds query samples while measuring against the full opposite surface / continuous source triangles, avoiding the prior sparse-sample-spacing defect.
 
-Exact-parent run `33473139368` already proved `MountainDragonBakedArtifactTests` placement and top-level VoxelShowcase standalone replay green after the editor assembly-boundary repair.
+Exact-parent run `33473139368` proved `MountainDragonBakedArtifactTests` placement and top-level VoxelShowcase standalone replay green after the editor assembly-boundary repair.
 
 ## Current work
-The module-owned fixture under `Assets/Game/Composition/Showcase/Validation/MountainDragonVoxelization/` already contains the split-screen matched source/voxel exhibit, production `ShowcaseWorld` voxel side, presentation-only source mesh with colliders removed, equivalent pose/scale/orientation/terrain contact, production rendering/material rules, semantic ten-view capture plan, and placement/runtime-memory logs.
+The module-owned fixture under `Assets/Game/Composition/Showcase/Validation/MountainDragonVoxelization/` contains the split-screen matched source/voxel exhibit, production `ShowcaseWorld` voxel side, presentation-only source mesh with colliders removed, equivalent pose/scale/orientation/terrain contact, production rendering/material rules, semantic ten-view capture plan, and placement/runtime-memory logs.
 
-Run `33476063393` isolated its first built-player failure: the fixture script did execute, but `Awake()` exhausted the validation world’s 4,096-brick pool in `ShowcaseWorld.GenerateRegionBlocking` before Dragon placement/logging. Build and top-level SceneIssue replay succeeded. This is fixture-capacity evidence, not a script-binding or renderer failure. Commit `cc421a1b92c4075480bd91d978bfef6cd5e358b7` raises only the module fixture’s bounded pool to 16,384 bricks so the intended production terrain/feature path plus the 98k-cell Dragon can execute; shared storage/runtime policy is unchanged.
+Two built-player failures with the same missing-readiness/capture symptom were isolated before another fix, per issue protocol. Run `33476063393` failed at 4,096 bricks during `ShowcaseWorld.GenerateRegionBlocking`. After the materially different 16,384-brick fixture change, exact-parent run `33477581134` completed terrain and failed later inside `BakedVoxelStructure.ReplayTo` while `PlaceMountainDragon` materialized Dragon blocks. Focused and automatic EditMode tests remained green in both runs. This minimal repro proves the defect is the fixture bypassing production storage sizing, not script binding, rendering, fidelity, or generic structure replay.
+
+Production `VoxelShowcase` derives mixed-brick capacity from `DeviceTierBudget.GetForTier(DeviceTierBudget.Detect()).BrickPoolCapacity`, converts bytes with `VoxelEngineBootstrap.ClampMixedBrickCapacityToBudget`, and passes the same byte ceiling into `ShowcaseWorld`. Commit `89bf1837fba3c555bf6fab873c70c6bd5839a899` makes the module fixture use that same semantic tier-budget path and removes the guessed 4k/16k slot policy. Shared storage/runtime behavior is unchanged.
 
 A separate composition defect remains: `VoxelShowcase.TryPlaceSelectedStructure` still requires optional inspector `m_MountainDragonVoxelBake` and generic-codec decoding, while `MountainDragonBakedArtifact.Load()` already owns the pinned runtime transport. Repair this in Showcase composition only; do not teach the shared codec Dragon/MDVP policy.
 
 ## Next gates
-1. Validate the module fixture capacity repair on the current exact feature SHA through `ci-test/fixes/agent-1`; inspect all ten built-player captures and required logs directly.
+1. Validate the production-tier-budget module fixture on the current exact feature SHA through `ci-test/fixes/agent-1`; inspect all ten built-player captures and required logs directly.
 2. Repair VoxelShowcase placement mode to consume `MountainDragonBakedArtifact.Load()` through Showcase composition, then validate one-shot placement/world truth.
 3. Add/validate destruction + rendered/collision truth after voxel edits and record runtime/blast-radius evidence.
 4. Continue exact-source provenance search as an external blocker without weakening acceptance.
