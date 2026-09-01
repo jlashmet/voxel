@@ -3,6 +3,7 @@
   "rootNamespace": "Game.WorldBuilder.Voxel",
   "references": [
     "Game.WorldBuilder.Api",
+    "Game.WorldBuilder.Runtime",
     "MountingForce.WorldGen.Core",
     "MountingForce.WorldGen.Voxel",
     "VoxelEngine.Structures.Api",
