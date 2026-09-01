@@ -11,7 +11,8 @@
     "Game.Encounters.Api",
     "Game.Inventory.Api",
     "Game.Sessions.Api",
-    "VoxelEngine.Net.Runtime"
+    "VoxelEngine.Net.Runtime",
+    "Unity.Mathematics"
   ],
   "includePlatforms": [
     "Editor"
