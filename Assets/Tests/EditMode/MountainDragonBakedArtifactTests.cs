@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using NUnit.Framework;
 using Unity.Mathematics;
 using UnityEngine;
@@ -9,6 +10,30 @@ namespace VoxelEngine.Tests.EditMode
 {
     public sealed class MountainDragonBakedArtifactTests
     {
+        [Test]
+        public void CheckedInBake_ResourceTextIsValidBase64()
+        {
+            TextAsset payload = Resources.Load<TextAsset>(MountainDragonBakedArtifact.ResourcePath);
+            Assert.That(payload, Is.Not.Null);
+
+            string text = payload.text;
+            var invalid = new List<string>();
+            for (int i = 0; i < text.Length && invalid.Count < 16; i++)
+            {
+                char c = text[i];
+                bool base64 = (c >= 'A' && c <= 'Z')
+                    || (c >= 'a' && c <= 'z')
+                    || (c >= '0' && c <= '9')
+                    || c == '+' || c == '/' || c == '=' || char.IsWhiteSpace(c);
+                if (!base64) invalid.Add($"index={i}, U+{(int)c:X4}");
+            }
+
+            Assert.That(invalid, Is.Empty,
+                $"Unity TextAsset changed the checked-in Base64 transport. textLength={text.Length}, byteLength={payload.bytes.Length}, invalid={string.Join("; ", invalid)}");
+            Assert.DoesNotThrow(() => Convert.FromBase64String(text),
+                $"Unity TextAsset contains only Base64/whitespace but Convert still rejected it. textLength={text.Length}, byteLength={payload.bytes.Length}.");
+        }
+
         [Test]
         public void CheckedInBake_DecodesCanonicalArtifactAndPreservesDragonAnatomy()
         {
