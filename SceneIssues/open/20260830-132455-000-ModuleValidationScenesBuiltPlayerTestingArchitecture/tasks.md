@@ -12,7 +12,7 @@
 - [x] Preserve focused regressions while removing PlayMode-only visual-acceptance semantics.
 - [x] Update `AGENTS.md`, SceneIssue workflow, CI semantics, and validation documentation.
 - [x] Remove repository-wide/top-level EditMode test assembly; migrate tests into lower-level owning module assemblies. Top-level PlayMode remains integration/smoke only and does not own production paths.
-- [x] Add planner/runner regressions for automatic module discovery, new assembly discovery without registration, contract dependency expansion, top-level PlayMode exclusion, convention player pairing, missing/orphan pairs, manifest rejection, zero/skipped test failure, generic evidence windows, metadata-only no-op changes, and direct module `Tests/*.asmdef` EditMode discovery.
+- [x] Add planner/runner regressions for automatic module discovery, new assembly discovery without registration, contract dependency expansion, top-level PlayMode exclusion, convention player pairing, missing/orphan pairs, manifest rejection, zero/skipped test failure, generic evidence windows, metadata-only no-op changes, direct module `Tests/*.asmdef` EditMode discovery, and graphics-enabled required module execution.
 
 ## Corrective validation history
 - [x] Run `33469098939`: isolate/fix top-level PlayMode synthetic `Assets` ownership ambiguity and add regression before retry.
@@ -33,6 +33,8 @@
 - [x] Fix the demonstrated metadata-selection defect: an owned path now selects module validation only when it is real production or meaningful non-meta module `Validation/` content. Add regressions proving `Tests.meta` and `Runtime.meta` are no-op changes while validation scenes still select their module.
 - [x] Reconcile the 53-commit current master (`e98191876c104ff115a1828b1ce0a6b2d4d4480b`) normally into `fixes/agent-8` via PR #203 at merge commit `1c1dc14b17f09d412d785a91bbf433f5b8e4ffd4`; no force/synthetic merge.
 - [x] Use newly accepted `Assets/Game/Characters/Tests/Game.Characters.Tests.asmdef` as an independent reuse consumer. Generalize module discovery so direct `Tests/*.asmdef` is deterministic EditMode ownership alongside explicit `Tests/{EditMode,PlayMode}`; add regression proving Character-style layout is auto-discovered without module registration. Do not modify Character production or its SceneIssue.
+- [x] Run exact request `33485149715` on `5395435889f50018e60049dd3844bd6e5bc79263`: all 28 Python regressions passed; no fallback; automatic plan correctly selected only Rendering EditMode + Water player + Kentridge player. Rendering ran 254 tests with 229 pass / 25 fail. Twenty-two GPU tests failed because required EditMode was forced through `-nographics`; three Water mesh tests exposed an unrelated per-voxel top-tessellation branch delta.
+- [x] Fix only the demonstrated `33485149715` causes: keep graphics enabled for required module tests and add a runner regression; revert `WaterBrickMeshBatchJob` to current master instead of weakening focused tests or retaining an opportunistic rendering change.
 
 ## Final gates
 - [ ] Run exact-current-head automatic module tests, Water built-player validation, and mandatory Kentridge built-player validation using only `ci-test/fixes/agent-8`.
