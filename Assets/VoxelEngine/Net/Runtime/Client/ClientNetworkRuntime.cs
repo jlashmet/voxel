@@ -27,6 +27,7 @@ namespace VoxelEngine.Net.Runtime.Client
         private readonly Dictionary<ushort, S_PlayerState> _pendingPlayerStates =
             new Dictionary<ushort, S_PlayerState>(16);
         private readonly IClientEventNotificationSink _notifications;
+        private readonly IGameplayStatePacketHandler _gameplayStateHandler;
         private IClientPredictionAdapter _predictionAdapter;
         private ushort _localPlayerId;
         private bool _disposed;
@@ -52,9 +53,11 @@ namespace VoxelEngine.Net.Runtime.Client
             IAlterationApplier alterationApplier,
             IClientEventNotificationSink notifications = null,
             int maxPendingAuthoritativeEvents = ClientAuthoritativeEventQueue.DefaultMaxPendingEvents,
-            int predictionHistoryCapacity = ClientPredictionReconciler.DefaultHistoryCapacity)
+            int predictionHistoryCapacity = ClientPredictionReconciler.DefaultHistoryCapacity,
+            IGameplayStatePacketHandler gameplayStateHandler = null)
         {
             _notifications = notifications;
+            _gameplayStateHandler = gameplayStateHandler;
             _events = new ClientAuthoritativeEventQueue(alterationApplier, maxPendingAuthoritativeEvents);
             _repair = new ClientRegionRepairAssembler();
             _fullState = new ClientRegionStateAssembler();
@@ -334,6 +337,9 @@ namespace VoxelEngine.Net.Runtime.Client
         {
             if (!ProtocolEnvelope.TryReadHeader(packet, out ProtocolMessageKind kind, out _))
                 return false;
+
+            if (kind == ProtocolMessageKind.S_GameplayState)
+                return _gameplayStateHandler != null && _gameplayStateHandler.HandleGameplayStatePacket(packet);
 
             if (kind != ProtocolMessageKind.S_RegionResyncRequired)
                 return _events.TryEnqueueEventPacket(packet, _notifications);
