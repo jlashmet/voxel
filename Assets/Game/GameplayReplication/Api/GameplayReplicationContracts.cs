@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Game.Sessions.Api;
 
 namespace Game.GameplayReplication.Api
 {
@@ -13,6 +14,7 @@ namespace Game.GameplayReplication.Api
 
         public long Value { get; }
         public bool IsInitial => Value == 0;
+        public bool IsValid => Value > 0;
         public GameplayRevision Next() => new GameplayRevision(checked(Value + 1));
         public int CompareTo(GameplayRevision other) => Value.CompareTo(other.Value);
         public bool Equals(GameplayRevision other) => Value == other.Value;
@@ -165,5 +167,55 @@ namespace Game.GameplayReplication.Api
     public interface IGameplayPublicationSink
     {
         GameplayApplyResult Apply(GameplayPublication publication);
+    }
+
+    public enum GameplaySynchronizationPhase
+    {
+        Synchronizing = 0,
+        GameplayReady = 1
+    }
+
+    public enum GameplayRecoveryMode
+    {
+        Repair = 0,
+        FullSnapshot = 1
+    }
+
+    /// <summary>Read-only semantic synchronization state for one durable party member.</summary>
+    public readonly struct GameplaySynchronizationStatus
+    {
+        public GameplaySynchronizationPhase Phase { get; }
+        public GameplayRevision Revision { get; }
+        public bool GameplayReady => Phase == GameplaySynchronizationPhase.GameplayReady;
+
+        public GameplaySynchronizationStatus(GameplaySynchronizationPhase phase, GameplayRevision revision)
+        {
+            Phase = phase;
+            Revision = revision;
+        }
+    }
+
+    /// <summary>Typed current-state projection at one authoritative revision. Transport encoding remains private.</summary>
+    public readonly struct GameplayProjectionSnapshot<TState> where TState : struct
+    {
+        public GameplayRevision Revision { get; }
+        public TState State { get; }
+
+        public GameplayProjectionSnapshot(GameplayRevision revision, TState state)
+        {
+            Revision = revision;
+            State = state;
+        }
+    }
+
+    /// <summary>
+    /// Semantic replication-client seam used by owning systems such as Continuity.
+    /// Implementations own transport, serialization and repair details; callers request recovery and read current truth only.
+    /// </summary>
+    public interface IGameplayReplicationClientState
+    {
+        void RequestRecovery(PartyMemberId memberId, GameplayRecoveryMode mode);
+        bool TryGetSynchronization(PartyMemberId memberId, out GameplaySynchronizationStatus status);
+        bool TryGetCurrent<TState>(PartyMemberId memberId, out GameplayProjectionSnapshot<TState> snapshot) where TState : struct;
     }
 }
