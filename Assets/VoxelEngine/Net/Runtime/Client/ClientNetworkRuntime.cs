@@ -305,7 +305,9 @@ namespace VoxelEngine.Net.Runtime.Client
                 case UtpChannel.Repair:
                     return _repair.TryAcceptPacket(packet);
                 case UtpChannel.Bulk:
-                    return _fullState.TryAcceptPacket(packet);
+                    return IsGameplayStatePacket(packet)
+                        ? _gameplayStateHandler != null && _gameplayStateHandler.HandleGameplayStatePacket(packet)
+                        : _fullState.TryAcceptPacket(packet);
                 default:
                     return false;
             }
@@ -361,6 +363,10 @@ namespace VoxelEngine.Net.Runtime.Client
 
             return true;
         }
+
+        private static bool IsGameplayStatePacket(ReadOnlySpan<byte> packet) =>
+            ProtocolEnvelope.TryReadHeader(packet, out ProtocolMessageKind kind, out _) &&
+            kind == ProtocolMessageKind.S_GameplayState;
 
         void IRegionHashMismatchSink.OnRegionHashMismatch(in C_RegionHashMismatch mismatch)
         {
