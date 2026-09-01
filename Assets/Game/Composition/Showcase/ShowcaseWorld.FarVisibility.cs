@@ -1,12 +1,17 @@
 using System;
 using Game.Structures.Api;
+using Game.Structures.Runtime;
 using VoxelEngine.Structures.Api;
 using VoxelEngine.Structures.Runtime;
+using EnginePresentationComposition = VoxelEngine.Composition.StructurePresentationComposition;
+using GameCastlePlan = Game.Structures.Api.CastlePlan;
 
 namespace VoxelEngine.Showcase
 {
     public sealed partial class ShowcaseWorld
     {
+        private const ulong CastlePresentationSourceDomain = 0x434153544C455052ul; // "CASTLEPR"
+
         private readonly FeaturePresentationManifest _featurePresentation = new();
         private bool _featurePresentationSeeded;
         private bool _castlePresentationCaptured;
@@ -44,12 +49,40 @@ namespace VoxelEngine.Showcase
             if (_castlePresentationCaptured || !_castleTerrainQueued) return;
 
             CastlePlan plan = _hasCastlePlan ? _castlePlan : _pendingCastlePlan;
-            FeaturePresentationBake bake = ShowcaseStructurePresentation.BakeCastle(
-                in plan,
-                Seed,
-                (x, y, z) => MaterialAt(y, SurfaceHeight(x, z)));
-            _featurePresentation.Upsert(bake);
+            IStructurePresentationCaptureSession capture =
+                EnginePresentationComposition.CreateCaptureSession(
+                    (x, y, z) => MaterialAt(y, SurfaceHeight(x, z)));
+
+            // Replay the same canonical semantic authoring recipe used by the detailed castle build.
+            // The capture target is nonresident and records only coarse presentation semantics, so
+            // this cannot allocate or generate any detailed voxel region.
+            GameCastlePlan gamePlan = plan.Value;
+            var build = new CastleAuthoringBuild(capture, in gamePlan, Seed);
+            while (!build.Step()) { }
+
+            ulong sourceId = MixCastlePresentationIdentity(
+                CastlePresentationSourceDomain
+                ^ unchecked((uint)plan.Centre.x)
+                ^ ((ulong)unchecked((uint)plan.Centre.y) << 21)
+                ^ ((ulong)unchecked((uint)plan.Centre.z) << 42));
+            ulong revisionSeed = MixCastlePresentationIdentity(
+                CastlePresentationSourceDomain ^ Seed ^ plan.Seed);
+            _featurePresentation.Upsert(capture.Bake(
+                sourceId,
+                revisionSeed,
+                FeatureKind.Structure,
+                plan.Centre,
+                0));
             _castlePresentationCaptured = true;
+        }
+
+        private static ulong MixCastlePresentationIdentity(ulong value)
+        {
+            value ^= value >> 30;
+            value *= 0xBF58476D1CE4E5B9ul;
+            value ^= value >> 27;
+            value *= 0x94D049BB133111EBul;
+            return value ^ (value >> 31);
         }
 
         /// <summary>
