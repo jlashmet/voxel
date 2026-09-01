@@ -24,15 +24,18 @@ namespace VoxelEngine.Tests.EditMode
             get
             {
                 var dir = new DirectoryInfo(Directory.GetCurrentDirectory());
-                while (dir != null && !Directory.Exists(Path.Combine(dir.FullName, "Packages")))
+                while (dir != null && !Directory.Exists(Path.Combine(dir.FullName, "Assets")))
                     dir = dir.Parent;
-                Assert.NotNull(dir, "Could not locate project root containing Packages/.");
+                Assert.NotNull(dir, "Could not locate project root containing Assets/.");
                 return dir.FullName;
             }
         }
 
-        [TestCase("Runtime/MountingForce.WorldGen.Core.asmdef")]
-        [TestCase("Runtime/Architecture/MountingForce.WorldGen.Architecture.asmdef")]
+        private static string WorldGenRoot => Path.Combine(
+            RepoRoot, "Assets", "Game", "WorldBuilder", "Generation");
+
+        [TestCase("MountingForce.WorldGen.Core.asmdef")]
+        [TestCase("Architecture/MountingForce.WorldGen.Architecture.asmdef")]
         public void SemanticWorldGenAssembliesDoNotReferenceVoxelEngine(string relativeAsmdef)
         {
             var references = ReadReferences(relativeAsmdef);
@@ -48,12 +51,10 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void SemanticWorldGenSourceDoesNotImportVoxelEngine()
         {
-            string packageRoot = Path.Combine(
-                RepoRoot, "Packages", "com.mountingforce.worldgen", "Runtime");
             string[] semanticRoots =
             {
-                Path.Combine(packageRoot, "Core"),
-                Path.Combine(packageRoot, "Architecture"),
+                Path.Combine(WorldGenRoot, "Core"),
+                Path.Combine(WorldGenRoot, "Architecture"),
             };
             var violations = new List<string>();
 
@@ -64,7 +65,7 @@ namespace VoxelEngine.Tests.EditMode
                 {
                     string source = File.ReadAllText(path);
                     if (source.IndexOf("VoxelEngine.", StringComparison.Ordinal) >= 0)
-                        violations.Add(Path.GetRelativePath(packageRoot, path));
+                        violations.Add(Path.GetRelativePath(WorldGenRoot, path));
                 }
             }
 
@@ -76,7 +77,7 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void VoxelAdapterReferencesOnlyEngineApiAssemblies()
         {
-            const string asmdef = "Runtime/Voxel/MountingForce.WorldGen.Voxel.asmdef";
+            const string asmdef = "Voxel/MountingForce.WorldGen.Voxel.asmdef";
             var violations = ReadReferences(asmdef)
                 .Where(r => r.StartsWith("VoxelEngine.", StringComparison.Ordinal)
                             && !r.EndsWith(".Api", StringComparison.Ordinal))
@@ -90,8 +91,7 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void VoxelAdapterSourceDoesNotImportEngineRuntimeNamespaces()
         {
-            string voxelRoot = Path.Combine(
-                RepoRoot, "Packages", "com.mountingforce.worldgen", "Runtime", "Voxel");
+            string voxelRoot = Path.Combine(WorldGenRoot, "Voxel");
             Assert.IsTrue(Directory.Exists(voxelRoot), "Missing WorldGen Voxel adapter root: " + voxelRoot);
             var violations = new List<string>();
 
@@ -110,9 +110,7 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void CastleVegetationPlannerReadsVoxelStateThroughStorageApi()
         {
-            string path = Path.Combine(
-                RepoRoot, "Packages", "com.mountingforce.worldgen", "Runtime", "Voxel",
-                "CastleVegetationPlanner.cs");
+            string path = Path.Combine(WorldGenRoot, "Voxel", "CastleVegetationPlanner.cs");
             Assert.IsTrue(File.Exists(path), "Missing Castle vegetation planner: " + path);
 
             string source = File.ReadAllText(path);
@@ -131,9 +129,7 @@ namespace VoxelEngine.Tests.EditMode
         private static IReadOnlyList<string> ReadReferences(string relativeAsmdef)
         {
             string path = Path.Combine(
-                RepoRoot,
-                "Packages",
-                "com.mountingforce.worldgen",
+                WorldGenRoot,
                 relativeAsmdef.Replace('/', Path.DirectorySeparatorChar));
             Assert.IsTrue(File.Exists(path), "Missing worldgen asmdef: " + path);
 
