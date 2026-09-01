@@ -25,4 +25,4 @@ No far-simulation/streaming requirement for CharacterAI is demonstrated by curre
 
 ## Validation
 
-Headless regressions cover tactical reuse, independent non-combat reuse, deterministic tie-break, rejection/re-observation, autonomous↔tactical transition, and disabled control. Exact-SHA targeted CI plus automatic dependent module validation and standalone SceneIssue replay remain the final gate.
+Headless regressions cover tactical reuse, independent non-combat reuse, deterministic tie-break, rejection/re-observation, autonomous↔tactical transition, and disabled control. Exact feature SHA `0b2537735738aadab770f2e423ba3c0984fff053` passed targeted request `4926ca7399aa9ffefb72cf3b6d82f9c60f5b0a6d` in run `33485434902` / job `99784291857`; focused CharacterAI tests, automatic module validation, and standalone SceneIssue replay all succeeded. No remaining acceptance or validation gates are open.
