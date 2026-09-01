@@ -6,7 +6,8 @@
     "Game.Combat.Api",
     "Game.Combat.Runtime",
     "Game.Encounters.Api",
-    "Game.Encounters.Runtime"
+    "Game.Encounters.Runtime",
+    "Game.Vitality.Api"
   ],
   "includePlatforms": [
     "Editor"
