@@ -5,7 +5,7 @@ using Game.Characters.Api;
 namespace Game.Characters.Runtime
 {
     /// <summary>Single authoritative identity/lifecycle/state registry for every gameplay character.</summary>
-    public sealed class CharacterRegistry : ICharacterRegistry
+    public sealed class CharacterRegistry : ICharacterRegistry, ICharacterRegistryPersistence
     {
         private readonly Dictionary<CharacterId, CharacterSnapshot> _characters =
             new Dictionary<CharacterId, CharacterSnapshot>();
@@ -139,6 +139,83 @@ namespace Game.Characters.Runtime
 
             _retired.Add(id);
             Publish(CharacterEventKind.Removed, id);
+            return CharacterRegistryFailure.None;
+        }
+
+        public CharacterRegistryState CaptureState()
+        {
+            IReadOnlyList<CharacterSnapshot> snapshots = GetAll();
+            var records = new List<CharacterRecord>(snapshots.Count);
+            for (int i = 0; i < snapshots.Count; i++)
+            {
+                CharacterSnapshot snapshot = snapshots[i];
+                records.Add(new CharacterRecord(
+                    snapshot.Definition,
+                    snapshot.Lifecycle,
+                    snapshot.Kinematics,
+                    snapshot.Revision,
+                    BindingsFor(snapshot.Id)));
+            }
+
+            var retired = new List<CharacterId>(_retired);
+            retired.Sort();
+            return new CharacterRegistryState(records, retired);
+        }
+
+        public CharacterRegistryFailure RestoreState(CharacterRegistryState state)
+        {
+            if (state == null) throw new ArgumentNullException(nameof(state));
+            if (_characters.Count != 0 || _bindings.Count != 0 || _retired.Count != 0)
+                return CharacterRegistryFailure.RegistryNotEmpty;
+
+            var characters = new Dictionary<CharacterId, CharacterSnapshot>();
+            var bindings = new Dictionary<CharacterBinding, CharacterId>();
+            var bindingsByCharacter = new Dictionary<CharacterId, List<CharacterBinding>>();
+            var retired = new HashSet<CharacterId>();
+
+            for (int i = 0; i < state.RetiredIds.Count; i++)
+            {
+                CharacterId id = state.RetiredIds[i];
+                if (!id.IsValid || !retired.Add(id)) return CharacterRegistryFailure.InvalidState;
+            }
+
+            for (int i = 0; i < state.Characters.Count; i++)
+            {
+                CharacterRecord record = state.Characters[i];
+                CharacterId id = record.Definition.Id;
+                if (!id.IsValid || record.Revision == 0 || retired.Contains(id) || characters.ContainsKey(id))
+                    return CharacterRegistryFailure.InvalidState;
+                if (record.Lifecycle != CharacterLifecycleState.Active && record.Lifecycle != CharacterLifecycleState.Defeated)
+                    return CharacterRegistryFailure.InvalidState;
+
+                var snapshot = new CharacterSnapshot(
+                    record.Definition,
+                    record.Lifecycle,
+                    record.Kinematics,
+                    record.Revision);
+                characters.Add(id, snapshot);
+                var ownedBindings = new List<CharacterBinding>(record.Bindings.Count);
+                for (int b = 0; b < record.Bindings.Count; b++)
+                {
+                    CharacterBinding binding = record.Bindings[b];
+                    if (!binding.IsValid || bindings.ContainsKey(binding))
+                        return CharacterRegistryFailure.InvalidState;
+                    bindings.Add(binding, id);
+                    ownedBindings.Add(binding);
+                }
+                ownedBindings.Sort();
+                bindingsByCharacter.Add(id, ownedBindings);
+            }
+
+            foreach (KeyValuePair<CharacterId, CharacterSnapshot> pair in characters)
+                _characters.Add(pair.Key, pair.Value);
+            foreach (KeyValuePair<CharacterBinding, CharacterId> pair in bindings)
+                _bindings.Add(pair.Key, pair.Value);
+            foreach (KeyValuePair<CharacterId, List<CharacterBinding>> pair in bindingsByCharacter)
+                _bindingsByCharacter.Add(pair.Key, pair.Value);
+            foreach (CharacterId id in retired)
+                _retired.Add(id);
+
             return CharacterRegistryFailure.None;
         }
 
