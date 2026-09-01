@@ -8,7 +8,7 @@
 
 - [x] **T03-001 — Inventory existing actor representations.** Find player/NPC/enemy/recruit actor records, ids, transforms, lifecycle flags, scene registries, and campaign/world bindings; identify duplicates that represent the same character.
 - [x] **T03-002 — Establish asmdefs.** Create/update `Characters.Api` and `Characters.Runtime`; Runtime may use world/collision APIs, while API remains engine-neutral and Runtime-internal types never cross module boundaries.
-- [ ] **T03-003 — Define `CharacterId`.** Choose one stable semantic identity format and migration/conversion path for existing actor ids; define equality/serialization behavior.
+- [x] **T03-003 — Define `CharacterId`.** Choose one stable semantic identity format and migration/conversion path for existing actor ids; define equality/serialization behavior.
 - [ ] **T03-004 — Define character definition metadata.** Expose only demonstrated semantic role/traits needed by consumers; do not encode separate player/NPC/enemy class hierarchies.
 - [ ] **T03-005 — Define authoritative character snapshot.** Include lifecycle and semantic kinematic/transform state required by gameplay/replication; exclude GameObject/Transform references.
 - [ ] **T03-006 — Define registry/query interface and lifecycle events.** Add create/bind/remove/read contracts with deterministic failure reasons.
