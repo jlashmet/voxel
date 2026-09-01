@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "module": "Game.Combat",
+  "productionPaths": [
+    "Assets/Game/Combat/Api/**",
+    "Assets/Game/Combat/Runtime/**"
+  ],
+  "sharedPaths": [],
+  "tests": [
+    {
+      "platform": "PlayMode",
+      "filter": "VoxelEngine.Tests.PlayMode.CombatCharacterBindingTests"
+    },
+    {
+      "platform": "PlayMode",
+      "filter": "VoxelEngine.Tests.PlayMode.CombatEncounterContractTests"
+    },
+    {
+      "platform": "PlayMode",
+      "filter": "VoxelEngine.Tests.PlayMode.EncounterCombatIntegrationTests"
+    }
+  ],
+  "integrationGate": true,
+  "fallback": false
+}
