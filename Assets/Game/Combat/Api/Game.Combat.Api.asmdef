@@ -1,9 +1,7 @@
 {
   "name": "Game.Combat.Api",
   "rootNamespace": "Game.Combat.Api",
-  "references": [
-    "Game.Characters.Api"
-  ],
+  "references": ["Game.Characters.Api"],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,

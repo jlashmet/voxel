@@ -106,11 +106,17 @@ namespace MountingForce.WorldGen.Voxel
 
             SpatialReservationSnapshot source = KentridgeTownPlanner.BuildReservationSnapshot(seed);
             string hostOwner = "kentridge-site:" + plot.RoleId;
+            string hostRoutePrefix = "kentridge-route:" + plot.RoleId + ":";
             var external = new List<SpatialReservation>(source.Reservations.Count);
             for (int i = 0; i < source.Reservations.Count; i++)
             {
                 SpatialReservation claim = source.Reservations[i];
                 if (string.Equals(claim.OwnerId, hostOwner, StringComparison.Ordinal)) continue;
+                // The planner publishes the building's own generated access route into the same
+                // reservation snapshot. That route is the intended connector handoff for this
+                // public entrance. Treat those road segments as part of the host handoff while still
+                // validating the generated architecture against every other protected road claim.
+                if (claim.OwnerId.StartsWith(hostRoutePrefix, StringComparison.Ordinal)) continue;
                 external.Add(claim);
             }
 

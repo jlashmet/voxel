@@ -83,7 +83,6 @@ namespace Game.Structures.Tests
             AssertVisual(VisualStructureDiagnosticRenderer.Render(capture, min, size, "temple-courtyard-diagnostic"));
         }
 
-        [Test]
         public void WalledCastle_WritesRenderedGeometryPng()
         {
             StructureMaterialPalette palette = CastleStructurePalette.Compatibility;
