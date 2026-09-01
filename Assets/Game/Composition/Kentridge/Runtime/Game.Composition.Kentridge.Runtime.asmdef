@@ -11,7 +11,8 @@
     "Game.WorldBuilder.Api",
     "Game.Quests.Api",
     "Game.Inventory.Api",
-    "Game.Inventory.Runtime"
+    "Game.Inventory.Runtime",
+    "Game.Characters.Api"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
