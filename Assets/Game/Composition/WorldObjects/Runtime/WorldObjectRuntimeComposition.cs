@@ -27,21 +27,41 @@ namespace Game.Composition.WorldObjects.Runtime
             new Dictionary<WorldObjectSceneRegistry, int>();
         private readonly List<WorldObjectSceneRegistry> _tickRegistries =
             new List<WorldObjectSceneRegistry>();
+        private bool _subscribed;
 
         public WorldObjectSceneRegistry Registry => _registry;
         public int LoadedSceneCount => _registry.LoadedSceneCount;
         public int PresentedSceneCount => _presentations.Count;
         public int ActiveRegistryCount => _activeRegistries.Count;
 
-        private void Awake()
+        private void OnEnable()
+        {
+            EnsurePresentationSink();
+            SubscribeLifecycle();
+        }
+
+        private void EnsurePresentationSink()
         {
             if (_presentationSink == null)
                 _presentationSink = GetComponent<UnityWorldObjectPresentationSink>();
             if (_presentationSink == null)
                 _presentationSink = gameObject.AddComponent<UnityWorldObjectPresentationSink>();
+        }
 
+        private void SubscribeLifecycle()
+        {
+            if (_subscribed) return;
             WorldObjectSceneLifecycle.Loaded += OnSceneLoaded;
             WorldObjectSceneLifecycle.Unloaded += OnSceneUnloaded;
+            _subscribed = true;
+        }
+
+        private void UnsubscribeLifecycle()
+        {
+            if (!_subscribed) return;
+            WorldObjectSceneLifecycle.Loaded -= OnSceneLoaded;
+            WorldObjectSceneLifecycle.Unloaded -= OnSceneUnloaded;
+            _subscribed = false;
         }
 
         public WorldObjectGeneratedScene LoadCastle(IStructureAuthoringSession geometry,
@@ -81,8 +101,6 @@ namespace Game.Composition.WorldObjects.Runtime
         {
             if (ticks <= 0 || _activeRegistries.Count == 0) return 0;
 
-            // Tick callbacks can change scene lifecycle. Iterate a stable snapshot so registry load/unload events
-            // cannot invalidate the dictionary enumerator or cause a registry to run twice in one fixed step.
             _tickRegistries.Clear();
             foreach (var pair in _activeRegistries)
                 _tickRegistries.Add(pair.Key);
@@ -102,6 +120,7 @@ namespace Game.Composition.WorldObjects.Runtime
         private void OnSceneLoaded(WorldObjectSceneRegistry registry, uint parentId,
             WorldObjectGeneratedScene scene)
         {
+            EnsurePresentationSink();
             SceneBindingKey key = new SceneBindingKey(registry, parentId);
             bool replacing = _presentations.ContainsKey(key);
             UnbindPresentation(key, releaseRegistry: false);
@@ -139,10 +158,14 @@ namespace Game.Composition.WorldObjects.Runtime
             if (releaseRegistry) ReleaseRegistry(key.Registry);
         }
 
+        private void OnDisable()
+        {
+            UnsubscribeLifecycle();
+        }
+
         private void OnDestroy()
         {
-            WorldObjectSceneLifecycle.Loaded -= OnSceneLoaded;
-            WorldObjectSceneLifecycle.Unloaded -= OnSceneUnloaded;
+            UnsubscribeLifecycle();
             foreach (var pair in _presentations)
                 pair.Value.Dispose();
             _presentations.Clear();
