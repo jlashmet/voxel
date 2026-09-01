@@ -282,8 +282,13 @@ namespace VoxelEngine.Composition
             out float3 extents,
             out float3 scale)
         {
-            float3 min = new float3(bake.BoundsMin) * _voxelSizeMetres;
-            float3 maxExclusive = new float3(bake.BoundsMax + new int3(1)) * _voxelSizeMetres;
+            int3 minVoxel = bake.BoundsMin;
+            int3 maxVoxelExclusive = bake.BoundsMax + new int3(1);
+            float3 min = new float3(minVoxel.x, minVoxel.y, minVoxel.z) * _voxelSizeMetres;
+            float3 maxExclusive = new float3(
+                maxVoxelExclusive.x,
+                maxVoxelExclusive.y,
+                maxVoxelExclusive.z) * _voxelSizeMetres;
             scale = math.max(maxExclusive - min, new float3(_voxelSizeMetres));
             extents = scale * 0.5f;
             center = min + extents;
