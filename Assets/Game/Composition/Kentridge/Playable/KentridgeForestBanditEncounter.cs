@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using Game.Characters.Api;
 using Game.Combat.Api;
 using Game.Combat.Runtime;
+using Game.Encounters.Api;
+using Game.Encounters.Runtime;
 using Game.Input.Api;
 using Game.Input.Runtime;
 using MountingForce.WorldGen;
@@ -15,9 +17,8 @@ namespace Game.Composition.Kentridge.Playable
 {
     /// <summary>
     /// Production composition seam for the first Combat/Input vertical slice in Kentridge.
-    /// The encounter owns only cross-module wiring: authored world placement, proximity lifecycle,
-    /// input-context ownership, battle stepping, and presentation identities. Combat rules remain in Game.Combat,
-    /// while stable gameplay identity/lifecycle/kinematics live in Game.Characters.
+    /// Encounter lifecycle and membership are authoritative in Game.Encounters; this component owns only
+    /// authored world realization, proximity reporting, Combat mapping, input context and presentation.
     /// </summary>
     [DefaultExecutionOrder(-10000)]
     public sealed class KentridgeForestBanditEncounter : MonoBehaviour
@@ -31,6 +32,7 @@ namespace Game.Composition.Kentridge.Playable
         private const float BattleActionIntervalSeconds = 0.10f;
         private static readonly LocalPlayerId LocalPlayer = new LocalPlayerId(0);
         private static readonly CombatParticipantId PlayerParticipant = new CombatParticipantId("kentridge-player");
+        private static readonly EncounterId ForestBanditEncounterId = new EncounterId("kentridge-forest-bandits");
 
         [SerializeField] private float _triggerRadiusMetres = 9f;
         [SerializeField] private float _groundResolveRadiusMetres = 96f;
@@ -39,6 +41,7 @@ namespace Game.Composition.Kentridge.Playable
         private readonly bool[] _grounded = new bool[3];
         private readonly CharacterId[] _banditCharacterIds = new CharacterId[3];
         private ICharacterRegistry _characters;
+        private EncounterRegistry _encounters;
         private InputContextService _inputContexts;
         private UnityPlayerInputReader _inputReader;
         private CombatService _combat;
@@ -48,7 +51,6 @@ namespace Game.Composition.Kentridge.Playable
         private Vector3 _ambushCenterWorld;
         private RegionThemeKind _ambushTheme;
         private float _nextBattleActionTime;
-        private bool _encounterResolved;
 
         public int BanditCount => _bandits.Count;
         public IReadOnlyList<GameObject> Bandits => _bandits;
@@ -56,7 +58,15 @@ namespace Game.Composition.Kentridge.Playable
         public Vector3 AmbushCenterWorld => _ambushCenterWorld;
         public RegionThemeKind AmbushTheme => _ambushTheme;
         public bool CombatActive => _combat != null && _combat.IsActive;
-        public bool CombatResolved => _encounterResolved;
+        public bool CombatResolved
+        {
+            get
+            {
+                return _encounters != null &&
+                       _encounters.TryGet(ForestBanditEncounterId, out EncounterSnapshot snapshot) &&
+                       (snapshot.Lifecycle == EncounterLifecycleState.Resolved || snapshot.Lifecycle == EncounterLifecycleState.Cleaned);
+            }
+        }
         public CombatTeam? WinningTeam => _combat == null ? null : _combat.WinningTeam;
         public int CombatActionCount => _combat == null ? 0 : _combat.ActionCount;
         public int CombatTurnNumber => _combat == null ? 0 : _combat.TurnNumber;
@@ -114,19 +124,25 @@ namespace Game.Composition.Kentridge.Playable
                 throw new InvalidOperationException(
                     "Kentridge forest encounter requires the playable character registry anchor before actor realization.");
             _characters = anchor.Characters;
+            _encounters = new EncounterRegistry(_characters);
+            RequireEncounterSuccess(
+                _encounters.Register(
+                    new EncounterDefinition(ForestBanditEncounterId, EncounterCombatPolicy.Required, "forest-ambush"),
+                    out _),
+                "register Kentridge forest encounter");
             SpawnBandits();
         }
 
         private void Update()
         {
-            if (_bandits.Count != 3 || _combat == null) return;
+            if (_bandits.Count != 3 || _combat == null || _encounters == null) return;
 
             ResolveBanditGroundNearPlayer();
             SyncBanditCharacters();
 
             if (!_combat.IsActive)
             {
-                if (_encounterResolved) return;
+                if (CombatResolved) return;
 
                 float triggerSquared = _triggerRadiusMetres * _triggerRadiusMetres;
                 Vector3 player = transform.position;
@@ -136,7 +152,7 @@ namespace Game.Composition.Kentridge.Playable
                     if (bandit == null) continue;
                     FacePlayer(bandit.transform, player);
                     if (PlanarDistanceSquared(player, bandit.transform.position) > triggerSquared) continue;
-                    BeginBanditCombat();
+                    ReportProximityActivation();
                     _inputReader.SuppressLegacyReadersForCurrentFrame();
                     break;
                 }
@@ -228,6 +244,12 @@ namespace Game.Composition.Kentridge.Playable
                 RequireSuccess(
                     _characters.Bind(id, new CharacterBinding("encounter-member", "kentridge-forest-bandits/" + (i + 1))),
                     "bind forest bandit encounter identity");
+                RequireEncounterSuccess(
+                    _encounters.Join(
+                        ForestBanditEncounterId,
+                        new EncounterParticipant(id, EncounterParticipantOwnership.EncounterOwned, "enemy"),
+                        out _),
+                    "join forest bandit encounter membership");
             }
         }
 
@@ -272,22 +294,69 @@ namespace Game.Composition.Kentridge.Playable
             }
         }
 
-        private void BeginBanditCombat()
+        private void ReportProximityActivation()
         {
-            if (_combat.IsActive || _encounterResolved) return;
+            if (_combat.IsActive || CombatResolved) return;
 
-            var participants = new CombatParticipant[4];
-            participants[0] = new CombatParticipant(PlayerParticipant, CombatTeam.Player);
-            for (int i = 0; i < 3; i++)
-                participants[i + 1] = new CombatParticipant(
-                    new CombatParticipantId("forest-bandit-" + (i + 1)),
-                    CombatTeam.Enemy);
+            if (!_characters.TryResolve(new CharacterBinding("combat-participant", PlayerParticipant.Value), out CharacterId player))
+                throw new InvalidOperationException("Kentridge combat player is not bound to gameplay character authority.");
+            RequireEncounterSuccess(
+                _encounters.Join(
+                    ForestBanditEncounterId,
+                    new EncounterParticipant(player, EncounterParticipantOwnership.Persistent, "player"),
+                    out _),
+                "join Kentridge player encounter membership");
+            RequireEncounterSuccess(
+                _encounters.Activate(
+                    new EncounterActivationRequest(
+                        ForestBanditEncounterId,
+                        "player-proximity",
+                        "kentridge-pine-forest-ambush"),
+                    out _),
+                "activate Kentridge forest encounter");
 
-            _combat.BeginCombat(new CombatEncounterRequest("kentridge-forest-bandits", participants));
+            if (!_encounters.TryTakeCombatRequest(out EncounterCombatRequest request))
+                throw new InvalidOperationException("Kentridge forest encounter activated without its required Combat request.");
+            BeginBanditCombat(request);
+        }
+
+        private void BeginBanditCombat(EncounterCombatRequest request)
+        {
+            if (_combat.IsActive || CombatResolved) return;
+            if (request == null || request.EncounterId != ForestBanditEncounterId)
+                throw new InvalidOperationException("Kentridge received an unexpected Encounter Combat request.");
+
+            var participants = new CombatParticipant[request.Participants.Count];
+            int next = 0;
+            for (int i = 0; i < request.Participants.Count; i++)
+            {
+                EncounterParticipant member = request.Participants[i];
+                if (member.Role == "player")
+                {
+                    participants[next++] = new CombatParticipant(PlayerParticipant, CombatTeam.Player);
+                    continue;
+                }
+                if (!_characters.TryGet(member.CharacterId, out _))
+                    throw new InvalidOperationException("Encounter Combat member no longer exists: " + member.CharacterId + ".");
+                string combatKey = ResolveCombatParticipantKey(member.CharacterId);
+                participants[next++] = new CombatParticipant(new CombatParticipantId(combatKey), CombatTeam.Enemy);
+            }
+
+            _combat.BeginCombat(new CombatEncounterRequest(request.EncounterId.Value, participants));
             _combatContext = _inputContexts.Push(InputContextId.Combat);
             _combatInput = new CombatInputController(_combat, _inputReader, LocalPlayer, PlayerParticipant);
             _battleDriver = new CombatAiBattleDriver(_combat, AutonomousBattleSeed);
             _nextBattleActionTime = Time.unscaledTime + BattleActionIntervalSeconds;
+        }
+
+        private string ResolveCombatParticipantKey(CharacterId characterId)
+        {
+            for (int i = 0; i < _banditCharacterIds.Length; i++)
+            {
+                if (_banditCharacterIds[i] == characterId)
+                    return "forest-bandit-" + (i + 1);
+            }
+            throw new InvalidOperationException("Encounter member has no Kentridge Combat realization: " + characterId + ".");
         }
 
         private void SettleCompletedCombat()
@@ -298,20 +367,29 @@ namespace Game.Composition.Kentridge.Playable
             if (_battleDriver != null && _battleDriver.HasPendingAction)
                 throw new InvalidOperationException(_battleDriver.Diagnostic("Kentridge combat completed with pending AI work."));
 
+            EncounterResolution encounterResolution;
             if (_combat.WinningTeam.Value == CombatTeam.Player)
             {
                 for (int i = 0; i < _banditCharacterIds.Length; i++)
                     MarkDefeated(_banditCharacterIds[i], "mark defeated forest bandit");
+                encounterResolution = new EncounterResolution(EncounterResolutionResult.Completed, "combat-victory");
             }
             else
             {
-                CharacterId player;
-                if (!_characters.TryResolve(new CharacterBinding("combat-participant", PlayerParticipant.Value), out player))
+                if (!_characters.TryResolve(new CharacterBinding("combat-participant", PlayerParticipant.Value), out CharacterId player))
                     throw new InvalidOperationException("Kentridge combat player is not bound to gameplay character authority.");
                 MarkDefeated(player, "mark defeated Kentridge player");
+                encounterResolution = new EncounterResolution(EncounterResolutionResult.Failed, "combat-defeat");
             }
 
-            _encounterResolved = true;
+            RequireEncounterSuccess(
+                _encounters.ApplyCombatResolved(ForestBanditEncounterId, encounterResolution, out _),
+                "resolve Kentridge forest encounter from Combat");
+            RequireEncounterSuccess(
+                _encounters.Cleanup(ForestBanditEncounterId, out _),
+                "clean Kentridge forest encounter");
+            ApplyEncounterCleanupFacts();
+
             _combatInput = null;
             ReleaseCombatContext();
             Debug.Log(
@@ -320,6 +398,26 @@ namespace Game.Composition.Kentridge.Playable
                 " actions=" + _combat.ActionCount +
                 " turns=" + _combat.TurnNumber +
                 " pending=" + HasPendingCombatWork);
+        }
+
+        private void ApplyEncounterCleanupFacts()
+        {
+            IReadOnlyList<EncounterFact> facts = _encounters.DrainFacts();
+            for (int i = 0; i < facts.Count; i++)
+            {
+                EncounterFact fact = facts[i];
+                if (fact.Kind != EncounterFactKind.CleanupCharacter || !fact.CharacterId.IsValid) continue;
+                CharacterRegistryFailure failure = _characters.Remove(fact.CharacterId);
+                if (failure != CharacterRegistryFailure.None && failure != CharacterRegistryFailure.UnknownCharacterId)
+                    RequireSuccess(failure, "remove encounter-owned Kentridge character");
+                for (int banditIndex = 0; banditIndex < _banditCharacterIds.Length; banditIndex++)
+                {
+                    if (_banditCharacterIds[banditIndex] != fact.CharacterId) continue;
+                    if (banditIndex < _bandits.Count && _bandits[banditIndex] != null)
+                        Destroy(_bandits[banditIndex]);
+                    break;
+                }
+            }
         }
 
         private void MarkDefeated(CharacterId id, string operation)
@@ -352,6 +450,12 @@ namespace Game.Composition.Kentridge.Playable
         private static void RequireSuccess(CharacterRegistryFailure failure, string operation)
         {
             if (failure != CharacterRegistryFailure.None)
+                throw new InvalidOperationException(operation + " failed: " + failure + ".");
+        }
+
+        private static void RequireEncounterSuccess(EncounterMutationFailure failure, string operation)
+        {
+            if (failure != EncounterMutationFailure.None)
                 throw new InvalidOperationException(operation + " failed: " + failure + ".");
         }
 
