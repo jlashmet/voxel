@@ -35,10 +35,10 @@ namespace VoxelEngine.Tests.EditMode
                 new ShowcaseFarStructureSource.ClusterConfiguration(
                     200,
                     (_, __) => FarStructureTier.Culled));
-            IReadOnlyList<FarStructureInstance> midInstances = mid.Query(camera, 100f);
+            IReadOnlyList<FarFeatureInstance> midInstances = mid.Query(camera, 100f);
 
             Assert.That(midInstances.Count, Is.EqualTo(4));
-            Assert.That(midInstances.Any(value => value.ProxyKey == "settlement-cluster"), Is.False);
+            Assert.That(midInstances.Any(value => value.GeometryKey == "settlement-cluster"), Is.False);
 
             var far = new ShowcaseFarStructureSource(
                 source,
@@ -47,12 +47,12 @@ namespace VoxelEngine.Tests.EditMode
                 new ShowcaseFarStructureSource.ClusterConfiguration(
                     200,
                     (_, __) => FarStructureTier.Far));
-            IReadOnlyList<FarStructureInstance> farInstances = far.Query(camera, 100f);
+            IReadOnlyList<FarFeatureInstance> farInstances = far.Query(camera, 100f);
 
             Assert.That(farInstances.Count, Is.EqualTo(2),
                 "Three ordinary structures should collapse to one cluster while the landmark remains independent.");
-            FarStructureInstance cluster = farInstances.Single(value => value.ProxyKey == "settlement-cluster");
-            Assert.That(cluster.Tier, Is.EqualTo(FarStructureTier.Far));
+            FarFeatureInstance cluster = farInstances.Single(value => value.GeometryKey == "settlement-cluster");
+            Assert.That(cluster.Tier, Is.EqualTo(FarFeatureTier.Far));
             Assert.That(farInstances.Any(value => value.StableId == 99UL), Is.True);
             Assert.That(farInstances.Any(value => value.StableId == 1UL || value.StableId == 2UL || value.StableId == 3UL), Is.False);
         }
