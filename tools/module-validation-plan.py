@@ -78,6 +78,11 @@ def _module_for_path(path: str, modules: list[dict]) -> dict | None:
     return max(candidates, key=lambda m: len(m["root"]), default=None)
 
 
+def _is_test_path(path: str) -> bool:
+    path = path.replace("\\", "/")
+    return "/Tests/" in path or path.startswith("Assets/Tests/")
+
+
 def _discover_player_targets(module_root: Path, root: Path, module_name: str) -> list[dict]:
     validation_root = module_root / "Validation"
     if not validation_root.is_dir():
@@ -178,7 +183,9 @@ def is_production(path: str) -> bool:
     path = path.replace("\\", "/")
     if not path.startswith("Assets/") or path.endswith(".meta"):
         return False
-    if "/Tests/" in path or path.startswith("Assets/Tests/"):
+    if _is_test_path(path):
+        return False
+    if path.endswith(".module-validation.json"):
         return False
     if "/Validation/" in path or path.endswith(".player-scenario.json"):
         return False
@@ -208,7 +215,7 @@ def plan(changed_paths: list[str], discovered: dict) -> dict:
 
     for path in changed:
         owner = _module_for_path(path, modules)
-        if owner:
+        if owner and not _is_test_path(path):
             selected.add(owner["name"])
             if is_production(path):
                 direct_production.add(owner["name"])
