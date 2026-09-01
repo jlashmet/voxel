@@ -22,7 +22,6 @@ namespace VoxelEngine.Showcase
     {
         private const int GallerySecretCaveX = -1340;
         private const int GallerySecretCaveZ = 220;
-        private const int GallerySecretCaveCoverDepth = 48;
 
         private bool _gallerySecretDiscoveryReady;
         private CaveSecretPocketProjection _gallerySecretPocket;
@@ -115,7 +114,7 @@ namespace VoxelEngine.Showcase
         private int3 WorldbuildingGallerySecretCaveEntrance()
         {
             int surfaceY = TerrainQuery.HeightAt(GallerySecretCaveX, GallerySecretCaveZ, Seed);
-            return new int3(GallerySecretCaveX, surfaceY - GallerySecretCaveCoverDepth, GallerySecretCaveZ);
+            return new int3(GallerySecretCaveX, surfaceY + 1, GallerySecretCaveZ);
         }
 
         private void PreloadWorldbuildingGallerySecretCaveRegions(int3 entrance)
@@ -138,13 +137,15 @@ namespace VoxelEngine.Showcase
             caveConfig.BranchSegmentCount = 5;
             caveConfig.BranchChancePercent = 70;
             caveConfig.ChamberChancePercent = 25;
-            caveConfig.SurfaceDescentSegments = 0;
+            caveConfig.SurfaceDescentSegments = 6;
+            caveConfig.SurfaceDescentPerSegment = 8;
             caveConfig.BoundsHalfExtents = new int3(240, 96, 240);
             caveConfig.MinVerticalOffset = -72;
             caveConfig.MaxVerticalOffset = 16;
 
-            CaveGenerationRequest request = CaveGenerationRequest.Underground(
+            CaveGenerationRequest request = CaveGenerationRequest.Standalone(
                 0x5742475345435245ul,
+                Seed,
                 entrance,
                 Facing.North,
                 caveConfig.TunnelWidth,
