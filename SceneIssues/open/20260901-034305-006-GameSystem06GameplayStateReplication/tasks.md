@@ -6,7 +6,7 @@
 
 ## Baseline / contracts
 
-- [ ] **T06-001 — Map existing network spine.** Identify authoritative tick, serialization, snapshot/delta, late-join, repair/resync, prediction/reconciliation and interest-management paths that must be reused.
+- [x] **T06-001 — Map existing network spine.** UTP 6.5.0 is installed and NGO is absent, but current production source contains no authoritative network tick, serialization/frame codec, snapshot/delta, late-join/catch-up, repair/resync, prediction/reconciliation, connection/session loop, or interest-management implementation to reuse. This missing prerequisite is recorded in `plan.md`; transport-dependent acceptance remains unchanged and blocked rather than replaced.
 - [ ] **T06-002 — Establish asmdefs and transport boundary.** GameplayReplication.Runtime may adapt existing network APIs; GameplayReplication.Api must not expose UTP packet/connection types.
 - [ ] **T06-003 — Define global gameplay revision semantics.** Specify monotonic revision/order rules and what constitutes one coherent published authoritative revision.
 - [ ] **T06-004 — Define subsystem projection registration seam.** Owning modules contribute typed snapshots/deltas through their APIs/adapters without referencing replication Runtime.
@@ -16,23 +16,23 @@
 
 ## Runtime integration
 
-- [ ] **T06-010 — Reuse server publication tick.** Publish gameplay projections on the existing authoritative network cadence rather than creating another loop.
+- [ ] **T06-010 — Reuse server publication tick.** Publish gameplay projections on the existing authoritative network cadence rather than creating another loop. **BLOCKED:** production network cadence/spine is absent on current master.
 - [ ] **T06-011 — Add Characters projection.** Current CharacterId/lifecycle/kinematic truth; no presentation GameObjects.
-- [ ] **T06-012 — Add Vitality projection.** Current vitality/defeat truth with deterministic revision application.
+- [ ] **T06-012 — Add Vitality projection.** Current vitality/defeat truth with deterministic revision application. **BLOCKED if Vitality API is not yet present on current master.**
 - [ ] **T06-013 — Add Encounter and Combat projections.** Replicate current lifecycle/session truth without moving authority into the network layer.
 - [ ] **T06-014 — Add Inventory and Progression projections.** Preserve coherent inventories/objectives and avoid reconstructing truth from event history.
 - [ ] **T06-015 — Add Sessions/Continuity/Outcome projections as their APIs land.** Durable ids remain owned by their modules.
-- [ ] **T06-016 — Implement client revision application.** Reject stale/out-of-order deltas, dedupe repeats, detect gaps and request/trigger existing repair semantics.
-- [ ] **T06-017 — Implement late-join full current-state convergence.** New clients reach the latest coherent authoritative state before GameplayReady.
-- [ ] **T06-018 — Implement reconnect convergence.** Recovery may use fast repair or full snapshot but must expose the same resulting current truth and no historical one-shot replay.
+- [ ] **T06-016 — Implement client revision application.** Reject stale/out-of-order deltas, dedupe repeats, detect gaps and request/trigger existing repair semantics. **Repair transport hook blocked by missing network spine; local gap semantics remain independently implementable.**
+- [ ] **T06-017 — Implement late-join full current-state convergence.** New clients reach the latest coherent authoritative state before GameplayReady. **Transport integration blocked by missing network spine.**
+- [ ] **T06-018 — Implement reconnect convergence.** Recovery may use fast repair or full snapshot but must expose the same resulting current truth and no historical one-shot replay. **Transport integration blocked by missing network spine.**
 
 ## Verification
 
 - [ ] **T06-020 — Projection determinism tests.** Same authoritative subsystem snapshots produce stable serialized semantic projections/order.
 - [ ] **T06-021 — Stale/gap/dedupe tests.** Exercise old revision, duplicate delta, missing revision and repair path.
-- [ ] **T06-022 — Existing UTP loopback integration.** Two clients converge on character/vitality plus at least one transactional domain.
-- [ ] **T06-023 — Late-join test.** Mutate state before join and prove the joiner receives current state without event replay.
-- [ ] **T06-024 — Reconnect test support.** Verify state changes while absent appear after resync; identity continuity is asserted in system 08.
+- [ ] **T06-022 — Existing UTP loopback integration.** Two clients converge on character/vitality plus at least one transactional domain. **BLOCKED:** no existing production UTP loopback/server spine is present.
+- [ ] **T06-023 — Late-join test.** Mutate state before join and prove the joiner receives current state without event replay. **Transport integration blocked by missing network spine.**
+- [ ] **T06-024 — Reconnect test support.** Verify state changes while absent appear after resync; identity continuity is asserted in system 08. **Transport integration blocked by missing network spine.**
 - [ ] **T06-025 — Headless/no-presentation test.** Replication operates without HUD/audio/VFX assemblies.
 - [ ] **T06-026 — Automatic module/dependent test run.** No manual per-test CI registration.
 
