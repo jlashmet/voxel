@@ -16,7 +16,8 @@
   - **BLOCKED:** public signature depends on the System 03 `CharacterId` contract.
 - [ ] **T02-005 — Define defeat transition/event.** Guarantee one transition event when crossing the terminal threshold; do not conflate defeat with removal, combat resolution, or game outcome.
   - **BLOCKED:** public signature depends on the System 03 `CharacterId` contract.
-- [ ] **T02-006 — Add heal/restore contract only if required.** Inspect current content/tests first; do not invent revive/respawn semantics.
+- [x] **T02-006 — Add heal/restore contract only if required.** Inspect current content/tests first; do not invent revive/respawn semantics.
+  - Evidence: `CombatCore.CombatState`, production `CombatService`, and `ChainCombatBoard` demonstrate initialization/reset plus damage/defeat only; no in-session heal/revive operation is present. No public healing/revive command will be invented. Snapshot restore remains the separate persistence seam in T02-013.
 
 ## Runtime
 
