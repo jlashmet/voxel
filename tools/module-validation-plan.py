@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Diff-driven validation planning from repository structure.
 
-A module is any Assets subtree that owns Tests/EditMode and/or Tests/PlayMode
-assemblies. Production ownership is the longest matching module root. Focused
-Unity tests are every asmdef below the owning module's test directories.
-Player-visible validation is opt-in by placing paired scene/scenario files under
+A module is any lower-level Assets subtree that owns Tests/EditMode and/or
+Tests/PlayMode assemblies. Repository-wide Assets/Tests/PlayMode remains a
+high-level integration/smoke assembly and does not define production ownership.
+Production ownership is the longest matching module root. Focused Unity tests
+are every asmdef below the owning module's test directories. Player-visible
+validation is opt-in by placing paired scene/scenario files under
 <module>/Validation. KentridgePlayableSlice is the canonical production-change
 integration gate.
 """
@@ -61,7 +63,13 @@ def _module_roots(root: Path) -> list[Path]:
                 continue
             if tests_index == 0:
                 continue
-            roots.add(root.joinpath(*parts[:tests_index]))
+            module_parts = parts[:tests_index]
+            # Assets/Tests/PlayMode is intentionally the repository-wide
+            # integration/smoke layer. It must not claim every production
+            # assembly as a lower-level module owner.
+            if module_parts == ("Assets",):
+                continue
+            roots.add(root.joinpath(*module_parts))
     return sorted(roots, key=lambda p: p.as_posix())
 
 
