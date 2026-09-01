@@ -2,6 +2,7 @@ using Game.Structures.Api;
 using Unity.Mathematics;
 using VoxelEngine.Structures.Api;
 using VoxelEngine.Structures.Runtime;
+using GameCastlePlan = Game.Structures.Api.CastlePlan;
 
 namespace VoxelEngine.Showcase
 {
@@ -53,27 +54,27 @@ namespace VoxelEngine.Showcase
     {
         private readonly Game.Structures.Runtime.CastleAuthoringBuild _inner;
 
-        public CastleAuthoringBuild(IStructureAuthoringSession authoring, in CastlePlan plan, uint terrainSeed)
+        public CastleAuthoringBuild(IStructureAuthoringSession authoring, in GameCastlePlan plan, uint terrainSeed)
         {
             _inner = new Game.Structures.Runtime.CastleAuthoringBuild(
                 authoring, new CaveAuthoringService(), in plan, terrainSeed);
         }
 
-        public CastleAuthoringBuild(IStructureAuthoringSession authoring, in CastlePlan plan,
+        public CastleAuthoringBuild(IStructureAuthoringSession authoring, in GameCastlePlan plan,
             CastleComponentConfig components, uint terrainSeed)
         {
             _inner = new Game.Structures.Runtime.CastleAuthoringBuild(
                 authoring, new CaveAuthoringService(), in plan, components, terrainSeed);
         }
 
-        public CastleAuthoringBuild(IStructureAuthoringSession authoring, in CastlePlan plan,
+        public CastleAuthoringBuild(IStructureAuthoringSession authoring, in GameCastlePlan plan,
             CastleComponentConfig components, CastleCurtainConfig curtain, uint terrainSeed)
         {
             _inner = new Game.Structures.Runtime.CastleAuthoringBuild(
                 authoring, new CaveAuthoringService(), in plan, components, curtain, terrainSeed);
         }
 
-        public CastleAuthoringBuild(IStructureAuthoringSession authoring, in CastlePlan plan,
+        public CastleAuthoringBuild(IStructureAuthoringSession authoring, in GameCastlePlan plan,
             CastlePresetConfig preset, uint terrainSeed)
         {
             _inner = new Game.Structures.Runtime.CastleAuthoringBuild(
