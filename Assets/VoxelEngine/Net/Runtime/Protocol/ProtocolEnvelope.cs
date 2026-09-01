@@ -24,6 +24,7 @@ namespace VoxelEngine.Net.Runtime.Protocol
         S_PlayerState = 38,
         S_RegionResyncRequired = 39,
         S_RegionStateFence = 40,
+        S_GameplayState = 41,
     }
 
     public static class ProtocolEnvelope
@@ -79,6 +80,7 @@ namespace VoxelEngine.Net.Runtime.Protocol
                 case ProtocolMessageKind.S_PlayerState:
                 case ProtocolMessageKind.S_RegionResyncRequired:
                 case ProtocolMessageKind.S_RegionStateFence:
+                case ProtocolMessageKind.S_GameplayState:
                     return true;
                 default:
                     return false;
