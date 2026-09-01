@@ -88,7 +88,8 @@ These are existing foundations and are not candidates to rebuild from scratch.
   - Derive transient and state-driven visual feedback from semantic gameplay truth without coupling authority to Unity VFX, prefab identity, or cosmetic destruction.
 - [x] **23. [Application frontend, menus, settings & session start flow](game-systems/23-application-frontend-menus-settings-session-start-flow.md)**
   - Host local application/menu navigation and settings over semantic session/persistence/input capabilities, with Unity Input System device normalization beneath the engine-neutral game input API.
-- [ ] **24. Integrated built-player vertical slice**
+- [x] **24. [Production-composed built-player vertical slice](game-systems/24-production-composed-built-player-vertical-slice.md)**
+  - Prove the production frontend/session/input/gameplay/presentation composition in the canonical standalone-player Kentridge slice without scene-local substitute runtimes or privileged test shortcuts.
 - [ ] **25. Multiplayer end-to-end gameplay tests**
 - [ ] **26. Full-game/session progression loop**
 
