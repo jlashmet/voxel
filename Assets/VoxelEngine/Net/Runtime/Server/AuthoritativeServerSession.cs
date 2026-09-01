@@ -23,6 +23,7 @@ namespace VoxelEngine.Net.Runtime.Server
         private readonly ServerBulkRegionStateManager _bulkRegionState;
         private readonly ServerPlayerStateReplicator _playerStates;
         private readonly IAlterationApplier _defaultAlterationApplier;
+        private readonly IAuthoritativeGameplayStateEmitter _gameplayStateEmitter;
         private bool _disposed;
 
         public event Action<uint, NetworkEndpoint> ConnectionOpened;
@@ -39,7 +40,8 @@ namespace VoxelEngine.Net.Runtime.Server
             int maxConnections = 64,
             int initialEventCapacity = 64,
             uint hashIntervalTicks = ServerConvergenceManager.DefaultHashIntervalTicks,
-            uint playerStateIntervalTicks = ServerPlayerStateReplicator.DefaultIntervalTicks)
+            uint playerStateIntervalTicks = ServerPlayerStateReplicator.DefaultIntervalTicks,
+            IAuthoritativeGameplayStateEmitter gameplayStateEmitter = null)
         {
             _inbox = new ServerCommandInbox();
             _convergenceInbox = new ServerConvergenceInbox();
@@ -57,6 +59,7 @@ namespace VoxelEngine.Net.Runtime.Server
             _bulkRegionState = new ServerBulkRegionStateManager(_regionStateInbox, _players);
             _playerStates = new ServerPlayerStateReplicator(_players, _processor, playerStateIntervalTicks);
             _defaultAlterationApplier = alterationApplier;
+            _gameplayStateEmitter = gameplayStateEmitter;
 
             _network.ConnectionOpened += OnConnectionOpened;
             _network.ConnectionClosed += OnConnectionClosed;
@@ -196,6 +199,7 @@ namespace VoxelEngine.Net.Runtime.Server
             // Game-owned ApplyInput may update ServerPlayerRegistry kinematics through
             // UpdateAuthoritativePlayerKinematics. Sample only after the fixed-tick input work is done.
             _playerStates.Emit(serverTick, _network.Replication.Subscriptions, _network);
+            _gameplayStateEmitter?.Emit(serverTick, _players, _network);
 
             _network.FlushReplication();
             _convergence.EmitHashes(
