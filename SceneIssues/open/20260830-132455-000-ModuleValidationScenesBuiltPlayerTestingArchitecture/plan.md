@@ -26,15 +26,17 @@
 - Run `33463299020` failed before Unity because a residual interactables manifest remained; that obsolete registration was removed.
 - Run `33464201573` then failed before Unity because the already-completed SpatialReservations assignment had merged a legacy `spatial-reservations.module-validation.json`; audit proved the SceneIssue was already closed and the file was stale residue, so agent-8 removed only that obsolete registration.
 - Exact request run `33469098939` for feature `53d2fa1029468984d6cfb76046d4968d0aca7ae3` exposed a second planner defect before Unity: `Assets/Tests/PlayMode/VoxelEngine.Tests.PlayMode.asmdef` created synthetic module root `Assets`, so every lower-level runtime assembly had two owners (first reported `Game.Composition.CharacterEquipment.Editor`). The root cause is now isolated and covered by a regression: top-level PlayMode remains available as integration/smoke but is excluded from lower-level production ownership. Planner fix landed at `d19241e8494ce68f9b34ce57f0b78c8559d1b7d7`.
+- Exact request run `33469680497` for feature `af0bbf774f65a4cf0d610802aa9aa9938a32f781` passed planning and repository Python/planner regressions, then failed Unity compilation because migrated module-owned EditMode assemblies no longer matched Rendering's legacy `InternalsVisibleTo("VoxelEngine.Tests.EditMode")` declaration. The failure was limited to legitimate internal Rendering test consumers in `VoxelEngine.Rendering.Tests.EditMode`, `VoxelEngine.Storage.Tests.EditMode`, and `Game.WorldBuilder.Tests.EditMode`; the test-only friend boundary was corrected without widening production APIs.
 - Static audit confirms current `WaterDemo.unity` is a thin production consumer and `WaterDemo.player-scenario.json` contains only executable timing/capture/assertion behavior.
 
 ## Blast radius
-CI/orchestration; module/test-assembly discovery; removal of module-registration manifests/docs; migration of broad EditMode ownership; convention-based module-local player target discovery; validation tests/assets; thin Water validation composition. No new simulation/collision policy or adjacent-system refactor.
+CI/orchestration; module/test-assembly discovery; removal of module-registration manifests/docs; migration of broad EditMode ownership; convention-based module-local player target discovery; validation tests/assets; thin Water validation composition. The latest correction only updates Rendering's test friend-assembly access for migrated test consumers. No new simulation/collision policy or adjacent-system refactor.
 
 ## Remaining gates
 - [x] Reconcile checklist items with the implemented module-owned assembly migration and convention regressions.
 - [x] Remove the stale SpatialReservations `*.module-validation.json` residue after verifying its owning SceneIssue was already closed.
 - [x] Isolate/fix top-level PlayMode falsely claiming production ownership; preserve it as high-level smoke/integration only.
+- [x] Correct Rendering internal-test access for the three migrated EditMode assemblies exposed by exact-head run `33469680497`.
 - [ ] Run exact-current-head automatic module tests, Water built-player, and mandatory Kentridge built-player validation using only `ci-test/fixes/agent-8`.
 - [ ] Inspect every retained Water standalone post-readiness frame and verify production quality/evidence-window pruning.
 - [ ] Review all 18 acceptance criteria; complete metadata/closure only after green exact-SHA proof.
