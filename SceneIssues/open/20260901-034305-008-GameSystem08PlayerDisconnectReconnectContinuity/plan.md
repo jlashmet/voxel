@@ -11,37 +11,55 @@ Recovery state (`Connected`, `ConnectionInterrupted`, `Reconnecting`, `Resynchro
 1. Observe transport loss without deleting Sessions membership or character binding.
 2. Reserve member/slot/CharacterId through configured continuity grace.
 3. Reauthenticate a new transport connection to the existing durable member.
-4. Select fast repair versus full resynchronization using existing network capabilities; this choice is an optimization, not identity policy.
-5. Restore input authority only after #06 GameplayReady.
+4. Select fast repair versus full resynchronization through a semantic GameplayReplication API; this choice is an optimization, not identity policy.
+5. Restore gameplay/input authority only after GameplayReplication reports `GameplayReady` at a valid authoritative revision.
 6. Distinguish explicit LeaveGame from interruption/recovery.
 
 ## Dependencies
 
-07 Sessions, 06 GameplayReplication, 03 Characters, existing network reconnect/late-join mechanisms.
+07 Sessions, 06 GameplayReplication API contract, 03 Characters, existing network reconnect/late-join mechanisms.
 
 ## Inventory / evidence
 
 - `Game.Sessions.Runtime.PartySession.Disconnect` removes only its runtime connection association and resets presence/readiness; it retains `PartyMemberId`, `PlayerSlot`, and `CharacterId`. Rebinding a new connection is already identity-preserving.
 - `VoxelEngine.Net.Runtime.Server.AuthoritativeServerSession` / `ServerPlayerRegistry` remove the authenticated network player record on transport close. That record is transient network actor state, not durable party identity.
-- System 07 provides the durable Sessions identity seam and transport-neutral network admission seam; Continuity must layer grace/recovery policy above them rather than moving reconnect policy into Sessions or socket callbacks.
-- **External prerequisite blocker:** current `origin/master` remains `1b6d5db96ea150bd0cb573bfaff7e220f19afbeb` and contains no `GameplayReplication.Api`, `GameplayReady`, or gameplay replication/resync API from system 06. Therefore the required T08-002 dependency, real repair/resync capability selection, GameplayReady authority gate, absent-state current-truth proof, and combined Replication validation cannot be completed yet. Acceptance is unchanged.
+- System 07 provides the durable Sessions identity seam and transport-neutral network admission seam; Continuity layers grace/recovery policy above them rather than moving reconnect policy into Sessions or socket callbacks.
+- System-06 binding design defines `Game.GameplayReplication.Api` / Runtime ownership, monotonic authoritative gameplay revisions, typed snapshot/delta contracts, semantic synchronization/readiness state, current replicated truth, repair/resync, and `GameplayReady` only after required projections converge.
 
-## Independent implementation while #06 is unavailable
+## API-only dependency strategy
+
+The user explicitly authorized creating missing APIs from the binding SceneIssue gameplay design for testing, without implementing the owning system. T08 therefore adds only the minimal `Game.GameplayReplication.Api` contract needed for composition/testing:
+
+- `GameplayRevision` for monotonic authoritative current-state revision.
+- `GameplaySynchronizationPhase` / `GameplaySynchronizationStatus`, including semantic `GameplayReady`.
+- `GameplayRecoveryMode` (`Repair` / `FullSnapshot`).
+- Typed `GameplayProjectionSnapshot<TState>` current-state reads.
+- `IGameplayReplicationClientState` for semantic recovery requests, readiness query, and typed current truth.
+
+No `Game.GameplayReplication.Runtime`, transport loop, serialization, publication tick, delta application, UTP wiring, or system-06 implementation is added by T08.
+
+## Continuity composition
 
 - Transport-neutral reconnect credentials contain only `GameSessionId`, `PartyMemberId`, and an opaque token; runtime connection handles remain in `Game.Continuity.Runtime`.
-- `ContinuityCoordinator` owns interruption/grace/recovery state and deterministic fast-window versus full-resync intent, while querying Sessions as the identity authority.
+- `ContinuityCoordinator` owns interruption/grace/recovery state and deterministic fast-window versus full-resync selection while querying Sessions as identity authority.
 - `IReconnectTransportAdmission` is a runtime composition seam for rebinding the new transport to the existing member; an independent Sessions-backed fixture proves reuse without creating another member/character.
+- After successful transport rebinding, Continuity requests `Repair` for fast recovery or `FullSnapshot` for full resynchronization through `IGameplayReplicationClientState`.
+- `MarkGameplayReady` cannot complete recovery from transport state alone; it requires the replication API to report `GameplayReady` at a nonzero authoritative revision.
 - Explicit leave and grace expiration invalidate recovery and hand terminal cleanup to owning systems through `IContinuityTerminalPolicySink`; Continuity does not invent removal, persistence, or AI policy.
-- `MarkGameplayReady` is intentionally a semantic completion hook only; wiring it to system-06 current-state synchronization remains blocked until that API exists.
 
 ## Tests / proof
 
-Independent regressions cover brief reconnect with connection change, full-resync path selection after the fast window, duplicate reconnect rejection, invalid credential rejection, explicit leave, expiration, and durable member/slot/character preservation.
+Existing exact CI run `33506812126` validated the independent Continuity/Sessions core at feature parent `20d2e386e7fe9bd7b277ab339d5cc2b321dabb29`.
 
-Exact targeted-CI request `9b9fa56c0c6cd35f15eb7861e6525ec63fdb03d3` has direct feature parent `20d2e386e7fe9bd7b277ab339d5cc2b321dabb29`. GitHub Actions run `33506812126` completed successfully: request/source resolution, automatic module-plan derivation, automatic required module validation, result upload, and final commit status all passed. This validates the available Continuity/Sessions core and the authored fast reconnect, duplicate-character, explicit-leave, and grace-expiration regressions. It does not satisfy the still-missing system-06 GameplayReplication/GameplayReady/current-state acceptance.
+Fresh regressions now authored against the API-only GameplayReplication seam cover:
 
-System-06-dependent current-state mutation, real repair/full-resync integration, actual GameplayReady gating, and combined Replication validation remain required blockers before closure.
+- fast reconnect requests `Repair`, preserves PartyMemberId/PlayerSlot/CharacterId across connection 11 -> 99, and cannot recover before `GameplayReady`;
+- slow reconnect requests `FullSnapshot` without changing durable identity;
+- typed vitality/inventory/progression current state is revision 1 before disconnect, mutates to revision 2 while absent, and revision 2/current values are what the reconnecting player observes after full resync and `GameplayReady`;
+- duplicate reconnect, invalid credential, explicit leave, and grace expiration remain covered.
+
+Fresh exact-SHA automatic validation is required before any new checkboxes or closure.
 
 ## Do not build
 
-No AI takeover unless separately configured through #04, no persistence-across-runs semantics, no socket-id identity.
+No GameplayReplication Runtime implementation, second transport, AI takeover unless separately configured through #04, persistence-across-runs semantics, or socket-id identity.
