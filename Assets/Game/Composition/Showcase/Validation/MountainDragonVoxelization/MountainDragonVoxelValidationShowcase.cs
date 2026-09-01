@@ -4,6 +4,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Profiling;
 using VoxelEngine.Composition;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Terrain.Api;
 using VoxelEngine.Structures.Runtime.MeshImport;
 using VoxelEngine.Tiering.Api;
@@ -30,6 +31,10 @@ namespace VoxelEngine.Showcase
         // between captures so each durable frame owns exactly one semantic comparison view.
         private const float FirstViewSeconds = 1.5f;
         private const float LaterViewSeconds = 3f;
+        // Hold the tenth pristine view long enough for one complete harness capture before the
+        // supplemental destruction proof changes authoritative voxel state.
+        private const float DestructionDelayAfterFinalViewSeconds = 4.5f;
+        private const int DestructionRadiusVoxels = 8;
 
         private ShowcaseWorld _world;
         private Camera _sourceCamera;
@@ -39,9 +44,13 @@ namespace VoxelEngine.Showcase
         private MeshVoxelCaptureView[] _views;
         private int _viewIndex;
         private float _nextViewTime;
+        private float _destructionTime = float.PositiveInfinity;
+        private bool _destructionComplete;
         private int3 _sourceOrigin;
         private int3 _voxelOrigin;
         private int3 _bakeSize;
+        private int3 _destructionLocalCell;
+        private int _sourceColliderCount;
 
         private void Awake()
         {
@@ -78,6 +87,7 @@ namespace VoxelEngine.Showcase
 
             BakedVoxelStructure bake = MountainDragonBakedArtifact.Load();
             _bakeSize = bake.Size;
+            _destructionLocalCell = SelectTorsoDestructionCell(bake);
             MeshStructurePlacementResult placement = _world.PlaceMountainDragon(_voxelOrigin);
             StageSourceMesh(sourcePrefab, bake, _sourceOrigin);
 
@@ -103,6 +113,7 @@ namespace VoxelEngine.Showcase
             ApplyView(_views[_viewIndex]);
             _nextViewTime = Time.realtimeSinceStartup + FirstViewSeconds;
 
+            StoragePressure pressure = _world.StoragePressure;
             Debug.Log(
                 "MOUNTAIN_DRAGON_VALIDATION_COST placement_ms=" + placement.PlacementMilliseconds.ToString("F3")
                 + " requested_voxels=" + placement.VoxelsRequested
@@ -110,6 +121,10 @@ namespace VoxelEngine.Showcase
                 + " regions_prepared=" + placement.RegionsPrepared
                 + " brick_pool_capacity=" + brickPoolCapacity
                 + " tier_budget_bytes=" + tierBytes
+                + " storage_used_bytes=" + pressure.UsedBytes
+                + " storage_capacity_bytes=" + pressure.CapacityBytes
+                + " storage_critical_bytes=" + pressure.CriticalLimitBytes
+                + " storage_under_pressure=" + pressure.IsUnderPressure
                 + " allocated_bytes=" + Profiler.GetTotalAllocatedMemoryLong()
                 + " reserved_bytes=" + Profiler.GetTotalReservedMemoryLong()
                 + " setup_ticks=" + (Stopwatch.GetTimestamp() - started));
@@ -118,16 +133,28 @@ namespace VoxelEngine.Showcase
                 + MountainDragonVoxelBakePolicy.ExpectedSourceTriangleCount
                 + " authored_voxels=" + MountainDragonBakedArtifact.ExpectedCellCount
                 + " source_origin=" + _sourceOrigin.x + "," + _sourceOrigin.y + "," + _sourceOrigin.z
-                + " voxel_origin=" + _voxelOrigin.x + "," + _voxelOrigin.y + "," + _voxelOrigin.z);
+                + " voxel_origin=" + _voxelOrigin.x + "," + _voxelOrigin.y + "," + _voxelOrigin.z
+                + " source_colliders_disabled=" + _sourceColliderCount);
         }
 
         private void Update()
         {
-            if (_views == null || _viewIndex >= _views.Length - 1) return;
-            if (Time.realtimeSinceStartup < _nextViewTime) return;
-            _viewIndex++;
-            ApplyView(_views[_viewIndex]);
-            _nextViewTime += LaterViewSeconds;
+            if (_views == null) return;
+
+            if (_viewIndex < _views.Length - 1 && Time.realtimeSinceStartup >= _nextViewTime)
+            {
+                _viewIndex++;
+                ApplyView(_views[_viewIndex]);
+                _nextViewTime += LaterViewSeconds;
+                if (_viewIndex == _views.Length - 1)
+                    _destructionTime = Time.realtimeSinceStartup
+                                     + DestructionDelayAfterFinalViewSeconds;
+                return;
+            }
+
+            if (!_destructionComplete && _viewIndex == _views.Length - 1
+                && Time.realtimeSinceStartup >= _destructionTime)
+                RunDestructionWorldTruthProof();
         }
 
         private int FindEqualHeightSourceOriginX(int targetTerrainY)
@@ -160,8 +187,14 @@ namespace VoxelEngine.Showcase
             _sourceDragon.transform.rotation = Quaternion.identity;
 
             Collider[] colliders = _sourceDragon.GetComponentsInChildren<Collider>(includeInactive: true);
+            _sourceColliderCount = colliders.Length;
             for (int i = 0; i < colliders.Length; i++)
+            {
+                // Destroy is deferred until end of frame. Disable immediately so there is never a
+                // frame where presentation geometry can masquerade as collision truth.
+                colliders[i].enabled = false;
                 Destroy(colliders[i]);
+            }
         }
 
         private void ConfigureCameras()
@@ -198,6 +231,92 @@ namespace VoxelEngine.Showcase
             PositionCamera(_sourceCamera, WorldPoint(_sourceOrigin, localTarget), view.ViewDirection, distance);
             PositionCamera(_voxelCamera, WorldPoint(_voxelOrigin, localTarget), view.ViewDirection, distance);
             Debug.Log("MOUNTAIN_DRAGON_CAPTURE view=" + view.Id + " index=" + _viewIndex);
+        }
+
+        private void RunDestructionWorldTruthProof()
+        {
+            _destructionComplete = true;
+            int3 target = _voxelOrigin + _destructionLocalCell;
+            if (!IsBlockingVoxel(target, out VoxelCell before))
+                throw new InvalidOperationException(
+                    "Mountain Dragon destruction target was not occupied before the production edit.");
+
+            var explosionWorld = new ShowcaseWorldExplosionAdapter(_world);
+            ShowcaseExplosionRouteResult route = ShowcaseExplosionRouter.Apply(
+                explosionWorld,
+                network: null,
+                target,
+                DestructionRadiusVoxels,
+                new float3(0f, 0f, -1f));
+            if (route.Networked || route.RequestSent || route.ChangedVoxels <= 0)
+                throw new InvalidOperationException(
+                    "Mountain Dragon production destruction did not mutate canonical local world state.");
+
+            bool blockedAfter = IsBlockingVoxel(target, out VoxelCell after);
+            if (blockedAfter)
+                throw new InvalidOperationException(
+                    "Mountain Dragon destruction target remained collision-blocking after the canonical edit.");
+
+            Collider[] sourceColliders = _sourceDragon != null
+                ? _sourceDragon.GetComponentsInChildren<Collider>(includeInactive: true)
+                : Array.Empty<Collider>();
+            for (int i = 0; i < sourceColliders.Length; i++)
+            {
+                if (sourceColliders[i] != null && sourceColliders[i].enabled)
+                    throw new InvalidOperationException(
+                        "Presentation-only Mountain Dragon source retained an enabled collider.");
+            }
+
+            // Keep the source intact as the explicit authoring reference while centring both
+            // cameras on the edited torso. The right side must show only the derived canonical
+            // voxel hole; no source mesh exists there to hide the edit.
+            float3 localTarget = _destructionLocalCell;
+            float3 direction = math.normalize(new float3(-0.65f, -0.18f, -1f));
+            PositionCamera(_sourceCamera, WorldPoint(_sourceOrigin, localTarget), direction, 8f);
+            PositionCamera(_voxelCamera, WorldPoint(_voxelOrigin, localTarget), direction, 8f);
+
+            StoragePressure pressure = _world.StoragePressure;
+            Debug.Log(
+                "MOUNTAIN_DRAGON_DESTRUCTION_WORLD_TRUTH target="
+                + target.x + "," + target.y + "," + target.z
+                + " before_material=" + before.BaseMaterialId
+                + " after_material=" + after.BaseMaterialId
+                + " changed_voxels=" + route.ChangedVoxels
+                + " collision_blocked_before=True"
+                + " collision_blocked_after=False"
+                + " source_enabled_colliders=0"
+                + " storage_used_bytes=" + pressure.UsedBytes
+                + " storage_capacity_bytes=" + pressure.CapacityBytes
+                + " storage_under_pressure=" + pressure.IsUnderPressure);
+        }
+
+        private bool IsBlockingVoxel(int3 voxel, out VoxelCell cell)
+        {
+            bool exists = _world.SurfaceQuery.TryRead(voxel, out cell);
+            return exists && cell.BaseMaterialId != VoxelGrid.MaterialEmpty;
+        }
+
+        private static int3 SelectTorsoDestructionCell(BakedVoxelStructure bake)
+        {
+            int3 min = new int3(35, 40, 35);
+            int3 max = new int3(70, 75, 75);
+            float3 centre = ((float3)min + max) * 0.5f;
+            int bestIndex = -1;
+            float bestDistanceSq = float.PositiveInfinity;
+            for (int i = 0; i < bake.Cells.Length; i++)
+            {
+                int3 position = bake.Cells[i].Position;
+                if (math.any(position < min) || math.any(position >= max)) continue;
+                float distanceSq = math.lengthsq((float3)position - centre);
+                if (distanceSq >= bestDistanceSq) continue;
+                bestDistanceSq = distanceSq;
+                bestIndex = i;
+            }
+
+            if (bestIndex < 0)
+                throw new InvalidOperationException(
+                    "Mountain Dragon canonical bake has no occupied torso cell for destruction validation.");
+            return bake.Cells[bestIndex].Position;
         }
 
         private static void PositionCamera(Camera camera, Vector3 target, float3 viewDirection, float distance)
@@ -248,7 +367,9 @@ namespace VoxelEngine.Showcase
             GUI.Label(new Rect(32f, 28f, 730f, 24f), "Mesh -> Voxels — Mountain Dragon module validation");
             GUI.Label(new Rect(32f, 54f, 730f, 22f),
                 "LEFT: Source Mesh (presentation only)     RIGHT: Voxelized (authoritative world data)");
-            string view = _views != null && _viewIndex < _views.Length ? _views[_viewIndex].Id : "starting";
+            string view = _destructionComplete
+                ? "post-destruction torso (canonical edit)"
+                : _views != null && _viewIndex < _views.Length ? _views[_viewIndex].Id : "starting";
             GUI.Label(new Rect(32f, 78f, 730f, 28f),
                 "Matched pose / scale / orientation / terrain contact — view: " + view);
         }
