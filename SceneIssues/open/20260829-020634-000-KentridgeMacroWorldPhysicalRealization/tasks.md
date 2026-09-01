@@ -5,55 +5,38 @@
 - [x] Preserve source-backed `TopDownWorldLayout` / `MountingForceTopDownWorldDefinition` as topology authority through shared WorldBuilder APIs.
 - [x] Add reusable deterministic geography, terrain-aware hard-route solving, generic settlement blockouts/streets, continuous hard-route surfaces, Rossdam basin, Southern Ridge/pass, and real CharacterMotor traversal.
 - [x] Production/storage regressions cover determinism, reachability, roads, settlements, blocking geography, explicit route solutions, bounded slopes, all 16 generic building shells, water realization, and two-stage presentation readiness.
-- [x] Prove physical-planner reuse with independent non-Kentridge `a`/`b` blocked-water fixture; no Kentridge policy in shared planner/catalogue APIs.
-- [x] Feature-aware vertical residency/readiness publish authored upper Y-layers without widening horizontal interest or changing device/scheduler policy (`33346099006`, `33354287850`).
-- [x] Experiments 019/020 prove Rossdam structures are planned/grounded and authored bounds have ready production geometry after settled readiness (`33359142139`, `33370392969`).
-- [x] After two materially different failed camera corrections, isolate framing root cause; exact projected 3D envelope containment replaces insufficient scalar/frustum-intersection models.
-- [x] Replace demonstrated-cost solid fallback body with four bounded wall boxes; independent fixture proves hollow centre and <25% former body volume. Exact `33405010658` is regression/player green and reduces Rossdam publication to ~100k–120k indices per blockout.
-- [x] Ensure validation-only 90-degree lens executes after evidence survey pose; corrected Experiment 025 exact run `33410426650` proves all four Moordell/Rossdam authored centres are contained while visual closure remains red.
-- [x] Experiment 026 exact run `33417092425`: all sampled Moordell/Rossdam building centres have stable production coverage but authoritative top solid equals procedural terrain (`delta=0`) at every centre.
+- [x] Prove physical-planner reuse with an independent non-Kentridge blocked-water fixture; no Kentridge policy in shared planner/catalogue APIs.
+- [x] Integrate shared spatial reservations while retaining geography/route ownership in `TopDownWorldPhysicalPlanner`; independent non-Kentridge fixture rejects road/building conflicts (`33441865025`).
+- [x] Feature-aware vertical residency/readiness publishes authored upper Y-layers without widening horizontal interest or changing device/scheduler policy.
+- [x] Replace demonstrated-cost solid fallback blockouts with bounded hollow wall shells and retain independent cost regression.
+- [x] Isolate and correct the Southern Ridge/Orc arrival conflict in scene composition without weakening shared strict route semantics.
+- [x] Correct focused storage probes to sample authored perimeter timber and roof rather than the intentionally hollow centre; exact source `b500683...` passed focused storage/module/player validation in `33464366092` attempt 3.
+- [x] Run supported seven-target replay for 180 seconds; exact source `3e34713...` passed `33469175243`, all targets complete by ~80s.
+- [x] Prove signed negative-Z feature streaming/publication retains Fairy authored timber (`33474641146`).
+- [x] Prove the real playable three-catalogue composition retains Fairy authored timber; exact source `cdc48695...` passed `33476499718`.
 
-## Spatial reservation integration
-- [x] Integrate resolved `TopDownWorldPhysicalPlan` occupancy with Agent 7's shared `SpatialReservationSnapshot`: settlement envelopes, generic building footprint/clearance, resolved road segments, and settlement-arrival public-access handoffs. Geography/route solving remains owned by `TopDownWorldPhysicalPlanner` (`82482e000b2c7d5c441be4dfd16532b96de78fc2`).
-- [x] Add independent non-Kentridge `alpha`/`beta` fixture proving shared reservations reject a resolved road through a generic building.
-- [x] Validate exact source `7033ee755ae6bac7cc3c1cc3c83bb4ee2e7d5f5e` in run `33441865025`, job `99651749224`, artifact `9776935720`.
+## Current built-player discriminator
+- [x] Identify the prior end-frame settlement diagnostic as invalid: it sampled each intentionally hollow generic-building centre.
+- [x] On feature source `fb4bc6dad612f759987db5163d0d7b9e1b664405`, change validation only to read the same authored back timber-wall and roof voxels proven by storage acceptance at the actual Moordell/Rossdam/Fairy/Orc survey frames; no gameplay/camera/streaming/generation change.
+- [ ] Monitor exact request `b2226c2e824dcd51c0fd30a6421bf2b1df06c15c` / run `33480730488` without replacing it; classify terminal result and inspect the real-player shell/roof diagnostics plus screenshots.
+- [ ] If shell+roof storage is present at Fairy/Orc capture time, change only scene-specific evidence framing; if absent, isolate the demonstrated storage/publication owner before another production change.
 
-## Experiment 027 root-cause gate
-- [x] Add generic low-volume `FEATUREGEN_TRACE` instrumentation in shared structure generation for candidate selection, evaluation accept/reject, primitive count, rasterization completion, and per-instance voxel-write delta.
-- [x] Run Experiment 027 exact focused storage + 60-second player replay: run `33448157883` completed failure.
-- [x] Isolate the repeated symptom before another fix: both focused test and player abort during hard-route physical planning because `BuildAround` cannot produce a dry detour around `southern-ridge`; feature generation is never reached, which also explains the sky/fog-only replay.
-- [x] Add shared semantic relaxation policy with deterministic diagnostics; keep the generic route constraint contract strict by default.
-- [x] Keep scene policy in composition: only the authored South Fighting Area -> Orc Village `SouthernRidge` GoAround constraint opts into `EndpointEscape`.
-- [x] Add independent regression proving generic constraints default to `Strict`, explicit opt-in is possible, and Kentridge relaxes exactly one authored ridge-shoulder relationship.
-- [x] Re-run Experiment 027 exact-SHA focused production-storage acceptance + 60-second SceneIssue replay on source `2ad641c940825a558f5c73ed9ccd64e7d50bfad2`: run `33460564361`, job `99709616268`, artifact `9783038431`.
-- [x] Classify Experiment 027 rerun: automatic module acceptance passed; focused storage is product-red with `south-fighting-area-1->orc-village` leaving its authored solution inside `southern-ridge`; standalone build is independently infrastructure-red because runner free memory was 6710 MB below the enforced 8192 MB floor.
-- [x] After the same acceptance symptom persisted through materially different fixes, isolate the next root-cause boundary before another production change: route solving validates settlement-facing gates, then `AttachSettlementApproaches` changes the final endpoint semantics before a second blocker validation.
-- [x] Prove the endpoint-gate/settlement-approach mismatch with an independent generic-settlement fixture: exact run `33461196633`, job `99711466757`, artifact `9783305642` fails only because the generated gate is inside the blocker and the attached gate-to-centre approach is correctly rejected; the same run's standalone replay succeeds, confirming the earlier memory-floor failure was transient infrastructure.
-- [x] Refine root cause against source-backed Kentridge geometry before changing shared behavior: fixed-seed Southern Ridge corridor-expanded south edge resolves to `z=-1335dm`, while the Orc generic north gate resolves to `z=-1315dm`; the Orc centre is safely south of the ridge. Shared `GoAround` validation is correct to reject that 20dm gate overlap.
-- [x] Correct scene composition rather than weaken the shared planner: preserve the ridge's full 420x120dm half-extents and bias it 30dm north so the Orc arrival corridor remains on the settlement side; retain strict-by-default shared policy and the narrowly authored Kentridge `EndpointEscape` opt-in. Add regressions proving an unsafe generic gate approach is rejected and the corrected Kentridge Orc route plans without entering the ridge corridor.
-- [x] Re-run focused production-storage acceptance + 60-second SceneIssue replay on corrected source `6e7a546c64adc397c14c75d34e4324fc092eb5f1`: run `33461949335` completed failure. Planning now succeeds (`20` routes, `824` route tiles, `16` generic buildings) and the standalone replay reaches feature generation; the remaining focused failure is a test-only mismatch where the storage probe sampled the intentionally hollow building centre and read air.
-- [x] Correct the focused storage regression to sample the authored back perimeter timber wall at the same high-ground-relative height; production hollow-shell geometry remains unchanged (`6a2c06b8942ef995b71dfa83f4c1a4c7590b8fe2`).
-- [x] Re-run focused production-storage acceptance + 60-second SceneIssue replay on exact source `b500683169ed0ea2f1e4997ce83560f78093f8e0`: run `33464366092`, attempt 3 job `99724998631`, artifact `9784884651` is fully green for focused test, repository-derived module validation, and standalone replay after two retries of the proven runner-memory-floor infrastructure failure.
-- [x] Inspect the green 60-second result: planning completes, focused storage reaches published shell/roof voxels, player reaches production feature generation, and there is no macro-realization exception. Visual closure remains incomplete only because the supported seven-target evidence sequence outlives the 60-second replay; Rossdam does not become ready until about `t=59s`.
-- [x] Run the unchanged supported seven-target SceneIssue evidence sequence for 180 seconds on exact feature source `3e34713ceb3708846018f4cfeb02f6165a11e6d9`: run `33469175243`, artifact `9786132406`, all three pipeline stages green and all seven targets complete by ~70s. This validates the timeout hypothesis only; Fairy/Orc visual acceptance remains red.
-- [x] Minimal-repro discriminator after the green 180-second replay: negative-Z terrain/residency is real (`rc=int3(3,0,-6)` appears), readiness waits for queued/in-flight feature work, and core feature intersection math is sign-safe, yet the player log contains 424 `FEATUREGEN_TRACE` lines and zero negative-Z candidates. Do not make another geometry/camera fix until the runtime catalogue/publication boundary explains why Fairy/Orc explicit placements never become candidates.
-
-## Remaining acceptance
-- [ ] Verify full-resolution Moordell/Rossdam/Fairy/Orc surveys show readable grounded authored blockouts with streets/open space and road arrival/exit.
-- [ ] Re-check Rossdam lake framing: substantial authored water plus constrained route, not a thin distant strip.
-- [ ] Capture Southern Ridge/pass and final `macro-network-overview` inside the supported replay.
-- [ ] Re-run final exact-SHA targeted CI and prove focused regression + repository-derived module validation + supported real-player smoke are closure-quality green for the same final feature SHA.
+## Remaining visual acceptance
+- [ ] Full-resolution Moordell/Rossdam/Fairy/Orc surveys visibly show readable grounded authored blockouts, internal street/open space, and road arrival/exit.
+- [ ] Rossdam lake frame visibly shows substantial authored water plus the constrained route, not a thin distant strip.
+- [ ] Southern Ridge/pass frame visibly establishes the barrier/pass relationship.
+- [ ] Final `macro-network-overview` remains closure-quality on the final exact SHA.
+- [ ] Representative built-player CharacterMotor road traversal remains visible and process-clean on the final exact SHA.
 
 ## Runtime / cost
-- [x] Player-height road evidence and representative real CharacterMotor traversal are supported by prior exact artifacts; final exact run must retain both.
+- [x] Terrain-relief sampling remains bounded to 25 x 16 = 400 deterministic catalogue queries; shared feature scheduler unchanged.
+- [x] Existing exact evidence: 20 hard routes, 824 route tiles, 5 constrained routes, 16 generic buildings; captured steady-state FPS >200 on later replay windows.
 - [x] No unrelated SceneIssue implementation, feature-branch `.github/test-request.json`, custom CI transport/workflow, CharacterMotor/load-radius/device-budget change.
-- [x] Terrain-relief sampling remains bounded to 25 x 16 = 400 deterministic catalogue queries; shared feature scheduler remains unchanged.
-- [x] Run `33405010658`: targeted test `0.007716s`, elapsed `69s`, final RSS `549MB`, peak RSS `5251MB`, no positive swap growth; Moordell ~t40, Rossdam ~t52, lake ~t58.
-- [x] Run `33464366092` attempt 3 confirms the corrected focused storage test green and the automatic module-validation/player pipeline green on the same exact source; the two preceding failed attempts were runner-memory-floor infrastructure, not product regressions.
 - [ ] Quantify actual additional vertical resident/generated region count against baseline; numerically prove no horizontal interest-radius/device-budget change.
 - [ ] Measure final lake dimensions/depth/cells, route tile/solve/constrained counts, feature work/time, CPU/FPS, memory, streaming convergence, render/far-field telemetry against budgets.
-- [ ] Quantify fixed-replay target timing after visual closure.
-- [ ] Re-fetch current master and re-check exact feature diff immediately before final targeted CI.
+- [ ] Quantify final fixed-replay target timing.
+- [ ] Fetch current master, merge it before final validation, and re-check exact feature diff.
+- [ ] Re-run final exact-SHA targeted CI after the master merge; focused regression + repository-derived module validation + supported real-player smoke must all be green for the same final feature SHA.
 
 ## Acceptance / closure
 - [ ] (1) Source-backed macro graph remains authoritative through shared WorldBuilder APIs.
@@ -64,8 +47,9 @@
 - [ ] (6) Built world visibly contains a substantial lake + ridge and at least one geography-altered hard route.
 - [ ] (7) Regional terrain visibly reads as differentiated countryside rather than a flat debug plane.
 - [ ] (8) No second scene-local graph/direct voxel-writing/static destination hierarchy.
-- [ ] (9) Focused behavioral regressions cover determinism, reachability, roads, settlements, constraints, blocked-route failure, shared spatial reservation integration, bounded water cost, evidence sequencing, feature-aware vertical residency, two-stage readiness, settlement-survey containment, generic blockout-shell cost, and the selected runtime publication defect.
+- [ ] (9) Focused behavioral regressions cover determinism, reachability, roads, settlements, constraints, blocked-route failure, spatial reservations, bounded water cost, evidence sequencing, vertical residency/readiness, settlement framing, hollow-shell cost, and runtime publication/storage discriminators.
 - [ ] (10) Exact built-player evidence covers settlements, roads entering/leaving settlements, network survey, geography, constrained route, and CharacterMotor traversal without runtime exceptions.
 - [ ] (11) Blast radius and world-build/route/CPU/GPU/memory/streaming cost are measured against budgets.
+- [ ] Complete `resolutionSummary`, `regressionTest`, and `fixCommit` from the verified final result.
 - [ ] Every checkbox above is complete before closure.
 - [ ] After green exact gates, move this assignment directly `open -> closed`, set `status=fixed` and `resolvedUtc`, merge current master, and non-force push that exact feature head to master; retry if master advances.
