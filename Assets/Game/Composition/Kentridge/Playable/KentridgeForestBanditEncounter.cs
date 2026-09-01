@@ -101,16 +101,19 @@ namespace Game.Composition.Kentridge.Playable
 
         private void Awake()
         {
+            _inputContexts = new InputContextService();
+            _inputReader = new UnityPlayerInputReader(_inputContexts);
+            _combat = new CombatService();
+            BuildAuthoredAmbushPlan();
+        }
+
+        private void Start()
+        {
             KentridgeCharacterRegistryAnchor anchor = GetComponent<KentridgeCharacterRegistryAnchor>();
             if (anchor == null || anchor.Characters == null)
                 throw new InvalidOperationException(
                     "Kentridge forest encounter requires the playable character registry anchor before actor realization.");
             _characters = anchor.Characters;
-
-            _inputContexts = new InputContextService();
-            _inputReader = new UnityPlayerInputReader(_inputContexts);
-            _combat = new CombatService();
-            BuildAuthoredAmbushPlan();
             SpawnBandits();
         }
 
