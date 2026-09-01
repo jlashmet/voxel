@@ -43,7 +43,7 @@ namespace VoxelEngine.Tests.EditMode
         {
             const int brickPoolCapacity = 4096;
             using var world = new ShowcaseWorld(
-                seed: 0xD12A60u,
+                seed: 0x5EED1234u,
                 brickPoolCapacity: brickPoolCapacity,
                 loadRadiusRegions: 1,
                 unloadRadiusRegions: 2);
