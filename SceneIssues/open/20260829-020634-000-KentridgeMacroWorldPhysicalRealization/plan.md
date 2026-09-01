@@ -21,8 +21,10 @@ The minimal correction is deliberately split by ownership:
 3. Scene policy lives in `KentridgeTopDownWorldPhysicalIntent`: only the authored South Fighting Area -> Orc Village `SouthernRidge` GoAround relationship opts into endpoint escape; lake detours and designated crossings stay strict.
 4. Independent regression proves generic consumers default to strict and opt-in must be explicit; Kentridge regression proves exactly one authored constraint is relaxed.
 
+The first corrected-ridge exact rerun (`33461949335`, source `6e7a546c64adc397c14c75d34e4324fc092eb5f1`) proves the planner recovery: all 20 routes and 824 route tiles plan, all 16 generic buildings exist, and the standalone replay reaches feature generation. The remaining focused failure is not production geometry: the storage regression sampled the intentionally hollow centre of the four-wall generic shell and correctly read air. The regression now probes the authored back perimeter timber wall at the same high-ground-relative height; the hollow-shell production program is unchanged.
+
 ## Next validation
-1. Run exact-SHA CI on the focused production-storage settlement acceptance test plus the 60-second SceneIssue replay.
+1. Run exact-SHA CI on the focused production-storage settlement acceptance test plus the 60-second SceneIssue replay using the new perimeter-wall probe.
 2. Require physical planning to complete, the focused storage assertions to reach generic shell/roof publication, and the standalone player to run without the macro-realization exception.
 3. Inspect new full-resolution evidence. The previous sky-only capture is not closure evidence; require readable settlements, roads, Rossdam lake, Southern Ridge/pass, constrained route, and representative CharacterMotor traversal.
 4. Re-run Moordell/Rossdam/Fairy/Orc surveys and macro-network overview after planner recovery.
