@@ -30,7 +30,7 @@ namespace VoxelEngine.Structures.Runtime.MeshImport
 
     /// <summary>
     /// Deterministic sampled fidelity report. Distances are measured in output-voxel units and
-    /// silhouettes are rasterized from the same sampled source/bake surfaces into fixed views.
+    /// silhouettes are rasterized from the same source/bake surfaces into fixed views.
     /// This is supplemental evidence for authored assets; it never participates in runtime truth.
     /// </summary>
     public readonly struct MeshVoxelFidelityReport
@@ -63,12 +63,28 @@ namespace VoxelEngine.Structures.Runtime.MeshImport
     }
 
     /// <summary>
-    /// Reusable offline analysis for mesh-to-voxel bakes. Work is deliberately bounded by a
-    /// caller-selected sample cap so a detailed source can be measured without an O(triangles ×
-    /// voxels) authoring pass. Sampling is stable by triangle/cell order for exact-SHA evidence.
+    /// Reusable offline analysis for mesh-to-voxel bakes. Query work is deliberately bounded by a
+    /// caller-selected sample cap. Queries are measured against the full opposite surface rather
+    /// than another sparse query sample, so the reported error reflects geometry instead of the
+    /// spacing between two independent downsamplings. Sampling is stable by triangle/cell order
+    /// for exact-SHA evidence.
     /// </summary>
     public static class MeshVoxelizationMetrics
     {
+        private readonly struct TriangleSurface
+        {
+            public readonly float3 A;
+            public readonly float3 B;
+            public readonly float3 C;
+
+            public TriangleSurface(float3 a, float3 b, float3 c)
+            {
+                A = a;
+                B = b;
+                C = c;
+            }
+        }
+
         private static readonly int3[] Neighbours =
         {
             new int3(1, 0, 0), new int3(-1, 0, 0),
@@ -147,6 +163,11 @@ namespace VoxelEngine.Structures.Runtime.MeshImport
         /// Measures transformed source triangles against the baked surface. Source points are
         /// converted to the bake's local grid before comparison, so the result is directly in
         /// voxels regardless of source units, translation, rotation, or scale.
+        ///
+        /// The sample cap bounds the number of distance queries, not the fidelity reference. A
+        /// sampled source query measures against every baked surface cell and a sampled voxel
+        /// query measures against the continuous source triangles. This avoids reporting the
+        /// spacing between two independently downsampled point clouds as geometric error.
         /// </summary>
         public static MeshVoxelFidelityReport Measure(
             in MeshVoxelizationSource source,
@@ -159,9 +180,32 @@ namespace VoxelEngine.Structures.Runtime.MeshImport
                 throw new ArgumentException("Source must contain indexed triangles.", nameof(source));
             ValidateMeasurementSettings(maxSamplesPerSurface, silhouetteResolution);
 
-            float3[] sourceSamples = SampleSource(in source, bake, maxSamplesPerSurface);
-            float3[] voxelSamples = SampleBakeSurface(bake, maxSamplesPerSurface);
-            return MeasurePointClouds(sourceSamples, voxelSamples, silhouetteResolution);
+            TriangleSurface[] sourceTriangles = BuildSourceTriangles(in source, bake);
+            BakedVoxelCell[] surfaceCells = ExtractSurfaceCells(bake);
+            if (surfaceCells.Length == 0)
+                throw new ArgumentException("Bake has no occupied surface cells.", nameof(bake));
+
+            float3[] fullVoxelSurface = SurfaceCenters(surfaceCells);
+            float3[] sourceSamples = SampleSource(sourceTriangles, maxSamplesPerSurface);
+            float3[] voxelSamples = SampleBakeSurface(fullVoxelSurface, maxSamplesPerSurface);
+
+            float[] distances = new float[sourceSamples.Length + voxelSamples.Length];
+            int write = 0;
+            for (int i = 0; i < sourceSamples.Length; i++)
+                distances[write++] = NearestDistance(sourceSamples[i], fullVoxelSurface);
+            for (int i = 0; i < voxelSamples.Length; i++)
+                distances[write++] = NearestTriangleDistance(voxelSamples[i], sourceTriangles);
+            Array.Sort(distances);
+            int p95Index = math.clamp((int)math.ceil(distances.Length * 0.95f) - 1, 0, distances.Length - 1);
+
+            float3[] denseSourceSurface = DenseSourceSilhouetteSamples(sourceTriangles);
+            return new MeshVoxelFidelityReport(
+                sourceSamples.Length,
+                voxelSamples.Length,
+                distances[p95Index],
+                SilhouetteIoU(denseSourceSurface, fullVoxelSurface, 0, 1, silhouetteResolution),
+                SilhouetteIoU(denseSourceSurface, fullVoxelSurface, 2, 1, silhouetteResolution),
+                SilhouetteIoU(denseSourceSurface, fullVoxelSurface, 0, 2, silhouetteResolution));
         }
 
         /// <summary>
@@ -200,15 +244,12 @@ namespace VoxelEngine.Structures.Runtime.MeshImport
                 SilhouetteIoU(sourceSurfaceSamples, voxelSurfaceSamples, 0, 2, silhouetteResolution));
         }
 
-        private static float3[] SampleSource(
+        private static TriangleSurface[] BuildSourceTriangles(
             in MeshVoxelizationSource source,
-            BakedVoxelStructure bake,
-            int maxSamples)
+            BakedVoxelStructure bake)
         {
-            int triangleBudget = math.max(1, maxSamples / 4);
-            int stride = math.max(1, (source.Triangles.Length + triangleBudget - 1) / triangleBudget);
-            var points = new List<float3>(math.min(maxSamples, source.Triangles.Length * 4));
-            for (int i = 0; i < source.Triangles.Length && points.Count < maxSamples; i += stride)
+            var triangles = new TriangleSurface[source.Triangles.Length];
+            for (int i = 0; i < source.Triangles.Length; i++)
             {
                 MeshVoxelTriangle triangle = source.Triangles[i];
                 if ((uint)triangle.A >= (uint)source.Vertices.Length
@@ -219,22 +260,56 @@ namespace VoxelEngine.Structures.Runtime.MeshImport
                 float3 a = ToBakeGrid(math.transform(source.Transform, source.Vertices[triangle.A]), bake);
                 float3 b = ToBakeGrid(math.transform(source.Transform, source.Vertices[triangle.B]), bake);
                 float3 c = ToBakeGrid(math.transform(source.Transform, source.Vertices[triangle.C]), bake);
-                Add(points, (a + b + c) / 3f, maxSamples);
-                Add(points, a, maxSamples);
-                Add(points, b, maxSamples);
-                Add(points, c, maxSamples);
+                triangles[i] = new TriangleSurface(a, b, c);
+            }
+            return triangles;
+        }
+
+        private static float3[] SampleSource(TriangleSurface[] triangles, int maxSamples)
+        {
+            int triangleBudget = math.max(1, maxSamples / 4);
+            int stride = math.max(1, (triangles.Length + triangleBudget - 1) / triangleBudget);
+            var points = new List<float3>(math.min(maxSamples, triangles.Length * 4));
+            for (int i = 0; i < triangles.Length && points.Count < maxSamples; i += stride)
+            {
+                TriangleSurface triangle = triangles[i];
+                Add(points, (triangle.A + triangle.B + triangle.C) / 3f, maxSamples);
+                Add(points, triangle.A, maxSamples);
+                Add(points, triangle.B, maxSamples);
+                Add(points, triangle.C, maxSamples);
             }
             return points.ToArray();
         }
 
-        private static float3[] SampleBakeSurface(BakedVoxelStructure bake, int maxSamples)
+        private static float3[] DenseSourceSilhouetteSamples(TriangleSurface[] triangles)
         {
-            BakedVoxelCell[] surface = ExtractSurfaceCells(bake);
-            if (surface.Length == 0) throw new ArgumentException("Bake has no occupied surface cells.", nameof(bake));
-            int stride = math.max(1, (surface.Length + maxSamples - 1) / maxSamples);
-            var points = new List<float3>(math.min(maxSamples, surface.Length));
-            for (int i = 0; i < surface.Length && points.Count < maxSamples; i += stride)
-                points.Add((float3)surface[i].Position + 0.5f);
+            var points = new float3[checked(triangles.Length * 4)];
+            int write = 0;
+            for (int i = 0; i < triangles.Length; i++)
+            {
+                TriangleSurface triangle = triangles[i];
+                points[write++] = triangle.A;
+                points[write++] = triangle.B;
+                points[write++] = triangle.C;
+                points[write++] = (triangle.A + triangle.B + triangle.C) / 3f;
+            }
+            return points;
+        }
+
+        private static float3[] SurfaceCenters(BakedVoxelCell[] surface)
+        {
+            var points = new float3[surface.Length];
+            for (int i = 0; i < surface.Length; i++)
+                points[i] = (float3)surface[i].Position + 0.5f;
+            return points;
+        }
+
+        private static float3[] SampleBakeSurface(float3[] fullSurface, int maxSamples)
+        {
+            int stride = math.max(1, (fullSurface.Length + maxSamples - 1) / maxSamples);
+            var points = new List<float3>(math.min(maxSamples, fullSurface.Length));
+            for (int i = 0; i < fullSurface.Length && points.Count < maxSamples; i += stride)
+                points.Add(fullSurface[i]);
             return points.ToArray();
         }
 
@@ -259,6 +334,89 @@ namespace VoxelEngine.Structures.Runtime.MeshImport
             for (int i = 0; i < candidates.Length; i++)
                 bestSq = math.min(bestSq, math.lengthsq(point - candidates[i]));
             return math.sqrt(bestSq);
+        }
+
+        private static float NearestTriangleDistance(float3 point, TriangleSurface[] triangles)
+        {
+            float bestSq = float.PositiveInfinity;
+            for (int i = 0; i < triangles.Length; i++)
+                bestSq = math.min(bestSq, PointTriangleDistanceSq(point, triangles[i]));
+            return math.sqrt(bestSq);
+        }
+
+        private static float PointTriangleDistanceSq(float3 p, TriangleSurface triangle)
+        {
+            float3 a = triangle.A;
+            float3 b = triangle.B;
+            float3 c = triangle.C;
+            float3 ab = b - a;
+            float3 ac = c - a;
+            float3 ap = p - a;
+            float d1 = math.dot(ab, ap);
+            float d2 = math.dot(ac, ap);
+            if (d1 <= 0f && d2 <= 0f) return math.lengthsq(ap);
+
+            float3 bp = p - b;
+            float d3 = math.dot(ab, bp);
+            float d4 = math.dot(ac, bp);
+            if (d3 >= 0f && d4 <= d3) return math.lengthsq(bp);
+
+            float vc = d1 * d4 - d3 * d2;
+            if (vc <= 0f && d1 >= 0f && d3 <= 0f)
+            {
+                float denominator = d1 - d3;
+                if (math.abs(denominator) <= 1e-12f)
+                    return math.min(PointSegmentDistanceSq(p, a, b), PointSegmentDistanceSq(p, a, c));
+                float v = d1 / denominator;
+                return math.lengthsq(p - (a + v * ab));
+            }
+
+            float3 cp = p - c;
+            float d5 = math.dot(ab, cp);
+            float d6 = math.dot(ac, cp);
+            if (d6 >= 0f && d5 <= d6) return math.lengthsq(cp);
+
+            float vb = d5 * d2 - d1 * d6;
+            if (vb <= 0f && d2 >= 0f && d6 <= 0f)
+            {
+                float denominator = d2 - d6;
+                if (math.abs(denominator) <= 1e-12f)
+                    return math.min(PointSegmentDistanceSq(p, a, c), PointSegmentDistanceSq(p, b, c));
+                float w = d2 / denominator;
+                return math.lengthsq(p - (a + w * ac));
+            }
+
+            float va = d3 * d6 - d5 * d4;
+            if (va <= 0f && (d4 - d3) >= 0f && (d5 - d6) >= 0f)
+            {
+                float denominator = (d4 - d3) + (d5 - d6);
+                if (math.abs(denominator) <= 1e-12f)
+                    return math.min(PointSegmentDistanceSq(p, b, c), PointSegmentDistanceSq(p, a, b));
+                float w = (d4 - d3) / denominator;
+                return math.lengthsq(p - (b + w * (c - b)));
+            }
+
+            float denominatorFace = va + vb + vc;
+            if (math.abs(denominatorFace) <= 1e-12f)
+            {
+                return math.min(
+                    PointSegmentDistanceSq(p, a, b),
+                    math.min(PointSegmentDistanceSq(p, b, c), PointSegmentDistanceSq(p, c, a)));
+            }
+            float inverse = 1f / denominatorFace;
+            float faceV = vb * inverse;
+            float faceW = vc * inverse;
+            float3 closest = a + ab * faceV + ac * faceW;
+            return math.lengthsq(p - closest);
+        }
+
+        private static float PointSegmentDistanceSq(float3 p, float3 a, float3 b)
+        {
+            float3 ab = b - a;
+            float denominator = math.lengthsq(ab);
+            if (denominator <= 1e-12f) return math.lengthsq(p - a);
+            float t = math.saturate(math.dot(p - a, ab) / denominator);
+            return math.lengthsq(p - (a + t * ab));
         }
 
         private static float SilhouetteIoU(
