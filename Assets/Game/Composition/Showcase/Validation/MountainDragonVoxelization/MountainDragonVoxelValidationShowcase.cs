@@ -166,12 +166,17 @@ namespace VoxelEngine.Showcase
 
         private void ConfigureCameras()
         {
-            _sourceCamera = CreateCamera("Source Mesh Camera", new Rect(0f, 0f, 0.5f, 1f));
+            // VoxelRenderPass owns one VoxelSurfaceScheduler. The first camera rendered in a
+            // frame advances clipmap discovery/build/upload; later cameras collect visibility
+            // only. Make the authoritative voxel camera explicitly first so production surface
+            // work is admitted around voxel truth. The source camera needs only ordinary mesh
+            // rasterization and renders second in its independent left viewport.
             _voxelCamera = CreateCamera("Voxelized Camera", new Rect(0.5f, 0f, 0.5f, 1f));
-            // Production voxel rendering schedules around Camera.main. The authoritative voxel
-            // side therefore owns that role; making the distant presentation camera Main caused
-            // the right half to show only a tiny source mesh down the separation axis.
+            _voxelCamera.depth = -10f;
             _voxelCamera.gameObject.tag = "MainCamera";
+
+            _sourceCamera = CreateCamera("Source Mesh Camera", new Rect(0f, 0f, 0.5f, 1f));
+            _sourceCamera.depth = 10f;
         }
 
         private static Camera CreateCamera(string name, Rect viewport)
