@@ -31,6 +31,7 @@ class PlannerTests(unittest.TestCase):
         asmdef(root, "Assets/Foundation/Runtime/Foundation.Runtime.asmdef", "Foundation.Runtime", guid="11111111111111111111111111111111")
         asmdef(root, "Assets/Foundation/Tests/EditMode/Foundation.Tests.EditMode.asmdef", "Foundation.Tests.EditMode")
         write(root, "Assets/Foundation/Runtime/Clock.cs")
+        write(root, "Assets/Foundation/Api/ClockContract.cs")
 
         asmdef(root, "Assets/Water/Runtime/Water.Runtime.asmdef", "Water.Runtime", ["GUID:11111111111111111111111111111111"])
         asmdef(root, "Assets/Water/Tests/EditMode/Water.Tests.EditMode.asmdef", "Water.Tests.EditMode")
@@ -63,15 +64,23 @@ class PlannerTests(unittest.TestCase):
             self.assertTrue(result["hasProductionChanges"])
             self.assertTrue(result["hasValidationWork"])
 
-    def test_shared_dependency_expands_known_dependents_from_asmdefs(self):
+    def test_shared_api_contract_expands_known_dependents_from_asmdefs(self):
         td, root = self.fixture()
         with td:
-            result = planner.plan(["Assets/Foundation/Runtime/Clock.cs"], planner.discover(root))
+            result = planner.plan(["Assets/Foundation/Api/ClockContract.cs"], planner.discover(root))
             self.assertEqual(["Assets/Foundation", "Assets/Water"], result["modules"])
             self.assertEqual(
                 ["Foundation.Tests.EditMode", "Water.Tests.EditMode", "Water.Tests.PlayMode"],
                 [item["assembly"] for item in result["tests"]],
             )
+
+    def test_runtime_implementation_change_does_not_expand_unrelated_dependents(self):
+        td, root = self.fixture()
+        with td:
+            result = planner.plan(["Assets/Foundation/Runtime/Clock.cs"], planner.discover(root))
+            self.assertEqual(["Assets/Foundation"], result["modules"])
+            self.assertEqual(["Foundation.Tests.EditMode"], [item["assembly"] for item in result["tests"]])
+            self.assertEqual([planner.KENTRIDGE_SCENE], [item["scene"] for item in result["playerValidations"]])
 
     def test_independent_module_is_discovered_without_planner_registration(self):
         td, root = self.fixture()
