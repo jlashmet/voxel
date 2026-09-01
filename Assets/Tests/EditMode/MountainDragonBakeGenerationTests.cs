@@ -1,6 +1,9 @@
 using System.IO;
 using NUnit.Framework;
 using Unity.Mathematics;
+using UnityEditor;
+using UnityEngine;
+using VoxelEngine.MeshVoxelization.Editor;
 using VoxelEngine.Showcase;
 using VoxelEngine.Showcase.Editor;
 using VoxelEngine.Structures.Runtime.MeshImport;
@@ -45,6 +48,42 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(metrics, Does.Contain("interiorFilled=True\n"));
             Assert.That(metrics, Does.Contain("voxelizationMilliseconds=12.500\n"));
             Assert.That(metrics, Does.Contain($"serializedBytes={result.SerializedByteCount}\n"));
+        }
+
+        [Test]
+        public void CheckedInBake_MeetsPinnedSourceFidelityTargets()
+        {
+            MountainDragonSourceArchive.ReconstructImportedAsset();
+            GameObject sourceRoot = AssetDatabase.LoadAssetAtPath<GameObject>(
+                MountainDragonSourceArchive.GeneratedAssetPath);
+            Assert.That(sourceRoot, Is.Not.Null,
+                "The exact reconstructed support-free OBJ must import before fidelity measurement.");
+
+            MeshVoxelizationSource source = UnityMeshVoxelizationAdapter.BuildSource(
+                sourceRoot,
+                MountainDragonPalettePolicy.DragonMaterial);
+            Assert.That(source.Triangles.Length,
+                Is.EqualTo(MountainDragonVoxelBakePolicy.ExpectedSourceTriangleCount));
+
+            BakedVoxelStructure bake = MountainDragonBakedArtifact.Load();
+            MeshVoxelFidelityReport fidelity = MeshVoxelizationMetrics.Measure(
+                in source,
+                bake,
+                maxSamplesPerSurface: 2048,
+                silhouetteResolution: 192);
+
+            TestContext.Out.WriteLine(
+                $"sourceSamples={fidelity.SourceSampleCount}\n" +
+                $"voxelSamples={fidelity.VoxelSampleCount}\n" +
+                $"symmetricP95Voxels={fidelity.SymmetricP95Voxels:F4}\n" +
+                $"frontSilhouetteIoU={fidelity.FrontSilhouetteIoU:F4}\n" +
+                $"sideSilhouetteIoU={fidelity.SideSilhouetteIoU:F4}\n" +
+                $"topSilhouetteIoU={fidelity.TopSilhouetteIoU:F4}\n");
+
+            Assert.That(fidelity.SymmetricP95Voxels, Is.LessThanOrEqualTo(1.5f),
+                "The checked-in Dragon bake must remain within the ticket's sampled symmetric surface-error target.");
+            Assert.That(fidelity.MinPrimarySilhouetteIoU, Is.GreaterThanOrEqualTo(0.90f),
+                "Front/side/top Dragon silhouettes must each satisfy the ticket's primary-view overlap target.");
         }
 
         [Test]
