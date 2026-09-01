@@ -18,7 +18,7 @@ Stable vitality snapshot, semantic damage request/result, defeat transition/even
 
 System 03 Characters API prerequisite is **resolved**: `Game.Characters.Api.CharacterId` landed on `origin/master` `e98191876c104ff115a1828b1ce0a6b2d4d4480b` and was merged into `fixes/agent-9` at `ccce1ff19c1306a838a2e5fadcf023399cc1d6b3`.
 
-System 01 participant binding is **implemented but not yet published on master**. On `fixes/agent-3` head `933fedfa09c7f6fe4f8536eb3618ba89cb59dfc4`, T01-003 is checked and `Game.Combat.Api.CombatParticipant.FromCharacter(CharacterId, CombatTeam)` carries the stable Character-backed identity. Current `origin/master` is `b274014ae201153c816c981a1092ad8b0d0a7539` and does not yet contain that contract. T02-015 therefore remains blocked until System 01 lands through the coordinator flow; agent-9 must not copy/cherry-pick another assignment's unpublished work or invent `CombatParticipantId` -> `CharacterId` policy. Combat may consume Vitality API; Vitality never depends on Combat.
+The System 01 SceneIssue design defines the identity seam required by T02-015: a Combat participant must preserve the production `CharacterId`, expose whether it is Character-backed, and derive only the Combat-local participant id from that canonical identity. Per coordinator direction, System 02 now carries the **minimal compatibility slice only** in `Game.Combat.Api`: `CombatParticipant.CharacterId`, `IsCharacterBacked`, the character-backed constructor, and `FromCharacter(CharacterId, CombatTeam)`. `Game.Combat.Api` references only `Game.Characters.Api` for this slice. System 01's Encounter-specific contracts remain owned by System 01 and are not copied. This breaks the publication-order deadlock without inventing `CombatParticipantId` -> `CharacterId` mapping policy. Combat may consume Vitality API; Vitality never depends on Combat.
 
 ## Ownership baseline (T02-001)
 
@@ -33,8 +33,10 @@ System 01 participant binding is **implemented but not yet published on master**
 
 `Game.Vitality.Api` and Runtime are engine-free assemblies. `VitalitySnapshot`, `DamageRequest/Result`, `DefeatEvent`, and `IVitalityService` are semantic and keyed by `CharacterId`. `VitalityRegistry` owns the only new life-state dictionary, clamps damage, rejects unknown/invalid/already-defeated requests, emits one defeat event, captures in stable identity order, and restores atomically. Tests cover damage boundaries, one-shot defeat, independent non-Combat reuse, alive/defeated restore, and dependency boundaries.
 
+The minimal Combat identity seam is regression-covered from `Game.Vitality.Tests`: `CombatParticipant.FromCharacter` preserves the canonical `CharacterId`, derives the participant id from `CharacterId.Value`, carries only Combat team semantics, and reports `IsCharacterBacked=true`.
+
 Exact-SHA request `49e2d5bb0153451263195b9c3c787bd2f8763a23` for feature parent `0fc4e0ae1f58f6ea7bfba405a4a2406c6c88d7de` completed successfully in workflow run `33485053919`: focused regression, automatic module validation, and standalone-player SceneIssue replay all passed.
 
 ## Remaining gates
 
-Wait for System 01's checked T01-003 Character-backed participant binding to land on `origin/master`, then merge current master into `fixes/agent-9`, migrate current Combat health authority, perform repository-wide duplicate-state cleanup and final ownership/boundary audit, and run final exact-SHA targeted/module validation CI. No respawn/revive policy, UI bars, game-over rules, or Combat-team semantics.
+Use the now-local minimal Character-backed participant seam to migrate current Combat health authority to Vitality, perform repository-wide duplicate-state cleanup and final ownership/boundary audit, then run final exact-SHA targeted/module validation CI. Before final promotion, merge current `origin/master` into `fixes/agent-9` and reconcile any overlapping System 01 contract publication without broadening System 02 ownership. No respawn/revive policy, UI bars, game-over rules, or Combat-team semantics.
