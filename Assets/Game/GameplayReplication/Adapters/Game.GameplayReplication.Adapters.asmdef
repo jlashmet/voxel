@@ -7,7 +7,11 @@
     "Game.Combat.Api",
     "Game.Encounters.Api",
     "Game.Inventory.Api",
-    "Game.Sessions.Api"
+    "Game.Sessions.Api",
+    "Game.Vitality.Api",
+    "Game.Progression.Api",
+    "Game.Continuity.Api",
+    "Game.Outcomes.Api"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
