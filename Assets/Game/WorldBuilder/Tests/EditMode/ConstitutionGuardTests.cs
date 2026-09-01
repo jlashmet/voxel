@@ -40,12 +40,14 @@ namespace VoxelEngine.Tests.EditMode
         private static IEnumerable<string> DeterministicSourceFiles =>
             DeterministicSourceRoots
                 .Select(RequireDeterministicRoot)
-                .SelectMany(root => Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories));
+                .SelectMany(root => Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories))
+                .Where(IsProductionSourcePath);
 
         private static IEnumerable<string> DeterministicAsmdefs =>
             DeterministicSourceRoots
                 .Select(RequireDeterministicRoot)
-                .SelectMany(root => Directory.EnumerateFiles(root, "*.asmdef", SearchOption.AllDirectories));
+                .SelectMany(root => Directory.EnumerateFiles(root, "*.asmdef", SearchOption.AllDirectories))
+                .Where(IsProductionSourcePath);
 
         private static string RequireDeterministicRoot(string rootName)
         {
@@ -53,6 +55,13 @@ namespace VoxelEngine.Tests.EditMode
             Assert.IsTrue(Directory.Exists(root),
                 "Constitution deterministic source root is required after the architecture cutover: " + rootName);
             return root;
+        }
+
+        private static bool IsProductionSourcePath(string path)
+        {
+            string relative = "/" + Relative(path).Replace('\\', '/') + "/";
+            return relative.IndexOf("/Tests/", StringComparison.Ordinal) < 0
+                   && relative.IndexOf("/Editor/", StringComparison.Ordinal) < 0;
         }
 
         private static string StripCommentsAndStrings(string source)
