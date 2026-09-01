@@ -32,6 +32,7 @@
     "VoxelEngine.Edits.Api",
     "VoxelEngine.Edits.Runtime",
     "VoxelEngine.Net.Runtime",
+    "VoxelEngine.Tiering.Api",
     "Unity.Networking.Transport",
     "Unity.Burst",
     "Unity.Collections",
