@@ -21,21 +21,21 @@ class RunModuleValidationTests(unittest.TestCase):
                 results.write_text(xml_text, encoding="utf-8")
                 return mock.Mock(returncode=0)
 
-            item = {"module": "water", "platform": "PlayMode", "filter": "Tests.Water"}
+            item = {"module": "water", "platform": "PlayMode", "assembly": "Water.Tests.PlayMode"}
             with mock.patch.object(runner.subprocess, "run", side_effect=fake_run):
                 return runner.run_test("/fake/unity", item, root)
 
-    def test_required_focused_test_rejects_zero_match(self):
+    def test_required_module_test_rejects_zero_match(self):
         with self.assertRaises(SystemExit) as raised:
             self._run_test_with_results("<test-run />")
-        self.assertIn("matched zero tests", str(raised.exception))
+        self.assertIn("executed zero tests", str(raised.exception))
 
-    def test_required_focused_test_rejects_skipped_case(self):
+    def test_required_module_test_rejects_skipped_case(self):
         with self.assertRaises(SystemExit) as raised:
             self._run_test_with_results('<test-run><test-case result="Skipped" /></test-run>')
-        self.assertIn("required focused test failed", str(raised.exception))
+        self.assertIn("required module test assembly failed", str(raised.exception))
 
-    def test_required_focused_test_accepts_passed_case(self):
+    def test_required_module_test_accepts_passed_case(self):
         seconds = self._run_test_with_results('<test-run><test-case result="Passed" /></test-run>')
         self.assertGreaterEqual(seconds, 0)
 
