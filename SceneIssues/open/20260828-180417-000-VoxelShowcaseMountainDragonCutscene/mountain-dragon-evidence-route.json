@@ -1,24 +1,27 @@
 {
-  "timeoutSeconds": 59.0,
+  "timeoutSeconds": 100.0,
   "arrivalRadius": 1.25,
-  "holdSeconds": 0.0,
+  "holdSeconds": 0.03,
   "quitOnComplete": true,
   "waypoints": [
     {
       "name": "castle-south-exit",
       "x": 44.6,
-      "z": -54.0
+      "z": -54.0,
+      "requireGrounded": true
     },
     {
       "name": "castle-south-west-clear",
       "x": -56.0,
-      "z": -54.0
+      "z": -54.0,
+      "requireGrounded": true
     },
     {
       "name": "normal-approach",
       "x": -146.2,
       "z": -38.0,
-      "holdSeconds": 0.1,
+      "requireGrounded": true,
+      "holdSeconds": 1.0,
       "capture": "01-mountain-approach.png",
       "lookAt": true,
       "lookX": -111.2,
@@ -27,144 +30,614 @@
     },
     {
       "name": "path-base",
-      "x": -127.7,
-      "z": -29.5,
-      "holdSeconds": 0.1,
+      "x": -108.9,
+      "z": -36.7,
+      "requireGrounded": true,
+      "anchorVertical": true,
+      "holdSeconds": 1.0,
       "capture": "02-path-base.png",
-      "lookAt": true,
-      "lookX": -94.7,
-      "lookZ": -29.5,
-      "lookPitchDegrees": -8.0,
-      "requireGrounded": true,
-      "anchorVertical": true
-    },
-    {
-      "name": "switchback-0-high",
-      "x": -94.7,
-      "z": -22.6,
-      "requireGrounded": true,
-      "expectedYOffset": 4.6,
-      "yTolerance": 0.75
-    },
-    {
-      "name": "switchback-1-low",
-      "x": -94.7,
-      "z": -22.6,
-      "requireGrounded": true,
-      "expectedYOffset": 4.6,
-      "yTolerance": 0.75
-    },
-    {
-      "name": "switchback-1-high",
-      "x": -127.7,
-      "z": -15.7,
-      "requireGrounded": true,
-      "expectedYOffset": 9.2,
-      "yTolerance": 0.75
-    },
-    {
-      "name": "switchback-2-low",
-      "x": -127.7,
-      "z": -15.7,
-      "holdSeconds": 0.1,
-      "capture": "03-switchback-mid.png",
-      "lookAt": true,
-      "lookX": -94.7,
-      "lookZ": -15.7,
-      "lookPitchDegrees": -6.0,
-      "requireGrounded": true,
-      "expectedYOffset": 9.2,
-      "yTolerance": 0.75
-    },
-    {
-      "name": "switchback-2-high",
-      "x": -94.7,
-      "z": -8.8,
-      "requireGrounded": true,
-      "expectedYOffset": 13.8,
-      "yTolerance": 0.75
-    },
-    {
-      "name": "switchback-3-low",
-      "x": -94.7,
-      "z": -8.8,
-      "requireGrounded": true,
-      "expectedYOffset": 13.8,
-      "yTolerance": 0.75
-    },
-    {
-      "name": "switchback-3-high",
-      "x": -127.7,
-      "z": -1.9,
-      "requireGrounded": true,
-      "expectedYOffset": 18.4,
-      "yTolerance": 0.75
-    },
-    {
-      "name": "switchback-4-low",
-      "x": -127.7,
-      "z": -1.9,
-      "requireGrounded": true,
-      "expectedYOffset": 18.4,
-      "yTolerance": 0.75
-    },
-    {
-      "name": "switchback-4-high",
-      "x": -102.7,
-      "z": 5.0,
-      "requireGrounded": true,
-      "expectedYOffset": 23.0,
-      "yTolerance": 0.75
-    },
-    {
-      "name": "switchback-5-low",
-      "x": -102.7,
-      "z": 5.0,
-      "holdSeconds": 0.1,
-      "capture": "04-switchback-upper.png",
-      "lookAt": true,
-      "lookX": -119.5,
-      "lookZ": 5.0,
-      "lookPitchDegrees": -5.0,
-      "requireGrounded": true,
-      "expectedYOffset": 23.0,
-      "yTolerance": 0.75
-    },
-    {
-      "name": "switchback-5-high",
-      "x": -119.5,
-      "z": 11.9,
-      "requireGrounded": true,
-      "expectedYOffset": 27.6,
-      "yTolerance": 0.75
-    },
-    {
-      "name": "summit-ramp-high",
-      "x": -119.5,
-      "z": 10.5,
-      "holdSeconds": 0.1,
-      "capture": "05-summit-dragon-supported.png",
       "lookAt": true,
       "lookX": -111.2,
       "lookZ": 20.0,
-      "lookPitchDegrees": -4.0,
-      "requireGrounded": true,
-      "expectedYOffset": 28.0,
-      "yTolerance": 0.75
+      "lookPitchDegrees": -7.0
     },
     {
-      "name": "summit-proximity",
-      "x": -117.2,
-      "z": 10.5,
-      "holdSeconds": 0.1,
-      "capture": "06-dragon-dialogue.png",
+      "name": "resolved-01",
+      "x": -108.0,
+      "z": -38.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-02",
+      "x": -96.0,
+      "z": -38.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-03",
+      "x": -92.0,
+      "z": -34.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-04",
+      "x": -88.6,
+      "z": -30.8,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-05",
+      "x": -88.0,
+      "z": -32.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-06",
+      "x": -76.0,
+      "z": -20.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-07",
+      "x": -72.7,
+      "z": -17.9,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-08",
+      "x": -74.0,
+      "z": -16.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-09",
+      "x": -74.0,
+      "z": -12.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-10",
+      "x": -66.0,
+      "z": -4.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-11",
+      "x": -63.2,
+      "z": -0.6,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-12",
+      "x": -64.0,
+      "z": 0.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-13",
+      "x": -64.0,
+      "z": 12.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-14",
+      "x": -62.0,
+      "z": 14.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-15",
+      "x": -62.0,
+      "z": 16.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-16",
+      "x": -61.3,
+      "z": 18.3,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-17",
+      "x": -64.0,
+      "z": 20.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-18",
+      "x": -64.0,
+      "z": 22.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-19",
+      "x": -66.0,
+      "z": 24.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-20",
+      "x": -66.0,
+      "z": 28.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-21",
+      "x": -68.0,
+      "z": 30.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-22",
+      "x": -68.0,
+      "z": 32.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-23",
+      "x": -66.6,
+      "z": 35.8,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-24",
+      "x": -70.0,
+      "z": 36.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-25",
+      "x": -78.0,
+      "z": 44.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-26",
+      "x": -78.0,
+      "z": 46.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-27",
+      "x": -77.9,
+      "z": 49.3,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-28",
+      "x": -80.0,
+      "z": 48.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-29",
+      "x": -82.0,
+      "z": 48.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-30",
+      "x": -84.0,
+      "z": 50.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "lower-turn",
+      "x": -86.0,
+      "z": 50.0,
+      "requireGrounded": true,
+      "holdSeconds": 1.0,
+      "capture": "03-lower-turn.png",
+      "lookAt": true,
+      "lookX": -111.2,
+      "lookZ": 20.0,
+      "lookPitchDegrees": -5.0,
+      "expectedYOffset": 0.8,
+      "yTolerance": 1.0
+    },
+    {
+      "name": "resolved-32",
+      "x": -92.0,
+      "z": 56.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-33",
+      "x": -92.8,
+      "z": 57.1,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-34",
+      "x": -96.0,
+      "z": 58.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-35",
+      "x": -108.0,
+      "z": 58.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-36",
+      "x": -108.9,
+      "z": 58.5,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-37",
+      "x": -112.0,
+      "z": 58.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-38",
+      "x": -118.0,
+      "z": 58.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-39",
+      "x": -122.0,
+      "z": 54.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-40",
+      "x": -123.6,
+      "z": 53.7,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-41",
+      "x": -126.0,
+      "z": 50.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-42",
+      "x": -128.0,
+      "z": 48.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-43",
+      "x": -132.0,
+      "z": 48.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-44",
+      "x": -134.0,
+      "z": 46.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-45",
+      "x": -134.7,
+      "z": 44.1,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-46",
+      "x": -136.0,
+      "z": 42.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-47",
+      "x": -136.0,
+      "z": 36.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-48",
+      "x": -140.0,
+      "z": 32.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-49",
+      "x": -140.9,
+      "z": 31.5,
+      "requireGrounded": true
+    },
+    {
+      "name": "mid-turn",
+      "x": -142.0,
+      "z": 28.0,
+      "requireGrounded": true,
+      "holdSeconds": 1.0,
+      "capture": "04-mid-turn.png",
       "lookAt": true,
       "lookX": -111.2,
       "lookZ": 20.0,
       "lookPitchDegrees": -3.0,
+      "expectedYOffset": 5.0,
+      "yTolerance": 1.0
+    },
+    {
+      "name": "resolved-51",
+      "x": -142.0,
+      "z": 20.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-52",
+      "x": -141.7,
+      "z": 18.3,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-53",
+      "x": -142.0,
+      "z": 16.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-54",
+      "x": -138.0,
+      "z": 12.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-55",
+      "x": -138.0,
+      "z": 8.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-56",
+      "x": -137.4,
+      "z": 6.5,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-57",
+      "x": -136.0,
+      "z": 4.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-58",
+      "x": -132.0,
+      "z": 0.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-59",
+      "x": -132.0,
+      "z": -2.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-60",
+      "x": -129.4,
+      "z": -2.2,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-61",
+      "x": -128.0,
+      "z": -4.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-62",
+      "x": -124.0,
+      "z": -4.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-63",
+      "x": -122.0,
+      "z": -6.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-64",
+      "x": -119.3,
+      "z": -6.8,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-65",
+      "x": -118.0,
+      "z": -8.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-66",
+      "x": -112.0,
+      "z": -8.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-67",
+      "x": -108.9,
+      "z": -7.1,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-68",
+      "x": -108.0,
+      "z": -8.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-69",
+      "x": -106.0,
+      "z": -6.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-70",
+      "x": -102.0,
+      "z": -6.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-71",
+      "x": -100.0,
+      "z": -3.4,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-72",
+      "x": -98.0,
+      "z": -2.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-73",
+      "x": -96.0,
+      "z": 0.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "upper-turn",
+      "x": -93.6,
+      "z": 3.0,
       "requireGrounded": true,
-      "expectedYOffset": 28.0,
-      "yTolerance": 0.75
+      "holdSeconds": 1.0,
+      "capture": "05-upper-turn.png",
+      "lookAt": true,
+      "lookX": -111.2,
+      "lookZ": 20.0,
+      "lookPitchDegrees": -2.0,
+      "expectedYOffset": 16.2,
+      "yTolerance": 1.0
+    },
+    {
+      "name": "resolved-75",
+      "x": -92.0,
+      "z": 4.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-76",
+      "x": -92.0,
+      "z": 8.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-77",
+      "x": -90.7,
+      "z": 10.8,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-78",
+      "x": -92.0,
+      "z": 12.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-79",
+      "x": -92.0,
+      "z": 16.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-80",
+      "x": -90.9,
+      "z": 18.3,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-81",
+      "x": -92.0,
+      "z": 20.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-82",
+      "x": -94.0,
+      "z": 22.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-83",
+      "x": -94.1,
+      "z": 24.4,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-84",
+      "x": -98.0,
+      "z": 26.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-85",
+      "x": -98.8,
+      "z": 28.4,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-86",
+      "x": -102.0,
+      "z": 28.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-87",
+      "x": -104.0,
+      "z": 28.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-88",
+      "x": -104.2,
+      "z": 29.7,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-89",
+      "x": -108.0,
+      "z": 28.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "summit-supported",
+      "x": -108.9,
+      "z": 28.8,
+      "requireGrounded": true,
+      "holdSeconds": 1.0,
+      "capture": "06-summit-dragon-supported.png",
+      "lookAt": true,
+      "lookX": -111.2,
+      "lookZ": 20.0,
+      "lookPitchDegrees": -2.0,
+      "expectedYOffset": 25.7,
+      "yTolerance": 1.0
+    },
+    {
+      "name": "resolved-91",
+      "x": -110.0,
+      "z": 26.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "resolved-92",
+      "x": -110.0,
+      "z": 20.0,
+      "requireGrounded": true
+    },
+    {
+      "name": "summit-proximity",
+      "x": -108.9,
+      "z": 18.3,
+      "requireGrounded": true,
+      "holdSeconds": 1.5,
+      "capture": "07-dragon-dialogue.png",
+      "lookAt": true,
+      "lookX": -111.2,
+      "lookZ": 20.0,
+      "lookPitchDegrees": -1.0,
+      "expectedYOffset": 28.1,
+      "yTolerance": 1.0
     }
   ]
 }
