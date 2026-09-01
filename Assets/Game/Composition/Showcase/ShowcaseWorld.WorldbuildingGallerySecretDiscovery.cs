@@ -20,8 +20,12 @@ namespace VoxelEngine.Showcase
     /// </summary>
     public sealed partial class ShowcaseWorld
     {
+        private const int GallerySecretCaveX = -1340;
+        private const int GallerySecretCaveZ = 220;
+
         private bool _gallerySecretDiscoveryReady;
         private CaveSecretPocketProjection _gallerySecretPocket;
+        private int3 _gallerySecretEntrance;
         private int _gallerySecretBoundaryClueVoxels;
         private int _galleryNaturalApproachClueVoxels;
 
@@ -31,12 +35,11 @@ namespace VoxelEngine.Showcase
         public int WorldbuildingGalleryNaturalApproachClueVoxels => _galleryNaturalApproachClueVoxels;
 
         /// <summary>
-        /// Adds the final acceptance secret to the existing generated gallery cave. Gallery bakes
-        /// intentionally persist voxels rather than traversal-candidate metadata, so this bounded
-        /// compatibility pass deterministically replays only the cave authoring operation to recover
-        /// the production terminal set. The replay runs through a read-through/write-discard authoring
-        /// session: it may observe the authoritative baked world but cannot alter it while recovering
-        /// metadata. Route compatibility is verified before any secret-specific mutation is accepted.
+        /// Adds the final acceptance secret as a bounded generated cave beside the legacy Gallery cave.
+        /// The legacy cave is intentionally retained unchanged: a fresh-world regression proves its
+        /// current topology cannot physically host the requested pocket. Scene-specific composition
+        /// therefore selects a nearby supported generated cave while reusing the same production cave,
+        /// pocket, clue and discovery abstractions validated by the dedicated module scene.
         /// </summary>
         public void EnsureWorldbuildingGallerySecretDiscoveryBlocking()
         {
@@ -47,22 +50,19 @@ namespace VoxelEngine.Showcase
 
             PreloadGalleryRegions();
             IStructureAuthoringSession authoring = CreateStructureAuthoringSession(4_000_000);
-            IStructureAuthoringSession replayAuthoring = new WorldbuildingGalleryCaveReplaySession(authoring);
-            CaveAuthoringResult cave = AuthorGalleryCave(replayAuthoring);
-            if (!IsWorldbuildingGalleryCaveReplayCompatible(GalleryCavePathEnd, in cave))
+            CaveAuthoringResult cave = AuthorWorldbuildingGallerySecretCave(authoring, out _gallerySecretEntrance);
+            if (cave.TraversalCandidates.Count < 2)
                 throw new InvalidOperationException(
-                    $"Gallery cave replay diverged from baked route semantics: expected={GalleryCavePathEnd} actual={cave.MainPathEnd}.");
-            if (cave.TraversalCandidates.Count == 0)
-                throw new InvalidOperationException("Gallery cave exposes no reachable secret-placement terminal.");
+                    "Gallery secret acceptance cave did not produce enough reachable terminals.");
 
             CampaignBuilder campaign = Campaign.Create("worldbuilding-gallery-secret-discovery");
-            RegionHandle region = campaign.World.Region("gallery-cave");
+            RegionHandle region = campaign.World.Region("gallery-secret-cave");
             SiteRef hidden = region.Site(
                 "moss-pocket",
                 SiteArchetype.Ruin,
                 x => x.RequireCapability(SiteCapability.SecretCandidateHost));
 
-            CavePlacementRequirements requirements = CavePlacementRequirements.AnyReachableTerminal();
+            CavePlacementRequirements requirements = CavePlacementRequirements.AnyReachableTerminal(40);
             CavePlacementPreferences preferences = CavePlacementPreferences.PreferBranchTerminal;
             var pocketConfig = new CaveSecretPocketConfig
             {
@@ -98,20 +98,56 @@ namespace VoxelEngine.Showcase
                     out _gallerySecretBoundaryClueVoxels))
                 throw new InvalidOperationException("Gallery secret boundary clue presentation failed.");
 
-            int3 entrance = Grounded(s_GalleryExhibitXZ[6]);
-            _galleryNaturalApproachClueVoxels = CoatNaturalApproachEvidence(authoring, entrance);
+            _galleryNaturalApproachClueVoxels = CoatNaturalApproachEvidence(authoring, _gallerySecretEntrance);
             if (_galleryNaturalApproachClueVoxels <= 0)
                 throw new InvalidOperationException("Gallery cave approach produced no environmental clue evidence.");
 
             _gallerySecretDiscoveryReady = true;
         }
 
+        private CaveAuthoringResult AuthorWorldbuildingGallerySecretCave(
+            IStructureAuthoringSession authoring,
+            out int3 entrance)
+        {
+            int surfaceY = TerrainQuery.HeightAt(GallerySecretCaveX, GallerySecretCaveZ, Seed);
+            entrance = new int3(GallerySecretCaveX, surfaceY - 18, GallerySecretCaveZ);
+
+            CaveConfig caveConfig = CaveConfig.Default;
+            caveConfig.MainSegmentCount = 10;
+            caveConfig.MaxBranches = 4;
+            caveConfig.MaxBranchDepth = 2;
+            caveConfig.BranchSegmentCount = 5;
+            caveConfig.BranchChancePercent = 70;
+            caveConfig.ChamberChancePercent = 25;
+            caveConfig.SurfaceDescentSegments = 0;
+            caveConfig.BoundsHalfExtents = new int3(240, 96, 240);
+            caveConfig.MinVerticalOffset = -72;
+            caveConfig.MaxVerticalOffset = 16;
+
+            CaveGenerationRequest request = CaveGenerationRequest.Underground(
+                0x5742475345435245ul,
+                entrance,
+                Facing.North,
+                caveConfig.TunnelWidth,
+                caveConfig.TunnelHeight,
+                10);
+            CaveMaterialPalette palette = new CaveMaterialPalette
+            {
+                Opening = GameMaterialIds.Empty,
+                Rock = GameMaterialIds.DarkStone,
+                Accent = GameMaterialIds.MasonryMedium,
+                Decoration = GameMaterialIds.Moss,
+                Water = GameMaterialIds.Water,
+            };
+
+            return CaveAuthoring.Author(authoring, in request, in caveConfig, in palette);
+        }
+
         /// <summary>
         /// A gallery bake stores the authored chamber endpoint so it can restore presentation without
-        /// regenerating the cave. The replay exists only to recover traversal terminals for newer
-        /// composition. Horizontal endpoint and main-path traversal semantics identify the route;
-        /// replay Y is intentionally allowed to differ because vertical cave placement is derived from
-        /// the current surface-cover rules and can change across authoring revisions.
+        /// regenerating the cave. This compatibility predicate remains as regression coverage for that
+        /// legacy metadata path even though the final secret acceptance consumer uses its own supported
+        /// generated cave.
         /// </summary>
         public static bool IsWorldbuildingGalleryCaveReplayCompatible(
             int3 bakedMainPathEnd,
@@ -169,16 +205,19 @@ namespace VoxelEngine.Showcase
 
         public float3 WorldbuildingGalleryNaturalSecretCameraPosition()
         {
-            int3 entrance = Grounded(s_GalleryExhibitXZ[6]);
-            int eyeZ = entrance.z - 72;
-            int eyeY = TerrainQuery.HeightAt(entrance.x, eyeZ, Seed) + 18;
-            return new float3(entrance.x, eyeY, eyeZ) * VoxelSize;
+            RequireGallerySecretDiscovery();
+            int eyeZ = _gallerySecretEntrance.z - 72;
+            int eyeY = TerrainQuery.HeightAt(_gallerySecretEntrance.x, eyeZ, Seed) + 18;
+            return new float3(_gallerySecretEntrance.x, eyeY, eyeZ) * VoxelSize;
         }
 
         public float3 WorldbuildingGalleryNaturalSecretLookTarget()
         {
-            int3 entrance = Grounded(s_GalleryExhibitXZ[6]);
-            return new float3(entrance.x, entrance.y + 10, entrance.z + 8) * VoxelSize;
+            RequireGallerySecretDiscovery();
+            return new float3(
+                _gallerySecretEntrance.x,
+                _gallerySecretEntrance.y + 10,
+                _gallerySecretEntrance.z + 8) * VoxelSize;
         }
 
         public float3 WorldbuildingGalleryBreakableSecretCameraPosition()
@@ -226,10 +265,8 @@ namespace VoxelEngine.Showcase
         }
 
         /// <summary>
-        /// Compatibility replay adapter for the checked-in Gallery bake. Cave generation is reused
-        /// to recover deterministic traversal metadata, but all geometry writes are deliberately
-        /// discarded so replay cannot carve a second, vertically-shifted cave into authoritative
-        /// baked storage before secret-pocket physical preflight.
+        /// Compatibility replay adapter retained for regression coverage of legacy Gallery bake
+        /// metadata recovery. It cannot mutate authoritative storage.
         /// </summary>
         private sealed class WorldbuildingGalleryCaveReplaySession : IStructureAuthoringSession
         {
