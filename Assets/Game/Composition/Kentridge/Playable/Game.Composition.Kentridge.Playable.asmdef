@@ -2,6 +2,8 @@
   "name": "Game.Composition.Kentridge.Playable",
   "rootNamespace": "Game.Composition.Kentridge.Playable",
   "references": [
+    "Game.Characters.Api",
+    "Game.Characters.Runtime",
     "Game.Composition.Campaign",
     "Game.Composition.Kentridge.Api",
     "Game.Composition.Showcase",
