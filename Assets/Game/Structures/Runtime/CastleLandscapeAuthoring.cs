@@ -232,7 +232,9 @@ namespace Game.Structures.Runtime
                 }
             }
 
-            var rockRng = new Random(plan.Seed ^ 0xA11CEu);
+            uint rockSeed = plan.Seed ^ 0xA11CEu;
+            if (rockSeed == 0u) rockSeed = 1u;
+            var rockRng = new Random(rockSeed);
             for (int side = -1; side <= 1; side += 2)
             for (int i = 0; i < 4; i++)
             {
