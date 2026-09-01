@@ -1,16 +1,5 @@
 #!/usr/bin/env python3
-"""Diff-driven validation planning from repository structure.
-
-A module is any lower-level Assets subtree that owns tests beneath a Tests
-folder. Tests/EditMode and Tests/PlayMode are explicit platform conventions;
-a direct Tests/*.asmdef is the compact EditMode convention used by modules that
-only need Editor tests. Repository-wide Assets/Tests/PlayMode remains a
-high-level integration/smoke assembly and does not define production ownership.
-Production ownership is the longest matching module root. Player-visible
-validation is opt-in by placing paired scene/scenario files under
-<module>/Validation. KentridgePlayableSlice is the canonical production-change
-integration gate.
-"""
+"""Diff-driven module validation planning from repository structure."""
 from __future__ import annotations
 
 import argparse
@@ -81,7 +70,6 @@ def _is_test_path(path: str) -> bool:
 
 
 def _is_module_validation_path(path: str) -> bool:
-    """Meaningful module-owned validation content, excluding Unity metadata/retired manifests."""
     path = path.replace("\\", "/")
     return (
         path.startswith("Assets/")
@@ -92,12 +80,10 @@ def _is_module_validation_path(path: str) -> bool:
 
 
 def _is_integration_only_path(path: str) -> bool:
-    path = path.replace("\\", "/")
-    return path.startswith("Assets/Game/Composition/")
+    return path.replace("\\", "/").startswith("Assets/Game/Composition/")
 
 
 def _is_dependency_contract_path(path: str) -> bool:
-    """True when a module change can alter contracts consumed by other modules."""
     path = path.replace("\\", "/")
     return "/Api/" in path or path.endswith(".asmdef")
 
@@ -115,11 +101,7 @@ def _discover_player_targets(module_root: Path, root: Path, module_name: str) ->
         expected_scenarios.add(scenario)
         if not scenario.is_file():
             raise ConventionError(f"validation scene is missing paired scenario: {_rel(scene, root)}")
-        targets.append({
-            "module": module_name,
-            "scene": _rel(scene, root),
-            "scenario": _rel(scenario, root),
-        })
+        targets.append({"module": module_name, "scene": _rel(scene, root), "scenario": _rel(scenario, root)})
     orphaned = [p for p in scenarios if p not in expected_scenarios]
     if orphaned:
         raise ConventionError(f"validation scenario is missing paired scene: {_rel(orphaned[0], root)}")
@@ -128,10 +110,13 @@ def _discover_player_targets(module_root: Path, root: Path, module_name: str) ->
 
 def discover(root: Path) -> dict:
     root = root.resolve()
-    obsolete = sorted(root.glob("Assets/**/*.module-validation.json"))
-    if obsolete:
-        raise ConventionError("obsolete *.module-validation.json registration is not supported: " + _rel(obsolete[0], root))
-    top_level = sorted((root / "Assets" / "Tests" / "EditMode").glob("**/*.asmdef")) if (root / "Assets" / "Tests" / "EditMode").exists() else []
+    # Legacy manifests are not ownership metadata. Record them so plan() can fail closed only when
+    # an existing manifest is part of the changed surface; unrelated accepted master content must
+    # not make every module-validation request impossible.
+    obsolete_manifests = sorted(_rel(p, root) for p in root.glob("Assets/**/*.module-validation.json"))
+
+    top_dir = root / "Assets" / "Tests" / "EditMode"
+    top_level = sorted(top_dir.glob("**/*.asmdef")) if top_dir.exists() else []
     if top_level:
         raise ConventionError("repository-wide Assets/Tests/EditMode assembly is not allowed: " + _rel(top_level[0], root))
 
@@ -152,6 +137,7 @@ def discover(root: Path) -> dict:
                 tests.append({"module": module_name, "platform": platform, "assembly": asmdef["name"]})
         if not tests:
             continue
+
         runtime_assemblies = []
         for asmdef_path in sorted(module_root.rglob("*.asmdef")):
             rel = _rel(asmdef_path, root)
@@ -170,6 +156,7 @@ def discover(root: Path) -> dict:
             "players": _discover_player_targets(module_root, root, module_name),
             "runtimeAssemblies": runtime_assemblies,
         })
+
     if not modules:
         raise ConventionError("no module-owned test assemblies discovered under Assets/**/Tests")
 
@@ -189,9 +176,7 @@ def discover(root: Path) -> dict:
     for module in modules:
         for asmdef in module["runtimeAssemblies"]:
             for reference in asmdef["references"]:
-                token = reference
-                if token.startswith("GUID:"):
-                    token = "GUID:" + token[5:].lower()
+                token = "GUID:" + reference[5:].lower() if reference.startswith("GUID:") else reference
                 owner = assembly_owner.get(token)
                 if owner and owner != module["name"]:
                     dependencies[module["name"]].add(owner)
@@ -199,7 +184,12 @@ def discover(root: Path) -> dict:
     for required in (root / KENTRIDGE_SCENE, root / KENTRIDGE_SCENARIO):
         if not required.is_file():
             raise ConventionError(f"required Kentridge validation file does not exist: {_rel(required, root)}")
-    return {"modules": modules, "dependencies": dependencies}
+
+    return {
+        "modules": modules,
+        "dependencies": dependencies,
+        "obsoleteManifests": obsolete_manifests,
+    }
 
 
 def is_production(path: str) -> bool:
@@ -229,6 +219,13 @@ def _expand_dependents(selected: set[str], dependencies: dict[str, set[str]]) ->
 
 def plan(changed_paths: list[str], discovered: dict) -> dict:
     changed = sorted({p.strip().replace("\\", "/") for p in changed_paths if p.strip()})
+    existing_obsolete = set(discovered.get("obsoleteManifests", []))
+    changed_obsolete = [p for p in changed if p in existing_obsolete]
+    if changed_obsolete:
+        raise ConventionError(
+            "obsolete *.module-validation.json registration is not supported: " + changed_obsolete[0]
+        )
+
     modules = discovered["modules"]
     by_name = {m["name"]: m for m in modules}
     selected: set[str] = set()
@@ -258,11 +255,8 @@ def plan(changed_paths: list[str], discovered: dict) -> dict:
         tests.extend(module["tests"])
         players.extend(module["players"])
     if production:
-        players.append({
-            "module": "game-integration",
-            "scene": KENTRIDGE_SCENE,
-            "scenario": KENTRIDGE_SCENARIO,
-        })
+        players.append({"module": "game-integration", "scene": KENTRIDGE_SCENE, "scenario": KENTRIDGE_SCENARIO})
+
     return {
         "changedPaths": changed,
         "modules": sorted(selected),
