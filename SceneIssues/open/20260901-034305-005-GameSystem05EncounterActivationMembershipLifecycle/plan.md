@@ -6,33 +6,27 @@
 
 - Production encounter-like authority was concentrated in `KentridgeForestBanditEncounter`: proximity activation, private `_encounterResolved` state, temporary bandit membership, direct Combat bootstrap and cleanup/settlement.
 - Combat remains authoritative for tactical combat/session rules; Characters remains authoritative for stable character identity/lifecycle. Kentridge remains responsible for authored world realization, scene objects, input context and mapping semantic encounter members to Combat participants.
-- No existing reusable `Game.Encounters` module or general encounter registry was present. No WorldBuilder placement logic is moved into this feature.
+- No reusable `Game.Encounters` module existed. Extending Combat itself was rejected because non-combat lifecycle, membership, cleanup and restore must not inherit Combat authority.
 
-## API / state model
+## Selected design
 
-`Game.Encounters.Api` is engine-neutral and references only `Game.Characters.Api`. It defines stable `EncounterId`, reusable definition/config, inactive/active/resolving/resolved/cleaned lifecycle, deterministic membership snapshots over `CharacterId`, explicit Persistent vs EncounterOwned participant ownership, semantic activation/realization data, semantic resolution result/reason, lifecycle events, cleanup/resolution facts, semantic Combat requests, and registry snapshot/query seams.
+`Game.Encounters.Api` is engine-neutral and references only `Game.Characters.Api`. It defines stable `EncounterId`, reusable definition/config, inactive/active/resolving/resolved/cleaned lifecycle, deterministic membership over `CharacterId`, Persistent vs EncounterOwned ownership, semantic activation/realization data, semantic resolution, events/facts, semantic Combat requests, and snapshot/query seams.
 
-No Unity trigger, scene object, Combat Runtime, WorldBuilder Runtime, Story/Progression Runtime, or game-outcome types are exposed.
+`EncounterRegistry` is the single lifecycle/membership authority. Records and members are ordinal-sorted. Equivalent duplicate activation/join/resolution/cleanup is idempotent; illegal or conflicting transitions fail explicitly. Membership validates Characters truth. Cleanup emits `CleanupCharacter` only for EncounterOwned members; composition retains Character removal authority.
 
-## Runtime
+Combat participation is semantic: Required encounters emit an `EncounterCombatRequest`; composition maps it to Combat and returns semantic resolution. Encounters has no Combat dependency. Non-combat encounters resolve through the same registry. Capture/restore preserves current state without replaying activation facts or queued Combat requests.
 
-`EncounterRegistry` is the single lifecycle/membership authority. Records and membership are ordinal-sorted for deterministic projection. Activation, duplicate joins/leaves, repeated identical resolution and cleanup are idempotent where semantically safe; illegal/conflicting transitions return explicit failures.
+## Production migration / reuse
 
-Membership validates current Characters truth before join, rejecting unknown/defeated characters. Encounter cleanup emits `CleanupCharacter` facts only for EncounterOwned members; persistent members are never requested for removal. Composition consumes those facts and retains Character mutation ownership.
+Kentridge proximity now reports `player-proximity` activation to Encounters. Bandits are EncounterOwned; the player is Persistent. Kentridge maps the semantic request to its existing Combat realization, reports the result back, and consumes cleanup facts. Private `_encounterResolved` authority is removed.
 
-Combat participation is semantic: a combat-required encounter emits one `EncounterCombatRequest` on activation and consumes a semantic combat resolution. The Encounters assemblies have no Combat dependency. Non-combat encounters resolve through the same registry without a Combat request.
+Independent `hightown-market-dispute` uses the same registry as a non-combat authored fixture. No WorldBuilder placement, Story/Progression callback, game-outcome or named-scene policy enters the shared module.
 
-Capture/restore preserves lifecycle, membership, activation cause, realization binding, definition and revision. Restore does not replay activation facts or queued Combat requests; it emits only current-state `Restored` events for downstream replication/composition observation.
+## Blast radius / validation
 
-## Production migration / reuse proof
+Runtime mutation cost is bounded by small encounter/member sets; deterministic ordering uses sorted lists and no per-frame scene traversal. Production blast radius is Encounters plus the existing Kentridge adapter only. `Game.Encounters.module-validation.json` owns Encounters production paths and `Game.Encounters.Tests.EncounterRegistryTests`; repository policy automatically adds the canonical Kentridge built-player integration gate for production changes.
 
-Kentridge proximity now reports `player-proximity` activation into `EncounterRegistry`. Bandits join as EncounterOwned and the existing player joins as Persistent. Kentridge composition maps the resulting semantic combat request into its existing Combat participant/team realization, reports the Combat result back to Encounters, then consumes cleanup facts to remove only temporary bandit Characters/GameObjects. The private `_encounterResolved` source of truth was removed; `CombatResolved` derives from the Encounter snapshot.
-
-An independent non-Kentridge `hightown-market-dispute` fixture uses the same API/runtime for a non-combat social encounter, proving the module is not a Kentridge combat wrapper.
-
-## Validation
-
-Headless regressions cover lifecycle/idempotency, deterministic membership, missing/defeated character joins, persistent-vs-temporary cleanup, semantic combat handoff, independent non-combat reuse, and active-state restore with no one-shot replay. Final gate is exact-SHA targeted CI with automatic module/dependent validation and standalone SceneIssue replay.
+Headless regressions cover lifecycle/idempotency, membership, missing/defeated joins, ownership cleanup, combat handoff, non-combat reuse and restore/no-replay. Remaining gate: exact-SHA targeted CI, repository-derived module validation, and standalone SceneIssue replay.
 
 ## Do not build
 
