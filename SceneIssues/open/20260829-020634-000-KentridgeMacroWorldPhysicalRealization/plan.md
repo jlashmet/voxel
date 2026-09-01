@@ -1,24 +1,24 @@
 # Plan
 
 ## Acceptance authority
-`captures` is empty, so `issue.json` is the acceptance contract. Preserve the source-backed Mounting Force/Kentridge graph while physically realizing settlements, terrain-aware hard routes, reusable geography, Rossdam Lake, Southern Ridge/pass, CharacterMotor traversal, readable built-player evidence, and bounded cost. `AGENTS.md`, `SceneIssues/README.md`, and `SceneIssues/feature-readme.md` govern this feature.
+`issue.json` is the contract (`captures: []`). Preserve the source-backed Mounting Force graph while delivering physical settlements, terrain-aware hard routes, reusable geography, Rossdam Lake, Southern Ridge/pass, CharacterMotor traversal, durable built-player evidence, and bounded cost. Follow `AGENTS.md`, `SceneIssues/README.md`, and `feature-readme.md`.
 
 ## Proven results
-- Foundation: 20 hard routes, 6 settlements, 16 generic buildings, deterministic geography, bounded slopes, semantic constrained routes, lake/ridge realization, feature-aware vertical residency/readiness, and production evidence sequencing.
-- Shared spatial reservations are integrated without moving geography/route ownership out of `TopDownWorldPhysicalPlanner`; an independent non-Kentridge fixture proves road/building conflicts are rejected (`33441865025`).
-- Exact source `b500683...` passed focused storage/module/player validation in `33464366092` attempt 3 after the Southern Ridge/Orc composition correction.
-- Exact source `3e34713...` passed the 180-second replay in `33469175243`; all seven targets complete by ~80s, but Fairy/Orc/lake/ridge visual evidence remained below acceptance.
-- Exact source `89c3128...` passed signed negative-Z storage streaming (`33474641146`). Exact source `cdc4869...` passed the playable three-catalogue combine discriminator (`33476499718`).
-- Exact source `fb4bc6d...` passed focused storage plus 180-second built player in `33480730488`. Correct authored wall/roof probes read `material=0` at every Moordell/Rossdam/Fairy/Orc capture while editor storage still proves all 16 buildings. Full-resolution Fairy/Orc frames confirm the shells are absent. Camera/framing and post-combine hypotheses are therefore falsified.
+- Production physical planning covers 20 hard routes, 6 settlements, 16 generic buildings, deterministic geography, constrained-route solutions, lake/ridge realization, bounded slopes, storage, and feature-aware vertical residency/readiness.
+- Shared spatial reservations retain planner ownership; independent non-Kentridge conflict fixture passed (`33441865025`).
+- Exact source `b500683...` passed focused storage/module/player validation (`33464366092` attempt 3).
+- Exact source `3e34713...` completed all seven 180-second evidence targets (`33469175243`), but visual settlement/geography quality was insufficient.
+- Signed negative-Z storage streaming passed (`33474641146`); playable three-catalogue combine retained Fairy timber (`33476499718`).
+- Exact source `fb4bc6d...` passed focused storage + 180-second player (`33480730488`), yet corrected authored wall/roof probes read `material=0` at every Moordell/Rossdam/Fairy/Orc capture. Full-resolution Fairy/Orc frames contain no four-building blockout. Camera/readiness/final-combine hypotheses are falsified.
 
-## Current discriminator
-The remaining owner is the playable macro-selection handoff. `TopDownWorldLayoutSelection` is one-shot; `KentridgeCombinedVoxelCatalogue` appends macro content only when `TryConsume(seed, ...)` succeeds. `KentridgePlayableSlice.OnEnable` builds the production catalogue immediately and does not itself select the macro layout.
+## Current root-cause isolation
+A missing one-shot macro selection initially looked plausible, but source inspection falsified it: the actual playable compatibility `KentridgeDefinition.Build` already calls `TopDownWorldLayoutSelection.Select(...)` on the exact failing source. Hightown authoring and campaign planning do not consume the handoff.
 
-Feature source beginning at `4976490bf61dc897bf841675bd588a3254a7cc83` adds a behavioral repro only: clear the handoff, prove Fairy/Orc definitions are absent from the production Kentridge catalogue, then select the existing source-backed layout and prove both appear. Experiment 028 records the decision rule. No production behavior has changed yet.
+Queued run `33485694443` tests only the shared legacy-caller selector contract and is non-authoritative for the player symptom; leave it untouched. Feature head now adds `PlayableCompatibilityAuthoringLeavesMacroSelectionForCatalogueBuild`, which invokes the internal playable adapters by reflection and requires Fairy/Orc definitions after the real authoring order. No production behavior has changed.
 
-## Next validation
-1. Run the focused one-shot selection discriminator on the sole `ci-test/fixes/agent-6` transport.
-2. If green, make the smallest composition fix: select the existing semantic macro layout before the playable's existing Kentridge catalogue build. Do not change the shared one-shot contract, physical planner, streaming/device budgets, or evidence framing.
-3. Re-run exact built-player evidence; require readable grounded Fairy/Orc/Moordell/Rossdam settlements, lake + constrained route, ridge/pass, network, and CharacterMotor traversal.
-4. Extract final route/water/feature/streaming/render/FPS/memory telemetry and vertical-residency blast radius.
-5. Merge current master before the final exact-SHA gate. Close only after every acceptance/checklist item is green, then move open->closed, set `status=fixed` / `resolvedUtc`, and non-force promote the exact feature head.
+## Next gates
+1. After `33485694443` is terminal, run the corrected real-caller discriminator on the same CI transport.
+2. If it passes, isolate runtime region generation/publication for exact Fairy/Orc authored regions before any production fix. If it fails, identify the actual selector consumer from the managed assertion.
+3. After a demonstrated fix, require exact built-player stored shells plus readable Moordell/Rossdam/Fairy/Orc settlements, lake/constrained route, ridge/pass, network, and CharacterMotor traversal.
+4. Measure final route/water/feature/streaming/render/FPS/memory and vertical-residency blast radius.
+5. Merge current master before final exact-SHA gates; close and non-force promote only after every checklist/acceptance item is green.
