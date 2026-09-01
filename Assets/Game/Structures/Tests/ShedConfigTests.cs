@@ -5,6 +5,7 @@ using NUnit.Framework;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
+using VoxelEngine.Structures.Runtime;
 
 namespace Game.Structures.Tests
 {
@@ -122,9 +123,10 @@ namespace Game.Structures.Tests
             var a = new RecordingSession();
             var b = new RecordingSession();
             var origin = new int3(120, 36, -240);
+            var components = new StructureComponentAuthoringService();
 
-            ShedAuthoring.Author(a, origin, in config);
-            ShedAuthoring.Author(b, origin, in config);
+            ShedAuthoring.Author(components, a, origin, in config);
+            ShedAuthoring.Author(components, b, origin, in config);
 
             Assert.Multiple(() =>
             {

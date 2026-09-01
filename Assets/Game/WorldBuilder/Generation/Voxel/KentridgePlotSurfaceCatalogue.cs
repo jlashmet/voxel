@@ -14,8 +14,9 @@ namespace MountingForce.WorldGen.Voxel
     ///
     /// Plot altitude comes from <see cref="KentridgeVerticalProfile.PlotSurfaceY"/>, sampled at the
     /// public frontage so the yard meets its authored street elevation. The flat core hugs the real
-    /// building envelope. Twelve voxel-scale terraces rise away from it, preserving the same 1.2 m
-    /// parcel feather while removing the conspicuous 40 cm contour shelves seen in close captures.
+    /// building envelope. Twelve voxel-scale terraces rise away from it on the side/rear parcel
+    /// edges, while the canonical frontage strip remains level with the core so the rotated public
+    /// approach meets the authoritative road without a raised parcel lip.
     /// </summary>
     public static class KentridgePlotSurfaceCatalogue
     {
@@ -116,7 +117,10 @@ namespace MountingForce.WorldGen.Voxel
                     ProgramLength = program.Length,
                     MaterialOffset = 0,
                     MaterialCount = 0,
-                    MaxPrimitives = (TerraceCount + 1) * 3,
+                    // Thirteen terrace layers plus one bounded frontage correction, each expressed
+                    // as carve/subsoil/surface. Archetypes whose core already reaches z=0 omit the
+                    // final three operations, but budget the worst case deterministically.
+                    MaxPrimitives = (TerraceCount + 2) * 3,
                 };
 
                 List<BuildingPlot> plots = byArchetype[id];
@@ -227,6 +231,27 @@ namespace MountingForce.WorldGen.Voxel
                       rect.Width * s, subsoilHeight, rect.Depth * s, dirt);
                 b.Box(rect.X * s, subsoilHeight, rect.Z * s,
                       rect.Width * s, SurfaceThicknessDm * s, rect.Depth * s,
+                      groundCover);
+            }
+
+            // The canonical building frontage is z=0; the explicit placement rotates this program
+            // with the plot frontage. Terrace expansion used to raise the narrow strip between z=0
+            // and core.Z by up to core.Z decimetres. The authoritative public road then had to carve
+            // back through that artificial lip, producing the observed dark-sided trench. Finish
+            // exactly that bounded frontage strip at core elevation. At z=core.Z it joins terrace 0,
+            // so no new rear step is introduced and the side/rear parcel feather remains unchanged.
+            if (core.Z > 0)
+            {
+                int flatSubsoilHeight = FillDepthDm * s;
+                int flatTopY = flatSubsoilHeight + SurfaceThicknessDm * s;
+                int frontageDepth = core.Z * s;
+                int frontageWidth = footprint.X * s;
+                b.Carve(0, flatTopY, 0,
+                        frontageWidth, ClearAboveDm * s, frontageDepth);
+                b.Box(0, 0, 0,
+                      frontageWidth, flatSubsoilHeight, frontageDepth, dirt);
+                b.Box(0, flatSubsoilHeight, 0,
+                      frontageWidth, SurfaceThicknessDm * s, frontageDepth,
                       groundCover);
             }
 

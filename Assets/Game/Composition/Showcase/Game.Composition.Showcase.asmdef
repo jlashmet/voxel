@@ -4,6 +4,7 @@
   "references": [
     "Game.Materials.Api",
     "Game.Materials.Runtime",
+    "Game.Composition.Materials",
     "Game.Structures.Api",
     "Game.Structures.Runtime",
     "Game.Composition.WorldObjects.Runtime",
@@ -32,7 +33,6 @@
     "VoxelEngine.Edits.Api",
     "VoxelEngine.Edits.Runtime",
     "VoxelEngine.Net.Runtime",
-    "VoxelEngine.Tiering.Api",
     "Unity.Networking.Transport",
     "Unity.Burst",
     "Unity.Collections",

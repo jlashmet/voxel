@@ -11,8 +11,12 @@ namespace Game.Structures.Runtime
     /// </summary>
     public static class CastleDungeonAuthoring
     {
-        public static void Author(IStructureAuthoringSession authoring, in CastlePlan plan)
+        public static void Author(
+            ICaveAuthoring caveAuthoring,
+            IStructureAuthoringSession authoring,
+            in CastlePlan plan)
         {
+            if (caveAuthoring == null) throw new System.ArgumentNullException(nameof(caveAuthoring));
             if (authoring == null) throw new System.ArgumentNullException(nameof(authoring));
 
             int baseY = plan.Centre.y + plan.PlateauHeight;
@@ -175,6 +179,7 @@ namespace Game.Structures.Runtime
             }
 
             CastleCaveAuthoring.Author(
+                caveAuthoring,
                 authoring,
                 in plan,
                 new int3(tx, dungeonY, passZ - 320));

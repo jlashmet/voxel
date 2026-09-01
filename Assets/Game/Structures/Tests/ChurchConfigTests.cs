@@ -6,6 +6,7 @@ using NUnit.Framework;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
+using VoxelEngine.Structures.Runtime;
 
 namespace Game.Structures.Tests
 {
@@ -52,7 +53,8 @@ namespace Game.Structures.Tests
             const int navY = 41;
             var origin = new int3(160, navY - 1, -240);
             var session = new SliceSession(navY);
-            ChurchAuthoring.Author(session, origin, in chapel);
+            var components = new StructureComponentAuthoringService();
+            ChurchAuthoring.Author(components, session, origin, in chapel);
 
             int frontZ = chapel.Footprint.Primary.Min.y;
             int wall = chapel.WallThickness;
@@ -89,9 +91,10 @@ namespace Game.Structures.Tests
             var a = new RecordingSession();
             var b = new RecordingSession();
             var origin = new int3(100, 32, 200);
+            var components = new StructureComponentAuthoringService();
 
-            ChurchAuthoring.Author(a, origin, in parish);
-            ChurchAuthoring.Author(b, origin, in parish);
+            ChurchAuthoring.Author(components, a, origin, in parish);
+            ChurchAuthoring.Author(components, b, origin, in parish);
 
             Assert.Multiple(() =>
             {

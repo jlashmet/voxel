@@ -1,18 +1,20 @@
 name: Tests (single)
 run-name: Validation · ${{ github.ref_name }} · ${{ github.event_name }}
 
-# Exact-SHA agent transport. The explicit requested Unity test remains a fast targeted gate.
-# On ci-test/* pushes, repository metadata also derives required module tests and built-player
-# validation from the feature diff; agents never select those module/player gates manually.
+# Exact-SHA agent transport. On ci-test/* pushes the feature diff determines the owning
+# module assemblies, optional module-local standalone scenes, and Kentridge integration.
+# Compatible requested regressions share the same persistent Unity editor as automatic
+# EditMode/PlayMode validation; known process-isolated suites still use a fresh editor.
 on:
   workflow_dispatch:
     inputs:
       test:
-        description: Fully qualified Unity test name (or exact test filter)
-        required: true
+        description: Fully qualified Unity test name (optional extra gate)
+        required: false
+        default: ''
         type: string
       platform:
-        description: Unity test platform
+        description: Unity test platform for optional extra gate
         required: true
         default: EditMode
         type: choice
@@ -44,17 +46,6 @@ jobs:
           clean: true
           fetch-depth: 0
 
-      - name: Publish pending commit status
-        if: github.event_name == 'push'
-        uses: actions/github-script@v7
-        env:
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        with:
-          script: |
-            await github.rest.repos.createCommitStatus({owner: context.repo.owner, repo: context.repo.repo,
-              sha: context.sha, state: 'pending', context: 'ci/single-test',
-              description: 'Exact-SHA validation is running', target_url: process.env.RUN_URL});
-
       - name: Resolve request and feature source
         id: request
         shell: bash
@@ -65,7 +56,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
-            test_name="$DISPATCH_TEST"
+            test_name="${DISPATCH_TEST:-}"
             platform="$DISPATCH_PLATFORM"
             request_id="${DISPATCH_REQUEST_ID:-${GITHUB_SHA:0:12}}"
             source_sha="$GITHUB_SHA"
@@ -76,14 +67,12 @@ jobs:
           import json, shlex
           request=json.load(open('.github/test-request.json',encoding='utf-8'))
           values={
-            'test_name':request.get('test'),
+            'test_name':request.get('test') or '',
             'platform':request.get('platform','EditMode'),
             'request_id':request.get('request_id') or '',
             'scene_issue':request.get('scene_issue') or '',
             'replay_seconds':request.get('replay_seconds') or '',
           }
-          if not isinstance(values['test_name'],str) or not values['test_name']:
-              raise SystemExit('ERROR: test-request requires non-empty test')
           if values['platform'] not in ('EditMode','PlayMode'):
               raise SystemExit('ERROR: platform must be EditMode or PlayMode')
           for key,value in values.items():
@@ -97,6 +86,18 @@ jobs:
           fi
           printf 'test=%s\nplatform=%s\nrequest_id=%s\nscene_issue=%s\nreplay_seconds=%s\nsource_sha=%s\n' \
             "$test_name" "$platform" "$request_id" "$scene_issue" "$replay_seconds" "$source_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Publish pending commit status
+        if: github.event_name == 'push'
+        uses: actions/github-script@v7
+        env:
+          SOURCE_SHA: ${{ steps.request.outputs.source_sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          script: |
+            await github.rest.repos.createCommitStatus({owner: context.repo.owner, repo: context.repo.repo,
+              sha: process.env.SOURCE_SHA, state: 'pending', context: 'ci/single-test',
+              description: 'Exact-SHA validation is running', target_url: process.env.RUN_URL});
 
       - name: Resolve Unity
         id: unity
@@ -118,7 +119,10 @@ jobs:
             sleep 5
           done
 
-      - name: Run requested focused test
+      # Manual dispatch has no diff-derived validation plan, so keep its direct focused gate.
+      # ci-test/* pushes fold compatible focused tests into the persistent automatic runner below.
+      - name: Run optional explicitly requested test (manual dispatch)
+        if: github.event_name == 'workflow_dispatch' && steps.request.outputs.test != ''
         shell: bash
         env:
           UNITY_BIN: ${{ steps.unity.outputs.path }}
@@ -157,26 +161,28 @@ jobs:
           python3 tools/module-validation-plan.py \
             --changed-file-list Artifacts/SingleTest/ModuleValidation/changed-files.txt \
             --output Artifacts/SingleTest/ModuleValidation/plan.json
-          python3 tools/tests/test_module_validation_plan.py
+          python3 -m unittest discover -s tools/tests -p 'test_*.py' -v
           python3 - "$GITHUB_OUTPUT" <<'PY'
           import json,sys
           p=json.load(open('Artifacts/SingleTest/ModuleValidation/plan.json',encoding='utf-8'))
           with open(sys.argv[1],'a',encoding='utf-8') as out:
-              out.write('required='+('true' if p['hasProductionChanges'] else 'false')+'\n')
+              out.write('required='+('true' if p['hasValidationWork'] else 'false')+'\n')
               out.write('has_players='+('true' if p['playerValidations'] else 'false')+'\n')
           print('Automatic modules:', ', '.join(p['modules']) or '<none>')
           print('Fallback paths:', ', '.join(p['fallbackPaths']) or '<none>')
           PY
 
       - name: Run automatically required module validation
-        if: github.event_name == 'push' && steps.plan.outputs.required == 'true'
+        if: github.event_name == 'push' && (steps.plan.outputs.required == 'true' || steps.request.outputs.test != '')
         shell: bash
         run: |
           set -euo pipefail
           python3 tools/run-module-validation.py \
             --unity "${{ steps.unity.outputs.path }}" \
             --plan Artifacts/SingleTest/ModuleValidation/plan.json \
-            --output Artifacts/SingleTest/ModuleValidation/Results
+            --output Artifacts/SingleTest/ModuleValidation/Results \
+            --requested-test "${{ steps.request.outputs.test }}" \
+            --requested-platform "${{ steps.request.outputs.platform }}"
 
       - name: Replay SceneIssue through standalone player
         if: always() && steps.request.outputs.scene_issue != ''
@@ -215,11 +221,12 @@ jobs:
         if: always() && github.event_name == 'push'
         uses: actions/github-script@v7
         env:
+          SOURCE_SHA: ${{ steps.request.outputs.source_sha }}
           JOB_STATUS: ${{ job.status }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
           script: |
             const success=process.env.JOB_STATUS === 'success';
             await github.rest.repos.createCommitStatus({owner: context.repo.owner, repo: context.repo.repo,
-              sha: context.sha, state: success ? 'success' : 'failure', context: 'ci/single-test',
+              sha: process.env.SOURCE_SHA, state: success ? 'success' : 'failure', context: 'ci/single-test',
               description: success ? 'Exact-SHA validation passed' : 'Exact-SHA validation failed', target_url: process.env.RUN_URL});

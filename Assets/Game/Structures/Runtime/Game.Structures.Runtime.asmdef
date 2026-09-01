@@ -5,7 +5,6 @@
         "Game.Structures.Api",
         "Game.Materials.Api",
         "VoxelEngine.Structures.Api",
-        "VoxelEngine.Structures.Runtime",
         "VoxelEngine.Terrain.Api",
         "Unity.Mathematics",
         "Unity.Collections"
