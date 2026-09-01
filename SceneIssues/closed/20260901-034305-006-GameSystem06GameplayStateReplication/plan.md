@@ -7,18 +7,17 @@
 - `Packages/manifest.json` includes `com.unity.transport` 6.5.0 and intentionally does not include NGO.
 - The production server/client/transport/protocol/interest/convergence stack remains under `Assets/VoxelEngine/Net`.
 - `AuthoritativeServerSession.ProcessAuthoritativeTick` is the authoritative fixed-tick cadence. Gameplay-state publication plugs into that cadence after authoritative simulation state is resolved and before the existing replication/send flush; no second update loop exists.
-- Existing Net owns transport, connection identity, packet framing, subscriptions/interest, convergence/repair, reconnect/admission plumbing and client/server receive paths. `Game.GameplayReplication` owns semantic gameplay publications/revisions and replicated client truth only.
-- Existing owning semantic APIs consumed directly: Characters, Encounters, Combat, Inventory, and Sessions.
-- The binding system designs require replication-facing read seams for Vitality, Progression, Continuity, and Outcomes. System 06 supplies only the minimum engine-neutral owning API contracts required by this consumer; it does not implement those runtimes.
+- Net owns transport, connection identity, packet framing, subscriptions/interest, convergence/repair, reconnect/admission plumbing and client/server receive paths. `Game.GameplayReplication` owns semantic gameplay publications/revisions and replicated client truth only.
+- Existing owning semantic APIs consumed directly: Characters, Encounters, Combat, Inventory, Sessions, and now canonical Continuity from current master.
 
-## Minimal missing API contracts
+## Minimal contracts and later canonical adoption
 
 - `Game.Vitality.Api`: immutable `VitalitySnapshot` keyed by `CharacterId` with current/max/defeated/revision and `IVitalityQuery`. No damage/heal/defeat runtime.
 - `Game.Progression.Api`: stable quest/objective identities, lifecycle state, revisions, coherent `ProgressionSnapshot`, and `IProgressionQuery`. No observation evaluation, completion mutation, Story integration, or runtime.
-- `Game.Continuity.Api`: semantic recovery state snapshots keyed by durable Sessions-owned `PartyMemberId`, coherent snapshot/query. No grace policy, reconnect authentication, input gating, or runtime.
-- `Game.Outcomes.Api`: Running/Resolved lifecycle, disposition, semantic `OutcomeRef`, current snapshot/query. No resolution request policy, event emission, orchestration, or runtime.
-
-Each contract-only API has a tiny module-local consumer test assembly so repository-derived validation owns and exercises the contract directly rather than falling back to unrelated modules. The contracts contain no Unity, transport, presentation, scene, or named-content policy.
+- `Game.Outcomes.Api`: Running/Resolved lifecycle, disposition, semantic `OutcomeRef`, current snapshot/query. No resolution policy, orchestration, or runtime.
+- System 06 initially supplied a minimal Continuity read seam because no owner implementation existed. Current master later landed canonical `Game.Continuity.Api` / `Runtime` / tests. The feature adopts that canonical implementation unchanged, removes the provisional Continuity contract/test shape, and adapts replication to `IContinuityQuery.TryGetRecovery` plus Sessions-owned durable member enumeration.
+- Current master also introduced the small `IGameplayReplicationClientState` semantic contract needed by Continuity. The richer system-06 replication API preserves that seam together with its publication/projection/revision contracts. `GameplayRevision` uses the canonical unsigned monotonic value and keeps nonnegative signed constructors only as convenience.
+- Master-established GameplayReplication folder/API/test `.meta` GUIDs are preserved so the full system-06 implementation extends the existing Unity assets instead of replacing their identities.
 
 ## Replication API / runtime
 
@@ -30,13 +29,13 @@ Subsystem identity/versioning is semantic (`GameplayProjectionId` + schema versi
 
 ## Validation and demonstrated fixes
 
-The transport-backed fixture covers two authenticated UTP clients with Characters + Vitality + transactional Inventory, a forced semantic revision gap with live repair request/response, a late joiner, and disconnect/reconnect under a new transient connection ID. `GameplayReplicationProjectionContractTests` independently consumes the four minimal APIs with API-only fixtures and verifies deterministic Continuity, Outcomes, Progression, and Vitality projections without any owning runtime implementation.
+The transport-backed fixture covers two authenticated UTP clients with Characters + Vitality + transactional Inventory, a forced semantic revision gap with live repair request/response, a late joiner, and disconnect/reconnect under a new transient connection ID. `GameplayReplicationProjectionContractTests` is an independent consumer fixture for Vitality, Progression, Outcomes and canonical Continuity/Sessions semantic reads.
 
-Run `33513817861` exposed an obsolete parallel `Game.GameplayReplication.Networking` assembly as a compile-time duplicate; it was removed, leaving `Game.GameplayReplication.Transport` as the sole bridge. Run `33521707518` then proved the strengthened focused UTP test and standalone player but broadened module validation because the new API-only folders had no convention-owned tests; the unrelated `Game.Materials.Tests` failures demonstrated that ownership defect. Adding tiny module-local API contract tests fixed the validation boundary without modifying Materials or the planner.
+Run `33513817861` exposed an obsolete parallel `Game.GameplayReplication.Networking` assembly as a compile-time duplicate; it was removed, leaving `Game.GameplayReplication.Transport` as the sole bridge. Run `33521707518` then proved the strengthened focused UTP test and standalone player but broadened module validation because new contract-only API folders had no convention-owned tests; unrelated `Game.Materials.Tests` failures demonstrated that validation-ownership defect. Tiny module-local contract tests fixed the ownership boundary without modifying Materials or the validation planner.
 
-Exact source `5432ef305138c2948d182342df52af626da154f0` passed final acceptance validation in run `33522951566`, job `99906521904`: the focused UTP test, repository-derived automatic module/dependent validation, standalone `KentridgePlayableSlice` SceneIssue replay, screenshot/artifact evidence, and final `ci/single-test=success` all passed.
+Exact source `5432ef305138c2948d182342df52af626da154f0` passed acceptance validation in run `33522951566`, job `99906521904`: focused UTP, repository-derived automatic module/dependent validation, standalone `KentridgePlayableSlice` replay, screenshot/artifact evidence, and final `ci/single-test=success` all passed.
 
-Current master at closure check was `fdf9fffab5df3b1f16cd7123a7a5410111d46b58`, one commit beyond the feature base and containing only a separate SceneIssue's three bookkeeping files. Per repository workflow, merge current master into the closed feature branch before promotion; no production/test compatibility conflict is expected.
+After closure, master advanced materially with GameSystem08 Continuity. The feature merged master, retained the canonical Continuity runtime/tests and master GameplayReplication asset GUIDs, and resolved only the overlapping semantic API/adapter boundary described above. One final exact merged-head gate is required before promotion to master; no queued/running CI request is replaced to achieve it.
 
 ## Non-goals preserved
 
