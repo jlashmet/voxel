@@ -48,9 +48,10 @@ namespace VoxelEngine.Tests.EditMode
                 .ResolveCave(in plan);
             var a = new CountingSession();
             var b = new CountingSession();
+            var caveAuthoring = new CaveAuthoringService();
 
-            CaveAuthoringResult resultA = CastleCaveAuthoring.Author(a, in plan, caveAnchor);
-            CaveAuthoringResult resultB = CastleCaveAuthoring.Author(b, in plan, caveAnchor);
+            CaveAuthoringResult resultA = CastleCaveAuthoring.Author(caveAuthoring, a, in plan, caveAnchor);
+            CaveAuthoringResult resultB = CastleCaveAuthoring.Author(caveAuthoring, b, in plan, caveAnchor);
             CaveGenerationRequest request = CastleCaveAuthoring.Request(in plan, caveAnchor);
             CaveHookSet hooksA = CaveHookPlanner.AtMainPathEnd(in request, resultA.MainPathEnd);
             CaveHookSet hooksB = CaveHookPlanner.AtMainPathEnd(in request, resultB.MainPathEnd);
