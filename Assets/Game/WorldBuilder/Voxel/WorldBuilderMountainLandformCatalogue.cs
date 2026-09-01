@@ -8,9 +8,47 @@ using VoxelEngine.Structures.Api;
 namespace Game.WorldBuilder.Voxel
 {
     /// <summary>
+    /// Caller-owned mapping from reusable mountain surface roles to concrete voxel materials.
+    /// Keeping this mapping outside Game.WorldBuilder.Api prevents presentation ids from leaking
+    /// into the semantic landform/climate contract.
+    /// </summary>
+    public readonly struct MountainLandformPalette
+    {
+        public byte GroundCoverMaterial { get; }
+        public byte RockMaterial { get; }
+        public byte SnowMaterial { get; }
+
+        public MountainLandformPalette(
+            byte groundCoverMaterial,
+            byte rockMaterial,
+            byte snowMaterial)
+        {
+            if (groundCoverMaterial == 0) throw new ArgumentOutOfRangeException(nameof(groundCoverMaterial));
+            if (rockMaterial == 0) throw new ArgumentOutOfRangeException(nameof(rockMaterial));
+            if (snowMaterial == 0) throw new ArgumentOutOfRangeException(nameof(snowMaterial));
+
+            GroundCoverMaterial = groundCoverMaterial;
+            RockMaterial = rockMaterial;
+            SnowMaterial = snowMaterial;
+        }
+
+        public byte MaterialFor(MountainSurfaceRole role)
+        {
+            switch (role)
+            {
+                case MountainSurfaceRole.GroundCover: return GroundCoverMaterial;
+                case MountainSurfaceRole.Rock: return RockMaterial;
+                case MountainSurfaceRole.Snow: return SnowMaterial;
+                default: throw new ArgumentOutOfRangeException(nameof(role));
+            }
+        }
+    }
+
+    /// <summary>
     /// Voxel realization for <see cref="MountainLandformSurface"/>. It emits the surface authority's
     /// exact analytic masses rather than rebuilding or approximating the mountain independently.
-    /// Material identity remains caller-owned presentation data.
+    /// Climate is an ordered material-only surface pass over those masses; it never changes the
+    /// authoritative occupancy. Concrete material identity remains caller-owned presentation data.
     /// </summary>
     public static class WorldBuilderMountainLandformCatalogue
     {
@@ -30,23 +68,49 @@ namespace Game.WorldBuilder.Voxel
             byte mountainMaterial,
             Allocator allocator)
         {
-            if (surface == null) throw new ArgumentNullException(nameof(surface));
             if (mountainMaterial == 0) throw new ArgumentOutOfRangeException(nameof(mountainMaterial));
-            if (surface.MassCount < 1 || surface.MassCount > FeatureBudget.MaxPrimitivesPerInstance)
-                throw new InvalidOperationException(
-                    $"Mountain landform emits {surface.MassCount} primitives; budget is {FeatureBudget.MaxPrimitivesPerInstance}.");
 
-            CalculateBounds(surface, out int3 min, out int3 max);
-            int3 footprint = max - min + 1;
-            if (footprint.x > FeatureBudget.MaxFootprintVoxels
-                || footprint.y > FeatureBudget.MaxFootprintVoxels
-                || footprint.z > FeatureBudget.MaxFootprintVoxels)
-            {
-                throw new InvalidOperationException(
-                    $"Mountain landform footprint {footprint} exceeds {FeatureBudget.MaxFootprintVoxels} voxels on one or more axes.");
-            }
-
+            ValidateAndCalculateBounds(surface, surface?.MassCount ?? 0, out int3 min, out int3 max);
             int[] program = BuildProgram(surface, min, mountainMaterial);
+            return BuildCatalogue(surface, min, max, program, surface.MassCount, allocator);
+        }
+
+        public static FeatureCatalogue Build(
+            in MountainLandformSpec spec,
+            MountainClimateProfile climate,
+            in MountainLandformPalette palette,
+            Allocator allocator)
+        {
+            var surface = new MountainLandformSurface(in spec);
+            return Build(surface, climate, in palette, allocator);
+        }
+
+        public static FeatureCatalogue Build(
+            MountainLandformSurface surface,
+            MountainClimateProfile climate,
+            in MountainLandformPalette palette,
+            Allocator allocator)
+        {
+            if (surface == null) throw new ArgumentNullException(nameof(surface));
+            if (climate == null) throw new ArgumentNullException(nameof(climate));
+
+            int steepMassCount = CountSteepMasses(surface, climate.SteepRockSlopePermille);
+            int primitiveCount = surface.MassCount + 2 + steepMassCount;
+            ValidateAndCalculateBounds(surface, primitiveCount, out int3 min, out int3 max);
+
+            int[] program = BuildClimateProgram(surface, min, max, climate, in palette);
+            return BuildCatalogue(surface, min, max, program, primitiveCount, allocator);
+        }
+
+        private static FeatureCatalogue BuildCatalogue(
+            MountainLandformSurface surface,
+            int3 min,
+            int3 max,
+            int[] program,
+            int maxPrimitives,
+            Allocator allocator)
+        {
+            int3 footprint = max - min + 1;
             FeatureCatalogue catalogue = FeatureCatalogueBuilder.Allocate(
                 definitions: 1,
                 rules: 1,
@@ -72,7 +136,7 @@ namespace Game.WorldBuilder.Voxel
                 Precedence = 100,
                 ProgramOffset = 0,
                 ProgramLength = program.Length,
-                MaxPrimitives = surface.MassCount,
+                MaxPrimitives = maxPrimitives,
             };
 
             catalogue.ExplicitPlacements[0] = new ExplicitPlacement
@@ -125,13 +189,133 @@ namespace Game.WorldBuilder.Voxel
                     mass.HeightDm,
                     mass.BaseRadiusDm,
                     mass.TopRadiusDm,
-                    material);
+                    material,
+                    PrimitiveMode.FillIfEmpty);
             }
 
             program.Add((int)ShapeOp.End);
             program.Add(0);
             return program.ToArray();
         }
+
+        private static int[] BuildClimateProgram(
+            MountainLandformSurface surface,
+            int3 placementMin,
+            int3 placementMax,
+            MountainClimateProfile climate,
+            in MountainLandformPalette palette)
+        {
+            int steepMassCount = CountSteepMasses(surface, climate.SteepRockSlopePermille);
+            int capacity = (surface.MassCount + steepMassCount) * ShapeOps.InstructionLength(ShapeOp.EmitFrustum)
+                + 2 * ShapeOps.InstructionLength(ShapeOp.EmitBox) + 2;
+            var program = new List<int>(capacity);
+
+            // Shape authority remains exactly the same mass list; climate only changes which
+            // concrete material is used for its mineral support and adds material-only passes.
+            for (int i = 0; i < surface.MassCount; i++)
+            {
+                MountainLandformMass mass = surface.GetMass(i);
+                EmitFrustum(
+                    program,
+                    mass.CentreXdm - placementMin.x,
+                    mass.BaseYdm - placementMin.y,
+                    mass.CentreZdm - placementMin.z,
+                    mass.HeightDm,
+                    mass.BaseRadiusDm,
+                    mass.TopRadiusDm,
+                    palette.RockMaterial,
+                    PrimitiveMode.FillIfEmpty);
+            }
+
+            int relief = placementMax.y - placementMin.y;
+            int sizeX = placementMax.x - placementMin.x + 1;
+            int sizeZ = placementMax.z - placementMin.z + 1;
+            int groundCoverTop = ScalePermille(relief, climate.GroundCoverCeilingPermille);
+            int snowLine = ScalePermille(relief, climate.SnowLinePermille);
+
+            // PaintSurface treats each box as an altitude selector over the already-generated
+            // density surface. Lower selectors may touch hidden interior support beneath taller
+            // columns, but never occupancy; later snow/steep passes determine the visible role.
+            EmitBox(
+                program,
+                0, 0, 0,
+                sizeX, groundCoverTop + 1, sizeZ,
+                palette.GroundCoverMaterial,
+                PrimitiveMode.PaintSurface);
+            EmitBox(
+                program,
+                0, snowLine, 0,
+                sizeX, relief - snowLine + 1, sizeZ,
+                palette.SnowMaterial,
+                PrimitiveMode.PaintSurface);
+
+            // Slope is a property of each analytic mass. Repainting steep masses last implements
+            // the semantic precedence rule (steep => exposed rock) without altering geometry.
+            for (int i = 0; i < surface.MassCount; i++)
+            {
+                MountainLandformMass mass = surface.GetMass(i);
+                if (MassSlopePermille(in mass) < climate.SteepRockSlopePermille) continue;
+
+                EmitFrustum(
+                    program,
+                    mass.CentreXdm - placementMin.x,
+                    mass.BaseYdm - placementMin.y,
+                    mass.CentreZdm - placementMin.z,
+                    mass.HeightDm,
+                    mass.BaseRadiusDm,
+                    mass.TopRadiusDm,
+                    palette.RockMaterial,
+                    PrimitiveMode.PaintSurface);
+            }
+
+            program.Add((int)ShapeOp.End);
+            program.Add(0);
+            return program.ToArray();
+        }
+
+        private static void ValidateAndCalculateBounds(
+            MountainLandformSurface surface,
+            int primitiveCount,
+            out int3 min,
+            out int3 max)
+        {
+            if (surface == null) throw new ArgumentNullException(nameof(surface));
+            if (surface.MassCount < 1 || primitiveCount > FeatureBudget.MaxPrimitivesPerInstance)
+                throw new InvalidOperationException(
+                    $"Mountain landform emits {primitiveCount} primitives; budget is {FeatureBudget.MaxPrimitivesPerInstance}.");
+
+            CalculateBounds(surface, out min, out max);
+            int3 footprint = max - min + 1;
+            if (footprint.x > FeatureBudget.MaxFootprintVoxels
+                || footprint.y > FeatureBudget.MaxFootprintVoxels
+                || footprint.z > FeatureBudget.MaxFootprintVoxels)
+            {
+                throw new InvalidOperationException(
+                    $"Mountain landform footprint {footprint} exceeds {FeatureBudget.MaxFootprintVoxels} voxels on one or more axes.");
+            }
+        }
+
+        private static int CountSteepMasses(MountainLandformSurface surface, int steepRockSlopePermille)
+        {
+            int count = 0;
+            for (int i = 0; i < surface.MassCount; i++)
+            {
+                MountainLandformMass mass = surface.GetMass(i);
+                if (MassSlopePermille(in mass) >= steepRockSlopePermille) count++;
+            }
+            return count;
+        }
+
+        private static int MassSlopePermille(in MountainLandformMass mass)
+        {
+            int horizontalRun = mass.BaseRadiusDm - mass.TopRadiusDm;
+            if (horizontalRun <= 0) return 10000;
+            long slope = ((long)mass.HeightDm * 1000L + horizontalRun / 2L) / horizontalRun;
+            return (int)Math.Min(10000L, slope);
+        }
+
+        private static int ScalePermille(int span, int permille)
+            => (int)(((long)span * permille + 500L) / 1000L);
 
         private static void CalculateBounds(
             MountainLandformSurface surface,
@@ -162,6 +346,31 @@ namespace Game.WorldBuilder.Voxel
             }
         }
 
+        private static void EmitBox(
+            List<int> program,
+            int minX,
+            int minY,
+            int minZ,
+            int sizeX,
+            int sizeY,
+            int sizeZ,
+            byte material,
+            PrimitiveMode mode)
+        {
+            program.Add((int)ShapeOp.EmitBox);
+            program.Add(0);
+            program.Add(minX);
+            program.Add(minY);
+            program.Add(minZ);
+            program.Add(sizeX);
+            program.Add(sizeY);
+            program.Add(sizeZ);
+            program.Add(material);
+            program.Add(0);
+            program.Add(0);
+            program.Add((int)mode);
+        }
+
         private static void EmitFrustum(
             List<int> program,
             int centreX,
@@ -170,7 +379,8 @@ namespace Game.WorldBuilder.Voxel
             int height,
             int baseRadius,
             int topRadius,
-            byte material)
+            byte material,
+            PrimitiveMode mode)
         {
             program.Add((int)ShapeOp.EmitFrustum);
             program.Add(0);
@@ -184,7 +394,7 @@ namespace Game.WorldBuilder.Voxel
             program.Add(material);
             program.Add(0);
             program.Add(0);
-            program.Add((int)PrimitiveMode.FillIfEmpty);
+            program.Add((int)mode);
         }
     }
 }

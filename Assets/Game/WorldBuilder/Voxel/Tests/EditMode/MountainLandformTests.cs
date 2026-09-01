@@ -104,6 +104,86 @@ namespace Game.WorldBuilder.Voxel.Tests.EditMode
             }
         }
 
+        [Test]
+        public void ClimateProfileSelectsSemanticAltitudeAndSlopeRoles()
+        {
+            var climate = new MountainClimateProfile(
+                groundCoverCeilingPermille: 300,
+                snowLinePermille: 720,
+                steepRockSlopePermille: 1250);
+
+            Assert.That(climate.RoleAt(150, 300), Is.EqualTo(MountainSurfaceRole.GroundCover));
+            Assert.That(climate.RoleAt(500, 300), Is.EqualTo(MountainSurfaceRole.Rock));
+            Assert.That(climate.RoleAt(850, 300), Is.EqualTo(MountainSurfaceRole.Snow));
+            Assert.That(climate.RoleAt(150, 1600), Is.EqualTo(MountainSurfaceRole.Rock));
+            Assert.That(climate.RoleAt(850, 1600), Is.EqualTo(MountainSurfaceRole.Rock));
+        }
+
+        [Test]
+        public void ClimateCatalogueKeepsShapeAuthorityAndUsesCallerOwnedPalette()
+        {
+            MountainLandformSpec spec = CreateRidgedSpec(seed: 811u);
+            var surface = new MountainLandformSurface(in spec);
+            var climate = new MountainClimateProfile(
+                groundCoverCeilingPermille: 280,
+                snowLinePermille: 690,
+                steepRockSlopePermille: 900);
+            var palette = new MountainLandformPalette(
+                groundCoverMaterial: 4,
+                rockMaterial: 7,
+                snowMaterial: 9);
+
+            FeatureCatalogue catalogue = WorldBuilderMountainLandformCatalogue.Build(
+                surface,
+                climate,
+                in palette,
+                Allocator.Temp);
+            try
+            {
+                int pc = 0;
+                for (int i = 0; i < surface.MassCount; i++)
+                {
+                    Assert.That((ShapeOp)catalogue.Program[pc], Is.EqualTo(ShapeOp.EmitFrustum));
+                    Assert.That(catalogue.Program[pc + 9], Is.EqualTo(palette.RockMaterial));
+                    Assert.That((PrimitiveMode)catalogue.Program[pc + 12], Is.EqualTo(PrimitiveMode.FillIfEmpty));
+                    pc += ShapeOps.InstructionLength(ShapeOp.EmitFrustum);
+                }
+
+                Assert.That((ShapeOp)catalogue.Program[pc], Is.EqualTo(ShapeOp.EmitBox));
+                Assert.That(catalogue.Program[pc + 8], Is.EqualTo(palette.GroundCoverMaterial));
+                Assert.That((PrimitiveMode)catalogue.Program[pc + 11], Is.EqualTo(PrimitiveMode.PaintSurface));
+                pc += ShapeOps.InstructionLength(ShapeOp.EmitBox);
+
+                Assert.That((ShapeOp)catalogue.Program[pc], Is.EqualTo(ShapeOp.EmitBox));
+                Assert.That(catalogue.Program[pc + 8], Is.EqualTo(palette.SnowMaterial));
+                Assert.That((PrimitiveMode)catalogue.Program[pc + 11], Is.EqualTo(PrimitiveMode.PaintSurface));
+                pc += ShapeOps.InstructionLength(ShapeOp.EmitBox);
+
+                int steepPaintCount = 0;
+                while ((ShapeOp)catalogue.Program[pc] != ShapeOp.End)
+                {
+                    Assert.That((ShapeOp)catalogue.Program[pc], Is.EqualTo(ShapeOp.EmitFrustum));
+                    Assert.That(catalogue.Program[pc + 9], Is.EqualTo(palette.RockMaterial));
+                    Assert.That((PrimitiveMode)catalogue.Program[pc + 12], Is.EqualTo(PrimitiveMode.PaintSurface));
+                    steepPaintCount++;
+                    pc += ShapeOps.InstructionLength(ShapeOp.EmitFrustum);
+                }
+
+                Assert.That(steepPaintCount, Is.GreaterThan(0), "ridged fixture should exercise slope override");
+                Assert.That(catalogue.Definitions[0].MaxPrimitives,
+                    Is.EqualTo(surface.MassCount + 2 + steepPaintCount));
+                Assert.That(catalogue.Definitions[0].MaxPrimitives,
+                    Is.LessThanOrEqualTo(FeatureBudget.MaxPrimitivesPerInstance));
+                Assert.That(palette.MaterialFor(MountainSurfaceRole.GroundCover), Is.EqualTo(4));
+                Assert.That(palette.MaterialFor(MountainSurfaceRole.Rock), Is.EqualTo(7));
+                Assert.That(palette.MaterialFor(MountainSurfaceRole.Snow), Is.EqualTo(9));
+            }
+            finally
+            {
+                catalogue.Dispose();
+            }
+        }
+
         private static MountainLandformSpec CreateMassifSpec(uint seed) =>
             new MountainLandformSpec(
                 originXdm: 120,
