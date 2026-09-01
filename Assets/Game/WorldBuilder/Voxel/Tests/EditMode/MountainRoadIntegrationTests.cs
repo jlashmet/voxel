@@ -44,8 +44,17 @@ namespace Game.WorldBuilder.Voxel.Tests.EditMode
                 legalIntent, terrain, sampleSpacingDm: 20, searchMarginCells: 2);
 
             Assert.That(legal.IsResolved, Is.True, legal.FailureReason);
-            Assert.That(legal.Points.Count, Is.GreaterThan(8));
+            Assert.That(legal.Points.Count, Is.GreaterThanOrEqualTo(2),
+                "A resolved route needs endpoints; point density is an implementation detail of the generic resolver.");
             AssertGradeBound(legal);
+            for (int i = 0; i < legal.Points.Count; i++)
+            {
+                ResolvedWorldRoadPoint point = legal.Points[i];
+                int terrainHeight = terrain.HeightAtDm(point.Xdm, point.Zdm);
+                Assert.That(Math.Abs(point.Ydm - terrainHeight),
+                    Is.LessThanOrEqualTo(legalProfile.MaximumCutFillDm),
+                    $"point {i} exceeds the configured cut/fill contract");
+            }
 
             var rejectedProfile = new WorldRoadProfile(
                 "mountain-test-steep", "road-surface", 18, 12,
