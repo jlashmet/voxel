@@ -13,6 +13,8 @@
     "Game.Cutscenes.Api",
     "Game.Input.Api",
     "Game.Input.Runtime",
+    "Game.Vitality.Api",
+    "Game.Vitality.Runtime",
     "Game.WorldBuilder.Api",
     "MountingForce.WorldGen.Core",
     "MountingForce.WorldGen.Runtime",
