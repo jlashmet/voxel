@@ -3,6 +3,7 @@
   "rootNamespace": "Game.Vitality.Tests",
   "references": [
     "Game.Characters.Api",
+    "Game.Combat.Api",
     "Game.Vitality.Api",
     "Game.Vitality.Runtime"
   ],
