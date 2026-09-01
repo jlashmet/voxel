@@ -2,36 +2,24 @@
 
 ## Defect / acceptance
 
-WorldBuilder needs deterministic `Secret -> Route(s) -> Clue(s)` planning with stable identity, semantic pre-solve evidence, explicit bypass policy, reusable route/discovery integration, and representative built-player proof. This issue has no captures/marked regions. Per user direction, visual proof is owned entirely by the dedicated module-local Secret Discovery validation scene; there must be no `WorldbuildingGalleryShowcase` secret integration.
+WorldBuilder needs deterministic `Secret -> Route(s) -> Clue(s)` planning with stable identity, semantic pre-solve evidence, explicit bypass policy, reusable route/discovery integration, and built-player proof. There are no original captures/marked regions. `issue.json` still requires representative `WorldbuildingGalleryShowcase` examples and exact built Gallery validation; the user later explicitly directed this assignment not to integrate into that Gallery. Acceptance may not be silently weakened, so that conflict is a closure blocker.
 
-## Hypotheses and results
+## Hypotheses / results
 
-- **Hidden-secret selection is missing/non-deterministic.** Falsified: production `SecretPlanner` already resolves canonical hidden candidates deterministically.
-- **Clue generation needs a second hidden-location solver.** Rejected: route/clue planning consumes canonical `ResolvedSecretPlan` identity.
-- **Route/readability/clue planning was missing.** Supported; implemented with stable IDs, semantic anchors, readability/diversity policy, diagnostics, and explicit bypass semantics.
-- **Reusable interaction/discovery APIs are unavailable.** Falsified: canonical runtime integration is available and targeted regressions are green.
-- **No production generated secret geometry exists.** Falsified: `CaveSecretPocketAuthoring` creates verified hidden-space/barrier topology and projects that exact geometry into canonical WorldBuilder secret identity.
-- **Primitive validation can prove visual acceptance.** Falsified twice; parallel primitive rendering was removed.
-- **Random coating across the barrier is a readable clue.** Rejected by built-player review: the walkthrough/reveal looked good, but the clue itself was not recognizable without prior knowledge.
-- **A sparse deterministic fracture pattern can improve readability without weakening topology.** Current implementation: coat only the cave-facing barrier layer in one continuous branching crack pattern; no carving/filling and the full barrier is revalidated solid afterward.
+- Canonical hidden-secret selection already existed; route/readability/clue planning was the missing layer. Implemented with stable IDs, semantic anchors, deterministic scoring/tie-breaking, diagnostics, and explicit bypass semantics.
+- Canonical interactable/discovery integration is available and proven: run `33419056074` is green and revisit/reload/repeated activation remains idempotent.
+- Generated cave secret geometry is reusable: `CaveSecretPocketComposition` authors verified barrier/connector/pocket topology and canonical WorldBuilder projection; run `33420376990` is green.
+- Primitive/parallel visual proof failed production-quality review and was removed.
+- Random moss coating preserved topology but was too subtle as a clue. Replaced with a deterministic cave-face fracture mask. Exact run `33537413920` passed the focused fracture regression plus all automatic module/player/Kentridge gates.
 
 ## Selected direction
 
-Use only `Assets/Game/WorldBuilder/Validation/SecretDiscovery/` for visual acceptance. It consumes production voxel storage/terrain, cave generation, secret-pocket composition, clue coating, materials, voxel meshing/rendering, production destruction, and vegetation.
+Visual development stays in `Assets/Game/WorldBuilder/Validation/SecretDiscovery/`, using production terrain/storage, cave generation, material/coating rendering, vegetation, meshing, and destruction. The deterministic walkthrough captures entrance -> cave progression -> fracture-bearing false wall -> production explosion -> opened route -> hidden pocket. No helper mesh, emissive marker, primitive renderer, or capture coordinate is used.
 
-The built-player sequence tells the complete discovery story: exterior entrance -> just-inside entrance -> deeper cave -> clue-bearing wall approach -> close clue/wall view -> destroy the authored false wall -> show the breached route and hidden pocket behind it. Camera poses derive from authored cave/pocket semantics, not captured-scene coordinates.
+Full-resolution run `33537413920`: 3s entrance, 6s interior, 9/12/15s readable fracture, 18s breached route, 21s hidden pocket. Player log reports `crackVoxels=35` and `607` voxels removed by the production explosion. The first 0s capture is a pre-ready transient and is not evidence.
 
-## Current work
+## Current state / remaining gates
 
-Exact walkthrough run `33532261836` produced the intended cave-entry, wall-destruction, and reveal sequence. Visual review accepted the overall scene/reveal but identified clue readability as the remaining defect.
+Last exact production source `8cc35bd4dd8d0c34444123a865f555cbde7ca21c` is green via request `9d018001d36b66f2c9002bc683f381d7eb0a5963` / run `33537413920`. Current branch has only durable evidence updates after that SHA.
 
-The clue presentation now produces a deterministic branching fracture on the cave-facing surface only. The validation consumer uses a dark soot coating for the fracture instead of broad moss speckling. A focused regression proves deterministic placement, cave-face-only presentation, continuous vertical extent, sparse coverage, and unchanged solid false-wall occupancy.
-
-## Remaining gates
-
-1. Run the exact crack-pattern feature head through the sole `ci-test/fixes/agent-5` transport.
-2. Inspect every full-resolution dedicated-scene frame. Require the fracture to read as intentional wall damage at approach/close range without looking like a universal marker.
-3. Confirm intact false wall before destruction, visible production destruction result, and a clear view into the hidden pocket afterward.
-4. Validate no runtime/startup exceptions, behavioral regressions, bypass/discovery semantics, and cost/blast radius.
-5. Merge current master before final validation/promotion; re-run exact-SHA gates if the head changes.
-6. Close only after every acceptance checkbox and built-player proof is green.
+Independent implementation/regression/player work is complete enough to validate the dedicated scene. Do **not** close while the Gallery acceptance conflict remains. Once resolved, merge current `origin/master`, re-run exact-SHA gates after the merge, inspect full-resolution evidence, complete issue metadata, move `open -> closed`, and push that exact head to `origin/master` non-force.
