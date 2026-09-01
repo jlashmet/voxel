@@ -3,7 +3,6 @@ using Game.Structures.Runtime;
 using NUnit.Framework;
 using Unity.Mathematics;
 using VoxelEngine.Structures.Api;
-using VoxelEngine.Structures.Runtime;
 
 namespace Game.Structures.Tests
 {
@@ -12,9 +11,8 @@ namespace Game.Structures.Tests
         [Test]
         public void AcceptedStructuralHandoffProducesWellFormedDecorationSockets()
         {
-            var decision = new StructuralAttachmentDecision
+            var decision = new StructuralDecorationAttachmentHandoff
             {
-                SemanticStructureId = 0x1234UL,
                 SocketId = 0x5151u,
                 AttachmentPosition = new int3(10, 20, 30),
                 SocketFlags = StructuralSocketFlags.DecorationHandoff,
@@ -51,14 +49,14 @@ namespace Game.Structures.Tests
         public void RejectedOrNonHandoffDecisionProducesNoDecorationSockets()
         {
             var slot = new SlotSpec { SocketId = 0x5151u, Facing = Facing.North };
-            var rejected = new StructuralAttachmentDecision
+            var rejected = new StructuralDecorationAttachmentHandoff
             {
                 SocketId = slot.SocketId,
                 SocketFlags = StructuralSocketFlags.DecorationHandoff,
                 DecorationHandoff = StructuralDecorationHandoff.Floor,
                 Accepted = false,
             };
-            var ordinary = new StructuralAttachmentDecision
+            var ordinary = new StructuralDecorationAttachmentHandoff
             {
                 SocketId = slot.SocketId,
                 Accepted = true,
@@ -73,7 +71,7 @@ namespace Game.Structures.Tests
         [Test]
         public void StructuralChildCanDefineDecorationSpaceWithoutRunningDecorationPlacement()
         {
-            var instance = new StructuralInstance
+            var instance = new StructuralDecorationInstanceHandoff
             {
                 SemanticStructureId = 0x0102030405060708UL,
                 InstanceId = 0x1112131415161718UL,
@@ -81,13 +79,10 @@ namespace Game.Structures.Tests
                 Position = new int3(100, 40, 200),
                 Orientation = 1,
             };
-            var definition = new FeatureDefinition
-            {
-                Footprint = new int3(12, 20, 28),
-            };
+            int3 footprint = new int3(12, 20, 28);
 
             Assert.IsTrue(StructuralDecorationHandoffAdapter.TryCreateSpace(
-                in instance, in definition, DecorationSpaceKind.ExteriorYard, out DecorationSpace space));
+                in instance, footprint, DecorationSpaceKind.ExteriorYard, out DecorationSpace space));
             Assert.IsTrue(space.IsWellFormed);
             Assert.AreEqual(instance.Position, space.Bounds.Min);
             Assert.AreEqual(instance.Position + new int3(28, 20, 12), space.Bounds.MaxExclusive);

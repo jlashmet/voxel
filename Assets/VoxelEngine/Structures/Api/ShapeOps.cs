@@ -1,3 +1,5 @@
+using System;
+
 namespace VoxelEngine.Structures.Api
 {
     /// <summary>
@@ -93,13 +95,15 @@ namespace VoxelEngine.Structures.Api
         // -- terrain ------------------------------------------------------------
 
         /// <summary>
-        /// ax, ay, az, bx, by, bz, coreRadius, outerRadius, maximumCutFill,
-        /// fillDepth, clearAbove, edgeVariation, material, seedLow31, reserved.
+        /// ax, ay, az, bx, by, bz, coreRadius, gradingRadius, maximumCutFill,
+        /// fillDepth, clearAbove, edgeVariation, material, seedLow31,
+        /// packedSurfaceOuterAndScale.
         ///
         /// Emits one bounded terrain-following corridor. A and B are already-resolved target
         /// elevations; rasterisation blends the existing column surface toward that target using
-        /// one analytic 0..31 influence, writes the same scalar into surface detail, and preserves
-        /// local terrain outside the influenced footprint.
+        /// a bounded grading influence while the independently encoded authored surface radius
+        /// controls material/detail coverage. Legacy callers may still pass a plain scale in the
+        /// final operand, preserving the original single-influence corridor contract.
         /// </summary>
         EmitTerrainCorridor = 20,
     }
@@ -121,32 +125,18 @@ namespace VoxelEngine.Structures.Api
     /// <summary>Instruction metadata and the register layout.</summary>
     public static class ShapeOps
     {
-        /// <summary>Registers a program may address.</summary>
         public const int RegisterCount = 32;
-
-        /// <summary>Registers 0..15 hold the instance's resolved parameters.</summary>
         public const int FirstParameterRegister = 0;
-
-        /// <summary>Base plane altitude in world voxels, chosen by the definition's rule.</summary>
         public const int RegisterBase = 16;
-
-        /// <summary>Slot index when this program is evaluated as a composed child.</summary>
         public const int RegisterSlot = 17;
-
-        /// <summary>Registers 18..31 are scratch, for ground samples and draws.</summary>
         public const int FirstScratchRegister = 18;
-
-        /// <summary>Deepest nesting of <see cref="ShapeOp.PushTransform"/>.</summary>
         public const int MaxTransformDepth = 8;
-
-        /// <summary>
-        /// Low bits of the EmitRamp axis operand encode 0=x, 1=y, 2=z. The high bit is a
-        /// canonical bytecode flag that reverses the direction of rise along that axis.
-        /// </summary>
         public const byte RampAxisMask = 0x7F;
         public const byte ReverseRampBit = 0x80;
 
-        /// <summary>Operand count per opcode. Indexed by <see cref="ShapeOp"/>.</summary>
+        private const int TerrainCorridorPackedMarker = 1 << 30;
+        private const int TerrainCorridorPackedFieldMask = (1 << 15) - 1;
+
         private static readonly int[] Operands =
         {
             0, // End
@@ -178,7 +168,6 @@ namespace VoxelEngine.Structures.Api
             return (uint)index < (uint)Operands.Length ? Operands[index] : -1;
         }
 
-        /// <summary>Ints occupied by one instruction: opcode, mode mask, and operands.</summary>
         public static int InstructionLength(ShapeOp op)
         {
             int operands = OperandCount(op);
@@ -188,5 +177,34 @@ namespace VoxelEngine.Structures.Api
         public static bool IsEmit(ShapeOp op) =>
             op >= ShapeOp.EmitBox && op <= ShapeOp.EmitArcWedge
             || op == ShapeOp.EmitTerrainCorridor;
+
+        /// <summary>
+        /// Packs the authored visible-surface outer radius and authored-grid scale into the
+        /// existing final terrain-corridor operand. The marker leaves legacy plain-scale programs
+        /// unambiguous and avoids growing the bytecode or primitive storage contract.
+        /// </summary>
+        public static int PackTerrainCorridorSurfaceOuterAndScale(int surfaceOuterRadius, int scale)
+        {
+            if (surfaceOuterRadius < 1 || surfaceOuterRadius > TerrainCorridorPackedFieldMask)
+                throw new ArgumentOutOfRangeException(nameof(surfaceOuterRadius));
+            if (scale < 1 || scale > TerrainCorridorPackedFieldMask)
+                throw new ArgumentOutOfRangeException(nameof(scale));
+            return TerrainCorridorPackedMarker | (surfaceOuterRadius << 15) | scale;
+        }
+
+        public static bool HasPackedTerrainCorridorSurfaceOuter(int packedOrLegacyScale)
+            => (packedOrLegacyScale & TerrainCorridorPackedMarker) != 0;
+
+        public static int TerrainCorridorScale(int packedOrLegacyScale)
+            => HasPackedTerrainCorridorSurfaceOuter(packedOrLegacyScale)
+                ? packedOrLegacyScale & TerrainCorridorPackedFieldMask
+                : Math.Max(1, packedOrLegacyScale);
+
+        public static int TerrainCorridorSurfaceOuterRadius(
+            int packedOrLegacyScale,
+            int legacyOuterRadius)
+            => HasPackedTerrainCorridorSurfaceOuter(packedOrLegacyScale)
+                ? (packedOrLegacyScale >> 15) & TerrainCorridorPackedFieldMask
+                : legacyOuterRadius;
     }
 }

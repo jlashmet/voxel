@@ -294,8 +294,8 @@ namespace MountingForce.WorldGen.Voxel
     /// Lowers resolved WorldBuilder roads into the engine's generic terrain-corridor primitive.
     /// Each bounded physical piece contains one analytic segment and one explicit placement, so
     /// arbitrary headings and slopes do not require square stamps, band stacks, GameObjects or a
-    /// world-sized feature footprint. Terrain grading, shoulder material coverage and persisted
-    /// surface detail are all evaluated from the same corridor influence in the rasterizer.
+    /// world-sized feature footprint. The route's authored surface radius controls material/detail
+    /// presentation while its independently wider grade radius controls physical terrain shaping.
     /// </summary>
     public static class WorldRoadNetworkVoxelCatalogue
     {
@@ -367,8 +367,9 @@ namespace MountingForce.WorldGen.Voxel
                     WorldRoadProfile profile = piece.Route.Road.Intent.Profile;
                     int core = profile.CoreRadiusDm * scale;
                     int edgeVariation = profile.EdgeVariationDm * scale;
-                    int maximumOuter = (profile.CoreRadiusDm
-                        + profile.TransitionWidthDm
+                    int surfaceMaximumOuter = (piece.Route.SurfaceRadiusDm
+                        + profile.EdgeVariationDm) * scale;
+                    int gradingMaximumOuter = (piece.Route.GradeRadiusDm
                         + profile.EdgeVariationDm) * scale;
                     int maximumCutFill = profile.MaximumCutFillDm * scale;
                     int fillDepth = SurfaceThicknessDm * scale;
@@ -377,13 +378,13 @@ namespace MountingForce.WorldGen.Voxel
                     int3 worldA = new(piece.A.Xdm * scale, piece.A.Ydm * scale, piece.A.Zdm * scale);
                     int3 worldB = new(piece.B.Xdm * scale, piece.B.Ydm * scale, piece.B.Zdm * scale);
                     int3 origin = new(
-                        Math.Min(worldA.x, worldB.x) - maximumOuter,
+                        Math.Min(worldA.x, worldB.x) - gradingMaximumOuter,
                         Math.Min(worldA.y, worldB.y) - maximumCutFill - fillDepth,
-                        Math.Min(worldA.z, worldB.z) - maximumOuter);
+                        Math.Min(worldA.z, worldB.z) - gradingMaximumOuter);
                     int3 maximum = new(
-                        Math.Max(worldA.x, worldB.x) + maximumOuter,
+                        Math.Max(worldA.x, worldB.x) + gradingMaximumOuter,
                         Math.Max(worldA.y, worldB.y) + maximumCutFill + clearAbove,
-                        Math.Max(worldA.z, worldB.z) + maximumOuter);
+                        Math.Max(worldA.z, worldB.z) + gradingMaximumOuter);
                     int3 footprint = maximum - origin + 1;
                     if (math.cmax(footprint) > FeatureBudget.MaxFootprintVoxels)
                         throw new InvalidOperationException(
@@ -396,7 +397,8 @@ namespace MountingForce.WorldGen.Voxel
                         localA,
                         localB,
                         core,
-                        maximumOuter,
+                        gradingMaximumOuter,
+                        surfaceMaximumOuter,
                         maximumCutFill,
                         fillDepth,
                         clearAbove,
@@ -474,20 +476,23 @@ namespace MountingForce.WorldGen.Voxel
             {
                 WorldRoadNetworkRoute route = network.Routes[routeIndex];
                 WorldRoadProfile profile = route.Road.Intent.Profile;
-                int maximumOuter = (profile.CoreRadiusDm
-                    + profile.TransitionWidthDm
+                int gradingMaximumOuter = (route.GradeRadiusDm
                     + profile.EdgeVariationDm) * scale;
-                int horizontalBudget = FeatureBudget.MaxFootprintVoxels - maximumOuter * 2 - 1;
+                int horizontalBudget = FeatureBudget.MaxFootprintVoxels
+                    - gradingMaximumOuter * 2 - 1;
                 int verticalFootprint = (profile.MaximumCutFillDm * 2
                     + SurfaceThicknessDm + ClearAboveDm) * scale + 1;
                 if (horizontalBudget < 1 || verticalFootprint > FeatureBudget.MaxFootprintVoxels)
                     throw new InvalidOperationException(
                         "Road profile '" + profile.Id + "' cannot fit the bounded terrain-corridor budget.");
 
-                for (int segment = 0; segment + 1 < route.Road.Points.Count; segment++)
+                IReadOnlyList<ResolvedWorldRoadPoint> presentation = WorldRoadPresentationPath.Build(
+                    route.Road,
+                    network.Junctions);
+                for (int segment = 0; segment + 1 < presentation.Count; segment++)
                 {
-                    ResolvedWorldRoadPoint a = route.Road.Points[segment];
-                    ResolvedWorldRoadPoint b = route.Road.Points[segment + 1];
+                    ResolvedWorldRoadPoint a = presentation[segment];
+                    ResolvedWorldRoadPoint b = presentation[segment + 1];
                     int extentVoxels = Math.Max(
                         Math.Abs(b.Xdm - a.Xdm),
                         Math.Abs(b.Zdm - a.Zdm)) * scale;
@@ -523,7 +528,8 @@ namespace MountingForce.WorldGen.Voxel
             int3 a,
             int3 b,
             int coreRadius,
-            int maximumOuterRadius,
+            int gradingMaximumOuterRadius,
+            int surfaceMaximumOuterRadius,
             int maximumCutFill,
             int fillDepth,
             int clearAbove,
@@ -537,14 +543,16 @@ namespace MountingForce.WorldGen.Voxel
                 a.x, a.y, a.z,
                 b.x, b.y, b.z,
                 coreRadius,
-                maximumOuterRadius,
+                gradingMaximumOuterRadius,
                 maximumCutFill,
                 fillDepth,
                 clearAbove,
                 edgeVariation,
                 material,
                 unchecked((int)seed),
-                scale);
+                ShapeOps.PackTerrainCorridorSurfaceOuterAndScale(
+                    surfaceMaximumOuterRadius,
+                    scale));
             Emit(code, ShapeOp.End);
             return code.ToArray();
         }

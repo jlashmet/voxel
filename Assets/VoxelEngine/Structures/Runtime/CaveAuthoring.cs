@@ -1,22 +1,10 @@
-using Unity.Mathematics;
 using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Structures.Runtime
 {
-    /// <summary>Summary of one bounded generic cave authoring pass.</summary>
-    public struct CaveAuthoringResult
-    {
-        public int SegmentsAuthored;
-        public int BranchesAuthored;
-        public int ChambersAuthored;
-        public int3 MainPathEnd;
-        public int MainPathTraversalDistance;
-        public CaveTraversalCandidateSet TraversalCandidates;
-    }
-
     /// <summary>
     /// Stable public entry point for reusable cave authoring. Validation and overflow checks stay at
-    /// the API boundary; the deterministic integer network implementation is internal and shared by
+    /// the Runtime boundary; the deterministic integer network implementation is internal and shared by
     /// standalone, structure-attached, and underground requests.
     /// </summary>
     public static class CaveAuthoring
@@ -43,6 +31,21 @@ namespace VoxelEngine.Structures.Runtime
                 in request,
                 in config,
                 in palette);
+        }
+    }
+
+    /// <summary>
+    /// Injectable API capability backed by the one shared cave authoring implementation.
+    /// </summary>
+    public sealed class CaveAuthoringService : ICaveAuthoring
+    {
+        public CaveAuthoringResult Author(
+            IStructureAuthoringSession authoring,
+            in CaveGenerationRequest request,
+            in CaveConfig config,
+            in CaveMaterialPalette palette)
+        {
+            return CaveAuthoring.Author(authoring, in request, in config, in palette);
         }
     }
 }
