@@ -5,10 +5,10 @@ using Unity.Mathematics;
 namespace VoxelEngine.Rendering.Api
 {
     /// <summary>
-    /// Render detail selected by game/composition policy for a semantic far-world structure.
+    /// Render detail selected by game/composition policy for a semantic far-world feature.
     /// Distance thresholds are intentionally not part of this engine contract.
     /// </summary>
-    public enum FarStructureTier : byte
+    public enum FarFeatureTier : byte
     {
         Culled = 0,
         Mid = 1,
@@ -17,7 +17,7 @@ namespace VoxelEngine.Rendering.Api
     }
 
     [Flags]
-    public enum FarStructureVisualFlags : byte
+    public enum FarFeatureVisualFlags : byte
     {
         None = 0,
         SettlementAnchor = 1 << 0,
@@ -27,22 +27,22 @@ namespace VoxelEngine.Rendering.Api
     }
 
     /// <summary>
-    /// Engine-facing, render-ready description of one far structure. It deliberately contains
-    /// no WorldBuilder intent, voxel-storage, region-residency, renderer, or GameObject state.
+    /// Engine-facing, render-ready description of one far feature. It deliberately contains
+    /// no planning, voxel-storage, region-residency, renderer, or GameObject state.
     /// </summary>
-    public readonly struct FarStructureInstance
+    public readonly struct FarFeatureInstance
     {
-        public FarStructureInstance(
+        public FarFeatureInstance(
             ulong stableId,
             float3 position,
             quaternion rotation,
             float3 scale,
             float3 boundsCenter,
             float3 boundsExtents,
-            string proxyKey,
+            string geometryKey,
             string styleKey,
-            FarStructureTier tier,
-            FarStructureVisualFlags flags = FarStructureVisualFlags.None)
+            FarFeatureTier tier,
+            FarFeatureVisualFlags flags = FarFeatureVisualFlags.None)
         {
             StableId = stableId;
             Position = position;
@@ -50,7 +50,7 @@ namespace VoxelEngine.Rendering.Api
             Scale = scale;
             BoundsCenter = boundsCenter;
             BoundsExtents = boundsExtents;
-            ProxyKey = proxyKey ?? string.Empty;
+            GeometryKey = geometryKey ?? string.Empty;
             StyleKey = styleKey ?? string.Empty;
             Tier = tier;
             Flags = flags;
@@ -62,24 +62,24 @@ namespace VoxelEngine.Rendering.Api
         public float3 Scale { get; }
         public float3 BoundsCenter { get; }
         public float3 BoundsExtents { get; }
-        public string ProxyKey { get; }
+        public string GeometryKey { get; }
         public string StyleKey { get; }
-        public FarStructureTier Tier { get; }
-        public FarStructureVisualFlags Flags { get; }
+        public FarFeatureTier Tier { get; }
+        public FarFeatureVisualFlags Flags { get; }
     }
 
     /// <summary>
-    /// Stable rendering boundary for far semantic structures. Game/composition code selects
-    /// visibility and tiers; Rendering.Runtime owns proxy-mesh caching, batching, and drawing.
+    /// Stable rendering boundary for semantic far features. Game/composition code selects
+    /// visibility and tiers; Rendering.Runtime owns geometry caching, batching, and drawing.
     /// </summary>
-    public interface IFarStructureRenderer
+    public interface IFarFeatureRenderer
     {
         int InstanceCount { get; }
 
         /// <summary>Unity-compatible enable switch for deterministic capture/showcase control.</summary>
         bool enabled { get; set; }
 
-        void SetInstances(IReadOnlyList<FarStructureInstance> instances);
+        void SetInstances(IReadOnlyList<FarFeatureInstance> instances);
         void Clear();
         void DrawNow();
     }
