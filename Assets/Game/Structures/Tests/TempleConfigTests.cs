@@ -6,6 +6,7 @@ using NUnit.Framework;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
+using VoxelEngine.Structures.Runtime;
 
 namespace Game.Structures.Tests
 {
@@ -44,9 +45,10 @@ namespace Game.Structures.Tests
             config.EntryFacing = facing;
             var a = new RecordingSession();
             var b = new RecordingSession();
+            var components = new StructureComponentAuthoringService();
 
-            TempleAuthoring.Author(a, new int3(100, 30, -200), in config);
-            TempleAuthoring.Author(b, new int3(100, 30, -200), in config);
+            TempleAuthoring.Author(components, a, new int3(100, 30, -200), in config);
+            TempleAuthoring.Author(components, b, new int3(100, 30, -200), in config);
 
             Assert.Multiple(() =>
             {
@@ -67,8 +69,9 @@ namespace Game.Structures.Tests
             const int navY = 50;
             var origin = new int3(160, 40, -160);
             var session = new SliceSession(navY);
+            var components = new StructureComponentAuthoringService();
 
-            TempleAuthoring.Author(session, origin, in config);
+            TempleAuthoring.Author(components, session, origin, in config);
 
             int localFront = -config.SanctuaryDepth / 2;
             int2 outsideLocal = new int2(0, localFront - 1);

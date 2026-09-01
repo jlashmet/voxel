@@ -1,0 +1,23 @@
+{
+  "name": "Game.CharacterAI.Tests",
+  "rootNamespace": "Game.CharacterAI.Tests",
+  "references": [
+    "Game.CharacterAI.Api",
+    "Game.CharacterAI.Runtime",
+    "Game.CharacterAI.CombatAdapter",
+    "Game.Characters.Api",
+    "Game.Combat.Api",
+    "Game.Combat.Runtime"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

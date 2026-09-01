@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using Game.Characters.Api;
+using Game.Characters.Composition;
 using Game.Composition.Campaign;
 using Game.Composition.Kentridge.Api;
 using Game.Composition.WorldBuilderWorldGen;
@@ -15,7 +17,8 @@ namespace Game.Composition.Kentridge.Playable
     /// <summary>
     /// Game-owned playable character composition for Kentridge. Scene code supplies scenario input,
     /// spawn/camera choices and the world; this host owns reusable motor, cutscene actor, model,
-    /// animation and visual-root policy and implements the campaign actor boundary.
+    /// animation and visual-root policy and implements the campaign actor boundary. Persistent
+    /// gameplay identity/lifecycle/kinematics are mirrored into the shared Characters registry.
     /// </summary>
     public sealed class KentridgeCharacterHost : IKentridgeCampaignActorHost, IDisposable
     {
@@ -25,27 +28,50 @@ namespace Game.Composition.Kentridge.Playable
 
         private readonly CharacterMotor _motor;
         private readonly Dictionary<NpcRef, NpcActor> _npcs = new Dictionary<NpcRef, NpcActor>();
+        private readonly Dictionary<NpcRef, CharacterId> _npcCharacterIds = new Dictionary<NpcRef, CharacterId>();
         private readonly PlayerActor _player;
+        private readonly ICharacterRegistry _characters;
+        private readonly CharacterId _playerCharacterId;
 
         public KentridgeCharacterHost(float walkSpeed)
+            : this(walkSpeed, CharacterRuntimeFactory.CreateRegistry())
         {
-            _motor = new CharacterMotor { WalkSpeed = walkSpeed };
-            _player = new PlayerActor(_motor);
         }
 
+        public KentridgeCharacterHost(float walkSpeed, ICharacterRegistry characters)
+        {
+            _characters = characters ?? throw new ArgumentNullException(nameof(characters));
+            KentridgeCharacterRegistryAnchor.AttachToPlayerRoot(_characters);
+            _motor = new CharacterMotor { WalkSpeed = walkSpeed };
+            _player = new PlayerActor(_motor);
+            _playerCharacterId = CharacterId.FromStableKey("player", "kentridge-slot-0");
+            EnsurePlayerCharacter();
+            SyncPlayerCharacter();
+        }
+
+        public ICharacterRegistry Characters => _characters;
+        public CharacterId PlayerCharacterId => _playerCharacterId;
+
         // Compatibility-facing surface for scene composition. The scene can still choose spawn,
-        // input and camera values, but the authoritative movement/runtime object is this Game-owned
-        // host rather than CharacterMotor or a scene-local actor implementation.
+        // input and camera values, but persistent identity/state is authoritative through Characters.
         public KentridgeCharacterHost Player => this;
         public Vector3 Position
         {
             get => _motor.Position;
-            set => _motor.Position = value;
+            set
+            {
+                _motor.Position = value;
+                SyncPlayerCharacter();
+            }
         }
         public Vector3 Velocity
         {
             get => _motor.Velocity;
-            set => _motor.Velocity = value;
+            set
+            {
+                _motor.Velocity = value;
+                SyncPlayerCharacter();
+            }
         }
         public Vector3 EyePosition => _motor.EyePosition;
         public float EyeHeight => _motor.EyeHeight;
@@ -54,12 +80,20 @@ namespace Game.Composition.Kentridge.Playable
         public Vector3 PlayerPosition
         {
             get => _motor.Position;
-            set => _motor.Position = value;
+            set
+            {
+                _motor.Position = value;
+                SyncPlayerCharacter();
+            }
         }
         public Vector3 PlayerVelocity
         {
             get => _motor.Velocity;
-            set => _motor.Velocity = value;
+            set
+            {
+                _motor.Velocity = value;
+                SyncPlayerCharacter();
+            }
         }
         public Vector3 PlayerEyePosition => _motor.EyePosition;
         public float PlayerEyeHeight => _motor.EyeHeight;
@@ -68,34 +102,47 @@ namespace Game.Composition.Kentridge.Playable
         public void SetCutsceneBodyVisible(bool visible) => _player.SetCutsceneBodyVisible(visible);
         public void SetPlayerCutsceneBodyVisible(bool visible) => _player.SetCutsceneBodyVisible(visible);
 
-        public void Step(ShowcaseWorld world, Vector3 wish, bool sprint, bool jumpHeld, float dt) =>
+        public void Step(ShowcaseWorld world, Vector3 wish, bool sprint, bool jumpHeld, float dt)
+        {
             _motor.Step(world, wish, sprint, jumpHeld, dt);
+            SyncPlayerCharacter();
+        }
+
         public void StepPlayer(ShowcaseWorld world, Vector3 wish, bool sprint, bool jumpHeld, float dt) =>
-            _motor.Step(world, wish, sprint, jumpHeld, dt);
-        public void SnapToGround(ShowcaseWorld world, Vector3 desiredFeetPosition) =>
+            Step(world, wish, sprint, jumpHeld, dt);
+
+        public void SnapToGround(ShowcaseWorld world, Vector3 desiredFeetPosition)
+        {
             _motor.SnapToGround(world, desiredFeetPosition);
+            SyncPlayerCharacter();
+        }
 
         public void Tick(float dt)
         {
             _player.Tick(dt);
             foreach (NpcActor actor in _npcs.Values) actor.Tick(dt);
+            SyncPlayerCharacter();
+            SyncNpcCharacters();
         }
 
         public void PrepareNpcs(IReadOnlyList<ResolvedNpcWorldPlacement> placements)
         {
             foreach (NpcActor actor in _npcs.Values) actor.Dispose();
             _npcs.Clear();
+            _npcCharacterIds.Clear();
             for (int i = 0; i < placements.Count; i++)
             {
                 ResolvedNpcWorldPlacement placement = placements[i];
                 Int3 point = placement.Position.Position;
                 string identity = placement.Npc.ToString();
+                var initialPosition = new CutsceneInt3(point.X, point.Y, point.Z);
                 _npcs.Add(
                     placement.Npc,
                     new NpcActor(
                         identity,
-                        new CutsceneInt3(point.X, point.Y, point.Z),
+                        initialPosition,
                         CharacterPresentation.Create(identity)));
+                EnsureNpcCharacter(placement, ToMetres(initialPosition));
             }
         }
 
@@ -123,6 +170,9 @@ namespace Game.Composition.Kentridge.Playable
             return false;
         }
 
+        public bool TryGetCharacterId(NpcRef npc, out CharacterId id) =>
+            _npcCharacterIds.TryGetValue(npc, out id);
+
         /// <summary>Test/diagnostic seam proving the resolved identity uses the production model.</summary>
         public bool IsUsingProductionMadeline(NpcRef npc)
         {
@@ -134,6 +184,106 @@ namespace Game.Composition.Kentridge.Playable
             _player.Dispose();
             foreach (NpcActor actor in _npcs.Values) actor.Dispose();
             _npcs.Clear();
+            _npcCharacterIds.Clear();
+        }
+
+        private void EnsurePlayerCharacter()
+        {
+            if (!_characters.TryGet(_playerCharacterId, out _))
+            {
+                CharacterRegistryFailure created = _characters.Create(
+                    new CharacterDefinition(
+                        _playerCharacterId,
+                        CharacterTraits.PlayerControlled | CharacterTraits.Combatant),
+                    ToKinematics(_motor.Position, _motor.Velocity, Vector3.forward),
+                    out _);
+                RequireSuccess(created, "create Kentridge player character");
+            }
+
+            RequireSuccess(
+                _characters.Bind(_playerCharacterId, new CharacterBinding("player-slot", "0")),
+                "bind Kentridge player slot");
+            RequireSuccess(
+                _characters.Bind(_playerCharacterId, new CharacterBinding("combat-participant", "kentridge-player")),
+                "bind Kentridge player combat identity");
+        }
+
+        private void EnsureNpcCharacter(ResolvedNpcWorldPlacement placement, Vector3 position)
+        {
+            CharacterId id = CharacterId.FromStableKey("npc", placement.Npc.Id);
+            CharacterTraits traits = placement.RequiresConversation
+                ? CharacterTraits.ConversationCapable
+                : CharacterTraits.None;
+            if (string.Equals(placement.Npc.Id, "medrare", StringComparison.Ordinal))
+                traits |= CharacterTraits.Recruitable;
+
+            if (!_characters.TryGet(id, out _))
+            {
+                RequireSuccess(
+                    _characters.Create(
+                        new CharacterDefinition(id, traits),
+                        ToKinematics(position, Vector3.zero, Vector3.forward),
+                        out _),
+                    "create authored NPC character");
+            }
+            else
+            {
+                RequireSuccess(
+                    _characters.UpdateKinematics(
+                        id,
+                        ToKinematics(position, Vector3.zero, Vector3.forward),
+                        out _),
+                    "synchronize authored NPC character");
+            }
+
+            RequireSuccess(
+                _characters.Bind(id, new CharacterBinding("world-npc", placement.Npc.Id)),
+                "bind authored NPC identity");
+            RequireSuccess(
+                _characters.Bind(id, new CharacterBinding("cutscene-npc", placement.Npc.Id)),
+                "bind cutscene NPC identity");
+            if (string.Equals(placement.Npc.Id, "medrare", StringComparison.Ordinal))
+                RequireSuccess(
+                    _characters.Bind(id, new CharacterBinding("party-member", "Medrare")),
+                    "bind Medrare party-member identity");
+
+            _npcCharacterIds.Add(placement.Npc, id);
+        }
+
+        private void SyncPlayerCharacter()
+        {
+            RequireSuccess(
+                _characters.UpdateKinematics(
+                    _playerCharacterId,
+                    ToKinematics(_motor.Position, _motor.Velocity, _player.Facing),
+                    out _),
+                "synchronize Kentridge player character");
+        }
+
+        private void SyncNpcCharacters()
+        {
+            foreach (KeyValuePair<NpcRef, CharacterId> pair in _npcCharacterIds)
+            {
+                if (!TryGetNpcPosition(pair.Key, out Vector3 position)) continue;
+                RequireSuccess(
+                    _characters.UpdateKinematics(
+                        pair.Value,
+                        ToKinematics(position, Vector3.zero, Vector3.forward),
+                        out _),
+                    "synchronize Kentridge NPC character");
+            }
+        }
+
+        private static CharacterKinematicState ToKinematics(Vector3 position, Vector3 velocity, Vector3 facing) =>
+            new CharacterKinematicState(ToCharacterVector(position), ToCharacterVector(velocity), ToCharacterVector(facing));
+
+        private static CharacterVector3 ToCharacterVector(Vector3 value) =>
+            new CharacterVector3(value.x, value.y, value.z);
+
+        private static void RequireSuccess(CharacterRegistryFailure failure, string operation)
+        {
+            if (failure != CharacterRegistryFailure.None)
+                throw new InvalidOperationException(operation + " failed: " + failure + ".");
         }
 
         private sealed class PlayerActor : ICutsceneActorRuntime
