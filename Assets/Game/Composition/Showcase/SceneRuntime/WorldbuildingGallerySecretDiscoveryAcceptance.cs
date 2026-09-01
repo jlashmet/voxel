@@ -128,17 +128,27 @@ namespace VoxelEngine.Showcase
             float originalFieldOfView = cameraComponent != null ? cameraComponent.fieldOfView : 60f;
             if (cameraComponent != null) cameraComponent.fieldOfView = 75f;
 
+            float3 naturalPosition = world.WorldbuildingGalleryNaturalSecretCameraPosition();
+            float3 naturalTarget = world.WorldbuildingGalleryNaturalSecretLookTarget();
+            naturalPosition += new float3(-5.5f, 1.8f, -1.5f);
+            naturalTarget += new float3(0f, -0.2f, -3.5f);
+            RequireMinimumFramingDistance(naturalPosition, naturalTarget, 7.5f, "natural-cave-approach");
             yield return CaptureView(
                 world,
-                world.WorldbuildingGalleryNaturalSecretCameraPosition(),
-                world.WorldbuildingGalleryNaturalSecretLookTarget(),
+                naturalPosition,
+                naturalTarget,
                 Path.Combine(directory, "01-natural-cave-approach.png"),
                 "natural-cave-approach");
 
+            float3 breakablePosition = world.WorldbuildingGalleryBreakableSecretCameraPosition();
+            float3 breakableTarget = world.WorldbuildingGalleryBreakableSecretLookTarget();
+            float3 away = math.normalizesafe(breakablePosition - breakableTarget, new float3(0f, 0f, -1f));
+            breakablePosition = breakableTarget + away * 3.15f + new float3(0.55f, 0.25f, 0f);
+            RequireMinimumFramingDistance(breakablePosition, breakableTarget, 3f, "authored-breakable-boundary");
             yield return CaptureView(
                 world,
-                world.WorldbuildingGalleryBreakableSecretCameraPosition(),
-                world.WorldbuildingGalleryBreakableSecretLookTarget(),
+                breakablePosition,
+                breakableTarget,
                 Path.Combine(directory, "02-authored-breakable-boundary.png"),
                 "authored-breakable-boundary");
 
@@ -178,6 +188,19 @@ namespace VoxelEngine.Showcase
             ScreenCapture.CaptureScreenshot(path);
             UnityEngine.Debug.Log($"SECRET_DISCOVERY_ACCEPTANCE frame={label} position={_pinnedPosition} target={target}");
             yield return new WaitForSecondsRealtime(0.45f);
+        }
+
+        private static void RequireMinimumFramingDistance(
+            float3 position,
+            float3 target,
+            float minimumMetres,
+            string label)
+        {
+            float distance = math.distance(position, target);
+            if (distance < minimumMetres)
+                throw new InvalidOperationException(
+                    $"Secret-discovery acceptance framing collapsed for {label}: " +
+                    $"distance={distance:0.###}m minimum={minimumMetres:0.###}m.");
         }
 
         private static string Argument(string name)
