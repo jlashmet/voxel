@@ -128,20 +128,8 @@ namespace VoxelEngine.Showcase
             float originalFieldOfView = cameraComponent != null ? cameraComponent.fieldOfView : 60f;
             if (cameraComponent != null) cameraComponent.fieldOfView = 75f;
 
-            float3 naturalPosition = world.WorldbuildingGalleryNaturalSecretCameraPosition();
-            float3 naturalTarget = world.WorldbuildingGalleryNaturalSecretLookTarget();
-            // The authored moss trail runs south from the cave mouth across ordinary terrain. Audit
-            // it from above so nearby Gallery structures cannot occlude the environmental evidence.
-            naturalPosition += new float3(0f, 24f, -18f);
-            naturalTarget += new float3(0f, -1f, -45f);
-            RequireMinimumFramingDistance(naturalPosition, naturalTarget, 12f, "natural-cave-approach");
-            yield return CaptureView(
-                world,
-                naturalPosition,
-                naturalTarget,
-                Path.Combine(directory, "01-natural-cave-approach.png"),
-                "natural-cave-approach");
-
+            // Capture the cave view first. A prior audit proved this exact framing reads correctly when
+            // it is not preceded by a distant camera move that changes the Gallery streaming set.
             float3 breakablePosition = world.WorldbuildingGalleryBreakableSecretCameraPosition();
             float3 breakableTarget = world.WorldbuildingGalleryBreakableSecretLookTarget();
             float3 away = math.normalizesafe(breakablePosition - breakableTarget, new float3(0f, 0f, -1f));
@@ -153,6 +141,25 @@ namespace VoxelEngine.Showcase
                 breakableTarget,
                 Path.Combine(directory, "02-authored-breakable-boundary.png"),
                 "authored-breakable-boundary");
+
+            // The deterministic moss trail spans entrance.z-12 through entrance.z-64. The helper
+            // camera sits at entrance.z-72, so +3.2 m targets the trail midpoint (entrance.z-40)
+            // directly instead of looking past the cave mouth. Shift west and slightly upward to
+            // keep the clue in a close oblique view without Gallery architecture occluding it.
+            float3 naturalPosition = world.WorldbuildingGalleryNaturalSecretCameraPosition();
+            float3 naturalReferenceTarget = world.WorldbuildingGalleryNaturalSecretLookTarget();
+            naturalPosition += new float3(-4.5f, 1.2f, 0f);
+            float3 naturalTarget = new float3(
+                naturalPosition.x + 4.5f,
+                naturalReferenceTarget.y,
+                naturalPosition.z + 3.2f);
+            RequireMinimumFramingDistance(naturalPosition, naturalTarget, 5f, "natural-cave-approach");
+            yield return CaptureView(
+                world,
+                naturalPosition,
+                naturalTarget,
+                Path.Combine(directory, "01-natural-cave-approach.png"),
+                "natural-cave-approach");
 
             if (cameraComponent != null) cameraComponent.fieldOfView = originalFieldOfView;
             _pinCamera = false;
