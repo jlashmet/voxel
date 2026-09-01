@@ -28,6 +28,7 @@
 - [ ] **T02-014 — Add replication projection seam.** Expose current semantic vitality state/events needed by system 06 without referencing GameplayReplication Runtime.
 - [ ] **T02-015 — Migrate combat health.** Adapt existing Combat participant health/alive access to Vitality API; remove duplicate authoritative combat health after behavior parity.
 - [ ] **T02-016 — Migrate non-combat damage consumers.** Route any demonstrated environmental/world damage through the same API to prove vitality is actor-owned rather than combat-owned.
+  - Evidence baseline: repository searches found no demonstrated production environmental/world damage consumer outside Combat/prototype life-state code. Do not invent one; T02-022 will provide the required independent non-combat reuse proof once the Vitality API exists.
 
 ## Verification
 
@@ -36,6 +37,7 @@
 - [ ] **T02-022 — Add non-combat reuse fixture.** Damage a character without starting Combat and prove identical vitality semantics.
 - [ ] **T02-023 — Add snapshot/restore tests.** Alive and defeated state must round-trip exactly with stable CharacterId.
 - [ ] **T02-024 — Verify defeat does not resolve game.** Assert no direct dependency/call to Outcomes or session teardown.
+  - Baseline evidence: repository searches found no direct `SceneManager`, `LoadScene`, or `GameOver` coupling in the existing life-state paths. Re-verify against final Vitality implementation before checking this task.
 - [ ] **T02-025 — Run automatic module tests and dependent Combat tests.** Do not manually enumerate CI tests.
 
 ## Cleanup / close
