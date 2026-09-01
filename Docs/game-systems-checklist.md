@@ -92,7 +92,8 @@ These are existing foundations and are not candidates to rebuild from scratch.
   - Prove the production frontend/session/input/gameplay/presentation composition in the canonical standalone-player Kentridge slice without scene-local substitute runtimes or privileged test shortcuts.
 - [x] **25. [Multiplayer end-to-end gameplay validation](game-systems/25-multiplayer-end-to-end-gameplay-validation.md)**
   - Prove separate exact-SHA built-player processes share one authoritative session through production formation, gameplay, convergence, interruption/reconnect, and semantic teardown without a test-only multiplayer runtime.
-- [ ] **26. Full-game/session progression loop**
+- [x] **26. [Authored full-run campaign progression & completion](game-systems/26-authored-full-run-campaign-progression-completion.md)**
+  - Complete at least one evidence-backed production route from normal new-game semantics through real domain facts and unified progression/story composition to one authoritative terminal outcome, including restore and built-player proof without a parallel game-loop runtime.
 
 ## Current SceneIssues / explicitly planned work
 
