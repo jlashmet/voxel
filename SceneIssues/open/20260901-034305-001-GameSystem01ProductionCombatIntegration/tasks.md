@@ -38,11 +38,11 @@
 
 ## Active blocker evidence
 
-- Feature last merged master `8190813f624e9327bcbf9c968deac8aecb32a9a2`; current master advanced to `1b6d5db96ea150bd0cb573bfaff7e220f19afbeb` after the green Combat validation run. No current-master change supplies production Vitality.
+- Feature branch is merged through current master `1b6d5db96ea150bd0cb573bfaff7e220f19afbeb` via two-parent merge `bb91d103d597ca38478ddb98e26d857836b50745`; comparison against that master is zero commits behind and limited to this assignment's files. No current-master change supplies production Vitality.
 - Present on master/feature: production Input, Characters, and Encounters. `Game.Encounters.Api` owns `EncounterId`, membership, activation, queued `EncounterCombatRequest`, and `ApplyCombatResolved`; it depends on Characters but not Combat, preserving the intended dependency direction.
 - Still absent from current master `1b6d5db96ea150bd0cb573bfaff7e220f19afbeb`: production `Assets/Game/Vitality` / `Game.Vitality.Api`. Agent-3 must not invent a substitute life-state contract.
 - Current concrete Kentridge seam remains `Assets/Game/Composition/Kentridge/Playable/KentridgeForestBanditEncounter.cs` plus `Game.Composition.Kentridge.Playable.asmdef`.
 - Known Combat-internal preservation surface: `ChainRoundReadinessCoordinator`, `ChainEnemyTacticalAI`, `ChainReactionReservationCoordinator`, `ChainExecutionPlan`, and `ChainCombatBoard` in the older `MountingForce.CombatPrototype` namespace.
-- Exact feature SHA `746de4cae082cc456c000153048166c0e4f967e3` has green `ci/single-test` status from run `33503348443`; module-owned Combat tests, dependent CharacterAI tests, and automatic Kentridge real-player validation all passed.
+- Exact feature SHA `746de4cae082cc456c000153048166c0e4f967e3` has green `ci/single-test` status from run `33503348443`; module-owned Combat tests, dependent CharacterAI tests, and automatic Kentridge real-player validation all passed. The later current-master merge/docs-only blocker refresh have not changed Combat production code and do not replace the final exact-SHA gate required after Vitality/Kentridge migration.
 - `ci-test/fixes/agent-3` remains the only authorized targeted-CI transport. Never replace a queued/running request.
-- Acceptance remains unchanged; the next blocked production authority tasks are T01-010/T01-011 pending real Vitality.
+- Acceptance remains unchanged; the next blocked production authority tasks are T01-010/T01-011 pending real Vitality. No remaining unchecked task can be completed independently without either that authority migration or the dependent final Kentridge composition change.
