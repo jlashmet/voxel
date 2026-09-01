@@ -1,5 +1,6 @@
 using System.Text;
 using Game.WorldBuilder.Api;
+using Game.WorldBuilder.Voxel;
 using NUnit.Framework;
 using UnityEngine;
 using VoxelEngine.Showcase;
