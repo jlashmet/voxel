@@ -21,6 +21,8 @@ Two built-player failures with the same missing-readiness/capture symptom were i
 
 Production `VoxelShowcase` derives mixed-brick capacity from `DeviceTierBudget.GetForTier(DeviceTierBudget.Detect()).BrickPoolCapacity`, converts bytes with `VoxelEngineBootstrap.ClampMixedBrickCapacityToBudget`, and passes the same byte ceiling into `ShowcaseWorld`. Commit `89bf1837fba3c555bf6fab873c70c6bd5839a899` makes the module fixture use that same semantic tier-budget path and removes the guessed 4k/16k slot policy. Shared storage/runtime behavior is unchanged.
 
+Exact-parent run `33479919740` did not exercise that runtime fix because Unity stopped at compilation: `MountainDragonVoxelValidationShowcase.cs` referenced `VoxelEngine.Tiering.Api` while `Game.Composition.Showcase.asmdef` lacked the corresponding assembly dependency. Commit `092daab402eee78b5b944fd8bf16129afc18aa11` adds only the existing `VoxelEngine.Tiering.Api` asmdef reference. This is a compile-boundary repair, not a third runtime capacity change; the production-tier-budget behavior still requires its first executable validation.
+
 A separate composition defect remains: `VoxelShowcase.TryPlaceSelectedStructure` still requires optional inspector `m_MountainDragonVoxelBake` and generic-codec decoding, while `MountainDragonBakedArtifact.Load()` already owns the pinned runtime transport. Repair this in Showcase composition only; do not teach the shared codec Dragon/MDVP policy.
 
 ## Next gates
