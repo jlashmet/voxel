@@ -1,0 +1,16 @@
+{
+  "name": "Game.Encounters.Api",
+  "rootNamespace": "Game.Encounters.Api",
+  "references": [
+    "Game.Characters.Api"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}
