@@ -82,7 +82,8 @@ These are existing foundations and are not candidates to rebuild from scratch.
   - Present unified authoritative progression through snapshot-driven journal and tracked-objective views while keeping tracking, selection, and presentation metadata local/non-authoritative.
 - [x] **20. [Multiplayer party, teammate & session presentation](game-systems/20-multiplayer-party-teammate-session-presentation.md)**
   - Present durable party/session identities, readiness, teammate state, and reconnect continuity without coupling UI to transport connections or duplicating gameplay state.
-- [ ] **21. Gameplay audio integration**
+- [x] **21. [Gameplay audio integration & semantic cue presentation](game-systems/21-gameplay-audio-integration-semantic-cue-presentation.md)**
+  - Map typed semantic gameplay and authored cutscene cues into client-side audio presentation without putting clip identity, playback commands, or Unity audio dependencies into gameplay authority.
 - [ ] **22. Combat / interaction VFX and feedback**
 - [ ] **23. Game menus / settings / start flow**
 - [ ] **24. Integrated built-player vertical slice**
