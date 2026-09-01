@@ -1,6 +1,7 @@
 using System.Collections;
 using UnityEngine;
 using VoxelEngine.Rendering.Runtime;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 
 namespace VoxelEngine.Rendering.Validation
 {
