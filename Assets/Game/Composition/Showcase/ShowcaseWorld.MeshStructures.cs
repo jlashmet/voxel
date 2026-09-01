@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using Unity.Mathematics;
 using VoxelEngine.Composition;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
 using VoxelEngine.Structures.Runtime.MeshImport;
 
@@ -33,11 +34,13 @@ namespace VoxelEngine.Showcase
         /// Places an already-baked sparse mesh structure into the authoritative showcase voxel
         /// store. The source triangle mesh is deliberately absent from this API: ordinary runtime
         /// only decodes/replays discrete authored cells, so collision, edits, rendering and
-        /// destruction all consume the same storage truth.
+        /// destruction all consume the same storage truth. Callers may request one semantic
+        /// reconstruction style for the placed structure without changing its material identity.
         /// </summary>
         public MeshStructurePlacementResult PlaceBakedMeshStructure(
             BakedVoxelStructure bake,
-            int3 worldOrigin)
+            int3 worldOrigin,
+            ushort surfaceStyle = SurfaceStyles.MaterialDefault)
         {
             if (bake == null) throw new ArgumentNullException(nameof(bake));
             if (bake.Cells.Length == 0)
@@ -64,7 +67,23 @@ namespace VoxelEngine.Showcase
             int writeBudget = checked(bake.Cells.Length + 64);
             IStructureAuthoringSession authoring =
                 VoxelEngineBootstrap.CreateStructureAuthoring(_storage, writeBudget);
-            bake.ReplayTo(authoring, worldOrigin);
+            if (surfaceStyle == SurfaceStyles.MaterialDefault)
+            {
+                bake.ReplayTo(authoring, worldOrigin);
+            }
+            else
+            {
+                for (int i = 0; i < bake.Cells.Length; i++)
+                {
+                    BakedVoxelCell cell = bake.Cells[i];
+                    int3 p = worldOrigin + cell.Position;
+                    authoring.SetStyled(p.x, p.y, p.z, cell.Material, surfaceStyle);
+                    if (authoring.BudgetExceeded)
+                        throw new InvalidOperationException(
+                            $"Styled mesh structure replay exceeded the authoring budget after {i + 1} cells.");
+                }
+            }
+
             if (authoring.BudgetExceeded)
                 throw new InvalidOperationException("Mesh structure placement exceeded its write budget.");
 
