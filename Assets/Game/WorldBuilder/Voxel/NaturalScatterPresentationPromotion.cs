@@ -55,7 +55,7 @@ namespace Game.WorldBuilder.Voxel
                 bake = new FeaturePresentationBake(
                     record.StableId,
                     presentationRevision,
-                    FeatureKind.Scatter,
+                    FeatureKind.Landform,
                     derived.Position,
                     derived.Orientation,
                     derived.BoundsMin,
@@ -108,7 +108,7 @@ namespace Game.WorldBuilder.Voxel
             catalogue.Definitions[0] = new FeatureDefinition
             {
                 Name = DefinitionName,
-                Kind = FeatureKind.Scatter,
+                Kind = FeatureKind.Landform,
                 BasePlane = BasePlaneRule.FixedAltitude,
                 FixedAltitude = 0,
                 Footprint = new int3(diameter, height, diameter),
