@@ -18,7 +18,9 @@
 #pragma kernel CSBatchCountDecorations
 #pragma kernel CSBatchSampleFaces
 #pragma kernel CSBatchCountTransitions
+#pragma kernel CSBatchCountProfiles
 #pragma kernel CSBatchWriteTransitions
+#pragma kernel CSBatchWriteProfiles
 #pragma kernel CSBatchPublishArgs
 #pragma kernel CSWriteCells
 #pragma kernel CSBatchWriteCells
@@ -74,9 +76,11 @@ StructuredBuffer<uint> _RegularEdgeCodes;        // per case: 12 edge codes
 
 RWStructuredBuffer<uint> _CellVertexCountsWrite;
 RWStructuredBuffer<uint> _CellTriangleCountsWrite;
+RWStructuredBuffer<uint> _CellReconstructionFlagsWrite;
 
 StructuredBuffer<uint> _CellVertexCounts;
 StructuredBuffer<uint> _CellTriangleCounts;
+StructuredBuffer<uint> _CellReconstructionFlags;
 
 struct SurfaceVertex
 {
@@ -120,14 +124,33 @@ struct BatchChunkDescriptor
     uint handle;
     uint generationLow;
     uint generationHigh;
+    uint profileStart;
+    uint profileCount;
 };
 StructuredBuffer<BatchChunkDescriptor> _BatchChunks;
+struct GpuProfileBlock
+{
+    int3 centre;
+    int innerRadiusQ4;
+    int outerRadiusQ4;
+    int frontQ4;
+    int backQ4;
+    int backingDepthVoxel;
+    int2 startDirection;
+    int2 endDirection;
+    uint shape;
+    uint surface;
+    uint batch;
+};
+StructuredBuffer<GpuProfileBlock> _BatchProfiles;
+int _BatchProfileCount;
 RWStructuredBuffer<float> _BatchDensityWrite;
 RWStructuredBuffer<uint> _BatchSampleMaterialWrite;
 RWStructuredBuffer<uint> _BatchSampleSurfaceWrite;
 RWStructuredBuffer<uint> _BatchSampleBoundaryWrite;
 RWStructuredBuffer<uint> _BatchCellVertexCountsWrite;
 RWStructuredBuffer<uint> _BatchCellTriangleCountsWrite;
+RWStructuredBuffer<uint> _BatchCellReconstructionFlagsWrite;
 RWStructuredBuffer<float> _BatchFaceDensityWrite;
 RWStructuredBuffer<uint> _BatchFaceMaterialWrite;
 RWStructuredBuffer<uint> _BatchFaceSurfaceWrite;
@@ -137,6 +160,7 @@ StructuredBuffer<uint> _BatchSampleSurface;
 StructuredBuffer<uint> _BatchSampleBoundary;
 StructuredBuffer<uint> _BatchCellVertexCounts;
 StructuredBuffer<uint> _BatchCellTriangleCounts;
+StructuredBuffer<uint> _BatchCellReconstructionFlags;
 StructuredBuffer<float> _BatchFaceDensity;
 StructuredBuffer<uint> _BatchFaceMaterial;
 StructuredBuffer<uint> _BatchFaceSurface;
@@ -213,6 +237,113 @@ bool OwnsSelectedInsideSample(int3 cell, int selectedInsideCorner)
     return all(sample >= 0) && all(sample < _CellsPerAxis);
 }
 
+int ProfileAxis(GpuProfileBlock block) { return (int)(block.shape & 0xFFu); }
+uint ProfileMaterial(GpuProfileBlock block) { return (block.shape >> 8) & 0xFFu; }
+
+bool ProfileOwnsTriangle(GpuProfileBlock block, float3 a, float3 b, float3 c,
+                         uint material)
+{
+    if (material != ProfileMaterial(block)) return false;
+    int axis = ProfileAxis(block);
+    int axisA = (axis + 1) % 3;
+    int axisB = (axis + 2) % 3;
+    float inner = block.innerRadiusQ4 * (1.0 / 16.0);
+    float outer = block.outerRadiusQ4 * (1.0 / 16.0);
+    float front = min(block.frontQ4, block.backQ4) * (1.0 / 16.0);
+    float back = max(block.frontQ4, block.backQ4) * (1.0 / 16.0);
+    float3 triangleCentre = (a + b + c) * (1.0 / 3.0);
+    float da = triangleCentre[axisA] - block.centre[axisA];
+    float db = triangleCentre[axisB] - block.centre[axisB];
+    const float Padding = 0.55;
+    // Most profile-indexed chunks contain several distant wedges. Reject against the cheap
+    // conservative box before paying sqrt/atan for every surface triangle/profile pair.
+    if (abs(da) > outer + Padding || abs(db) > outer + Padding
+     || triangleCentre[axis] < front - Padding || triangleCentre[axis] > back + Padding)
+        return false;
+    float radius = sqrt(da * da + db * db);
+    if (radius < inner - Padding || radius > outer + Padding) return false;
+    float start = atan2((float)block.startDirection.y, (float)block.startDirection.x);
+    float finish = atan2((float)block.endDirection.y, (float)block.endDirection.x);
+    const float TwoPi = 6.28318530717958647692;
+    if (finish <= start) finish += TwoPi;
+    float angle = atan2(db, da);
+    while (angle < start) angle += TwoPi;
+    return angle >= start && angle <= finish;
+}
+
+bool BatchProfileOwnsTriangle(uint batch, float3 a, float3 b, float3 c,
+                              uint material)
+{
+    BatchChunkDescriptor chunk = _BatchChunks[batch];
+    for (uint i = 0u; i < chunk.profileCount; i++)
+        if (ProfileOwnsTriangle(_BatchProfiles[chunk.profileStart + i], a, b, c, material))
+            return true;
+    return false;
+}
+
+uint BatchProfileSuppressionMask(uint batch, int3 cell, uint caseCode, uint cellClass,
+                                 uint sourceVertexCount, uint sourceIndexCount)
+{
+    if (_BatchChunks[batch].profileCount == 0u) return 0u;
+    float density[8];
+    uint material[8];
+    uint boundary[8];
+    for (int i = 0; i < 8; i++)
+    {
+        int sample = BatchSampleIndex(batch, cell + _Padding + CellCorner(i));
+        density[i] = _BatchDensity[sample];
+        material[i] = _BatchSampleMaterial[sample];
+        boundary[i] = _BatchSampleBoundary[sample];
+    }
+
+    float3 positions[15];
+    uint materials[15];
+    BatchChunkDescriptor chunk = _BatchChunks[batch];
+    for (uint v = 0u; v < sourceVertexCount; v++)
+    {
+        uint edge = _RegularEdgeCodes[caseCode * 12u + v];
+        int c0 = (int)((edge >> 4) & 0x0Fu);
+        int c1 = (int)(edge & 0x0Fu);
+        float d0 = density[c0], d1 = density[c1];
+        int3 o0 = CellCorner(c0), o1 = CellCorner(c1);
+        int3 delta = abs(o1 - o0);
+        int edgeAxis = delta.x != 0 ? 0 : (delta.y != 0 ? 1 : 2);
+        if ((BoundaryIsAuthored(boundary[c0]) && !BoundaryAppliesAlong(boundary[c0], edgeAxis))
+         || (BoundaryIsAuthored(boundary[c1]) && !BoundaryAppliesAlong(boundary[c1], edgeAxis)))
+        {
+            d0 = IsSolidSample(material[c0]) ? 0.5 : -0.5;
+            d1 = IsSolidSample(material[c1]) ? 0.5 : -0.5;
+        }
+        float t0 = abs(d1 - d0) > 1e-7 ? d1 / (d1 - d0) : 0.5;
+        float t1 = 1.0 - t0;
+        positions[v] = (float3)chunk.chunkOriginVoxel
+                     + ((float3)(cell + o0) * t0 + (float3)(cell + o1) * t1)
+                       * chunk.sourceStep + 0.5;
+        int selected = d0 > d1 ? c0 : c1;
+        uint chosen = material[selected];
+        if (!IsSolidSample(chosen))
+        {
+            for (int corner = 0; corner < 8; corner++)
+                if (IsSolidSample(material[corner])) { chosen = material[corner]; break; }
+        }
+        materials[v] = chosen;
+    }
+
+    uint suppressed = 0u;
+    uint tableBase = cellClass * 15u;
+    for (uint t = 0u; t < sourceIndexCount; t += 3u)
+    {
+        uint i0 = _RegularCellIndices[tableBase + t];
+        uint i1 = _RegularCellIndices[tableBase + t + 1u];
+        uint i2 = _RegularCellIndices[tableBase + t + 2u];
+        if (materials[i0] == materials[i1] && materials[i0] == materials[i2]
+         && BatchProfileOwnsTriangle(batch, positions[i0], positions[i1], positions[i2],
+                                    materials[i0]))
+            suppressed |= 1u << (t / 3u);
+    }
+    return suppressed;
+}
+
 // ---------------------------------------------------------------------------
 // 1. Sample the density field over the padded grid.
 // ---------------------------------------------------------------------------
@@ -274,6 +405,7 @@ void CSCountCells(uint3 id : SV_DispatchThreadID)
     // write kernel after a rejected count, and stale counts from a previous chunk must never write.
     _CellVertexCountsWrite[cellIndex] = 0u;
     _CellTriangleCountsWrite[cellIndex] = 0u;
+    _CellReconstructionFlagsWrite[cellIndex] = 0u;
     if (_Counters[0] != 0u) return;
 
     int3 cell = RegularCellFromIndex(cellIndex);
@@ -327,6 +459,9 @@ void CSCountCells(uint3 id : SV_DispatchThreadID)
 
     _CellVertexCountsWrite[cellIndex] = outputVertexCount;
     _CellTriangleCountsWrite[cellIndex] = indexCount / 3u;
+    // A dedicated word carries reconstruction intent into write. Count equality is ambiguous:
+    // smooth one-triangle and disjoint-triangle cases also have one source vertex per index.
+    _CellReconstructionFlagsWrite[cellIndex] = (planar && !rounded) ? 1u : 0u;
 
     uint ignored;
     InterlockedAdd(_Counters[2], outputVertexCount, ignored);
@@ -343,6 +478,7 @@ void CSBatchCountCells(uint3 id : SV_DispatchThreadID)
     int outputCell = BatchCellIndex(batch, cellIndex);
     _BatchCellVertexCountsWrite[outputCell] = 0u;
     _BatchCellTriangleCountsWrite[outputCell] = 0u;
+    _BatchCellReconstructionFlagsWrite[outputCell] = 0u;
     int counter = BatchRecordWord(batch);
     if (_BatchCounters[counter] != 0u) return;
 
@@ -388,10 +524,31 @@ void CSBatchCountCells(uint3 id : SV_DispatchThreadID)
     uint counts = _RegularGeometryCounts[cellClass];
     uint sourceVertexCount = counts >> 4;
     uint indexCount = (counts & 0x0Fu) * 3u;
-    uint outputVertexCount = (planar && !rounded) ? indexCount : sourceVertexCount;
+    bool planarOutput = planar && !rounded;
+    uint suppressed = BatchProfileSuppressionMask(
+        batch, cell, caseCode, cellClass, sourceVertexCount, indexCount);
+    uint survivingTriangles = indexCount / 3u - countbits(suppressed);
+    uint usedVertices = 0u;
+    if (!planarOutput && suppressed != 0u)
+    {
+        uint tableBase = cellClass * 15u;
+        for (uint t = 0u; t < indexCount; t += 3u)
+        {
+            if ((suppressed & (1u << (t / 3u))) != 0u) continue;
+            usedVertices |= 1u << _RegularCellIndices[tableBase + t];
+            usedVertices |= 1u << _RegularCellIndices[tableBase + t + 1u];
+            usedVertices |= 1u << _RegularCellIndices[tableBase + t + 2u];
+        }
+    }
+    uint outputVertexCount = planarOutput ? survivingTriangles * 3u
+                           : suppressed != 0u ? countbits(usedVertices)
+                                              : sourceVertexCount;
+    indexCount = survivingTriangles * 3u;
     if (outputVertexCount > 15u || indexCount > 15u) return;
     _BatchCellVertexCountsWrite[outputCell] = outputVertexCount;
-    _BatchCellTriangleCountsWrite[outputCell] = indexCount / 3u;
+    _BatchCellTriangleCountsWrite[outputCell] = survivingTriangles;
+    _BatchCellReconstructionFlagsWrite[outputCell] = (planarOutput ? 1u : 0u)
+                                                      | (suppressed << 1u);
     uint ignored;
     InterlockedAdd(_BatchCounters[counter + 2], outputVertexCount, ignored);
     InterlockedAdd(_BatchCounters[counter + 3], indexCount, ignored);
@@ -412,6 +569,7 @@ int3 FacetedCellFromIndex(int cellIndex)
 }
 
 uint PackMaterial(uint material, uint surface);
+float3 NormalizeOrUp(float3 value);
 
 float3 AxisOffset(int axis, float amount)
 {
@@ -556,6 +714,18 @@ void StoreQuadIndices(uint vertexBase, uint indexBase, bool flip)
     }
 }
 
+bool RangeFitsCapacity(uint base, uint count, uint capacity)
+{
+    // Written this way rather than base + count <= capacity so uint addition cannot wrap and
+    // turn an overflowing allocation into an in-bounds one.
+    return count <= capacity && base <= capacity - count;
+}
+
+bool RangeFitsCapacity(uint base, uint count, int capacity)
+{
+    return capacity >= 0 && RangeFitsCapacity(base, count, (uint)capacity);
+}
+
 bool AllocateBatchGeometry(uint batch, uint vertexCount, uint indexCount,
                            out uint vertexBase, out uint indexBase)
 {
@@ -567,8 +737,8 @@ bool AllocateBatchGeometry(uint batch, uint vertexCount, uint indexCount,
     }
     InterlockedAdd(_BatchCounters[counter + 8], vertexCount, vertexBase);
     InterlockedAdd(_BatchCounters[counter + 9], indexCount, indexBase);
-    return vertexBase + vertexCount <= _BatchCounters[counter + 6]
-        && indexBase + indexCount <= _BatchCounters[counter + 7];
+    return RangeFitsCapacity(vertexBase, vertexCount, _BatchCounters[counter + 6])
+        && RangeFitsCapacity(indexBase, indexCount, _BatchCounters[counter + 7]);
 }
 
 uint BatchVertexSlot(uint batch, uint localIndex)
@@ -643,6 +813,268 @@ void StoreBatchQuadIndices(uint batch, uint vertexBase, uint indexBase, bool fli
     }
 }
 
+int FloorDivProfile(int value, int divisor)
+{
+    int quotient = value / divisor;
+    int remainder = value % divisor;
+    return remainder < 0 ? quotient - 1 : quotient;
+}
+
+float3 ProfilePoint(GpuProfileBlock block, int axisA, int axisB,
+                    float radius, float angle, float depth)
+{
+    float3 profilePosition = (float3)block.centre;
+    profilePosition += AxisOffset(axisA, cos(angle) * radius);
+    profilePosition += AxisOffset(axisB, sin(angle) * radius);
+    int profileAxis = ProfileAxis(block);
+    profilePosition += AxisOffset(profileAxis, depth - profilePosition[profileAxis]);
+    return profilePosition;
+}
+
+bool BatchOwnsProfileQuad(uint batch, float3 p0, float3 p1, float3 p2, float3 p3)
+{
+    float3 quadCentre = (p0 + p1 + p2 + p3) * 0.25;
+    int chunkVoxels = _CellsPerAxis * _BatchChunks[batch].sourceStep;
+    int3 owner = int3(FloorDivProfile((int)floor(quadCentre.x), chunkVoxels),
+                      FloorDivProfile((int)floor(quadCentre.y), chunkVoxels),
+                      FloorDivProfile((int)floor(quadCentre.z), chunkVoxels));
+    return all(owner * chunkVoxels == _BatchChunks[batch].chunkOriginVoxel);
+}
+
+bool TryProfileBacking(GpuProfileBlock block, float3 position, out uint surface)
+{
+    int3 voxel = (int3)round(position);
+    int profileAxis = ProfileAxis(block);
+    voxel += AxisOffsetInt(
+        profileAxis, block.backingDepthVoxel - AxisComponent(voxel, profileAxis));
+    uint boundary;
+    uint material = ReadMaterial(voxel, surface, boundary);
+    surface = ResolveSurface(material, surface);
+    return IsSolidSample(material);
+}
+
+uint ProfileAttributes(GpuProfileBlock block, uint backingSurface, bool inheritCoating)
+{
+    uint coating = block.surface & 0xFFu;
+    uint backingCoating = (backingSurface >> 16) & 0xFFu;
+    if (inheritCoating && backingCoating != 0u) coating = backingCoating;
+    uint detail = (block.surface >> 8) & 0xFFu;
+    uint semantics = (block.shape >> 16) | (coating << 16)
+                   | ((1u | ((detail & 0x1Fu) << 3u)) << 24);
+    return PackMaterial(ProfileMaterial(block), semantics);
+}
+
+void WriteBatchProfileQuad(uint batch, float3 p0, float3 p1, float3 p2, float3 p3,
+                           float3 normal, uint attributes)
+{
+    if (!BatchOwnsProfileQuad(batch, p0, p1, p2, p3)) return;
+    uint vertexBase, indexBase;
+    if (!AllocateBatchGeometry(batch, 4u, 6u, vertexBase, indexBase)) return;
+    float3 safeNormal = NormalizeOrUp(normal);
+    StoreBatchVertex(batch, vertexBase, p0, safeNormal, attributes);
+    StoreBatchVertex(batch, vertexBase + 1u, p1, safeNormal, attributes);
+    StoreBatchVertex(batch, vertexBase + 2u, p2, safeNormal, attributes);
+    StoreBatchVertex(batch, vertexBase + 3u, p3, safeNormal, attributes);
+    bool flip = dot(cross(p1 - p0, p2 - p0), normal) < 0.0;
+    StoreBatchQuadIndices(batch, vertexBase, indexBase, flip);
+}
+
+void ResolveProfileShape(GpuProfileBlock block,
+                         out int axisA, out int axisB,
+                         out float start, out float finish,
+                         out float inner, out float outer,
+                         out float front, out float shoulder, out float back,
+                         out float frontInner, out float frontOuter,
+                         out float faceStart, out float faceFinish,
+                         out int segments)
+{
+    int axis = ProfileAxis(block);
+    axisA = (axis + 1) % 3;
+    axisB = (axis + 2) % 3;
+    start = atan2((float)block.startDirection.y, (float)block.startDirection.x);
+    finish = atan2((float)block.endDirection.y, (float)block.endDirection.x);
+    if (finish <= start) finish += 6.28318530717958647692;
+    inner = block.innerRadiusQ4 * (1.0 / 16.0);
+    outer = block.outerRadiusQ4 * (1.0 / 16.0);
+    float midRadius = (inner + outer) * 0.5;
+    float jointAngle = ((block.surface >> 16) & 0xFFu) * (1.0 / 16.0)
+                     / max(1.0, midRadius);
+    start += jointAngle;
+    finish -= jointAngle;
+    float bevel = min(((block.surface >> 24) & 0xFFu) * (1.0 / 16.0),
+                      (outer - inner) * 0.22);
+    front = block.frontQ4 * (1.0 / 16.0);
+    shoulder = min(front + bevel, block.backQ4 * (1.0 / 16.0));
+    back = block.backQ4 * (1.0 / 16.0);
+    frontInner = inner + bevel;
+    frontOuter = outer - bevel;
+    float angularBevel = bevel * 0.32 / max(1.0, midRadius);
+    faceStart = min(start + angularBevel, (start + finish) * 0.5);
+    faceFinish = max(finish - angularBevel, (start + finish) * 0.5);
+    segments = clamp((int)ceil((finish - start) * outer / 0.55), 2, 24);
+}
+
+uint CountProfileRadialSide(uint batch, GpuProfileBlock block, float angle,
+                            float inner, float outer, float frontInner, float frontOuter,
+                            float faceAngle, float front, float shoulder, float back,
+                            int axisA, int axisB)
+{
+    float3 f0 = ProfilePoint(block, axisA, axisB, frontInner, faceAngle, front);
+    float3 f1 = ProfilePoint(block, axisA, axisB, frontOuter, faceAngle, front);
+    float3 s0 = ProfilePoint(block, axisA, axisB, inner, angle, shoulder);
+    float3 s1 = ProfilePoint(block, axisA, axisB, outer, angle, shoulder);
+    float3 b0 = ProfilePoint(block, axisA, axisB, inner, angle, back);
+    float3 b1 = ProfilePoint(block, axisA, axisB, outer, angle, back);
+    uint surface;
+    if (!TryProfileBacking(block, (f0 + f1 + b0 + b1) * 0.25, surface)) return 0u;
+    uint count = 0u;
+    if (BatchOwnsProfileQuad(batch, f0, s0, s1, f1)) count++;
+    if (BatchOwnsProfileQuad(batch, s0, b0, b1, s1)) count++;
+    return count;
+}
+
+[numthreads(64, 1, 1)]
+void CSBatchCountProfiles(uint3 id : SV_DispatchThreadID)
+{
+    uint profileIndex = id.x / 24u;
+    uint segment = id.x % 24u;
+    if (profileIndex >= (uint)_BatchProfileCount) return;
+    GpuProfileBlock block = _BatchProfiles[profileIndex];
+    uint batch = block.batch;
+    int counter = BatchRecordWord(batch);
+    if (_BatchCounters[counter] != 0u) return;
+    int axisA, axisB, segments;
+    float start, finish, inner, outer, front, shoulder, back;
+    float frontInner, frontOuter, faceStart, faceFinish;
+    ResolveProfileShape(block, axisA, axisB, start, finish, inner, outer,
+                        front, shoulder, back, frontInner, frontOuter,
+                        faceStart, faceFinish, segments);
+    if (finish <= start || segment >= (uint)segments) return;
+
+    uint quads = 0u;
+    float a0 = lerp(start, finish, segment / (float)segments);
+    float a1 = lerp(start, finish, (segment + 1.0) / segments);
+    float fa0 = lerp(faceStart, faceFinish, segment / (float)segments);
+    float fa1 = lerp(faceStart, faceFinish, (segment + 1.0) / segments);
+    float3 f00 = ProfilePoint(block, axisA, axisB, frontInner, fa0, front);
+    float3 f01 = ProfilePoint(block, axisA, axisB, frontOuter, fa0, front);
+    float3 f11 = ProfilePoint(block, axisA, axisB, frontOuter, fa1, front);
+    float3 f10 = ProfilePoint(block, axisA, axisB, frontInner, fa1, front);
+    uint backingSurface;
+    if (TryProfileBacking(block, (f00 + f01 + f11 + f10) * 0.25, backingSurface))
+    {
+        float3 o0 = ProfilePoint(block, axisA, axisB, outer, a0, shoulder);
+        float3 o1 = ProfilePoint(block, axisA, axisB, outer, a1, shoulder);
+        float3 i0 = ProfilePoint(block, axisA, axisB, inner, a0, shoulder);
+        float3 i1 = ProfilePoint(block, axisA, axisB, inner, a1, shoulder);
+        float3 ob0 = ProfilePoint(block, axisA, axisB, outer, a0, back);
+        float3 ob1 = ProfilePoint(block, axisA, axisB, outer, a1, back);
+        float3 ib0 = ProfilePoint(block, axisA, axisB, inner, a0, back);
+        float3 ib1 = ProfilePoint(block, axisA, axisB, inner, a1, back);
+        if (BatchOwnsProfileQuad(batch, f00, f01, f11, f10)) quads++;
+        if (BatchOwnsProfileQuad(batch, f01, o0, o1, f11)) quads++;
+        if (BatchOwnsProfileQuad(batch, i0, f00, f10, i1)) quads++;
+        if (BatchOwnsProfileQuad(batch, o0, ob0, ob1, o1)) quads++;
+        if (BatchOwnsProfileQuad(batch, ib0, i0, i1, ib1)) quads++;
+        if (BatchOwnsProfileQuad(batch, ib0, ob0, ob1, ib1)) quads++;
+    }
+    if (segment == 0u)
+    {
+        quads += CountProfileRadialSide(batch, block, start, inner, outer,
+            frontInner, frontOuter, faceStart, front, shoulder, back, axisA, axisB);
+        quads += CountProfileRadialSide(batch, block, finish, inner, outer,
+            frontInner, frontOuter, faceFinish, front, shoulder, back, axisA, axisB);
+    }
+    if (quads == 0u) return;
+    uint ignored;
+    InterlockedAdd(_BatchCounters[counter + 2], quads * 4u, ignored);
+    InterlockedAdd(_BatchCounters[counter + 3], quads * 6u, ignored);
+}
+
+void WriteProfileRadialSide(uint batch, GpuProfileBlock block, float angle,
+                            float inner, float outer, float frontInner, float frontOuter,
+                            float faceAngle, float front, float shoulder, float back,
+                            int axisA, int axisB, float sign, uint attributes)
+{
+    float3 f0 = ProfilePoint(block, axisA, axisB, frontInner, faceAngle, front);
+    float3 f1 = ProfilePoint(block, axisA, axisB, frontOuter, faceAngle, front);
+    float3 s0 = ProfilePoint(block, axisA, axisB, inner, angle, shoulder);
+    float3 s1 = ProfilePoint(block, axisA, axisB, outer, angle, shoulder);
+    float3 b0 = ProfilePoint(block, axisA, axisB, inner, angle, back);
+    float3 b1 = ProfilePoint(block, axisA, axisB, outer, angle, back);
+    uint surface;
+    if (!TryProfileBacking(block, (f0 + f1 + b0 + b1) * 0.25, surface)) return;
+    float3 normal = AxisOffset(axisA, -sin(angle) * sign)
+                  + AxisOffset(axisB, cos(angle) * sign);
+    float3 frontNormal = AxisOffset(ProfileAxis(block), -1.0);
+    WriteBatchProfileQuad(batch, f0, s0, s1, f1,
+                          NormalizeOrUp(normal - frontNormal * 0.55), attributes);
+    WriteBatchProfileQuad(batch, s0, b0, b1, s1, normal, attributes);
+}
+
+[numthreads(64, 1, 1)]
+void CSBatchWriteProfiles(uint3 id : SV_DispatchThreadID)
+{
+    uint profileIndex = id.x / 24u;
+    uint segment = id.x % 24u;
+    if (profileIndex >= (uint)_BatchProfileCount) return;
+    GpuProfileBlock block = _BatchProfiles[profileIndex];
+    uint batch = block.batch;
+    int axisA, axisB, segments;
+    float start, finish, inner, outer, front, shoulder, back;
+    float frontInner, frontOuter, faceStart, faceFinish;
+    ResolveProfileShape(block, axisA, axisB, start, finish, inner, outer,
+                        front, shoulder, back, frontInner, frontOuter,
+                        faceStart, faceFinish, segments);
+    if (finish <= start || segment >= (uint)segments) return;
+
+    float a0 = lerp(start, finish, segment / (float)segments);
+    float a1 = lerp(start, finish, (segment + 1.0) / segments);
+    float fa0 = lerp(faceStart, faceFinish, segment / (float)segments);
+    float fa1 = lerp(faceStart, faceFinish, (segment + 1.0) / segments);
+    float3 f00 = ProfilePoint(block, axisA, axisB, frontInner, fa0, front);
+    float3 f01 = ProfilePoint(block, axisA, axisB, frontOuter, fa0, front);
+    float3 f11 = ProfilePoint(block, axisA, axisB, frontOuter, fa1, front);
+    float3 f10 = ProfilePoint(block, axisA, axisB, frontInner, fa1, front);
+    uint backingSurface;
+    if (TryProfileBacking(block, (f00 + f01 + f11 + f10) * 0.25, backingSurface))
+    {
+        uint attributes = ProfileAttributes(block, backingSurface, true);
+        float3 frontNormal = AxisOffset(ProfileAxis(block), -1.0);
+        float middle = (a0 + a1) * 0.5;
+        float3 outerNormal = AxisOffset(axisA, cos(middle))
+                           + AxisOffset(axisB, sin(middle));
+        float3 innerNormal = -outerNormal;
+        float3 backNormal = AxisOffset(ProfileAxis(block), 1.0);
+        float3 o0 = ProfilePoint(block, axisA, axisB, outer, a0, shoulder);
+        float3 o1 = ProfilePoint(block, axisA, axisB, outer, a1, shoulder);
+        float3 i0 = ProfilePoint(block, axisA, axisB, inner, a0, shoulder);
+        float3 i1 = ProfilePoint(block, axisA, axisB, inner, a1, shoulder);
+        float3 ob0 = ProfilePoint(block, axisA, axisB, outer, a0, back);
+        float3 ob1 = ProfilePoint(block, axisA, axisB, outer, a1, back);
+        float3 ib0 = ProfilePoint(block, axisA, axisB, inner, a0, back);
+        float3 ib1 = ProfilePoint(block, axisA, axisB, inner, a1, back);
+        WriteBatchProfileQuad(batch, f00, f01, f11, f10, frontNormal, attributes);
+        WriteBatchProfileQuad(batch, f01, o0, o1, f11,
+                              NormalizeOrUp(outerNormal - frontNormal * 0.55), attributes);
+        WriteBatchProfileQuad(batch, i0, f00, f10, i1,
+                              NormalizeOrUp(innerNormal - frontNormal * 0.55), attributes);
+        WriteBatchProfileQuad(batch, o0, ob0, ob1, o1, outerNormal, attributes);
+        WriteBatchProfileQuad(batch, ib0, i0, i1, ib1, innerNormal, attributes);
+        WriteBatchProfileQuad(batch, ib0, ob0, ob1, ib1, backNormal, attributes);
+    }
+    if (segment == 0u)
+    {
+        uint sideAttributes = ProfileAttributes(block, 0u, false);
+        WriteProfileRadialSide(batch, block, start, inner, outer,
+            frontInner, frontOuter, faceStart, front, shoulder, back,
+            axisA, axisB, -1.0, sideAttributes);
+        WriteProfileRadialSide(batch, block, finish, inner, outer,
+            frontInner, frontOuter, faceFinish, front, shoulder, back,
+            axisA, axisB, 1.0, sideAttributes);
+    }
+}
+
 [numthreads(64, 1, 1)]
 void CSWriteFacetedFaces(uint3 id : SV_DispatchThreadID)
 {
@@ -660,8 +1092,8 @@ void CSWriteFacetedFaces(uint3 id : SV_DispatchThreadID)
     uint vertexBase, indexBase;
     InterlockedAdd(_Counters[0], faceCount*4u, vertexBase);
     InterlockedAdd(_Counters[1], faceCount*6u, indexBase);
-    if ((int)(vertexBase + faceCount*4u) > _VertexCapacity
-     || (int)(indexBase + faceCount*6u) > _IndexCapacity) return;
+    if (!RangeFitsCapacity(vertexBase, faceCount*4u, _VertexCapacity)
+     || !RangeFitsCapacity(indexBase, faceCount*6u, _IndexCapacity)) return;
     uint emitted=0u;
     for(int face=0;face<6;face++)
     {
@@ -921,8 +1353,8 @@ void WriteDecorationFace(uint batch,int3 voxel,uint material,uint surface,uint w
     {
         InterlockedAdd(_Counters[0],vertexCount,vertexBase);
         InterlockedAdd(_Counters[1],indexCount,indexBase);
-        if ((int)(vertexBase+vertexCount)>_VertexCapacity
-         || (int)(indexBase+indexCount)>_IndexCapacity) return;
+        if (!RangeFitsCapacity(vertexBase,vertexCount,_VertexCapacity)
+         || !RangeFitsCapacity(indexBase,indexCount,_IndexCapacity)) return;
     }
     else if (!AllocateBatchGeometry(batch,vertexCount,indexCount,vertexBase,indexBase)) return;
 
@@ -1043,6 +1475,12 @@ void CSBatchWriteDecorations(uint3 id : SV_DispatchThreadID)
 // 3. Write geometry into reserved space.
 // ---------------------------------------------------------------------------
 
+float3 NormalizeOrUp(float3 value)
+{
+    float len = length(value);
+    return len > 1e-6 ? value / len : float3(0, 1, 0);
+}
+
 float3 DensityNormal(int3 g)
 {
     int hi = _GridSize - 1;
@@ -1052,9 +1490,7 @@ float3 DensityNormal(int3 g)
             - _Density[GridIndex(clamp(g + int3(0, 1, 0), 0, hi))];
     float z = _Density[GridIndex(clamp(g - int3(0, 0, 1), 0, hi))]
             - _Density[GridIndex(clamp(g + int3(0, 0, 1), 0, hi))];
-    float3 n = float3(x, y, z);
-    float len = length(n);
-    return len > 1e-6 ? n / len : float3(0, 1, 0);
+    return NormalizeOrUp(float3(x, y, z));
 }
 
 float3 BatchDensityNormal(uint batch, int3 g)
@@ -1066,9 +1502,7 @@ float3 BatchDensityNormal(uint batch, int3 g)
             - _BatchDensity[BatchSampleIndex(batch, clamp(g + int3(0,1,0), 0, hi))];
     float z = _BatchDensity[BatchSampleIndex(batch, clamp(g - int3(0,0,1), 0, hi))]
             - _BatchDensity[BatchSampleIndex(batch, clamp(g + int3(0,0,1), 0, hi))];
-    float3 n = float3(x,y,z);
-    float len = length(n);
-    return len > 1e-6 ? n / len : float3(0,1,0);
+    return NormalizeOrUp(float3(x,y,z));
 }
 
 uint PackMaterial(uint material, uint surface)
@@ -1088,6 +1522,7 @@ void CSWriteCells(uint3 id : SV_DispatchThreadID)
     if (cellIndex >= cellTotal) return;
 
     uint outputVertexCount = _CellVertexCounts[cellIndex];
+    bool planarOutput = _CellReconstructionFlags[cellIndex] != 0u;
     uint triangleCount = _CellTriangleCounts[cellIndex];
     if (outputVertexCount == 0u || triangleCount == 0u) return;
     uint indexCount = triangleCount * 3u;
@@ -1143,8 +1578,8 @@ void CSWriteCells(uint3 id : SV_DispatchThreadID)
 
         SurfaceVertex vertex;
         vertex.position = ((float3)_ChunkOriginVoxel + local + 0.5) * _VoxelSize;
-        vertex.normal = normalize(DensityNormal(cell + _Padding + o0) * t0
-                                + DensityNormal(cell + _Padding + o1) * t1);
+        vertex.normal = NormalizeOrUp(DensityNormal(cell + _Padding + o0) * t0
+                                    + DensityNormal(cell + _Padding + o1) * t1);
 
         int selected = d0 > d1 ? c0 : c1;
         uint chosenMaterial = material[selected];
@@ -1168,11 +1603,11 @@ void CSWriteCells(uint3 id : SV_DispatchThreadID)
     InterlockedAdd(_Counters[0], outputVertexCount, vertexBase);
     InterlockedAdd(_Counters[1], indexCount, indexBase);
 
-    if ((int)(vertexBase + outputVertexCount) > _VertexCapacity) return;
-    if ((int)(indexBase + indexCount) > _IndexCapacity) return;
+    if (!RangeFitsCapacity(vertexBase, outputVertexCount, _VertexCapacity)) return;
+    if (!RangeFitsCapacity(indexBase, indexCount, _IndexCapacity)) return;
 
     uint tableBase = cellClass * 15u;
-    if (outputVertexCount == indexCount)
+    if (planarOutput)
     {
         for (uint t = 0u; t < indexCount; t += 3u)
         {
@@ -1180,7 +1615,7 @@ void CSWriteCells(uint3 id : SV_DispatchThreadID)
             SurfaceVertex b = cellVertices[_RegularCellIndices[tableBase + t + 1u]];
             SurfaceVertex c = cellVertices[_RegularCellIndices[tableBase + t + 2u]];
 
-            float3 face = normalize(cross(b.position - a.position, c.position - a.position));
+            float3 face = NormalizeOrUp(cross(b.position - a.position, c.position - a.position));
             float3 expected = a.normal + b.normal + c.normal;
             if (dot(face, expected) < 0.0) face = -face;
             a.normal = face; b.normal = face; c.normal = face;
@@ -1208,7 +1643,11 @@ void CSBatchWriteCells(uint3 id : SV_DispatchThreadID)
     int cellIndex = (int)id.x;
     if (cellIndex >= BatchRegularCellCount()) return;
     uint batch = id.y;
-    uint outputVertexCount = _BatchCellVertexCounts[BatchCellIndex(batch,cellIndex)];
+    int outputCell = BatchCellIndex(batch,cellIndex);
+    uint outputVertexCount = _BatchCellVertexCounts[outputCell];
+    uint reconstructionFlags = _BatchCellReconstructionFlags[outputCell];
+    bool planarOutput = (reconstructionFlags & 1u) != 0u;
+    uint suppressedTriangles = (reconstructionFlags >> 1u) & 0x1Fu;
     uint triangleCount = _BatchCellTriangleCounts[BatchCellIndex(batch,cellIndex)];
     if (outputVertexCount == 0u || triangleCount == 0u) return;
     uint indexCount = triangleCount * 3u;
@@ -1230,6 +1669,7 @@ void CSBatchWriteCells(uint3 id : SV_DispatchThreadID)
         || !OwnsSelectedInsideSample(cell, selectedInsideCorner)) return;
     uint cellClass = _RegularCellClass[caseCode];
     uint sourceVertexCount = _RegularGeometryCounts[cellClass] >> 4;
+    uint sourceIndexCount = (_RegularGeometryCounts[cellClass] & 0x0Fu) * 3u;
     BatchChunkDescriptor chunk = _BatchChunks[batch];
     SurfaceVertex cellVertices[15];
     for (uint v = 0u; v < sourceVertexCount; v++)
@@ -1251,8 +1691,8 @@ void CSBatchWriteCells(uint3 id : SV_DispatchThreadID)
         float3 local = ((float3)(cell+o0)*t0 + (float3)(cell+o1)*t1) * chunk.sourceStep;
         SurfaceVertex vertex;
         vertex.position = ((float3)chunk.chunkOriginVoxel + local + 0.5) * chunk.voxelSize;
-        vertex.normal = normalize(BatchDensityNormal(batch,cell+_Padding+o0)*t0
-                                + BatchDensityNormal(batch,cell+_Padding+o1)*t1);
+        vertex.normal = NormalizeOrUp(BatchDensityNormal(batch,cell+_Padding+o0)*t0
+                                    + BatchDensityNormal(batch,cell+_Padding+o1)*t1);
         int selected = d0 > d1 ? c0 : c1;
         uint chosenMaterial = material[selected], chosenSurface = surface[selected];
         if (!IsSolidSample(chosenMaterial))
@@ -1270,29 +1710,58 @@ void CSBatchWriteCells(uint3 id : SV_DispatchThreadID)
     uint vertexBase,indexBase;
     if (!AllocateBatchGeometry(batch,outputVertexCount,indexCount,vertexBase,indexBase)) return;
     uint tableBase = cellClass * 15u;
-    if (outputVertexCount == indexCount)
+    if (planarOutput)
     {
-        for (uint t = 0u; t < indexCount; t += 3u)
+        uint output = 0u;
+        for (uint t = 0u; t < sourceIndexCount; t += 3u)
         {
+            if ((suppressedTriangles & (1u << (t / 3u))) != 0u) continue;
             SurfaceVertex a=cellVertices[_RegularCellIndices[tableBase+t]];
             SurfaceVertex b=cellVertices[_RegularCellIndices[tableBase+t+1u]];
             SurfaceVertex c=cellVertices[_RegularCellIndices[tableBase+t+2u]];
-            float3 face=normalize(cross(b.position-a.position,c.position-a.position));
+            float3 face=NormalizeOrUp(cross(b.position-a.position,c.position-a.position));
             float3 expected=a.normal+b.normal+c.normal;
             if(dot(face,expected)<0.0) face=-face;
             a.normal=face; b.normal=face; c.normal=face;
-            StoreBatchRawVertex(batch,vertexBase+t,a);
-            StoreBatchRawVertex(batch,vertexBase+t+1u,b);
-            StoreBatchRawVertex(batch,vertexBase+t+2u,c);
+            StoreBatchRawVertex(batch,vertexBase+output,a);
+            StoreBatchRawVertex(batch,vertexBase+output+1u,b);
+            StoreBatchRawVertex(batch,vertexBase+output+2u,c);
+            output += 3u;
         }
         for(uint i2=0u;i2<indexCount;i2++) StoreBatchIndex(batch,indexBase+i2,vertexBase+i2);
     }
     else
     {
-        for(uint v2=0u;v2<sourceVertexCount;v2++)
-            StoreBatchRawVertex(batch,vertexBase+v2,cellVertices[v2]);
-        for(uint i3=0u;i3<indexCount;i3++)
-            StoreBatchIndex(batch,indexBase+i3,vertexBase+_RegularCellIndices[tableBase+i3]);
+        uint usedVertices = 0u;
+        for (uint t2 = 0u; t2 < sourceIndexCount; t2 += 3u)
+        {
+            if ((suppressedTriangles & (1u << (t2 / 3u))) != 0u) continue;
+            usedVertices |= 1u << _RegularCellIndices[tableBase + t2];
+            usedVertices |= 1u << _RegularCellIndices[tableBase + t2 + 1u];
+            usedVertices |= 1u << _RegularCellIndices[tableBase + t2 + 2u];
+        }
+        uint remap[15];
+        uint outputVertex = 0u;
+        for (uint v2=0u; v2<sourceVertexCount; v2++)
+        {
+            remap[v2] = 0u;
+            if ((usedVertices & (1u << v2)) == 0u) continue;
+            remap[v2] = outputVertex;
+            StoreBatchRawVertex(batch,vertexBase+outputVertex,cellVertices[v2]);
+            outputVertex++;
+        }
+        uint outputIndex = 0u;
+        for (uint t3 = 0u; t3 < sourceIndexCount; t3 += 3u)
+        {
+            if ((suppressedTriangles & (1u << (t3 / 3u))) != 0u) continue;
+            StoreBatchIndex(batch,indexBase+outputIndex,
+                            vertexBase+remap[_RegularCellIndices[tableBase+t3]]);
+            StoreBatchIndex(batch,indexBase+outputIndex+1u,
+                            vertexBase+remap[_RegularCellIndices[tableBase+t3+1u]]);
+            StoreBatchIndex(batch,indexBase+outputIndex+2u,
+                            vertexBase+remap[_RegularCellIndices[tableBase+t3+2u]]);
+            outputIndex += 3u;
+        }
     }
 }
 
@@ -1345,8 +1814,10 @@ uint AlignBatchCount(uint value, uint alignment)
 }
 
 // Header: total vertex capacity, total index capacity, live draw records, reserved.
-// Record: unsupported, args ordinal, vertex count, index count, vertex prefix, index prefix,
-// aligned vertex capacity, aligned index capacity, vertex write cursor, index write cursor.
+// Record (17 words): unsupported[0], args ordinal[1], vertex/index counts[2..3],
+// vertex/index prefixes[4..5], aligned vertex/index capacities[6..7], write cursors[8..9],
+// paged-output allocation failure[10], stable chunk handle[11], generation low/high[12..13],
+// destination bank[14], vertex page count[15], index page count[16].
 [numthreads(1, 1, 1)]
 void CSPrefixBatchCounts(uint3 id : SV_DispatchThreadID)
 {
@@ -1648,8 +2119,8 @@ void CSTransitionCells(uint3 id : SV_DispatchThreadID)
     uint vertexBase, indexBase;
     InterlockedAdd(_Counters[0], vertexCount, vertexBase);
     InterlockedAdd(_Counters[1], triangleCount * 3u, indexBase);
-    if ((int)(vertexBase + vertexCount) > _VertexCapacity) return;
-    if ((int)(indexBase + triangleCount * 3u) > _IndexCapacity) return;
+    if (!RangeFitsCapacity(vertexBase, vertexCount, _VertexCapacity)) return;
+    if (!RangeFitsCapacity(indexBase, triangleCount * 3u, _IndexCapacity)) return;
 
     float3 faceNormal = normalize(-(float3)wAxis);
     for (uint v2 = 0u; v2 < vertexCount; v2++)

@@ -716,7 +716,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         /// The context costs several megabytes of sampling scratch and a brick mirror, and the ring
         /// runs <see cref="VoxelSurfaceScheduler.NearSolidWorkerCount"/> shards of it. Eligibility is
         /// a property of a chunk's contents rather than of the ring — only continuous terrain with no
-        /// decorating coatings or profile blocks qualifies — so a shard that never meets an eligible
+        /// decorating coatings qualifies — so a shard that never meets an eligible
         /// chunk would otherwise hold that memory for the whole session without ever dispatching.
         ///
         /// A creation failure is remembered: a device without compute support must not retry, and
@@ -2380,8 +2380,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             // GpuCpuSnapshotRequired and this same build returns here for the proven CPU path.
             if (!_build.GpuCpuSnapshotRequired
                 && SupportsGpuSurfaceStep(SourceStep)
-                && _gpuCutoverConfigured && !_gpuExtractionUnavailable
-                && _buildProfileBlocks.Length == 0)
+                && _gpuCutoverConfigured && !_gpuExtractionUnavailable)
             {
                 GpuSurfaceExtractionContext gpu = EnsureGpuExtraction();
                 if (gpu != null)
@@ -2390,7 +2389,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         _buildSurfaceCatalogue, _buildCoatingCatalogue, _buildPalette);
                     var request = new GpuChunkExtraction(
                         chunkOriginVoxel, cacheOrigin, SourceStep, voxelSize,
-                        transitionFaceMask: _build.GpuTransitionFaceMask);
+                        transitionFaceMask: _build.GpuTransitionFaceMask,
+                        profileBlocks: _buildProfileBlocks);
                     _build.GpuEligible = true;
                     GpuStageOutcome stage = gpu.TryBeginStage(
                         _densityBricks,
@@ -2591,7 +2591,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _build.GpuEligible = SupportsGpuSurfaceStep(SourceStep)
                               && _gpuCutoverConfigured && !_gpuExtractionUnavailable
                               && _snapshotClassificationFlags[2] == 0
-                              && _buildProfileBlocks.Length == 0
                               && _build.RequiresContinuousTopology;
             if (SupportsFeaturePreservingFallback)
                 Step4FalseEmptyDiagnostics.RecordExactClassification(
@@ -2613,7 +2612,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         _buildSurfaceCatalogue, _buildCoatingCatalogue, _buildPalette);
                     var request = new GpuChunkExtraction(
                         chunkOriginVoxel, cacheOrigin, SourceStep, voxelSize,
-                        transitionFaceMask: _build.GpuTransitionFaceMask);
+                        transitionFaceMask: _build.GpuTransitionFaceMask,
+                        profileBlocks: _buildProfileBlocks);
                     // Counting is started, not awaited. Phase 9 collects the result once the GPU
                     // has finished, so no worker blocks the shared frame budget on a flush.
                     GpuStageOutcome stage = gpu.TryBeginStage(

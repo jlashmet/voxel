@@ -192,6 +192,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _cataloguesUploaded = true;
         }
 
+#if UNITY_EDITOR
+        // Blocking explicit-snapshot staging exists only for GPU oracle tests. Production player
+        // builds expose solely the persistent shared-mirror, batched asynchronous path.
         internal GpuStageOutcome TryStage(NativeArray<TransvoxelDensityBrick> bricks,
                                           NativeArray<byte> mixedVoxels,
                                           NativeArray<ushort> mixedSurfaceSemantics,
@@ -279,6 +282,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _hasStaged = true;
             return true;
         }
+#endif
 
         private void ReleaseLegacyPins()
         {
@@ -409,7 +413,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _staged = new GpuChunkExtraction(
                 request.ChunkOriginVoxel, request.BrickCacheOrigin,
                 request.SourceStep, request.VoxelSize, request.TransitionFaceMask,
-                handle, request.Generation != 0 ? request.Generation : generation);
+                handle, request.Generation != 0 ? request.Generation : generation,
+                request.ProfileBlocks);
             _hasStaged = true;
             ChunksMirrorReady++;
             _sharedExtractionActive = true;
@@ -567,6 +572,20 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             handle = _pagedHandle;
             failed = _pagedBatchFailed;
+
+            // The worker's paged phase is the owner of this asynchronous state machine. Mirror
+            // coverage can take several bounded scans/recovery frames, and an admitted request can
+            // still wait for a free cross-chunk lane. The former counter-readback poll used to
+            // advance both states incidentally; the readback-free path must do so explicitly.
+            if (_stageAdmissionPending)
+            {
+                if (!TryAdmitPendingStage()) return false;
+            }
+            else if (_countDispatchPending)
+            {
+                if (!TryDispatchPendingCount()) return false;
+            }
+
             if (!_pagedBatchReady) return false;
             _pagedBatchReady = false;
             _pagedBatchFailed = false;
@@ -710,7 +729,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 (Time.realtimeSinceStartupAsDouble - dispatchStarted) * 1000.0);
         }
 
+#if UNITY_EDITOR
         public GpuExtractionCounts StagedCounts => _stagedCounts;
+#endif
 
         public bool TryWriteRange(ComputeBuffer vertices, ComputeBuffer indices,
                                   int vertexStart, int vertexCapacity,

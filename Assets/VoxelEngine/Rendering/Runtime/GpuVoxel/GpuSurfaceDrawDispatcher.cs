@@ -49,7 +49,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             for (int frame = 0; frame < BufferedFrames; frame++)
             {
                 _visibleHandles[frame] = new ComputeBuffer(arena.HandleCapacity, sizeof(uint),
-                    ComputeBufferType.Structured, ComputeBufferMode.SubUpdates);
+                    ComputeBufferType.Structured, ComputeBufferMode.Dynamic);
                 _bucketState[frame] = new ComputeBuffer(BucketCount * 4, sizeof(uint),
                     ComputeBufferType.Structured);
                 _indirectArgs[frame] = new ComputeBuffer(BucketCount * 4, sizeof(uint),

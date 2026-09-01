@@ -350,6 +350,80 @@ namespace VoxelEngine.Tests.PlayMode
         }
 
         [Test]
+        public void TrueDispatchBatchCountsAndWritesRetainedProfilesWithoutCpuFallback()
+        {
+            using GpuSurfaceExtractionContext context = CreateContext();
+            using NativeArray<TransvoxelDensityBrick> bricks =
+                CreateHalfSolidSnapshot(context.BrickCacheEdge);
+            var plain = new GpuChunkExtraction(
+                int3.zero, int3.zero, sourceStep: 1, voxelSize: 1f);
+            Assert.AreEqual(GpuStageOutcome.Staged,
+                context.TryStage(bricks, default, default, default, plain, generation: 1));
+
+            var profile = new ProfileBlock
+            {
+                Centre = new int3(4, 4, 4),
+                InnerRadiusQ4 = 16,
+                OuterRadiusQ4 = 48,
+                FrontQ4 = 32,
+                BackQ4 = 96,
+                BackingDepthVoxel = 4,
+                StartDirection = new int2(4096, 0),
+                EndDirection = new int2(0, 4096),
+                Axis = 2,
+                Material = 1,
+                SurfaceStyle = SurfaceStyles.Rounded,
+            };
+            var profiled = new GpuChunkExtraction(
+                int3.zero, int3.zero, sourceStep: 1, voxelSize: 1f,
+                profileBlocks: new[] { profile });
+            var requests = new[] { plain, profiled };
+            using GpuSurfaceExtractor.CountBatchResources resources =
+                context.Extractor.CreateCountBatchResources(requests.Length);
+            using var counters = new ComputeBuffer(
+                GpuSurfaceExtractor.BatchHeaderWords
+                    + requests.Length * GpuSurfaceExtractor.BatchRecordWords,
+                sizeof(uint), ComputeBufferType.Structured);
+
+            context.Extractor.DispatchCountBatch(
+                context.Mirror, context.Tables, requests, requests.Length,
+                counters, resources);
+            context.Extractor.PrefixCountBatch(
+                counters, requests.Length,
+                SurfaceGeometryArena.VertexAlignment,
+                SurfaceGeometryArena.IndexAlignment);
+            var words = new uint[counters.count];
+            counters.GetData(words);
+            int first = GpuSurfaceExtractor.BatchHeaderWords;
+            int second = first + GpuSurfaceExtractor.BatchRecordWords;
+            // Quarter-circle radius 3 resolves to nine segments. Six quads per segment plus
+            // two quads on each radial end are wholly owned by this chunk.
+            const uint profileQuads = 9u * 6u + 4u;
+            Assert.AreEqual(words[first + 2] + profileQuads * 4u, words[second + 2]);
+            Assert.AreEqual(words[first + 3] + profileQuads * 6u, words[second + 3]);
+
+            using var vertices = new ComputeBuffer(
+                (int)words[0], GpuSurfaceExtractor.ReadbackVertex.Stride,
+                ComputeBufferType.Structured);
+            using var indices = new ComputeBuffer(
+                (int)words[1], sizeof(uint), ComputeBufferType.Structured);
+            context.Extractor.DispatchBaseWriteBatch(
+                context.Mirror, context.Tables, requests.Length,
+                counters, resources, vertices, indices);
+            counters.GetData(words);
+            Assert.AreEqual(words[second + 2], words[second + 8]);
+            Assert.AreEqual(words[second + 3], words[second + 9]);
+
+            var readback = new GpuSurfaceExtractor.ReadbackVertex[(int)words[0]];
+            vertices.GetData(readback);
+            int profileVertices = readback.Count(vertex =>
+                (vertex.Material & 0xFFu) == 1u
+                && ((vertex.Material >> 16) & 0xFFu) == SurfaceStyles.Rounded);
+            Assert.AreEqual((int)(profileQuads * 4u), profileVertices,
+                "Every retained-profile vertex must carry its authored style on the GPU path.");
+        }
+
+        [Test]
         public void PublishedBatchGeometrySkipsPerChunkWriteChain()
         {
             using var arena = new SurfaceGeometryArena(32768, 65536, 8);

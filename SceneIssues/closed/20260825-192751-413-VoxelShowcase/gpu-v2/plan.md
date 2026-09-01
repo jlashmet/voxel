@@ -1,23 +1,20 @@
 # Plan — VoxelShowcase GPU v2
 
-## Observed defect / acceptance
-- GPU extraction previously saturated Metal with about 5,100 compute and 5,000 upload encoders in 35 seconds; render-queue latency reached 260 ms while CPU main/render time stayed small.
-- Pass requires an identical 150 s GPU/CPU comparison, GPU FPS at least 2× CPU, moving p95 <18 ms/p99 <25 ms, stationary p95 <8 ms, sustained completion without fallback/holes, and reviewed screenshots.
-- Deterministic integer CPU voxels remain authoritative; GPU geometry is presentation only.
+## Observed behavior / acceptance
+- The old per-chunk path saturated Metal with thousands of small encoders and up to 260 ms render-queue latency. Deterministic integer CPU voxels remain authoritative; GPU geometry is presentation only.
+- Pass requires identical 150 s GPU/CPU captures: GPU FPS at least 2x CPU, moving p95 <18 ms/p99 <25 ms, stationary p95 <8 ms, no fallback/holes, sustained completion, and reviewed screenshots.
 
-## Hypotheses / discriminating result
-- **Confirmed:** per-chunk Unity command buffers were not GPU batching. Dispatch-Y cross-chunk work is required.
-- **Falsified:** completion readback was the primary bottleneck. Removing it made poll cost zero but did not fix sustained throughput.
-- **Next experiment:** after the complete cutover passes focused tests, run the identical player harness and compare GPU/CPU Profiler and FPS evidence. This distinguishes encoder/dispatch relief from remaining kernel or raster cost.
+## Hypotheses and next experiment
+- **Confirmed:** removing counter/geometry readback alone did not solve throughput; unbounded, coarse compute chains accumulated GPU queue debt.
+- **Confirmed:** nonblocking CPU-synchronization fences plus four two-chunk cross-chunk lanes preserve eight-chunk admission while eliminating the queue stalls. A 90 s real-player traversal had late p95 3-11 ms, GPU p95 2-3 ms, and effectively zero present wait.
+- **Fixed gap:** retained profile blocks were excluded before GPU staging. GPU batch count/write now consumes packed profile descriptors, emits authored profile geometry, and suppresses owned continuous triangles without CPU fallback. Requests continue through the settlement, but a first 90 s traversal still reached 688 missing chunks.
+- **Next discriminating experiment:** rerun the identical traversal with the profile AABB fast reject. If coverage remains incomplete, profile spatial indexing or scheduler residency/LOD publication—not queue admission—is the next target.
 
-## Implemented final architecture
-- One shared, demand-filled GPU voxel mirror receives changed voxel pages plus compact metadata.
-- Near rings (steps 1/2) batch up to eight chunks across count, prefix, all-category generation, transitions, and publication. Unsupported semantic fallback is zero.
-- CPU assigns only stable chunk handles and desired generations. GPU page stacks allocate staging banks, generation-check atomic publication, retain the previous live mesh on stale/exhausted updates, and reclaim retired pages after four epochs.
-- Production has no GPU count, geometry, allocation, range, completion, or indirect-argument readback. The obsolete CPU arena bridge phases are removed from the worker/coordinator path.
-- CPU uploads visible stable handles only. GPU filters live records, buckets/compacts draw metadata, and builds 128 fixed indirect argument records. The shader fetches paged indices/vertices directly. Step 4 feature-preserving and step 8 block HLOD extraction remain CPU by design and use the separate CPU arena.
+## Selected architecture
+- One demand-filled GPU voxel mirror receives changed voxel pages and compact metadata.
+- Steps 1/2 use four independent two-chunk chains for count, prefix, all-category generation, transitions, retained profiles, page allocation, and generation-checked publication. GPU fences provide queue backpressure only; no count, geometry, allocation, range, completion payload, or indirect-argument data is read back.
+- CPU assigns stable handles/generations and uploads visible handles. GPU page stacks allocate/retire geometry, filter live records, compact draw metadata, build fixed indirect args, and render paged vertices directly. Step 4 feature-preserving extraction and step 8 block HLOD remain CPU by design.
 
-## Validation / remaining tasks
-- GPU page/batch/draw tests pass 16/16; semantic parity passes 8/8. Stale rejection, exhaustion old-mesh retention, retirement delay, handle reuse, all-category writes, and zero production readback are covered. The full architecture suite passes 44/45; its unrelated existing arena source-string assertion expects an older guard in an unchanged file.
-- Review the final diff, commit, and push the implementation.
-- Then—and only then—run the VoxelShowcase player harness, capture identical GPU/CPU 150 s measurements plus screenshots/Xcode evidence, fix any measured regression, and push the validated branch to remote `gpu-v2`.
+## Material validation / remaining gates
+- Passing: exact profile count/write parity 1/1; normal parity 3/3; semantic parity 8/8; page/batch/bridge 17/17; focused no-readback architecture invariant 1/1. Reviewer fixes carry explicit planar intent, wrap-safe capacity checks, editor-gated blocking legacy APIs, the documented 17-word record, and a Dynamic visible-handle buffer.
+- Finish the AABB traversal and resolve any remaining coverage deficit; then run identical 150 s GPU/CPU captures, screenshot/Profiler review, and final diff review.

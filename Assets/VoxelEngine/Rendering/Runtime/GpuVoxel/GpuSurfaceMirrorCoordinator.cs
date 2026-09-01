@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Rendering;
 using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 using VoxelEngine.Storage.Api;
 
@@ -24,8 +25,14 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private const int TrackedRegionCapacity = 128;
         private const int BlocksPerTrackedRegionCapacity = 8192;
         private const int CoverageChecksPerPoll = 128;
-        private const int CountBatchCapacity = 8;
-        internal const int MaxConcurrentExtractionChains = CountBatchCapacity;
+        // Two descriptors keep one indivisible Metal count/write chain inside the presentation
+        // budget once the dense scene itself consumes most of the GPU frame. Four lanes retain
+        // eight-way mirror/admission concurrency without turning all eight chunks into one long
+        // queue head that rendering cannot pre-empt.
+        private const int CountBatchCapacity = 2;
+        private const int CountBatchLaneCount = 4;
+        internal const int MaxConcurrentExtractionChains =
+            CountBatchCapacity * CountBatchLaneCount;
         private const int CountBatchMaxFillFrames = 2;
         internal const int DefaultUploadBudgetBytes = 256 * 1024;
 
@@ -68,10 +75,19 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private static int s_ActiveExtractionCount;
         private static int s_LastPrepareFrame = -1;
         private static int s_LastExtractionDispatchFrame = -1;
+        private static GraphicsFence s_ExtractionFence;
+        private static bool s_ExtractionFenceValid;
         private static uint s_CoverageEpoch;
         private static ulong s_OptionalNonResidentHaloBlocksAccepted;
         private static ulong s_ConcurrentDemandRecoverySlices;
-        private static readonly CountBatchLane[] s_CountBatchLanes = new CountBatchLane[2];
+        private static ulong s_CoreNonResidentCoverageChecks;
+        private static ulong s_HistoryCoverageRejects;
+        private static ulong s_ChangedRegionCoverageRejects;
+        private static ulong s_CoveragePolls;
+        private static ulong s_CoverageRounds;
+        private static ulong s_CoverageReadyRounds;
+        private static readonly CountBatchLane[] s_CountBatchLanes =
+            new CountBatchLane[CountBatchLaneCount];
         private static ulong s_CountBatchReadbacks;
         private static ulong s_CountBatchRecords;
         private static ulong s_CountBatchArenaWaits;
@@ -323,6 +339,20 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 throw new InvalidOperationException(
                     "Production GPU extraction requires the GPU-owned page arena.");
             int frame = Time.frameCount;
+
+            // Submission is not completion. Without an in-flight bound, GPU-only publication can
+            // enqueue several expensive count/write chains ahead of rendering; the main and render
+            // threads remain cheap, then presentation absorbs the accumulated queue as a 100+ ms
+            // hitch. A graphics fence transfers no voxel/count/allocation data to the CPU. Its
+            // nonblocking status is solely queue backpressure, matching an ordinary render graph.
+            if (s_ExtractionFenceValid && !s_ExtractionFence.passed)
+            {
+                s_CountBatchArenaWaits++;
+                return;
+            }
+            s_ExtractionFenceValid = false;
+            if (!TryReserveExtractionDispatch(frame)) return;
+
             s_PageArena.FlushHandleCommands(frame);
             lane.PrefixExtractor.DispatchCountBatch(
                 s_Mirror, lane.Tables, lane.Requests, lane.Count,
@@ -337,6 +367,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 s_Mirror, lane.Tables, lane.Count, lane.Counters, lane.Resources,
                 s_PageArena.Vertices, s_PageArena.Indices,
                 pageArena: s_PageArena, frame: frame);
+            s_ExtractionFence = Graphics.CreateGraphicsFence(
+                GraphicsFenceType.CPUSynchronisation,
+                SynchronisationStageFlags.ComputeProcessing);
+            s_ExtractionFenceValid = true;
             for (int record = 0; record < lane.Count; record++)
                 lane.Contexts[record]?.CompletePagedBatch(
                     lane.Tokens[record], lane.Requests[record].Handle);
@@ -385,9 +419,14 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                                     ulong requiredGeneration, ref int scanCursor,
                                     ref bool roundIncomplete)
         {
-            if (s_Storage == null || brickCacheEdge <= 0
-                || requiredGeneration < s_KnownRegionHistoryFromVersion)
+            s_CoveragePolls++;
+            if (s_Storage == null || brickCacheEdge <= 0)
                 return false;
+            if (requiredGeneration < s_KnownRegionHistoryFromVersion)
+            {
+                s_HistoryCoverageRejects++;
+                return false;
+            }
 
             int regionShift = VoxelReadGrid.BlocksPerRegionEdgeLog2;
             int blockShift = VoxelReadGrid.BlockEdgeLog2;
@@ -409,7 +448,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                         blockMinVoxel + new int3(VoxelReadGrid.BlockEdge);
                     bool intersectsCore = math.all(blockMaxVoxelExclusive > coreMinVoxel)
                                        && math.all(blockMinVoxel < coreMaxVoxelExclusive);
-                    if (intersectsCore) roundIncomplete = true;
+                    if (intersectsCore)
+                    {
+                        s_CoreNonResidentCoverageChecks++;
+                        roundIncomplete = true;
+                    }
                     else s_OptionalNonResidentHaloBlocksAccepted++;
                     continue;
                 }
@@ -421,11 +464,16 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 }
                 if (s_RegionLastSolidChangeVersion.TryGetValue(region, out ulong changedAt)
                     && changedAt > requiredGeneration)
+                {
+                    s_ChangedRegionCoverageRejects++;
                     roundIncomplete = true;
+                }
             }
 
             if (scanCursor < blockCount) return false;
+            s_CoverageRounds++;
             bool covered = !roundIncomplete;
+            if (covered) s_CoverageReadyRounds++;
             scanCursor = 0;
             roundIncomplete = false;
             return covered;
@@ -498,6 +546,15 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         internal static ulong OptionalNonResidentHaloBlocksAccepted =>
             s_OptionalNonResidentHaloBlocksAccepted;
         internal static ulong ConcurrentDemandRecoverySlices => s_ConcurrentDemandRecoverySlices;
+        internal static int DemandFootprintCount => s_DemandFootprints.Count;
+        internal static ulong CoreNonResidentCoverageChecks =>
+            s_CoreNonResidentCoverageChecks;
+        internal static ulong HistoryCoverageRejects => s_HistoryCoverageRejects;
+        internal static ulong ChangedRegionCoverageRejects =>
+            s_ChangedRegionCoverageRejects;
+        internal static ulong CoveragePolls => s_CoveragePolls;
+        internal static ulong CoverageRounds => s_CoverageRounds;
+        internal static ulong CoverageReadyRounds => s_CoverageReadyRounds;
         internal static ulong CountBatchReadbacks => s_CountBatchReadbacks;
         internal static ulong CountBatchRecords => s_CountBatchRecords;
         internal static ulong CountBatchArenaWaits => s_CountBatchArenaWaits;
@@ -768,9 +825,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         /// <summary>
         /// Geometry no longer reads its source bricks after count/write completes, so a cold brick
-        /// outside every active extraction may be reclaimed. Removing its directory entry and
-        /// readiness bit together prevents a reused slot from being addressed by the old world
-        /// coordinate; the coverage epoch makes pending chunks request it again if still needed.
+        /// outside every demanded or active extraction may be reclaimed. Removing its directory
+        /// entry and readiness bit together prevents a reused slot from being addressed by the old
+        /// world coordinate. Do not advance the global coverage epoch here: demand pinning proves
+        /// the evicted block belongs to no pending scan, while restarting every unrelated scan on
+        /// each capacity eviction creates a permanent liveness failure during camera motion.
         /// </summary>
         private static bool TryEvictInactiveMixedBlock()
         {
@@ -788,7 +847,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 s_MixedReadyBlocks.Remove(block);
                 RemoveReadyBlock(block);
                 s_Mirror.Remove(block);
-                unchecked { s_CoverageEpoch++; }
                 return true;
             }
             return false;
@@ -960,8 +1018,15 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             s_ActiveExtractionCount = 0;
             s_LastPrepareFrame = -1;
             s_LastExtractionDispatchFrame = -1;
+            s_ExtractionFenceValid = false;
             s_OptionalNonResidentHaloBlocksAccepted = 0;
             s_ConcurrentDemandRecoverySlices = 0;
+            s_CoreNonResidentCoverageChecks = 0;
+            s_HistoryCoverageRejects = 0;
+            s_ChangedRegionCoverageRejects = 0;
+            s_CoveragePolls = 0;
+            s_CoverageRounds = 0;
+            s_CoverageReadyRounds = 0;
             ResetCountBatches();
             ClearRecoveryQueues();
             ClearReadyBlocks();

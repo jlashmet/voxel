@@ -24,10 +24,12 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         public readonly int TransitionFaceMask;
         public readonly int Handle;
         public readonly ulong Generation;
+        internal readonly ProfileBlock[] ProfileBlocks;
 
         public GpuChunkExtraction(int3 chunkOriginVoxel, int3 brickCacheOrigin,
                                   int sourceStep, float voxelSize, int transitionFaceMask = 0,
-                                  int handle = 0, ulong generation = 0)
+                                  int handle = 0, ulong generation = 0,
+                                  ProfileBlock[] profileBlocks = null)
         {
             ChunkOriginVoxel = chunkOriginVoxel;
             BrickCacheOrigin = brickCacheOrigin;
@@ -36,6 +38,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             TransitionFaceMask = transitionFaceMask;
             Handle = handle;
             Generation = generation;
+            ProfileBlocks = profileBlocks;
         }
     }
 
@@ -114,9 +117,47 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             internal uint Handle;
             internal uint GenerationLow;
             internal uint GenerationHigh;
+            internal uint ProfileStart;
+            internal uint ProfileCount;
 
             internal const int Stride = sizeof(int) * 4 + sizeof(uint) + sizeof(float)
-                                      + sizeof(uint) * 3;
+                                      + sizeof(uint) * 5;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct GpuProfileBlock
+        {
+            internal int CentreX, CentreY, CentreZ;
+            internal int InnerRadiusQ4, OuterRadiusQ4, FrontQ4, BackQ4;
+            internal int BackingDepthVoxel;
+            internal int StartX, StartY, EndX, EndY;
+            internal uint Shape;
+            internal uint Surface;
+            internal uint Batch;
+
+            internal const int Stride = sizeof(int) * 12 + sizeof(uint) * 3;
+
+            internal static GpuProfileBlock From(in ProfileBlock block, int batch) => new()
+            {
+                CentreX = block.Centre.x,
+                CentreY = block.Centre.y,
+                CentreZ = block.Centre.z,
+                InnerRadiusQ4 = block.InnerRadiusQ4,
+                OuterRadiusQ4 = block.OuterRadiusQ4,
+                FrontQ4 = block.FrontQ4,
+                BackQ4 = block.BackQ4,
+                BackingDepthVoxel = block.BackingDepthVoxel,
+                StartX = block.StartDirection.x,
+                StartY = block.StartDirection.y,
+                EndX = block.EndDirection.x,
+                EndY = block.EndDirection.y,
+                Shape = (uint)block.Axis | ((uint)block.Material << 8)
+                      | ((uint)block.SurfaceStyle << 16),
+                Surface = block.Coating | ((uint)block.SurfaceDetail << 8)
+                        | ((uint)block.JointHalfWidthQ4 << 16)
+                        | ((uint)block.BevelQ4 << 24),
+                Batch = unchecked((uint)batch),
+            };
         }
 
         internal sealed class CountBatchResources : IDisposable
@@ -129,11 +170,15 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             internal readonly ComputeBuffer SampleBoundary;
             internal readonly ComputeBuffer CellVertexCounts;
             internal readonly ComputeBuffer CellTriangleCounts;
+            internal readonly ComputeBuffer CellReconstructionFlags;
             internal readonly ComputeBuffer FaceDensity;
             internal readonly ComputeBuffer FaceMaterial;
             internal readonly ComputeBuffer FaceSurface;
             internal readonly BatchChunkDescriptor[] Descriptors;
             internal readonly uint[] CounterZeros;
+            internal ComputeBuffer Profiles;
+            internal GpuProfileBlock[] ProfileStaging = Array.Empty<GpuProfileBlock>();
+            internal int ProfileCount;
 
             internal CountBatchResources(int capacity, int sampleCount, int cellCount,
                                          int faceSampleCount)
@@ -153,6 +198,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                                                      ComputeBufferType.Structured);
                 CellTriangleCounts = new ComputeBuffer(capacity * cellCount, sizeof(uint),
                                                        ComputeBufferType.Structured);
+                CellReconstructionFlags = new ComputeBuffer(capacity * cellCount, sizeof(uint),
+                                                            ComputeBufferType.Structured);
                 FaceDensity = new ComputeBuffer(capacity * 6 * faceSampleCount, sizeof(float),
                                                 ComputeBufferType.Structured);
                 FaceMaterial = new ComputeBuffer(capacity * 6 * faceSampleCount, sizeof(uint),
@@ -161,6 +208,39 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                                                 ComputeBufferType.Structured);
                 Descriptors = new BatchChunkDescriptor[capacity];
                 CounterZeros = new uint[BatchHeaderWords + capacity * BatchRecordWords];
+                Profiles = new ComputeBuffer(1, GpuProfileBlock.Stride,
+                                             ComputeBufferType.Structured);
+            }
+
+            internal void StageProfiles(GpuChunkExtraction[] requests, int recordCount)
+            {
+                int count = 0;
+                for (int i = 0; i < recordCount; i++)
+                    count += requests[i].ProfileBlocks?.Length ?? 0;
+                if (ProfileStaging.Length < count)
+                    ProfileStaging = new GpuProfileBlock[Mathf.NextPowerOfTwo(count)];
+                if (Profiles.count < Math.Max(1, count))
+                {
+                    Profiles.Release();
+                    Profiles = new ComputeBuffer(Mathf.NextPowerOfTwo(count),
+                                                 GpuProfileBlock.Stride,
+                                                 ComputeBufferType.Structured);
+                }
+
+                int cursor = 0;
+                for (int record = 0; record < recordCount; record++)
+                {
+                    BatchChunkDescriptor descriptor = Descriptors[record];
+                    descriptor.ProfileStart = unchecked((uint)cursor);
+                    ProfileBlock[] blocks = requests[record].ProfileBlocks;
+                    descriptor.ProfileCount = unchecked((uint)(blocks?.Length ?? 0));
+                    Descriptors[record] = descriptor;
+                    if (blocks == null) continue;
+                    for (int i = 0; i < blocks.Length; i++)
+                        ProfileStaging[cursor++] = GpuProfileBlock.From(in blocks[i], record);
+                }
+                ProfileCount = count;
+                if (count > 0) Profiles.SetData(ProfileStaging, 0, 0, count);
             }
 
             public void Dispose()
@@ -172,9 +252,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 SampleBoundary?.Release();
                 CellVertexCounts?.Release();
                 CellTriangleCounts?.Release();
+                CellReconstructionFlags?.Release();
                 FaceDensity?.Release();
                 FaceMaterial?.Release();
                 FaceSurface?.Release();
+                Profiles?.Release();
             }
         }
 
@@ -185,6 +267,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private static readonly int IdSampleBoundaryWrite = Shader.PropertyToID("_SampleBoundaryWrite");
         private static readonly int IdCellVertexCountsWrite = Shader.PropertyToID("_CellVertexCountsWrite");
         private static readonly int IdCellTriangleCountsWrite = Shader.PropertyToID("_CellTriangleCountsWrite");
+        private static readonly int IdCellReconstructionFlagsWrite =
+            Shader.PropertyToID("_CellReconstructionFlagsWrite");
         private static readonly int IdSampleMaterial = Shader.PropertyToID("_SampleMaterial");
         private static readonly int IdSampleSurface = Shader.PropertyToID("_SampleSurface");
         private static readonly int IdSampleBoundary = Shader.PropertyToID("_SampleBoundary");
@@ -204,6 +288,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private static readonly int IdEdgeCodes = Shader.PropertyToID("_RegularEdgeCodes");
         private static readonly int IdCellVertexCounts = Shader.PropertyToID("_CellVertexCounts");
         private static readonly int IdCellTriangleCounts = Shader.PropertyToID("_CellTriangleCounts");
+        private static readonly int IdCellReconstructionFlags =
+            Shader.PropertyToID("_CellReconstructionFlags");
         private static readonly int IdVertices = Shader.PropertyToID("_Vertices");
         private static readonly int IdIndices = Shader.PropertyToID("_Indices");
         private static readonly int IdCounters = Shader.PropertyToID("_Counters");
@@ -287,6 +373,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             Shader.PropertyToID("_BatchCellTriangleCounts");
         private static readonly int IdBatchCellTriangleCountsWrite =
             Shader.PropertyToID("_BatchCellTriangleCountsWrite");
+        private static readonly int IdBatchCellReconstructionFlags =
+            Shader.PropertyToID("_BatchCellReconstructionFlags");
+        private static readonly int IdBatchCellReconstructionFlagsWrite =
+            Shader.PropertyToID("_BatchCellReconstructionFlagsWrite");
         private static readonly int IdBatchFaceDensity = Shader.PropertyToID("_BatchFaceDensity");
         private static readonly int IdBatchFaceDensityWrite =
             Shader.PropertyToID("_BatchFaceDensityWrite");
@@ -315,6 +405,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             Shader.PropertyToID("_BatchVertexPageTable");
         private static readonly int IdBatchIndexPageTable =
             Shader.PropertyToID("_BatchIndexPageTable");
+        private static readonly int IdBatchProfiles = Shader.PropertyToID("_BatchProfiles");
+        private static readonly int IdBatchProfileCount =
+            Shader.PropertyToID("_BatchProfileCount");
 
         private readonly ComputeShader _shader;
         private readonly int _sampleKernel;
@@ -327,10 +420,12 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private readonly int _batchCountDecorationsKernel;
         private readonly int _batchSampleFacesKernel;
         private readonly int _batchCountTransitionsKernel;
+        private readonly int _batchCountProfilesKernel;
         private readonly int _batchWriteKernel;
         private readonly int _batchWriteFacetedKernel;
         private readonly int _batchWriteDecorationsKernel;
         private readonly int _batchWriteTransitionsKernel;
+        private readonly int _batchWriteProfilesKernel;
         private readonly int _batchPublishArgsKernel;
         private readonly int _writeKernel;
         private readonly int _writeFacetedKernel;
@@ -349,6 +444,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private readonly ComputeBuffer _sampleBoundary;
         private readonly ComputeBuffer _cellVertexCounts;
         private readonly ComputeBuffer _cellTriangleCounts;
+        private readonly ComputeBuffer _cellReconstructionFlags;
         private readonly ComputeBuffer _brickCache;
         private readonly ComputeBuffer _counters;
         private readonly ComputeBuffer _faceDensity;
@@ -445,10 +541,12 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _batchCountDecorationsKernel = shader.FindKernel("CSBatchCountDecorations");
             _batchSampleFacesKernel = shader.FindKernel("CSBatchSampleFaces");
             _batchCountTransitionsKernel = shader.FindKernel("CSBatchCountTransitions");
+            _batchCountProfilesKernel = shader.FindKernel("CSBatchCountProfiles");
             _batchWriteKernel = shader.FindKernel("CSBatchWriteCells");
             _batchWriteFacetedKernel = shader.FindKernel("CSBatchWriteFacetedFaces");
             _batchWriteDecorationsKernel = shader.FindKernel("CSBatchWriteDecorations");
             _batchWriteTransitionsKernel = shader.FindKernel("CSBatchWriteTransitions");
+            _batchWriteProfilesKernel = shader.FindKernel("CSBatchWriteProfiles");
             _batchPublishArgsKernel = shader.FindKernel("CSBatchPublishArgs");
             _writeKernel = shader.FindKernel("CSWriteCells");
             _writeFacetedKernel = shader.FindKernel("CSWriteFacetedFaces");
@@ -472,6 +570,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _sampleBoundary = new ComputeBuffer(samples, sizeof(uint), ComputeBufferType.Structured);
             _cellVertexCounts = new ComputeBuffer(cells, sizeof(uint), ComputeBufferType.Structured);
             _cellTriangleCounts = new ComputeBuffer(cells, sizeof(uint), ComputeBufferType.Structured);
+            _cellReconstructionFlags = new ComputeBuffer(
+                cells, sizeof(uint), ComputeBufferType.Structured);
             _counters = new ComputeBuffer(4, sizeof(uint), ComputeBufferType.Structured);
             MaxPagesPerChunk = GpuMeshletPageArena.DefaultMaxPagesPerChunk;
             _chunkPages = new ComputeBuffer(MaxPagesPerChunk, sizeof(uint),
@@ -600,6 +700,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _shader.SetBuffer(_sampleKernel, IdSampleBoundaryWrite, _sampleBoundary);
             _shader.SetBuffer(_countKernel, IdCellVertexCountsWrite, _cellVertexCounts);
             _shader.SetBuffer(_countKernel, IdCellTriangleCountsWrite, _cellTriangleCounts);
+            _shader.SetBuffer(_countKernel, IdCellReconstructionFlagsWrite,
+                              _cellReconstructionFlags);
 
             _shader.SetBuffer(_writeKernel, IdVertices, vertices);
             _shader.SetBuffer(_writeKernel, IdIndices, indices);
@@ -683,10 +785,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         /// cannot be smaller than the geometry it is reserved for, which is the only property that
         /// makes an all-or-nothing reservation safe.
         ///
-        /// Two integers come back. That is the one transfer the no-readback invariant permits: it
-        /// is bookkeeping, not geometry, and it is what lets the arena refuse a build whole rather
-        /// than truncate it into a hole.
+        /// This blocking compatibility path is compiled only in the editor for isolated GPU oracle
+        /// tests. Production uses the batched GPU prefix/page-allocation path and reads back neither
+        /// geometry nor counters.
         /// </summary>
+#if UNITY_EDITOR
         public GpuExtractionCounts Count(GpuVoxelBrickMirror mirror, GpuTransvoxelTables tables,
                                          in GpuChunkExtraction request)
         {
@@ -696,13 +799,14 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             return new GpuExtractionCounts((int)_counterStaging[2], (int)_counterStaging[3],
                                            _counterStaging[0]);
         }
+#endif
 
         /// <summary>
         /// Runs the counting pass and asks for the counters without waiting for them.
         ///
-        /// <see cref="Count"/> blocks the calling thread until the GPU drains, which on a frame path
-        /// costs far more than the meshing it is waiting for. Poll <see cref="TryCompleteCount"/>
-        /// on later frames instead; the build that needs the answer is already sliced across frames.
+        /// The editor-only Count compatibility helper blocks until the GPU drains. Production
+        /// callers poll <see cref="TryCompleteCount"/> on later frames instead; the build that
+        /// needs the answer is already sliced across frames.
         /// </summary>
         public void BeginCount(GpuVoxelBrickMirror mirror, GpuTransvoxelTables tables,
                                in GpuChunkExtraction request)
@@ -781,6 +885,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                     GenerationHigh = (uint)(requests[i].Generation >> 32),
                 };
             }
+            resources.StageProfiles(requests, recordCount);
             resources.Chunks.SetData(resources.Descriptors, 0, 0, recordCount);
             _brickCache.SetData(_brickCacheStaging);
             batchCounters.SetData(resources.CounterZeros, 0, 0,
@@ -794,6 +899,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                             batchCounters, resources);
             BindBatchShared(_batchSampleFacesKernel, mirror, tables, batchCounters, resources);
             BindBatchShared(_batchCountTransitionsKernel, mirror, tables,
+                            batchCounters, resources);
+            BindBatchShared(_batchCountProfilesKernel, mirror, tables,
                             batchCounters, resources);
             BindTransitionTables(_batchCountTransitionsKernel, tables);
             _shader.SetInt(IdFaceSamplesPerAxis, FaceSamplesPerAxis);
@@ -812,6 +919,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _shader.Dispatch(_batchSampleFacesKernel, Groups(faceSamples), recordCount * 6, 1);
             _shader.Dispatch(_batchCountTransitionsKernel,
                              Groups(CellsPerAxis * CellsPerAxis), recordCount * 6, 1);
+            if (resources.ProfileCount > 0)
+                _shader.Dispatch(_batchCountProfilesKernel,
+                                 Groups(resources.ProfileCount * 24), 1, 1);
         }
 
         /// <summary>
@@ -855,6 +965,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                             batchCounters, resources);
             BindBatchShared(_batchWriteTransitionsKernel, mirror, tables,
                             batchCounters, resources);
+            BindBatchShared(_batchWriteProfilesKernel, mirror, tables,
+                            batchCounters, resources);
             BindTransitionTables(_batchWriteTransitionsKernel, tables);
             _shader.SetBuffer(_batchWriteKernel, IdBatchVertices, vertices);
             _shader.SetBuffer(_batchWriteKernel, IdBatchIndices, indices);
@@ -864,12 +976,15 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _shader.SetBuffer(_batchWriteDecorationsKernel, IdBatchIndices, indices);
             _shader.SetBuffer(_batchWriteTransitionsKernel, IdBatchVertices, vertices);
             _shader.SetBuffer(_batchWriteTransitionsKernel, IdBatchIndices, indices);
+            _shader.SetBuffer(_batchWriteProfilesKernel, IdBatchVertices, vertices);
+            _shader.SetBuffer(_batchWriteProfilesKernel, IdBatchIndices, indices);
             if (pageArena != null)
             {
                 int[] pagedKernels =
                 {
                     _batchWriteKernel, _batchWriteFacetedKernel,
-                    _batchWriteDecorationsKernel, _batchWriteTransitionsKernel
+                    _batchWriteDecorationsKernel, _batchWriteTransitionsKernel,
+                    _batchWriteProfilesKernel
                 };
                 foreach (int kernel in pagedKernels)
                 {
@@ -894,6 +1009,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                              Groups(CellsPerAxis * CellsPerAxis * CellsPerAxis), recordCount, 1);
             _shader.Dispatch(_batchWriteTransitionsKernel,
                              Groups(CellsPerAxis * CellsPerAxis), recordCount * 6, 1);
+            if (resources.ProfileCount > 0)
+                _shader.Dispatch(_batchWriteProfilesKernel,
+                                 Groups(resources.ProfileCount * 24), 1, 1);
             if (args != null)
             {
                 _shader.SetBuffer(_batchPublishArgsKernel, IdBatchCounters, batchCounters);
@@ -979,6 +1097,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                                            _cellVertexCounts);
             commands.SetComputeBufferParam(_shader, _countKernel, IdCellTriangleCountsWrite,
                                            _cellTriangleCounts);
+            commands.SetComputeBufferParam(_shader, _countKernel,
+                                           IdCellReconstructionFlagsWrite,
+                                           _cellReconstructionFlags);
 
             int samples = GridSize * GridSize * GridSize;
             int regularCellsPerAxis = CellsPerAxis + 1;
@@ -1042,6 +1163,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _shader.SetBuffer(_sampleKernel, IdSampleBoundaryWrite, _sampleBoundary);
             _shader.SetBuffer(_countKernel, IdCellVertexCountsWrite, _cellVertexCounts);
             _shader.SetBuffer(_countKernel, IdCellTriangleCountsWrite, _cellTriangleCounts);
+            _shader.SetBuffer(_countKernel, IdCellReconstructionFlagsWrite,
+                              _cellReconstructionFlags);
 
             int samples = GridSize * GridSize * GridSize;
             int regularCellsPerAxis = CellsPerAxis + 1;
@@ -1659,6 +1782,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _shader.SetBuffer(kernel, IdEdgeCodes, tables.EdgeCodes);
             _shader.SetBuffer(kernel, IdCellVertexCounts, _cellVertexCounts);
             _shader.SetBuffer(kernel, IdCellTriangleCounts, _cellTriangleCounts);
+            _shader.SetBuffer(kernel, IdCellReconstructionFlags, _cellReconstructionFlags);
             _shader.SetBuffer(kernel, IdCounters, _counters);
             _shader.SetBuffer(kernel, IdChunkPages, _chunkPages);
         }
@@ -1696,12 +1820,18 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _shader.SetBuffer(kernel, IdBatchCellTriangleCounts, resources.CellTriangleCounts);
             _shader.SetBuffer(kernel, IdBatchCellTriangleCountsWrite,
                               resources.CellTriangleCounts);
+            _shader.SetBuffer(kernel, IdBatchCellReconstructionFlags,
+                              resources.CellReconstructionFlags);
+            _shader.SetBuffer(kernel, IdBatchCellReconstructionFlagsWrite,
+                              resources.CellReconstructionFlags);
             _shader.SetBuffer(kernel, IdBatchFaceDensity, resources.FaceDensity);
             _shader.SetBuffer(kernel, IdBatchFaceDensityWrite, resources.FaceDensity);
             _shader.SetBuffer(kernel, IdBatchFaceMaterial, resources.FaceMaterial);
             _shader.SetBuffer(kernel, IdBatchFaceMaterialWrite, resources.FaceMaterial);
             _shader.SetBuffer(kernel, IdBatchFaceSurface, resources.FaceSurface);
             _shader.SetBuffer(kernel, IdBatchFaceSurfaceWrite, resources.FaceSurface);
+            _shader.SetBuffer(kernel, IdBatchProfiles, resources.Profiles);
+            _shader.SetInt(IdBatchProfileCount, resources.ProfileCount);
             // Both branches of the paged-output selector are present in the compiled write
             // kernels. Bind harmless uint SRVs for contiguous oracle paths; a page arena replaces
             // them before paged production dispatch.
@@ -1777,6 +1907,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                                            _cellVertexCounts);
             commands.SetComputeBufferParam(_shader, kernel, IdCellTriangleCounts,
                                            _cellTriangleCounts);
+            commands.SetComputeBufferParam(_shader, kernel, IdCellReconstructionFlags,
+                                           _cellReconstructionFlags);
             commands.SetComputeBufferParam(_shader, kernel, IdCounters, _counters);
             commands.SetComputeBufferParam(_shader, kernel, IdChunkPages, _chunkPages);
         }
@@ -1841,6 +1973,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _sampleBoundary?.Release();
             _cellVertexCounts?.Release();
             _cellTriangleCounts?.Release();
+            _cellReconstructionFlags?.Release();
             _brickCache?.Release();
             _counters?.Release();
             _faceDensity?.Release();
