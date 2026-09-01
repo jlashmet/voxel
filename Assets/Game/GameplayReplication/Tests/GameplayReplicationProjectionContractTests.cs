@@ -41,14 +41,15 @@ namespace Game.GameplayReplication.Tests
                         new ObjectiveProgressSnapshot(new ObjectiveId("objective:camp"), ProgressionLifecycleState.Active, 9)
                     })));
 
-            var continuity = new ContinuityGameplayProjectionSource(new ContinuityQueryFixture(
-                new ContinuitySnapshot(
-                    20,
-                    new[]
-                    {
-                        new ContinuityMemberSnapshot(new PartyMemberId("member:z"), ContinuityRecoveryState.Resynchronizing, 8),
-                        new ContinuityMemberSnapshot(new PartyMemberId("member:a"), ContinuityRecoveryState.Connected, 6)
-                    })));
+            var sessions = new SessionQueryFixture(
+                new GameSessionId("session:co-op"),
+                new PartyMemberSnapshot(new PartyMemberId("member:z"), new PlayerSlot(3), PartyLeadershipRole.Member, PartyPresenceState.Connected, SessionReadinessState.GameplayReady, new CharacterId("character:z")),
+                new PartyMemberSnapshot(new PartyMemberId("member:a"), new PlayerSlot(0), PartyLeadershipRole.Leader, PartyPresenceState.Connected, SessionReadinessState.GameplayReady, new CharacterId("character:a")));
+            var continuity = new ContinuityGameplayProjectionSource(
+                new ContinuityQueryFixture(
+                    new RecoverySnapshot(new PartyMemberId("member:z"), RecoveryState.Resynchronizing, 30.5),
+                    new RecoverySnapshot(new PartyMemberId("member:a"), RecoveryState.Connected, 0)),
+                sessions);
 
             var outcomes = new OutcomesGameplayProjectionSource(new OutcomeQueryFixture(
                 new GameOutcomeSnapshot(
@@ -74,6 +75,7 @@ namespace Game.GameplayReplication.Tests
 
             AssertEntry(publication.Projections[0], "member/member:a/state", "Connected");
             AssertEntry(publication.Projections[0], "member/member:z/state", "Resynchronizing");
+            AssertEntry(publication.Projections[0], "member/member:z/grace-deadline", "30.5");
             AssertEntry(publication.Projections[1], "lifecycle", "Resolved");
             AssertEntry(publication.Projections[1], "disposition", "Success");
             AssertEntry(publication.Projections[1], "outcome-ref", "campaign:ridge-secured");
@@ -119,11 +121,44 @@ namespace Game.GameplayReplication.Tests
             public ProgressionSnapshot Snapshot() => _snapshot;
         }
 
+        private sealed class SessionQueryFixture : IPartySessionQuery
+        {
+            private readonly PartyRosterSnapshot _snapshot;
+            public SessionQueryFixture(GameSessionId sessionId, params PartyMemberSnapshot[] members)
+                => _snapshot = new PartyRosterSnapshot(sessionId, members);
+            public PartyRosterSnapshot Snapshot() => _snapshot;
+            public bool TryGetMember(PartyMemberId memberId, out PartyMemberSnapshot member)
+            {
+                for (int i = 0; i < _snapshot.Members.Count; i++)
+                {
+                    if (_snapshot.Members[i].MemberId == memberId)
+                    {
+                        member = _snapshot.Members[i];
+                        return true;
+                    }
+                }
+                member = default;
+                return false;
+            }
+        }
+
         private sealed class ContinuityQueryFixture : IContinuityQuery
         {
-            private readonly ContinuitySnapshot _snapshot;
-            public ContinuityQueryFixture(ContinuitySnapshot snapshot) => _snapshot = snapshot;
-            public ContinuitySnapshot Snapshot() => _snapshot;
+            private readonly RecoverySnapshot[] _snapshots;
+            public ContinuityQueryFixture(params RecoverySnapshot[] snapshots) => _snapshots = snapshots;
+            public bool TryGetRecovery(PartyMemberId memberId, out RecoverySnapshot recovery)
+            {
+                for (int i = 0; i < _snapshots.Length; i++)
+                {
+                    if (_snapshots[i].MemberId == memberId)
+                    {
+                        recovery = _snapshots[i];
+                        return true;
+                    }
+                }
+                recovery = default;
+                return false;
+            }
         }
 
         private sealed class OutcomeQueryFixture : IGameOutcomeQuery
