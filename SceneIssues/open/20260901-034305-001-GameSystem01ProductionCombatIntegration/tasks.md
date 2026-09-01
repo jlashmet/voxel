@@ -32,13 +32,13 @@
 
 ## Cleanup and close
 
-- [ ] **T01-030 — Search for bypasses.** Repository-wide search for production combat-owned health, raw combat key polling, scene-local CombatService creation, and external `Game.Combat.Runtime` references; eliminate or document justified internal uses. Older `MountingForce.CombatPrototype` HP/state is explicitly a blast-radius concern unless acceptance demonstrates it is a production authority to migrate.
+- [ ] **T01-030 — Search for bypasses.** Baseline audit complete at feature head based on master `71e5b6b146cb7dd3b7da0305d0ab42bcc9cea22e`: production `CombatRuntime.cs` depends on `Game.Input.Api` and contains no Unity/raw key polling; `KentridgeForestBanditEncounter` is the confirmed production bypass, directly constructing `InputContextService`, `UnityPlayerInputReader`, `CombatService`, and `CombatInputController`; `Game.Composition.Kentridge.Playable.asmdef` directly references `Game.Combat.Runtime` and `Game.Input.Runtime`. `Assets/Game/Composition/CombatEnvironmentRuntime` is the older `MountingForce.CombatPrototype` experiment, not production `Game.Combat.Runtime` authority. Final checkbox remains open because the confirmed Kentridge bypasses cannot be eliminated until the production prerequisite composition seam lands.
 - [ ] **T01-031 — Check blast radius.** Verify headless combat, tactical AI, chain reactions, and existing combat tests retain behavior/performance.
 - [ ] **T01-032 — Close only with one authority.** Confirm Vitality owns production life state, Encounters owns encounter lifecycle, Combat owns combat resolution, and no duplicate production path remains.
 
 ## Active blocker evidence
 
-- Baseline/master inspected at `71e5b6b146cb7dd3b7da0305d0ab42bcc9cea22e`; re-check master before every implementation pass.
+- Baseline/master re-checked at `71e5b6b146cb7dd3b7da0305d0ab42bcc9cea22e`; `fixes/agent-3` remains assignment-doc-only ahead of that baseline before this audit record.
 - Present: `Assets/Game/Input/Api` and `Assets/Game/Input/Runtime`.
 - Absent: production `Assets/Game/Characters`, `Assets/Game/Vitality`, and a production `Game.Encounters.Api` module on the current baseline.
 - Current concrete Kentridge seam: `Assets/Game/Composition/Kentridge/Playable/KentridgeForestBanditEncounter.cs` plus `Game.Composition.Kentridge.Playable.asmdef`.
