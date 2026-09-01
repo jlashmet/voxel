@@ -39,26 +39,27 @@
 - [x] Add behavioral regressions for deterministic fallback after a preferred-terminal physical conflict and for a no-match request causing zero voxel mutation.
 - [x] Add reusable semantic cave clue anchors and focused regression; exact run `33440180807` passed.
 - [x] Add deterministic normal-voxel-coating clue presentation that preserves verified false-wall occupancy.
+- [x] Replace broad random clue speckling with a deterministic branching fracture restricted to the cave-facing barrier layer.
+- [x] Add a fracture regression proving deterministic placement, continuous vertical extent, sparse surface-only coverage, and unchanged solid barrier topology.
 
 ## Dedicated module-local validation scene
 
 - [x] Create `Assets/Game/WorldBuilder/Validation/SecretDiscovery/` as the sole visual acceptance surface.
 - [x] Scene consumes production voxel world generation, production cave authoring, `CaveSecretPocketComposition`, production material/coating IDs, normal voxel rendering, production vegetation/tree systems, and production destruction.
 - [x] Register the dedicated player scenario in `worldbuilder-secret-discovery.module-validation.json`.
-- [x] Add a behavioral regression for deterministic clue coating and preserved secret barrier topology.
-- [x] Exact feature `1a30df7a27fe2b1a86a2ebace0b645ee310a27da` passed focused regression and automatically required module validation in run `33508045854`; its static exterior-only evidence was rejected as insufficient.
 - [x] Replace the static camera with a deterministic authored-geometry walkthrough: exterior entrance -> entrance interior -> deeper cave -> clue approach -> clue/wall close view -> breach -> hidden pocket reveal.
 - [x] Destroy the authored false wall during the built-player sequence through `ShowcaseWorld.Explode` and require a wall-destroyed log event.
 - [x] Expand player capture to 24 seconds at 3-second intervals with at least seven frames.
-- [ ] Exact current-head CI compiles and runs the walkthrough after the already-queued stale request completes.
-- [ ] Full-resolution frames visibly show cave-entry progression rather than repeated/static exterior framing.
-- [ ] At least two pre-destruction frames make the environmental clue treatment and destroyable false wall readable at gameplay scale.
+- [x] Exact walkthrough run `33532261836` produced the requested cave-entry/destruction/reveal sequence and was accepted overall; visual review identified only clue readability as insufficient.
+- [x] Dedicated consumer now renders the fracture with a dark soot coating rather than broad moss speckling.
+- [ ] Exact crack-pattern feature head compiles and passes focused/module validation.
+- [ ] At least two pre-destruction frames make the fracture clue and destroyable false wall readable at gameplay scale.
 - [ ] A post-destruction frame clearly shows the breached wall and what is behind it.
 - [ ] Final reveal frame clearly shows the hidden pocket from inside the opened route.
 
 ## Built-player / representative acceptance
 
-- [ ] Player can infer the authored secret from intentional pre-solve environmental evidence without universal glowing markers or wall-spamming.
+- [ ] Player can infer the authored secret from intentional pre-solve fracture evidence without universal glowing markers or wall-spamming.
 - [ ] False wall remains intact and blocks traversal before the destruction step.
 - [ ] Production destruction opens the authored route and normal traversal space is visually reachable afterward.
 - [ ] Built-player run has no startup/runtime exceptions and all required log assertions are present.
