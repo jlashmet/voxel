@@ -10,8 +10,8 @@ using VoxelEngine.Structures.Runtime;
 namespace VoxelEngine.Showcase
 {
     /// <summary>
-    /// Showcase-side composition root for procedural content. WorldBuilder owns town and landmark
-    /// authoring; this composition root supplies only scene parameters and voxel material roles.
+    /// Showcase-side composition root for procedural content. WorldBuilder owns town, landform and
+    /// road realization; this composition root supplies only scene parameters and voxel roles.
     /// </summary>
     public static class ShowcaseCatalogue
     {
@@ -43,29 +43,79 @@ namespace VoxelEngine.Showcase
                     ShowcaseDetailedHouseCatalogue.Build(seed, in materialRoles, Allocator.Temp);
                 try
                 {
-                    MountainLandmarkSpec mountainSpec =
-                        ShowcaseMountainDragonLayout.CreateLandmark(seed);
-                    FeatureCatalogue mountain = WorldBuilderMountainLandmarkCatalogue.Build(
-                        in mountainSpec,
-                        mountainMaterial: materialRoles.WorldgenFoundation,
-                        pathMaterial: materialRoles.WorldgenRoadSurface,
-                        // The current placeholder is intentionally a bright red cube. Reuse the
-                        // game's authored red presentation role until real dragon art replaces it.
-                        placeholderMaterial: materialRoles.WorldgenCloth,
-                        allocator: Allocator.Temp);
+                    MountainLandformSurface mountainSurface =
+                        ShowcaseMountainDragonLayout.CreateSurface(seed);
+                    MountainClimateProfile climate =
+                        ShowcaseMountainDragonLayout.CreateClimateProfile();
+                    var palette = new MountainLandformPalette(
+                        groundCoverMaterial: materialRoles.WorldgenMoss,
+                        rockMaterial: materialRoles.WorldgenFoundation,
+                        snowMaterial: materialRoles.TerrainHighSurface);
+                    FeatureCatalogue mountain = WorldBuilderMountainLandformCatalogue.Build(
+                        mountainSurface,
+                        climate,
+                        in palette,
+                        Allocator.Temp);
                     try
                     {
-                        FeatureCatalogue townAndHouse =
-                            VoxelEngine.Structures.Runtime.FeatureCatalogueComposer.Combine(
-                                in kentridge, in detailedHouse, Allocator.Temp);
+                        WorldRoadNetwork ascent =
+                            ShowcaseMountainDragonLayout.CreateAscentNetwork(seed, mountainSurface);
+                        FeatureCatalogue road = WorldBuilderRoadVoxelCatalogue.Build(
+                            ascent,
+                            materialRoles.WorldgenRoadSurface,
+                            Allocator.Temp);
                         try
                         {
-                            return VoxelEngine.Structures.Runtime.FeatureCatalogueComposer.Combine(
-                                in townAndHouse, in mountain, allocator);
+                            FeatureCatalogue placeholder =
+                                WorldBuilderMountainSummitPlaceholderCatalogue.Build(
+                                    mountainSurface,
+                                    ShowcaseMountainDragonLayout.PlaceholderSize,
+                                    // Temporary dragon marker remains the authored bright-red role.
+                                    materialRoles.WorldgenCloth,
+                                    Allocator.Temp);
+                            try
+                            {
+                                FeatureCatalogue townAndHouse =
+                                    FeatureCatalogueComposer.Combine(
+                                        in kentridge, in detailedHouse, Allocator.Temp);
+                                try
+                                {
+                                    FeatureCatalogue withMountain =
+                                        FeatureCatalogueComposer.Combine(
+                                            in townAndHouse, in mountain, Allocator.Temp);
+                                    try
+                                    {
+                                        FeatureCatalogue withRoad =
+                                            FeatureCatalogueComposer.Combine(
+                                                in withMountain, in road, Allocator.Temp);
+                                        try
+                                        {
+                                            return FeatureCatalogueComposer.Combine(
+                                                in withRoad, in placeholder, allocator);
+                                        }
+                                        finally
+                                        {
+                                            withRoad.Dispose();
+                                        }
+                                    }
+                                    finally
+                                    {
+                                        withMountain.Dispose();
+                                    }
+                                }
+                                finally
+                                {
+                                    townAndHouse.Dispose();
+                                }
+                            }
+                            finally
+                            {
+                                placeholder.Dispose();
+                            }
                         }
                         finally
                         {
-                            townAndHouse.Dispose();
+                            road.Dispose();
                         }
                     }
                     finally
