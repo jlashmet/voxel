@@ -2,7 +2,8 @@
   "name": "Game.Combat.Api",
   "rootNamespace": "Game.Combat.Api",
   "references": [
-    "Game.Characters.Api"
+    "Game.Characters.Api",
+    "Game.Encounters.Api"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
