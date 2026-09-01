@@ -1,0 +1,20 @@
+{
+  "name": "Game.GameplayReplication.Adapters",
+  "rootNamespace": "Game.GameplayReplication.Adapters",
+  "references": [
+    "Game.GameplayReplication.Api",
+    "Game.Characters.Api",
+    "Game.Combat.Api",
+    "Game.Encounters.Api",
+    "Game.Inventory.Api"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}
