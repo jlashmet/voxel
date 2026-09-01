@@ -23,8 +23,9 @@ namespace Game.GameplayReplication.Tests
         public void ExistingClientsRepairLateJoinerAndReconnectConvergeToCurrentGameplayTruth()
         {
             var characters = new MutableSource("characters", "hero/lifecycle", "Active");
+            var vitality = new MutableSource("vitality", "hero/current", "100");
             var inventory = new MutableSource("inventory", "gold", "1");
-            var emitter = new GameplayStateServerEmitter(new IGameplayProjectionSource[] { characters, inventory });
+            var emitter = new GameplayStateServerEmitter(new IGameplayProjectionSource[] { characters, vitality, inventory });
             using var server = new AuthoritativeServerSession(
                 serverSeed: 0x12345678,
                 densityCap: new Validation.DensityCap(1f, 0),
@@ -49,17 +50,18 @@ namespace Game.GameplayReplication.Tests
                 PumpUntil(
                     () => first.State.Revision.Value == 1 && second.State.Revision.Value == 1,
                     () => Pump(server, first, second));
-                AssertCurrent(first.State, 1, "Active", "1");
-                AssertCurrent(second.State, 1, "Active", "1");
+                AssertCurrent(first.State, 1, "Active", "100", "1");
+                AssertCurrent(second.State, 1, "Active", "100", "1");
 
                 characters.Set("hero/lifecycle", "Defeated");
+                vitality.Set("hero/current", "0");
                 inventory.Set("gold", "9");
                 Tick(server, 2, in table, in pool);
                 PumpUntil(
                     () => first.State.Revision.Value == 2 && second.State.Revision.Value == 2,
                     () => Pump(server, first, second));
-                AssertCurrent(first.State, 2, "Defeated", "9");
-                AssertCurrent(second.State, 2, "Defeated", "9");
+                AssertCurrent(first.State, 2, "Defeated", "0", "9");
+                AssertCurrent(second.State, 2, "Defeated", "0", "9");
 
                 // Force a semantic revision gap on one client, then prove its repair request travels
                 // over the live UTP EVENT path and the next authoritative tick repairs all clients
@@ -67,6 +69,7 @@ namespace Game.GameplayReplication.Tests
                 var descriptors = new[]
                 {
                     new GameplayProjectionDescriptor(new GameplayProjectionId("characters"), 1, true),
+                    new GameplayProjectionDescriptor(new GameplayProjectionId("vitality"), 1, true),
                     new GameplayProjectionDescriptor(new GameplayProjectionId("inventory"), 1, true)
                 };
                 var gap = new GameplayPublication(
@@ -75,7 +78,8 @@ namespace Game.GameplayReplication.Tests
                     new[]
                     {
                         new GameplayProjectionState(descriptors[0], new[] { new GameplayProjectionEntry("hero/lifecycle", "Defeated") }),
-                        new GameplayProjectionState(descriptors[1], new[] { new GameplayProjectionEntry("gold", "9") })
+                        new GameplayProjectionState(descriptors[1], new[] { new GameplayProjectionEntry("hero/current", "0") }),
+                        new GameplayProjectionState(descriptors[2], new[] { new GameplayProjectionEntry("gold", "9") })
                     });
                 Assert.That(GameplayStatePacketCodec.TryEncode(gap, out byte[] gapPacket), Is.True);
                 Assert.That(first.Handler.HandleGameplayStatePacket(gapPacket), Is.True);
@@ -89,8 +93,8 @@ namespace Game.GameplayReplication.Tests
                 PumpUntil(
                     () => first.State.Revision.Value == 3 && second.State.Revision.Value == 3,
                     () => Pump(server, first, second));
-                AssertCurrent(first.State, 3, "Defeated", "9");
-                AssertCurrent(second.State, 3, "Defeated", "9");
+                AssertCurrent(first.State, 3, "Defeated", "0", "9");
+                AssertCurrent(second.State, 3, "Defeated", "0", "9");
 
                 using var late = ClientFixture.Connect(server, server.LocalEndpoint, openedConnections, expectedConnectionCount: 3);
                 Assert.That(server.AuthenticateConnection(openedConnections[2], 3, new int3(2, 0, 0)), Is.True);
@@ -98,7 +102,7 @@ namespace Game.GameplayReplication.Tests
                 PumpUntil(
                     () => first.State.Revision.Value == 4 && second.State.Revision.Value == 4 && late.State.Revision.Value == 4,
                     () => Pump(server, first, second, late));
-                AssertCurrent(late.State, 4, "Defeated", "9");
+                AssertCurrent(late.State, 4, "Defeated", "0", "9");
 
                 uint oldSecondConnection = openedConnections[1];
                 second.Host.Disconnect();
@@ -116,9 +120,9 @@ namespace Game.GameplayReplication.Tests
                 PumpUntil(
                     () => first.State.Revision.Value == 5 && late.State.Revision.Value == 5 && reconnected.State.Revision.Value == 5,
                     () => Pump(server, first, late, reconnected));
-                AssertCurrent(first.State, 5, "Defeated", "12");
-                AssertCurrent(late.State, 5, "Defeated", "12");
-                AssertCurrent(reconnected.State, 5, "Defeated", "12");
+                AssertCurrent(first.State, 5, "Defeated", "0", "12");
+                AssertCurrent(late.State, 5, "Defeated", "0", "12");
+                AssertCurrent(reconnected.State, 5, "Defeated", "0", "12");
                 Assert.That(reconnected.Handler.LastApplyResult, Is.EqualTo(GameplayApplyResult.Applied));
                 Assert.That(reconnected.State.GameplayReady, Is.True);
             }
@@ -137,12 +141,14 @@ namespace Game.GameplayReplication.Tests
             server.ProcessAuthoritativeTick(tick, read, mutations, read, in zones, new NoInputSink());
         }
 
-        private static void AssertCurrent(GameplayReplicationReadState state, long revision, string lifecycle, string gold)
+        private static void AssertCurrent(GameplayReplicationReadState state, long revision, string lifecycle, string currentVitality, string gold)
         {
             Assert.That(state.Revision.Value, Is.EqualTo(revision));
             Assert.That(state.GameplayReady, Is.True);
             Assert.That(state.TryGetProjection(new GameplayProjectionId("characters"), out GameplayProjectionState characters), Is.True);
             Assert.That(characters.Entries[0].Value, Is.EqualTo(lifecycle));
+            Assert.That(state.TryGetProjection(new GameplayProjectionId("vitality"), out GameplayProjectionState vitality), Is.True);
+            Assert.That(vitality.Entries[0].Value, Is.EqualTo(currentVitality));
             Assert.That(state.TryGetProjection(new GameplayProjectionId("inventory"), out GameplayProjectionState inventory), Is.True);
             Assert.That(inventory.Entries[0].Value, Is.EqualTo(gold));
         }
@@ -187,6 +193,7 @@ namespace Game.GameplayReplication.Tests
                 var descriptors = new[]
                 {
                     new GameplayProjectionDescriptor(new GameplayProjectionId("characters"), 1, true),
+                    new GameplayProjectionDescriptor(new GameplayProjectionId("vitality"), 1, true),
                     new GameplayProjectionDescriptor(new GameplayProjectionId("inventory"), 1, true)
                 };
                 var state = new GameplayReplicationReadState(descriptors);
