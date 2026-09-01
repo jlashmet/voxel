@@ -1,0 +1,14 @@
+{
+  "name": "Game.Progression.Tests",
+  "rootNamespace": "Game.Progression.Tests",
+  "references": ["Game.Progression.Api"],
+  "includePlatforms": ["Editor"],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
