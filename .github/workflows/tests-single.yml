@@ -159,7 +159,7 @@ jobs:
           python3 tools/module-validation-plan.py \
             --changed-file-list Artifacts/SingleTest/ModuleValidation/changed-files.txt \
             --output Artifacts/SingleTest/ModuleValidation/plan.json
-          python3 tools/tests/test_module_validation_plan.py
+          python3 -m unittest discover -s tools/tests -p 'test_*.py' -v
           python3 - "$GITHUB_OUTPUT" <<'PY'
           import json,sys
           p=json.load(open('Artifacts/SingleTest/ModuleValidation/plan.json',encoding='utf-8'))
