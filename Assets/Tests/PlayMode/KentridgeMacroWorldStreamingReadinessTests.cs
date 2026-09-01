@@ -48,15 +48,8 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(settlement.Buildings.Count, Is.GreaterThanOrEqualTo(4));
 
             TopDownWorldBuildingBlockoutPlan building = settlement.Buildings[0];
-            SampleTerrainRelief(building, settings.VoxelsPerDecimetre, out _, out int maximumGround);
-            var timberVoxel = new int3(
-                building.CentreDm.X * settings.VoxelsPerDecimetre,
-                maximumGround + 10 * settings.VoxelsPerDecimetre,
-                building.CentreDm.Y * settings.VoxelsPerDecimetre);
-            var presentationMetres = new float3(
-                timberVoxel.x * ShowcaseWorld.VoxelSize,
-                timberVoxel.y * ShowcaseWorld.VoxelSize,
-                timberVoxel.z * ShowcaseWorld.VoxelSize);
+            int3 timberVoxel = TimberWallProbe(building, settings.VoxelsPerDecimetre);
+            float3 presentationMetres = ToPresentationMetres(timberVoxel);
 
             TopDownWorldLayoutSelection.Select(
                 layout,
@@ -96,10 +89,7 @@ namespace VoxelEngine.Tests.PlayMode
                     "Terrain publication alone must not declare a presented settlement column stable while authored feature publication is pending.");
 
                 int featureVoxelsBeforeDrain = world.FeatureVoxelsBuilt;
-                int drainSteps = 0;
-                while (!world.IsPresentationColumnContentSettled(presentationMetres)
-                       && drainSteps++ < MaximumFeatureDrainSteps)
-                    world.StepStreaming(presentationMetres, StreamingBudgetMs);
+                int drainSteps = DrainUntilSettled(world, presentationMetres);
 
                 Assert.That(
                     world.IsPresentationColumnContentSettled(presentationMetres),
@@ -126,6 +116,126 @@ namespace VoxelEngine.Tests.PlayMode
                 world?.Dispose();
                 if (combined.IsCreated) combined.Dispose();
             }
+        }
+
+        [Test]
+        public void NegativeZSettlementPublishesAfterStreamingDemandTransition()
+        {
+            TopDownWorldLayout layout = MountingForceTopDownWorldDefinition.Build(Seed);
+            TopDownWorldPhysicalIntentSpec intent = KentridgeTopDownWorldPhysicalIntent.Build();
+            VoxelWorldGenSettings settings = Settings();
+            TopDownWorldPhysicalPlan physical = TopDownWorldPhysicalVoxelCatalogue.Plan(
+                layout,
+                intent,
+                KentridgeDefinition.TownCentreDm,
+                MountingForceTopDownWorldDefinition.CellSizeDm,
+                settings);
+
+            Assert.That(
+                physical.TryGetSettlement(
+                    MountingForceTopDownWorldDefinition.Moordell,
+                    out TopDownWorldSettlementPlan moordell),
+                Is.True);
+            Assert.That(
+                physical.TryGetSettlement(
+                    MountingForceTopDownWorldDefinition.FairyVillage,
+                    out TopDownWorldSettlementPlan fairy),
+                Is.True);
+            Assert.That(fairy.CentreDm.Y, Is.LessThan(0),
+                "The signed-coordinate discriminator requires Fairy Village to remain in negative world Z.");
+
+            int3 moordellTimber = TimberWallProbe(moordell.Buildings[0], settings.VoxelsPerDecimetre);
+            int3 fairyTimber = TimberWallProbe(fairy.Buildings[0], settings.VoxelsPerDecimetre);
+            float3 moordellMetres = ToPresentationMetres(moordellTimber);
+            float3 fairyMetres = ToPresentationMetres(fairyTimber);
+            Assert.That(fairyTimber.z, Is.LessThan(0));
+
+            TopDownWorldLayoutSelection.Select(
+                layout,
+                KentridgeDefinition.TownCentreDm.X,
+                KentridgeDefinition.TownCentreDm.Y,
+                MountingForceTopDownWorldDefinition.CellSizeDm);
+
+            FeatureCatalogue combined = default;
+            ShowcaseWorld world = null;
+            try
+            {
+                combined = KentridgeCombinedVoxelCatalogue.Build(
+                    Seed,
+                    settings,
+                    Allocator.Persistent);
+                world = new ShowcaseWorld(
+                    Seed,
+                    brickPoolCapacity: 131072,
+                    loadRadiusRegions: 1,
+                    unloadRadiusRegions: 2);
+                world.ConfigureGeneratedContentForGameplay(combined);
+                combined = default;
+
+                // Match the built-player evidence lifecycle: first settle a positive-Z settlement,
+                // then move demand across the origin and require the negative-Z settlement to be
+                // generated, feature-published, and retained in authoritative streamed storage.
+                world.StepStreaming(moordellMetres, StreamingBudgetMs);
+                DrainUntilSettled(world, moordellMetres);
+                Assert.That(world.IsPresentationColumnContentSettled(moordellMetres), Is.True);
+
+                int featureVoxelsBeforeFairy = world.FeatureVoxelsBuilt;
+                world.StepStreaming(fairyMetres, StreamingBudgetMs);
+                int fairyDrainSteps = DrainUntilSettled(world, fairyMetres);
+
+                Assert.That(
+                    world.IsPresentationColumnContentSettled(fairyMetres),
+                    Is.True,
+                    "A negative-Z settlement column must not become stranded after demand crosses the world origin.");
+                Assert.That(
+                    world.FeatureVoxelsBuilt,
+                    Is.GreaterThan(featureVoxelsBeforeFairy),
+                    "Fairy demand must perform real feature rasterization after the positive-to-negative-Z transition.");
+
+                VoxelCell fairyCell = ReadCell(world.ReadStorage, fairyTimber);
+                Assert.That(
+                    fairyCell.BaseMaterialId,
+                    Is.EqualTo(settings.Materials.Resolve(MaterialRole.Timber)),
+                    "Fairy Village must retain its authored timber shell in the streamed authoritative world.");
+
+                TestContext.WriteLine(
+                    "MACRO_NEGATIVE_Z_STREAMING " +
+                    $"fairyVoxel={fairyTimber} drainSteps={fairyDrainSteps} " +
+                    $"featureVoxels={world.FeatureVoxelsBuilt} regions={world.RegionsGenerated}");
+            }
+            finally
+            {
+                world?.Dispose();
+                if (combined.IsCreated) combined.Dispose();
+            }
+        }
+
+        private static int DrainUntilSettled(ShowcaseWorld world, float3 presentationMetres)
+        {
+            int steps = 0;
+            while (!world.IsPresentationColumnContentSettled(presentationMetres)
+                   && steps++ < MaximumFeatureDrainSteps)
+                world.StepStreaming(presentationMetres, StreamingBudgetMs);
+            return steps;
+        }
+
+        private static int3 TimberWallProbe(
+            TopDownWorldBuildingBlockoutPlan building,
+            int scale)
+        {
+            SampleTerrainRelief(building, scale, out _, out int maximumGround);
+            return new int3(
+                building.CentreDm.X * scale,
+                maximumGround + 10 * scale,
+                (building.CentreDm.Y - building.HalfExtentZDm + 1) * scale);
+        }
+
+        private static float3 ToPresentationMetres(int3 voxel)
+        {
+            return new float3(
+                voxel.x * ShowcaseWorld.VoxelSize,
+                voxel.y * ShowcaseWorld.VoxelSize,
+                voxel.z * ShowcaseWorld.VoxelSize);
         }
 
         private static VoxelCell ReadCell(IRegionReadSource reads, int3 worldVoxel)
