@@ -9,9 +9,9 @@ using Unity.Collections;
 using Unity.Mathematics;
 using Unity.Networking.Transport;
 using VoxelEngine.Edits.Runtime;
+using VoxelEngine.Net.Runtime.Client;
 using VoxelEngine.Net.Runtime.Protocol;
 using VoxelEngine.Net.Runtime.Server;
-using VoxelEngine.Net.Runtime.Transport;
 using VoxelEngine.Storage.Runtime;
 
 namespace Game.GameplayReplication.Tests
@@ -120,7 +120,7 @@ namespace Game.GameplayReplication.Tests
         {
             server.PumpTransport();
             for (int i = 0; i < clients.Length; i++)
-                clients[i].Host.Pump(clients[i].PacketHandler);
+                clients[i].Host.PumpTransport();
         }
 
         private static void PumpUntil(Func<bool> condition, Action pump)
@@ -136,18 +136,16 @@ namespace Game.GameplayReplication.Tests
 
         private sealed class ClientFixture : IDisposable
         {
-            private ClientFixture(UtpClientHost host, GameplayReplicationReadState state, GameplayStateClientPacketHandler handler)
+            private ClientFixture(ClientNetworkRuntime host, GameplayReplicationReadState state, GameplayStateClientPacketHandler handler)
             {
                 Host = host;
                 State = state;
                 Handler = handler;
-                PacketHandler = new GameplayOnlyPacketHandler(handler);
             }
 
-            public UtpClientHost Host { get; }
+            public ClientNetworkRuntime Host { get; }
             public GameplayReplicationReadState State { get; }
             public GameplayStateClientPacketHandler Handler { get; }
-            public IUtpClientPacketHandler PacketHandler { get; }
 
             public static ClientFixture Connect(
                 AuthoritativeServerSession server,
@@ -162,7 +160,9 @@ namespace Game.GameplayReplication.Tests
                 };
                 var state = new GameplayReplicationReadState(descriptors);
                 var gameplayHandler = new GameplayStateClientPacketHandler(state);
-                var host = new UtpClientHost();
+                var host = new ClientNetworkRuntime(
+                    new DeterministicAlterationApplier(),
+                    gameplayStateHandler: gameplayHandler);
                 bool connected = false;
                 host.Connected += () => connected = true;
                 Assert.That(host.Connect(endpoint), Is.True);
@@ -172,25 +172,12 @@ namespace Game.GameplayReplication.Tests
                     () =>
                     {
                         server.PumpTransport();
-                        host.Pump(fixture.PacketHandler);
+                        host.PumpTransport();
                     });
                 return fixture;
             }
 
             public void Dispose() => Host.Dispose();
-        }
-
-        private sealed class GameplayOnlyPacketHandler : IUtpClientPacketHandler
-        {
-            private readonly GameplayStateClientPacketHandler _handler;
-            public GameplayOnlyPacketHandler(GameplayStateClientPacketHandler handler) => _handler = handler;
-
-            public bool HandlePacket(UtpChannel channel, ReadOnlySpan<byte> packet)
-            {
-                if (!ProtocolEnvelope.TryReadHeader(packet, out ProtocolMessageKind kind, out _))
-                    return false;
-                return kind != ProtocolMessageKind.S_GameplayState || _handler.HandleGameplayStatePacket(packet);
-            }
         }
 
         private sealed class MutableSource : IGameplayProjectionSource
