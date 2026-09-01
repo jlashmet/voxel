@@ -24,9 +24,6 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(paddingIndex, Is.GreaterThan(0));
             Assert.That(text.Length % 4, Is.EqualTo(3), "Diagnostic assumes exactly one missing Base64 symbol.");
 
-            // Make the malformed stream decodable without disturbing its known-good prefix. Feeding gzip
-            // one byte at a time makes the first deflate failure a useful approximation of the deleted
-            // Base64 symbol rather than the end of an internal read-ahead buffer.
             string endPatched = text.Insert(paddingIndex, "A");
             byte[] probeBytes = Convert.FromBase64String(endPatched);
             long compressedFailureOffset;
@@ -44,9 +41,9 @@ namespace VoxelEngine.Tests.EditMode
                         decompressedBeforeFailure += read;
                     }
                 }
-                catch (InvalidDataException)
+                catch (IOException)
                 {
-                    // Expected for the deliberately end-patched stream.
+                    // Mono reports corrupt gzip/deflate data as IOException; expected for this probe.
                 }
                 compressedFailureOffset = input.Position;
             }
