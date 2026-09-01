@@ -41,6 +41,7 @@ namespace Game.Composition.Kentridge.Playable
         public KentridgeCharacterHost(float walkSpeed, ICharacterRegistry characters)
         {
             _characters = characters ?? throw new ArgumentNullException(nameof(characters));
+            KentridgeCharacterRegistryAnchor.AttachToPlayerRoot(_characters);
             _motor = new CharacterMotor { WalkSpeed = walkSpeed };
             _player = new PlayerActor(_motor);
             _playerCharacterId = CharacterId.FromStableKey("player", "kentridge-slot-0");
