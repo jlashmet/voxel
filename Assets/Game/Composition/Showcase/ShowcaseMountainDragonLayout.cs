@@ -1,10 +1,16 @@
+using System;
+using System.Collections.Generic;
+using Game.WorldBuilder.Api;
 using Game.WorldBuilder.Voxel;
-using Unity.Mathematics;
 using VoxelEngine.Terrain.Api;
 
 namespace VoxelEngine.Showcase
 {
-    /// <summary>Showcase-owned parameters for the reusable WorldBuilder mountain landmark.</summary>
+    /// <summary>
+    /// Showcase-owned policy for the Mountain Dragon landmark. WorldBuilder owns reusable mountain
+    /// shape, climate and road mechanics; this composition selects one natural mountain, one climate
+    /// and a high-level spiral ascent intent without owning path voxels or traversal ramps.
+    /// </summary>
     public static class ShowcaseMountainDragonLayout
     {
         public const int OriginX = -1712;
@@ -14,62 +20,154 @@ namespace VoxelEngine.Showcase
         public const int MountainHeight = 280;
         public const int SummitRadius = 80;
         public const int PathWidth = 30;
-        public const int PathRun = 360;
-        public const int PathRise = 46;
-        public const int SwitchbackCount = 6;
         public const int PlaceholderSize = 60;
+        public const string AscentRouteId = "showcase-mountain-dragon-ascent";
 
-        public static MountainLandmarkSpec CreateLandmark(uint seed)
+        private const int SpiralControlCount = 13;
+        private const int EntryRadiusDm = MountainRadius + 50;
+        private const int SummitApproachRadiusDm = SummitRadius + 25;
+
+        private static readonly int[] DirectionX =
         {
-            MountainLandmarkSpec placementProbe = CreateLandmarkAtBaseY(0);
-            MountainPathTierGeometry entry = placementProbe.PathTier(0);
-            int entryWorldX = OriginX + entry.LowLandingMinX;
-            int entryWorldZ = OriginZ + entry.LocalZ;
-            int baseY = TerrainQuery.HeightAt(entryWorldX, entryWorldZ, seed) + 1;
-            return CreateLandmarkAtBaseY(baseY);
+            1024, 946, 724, 392, 0, -392, -724, -946,
+            -1024, -946, -724, -392, 0, 392, 724, 946,
+        };
+
+        private static readonly int[] DirectionZ =
+        {
+            0, 392, 724, 946, 1024, 946, 724, 392,
+            0, -392, -724, -946, -1024, -946, -724, -392,
+        };
+
+        public static int CentreXdm => OriginX + FootprintEdge / 2;
+        public static int CentreZdm => OriginZ + FootprintEdge / 2;
+        public static int EntryXdm => CentreXdm;
+        public static int EntryZdm => CentreZdm - EntryRadiusDm;
+
+        public static MountainLandformSpec CreateLandform(uint seed)
+        {
+            int baseY = TerrainQuery.HeightAt(EntryXdm, EntryZdm, seed) + 1;
+            return new MountainLandformSpec(
+                originXdm: CentreXdm,
+                originYdm: baseY,
+                originZdm: CentreZdm,
+                radiusXdm: MountainRadius,
+                radiusZdm: MountainRadius - 35,
+                heightDm: MountainHeight,
+                summitRadiusDm: SummitRadius,
+                macroShape: MountainMacroShape.Ridged,
+                summitCharacter: MountainSummitCharacter.Broad,
+                seed: seed ^ 0xA4D14A6Fu,
+                ridgeCount: 6,
+                ridgeStrengthPermille: 620,
+                asymmetryXPermille: 90,
+                asymmetryZPermille: -70,
+                roughnessAmplitudeDm: 24,
+                roughnessScaleDm: 72,
+                erosionStrengthPermille: 720);
         }
 
-        /// <summary>
-        /// Scene-owned player envelope translated into physical measurements rather than leaking
-        /// VoxelShowcase motor constants into WorldBuilder. At the current 10 cm scale this derives
-        /// the established 24-voxel headroom and 16-voxel clear walking lane, while the 50% grade
-        /// ceiling preserves the normal-movement 2:1 run-to-rise contract.
-        /// </summary>
-        public static MountainLandmarkTraversalProfile CreateTraversalProfile() =>
-            new MountainLandmarkTraversalProfile(
-                voxelSizeMillimetres: 100,
-                bodyHeightMillimetres: 1800,
-                bodyRadiusMillimetres: 300,
-                overheadMarginMillimetres: 600,
-                lateralMarginMillimetres: 500,
-                maximumGradePercent: 50);
-
-        /// <summary>
-        /// Showcase-specific visual policy for the shared mountain authoring API. Geometry semantics
-        /// remain generic in WorldBuilder; this composition chooses the narrower crest and natural
-        /// ridge/buttress support form required by the Mountain Dragon presentation.
-        /// </summary>
-        public static MountainLandmarkPresentationProfile CreatePresentationProfile() =>
-            new MountainLandmarkPresentationProfile(
-                crestRadiusPercent: 75,
-                minimumPlaceholderCrestMargin: 12,
-                supportForm: MountainLandmarkSupportForm.RidgeAndButtress);
-
-        private static MountainLandmarkSpec CreateLandmarkAtBaseY(int baseY)
+        public static MountainLandformSurface CreateSurface(uint seed)
         {
-            MountainLandmarkTraversalProfile traversal = CreateTraversalProfile();
-            return new MountainLandmarkSpec(
-                new int3(OriginX, baseY, OriginZ),
-                FootprintEdge,
-                MountainRadius,
-                MountainHeight,
-                SummitRadius,
-                PathWidth,
-                PathRun,
-                PathRise,
-                SwitchbackCount,
-                PlaceholderSize,
-                in traversal);
+            MountainLandformSpec spec = CreateLandform(seed);
+            return new MountainLandformSurface(in spec);
+        }
+
+        public static MountainClimateProfile CreateClimateProfile() =>
+            new MountainClimateProfile(
+                groundCoverCeilingPermille: 310,
+                snowLinePermille: 745,
+                steepRockSlopePermille: 1050);
+
+        public static WorldRoadNetwork CreateAscentNetwork(
+            uint seed,
+            MountainLandformSurface surface)
+        {
+            if (surface == null) throw new ArgumentNullException(nameof(surface));
+
+            var terrain = new MountainLandformRoadTerrain(
+                surface,
+                new ShowcaseBaseRoadTerrain(seed));
+            IReadOnlyList<WorldRoadPlanPoint> controls = CreateAscentControls(surface);
+            var profile = new WorldRoadProfile(
+                id: "showcase-mountain-trail",
+                surfaceId: "road-surface",
+                carriagewayWidthDm: PathWidth,
+                transitionWidthDm: 24,
+                maximumGradePermille: 280,
+                maximumCutFillDm: 42,
+                edgeVariationDm: 2,
+                vegetationSuppressionPermille: 1000,
+                traversalCostPermille: 950,
+                crossingPolicy: WorldRoadCrossingPolicy.AllowPass);
+            var intent = new WorldRoadIntent(
+                AscentRouteId,
+                "showcase-mountain-entry",
+                "showcase-mountain-summit",
+                seed ^ 0x58F0A7D3u,
+                profile,
+                "Mountain Dragon composition: semantic spiral ascent over authored mountain surface",
+                controls);
+
+            ResolvedWorldRoad resolved = WorldRoadResolver.Resolve(
+                intent,
+                terrain,
+                sampleSpacingDm: 20,
+                searchMarginCells: 4);
+            if (!resolved.IsResolved)
+            {
+                throw new InvalidOperationException(
+                    "Mountain Dragon ascent could not be resolved: "
+                    + resolved.Status + " " + resolved.FailureReason);
+            }
+
+            return new WorldRoadNetwork(new[]
+            {
+                new WorldRoadNetworkRoute(
+                    resolved,
+                    WorldRoadSemanticClass.Pedestrian,
+                    shoulderWidthDm: 5,
+                    clearanceWidthDm: 10,
+                    markingPolicy: WorldRoadMarkingPolicy.None,
+                    crosswalkPolicy: WorldRoadCrosswalkPolicy.None),
+            });
+        }
+
+        public static ResolvedWorldRoadPoint SummitApproach(WorldRoadNetwork network)
+        {
+            if (network == null) throw new ArgumentNullException(nameof(network));
+            if (!network.TryGetRoute(AscentRouteId, out WorldRoadNetworkRoute route))
+                throw new InvalidOperationException("Mountain Dragon ascent route is missing from its road network.");
+            return route.Road.Points[route.Road.Points.Count - 1];
+        }
+
+        private static IReadOnlyList<WorldRoadPlanPoint> CreateAscentControls(
+            MountainLandformSurface surface)
+        {
+            MountainLandformMass summit = surface.GetMass(0);
+            var controls = new List<WorldRoadPlanPoint>(SpiralControlCount + 1);
+            for (int i = 0; i < SpiralControlCount; i++)
+            {
+                int radius = EntryRadiusDm
+                    - (EntryRadiusDm - SummitApproachRadiusDm) * i / (SpiralControlCount - 1);
+                int direction = (12 + i * 2) & 15;
+                controls.Add(new WorldRoadPlanPoint(
+                    summit.CentreXdm + DirectionX[direction] * radius / 1024,
+                    summit.CentreZdm + DirectionZ[direction] * radius / 1024));
+            }
+            controls.Add(new WorldRoadPlanPoint(summit.CentreXdm, summit.CentreZdm));
+            return controls;
+        }
+
+        private sealed class ShowcaseBaseRoadTerrain : IWorldRoadTerrain
+        {
+            private readonly uint _seed;
+
+            public ShowcaseBaseRoadTerrain(uint seed) => _seed = seed;
+
+            public int HeightAtDm(int xdm, int zdm) => TerrainQuery.HeightAt(xdm, zdm, _seed);
+
+            public WorldRoadTerrainFlags FlagsAtDm(int xdm, int zdm) => WorldRoadTerrainFlags.None;
         }
     }
 }
