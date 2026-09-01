@@ -11,6 +11,9 @@ namespace VoxelEngine.Showcase
     /// The harness changes only the same heading and AutoWalk inputs used by the existing real-player
     /// benchmark. VoxelShowcase still calls CharacterMotor.Step, collision still reads production
     /// voxels, and streaming still follows the player transform; no waypoint teleports the player.
+    /// An optional route-owned initial placement uses VoxelShowcase.TeleportTo before replay begins,
+    /// so evidence fixtures can start near the behavior under review without spending their traversal
+    /// budget crossing unrelated scene content. Every waypoint segment remains ordinary motor movement.
     /// Route files are optional evidence fixtures referenced by SceneIssue metadata, so normal game
     /// launches and captured-pose replays are unchanged.
     /// </summary>
@@ -81,6 +84,15 @@ namespace VoxelEngine.Showcase
                 if (string.IsNullOrEmpty(screenshotDirectory))
                     throw new InvalidOperationException("Waypoint replay requires -voxel-screenshot-dir.");
                 Directory.CreateDirectory(screenshotDirectory);
+
+                if (route.initialPlayerPlacement != null)
+                {
+                    InitialPlayerPlacement start = route.initialPlayerPlacement;
+                    showcase.TeleportTo(new Vector3(start.x, 0f, start.z));
+                    Debug.Log(
+                        $"WAYPOINT_REPLAY initial setup x={start.x:0.00} z={start.z:0.00} "
+                        + $"feetY={motor.Position.y:0.00}");
+                }
 
                 var root = new GameObject("Showcase Waypoint Replay Harness")
                 {
@@ -257,6 +269,9 @@ namespace VoxelEngine.Showcase
                 throw new InvalidOperationException("Waypoint route must contain at least one waypoint.");
             if (route.timeoutSeconds <= 0f || route.arrivalRadius <= 0f)
                 throw new InvalidOperationException("Waypoint route timeoutSeconds and arrivalRadius must be positive.");
+            if (route.initialPlayerPlacement != null
+                && (!IsFinite(route.initialPlayerPlacement.x) || !IsFinite(route.initialPlayerPlacement.z)))
+                throw new InvalidOperationException("Waypoint route initialPlayerPlacement must be finite.");
 
             bool hasVerticalAnchor = false;
             for (int i = 0; i < route.waypoints.Length; i++)
@@ -276,6 +291,11 @@ namespace VoxelEngine.Showcase
                 if (waypoint.anchorVertical)
                     hasVerticalAnchor = true;
             }
+        }
+
+        private static bool IsFinite(float value)
+        {
+            return !float.IsNaN(value) && !float.IsInfinity(value);
         }
 
         private static string Argument(string name)
@@ -300,7 +320,15 @@ namespace VoxelEngine.Showcase
             public float arrivalRadius = 1.25f;
             public float holdSeconds = 0.75f;
             public bool quitOnComplete = true;
+            public InitialPlayerPlacement initialPlayerPlacement;
             public Waypoint[] waypoints;
+        }
+
+        [Serializable]
+        private sealed class InitialPlayerPlacement
+        {
+            public float x;
+            public float z;
         }
 
         [Serializable]
