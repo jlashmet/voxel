@@ -127,6 +127,17 @@ class PlannerTests(unittest.TestCase):
             with self.assertRaisesRegex(planner.ConventionError, "repository-wide"):
                 planner.discover(root)
 
+    def test_top_level_playmode_smoke_is_not_a_production_module_owner(self):
+        td, root = self.fixture()
+        with td:
+            asmdef(root, "Assets/Tests/PlayMode/VoxelEngine.Tests.PlayMode.asmdef", "VoxelEngine.Tests.PlayMode")
+            discovered = planner.discover(root)
+            self.assertNotIn("Assets", [module["name"] for module in discovered["modules"]])
+            result = planner.plan(["Assets/Water/Runtime/Surface.cs"], discovered)
+            self.assertEqual(["Assets/Water"], result["modules"])
+            self.assertNotIn("VoxelEngine.Tests.PlayMode", [item["assembly"] for item in result["tests"]])
+            self.assertEqual(planner.KENTRIDGE_SCENE, result["playerValidations"][-1]["scene"])
+
     def test_unknown_production_path_uses_broad_safe_fallback(self):
         td, root = self.fixture()
         with td:
