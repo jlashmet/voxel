@@ -3,7 +3,7 @@
 ## Acceptance
 - Production diffs deterministically select owning modules; all EditMode and module-scoped PlayMode tests owned by each affected lower-level module run automatically.
 - There is no repository-wide/top-level EditMode test assembly. EditMode tests live with the lower-level module they validate; only genuine high-level smoke/integration PlayMode remains top-level.
-- Module ownership comes from repository/module structure and Unity assembly boundaries; shared/core changes expand through dependencies or conservative fallback.
+- Module ownership comes from repository/module structure and Unity assembly boundaries; shared/core contract changes expand through dependencies or conservative fallback.
 - There is no `*.module-validation.json` registration layer. Module-local player targets are paired scene + `*.player-scenario.json` by convention.
 - `KentridgePlayableSlice` is the mandatory built-player integration gate for production diffs.
 - Water proves migration/reuse through the canonical production `WaterRenderingShowcase` and standalone-player evidence.
@@ -12,7 +12,7 @@
 ## Implemented architecture
 - Module-local EditMode/PlayMode assemblies are structurally discovered from `Assets/**/Tests/{EditMode,PlayMode}` and `.asmdef` ownership.
 - Top-level `Assets/Tests/PlayMode` is integration/smoke only and excluded from lower-level module ownership.
-- Runtime `.asmdef` dependencies expand affected modules; unresolved production paths use safe fallback. Validation-only asmdefs are excluded from the runtime dependency graph.
+- Runtime `.asmdef` dependencies conservatively expand affected modules for public/module contract changes (`/Api/` or asmdef boundaries); ordinary Runtime implementation changes run the owning module plus Kentridge rather than every dependent suite. Truly unowned production uses safe broad fallback. Validation-only asmdefs are excluded from the runtime dependency graph.
 - Test-only changes under `/Tests/` do not claim production ownership or cause module/player execution by themselves.
 - Unowned top-level `Assets/Game/Composition/**` production changes are application-composition changes and receive the mandatory Kentridge integration gate rather than broad lower-level module fallback; composition subtrees with their own module tests still resolve normally.
 - Module player scenes/scenarios are convention-discovered beneath module `Validation/`; the generic standalone-player runner has no Water/Kentridge/test-name-specific selection policy.
@@ -31,6 +31,7 @@
 - Planner correction after `33479440611`: test paths no longer select module work; deleted obsolete module-validation manifest paths are non-production; validation asmdefs do not enter runtime dependency ownership; unowned top-level Game Composition changes are integration-only rather than broad lower-level fallback. New focused Python regressions cover each rule.
 - WorldBuilder test migration no longer creates a production friend delta: the module-local suite retains its existing `VoxelEngine.Tests.EditMode` assembly identity at the new module-local path, so the already-existing production friend is reused and `Game.WorldBuilder.Api/AssemblyInfo.cs` matches master again.
 - Water validation-only support moved from production/shared roots into `Assets/VoxelEngine/Rendering/Validation/Water`: the scene keeps its probe binding through the preserved Unity GUID, a module-local validation asmdef references Rendering Runtime, and the probe reads existing public read-only `VoxelRenderBridge.SurfaceMetrics` directly. The redundant shared `RenderingSurfaceDiagnostics` wrapper was removed. Rendering/Storage module-test friend boundaries remain test-only support; the obsolete `Game.WorldBuilder.Tests.EditMode` Rendering friend was removed.
+- Exact run `33483342821` on feature `cd9023674cf659b384a7dac5ba03423bef797c63` proved the new planner regressions (24/24) and eliminated fallback paths, but still expanded a Rendering Runtime implementation change through all transitive dependents, selecting unrelated WorldBuilder and other suites. The run then stopped before tests on a local validation-probe compiler error: `VoxelSurfaceMetrics` needed the `VoxelEngine.Rendering.Runtime.SurfaceExtraction` namespace. Both demonstrated causes were fixed: the probe imports the real public metric type, and dependent-suite expansion now applies only to `/Api/` or asmdef contract changes. New regression coverage proves Runtime implementation changes stay local while API contract changes still expand known dependents.
 
 ## Blast radius
 CI/orchestration; test/module ownership; module-local validation discovery; migration of test assemblies; thin Water validation composition. Master reconciliation incorporated accepted upstream production changes but agent-8 did not rewrite adjacent production systems. Repeated-failure corrections are limited to ownership/planning/scanner/path semantics and validation-support placement; unrelated Kentridge/gameplay failures are not being patched to make this architecture issue green.
@@ -43,6 +44,7 @@ CI/orchestration; test/module ownership; module-local validation discovery; migr
 - [x] Reconcile current master and preserve newly added upstream regressions in module-owned suites.
 - [x] After `33476275534` reproduced the same 63-failure symptom after master reconciliation, isolate the minimal test-migration root cause before another fix and correct only demonstrated scanner/path/deleted-regression defects.
 - [x] After `33479440611` still selected WorldBuilder, isolate the remaining planner ownership root cause and correct test-only path selection, obsolete-manifest classification, validation dependency ownership, application-composition fallback semantics, and Water validation-support placement without patching unrelated gameplay.
+- [x] After `33483342821`, constrain dependent expansion to module contract changes and fix the module-local Water probe's concrete compile namespace error.
 - [ ] Run exact-current-head automatic module tests, Water built-player, and mandatory Kentridge built-player validation using only `ci-test/fixes/agent-8`.
 - [ ] Inspect every retained Water standalone post-readiness frame for production quality and evidence-window pruning.
 - [ ] Review all 18 acceptance criteria and update issue metadata only after green exact-SHA proof.
