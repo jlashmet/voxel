@@ -28,7 +28,8 @@ namespace VoxelEngine.Tests.EditMode
 
             try
             {
-                combined = FeatureCatalogueComposer.Combine(in town, in mountain, Allocator.Temp);
+                combined = VoxelEngine.Structures.Runtime.FeatureCatalogueComposer.Combine(
+                    in town, in mountain, Allocator.Temp);
 
                 FeaturePresentationManifest manifest =
                     FeaturePresentationCatalogueBaker.Build(in combined, Seed, sectorSizeVoxels: 512);
