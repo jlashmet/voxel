@@ -122,15 +122,18 @@ namespace VoxelEngine.Tests.PlayMode
             FeatureCatalogue catalogue = default;
             try
             {
-                var kentridge = (SettlementPlan)buildKentridge.Invoke(null, new object[] { Seed });
+                buildKentridge.Invoke(null, new object[] { Seed });
                 // Match the shipped OnEnable ordering: Hightown authoring runs after Kentridge's
                 // compatibility adapter selected the macro layout and before the catalogue consumes it.
                 buildHightown.Invoke(null, new object[] { Seed });
 
+                // Consume the one-shot semantic selection through the same seed/settings overload
+                // used by production and the already-green catalogue contract fixture above. The
+                // compatibility Build calls are only authoring side effects; no test-only geometry is
+                // injected into catalogue construction.
                 catalogue = KentridgeCombinedVoxelCatalogue.Build(
-                    kentridge,
+                    Seed,
                     Settings(kentridge: true),
-                    Array.Empty<KentridgeHiddenSpaceGeometry>(),
                     Allocator.Temp);
 
                 Assert.That(
