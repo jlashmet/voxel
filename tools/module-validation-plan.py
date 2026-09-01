@@ -5,7 +5,7 @@ A module is any Assets subtree that owns Tests/EditMode and/or Tests/PlayMode
 assemblies. Production ownership is the longest matching module root. Focused
 Unity tests are every asmdef below the owning module's test directories.
 Player-visible validation is opt-in by placing paired scene/scenario files under
-<module>/Demo/Scenes. KentridgePlayableSlice is the canonical production-change
+<module>/Validation. KentridgePlayableSlice is the canonical production-change
 integration gate.
 """
 from __future__ import annotations
@@ -71,11 +71,11 @@ def _module_for_path(path: str, modules: list[dict]) -> dict | None:
 
 
 def _discover_player_targets(module_root: Path, root: Path, module_name: str) -> list[dict]:
-    scenes_root = module_root / "Demo" / "Scenes"
-    if not scenes_root.is_dir():
+    validation_root = module_root / "Validation"
+    if not validation_root.is_dir():
         return []
-    scenes = sorted(scenes_root.rglob("*.unity"))
-    scenarios = sorted(scenes_root.rglob("*.player-scenario.json"))
+    scenes = sorted(validation_root.rglob("*.unity"))
+    scenarios = sorted(validation_root.rglob("*.player-scenario.json"))
     targets = []
     expected_scenarios = set()
     for scene in scenes:
@@ -172,7 +172,7 @@ def is_production(path: str) -> bool:
         return False
     if "/Tests/" in path or path.startswith("Assets/Tests/"):
         return False
-    if "/Demo/Scenes/" in path or path.endswith(".player-scenario.json"):
+    if "/Validation/" in path or path.endswith(".player-scenario.json"):
         return False
     return True
 
