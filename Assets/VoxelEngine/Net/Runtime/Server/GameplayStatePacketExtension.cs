@@ -4,9 +4,9 @@ namespace VoxelEngine.Net.Runtime.Server
 {
     /// <summary>
     /// Optional game-level state emitter invoked from the existing authoritative server tick.
-    /// Implementations own their semantic capture/encoding; networking owns connection routing.
+    /// Implementations own semantic capture/encoding and repair policy; networking owns routing.
     /// </summary>
-    public interface IAuthoritativeGameplayStateEmitter
+    public interface IAuthoritativeGameplayStateEmitter : IClientGameplayStateRepairHandler
     {
         void Emit(uint serverTick, ServerPlayerRegistry players, IGameplayStatePacketSink sink);
     }
