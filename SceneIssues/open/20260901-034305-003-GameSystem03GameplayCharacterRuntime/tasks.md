@@ -6,7 +6,7 @@
 
 ## API and module boundary
 
-- [ ] **T03-001 — Inventory existing actor representations.** Find player/NPC/enemy/recruit actor records, ids, transforms, lifecycle flags, scene registries, and campaign/world bindings; identify duplicates that represent the same character.
+- [x] **T03-001 — Inventory existing actor representations.** Find player/NPC/enemy/recruit actor records, ids, transforms, lifecycle flags, scene registries, and campaign/world bindings; identify duplicates that represent the same character.
 - [ ] **T03-002 — Establish asmdefs.** Create/update `Characters.Api` and `Characters.Runtime`; Runtime may use world/collision APIs, while API remains engine-neutral and Runtime-internal types never cross module boundaries.
 - [ ] **T03-003 — Define `CharacterId`.** Choose one stable semantic identity format and migration/conversion path for existing actor ids; define equality/serialization behavior.
 - [ ] **T03-004 — Define character definition metadata.** Expose only demonstrated semantic role/traits needed by consumers; do not encode separate player/NPC/enemy class hierarchies.
