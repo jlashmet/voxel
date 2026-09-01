@@ -24,13 +24,17 @@ namespace VoxelEngine.Showcase
         private readonly SiteProximityWatcher _proximity;
         private readonly TimedCutsceneDialogueRuntime _dialogue;
 
-        public MountainLandmarkSpec Landmark { get; }
+        public MountainLandformSpec Landmark { get; }
+        public WorldRoadNetwork Ascent { get; }
         public bool HasTriggered => _proximity.FiredCount > 0;
         public string ActiveDialogue => _dialogue.ActiveDialogue;
 
         public MountainDragonEncounterRuntime(uint seed)
         {
-            Landmark = ShowcaseMountainDragonLayout.CreateLandmark(seed);
+            MountainLandformSurface surface = ShowcaseMountainDragonLayout.CreateSurface(seed);
+            Landmark = surface.Spec;
+            Ascent = ShowcaseMountainDragonLayout.CreateAscentNetwork(seed, surface);
+            ResolvedWorldRoadPoint summitApproach = ShowcaseMountainDragonLayout.SummitApproach(Ascent);
 
             var game = Campaign.Create("showcase-mountain-dragon");
             RegionHandle mountainRegion = game.World.Region("showcase-mountain-region");
@@ -66,8 +70,8 @@ namespace VoxelEngine.Showcase
             {
                 new SiteProximityTriggerSpec(
                     summit,
-                    Landmark.SummitApproachWorldX,
-                    Landmark.SummitApproachWorldZ,
+                    summitApproach.Xdm,
+                    summitApproach.Zdm,
                     radius: 90,
                     oneShot: true)
             });
