@@ -145,7 +145,7 @@ namespace Game.WorldBuilder.Api
             string solutionRegionId = "",
             int clearanceDm = 60,
             string source = "authored macro-route geography solution",
-            TopDownWorldConstraintRelaxationMode relaxationMode = TopDownWorldConstraintRelaxationMode.EndpointEscape)
+            TopDownWorldConstraintRelaxationMode relaxationMode = TopDownWorldConstraintRelaxationMode.Strict)
         {
             if (string.IsNullOrWhiteSpace(fromId))
                 throw new ArgumentException("A route constraint requires a source node.", nameof(fromId));
