@@ -96,7 +96,7 @@ namespace VoxelEngine.Tests.EditMode
         {
             string root = FindRepoRoot();
             string voxelRoot = Path.Combine(
-                root, "Packages", "com.mountingforce.worldgen", "Runtime", "Voxel");
+                root, "Assets", "Game", "WorldBuilder", "Generation", "Voxel");
 
             string terrace = File.ReadAllText(Path.Combine(
                 voxelRoot, "KentridgeTerraceSupportCatalogue.cs"));
@@ -125,7 +125,7 @@ namespace VoxelEngine.Tests.EditMode
         {
             string root = FindRepoRoot();
             string voxelRoot = Path.Combine(
-                root, "Packages", "com.mountingforce.worldgen", "Runtime", "Voxel");
+                root, "Assets", "Game", "WorldBuilder", "Generation", "Voxel");
             string compatibility = Path.Combine(
                 voxelRoot, "KentridgeShapeProgramCompatibility.cs");
             Assert.False(File.Exists(compatibility),
@@ -154,7 +154,7 @@ namespace VoxelEngine.Tests.EditMode
 
             string root = FindRepoRoot();
             string worldGenRoot = Path.Combine(
-                root, "Packages", "com.mountingforce.worldgen", "Runtime");
+                root, "Assets", "Game", "WorldBuilder", "Generation");
             string structuresRuntimeRoot = Path.Combine(
                 root, "Assets", "VoxelEngine", "Structures", "Runtime");
 
@@ -169,9 +169,9 @@ namespace VoxelEngine.Tests.EditMode
         private static string FindRepoRoot()
         {
             DirectoryInfo directory = new DirectoryInfo(Directory.GetCurrentDirectory());
-            while (directory != null && !Directory.Exists(Path.Combine(directory.FullName, "Packages")))
+            while (directory != null && !Directory.Exists(Path.Combine(directory.FullName, "Assets")))
                 directory = directory.Parent;
-            Assert.NotNull(directory, "Could not locate project root containing Packages/.");
+            Assert.NotNull(directory, "Could not locate project root containing Assets/.");
             return directory.FullName;
         }
 
