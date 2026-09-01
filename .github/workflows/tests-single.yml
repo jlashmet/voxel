@@ -1,18 +1,20 @@
 name: Tests (single)
 run-name: Validation · ${{ github.ref_name }} · ${{ github.event_name }}
 
-# Exact-SHA agent transport. The explicit requested Unity test remains a fast targeted gate.
-# On ci-test/* pushes, repository metadata also derives required module tests and built-player
-# validation from the feature diff; agents never select those module/player gates manually.
+# Exact-SHA agent transport. On ci-test/* pushes the feature diff determines the owning
+# module assemblies, optional module-local standalone scenes, and Kentridge integration.
+# A legacy explicit test may still be supplied as an extra fast gate, but it is not required
+# to register or select the automatic validation set.
 on:
   workflow_dispatch:
     inputs:
       test:
-        description: Fully qualified Unity test name (or exact test filter)
-        required: true
+        description: Fully qualified Unity test name (optional extra gate)
+        required: false
+        default: ''
         type: string
       platform:
-        description: Unity test platform
+        description: Unity test platform for optional extra gate
         required: true
         default: EditMode
         type: choice
@@ -65,7 +67,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
-            test_name="$DISPATCH_TEST"
+            test_name="${DISPATCH_TEST:-}"
             platform="$DISPATCH_PLATFORM"
             request_id="${DISPATCH_REQUEST_ID:-${GITHUB_SHA:0:12}}"
             source_sha="$GITHUB_SHA"
@@ -76,14 +78,12 @@ jobs:
           import json, shlex
           request=json.load(open('.github/test-request.json',encoding='utf-8'))
           values={
-            'test_name':request.get('test'),
+            'test_name':request.get('test') or '',
             'platform':request.get('platform','EditMode'),
             'request_id':request.get('request_id') or '',
             'scene_issue':request.get('scene_issue') or '',
             'replay_seconds':request.get('replay_seconds') or '',
           }
-          if not isinstance(values['test_name'],str) or not values['test_name']:
-              raise SystemExit('ERROR: test-request requires non-empty test')
           if values['platform'] not in ('EditMode','PlayMode'):
               raise SystemExit('ERROR: platform must be EditMode or PlayMode')
           for key,value in values.items():
@@ -118,7 +118,8 @@ jobs:
             sleep 5
           done
 
-      - name: Run requested focused test
+      - name: Run optional explicitly requested test
+        if: steps.request.outputs.test != ''
         shell: bash
         env:
           UNITY_BIN: ${{ steps.unity.outputs.path }}
@@ -162,7 +163,7 @@ jobs:
           import json,sys
           p=json.load(open('Artifacts/SingleTest/ModuleValidation/plan.json',encoding='utf-8'))
           with open(sys.argv[1],'a',encoding='utf-8') as out:
-              out.write('required='+('true' if p['hasProductionChanges'] else 'false')+'\n')
+              out.write('required='+('true' if p['hasValidationWork'] else 'false')+'\n')
               out.write('has_players='+('true' if p['playerValidations'] else 'false')+'\n')
           print('Automatic modules:', ', '.join(p['modules']) or '<none>')
           print('Fallback paths:', ', '.join(p['fallbackPaths']) or '<none>')
