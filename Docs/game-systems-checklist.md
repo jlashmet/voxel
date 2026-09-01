@@ -35,7 +35,7 @@ These are existing foundations and are not candidates to rebuild from scratch.
 - Campaign runtime / campaign composition
 - Story runtime/content foundations
 - Cutscene foundations
-- Input foundations
+- [Input foundations](game-systems/input-device-abstraction.md) — Unity Input System normalizes physical devices; `Game.Input.Api` remains the semantic gameplay/UI boundary
 - WorldBuilder framework
 - Structure/world composition foundations
 - Roads/world-route generation foundations
@@ -86,7 +86,8 @@ These are existing foundations and are not candidates to rebuild from scratch.
   - Map typed semantic gameplay and authored cutscene cues into client-side audio presentation without putting clip identity, playback commands, or Unity audio dependencies into gameplay authority.
 - [x] **22. [Combat / interaction VFX & semantic feedback](game-systems/22-combat-interaction-vfx-semantic-feedback.md)**
   - Derive transient and state-driven visual feedback from semantic gameplay truth without coupling authority to Unity VFX, prefab identity, or cosmetic destruction.
-- [ ] **23. Game menus / settings / start flow**
+- [x] **23. [Application frontend, menus, settings & session start flow](game-systems/23-application-frontend-menus-settings-session-start-flow.md)**
+  - Host local application/menu navigation and settings over semantic session/persistence/input capabilities, with Unity Input System device normalization beneath the engine-neutral game input API.
 - [ ] **24. Integrated built-player vertical slice**
 - [ ] **25. Multiplayer end-to-end gameplay tests**
 - [ ] **26. Full-game/session progression loop**
