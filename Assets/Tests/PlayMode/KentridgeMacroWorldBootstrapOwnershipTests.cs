@@ -63,11 +63,16 @@ namespace VoxelEngine.Tests.PlayMode
                 for (var i = 0; i < physical.Settlements.Count; i++)
                 {
                     TopDownWorldSettlementPlan settlement = physical.Settlements[i];
+                    string id = settlement.Node.Id;
+                    Assert.That(
+                        layout.CanReach(layout.RootId, id, verifiedOnly: false),
+                        Is.True,
+                        $"Macro settlement '{id}' is not reachable from root '{layout.RootId}' through the planned world routes.");
+
                     if (settlement.RealizationKind == TopDownWorldSettlementRealizationKind.ExistingRichGeneration)
                         continue;
 
                     expectedGenericTowns++;
-                    string id = settlement.Node.Id;
                     Assert.That(
                         ContainsDefinitionStarting(playable, "macro-town-streets-" + id),
                         Is.True,
