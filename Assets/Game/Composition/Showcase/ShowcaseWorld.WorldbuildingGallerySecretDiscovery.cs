@@ -22,6 +22,7 @@ namespace VoxelEngine.Showcase
     {
         private const int GallerySecretCaveX = -1340;
         private const int GallerySecretCaveZ = 220;
+        private const int GallerySecretCaveCoverDepth = 48;
 
         private bool _gallerySecretDiscoveryReady;
         private CaveSecretPocketProjection _gallerySecretPocket;
@@ -49,8 +50,11 @@ namespace VoxelEngine.Showcase
                     "Worldbuilding Gallery content must exist before secret discovery is composed.");
 
             PreloadGalleryRegions();
+            _gallerySecretEntrance = WorldbuildingGallerySecretCaveEntrance();
+            PreloadWorldbuildingGallerySecretCaveRegions(_gallerySecretEntrance);
+
             IStructureAuthoringSession authoring = CreateStructureAuthoringSession(4_000_000);
-            CaveAuthoringResult cave = AuthorWorldbuildingGallerySecretCave(authoring, out _gallerySecretEntrance);
+            CaveAuthoringResult cave = AuthorWorldbuildingGallerySecretCave(authoring, _gallerySecretEntrance);
             if (cave.TraversalCandidates.Count < 2)
                 throw new InvalidOperationException(
                     "Gallery secret acceptance cave did not produce enough reachable terminals.");
@@ -85,7 +89,10 @@ namespace VoxelEngine.Showcase
                     in pocketConfig,
                     out _gallerySecretPocket,
                     out CaveSecretPocketCompositionFailure failure))
-                throw new InvalidOperationException("Gallery cave secret authoring failed: " + failure);
+                throw new InvalidOperationException(
+                    $"Gallery cave secret authoring failed: {failure}; entrance={_gallerySecretEntrance}; " +
+                    $"mainEnd={cave.MainPathEnd}; terminals={cave.TraversalCandidates.Count}; " +
+                    $"budgetExceeded={authoring.BudgetExceeded}; writes={authoring.TotalVoxelsWritten}.");
 
             var clueConfig = new CaveSecretPocketCluePresentationConfig(
                 Coatings.Moss,
@@ -105,13 +112,25 @@ namespace VoxelEngine.Showcase
             _gallerySecretDiscoveryReady = true;
         }
 
-        private CaveAuthoringResult AuthorWorldbuildingGallerySecretCave(
-            IStructureAuthoringSession authoring,
-            out int3 entrance)
+        private int3 WorldbuildingGallerySecretCaveEntrance()
         {
             int surfaceY = TerrainQuery.HeightAt(GallerySecretCaveX, GallerySecretCaveZ, Seed);
-            entrance = new int3(GallerySecretCaveX, surfaceY - 18, GallerySecretCaveZ);
+            return new int3(GallerySecretCaveX, surfaceY - GallerySecretCaveCoverDepth, GallerySecretCaveZ);
+        }
 
+        private void PreloadWorldbuildingGallerySecretCaveRegions(int3 entrance)
+        {
+            float3 metres = (float3)entrance * VoxelSize;
+            int3 centre = RegionAt(metres);
+            for (int z = -1; z <= 1; z++)
+            for (int x = -1; x <= 1; x++)
+                GenerateRegionBlocking(centre + new int3(x, 0, z));
+        }
+
+        private CaveAuthoringResult AuthorWorldbuildingGallerySecretCave(
+            IStructureAuthoringSession authoring,
+            int3 entrance)
+        {
             CaveConfig caveConfig = CaveConfig.Default;
             caveConfig.MainSegmentCount = 10;
             caveConfig.MaxBranches = 4;
@@ -214,9 +233,10 @@ namespace VoxelEngine.Showcase
         public float3 WorldbuildingGalleryNaturalSecretLookTarget()
         {
             RequireGallerySecretDiscovery();
+            int surfaceY = TerrainQuery.HeightAt(_gallerySecretEntrance.x, _gallerySecretEntrance.z, Seed);
             return new float3(
                 _gallerySecretEntrance.x,
-                _gallerySecretEntrance.y + 10,
+                surfaceY + 2,
                 _gallerySecretEntrance.z + 8) * VoxelSize;
         }
 
