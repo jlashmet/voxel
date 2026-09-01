@@ -9,14 +9,14 @@
 - [x] **T02-001 — Baseline existing health state.** Find every authoritative/prototype health, alive/dead, damage, defeat and reset store; classify each as migrate, presentation-only, or obsolete.
   - Evidence: `plan.md` ownership table records `CombatCore.CombatState`, production `Game.Combat.Runtime.CombatService`, `ChainUnitState`/`ChainCombatBoard`, and the `Assets/CombatPrototype` presentation surface, with explicit migration/adapter ownership boundaries.
 - [ ] **T02-002 — Create/update module assemblies.** Establish `Assets/Game/Vitality/Api` and `Runtime` asmdefs with Runtime -> own API and `Characters.Api`; assert API has no Unity/Runtime dependency.
-  - **BLOCKED:** `Game.Characters.Api.CharacterId` and the ticket-specified `Game.SharedKernel.Api.SessionId` are both absent at feature/master SHA `71e5b6b146cb7dd3b7da0305d0ab42bcc9cea22e`; do not create placeholder shared identity types.
+  - **BLOCKED:** `Game.Characters.Api.CharacterId` is absent at feature/master SHA `71e5b6b146cb7dd3b7da0305d0ab42bcc9cea22e`; do not create a placeholder identity type.
 - [ ] **T02-003 — Define vitality state contract.** Add immutable snapshot/state keyed by `CharacterId`, with only semantic current/max/defeated data demonstrated by current gameplay.
-  - **BLOCKED:** public signature depends on the System 03 `CharacterId` contract and ticket-specified shared session identity.
+  - **BLOCKED:** public signature depends on the System 03 `CharacterId` contract.
 - [ ] **T02-004 — Define damage contract.** Add authoritative damage request/result including stable request identity only where existing command delivery can duplicate requests; represent rejection reasons semantically.
-  - **BLOCKED:** public signature depends on the System 03 `CharacterId` contract and ticket-specified shared session identity.
+  - **BLOCKED:** public signature depends on the System 03 `CharacterId` contract.
   - Delivery decision: System 01 specifies a semantic in-process Combat -> Vitality call, while System 06 owns ordered replicated snapshot/delta revisions and stale-delta rejection. Do not add a speculative network command/idempotency token to `DamageRequest`; test deterministic repeated damage/defeat behavior locally and leave stale projection rejection to GameplayReplication.
 - [ ] **T02-005 — Define defeat transition/event.** Guarantee one transition event when crossing the terminal threshold; do not conflate defeat with removal, combat resolution, or game outcome.
-  - **BLOCKED:** public signature depends on the System 03 `CharacterId` contract and ticket-specified shared session identity.
+  - **BLOCKED:** public signature depends on the System 03 `CharacterId` contract.
 - [x] **T02-006 — Add heal/restore contract only if required.** Inspect current content/tests first; do not invent revive/respawn semantics.
   - Evidence: `CombatCore.CombatState`, production `CombatService`, and `ChainCombatBoard` demonstrate initialization/reset plus damage/defeat only; no in-session heal/revive operation is present. No public healing/revive command will be invented. Snapshot restore remains the separate persistence seam in T02-013.
 
