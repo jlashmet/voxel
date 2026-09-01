@@ -21,6 +21,7 @@ namespace VoxelEngine.CI
         {
             public string name;
             public string[] references;
+            public string[] optionalUnityReferences;
         }
 
         private sealed class AssemblyInfo
@@ -30,6 +31,7 @@ namespace VoxelEngine.CI
             public string ModuleRoot;
             public string Role;
             public string[] References;
+            public string[] OptionalUnityReferences;
         }
 
         [Test]
@@ -161,6 +163,17 @@ namespace VoxelEngine.CI
                 Is.EqualTo("VoxelEngine.Structures.Api"));
         }
 
+        [Test]
+        public void ProductionModuleRule_TreatsUnityTestAssembliesAsTestsOutsideTestsFolders()
+        {
+            AssemblyInfo playModeTests = Fixture(
+                "VoxelEngine.CI.PlayMode",
+                "Assets/VoxelEngine/CI/PlayMode/VoxelEngine.CI.PlayMode.asmdef");
+            playModeTests.OptionalUnityReferences = new[] { "TestAssemblies" };
+
+            Assert.That(IsOrdinaryProduction(playModeTests), Is.False);
+        }
+
         private static Dictionary<string, AssemblyInfo> LoadRepositoryAssemblies()
         {
             var result = new Dictionary<string, AssemblyInfo>(StringComparer.Ordinal);
@@ -186,6 +199,7 @@ namespace VoxelEngine.CI
                     .Replace('\\', '/');
                 AssemblyInfo info = Fixture(json.name, relative);
                 info.References = json.references ?? Array.Empty<string>();
+                info.OptionalUnityReferences = json.optionalUnityReferences ?? Array.Empty<string>();
                 result[info.Name] = info;
             }
         }
@@ -236,6 +250,7 @@ namespace VoxelEngine.CI
                 ModuleRoot = ModuleRoot(path),
                 Role = AssemblyRole(path),
                 References = Array.Empty<string>(),
+                OptionalUnityReferences = Array.Empty<string>(),
             };
         }
 
@@ -287,12 +302,23 @@ namespace VoxelEngine.CI
 
         private static bool IsTestOrEditor(AssemblyInfo assembly)
         {
-            return assembly.Role == "Tests" || assembly.Role == "Editor" ||
-                   assembly.Path.Contains("/Tests/") || assembly.Path.Contains("/Editor/") ||
-                   assembly.Name.EndsWith(".Tests", StringComparison.Ordinal) ||
-                   assembly.Name.Contains(".Tests.") ||
-                   assembly.Name.EndsWith(".Editor", StringComparison.Ordinal) ||
-                   assembly.Name.Contains(".Editor.");
+            if (assembly.Role == "Tests" || assembly.Role == "Editor" ||
+                assembly.Path.Contains("/Tests/") || assembly.Path.Contains("/Editor/") ||
+                assembly.Name.EndsWith(".Tests", StringComparison.Ordinal) ||
+                assembly.Name.Contains(".Tests.") ||
+                assembly.Name.EndsWith(".Editor", StringComparison.Ordinal) ||
+                assembly.Name.Contains(".Editor."))
+                return true;
+
+            for (int i = 0; i < assembly.OptionalUnityReferences.Length; i++)
+            {
+                if (string.Equals(
+                        assembly.OptionalUnityReferences[i],
+                        "TestAssemblies",
+                        StringComparison.Ordinal))
+                    return true;
+            }
+            return false;
         }
     }
 }
