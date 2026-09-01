@@ -38,11 +38,13 @@
 
 ## Active blocker evidence
 
-- Baseline/master re-checked at `71e5b6b146cb7dd3b7da0305d0ab42bcc9cea22e`; `fixes/agent-3` remains assignment-doc-only ahead of that baseline before this audit record.
+- Baseline/master re-checked at `71e5b6b146cb7dd3b7da0305d0ab42bcc9cea22e`; `fixes/agent-3` remains assignment-doc-only ahead of that baseline before this blocker correction.
 - Present: `Assets/Game/Input/Api` and `Assets/Game/Input/Runtime`.
-- Absent: production `Assets/Game/Characters`, `Assets/Game/Vitality`, and a production `Game.Encounters.Api` module on the current baseline.
+- Prerequisite SceneIssues are present on master: `20260901-034305-002-GameSystem02ActorVitalityDamageDefeat`, `20260901-034305-003-GameSystem03GameplayCharacterRuntime`, and `20260901-034305-005-GameSystem05EncounterActivationMembershipLifecycle`.
+- Still absent from master: production `Assets/Game/Characters`, `Assets/Game/Vitality`, and a production `Game.Encounters.Api` implementation required by this integration.
 - Current concrete Kentridge seam: `Assets/Game/Composition/Kentridge/Playable/KentridgeForestBanditEncounter.cs` plus `Game.Composition.Kentridge.Playable.asmdef`.
 - Known Combat-internal preservation surface: `ChainRoundReadinessCoordinator`, `ChainEnemyTacticalAI`, `ChainReactionReservationCoordinator`, `ChainExecutionPlan`, and `ChainCombatBoard` in the older `MountingForce.CombatPrototype` namespace.
 - Existing production-facing verification surface: `Assets/Tests/PlayMode/CombatAuthorityMigrationTests.cs`, `CombatInputModuleBoundaryTests.cs`, and `KentridgeCombatEncounterTests.cs`.
 - Current Combat module has no module-validation manifest; create the validation declaration with the real production migration rather than a docs-only placeholder.
+- `ci-test/fixes/agent-3` is idle; its latest run (`33445053759`, SHA `072f9d2ae473f18049adae1c757656e05dd457c7`) completed successfully for older work and is not evidence for the current feature head. Do not replace it until there is an exact production/test SHA worth validating.
 - Acceptance remains unchanged; continue by merging new `origin/master` prerequisite work when it becomes available, then resume at T01-002.
