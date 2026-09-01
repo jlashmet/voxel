@@ -23,11 +23,13 @@ World generators remain authoritative. `FeaturePresentationBake` is derived pres
 
 ## Current discriminator / blocker
 
-T008 is implemented narrowly on the feature branch: Rendering API now exposes `FarFeatureTier`, `FarFeatureVisualFlags`, `FarFeatureInstance`, and `IFarFeatureRenderer`; Showcase adapts its game-owned structure selection into that generic contract; `ProceduralFarFeatureRenderer` treats geometry/style keys as opaque and keeps zero persistent per-feature GameObjects. Audit found the obsolete structure-specific renderer and test surface still present after the initial migration; that stale compile surface was removed/migrated before CI. The next gate is focused exact-SHA CI for `FarFeatureRenderingTests` plus automatic affected-module validation. Do not pull T009 projected-significance policy or T010 baked-geometry implementation forward.
+T008 is implemented narrowly on the feature branch: Rendering API exposes `FarFeatureTier`, `FarFeatureVisualFlags`, `FarFeatureInstance`, and `IFarFeatureRenderer`; Showcase adapts its game-owned structure selection into that generic contract; `ProceduralFarFeatureRenderer` treats geometry/style keys as opaque and keeps zero persistent per-feature GameObjects.
+
+Two materially different T008 compile fixes exposed the same acceptance symptom: the generic render contract replaced/deleted `FarStructureInstance`, but branch-local regression files created earlier in this assignment were not migrated atomically. Run `33508370189` failed on three stale `ShowcaseFarStructureSourceTests` helper signatures; feature `4d8e02128f3c8ce804da941edd3ec2bb20572818` migrated that file. Exact rerun `33509860849` then failed only on `SettlementFarHlodTests` lines 38/50/54 with the same missing `FarStructureInstance` symbol. The compiler reported no remaining `FarStructureInstance` errors in other files. This is now the isolated root cause/minimal repro required by the two-failure rule: incomplete test-surface migration after deleting the legacy render type, not a renderer behavior defect.
 
 ## Next independent work
 
-If T008 is exact green, record T005-T008 evidence in `tasks.md` and proceed to T009 only. If it fails, fix only the demonstrated T008 cause; after two materially different fixes to the same symptom, isolate a minimal repro/root cause before another change.
+Migrate `SettlementFarHlodTests` output-side assertions from `FarStructureInstance`/`ProxyKey`/render-tier expectations to `FarFeatureInstance`/`GeometryKey`/`FarFeatureTier`, while preserving `FarStructureTier` only where it remains the scene-owned selection-policy input. Then rerun the same T008 focused exact-SHA gate. Do not pull T009 projected-significance policy or T010 baked-geometry implementation forward until T008 is exact green.
 
 ## Remaining gates
 
