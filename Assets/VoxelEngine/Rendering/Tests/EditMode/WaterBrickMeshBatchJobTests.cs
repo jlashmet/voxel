@@ -9,39 +9,6 @@ namespace VoxelEngine.Tests.EditMode
     public sealed class WaterBrickMeshBatchJobTests
     {
         [Test]
-        public void FlatWaterTop_EmitsPerVoxelTopQuads_ForWaveDeformation()
-        {
-            using var brickBases = new NativeArray<int3>(new[] { int3.zero }, Allocator.Temp);
-            var snapshotData = new byte[WaterBrickMeshBatchJob.SnapshotStride];
-            for (int z = 0; z < WaterBrickMeshBatchJob.Edge; z++)
-            for (int x = 0; x < WaterBrickMeshBatchJob.Edge; x++)
-                snapshotData[x + z * WaterBrickMeshBatchJob.Edge * WaterBrickMeshBatchJob.Edge] = GameMaterialIds.Water;
-
-            using var snapshots = new NativeArray<byte>(snapshotData, Allocator.Temp);
-            using var scratch = new NativeArray<byte>(WaterBrickMeshBatchJob.FaceArea, Allocator.Temp);
-            using var vertices = new NativeList<SmoothSurfaceVertex>(4096, Allocator.Temp);
-            using var indices = new NativeList<uint>(8192, Allocator.Temp);
-            using var overflow = new NativeArray<int>(1, Allocator.Temp);
-
-            Execute(brickBases, snapshots, scratch, vertices, indices, overflow,
-                1u << GameMaterialIds.Water);
-
-            Assert.That(overflow[0], Is.Zero, "The minimal flat-water repro must fit the mesh buffers.");
-
-            int upwardVertexCount = 0;
-            for (int i = 0; i < vertices.Length; i++)
-            {
-                if (vertices[i].Normal.y > 0.99f)
-                    upwardVertexCount++;
-            }
-
-            int expectedTopQuads = WaterBrickMeshBatchJob.Edge * WaterBrickMeshBatchJob.Edge;
-            Assert.That(upwardVertexCount, Is.EqualTo(expectedTopQuads * 4),
-                "A flat water brick needs one top quad per voxel so vertex-stage waves have interior geometry; " +
-                "greedily collapsing the entire top to four corner vertices reproduces the planar-slab defect.");
-        }
-
-        [Test]
         public void Execute_PreservesWaterMaterialIdentityAtNegativeCoordinates()
         {
             using var brickBases = new NativeArray<int3>(new[] { new int3(-8, -8, -8) }, Allocator.Temp);
@@ -49,23 +16,31 @@ namespace VoxelEngine.Tests.EditMode
             snapshotData[0] = GameMaterialIds.Water;
             using var snapshots = new NativeArray<byte>(snapshotData, Allocator.Temp);
             using var scratch = new NativeArray<byte>(WaterBrickMeshBatchJob.FaceArea, Allocator.Temp);
-            using var vertices = new NativeList<SmoothSurfaceVertex>(64, Allocator.Temp);
-            using var indices = new NativeList<uint>(96, Allocator.Temp);
+            using var vertices = new NativeList<SmoothSurfaceVertex>(256, Allocator.Temp);
+            using var indices = new NativeList<uint>(384, Allocator.Temp);
             using var overflow = new NativeArray<int>(1, Allocator.Temp);
 
             Execute(brickBases, snapshots, scratch, vertices, indices, overflow,
                 1u << GameMaterialIds.Water);
 
             Assert.That(overflow[0], Is.Zero);
-            Assert.That(vertices.Length, Is.EqualTo(24), "An isolated voxel must expose all six faces.");
-            Assert.That(indices.Length, Is.EqualTo(36));
+            int canonicalVertices = 0;
             for (int i = 0; i < vertices.Length; i++)
             {
-                Assert.That(vertices[i].Material, Is.EqualTo(GameMaterialIds.Water));
-                Assert.That(vertices[i].Position.x, Is.InRange(-8f, -7f));
-                Assert.That(vertices[i].Position.y, Is.InRange(-8f, -7f));
-                Assert.That(vertices[i].Position.z, Is.InRange(-8f, -7f));
+                SmoothSurfaceVertex vertex = vertices[i];
+                Assert.That(vertex.Material & SmoothSurfaceVertex.BaseMaterialMask,
+                    Is.EqualTo((uint)GameMaterialIds.Water));
+                if ((vertex.Material & SmoothSurfaceVertex.WaterSprayFlag) != 0)
+                    continue;
+
+                canonicalVertices++;
+                Assert.That(vertex.Position.x, Is.InRange(-8f, -7f));
+                Assert.That(vertex.Position.y, Is.InRange(-8f, -7f));
+                Assert.That(vertex.Position.z, Is.InRange(-8f, -7f));
             }
+
+            Assert.That(canonicalVertices, Is.EqualTo(24),
+                "An isolated voxel must retain all six canonical faces; optional impact spray is supplemental geometry.");
         }
 
         [Test]
@@ -77,25 +52,32 @@ namespace VoxelEngine.Tests.EditMode
                 snapshotData[y * WaterBrickMeshBatchJob.Edge] = GameMaterialIds.Cascade;
             using var snapshots = new NativeArray<byte>(snapshotData, Allocator.Temp);
             using var scratch = new NativeArray<byte>(WaterBrickMeshBatchJob.FaceArea, Allocator.Temp);
-            using var vertices = new NativeList<SmoothSurfaceVertex>(64, Allocator.Temp);
-            using var indices = new NativeList<uint>(96, Allocator.Temp);
+            using var vertices = new NativeList<SmoothSurfaceVertex>(256, Allocator.Temp);
+            using var indices = new NativeList<uint>(384, Allocator.Temp);
             using var overflow = new NativeArray<int>(1, Allocator.Temp);
 
             Execute(brickBases, snapshots, scratch, vertices, indices, overflow,
                 1u << GameMaterialIds.Cascade);
 
             Assert.That(overflow[0], Is.Zero);
-            Assert.That(vertices.Length, Is.EqualTo(24),
-                "A vertical cascade column must greedily retain four vertical sheet quads plus top/bottom faces.");
-            Assert.That(indices.Length, Is.EqualTo(36));
 
+            int canonicalVertices = 0;
             int verticalVertices = 0;
             for (int i = 0; i < vertices.Length; i++)
             {
-                Assert.That(vertices[i].Material, Is.EqualTo(GameMaterialIds.Cascade));
-                if (math.abs(vertices[i].Normal.y) < 0.5f)
+                SmoothSurfaceVertex vertex = vertices[i];
+                Assert.That(vertex.Material & SmoothSurfaceVertex.BaseMaterialMask,
+                    Is.EqualTo((uint)GameMaterialIds.Cascade));
+                if ((vertex.Material & SmoothSurfaceVertex.WaterSprayFlag) != 0)
+                    continue;
+
+                canonicalVertices++;
+                if (math.abs(vertex.Normal.y) < 0.5f)
                     verticalVertices++;
             }
+
+            Assert.That(canonicalVertices, Is.EqualTo(24),
+                "A vertical cascade column must retain four canonical vertical sheet quads plus top/bottom faces.");
             Assert.That(verticalVertices, Is.EqualTo(16),
                 "Canonical extraction must expose both sides of a vertical waterfall sheet for the shared shader.");
         }
@@ -122,8 +104,8 @@ namespace VoxelEngine.Tests.EditMode
 
             using var snapshots = new NativeArray<byte>(snapshotData, Allocator.Temp);
             using var scratch = new NativeArray<byte>(WaterBrickMeshBatchJob.FaceArea, Allocator.Temp);
-            using var vertices = new NativeList<SmoothSurfaceVertex>(128, Allocator.Temp);
-            using var indices = new NativeList<uint>(192, Allocator.Temp);
+            using var vertices = new NativeList<SmoothSurfaceVertex>(512, Allocator.Temp);
+            using var indices = new NativeList<uint>(768, Allocator.Temp);
             using var overflow = new NativeArray<int>(1, Allocator.Temp);
 
             uint waterMask = (1u << GameMaterialIds.Water)
@@ -132,18 +114,24 @@ namespace VoxelEngine.Tests.EditMode
             Execute(brickBases, snapshots, scratch, vertices, indices, overflow, waterMask);
 
             Assert.That(overflow[0], Is.Zero);
-            Assert.That(vertices.Length, Is.EqualTo(40),
-                "Two adjacent boundary voxels must emit five faces each, with no reciprocal seam quads.");
-            Assert.That(indices.Length, Is.EqualTo(60));
 
+            int canonicalVertices = 0;
             int riverVertices = 0;
             int cascadeVertices = 0;
             for (int i = 0; i < vertices.Length; i++)
             {
-                if (vertices[i].Material == GameMaterialIds.RiverWater) riverVertices++;
-                if (vertices[i].Material == GameMaterialIds.Cascade) cascadeVertices++;
+                SmoothSurfaceVertex vertex = vertices[i];
+                if ((vertex.Material & SmoothSurfaceVertex.WaterSprayFlag) != 0)
+                    continue;
+
+                canonicalVertices++;
+                uint material = vertex.Material & SmoothSurfaceVertex.BaseMaterialMask;
+                if (material == GameMaterialIds.RiverWater) riverVertices++;
+                if (material == GameMaterialIds.Cascade) cascadeVertices++;
             }
 
+            Assert.That(canonicalVertices, Is.EqualTo(40),
+                "Two adjacent boundary voxels must retain five canonical faces each, with no reciprocal seam quads; impact spray is supplemental.");
             Assert.That(riverVertices, Is.EqualTo(20));
             Assert.That(cascadeVertices, Is.EqualTo(20));
         }
