@@ -28,6 +28,7 @@
         "Game.Composition.Kentridge.Playable",
         "Game.Composition.WorldBuilderWorldGen",
         "Game.Composition.WorldBuilderWorldGen.Runtime",
+        "Game.Characters.Api",
         "Game.Combat.Api",
         "Game.Combat.Runtime",
         "Game.Input.Api",
