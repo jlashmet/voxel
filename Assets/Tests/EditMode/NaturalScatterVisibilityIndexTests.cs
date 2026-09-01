@@ -59,8 +59,9 @@ namespace VoxelEngine.Tests.EditMode
                 NaturalScatterVisibilityIndex.GenerateOrdinaryBoulders(923u, 4, -3, 1000, 128);
             for (int i = 0; i < ordinary.Count; i++)
             {
+                NaturalScatterRecord record = ordinary[i];
                 bool promoted = NaturalScatterPresentationPromotion.TryBake(
-                    in ordinary[i], in policy, material: 1, baker, out FeaturePresentationBake bake);
+                    in record, in policy, material: 1, baker, out FeaturePresentationBake bake);
                 if (promoted) manifest.Upsert(bake);
             }
 
