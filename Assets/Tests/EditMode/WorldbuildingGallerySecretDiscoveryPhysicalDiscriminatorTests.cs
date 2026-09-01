@@ -15,12 +15,15 @@ namespace VoxelEngine.Tests.EditMode
 {
     /// <summary>
     /// Physical-policy regression for Gallery secret discovery. The legacy Gallery cave is kept as
-    /// evidence of an intrinsic placement conflict, while the final acceptance consumer uses a
-    /// nearby generated cave configuration already proven by the dedicated module validation scene.
+    /// evidence of an intrinsic placement conflict. The supported acceptance cave is tested against
+    /// terrain occupancy rather than an infinite-solid fixture so insufficient overburden cannot be
+    /// mistaken for a valid pocket host.
     /// </summary>
     public sealed class WorldbuildingGallerySecretDiscoveryPhysicalDiscriminatorTests
     {
         private const uint GallerySeed = 0x5EED1234u;
+        private const int SecretCaveX = -1340;
+        private const int SecretCaveZ = 220;
 
         [Test]
         public void LegacyGalleryCaveCannotHostRequestedPocketInFreshSolidWorld()
@@ -67,12 +70,47 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void SupportedGalleryAcceptanceCaveHostsRequestedPocketInFreshSolidWorld()
+        public void SupportedGalleryAcceptanceCaveRequiresEnoughTerrainCoverForPocket()
         {
-            var world = new SolidVoxelSession();
-            int surfaceY = TerrainQuery.HeightAt(-1340, 220, GallerySeed);
-            int3 entrance = new int3(-1340, surfaceY - 18, 220);
+            int surfaceY = TerrainQuery.HeightAt(SecretCaveX, SecretCaveZ, GallerySeed);
 
+            var shallowWorld = new TerrainVoxelSession(GallerySeed);
+            CaveAuthoringResult shallow = AuthorSupportedCave(
+                shallowWorld,
+                new int3(SecretCaveX, surfaceY - 18, SecretCaveZ));
+            bool shallowAuthored = TryAuthorPocket(
+                shallowWorld,
+                in shallow,
+                out _,
+                out CaveSecretPocketCompositionFailure shallowFailure);
+
+            var coveredWorld = new TerrainVoxelSession(GallerySeed);
+            CaveAuthoringResult covered = AuthorSupportedCave(
+                coveredWorld,
+                new int3(SecretCaveX, surfaceY - 48, SecretCaveZ));
+            bool coveredAuthored = TryAuthorPocket(
+                coveredWorld,
+                in covered,
+                out CaveSecretPocketProjection projection,
+                out CaveSecretPocketCompositionFailure coveredFailure);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(shallowAuthored, Is.False,
+                    "The old 18-voxel cover unexpectedly became valid; re-evaluate the Gallery depth policy.");
+                Assert.That(shallowFailure, Is.EqualTo(CaveSecretPocketCompositionFailure.PhysicalConflict));
+                Assert.That(covered.TraversalCandidates.Count, Is.GreaterThanOrEqualTo(2));
+                Assert.That(coveredAuthored, Is.True,
+                    $"48-voxel Gallery cave cover failed with {coveredFailure}.");
+                Assert.That(coveredFailure, Is.EqualTo(CaveSecretPocketCompositionFailure.None));
+                Assert.That(projection.IsWellFormed, Is.True);
+            });
+        }
+
+        private static CaveAuthoringResult AuthorSupportedCave(
+            IStructureAuthoringSession world,
+            int3 entrance)
+        {
             CaveConfig caveConfig = CaveConfig.Default;
             caveConfig.MainSegmentCount = 10;
             caveConfig.MaxBranches = 4;
@@ -101,17 +139,7 @@ namespace VoxelEngine.Tests.EditMode
                 Water = GameMaterialIds.Water,
             };
 
-            CaveAuthoringResult cave = CaveAuthoring.Author(world, in request, in caveConfig, in palette);
-            bool authored = TryAuthorPocket(world, in cave, out CaveSecretPocketProjection projection,
-                out CaveSecretPocketCompositionFailure failure);
-
-            Assert.Multiple(() =>
-            {
-                Assert.That(cave.TraversalCandidates.Count, Is.GreaterThanOrEqualTo(2));
-                Assert.That(authored, Is.True, $"Supported Gallery acceptance cave failed with {failure}.");
-                Assert.That(failure, Is.EqualTo(CaveSecretPocketCompositionFailure.None));
-                Assert.That(projection.IsWellFormed, Is.True);
-            });
+            return CaveAuthoring.Author(world, in request, in caveConfig, in palette);
         }
 
         private static bool TryAuthorPocket(
@@ -150,23 +178,32 @@ namespace VoxelEngine.Tests.EditMode
                 out failure);
         }
 
-        private sealed class SolidVoxelSession : IStructureAuthoringSession
+        private class SolidVoxelSession : IStructureAuthoringSession
         {
-            private readonly HashSet<int3> _empty = new HashSet<int3>();
+            protected readonly HashSet<int3> Empty = new HashSet<int3>();
+            protected readonly HashSet<int3> SolidOverrides = new HashSet<int3>();
 
             public bool BudgetExceeded => false;
             public int WriteBudget => int.MaxValue;
-            public long TotalVoxelsWritten => _empty.Count;
+            public long TotalVoxelsWritten => Empty.Count + SolidOverrides.Count;
 
             public byte Get(int x, int y, int z) => IsSolid(x, y, z) ? (byte)2 : (byte)0;
             public byte GetCoating(int x, int y, int z) => Coatings.None;
-            public bool IsSolid(int x, int y, int z) => !_empty.Contains(new int3(x, y, z));
+            public virtual bool IsSolid(int x, int y, int z) => !Empty.Contains(new int3(x, y, z));
 
             public void Set(int x, int y, int z, byte material)
             {
                 int3 p = new int3(x, y, z);
-                if (material == GameMaterialIds.Empty) _empty.Add(p);
-                else _empty.Remove(p);
+                if (material == GameMaterialIds.Empty)
+                {
+                    Empty.Add(p);
+                    SolidOverrides.Remove(p);
+                }
+                else
+                {
+                    Empty.Remove(p);
+                    SolidOverrides.Add(p);
+                }
             }
 
             public void SetStyled(int x, int y, int z, byte material, ushort surfaceStyle,
@@ -227,6 +264,24 @@ namespace VoxelEngine.Tests.EditMode
             public void SpiralStair(int cx, int baseY, int cz, int radius, int height, byte material) { }
             public void Carve(int3 min, int3 size) => FillBulk(min, size, GameMaterialIds.Empty);
             public void Weather(int3 min, int3 size, byte coating, uint seed, int chanceOutOf100) { }
+        }
+
+        private sealed class TerrainVoxelSession : SolidVoxelSession
+        {
+            private readonly uint _seed;
+
+            public TerrainVoxelSession(uint seed)
+            {
+                _seed = seed;
+            }
+
+            public override bool IsSolid(int x, int y, int z)
+            {
+                int3 p = new int3(x, y, z);
+                if (Empty.Contains(p)) return false;
+                if (SolidOverrides.Contains(p)) return true;
+                return y <= TerrainQuery.HeightAt(x, z, _seed);
+            }
         }
     }
 }
