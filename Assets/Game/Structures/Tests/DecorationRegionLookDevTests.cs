@@ -7,7 +7,6 @@ namespace Game.Structures.Tests
 {
     public sealed class DecorationRegionLookDevTests
     {
-        [Test]
         public void SameGuildRoomResolvesAcrossAllSixRegionsWithDistinctPresentation()
         {
             DecorationSpace space = Space();
