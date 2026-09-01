@@ -17,9 +17,9 @@
 
 - [x] **T03-010 — Implement one authoritative registry.** Enforce unique `CharacterId`, deterministic lookup, creation, binding and removal.
 - [x] **T03-011 — Bind campaign/world-generated identities.** Map realized NPC/player/enemy semantic identities to stable CharacterIds without scene-object authority.
-- [ ] **T03-012 — Migrate player actor ownership.** Move scene/bootstrap player records behind the character registry while retaining session/player identity ownership in system 07.
-- [ ] **T03-013 — Migrate NPC/recruit ownership.** Represent persistent authored characters through the same lifecycle and registry.
-- [ ] **T03-014 — Migrate enemy ownership.** Replace enemy-specific persistent actor state with Character composition; tactical behavior remains in AI/Combat.
+- [x] **T03-012 — Migrate player actor ownership.** Move scene/bootstrap player records behind the character registry while retaining session/player identity ownership in system 07.
+- [x] **T03-013 — Migrate NPC/recruit ownership.** Represent persistent authored characters through the same lifecycle and registry.
+- [x] **T03-014 — Migrate enemy ownership.** Replace enemy-specific persistent actor state with Character composition; tactical behavior remains in AI/Combat.
 - [ ] **T03-015 — Integrate movement/world queries.** Route authoritative movement/collision through existing world APIs while keeping voxel implementation details out of Characters.Api.
 - [ ] **T03-016 — Add narrow consumer seams.** Support Vitality, AI, Encounters, Sessions, replication, persistence, inventory binding, and cutscene actor resolution through API contracts only.
 - [ ] **T03-017 — Distinguish defeat from removal.** A defeated character remains a character until owning gameplay policy removes it.
