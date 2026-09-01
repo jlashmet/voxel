@@ -23,20 +23,18 @@
 ## Material results
 - Earlier manifest-driven runs proved the automatic Water -> Kentridge player path and isolated/fixed Water correctness/evidence issues; that registration architecture is superseded.
 - Agent-9's canonical Water implementation landed on master in `0de38ba704be999c13c9c9aa59237efa65405144`, clearing the reuse prerequisite.
-- Exact request for feature `1c82800896e40f34a1a4550865a83bd975a44428`, run `33463299020`, failed **before Unity** in automatic planning: `Assets/Game/Scenes/interactables-secrets.module-validation.json` remained from the old registration mechanism. This was an architecture migration defect, not infrastructure or rendering.
-- Live-tree inventory then found the remaining obsolete registrations; Structures' manifest had already disappeared on the live branch, the remaining interactables manifest was deleted, and feature tree `b6344668d8b904e488f22cdc66eb15702e376874` was clean at that point.
-- The same audit corrected Water discovery/location to the documented `Rendering/Validation/Water` convention and wired generic `tools/tests/test_*.py` discovery into targeted CI.
-- Exact request run `33464201573` for feature `7d88992a6a296c4dcb743c6ad219ec7ebfec77a3` failed before Unity at the intended repository-wide architecture guard because `Assets/Game/WorldBuilder/Generation/Validation/SpatialReservations/spatial-reservations.module-validation.json` had subsequently been introduced by the separate SpatialReservations assignment. The same file is currently present on both `master` and `fixes/agent-7`.
-- This is an external prerequisite/blocker, not a reason to weaken acceptance: this issue explicitly requires the registration concept to be absent repository-wide, and its regression must continue to fail when one is reintroduced. Agent-8 will not modify the SpatialReservations assignment. No replacement targeted CI request should be sent until that external file is removed upstream.
-- Resume audit on 2026-09-01 UTC: `fixes/agent-8` was `63c9de32b8c5846c76391e123597d9066ad9d2c5`; `origin/master` was `71e5b6b146cb7dd3b7da0305d0ab42bcc9cea22e`. The forbidden SpatialReservations manifest still exists on current master, current agent-8, and `fixes/agent-7`; therefore the prerequisite remains unresolved. Existing `ci-test/fixes/agent-8` still points at the completed prior request parented by `7d88992a6a296c4dcb743c6ad219ec7ebfec77a3`; it must not be replaced while the known product blocker remains.
+- Exact request for feature `1c82800896e40f34a1a4550865a83bd975a44428`, run `33463299020`, failed **before Unity** in automatic planning because a residual interactables manifest remained; that obsolete registration was removed.
+- Exact request run `33464201573` for feature `7d88992a6a296c4dcb743c6ad219ec7ebfec77a3` then failed before Unity because the already-completed SpatialReservations assignment had merged a legacy `spatial-reservations.module-validation.json` registration.
+- Resume audit confirmed the SpatialReservations SceneIssue had already been closed on master (`8f41a2364780e32d8744b85c10146c3a192846cb`) and `fixes/agent-7` had moved on to a different assignment. The manifest was therefore stale merged residue, not active externally owned work. Agent-8 removed only that obsolete registration at `a50d42d4c3e05b00e158fa6957e02de2bd57ba74`, directly satisfying this issue's repository-wide no-manifest acceptance without modifying another SceneIssue.
+- Static audit confirms current `WaterDemo.unity` is a thin production consumer and `WaterDemo.player-scenario.json` contains only executable timing/capture/assertion behavior.
 
 ## Blast radius
 CI/orchestration; module/test-assembly discovery; removal of module-registration manifests/docs; migration of broad EditMode ownership; convention-based module-local player target discovery; validation tests/assets; thin Water validation composition. No new simulation/collision policy or adjacent-system refactor.
 
 ## Remaining gates
 - [x] Reconcile checklist items with the implemented module-owned assembly migration and convention regressions.
-- [ ] External prerequisite: SpatialReservations must remove its obsolete `*.module-validation.json` registration without changing this issue's acceptance.
-- [ ] Run exact-current-head automatic module tests, Water built-player, and mandatory Kentridge built-player validation using only `ci-test/fixes/agent-8` after the blocker is gone.
+- [x] Remove the stale SpatialReservations `*.module-validation.json` residue after verifying its owning SceneIssue was already closed.
+- [ ] Run exact-current-head automatic module tests, Water built-player, and mandatory Kentridge built-player validation using only `ci-test/fixes/agent-8`.
 - [ ] Inspect every retained Water standalone post-readiness frame and verify production quality/evidence-window pruning.
 - [ ] Review all 18 acceptance criteria; complete metadata/closure only after green exact-SHA proof.
 - [ ] Merge current `origin/master`, revalidate if the exact feature head changes materially, then promote that exact head to `origin/master` non-force.
