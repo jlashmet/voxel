@@ -15,10 +15,14 @@ Exact bake generation passed CI `33451568424`: 98,100 cells, 99×107×107, 0.30 
 
 Current master now contains the repository module-validation schema. A module-owned Dragon fixture is committed under `Assets/Game/Composition/Showcase/Validation/MountainDragonVoxelization/`: it uses the pinned bake, normal ShowcaseWorld storage, production rendering/material rules, deterministic terrain contact, and logs placement/runtime memory. Its built-player result is not yet validated and it does not substitute for the still-missing source-vs-voxel comparison.
 
-A CI transport write accidentally parented the previous CI commit rather than the feature SHA; run `33469292081` is queued. Leave it untouched. Once complete, issue a fresh request parented to the then-current feature head.
+The stale transport run `33469292081` completed and was superseded only after completion. Correct exact-parent run `33472431229` then exposed a real compile boundary defect: the new fidelity test directly referenced `VoxelEngine.MeshVoxelization.Editor`, which its EditMode test assembly cannot reference. Commits `f6ef4aafd3c9edcd8e1e1fdf049f384837d91681` and `28a3805aac59f84f05cfdb7bf16369c900653f7f` keep Unity mesh-adapter/source-loading policy behind the existing Showcase Editor composition and make the regression consume that semantic boundary instead of widening shared APIs.
+
+Exact-parent placement request `33473139368` directly parents feature SHA `28a3805aac59f84f05cfdb7bf16369c900653f7f` and changes only `.github/test-request.json`. It is queued. Repository Actions currently shows zero in-progress runs and another assignment queued too, so runner availability is an external validation blocker. Do not replace the queued request; continue independent acceptance investigation only.
+
+Independent inspection also confirmed the next composition defect: `VoxelShowcase.TryPlaceSelectedStructure` still requires optional inspector `m_MountainDragonVoxelBake` and decodes it through generic `BakedVoxelStructureCodec`, while the pinned runtime artifact is already owned by `MountainDragonBakedArtifact.Load()`. Repair must remain Showcase composition policy; do not teach the shared codec about MDVP/Dragon transport.
 
 ## Next gates
-1. Green exact-SHA world-placement regression, then pinned-source fidelity regression.
+1. Let queued run `33473139368` complete untouched. If green, issue pinned-source fidelity validation against the then-current exact feature SHA; if failed, fix the reported product cause before another request.
 2. Repair VoxelShowcase placement mode to consume `MountainDragonBakedArtifact` in Showcase composition rather than unassigned inspector text/generic codec.
 3. Build matched source-mesh/voxel exhibit and ten required views; inspect built-player output at production-quality bar.
 4. Prove destruction/collision/rendering share edited voxel truth and record runtime cost/blast radius.
