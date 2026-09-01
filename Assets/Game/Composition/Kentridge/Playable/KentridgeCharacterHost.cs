@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Game.Characters.Api;
-using Game.Characters.Runtime;
+using Game.Characters.Composition;
 using Game.Composition.Campaign;
 using Game.Composition.Kentridge.Api;
 using Game.Composition.WorldBuilderWorldGen;
@@ -34,7 +34,7 @@ namespace Game.Composition.Kentridge.Playable
         private readonly CharacterId _playerCharacterId;
 
         public KentridgeCharacterHost(float walkSpeed)
-            : this(walkSpeed, new CharacterRegistry())
+            : this(walkSpeed, CharacterRuntimeFactory.CreateRegistry())
         {
         }
 
