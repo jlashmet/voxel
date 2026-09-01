@@ -16,8 +16,9 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void PlannedCastleIsQueryableBeforeAnyDetailedRegionGeneration()
         {
+            const uint worldSeed = 0xA11CEu;
             using var world = new ShowcaseWorld(
-                seed: 0xA11CEu,
+                seed: worldSeed,
                 brickPoolCapacity: 512,
                 loadRadiusRegions: 1,
                 unloadRadiusRegions: 2);
@@ -55,30 +56,11 @@ namespace VoxelEngine.Tests.EditMode
                 .First(bake => bake.SourceId == castle.SourceId);
             Assert.That(repeated.Revision, Is.EqualTo(castle.Revision));
             Assert.That(world.RegionsGenerated, Is.Zero);
-        }
 
-        [Test]
-        public void PlannedCastleAndIndependentMountainCoexistWithoutDetailedResidency()
-        {
-            const uint worldSeed = 0xA11CEu;
-            using var world = new ShowcaseWorld(
-                seed: worldSeed,
-                brickPoolCapacity: 512,
-                loadRadiusRegions: 1,
-                unloadRadiusRegions: 2);
-
-            Assert.That(world.RegionsGenerated, Is.Zero);
-            Assert.That(world.TryGetPlannedCastle(out var plan), Is.True);
-
-            var castleQuery = new FeaturePresentationBounds(
-                plan.Centre - new int3(1024, 512, 1024),
-                plan.Centre + new int3(1024, 1024, 1024));
-            FeaturePresentationBake castle = world.FeaturePresentation.Query(castleQuery)
-                .First(bake =>
-                    bake.Kind == FeatureKind.Structure
-                    && bake.BoundsMin.x <= plan.Centre.x && bake.BoundsMax.x >= plan.Centre.x
-                    && bake.BoundsMin.z <= plan.Centre.z && bake.BoundsMax.z >= plan.Centre.z);
-
+            // Independent T006 consumer: the production WorldBuilder mountain catalogue enters the
+            // same generic bake/index path as the planned castle. Keep this in the already-proven
+            // planning lifecycle so the regression tests reuse rather than reinitialize Showcase's
+            // one-time landmark planning state.
             FeatureCatalogue mountain = WorldBuilderMountainLandmarkCatalogue.Build(
                 new MountainLandmarkSpec(
                     origin: new int3(2048, 180, 4096),
