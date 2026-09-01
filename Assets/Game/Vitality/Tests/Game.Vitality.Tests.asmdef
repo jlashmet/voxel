@@ -1,0 +1,20 @@
+{
+  "name": "Game.Vitality.Tests",
+  "rootNamespace": "Game.Vitality.Tests",
+  "references": [
+    "Game.Characters.Api",
+    "Game.Vitality.Api",
+    "Game.Vitality.Runtime"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
