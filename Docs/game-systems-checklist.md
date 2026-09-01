@@ -90,7 +90,8 @@ These are existing foundations and are not candidates to rebuild from scratch.
   - Host local application/menu navigation and settings over semantic session/persistence/input capabilities, with Unity Input System device normalization beneath the engine-neutral game input API.
 - [x] **24. [Production-composed built-player vertical slice](game-systems/24-production-composed-built-player-vertical-slice.md)**
   - Prove the production frontend/session/input/gameplay/presentation composition in the canonical standalone-player Kentridge slice without scene-local substitute runtimes or privileged test shortcuts.
-- [ ] **25. Multiplayer end-to-end gameplay tests**
+- [x] **25. [Multiplayer end-to-end gameplay validation](game-systems/25-multiplayer-end-to-end-gameplay-validation.md)**
+  - Prove separate exact-SHA built-player processes share one authoritative session through production formation, gameplay, convergence, interruption/reconnect, and semantic teardown without a test-only multiplayer runtime.
 - [ ] **26. Full-game/session progression loop**
 
 ## Current SceneIssues / explicitly planned work
