@@ -95,9 +95,11 @@ namespace MountingForce.WorldGen.Voxel
     public sealed class TopDownWorldPhysicalRoutePlan
     {
         private readonly Int2[] _tiles;
+        private readonly string[] _constraintRelaxations;
 
         public TopDownWorldRouteSpec Route { get; }
         public IReadOnlyList<Int2> Tiles => _tiles;
+        public IReadOnlyList<string> ConstraintRelaxations => _constraintRelaxations;
         public bool GeographyConstrained { get; }
         public int SolveSteps { get; }
 
@@ -105,14 +107,25 @@ namespace MountingForce.WorldGen.Voxel
             TopDownWorldRouteSpec route,
             IReadOnlyList<Int2> tiles,
             bool geographyConstrained,
-            int solveSteps)
+            int solveSteps,
+            IReadOnlyList<string> constraintRelaxations = null)
         {
             Route = route ?? throw new ArgumentNullException(nameof(route));
             if (tiles == null) throw new ArgumentNullException(nameof(tiles));
             _tiles = new Int2[tiles.Count];
             for (var i = 0; i < tiles.Count; i++) _tiles[i] = tiles[i];
+            _constraintRelaxations = constraintRelaxations == null
+                ? Array.Empty<string>()
+                : Copy(constraintRelaxations);
             GeographyConstrained = geographyConstrained;
             SolveSteps = solveSteps;
+        }
+
+        private static string[] Copy(IReadOnlyList<string> source)
+        {
+            var copy = new string[source.Count];
+            for (var i = 0; i < source.Count; i++) copy[i] = source[i] ?? string.Empty;
+            return copy;
         }
     }
 
@@ -131,6 +144,7 @@ namespace MountingForce.WorldGen.Voxel
         public int BuildingCount { get; }
         public int GeographyConstrainedRouteCount { get; }
         public int RouteSolveSteps { get; }
+        public int ConstraintRelaxationCount { get; }
 
         public TopDownWorldPhysicalPlan(
             IReadOnlyList<TopDownWorldVoxelNodePlan> nodes,
@@ -147,10 +161,12 @@ namespace MountingForce.WorldGen.Voxel
             var buildings = 0;
             var constrained = 0;
             var solveSteps = 0;
+            var relaxations = 0;
             for (var i = 0; i < _routes.Length; i++)
             {
                 tiles += _routes[i].Tiles.Count;
                 solveSteps += _routes[i].SolveSteps;
+                relaxations += _routes[i].ConstraintRelaxations.Count;
                 if (_routes[i].GeographyConstrained) constrained++;
             }
             for (var i = 0; i < _settlements.Length; i++)
@@ -159,6 +175,7 @@ namespace MountingForce.WorldGen.Voxel
             BuildingCount = buildings;
             GeographyConstrainedRouteCount = constrained;
             RouteSolveSteps = solveSteps;
+            ConstraintRelaxationCount = relaxations;
         }
 
         public bool TryGetRegion(string id, out TopDownWorldRegionPlan region)
@@ -431,7 +448,8 @@ namespace MountingForce.WorldGen.Voxel
                     route,
                     tiles,
                     solved.GeographyConstrained,
-                    solved.SolveSteps + Math.Max(0, tiles.Count - solved.Tiles.Count)));
+                    solved.SolveSteps + Math.Max(0, tiles.Count - solved.Tiles.Count),
+                    solved.ConstraintRelaxations));
             }
 
             plan = new TopDownWorldPhysicalPlan(nodes, regions, settlements, routes);
@@ -468,7 +486,6 @@ namespace MountingForce.WorldGen.Voxel
                 TopDownWorldRegionPlan region = regions[i];
                 if (region.Spec.Kind != TopDownWorldRegionKind.ValleyPass) continue;
 
-                // A pass is meaningful only if it is contained by at least one blocking ridge.
                 bool insideBarrier = false;
                 foreach (KeyValuePair<string, TopDownWorldRegionPlan> pair in byId)
                 {
@@ -623,6 +640,7 @@ namespace MountingForce.WorldGen.Voxel
             error = string.Empty;
             var direct = BuildManhattan(from, to, PreferXFirst(seed, route.Key));
             var blocking = new List<TopDownWorldRegionPlan>();
+            var relaxations = new List<string>();
             int margin = route.CorridorWidthDm / 2;
             for (var i = 0; i < regions.Count; i++)
             {
@@ -649,8 +667,41 @@ namespace MountingForce.WorldGen.Voxel
                 switch (solution.SolutionKind)
                 {
                     case TopDownWorldRouteRegionSolutionKind.GoAround:
-                        tiles = BuildAround(from, to, blocker, solution.ClearanceDm + margin, seed, route.Key);
+                    {
+                        bool fromInside = blocker.Contains(from, 0);
+                        bool toInside = blocker.Contains(to, 0);
+                        if ((fromInside || toInside)
+                            && solution.RelaxationMode == TopDownWorldConstraintRelaxationMode.Strict)
+                        {
+                            string endpoint = fromInside && toInside ? "both endpoints" : fromInside ? "endpoint A" : "endpoint B";
+                            error = "Route '" + route.Key + "' cannot satisfy GoAround('" + blocker.Spec.Id +
+                                    "'): the blocking region contains " + endpoint + " and the constraint is Strict.";
+                            return false;
+                        }
+
+                        bool allowEndpointEscape = solution.RelaxationMode == TopDownWorldConstraintRelaxationMode.EndpointEscape;
+                        tiles = BuildAround(
+                            from,
+                            to,
+                            blocker,
+                            solution.ClearanceDm + margin,
+                            seed,
+                            route.Key,
+                            allowEndpointEscape);
+                        if (allowEndpointEscape && (fromInside || toInside))
+                        {
+                            string endpoint = fromInside && toInside ? "A+B" : fromInside ? "A" : "B";
+                            relaxations.Add(
+                                "route=" + route.Key +
+                                "; region=" + blocker.Spec.Id +
+                                "; constraint=GoAround" +
+                                "; exact=endpoint-overlap" +
+                                "; relaxation=EndpointEscape(" + endpoint + ")" +
+                                "; requestedClearanceDm=" + solution.ClearanceDm +
+                                "; result=solved");
+                        }
                         break;
+                    }
                     case TopDownWorldRouteRegionSolutionKind.PassThrough:
                         tiles = direct;
                         break;
@@ -669,7 +720,7 @@ namespace MountingForce.WorldGen.Voxel
                 return false;
             if (!ValidateSlope(route, tiles, seed, voxelsPerDecimetre, out error)) return false;
 
-            plan = new TopDownWorldPhysicalRoutePlan(route, tiles, geographyConstrained, solveSteps);
+            plan = new TopDownWorldPhysicalRoutePlan(route, tiles, geographyConstrained, solveSteps, relaxations);
             return true;
         }
 
@@ -699,6 +750,23 @@ namespace MountingForce.WorldGen.Voxel
                 TopDownWorldRegionPlan blocker = regions[r];
                 if (!blocker.Spec.BlocksUnsolvedHardRoutes) continue;
                 TopDownWorldRouteRegionConstraintSpec solution = FindConstraint(constraints, blocker.Spec.Id);
+                bool endpointEscape = solution != null
+                    && solution.SolutionKind == TopDownWorldRouteRegionSolutionKind.GoAround
+                    && solution.RelaxationMode == TopDownWorldConstraintRelaxationMode.EndpointEscape;
+                bool startInside = tiles.Count > 0 && blocker.Contains(tiles[0], -margin);
+                bool endInside = tiles.Count > 0 && blocker.Contains(tiles[tiles.Count - 1], -margin);
+                int firstOutside = 0;
+                while (firstOutside < tiles.Count && blocker.Contains(tiles[firstOutside], -margin)) firstOutside++;
+                int lastOutside = tiles.Count - 1;
+                while (lastOutside >= 0 && blocker.Contains(tiles[lastOutside], -margin)) lastOutside--;
+
+                if (endpointEscape && startInside && endInside && firstOutside > lastOutside)
+                {
+                    error = "hard route '" + route.Key + "' cannot use EndpointEscape for region '" +
+                            blocker.Spec.Id + "' because the route never leaves the blocking region";
+                    return false;
+                }
+
                 for (var i = 0; i < tiles.Count; i++)
                 {
                     if (!blocker.Contains(tiles[i], -margin)) continue;
@@ -714,6 +782,9 @@ namespace MountingForce.WorldGen.Voxel
                         TopDownWorldRegionPlan crossing = regionById[solution.SolutionRegionId];
                         if (crossing.Contains(tiles[i], -margin)) continue;
                     }
+                    if (endpointEscape
+                        && ((startInside && i < firstOutside) || (endInside && i > lastOutside)))
+                        continue;
                     error = "hard route '" + route.Key + "' leaves its authored geography solution while inside '" +
                             blocker.Spec.Id + "'";
                     return false;
@@ -768,8 +839,11 @@ namespace MountingForce.WorldGen.Voxel
             TopDownWorldRegionPlan blocker,
             int clearanceDm,
             uint seed,
-            string key)
+            string key,
+            bool allowEndpointEscape)
         {
+            bool fromInside = blocker.Contains(from, 0);
+            bool toInside = blocker.Contains(to, 0);
             int left = blocker.CentreDm.X - blocker.HalfExtentXDm - clearanceDm;
             int right = blocker.CentreDm.X + blocker.HalfExtentXDm + clearanceDm;
             int bottom = blocker.CentreDm.Y - blocker.HalfExtentZDm - clearanceDm;
@@ -789,7 +863,12 @@ namespace MountingForce.WorldGen.Voxel
             {
                 int index = (pass + rotation) % candidates.Length;
                 List<Int2> candidate = BuildWaypoints(candidates[index]);
-                if (Intersects(candidate, blocker, 0)) continue;
+                if (IntersectsOutsideEndpointEscape(
+                        candidate,
+                        blocker,
+                        allowEndpointEscape && fromInside,
+                        allowEndpointEscape && toInside))
+                    continue;
                 int length = PathLength(candidate);
                 if (length >= bestLength) continue;
                 bestLength = length;
@@ -798,6 +877,37 @@ namespace MountingForce.WorldGen.Voxel
             if (best == null)
                 throw new InvalidOperationException("No dry detour could be built around region '" + blocker.Spec.Id + "'.");
             return best;
+        }
+
+        private static bool IntersectsOutsideEndpointEscape(
+            IReadOnlyList<Int2> tiles,
+            TopDownWorldRegionPlan blocker,
+            bool allowStartEscape,
+            bool allowEndEscape)
+        {
+            int firstOutside = 0;
+            while (allowStartEscape
+                   && firstOutside < tiles.Count
+                   && blocker.Contains(tiles[firstOutside], 0))
+                firstOutside++;
+
+            int lastOutside = tiles.Count - 1;
+            while (allowEndEscape
+                   && lastOutside >= 0
+                   && blocker.Contains(tiles[lastOutside], 0))
+                lastOutside--;
+
+            if ((allowStartEscape || allowEndEscape) && firstOutside > lastOutside)
+                return true;
+
+            for (var i = 0; i < tiles.Count; i++)
+            {
+                if (!blocker.Contains(tiles[i], 0)) continue;
+                if (allowStartEscape && i < firstOutside) continue;
+                if (allowEndEscape && i > lastOutside) continue;
+                return true;
+            }
+            return false;
         }
 
         private static List<Int2> BuildManhattan(Int2 from, Int2 to, bool xFirst)
