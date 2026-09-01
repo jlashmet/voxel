@@ -23,7 +23,12 @@ namespace VoxelEngine.Showcase
         public const int PlaceholderSize = 60;
         public const string AscentRouteId = "showcase-mountain-dragon-ascent";
 
-        private const int SpiralControlCount = 13;
+        // Keep the same one-and-a-half-turn authored ascent as the earlier 13-point layout, but
+        // sample it at half the angular/radial step. The shared road resolver grades between
+        // controls; coarse 45-degree chords cut across the ridged landform strongly enough that
+        // grade smoothing required 60dm of cut/fill against a 42dm contract. Denser semantic
+        // controls follow the natural contour without weakening either road constraint.
+        private const int SpiralControlCount = 25;
         private const int EntryRadiusDm = MountainRadius + 50;
         private const int SummitApproachRadiusDm = SummitRadius + 25;
 
@@ -150,7 +155,9 @@ namespace VoxelEngine.Showcase
             {
                 int radius = EntryRadiusDm
                     - (EntryRadiusDm - SummitApproachRadiusDm) * i / (SpiralControlCount - 1);
-                int direction = (12 + i * 2) & 15;
+                // 22.5 degrees per control over 24 intervals = the same 540-degree / 1.5-turn
+                // spiral as before, with smaller contour-following chords.
+                int direction = (12 + i) & 15;
                 controls.Add(new WorldRoadPlanPoint(
                     summit.CentreXdm + DirectionX[direction] * radius / 1024,
                     summit.CentreZdm + DirectionZ[direction] * radius / 1024));
