@@ -18,21 +18,21 @@
 - [x] **T07-011 — Implement deterministic slot allocation.** Lowest free configured slot; no four-player hardcode.
 - [x] **T07-012 — Bind connection to durable member.** Runtime-only opaque handle; rebind preserves identity.
 - [x] **T07-013 — Bind PlayerSlot to CharacterId.** Stable unique mapping through Characters.Api semantic binding.
-- [x] **T07-014 — Implement leadership semantics.** Explicit role; oldest-member transfer policy only.
+- [x] **T07-014 — Implement leadership semantics.** Oldest-member automatic transfer plus explicit transfer policy, without gameplay authority side effects.
 - [x] **T07-015 — Implement readiness barrier.** Connected alone cannot launch; synchronization precedes GameplayReady.
 - [x] **T07-016 — Implement configured join-in-progress admission.** Existing identities preserved; full/incompatible joins rejected deterministically.
 - [x] **T07-017 — Expose snapshot/events for presentation and persistence adapters.** Read-only snapshot + semantic lifecycle event stream.
 
 ## Verification
-- [ ] **T07-020 — Formation tests for 2–4/configured capacity.** Authored; exact-SHA run pending.
-- [ ] **T07-021 — Leadership tests.** Authored; exact-SHA run pending.
-- [ ] **T07-022 — Readiness tests.** Authored; exact-SHA run pending.
-- [ ] **T07-023 — Join-in-progress tests.** Authored; exact-SHA run pending.
-- [ ] **T07-024 — Headless join-provider fixture.** Authored independent provider fixture; exact-SHA run pending.
-- [ ] **T07-025 — Character binding test.** Authored; exact-SHA run pending.
-- [ ] **T07-026 — Run automatic module/network dependent tests.**
+- [x] **T07-020 — Formation tests for 2–4/configured capacity.** Exact run `33501748546`: 11/11 Sessions tests green including capacity 2/3/4/6.
+- [x] **T07-021 — Leadership tests.** Oldest-successor regression green on `33501748546`; explicit-transfer regression added for final gate.
+- [x] **T07-022 — Readiness tests.** Exact run proves connected cannot launch before synchronization/readiness.
+- [x] **T07-023 — Join-in-progress tests.** Exact run proves continuity plus version/content/policy rejection.
+- [x] **T07-024 — Headless join-provider fixture.** Independent deterministic provider fixture green on exact run.
+- [x] **T07-025 — Character binding test.** Semantic `party-member` binding green; duplicate external-binding rejection added for final gate.
+- [ ] **T07-026 — Run automatic module/network dependent tests.** First exact slice `33501748546` green: Sessions 11/11 + mandatory Kentridge, 201.23s. Final adapter head pending.
 
 ## Cleanup / close
-- [ ] **T07-030 — Remove socket-id gameplay identity.** Migrate legacy server authentication/player registry integration to durable Sessions identity without taking reconnect policy.
-- [ ] **T07-031 — Boundary audit.** Sessions.Api exposes no UTP/socket type and Sessions owns no reconnect policy.
-- [ ] **T07-032 — Close with identity proof.** Show stable `PartyMemberId -> PlayerSlot -> CharacterId` chain for system 08 continuity.
+- [x] **T07-030 — Remove socket-id gameplay identity.** Added `IAuthoritativePlayerAdmission` + Sessions adapter: durable member/slot drives transient network actor id; existing server authentication remains lower-level and reconnect policy is unchanged.
+- [x] **T07-031 — Boundary audit.** Sessions.Api exposes no connection/socket/UTP type; only Runtime sees opaque connection handles/Net.Api. Net runtime adapter owns conversion to server `int3`; reconnect remains under VoxelEngine.Net.
+- [ ] **T07-032 — Close with identity proof.** Final exact gate must prove stable `PartyMemberId -> PlayerSlot -> CharacterId` through connection changes before closure.
