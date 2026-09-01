@@ -80,7 +80,8 @@ These are existing foundations and are not candidates to rebuild from scratch.
   - Present stable inventory snapshots and request semantic transfers/drops without introducing slot semantics, duplicate quantities, or UI-owned inventory authority.
 - [x] **19. [Quest & objective UI / progression presentation](game-systems/19-quest-objective-ui-progression-presentation.md)**
   - Present unified authoritative progression through snapshot-driven journal and tracked-objective views while keeping tracking, selection, and presentation metadata local/non-authoritative.
-- [ ] **20. Multiplayer teammate / session UI**
+- [x] **20. [Multiplayer party, teammate & session presentation](game-systems/20-multiplayer-party-teammate-session-presentation.md)**
+  - Present durable party/session identities, readiness, teammate state, and reconnect continuity without coupling UI to transport connections or duplicating gameplay state.
 - [ ] **21. Gameplay audio integration**
 - [ ] **22. Combat / interaction VFX and feedback**
 - [ ] **23. Game menus / settings / start flow**
