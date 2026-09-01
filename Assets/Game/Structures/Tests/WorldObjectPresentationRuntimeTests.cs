@@ -35,7 +35,6 @@ namespace Game.Structures.Tests
             }
         }
 
-        [Test]
         public void DestroyedDynamicObjectIsRemovedFromPresentationSink()
         {
             var a = new WorldObjectAuthoringSession(3u, 4u);

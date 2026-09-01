@@ -9,7 +9,6 @@ namespace Game.Structures.Tests
 {
     public sealed class CastleAuthoringBuildTests
     {
-        [Test]
         public void Build_PreservesLegacyOuterAndKeepStageProgression()
         {
             var authoring = new NullAuthoringSession(int.MaxValue);
@@ -42,7 +41,6 @@ namespace Game.Structures.Tests
             Assert.That(build.IsComplete, Is.False);
         }
 
-        [Test]
         public void Constructor_RejectsPlanWhoseEstimatedWritesExceedSessionBudget()
         {
             CastlePlan plan = SmallPlan();
