@@ -6,9 +6,8 @@ using VoxelEngine.Structures.Api;
 namespace Game.WorldBuilder.Voxel.Tests.EditMode
 {
     /// <summary>
-    /// Independent consumer proof for the semantic mountain climate contract. The fixture deliberately
-    /// reuses one physical surface with materially different climate policies so presentation cannot
-    /// become a second source of mountain shape authority.
+    /// Independent consumer proof for the semantic mountain climate contract. The fixtures keep
+    /// shape and presentation independently configurable and use no Showcase policy.
     /// </summary>
     public sealed class MountainClimateReuseTests
     {
@@ -76,6 +75,86 @@ namespace Game.WorldBuilder.Voxel.Tests.EditMode
             {
                 alpine.Dispose();
                 dry.Dispose();
+            }
+        }
+
+        [Test]
+        public void SameBuilderSupportsMateriallyDifferentShapeAndClimateCombinations()
+        {
+            var broadSpec = new MountainLandformSpec(
+                originXdm: 80,
+                originYdm: 16,
+                originZdm: -40,
+                radiusXdm: 620,
+                radiusZdm: 540,
+                heightDm: 250,
+                summitRadiusDm: 125,
+                macroShape: MountainMacroShape.Massif,
+                summitCharacter: MountainSummitCharacter.Broad,
+                seed: 1223u,
+                ridgeCount: 2,
+                ridgeStrengthPermille: 240,
+                asymmetryXPermille: 0,
+                asymmetryZPermille: 0,
+                roughnessAmplitudeDm: 14,
+                roughnessScaleDm: 90,
+                erosionStrengthPermille: 760);
+            var narrowSpec = new MountainLandformSpec(
+                originXdm: -310,
+                originYdm: 34,
+                originZdm: 190,
+                radiusXdm: 300,
+                radiusZdm: 520,
+                heightDm: 360,
+                summitRadiusDm: 48,
+                macroShape: MountainMacroShape.Ridged,
+                summitCharacter: MountainSummitCharacter.Craggy,
+                seed: 9929u,
+                ridgeCount: 8,
+                ridgeStrengthPermille: 900,
+                asymmetryXPermille: 310,
+                asymmetryZPermille: -250,
+                roughnessAmplitudeDm: 54,
+                roughnessScaleDm: 46,
+                erosionStrengthPermille: 430);
+            var broadSurface = new MountainLandformSurface(in broadSpec);
+            var narrowSurface = new MountainLandformSurface(in narrowSpec);
+            var broadClimate = new MountainClimateProfile(
+                groundCoverCeilingPermille: 500,
+                snowLinePermille: 940,
+                steepRockSlopePermille: 1600);
+            var narrowClimate = new MountainClimateProfile(
+                groundCoverCeilingPermille: 190,
+                snowLinePermille: 540,
+                steepRockSlopePermille: 820);
+            var palette = new MountainLandformPalette(
+                groundCoverMaterial: 3,
+                rockMaterial: 6,
+                snowMaterial: 10);
+
+            FeatureCatalogue broad = WorldBuilderMountainLandformCatalogue.Build(
+                broadSurface, broadClimate, in palette, Allocator.Temp);
+            FeatureCatalogue narrow = WorldBuilderMountainLandformCatalogue.Build(
+                narrowSurface, narrowClimate, in palette, Allocator.Temp);
+            try
+            {
+                Assert.That(narrowSurface.MassCount, Is.GreaterThan(broadSurface.MassCount),
+                    "ridged/craggy fixture should realize a materially more articulated mass family");
+                Assert.That(narrowSurface.GetMass(0).BaseRadiusDm,
+                    Is.LessThan(broadSurface.GetMass(0).BaseRadiusDm));
+                Assert.That(broadClimate.RoleAt(700, 300), Is.EqualTo(MountainSurfaceRole.Rock));
+                Assert.That(narrowClimate.RoleAt(700, 300), Is.EqualTo(MountainSurfaceRole.Snow));
+                Assert.That(broad.Definitions[0].MaxPrimitives,
+                    Is.LessThanOrEqualTo(FeatureBudget.MaxPrimitivesPerInstance));
+                Assert.That(narrow.Definitions[0].MaxPrimitives,
+                    Is.LessThanOrEqualTo(FeatureBudget.MaxPrimitivesPerInstance));
+                Assert.That(narrow.Program.Length, Is.Not.EqualTo(broad.Program.Length),
+                    "materially different shape/climate combinations should not collapse to one catalogue");
+            }
+            finally
+            {
+                narrow.Dispose();
+                broad.Dispose();
             }
         }
     }
