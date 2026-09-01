@@ -3,19 +3,11 @@
   "arrivalRadius": 1.25,
   "holdSeconds": 0.03,
   "quitOnComplete": true,
+  "initialPlayerPlacement": {
+    "x": -158.0,
+    "z": -54.0
+  },
   "waypoints": [
-    {
-      "name": "castle-south-exit",
-      "x": 44.6,
-      "z": -54.0,
-      "requireGrounded": true
-    },
-    {
-      "name": "castle-south-west-clear",
-      "x": -56.0,
-      "z": -54.0,
-      "requireGrounded": true
-    },
     {
       "name": "normal-approach",
       "x": -146.2,
