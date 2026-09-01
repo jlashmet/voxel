@@ -2,7 +2,7 @@
 
 ## Proven acceptance infrastructure / retained regressions
 - [x] Compose cube dragon, reusable proximity trigger, reusable cutscene/dialogue, and exact `Hello, I'm Mr. Dragon.` through shared modules rather than scene-local polling/UI.
-- [x] Built-player replay uses normal player movement via the public deterministic movement/replay seam; independent seam proof passed run `33391220613`.
+- [x] Built-player replay uses normal player movement via the deterministic waypoint replay harness; its grounded/Y-offset traversal predicate and test were restored after a later branch deletion regressed this issue's evidence path. Earlier seam proof passed run `33391220613`; current-head replay still requires revalidation.
 - [x] Keep generic Box/Frustum raster fast paths reusable/output-equivalent; independent proof passed run `33357975697`.
 - [x] Keep startup bake guards at 240 s / 14 GiB and preserve binary-safe accepted-payload handoff. Run `33371715298` proved the handoff path but its payload is not visually accepted.
 - [x] Keep focused module-local Mountain Dragon validation and player-safe shader evidence. Run `33406812093` passed; this does not substitute for production `VoxelShowcase` visual acceptance.
@@ -33,13 +33,13 @@
 
 ## Mountain Dragon composition
 - [x] Recompose VoxelShowcase from parameterized natural mountain + shared road ascent + usable summit + supported red cube dragon + reusable proximity/cutscene dialogue.
-- [ ] Keep mountain placement clear of unrelated castle/feature ownership while ensuring the road entrance connects to normal accessible terrain.
+- [ ] Keep mountain placement clear of unrelated castle/feature ownership while ensuring the road entrance connects to normal accessible terrain. Regenerated route preserves the existing two south-of-castle staging legs; built-player proof remains pending.
 - [x] Focused behavioral validation uses the production landform/network and checks resolved grade/cut-fill/summit approach.
 - [x] Module-validation metadata tracks the redesigned production paths and exact focused filter.
 - [x] Migrate `MountainDragonProductionAcceptanceTests` from removed legacy landmark assumptions to current landform/road/placeholder/composition/dialogue contracts.
 - [x] Diagnose repeated 60 dm then 50 dm production cut/fill symptom before third fix; lower only Showcase `RidgeStrengthPermille` from 620 to 300 based on experiment 016, leaving shared APIs and road constraints unchanged.
 - [x] Correct stale acceptance-test proxies without weakening production policy: semantic mountain size is configured >=1000 dm major diameter with >=80% realized occupancy; all road-grade validations now use the resolver's nearest-integer planar distance.
-- [ ] Regenerate `mountain-dragon-evidence-route.json` from the final resolved production road; current legacy switchback/Y-offset route must not count for closure. Full-green run `33472689582` still used that stale route, so its production screenshots are diagnostic only.
+- [x] Regenerate `mountain-dragon-evidence-route.json` from the final resolved production road. Run `33475807726` emitted the authoritative 94-point route; the fixture now preserves castle-clear staging, follows every resolved ascent point, anchors grounded vertical evidence at path base, and uses resolver-derived Y offsets at representative captures through the summit proximity point.
 - [ ] Bump startup-bake provenance for the redesigned landform/road realization so rejected old bytes cannot satisfy the new source.
 
 ## Latest exact-source CI
@@ -47,12 +47,15 @@
 - [x] Run `33471409821` completed; exact ridge-strength source built/replayed, but focused acceptance stopped on a stale raw catalogue-footprint >=1000 proxy. Regression corrected to semantic authored/realized size invariants.
 - [x] Run `33471667027` completed; exact source reached a resolved production road, then failed only because the test floored Euclidean run where `WorldRoadResolver` rounds to nearest integer. Standalone replay passed; module validation correctly skipped after focused failure.
 - [x] Run `33472015921` completed; focused production acceptance passed and standalone `VoxelShowcase` replay passed. Automatic module validation selected `mountain-dragon` plus integration coverage but its focused scene driver repeated the stale floor-sqrt segment-45 assertion, aborting before marker staging. Driver corrected; production unchanged.
-- [x] Run `33472689582` completed success from exact feature source `dc10c20f...`: focused production acceptance, automatically required module validation, selected validation players, and standalone SceneIssue replay all passed. Visual closure is still blocked by the stale evidence route.
+- [x] Run `33472689582` completed success from exact feature source `dc10c20f...`: focused production acceptance, automatically required module validation, selected validation players, and standalone SceneIssue replay all passed. Visual closure was still blocked by the then-stale evidence route.
 - [x] Run `33473157863` completed success from exact feature source `dc10c20f...`: all 10 requested independent EditMode reuse/correctness tests passed; automatic mountain-dragon module validation and selected validation players also remained green.
+- [x] Run `33475137516` completed failure before tests because the route-dump test omitted `using Game.WorldBuilder.Voxel`; production did not run. Exact compile cause fixed.
+- [x] Run `33475807726` completed success after the compile fix; the requested serializer emitted all 94 resolved production road points and automatic module validation remained green. SceneIssue replay was deliberately omitted because this was geometry extraction, not visual evidence.
+- [ ] Run current-head focused + automatically derived module/player validation with the regenerated SceneIssue waypoint route through only `ci-test/fixes/agent-4`.
 
 ## Production visual / built-player acceptance
-- [ ] Merge then-current `origin/master` before the exact visual-final request.
-- [ ] Run exact-source focused + automatically derived module/player validation through only `ci-test/fixes/agent-4`.
+- [ ] Merge then-current `origin/master` before the exact visual-final request. Current master `ef5240c7b24550dab86d0ed75388d6c99a44d47b` cannot currently merge cleanly into feature head: GitHub PR `#202` (`master` -> `fixes/agent-4`) reports non-mergeable across 126 concurrent changed files. Do not synthesize a merge tree; final visual/closure remains blocked until conflicts can be resolved safely.
+- [ ] Independently validate the regenerated route on the current feature head: require `WAYPOINT_REPLAY` arm/reached/vertical/complete logs, no exceptions, and inspect returned screenshots. This does not substitute for the post-merge final visual gate.
 - [ ] Capture and human-review exact production `VoxelShowcase` approach as one substantial coherent natural mountain.
 - [ ] Human-review path base and representative lower/mid/upper ascent as continuous supported road carved/graded into the landform, with no trench/tunnel/causeway artifacts.
 - [ ] Verify normal grounded traversal base -> summit through the final resolved road route without jumps/teleports.
