@@ -5,6 +5,7 @@ using NUnit.Framework;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
+using VoxelEngine.Structures.Runtime;
 
 namespace Game.Structures.Tests
 {
@@ -38,9 +39,10 @@ namespace Game.Structures.Tests
             var a = new RecordingSession();
             var b = new RecordingSession();
             var origin = new int3(80, 40, -120);
+            var components = new StructureComponentAuthoringService();
 
-            CathedralWorldbuildingAuthoring.Author(a, origin, in config);
-            CathedralWorldbuildingAuthoring.Author(b, origin, in config);
+            CathedralWorldbuildingAuthoring.Author(components, a, origin, in config);
+            CathedralWorldbuildingAuthoring.Author(components, b, origin, in config);
 
             Assert.Multiple(() =>
             {
@@ -61,9 +63,11 @@ namespace Game.Structures.Tests
             CathedralWorldbuildingConfig config = CathedralWorldbuildingPresets.Gothic(in palette);
             config.Cathedral.Church.EntryFacing = facing;
             var session = new RecordingSession();
+            var components = new StructureComponentAuthoringService();
 
             Assert.DoesNotThrow(() =>
                 CathedralWorldbuildingAuthoring.Author(
+                    components,
                     session,
                     new int3(240, 32, 240),
                     in config));
