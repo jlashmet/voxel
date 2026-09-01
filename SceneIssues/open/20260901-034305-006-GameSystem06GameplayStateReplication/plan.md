@@ -9,7 +9,7 @@
 - `AuthoritativeServerSession.ProcessAuthoritativeTick` is the authoritative fixed-tick cadence. Gameplay-state publication plugs into that cadence after authoritative simulation state is resolved and before the existing replication/send flush; no second update loop exists.
 - Existing Net owns transport, connection identity, packet framing, subscriptions/interest, convergence/repair, reconnect/admission plumbing and client/server receive paths. `Game.GameplayReplication` owns semantic gameplay publications/revisions and replicated client truth only.
 - Existing owning semantic APIs consumed directly: Characters, Encounters, Combat, Inventory, and Sessions.
-- The binding system designs specify replication-facing read seams for Vitality, Progression, Continuity, and Outcomes. Their runtimes need not exist for system 06, so system 06 now supplies only the minimum engine-neutral owning API contracts needed for this consumer; future owning implementations can implement those contracts without changing replication.
+- The binding system designs specify replication-facing read seams for Vitality, Progression, Continuity, and Outcomes. Their runtimes need not exist for system 06, so system 06 supplies only the minimum engine-neutral owning API contracts needed for this consumer; future owning implementations can implement those contracts without changing replication.
 
 ## Minimal missing API contracts
 
@@ -18,7 +18,7 @@
 - `Game.Continuity.Api`: semantic recovery state snapshots keyed by durable Sessions-owned `PartyMemberId`, coherent snapshot/query. No grace policy, reconnect authentication, input gating, or runtime.
 - `Game.Outcomes.Api`: Running/Resolved lifecycle, disposition, semantic `OutcomeRef`, current snapshot/query. No resolution request policy, event emission, orchestration, or runtime.
 
-These are semantic/configuration-neutral contracts only. They contain no Unity, transport, presentation, scene, or named-content policy.
+These are semantic/configuration-neutral contracts only. They contain no Unity, transport, presentation, scene, or named-content policy. Each contract-only module now owns a minimal module-local EditMode contract assembly so repository convention can validate that API without broad fallback.
 
 ## Replication API / runtime
 
@@ -30,15 +30,17 @@ Subsystem identity/versioning is semantic (`GameplayProjectionId` + schema versi
 
 ## Tests / material results
 
-The transport-backed fixture now covers two existing UTP clients with Characters + Vitality + transactional Inventory, a forced semantic revision gap with live repair request/response, a late joiner, and disconnect/reconnect under a new transient connection ID. This directly satisfies the original character/vitality-plus-transactional convergence shape rather than using character lifecycle as a vitality substitute.
+The transport-backed fixture covers two existing UTP clients with Characters + Vitality + transactional Inventory, a forced semantic revision gap with live repair request/response, a late joiner, and disconnect/reconnect under a new transient connection ID. This directly satisfies the original character/vitality-plus-transactional convergence shape rather than using character lifecycle as a vitality substitute.
 
 `GameplayReplicationProjectionContractTests` is an independent consumer fixture for the four minimal APIs. It provides API-only query fixtures and verifies deterministic Continuity, Outcomes, Progression, and Vitality semantic projections without any owning runtime implementation.
 
-An earlier request `1b741e0a9e0b6ffe461b938a0a74874e3aea6a8e` for source `257b9b150292f1e2be8562cf844f0d66dddb2516` failed before tests because an obsolete parallel `Game.GameplayReplication.Networking` assembly remained from an earlier transport attempt. That demonstrated duplicate was removed, leaving `Game.GameplayReplication.Transport` as the sole bridge. Source `b30991662a8aed7ab2f0d9f7853ccb8db25c0787` then passed focused UTP, automatic module validation, standalone `KentridgePlayableSlice` replay, artifacts and final status in run `33518314913`, job `99890869505`.
+An earlier request `1b741e0a9e0b6ffe461b938a0a74874e3aea6a8e` for source `257b9b150292f1e2be8562cf844f0d66dddb2516` failed before tests because an obsolete parallel `Game.GameplayReplication.Networking` assembly remained; that duplicate was removed. Source `b30991662a8aed7ab2f0d9f7853ccb8db25c0787` then passed focused UTP, automatic module validation, standalone player replay and final status in run `33518314913`.
+
+After adding the minimal owning APIs, exact source `4c88588547e9842091a43c9706ebfc003090bf73` ran as request `11462838d0125ff344cf9102e9697b62e20eb71f` in run `33521707518`, job `99902340999`. The strengthened UTP test passed and standalone `KentridgePlayableSlice` replay passed. Automatic module validation failed because the four new API directories were convention-unowned, so the planner correctly used broad safe fallback. Artifact inspection showed the selected unrelated `Game.Materials.Tests` assembly executed 29 tests and failed three existing material ownership/boundary assertions; there was no GameplayReplication compile failure. Selected fix: give each new API its own minimal module-local contract test assembly so validation ownership is explicit by repository convention, rather than modifying the planner or unrelated Materials tests.
 
 ## Remaining gates
 
-No external prerequisite remains for the system-06 acceptance surface. The remaining work is exact-head validation of the newly added minimal API contracts/adapters, independent projection fixture, and strengthened vitality-inclusive UTP convergence fixture. After green exact-SHA targeted/module/player gates, complete closure bookkeeping, move the assigned SceneIssue open -> closed, merge current master, and promote the exact feature head non-force.
+No external prerequisite remains for system 06. Re-run exact-head validation after the module-ownership fix. If targeted, module and standalone-player gates pass, complete closure bookkeeping, move only this SceneIssue open -> closed, merge current master, revalidate only if that merge affects this work, and promote the exact feature head non-force.
 
 ## Do not build
 
