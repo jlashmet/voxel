@@ -70,8 +70,10 @@ namespace Game.WorldBuilder.Voxel.Tests.EditMode
             Assert.That(rejected.IsResolved, Is.False,
                 "over-grade route must not be accepted by the generic resolver");
             Assert.That(rejected.Status,
-                Is.EqualTo(WorldRoadResolutionStatus.GradeExceeded)
-                    .Or.EqualTo(WorldRoadResolutionStatus.CutFillExceeded));
+                Is.EqualTo(WorldRoadResolutionStatus.Blocked)
+                    .Or.EqualTo(WorldRoadResolutionStatus.GradeExceeded)
+                    .Or.EqualTo(WorldRoadResolutionStatus.CutFillExceeded),
+                "An over-constrained ascent may be rejected during corridor search or later grade/cut-fill validation.");
         }
 
         [Test]
