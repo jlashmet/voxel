@@ -198,11 +198,12 @@ namespace VoxelEngine.Tests.PlayMode
                 settings);
 
             // Wall and roof probes are expressed from the sampled high terrain, not the feature's
-            // low-side origin. They therefore prove the shell remains exposed across local relief.
+            // low-side origin. Probe the back perimeter wall rather than the intentionally hollow
+            // building centre so the storage assertion matches the authored four-wall shell.
             var timberVoxel = new int3(
                 building.CentreDm.X * scale,
                 maximumGround + 10 * scale,
-                building.CentreDm.Y * scale);
+                (building.CentreDm.Y - building.HalfExtentZDm + 1) * scale);
             var roofVoxel = new int3(
                 building.CentreDm.X * scale,
                 maximumGround + building.HeightDm * scale,
