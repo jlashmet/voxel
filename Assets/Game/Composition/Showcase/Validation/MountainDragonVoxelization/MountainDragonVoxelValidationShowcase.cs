@@ -6,6 +6,7 @@ using UnityEngine.Profiling;
 using VoxelEngine.Composition;
 using VoxelEngine.Terrain.Api;
 using VoxelEngine.Structures.Runtime.MeshImport;
+using VoxelEngine.Tiering.Api;
 using Debug = UnityEngine.Debug;
 
 namespace VoxelEngine.Showcase
@@ -25,7 +26,6 @@ namespace VoxelEngine.Showcase
         private const int VoxelOriginX = 220;
         private const int ExhibitOriginZ = 160;
         private const int MinimumSourceSeparationVoxels = 700;
-        private const int ValidationBrickPoolCapacity = 16384;
         private const float FirstViewSeconds = 4f;
         private const float LaterViewSeconds = 3f;
 
@@ -49,14 +49,21 @@ namespace VoxelEngine.Showcase
                     "Mountain Dragon validation source resource is missing. The Editor build preprocessor must reconstruct it.");
 
             long started = Stopwatch.GetTimestamp();
-            // GenerateRegionBlocking intentionally exercises the production terrain/feature path
-            // before Dragon placement. Keep enough bounded validation storage for that path plus
-            // the 98k-cell sparse Dragon instead of relying on the old 4k-brick test shortcut.
+
+            // The first two built-player failures established the actual boundary: 4,096 bricks
+            // exhausted while generating the production terrain region, while 16,384 completed
+            // terrain and then exhausted inside BakedVoxelStructure.ReplayTo. Do not guess another
+            // fixture-only slot count. Exercise the same tier-byte authority as VoxelShowcase and
+            // let Storage convert that budget to the current mixed-brick layout.
+            long tierBytes = DeviceTierBudget.GetForTier(DeviceTierBudget.Detect()).BrickPoolCapacity;
+            int brickPoolCapacity = VoxelEngineBootstrap.ClampMixedBrickCapacityToBudget(
+                int.MaxValue, tierBytes);
             _world = new ShowcaseWorld(
                 EvidenceSeed,
-                brickPoolCapacity: ValidationBrickPoolCapacity,
+                brickPoolCapacity,
                 loadRadiusRegions: 1,
-                unloadRadiusRegions: 2);
+                unloadRadiusRegions: 2,
+                maxMixedBrickAllocationBytes: tierBytes);
 
             int groundY = TerrainQuery.HeightAt(VoxelOriginX, ExhibitOriginZ, EvidenceSeed) + 1;
             int sourceOriginX = FindEqualHeightSourceOriginX(groundY - 1);
@@ -99,6 +106,8 @@ namespace VoxelEngine.Showcase
                 + " requested_voxels=" + placement.VoxelsRequested
                 + " written_voxels=" + placement.VoxelsWritten
                 + " regions_prepared=" + placement.RegionsPrepared
+                + " brick_pool_capacity=" + brickPoolCapacity
+                + " tier_budget_bytes=" + tierBytes
                 + " allocated_bytes=" + Profiler.GetTotalAllocatedMemoryLong()
                 + " reserved_bytes=" + Profiler.GetTotalReservedMemoryLong()
                 + " setup_ticks=" + (Stopwatch.GetTimestamp() - started));
