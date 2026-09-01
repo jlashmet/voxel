@@ -149,12 +149,6 @@ namespace Game.Kentridge.PlayableSlice
                     throw new InvalidOperationException(
                         "Generated Kentridge pub did not expose a physical public entrance.");
 
-                _world = new ShowcaseWorld(
-                    m_Seed,
-                    capacity,
-                    m_LoadRadiusRegions,
-                    m_UnloadRadiusRegions,
-                    tierBytes);
                 FeatureCatalogue kentridgeCatalogue = KentridgeCombinedVoxelCatalogue.Build(
                     settlement,
                     BuildSettings(kentridge: true),
@@ -185,6 +179,16 @@ namespace Game.Kentridge.PlayableSlice
                     if (hightownCatalogue.IsCreated) hightownCatalogue.Dispose();
                     corridorCatalogue.Dispose();
                 }
+
+                // The top-down macro selection is a one-shot handoff. The playable catalogue must
+                // consume it before ShowcaseWorld constructs its temporary bootstrap catalogue;
+                // otherwise that throwaway catalogue steals the macro towns and routes.
+                _world = new ShowcaseWorld(
+                    m_Seed,
+                    capacity,
+                    m_LoadRadiusRegions,
+                    m_UnloadRadiusRegions,
+                    tierBytes);
                 _world.ConfigureGeneratedContentForGameplay(catalogue);
                 catalogue = default(FeatureCatalogue);
 
@@ -897,7 +901,6 @@ namespace Game.Kentridge.PlayableSlice
                 approach = new Vector3(_pubAccess.Inward.X, 0f, _pubAccess.Inward.Y);
             if (approach.sqrMagnitude < 1e-6f) approach = Vector3.forward;
             approach.Normalize();
-
             float groupRadius = Mathf.Max(
                 HorizontalDistance(floorFocus, leadStage),
                 Mathf.Max(
