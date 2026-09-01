@@ -14,7 +14,7 @@
 - `Assets/Game/Composition/CombatEnvironmentRuntime` is the separate older `MountingForce.CombatPrototype` experiment and remains out of scope unless a demonstrated acceptance defect requires it.
 - `Game.Input.Api` is already semantic and `CombatInputController` has no raw key/button polling.
 - Production Characters and Encounters are now present. `Game.Characters.Api` owns `CharacterId`; `Game.Encounters.Api` owns Encounter identity, membership, activation, queued combat requests, and terminal Encounter resolution consumption.
-- Production `Assets/Game/Vitality` / `Game.Vitality.Api` is still absent from current master at the last prerequisite check.
+- Production `Assets/Game/Vitality` / `Game.Vitality.Api` remains absent from current master `1b6d5db96ea150bd0cb573bfaff7e220f19afbeb`.
 - The nominal GameSystem01 replacement scene from the earlier generated description is not present; assembled proof for this ticket remains Kentridge plus the repository's automatic module/player validation path.
 
 ## Dependency blocker
@@ -51,15 +51,16 @@ Those prototype classes may contain experimental unit HP as part of that separat
 4. **Done at reusable seam:** real `EncounterRegistry` requests/owns combat participation and consumes terminal resolution in the independent integration fixture. Kentridge wiring/removal of local bootstrap remains T01-015.
 5. **Blocked on final production composition/Vitality seam:** replace scene-local `new CombatService`, local Input runtime bootstrap, and direct runtime assembly coupling in Kentridge.
 6. **Already semantic:** keep Combat input through `Game.Input.Api`; no raw key/button knowledge in Combat.
-7. **Implemented, validation pending:** module-owned Combat tests now live under `Assets/Game/Combat/Tests` in `Game.Combat.Tests`, matching the current convention-based `tools/module-validation-plan.py` discovery path.
+7. **Done:** module-owned Combat tests live under `Assets/Game/Combat/Tests` in `Game.Combat.Tests`, matching the current convention-based `tools/module-validation-plan.py` discovery path, and exact-SHA CI has validated that path.
 
 ## Tests / proof
 
 - `Assets/Game/Combat/Tests/CombatCharacterBindingTests.cs`: independent non-Kentridge CharacterId binding.
 - `Assets/Game/Combat/Tests/CombatEncounterContractTests.cs`: real EncounterId start/result and policy-free terminal fact shape.
 - `Assets/Game/Combat/Tests/EncounterCombatIntegrationTests.cs`: real `EncounterRegistry` membership/activation queue mapped to Combat, bounded deterministic Combat completion, exactly-once terminal fact polling, and idempotent repeated `ApplyCombatResolved` with no second Encounter revision.
-- `Game.Combat.Tests.asmdef` gives those fixtures module ownership; production Combat diffs are therefore discovered structurally by the current validation planner. Any production diff also causes the repository-wide Kentridge player integration target to be added automatically.
-- Exact-SHA run `33500855298` exposed a validation-registration defect before Unity: the planner rejects obsolete `*.module-validation.json`. That manifest was removed and replaced with the structural test assembly convention; do not retry the obsolete mechanism.
+- `Game.Combat.Tests.asmdef` gives those fixtures module ownership; production Combat diffs are discovered structurally by the current validation planner. Any production diff also adds the repository-wide Kentridge player integration target automatically.
+- Exact feature SHA `746de4cae082cc456c000153048166c0e4f967e3` passed targeted CI run `33503348443`. The automatic plan selected `Game.Combat.Tests` and dependent `Game.CharacterAI.Tests`; both test assemblies passed. The Kentridge standalone-player build succeeded, ran the validation scenario for 80 seconds, and captured seven real-player screenshots. The published `ci/single-test` status for that SHA is success.
+- Earlier run `33500855298` exposed a validation-registration defect before Unity: the planner rejects obsolete `*.module-validation.json`. That manifest was removed and replaced with the structural test assembly convention; the corrected convention is what passed run `33503348443`.
 - Existing `CombatAuthorityMigrationTests`, `CombatInputModuleBoundaryTests`, and `KentridgeCombatEncounterTests` remain blast-radius/integration coverage.
 - Vitality-backed participant tests and final Kentridge production-path proof remain pending.
 
