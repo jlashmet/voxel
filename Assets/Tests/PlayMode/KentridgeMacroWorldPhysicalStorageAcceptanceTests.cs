@@ -277,13 +277,17 @@ namespace VoxelEngine.Tests.PlayMode
             int roofBase = terrainRelief + building.HeightDm * scale;
             int offset = definition.ProgramOffset;
 
-            Assert.That((ShapeOp)combined.Program[offset], Is.EqualTo(ShapeOp.EmitBox));
-            Assert.That(combined.Program[offset + 3], Is.EqualTo(0));
-            Assert.That(combined.Program[offset + 6], Is.EqualTo(foundationTop),
-                "Foundation must span sampled terrain relief plus the normal cap above the high point.");
-            Assert.That((byte)combined.Program[offset + 8], Is.EqualTo(settings.Materials.Resolve(MaterialRole.FoundationStone)));
+            for (var foundationPart = 0; foundationPart < 4; foundationPart++)
+            {
+                Assert.That((ShapeOp)combined.Program[offset], Is.EqualTo(ShapeOp.EmitBox),
+                    "Generic building plinth must retain all four bounded foundation perimeter boxes.");
+                Assert.That(combined.Program[offset + 3], Is.EqualTo(0));
+                Assert.That(combined.Program[offset + 6], Is.EqualTo(foundationTop),
+                    "Foundation perimeter must span sampled terrain relief plus the normal cap above the high point.");
+                Assert.That((byte)combined.Program[offset + 8], Is.EqualTo(settings.Materials.Resolve(MaterialRole.FoundationStone)));
+                offset += ShapeOps.InstructionLength(ShapeOp.EmitBox);
+            }
 
-            offset += ShapeOps.InstructionLength(ShapeOp.EmitBox);
             for (var wall = 0; wall < 4; wall++)
             {
                 Assert.That((ShapeOp)combined.Program[offset], Is.EqualTo(ShapeOp.EmitBox),
