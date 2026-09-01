@@ -14,7 +14,7 @@ namespace VoxelEngine.Tests.EditMode
         public void Register_MakesPlannedCastleQueryableWithoutVoxelRealization()
         {
             var visibility = new ShowcaseCastleVisibilityManifest();
-            CastlePlan plan = Plan();
+            VoxelEngine.Showcase.CastlePlan plan = Plan();
 
             StructureFarPresentation registered = visibility.Register(in plan);
             IReadOnlyList<StructureFarPresentation> queried = visibility.Source.Query(
@@ -34,8 +34,8 @@ namespace VoxelEngine.Tests.EditMode
         public void Register_ChangedPlanReplacesStableCastleInsteadOfDuplicating()
         {
             var visibility = new ShowcaseCastleVisibilityManifest();
-            CastlePlan firstPlan = Plan();
-            CastlePlan changedPlan = Plan();
+            VoxelEngine.Showcase.CastlePlan firstPlan = Plan();
+            VoxelEngine.Showcase.CastlePlan changedPlan = Plan();
             changedPlan.KeepHeight += 20;
 
             StructureFarPresentation first = visibility.Register(in firstPlan);
@@ -48,7 +48,7 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(current, Is.EqualTo(changed));
         }
 
-        private static CastlePlan Plan() => new CastlePlan
+        private static VoxelEngine.Showcase.CastlePlan Plan() => new VoxelEngine.Showcase.CastlePlan
         {
             Centre = new int3(256, 220, 376),
             PlateauRadius = 180,
