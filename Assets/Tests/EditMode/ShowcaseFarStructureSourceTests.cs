@@ -40,22 +40,22 @@ namespace VoxelEngine.Tests.EditMode
                 xz => xz.x + xz.y);
 
             var cameraXZ = new float2(20f, 35f);
-            IReadOnlyList<FarStructureInstance> instances = adapter.Query(cameraXZ, 30f);
+            IReadOnlyList<FarFeatureInstance> instances = adapter.Query(cameraXZ, 30f);
 
             Assert.That(source.QueryCount, Is.EqualTo(1));
             Assert.That(policyCamera.x, Is.EqualTo(cameraXZ.x));
             Assert.That(policyCamera.y, Is.EqualTo(cameraXZ.y));
             Assert.That(instances, Has.Count.EqualTo(1));
-            FarStructureInstance instance = instances[0];
+            FarFeatureInstance instance = instances[0];
             Assert.That(instance.StableId, Is.EqualTo(0x1234UL));
-            Assert.That(instance.Tier, Is.EqualTo(FarStructureTier.Far));
+            Assert.That(instance.Tier, Is.EqualTo(FarFeatureTier.Far));
             Assert.That(instance.Position.x, Is.EqualTo(20f).Within(0.001f));
             Assert.That(instance.Position.z, Is.EqualTo(35f).Within(0.001f));
             Assert.That(instance.Position.y, Is.EqualTo(55f).Within(0.001f));
             Assert.That(instance.Scale.x, Is.EqualTo(20f).Within(0.001f));
             Assert.That(instance.Scale.y, Is.EqualTo(12f).Within(0.001f));
             Assert.That(instance.Scale.z, Is.EqualTo(30f).Within(0.001f));
-            Assert.That((instance.Flags & FarStructureVisualFlags.Landmark) != 0, Is.True);
+            Assert.That((instance.Flags & FarFeatureVisualFlags.Landmark) != 0, Is.True);
         }
 
         [Test]
@@ -91,14 +91,14 @@ namespace VoxelEngine.Tests.EditMode
                 (_, __) => FarStructureTier.Horizon,
                 _ => 0f);
 
-            IReadOnlyList<FarStructureInstance> instances = adapter.Query(float2.zero, 12000f);
+            IReadOnlyList<FarFeatureInstance> instances = adapter.Query(float2.zero, 12000f);
 
             Assert.That(source.QueryCount, Is.EqualTo(1));
             Assert.That(instances, Has.Count.EqualTo(1),
                 "semantic visibility must not require a coarse far-terrain vertex to hit a 10 m footprint");
             Assert.That(instances[0].StableId, Is.EqualTo(narrow.StructureKey));
             Assert.That(instances[0].Scale.x, Is.EqualTo(10f).Within(0.001f));
-            Assert.That(instances[0].Tier, Is.EqualTo(FarStructureTier.Horizon));
+            Assert.That(instances[0].Tier, Is.EqualTo(FarFeatureTier.Horizon));
         }
 
         [Test]
@@ -157,7 +157,7 @@ namespace VoxelEngine.Tests.EditMode
                     sectorSizeDm: 1000,
                     selectTier: (_, __) => FarStructureTier.Far));
 
-            IReadOnlyList<FarStructureInstance> instances = adapter.Query(new float2(20f, 15f), 100f);
+            IReadOnlyList<FarFeatureInstance> instances = adapter.Query(new float2(20f, 15f), 100f);
 
             Assert.That(instances, Has.Count.EqualTo(2),
                 "twelve ordinary buildings should collapse to one cluster while the landmark remains independent");
@@ -182,7 +182,7 @@ namespace VoxelEngine.Tests.EditMode
                     sectorSizeDm: 1000,
                     selectTier: (_, __) => FarStructureTier.Culled));
 
-            IReadOnlyList<FarStructureInstance> instances = adapter.Query(float2.zero, 50f);
+            IReadOnlyList<FarFeatureInstance> instances = adapter.Query(float2.zero, 50f);
 
             Assert.That(instances, Has.Count.EqualTo(2));
             Assert.That(CountProxy(instances, "settlement-cluster"), Is.EqualTo(0));
@@ -211,23 +211,23 @@ namespace VoxelEngine.Tests.EditMode
                 5UL);
         }
 
-        private static bool ContainsStableId(IReadOnlyList<FarStructureInstance> instances, ulong stableId)
+        private static bool ContainsStableId(IReadOnlyList<FarFeatureInstance> instances, ulong stableId)
         {
             for (int i = 0; i < instances.Count; i++)
                 if (instances[i].StableId == stableId) return true;
             return false;
         }
 
-        private static int CountProxy(IReadOnlyList<FarStructureInstance> instances, string proxyKey)
+        private static int CountProxy(IReadOnlyList<FarFeatureInstance> instances, string proxyKey)
         {
             int count = 0;
             for (int i = 0; i < instances.Count; i++)
-                if (string.Equals(instances[i].ProxyKey, proxyKey, StringComparison.Ordinal)) count++;
+                if (string.Equals(instances[i].GeometryKey, proxyKey, StringComparison.Ordinal)) count++;
             return count;
         }
 
         private static int CountOrdinaryMemberIds(
-            IReadOnlyList<FarStructureInstance> instances,
+            IReadOnlyList<FarFeatureInstance> instances,
             ulong first,
             ulong last)
         {
