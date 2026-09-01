@@ -1,5 +1,6 @@
 using System.Linq;
 using Game.Characters.Api;
+using Game.Combat.Api;
 using Game.Vitality.Api;
 using Game.Vitality.Runtime;
 using NUnit.Framework;
@@ -9,6 +10,19 @@ namespace Game.Vitality.Tests
     public sealed class VitalityRegistryTests
     {
         private static CharacterId Id(string key) => CharacterId.FromStableKey("test", key);
+
+        [Test]
+        public void CombatParticipant_FromCharacterPreservesCanonicalIdentity()
+        {
+            var character = Id("combat-binding");
+
+            var participant = CombatParticipant.FromCharacter(character, CombatTeam.Player);
+
+            Assert.That(participant.IsCharacterBacked, Is.True);
+            Assert.That(participant.CharacterId, Is.EqualTo(character));
+            Assert.That(participant.Id.Value, Is.EqualTo(character.Value));
+            Assert.That(participant.Team, Is.EqualTo(CombatTeam.Player));
+        }
 
         [Test]
         public void ApiAssembly_IsEngineFreeAndDoesNotReferenceRuntime()
