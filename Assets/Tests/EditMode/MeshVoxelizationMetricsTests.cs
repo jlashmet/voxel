@@ -63,8 +63,7 @@ namespace VoxelEngine.Tests.EditMode
             float3[] source = { new float3(0f, 0f, 0f) };
             float3[] voxel = { new float3(2f, 0f, 0f) };
 
-            MeshVoxelFidelityReport report =
-                MeshVoxelizationMetrics.MeasurePointClouds(source, voxel, 64);
+            MeshVoxelFidelityReport report = MeshVoxelizationMetrics.MeasurePointClouds(source, voxel, 64);
 
             Assert.That(report.SymmetricP95Voxels, Is.EqualTo(2f).Within(1e-6f));
             Assert.That(report.FrontSilhouetteIoU, Is.EqualTo(0f));
@@ -107,6 +106,33 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(second.FrontSilhouetteIoU, Is.EqualTo(first.FrontSilhouetteIoU).Within(1e-6f));
             Assert.That(second.SideSilhouetteIoU, Is.EqualTo(first.SideSilhouetteIoU).Within(1e-6f));
             Assert.That(second.TopSilhouetteIoU, Is.EqualTo(first.TopSilhouetteIoU).Within(1e-6f));
+        }
+
+        [Test]
+        public void Measure_LowQueryCapDoesNotReportSparseSampleSpacingAsSurfaceError()
+        {
+            MeshVoxelizationSource source = BuildBox(
+                new float3(-1f),
+                new float3(1f),
+                material: 8,
+                float4x4.identity);
+            var settings = new MeshVoxelizationSettings(
+                voxelSize: 0.1f,
+                fillInterior: true,
+                fallbackMaterial: 8,
+                maxDimensions: new int3(64),
+                maxDenseCells: 64 * 64 * 64,
+                thinFeaturePaddingVoxels: 0,
+                openSurfacePolicy: MeshVoxelOpenSurfacePolicy.Reject);
+
+            BakedVoxelStructure bake = MeshVoxelizer.Voxelize(in source, in settings);
+            MeshVoxelFidelityReport report = MeshVoxelizationMetrics.Measure(
+                in source, bake, maxSamplesPerSurface: 32, silhouetteResolution: 64);
+
+            Assert.That(report.SourceSampleCount, Is.LessThanOrEqualTo(32));
+            Assert.That(report.VoxelSampleCount, Is.LessThanOrEqualTo(32));
+            Assert.That(report.SymmetricP95Voxels, Is.LessThanOrEqualTo(1.5f),
+                "Distance queries must compare against the full opposite surface, not another sparse query sample.");
         }
 
         private static MeshVoxelizationSource BuildBox(
