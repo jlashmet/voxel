@@ -15,27 +15,27 @@
 - [x] Replace path-coupled `MountainLandmarkSpec` ownership with a semantic parameterized mountain-landform contract: placement, footprint/aspect, height, summit character, deterministic seed, macro shape/ridge/asymmetry, and bounded roughness only. No road, switchback, traversal, dragon, or Showcase policy in the generic landform.
 - [x] Implement one deterministic mountain surface authority used both for `HeightAt`/surface queries and for voxel realization, so routing evidence and rendered/collision geometry cannot diverge.
 - [x] Support materially different mountain shapes from parameters (at minimum broad/massif versus narrow/asymmetric/ridged) without separate generators or scene-specific branches.
-- [ ] Separate reusable climate/presentation policy from shape: semantic altitude/slope bands choose rock/ground-cover/snow-like roles while concrete material ids remain caller-owned.
-- [ ] Remove old mountain-owned path tiers, ramp emission, path support masses, and path headroom carving from the production Mountain Dragon composition once the road-backed path is active.
+- [x] Separate reusable climate/presentation policy from shape: semantic altitude/slope bands choose rock/ground-cover/snow-like roles while concrete material ids remain caller-owned. Independent `MountainClimateReuseTests` passed run `33462667493` on source `4b4abc3e...`.
+- [x] Remove old mountain-owned path tiers, ramp emission, path support masses, and path headroom carving from the production Mountain Dragon composition once the road-backed path is active. The legacy catalogue remains repository code but is no longer in `ShowcaseCatalogue.Build` production composition.
 
 ## Existing road-system integration
-- [ ] Resolve the Mountain Dragon ascent through `WorldRoadIntent` / `WorldRoadResolver` using the mountain surface as `IWorldRoadTerrain`; do not create a parallel mountain-road resolver.
-- [ ] If necessary, add only a narrow reusable terrain-composition adapter so road resolution can sample authored mountain surface plus base terrain outside its footprint. Do not refactor Kentridge road policy.
-- [ ] Lower the resolved ascent through `WorldRoadNetwork` + `WorldRoadNetworkVoxelCatalogue` / generic terrain-corridor rasterization so existing road grade, cut/fill, shoulder, clearance, and presentation semantics remain authoritative.
-- [ ] Derive Mountain Dragon traversal waypoints/evidence from the same resolved road geometry rather than duplicated switchback coordinates.
-- [ ] Prove the road cuts/fills into the natural mountain within the configured `MaximumGradePermille` / `MaximumCutFillDm` bounds and does not create freestanding support towers/causeways.
+- [x] Resolve the Mountain Dragon ascent through `WorldRoadIntent` / `WorldRoadResolver` using the mountain surface as `IWorldRoadTerrain`; do not create a parallel mountain-road resolver.
+- [x] If necessary, add only a narrow reusable terrain-composition adapter so road resolution can sample authored mountain surface plus base terrain outside its footprint. Do not refactor Kentridge road policy. `MountainLandformRoadTerrain` composes mountain + fallback terrain without changing road policy.
+- [x] Lower the resolved ascent through `WorldRoadNetwork` + `WorldRoadNetworkVoxelCatalogue` / generic terrain-corridor rasterization so existing road grade, cut/fill, shoulder, clearance, and presentation semantics remain authoritative. The WorldBuilder wrapper only hides backend voxel settings/material plumbing.
+- [x] Derive Mountain Dragon traversal waypoints/evidence from the same resolved road geometry rather than duplicated switchback coordinates. Encounter proximity and focused validation both consume the resolved production route.
+- [ ] Prove the road cuts/fills into the natural mountain within the configured `MaximumGradePermille` / `MaximumCutFillDm` bounds and does not create freestanding support towers/causeways. Exact-head independent regression run `33465874998` is queued for source `df5749e5...`; visual proof remains required afterward.
 
 ## Independent reuse / correctness / cost
 - [ ] Add a non-Showcase fixture that builds at least two materially different mountain shape/climate combinations from the same reusable builder.
 - [ ] Prove deterministic shape/surface output for the same parameters/seed and materially different output for different shape parameters/seeds.
 - [ ] Prove surface-query and voxel-landform correspondence at representative base/flank/ridge/summit samples.
-- [ ] Prove road resolution against the generic mountain surface independently of Mountain Dragon composition, including a successful bounded-cut/fill ascent and a rejected over-grade/over-cut case.
+- [ ] Prove road resolution against the generic mountain surface independently of Mountain Dragon composition, including a successful bounded-cut/fill ascent and a rejected over-grade/over-cut case. `MountainRoadIntegrationTests` is implemented and exact-head run `33465874998` is queued.
 - [ ] Check feature primitive counts, raster/build cost, memory/bake blast radius, and shared-road behavior; keep existing global budgets and 240 s / 14 GiB guards unchanged.
 
 ## Mountain Dragon composition
-- [ ] Recompose VoxelShowcase from: parameterized natural mountain + existing road ascent + usable summit + supported red cube dragon + existing proximity/cutscene dialogue.
+- [x] Recompose VoxelShowcase from: parameterized natural mountain + existing road ascent + usable summit + supported red cube dragon + existing proximity/cutscene dialogue.
 - [ ] Keep mountain placement clear of unrelated castle/feature ownership while ensuring the road entrance connects to normal accessible terrain.
-- [ ] Update/rewrite focused behavioral regressions to exercise the new production WorldBuilder mountain + road path rather than old path-tier internals.
+- [x] Update/rewrite focused behavioral regressions to exercise the new production WorldBuilder mountain + road path rather than old path-tier internals. `MountainDragonValidationSceneDriver` now builds the production landform/network and validates resolved grade/cut-fill/summit approach.
 - [ ] Repair the focused exact-test filter/registration so the intended Mountain Dragon acceptance test is actually discoverable; do not weaken or rename acceptance merely to obtain green CI.
 - [ ] Bump startup-bake provenance for the redesigned landform/road realization so rejected old bytes cannot satisfy the new source.
 
