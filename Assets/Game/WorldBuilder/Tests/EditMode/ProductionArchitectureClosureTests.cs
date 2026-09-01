@@ -271,7 +271,7 @@ namespace VoxelEngine.Tests.EditMode
         private static bool IsNonProductionPath(string path)
         {
             string relative = "/" + RelativePath(path).Replace('\\', '/') + "/";
-            return relative.IndexOf("/Assets/Tests/", StringComparison.Ordinal) >= 0
+            return relative.IndexOf("/Tests/", StringComparison.Ordinal) >= 0
                    || relative.IndexOf("/Assets/Editor/", StringComparison.Ordinal) >= 0
                    || relative.IndexOf("/Assets/VoxelEngine/CI/", StringComparison.Ordinal) >= 0
                    || relative.IndexOf("/Editor/", StringComparison.Ordinal) >= 0;
