@@ -333,7 +333,8 @@
       "name": "resolved-49",
       "x": -140.9,
       "z": 31.5,
-      "requireGrounded": true
+      "requireGrounded": true,
+      "arrivalRadius": 0.35
     },
     {
       "name": "mid-turn",
