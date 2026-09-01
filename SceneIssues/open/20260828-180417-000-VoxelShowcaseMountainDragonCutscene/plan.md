@@ -19,9 +19,11 @@ Run `33468581318` exposed a production 60 dm cut/fill failure against the unchan
 
 `experiment-016-ridge-road-cutfill-minimal-repro.md` reproduces current integer landform + road resolution with flat fallback terrain. The failure persists, eliminating Showcase base terrain as the cause. The winding spiral crosses generated secondary radial ridge frusta; the first isolated failure is on leg 9 over `ridge6.1`, where terrain rises to roughly 101 dm while grade smoothing can carry roughly 51 dm, yielding the same 50 dm excess. Similar failures recur at other selected ridge sectors. Because authored controls themselves land on these ridge crests, additional angular sampling cannot solve the systemic crossing problem.
 
-Parameter discrimination shows the shared resolver is correctly enforcing the contract and does not need weakening/refactoring. Keeping `MountainMacroShape.Ridged`, six ridges, 24 dm roughness, the same 1.5-turn 25-control spiral, 280 permille maximum grade and 42 dm maximum cut/fill, but changing Showcase `RidgeStrengthPermille` from 620 to 300 resolves the isolated model with ~34 dm worst cut/fill. This is scene composition policy and preserves the reusable ownership boundary. Source now uses ridge strength 300; exact-source CI must validate it.
+Parameter discrimination shows the shared resolver is correctly enforcing the contract and does not need weakening/refactoring. Keeping `MountainMacroShape.Ridged`, six ridges, 24 dm roughness, the same 1.5-turn 25-control spiral, 280 permille maximum grade and 42 dm maximum cut/fill, but changing Showcase `RidgeStrengthPermille` from 620 to 300 resolves the isolated model with ~34 dm worst cut/fill. This is scene composition policy and preserves the reusable ownership boundary.
 
-The same completed run also showed the independent over-constrained road fixture may reject in A* as `Blocked`, before grade/cut-fill validation. Its regression now accepts `Blocked`, `GradeExceeded`, or `CutFillExceeded` while still requiring `IsResolved == false`.
+Exact-source production run `33471667027` now gets through `ShowcaseMountainDragonLayout.CreateAscentNetwork`: `route.Road.IsResolved` is true, which means the authoritative resolver accepted both 280 permille grade and 42 dm cut/fill on the real Showcase mountain. The run failed only because the acceptance regression recomputed planar distance with floor `Math.Sqrt`, while `WorldRoadResolver` uses nearest-integer `IntegerSqrt`; segment 45 is 7 dm rise over authoritative 25 dm run (exactly 280 permille), but the stale test rounded the run down to 24 dm. Production policy is unchanged. Both the production acceptance and independent road regression now use the resolver's nearest-integer distance semantics.
+
+The earlier completed run also showed the independent over-constrained road fixture may reject in A* as `Blocked`, before grade/cut-fill validation. Its regression accepts `Blocked`, `GradeExceeded`, or `CutFillExceeded` while still requiring `IsResolved == false`.
 
 ## Existing evidence retained
 - `33391220613`: public deterministic waypoint-replay seam green.
@@ -32,11 +34,13 @@ The same completed run also showed the independent over-constrained road fixture
 - `33468298272`: exposed/fixed API/runtime `FeatureCatalogueComposer` ambiguity through API-only boundary.
 - `33468432862`: exposed/migrated stale legacy production acceptance test.
 - `33468581318`: 2/3 independent road tests plus first production 60 dm cut/fill failure.
-- `33469216133`: completed failure; independent suite reached the legitimate `Blocked` status mismatch and built player exposed repeated 50 dm production cut/fill. Player build itself succeeded. This run triggered and is superseded diagnostically by experiment 016, not by weaker acceptance.
+- `33469216133`: completed failure; independent suite reached legitimate `Blocked` rejection and built player exposed repeated 50 dm production cut/fill, triggering experiment 016.
+- `33471409821`: exact ridge-strength source built/replayed successfully but focused acceptance stopped at a stale `FeatureDefinition.Footprint >= 1000` proxy. Regression now preserves the actual semantic size contract: authored major diameter >=1000 dm and realized occupancy >=80% of authored diameter.
+- `33471667027`: exact source with semantic size regression reaches a resolved production ascent; focused failure is only the floor-vs-nearest integer grade assertion mismatch described above. Standalone player replay still succeeds. Automatic module validation was correctly skipped after the focused failure.
 
 ## Remaining order
-1. Run an exact-source targeted production Mountain Dragon acceptance test through only `ci-test/fixes/agent-4`; automatic module/player validation must also pass. Diagnose any completed failure before another change.
-2. Execute current-head reusable landform/climate/road suites through automatic module validation and record their exact-source evidence.
+1. Retry exact-source targeted production Mountain Dragon acceptance through only `ci-test/fixes/agent-4`; automatic module/player validation must also pass. Diagnose any completed failure before another change.
+2. Record current-head reusable landform/climate/road automatic module evidence and finish structural proof that road lowering is generic terrain corridor only.
 3. Regenerate `mountain-dragon-evidence-route.json` from the final resolved production road; the current legacy switchback/Y-offset route is invalid for closure.
 4. Check primitive/raster/build cost and startup-bake provenance under unchanged 240 s / 14 GiB guards.
 5. Merge then-current `origin/master` before final visual evidence and establish the exact final source SHA.
