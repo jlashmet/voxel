@@ -7,6 +7,7 @@ using Game.GameplayReplication.Adapters;
 using Game.GameplayReplication.Api;
 using Game.GameplayReplication.Runtime;
 using Game.Inventory.Api;
+using Game.Sessions.Api;
 using NUnit.Framework;
 
 namespace Game.GameplayReplication.Tests
@@ -73,6 +74,29 @@ namespace Game.GameplayReplication.Tests
             Assert.That(publication.Projections[2].Entries[0].Key, Is.EqualTo("encounter:ridge/activation-cause"));
             Assert.That(publication.Projections[3].Entries[0].Key, Is.EqualTo("ore"));
             Assert.That(publication.Projections[3].Entries[0].Value, Is.EqualTo("2"));
+        }
+
+        [Test]
+        public void SessionsProjectionUsesDurableIdentityAndStableSlotOrder()
+        {
+            var hero = new CharacterId("character:hero");
+            var scout = new CharacterId("character:scout");
+            var source = new SessionsGameplayProjectionSource(new SessionQueryFixture(
+                new GameSessionId("session:co-op"),
+                new PartyMemberSnapshot(new PartyMemberId("member:b"), new PlayerSlot(3), PartyLeadershipRole.Member, PartyPresenceState.Connected, SessionReadinessState.GameplayReady, scout),
+                new PartyMemberSnapshot(new PartyMemberId("member:a"), new PlayerSlot(0), PartyLeadershipRole.Leader, PartyPresenceState.Connected, SessionReadinessState.Synchronized, hero)));
+
+            GameplayProjectionState state = source.Capture();
+
+            Assert.That(state.Descriptor.Id.Value, Is.EqualTo("sessions"));
+            Assert.That(state.Entries[0].Key, Is.EqualTo("session-id"));
+            Assert.That(state.Entries[0].Value, Is.EqualTo("session:co-op"));
+            Assert.That(state.Entries[1].Key, Is.EqualTo("slot/0/character-id"));
+            Assert.That(state.Entries[1].Value, Is.EqualTo("character:hero"));
+            Assert.That(state.Entries[2].Key, Is.EqualTo("slot/0/leadership"));
+            Assert.That(state.Entries[5].Key, Is.EqualTo("slot/0/readiness"));
+            Assert.That(state.Entries[6].Key, Is.EqualTo("slot/3/character-id"));
+            Assert.That(state.Entries[6].Value, Is.EqualTo("character:scout"));
         }
 
         [Test]
@@ -210,6 +234,23 @@ namespace Game.GameplayReplication.Tests
             public void Add(ItemRef item, int quantity = 1) => throw new NotSupportedException();
             public int Count(ItemRef item) => throw new NotSupportedException();
             public IReadOnlyList<InventoryItemSnapshot> Snapshot() => _items;
+        }
+
+        private sealed class SessionQueryFixture : IPartySessionQuery
+        {
+            private readonly PartyRosterSnapshot _snapshot;
+            public SessionQueryFixture(GameSessionId sessionId, params PartyMemberSnapshot[] members)
+                => _snapshot = new PartyRosterSnapshot(sessionId, members);
+            public PartyRosterSnapshot Snapshot() => _snapshot;
+            public bool TryGetMember(PartyMemberId memberId, out PartyMemberSnapshot member)
+            {
+                foreach (PartyMemberSnapshot candidate in _snapshot.Members)
+                {
+                    if (candidate.MemberId == memberId) { member = candidate; return true; }
+                }
+                member = default;
+                return false;
+            }
         }
     }
 }
