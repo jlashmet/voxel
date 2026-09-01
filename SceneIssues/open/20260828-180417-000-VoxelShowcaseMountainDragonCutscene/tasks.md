@@ -23,13 +23,13 @@
 - [x] If necessary, add only a narrow reusable terrain-composition adapter so road resolution can sample authored mountain surface plus base terrain outside its footprint. Do not refactor Kentridge road policy. `MountainLandformRoadTerrain` composes mountain + fallback terrain without changing road policy.
 - [x] Lower the resolved ascent through `WorldRoadNetwork` + `WorldRoadNetworkVoxelCatalogue` / generic terrain-corridor rasterization so existing road grade, cut/fill, shoulder, clearance, and presentation semantics remain authoritative. The WorldBuilder wrapper only hides backend voxel settings/material plumbing.
 - [x] Derive Mountain Dragon traversal waypoints/evidence from the same resolved road geometry rather than duplicated switchback coordinates. Encounter proximity and focused validation both consume the resolved production route.
-- [ ] Prove the road cuts/fills into the natural mountain within the configured `MaximumGradePermille` / `MaximumCutFillDm` bounds and does not create freestanding support towers/causeways. Exact-head independent regression run `33465874998` is queued for source `df5749e5...`; visual proof remains required afterward.
+- [ ] Prove the road cuts/fills into the natural mountain within the configured `MaximumGradePermille` / `MaximumCutFillDm` bounds and does not create freestanding support towers/causeways. Run `33465874998` was invalid evidence because its CI transport parented from older request commit `00e9aab...`, so the requested test did not exist and matched zero tests; standalone replay still succeeded. Retry from the exact current feature source through the same transport.
 
 ## Independent reuse / correctness / cost
-- [ ] Add a non-Showcase fixture that builds at least two materially different mountain shape/climate combinations from the same reusable builder.
+- [ ] Add a non-Showcase fixture that builds at least two materially different mountain shape/climate combinations from the same reusable builder. `MountainClimateReuseTests.SameBuilderSupportsMateriallyDifferentShapeAndClimateCombinations` is implemented; exact-head execution evidence is still required.
 - [ ] Prove deterministic shape/surface output for the same parameters/seed and materially different output for different shape parameters/seeds.
 - [ ] Prove surface-query and voxel-landform correspondence at representative base/flank/ridge/summit samples.
-- [ ] Prove road resolution against the generic mountain surface independently of Mountain Dragon composition, including a successful bounded-cut/fill ascent and a rejected over-grade/over-cut case. `MountainRoadIntegrationTests` is implemented and exact-head run `33465874998` is queued.
+- [ ] Prove road resolution against the generic mountain surface independently of Mountain Dragon composition, including a successful bounded-cut/fill ascent and a rejected over-grade/over-cut case. `MountainRoadIntegrationTests` is implemented; run `33465874998` was a zero-test transport failure and is not evidence.
 - [ ] Check feature primitive counts, raster/build cost, memory/bake blast radius, and shared-road behavior; keep existing global budgets and 240 s / 14 GiB guards unchanged.
 
 ## Mountain Dragon composition
