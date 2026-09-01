@@ -128,13 +128,13 @@ namespace VoxelEngine.Showcase
             float originalFieldOfView = cameraComponent != null ? cameraComponent.fieldOfView : 60f;
             if (cameraComponent != null) cameraComponent.fieldOfView = 75f;
 
-            // Capture the cave view first. A prior audit proved this exact framing reads correctly when
-            // it is not preceded by a distant camera move that changes the Gallery streaming set.
+            // The Gallery helper deliberately places the eye 17 voxels behind the selected terminal,
+            // inside the guaranteed final 18-voxel cave segment. Do not stretch this to an arbitrary
+            // 3 m stand-off: the preceding segment may have turned, so a longer straight retreat can
+            // move the camera back into solid terrain even though the authored pocket is valid.
             float3 breakablePosition = world.WorldbuildingGalleryBreakableSecretCameraPosition();
             float3 breakableTarget = world.WorldbuildingGalleryBreakableSecretLookTarget();
-            float3 away = math.normalizesafe(breakablePosition - breakableTarget, new float3(0f, 0f, -1f));
-            breakablePosition = breakableTarget + away * 3.15f + new float3(0.55f, 0.25f, 0f);
-            RequireMinimumFramingDistance(breakablePosition, breakableTarget, 3f, "authored-breakable-boundary");
+            RequireMinimumFramingDistance(breakablePosition, breakableTarget, 1.7f, "authored-breakable-boundary");
             yield return CaptureView(
                 world,
                 breakablePosition,
