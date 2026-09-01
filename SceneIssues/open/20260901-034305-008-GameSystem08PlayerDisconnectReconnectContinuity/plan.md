@@ -24,7 +24,7 @@ Recovery state (`Connected`, `ConnectionInterrupted`, `Reconnecting`, `Resynchro
 - `Game.Sessions.Runtime.PartySession.Disconnect` removes only its runtime connection association and resets presence/readiness; it retains `PartyMemberId`, `PlayerSlot`, and `CharacterId`. Rebinding a new connection is already identity-preserving.
 - `VoxelEngine.Net.Runtime.Server.AuthoritativeServerSession` / `ServerPlayerRegistry` remove the authenticated network player record on transport close. That record is transient network actor state, not durable party identity.
 - System 07 provides the durable Sessions identity seam and transport-neutral network admission seam; Continuity must layer grace/recovery policy above them rather than moving reconnect policy into Sessions or socket callbacks.
-- **External prerequisite blocker:** current `origin/master` contains no `GameplayReplication.Api`, `GameplayReady`, or gameplay replication/resync API from system 06. Therefore the required T08-002 dependency, real repair/resync capability selection, GameplayReady authority gate, absent-state current-truth proof, and combined Replication validation cannot be completed yet. Acceptance is unchanged.
+- **External prerequisite blocker:** current `origin/master` remains `1b6d5db96ea150bd0cb573bfaff7e220f19afbeb` and contains no `GameplayReplication.Api`, `GameplayReady`, or gameplay replication/resync API from system 06. Therefore the required T08-002 dependency, real repair/resync capability selection, GameplayReady authority gate, absent-state current-truth proof, and combined Replication validation cannot be completed yet. Acceptance is unchanged.
 
 ## Independent implementation while #06 is unavailable
 
@@ -36,7 +36,11 @@ Recovery state (`Connected`, `ConnectionInterrupted`, `Reconnecting`, `Resynchro
 
 ## Tests / proof
 
-Independent regressions cover brief reconnect with connection change, full-resync path selection after the fast window, duplicate reconnect rejection, invalid credential rejection, explicit leave, expiration, and durable member/slot/character preservation. System-06-dependent current-state mutation and real GameplayReady gating remain required blockers.
+Independent regressions cover brief reconnect with connection change, full-resync path selection after the fast window, duplicate reconnect rejection, invalid credential rejection, explicit leave, expiration, and durable member/slot/character preservation.
+
+Exact targeted-CI request `9b9fa56c0c6cd35f15eb7861e6525ec63fdb03d3` has direct feature parent `20d2e386e7fe9bd7b277ab339d5cc2b321dabb29`. GitHub Actions run `33506812126` completed successfully: request/source resolution, automatic module-plan derivation, automatic required module validation, result upload, and final commit status all passed. This validates the available Continuity/Sessions core and the authored fast reconnect, duplicate-character, explicit-leave, and grace-expiration regressions. It does not satisfy the still-missing system-06 GameplayReplication/GameplayReady/current-state acceptance.
+
+System-06-dependent current-state mutation, real repair/full-resync integration, actual GameplayReady gating, and combined Replication validation remain required blockers before closure.
 
 ## Do not build
 
