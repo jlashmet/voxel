@@ -1,7 +1,7 @@
 {
   "name": "Game.Continuity.Tests",
   "rootNamespace": "Game.Continuity.Tests",
-  "references": ["Game.Continuity.Api", "Game.Continuity.Runtime", "Game.Sessions.Api", "Game.Sessions.Runtime", "Game.Characters.Api"],
+  "references": ["Game.Continuity.Api", "Game.Continuity.Runtime", "Game.GameplayReplication.Api", "Game.Sessions.Api", "Game.Sessions.Runtime", "Game.Characters.Api"],
   "includePlatforms": ["Editor"],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
