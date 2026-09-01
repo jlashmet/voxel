@@ -11,7 +11,7 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void FromPlan_IsDeterministicAndHorizonVisibleBeforeVoxelRealization()
         {
-            CastlePlan plan = Plan();
+            VoxelEngine.Showcase.CastlePlan plan = Plan();
 
             StructureFarPresentation first = ShowcaseCastleFarPresentation.FromPlan(in plan);
             StructureFarPresentation second = ShowcaseCastleFarPresentation.FromPlan(in plan);
@@ -28,8 +28,8 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void FromPlan_RevisionChangesWhenSemanticCastleGeometryChanges()
         {
-            CastlePlan firstPlan = Plan();
-            CastlePlan secondPlan = Plan();
+            VoxelEngine.Showcase.CastlePlan firstPlan = Plan();
+            VoxelEngine.Showcase.CastlePlan secondPlan = Plan();
             secondPlan.KeepHeight += 12;
 
             StructureFarPresentation first = ShowcaseCastleFarPresentation.FromPlan(in firstPlan);
@@ -41,7 +41,7 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(second.HeightDm, Is.GreaterThan(first.HeightDm));
         }
 
-        private static CastlePlan Plan() => new CastlePlan
+        private static VoxelEngine.Showcase.CastlePlan Plan() => new VoxelEngine.Showcase.CastlePlan
         {
             Centre = new int3(256, 220, 376),
             PlateauRadius = 180,
