@@ -31,7 +31,11 @@ Subsystem identity/versioning is semantic and stable. `GameplayProjectionId` plu
 
 ## Tests / proof
 
-`Game.GameplayReplication.Tests.GameplayReplicationRuntimeTests` exercises deterministic projection/publication ordering, monotonic revisions, duplicate/stale handling, gap detection, snapshot repair, schema incompatibility, and configuration-driven `GameplayReady` without presentation assemblies. Focused exact-SHA CI request `agent-2-20260901-gameplay-replication-1` targets this fixture; transport-driven loopback/two-client/late-join/reconnect gates remain blocked until the prerequisite production network spine exists.
+`Game.GameplayReplication.Tests.GameplayReplicationRuntimeTests` exercises deterministic projection/publication ordering, monotonic revisions, duplicate/stale handling, gap detection, snapshot repair, schema incompatibility, configuration-driven `GameplayReady`, and deterministic adapters over Characters/Encounter/Combat/Inventory without presentation assemblies.
+
+Exact-SHA validation for source `44e7da5284923ab96b382f75a5867434377a36d6` used the sole transport `ci-test/fixes/agent-2` with request commit `4a431a603c0908c007ae4556a59deb7a815c4f2c`; run `33504339974`, job `99844708050` passed the focused EditMode fixture, convention-driven automatic module validation, standalone SceneIssue replay, artifacts, and final status. An earlier run `33501651756` correctly exposed that legacy `*.module-validation.json` registration is obsolete; that 006-owned manifest was removed rather than changing shared planner infrastructure.
+
+Transport-driven loopback/two-client/late-join/reconnect gates remain blocked until the prerequisite production network spine exists. Vitality/Progression/Sessions/Continuity/Outcome projection gates likewise remain blocked until their owning APIs exist.
 
 ## Do not build
 
