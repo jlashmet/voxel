@@ -12,7 +12,7 @@
 - [x] Preserve focused regressions while removing PlayMode-only visual-acceptance semantics.
 - [x] Update `AGENTS.md`, SceneIssue workflow, CI semantics, and validation documentation.
 - [x] Remove repository-wide/top-level EditMode test assembly; migrate tests into lower-level owning module assemblies. Top-level PlayMode remains integration/smoke only and does not own production paths.
-- [x] Add planner/runner regressions for automatic module discovery, new assembly discovery without registration, contract dependency expansion, top-level PlayMode exclusion, convention player pairing, missing/orphan pairs, manifest rejection, zero/skipped test failure, generic evidence windows, and metadata-only no-op changes.
+- [x] Add planner/runner regressions for automatic module discovery, new assembly discovery without registration, contract dependency expansion, top-level PlayMode exclusion, convention player pairing, missing/orphan pairs, manifest rejection, zero/skipped test failure, generic evidence windows, metadata-only no-op changes, and direct module `Tests/*.asmdef` EditMode discovery.
 
 ## Corrective validation history
 - [x] Run `33469098939`: isolate/fix top-level PlayMode synthetic `Assets` ownership ambiguity and add regression before retry.
@@ -31,6 +31,8 @@
 - [x] Fix only those demonstrated causes: import the real public `VoxelSurfaceMetrics` namespace; expand known dependents only for module contract-surface changes (`/Api/` or asmdef) while ordinary Runtime implementation changes execute the owning module plus mandatory Kentridge. Add regression proving Runtime stays local and API still expands dependents.
 - [x] Run exact request `33483749892` on `47a43b9539af487cae934478acce1ae48530e3ac`: all 25 Python regressions passed and fallback paths were empty, but the plan still selected WorldBuilder and many unrelated modules because changed Unity folder metadata (`*/Tests.meta`, etc.) had module owners and the old selection condition admitted any non-test-path owner. Unity then ran WorldBuilder first and failed before Water/Kentridge.
 - [x] Fix the demonstrated metadata-selection defect: an owned path now selects module validation only when it is real production or meaningful non-meta module `Validation/` content. Add regressions proving `Tests.meta` and `Runtime.meta` are no-op changes while validation scenes still select their module.
+- [x] Reconcile the 53-commit current master (`e98191876c104ff115a1828b1ce0a6b2d4d4480b`) normally into `fixes/agent-8` via PR #203 at merge commit `1c1dc14b17f09d412d785a91bbf433f5b8e4ffd4`; no force/synthetic merge.
+- [x] Use newly accepted `Assets/Game/Characters/Tests/Game.Characters.Tests.asmdef` as an independent reuse consumer. Generalize module discovery so direct `Tests/*.asmdef` is deterministic EditMode ownership alongside explicit `Tests/{EditMode,PlayMode}`; add regression proving Character-style layout is auto-discovered without module registration. Do not modify Character production or its SceneIssue.
 
 ## Final gates
 - [ ] Run exact-current-head automatic module tests, Water built-player validation, and mandatory Kentridge built-player validation using only `ci-test/fixes/agent-8`.
