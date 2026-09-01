@@ -26,15 +26,15 @@
 
 ## Verification
 
-- [ ] **T03-020 — Shared-runtime composition test.** Create a player, NPC and enemy through the same registry and verify no type-specific authority path exists.
-- [ ] **T03-021 — Identity uniqueness tests.** Cover duplicate ids, unknown ids, removal/recreate policy, and deterministic query ordering where exposed.
-- [ ] **T03-022 — Persistence identity test.** Capture/restore or equivalent round-trip must preserve stable CharacterIds and bindings.
-- [ ] **T03-023 — Headless movement/query test.** Exercise semantic movement/world-query integration without presentation GameObjects.
-- [ ] **T03-024 — Independent non-Kentridge fixture.** Prove character creation/binding/lifecycle in a second composition.
-- [ ] **T03-025 — Run module and dependent tests.** Include Vitality/AI/Encounter consumers as they exist; rely on automatic module selection.
+- [x] **T03-020 — Shared-runtime composition test.** `SharedRegistryComposesPlayerNpcAndEnemyWithoutTypeSpecificAuthority` proves one snapshot/runtime representation for player/NPC/enemy.
+- [x] **T03-021 — Identity uniqueness tests.** Duplicate/unknown/retired ids, binding uniqueness and deterministic ordering are covered by focused EditMode tests.
+- [x] **T03-022 — Persistence identity test.** `PersistenceRoundTripPreservesStableIdsBindingsStateAndTombstones` preserves stable ids, bindings, kinematics and removal tombstones.
+- [x] **T03-023 — Headless movement/query test.** `HeadlessMovementResolverUpdatesAuthoritativeSnapshotWithoutGameObject` exercises semantic movement without presentation objects.
+- [x] **T03-024 — Independent non-Kentridge fixture.** `IndependentNonKentridgeFixtureUsesSameBindingAndLifecycleContracts` proves reuse outside Kentridge.
+- [x] **T03-025 — Run module and dependent tests.** Exact-SHA request `668267892702a3b8fbea9aac3908dd94015d3171`, run `33480997516`, passed focused tests, repository-derived automatic module validation, and standalone SceneIssue replay against feature SHA `4416e89f17a4f2c3377a6905ccddc5d5faad74da`.
 
 ## Cleanup / close
 
-- [ ] **T03-030 — Remove duplicate actor registries/state.** Repository search for player/NPC/enemy ids and lifecycle stores that now bypass Characters.
-- [ ] **T03-031 — Cross-module boundary audit.** No external asmdef may reference `Game.Characters.Runtime`; no presentation object is authoritative identity.
-- [ ] **T03-032 — Close with reuse proof.** Confirm player/NPC/enemy compositions share one runtime and each downstream subsystem depends only on Characters.Api.
+- [x] **T03-030 — Remove duplicate actor registries/state.** Audit confirms Kentridge scene collections now remain transient presentation/physics adapters; persistent player/NPC/enemy identity and lifecycle are created/bound/defeated through the shared registry. Session, Combat, Campaign and ambient-life state retain only their documented distinct ownership.
+- [x] **T03-031 — Cross-module boundary audit.** Kentridge consumes `Game.Characters.Api` plus the Characters-owned `Game.Characters.Composition` construction seam; it no longer references `Game.Characters.Runtime`, and presentation GameObjects are not identity authority.
+- [x] **T03-032 — Close with reuse proof.** Player/NPC/enemy share `ICharacterRegistry`; the non-Kentridge fixture proves reusable API contracts, and downstream Kentridge adapters operate on `Game.Characters.Api` types rather than Runtime implementation types.
