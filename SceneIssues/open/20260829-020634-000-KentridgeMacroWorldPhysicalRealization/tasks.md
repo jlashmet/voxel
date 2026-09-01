@@ -33,8 +33,9 @@
 - [x] Correct scene composition rather than weaken the shared planner: preserve the ridge's full 420x120dm half-extents and bias it 30dm north so the Orc arrival corridor remains on the settlement side; retain strict-by-default shared policy and the narrowly authored Kentridge `EndpointEscape` opt-in. Add regressions proving an unsafe generic gate approach is rejected and the corrected Kentridge Orc route plans without entering the ridge corridor.
 - [x] Re-run focused production-storage acceptance + 60-second SceneIssue replay on corrected source `6e7a546c64adc397c14c75d34e4324fc092eb5f1`: run `33461949335` completed failure. Planning now succeeds (`20` routes, `824` route tiles, `16` generic buildings) and the standalone replay reaches feature generation; the remaining focused failure is a test-only mismatch where the storage probe sampled the intentionally hollow building centre and read air.
 - [x] Correct the focused storage regression to sample the authored back perimeter timber wall at the same high-ground-relative height; production hollow-shell geometry remains unchanged (`6a2c06b8942ef995b71dfa83f4c1a4c7590b8fe2`).
-- [ ] Re-run focused production-storage acceptance + 60-second SceneIssue replay on the corrected exact feature SHA; retry only the standalone portion if the same proven memory-floor infrastructure failure recurs.
-- [ ] Inspect focused result and standalone logs/screenshots; require planning to complete and no macro-realization exception before evaluating downstream settlement publication.
+- [x] Re-run focused production-storage acceptance + 60-second SceneIssue replay on exact source `b500683169ed0ea2f1e4997ce83560f78093f8e0`: run `33464366092`, attempt 3 job `99724998631`, artifact `9784884651` is fully green for focused test, repository-derived module validation, and standalone replay after two retries of the proven runner-memory-floor infrastructure failure.
+- [x] Inspect the green 60-second result: planning completes, focused storage reaches published shell/roof voxels, player reaches production feature generation, and there is no macro-realization exception. Visual closure remains incomplete only because the supported seven-target evidence sequence outlives the 60-second replay; Rossdam does not become ready until about `t=59s`.
+- [ ] Run the same supported seven-target SceneIssue evidence sequence for 180 seconds on the exact feature SHA, with no evidence-driver or scene changes, so the existing Moordell/Rossdam/lake/Fairy/Orc/ridge/network targets can all complete.
 
 ## Remaining acceptance
 - [ ] Verify full-resolution Moordell/Rossdam/Fairy/Orc surveys show readable grounded authored blockouts with streets/open space and road arrival/exit.
@@ -47,6 +48,7 @@
 - [x] No unrelated SceneIssue implementation, feature-branch `.github/test-request.json`, custom CI transport/workflow, CharacterMotor/load-radius/device-budget change.
 - [x] Terrain-relief sampling remains bounded to 25 x 16 = 400 deterministic catalogue queries; shared feature scheduler remains unchanged.
 - [x] Run `33405010658`: targeted test `0.007716s`, elapsed `69s`, final RSS `549MB`, peak RSS `5251MB`, no positive swap growth; Moordell ~t40, Rossdam ~t52, lake ~t58.
+- [x] Run `33464366092` attempt 3 confirms the corrected focused storage test green and the automatic module-validation/player pipeline green on the same exact source; the two preceding failed attempts were runner-memory-floor infrastructure, not product regressions.
 - [ ] Quantify actual additional vertical resident/generated region count against baseline; numerically prove no horizontal interest-radius/device-budget change.
 - [ ] Measure final lake dimensions/depth/cells, route tile/solve/constrained counts, feature work/time, CPU/FPS, memory, streaming convergence, render/far-field telemetry against budgets.
 - [ ] Quantify fixed-replay target timing after visual closure.
