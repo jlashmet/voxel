@@ -9,6 +9,7 @@
 - Test-only changes and Unity `.meta` files do not select production validation. Meaningful module-local `Validation/` content selects its module.
 - Module player targets are convention-paired `Validation/*.unity` + same-stem `*.player-scenario.json`; no `*.module-validation.json` registration.
 - One generic standalone-player runner serves module validation, Kentridge, and SceneIssue replay. Missing/zero/skipped/unexecuted required gates fail.
+- Required module tests keep a graphics device available so real Rendering compute regressions execute rather than being hidden by `-nographics`.
 - Water proves the visual migration through production `VoxelEngine.Showcase.WaterRenderingShowcase`, a Rendering-owned validation scene/scenario/probe, and standalone-player evidence only.
 
 ## Corrective validation history
@@ -21,6 +22,7 @@
 - `33483749892`: 25 Python regressions passed and fallback paths were empty, but Unity folder metadata such as `*/Tests.meta` still selected module owners and caused unrelated WorldBuilder execution. Selection now requires real production or meaningful non-meta module Validation content; regressions cover `Tests.meta` and `Runtime.meta` no-op behavior.
 - Current master advanced by 53 commits to `e98191876c104ff115a1828b1ce0a6b2d4d4480b`; it was merged normally into this feature via PR #203 at merge commit `1c1dc14b17f09d412d785a91bbf433f5b8e4ffd4`.
 - That merge introduced an independent `Assets/Game/Characters/Tests/Game.Characters.Tests.asmdef` consumer. Discovery was generalized so direct module `Tests/*.asmdef` is deterministic EditMode ownership, with a regression proving production changes select it automatically. No Character production or Character SceneIssue files were modified by this architecture correction.
+- `33485149715`: all 28 architecture regressions passed; planner selected only `Assets/VoxelEngine/Rendering`, its EditMode suite, Water standalone validation, and mandatory Kentridge with no fallback. Rendering suite ran 254 tests = 229 pass / 25 fail. Twenty-two GPU cases failed because the module runner forced `-nographics`; three Water mesh cases failed because this branch had an unrelated per-voxel top-tessellation change. Fix: preserve graphics for all required module tests with a runner regression, and revert `WaterBrickMeshBatchJob` to current master rather than weaken focused tests.
 
 ## Water validation ownership
 - `WaterDemo.unity` remains a thin consumer of production `WaterRenderingShowcase`.
