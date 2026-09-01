@@ -18,7 +18,7 @@ Stable vitality state/snapshot, semantic damage request/result, defeat transitio
 
 03 Characters API first or in the same coordinated wave; Combat may consume Vitality API, never the reverse.
 
-**BLOCKED (2026-09-01 UTC):** `Assets/Game/Characters` / `Game.Characters.Api.CharacterId` is absent on feature/master SHA `71e5b6b146cb7dd3b7da0305d0ab42bcc9cea22e`. System 03's binding plan confirms `CharacterId` belongs to `Game.Characters.Api`. Public Vitality API/Runtime work that would commit a competing identity shape is blocked until that prerequisite contract lands or is available in a coordinated wave. Do not introduce a temporary actor identity or weaken acceptance; continue independent inventory/migration planning meanwhile.
+**BLOCKED (2026-09-01 UTC):** `Assets/Game/Characters` / `Game.Characters.Api.CharacterId` remains absent on current `origin/master` SHA `ef5240c7b24550dab86d0ed75388d6c99a44d47b`; repository commit search also finds no published `CharacterId` implementation. System 03's binding plan confirms `CharacterId` belongs to `Game.Characters.Api`. Public Vitality API/Runtime work that would commit a competing identity shape is blocked until that prerequisite contract lands or is available in a coordinated wave. Do not introduce a temporary actor identity or weaken acceptance; continue independent inventory/migration planning meanwhile.
 
 ## Ownership baseline (T02-001)
 
