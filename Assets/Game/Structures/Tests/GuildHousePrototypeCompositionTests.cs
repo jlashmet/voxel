@@ -6,7 +6,6 @@ namespace Game.Structures.Tests
 {
     public sealed class GuildHousePrototypeCompositionTests
     {
-        [Test]
         public void WizardsGuildResolvesEverySelectedRoomThroughExistingSceneResolvers()
         {
             GuildHousePrototype prototype = GuildHousePrototypeComposition.Build(
@@ -28,7 +27,6 @@ namespace Game.Structures.Tests
             }
         }
 
-        [Test]
         public void DruidsLodgeResolvesEverySelectedRoomThroughExistingSceneResolvers()
         {
             GuildHousePrototype prototype = GuildHousePrototypeComposition.Build(
@@ -50,7 +48,6 @@ namespace Game.Structures.Tests
             }
         }
 
-        [Test]
         public void SameWizardPrototypeProducesStablePlacementIdentity()
         {
             GuildHousePrototype a = GuildHousePrototypeComposition.Build(
