@@ -1,6 +1,12 @@
+using System;
 using System.Collections.Generic;
+using Game.Characters.Api;
+using Game.Combat.Api;
+using Game.Encounters.Api;
+using Game.GameplayReplication.Adapters;
 using Game.GameplayReplication.Api;
 using Game.GameplayReplication.Runtime;
+using Game.Inventory.Api;
 using NUnit.Framework;
 
 namespace Game.GameplayReplication.Tests
@@ -23,6 +29,50 @@ namespace Game.GameplayReplication.Tests
             Assert.That(first.Projections[1].Descriptor.Id.Value, Is.EqualTo("zeta"));
             Assert.That(first.Projections[0].Entries[0].Key, Is.EqualTo("c"));
             Assert.That(first.Projections[0].Entries[1].Key, Is.EqualTo("d"));
+        }
+
+        [Test]
+        public void ExistingAuthorityAdaptersProduceStableSemanticProjections()
+        {
+            var hero = Character("character:hero", CharacterLifecycleState.Active, 7, 3f);
+            var enemy = Character("character:enemy", CharacterLifecycleState.Defeated, 9, -2f);
+            var characters = new CharactersGameplayProjectionSource(new CharacterQueryFixture(hero, enemy));
+
+            var encounterId = new EncounterId("encounter:ridge");
+            var encounter = new EncounterSnapshot(
+                new EncounterDefinition(encounterId, EncounterCombatPolicy.Required, "ambush"),
+                EncounterLifecycleState.Active,
+                new EncounterMembershipSnapshot(new[]
+                {
+                    new EncounterParticipant(hero.Id, EncounterParticipantOwnership.Persistent, "player"),
+                    new EncounterParticipant(enemy.Id, EncounterParticipantOwnership.EncounterOwned, "enemy")
+                }),
+                null,
+                "trigger:ridge",
+                "ridge-realization",
+                4);
+            var encounters = new EncounterGameplayProjectionSource(new EncounterQueryFixture(encounter));
+
+            var combat = new CombatGameplayProjectionSource(new CombatFixture(
+                new CombatSessionId(3),
+                new CombatParticipant(new CombatParticipantId(enemy.Id.Value), CombatTeam.Enemy),
+                new CombatParticipant(new CombatParticipantId(hero.Id.Value), CombatTeam.Player)));
+
+            var inventory = new InventoryGameplayProjectionSource(new InventoryFixture(
+                new InventoryItemSnapshot(new ItemDefinition(new ItemRef("wood"), "Wood"), 5),
+                new InventoryItemSnapshot(new ItemDefinition(new ItemRef("ore"), "Ore"), 2)));
+
+            var builder = new GameplayPublicationBuilder(new IGameplayProjectionSource[] { inventory, combat, characters, encounters });
+            GameplayPublication publication = builder.PublishSnapshot();
+
+            Assert.That(publication.Projections[0].Descriptor.Id.Value, Is.EqualTo("characters"));
+            Assert.That(publication.Projections[1].Descriptor.Id.Value, Is.EqualTo("combat"));
+            Assert.That(publication.Projections[2].Descriptor.Id.Value, Is.EqualTo("encounters"));
+            Assert.That(publication.Projections[3].Descriptor.Id.Value, Is.EqualTo("inventory"));
+            Assert.That(publication.Projections[0].Entries[0].Key, Is.EqualTo("character:enemy/facing"));
+            Assert.That(publication.Projections[2].Entries[0].Key, Is.EqualTo("encounter:ridge/activation-cause"));
+            Assert.That(publication.Projections[3].Entries[0].Key, Is.EqualTo("ore"));
+            Assert.That(publication.Projections[3].Entries[0].Value, Is.EqualTo("2"));
         }
 
         [Test]
@@ -74,6 +124,15 @@ namespace Game.GameplayReplication.Tests
             Assert.That(current.Entries[0].Value, Is.EqualTo("open"));
         }
 
+        private static CharacterSnapshot Character(string id, CharacterLifecycleState lifecycle, ulong revision, float x)
+        {
+            var kinematics = new CharacterKinematicState(
+                new CharacterVector3(x, 1f, 2f),
+                new CharacterVector3(0f, 0f, 0f),
+                new CharacterVector3(0f, 0f, 1f));
+            return new CharacterSnapshot(new CharacterDefinition(new CharacterId(id), CharacterTraits.Combatant), lifecycle, kinematics, revision);
+        }
+
         private static GameplayPublication Publication(long revision, GameplayPublicationKind kind, GameplayProjectionDescriptor descriptor, string key, string value)
             => new GameplayPublication(new GameplayRevision(revision), kind, new[] { State(descriptor, key, value) });
 
@@ -92,6 +151,65 @@ namespace Game.GameplayReplication.Tests
             }
             public GameplayProjectionDescriptor Descriptor { get; }
             public GameplayProjectionState Capture() => new GameplayProjectionState(Descriptor, _entries);
+        }
+
+        private sealed class CharacterQueryFixture : ICharacterQuery
+        {
+            private readonly CharacterSnapshot[] _snapshots;
+            public CharacterQueryFixture(params CharacterSnapshot[] snapshots) => _snapshots = snapshots;
+            public IReadOnlyList<CharacterSnapshot> GetAll() => _snapshots;
+            public bool TryGet(CharacterId id, out CharacterSnapshot snapshot)
+            {
+                foreach (CharacterSnapshot candidate in _snapshots)
+                {
+                    if (candidate.Id == id) { snapshot = candidate; return true; }
+                }
+                snapshot = null;
+                return false;
+            }
+            public bool TryResolve(CharacterBinding binding, out CharacterId id) { id = default; return false; }
+        }
+
+        private sealed class EncounterQueryFixture : IEncounterQuery
+        {
+            private readonly EncounterSnapshot[] _snapshots;
+            public EncounterQueryFixture(params EncounterSnapshot[] snapshots) => _snapshots = snapshots;
+            public IReadOnlyList<EncounterSnapshot> GetAll() => _snapshots;
+            public bool TryGet(EncounterId id, out EncounterSnapshot snapshot)
+            {
+                foreach (EncounterSnapshot candidate in _snapshots)
+                {
+                    if (candidate.Id == id) { snapshot = candidate; return true; }
+                }
+                snapshot = null;
+                return false;
+            }
+        }
+
+        private sealed class CombatFixture : ICombatService
+        {
+            private readonly CombatParticipant[] _participants;
+            public CombatFixture(CombatSessionId session, params CombatParticipant[] participants)
+            {
+                ActiveSessionId = session;
+                _participants = participants;
+            }
+            public bool IsActive => true;
+            public CombatLifecycleState State => CombatLifecycleState.Active;
+            public CombatSessionId ActiveSessionId { get; }
+            public IReadOnlyList<CombatParticipant> ActiveParticipants => _participants;
+            public CombatSessionId BeginCombat(CombatEncounterRequest request) => throw new NotSupportedException();
+            public void CompleteCombat() => throw new NotSupportedException();
+        }
+
+        private sealed class InventoryFixture : IInventoryRuntime
+        {
+            private readonly InventoryItemSnapshot[] _items;
+            public InventoryFixture(params InventoryItemSnapshot[] items) => _items = items;
+            public bool TryAddUnique(ItemRef item) => throw new NotSupportedException();
+            public void Add(ItemRef item, int quantity = 1) => throw new NotSupportedException();
+            public int Count(ItemRef item) => throw new NotSupportedException();
+            public IReadOnlyList<InventoryItemSnapshot> Snapshot() => _items;
         }
     }
 }
