@@ -2,6 +2,8 @@
 
 This document tracks systems for **this repository as it exists**, not a generic game-development checklist. A system belongs here only when it is evidenced by code/specs/current SceneIssues, or when it is a clearly demonstrated gap needed to connect those existing systems into the intended game.
 
+Implementation work is broken down in the [game-systems implementation plans](game-systems/implementation/README.md), which define module ownership, dependency order, migration steps, validation, and agent-ready boundaries for each approved system.
+
 ## Design-review legend
 
 - `[x]` reviewed and approved as a needed system/design direction
