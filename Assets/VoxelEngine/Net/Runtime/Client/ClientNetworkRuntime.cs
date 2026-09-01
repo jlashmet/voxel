@@ -263,6 +263,18 @@ namespace VoxelEngine.Net.Runtime.Client
             return _host.TrySendAlterationRequest(in request);
         }
 
+        public bool TryRequestGameplayStateRepair(in C_GameplayStateRepairRequest request)
+        {
+            ThrowIfDisposed();
+            Span<byte> packet = stackalloc byte[GameplayStateRepairRequestPacket.PacketSize];
+            if (!GameplayStateRepairRequestPacket.TryEncode(packet, in request) ||
+                !_host.TrySend(UtpChannel.Event, packet))
+                return false;
+
+            _host.FlushSends();
+            return true;
+        }
+
         public bool TryRequestFullRegionState(int3 regionCoord)
         {
             ThrowIfDisposed();
@@ -323,7 +335,7 @@ namespace VoxelEngine.Net.Runtime.Client
             {
                 S_PlayerState state = decoded[i];
                 if (!_playerTimeline.TryAccept(in state))
-                    continue; // valid but stale/reordered supersedable snapshot.
+                    continue;
 
                 if (_pendingPlayerStates.Count >= MaxPendingPlayerSnapshots &&
                     !_pendingPlayerStates.ContainsKey(state.playerId))
