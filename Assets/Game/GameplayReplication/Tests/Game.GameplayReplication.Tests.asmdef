@@ -8,7 +8,8 @@
     "Game.Characters.Api",
     "Game.Combat.Api",
     "Game.Encounters.Api",
-    "Game.Inventory.Api"
+    "Game.Inventory.Api",
+    "Game.Sessions.Api"
   ],
   "includePlatforms": [
     "Editor"
