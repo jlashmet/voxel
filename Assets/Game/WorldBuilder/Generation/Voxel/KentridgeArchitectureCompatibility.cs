@@ -106,11 +106,19 @@ namespace MountingForce.WorldGen.Voxel
 
             SpatialReservationSnapshot source = KentridgeTownPlanner.BuildReservationSnapshot(seed);
             string hostOwner = "kentridge-site:" + plot.RoleId;
+            string hostApproachOwner = "kentridge-approach:" + plot.RoleId;
+            string hostRoutePrefix = "kentridge-route:organic-access-" + plot.RoleId + ":";
             var external = new List<SpatialReservation>(source.Reservations.Count);
             for (int i = 0; i < source.Reservations.Count; i++)
             {
                 SpatialReservation claim = source.Reservations[i];
-                if (string.Equals(claim.OwnerId, hostOwner, StringComparison.Ordinal)) continue;
+                // A site's own footprint/clearance and its authored public handoff are part of the host
+                // geometry being validated, not external obstructions. Other buildings, approaches and
+                // roads remain in the query so an unrelated corridor still fails closed.
+                if (string.Equals(claim.OwnerId, hostOwner, StringComparison.Ordinal)
+                    || string.Equals(claim.OwnerId, hostApproachOwner, StringComparison.Ordinal)
+                    || claim.OwnerId.StartsWith(hostRoutePrefix, StringComparison.Ordinal))
+                    continue;
                 external.Add(claim);
             }
 
