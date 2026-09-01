@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Game.Continuity.Api;
+using Game.GameplayReplication.Api;
 using Game.Sessions.Api;
 
 namespace Game.Continuity.Runtime
@@ -38,17 +39,24 @@ namespace Game.Continuity.Runtime
         private readonly IPartySessionQuery _sessions;
         private readonly ContinuityPolicy _policy;
         private readonly IReconnectTransportAdmission _admission;
+        private readonly IGameplayReplicationClientState _replication;
         private readonly IContinuityTerminalPolicySink _terminalPolicy;
         private readonly Dictionary<PartyMemberId, Entry> _entries = new Dictionary<PartyMemberId, Entry>();
         private ulong _eventSequence;
 
         public event Action<ContinuityEvent> Changed;
 
-        public ContinuityCoordinator(IPartySessionQuery sessions, ContinuityPolicy policy, IReconnectTransportAdmission admission, IContinuityTerminalPolicySink terminalPolicy = null)
+        public ContinuityCoordinator(
+            IPartySessionQuery sessions,
+            ContinuityPolicy policy,
+            IReconnectTransportAdmission admission,
+            IGameplayReplicationClientState replication,
+            IContinuityTerminalPolicySink terminalPolicy = null)
         {
             _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
             _policy = policy;
             _admission = admission ?? throw new ArgumentNullException(nameof(admission));
+            _replication = replication ?? throw new ArgumentNullException(nameof(replication));
             _terminalPolicy = terminalPolicy;
         }
 
@@ -104,6 +112,11 @@ namespace Game.Continuity.Runtime
                 return new ReconnectResult(ReconnectFailureReason.TransportRejected);
             }
 
+            GameplayRecoveryMode recoveryMode = path == RecoveryPath.FastRepair
+                ? GameplayRecoveryMode.Repair
+                : GameplayRecoveryMode.FullSnapshot;
+            _replication.RequestRecovery(entry.MemberId, recoveryMode);
+
             if (path == RecoveryPath.FullResynchronization)
             {
                 entry.State = RecoveryState.Resynchronizing;
@@ -114,11 +127,13 @@ namespace Game.Continuity.Runtime
             return new ReconnectResult(ReconnectFailureReason.None, path, member);
         }
 
-        /// <summary>System 06 calls this only after current-state synchronization reaches GameplayReady.</summary>
+        /// <summary>Completes continuity only after gameplay replication reports converged current truth.</summary>
         public bool MarkGameplayReady(PartyMemberId memberId)
         {
             if (!_entries.TryGetValue(memberId, out Entry entry)) return false;
             if (entry.State != RecoveryState.Reconnecting && entry.State != RecoveryState.Resynchronizing) return false;
+            if (!_replication.TryGetSynchronization(memberId, out GameplaySynchronizationStatus synchronization)) return false;
+            if (!synchronization.GameplayReady || !synchronization.Revision.IsValid) return false;
             entry.State = RecoveryState.Recovered;
             _entries[memberId] = entry;
             Publish(ContinuityEventKind.Recovered, memberId);
