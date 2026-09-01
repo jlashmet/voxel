@@ -82,17 +82,9 @@ namespace VoxelEngine.Showcase.Tests.RuntimeSupport
 
                 if (i == 0) continue;
                 ResolvedWorldRoadPoint previous = route.Road.Points[i - 1];
-                long dx = (long)point.Xdm - previous.Xdm;
-                long dz = (long)point.Zdm - previous.Zdm;
-                int horizontal = (int)Math.Sqrt(dx * dx + dz * dz);
+                int horizontal = ResolverPlanarDistance(previous, point);
                 int rise = Math.Abs(point.Ydm - previous.Ydm);
                 if (rise > 0) risingSegments++;
-                if (horizontal <= 0)
-                {
-                    if (rise > 0)
-                        throw new InvalidOperationException($"Resolved road segment {i - 1} forms a vertical tower.");
-                    continue;
-                }
                 if ((long)rise * 1000L > (long)horizontal * maximumGrade)
                 {
                     throw new InvalidOperationException(
@@ -105,6 +97,36 @@ namespace VoxelEngine.Showcase.Tests.RuntimeSupport
             if (risingSegments < 3)
                 throw new InvalidOperationException("Resolved ascent does not materially climb the mountain.");
             return route;
+        }
+
+        private static int ResolverPlanarDistance(ResolvedWorldRoadPoint a, ResolvedWorldRoadPoint b)
+        {
+            long dx = (long)b.Xdm - a.Xdm;
+            long dz = (long)b.Zdm - a.Zdm;
+            return Math.Max(1, IntegerSqrtRounded(dx * dx + dz * dz));
+        }
+
+        private static int IntegerSqrtRounded(long value)
+        {
+            if (value <= 0) return 0;
+            long low = 1;
+            long high = Math.Min(value, 3037000499L);
+            while (low <= high)
+            {
+                long middle = low + ((high - low) >> 1);
+                if (middle <= value / middle) low = middle + 1;
+                else high = middle - 1;
+            }
+
+            long root = high;
+            long lowerError = value - root * root;
+            long next = root + 1;
+            if (next <= 3037000499L)
+            {
+                long upperError = next * next - value;
+                if (upperError <= lowerError) root = next;
+            }
+            return root > int.MaxValue ? int.MaxValue : (int)root;
         }
 
         private static void ValidateSummitApproach(
