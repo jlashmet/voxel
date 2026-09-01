@@ -1,27 +1,28 @@
 # 04 Character AI, autonomous life, perception & intent — implementation plan
 
-**Target module:** `Assets/Game/CharacterAI/Api` / `Runtime` (`Game.CharacterAI.Api`, `Game.CharacterAI.Runtime`).
+**Target module:** `Game.CharacterAI.Api` / `Game.CharacterAI.Runtime`; general Combat integration lives in `Game.CharacterAI.CombatAdapter` so gameplay composition need not reference AI Runtime.
 
-## API
+## Inventory / ownership
 
-Semantic perception observations, intent/goal representation, AI control state, planner/behavior policy interfaces, and externally visible AI state needed for diagnostics. Reference characters/world objects/sites by semantic ids, not scene objects.
+- Production tactical mechanics live in `Game.Combat.Runtime.CombatAiBattleDriver`: deterministic candidate ordering/seeded choice and execution through `CombatService`. Reuse it; Combat remains tactical authority.
+- `ChainEnemyTacticalAI` is an older Combat-local board prototype that plans and mutates its own board. It is not a CharacterAI framework or gameplay identity owner and is left isolated rather than copied.
+- Kentridge directly drives `CombatAiBattleDriver`; its bandit GameObjects/lists are presentation/encounter state, not a reusable AI registry.
+- No repository behavior-tree framework or named NPC schedule system was found. Do not invent one.
 
-## Runtime
+## Selected design
 
-1. Adapt existing tactical combat AI behind a shared character-intent seam instead of cloning it.
-2. Add perception adapters from character/world/encounter APIs.
-3. Support persistent non-combat intents and transition into tactical combat intent when encounter/combat context requires it.
-4. Keep behavior policy/configuration data-driven and character-specific policy outside the generic runtime.
-5. Add simulation-LOD hooks only where existing world streaming demonstrates need; preserve semantic outcome when lowering fidelity.
+`CharacterAI.Api` contains engine-neutral semantic observations (character/world-object/site/encounter/combat/fact), semantic intents, control/read state, and perception/policy/executor interfaces. `CharacterAI.Runtime` owns only a headless controller plus deterministic config-driven rule selection. Every tick re-observes semantic truth before choosing intent; owner adapters may reject normally.
 
-## Dependencies
+Combat perception/execution is isolated in `Game.CharacterAI.CombatAdapter`: it maps Combat public state to observations and delegates `TacticalCombat` execution to the existing `CombatAiBattleDriver`. No tactical target-selection logic is duplicated in CharacterAI.
 
-03 Characters, 05 Encounters API as needed, existing world-query APIs. No dependency on presentation.
+The independent non-combat fixture uses the same controller with a semantic `market-open -> Move market-square` rule and a public owner executor seam. The transition regression keeps one `CharacterId`/controller while observations switch autonomous→combat context.
 
-## Tests / proof
+## Determinism / simulation policy
 
-Same planner seam drives an enemy in combat and an autonomous non-combat character; deterministic intent selection; no Unity scene dependency in core tests.
+Rule priority is descending with ordinal `TieBreakKey` for equal priority. Combat retains its existing deterministic sort/seed mechanics.
 
-## Do not build
+No far-simulation/streaming requirement for CharacterAI is demonstrated by current consumers. Therefore no AI-specific LOD framework is added: composition controls tick frequency while semantic perception/intent contracts remain identical. A future far-sim consumer must preserve those contracts rather than create a second planner.
 
-No generic GOAP/behavior-tree rewrite unless needed to integrate existing AI, no quest/story ownership, no scene-specific schedules in shared code.
+## Validation
+
+Headless regressions cover tactical reuse, independent non-combat reuse, deterministic tie-break, rejection/re-observation, autonomous↔tactical transition, and disabled control. Exact-SHA targeted CI plus automatic dependent module validation and standalone SceneIssue replay remain the final gate.
