@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Game.Characters.Api;
+using Game.Encounters.Api;
 
 namespace Game.Combat.Api
 {
@@ -72,6 +73,64 @@ namespace Game.Combat.Api
         {
             if (!characterId.IsValid) throw new ArgumentException("Character id is required.", nameof(characterId));
             return new CombatParticipant(new CombatParticipantId(characterId.Value), characterId, team);
+        }
+    }
+
+    /// <summary>
+    /// Semantic request used by composition after Encounters has selected membership and composition has mapped
+    /// encounter roles to combat teams. Combat owns neither encounter activation policy nor role-to-team policy.
+    /// </summary>
+    public sealed class CombatStartRequest
+    {
+        public EncounterId EncounterId { get; }
+        public IReadOnlyList<CombatParticipant> Participants { get; }
+
+        public CombatStartRequest(EncounterId encounterId, IReadOnlyList<CombatParticipant> participants)
+        {
+            if (!encounterId.IsValid) throw new ArgumentException("Encounter id is required.", nameof(encounterId));
+            if (participants == null) throw new ArgumentNullException(nameof(participants));
+            if (participants.Count < 2) throw new ArgumentException("Combat requires at least two participants.", nameof(participants));
+
+            var copy = new CombatParticipant[participants.Count];
+            for (int i = 0; i < participants.Count; i++)
+                copy[i] = participants[i] ?? throw new ArgumentException("Combat participant cannot be null.", nameof(participants));
+
+            EncounterId = encounterId;
+            Participants = Array.AsReadOnly(copy);
+        }
+    }
+
+    public readonly struct CombatStartResult
+    {
+        public EncounterId EncounterId { get; }
+        public CombatSessionId SessionId { get; }
+
+        public CombatStartResult(EncounterId encounterId, CombatSessionId sessionId)
+        {
+            if (!encounterId.IsValid) throw new ArgumentException("Encounter id is required.", nameof(encounterId));
+            if (!sessionId.IsValid) throw new ArgumentException("Combat session id is required.", nameof(sessionId));
+            EncounterId = encounterId;
+            SessionId = sessionId;
+        }
+    }
+
+    /// <summary>
+    /// Minimal combat-owned terminal fact. Composition may translate the winning team into an EncounterResolution;
+    /// Combat intentionally carries no campaign, cleanup, or encounter-resolution policy.
+    /// </summary>
+    public readonly struct CombatResolved
+    {
+        public EncounterId EncounterId { get; }
+        public CombatSessionId SessionId { get; }
+        public CombatTeam WinningTeam { get; }
+
+        public CombatResolved(EncounterId encounterId, CombatSessionId sessionId, CombatTeam winningTeam)
+        {
+            if (!encounterId.IsValid) throw new ArgumentException("Encounter id is required.", nameof(encounterId));
+            if (!sessionId.IsValid) throw new ArgumentException("Combat session id is required.", nameof(sessionId));
+            EncounterId = encounterId;
+            SessionId = sessionId;
+            WinningTeam = winningTeam;
         }
     }
 
