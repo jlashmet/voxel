@@ -1,153 +1,261 @@
 #!/usr/bin/env python3
-"""Diff-driven module validation planner.
+"""Diff-driven validation planning from repository structure.
 
-All module/scene/test policy lives in *.module-validation.json metadata. This planner
-knows only the schema, ownership matching, conservative fallback, and integration-gate rules.
+A module is any Assets subtree that owns Tests/EditMode and/or Tests/PlayMode
+assemblies. Production ownership is the longest matching module root. Focused
+Unity tests are every asmdef below the owning module's test directories.
+Player-visible validation is opt-in by placing paired scene/scenario files under
+<module>/Demo/Scenes. KentridgePlayableSlice is the canonical production-change
+integration gate.
 """
 from __future__ import annotations
-import argparse, fnmatch, json, sys
+
+import argparse
+import json
+import re
+import sys
 from pathlib import Path
 
-SCHEMA_VERSION = 1
+KENTRIDGE_SCENE = "Assets/Scenes/KentridgePlayableSlice.unity"
+KENTRIDGE_SCENARIO = "Assets/Scenes/Validation/kentridge.player-scenario.json"
 
-class ManifestError(ValueError):
+
+class ConventionError(ValueError):
     pass
 
-def _strings(value, field, allow_empty=False):
-    if not isinstance(value, list) or (not allow_empty and not value):
-        raise ManifestError(f"{field} must be a {'possibly empty ' if allow_empty else 'non-empty '}array")
-    if any(not isinstance(v, str) or not v.strip() for v in value):
-        raise ManifestError(f"{field} entries must be non-empty strings")
-    return value
 
-def load_manifest(path: Path, root: Path) -> dict:
+def _rel(path: Path, root: Path) -> str:
+    return path.relative_to(root).as_posix()
+
+
+def _load_asmdef(path: Path) -> dict:
     try:
-        data=json.loads(path.read_text(encoding="utf-8"))
-    except (OSError,json.JSONDecodeError) as exc:
-        raise ManifestError(f"{path}: {exc}") from exc
-    if not isinstance(data,dict) or data.get("schemaVersion") != SCHEMA_VERSION:
-        raise ManifestError(f"{path}: schemaVersion must be {SCHEMA_VERSION}")
-    module=data.get("module")
-    if not isinstance(module,str) or not module.strip():
-        raise ManifestError(f"{path}: module must be a non-empty string")
-    production=_strings(data.get("productionPaths"), f"{path}: productionPaths")
-    shared=_strings(data.get("sharedPaths",[]), f"{path}: sharedPaths", allow_empty=True)
-    integration=data.get("integrationGate",False)
-    fallback=data.get("fallback",False)
-    if not isinstance(integration,bool) or not isinstance(fallback,bool):
-        raise ManifestError(f"{path}: integrationGate/fallback must be boolean")
-    tests=data.get("tests",[])
-    if not isinstance(tests,list) or (not tests and not integration):
-        raise ManifestError(f"{path}: tests must be a non-empty array for owning modules")
-    normalized_tests=[]
-    for i,test in enumerate(tests):
-        if not isinstance(test,dict):
-            raise ManifestError(f"{path}: tests[{i}] must be an object")
-        platform=test.get("platform")
-        test_filter=test.get("filter")
-        if platform not in ("EditMode","PlayMode") or not isinstance(test_filter,str) or not test_filter.strip():
-            raise ManifestError(f"{path}: tests[{i}] requires platform EditMode|PlayMode and non-empty filter")
-        normalized_tests.append({"platform":platform,"filter":test_filter})
-    player=data.get("playerValidation")
-    if player is not None:
-        if not isinstance(player,dict):
-            raise ManifestError(f"{path}: playerValidation must be an object")
-        scene=player.get("scene")
-        scenario=player.get("scenario")
-        if not isinstance(scene,str) or not scene.startswith("Assets/") or not scene.endswith(".unity"):
-            raise ManifestError(f"{path}: playerValidation.scene must be an Assets/... .unity path")
-        if not isinstance(scenario,str) or not scenario.startswith("Assets/") or not scenario.endswith(".player-scenario.json"):
-            raise ManifestError(f"{path}: playerValidation.scenario must be an Assets/... *.player-scenario.json path")
-        for field,target in (("scene",scene),("scenario",scenario)):
-            if not (root/target).is_file():
-                raise ManifestError(f"{path}: playerValidation.{field} does not exist: {target}")
-    return {"module":module,"manifest":path.relative_to(root).as_posix(),
-            "productionPaths":list(production)+[path.relative_to(root).as_posix()],
-            "sharedPaths":shared,"tests":normalized_tests,"playerValidation":player,
-            "integrationGate":integration,"fallback":fallback}
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ConventionError(f"{path}: {exc}") from exc
+    name = data.get("name") if isinstance(data, dict) else None
+    references = data.get("references", []) if isinstance(data, dict) else []
+    if not isinstance(name, str) or not name.strip():
+        raise ConventionError(f"{path}: asmdef requires a non-empty name")
+    if not isinstance(references, list) or any(not isinstance(v, str) for v in references):
+        raise ConventionError(f"{path}: asmdef references must be an array of strings")
+    return {"name": name, "references": references}
 
-def matches(path: str, pattern: str) -> bool:
-    prefix=pattern[:-3] if pattern.endswith("/**") else None
-    return fnmatch.fnmatchcase(path,pattern) or (prefix is not None and (path==prefix or path.startswith(prefix+"/")))
 
-def discover(root: Path) -> list[dict]:
-    manifests=[load_manifest(path,root) for path in sorted(root.glob("Assets/**/*.module-validation.json"))]
-    if not manifests:
-        raise ManifestError("no module validation manifests discovered under Assets/")
-    names=[m["module"] for m in manifests]
-    if len(names)!=len(set(names)):
-        raise ManifestError("module names must be unique")
-    gates=[m for m in manifests if m["integrationGate"]]
-    if len(gates)!=1 or not gates[0].get("playerValidation"):
-        raise ManifestError("exactly one manifest with playerValidation must declare integrationGate")
-    if not any(m["fallback"] for m in manifests):
-        raise ManifestError("at least one manifest must declare fallback=true")
-    return manifests
+def _asmdef_guid(path: Path) -> str | None:
+    meta = Path(str(path) + ".meta")
+    if not meta.is_file():
+        return None
+    match = re.search(r"(?m)^guid:\s*([0-9a-fA-F]+)\s*$", meta.read_text(encoding="utf-8"))
+    return match.group(1).lower() if match else None
+
+
+def _module_roots(root: Path) -> list[Path]:
+    roots: set[Path] = set()
+    for platform in ("EditMode", "PlayMode"):
+        for asmdef in root.glob(f"Assets/**/Tests/{platform}/**/*.asmdef"):
+            parts = asmdef.relative_to(root).parts
+            try:
+                tests_index = parts.index("Tests")
+            except ValueError:
+                continue
+            if tests_index == 0:
+                continue
+            roots.add(root.joinpath(*parts[:tests_index]))
+    return sorted(roots, key=lambda p: p.as_posix())
+
+
+def _module_for_path(path: str, modules: list[dict]) -> dict | None:
+    candidates = [m for m in modules if path == m["root"] or path.startswith(m["root"] + "/")]
+    return max(candidates, key=lambda m: len(m["root"]), default=None)
+
+
+def _discover_player_targets(module_root: Path, root: Path, module_name: str) -> list[dict]:
+    scenes_root = module_root / "Demo" / "Scenes"
+    if not scenes_root.is_dir():
+        return []
+    scenes = sorted(scenes_root.rglob("*.unity"))
+    scenarios = sorted(scenes_root.rglob("*.player-scenario.json"))
+    targets = []
+    expected_scenarios = set()
+    for scene in scenes:
+        scenario = scene.with_suffix(".player-scenario.json")
+        expected_scenarios.add(scenario)
+        if not scenario.is_file():
+            raise ConventionError(f"validation scene is missing paired scenario: {_rel(scene, root)}")
+        targets.append({
+            "module": module_name,
+            "scene": _rel(scene, root),
+            "scenario": _rel(scenario, root),
+        })
+    orphaned = [p for p in scenarios if p not in expected_scenarios]
+    if orphaned:
+        raise ConventionError(f"validation scenario is missing paired scene: {_rel(orphaned[0], root)}")
+    return targets
+
+
+def discover(root: Path) -> dict:
+    root = root.resolve()
+    obsolete = sorted(root.glob("Assets/**/*.module-validation.json"))
+    if obsolete:
+        raise ConventionError("obsolete *.module-validation.json registration is not supported: " + _rel(obsolete[0], root))
+    top_level = sorted((root / "Assets" / "Tests" / "EditMode").glob("**/*.asmdef")) if (root / "Assets" / "Tests" / "EditMode").exists() else []
+    if top_level:
+        raise ConventionError("repository-wide Assets/Tests/EditMode assembly is not allowed: " + _rel(top_level[0], root))
+
+    modules = []
+    for module_root in _module_roots(root):
+        module_name = _rel(module_root, root)
+        tests = []
+        for platform in ("EditMode", "PlayMode"):
+            test_root = module_root / "Tests" / platform
+            if not test_root.is_dir():
+                continue
+            for asmdef_path in sorted(test_root.rglob("*.asmdef")):
+                asmdef = _load_asmdef(asmdef_path)
+                tests.append({"module": module_name, "platform": platform, "assembly": asmdef["name"]})
+        if not tests:
+            continue
+        runtime_assemblies = []
+        for asmdef_path in sorted(module_root.rglob("*.asmdef")):
+            rel = _rel(asmdef_path, root)
+            if "/Tests/" in rel:
+                continue
+            asmdef = _load_asmdef(asmdef_path)
+            runtime_assemblies.append({
+                "name": asmdef["name"],
+                "guid": _asmdef_guid(asmdef_path),
+                "references": asmdef["references"],
+            })
+        modules.append({
+            "name": module_name,
+            "root": module_name,
+            "tests": tests,
+            "players": _discover_player_targets(module_root, root, module_name),
+            "runtimeAssemblies": runtime_assemblies,
+        })
+    if not modules:
+        raise ConventionError("no module-owned test assemblies discovered under Assets/**/Tests/{EditMode,PlayMode}")
+
+    assembly_owner: dict[str, str] = {}
+    for module in modules:
+        for asmdef in module["runtimeAssemblies"]:
+            tokens = [asmdef["name"]]
+            if asmdef["guid"]:
+                tokens.append("GUID:" + asmdef["guid"])
+            for token in tokens:
+                previous = assembly_owner.get(token)
+                if previous is not None and previous != module["name"]:
+                    raise ConventionError(f"runtime assembly token has multiple module owners: {token}")
+                assembly_owner[token] = module["name"]
+
+    dependencies: dict[str, set[str]] = {m["name"]: set() for m in modules}
+    for module in modules:
+        for asmdef in module["runtimeAssemblies"]:
+            for reference in asmdef["references"]:
+                token = reference
+                if token.startswith("GUID:"):
+                    token = "GUID:" + token[5:].lower()
+                owner = assembly_owner.get(token)
+                if owner and owner != module["name"]:
+                    dependencies[module["name"]].add(owner)
+
+    for required in (root / KENTRIDGE_SCENE, root / KENTRIDGE_SCENARIO):
+        if not required.is_file():
+            raise ConventionError(f"required Kentridge validation file does not exist: {_rel(required, root)}")
+    return {"modules": modules, "dependencies": dependencies}
+
 
 def is_production(path: str) -> bool:
-    return (path.startswith("Assets/") and not path.endswith(".meta")
-            and not path.endswith(".player-scenario.json") and "/Tests/" not in path
-            and not path.startswith("Assets/Tests/"))
+    path = path.replace("\\", "/")
+    if not path.startswith("Assets/") or path.endswith(".meta"):
+        return False
+    if "/Tests/" in path or path.startswith("Assets/Tests/"):
+        return False
+    if "/Demo/Scenes/" in path or path.endswith(".player-scenario.json"):
+        return False
+    return True
 
-def plan(changed_paths: list[str], manifests: list[dict]) -> dict:
-    changed=sorted({p.strip().replace("\\","/") for p in changed_paths if p.strip()})
-    production=[p for p in changed if is_production(p)]
-    selected={}
-    fallback_used=[]
-    owning=[m for m in manifests if not m["fallback"]]
-    fallback_manifests=[m for m in manifests if m["fallback"]]
-    for p in changed:
-        direct=[m for m in owning if any(matches(p,pat) for pat in m["productionPaths"])]
-        dependents=[m for m in owning if any(matches(p,pat) for pat in m["sharedPaths"])]
-        matches_now=direct+dependents
-        if not matches_now and is_production(p):
-            fallback_match=any(any(matches(p,pat) for pat in (m["productionPaths"]+m["sharedPaths"]))
-                               for m in fallback_manifests)
-            if fallback_match:
-                # Unknown production ownership must never degrade to integration-only validation.
-                # A declared fallback scope means "validate every known owning module", which is
-                # intentionally broad but preserves focused tests and module-local player gates.
-                matches_now=list(owning)
-                fallback_used.append(p)
-        if is_production(p) and not matches_now:
-            raise ManifestError("unowned production path without fallback: "+p)
-        for m in matches_now:
-            selected[m["module"]]=m
-    tests=[]
-    players=[]
-    for module in sorted(selected):
-        m=selected[module]
-        for test in m["tests"]:
-            item={"module":module,**test}
-            if item not in tests: tests.append(item)
-        if m.get("playerValidation"):
-            players.append({"module":module,**m["playerValidation"]})
+
+def _expand_dependents(selected: set[str], dependencies: dict[str, set[str]]) -> set[str]:
+    expanded = set(selected)
+    changed = True
+    while changed:
+        changed = False
+        for module, deps in dependencies.items():
+            if module not in expanded and deps.intersection(expanded):
+                expanded.add(module)
+                changed = True
+    return expanded
+
+
+def plan(changed_paths: list[str], discovered: dict) -> dict:
+    changed = sorted({p.strip().replace("\\", "/") for p in changed_paths if p.strip()})
+    modules = discovered["modules"]
+    by_name = {m["name"]: m for m in modules}
+    selected: set[str] = set()
+    direct_production: set[str] = set()
+    fallback_paths = []
+    production = [p for p in changed if is_production(p)]
+
+    for path in changed:
+        owner = _module_for_path(path, modules)
+        if owner:
+            selected.add(owner["name"])
+            if is_production(path):
+                direct_production.add(owner["name"])
+        elif is_production(path):
+            # A production path outside a discoverable module boundary is fail-safe broad:
+            # run all known module contracts plus the Kentridge integration gate.
+            selected.update(by_name)
+            fallback_paths.append(path)
+
+    if direct_production:
+        selected.update(_expand_dependents(direct_production, discovered["dependencies"]))
+
+    tests = []
+    players = []
+    for module_name in sorted(selected):
+        module = by_name[module_name]
+        tests.extend(module["tests"])
+        players.extend(module["players"])
     if production:
-        gate=next(m for m in manifests if m["integrationGate"])
-        item={"module":gate["module"],**gate["playerValidation"]}
-        if item not in players: players.append(item)
-    return {"changedPaths":changed,"modules":sorted(selected),"tests":tests,"playerValidations":players,
-            "hasProductionChanges":bool(production),"fallbackPaths":sorted(fallback_used)}
+        players.append({
+            "module": "game-integration",
+            "scene": KENTRIDGE_SCENE,
+            "scenario": KENTRIDGE_SCENARIO,
+        })
+    return {
+        "changedPaths": changed,
+        "modules": sorted(selected),
+        "tests": tests,
+        "playerValidations": players,
+        "hasProductionChanges": bool(production),
+        "hasValidationWork": bool(tests or players),
+        "fallbackPaths": sorted(fallback_paths),
+    }
+
 
 def main(argv=None):
-    ap=argparse.ArgumentParser()
-    ap.add_argument("--root",default=".")
-    ap.add_argument("--changed-file",action="append",default=[])
-    ap.add_argument("--changed-file-list",action="append",default=[])
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--root", default=".")
+    ap.add_argument("--changed-file", action="append", default=[])
+    ap.add_argument("--changed-file-list", action="append", default=[])
     ap.add_argument("--output")
-    ns=ap.parse_args(argv)
-    changed=list(ns.changed_file)
+    ns = ap.parse_args(argv)
+    changed = list(ns.changed_file)
     for name in ns.changed_file_list:
         changed.extend(Path(name).read_text(encoding="utf-8").splitlines())
     try:
-        result=plan(changed,discover(Path(ns.root)))
-    except ManifestError as exc:
-        print(f"ERROR: {exc}",file=sys.stderr)
+        result = plan(changed, discover(Path(ns.root)))
+    except ConventionError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
         return 2
     if ns.output:
-        Path(ns.output).write_text(json.dumps(result,indent=2,sort_keys=True)+"\n",encoding="utf-8")
-    print(json.dumps(result,sort_keys=True,separators=(",",":")))
+        Path(ns.output).write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print(json.dumps(result, sort_keys=True, separators=(",", ":")))
     return 0
 
-if __name__=="__main__":
+
+if __name__ == "__main__":
     raise SystemExit(main())
