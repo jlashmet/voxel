@@ -108,12 +108,13 @@ def _discover_player_targets(module_root: Path, root: Path, module_name: str) ->
     return targets
 
 
-def discover(root: Path) -> dict:
+def discover(root: Path, allow_existing_obsolete: bool = False) -> dict:
     root = root.resolve()
-    # Legacy manifests are not ownership metadata. Record them so plan() can fail closed only when
-    # an existing manifest is part of the changed surface; unrelated accepted master content must
-    # not make every module-validation request impossible.
     obsolete_manifests = sorted(_rel(p, root) for p in root.glob("Assets/**/*.module-validation.json"))
+    if obsolete_manifests and not allow_existing_obsolete:
+        raise ConventionError(
+            "obsolete *.module-validation.json registration is not supported: " + obsolete_manifests[0]
+        )
 
     top_dir = root / "Assets" / "Tests" / "EditMode"
     top_level = sorted(top_dir.glob("**/*.asmdef")) if top_dir.exists() else []
@@ -279,7 +280,7 @@ def main(argv=None):
     for name in ns.changed_file_list:
         changed.extend(Path(name).read_text(encoding="utf-8").splitlines())
     try:
-        result = plan(changed, discover(Path(ns.root)))
+        result = plan(changed, discover(Path(ns.root), allow_existing_obsolete=True))
     except ConventionError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
