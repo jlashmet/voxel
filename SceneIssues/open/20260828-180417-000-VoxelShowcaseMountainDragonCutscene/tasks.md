@@ -33,13 +33,13 @@
 
 ## Mountain Dragon composition
 - [x] Recompose VoxelShowcase from parameterized natural mountain + shared road ascent + usable summit + supported red cube dragon + reusable proximity/cutscene dialogue.
-- [ ] Keep mountain placement clear of unrelated castle/feature ownership while ensuring the road entrance connects to normal accessible terrain. Regenerated route preserves the existing two south-of-castle staging legs; built-player proof remains pending.
+- [ ] Keep mountain placement clear of unrelated castle/feature ownership while ensuring the road entrance connects to normal accessible terrain. Current evidence setup places the player south-west of the mountain through the generic pre-replay setup seam, then requires ordinary grounded movement through the exterior approach and path base; built-player proof remains pending.
 - [x] Focused behavioral validation uses the production landform/network and checks resolved grade/cut-fill/summit approach.
 - [x] Module-validation metadata tracks the redesigned production paths and exact focused filter.
 - [x] Migrate `MountainDragonProductionAcceptanceTests` from removed legacy landmark assumptions to current landform/road/placeholder/composition/dialogue contracts.
 - [x] Diagnose repeated 60 dm then 50 dm production cut/fill symptom before third fix; lower only Showcase `RidgeStrengthPermille` from 620 to 300 based on experiment 016, leaving shared APIs and road constraints unchanged.
 - [x] Correct stale acceptance-test proxies without weakening production policy: semantic mountain size is configured >=1000 dm major diameter with >=80% realized occupancy; all road-grade validations now use the resolver's nearest-integer planar distance.
-- [x] Regenerate `mountain-dragon-evidence-route.json` from the final resolved production road. Run `33475807726` emitted the authoritative 94-point route; the fixture now preserves castle-clear staging, follows every resolved ascent point, anchors grounded vertical evidence at path base, and uses resolver-derived Y offsets at representative captures through the summit proximity point.
+- [x] Regenerate `mountain-dragon-evidence-route.json` from the final resolved production road. Run `33475807726` emitted the authoritative 94-point route; the fixture follows every resolved ascent point, anchors grounded vertical evidence at path base, and uses resolver-derived Y offsets at representative captures through the summit proximity point. After run `33480426658` showed the 100 s budget was consumed by unrelated castle-clear transit, the route now uses generic `initialPlayerPlacement` before replay and keeps every asserted approach/ascent segment on normal `CharacterMotor.Step` movement.
 - [ ] Bump startup-bake provenance for the redesigned landform/road realization so rejected old bytes cannot satisfy the new source.
 
 ## Latest exact-source CI
@@ -51,11 +51,12 @@
 - [x] Run `33473157863` completed success from exact feature source `dc10c20f...`: all 10 requested independent EditMode reuse/correctness tests passed; automatic mountain-dragon module validation and selected validation players also remained green.
 - [x] Run `33475137516` completed failure before tests because the route-dump test omitted `using Game.WorldBuilder.Voxel`; production did not run. Exact compile cause fixed.
 - [x] Run `33475807726` completed success after the compile fix; the requested serializer emitted all 94 resolved production road points and automatic module validation remained green. SceneIssue replay was deliberately omitted because this was geometry extraction, not visual evidence.
-- [ ] Run current-head focused + automatically derived module/player validation with the regenerated SceneIssue waypoint route through only `ci-test/fixes/agent-4`.
+- [x] Run `33480426658` completed failure from feature head `a1b75096...`: focused production acceptance passed and module-local Mountain Dragon validation passed. Automatically derived Kentridge player build hit a Unity/Roslyn compiler-host `Method not found` while opening unchanged `CutsceneExecution.cs` (infrastructure candidate). Standalone regenerated SceneIssue replay separately reached waypoint 53/97 then timed out at 100 s; that product/evidence cause is fixed by generic pre-replay placement plus removal of unrelated staging transit.
+- [ ] Run current-head focused + automatically derived module/player validation with the repaired regenerated SceneIssue waypoint route through only `ci-test/fixes/agent-4`.
 
 ## Production visual / built-player acceptance
-- [ ] Merge then-current `origin/master` before the exact visual-final request. Current master `ef5240c7b24550dab86d0ed75388d6c99a44d47b` cannot currently merge cleanly into feature head: GitHub PR `#202` (`master` -> `fixes/agent-4`) reports non-mergeable across 126 concurrent changed files. Do not synthesize a merge tree; final visual/closure remains blocked until conflicts can be resolved safely.
-- [ ] Independently validate the regenerated route on the current feature head: require `WAYPOINT_REPLAY` arm/reached/vertical/complete logs, no exceptions, and inspect returned screenshots. This does not substitute for the post-merge final visual gate.
+- [ ] Merge then-current `origin/master` before the exact visual-final request. The previously recorded master `ef5240c7b24550dab86d0ed75388d6c99a44d47b` could not merge cleanly into the then-feature head: GitHub PR `#202` (`master` -> `fixes/agent-4`) reported non-mergeable across 126 concurrent changed files. Re-fetch both refs/mergeability before relying on this blocker; do not synthesize a merge tree.
+- [ ] Independently validate the regenerated route on the current feature head: require `WAYPOINT_REPLAY` initial-setup/arm/reached/vertical/complete logs, no exceptions, and inspect returned screenshots. This does not substitute for the post-merge final visual gate.
 - [ ] Capture and human-review exact production `VoxelShowcase` approach as one substantial coherent natural mountain.
 - [ ] Human-review path base and representative lower/mid/upper ascent as continuous supported road carved/graded into the landform, with no trench/tunnel/causeway artifacts.
 - [ ] Verify normal grounded traversal base -> summit through the final resolved road route without jumps/teleports.
