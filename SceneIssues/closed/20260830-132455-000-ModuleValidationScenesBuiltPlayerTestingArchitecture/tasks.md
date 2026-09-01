@@ -36,5 +36,5 @@
 - [x] Inspect every retained Water post-readiness standalone-player frame. Artifact contains four retained Water frames at 8.3s, 14.3s, 20.3s, 26.3s; all inspected directly and accepted as coherent production Water output, with temporal waterfall motion and no pre-readiness/placeholder frame.
 - [x] Confirm final automatic validation runtime/cost remains practical. Durable summary: 248.33s total = Rendering tests 74.91s + Water player 73.02s + Kentridge player 100.41s; owner-scoped plus mandatory Kentridge, no unrelated module visual scenes. GitHub step 253s, whole job 274s.
 - [x] Review all 18 acceptance criteria against exact-head results. All 18 pass; detailed proof matrix recorded in `plan.md`.
-- [ ] After green exact-SHA proof, update `issue.json` status/resolution fields, move the assignment directory directly `open` -> `closed`, then fetch/merge current master again if it advanced. Revalidate if that changes the feature materially.
-- [ ] Push the exact final feature head to `origin/master` non-force; if master advances, fetch/merge/retry. Do not promote the CI transport request commit.
+- [x] After green exact-SHA proof, update `issue.json` status/resolution fields and move the assignment directory directly `open` -> `closed`; current master remained the already-reconciled `b274014ae201153c816c981a1092ad8b0d0a7539`, so no additional merge/revalidation was required.
+- [x] Push the exact final feature head to `origin/master` non-force; if master advances, fetch/merge/retry. Do not promote the CI transport request commit.
