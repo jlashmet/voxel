@@ -29,16 +29,16 @@ namespace VoxelEngine.Tests.EditMode
             get
             {
                 var directory = new DirectoryInfo(Directory.GetCurrentDirectory());
-                while (directory != null && !Directory.Exists(Path.Combine(directory.FullName, "Packages")))
+                while (directory != null && !Directory.Exists(Path.Combine(directory.FullName, "Assets")))
                     directory = directory.Parent;
 
-                Assert.NotNull(directory, "Could not locate project root containing Packages/.");
+                Assert.NotNull(directory, "Could not locate project root containing Assets/.");
                 return directory.FullName;
             }
         }
 
         private static string WorldGenRuntimeRoot => Path.Combine(
-            RepoRoot, "Packages", "com.mountingforce.worldgen", "Runtime");
+            RepoRoot, "Assets", "Game", "WorldBuilder", "Generation");
 
         [Test]
         public void KentridgeSemanticSourcesDoNotReferenceVoxelEngineNamespaces()
