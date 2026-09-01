@@ -241,14 +241,11 @@ namespace VoxelEngine.Showcase
                 throw new InvalidOperationException(
                     "Mountain Dragon destruction target was not occupied before the production edit.");
 
-            var explosionWorld = new ShowcaseWorldExplosionAdapter(_world);
-            ShowcaseExplosionRouteResult route = ShowcaseExplosionRouter.Apply(
-                explosionWorld,
-                network: null,
+            int changedVoxels = _world.Explode(
                 target,
                 DestructionRadiusVoxels,
                 new float3(0f, 0f, -1f));
-            if (route.Networked || route.RequestSent || route.ChangedVoxels <= 0)
+            if (changedVoxels <= 0)
                 throw new InvalidOperationException(
                     "Mountain Dragon production destruction did not mutate canonical local world state.");
 
@@ -281,7 +278,7 @@ namespace VoxelEngine.Showcase
                 + target.x + "," + target.y + "," + target.z
                 + " before_material=" + before.BaseMaterialId
                 + " after_material=" + after.BaseMaterialId
-                + " changed_voxels=" + route.ChangedVoxels
+                + " changed_voxels=" + changedVoxels
                 + " collision_blocked_before=True"
                 + " collision_blocked_after=False"
                 + " source_enabled_colliders=0"
