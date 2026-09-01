@@ -1,5 +1,8 @@
 using System;
-using System.Collections.Generic;
+using System.IO;
+using System.IO.Compression;
+using System.Security.Cryptography;
+using System.Text;
 using NUnit.Framework;
 using Unity.Mathematics;
 using UnityEngine;
@@ -17,54 +20,65 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(payload, Is.Not.Null);
 
             string text = payload.text;
-            var invalid = new List<string>();
-            int nonWhitespace = 0;
-            int whitespace = 0;
-            int padding = 0;
-            int firstPadding = -1;
-            int symbolsAfterPadding = 0;
-            for (int i = 0; i < text.Length; i++)
-            {
-                char c = text[i];
-                if (char.IsWhiteSpace(c))
-                {
-                    whitespace++;
-                    continue;
-                }
+            int paddingIndex = text.IndexOf('=');
+            Assert.That(paddingIndex, Is.GreaterThan(0));
+            Assert.That(text.Length % 4, Is.EqualTo(3), "Diagnostic assumes exactly one missing Base64 symbol.");
 
-                nonWhitespace++;
-                bool alphabet = (c >= 'A' && c <= 'Z')
-                    || (c >= 'a' && c <= 'z')
-                    || (c >= '0' && c <= '9')
-                    || c == '+' || c == '/';
-                if (c == '=')
+            // Make the malformed stream decodable without disturbing its known-good prefix. Feeding gzip
+            // one byte at a time makes the first deflate failure a useful approximation of the deleted
+            // Base64 symbol rather than the end of an internal read-ahead buffer.
+            string endPatched = text.Insert(paddingIndex, "A");
+            byte[] probeBytes = Convert.FromBase64String(endPatched);
+            long compressedFailureOffset;
+            long decompressedBeforeFailure = 0;
+            using (var input = new OneByteReadStream(probeBytes))
+            using (var gzip = new GZipStream(input, CompressionMode.Decompress, leaveOpen: true))
+            {
+                var buffer = new byte[4096];
+                try
                 {
-                    padding++;
-                    if (firstPadding < 0) firstPadding = i;
+                    while (true)
+                    {
+                        int read = gzip.Read(buffer, 0, buffer.Length);
+                        if (read == 0) break;
+                        decompressedBeforeFailure += read;
+                    }
                 }
-                else
+                catch (InvalidDataException)
                 {
-                    if (!alphabet && invalid.Count < 16) invalid.Add($"index={i}, U+{(int)c:X4}");
-                    if (firstPadding >= 0) symbolsAfterPadding++;
+                    // Expected for the deliberately end-patched stream.
+                }
+                compressedFailureOffset = input.Position;
+            }
+
+            int estimatedSymbol = checked((int)(compressedFailureOffset * 4L / 3L));
+            const string alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+            const int searchRadius = 512;
+            int start = Math.Max(0, estimatedSymbol - searchRadius);
+            int end = Math.Min(paddingIndex, estimatedSymbol + searchRadius);
+            string found = null;
+            using (SHA256 sha = SHA256.Create())
+            {
+                for (int index = start; index <= end && found == null; index++)
+                {
+                    for (int symbol = 0; symbol < alphabet.Length; symbol++)
+                    {
+                        string candidate = text.Insert(index, alphabet[symbol].ToString());
+                        byte[] compressed = Convert.FromBase64String(candidate);
+                        string hash = Hex(sha.ComputeHash(compressed));
+                        if (string.Equals(hash, MountainDragonBakedArtifact.ExpectedTransportSha256, StringComparison.Ordinal))
+                        {
+                            found = $"index={index}, symbol='{alphabet[symbol]}', compressedBytes={compressed.Length}";
+                            break;
+                        }
+                    }
                 }
             }
 
-            Assert.That(invalid, Is.Empty,
-                $"Unity TextAsset changed the checked-in Base64 alphabet. textLength={text.Length}, byteLength={payload.bytes.Length}, invalid={string.Join("; ", invalid)}");
-            try
-            {
-                Convert.FromBase64String(text);
-            }
-            catch (FormatException exception)
-            {
-                string head = text.Substring(0, Math.Min(24, text.Length));
-                string tail = text.Substring(Math.Max(0, text.Length - 24));
-                Assert.Fail(
-                    $"Base64 structure is invalid. textLength={text.Length}, byteLength={payload.bytes.Length}, " +
-                    $"nonWhitespace={nonWhitespace}, nonWhitespaceMod4={nonWhitespace % 4}, whitespace={whitespace}, " +
-                    $"padding={padding}, firstPadding={firstPadding}, symbolsAfterPadding={symbolsAfterPadding}, " +
-                    $"head='{head}', tail='{tail}', error='{exception.Message}'.");
-            }
+            Assert.Fail(
+                $"Missing-symbol diagnostic: found={found ?? "none"}; compressedFailureOffset={compressedFailureOffset}; " +
+                $"decompressedBeforeFailure={decompressedBeforeFailure}; estimatedSymbol={estimatedSymbol}; " +
+                $"searched=[{start},{end}]; textLength={text.Length}; paddingIndex={paddingIndex}.");
         }
 
         [Test]
@@ -79,9 +93,6 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(bake.GridOrigin, Is.EqualTo(new int3(-47, -32, 16)));
             Assert.That(bake.InteriorFilled, Is.True);
 
-            // Bounds are source-specific composition evidence from the pinned model orientation.
-            // They deliberately assert separated anatomical regions in the produced bake rather
-            // than source strings or aggregate counts, so a generic blob cannot satisfy them.
             AssertRegion(bake, "body",       new int3(35, 40, 35), new int3(70, 75, 75), 20_000);
             AssertRegion(bake, "left wing",  new int3(0, 62, 55),  new int3(35, 107, 107), 3_500);
             AssertRegion(bake, "right wing", new int3(70, 62, 55), new int3(99, 107, 107), 3_000);
@@ -102,6 +113,35 @@ namespace VoxelEngine.Tests.EditMode
             string corrupt = text.Substring(0, index) + replacement + text.Substring(index + 1);
 
             Assert.Throws<InvalidOperationException>(() => MountainDragonBakedArtifact.DecodeBase64(corrupt));
+        }
+
+        private static string Hex(byte[] bytes)
+        {
+            var text = new StringBuilder(bytes.Length * 2);
+            for (int i = 0; i < bytes.Length; i++) text.Append(bytes[i].ToString("x2"));
+            return text.ToString();
+        }
+
+        private sealed class OneByteReadStream : Stream
+        {
+            private readonly MemoryStream inner;
+
+            public OneByteReadStream(byte[] bytes) => inner = new MemoryStream(bytes, writable: false);
+            public override bool CanRead => true;
+            public override bool CanSeek => false;
+            public override bool CanWrite => false;
+            public override long Length => inner.Length;
+            public override long Position { get => inner.Position; set => throw new NotSupportedException(); }
+            public override void Flush() { }
+            public override int Read(byte[] buffer, int offset, int count) => inner.Read(buffer, offset, Math.Min(1, count));
+            public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+            public override void SetLength(long value) => throw new NotSupportedException();
+            public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+            protected override void Dispose(bool disposing)
+            {
+                if (disposing) inner.Dispose();
+                base.Dispose(disposing);
+            }
         }
 
         private static void AssertRegion(
