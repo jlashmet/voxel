@@ -14,6 +14,7 @@ namespace VoxelEngine.Structures.Runtime
         private readonly int3 _regionMin;
         private readonly int3 _regionMax;
         private NativeList<Primitive> _primitives;
+        private NativeList<Primitive> _corridorBatch;
         private NativeList<ResolvedAnchor> _anchors;
         private NativeList<StructuralInstance> _structuralInstances;
         private FeatureGenerationReport _report;
@@ -21,11 +22,14 @@ namespace VoxelEngine.Structures.Runtime
         private int _explicitIndex;
         private int _structuralInstanceIndex;
         private int _activePrimitiveIndex;
+        private int _corridorBatchInstanceCount;
         private int3 _tileMin;
         private int3 _tileMax;
         private int3 _tileCursor;
         private bool _activeInstance;
         private bool _activeRasterisedAny;
+        private bool _corridorBatchRasterisedAny;
+        private bool _rasterisingCorridorBatch;
         private bool _tileReady;
         private bool _markHardSurface;
         private bool _activeTrace;
@@ -41,6 +45,7 @@ namespace VoxelEngine.Structures.Runtime
             _regionMin = regionCoord * VoxelGrid.RegionVoxelEdge;
             _regionMax = _regionMin + VoxelGrid.RegionVoxelEdge;
             _primitives = new NativeList<Primitive>(64, Allocator.Persistent);
+            _corridorBatch = new NativeList<Primitive>(64, Allocator.Persistent);
             _anchors = new NativeList<ResolvedAnchor>(8, Allocator.Persistent);
         }
 
@@ -72,6 +77,11 @@ namespace VoxelEngine.Structures.Runtime
         /// placement and primitive order. Rejecting catalogue entries that lie outside this region
         /// is charged against <see cref="MaxPlacementsScannedPerSlice"/> so a region that
         /// intersects nothing still returns to the caller promptly.
+        ///
+        /// A contiguous run of terrain-corridor-only instances is one continuous column field:
+        /// those bounded primitives are accumulated until the next intersecting non-corridor
+        /// instance (or catalogue end), then arbitrated together per x/z column. This preserves the
+        /// surrounding catalogue order while making corridor subdivision/write order invisible.
         /// </summary>
         public bool Step(
             in FeatureCatalogue catalogue,
@@ -93,22 +103,51 @@ namespace VoxelEngine.Structures.Runtime
             int scanBudget = MaxPlacementsScannedPerSlice;
             while (tilesRasterised < maxTiles)
             {
+                if (_rasterisingCorridorBatch)
+                {
+                    RasteriseCorridorBatchTile(reads, mutations);
+                    tilesRasterised++;
+                    continue;
+                }
+
+                // Corridor-only feature instances are physical partitions of one contiguous
+                // corridor stage, not independently ordered stamps. Accumulate them before any
+                // column is mutated so closest-point arbitration sees every competing piece.
+                if (_activeInstance && IsTerrainCorridorOnly(_primitives))
+                {
+                    CollectActiveCorridorInstance();
+                    continue;
+                }
+
+                // An intersecting non-corridor instance terminates the current corridor stage.
+                // Leave that already-evaluated instance pending while the earlier stage flushes.
+                if (_activeInstance && _corridorBatch.Length > 0)
+                {
+                    if (BeginCorridorBatch()) continue;
+                }
+
                 if (!_activeInstance)
                 {
                     if (!TryBeginNextInstance(in catalogue, seed, ref scanBudget))
                     {
+                        if (_corridorBatch.Length > 0 && BeginCorridorBatch())
+                            continue;
                         IsComplete = true;
                         return true;
                     }
 
                     // Out of scan budget rather than out of catalogue: the cursor is parked mid-scan
                     // and the next slice resumes from it. Reported as incomplete so the caller keeps
-                    // this region queued.
+                    // this region queued. A pending corridor run remains buffered across slices.
                     if (scanBudget <= 0 && !_activeInstance) return false;
 
                     // Invalid programs or rejected structural roots are reported but have no voxel
                     // work to charge.
                     if (!_activeInstance) continue;
+
+                    // Re-enter the loop so a newly evaluated corridor instance is collected before
+                    // the ordinary single-instance raster path can see it.
+                    continue;
                 }
 
                 if (!TryPrepareTile())
@@ -320,6 +359,97 @@ namespace VoxelEngine.Structures.Runtime
             return true;
         }
 
+        private static bool IsTerrainCorridorOnly(NativeList<Primitive> primitives)
+        {
+            if (primitives.Length == 0) return false;
+            for (int i = 0; i < primitives.Length; i++)
+            {
+                Primitive primitive = primitives[i];
+                if (primitive.Shape != PrimitiveShape.TerrainCorridor
+                    || primitive.Mode != PrimitiveMode.TerrainCorridor)
+                    return false;
+            }
+            return true;
+        }
+
+        private void CollectActiveCorridorInstance()
+        {
+            for (int i = 0; i < _primitives.Length; i++)
+                _corridorBatch.Add(_primitives[i]);
+            _corridorBatchInstanceCount++;
+            _activeInstance = false;
+            _activePrimitiveIndex = 0;
+            _activeRasterisedAny = false;
+            _tileReady = false;
+            _primitives.Clear();
+            _anchors.Clear();
+        }
+
+        private bool BeginCorridorBatch()
+        {
+            if (_corridorBatch.Length == 0) return false;
+
+            int3 minimum = new int3(int.MaxValue);
+            int3 maximum = new int3(int.MinValue);
+            for (int i = 0; i < _corridorBatch.Length; i++)
+            {
+                Primitive primitive = _corridorBatch[i];
+                primitive.Bounds(out int3 min, out int3 max);
+                minimum = math.min(minimum, min);
+                maximum = math.max(maximum, max + 1);
+            }
+
+            _tileMin = math.max(AlignDown(minimum), _regionMin);
+            _tileMax = math.min(AlignUp(maximum), _regionMax);
+            _tileMin.y = _regionMin.y;
+            _tileMax.y = _regionMax.y;
+            if (math.any(_tileMin >= _tileMax))
+            {
+                ClearCorridorBatch(false);
+                return false;
+            }
+
+            _tileCursor = _tileMin;
+            _corridorBatchRasterisedAny = false;
+            _rasterisingCorridorBatch = true;
+            _tileReady = false;
+            return true;
+        }
+
+        private void RasteriseCorridorBatchTile(
+            IRegionReadSource reads,
+            IRegionMutationStore mutations)
+        {
+            int3 tileMin = new int3(_tileCursor.x, _regionMin.y, _tileCursor.z);
+            int3 tileMax = new int3(
+                math.min(_tileCursor.x + TileEdge, _tileMax.x),
+                _regionMax.y,
+                math.min(_tileCursor.z + TileEdge, _tileMax.z));
+            RasterResult raster = ContinuousTerrainCorridorRasteriser.Rasterise(
+                _corridorBatch.AsArray(), tileMin, tileMax, reads, mutations);
+            _report.VoxelsWritten += raster.VoxelsWritten;
+            _corridorBatchRasterisedAny |= raster.PrimitivesRasterised > 0;
+
+            _tileCursor.x += TileEdge;
+            if (_tileCursor.x < _tileMax.x) return;
+            _tileCursor.x = _tileMin.x;
+            _tileCursor.z += TileEdge;
+            if (_tileCursor.z < _tileMax.z) return;
+
+            ClearCorridorBatch(_corridorBatchRasterisedAny);
+        }
+
+        private void ClearCorridorBatch(bool rasterised)
+        {
+            if (rasterised)
+                _report.InstancesRasterised += _corridorBatchInstanceCount;
+            _corridorBatch.Clear();
+            _corridorBatchInstanceCount = 0;
+            _corridorBatchRasterisedAny = false;
+            _rasterisingCorridorBatch = false;
+            _tileReady = false;
+        }
+
         private void EnsureStructuralInstances()
         {
             if (!_structuralInstances.IsCreated)
@@ -428,6 +558,7 @@ namespace VoxelEngine.Structures.Runtime
         {
             if (_disposed) return;
             if (_primitives.IsCreated) _primitives.Dispose();
+            if (_corridorBatch.IsCreated) _corridorBatch.Dispose();
             if (_anchors.IsCreated) _anchors.Dispose();
             if (_structuralInstances.IsCreated) _structuralInstances.Dispose();
             _disposed = true;
