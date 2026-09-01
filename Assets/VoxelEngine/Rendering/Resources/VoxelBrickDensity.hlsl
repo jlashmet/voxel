@@ -437,6 +437,11 @@ float SampleField(int3 p, int sourceStep, out uint dominantMaterial, out uint do
         }
     }
 
+    // Surface semantics are auxiliary data for an occupied material. Neighbour taps may discover a
+    // candidate surface while reconstructing density around air, but the CPU job canonicalizes the
+    // public sample to material=0/surface=0. Keep the GPU sample buffer byte-for-byte equivalent.
+    if (dominantMaterial == 0u) dominantSurface = 0u;
+
     return density + (centreSolid ? CoatingDisplacement(centreSurface) : 0.0);
 }
 
