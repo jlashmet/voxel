@@ -38,18 +38,18 @@ The earlier completed run also showed the independent over-constrained road fixt
 - `33471409821`: exact ridge-strength source built/replayed successfully but focused acceptance stopped at a stale `FeatureDefinition.Footprint >= 1000` proxy. Regression now preserves the actual semantic size contract: authored major diameter >=1000 dm and realized occupancy >=80% of authored diameter.
 - `33471667027`: exact source with semantic size regression reaches a resolved production ascent; focused failure is only the floor-vs-nearest integer grade assertion mismatch described above. Standalone player replay still succeeds. Automatic module validation was correctly skipped after the focused failure.
 - `33472015921`: focused production acceptance passed and standalone `VoxelShowcase` build/replay passed. Automatic module planning correctly selected `mountain-dragon` plus integration coverage, but the module-local `MountainDragonValidationSceneDriver` repeated the same stale floor-`Math.Sqrt` grade assertion on segment 45 and failed before staging marker renderers. That validation driver now uses the resolver's nearest-integer planar-distance semantics; production code is unchanged.
+- `33472689582`: exact feature source `dc10c20f...` passed focused production acceptance, automatically required module validation, both selected validation players, and standalone SceneIssue player replay. This is the first full exact-source functional green after the module-driver correction. Its SceneIssue replay still used the known stale evidence route, so its screenshots are diagnostic only and not visual closure evidence.
+- `33473157863`: exact feature source `dc10c20f...` passed all 10 requested independent EditMode reuse/correctness tests. This includes two independent climate/shape reuse tests, five landform determinism/semantic/material-budget tests, and three shared-road integration/lowering tests. Automatic mountain-dragon module validation and selected validation players also remained green. The request deliberately omitted SceneIssue replay because it was reuse proof, not visual evidence.
 
-The `33472015921` diagnostic production screenshots still show the legacy SceneIssue replay visiting castle coordinates instead of Mountain Dragon. This is expected from the stale `mountain-dragon-evidence-route.json` and confirms that route regeneration remains mandatory; those captures do not count as final visual acceptance.
+The diagnostic production screenshots still show the legacy SceneIssue replay visiting castle coordinates instead of Mountain Dragon. This is expected from the stale `mountain-dragon-evidence-route.json` and confirms that route regeneration remains mandatory; those captures do not count as final visual acceptance.
 
 ## Remaining order
-1. Retry exact-source targeted production Mountain Dragon acceptance through only `ci-test/fixes/agent-4`; focused production, automatic module tests/player validations, and SceneIssue player replay must pass. Diagnose any completed failure before another change.
-2. Record current-head reusable landform/climate/road evidence and finish structural proof that road lowering is generic terrain corridor only.
-3. Regenerate `mountain-dragon-evidence-route.json` from the final resolved production road; the current legacy switchback/Y-offset route is invalid for closure.
-4. Check primitive/raster/build cost and startup-bake provenance under unchanged 240 s / 14 GiB guards.
-5. Merge then-current `origin/master` before final visual evidence and establish the exact final source SHA.
-6. Run production `VoxelShowcase` built-player traversal/capture. Human-review approach, base, representative lower/mid/upper ascent, summit support and exact dialogue. Automated green is insufficient.
-7. Promote the exact visually accepted `ShowcaseWorld.bytes` + matching manifest, record size/hash/signature/bake cost, and validate clean-checkout consumption.
-8. Only when every checkbox/acceptance criterion is green: update metadata, move only this issue directly `open -> closed`, merge any newly advanced `origin/master`, revalidate the exact final head as required, and non-force push that exact head to `origin/master`.
+1. Regenerate `mountain-dragon-evidence-route.json` from the final resolved production road; the current legacy switchback/Y-offset route is invalid for closure. Prefer exact resolved points emitted by deterministic acceptance/evidence support rather than guessing from authored controls.
+2. Check primitive/raster/build cost and startup-bake provenance under unchanged 240 s / 14 GiB guards.
+3. Merge then-current `origin/master` before final visual evidence and establish the exact final source SHA.
+4. Run production `VoxelShowcase` built-player traversal/capture. Human-review approach, base, representative lower/mid/upper ascent, summit support and exact dialogue. Automated green is insufficient.
+5. Promote the exact visually accepted `ShowcaseWorld.bytes` + matching manifest, record size/hash/signature/bake cost, and validate clean-checkout consumption.
+6. Only when every checkbox/acceptance criterion is green: update metadata, move only this issue directly `open -> closed`, merge any newly advanced `origin/master`, revalidate the exact final head as required, and non-force push that exact head to `origin/master`.
 
 ## Non-goals / boundaries
 - Do not create a second road renderer/resolver/carver.
