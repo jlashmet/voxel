@@ -49,22 +49,29 @@ No `Game.GameplayReplication.Runtime`, transport loop, serialization, publicatio
 
 ## Tests / proof
 
-Existing exact CI run `33506812126` validated the independent Continuity/Sessions core at feature parent `20d2e386e7fe9bd7b277ab339d5cc2b321dabb29`.
+- Fast reconnect requests `Repair`, preserves PartyMemberId/PlayerSlot/CharacterId across connection 11 -> 99, and cannot recover before `GameplayReady`.
+- Slow reconnect requests `FullSnapshot` without changing durable identity.
+- Typed vitality/inventory/progression current state is revision 1 before disconnect, mutates to revision 2 while absent, and revision 2/current values are what the reconnecting player observes after full resync and `GameplayReady`.
+- Duplicate reconnect, invalid credential, explicit leave, and grace expiration are covered.
+- `Game.GameplayReplication.Tests` independently consumes the API-only scaffold and proves revision ordering, semantic readiness, and typed current-state projection without any GameplayReplication Runtime implementation.
 
-Fresh regressions now authored against the API-only GameplayReplication seam cover:
+## Validation history
 
-- fast reconnect requests `Repair`, preserves PartyMemberId/PlayerSlot/CharacterId across connection 11 -> 99, and cannot recover before `GameplayReady`;
-- slow reconnect requests `FullSnapshot` without changing durable identity;
-- typed vitality/inventory/progression current state is revision 1 before disconnect, mutates to revision 2 while absent, and revision 2/current values are what the reconnecting player observes after full resync and `GameplayReady`;
-- duplicate reconnect, invalid credential, explicit leave, and grace expiration remain covered.
+- Earlier exact run `33506812126` validated the independent Continuity/Sessions core at feature parent `20d2e386e7fe9bd7b277ab339d5cc2b321dabb29`.
+- Exact run `33519266827` on feature `34aba4dc37ec81c33a4374895e29029b63d3066c` proved `Game.Continuity.Tests` 7/7 green, but later broad-fallback validation exposed unrelated existing Materials failures because the new GameplayReplication API had no owning test assembly.
+- Root cause was isolated as module ownership/discovery, not retried as infrastructure. The corrective fix added independent `Game.GameplayReplication.Tests` ownership/reuse proof.
+- Final exact run `33520630916` used request `998c986bdb969a0616f88fc4a01d34afccfdef5b`, whose direct tested source parent is `e897c2b298a02395ea1425f9c3fb070d04535431`.
+- Final automatic plan selected only `Assets/Game/Continuity` and `Assets/Game/GameplayReplication`, with **no fallback paths**.
+- `Game.Continuity.Tests`: **7/7 passed**, 0 failed/skipped.
+- `Game.GameplayReplication.Tests`: **3/3 passed**, 0 failed/skipped.
+- Mandatory Kentridge built-player validation passed; total automatic validation time 213.45s.
+- Artifact `single-test-33520630916`, id `9806746406`, digest `sha256:716692de1074cdaf5ef1d60b8e2e7f533bce8a85013f7b20b7df59ddeae7f805`.
 
-`Game.GameplayReplication.Tests` independently consumes the API-only scaffold and proves revision ordering, semantic readiness, and typed current-state projection without any GameplayReplication Runtime implementation.
+## Blast radius / boundaries
 
-## Validation attempts
+Validation ownership is now narrow and explicit: only Continuity and the API-only GameplayReplication scaffold were selected. No transport/runtime replication implementation, persistence-across-runs behavior, AI takeover policy, socket-id gameplay identity, or unrelated module refactor was added.
 
-- Exact run `33519266827` on feature `34aba4dc37ec81c33a4374895e29029b63d3066c` proved `Game.Continuity.Tests` **7/7** green, including repair/full-snapshot selection, GameplayReady gating, durable identity, and absent-state revision-2 convergence.
-- That run later failed only because the new `GameplayReplication/Api` path had no independently discoverable owning test assembly, causing the fail-safe planner to choose a repository-wide fallback. The fallback exposed three unrelated pre-existing `Game.Materials.Tests` failures. This is not retried as infrastructure.
-- Corrective action: add the independent `Game.GameplayReplication.Tests` assembly/fixture so the API scaffold is a discoverable module with its own validation consumer instead of an unknown fallback path. A new exact-SHA run is required.
+All required gates and acceptance items are complete.
 
 ## Do not build
 
