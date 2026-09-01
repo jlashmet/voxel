@@ -47,26 +47,29 @@
 
   **Audit invariant:** the retained implementation has three owners, not one giant far-world subsystem: (1) canonical generators own feature truth and emit/enable generic bake input, (2) sparse far bake/index + mass-population query layers own derived visibility data, and (3) Rendering owns disposable render resources. Showcase/Kentridge code may configure or demonstrate those APIs but may not own a second descriptor/manifest/renderer path.
 
-- [ ] **T002 — Locate the canonical generation representation from which far data can be baked automatically.**
+- [x] **T002 — Locate the canonical generation representation from which far data can be baked automatically.**
   - Inspect existing World Feature Authoring, Structures, WorldBuilder, vegetation/scatter, and voxel-authoring paths to identify the narrowest canonical representation available **before detailed region residency**: generation operations, geometry/form/site plans, authoring graph, voxel commands, or equivalent.
   - Prefer a representation that all normal generated large objects already pass through so adding a new object automatically participates in far baking.
   - Do not introduce a second required authoring interface whose sole purpose is far visibility.
   - Determine whether the generic baker can replay the canonical generator into a coarse occupancy/geometry target, simplify an existing generator-owned geometry representation, or use another deterministic conservative derivation.
   - **Discriminator:** prove on two existing unrelated generated feature shapes that conservative bounds/silhouette data can be derived without object-specific code and without loading their detailed distant voxel regions.
+  - **Validated:** catalogue-driven generated features already converge on `FeatureGeneration.EvaluateInstance` / `ShapeProgram.Evaluate`, which emits deterministic bounded primitives/anchors before voxel-region materialization. Production Kentridge structure and WorldBuilder mountain paths exercise unrelated shapes through this same canonical representation.
 
-- [ ] **T003 — Implement one generic far-bake output contract and bake pipeline.**
+- [x] **T003 — Implement one generic far-bake output contract and bake pipeline.**
   - The bake output is derived presentation data, not world truth. It carries stable source identity/revision, conservative bounds, transform/orientation, material/style family as available, and generic coarse geometry/massing payload sufficient for distant rendering.
   - Bake at the natural lifecycle point: import/build for static authored assets, deterministic planning/generation for procedural features, and runtime creation/update for genuinely runtime-created content.
   - Default importance/visibility comes from derived bounds/projected significance. Semantic tags/importance may override exceptional gameplay requirements but are not mandatory per-object metadata.
   - Custom HLOD/far recipes are optional escape hatches only after a demonstrated visual defect; a newly created normal object must work without one.
   - No `Mesh`, `GameObject`, camera state, Showcase/Kentridge type, or resident-region handle may leak into the authoritative generation API merely to support far rendering.
   - **Regression:** two unrelated generated objects added through their normal generation path produce deterministic far-bake outputs with no new far-specific adapter/registration step.
+  - **Validated:** `FeaturePresentationBake` / `FeaturePresentationBaker` derive the generic presentation record, and `FeaturePresentationCatalogueBaker` supplies one catalogue lifecycle hook including structural-root expansion. Exact focused CI run `33473262150` passed `VoxelEngine.Tests.EditMode.FeaturePresentationCatalogueBakerTests` on child `e21a9b13e46723aa0595bf914f21eaedf25c476e`, parent feature SHA `303cb0b3e5e2b06405f23c1406676ee560b2344a`.
 
-- [ ] **T004 — Generalize the sparse spatial visibility source around baked feature outputs.**
+- [x] **T004 — Generalize the sparse spatial visibility source around baked feature outputs.**
   - Adapt or replace `IWorldVisibilitySource` / `WorldVisibilityManifest` so the index stores/query generic baked sparse features rather than `StructureFarPresentation`.
   - Keep it metadata/presentation-cache only: no voxel bricks, interiors, renderer objects, AI, collision, or physics.
   - Deterministic sector query, de-duplication for cross-sector bounds, stable ordering, replacement/removal by stable source identity/revision.
   - **Regression:** query requires no region generation/residency and supports unrelated feature shapes through the same API.
+  - **Validated:** `IFeaturePresentationSource` / `FeaturePresentationManifest` implement a generic metadata-only sparse source with deterministic sector query, cross-sector de-duplication, stable SourceId ordering, replacement and removal. Exact focused CI run `33475203893` passed `VoxelEngine.Tests.EditMode.FeaturePresentationManifestTests` on child `44b4b34d300a142f05984bc2ef62961a737cb442`, parent feature SHA `303cb0b3e5e2b06405f23c1406676ee560b2344a`.
 
 ## Phase 1 — Prove new objects require no far-visibility work
 
