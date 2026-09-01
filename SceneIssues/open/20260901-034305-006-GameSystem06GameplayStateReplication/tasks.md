@@ -28,13 +28,13 @@
 
 ## Verification
 
-- [ ] **T06-020 — Projection determinism tests.** `GameplayReplicationRuntimeTests` covers stable source/projection/entry ordering, monotonic publication revisions, and deterministic adapters over Characters/Encounter/Combat/Inventory authorities; current focused request remains queued and will not be replaced.
-- [ ] **T06-021 — Stale/gap/dedupe tests.** Fixture covers stale duplicate, forward gap, repair-required, snapshot repair and schema mismatch; current focused request remains queued and will not be replaced.
+- [x] **T06-020 — Projection determinism tests.** `GameplayReplicationRuntimeTests` covers stable source/projection/entry ordering, monotonic publication revisions, and deterministic adapters over Characters/Encounter/Combat/Inventory authorities. Exact-SHA CI request commit `4a431a603c0908c007ae4556a59deb7a815c4f2c`, source `44e7da5284923ab96b382f75a5867434377a36d6`, run `33504339974`, job `99844708050` passed the focused fixture.
+- [x] **T06-021 — Stale/gap/dedupe tests.** The same exact-SHA fixture covers stale duplicate, forward gap, repair-required, snapshot repair and schema mismatch and passed in run `33504339974`.
 - [ ] **T06-022 — Existing UTP loopback integration.** Two clients converge on character/vitality plus at least one transactional domain. **BLOCKED:** no existing production UTP loopback/server spine is present, and Vitality API is absent.
 - [ ] **T06-023 — Late-join test.** Transport-independent snapshot repair semantics are covered; **BLOCKED** for required transport integration because the production network spine is absent.
 - [ ] **T06-024 — Reconnect test support.** Transport-independent repair-to-current semantics are covered; **BLOCKED** for reconnect transport integration because the production network spine is absent.
-- [ ] **T06-025 — Headless/no-presentation test.** Replication API/Runtime/Adapters have no engine references; focused tests compile/run without HUD/audio/VFX references. Awaiting CI validation.
-- [ ] **T06-026 — Automatic module/dependent test run.** No manual per-test CI registration beyond repository single-test request transport; awaiting exact-SHA automatic module/dependent validation evidence.
+- [x] **T06-025 — Headless/no-presentation test.** Replication API/Runtime/Adapters have no engine references; exact-SHA focused EditMode tests compiled and passed without HUD/audio/VFX references in run `33504339974`.
+- [x] **T06-026 — Automatic module/dependent test run.** Repository convention-driven module ownership discovered GameplayReplication from its module-owned test assembly; exact-SHA run `33504339974` passed both `Derive automatic module validation plan` and `Run automatically required module validation`. The obsolete per-module manifest attempt was removed after run `33501651756` demonstrated that `*.module-validation.json` registration is no longer supported.
 
 ## Cleanup / close
 
