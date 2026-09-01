@@ -4,8 +4,11 @@
   "productionPaths": [
     "Assets/Game/Composition/Showcase/MountainDragonBakedArtifact.cs",
     "Assets/Game/Composition/Showcase/MountainDragonVoxelBakePolicy.cs",
+    "Assets/Game/Composition/Showcase/MeshVoxelComparisonCapturePlan.cs",
     "Assets/Game/Composition/Showcase/ShowcaseWorld.MountainDragon.cs",
     "Assets/Game/Composition/Showcase/ShowcaseWorld.MeshStructures.cs",
+    "Assets/Game/Composition/Showcase/Editor/MountainDragonSourceArchive.cs",
+    "Assets/Game/Composition/Showcase/Editor/MountainDragonValidationBuildPreprocessor.cs",
     "Assets/Game/Composition/Showcase/Validation/MountainDragonVoxelization/MountainDragonVoxelValidationShowcase.cs",
     "Assets/Resources/VoxelShowcase/MountainDragonBake/**"
   ],
