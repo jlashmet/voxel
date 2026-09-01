@@ -30,6 +30,7 @@
         "Game.Composition.WorldBuilderWorldGen.Runtime",
         "Game.Characters.Api",
         "Game.Encounters.Api",
+        "Game.Encounters.Runtime",
         "Game.Combat.Api",
         "Game.Combat.Runtime",
         "Game.Input.Api",
