@@ -25,6 +25,7 @@ namespace VoxelEngine.Showcase
         private const int VoxelOriginX = 220;
         private const int ExhibitOriginZ = 160;
         private const int MinimumSourceSeparationVoxels = 700;
+        private const int ValidationBrickPoolCapacity = 16384;
         private const float FirstViewSeconds = 4f;
         private const float LaterViewSeconds = 3f;
 
@@ -48,9 +49,12 @@ namespace VoxelEngine.Showcase
                     "Mountain Dragon validation source resource is missing. The Editor build preprocessor must reconstruct it.");
 
             long started = Stopwatch.GetTimestamp();
+            // GenerateRegionBlocking intentionally exercises the production terrain/feature path
+            // before Dragon placement. Keep enough bounded validation storage for that path plus
+            // the 98k-cell sparse Dragon instead of relying on the old 4k-brick test shortcut.
             _world = new ShowcaseWorld(
                 EvidenceSeed,
-                brickPoolCapacity: 4096,
+                brickPoolCapacity: ValidationBrickPoolCapacity,
                 loadRadiusRegions: 1,
                 unloadRadiusRegions: 2);
 
