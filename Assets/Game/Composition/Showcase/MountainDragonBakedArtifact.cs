@@ -37,8 +37,15 @@ namespace VoxelEngine.Showcase
         {
             if (string.IsNullOrWhiteSpace(base64))
                 throw new FormatException("Mountain-dragon baked payload is empty.");
+
+            // Unity's TextAsset preserves the UTF-8 BOM from the checked-in transport as U+FEFF.
+            // Treat encoding metadata as transport framing, then pin the decoded gzip bytes below.
+            string normalized = base64.Trim();
+            if (normalized.Length > 0 && normalized[0] == '\uFEFF')
+                normalized = normalized.Substring(1);
+
             byte[] compressed;
-            try { compressed = Convert.FromBase64String(base64.Trim()); }
+            try { compressed = Convert.FromBase64String(normalized); }
             catch (FormatException exception)
             {
                 throw new FormatException("Mountain-dragon baked payload is not valid Base64.", exception);
