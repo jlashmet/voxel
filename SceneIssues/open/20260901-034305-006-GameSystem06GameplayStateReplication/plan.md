@@ -5,41 +5,29 @@
 ## Inventory / ownership
 
 - `Packages/manifest.json` includes `com.unity.transport` 6.5.0 and intentionally does not include NGO.
-- The earlier pre-GameSystem07 inventory that found no production network spine is now obsolete. Current master contains the production server/client/transport/protocol/interest/convergence stack under `Assets/VoxelEngine/Net`.
-- `AuthoritativeServerSession.ProcessAuthoritativeTick` is the authoritative fixed-tick cadence. It begins the network tick, processes authoritative simulation input, samples player state after game-owned movement has resolved, flushes replication, emits convergence hashes, processes repair/bulk state, and flushes sends. Gameplay-state publication must plug into this cadence rather than create another loop.
-- Existing Net owns transport, connection identity, packet framing, subscriptions/interest, convergence/repair, reconnect/admission plumbing and client/server receive paths. `Game.GameplayReplication` owns only semantic gameplay publications/revisions and replicated client truth. VoxelEngine.Net must not become dependent on Characters/Combat/Inventory/etc.; any shared hook added there must remain generic.
-- GameSystem07 landed `Game.Sessions.Api` with durable `GameSessionId -> PartyMemberId -> PlayerSlot -> CharacterId` identity and transport-neutral readiness/presence/leadership. `SessionsGameplayProjectionSource` now consumes `IPartySessionQuery.Snapshot` and preserves those durable identities deterministically.
-- Current owning semantic APIs available to replication: Characters (`ICharacterQuery`), Encounters (`IEncounterQuery`), Combat (`ICombatService`), Inventory (`IInventoryRuntime.Snapshot`), and Sessions (`IPartySessionQuery`). `Game.Vitality`, `Game.Progression`, Continuity and Outcome owning APIs are still absent; those acceptance slices remain blocked rather than recreated here.
+- Current master contains the production server/client/transport/protocol/interest/convergence stack under `Assets/VoxelEngine/Net`.
+- `AuthoritativeServerSession.ProcessAuthoritativeTick` is the authoritative fixed-tick cadence. Gameplay-state publication plugs into that cadence after authoritative simulation state is resolved and before the existing replication/send flush; no second update loop exists.
+- Existing Net owns transport, connection identity, packet framing, subscriptions/interest, convergence/repair, reconnect/admission plumbing and client/server receive paths. `Game.GameplayReplication` owns only semantic gameplay publications/revisions and replicated client truth. VoxelEngine.Net remains free of Characters/Combat/Inventory/Sessions authority.
+- GameSystem07 provides `Game.Sessions.Api` durable `GameSessionId -> PartyMemberId -> PlayerSlot -> CharacterId` identity. `SessionsGameplayProjectionSource` preserves those identities deterministically.
+- Available owning semantic APIs: Characters (`ICharacterQuery`), Encounters (`IEncounterQuery`), Combat (`ICombatService`), Inventory (`IInventoryRuntime.Snapshot`), and Sessions (`IPartySessionQuery`). Current `origin/master` still has no `Game.Vitality`, `Game.Progression`, `Game.Continuity`, or `Game.Outcome` owning API/module; those acceptance slices remain external blockers and are not recreated here.
 
-## API
+## API / runtime
 
-Authoritative gameplay revision, typed snapshot/delta contracts for registered subsystem projections, synchronization/readiness state, and read-only client semantic state. Transport packet types remain private and are not gameplay contracts.
+One publication barrier advances one monotonic `GameplayRevision`; every projection in that publication shares the revision. Deltas must be exact-next; duplicate/older publications are ignored, gaps/schema incompatibility enter `RepairRequired`, and a newer full snapshot may jump directly to current truth for repair, late join and reconnect convergence.
 
-A coherent authoritative revision is one publication barrier: all projections captured by a publication share the same monotonic gameplay revision. Delta revisions must be exactly current+1; duplicate/older publications are ignored, and forward gaps transition client state to `RepairRequired`. A full snapshot may jump directly to a newer revision and replaces current replicated projection truth, which is the repair/late-join/reconnect convergence primitive.
+Subsystem identity/versioning is semantic (`GameplayProjectionId` + schema version). Producers implement `IGameplayProjectionSource` through adapters; owning gameplay modules do not depend on replication Runtime. `GameplayReady` is configuration-driven and true only while synchronized with all configured required compatible projections.
 
-Subsystem identity/versioning is semantic and stable. `GameplayProjectionId` plus schema version define compatibility; projection producers implement `IGameplayProjectionSource` through adapters/composition and owning gameplay modules never depend on replication Runtime.
+`Game.GameplayReplication.Api` and `Runtime` stay engine-neutral. `Adapters` consumes owning gameplay APIs. `Transport` is the sole gameplay transport bridge on top of the existing Net protocol/send/receive seams. Repair requests travel through the existing client EVENT path; new/reconnected authenticated connections cause coherent current-state snapshots. Sessions durable identity is independent of transient connection IDs.
 
-`GameplayReady` is configuration-driven through required projection descriptors. It is true only while synchronized and every required descriptor has a compatible current projection; socket connectivity alone cannot satisfy readiness.
+## Material results / selected fix
 
-## Runtime / transport integration
+The transport-backed fixture covers two existing UTP clients, Characters plus transactional Inventory, a forced semantic revision gap with live repair request/response, a late joiner, and disconnect/reconnect under a new transient connection ID. An earlier request `1b741e0a9e0b6ffe461b938a0a74874e3aea6a8e` for source `257b9b150292f1e2be8562cf844f0d66dddb2516` failed before tests because an obsolete parallel `Game.GameplayReplication.Networking` assembly remained from an earlier transport attempt and no longer implemented the generic repair-handler seam. The demonstrated root cause was removed entirely, leaving the canonical `Game.GameplayReplication.Transport` implementation only.
 
-1. `Game.GameplayReplication.Api` and `Runtime` remain engine-neutral. Runtime depends only on replication API.
-2. `GameplayPublicationBuilder` captures registered sources in stable projection-id order and advances one global gameplay revision per coherent publication.
-3. `GameplayReplicationReadState` applies exact-next deltas, dedupes stale/repeated revisions, detects gaps/schema incompatibility, and accepts newer full snapshots as repair/current-state convergence.
-4. `Game.GameplayReplication.Adapters` contains authority adapters for Characters, Encounters, Combat, Inventory and Sessions. It references those owning APIs plus replication API, not replication Runtime.
-5. Reuse `AuthoritativeServerSession.ProcessAuthoritativeTick` for publication cadence. Add only generic Net extension seams if required; do not make VoxelEngine.Net depend on game-domain assemblies and do not create another transport/update loop.
-6. Reuse existing Net protocol/send/receive and convergence/repair infrastructure for snapshot/delta delivery and repair requests. Late join and reconnect converge from current-state snapshots; one-shot event history is not replayed.
-7. Sessions durable member/slot/character identity remains independent of transient connection IDs and is included semantically through the Sessions projection.
+Validated implementation source `b30991662a8aed7ab2f0d9f7853ccb8db25c0787` used sole CI transport request `540bf22ed49e8bfb0f8b39feadb1386cdee74fbe`. Run `33518314913`, job `99890869505` passed the focused `GameplayReplicationUtpLoopbackTests`, repository-derived automatic module validation, standalone `KentridgePlayableSlice` SceneIssue replay, artifact upload, and final exact-SHA status. This also revalidated deterministic projection/application tests and no-presentation boundaries selected by module ownership.
 
-## Tests / proof
+## Remaining gates / blocker
 
-`Game.GameplayReplication.Tests.GameplayReplicationRuntimeTests` covers deterministic projection/publication ordering, monotonic revisions, duplicate/stale handling, gap detection, snapshot repair, schema incompatibility, configuration-driven `GameplayReady`, existing authority adapters, and Sessions durable-identity ordering without presentation assemblies.
-
-Exact-SHA validation for source `44e7da5284923ab96b382f75a5867434377a36d6` used the sole transport `ci-test/fixes/agent-2` with request commit `4a431a603c0908c007ae4556a59deb7a815c4f2c`; run `33504339974`, job `99844708050` passed focused EditMode, automatic module validation, standalone SceneIssue replay, artifacts, and final status. An earlier run `33501651756` exposed obsolete `*.module-validation.json` registration; that 006-owned manifest was removed without altering planner infrastructure.
-
-Transport-backed convergence is now implemented through the existing authoritative tick, Net gameplay-state packet hook, EVENT repair request, connection/admission paths, and a UTP loopback fixture covering two existing clients, repair-after-gap, late join, disconnect/reconnect, and a transactional Inventory projection alongside Characters. Exact-SHA request `1b741e0a9e0b6ffe461b938a0a74874e3aea6a8e` for source `257b9b150292f1e2be8562cf844f0d66dddb2516` failed before tests ran because an obsolete parallel `Game.GameplayReplication.Networking` assembly remained from an earlier transport attempt and no longer implemented the generic repair-handler seam. That duplicate assembly/folder was removed through implementation head `b23fb13f6f9525cfed7c1380c45208314dd00c88`; the canonical `Game.GameplayReplication.Transport` implementation remains. Re-run exact-head validation on the sole CI transport.
-
-Vitality/Progression/Continuity/Outcome remain external prerequisite blockers. Do not recreate their ownership in replication.
+All currently implementable gameplay-replication transport, convergence, reuse, cleanup and regression work is complete and exact-SHA green. Closure remains blocked only by external prerequisite ownership: Vitality projection, Progression projection, and Continuity/Outcome projections cannot be implemented until their owning semantic APIs/modules land on `origin/master`. Keep the SceneIssue in `open/`; do not weaken or substitute acceptance. When those APIs land, merge current master, add adapters/regressions through the same semantic seams, then run a new exact-head validation before closure.
 
 ## Do not build
 
