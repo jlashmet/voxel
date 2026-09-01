@@ -20,19 +20,6 @@ namespace MountingForce.WorldGen.Voxel
         }
 
         /// <summary>
-        /// Builds only the authored settlement catalogue. This path deliberately does not consume
-        /// a pending game-level top-down-world selection, so bootstrap/demo catalogue ownership
-        /// cannot steal a one-shot macro-world handoff intended for a later gameplay composition.
-        /// </summary>
-        public static FeatureCatalogue BuildAuthoredSettlementOnly(
-            uint seed,
-            VoxelWorldGenSettings settings,
-            Allocator allocator)
-        {
-            return KentridgeCombinedVoxelCatalogueCanonical.Build(seed, settings, allocator);
-        }
-
-        /// <summary>
         /// Convenience path for callers that still have semantic requests. Architecture realization is
         /// deterministic, but higher-level campaign composition should prefer the geometry overload so
         /// the exact hidden spaces used for gameplay selection are also the ones emitted as voxels.
