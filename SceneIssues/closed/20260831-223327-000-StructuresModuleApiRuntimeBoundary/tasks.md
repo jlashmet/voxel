@@ -95,8 +95,8 @@ Work the next unchecked non-blocked item. Do not close while any required item o
 ## I. Closure evidence
 
 - [x] Update `plan.md` with the final selected API contract, any additional dependency findings, blast-radius result, and exact validation SHA/results.
-- [ ] Fill `issue.json.resolutionSummary` with the final ownership change and wiring path.
-- [ ] Fill `issue.json.regressionTest` with the architecture-rule test(s) plus focused cave/castle regression(s).
-- [ ] Fill `issue.json.fixCommit` with the exact verified feature SHA and set `status: fixed` / `resolvedUtc` only after all acceptance and CI gates pass.
-- [ ] Move only this SceneIssue from `SceneIssues/open/20260831-223327-000-StructuresModuleApiRuntimeBoundary` to the matching `SceneIssues/closed/` path after validation is complete.
-- [ ] Merge current `origin/master` into the feature branch before final promotion, resolve only in-scope conflicts, revalidate affected work as required, and push the verified exact head to `master` according to `SceneIssues/README.md`.
+- [x] Fill `issue.json.resolutionSummary` with the final ownership change and wiring path.
+- [x] Fill `issue.json.regressionTest` with the architecture-rule test(s) plus focused cave/castle regression(s).
+- [x] Fill `issue.json.fixCommit` with the exact verified feature SHA and set `status: fixed` / `resolvedUtc` only after all acceptance and CI gates pass.
+- [x] Move only this SceneIssue from `SceneIssues/open/20260831-223327-000-StructuresModuleApiRuntimeBoundary` to the matching `SceneIssues/closed/` path after validation is complete.
+- [x] Merge current `origin/master` into the feature branch before final promotion, resolve only in-scope conflicts, revalidate affected work as required, and push the verified exact head to `master` according to `SceneIssues/README.md`. Master merge `c36a0bd5f39f22fcb0520baaaf8294abf129ca57` incorporated only additive unrelated SceneIssue metadata beyond the green source SHA, so no code revalidation was required; final non-force promotion follows this bookkeeping commit.
