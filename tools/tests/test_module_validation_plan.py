@@ -109,6 +109,22 @@ class PlannerTests(unittest.TestCase):
             self.assertEqual([], result["tests"])
             self.assertEqual([], result["playerValidations"])
 
+    def test_module_tests_folder_meta_does_not_select_module(self):
+        td, root = self.fixture()
+        with td:
+            result = planner.plan(["Assets/Structures/Tests.meta"], planner.discover(root))
+            self.assertFalse(result["hasProductionChanges"])
+            self.assertFalse(result["hasValidationWork"])
+            self.assertEqual([], result["modules"])
+
+    def test_runtime_folder_meta_does_not_select_module(self):
+        td, root = self.fixture()
+        with td:
+            result = planner.plan(["Assets/Structures/Runtime.meta"], planner.discover(root))
+            self.assertFalse(result["hasProductionChanges"])
+            self.assertFalse(result["hasValidationWork"])
+            self.assertEqual([], result["modules"])
+
     def test_validation_scene_and_scenario_are_discovered_by_pairing_convention(self):
         td, root = self.fixture()
         with td:
