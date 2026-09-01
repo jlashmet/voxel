@@ -18,6 +18,19 @@ Stable vitality state/snapshot, semantic damage request/result, defeat transitio
 
 03 Characters API first or in the same coordinated wave; Combat may consume Vitality API, never the reverse.
 
+**BLOCKED (2026-09-01 UTC):** `Assets/Game/Characters` and `Game.Characters.Api.CharacterId` are absent on feature/master SHA `71e5b6b146cb7dd3b7da0305d0ab42bcc9cea22e`. Public Vitality API/Runtime work that would commit an identity shape is blocked until System 03 lands. Do not introduce a temporary actor identity or weaken acceptance; continue independent inventory/migration planning meanwhile.
+
+## Ownership baseline (T02-001)
+
+| Existing owner | Current life-state truth | Classification | Migration boundary |
+| --- | --- | --- | --- |
+| `Game.Combat.Runtime.CombatState` in `CombatCore.cs` | `CombatStats.MaxHp` plus `_hpById`; damage mutates HP and dead actors are rejected by HP <= 0 | **Migrate** | Combat resolution should request/query Vitality; Combat keeps hit/attack rules, not actor life truth. |
+| `Game.Combat.Runtime.CombatService` in `CombatRuntime.cs` | Independent `_hitPoints` dictionary, fixed participant HP/damage, `IsAlive`, defeated-turn skipping and winner evaluation | **Migrate / adapter** | Replace HP mutation/query with Vitality while retaining combat turn/session/team winner policy in Combat. |
+| `MountingForce.CombatPrototype.ChainUnitState` / `ChainCombatBoard` | Prototype-owned `MaxHp`, mutable `Hp`, `IsAlive`; board applies damage and derives battle-over state | **Obsolete authority / adapter while prototype remains** | Prototype may compose/display vitality, but must not remain a second authoritative character-life store after parity. Battle/cascade policy remains prototype/composition-owned. |
+| `Assets/CombatPrototype/*` scene/controller scripts | Presentation/demo layer over the chain-combat board | **Presentation-only** | May read projected vitality state; must not become a new authoritative store. |
+
+The baseline intentionally distinguishes actor defeat from combat/session outcome: Vitality owns current/max/defeated truth; Combat continues to own encounter participation, turns, teams, and winner/settlement policy.
+
 ## Tests / proof
 
 Damage ordering, duplicate requests/idempotency where applicable, one defeat event, non-combat damage, restore of defeated/alive state, and an independent character consumer outside Combat.
