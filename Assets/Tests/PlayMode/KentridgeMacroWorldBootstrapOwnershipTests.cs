@@ -1,5 +1,7 @@
 using System;
 using Game.WorldBuilder.Api;
+using Game.WorldBuilder.Macro.Api;
+using Game.WorldBuilder.Macro.Runtime;
 using Game.WorldBuilder.Runtime;
 using MountingForce.WorldGen;
 using MountingForce.WorldGen.Content.Kentridge;
@@ -16,7 +18,7 @@ namespace VoxelEngine.Tests.PlayMode
         private const uint Seed = 0x4B454E54u;
 
         [Test]
-        public void ShowcaseBootstrapLeavesMacroGeometryForPlayableCatalogue()
+        public void PlayableCatalogueConsumesMacroGeometryBeforeShowcaseBootstrap()
         {
             TopDownWorldLayout layout = MountingForceTopDownWorldDefinition.Build(Seed);
             VoxelWorldGenSettings settings = Settings();
@@ -35,18 +37,13 @@ namespace VoxelEngine.Tests.PlayMode
                 KentridgeDefinition.TownCentreDm.Y,
                 MountingForceTopDownWorldDefinition.CellSizeDm);
 
-            FeatureCatalogue bootstrap = default;
             FeatureCatalogue playable = default;
+            FeatureCatalogue bootstrap = default;
             try
             {
-#pragma warning disable CS0618
-                bootstrap = ShowcaseCatalogue.Build(Seed, Allocator.Temp);
-#pragma warning restore CS0618
-                Assert.That(
-                    ContainsDefinitionStarting(bootstrap, "macro-town-"),
-                    Is.False,
-                    "The Showcase bootstrap catalogue is temporary and must realize only its authored town, not steal the gameplay macro-world handoff.");
-
+                // The playable slice must consume the one-shot macro selection before ShowcaseWorld
+                // creates its temporary default catalogue. Otherwise the temporary catalogue owns the
+                // macro towns and is immediately discarded by ConfigureGeneratedContentForGameplay.
                 playable = KentridgeCombinedVoxelCatalogue.Build(
                     Seed,
                     settings,
@@ -95,16 +92,24 @@ namespace VoxelEngine.Tests.PlayMode
                         $"Playable catalogue is missing macro route geometry for route {i}.");
                 }
 
+#pragma warning disable CS0618
+                bootstrap = ShowcaseCatalogue.Build(Seed, Allocator.Temp);
+#pragma warning restore CS0618
+                Assert.That(
+                    ContainsDefinitionStarting(bootstrap, "macro-town-"),
+                    Is.False,
+                    "After the playable catalogue owns the one-shot selection, the temporary Showcase bootstrap must remain local-only.");
+
                 TestContext.WriteLine(
-                    "MACRO_BOOTSTRAP_OWNERSHIP " +
-                    $"bootstrapDefinitions={bootstrap.Definitions.Length} " +
+                    "MACRO_PLAYABLE_OWNERSHIP " +
                     $"playableDefinitions={playable.Definitions.Length} " +
+                    $"bootstrapDefinitions={bootstrap.Definitions.Length} " +
                     $"genericTowns={expectedGenericTowns} routes={physical.Routes.Count}");
             }
             finally
             {
-                if (playable.IsCreated) playable.Dispose();
                 if (bootstrap.IsCreated) bootstrap.Dispose();
+                if (playable.IsCreated) playable.Dispose();
                 TopDownWorldLayoutSelection.TryConsume(Seed, out _);
             }
         }
