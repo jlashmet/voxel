@@ -10,23 +10,16 @@
 - Agent 7's shared spatial reservation system is integrated without moving geography/route ownership out of `TopDownWorldPhysicalPlanner`; an independent non-Kentridge fixture proves road/building conflicts are rejected.
 - Spatial-reservation integration was exact-SHA green at source `7033ee755ae6bac7cc3c1cc3c83bb4ee2e7d5f5e` in run `33441865025`.
 
-## Experiment 027 root cause
-Run `33448157883` completed failure before structure generation. Both the focused production-storage test and real-player replay abort in `TopDownWorldPhysicalPlanner.BuildAround` while solving a hard route around `southern-ridge`; the player then refuses the legacy fallback, producing the repeated sky/fog-only capture. Because planning aborts before feature publication, the missing settlement `FEATUREGEN_TRACE` is downstream noise rather than the owner.
+## Experiment 027 root cause and correction
+Run `33448157883` proved the repeated sky/fog symptom originated in deterministic hard-route planning around `southern-ridge`, before structure publication. After the endpoint-gate/settlement-approach mismatch was isolated, source-backed geometry showed the Orc generic north gate overlapped the corridor-expanded ridge by 20dm. The durable correction stayed in scene composition: preserve the ridge dimensions and move its authored centre 30dm north; shared `GoAround` remains strict by default, with only the explicit Kentridge ridge-shoulder relationship using `EndpointEscape`.
 
-This satisfies the two-fix root-cause gate: the repeated visual symptom is caused by a deterministic hard-route geography contract failure, not another camera/readiness/publication hypothesis.
+Run `33461949335` then proved planner recovery: all 20 routes / 824 route tiles and all 16 generic buildings plan, and the standalone player reaches feature generation. Its remaining focused failure was test-only: the storage regression sampled the intentionally hollow centre of the four-wall generic shell. The regression now probes an authored perimeter wall without changing production geometry.
 
-The minimal correction is deliberately split by ownership:
-1. Shared WorldBuilder API/planner supports an explicit `TopDownWorldConstraintRelaxationMode` and remains strict by default.
-2. `EndpointEscape` permits only the contiguous route segment needed for an authored endpoint to leave a blocker, records deterministic plan diagnostics, and still rejects routes that remain inside the blocker.
-3. Scene policy lives in `KentridgeTopDownWorldPhysicalIntent`: only the authored South Fighting Area -> Orc Village `SouthernRidge` GoAround relationship opts into endpoint escape; lake detours and designated crossings stay strict.
-4. Independent regression proves generic consumers default to strict and opt-in must be explicit; Kentridge regression proves exactly one authored constraint is relaxed.
-
-The first corrected-ridge exact rerun (`33461949335`, source `6e7a546c64adc397c14c75d34e4324fc092eb5f1`) proves the planner recovery: all 20 routes and 824 route tiles plan, all 16 generic buildings exist, and the standalone replay reaches feature generation. The remaining focused failure is not production geometry: the storage regression sampled the intentionally hollow centre of the four-wall generic shell and correctly read air. The regression now probes the authored back perimeter timber wall at the same high-ground-relative height; the hollow-shell production program is unchanged.
+Exact source `b500683169ed0ea2f1e4997ce83560f78093f8e0` passed the focused storage test, repository-derived module validation, and standalone replay in run `33464366092` attempt 3 (artifact `9784884651`); attempts 1-2 were the already-proven runner free-memory-floor infrastructure failure. The 60-second artifact is behaviorally valid but not visual closure evidence: the existing driver reports seven targets in order (`moordell`, `rossdam`, `rossdam-lake`, `fairy-village`, `orc-village`, `southern-ridge`, `macro-network-overview`), and Rossdam only reaches readiness around t=59s. Therefore the timeout, not a new product hypothesis, prevents the later acceptance captures.
 
 ## Next validation
-1. Run exact-SHA CI on the focused production-storage settlement acceptance test plus the 60-second SceneIssue replay using the new perimeter-wall probe.
-2. Require physical planning to complete, the focused storage assertions to reach generic shell/roof publication, and the standalone player to run without the macro-realization exception.
-3. Inspect new full-resolution evidence. The previous sky-only capture is not closure evidence; require readable settlements, roads, Rossdam lake, Southern Ridge/pass, constrained route, and representative CharacterMotor traversal.
-4. Re-run Moordell/Rossdam/Fairy/Orc surveys and macro-network overview after planner recovery.
-5. Measure vertical residency and world-build/route/feature/CPU/FPS/memory/streaming/render/far-field cost against budgets.
-6. Re-fetch/merge current master if it advanced, pass final exact-SHA focused + automatic module + SceneIssue gates, then close/move the assignment and non-force promote the exact feature head per workflow.
+1. Run the unchanged supported SceneIssue evidence sequence for 180 seconds on the new exact docs-recorded feature SHA; retain the same focused test and automatic repository-derived module gates.
+2. Inspect full-resolution Moordell/Rossdam/Fairy/Orc surveys, arrival/exit roads, Rossdam lake + constrained route, Southern Ridge/pass, macro-network overview, and representative CharacterMotor traversal. Only standalone-player evidence can close visual criteria.
+3. If a target is visually defective, record that demonstrated acceptance defect and fix its owner; do not alter the evidence sequence merely to frame around it.
+4. Extract final route/water/feature/streaming/render/FPS/memory telemetry and quantify vertical-residency blast radius without changing horizontal interest/device budgets.
+5. Re-fetch current master immediately before the final exact-SHA gate. After every criterion is green, move the issue open->closed, set `status=fixed` / `resolvedUtc`, merge current master, and non-force promote the exact feature head.
