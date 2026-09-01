@@ -4,7 +4,7 @@
 
 ## API
 
-Stable vitality state/snapshot, semantic damage request/result, defeat transition/event, restoration/healing only if current content requires it. Identity references come from `Game.Characters.Api`; session identity uses the ticket-specified `Game.SharedKernel.Api.SessionId`; no Unity objects.
+Stable vitality state/snapshot, semantic damage request/result, defeat transition/event, restoration/healing only if current content requires it. Identity references come from `Game.Characters.Api`; no Unity objects.
 
 ## Runtime
 
@@ -18,7 +18,7 @@ Stable vitality state/snapshot, semantic damage request/result, defeat transitio
 
 03 Characters API first or in the same coordinated wave; Combat may consume Vitality API, never the reverse.
 
-**BLOCKED (2026-09-01 UTC):** `Assets/Game/Characters` / `Game.Characters.Api.CharacterId` and the ticket-specified `Assets/Game/SharedKernel` / `Game.SharedKernel.Api.SessionId` are absent on feature/master SHA `71e5b6b146cb7dd3b7da0305d0ab42bcc9cea22e`. System 03's binding plan confirms `CharacterId` belongs to `Game.Characters.Api`; no published commit containing `CharacterId` was found. Public Vitality API/Runtime work that would commit either shared identity shape is blocked until those prerequisite contracts land. Do not introduce temporary identity types or weaken acceptance; continue independent inventory/migration planning meanwhile.
+**BLOCKED (2026-09-01 UTC):** `Assets/Game/Characters` / `Game.Characters.Api.CharacterId` is absent on feature/master SHA `71e5b6b146cb7dd3b7da0305d0ab42bcc9cea22e`. System 03's binding plan confirms `CharacterId` belongs to `Game.Characters.Api`. Public Vitality API/Runtime work that would commit a competing identity shape is blocked until that prerequisite contract lands or is available in a coordinated wave. Do not introduce a temporary actor identity or weaken acceptance; continue independent inventory/migration planning meanwhile.
 
 ## Ownership baseline (T02-001)
 
