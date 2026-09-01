@@ -84,6 +84,7 @@ namespace VoxelEngine.CI
         public void ProductionModules_ReferenceOtherModulesThroughApiOnly()
         {
             Dictionary<string, AssemblyInfo> assemblies = LoadRepositoryAssemblies();
+            Dictionary<string, string> guidNames = LoadAssemblyGuidNames(assemblies);
             var violations = new List<string>();
 
             foreach (AssemblyInfo source in assemblies.Values)
@@ -92,7 +93,7 @@ namespace VoxelEngine.CI
 
                 for (int i = 0; i < source.References.Length; i++)
                 {
-                    string reference = source.References[i];
+                    string reference = ResolveReferenceName(source.References[i], guidNames);
                     if (!assemblies.TryGetValue(reference, out AssemblyInfo target)) continue;
                     if (IsAllowedProductionReference(source, target)) continue;
 
@@ -144,6 +145,22 @@ namespace VoxelEngine.CI
             Assert.That(IsAllowedProductionReference(composition, runtime), Is.True);
         }
 
+        [Test]
+        public void ProductionModuleRule_ResolvesGuidReferencesBeforeClassification()
+        {
+            var guidNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["0123456789abcdef0123456789abcdef"] = "VoxelEngine.Structures.Api",
+            };
+
+            Assert.That(
+                ResolveReferenceName("GUID:0123456789abcdef0123456789abcdef", guidNames),
+                Is.EqualTo("VoxelEngine.Structures.Api"));
+            Assert.That(
+                ResolveReferenceName("VoxelEngine.Structures.Api", guidNames),
+                Is.EqualTo("VoxelEngine.Structures.Api"));
+        }
+
         private static Dictionary<string, AssemblyInfo> LoadRepositoryAssemblies()
         {
             var result = new Dictionary<string, AssemblyInfo>(StringComparer.Ordinal);
@@ -171,6 +188,43 @@ namespace VoxelEngine.CI
                 info.References = json.references ?? Array.Empty<string>();
                 result[info.Name] = info;
             }
+        }
+
+        private static Dictionary<string, string> LoadAssemblyGuidNames(
+            Dictionary<string, AssemblyInfo> assemblies)
+        {
+            var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (AssemblyInfo assembly in assemblies.Values)
+            {
+                string relative = assembly.Path.StartsWith("Assets/", StringComparison.Ordinal)
+                    ? assembly.Path.Substring("Assets/".Length)
+                    : assembly.Path;
+                string metaPath = Path.Combine(Application.dataPath, relative.Replace('/', Path.DirectorySeparatorChar)) + ".meta";
+                if (!File.Exists(metaPath)) continue;
+
+                string[] lines = File.ReadAllLines(metaPath);
+                for (int i = 0; i < lines.Length; i++)
+                {
+                    string line = lines[i].Trim();
+                    if (!line.StartsWith("guid:", StringComparison.Ordinal)) continue;
+                    string guid = line.Substring("guid:".Length).Trim();
+                    if (!string.IsNullOrEmpty(guid)) result[guid] = assembly.Name;
+                    break;
+                }
+            }
+            return result;
+        }
+
+        private static string ResolveReferenceName(
+            string reference,
+            Dictionary<string, string> guidNames)
+        {
+            if (string.IsNullOrEmpty(reference) ||
+                !reference.StartsWith("GUID:", StringComparison.OrdinalIgnoreCase))
+                return reference;
+
+            string guid = reference.Substring("GUID:".Length).Trim();
+            return guidNames.TryGetValue(guid, out string name) ? name : reference;
         }
 
         private static AssemblyInfo Fixture(string name, string path)
