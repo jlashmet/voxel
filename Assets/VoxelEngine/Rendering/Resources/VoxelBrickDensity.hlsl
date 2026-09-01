@@ -47,6 +47,7 @@ uint _SolidWaterMaterialMask;
 
 #define COMPATIBILITY_JOIN 0
 #define CONTINUITY_DISCONTINUOUS 0
+#define AUTHORITATIVE_SOLID_BIT (1u << 26)
 
 // SurfaceStyles: MaterialDefault is 0 and Smooth is 1, not a sentinel and zero. Getting this
 // backwards means the default style is never resolved and every cell reads style 0 instead, which
@@ -64,6 +65,11 @@ bool IsMaterialBlendSurface(uint surface)
 uint ReconstructionStyleId(uint surface)
 {
     return (surface & 0xFFFFu) & SURFACE_STYLE_RECONSTRUCTION_MASK;
+}
+
+uint WithAuthoritativeOccupancy(uint surface, bool solid)
+{
+    return solid ? surface | AUTHORITATIVE_SOLID_BIT : surface & ~AUTHORITATIVE_SOLID_BIT;
 }
 
 struct StyleDefinition
@@ -327,7 +333,7 @@ int PreferNearestCrossingSurfaceMaterial(int3 p, int sourceStep,
         bestDistance, bestMaterialDistance, hasVisibleTopMaterial, dominantMaterial, dominantSurface);
     ConsiderCrossingRay(p, int3(0, 0,  1), false, sourceStep, centreMaterial, centreSurface,
         bestDistance, bestMaterialDistance, hasVisibleTopMaterial, dominantMaterial, dominantSurface);
-    ConsiderCrossingRay(p, int3(0, 0, -1), false, sourceStep, centreMaterial, centreSurface,
+    ConsiderCrossingRay(p, int3(0, 0,-1), false, sourceStep, centreMaterial, centreSurface,
         bestDistance, bestMaterialDistance, hasVisibleTopMaterial, dominantMaterial, dominantSurface);
     return bestDistance;
 }
@@ -379,7 +385,7 @@ float SampleField(int3 p, int sourceStep, out uint dominantMaterial, out uint do
     if (packedBoundary != 0u && centreSolid == (BoundarySignedQ3(packedBoundary) >= 0))
     {
         dominantMaterial = centreSolid ? centre : 0u;
-        dominantSurface = centreSolid ? centreSurface : 0u;
+        dominantSurface = WithAuthoritativeOccupancy(centreSolid ? centreSurface : 0u, centreSolid);
         return BoundarySignedQ3(packedBoundary) * 0.125 + CoatingDisplacement(centreSurface);
     }
 
@@ -389,7 +395,7 @@ float SampleField(int3 p, int sourceStep, out uint dominantMaterial, out uint do
                      || centreStyle.reconstruction == RECONSTRUCTION_CUBIC))
     {
         dominantMaterial = centre;
-        dominantSurface = centreSurface;
+        dominantSurface = WithAuthoritativeOccupancy(centreSurface, true);
         return 0.5 + CoatingDisplacement(centreSurface);
     }
 
@@ -437,10 +443,9 @@ float SampleField(int3 p, int sourceStep, out uint dominantMaterial, out uint do
         }
     }
 
-    // Surface semantics are auxiliary data for an occupied material. Neighbour taps may discover a
-    // candidate surface while reconstructing density around air, but the CPU job canonicalizes the
-    // public sample to material=0/surface=0. Keep the GPU sample buffer byte-for-byte equivalent.
-    if (dominantMaterial == 0u) dominantSurface = 0u;
+    // Match TransvoxelDensityJob.Execute: presentation identity can extend onto nearby air-centred
+    // samples, but the transient occupancy bit always records the authoritative centre voxel.
+    dominantSurface = WithAuthoritativeOccupancy(dominantSurface, centreSolid);
 
     return density + (centreSolid ? CoatingDisplacement(centreSurface) : 0.0);
 }
