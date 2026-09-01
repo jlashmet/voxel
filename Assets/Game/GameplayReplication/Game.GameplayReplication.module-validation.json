@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "module": "Game.GameplayReplication",
+  "productionPaths": [
+    "Assets/Game/GameplayReplication/Api/**",
+    "Assets/Game/GameplayReplication/Runtime/**",
+    "Assets/Game/GameplayReplication/Adapters/**"
+  ],
+  "sharedPaths": [],
+  "tests": [
+    {
+      "platform": "EditMode",
+      "filter": "Game.GameplayReplication.Tests.GameplayReplicationRuntimeTests"
+    }
+  ],
+  "integrationGate": false,
+  "fallback": false
+}
