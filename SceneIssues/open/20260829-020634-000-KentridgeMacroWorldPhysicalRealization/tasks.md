@@ -11,21 +11,22 @@
 - [x] After two materially different failed camera corrections, isolate framing root cause; exact projected 3D envelope containment replaces insufficient scalar/frustum-intersection models.
 - [x] Replace demonstrated-cost solid fallback body with four bounded wall boxes; independent fixture proves hollow centre and <25% former body volume. Exact `33405010658` is regression/player green and reduces Rossdam publication to ~100k–120k indices per blockout.
 - [x] Ensure validation-only 90-degree lens executes after evidence survey pose; corrected Experiment 025 exact run `33410426650` proves all four Moordell/Rossdam authored centres are contained while visual closure remains red.
-- [x] Experiment 026 exact run `33417092425`: all sampled Moordell/Rossdam building centres have stable production coverage but authoritative top solid equals procedural terrain (`delta=0`) at every centre. Camera/timing/readiness/renderer-only hypotheses are rejected; runtime geometry/publication cardinality is selected.
+- [x] Experiment 026 exact run `33417092425`: all sampled Moordell/Rossdam building centres have stable production coverage but authoritative top solid equals procedural terrain (`delta=0`) at every centre.
 
 ## Spatial reservation integration
 - [x] Integrate resolved `TopDownWorldPhysicalPlan` occupancy with Agent 7's shared `SpatialReservationSnapshot`: settlement envelopes, generic building footprint/clearance, resolved road segments, and settlement-arrival public-access handoffs. Geography/route solving remains owned by `TopDownWorldPhysicalPlanner` (`82482e000b2c7d5c441be4dfd16532b96de78fc2`).
 - [x] Add independent non-Kentridge `alpha`/`beta` fixture proving shared reservations reject a resolved road through a generic building.
-- [x] Validate exact source `7033ee755ae6bac7cc3c1cc3c83bb4ee2e7d5f5e` in run `33441865025`, job `99651749224`, artifact `9776935720`: focused reservation fixture, automatic `kentridge-integration` + `spatial-reservations` validation, required EditMode suites, both real-player validations, and 60-second SceneIssue replay all passed.
-- [x] Merge repaired master `142b1134bd9d6a9eb1d60e55a296afaf6d9e7b3e` into the feature via ancestry-preserving merge `eb97dc5678a86a4031edd14d2682824a84943bc0`; verify the branch is 0 commits behind master at that point.
+- [x] Validate exact source `7033ee755ae6bac7cc3c1cc3c83bb4ee2e7d5f5e` in run `33441865025`, job `99651749224`, artifact `9776935720`.
 
-## Current root-cause gate
-- [x] Add generic low-volume `FEATUREGEN_TRACE` instrumentation in shared structure generation for candidate selection, evaluation accept/reject, primitive count, rasterization completion, and per-instance voxel-write delta. SceneIssue diagnostics enable it; normal player runs remain silent.
-- [x] Experiment 026 proves authored Moordell/Rossdam centres are in-frame and render-ready while authoritative top solid remains terrain, requiring a runtime publication discriminator before another geometry correction.
-- [ ] Experiment 027: exact-SHA CI compile + focused production-storage settlement test + 60-second SceneIssue replay with `FEATUREGEN_TRACE`; correlate trace records with final settlement `MACROEVIDENCE`.
-- [ ] Record which owner Experiment 027 selects: pre-selection/scheduling, evaluation, raster/mutation, or later overwrite/publication ordering.
-- [ ] Add a focused behavioral regression for the selected owner.
-- [ ] Fix only that selected owner; do not make another speculative geometry fix.
+## Experiment 027 root-cause gate
+- [x] Add generic low-volume `FEATUREGEN_TRACE` instrumentation in shared structure generation for candidate selection, evaluation accept/reject, primitive count, rasterization completion, and per-instance voxel-write delta.
+- [x] Run Experiment 027 exact focused storage + 60-second player replay: run `33448157883` completed failure.
+- [x] Isolate the repeated symptom before another fix: both focused test and player abort during hard-route physical planning because `BuildAround` cannot produce a dry detour around `southern-ridge`; feature generation is never reached, which also explains the sky/fog-only replay.
+- [x] Add shared semantic relaxation policy with deterministic diagnostics; keep the generic route constraint contract strict by default.
+- [x] Keep scene policy in composition: only the authored South Fighting Area -> Orc Village `SouthernRidge` GoAround constraint opts into `EndpointEscape`.
+- [x] Add independent regression proving generic constraints default to `Strict`, explicit opt-in is possible, and Kentridge relaxes exactly one authored ridge-shoulder relationship.
+- [ ] Re-run Experiment 027 exact-SHA focused production-storage acceptance + 60-second SceneIssue replay on the corrected feature head.
+- [ ] Inspect focused result and standalone logs/screenshots; require planning to complete and no macro-realization exception before evaluating downstream settlement publication.
 
 ## Remaining acceptance
 - [ ] Verify full-resolution Moordell/Rossdam/Fairy/Orc surveys show readable grounded authored blockouts with streets/open space and road arrival/exit.
