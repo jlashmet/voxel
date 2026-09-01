@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Execute a module-validation plan: focused Unity tests, then built-player validations."""
+"""Execute a convention-derived module validation plan."""
 from __future__ import annotations
 import argparse, json, os, subprocess, time, xml.etree.ElementTree as ET
 from pathlib import Path
@@ -8,29 +8,30 @@ from pathlib import Path
 def run_test(unity: str, item: dict, root: Path) -> float:
     module = item["module"]
     platform = item["platform"]
-    test_filter = item["filter"]
-    safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in module + "-" + platform)
+    assembly = item["assembly"]
+    safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in module + "-" + platform + "-" + assembly)
     out = root / "Tests" / safe
     out.mkdir(parents=True, exist_ok=True)
     xml = out / "results.xml"
     log = out / "unity.log"
-    args = ["tools/unity-run.sh", "-batchmode", "-job-worker-count", "1"]
-    if platform == "EditMode":
-        args.append("-nographics")
-    args += ["-projectPath", str(Path.cwd()), "-runTests", "-testPlatform", platform,
-             "-testFilter", test_filter, "-testResults", str(xml), "-logFile", str(log)]
+    # Required module suites may contain graphics/compute regressions even when they are EditMode.
+    # Keep the graphics device available so those tests execute rather than silently becoming
+    # unavailable under -nographics; skipped required cases are intentionally treated as failures.
+    args = ["tools/unity-run.sh", "-batchmode", "-job-worker-count", "1",
+            "-projectPath", str(Path.cwd()), "-runTests", "-testPlatform", platform,
+            "-assemblyNames", assembly, "-testResults", str(xml), "-logFile", str(log)]
     env = os.environ.copy()
     env.update({"UNITY_BIN": unity, "UNITY_MAX_RSS_MB": "14336", "UNITY_MAX_MINUTES": "4"})
     started = time.monotonic()
     subprocess.run(args, check=True, env=env)
     if not xml.is_file():
-        raise SystemExit(f"ERROR: required focused test produced no results: {module} {test_filter}")
+        raise SystemExit(f"ERROR: required module test assembly produced no results: {module} {assembly}")
     cases = ET.parse(xml).getroot().findall(".//test-case")
     if not cases:
-        raise SystemExit(f"ERROR: required focused test matched zero tests: {module} {test_filter}")
+        raise SystemExit(f"ERROR: required module test assembly executed zero tests: {module} {assembly}")
     failed = [c for c in cases if c.get("result") not in ("Passed", "Success")]
     if failed:
-        raise SystemExit(f"ERROR: required focused test failed: {module} {test_filter}")
+        raise SystemExit(f"ERROR: required module test assembly failed: {module} {assembly} ({len(failed)} failures)")
     return time.monotonic() - started
 
 
@@ -50,7 +51,8 @@ def main(argv=None) -> int:
         summary["tests"].append({**item, "seconds": round(seconds, 2)})
     for item in plan.get("playerValidations", []):
         module = item["module"]
-        out = root / "Players" / module
+        safe_module = "".join(c if c.isalnum() or c in "-_" else "_" for c in module)
+        out = root / "Players" / safe_module
         started = time.monotonic()
         subprocess.run(["python3", "tools/player-validation.py", "--unity", ns.unity,
                         "--scene", item["scene"], "--scenario", item["scenario"],
