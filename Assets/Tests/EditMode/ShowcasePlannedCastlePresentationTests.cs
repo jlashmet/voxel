@@ -28,9 +28,12 @@ namespace VoxelEngine.Tests.EditMode
                 "Planning may enumerate dependencies, but must not make them resident.");
             Assert.That(world.ReadyCastleRegions, Is.Zero);
 
+            // The public composition plan intentionally exposes only semantic identity/centre;
+            // query a conservative window around that centre rather than reaching into the
+            // game-owned castle implementation for private derived bounds.
             var query = new FeaturePresentationBounds(
-                new int3(plan.MinX - 1, plan.GroundY - 256, plan.MinZ - 1),
-                new int3(plan.MaxX + 2, plan.GroundY + 512, plan.MaxZ + 2));
+                plan.Centre - new int3(1024, 512, 1024),
+                plan.Centre + new int3(1024, 1024, 1024));
             var matches = source.Query(query);
             FeaturePresentationBake castle = matches.FirstOrDefault(bake =>
                 bake.Kind == FeatureKind.Structure
