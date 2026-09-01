@@ -4,41 +4,24 @@
 
 Starting feature/master commit SHA: `c73ab9d123ad29a1f1f1215552519a303c16d5fe` (`Add SceneIssue for Structures API/runtime boundary`). Its tree SHA is `8fa7a2bc061d0b41b583a0ba43c29573c8d3ab9e`; the earlier plan accidentally recorded that tree SHA as the starting commit.
 
-The resumed feature branch is one documentation commit ahead at `d5812787ee8e3ebe2a7094b80c63a2e2adae8227`, with parent `c73ab9d123ad29a1f1f1215552519a303c16d5fe`. Current `master` is still `c73ab9d123ad29a1f1f1215552519a303c16d5fe` as of the resumed inventory.
+At baseline, `Assets/Game/Structures/Runtime/Game.Structures.Runtime.asmdef` directly referenced `VoxelEngine.Structures.Runtime`, and `CastleCaveAuthoring.cs` directly used its `CaveAuthoring`/`CaveAuthoringResult` types.
 
-At baseline, `Assets/Game/Structures/Runtime/Game.Structures.Runtime.asmdef` directly references `VoxelEngine.Structures.Runtime`, and `Assets/Game/Structures/Runtime/CastleCaveAuthoring.cs` aliases/uses `VoxelEngine.Structures.Runtime.CaveAuthoring` and `VoxelEngine.Structures.Runtime.CaveAuthoringResult`.
+## Evidence / dependency inventory
 
-## Observed behavior / dependency inventory
+The castle cave call chain is `CastleAuthoringBuild.Step()` stage 7 -> `CastleDungeonAuthoring.Author` -> `CastleCaveAuthoring.Author` -> engine cave authoring. Castle seed salt, compatibility `CaveConfig`, underground request/anchor, and `GameMaterialIds` palette mapping remain Game.Structures policy; validation/network generation remain VoxelEngine Runtime.
 
-The offending assembly dependency was introduced by commit `c651ae380a29a658b160e5e2eb73bd0be9a09476`, whose only changed file was `Game.Structures.Runtime.asmdef`; the source-level cave aliases now make that assembly reference live rather than stale metadata.
+The required compile probe removed the private asmdef reference and ran on feature SHA `31742c23b3948fb9a8fabfc823b3435ebd55c42a` through request `0168bc7499e5e1b9f9e3dbb066cbea218f4a7ce0` (workflow `33459718833`). It failed compilation and falsified hypothesis 1: cave authoring was not the only live private dependency. The compiler identified the same boundary defect in `CathedralAuthoring`, `CathedralWorldbuildingAuthoring`, `ChurchAuthoring`, `ShedAuthoring`, `TempleAuthoring`, and `StructuralDecorationHandoffAdapter` (generic openings/roofs/buttresses/stairs/columns plus structural composition result types). This is product evidence, not infrastructure; the Runtime asmdef dependency will not be restored.
 
-The concrete in-module call chain is:
+## Selected ownership / fix
 
-`CastleAuthoringBuild.Step()` stage 7 -> `CastleDungeonAuthoring.Author(IStructureAuthoringSession, CastlePlan)` -> `CastleCaveAuthoring.Author(IStructureAuthoringSession, CastlePlan, int3)` -> static `VoxelEngine.Structures.Runtime.CaveAuthoring.Author(...)`.
+`VoxelEngine.Structures.Api` owns API value contracts and injected semantic capabilities. `VoxelEngine.Structures.Runtime` owns all generic deterministic execution. `Game.Structures` owns game archetype/castle policy and maps its configs/materials into those API capabilities. Composition/bootstrap constructs concrete Runtime services and injects them.
 
-`CastleCaveAuthoring` owns the castle seed salt, compatibility `CaveConfig`, semantic underground request/anchor, and `GameMaterialIds` -> `CaveMaterialPalette` mapping. Those remain Game.Structures policy. `VoxelEngine.Structures.Runtime.CaveAuthoring` owns validation and delegates the actual algorithm to `CaveNetworkAuthoringCore`; that execution remains Runtime-owned.
+The cave seam is API-owned `CaveAuthoringResult` + `ICaveAuthoring`; `CaveAuthoringService` delegates to the existing Runtime validation/core, and the capability is threaded through `CastleAuthoringBuild -> CastleDungeonAuthoring -> CastleCaveAuthoring`.
 
-The minimum injection seam is therefore one `ICaveAuthoring` capability threaded through the existing castle build/dungeon/cave path. External constructor/bootstrap callers of `CastleAuthoringBuild` still need to be enumerated before changing public constructor signatures; compile after removing the private assembly reference is the required backstop for missed source dependencies.
+The compile probe demonstrated a second narrow reuse seam: `IStructureComponentAuthoring`, with config-driven request values for the already-shared opening/roof/stair/column/buttress emitters. One Runtime service delegates to the existing single-owner emitters; Game archetypes receive that capability rather than naming five concrete Runtime types or copying their algorithms. Structural composition inspection records consumed by Game must likewise be API-owned values rather than Runtime namespace types.
 
-## Acceptance
+The repository architecture validator structurally parses repository asmdefs, classifies module roots from paths, permits same-owner/API/Composition/Test/Editor/exact Foundation categories, and rejects ordinary production cross-module implementation references with actionable paths. GUID-form repository references still need explicit resolution before final acceptance.
 
-- `Game.Structures.Runtime` depends on `VoxelEngine.Structures.Api`, not `VoxelEngine.Structures.Runtime`.
-- The shared VoxelEngine cave algorithm remains single-owner in `VoxelEngine.Structures.Runtime`.
-- The minimum cave authoring contract/result needed by Game.Structures lives in `VoxelEngine.Structures.Api` and is injected from composition.
-- The architecture suite rejects cross-module production dependencies on another module's private implementation assembly while preserving same-module, API, Composition/bootstrap, Tests/Editor, and explicit Foundation exceptions.
-- Focused Structures/architecture tests and automatically derived validation are green on the exact feature SHA.
+## Remaining gates
 
-## Ownership / selected approach
-
-`Game.Structures` owns castle-specific cave configuration, seed/anchor selection, and game-material mapping. `VoxelEngine.Structures.Api` owns the public cave-authoring capability contract. `VoxelEngine.Structures.Runtime` owns deterministic generic cave generation. Composition constructs the concrete runtime capability and injects it into the castle authoring path.
-
-Introduce API-owned `CaveAuthoringResult` plus narrow `ICaveAuthoring` matching the current operation. Preserve the existing static runtime entry point for existing same-module/integration callers while making the concrete runtime type implement `ICaveAuthoring`; this avoids duplicating validation or `CaveNetworkAuthoringCore` delegation. Thread the capability through `CastleAuthoringBuild -> CastleDungeonAuthoring -> CastleCaveAuthoring`, remove the Runtime assembly reference, and update composition/tests.
-
-## Hypotheses / discriminator
-
-1. The direct runtime dependency is limited to cave authoring and can be replaced by one narrow API capability. Evidence identifies only the concrete cave aliases in `CastleCaveAuthoring`; compile after removing the asmdef reference will discriminate any additional hidden source dependencies.
-2. Other repository modules may already violate the same API-only rule. The expanded repository-wide asmdef validator will enumerate them. Do not blanket-whitelist; classify each by same-module/API/Composition/Test/Editor/Foundation versus true production violation.
-
-## Blast radius / remaining gates
-
-Expected blast radius is Structures API/runtime/composition constructors, castle authoring call sites/tests, and CI architecture tests. No cave algorithm rewrite, visual redesign, or campaign-policy change is intended. Remaining gates: finish external constructor/composition inventory, compile after boundary removal, focused cave/castle behavior regressions, architecture rule regressions and full scan, exact-SHA targeted/module validation, final diff review.
+Finish converting the compile-probe leaks and external callers; move shared structural composition output records to Api; add recording `ICaveAuthoring` regression; resolve GUID asmdef references in the validator and classify full-scan findings; run a second focused compile/test request only after the product fixes are complete. If that second materially different fix still fails the same compile acceptance symptom, isolate the remaining caller/root cause set before any third fix. Then run focused Structures tests, repository-derived module validation/Kentridge as selected by CI, review blast radius, record exact green SHA, close, merge current master, and promote non-force.
