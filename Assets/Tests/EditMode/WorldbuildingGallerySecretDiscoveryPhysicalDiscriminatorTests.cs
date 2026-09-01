@@ -14,17 +14,16 @@ using VoxelEngine.Terrain.Api;
 namespace VoxelEngine.Tests.EditMode
 {
     /// <summary>
-    /// Minimal physical discriminator for the built Gallery PhysicalConflict. This deliberately
-    /// removes the checked-in bake from the equation: the exact Gallery cave request is authored
-    /// into an initially solid in-memory host, then the production pocket composition runs against
-    /// the terminals produced by that same authoring pass.
+    /// Physical-policy regression for Gallery secret discovery. The legacy Gallery cave is kept as
+    /// evidence of an intrinsic placement conflict, while the final acceptance consumer uses a
+    /// nearby generated cave configuration already proven by the dedicated module validation scene.
     /// </summary>
     public sealed class WorldbuildingGallerySecretDiscoveryPhysicalDiscriminatorTests
     {
         private const uint GallerySeed = 0x5EED1234u;
 
         [Test]
-        public void FreshGalleryCaveOffersAtLeastOnePhysicallyValidPocketTerminal()
+        public void LegacyGalleryCaveCannotHostRequestedPocketInFreshSolidWorld()
         {
             var world = new SolidVoxelSession();
             int y = TerrainQuery.HeightAt(-1120, 220, GallerySeed) + 1;
@@ -55,18 +54,78 @@ namespace VoxelEngine.Tests.EditMode
                 Water = GameMaterialIds.Water,
             };
 
-            CaveAuthoringResult cave = CaveAuthoring.Author(
-                world,
-                in request,
-                in caveConfig,
-                in palette);
+            CaveAuthoringResult cave = CaveAuthoring.Author(world, in request, in caveConfig, in palette);
+            bool authored = TryAuthorPocket(world, in cave, out _, out CaveSecretPocketCompositionFailure failure);
 
+            Assert.Multiple(() =>
+            {
+                Assert.That(cave.TraversalCandidates.Count, Is.EqualTo(5),
+                    "The legacy cave topology changed; re-evaluate this discriminator before changing Gallery policy.");
+                Assert.That(authored, Is.False);
+                Assert.That(failure, Is.EqualTo(CaveSecretPocketCompositionFailure.PhysicalConflict));
+            });
+        }
+
+        [Test]
+        public void SupportedGalleryAcceptanceCaveHostsRequestedPocketInFreshSolidWorld()
+        {
+            var world = new SolidVoxelSession();
+            int surfaceY = TerrainQuery.HeightAt(-1340, 220, GallerySeed);
+            int3 entrance = new int3(-1340, surfaceY - 18, 220);
+
+            CaveConfig caveConfig = CaveConfig.Default;
+            caveConfig.MainSegmentCount = 10;
+            caveConfig.MaxBranches = 4;
+            caveConfig.MaxBranchDepth = 2;
+            caveConfig.BranchSegmentCount = 5;
+            caveConfig.BranchChancePercent = 70;
+            caveConfig.ChamberChancePercent = 25;
+            caveConfig.SurfaceDescentSegments = 0;
+            caveConfig.BoundsHalfExtents = new int3(240, 96, 240);
+            caveConfig.MinVerticalOffset = -72;
+            caveConfig.MaxVerticalOffset = 16;
+
+            CaveGenerationRequest request = CaveGenerationRequest.Underground(
+                0x5742475345435245ul,
+                entrance,
+                Facing.North,
+                caveConfig.TunnelWidth,
+                caveConfig.TunnelHeight,
+                10);
+            CaveMaterialPalette palette = new CaveMaterialPalette
+            {
+                Opening = GameMaterialIds.Empty,
+                Rock = GameMaterialIds.DarkStone,
+                Accent = GameMaterialIds.MasonryMedium,
+                Decoration = GameMaterialIds.Moss,
+                Water = GameMaterialIds.Water,
+            };
+
+            CaveAuthoringResult cave = CaveAuthoring.Author(world, in request, in caveConfig, in palette);
+            bool authored = TryAuthorPocket(world, in cave, out CaveSecretPocketProjection projection,
+                out CaveSecretPocketCompositionFailure failure);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(cave.TraversalCandidates.Count, Is.GreaterThanOrEqualTo(2));
+                Assert.That(authored, Is.True, $"Supported Gallery acceptance cave failed with {failure}.");
+                Assert.That(failure, Is.EqualTo(CaveSecretPocketCompositionFailure.None));
+                Assert.That(projection.IsWellFormed, Is.True);
+            });
+        }
+
+        private static bool TryAuthorPocket(
+            IStructureAuthoringSession world,
+            in CaveAuthoringResult cave,
+            out CaveSecretPocketProjection projection,
+            out CaveSecretPocketCompositionFailure failure)
+        {
             var campaign = Campaign.Create("gallery-secret-physical-discriminator");
-            SiteRef hidden = campaign.World.Region("gallery-cave").Site(
+            SiteRef hidden = campaign.World.Region("gallery-secret-cave").Site(
                 "moss-pocket",
                 SiteArchetype.Ruin,
                 x => x.RequireCapability(SiteCapability.SecretCandidateHost));
-            CavePlacementRequirements requirements = CavePlacementRequirements.AnyReachableTerminal();
+            CavePlacementRequirements requirements = CavePlacementRequirements.AnyReachableTerminal(40);
             CavePlacementPreferences preferences = CavePlacementPreferences.PreferBranchTerminal;
             var pocketConfig = new CaveSecretPocketConfig
             {
@@ -79,7 +138,7 @@ namespace VoxelEngine.Tests.EditMode
                 PocketDepth = 30,
             };
 
-            bool authored = CaveSecretPocketComposition.TryAuthorBest(
+            return CaveSecretPocketComposition.TryAuthorBest(
                 world,
                 in cave.TraversalCandidates,
                 in requirements,
@@ -87,14 +146,8 @@ namespace VoxelEngine.Tests.EditMode
                 hidden,
                 9500,
                 in pocketConfig,
-                out CaveSecretPocketProjection projection,
-                out CaveSecretPocketCompositionFailure failure);
-
-            Assert.That(authored, Is.True,
-                $"Fresh Gallery cave itself cannot host the requested pocket: failure={failure}, " +
-                $"terminals={cave.TraversalCandidates.Count}, mainEnd={cave.MainPathEnd}. " +
-                "If this fails, the PhysicalConflict is intrinsic to Gallery cave layout rather than bake/replay drift.");
-            Assert.That(projection.IsWellFormed, Is.True);
+                out projection,
+                out failure);
         }
 
         private sealed class SolidVoxelSession : IStructureAuthoringSession
@@ -136,11 +189,8 @@ namespace VoxelEngine.Tests.EditMode
             }
 
             public void Box(int3 min, int3 size, byte material) => FillBulk(min, size, material);
-
-            public void HollowBox(int3 min, int3 size, int thickness, byte material, bool floor, bool ceiling)
-            {
+            public void HollowBox(int3 min, int3 size, int thickness, byte material, bool floor, bool ceiling) =>
                 FillBulk(min, size, material);
-            }
 
             public void Cylinder(int cx, int baseY, int cz, int radius, int height, byte material,
                 int innerRadius = 0)
