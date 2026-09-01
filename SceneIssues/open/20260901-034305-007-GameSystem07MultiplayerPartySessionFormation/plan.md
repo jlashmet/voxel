@@ -1,28 +1,27 @@
 # 07 Multiplayer party & session formation — implementation plan
 
-**Target module:** `Assets/Game/Sessions/Api` / `Runtime` (`Game.Sessions.Api`, `Game.Sessions.Runtime`).
+**Target:** `Assets/Game/Sessions/Api` + `Runtime`.
 
-## API
+## Acceptance / ownership
+Durable `GameSessionId -> PartyMemberId -> PlayerSlot -> CharacterId` identity belongs to Sessions. Transport connection identity is runtime-only plumbing and never appears in API snapshots. Sessions.Api may reference Characters.Api for the controlled character identity, but contains no UTP/socket types. Sessions.Runtime may depend on Net.Api and Characters.Api. Reconnect policy stays outside Sessions.
 
-`GameSessionId`, `PartyMemberId`, `PlayerSlot`, roster/member state, leader role, readiness state, startup configuration, join request/result, provider seam, and session lifecycle events. Transport connection id must stay outside durable identity.
+## Inventory / hypotheses
+Observed legacy network state: `ServerPlayerRegistry` indexes `PlayerSession` by `uint connectionId` and `ushort playerId`; `AuthoritativeServerSession.AuthenticateConnection` accepts both and disconnect immediately removes that player mapping. `Reconnect` is transport repair policy and must not move into Sessions. No `Assets/Game/Sessions` module existed.
 
-## Runtime
+Hypothesis A: extend `ServerPlayerRegistry` into party authority. Rejected because it couples durable roster identity to transport lifetime and lower-level networking.
 
-1. Implement stable party roster and player-slot allocation.
-2. Add semantic join-provider abstraction yielding connection information without coupling to matchmaking technology.
-3. Authenticate a transport connection into a durable party member.
-4. Coordinate launch/readiness barrier with #06 and #14; socket-connected is not GameplayReady.
-5. Support configured join-in-progress policy while preserving existing members.
-6. Publish snapshots/events for #20 and persistence hooks where required.
+Hypothesis B: add a game-level Sessions authority with a separate ephemeral connection association, then adapt networking to it. Selected; this preserves network ownership while giving systems 08/20/persistence a durable identity seam.
 
-## Dependencies
+## Selected implementation
+- Stable serialization-safe session/member/slot values and transport-neutral roster/join/provider/lifecycle contracts.
+- Configured capacity/version/content/JIP/leader policy.
+- Deterministic roster + lowest-free-slot allocation; member IDs never reused in-session.
+- Runtime-only opaque connection handle; reconnect/rebind preserves member/slot/character.
+- Semantic readiness progression Joined -> Connected -> Synchronized -> GameplayReady.
+- Characters.Api binding through `party-member:<PartyMemberId>` semantics.
+- Focused headless tests cover 2/3/4/6 capacity, identity continuity, readiness, JIP compatibility, leader transfer, character uniqueness and provider reuse.
 
-Existing transport/network API, 03 Characters API for eventual slot-to-character binding, 06 replication readiness. #08 builds recovery on these durable identities.
-
-## Tests / proof
-
-Fresh 2-4 member formation, unique slots, readiness barrier, join-in-progress, incompatible join rejection, and headless provider fixture.
-
-## Do not build
-
-No global matchmaking, social platform integration, gameplay authority, or reconnect policy here.
+## Remaining gates
+1. Migrate legacy socket/player-id gameplay identity consumers behind Sessions without absorbing reconnect policy.
+2. Run exact-SHA automatic Sessions/network-dependent validation and inspect any built-player gate selected by CI.
+3. Audit API/runtime boundaries, blast radius, and close only after every checklist item is proven.
