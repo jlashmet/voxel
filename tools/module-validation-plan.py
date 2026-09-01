@@ -64,9 +64,6 @@ def _module_roots(root: Path) -> list[Path]:
             if tests_index == 0:
                 continue
             module_parts = parts[:tests_index]
-            # Assets/Tests/PlayMode is intentionally the repository-wide
-            # integration/smoke layer. It must not claim every production
-            # assembly as a lower-level module owner.
             if module_parts == ("Assets",):
                 continue
             roots.add(root.joinpath(*module_parts))
@@ -86,6 +83,12 @@ def _is_test_path(path: str) -> bool:
 def _is_integration_only_path(path: str) -> bool:
     path = path.replace("\\", "/")
     return path.startswith("Assets/Game/Composition/")
+
+
+def _is_dependency_contract_path(path: str) -> bool:
+    """True when a module change can alter contracts consumed by other modules."""
+    path = path.replace("\\", "/")
+    return "/Api/" in path or path.endswith(".asmdef")
 
 
 def _discover_player_targets(module_root: Path, root: Path, module_name: str) -> list[dict]:
@@ -214,7 +217,7 @@ def plan(changed_paths: list[str], discovered: dict) -> dict:
     modules = discovered["modules"]
     by_name = {m["name"]: m for m in modules}
     selected: set[str] = set()
-    direct_production: set[str] = set()
+    dependency_contract_modules: set[str] = set()
     fallback_paths = []
     production = [p for p in changed if is_production(p)]
 
@@ -222,17 +225,16 @@ def plan(changed_paths: list[str], discovered: dict) -> dict:
         owner = _module_for_path(path, modules)
         if owner and not _is_test_path(path):
             selected.add(owner["name"])
-            if is_production(path):
-                direct_production.add(owner["name"])
+            if is_production(path) and _is_dependency_contract_path(path):
+                dependency_contract_modules.add(owner["name"])
         elif is_production(path) and not _is_integration_only_path(path):
-            # A production path outside a discoverable lower-level module boundary is fail-safe
-            # broad. Top-level Game/Composition paths are different: they compose modules into the
-            # application and are proven by the mandatory assembled-game Kentridge gate.
+            # Truly unowned production is fail-safe broad. Top-level Game/Composition paths are
+            # application wiring and are proven by the mandatory assembled-game Kentridge gate.
             selected.update(by_name)
             fallback_paths.append(path)
 
-    if direct_production:
-        selected.update(_expand_dependents(direct_production, discovered["dependencies"]))
+    if dependency_contract_modules:
+        selected.update(_expand_dependents(dependency_contract_modules, discovered["dependencies"]))
 
     tests = []
     players = []
