@@ -20,11 +20,11 @@ namespace VoxelEngine.Showcase
         private const float QueryRadiusMetres = 12500f;
 
         private readonly ShowcaseCastleVisibilityManifest _visibility = new();
-        private readonly List<FarStructureInstance> _renderInstances = new();
+        private readonly List<FarFeatureInstance> _renderInstances = new();
         private ShowcaseWorld _world;
         private ShowcaseFarStructureSource _source;
         private FarWorldVisibilityPolicy _policy;
-        private ProceduralFarStructureRenderer _renderer;
+        private ProceduralFarFeatureRenderer _renderer;
         private Camera _camera;
         private float _policyFov;
         private int _policyHeight;
@@ -85,15 +85,15 @@ namespace VoxelEngine.Showcase
             if (_source == null) return;
 
             float2 cameraXZ = new float2(_camera.transform.position.x, _camera.transform.position.z);
-            IReadOnlyList<FarStructureInstance> selected = _source.Query(cameraXZ, QueryRadiusMetres);
+            IReadOnlyList<FarFeatureInstance> selected = _source.Query(cameraXZ, QueryRadiusMetres);
             _renderInstances.Clear();
             if (_renderInstances.Capacity < selected.Count) _renderInstances.Capacity = selected.Count;
             for (int i = 0; i < selected.Count; i++)
             {
-                FarStructureInstance instance = selected[i];
+                FarFeatureInstance instance = selected[i];
                 if (instance.StableId == _visibility.CastleKey)
                 {
-                    instance = new FarStructureInstance(
+                    instance = new FarFeatureInstance(
                         instance.StableId,
                         instance.Position,
                         instance.Rotation,
@@ -109,8 +109,8 @@ namespace VoxelEngine.Showcase
             }
 
             if (_renderer == null)
-                _renderer = gameObject.GetComponent<ProceduralFarStructureRenderer>()
-                    ?? gameObject.AddComponent<ProceduralFarStructureRenderer>();
+                _renderer = gameObject.GetComponent<ProceduralFarFeatureRenderer>()
+                    ?? gameObject.AddComponent<ProceduralFarFeatureRenderer>();
             _renderer.SetInstances(_renderInstances);
         }
 
