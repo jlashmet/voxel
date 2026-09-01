@@ -15,7 +15,7 @@
 
 ## Runtime and migration
 
-- [ ] **T03-010 — Implement one authoritative registry.** Enforce unique `CharacterId`, deterministic lookup, creation, binding and removal.
+- [x] **T03-010 — Implement one authoritative registry.** Enforce unique `CharacterId`, deterministic lookup, creation, binding and removal.
 - [ ] **T03-011 — Bind campaign/world-generated identities.** Map realized NPC/player/enemy semantic identities to stable CharacterIds without scene-object authority.
 - [ ] **T03-012 — Migrate player actor ownership.** Move scene/bootstrap player records behind the character registry while retaining session/player identity ownership in system 07.
 - [ ] **T03-013 — Migrate NPC/recruit ownership.** Represent persistent authored characters through the same lifecycle and registry.
