@@ -109,6 +109,14 @@ class PlannerTests(unittest.TestCase):
             self.assertEqual(1, len(result["playerValidations"]))
             self.assertEqual("Assets/Water/Validation/Water/WaterDemo.player-scenario.json", result["playerValidations"][0]["scenario"])
 
+    def test_validation_asmdef_does_not_become_runtime_dependency_owner(self):
+        td, root = self.fixture()
+        with td:
+            asmdef(root, "Assets/Water/Validation/Water/Water.Validation.asmdef", "Water.Validation", ["Foundation.Runtime"])
+            discovered = planner.discover(root)
+            water = next(module for module in discovered["modules"] if module["name"] == "Assets/Water")
+            self.assertNotIn("Water.Validation", [item["name"] for item in water["runtimeAssemblies"]])
+
     def test_deleted_obsolete_manifest_path_is_nonproduction(self):
         td, root = self.fixture()
         with td:
@@ -116,6 +124,16 @@ class PlannerTests(unittest.TestCase):
             self.assertFalse(result["hasProductionChanges"])
             self.assertFalse(result["hasValidationWork"])
             self.assertEqual([], result["fallbackPaths"])
+
+    def test_unowned_game_composition_change_uses_integration_gate_not_broad_module_fallback(self):
+        td, root = self.fixture()
+        with td:
+            result = planner.plan(["Assets/Game/Composition/Showcase/Bootstrap.cs"], planner.discover(root))
+            self.assertTrue(result["hasProductionChanges"])
+            self.assertEqual([], result["modules"])
+            self.assertEqual([], result["tests"])
+            self.assertEqual([], result["fallbackPaths"])
+            self.assertEqual([planner.KENTRIDGE_SCENE], [item["scene"] for item in result["playerValidations"]])
 
     def test_missing_scene_scenario_pair_fails_closed(self):
         td, root = self.fixture()
