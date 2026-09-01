@@ -54,7 +54,7 @@
 ## Cleanup / close
 
 - [ ] **T02-030 — Repository-wide duplicate-state search.** Remove or demote every remaining authoritative `health`/`isAlive` store outside Vitality where it represents the same character life truth.
-  - Blocked behind T02-015: production `CombatService._hitPoints` remains intentionally untouched until the System 01 participant/Character binding exists; prototype life stores remain blast-radius targets for the final migration audit.
+  - Blocked behind T02-015: production `CombatService._hitPoints` remains intentionally untouched until the System 01 participant/Character binding exists; prototype life stores remain blast-radius targets for the final migration audit. The master advance from `e9819187` to `b4d8c197` adds CharacterAI only; `CombatPerceptionSource` reads existing `CombatService.IsAlive` and accepts an adapter-local `IReadOnlyDictionary<CombatParticipantId, CharacterId>`. It introduces no new vitality store and is not the canonical System 01 participant binding, so the duplicate-authority blast radius is unchanged.
 - [x] **T02-031 — Boundary audit.** Confirm no external assembly references `Game.Vitality.Runtime` and no Unity object appears in Vitality API.
   - Evidence: new API references only `Game.Characters.Api`; Runtime references API + Characters; only the Vitality test assembly references `Game.Vitality.Runtime` in the current feature diff. Reflection regressions assert no UnityEngine/API->Runtime and no Runtime->Combat/Outcomes dependencies.
 - [ ] **T02-032 — Close with ownership proof.** Document that character life state has exactly one owner and combat/game-outcome semantics remain separate.
