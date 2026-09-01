@@ -66,11 +66,7 @@ namespace Game.WorldBuilder.Validation
             int3 caveEntrance = new int3(CaveAnchorX, surfaceY - 18, CaveAnchorZ);
             PreloadAround(caveEntrance);
 
-            IStructureAuthoringSession authoring = VoxelEngine.Composition.StructuresComposition.CreateAuthoringSession(
-                _world.ReadStorage,
-                _world.MutationStorage,
-                _world.Palette,
-                writeBudget: 4_000_000);
+            IStructureAuthoringSession authoring = _world.CreateStructureAuthoringSession(4_000_000);
 
             CaveConfig caveConfig = CaveConfig.Default;
             caveConfig.MainSegmentCount = 10;
