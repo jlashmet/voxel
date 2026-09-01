@@ -6,8 +6,8 @@
 
 ## Baseline / API
 
-- [ ] **T09-001 — Inventory existing inventory stores/callers.** Find prototype inventories, mutable collections, direct add/remove calls, character/container assumptions and current item identity semantics.
-- [ ] **T09-002 — Verify existing Api/Runtime boundary.** Remove planned cross-module Runtime references; record API gaps instead of bypassing the boundary.
+- [x] **T09-001 — Inventory existing inventory stores/callers.** Find prototype inventories, mutable collections, direct add/remove calls, character/container assumptions and current item identity semantics.
+- [x] **T09-002 — Verify existing Api/Runtime boundary.** Remove planned cross-module Runtime references; record API gaps instead of bypassing the boundary.
 - [ ] **T09-003 — Define stable `InventoryId`.** Specify identity/serialization and binding metadata needed for character/container ownership without baking owner type into inventory core.
 - [ ] **T09-004 — Normalize inventory snapshot contract.** Stable item/type/quantity representation using existing item semantics; no UI slots/capacity assumptions.
 - [ ] **T09-005 — Define mutation request/results.** Authoritative add/remove/transfer commands with explicit success/failure and resulting revision/state.
