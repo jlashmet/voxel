@@ -8,7 +8,7 @@ using VoxelEngine.Net.Runtime.Transport;
 namespace VoxelEngine.Net.Runtime.Server
 {
     /// <summary>Composition root for authoritative UTP networking.</summary>
-    public sealed class ServerNetworkRuntime : IDisposable, IAuthoritativeAlterationPublisher, IAlterationRejectionSink, IPlayerStateBundleSink
+    public sealed class ServerNetworkRuntime : IDisposable, IAuthoritativeAlterationPublisher, IAlterationRejectionSink, IPlayerStateBundleSink, IGameplayStatePacketSink
     {
         private readonly UtpServerHost _host;
         private readonly EventDrivenReplicationPipeline _replication;
@@ -146,6 +146,15 @@ namespace VoxelEngine.Net.Runtime.Server
             Span<byte> packet = stackalloc byte[PlayerStateBundlePacket.MaxPacketSize];
             return PlayerStateBundlePacket.TryEncode(packet, states, out int bytesWritten) &&
                    _host.TrySend(connectionId, UtpChannel.Ephemeral, packet.Slice(0, bytesWritten));
+        }
+
+        public bool SendGameplayStatePacket(uint connectionId, ReadOnlySpan<byte> packet)
+        {
+            ThrowIfDisposed();
+            if (!ProtocolEnvelope.TryReadHeader(packet, out ProtocolMessageKind kind, out _) ||
+                kind != ProtocolMessageKind.S_GameplayState)
+                return false;
+            return _host.TrySend(connectionId, UtpChannel.Event, packet);
         }
 
         public int UpdateConnectionPosition(uint connectionId, int3 playerVoxelPosition)
