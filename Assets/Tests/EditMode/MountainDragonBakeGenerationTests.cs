@@ -1,9 +1,6 @@
 using System.IO;
 using NUnit.Framework;
 using Unity.Mathematics;
-using UnityEditor;
-using UnityEngine;
-using VoxelEngine.MeshVoxelization.Editor;
 using VoxelEngine.Showcase;
 using VoxelEngine.Showcase.Editor;
 using VoxelEngine.Structures.Runtime.MeshImport;
@@ -53,18 +50,7 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void CheckedInBake_MeetsPinnedSourceFidelityTargets()
         {
-            MountainDragonSourceArchive.ReconstructImportedAsset();
-            GameObject sourceRoot = AssetDatabase.LoadAssetAtPath<GameObject>(
-                MountainDragonSourceArchive.GeneratedAssetPath);
-            Assert.That(sourceRoot, Is.Not.Null,
-                "The exact reconstructed support-free OBJ must import before fidelity measurement.");
-
-            MeshVoxelizationSource source = UnityMeshVoxelizationAdapter.BuildSource(
-                sourceRoot,
-                MountainDragonPalettePolicy.DragonMaterial);
-            Assert.That(source.Triangles.Length,
-                Is.EqualTo(MountainDragonVoxelBakePolicy.ExpectedSourceTriangleCount));
-
+            MeshVoxelizationSource source = MountainDragonBakeGenerator.LoadPinnedSource();
             BakedVoxelStructure bake = MountainDragonBakedArtifact.Load();
             MeshVoxelFidelityReport fidelity = MeshVoxelizationMetrics.Measure(
                 in source,
