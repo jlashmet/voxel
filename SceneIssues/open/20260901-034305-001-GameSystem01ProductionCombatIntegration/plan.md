@@ -14,7 +14,7 @@
 - `Assets/Game/Composition/CombatEnvironmentRuntime` is the separate older `MountingForce.CombatPrototype` experiment and remains out of scope unless a demonstrated acceptance defect requires it.
 - `Game.Input.Api` is already semantic and `CombatInputController` has no raw key/button polling.
 - Production Characters and Encounters are now present. `Game.Characters.Api` owns `CharacterId`; `Game.Encounters.Api` owns Encounter identity, membership, activation, queued combat requests, and terminal Encounter resolution consumption.
-- Production `Assets/Game/Vitality` / `Game.Vitality.Api` is still absent from current master.
+- Production `Assets/Game/Vitality` / `Game.Vitality.Api` is still absent from current master at the last prerequisite check.
 - The nominal GameSystem01 replacement scene from the earlier generated description is not present; assembled proof for this ticket remains Kentridge plus the repository's automatic module/player validation path.
 
 ## Dependency blocker
@@ -51,15 +51,18 @@ Those prototype classes may contain experimental unit HP as part of that separat
 4. **Done at reusable seam:** real `EncounterRegistry` requests/owns combat participation and consumes terminal resolution in the independent integration fixture. Kentridge wiring/removal of local bootstrap remains T01-015.
 5. **Blocked on final production composition/Vitality seam:** replace scene-local `new CombatService`, local Input runtime bootstrap, and direct runtime assembly coupling in Kentridge.
 6. **Already semantic:** keep Combat input through `Game.Input.Api`; no raw key/button knowledge in Combat.
+7. **Implemented, validation pending:** module-owned Combat tests now live under `Assets/Game/Combat/Tests` in `Game.Combat.Tests`, matching the current convention-based `tools/module-validation-plan.py` discovery path.
 
 ## Tests / proof
 
-- `CombatCharacterBindingTests`: independent non-Kentridge CharacterId binding.
-- `CombatEncounterContractTests`: real EncounterId start/result and policy-free terminal fact shape.
-- `EncounterCombatIntegrationTests`: real `EncounterRegistry` membership/activation queue mapped to Combat, bounded deterministic Combat completion, exactly-once terminal fact polling, and idempotent repeated `ApplyCombatResolved` with no second Encounter revision.
+- `Assets/Game/Combat/Tests/CombatCharacterBindingTests.cs`: independent non-Kentridge CharacterId binding.
+- `Assets/Game/Combat/Tests/CombatEncounterContractTests.cs`: real EncounterId start/result and policy-free terminal fact shape.
+- `Assets/Game/Combat/Tests/EncounterCombatIntegrationTests.cs`: real `EncounterRegistry` membership/activation queue mapped to Combat, bounded deterministic Combat completion, exactly-once terminal fact polling, and idempotent repeated `ApplyCombatResolved` with no second Encounter revision.
+- `Game.Combat.Tests.asmdef` gives those fixtures module ownership; production Combat diffs are therefore discovered structurally by the current validation planner. Any production diff also causes the repository-wide Kentridge player integration target to be added automatically.
+- Exact-SHA run `33500855298` exposed a validation-registration defect before Unity: the planner rejects obsolete `*.module-validation.json`. That manifest was removed and replaced with the structural test assembly convention; do not retry the obsolete mechanism.
 - Existing `CombatAuthorityMigrationTests`, `CombatInputModuleBoundaryTests`, and `KentridgeCombatEncounterTests` remain blast-radius/integration coverage.
 - Vitality-backed participant tests and final Kentridge production-path proof remain pending.
 
 ## Do not build
 
-No new combat engine, final-boss flag, game-victory logic, scene-specific combat policy in shared modules, substitute Vitality contract, or opportunistic refactor of the older CombatPrototype path.
+No new combat engine, final-boss flag, game-victory logic, scene-specific combat policy in shared modules, substitute Vitality contract, obsolete validation manifest, or opportunistic refactor of the older CombatPrototype path.
