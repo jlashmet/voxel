@@ -37,10 +37,13 @@ The earlier completed run also showed the independent over-constrained road fixt
 - `33469216133`: completed failure; independent suite reached legitimate `Blocked` rejection and built player exposed repeated 50 dm production cut/fill, triggering experiment 016.
 - `33471409821`: exact ridge-strength source built/replayed successfully but focused acceptance stopped at a stale `FeatureDefinition.Footprint >= 1000` proxy. Regression now preserves the actual semantic size contract: authored major diameter >=1000 dm and realized occupancy >=80% of authored diameter.
 - `33471667027`: exact source with semantic size regression reaches a resolved production ascent; focused failure is only the floor-vs-nearest integer grade assertion mismatch described above. Standalone player replay still succeeds. Automatic module validation was correctly skipped after the focused failure.
+- `33472015921`: focused production acceptance passed and standalone `VoxelShowcase` build/replay passed. Automatic module planning correctly selected `mountain-dragon` plus integration coverage, but the module-local `MountainDragonValidationSceneDriver` repeated the same stale floor-`Math.Sqrt` grade assertion on segment 45 and failed before staging marker renderers. That validation driver now uses the resolver's nearest-integer planar-distance semantics; production code is unchanged.
+
+The `33472015921` diagnostic production screenshots still show the legacy SceneIssue replay visiting castle coordinates instead of Mountain Dragon. This is expected from the stale `mountain-dragon-evidence-route.json` and confirms that route regeneration remains mandatory; those captures do not count as final visual acceptance.
 
 ## Remaining order
-1. Retry exact-source targeted production Mountain Dragon acceptance through only `ci-test/fixes/agent-4`; automatic module/player validation must also pass. Diagnose any completed failure before another change.
-2. Record current-head reusable landform/climate/road automatic module evidence and finish structural proof that road lowering is generic terrain corridor only.
+1. Retry exact-source targeted production Mountain Dragon acceptance through only `ci-test/fixes/agent-4`; focused production, automatic module tests/player validations, and SceneIssue player replay must pass. Diagnose any completed failure before another change.
+2. Record current-head reusable landform/climate/road evidence and finish structural proof that road lowering is generic terrain corridor only.
 3. Regenerate `mountain-dragon-evidence-route.json` from the final resolved production road; the current legacy switchback/Y-offset route is invalid for closure.
 4. Check primitive/raster/build cost and startup-bake provenance under unchanged 240 s / 14 GiB guards.
 5. Merge then-current `origin/master` before final visual evidence and establish the exact final source SHA.
