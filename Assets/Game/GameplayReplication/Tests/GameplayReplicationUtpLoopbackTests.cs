@@ -20,7 +20,7 @@ namespace Game.GameplayReplication.Tests
     {
         [Test]
         [Category("Networking")]
-        public void ExistingClientsLateJoinerAndReconnectConvergeToCurrentGameplayTruth()
+        public void ExistingClientsRepairLateJoinerAndReconnectConvergeToCurrentGameplayTruth()
         {
             var characters = new MutableSource("characters", "hero/lifecycle", "Active");
             var inventory = new MutableSource("inventory", "gold", "1");
@@ -61,13 +61,44 @@ namespace Game.GameplayReplication.Tests
                 AssertCurrent(first.State, 2, "Defeated", "9");
                 AssertCurrent(second.State, 2, "Defeated", "9");
 
-                using var late = ClientFixture.Connect(server, server.LocalEndpoint, openedConnections, expectedConnectionCount: 3);
-                Assert.That(server.AuthenticateConnection(openedConnections[2], 3, new int3(2, 0, 0)), Is.True);
+                // Force a semantic revision gap on one client, then prove its repair request travels
+                // over the live UTP EVENT path and the next authoritative tick repairs all clients
+                // with one coherent snapshot revision.
+                var descriptors = new[]
+                {
+                    new GameplayProjectionDescriptor(new GameplayProjectionId("characters"), 1, true),
+                    new GameplayProjectionDescriptor(new GameplayProjectionId("inventory"), 1, true)
+                };
+                var gap = new GameplayPublication(
+                    new GameplayRevision(4),
+                    GameplayPublicationKind.Delta,
+                    new[]
+                    {
+                        new GameplayProjectionState(descriptors[0], new[] { new GameplayProjectionEntry("hero/lifecycle", "Defeated") }),
+                        new GameplayProjectionState(descriptors[1], new[] { new GameplayProjectionEntry("gold", "9") })
+                    });
+                Assert.That(GameplayStatePacketCodec.TryEncode(gap, out byte[] gapPacket), Is.True);
+                Assert.That(first.Handler.HandleGameplayStatePacket(gapPacket), Is.True);
+                Assert.That(first.State.SynchronizationState, Is.EqualTo(GameplaySynchronizationState.RepairRequired));
+                Assert.That(first.Handler.LastRepairRequestAccepted, Is.True);
+
+                PumpUntil(
+                    () => emitter.PendingRepairRequestCount == 1,
+                    () => Pump(server, first, second));
                 Tick(server, 3, in table, in pool);
                 PumpUntil(
-                    () => first.State.Revision.Value == 3 && second.State.Revision.Value == 3 && late.State.Revision.Value == 3,
+                    () => first.State.Revision.Value == 3 && second.State.Revision.Value == 3,
+                    () => Pump(server, first, second));
+                AssertCurrent(first.State, 3, "Defeated", "9");
+                AssertCurrent(second.State, 3, "Defeated", "9");
+
+                using var late = ClientFixture.Connect(server, server.LocalEndpoint, openedConnections, expectedConnectionCount: 3);
+                Assert.That(server.AuthenticateConnection(openedConnections[2], 3, new int3(2, 0, 0)), Is.True);
+                Tick(server, 4, in table, in pool);
+                PumpUntil(
+                    () => first.State.Revision.Value == 4 && second.State.Revision.Value == 4 && late.State.Revision.Value == 4,
                     () => Pump(server, first, second, late));
-                AssertCurrent(late.State, 3, "Defeated", "9");
+                AssertCurrent(late.State, 4, "Defeated", "9");
 
                 uint oldSecondConnection = openedConnections[1];
                 second.Host.Disconnect();
@@ -81,13 +112,13 @@ namespace Game.GameplayReplication.Tests
                 Assert.That(server.AuthenticateConnection(newSecondConnection, 2, new int3(1, 0, 0)), Is.True);
 
                 inventory.Set("gold", "12");
-                Tick(server, 4, in table, in pool);
+                Tick(server, 5, in table, in pool);
                 PumpUntil(
-                    () => first.State.Revision.Value == 4 && late.State.Revision.Value == 4 && reconnected.State.Revision.Value == 4,
+                    () => first.State.Revision.Value == 5 && late.State.Revision.Value == 5 && reconnected.State.Revision.Value == 5,
                     () => Pump(server, first, late, reconnected));
-                AssertCurrent(first.State, 4, "Defeated", "12");
-                AssertCurrent(late.State, 4, "Defeated", "12");
-                AssertCurrent(reconnected.State, 4, "Defeated", "12");
+                AssertCurrent(first.State, 5, "Defeated", "12");
+                AssertCurrent(late.State, 5, "Defeated", "12");
+                AssertCurrent(reconnected.State, 5, "Defeated", "12");
                 Assert.That(reconnected.Handler.LastApplyResult, Is.EqualTo(GameplayApplyResult.Applied));
                 Assert.That(reconnected.State.GameplayReady, Is.True);
             }
@@ -163,6 +194,7 @@ namespace Game.GameplayReplication.Tests
                 var host = new ClientNetworkRuntime(
                     new DeterministicAlterationApplier(),
                     gameplayStateHandler: gameplayHandler);
+                gameplayHandler.BindRepairRequester(request => host.TryRequestGameplayStateRepair(request));
                 bool connected = false;
                 host.Connected += () => connected = true;
                 Assert.That(host.Connect(endpoint), Is.True);
