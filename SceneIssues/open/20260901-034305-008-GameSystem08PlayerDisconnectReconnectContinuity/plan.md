@@ -58,7 +58,13 @@ Fresh regressions now authored against the API-only GameplayReplication seam cov
 - typed vitality/inventory/progression current state is revision 1 before disconnect, mutates to revision 2 while absent, and revision 2/current values are what the reconnecting player observes after full resync and `GameplayReady`;
 - duplicate reconnect, invalid credential, explicit leave, and grace expiration remain covered.
 
-Fresh exact-SHA automatic validation is required before any new checkboxes or closure.
+`Game.GameplayReplication.Tests` independently consumes the API-only scaffold and proves revision ordering, semantic readiness, and typed current-state projection without any GameplayReplication Runtime implementation.
+
+## Validation attempts
+
+- Exact run `33519266827` on feature `34aba4dc37ec81c33a4374895e29029b63d3066c` proved `Game.Continuity.Tests` **7/7** green, including repair/full-snapshot selection, GameplayReady gating, durable identity, and absent-state revision-2 convergence.
+- That run later failed only because the new `GameplayReplication/Api` path had no independently discoverable owning test assembly, causing the fail-safe planner to choose a repository-wide fallback. The fallback exposed three unrelated pre-existing `Game.Materials.Tests` failures. This is not retried as infrastructure.
+- Corrective action: add the independent `Game.GameplayReplication.Tests` assembly/fixture so the API scaffold is a discoverable module with its own validation consumer instead of an unknown fallback path. A new exact-SHA run is required.
 
 ## Do not build
 
