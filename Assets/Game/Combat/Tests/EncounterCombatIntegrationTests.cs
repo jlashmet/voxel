@@ -6,7 +6,7 @@ using Game.Encounters.Api;
 using Game.Encounters.Runtime;
 using NUnit.Framework;
 
-namespace VoxelEngine.Tests.PlayMode
+namespace Game.Combat.Tests
 {
     public sealed class EncounterCombatIntegrationTests
     {

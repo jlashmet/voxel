@@ -3,7 +3,7 @@ using Game.Combat.Api;
 using Game.Encounters.Api;
 using NUnit.Framework;
 
-namespace VoxelEngine.Tests.PlayMode
+namespace Game.Combat.Tests
 {
     public sealed class CombatEncounterContractTests
     {
@@ -41,8 +41,6 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(resolved.SessionId, Is.EqualTo(sessionId));
             Assert.That(resolved.WinningTeam, Is.EqualTo(CombatTeam.Player));
 
-            // Encounter outcome remains composition-owned: this is the policy object the consumer may choose
-            // when calling IEncounterRegistry.ApplyCombatResolved, and it is deliberately not embedded in CombatResolved.
             var encounterResolution = new EncounterResolution(EncounterResolutionResult.Completed, "combat won");
             Assert.That(encounterResolution.Result, Is.EqualTo(EncounterResolutionResult.Completed));
         }

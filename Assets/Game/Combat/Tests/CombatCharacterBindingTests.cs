@@ -2,7 +2,7 @@ using Game.Characters.Api;
 using Game.Combat.Api;
 using NUnit.Framework;
 
-namespace VoxelEngine.Tests.PlayMode
+namespace Game.Combat.Tests
 {
     public sealed class CombatCharacterBindingTests
     {
