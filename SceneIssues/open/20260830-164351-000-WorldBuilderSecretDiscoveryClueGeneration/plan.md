@@ -9,29 +9,29 @@ WorldBuilder needs deterministic `Secret -> Route(s) -> Clue(s)` planning with s
 - **Hidden-secret selection is missing/non-deterministic.** Falsified: production `SecretPlanner` already resolves canonical hidden candidates deterministically.
 - **Clue generation needs a second hidden-location solver.** Rejected: route/clue planning consumes canonical `ResolvedSecretPlan` identity.
 - **Route/readability/clue planning was missing.** Supported; implemented with stable IDs, semantic anchors, readability/diversity policy, diagnostics, and explicit bypass semantics.
-- **Reusable interaction/discovery APIs are unavailable.** Falsified: `WorldObjectSceneRuntime` and canonical `SecretDiscoveryState` are available and integration regression run `33419056074` is green.
-- **No production generated secret geometry exists.** Falsified: `CaveSecretPocketAuthoring` creates verified hidden-space/barrier topology and `CaveSecretPocketSecretCandidateProvider` projects that exact geometry into canonical WorldBuilder secret identity. Generated-cave bypass regression run `33420376990` is green.
+- **Reusable interaction/discovery APIs are unavailable.** Falsified: canonical runtime integration is available and targeted regressions are green.
+- **No production generated secret geometry exists.** Falsified: `CaveSecretPocketAuthoring` creates verified hidden-space/barrier topology and projects that exact geometry into canonical WorldBuilder secret identity.
 - **Primitive validation can prove visual acceptance.** Falsified twice; parallel primitive rendering was removed.
-- **Production clue evidence can be layered onto verified cave topology without weakening it.** Supported: deterministic normal voxel coating retains solid false-wall occupancy.
-- **Gallery framing should be repaired for acceptance.** Superseded by user direction: Gallery integration is now out of scope and has been removed rather than further tuned.
+- **Random coating across the barrier is a readable clue.** Rejected by built-player review: the walkthrough/reveal looked good, but the clue itself was not recognizable without prior knowledge.
+- **A sparse deterministic fracture pattern can improve readability without weakening topology.** Current implementation: coat only the cave-facing barrier layer in one continuous branching crack pattern; no carving/filling and the full barrier is revalidated solid afterward.
 
 ## Selected direction
 
 Use only `Assets/Game/WorldBuilder/Validation/SecretDiscovery/` for visual acceptance. It consumes production voxel storage/terrain, cave generation, secret-pocket composition, clue coating, materials, voxel meshing/rendering, production destruction, and vegetation.
 
-The built-player sequence must tell the whole discovery story rather than show one static exterior frame: exterior entrance -> just-inside entrance -> deeper cave -> clue-bearing wall approach -> close clue/wall view -> destroy the authored false wall -> show the breached route and hidden pocket behind it. Camera poses must derive from authored cave/pocket semantics, not captured-scene coordinates.
+The built-player sequence tells the complete discovery story: exterior entrance -> just-inside entrance -> deeper cave -> clue-bearing wall approach -> close clue/wall view -> destroy the authored false wall -> show the breached route and hidden pocket behind it. Camera poses derive from authored cave/pocket semantics, not captured-scene coordinates.
 
 ## Current work
 
-The dedicated validation controller now drives that deterministic walkthrough and destroys the authored wall through `ShowcaseWorld.Explode`, so the reveal uses the production destruction/change-journal/render path. The player scenario runs 24 seconds with 3-second captures and requires both scene-ready and wall-destroyed log evidence.
+Exact walkthrough run `33532261836` produced the intended cave-entry, wall-destruction, and reveal sequence. Visual review accepted the overall scene/reveal but identified clue readability as the remaining defect.
 
-A prior exact-SHA discriminator request is still queued on `ci-test/fixes/agent-5`; it must not be replaced. Because the feature head has advanced, that request is now historical evidence only. After it completes, submit one new exact-head request on the same transport.
+The clue presentation now produces a deterministic branching fracture on the cave-facing surface only. The validation consumer uses a dark soot coating for the fracture instead of broad moss speckling. A focused regression proves deterministic placement, cave-face-only presentation, continuous vertical extent, sparse coverage, and unchanged solid false-wall occupancy.
 
 ## Remaining gates
 
-1. Let the existing queued CI request finish untouched.
-2. Run the new exact feature head through the sole `ci-test/fixes/agent-5` transport.
-3. Inspect every full-resolution dedicated-scene frame. Require readable cave entry progression, visible clue treatment, intact false wall before destruction, a visible production destruction result, and a clear view into the hidden pocket afterward.
+1. Run the exact crack-pattern feature head through the sole `ci-test/fixes/agent-5` transport.
+2. Inspect every full-resolution dedicated-scene frame. Require the fracture to read as intentional wall damage at approach/close range without looking like a universal marker.
+3. Confirm intact false wall before destruction, visible production destruction result, and a clear view into the hidden pocket afterward.
 4. Validate no runtime/startup exceptions, behavioral regressions, bypass/discovery semantics, and cost/blast radius.
 5. Merge current master before final validation/promotion; re-run exact-SHA gates if the head changes.
 6. Close only after every acceptance checkbox and built-player proof is green.
