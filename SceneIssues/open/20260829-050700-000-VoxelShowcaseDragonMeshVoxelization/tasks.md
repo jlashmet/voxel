@@ -25,6 +25,7 @@
 - [x] Cover reusable fidelity/cost instrumentation: surface extraction, connectedness/material/brick counts, symmetric p95 distance, fixed-view silhouette IoU, and transformed mesh→bake measurement.
 - [x] Add independent non-dragon nearly-closed-shell regression proving `VoxelShellFill` does not invent interiors for genuinely open rasters.
 - [x] Add dragon-specific production regression proving required anatomical regions are non-empty/spatially plausible through produced bake data, not source-string/count-only assertions. `MountainDragonBakedArtifactTests.CheckedInBake_DecodesCanonicalArtifactAndPreservesDragonAnatomy` covers body, both wings, head/horns, both feet/claws, and curled tail against the canonical bake.
+- [ ] Validate `MountainDragonBakeGenerationTests.CheckedInBake_MeetsPinnedSourceFidelityTargets` at an exact feature SHA; commit `c6e70b1c7ff3c3716f8601e8364c6eaf4639b12e` now enforces sampled symmetric p95 <= 1.5 voxels and front/side/top silhouette IoU >= 0.90 against the exact reconstructed source.
 
 ## Implementation
 - [x] Add reusable semantic/config-driven transformed triangle mesh→voxel API/configuration with bounded cost and explicit fill/topology/material/thin-feature policy.
@@ -38,10 +39,10 @@
 - [x] Add source-specific bake policy/configuration: 29,734 source triangles, 0.30 source units/voxel, bounded sparse envelope, canonical dragon material mapping.
 - [x] Generate, validate, retrieve, and commit the exact sparse dragon bake produced by `MountainDragonBakeGenerator.GeneratePinnedBakeAndWriteArtifact()` through the shared importer/voxelizer. Exact generator CI run `33451568424` produced canonical SHA `83370421048606be2dc658315ec9acc2cae39d2a7a20011151d7d561267bec41`, 99×107×107 bounds, and 98,100 authored voxels. The compact runtime transport was independently reproduced from that artifact at pinned SHA `758612c8b63316e3757a7695bfdb07f99ee5709f3706c504688d657017ecc961`; commit `da60731f20b829a0d25f25450a2b4bbaa0d504d9` repaired the corrupted Base64 payload without changing canonical bake identity.
 - [x] Apply deterministic semantic showcase palette mapping. STL has no standard material/color regions, so unmaterialed exterior/interior maps to canonical `DarkStone`; do not claim absent source color preservation.
-- [ ] Instantiate the decoded baked dragon through normal `ShowcaseWorld.PlaceBakedMeshStructure` / WorldBuilder voxel authoring so rendering, collision, edit, and destruction share canonical storage.
-- [x] Wire explicit VoxelShowcase placement mode without stealing ordinary controls; exact-parent targeted CI run `33416544070` passed after fixing the demonstrated assembly-reference defect.
+- [ ] Instantiate the decoded baked dragon through normal `ShowcaseWorld.PlaceBakedMeshStructure` / WorldBuilder voxel authoring so rendering, collision, edit, and destruction share canonical storage. `MountainDragonBakedArtifactTests.CheckedInBake_PlacesThroughNormalShowcaseWorldAuthoringPath` is committed at `2d76399bdfb6447669ce45c385eda5fa56cf2120`; exact-parent CI run `33466699310` is queued and must not be replaced.
+- [ ] Repair the explicit VoxelShowcase placement mode so it consumes the pinned `MountainDragonBakedArtifact` through Showcase composition. The earlier exact-parent run `33416544070` proved compilation only; inspection now shows `Assets/Scenes/VoxelShowcase.unity` serializes no `m_MountainDragonVoxelBake`, and the current mode would use generic `BakedVoxelStructureCodec.Decode` on the compact MDVP Base64 transport even if assigned. Do not move Dragon transport policy into the shared codec.
 - [ ] Add labeled matched `Mesh -> Voxels` comparison area with identical effective pose/scale/orientation/ground/lighting; source mesh is presentation-only and has no gameplay/collider authority.
-- [ ] Add module-owned dragon validation scene/fixture using production systems; do not use Worldbuilding Gallery or the top-level showcase as the feature fixture.
+- [ ] Add module-owned dragon validation scene/fixture using production systems; do not use Worldbuilding Gallery or the top-level showcase as the feature fixture. Current CI module-validation plan for this branch discovers only `kentridge-integration`, and current `origin/master` has no `*.module-validation.json` example/schema to copy; record this repository prerequisite as blocked rather than guessing descriptor syntax.
 - [ ] Integrate durable capture support for front, side, rear, front 3/4, rear 3/4, top/elevated 3/4, head/horns, wing, feet/claws, and tail. Semantic ten-view capture contract exists; real built-player evidence remains required.
 - [ ] Emit/record source triangle count, voxel resolution, authored voxel count, sparse brick/chunk count, voxelization duration, serialized size, resident/runtime placement/build cost.
 - [ ] Add destruction/world-truth validation proving edits affect rendered/collision truth without source-mesh shell/collider fallback.
@@ -53,9 +54,8 @@
 
 ## Dragon acceptance / validation
 - [ ] Third-party source is legitimately redistributable with exact required provenance committed. Commercial-use permission is recorded; upstream URL/author/named-license metadata remains blocked.
-- [x] Candidate source is detailed/curved/non-voxel-native and genuinely exercises wing/head/limb/tail silhouette fidelity (>20k triangles after deterministic derivation).
-- [ ] Generated structure is volumetric, sparse, bounded, and preserves recognizable head/body/wings/limbs/feet/tail/secondary detail.
-- [ ] Quantitative fidelity passes: surface distance <= 1.5 voxels and silhouette IoU >= 0.90 for required views.
+- [ ] Generated structure is volumetric, sparse, bounded, and preserves recognizable head/body/wings/limbs/feet/tail/secondary detail. Structural/anatomy regressions exist; built-player visual proof remains required.
+- [ ] Quantitative fidelity passes: surface distance <= 1.5 voxels and silhouette IoU >= 0.90 for required views. Dragon-specific regression is committed but not yet exact-SHA validated.
 - [ ] Source and voxel exhibit use the same effective transform/pose; material/color acceptance is explicitly correct for STL with no standard material regions.
 - [ ] Exact built VoxelShowcase/module fixture renders comparison without exceptions and records durable evidence.
 - [ ] Human review confirms the voxel result is unmistakably this exact source, not merely a generic dragon, and classifies evidence `production-quality`.
