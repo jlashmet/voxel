@@ -38,8 +38,12 @@ namespace VoxelEngine.Tests.PlayMode
 
                 FeatureDefinition mountain = mountainCatalogue.Definitions[mountainId];
                 Assert.That(mountain.Kind, Is.EqualTo(FeatureKind.Landform));
-                Assert.That(Math.Max(mountain.Footprint.x, mountain.Footprint.z), Is.GreaterThanOrEqualTo(1000),
+                int authoredDiameter = 2 * Math.Max(spec.RadiusXdm, spec.RadiusZdm);
+                int realizedDiameter = Math.Max(mountain.Footprint.x, mountain.Footprint.z);
+                Assert.That(authoredDiameter, Is.GreaterThanOrEqualTo(1000),
                     "The authored landmark must remain substantial, not collapse into a hill-sized prop.");
+                Assert.That(realizedDiameter * 5, Is.GreaterThanOrEqualTo(authoredDiameter * 4),
+                    "The realized mountain must occupy at least 80% of its authored major-axis diameter.");
                 Assert.That(mountain.Footprint.x, Is.LessThanOrEqualTo(FeatureBudget.MaxFootprintVoxels));
                 Assert.That(mountain.Footprint.z, Is.LessThanOrEqualTo(FeatureBudget.MaxFootprintVoxels));
 
