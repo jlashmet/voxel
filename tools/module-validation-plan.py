@@ -83,6 +83,11 @@ def _is_test_path(path: str) -> bool:
     return "/Tests/" in path or path.startswith("Assets/Tests/")
 
 
+def _is_integration_only_path(path: str) -> bool:
+    path = path.replace("\\", "/")
+    return path.startswith("Assets/Game/Composition/")
+
+
 def _discover_player_targets(module_root: Path, root: Path, module_name: str) -> list[dict]:
     validation_root = module_root / "Validation"
     if not validation_root.is_dir():
@@ -132,7 +137,7 @@ def discover(root: Path) -> dict:
         runtime_assemblies = []
         for asmdef_path in sorted(module_root.rglob("*.asmdef")):
             rel = _rel(asmdef_path, root)
-            if "/Tests/" in rel:
+            if "/Tests/" in rel or "/Validation/" in rel:
                 continue
             asmdef = _load_asmdef(asmdef_path)
             runtime_assemblies.append({
@@ -219,9 +224,10 @@ def plan(changed_paths: list[str], discovered: dict) -> dict:
             selected.add(owner["name"])
             if is_production(path):
                 direct_production.add(owner["name"])
-        elif is_production(path):
-            # A production path outside a discoverable module boundary is fail-safe broad:
-            # run all known module contracts plus the Kentridge integration gate.
+        elif is_production(path) and not _is_integration_only_path(path):
+            # A production path outside a discoverable lower-level module boundary is fail-safe
+            # broad. Top-level Game/Composition paths are different: they compose modules into the
+            # application and are proven by the mandatory assembled-game Kentridge gate.
             selected.update(by_name)
             fallback_paths.append(path)
 
