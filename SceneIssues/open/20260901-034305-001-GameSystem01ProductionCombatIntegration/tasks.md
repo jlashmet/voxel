@@ -41,6 +41,7 @@
 - Baseline/master re-checked at `71e5b6b146cb7dd3b7da0305d0ab42bcc9cea22e`; `fixes/agent-3` remains assignment-doc-only ahead of that baseline before this blocker correction.
 - Present: `Assets/Game/Input/Api` and `Assets/Game/Input/Runtime`.
 - Prerequisite SceneIssues are present on master: `20260901-034305-002-GameSystem02ActorVitalityDamageDefeat`, `20260901-034305-003-GameSystem03GameplayCharacterRuntime`, and `20260901-034305-005-GameSystem05EncounterActivationMembershipLifecycle`.
+- Dependency direction is explicit in those binding plans: #03 owns `CharacterId`; #02 depends on #03 and states Combat may consume Vitality API but Vitality never consumes Combat; #05 depends on #03 and states #01 consumes Encounters later. Therefore agent-3 must not break the blocker by inventing substitute Character/Vitality/Encounter contracts.
 - Still absent from master: production `Assets/Game/Characters`, `Assets/Game/Vitality`, and a production `Game.Encounters.Api` implementation required by this integration.
 - Current concrete Kentridge seam: `Assets/Game/Composition/Kentridge/Playable/KentridgeForestBanditEncounter.cs` plus `Game.Composition.Kentridge.Playable.asmdef`.
 - Known Combat-internal preservation surface: `ChainRoundReadinessCoordinator`, `ChainEnemyTacticalAI`, `ChainReactionReservationCoordinator`, `ChainExecutionPlan`, and `ChainCombatBoard` in the older `MountingForce.CombatPrototype` namespace.
