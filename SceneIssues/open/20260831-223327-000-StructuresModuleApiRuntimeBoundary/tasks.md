@@ -77,24 +77,24 @@ Work the next unchecked non-blocked item. Do not close while any required item o
 - [x] Fix `Game.Structures.Runtime -> VoxelEngine.Structures.Runtime` as required by this issue.
 - [x] If another reported dependency is the same architectural defect and can be corrected safely within this issue's narrow boundary without unrelated refactoring, fix it and add a regression.
 - [x] If another report represents a materially separate subsystem/ownership redesign, record it in `plan.md` and create/document a separate SceneIssue rather than weakening this invariant. Keep only a truly intentional category exception when the architecture explicitly permits it.
-- [ ] Re-run the full validator until no unexplained production cross-module implementation references remain.
+- [x] Re-run the full validator until no unexplained production cross-module implementation references remain.
 
 ## H. Compile, regression, and blast-radius validation
 
-- [ ] Run the focused EditMode architecture test assembly containing `EngineGameDependencyBoundaryTests` and confirm the repository-wide API-boundary scan executes (not zero tests).
-- [ ] Run focused `VoxelEngine.Structures` API/runtime tests covering cave authoring.
-- [ ] Run focused `Game.Structures` tests covering castle/cave integration and constructor/composition changes.
-- [ ] Confirm all affected assemblies compile without `Game.Structures.Runtime` referencing `VoxelEngine.Structures.Runtime`.
-- [ ] Verify no deterministic output changes were introduced for existing cave generation fixtures unless an existing defect specifically requires them; this ticket is a dependency-boundary fix, not an algorithm redesign.
-- [ ] Inspect the production diff for accidental movement of castle policy into VoxelEngine or generic cave mechanics into Game.
-- [ ] Check the module-validation metadata selected by the production diff. Do not manually invent module scenes/test lists; follow repository-derived validation.
-- [ ] Submit the exact feature SHA through the assigned `ci-test/fixes/agent-N` transport and leave queued/running CI alone.
-- [ ] Confirm required focused tests and automatically derived module validation execute successfully on the exact feature SHA. A zero-match/skipped required test is not green.
-- [ ] If the change triggers built-player/Kentridge integration under the repository validation policy, confirm that required gate actually executes and passes; no new visual acceptance criterion is introduced by this architecture-only issue.
+- [x] Run the focused EditMode architecture test assembly containing `EngineGameDependencyBoundaryTests` and confirm the repository-wide API-boundary scan executes (not zero tests).
+- [x] Run focused `VoxelEngine.Structures` API/runtime tests covering cave authoring.
+- [x] Run focused `Game.Structures` tests covering castle/cave integration and constructor/composition changes.
+- [x] Confirm all affected assemblies compile without `Game.Structures.Runtime` referencing `VoxelEngine.Structures.Runtime`.
+- [x] Verify no deterministic output changes were introduced for existing cave generation fixtures unless an existing defect specifically requires them; this ticket is a dependency-boundary fix, not an algorithm redesign.
+- [x] Inspect the production diff for accidental movement of castle policy into VoxelEngine or generic cave mechanics into Game.
+- [x] Check the module-validation metadata selected by the production diff. Do not manually invent module scenes/test lists; follow repository-derived validation.
+- [x] Submit the exact feature SHA through the assigned `ci-test/fixes/agent-N` transport and leave queued/running CI alone.
+- [x] Confirm required focused tests and automatically derived module validation execute successfully on the exact feature SHA. A zero-match/skipped required test is not green.
+- [x] If the change triggers built-player/Kentridge integration under the repository validation policy, confirm that required gate actually executes and passes; no new visual acceptance criterion is introduced by this architecture-only issue. The exact-SHA workflow did not select standalone replay because this architecture issue has no replay/capture payload; automatically derived module validation executed and passed.
 
 ## I. Closure evidence
 
-- [ ] Update `plan.md` with the final selected API contract, any additional dependency findings, blast-radius result, and exact validation SHA/results.
+- [x] Update `plan.md` with the final selected API contract, any additional dependency findings, blast-radius result, and exact validation SHA/results.
 - [ ] Fill `issue.json.resolutionSummary` with the final ownership change and wiring path.
 - [ ] Fill `issue.json.regressionTest` with the architecture-rule test(s) plus focused cave/castle regression(s).
 - [ ] Fill `issue.json.fixCommit` with the exact verified feature SHA and set `status: fixed` / `resolvedUtc` only after all acceptance and CI gates pass.
