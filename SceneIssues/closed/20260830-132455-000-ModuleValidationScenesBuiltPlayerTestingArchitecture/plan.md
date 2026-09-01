@@ -52,4 +52,4 @@
 - [x] Run exact-current-head automatic focused tests, Water built-player validation, and mandatory Kentridge built-player validation using only `ci-test/fixes/agent-8`.
 - [x] Inspect every retained Water post-readiness standalone frame and reject pre-readiness evidence; only production-quality proof retained.
 - [x] Measure final runtime/cost and review all 18 acceptance criteria.
-- [ ] Set issue fixed/resolved and move `open` -> `closed`; then reconcile master again if advanced, revalidate if materially changed, and promote the exact feature head to `origin/master` non-force.
+- [x] Set issue fixed/resolved and move `open` -> `closed`; current master remained the already-reconciled `b274014ae201153c816c981a1092ad8b0d0a7539`, so no additional merge/revalidation was required; promote the exact final feature head to `origin/master` non-force.
