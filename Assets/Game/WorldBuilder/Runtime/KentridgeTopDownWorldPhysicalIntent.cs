@@ -131,7 +131,8 @@ namespace Game.WorldBuilder.Runtime
                     SouthernRidge,
                     TopDownWorldRouteRegionSolutionKind.GoAround,
                     clearanceDm: 45,
-                    source: "modern 3D blockout: the verified Orc Village branch skirts the western shoulder of the Logan ridge; this is a routing solution, not legacy geography evidence"),
+                    source: "modern 3D blockout: the verified Orc Village branch starts at the ridge shoulder and may use only a contiguous endpoint escape before skirting west; this is a routing solution, not legacy geography evidence",
+                    relaxationMode: TopDownWorldConstraintRelaxationMode.EndpointEscape),
                 new TopDownWorldRouteRegionConstraintSpec(
                     KentridgeTopDownWorldLayout.SouthFightingArea,
                     KentridgeTopDownWorldLayout.LoganApproach,
