@@ -9,20 +9,20 @@ namespace VoxelEngine.Tests.EditMode
     public sealed class FarStructureVisibilityTests
     {
         [Test]
-        public void BatchKey_IsDeterministicForSameSemanticProxyStyleAndTier()
+        public void BatchKey_IsDeterministicForSameGeometryStyleAndTier()
         {
             var go = new GameObject("far-renderer-test");
             try
             {
-                var renderer = go.AddComponent<ProceduralFarStructureRenderer>();
-                FarStructureInstance first = Instance(1UL, "House", "stone", FarStructureTier.Far);
-                FarStructureInstance second = Instance(99UL, "House", "stone", FarStructureTier.Far);
+                var renderer = go.AddComponent<ProceduralFarFeatureRenderer>();
+                FarFeatureInstance first = Instance(1UL, "House", "stone", FarFeatureTier.Far);
+                FarFeatureInstance second = Instance(99UL, "House", "stone", FarFeatureTier.Far);
 
                 Assert.That(renderer.BatchKeyFor(first), Is.EqualTo(renderer.BatchKeyFor(second)));
                 Assert.That(renderer.BatchKeyFor(first), Is.Not.EqualTo(
-                    renderer.BatchKeyFor(Instance(1UL, "Castle", "stone", FarStructureTier.Far))));
+                    renderer.BatchKeyFor(Instance(1UL, "Castle", "stone", FarFeatureTier.Far))));
                 Assert.That(renderer.BatchKeyFor(first), Is.Not.EqualTo(
-                    renderer.BatchKeyFor(Instance(1UL, "House", "stone", FarStructureTier.Horizon))));
+                    renderer.BatchKeyFor(Instance(1UL, "House", "stone", FarFeatureTier.Horizon))));
             }
             finally
             {
@@ -31,18 +31,18 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void SetInstances_StoresMatricesWithoutPerStructureGameObjects()
+        public void SetInstances_StoresMatricesWithoutPerFeatureGameObjects()
         {
             var go = new GameObject("far-renderer-test");
             try
             {
-                var renderer = go.AddComponent<ProceduralFarStructureRenderer>();
+                var renderer = go.AddComponent<ProceduralFarFeatureRenderer>();
                 renderer.SetInstances(new[]
                 {
-                    Instance(1UL, "House", "timber", FarStructureTier.Mid),
-                    Instance(2UL, "House", "timber", FarStructureTier.Mid),
-                    Instance(3UL, "Castle", "stone", FarStructureTier.Far),
-                    Instance(4UL, "House", "timber", FarStructureTier.Culled)
+                    Instance(1UL, "House", "timber", FarFeatureTier.Mid),
+                    Instance(2UL, "House", "timber", FarFeatureTier.Mid),
+                    Instance(3UL, "Castle", "stone", FarFeatureTier.Far),
+                    Instance(4UL, "House", "timber", FarFeatureTier.Culled)
                 });
 
                 Assert.That(renderer.InstanceCount, Is.EqualTo(3));
@@ -55,20 +55,20 @@ namespace VoxelEngine.Tests.EditMode
             }
         }
 
-        private static FarStructureInstance Instance(
+        private static FarFeatureInstance Instance(
             ulong id,
-            string proxy,
+            string geometry,
             string style,
-            FarStructureTier tier)
+            FarFeatureTier tier)
         {
-            return new FarStructureInstance(
+            return new FarFeatureInstance(
                 id,
                 new float3(10f, 20f, 30f),
                 quaternion.identity,
                 new float3(12f, 8f, 10f),
                 new float3(10f, 24f, 30f),
                 new float3(6f, 4f, 5f),
-                proxy,
+                geometry,
                 style,
                 tier);
         }
