@@ -1,24 +1,18 @@
 using System;
+using Game.WorldBuilder.Api;
 using Game.WorldBuilder.Voxel;
-using Unity.Collections;
-using Unity.Mathematics;
 using UnityEngine;
-using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Showcase.Tests.RuntimeSupport
 {
     /// <summary>
-    /// Player-safe focused validation surface for Mountain Dragon topology/headroom.
-    /// Geometry comes from the same production ShowcaseMountainDragonLayout and
-    /// WorldBuilderMountainLandmarkCatalogue used by the shipped composition; this
-    /// driver only validates/stages that authored result for a small standalone scene.
+    /// Focused validation surface for Mountain Dragon. Geometry comes from the same natural
+    /// MountainLandformSurface and resolved WorldRoadNetwork used by production; this driver only
+    /// verifies and stages that authored result for the standalone validation scene.
     /// </summary>
     public sealed class MountainDragonValidationSceneDriver : MonoBehaviour
     {
         private const uint Seed = 0x5EED1234u;
-        private const byte RockMaterial = 6;
-        private const byte PathMaterial = 13;
-        private const byte DragonMaterial = 9;
         private const float ViewScale = 0.1f;
 
         private bool _complete;
@@ -36,15 +30,16 @@ namespace VoxelEngine.Showcase.Tests.RuntimeSupport
             ClearGeneratedChildren();
             try
             {
-                MountainLandmarkSpec spec = ShowcaseMountainDragonLayout.CreateLandmark(Seed);
-                ValidateRouteGeometry(in spec);
-                ValidateProductionHeadroomProgram(in spec);
-                StageFocusedMountain(in spec);
-                ConfigureView(in spec);
+                MountainLandformSurface surface = ShowcaseMountainDragonLayout.CreateSurface(Seed);
+                WorldRoadNetwork network = ShowcaseMountainDragonLayout.CreateAscentNetwork(Seed, surface);
+                WorldRoadNetworkRoute route = ValidateResolvedRoute(surface, network);
+                ValidateSummitApproach(surface, route);
+                StageFocusedMountain(surface, route);
+                ConfigureView(surface.Spec);
 
                 _complete = true;
                 _passed = true;
-                _detail = $"PASS: shell-following route + {spec.PathClearanceWidthVoxels}-voxel centered headroom + focused mountain staging";
+                _detail = $"PASS: natural mountain + resolved {route.Road.Points.Count}-point WorldRoad ascent + summit marker";
                 Debug.Log("[MountainDragonValidation] " + _detail);
             }
             catch (Exception exception)
@@ -57,154 +52,147 @@ namespace VoxelEngine.Showcase.Tests.RuntimeSupport
             }
         }
 
-        private static void ValidateRouteGeometry(in MountainLandmarkSpec spec)
+        private static WorldRoadNetworkRoute ValidateResolvedRoute(
+            MountainLandformSurface surface,
+            WorldRoadNetwork network)
         {
-            MountainPathTierGeometry previousTier = default;
-            bool narrowed = false;
+            if (!network.TryGetRoute(ShowcaseMountainDragonLayout.AscentRouteId, out WorldRoadNetworkRoute route))
+                throw new InvalidOperationException("Production Mountain Dragon ascent route is missing.");
+            if (!route.Road.IsResolved || route.Road.Points.Count < 2)
+                throw new InvalidOperationException("Production Mountain Dragon ascent is not resolved.");
 
-            for (int level = 0; level < spec.SwitchbackCount; level++)
+            int maximumGrade = route.Road.Intent.Profile.MaximumGradePermille;
+            int maximumCutFill = route.Road.Intent.Profile.MaximumCutFillDm;
+            int mountainSamples = 0;
+            int risingSegments = 0;
+
+            for (int i = 0; i < route.Road.Points.Count; i++)
             {
-                MountainPathTierGeometry tier = spec.PathTier(level);
-                if (tier.PathWidth != spec.PathWidth)
-                    throw new InvalidOperationException($"Tier {level} path width drifted from authored width.");
-
-                for (int segment = 0; segment < tier.SegmentCount; segment++)
+                ResolvedWorldRoadPoint point = route.Road.Points[i];
+                int mountainHeight = surface.HeightAtDm(point.Xdm, point.Zdm);
+                if (mountainHeight > surface.Spec.OriginYdm)
                 {
-                    MountainPathSegmentGeometry geometry = tier.SegmentGeometry(segment);
-                    int coreStart = spec.CoreMinLocalZAtHeight(geometry.StartY);
-                    int coreEnd = spec.CoreMinLocalZAtHeight(geometry.EndY);
-
-                    if (geometry.PathWidth != spec.PathWidth)
-                        throw new InvalidOperationException($"Tier {level} segment {segment} changed path width.");
-                    if (!(geometry.StartLocalZ < coreStart && geometry.StartLocalZ + spec.PathWidth > coreStart))
-                        throw new InvalidOperationException($"Tier {level} segment {segment} misses shell at low end.");
-                    if (!(geometry.EndLocalZ < coreEnd && geometry.EndLocalZ + spec.PathWidth > coreEnd))
-                        throw new InvalidOperationException($"Tier {level} segment {segment} misses shell at high end.");
-                    int horizontalAdvance = geometry.Run - spec.PathWidth;
-                    if (!spec.TraversalProfile.SupportsRamp(horizontalAdvance, geometry.Rise))
-                        throw new InvalidOperationException($"Tier {level} segment {segment} exceeds the configured traversal grade.");
-                }
-
-                if (level > 0)
-                {
-                    if (tier.LowLandingMinX != previousTier.HighLandingMinX || tier.LocalZ != previousTier.EndLocalZ)
-                        throw new InvalidOperationException($"Tier {level} no longer joins the prior landing exactly.");
-                    if (tier.Run > previousTier.Run)
-                        throw new InvalidOperationException($"Tier {level} widens while the core tapers.");
-                    narrowed |= tier.Run < previousTier.Run;
-                }
-
-                previousTier = tier;
-            }
-
-            if (!narrowed)
-                throw new InvalidOperationException("Upper switchbacks never narrow with elevation.");
-        }
-
-        private static void ValidateProductionHeadroomProgram(in MountainLandmarkSpec spec)
-        {
-            FeatureCatalogue catalogue = WorldBuilderMountainLandmarkCatalogue.Build(
-                in spec, RockMaterial, PathMaterial, DragonMaterial, Allocator.Temp);
-            try
-            {
-                FeatureDefinition landform = catalogue.Definitions[0];
-                int expectedSegmentCarves = 0;
-                for (int level = 0; level < spec.SwitchbackCount; level++)
-                    expectedSegmentCarves += spec.PathTier(level).SegmentCount;
-
-                int carveCount = 0;
-                int segmentCarveCount = 0;
-                int end = landform.ProgramOffset + landform.ProgramLength;
-                for (int pc = landform.ProgramOffset; pc < end;)
-                {
-                    ShapeOp op = (ShapeOp)catalogue.Program[pc];
-                    if (op == ShapeOp.End) break;
-                    int length = ShapeOps.InstructionLength(op);
-                    if (length <= 0)
-                        throw new InvalidOperationException("Mountain program contains an invalid instruction length.");
-
-                    if (op == ShapeOp.EmitBox && (PrimitiveMode)catalogue.Program[pc + 11] == PrimitiveMode.Carve)
+                    mountainSamples++;
+                    if (Math.Abs(point.Ydm - mountainHeight) > maximumCutFill)
                     {
-                        carveCount++;
-                        if (segmentCarveCount < expectedSegmentCarves)
-                        {
-                            int carveDepth = catalogue.Program[pc + 7];
-                            if (carveDepth != spec.PathClearanceWidthVoxels)
-                            {
-                                throw new InvalidOperationException(
-                                    $"Segment headroom carve {segmentCarveCount} is {carveDepth} voxels wide; expected " +
-                                    spec.PathClearanceWidthVoxels + ".");
-                            }
-                            segmentCarveCount++;
-                        }
+                        throw new InvalidOperationException(
+                            $"Resolved road point {i} exceeds the authored mountain cut/fill bound.");
                     }
-                    pc += length;
                 }
 
-                if (segmentCarveCount != expectedSegmentCarves)
-                    throw new InvalidOperationException($"Expected {expectedSegmentCarves} segmented headroom carves, found {segmentCarveCount}.");
-                if (carveCount != expectedSegmentCarves + 2)
-                    throw new InvalidOperationException($"Expected {expectedSegmentCarves + 2} total headroom carves, found {carveCount}.");
+                if (i == 0) continue;
+                ResolvedWorldRoadPoint previous = route.Road.Points[i - 1];
+                long dx = (long)point.Xdm - previous.Xdm;
+                long dz = (long)point.Zdm - previous.Zdm;
+                int horizontal = (int)Math.Sqrt(dx * dx + dz * dz);
+                int rise = Math.Abs(point.Ydm - previous.Ydm);
+                if (rise > 0) risingSegments++;
+                if (horizontal <= 0)
+                {
+                    if (rise > 0)
+                        throw new InvalidOperationException($"Resolved road segment {i - 1} forms a vertical tower.");
+                    continue;
+                }
+                if ((long)rise * 1000L > (long)horizontal * maximumGrade)
+                {
+                    throw new InvalidOperationException(
+                        $"Resolved road segment {i - 1} exceeds the configured grade bound.");
+                }
             }
-            finally
-            {
-                catalogue.Dispose();
-            }
+
+            if (mountainSamples < 8)
+                throw new InvalidOperationException("Resolved ascent does not remain on the authored mountain long enough to validate integration.");
+            if (risingSegments < 3)
+                throw new InvalidOperationException("Resolved ascent does not materially climb the mountain.");
+            return route;
         }
 
-        private void StageFocusedMountain(in MountainLandmarkSpec spec)
+        private static void ValidateSummitApproach(
+            MountainLandformSurface surface,
+            WorldRoadNetworkRoute route)
         {
-            const int layers = 9;
-            for (int layer = 0; layer < layers; layer++)
+            MountainLandformMass summit = surface.GetMass(0);
+            ResolvedWorldRoadPoint approach = route.Road.Points[route.Road.Points.Count - 1];
+            long dx = (long)approach.Xdm - summit.CentreXdm;
+            long dz = (long)approach.Zdm - summit.CentreZdm;
+            long allowed = Math.Max(summit.TopRadiusDm, surface.Spec.SummitRadiusDm);
+            if (dx * dx + dz * dz > allowed * allowed)
+                throw new InvalidOperationException("Resolved Mountain Dragon approach no longer reaches the summit crest.");
+            if (Math.Abs(approach.Ydm - surface.HeightAtDm(approach.Xdm, approach.Zdm))
+                > route.Road.Intent.Profile.MaximumCutFillDm)
+                throw new InvalidOperationException("Resolved summit approach is unsupported by the natural mountain surface.");
+        }
+
+        private void StageFocusedMountain(
+            MountainLandformSurface surface,
+            WorldRoadNetworkRoute route)
+        {
+            MountainLandformMass summit = surface.GetMass(0);
+            int baseY = surface.Spec.OriginYdm;
+
+            for (int i = 0; i < surface.MassCount; i++)
             {
-                float t0 = layer / (float)layers;
-                float t1 = (layer + 1) / (float)layers;
-                int y0 = Mathf.RoundToInt(spec.MountainHeight * t0);
-                int y1 = Mathf.RoundToInt(spec.MountainHeight * t1);
-                int radius = spec.CoreRadiusAtHeight((y0 + y1) / 2);
-                GameObject mass = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-                mass.name = "Mountain Core " + layer;
-                mass.transform.SetParent(transform, false);
-                mass.transform.localPosition = new Vector3(0f, (y0 + y1) * 0.5f * ViewScale, 0f);
-                mass.transform.localScale = new Vector3(radius * 2f * ViewScale, (y1 - y0) * 0.5f * ViewScale, radius * 2f * ViewScale);
-                SetColor(mass, new Color(0.22f, 0.24f, 0.22f));
+                MountainLandformMass mass = surface.GetMass(i);
+                GameObject body = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                body.name = "Mountain Mass " + i;
+                body.transform.SetParent(transform, false);
+                body.transform.localPosition = new Vector3(
+                    (mass.CentreXdm - summit.CentreXdm) * ViewScale,
+                    (mass.BaseYdm - baseY + mass.HeightDm * 0.5f) * ViewScale,
+                    (mass.CentreZdm - summit.CentreZdm) * ViewScale);
+                body.transform.localScale = new Vector3(
+                    mass.BaseRadiusDm * 2f * ViewScale,
+                    mass.HeightDm * 0.5f * ViewScale,
+                    mass.BaseRadiusDm * 2f * ViewScale);
+                SetColor(body, new Color(0.22f, 0.24f, 0.22f));
             }
 
-            Vector3 origin = new Vector3(-spec.CentreLocal, 0f, -spec.CentreLocal) * ViewScale;
-            for (int level = 0; level < spec.SwitchbackCount; level++)
+            for (int i = 1; i < route.Road.Points.Count; i++)
             {
-                MountainPathTierGeometry tier = spec.PathTier(level);
-                for (int segment = 0; segment < tier.SegmentCount; segment++)
-                {
-                    MountainPathSegmentGeometry geometry = tier.SegmentGeometry(segment);
-                    Vector3 a = origin + new Vector3(geometry.LowCentreX, geometry.StartY + 1, geometry.LowCentreZ) * ViewScale;
-                    Vector3 b = origin + new Vector3(geometry.HighCentreX, geometry.EndY + 1, geometry.HighCentreZ) * ViewScale;
-                    StagePathSegment(a, b, spec.PathWidth * ViewScale, $"Tier {level} Segment {segment}");
-                }
+                ResolvedWorldRoadPoint previous = route.Road.Points[i - 1];
+                ResolvedWorldRoadPoint point = route.Road.Points[i];
+                Vector3 a = ToLocal(previous, summit, baseY);
+                Vector3 b = ToLocal(point, summit, baseY);
+                StagePathSegment(a, b, route.CarriagewayWidthDm * ViewScale, "Resolved Road " + (i - 1));
             }
 
             GameObject dragon = GameObject.CreatePrimitive(PrimitiveType.Cube);
             dragon.name = "Dragon Placeholder";
             dragon.transform.SetParent(transform, false);
-            dragon.transform.localPosition = new Vector3(0f, (spec.MountainHeight + 1 + spec.PlaceholderSize * 0.5f) * ViewScale, 0f);
-            dragon.transform.localScale = Vector3.one * spec.PlaceholderSize * ViewScale;
+            dragon.transform.localPosition = new Vector3(
+                0f,
+                (summit.TopYdm + 1 - baseY + ShowcaseMountainDragonLayout.PlaceholderSize * 0.5f) * ViewScale,
+                0f);
+            dragon.transform.localScale = Vector3.one * ShowcaseMountainDragonLayout.PlaceholderSize * ViewScale;
             SetColor(dragon, new Color(0.75f, 0.08f, 0.05f));
         }
+
+        private static Vector3 ToLocal(
+            ResolvedWorldRoadPoint point,
+            MountainLandformMass summit,
+            int baseY) =>
+            new Vector3(
+                (point.Xdm - summit.CentreXdm) * ViewScale,
+                (point.Ydm - baseY + 1) * ViewScale,
+                (point.Zdm - summit.CentreZdm) * ViewScale);
 
         private void StagePathSegment(Vector3 a, Vector3 b, float width, string label)
         {
             Vector3 delta = b - a;
-            float length = new Vector2(delta.x, delta.z).magnitude;
+            float horizontal = new Vector2(delta.x, delta.z).magnitude;
             GameObject path = GameObject.CreatePrimitive(PrimitiveType.Cube);
             path.name = label;
             path.transform.SetParent(transform, false);
             path.transform.localPosition = (a + b) * 0.5f;
-            path.transform.localScale = new Vector3(length + width, 0.16f, width);
-            path.transform.localRotation = Quaternion.Euler(0f, -Mathf.Atan2(delta.z, delta.x) * Mathf.Rad2Deg, Mathf.Atan2(delta.y, Mathf.Max(0.001f, length)) * Mathf.Rad2Deg);
+            path.transform.localScale = new Vector3(horizontal + width, 0.16f, width);
+            path.transform.localRotation = Quaternion.Euler(
+                0f,
+                -Mathf.Atan2(delta.z, delta.x) * Mathf.Rad2Deg,
+                Mathf.Atan2(delta.y, Mathf.Max(0.001f, horizontal)) * Mathf.Rad2Deg);
             SetColor(path, new Color(0.45f, 0.28f, 0.12f));
         }
 
-        private void ConfigureView(in MountainLandmarkSpec spec)
+        private void ConfigureView(in MountainLandformSpec spec)
         {
             Camera camera = Camera.main;
             if (camera == null)
@@ -217,7 +205,7 @@ namespace VoxelEngine.Showcase.Tests.RuntimeSupport
             camera.clearFlags = CameraClearFlags.Skybox;
             camera.fieldOfView = 42f;
             camera.transform.position = new Vector3(65f, 42f, -72f);
-            camera.transform.LookAt(new Vector3(0f, spec.MountainHeight * 0.045f, 0f));
+            camera.transform.LookAt(new Vector3(0f, spec.HeightDm * 0.045f, 0f));
 
             if (FindFirstObjectByType<Light>() == null)
             {
