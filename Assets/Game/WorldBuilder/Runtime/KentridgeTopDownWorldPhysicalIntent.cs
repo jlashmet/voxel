@@ -87,7 +87,12 @@ namespace Game.WorldBuilder.Runtime
                     halfExtentZDm: 120,
                     elevationDeltaDm: 110,
                     variationDm: 8,
-                    source: "first macro geography pass: substantial ridge barrier across the Logan route, bounded to keep the adjacent Orc settlement envelope buildable"),
+                    // The generic Orc settlement's north arrival gate is intentionally on the
+                    // settlement side of the ridge. Keep the full ridge footprint, but bias the
+                    // barrier 3 m north so the road corridor can skirt it rather than relying on a
+                    // gate-to-centre segment that cuts back through blocking geography.
+                    offsetZDm: 30,
+                    source: "first macro geography pass: substantial ridge barrier across the Logan route, bounded to keep the adjacent Orc settlement envelope and arrival gate buildable"),
                 new TopDownWorldRegionSpec(
                     SouthernPass,
                     "Southern Ridge Pass",
