@@ -30,7 +30,7 @@
 - [x] **T04-022 — Determinism tests.** Same observations/config select the same intent and ordinal tie-break deterministically.
 - [x] **T04-023 — Rejection handling test.** Rejected move intent is followed by fresh semantic perception; changed truth produces Idle rather than direct domain mutation.
 - [x] **T04-024 — Headless/core tests.** CharacterAI API/Runtime/CombatAdapter are engine-neutral and regressions require no scene objects.
-- [ ] **T04-025 — Run module and dependent Encounter/Combat tests automatically.** Pending exact-SHA targeted CI and automatic module validation.
+- [x] **T04-025 — Run module and dependent Encounter/Combat tests automatically.** Exact feature SHA `0b2537735738aadab770f2e423ba3c0984fff053` passed targeted request `4926ca7399aa9ffefb72cf3b6d82f9c60f5b0a6d`, workflow run `33485434902`, job `99784291857`: focused CharacterAI tests, automatic module validation, and standalone SceneIssue replay all succeeded.
 
 ## Cleanup / close
 
