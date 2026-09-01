@@ -107,6 +107,37 @@ namespace VoxelEngine.Tests.EditMode
             });
         }
 
+        [Test]
+        public void ExactSurfaceCaveAcceptanceEyeMustOccupyAuthoredEmptyVoxel()
+        {
+            int surfaceY = TerrainQuery.HeightAt(SecretCaveX, SecretCaveZ, GallerySeed);
+            int3 entrance = new int3(SecretCaveX, surfaceY + 1, SecretCaveZ);
+            var world = new TerrainVoxelSession(GallerySeed);
+            CaveAuthoringResult cave = AuthorRuntimeSurfaceCave(world, entrance);
+
+            bool authored = TryAuthorPocket(
+                world,
+                in cave,
+                out CaveSecretPocketProjection projection,
+                out CaveSecretPocketCompositionFailure failure);
+            Assert.That(authored, Is.True, $"Exact runtime cave pocket failed with {failure}.");
+
+            CaveTraversalCandidate terminal = projection.Pocket.Terminal;
+            int3 forward = FacingVector(terminal.ExitFacing);
+            float3 helperEye = (float3)(terminal.Position - forward * 17 + new int3(0, 11, 0));
+            float3 barrierTarget = ((float3)projection.Pocket.Barrier.Min +
+                                    (float3)projection.Pocket.Barrier.MaxExclusive) * 0.5f;
+            float3 acceptanceEye = math.lerp(helperEye, barrierTarget, 0.35f);
+            int3 eyeVoxel = (int3)math.round(acceptanceEye);
+
+            Assert.That(
+                world.IsSolid(eyeVoxel.x, eyeVoxel.y, eyeVoxel.z),
+                Is.False,
+                $"The exact Gallery acceptance eye must be inside production-authored cave air. " +
+                $"eye={acceptanceEye} rounded={eyeVoxel} terminal={terminal.Position} " +
+                $"exit={terminal.ExitFacing} barrier={projection.Pocket.Barrier.Min}->{projection.Pocket.Barrier.MaxExclusive}.");
+        }
+
         private static CaveAuthoringResult AuthorSupportedCave(
             IStructureAuthoringSession world,
             int3 entrance)
@@ -130,7 +161,42 @@ namespace VoxelEngine.Tests.EditMode
                 caveConfig.TunnelWidth,
                 caveConfig.TunnelHeight,
                 10);
-            CaveMaterialPalette palette = new CaveMaterialPalette
+            CaveMaterialPalette palette = GalleryPalette();
+            return CaveAuthoring.Author(world, in request, in caveConfig, in palette);
+        }
+
+        private static CaveAuthoringResult AuthorRuntimeSurfaceCave(
+            IStructureAuthoringSession world,
+            int3 entrance)
+        {
+            CaveConfig caveConfig = CaveConfig.Default;
+            caveConfig.MainSegmentCount = 10;
+            caveConfig.MaxBranches = 4;
+            caveConfig.MaxBranchDepth = 2;
+            caveConfig.BranchSegmentCount = 5;
+            caveConfig.BranchChancePercent = 70;
+            caveConfig.ChamberChancePercent = 25;
+            caveConfig.SurfaceDescentSegments = 6;
+            caveConfig.SurfaceDescentPerSegment = 8;
+            caveConfig.BoundsHalfExtents = new int3(240, 96, 240);
+            caveConfig.MinVerticalOffset = -72;
+            caveConfig.MaxVerticalOffset = 16;
+
+            CaveGenerationRequest request = CaveGenerationRequest.Standalone(
+                0x5742475345435245ul,
+                GallerySeed,
+                entrance,
+                Facing.North,
+                caveConfig.TunnelWidth,
+                caveConfig.TunnelHeight,
+                10);
+            CaveMaterialPalette palette = GalleryPalette();
+            return CaveAuthoring.Author(world, in request, in caveConfig, in palette);
+        }
+
+        private static CaveMaterialPalette GalleryPalette()
+        {
+            return new CaveMaterialPalette
             {
                 Opening = GameMaterialIds.Empty,
                 Rock = GameMaterialIds.DarkStone,
@@ -138,8 +204,18 @@ namespace VoxelEngine.Tests.EditMode
                 Decoration = GameMaterialIds.Moss,
                 Water = GameMaterialIds.Water,
             };
+        }
 
-            return CaveAuthoring.Author(world, in request, in caveConfig, in palette);
+        private static int3 FacingVector(Facing facing)
+        {
+            return facing switch
+            {
+                Facing.North => new int3(0, 0, 1),
+                Facing.South => new int3(0, 0, -1),
+                Facing.East => new int3(1, 0, 0),
+                Facing.West => new int3(-1, 0, 0),
+                _ => int3.zero,
+            };
         }
 
         private static bool TryAuthorPocket(
