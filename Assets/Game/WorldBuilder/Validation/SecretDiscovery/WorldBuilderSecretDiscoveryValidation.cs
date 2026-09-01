@@ -63,7 +63,7 @@ namespace Game.WorldBuilder.Validation
             RenderingComposition.SetVoxelDetailBandScale(0.8f);
 
             int surfaceY = TerrainSampler.HeightAt(CaveAnchorX, CaveAnchorZ, m_Seed);
-            int3 caveEntrance = new int3(CaveAnchorX, surfaceY - 18, CaveAnchorZ);
+            int3 caveEntrance = new int3(CaveAnchorX, surfaceY + 1, CaveAnchorZ);
             PreloadAround(caveEntrance);
 
             IStructureAuthoringSession authoring = _world.CreateStructureAuthoringSession(4_000_000);
@@ -75,13 +75,15 @@ namespace Game.WorldBuilder.Validation
             caveConfig.BranchSegmentCount = 5;
             caveConfig.BranchChancePercent = 70;
             caveConfig.ChamberChancePercent = 25;
-            caveConfig.SurfaceDescentSegments = 0;
+            caveConfig.SurfaceDescentSegments = 6;
+            caveConfig.SurfaceDescentPerSegment = 8;
             caveConfig.BoundsHalfExtents = new int3(240, 96, 240);
             caveConfig.MinVerticalOffset = -72;
             caveConfig.MaxVerticalOffset = 16;
 
-            CaveGenerationRequest request = CaveGenerationRequest.Underground(
+            CaveGenerationRequest request = CaveGenerationRequest.Standalone(
                 0x5345435243415645ul,
+                m_Seed,
                 caveEntrance,
                 Facing.North,
                 caveConfig.TunnelWidth,
@@ -169,7 +171,7 @@ namespace Game.WorldBuilder.Validation
             RenderingComposition.SetSurfaceBuildEnabled(true);
 
             PublishProductionTrees(surfaceY);
-            PlaceCamera(in projection);
+            PlaceCamera(caveEntrance);
 
             _ready = true;
             Debug.Log(
@@ -232,31 +234,17 @@ namespace Game.WorldBuilder.Validation
             VegetationComposition.ReplaceTreeWorld(_trees);
         }
 
-        private void PlaceCamera(in CaveSecretPocketProjection projection)
+        private void PlaceCamera(int3 caveEntrance)
         {
-            CaveTraversalCandidate terminal = projection.Pocket.Terminal;
-            int3 forward = FacingVector(terminal.ExitFacing);
-            int3 eyeVoxel = terminal.Position - forward * 18 + new int3(0, 12, 0);
-            DecorationBounds barrier = projection.Pocket.Barrier;
-            float3 targetVoxel = ((float3)barrier.Min + (float3)barrier.MaxExclusive) * 0.5f;
+            int eyeZ = caveEntrance.z - 72;
+            int eyeY = TerrainSampler.HeightAt(caveEntrance.x, eyeZ, m_Seed) + 18;
+            int surfaceY = TerrainSampler.HeightAt(caveEntrance.x, caveEntrance.z, m_Seed);
 
-            transform.position = (float3)eyeVoxel * VoxelMetres;
-            Vector3 target = (Vector3)(targetVoxel * VoxelMetres);
+            transform.position = (float3)new int3(caveEntrance.x, eyeY, eyeZ) * VoxelMetres;
+            Vector3 target = (Vector3)(new float3(caveEntrance.x, surfaceY + 2, caveEntrance.z + 8) * VoxelMetres);
             Vector3 direction = target - transform.position;
             if (direction.sqrMagnitude > 0.001f)
                 transform.rotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
-        }
-
-        private static int3 FacingVector(Facing facing)
-        {
-            switch (facing)
-            {
-                case Facing.North: return new int3(0, 0, 1);
-                case Facing.South: return new int3(0, 0, -1);
-                case Facing.East: return new int3(1, 0, 0);
-                case Facing.West: return new int3(-1, 0, 0);
-                default: throw new ArgumentOutOfRangeException(nameof(facing));
-            }
         }
     }
 }
