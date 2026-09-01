@@ -146,8 +146,8 @@ namespace Game.WorldBuilder.Validation
                 throw new InvalidOperationException("Production cave secret authoring failed: " + failure);
 
             var clueConfig = new CaveSecretPocketCluePresentationConfig(
-                Coatings.Moss,
-                46,
+                Coatings.Soot,
+                64,
                 m_Seed ^ 0x434C5545u);
             if (!CaveSecretPocketCluePresentation.TryApplyBoundaryEvidence(
                     authoring,
@@ -190,7 +190,7 @@ namespace Game.WorldBuilder.Validation
                 "WorldBuilder secret validation ready: " +
                 $"caveSegments={cave.SegmentsAuthored} branches={cave.BranchesAuthored} " +
                 $"terminals={cave.TraversalCandidates.Count} clueAnchors={clueAnchors.Length} " +
-                $"coatedBarrierVoxels={coatedVoxels} trees={_trees.Count} " +
+                $"crackVoxels={coatedVoxels} trees={_trees.Count} " +
                 $"barrier={projection.Pocket.Barrier.Min}->{projection.Pocket.Barrier.MaxExclusive}");
         }
 
