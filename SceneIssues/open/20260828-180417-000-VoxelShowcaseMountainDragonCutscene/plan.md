@@ -47,10 +47,10 @@ Earlier revisions remain useful regression evidence but are not the target desig
 ## Latest CI history
 Run `33464154384` built the real player successfully from source `2ccc2751...`; its EditMode invocation then hit the CI runner's 240-second watchdog, and replay evidence captured only one frame where that old request expected two. This is infrastructure/evidence-harness failure, not a compiler failure, so production code was not changed to accommodate it.
 
-Current reusable road regression source was `df5749e5...` when request `33465874998` was queued through the sole authorized `ci-test/fixes/agent-4` transport. That run must complete before the CI request is changed again. Subsequent checklist/plan documentation commits do not change production behavior; final acceptance will still require exact final-head gates after all source/evidence work and the required master merge.
+Road-regression request `33465874998` completed red because the CI transport commit was accidentally parented to older CI request commit `00e9aab...` instead of feature source `df5749e5...`. Unity therefore ran `Game.WorldBuilder.Voxel.Tests.EditMode.MountainRoadIntegrationTests` against a tree that did not contain that test and produced a zero-test result. The standalone-player replay still completed successfully. This is a demonstrated CI transport construction defect, not a product/test failure. The retry must rebuild the same authorized `ci-test/fixes/agent-4` ref directly from the current feature SHA before changing only `.github/test-request.json`.
 
 ## Remaining implementation/validation order
-1. Complete the independent road regression gate and fix only demonstrated product/test defects; retry only proven infrastructure failure through the same transport.
+1. Retry the independent road regression from a correctly source-parented CI transport and fix only demonstrated product/test defects; retry only proven infrastructure failure through the same transport.
 2. Finish independent two-shape/two-climate and deterministic/surface-correspondence evidence if existing landform tests do not already prove every checklist clause.
 3. Check primitive/raster/build cost and startup-bake provenance; keep global budgets and 240 s / 14 GiB guards unchanged.
 4. Ensure the intended focused Mountain Dragon test filter is discoverable, then run the exact focused validation scene through the same CI transport.
