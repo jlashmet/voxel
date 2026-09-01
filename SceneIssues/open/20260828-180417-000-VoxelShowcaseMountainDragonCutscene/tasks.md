@@ -22,13 +22,13 @@
 - [x] Lower through `WorldRoadNetwork` and generic `EmitTerrainCorridor`; no production `EmitRamp` fallback.
 - [x] Derive encounter proximity and focused validation from the resolved road geometry.
 - [x] After repeated production cut/fill failure, isolate a minimal repro/root cause before another fix. `experiment-016-ridge-road-cutfill-minimal-repro.md` shows the spiral repeatedly crosses secondary radial ridge frusta; base terrain and shared resolver defects are ruled out. Parameter discrimination supports Showcase ridge strength 300 while retaining Ridged macro shape, six ridges, roughness, 1.5-turn spiral, 280 permille grade and 42 dm cut/fill.
-- [ ] Prove exact-source production road now resolves within 280 permille / 42 dm bounds and has no freestanding support towers/causeways. Run `33472015921` passed the focused production acceptance, including authoritative resolved road and generic `EmitTerrainCorridor`; exact module-local retry plus final visual review remain.
+- [x] Prove exact-source production road resolves within 280 permille / 42 dm bounds through the authoritative resolver and generic terrain corridor. Run `33472689582` passed focused production acceptance plus automatic mountain-dragon module validation on exact source `dc10c20f...`. Freestanding support/causeway/trench visual rejection remains part of final human review rather than structural proof.
 
 ## Independent reuse / correctness / cost
-- [ ] Execute current-head `MountainClimateReuseTests.SameBuilderSupportsMateriallyDifferentShapeAndClimateCombinations`.
-- [ ] Execute current-head `MountainLandformTests.SameSpecProducesSameMassesAndSurfaceSamples` and `SemanticShapeInputsProduceMateriallyDifferentMountainFamilies`.
-- [ ] Execute current-head `MountainLandformTests.VoxelCatalogueCompilesExactSurfaceMassesWithinPrimitiveBudget`.
-- [ ] Execute current-head `MountainRoadIntegrationTests`: legal route remains within semantic grade/cut-fill bounds, over-constrained route rejects in search or grading, and lowering uses shared `EmitTerrainCorridor` with no `EmitRamp`. The independent grade assertion now uses the resolver's nearest-integer planar-distance semantics rather than floor `Math.Sqrt`.
+- [x] Execute current-head `MountainClimateReuseTests.SameBuilderSupportsMateriallyDifferentShapeAndClimateCombinations`; exact-source reuse run `33473157863` passed both climate/shape reuse tests.
+- [x] Execute current-head `MountainLandformTests.SameSpecProducesSameMassesAndSurfaceSamples` and `SemanticShapeInputsProduceMateriallyDifferentMountainFamilies`; run `33473157863` passed both plus climate semantic checks.
+- [x] Execute current-head `MountainLandformTests.VoxelCatalogueCompilesExactSurfaceMassesWithinPrimitiveBudget`; run `33473157863` passed.
+- [x] Execute current-head `MountainRoadIntegrationTests`: legal route remains within semantic grade/cut-fill bounds, over-constrained route rejects in search or grading, and lowering uses shared `EmitTerrainCorridor` with no `EmitRamp`. Exact-source run `33473157863` passed all three road integration tests using resolver-nearest-integer planar-distance semantics.
 - [ ] Check raster/build cost, memory/bake blast radius, and shared-road behavior; keep global budgets and 240 s / 14 GiB guards unchanged.
 
 ## Mountain Dragon composition
@@ -39,7 +39,7 @@
 - [x] Migrate `MountainDragonProductionAcceptanceTests` from removed legacy landmark assumptions to current landform/road/placeholder/composition/dialogue contracts.
 - [x] Diagnose repeated 60 dm then 50 dm production cut/fill symptom before third fix; lower only Showcase `RidgeStrengthPermille` from 620 to 300 based on experiment 016, leaving shared APIs and road constraints unchanged.
 - [x] Correct stale acceptance-test proxies without weakening production policy: semantic mountain size is configured >=1000 dm major diameter with >=80% realized occupancy; all road-grade validations now use the resolver's nearest-integer planar distance.
-- [ ] Regenerate `mountain-dragon-evidence-route.json` from the final resolved production road; current legacy switchback/Y-offset route must not count for closure. Run `33472015921` diagnostic captures confirm it still visits castle coordinates instead of Mountain Dragon.
+- [ ] Regenerate `mountain-dragon-evidence-route.json` from the final resolved production road; current legacy switchback/Y-offset route must not count for closure. Full-green run `33472689582` still used that stale route, so its production screenshots are diagnostic only.
 - [ ] Bump startup-bake provenance for the redesigned landform/road realization so rejected old bytes cannot satisfy the new source.
 
 ## Latest exact-source CI
@@ -47,7 +47,8 @@
 - [x] Run `33471409821` completed; exact ridge-strength source built/replayed, but focused acceptance stopped on a stale raw catalogue-footprint >=1000 proxy. Regression corrected to semantic authored/realized size invariants.
 - [x] Run `33471667027` completed; exact source reached a resolved production road, then failed only because the test floored Euclidean run where `WorldRoadResolver` rounds to nearest integer. Standalone replay passed; module validation correctly skipped after focused failure.
 - [x] Run `33472015921` completed; focused production acceptance passed and standalone `VoxelShowcase` replay passed. Automatic module validation selected `mountain-dragon` plus integration coverage but its focused scene driver repeated the stale floor-sqrt segment-45 assertion, aborting before marker staging. Driver corrected; production unchanged.
-- [ ] Submit/retry the next exact-source production acceptance request through only `ci-test/fixes/agent-4`; never replace it while queued/running.
+- [x] Run `33472689582` completed success from exact feature source `dc10c20f...`: focused production acceptance, automatically required module validation, selected validation players, and standalone SceneIssue replay all passed. Visual closure is still blocked by the stale evidence route.
+- [x] Run `33473157863` completed success from exact feature source `dc10c20f...`: all 10 requested independent EditMode reuse/correctness tests passed; automatic mountain-dragon module validation and selected validation players also remained green.
 
 ## Production visual / built-player acceptance
 - [ ] Merge then-current `origin/master` before the exact visual-final request.
