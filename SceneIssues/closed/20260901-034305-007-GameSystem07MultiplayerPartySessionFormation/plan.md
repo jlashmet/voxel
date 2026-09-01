@@ -19,9 +19,15 @@ Hypothesis B: add a game-level Sessions authority with a separate ephemeral conn
 - Runtime-only opaque connection handle; reconnect/rebind preserves member/slot/character.
 - Semantic readiness progression Joined -> Connected -> Synchronized -> GameplayReady.
 - Characters.Api binding through `party-member:<PartyMemberId>` semantics.
-- Focused headless tests cover 2/3/4/6 capacity, identity continuity, readiness, JIP compatibility, leader transfer, character uniqueness and provider reuse.
+- Transport-neutral `IAuthoritativePlayerAdmission` plus Sessions adapter maps stable slots to transient network actor IDs without absorbing reconnect policy.
+- Focused headless tests cover 2/3/4/6 capacity, identity continuity, readiness, JIP compatibility, automatic/explicit leader transfer, character uniqueness, provider reuse, admission rollback, and connection rebinding.
 
-## Remaining gates
-1. Migrate legacy socket/player-id gameplay identity consumers behind Sessions without absorbing reconnect policy.
-2. Run exact-SHA automatic Sessions/network-dependent validation and inspect any built-player gate selected by CI.
-3. Audit API/runtime boundaries, blast radius, and close only after every checklist item is proven.
+## Validation / blast radius
+- First exact slice: run `33501748546`, Sessions 11/11 plus mandatory Kentridge green.
+- Final exact feature parent `c31ac0e77a12eab5feb38ec72d5d080a9796d639`: request `98cb663e112a12eff7570707b70d194d4a61115a`, run `33504004316` green.
+- Automatic diff planning selected only changed production modules `Assets/Game/Sessions` and `Assets/VoxelEngine/Net`, their EditMode suites, plus mandatory game-integration Kentridge player validation.
+- Final results: Game.Sessions.Tests 17/17; VoxelEngine.Net.Tests.EditMode 93/93; Kentridge player validation green; 212.04s automatic validation total (73.33s Sessions, 9.30s Net, 129.41s player).
+- No UTP/socket type leaks into Sessions.Api; connection identity remains Runtime-only and reconnect remains owned by VoxelEngine.Net.
+- Durable identity proof: `SessionNetworkAdmissionAdapterTests.DurableMemberSlotAndCharacterSurviveConnectionChanges` rebinds connection 11 -> 99 while preserving the same `PartyMemberId`, `PlayerSlot`, and `CharacterId`.
+
+All required gates and acceptance items are complete.
