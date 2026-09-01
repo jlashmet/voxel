@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Game.Composition.CaveWorldBuilder;
 using Game.Materials.Api;
 using Game.Structures.Api;
+using Game.Structures.Runtime;
 using Game.WorldBuilder.Api;
 using NUnit.Framework;
 using Unity.Mathematics;
