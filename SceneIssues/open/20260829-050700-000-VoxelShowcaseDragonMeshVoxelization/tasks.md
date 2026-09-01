@@ -24,7 +24,7 @@
 - [x] Cover one-shot selection and input ownership through `StructurePlacementInputRouterTests`.
 - [x] Cover reusable fidelity/cost instrumentation: surface extraction, connectedness/material/brick counts, symmetric p95 distance, fixed-view silhouette IoU, and transformed mesh→bake measurement.
 - [x] Add independent non-dragon nearly-closed-shell regression proving `VoxelShellFill` does not invent interiors for genuinely open rasters.
-- [ ] Add dragon-specific production regression proving required anatomical regions are non-empty/spatially plausible through produced bake data, not source-string/count-only assertions.
+- [x] Add dragon-specific production regression proving required anatomical regions are non-empty/spatially plausible through produced bake data, not source-string/count-only assertions. `MountainDragonBakedArtifactTests.CheckedInBake_DecodesCanonicalArtifactAndPreservesDragonAnatomy` covers body, both wings, head/horns, both feet/claws, and curled tail against the canonical bake.
 
 ## Implementation
 - [x] Add reusable semantic/config-driven transformed triangle mesh→voxel API/configuration with bounded cost and explicit fill/topology/material/thin-feature policy.
@@ -36,7 +36,7 @@
 - [x] Add source-specific Editor reconstruction/import tooling; ordinary runtime never reads source triangles/archive.
 - [x] Add explicit reusable `VoxelShellFill` policy and independent reuse coverage.
 - [x] Add source-specific bake policy/configuration: 29,734 source triangles, 0.30 source units/voxel, bounded sparse envelope, canonical dragon material mapping.
-- [ ] Generate, validate, retrieve, and commit the exact sparse dragon bake produced by `MountainDragonBakeGenerator.GeneratePinnedBakeAndWriteArtifact()` through the shared importer/voxelizer.
+- [x] Generate, validate, retrieve, and commit the exact sparse dragon bake produced by `MountainDragonBakeGenerator.GeneratePinnedBakeAndWriteArtifact()` through the shared importer/voxelizer. Exact generator CI run `33451568424` produced canonical SHA `83370421048606be2dc658315ec9acc2cae39d2a7a20011151d7d561267bec41`, 99×107×107 bounds, and 98,100 authored voxels. The compact runtime transport was independently reproduced from that artifact at pinned SHA `758612c8b63316e3757a7695bfdb07f99ee5709f3706c504688d657017ecc961`; commit `da60731f20b829a0d25f25450a2b4bbaa0d504d9` repaired the corrupted Base64 payload without changing canonical bake identity.
 - [x] Apply deterministic semantic showcase palette mapping. STL has no standard material/color regions, so unmaterialed exterior/interior maps to canonical `DarkStone`; do not claim absent source color preservation.
 - [ ] Instantiate the decoded baked dragon through normal `ShowcaseWorld.PlaceBakedMeshStructure` / WorldBuilder voxel authoring so rendering, collision, edit, and destruction share canonical storage.
 - [x] Wire explicit VoxelShowcase placement mode without stealing ordinary controls; exact-parent targeted CI run `33416544070` passed after fixing the demonstrated assembly-reference defect.
