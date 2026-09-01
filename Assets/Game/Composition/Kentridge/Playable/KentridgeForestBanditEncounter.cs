@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Game.Characters.Api;
 using Game.Combat.Api;
 using Game.Combat.Runtime;
 using Game.Input.Api;
@@ -15,7 +16,8 @@ namespace Game.Composition.Kentridge.Playable
     /// <summary>
     /// Production composition seam for the first Combat/Input vertical slice in Kentridge.
     /// The encounter owns only cross-module wiring: authored world placement, proximity lifecycle,
-    /// input-context ownership, battle stepping, and presentation identities. Combat rules remain in Game.Combat.
+    /// input-context ownership, battle stepping, and presentation identities. Combat rules remain in Game.Combat,
+    /// while stable gameplay identity/lifecycle/kinematics live in Game.Characters.
     /// </summary>
     [DefaultExecutionOrder(-10000)]
     public sealed class KentridgeForestBanditEncounter : MonoBehaviour
@@ -35,6 +37,8 @@ namespace Game.Composition.Kentridge.Playable
 
         private readonly List<GameObject> _bandits = new List<GameObject>(3);
         private readonly bool[] _grounded = new bool[3];
+        private readonly CharacterId[] _banditCharacterIds = new CharacterId[3];
+        private ICharacterRegistry _characters;
         private InputContextService _inputContexts;
         private UnityPlayerInputReader _inputReader;
         private CombatService _combat;
@@ -97,6 +101,12 @@ namespace Game.Composition.Kentridge.Playable
 
         private void Awake()
         {
+            KentridgeCharacterRegistryAnchor anchor = GetComponent<KentridgeCharacterRegistryAnchor>();
+            if (anchor == null || anchor.Characters == null)
+                throw new InvalidOperationException(
+                    "Kentridge forest encounter requires the playable character registry anchor before actor realization.");
+            _characters = anchor.Characters;
+
             _inputContexts = new InputContextService();
             _inputReader = new UnityPlayerInputReader(_inputContexts);
             _combat = new CombatService();
@@ -109,6 +119,7 @@ namespace Game.Composition.Kentridge.Playable
             if (_bandits.Count != 3 || _combat == null) return;
 
             ResolveBanditGroundNearPlayer();
+            SyncBanditCharacters();
 
             if (!_combat.IsActive)
             {
@@ -197,6 +208,23 @@ namespace Game.Composition.Kentridge.Playable
                 GameObject bandit = CreateBandit(i, position);
                 FacePlayer(bandit.transform, transform.position);
                 _bandits.Add(bandit);
+
+                string participant = "forest-bandit-" + (i + 1);
+                CharacterId id = CharacterId.FromStableKey("enemy", "kentridge-" + participant);
+                _banditCharacterIds[i] = id;
+                if (!_characters.TryGet(id, out _))
+                    RequireSuccess(
+                        _characters.Create(
+                            new CharacterDefinition(id, CharacterTraits.Combatant),
+                            ToKinematics(bandit.transform),
+                            out _),
+                        "create Kentridge forest bandit character");
+                RequireSuccess(
+                    _characters.Bind(id, new CharacterBinding("combat-participant", participant)),
+                    "bind forest bandit combat identity");
+                RequireSuccess(
+                    _characters.Bind(id, new CharacterBinding("encounter-member", "kentridge-forest-bandits/" + (i + 1))),
+                    "bind forest bandit encounter identity");
             }
         }
 
@@ -229,6 +257,18 @@ namespace Game.Composition.Kentridge.Playable
             }
         }
 
+        private void SyncBanditCharacters()
+        {
+            for (int i = 0; i < _bandits.Count; i++)
+            {
+                GameObject bandit = _bandits[i];
+                if (bandit == null || !_banditCharacterIds[i].IsValid) continue;
+                RequireSuccess(
+                    _characters.UpdateKinematics(_banditCharacterIds[i], ToKinematics(bandit.transform), out _),
+                    "synchronize Kentridge forest bandit character");
+            }
+        }
+
         private void BeginBanditCombat()
         {
             if (_combat.IsActive || _encounterResolved) return;
@@ -255,6 +295,19 @@ namespace Game.Composition.Kentridge.Playable
             if (_battleDriver != null && _battleDriver.HasPendingAction)
                 throw new InvalidOperationException(_battleDriver.Diagnostic("Kentridge combat completed with pending AI work."));
 
+            if (_combat.WinningTeam.Value == CombatTeam.Player)
+            {
+                for (int i = 0; i < _banditCharacterIds.Length; i++)
+                    MarkDefeated(_banditCharacterIds[i], "mark defeated forest bandit");
+            }
+            else
+            {
+                CharacterId player;
+                if (!_characters.TryResolve(new CharacterBinding("combat-participant", PlayerParticipant.Value), out player))
+                    throw new InvalidOperationException("Kentridge combat player is not bound to gameplay character authority.");
+                MarkDefeated(player, "mark defeated Kentridge player");
+            }
+
             _encounterResolved = true;
             _combatInput = null;
             ReleaseCombatContext();
@@ -266,11 +319,37 @@ namespace Game.Composition.Kentridge.Playable
                 " pending=" + HasPendingCombatWork);
         }
 
+        private void MarkDefeated(CharacterId id, string operation)
+        {
+            CharacterRegistryFailure failure = _characters.MarkDefeated(id, out _);
+            if (failure != CharacterRegistryFailure.None &&
+                failure != CharacterRegistryFailure.CharacterAlreadyDefeated)
+                RequireSuccess(failure, operation);
+        }
+
         private void ReleaseCombatContext()
         {
             if (_combatContext == null) return;
             _combatContext.Dispose();
             _combatContext = null;
+        }
+
+        private static CharacterKinematicState ToKinematics(Transform actor)
+        {
+            Vector3 forward = actor.forward;
+            return new CharacterKinematicState(
+                ToCharacterVector(actor.position),
+                new CharacterVector3(0f, 0f, 0f),
+                ToCharacterVector(forward));
+        }
+
+        private static CharacterVector3 ToCharacterVector(Vector3 value) =>
+            new CharacterVector3(value.x, value.y, value.z);
+
+        private static void RequireSuccess(CharacterRegistryFailure failure, string operation)
+        {
+            if (failure != CharacterRegistryFailure.None)
+                throw new InvalidOperationException(operation + " failed: " + failure + ".");
         }
 
         private static GameObject CreateBandit(int index, Vector3 groundPosition)
