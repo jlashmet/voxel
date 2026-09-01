@@ -39,10 +39,14 @@ namespace VoxelEngine.Tests.EditMode
 
                 SlotSpec socket = catalogue.Slots[0];
                 StructuralAttachmentDecision decision = decisions[0];
+                StructuralAttachmentInspection inspection = new StructuralAttachmentInspection(
+                    decision.SocketId,
+                    decision.AttachmentPosition,
+                    decision.Accepted);
                 byte parentOrientation = instances[decision.ParentIndex].Orientation;
                 SpatialReservation clearance = StructuralSocketReservationAdapter.ClearanceClaim(
                     in socket,
-                    in decision,
+                    in inspection,
                     parentOrientation,
                     voxelsPerDecimetre: 2,
                     ownerId: "fixture:typed-socket-clearance");
@@ -60,7 +64,7 @@ namespace VoxelEngine.Tests.EditMode
                 ReservationQueryResult rejected = StructuralSocketReservationAdapter.QueryClearance(
                     blocked,
                     in socket,
-                    in decision,
+                    in inspection,
                     parentOrientation,
                     voxelsPerDecimetre: 2,
                     categoryMask: ReservationCategory.Building,
@@ -80,7 +84,7 @@ namespace VoxelEngine.Tests.EditMode
                 ReservationQueryResult accepted = StructuralSocketReservationAdapter.QueryClearance(
                     separated,
                     in socket,
-                    in decision,
+                    in inspection,
                     parentOrientation,
                     voxelsPerDecimetre: 2,
                     categoryMask: ReservationCategory.Building,
