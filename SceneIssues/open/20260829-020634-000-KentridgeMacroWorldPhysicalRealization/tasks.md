@@ -19,11 +19,13 @@
 - [x] Identify the prior end-frame settlement diagnostic as invalid because it sampled intentionally hollow generic-building centres.
 - [x] Run corrected authored wall/roof probes on exact source `fb4bc6dad612f759987db5163d0d7b9e1b664405`; run `33480730488` is green but built-player authoritative storage reads `material=0` at every Moordell/Rossdam/Fairy/Orc shell/roof probe while editor storage still proves all 16 buildings.
 - [x] Inspect full-resolution Fairy/Orc captures from `33480730488`; terrain/corridor content is visible but the required four-building settlements are absent, so camera/framing is not the current owner.
-- [x] Isolate the one-shot macro selection boundary: `KentridgeCombinedVoxelCatalogue` appends macro content only after `TopDownWorldLayoutSelection.TryConsume`, while `KentridgePlayableSlice.OnEnable` does not itself establish the selection.
-- [x] Add behavioral repro `PlayableKentridgeCatalogueRequiresExplicitOneShotMacroSelection`: with the handoff empty Fairy/Orc macro definitions are absent; with the existing source-backed semantic selection both are present. See experiment 028.
-- [ ] Validate the focused one-shot selection repro on the sole `ci-test/fixes/agent-6` transport.
-- [ ] If the repro is green, select the existing source-backed macro layout in Kentridge playable composition before its existing production catalogue build; do not change shared selection/planner/streaming semantics.
-- [ ] Re-run built-player authored shell/roof probes and require Fairy/Orc storage plus readable captures before changing any evidence framing.
+- [x] Inspect the one-shot selection contract and add the shared-selector regression `PlayableKentridgeCatalogueRequiresExplicitOneShotMacroSelection`.
+- [x] Falsify missing playable selection before any production fix: the exact failing source's internal `Game.Kentridge.PlayableSlice.KentridgeDefinition.Build` already calls `TopDownWorldLayoutSelection.Select`; Hightown authoring and campaign planning do not consume it.
+- [x] Mark queued run `33485694443` non-authoritative for the player symptom because it tests the legacy/shared selector contract rather than the playable adapter. Do not replace it while queued/running.
+- [x] Add corrected real-caller discriminator `PlayableCompatibilityAuthoringLeavesMacroSelectionForCatalogueBuild`, invoking the internal playable Kentridge/Hightown adapters by reflection without widening production APIs.
+- [ ] After `33485694443` is terminal, validate the corrected real-caller discriminator on the same sole CI transport.
+- [ ] If corrected discriminator passes, isolate exact Fairy/Orc runtime region generation/publication before another production fix; if it fails, identify the real handoff consumer from the managed assertion.
+- [ ] Re-run built-player authored shell/roof probes and require Fairy/Orc storage plus readable captures after a demonstrated product fix.
 
 ## Remaining visual acceptance
 - [ ] Full-resolution Moordell/Rossdam/Fairy/Orc surveys visibly show readable grounded authored blockouts, internal street/open space, and road arrival/exit.
