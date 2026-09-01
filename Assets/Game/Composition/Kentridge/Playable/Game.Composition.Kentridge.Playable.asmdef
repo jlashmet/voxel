@@ -19,7 +19,6 @@
     "MountingForce.WorldGen.Core",
     "MountingForce.WorldGen.Runtime",
     "VoxelEngine.Characters.Runtime",
-    "VoxelEngine.Core",
     "VoxelEngine.Showcase"
   ],
   "includePlatforms": [],
