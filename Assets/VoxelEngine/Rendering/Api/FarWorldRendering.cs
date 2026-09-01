@@ -27,6 +27,71 @@ namespace VoxelEngine.Rendering.Api
     }
 
     /// <summary>
+    /// Producer-agnostic primitive vocabulary for conservative far-feature massing. The values are
+    /// presentation data only: no generation/runtime ownership crosses the rendering boundary.
+    /// </summary>
+    public enum FarFeatureGeometryShape : byte
+    {
+        Box = 0,
+        Cylinder = 1,
+        Prism = 2,
+        Capsule = 3,
+        Ramp = 4,
+        RoundedBox = 5,
+        Ellipsoid = 6,
+        Frustum = 7,
+        Annulus = 8,
+        ArcWedge = 9,
+        TerrainCorridor = 10,
+    }
+
+    /// <summary>
+    /// One normalized conservative mass in a far-feature geometry resource. X/Z are centered around
+    /// the instance origin while Y is measured upward from it, matching the renderer transform.
+    /// </summary>
+    public readonly struct FarFeatureGeometryPrimitive
+    {
+        public FarFeatureGeometryPrimitive(
+            FarFeatureGeometryShape shape,
+            float3 min,
+            float3 max,
+            byte axis = 1)
+        {
+            if (math.any(max < min)) throw new ArgumentException("Far geometry primitive bounds must be ordered.");
+            Shape = shape;
+            Min = min;
+            Max = max;
+            Axis = axis <= 2 ? axis : (byte)1;
+        }
+
+        public FarFeatureGeometryShape Shape { get; }
+        public float3 Min { get; }
+        public float3 Max { get; }
+        public byte Axis { get; }
+    }
+
+    /// <summary>
+    /// Immutable generic geometry payload derived from a canonical feature bake. Rendering.Runtime
+    /// may cache this by GeometryKey; producers never register a renderer recipe or implementation.
+    /// </summary>
+    public sealed class FarFeatureGeometry
+    {
+        private readonly FarFeatureGeometryPrimitive[] _primitives;
+
+        public FarFeatureGeometry(FarFeatureGeometryPrimitive[] primitives)
+        {
+            if (primitives == null) throw new ArgumentNullException(nameof(primitives));
+            if (primitives.Length == 0)
+                throw new ArgumentException("Far feature geometry requires at least one primitive.", nameof(primitives));
+            _primitives = new FarFeatureGeometryPrimitive[primitives.Length];
+            Array.Copy(primitives, _primitives, primitives.Length);
+        }
+
+        public int PrimitiveCount => _primitives.Length;
+        public FarFeatureGeometryPrimitive GetPrimitive(int index) => _primitives[index];
+    }
+
+    /// <summary>
     /// Engine-facing, render-ready description of one far feature. It deliberately contains
     /// no planning, voxel-storage, region-residency, renderer, or GameObject state.
     /// </summary>
@@ -42,7 +107,8 @@ namespace VoxelEngine.Rendering.Api
             string geometryKey,
             string styleKey,
             FarFeatureTier tier,
-            FarFeatureVisualFlags flags = FarFeatureVisualFlags.None)
+            FarFeatureVisualFlags flags = FarFeatureVisualFlags.None,
+            FarFeatureGeometry geometry = null)
         {
             StableId = stableId;
             Position = position;
@@ -54,6 +120,7 @@ namespace VoxelEngine.Rendering.Api
             StyleKey = styleKey ?? string.Empty;
             Tier = tier;
             Flags = flags;
+            Geometry = geometry;
         }
 
         public ulong StableId { get; }
@@ -66,6 +133,7 @@ namespace VoxelEngine.Rendering.Api
         public string StyleKey { get; }
         public FarFeatureTier Tier { get; }
         public FarFeatureVisualFlags Flags { get; }
+        public FarFeatureGeometry Geometry { get; }
     }
 
     /// <summary>
