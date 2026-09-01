@@ -82,14 +82,45 @@ namespace Game.Characters.Api
         bool TryResolve(CharacterBinding binding, out CharacterId id);
     }
 
-    public interface ICharacterRegistry : ICharacterQuery
+    /// <summary>
+    /// Narrow lifecycle mutation seam for systems such as Vitality. Defeat is a character state
+    /// transition; removal remains reserved for the owning gameplay/composition policy.
+    /// </summary>
+    public interface ICharacterLifecycle
+    {
+        CharacterRegistryFailure MarkDefeated(CharacterId id, out CharacterSnapshot snapshot);
+    }
+
+    /// <summary>
+    /// Narrow semantic transform/kinematic writer for authoritative movement/session adapters.
+    /// World and engine implementation details stay behind the adapter that supplies this state.
+    /// </summary>
+    public interface ICharacterKinematicsWriter
+    {
+        CharacterRegistryFailure UpdateKinematics(
+            CharacterId id,
+            CharacterKinematicState state,
+            out CharacterSnapshot snapshot);
+    }
+
+    /// <summary>
+    /// Narrow binding seam for composition that associates subsystem-owned identities with one
+    /// stable gameplay character without transferring ownership of those external identities.
+    /// </summary>
+    public interface ICharacterBindingWriter
+    {
+        CharacterRegistryFailure Bind(CharacterId id, CharacterBinding binding);
+    }
+
+    public interface ICharacterRegistry :
+        ICharacterQuery,
+        ICharacterLifecycle,
+        ICharacterKinematicsWriter,
+        ICharacterBindingWriter
     {
         event Action<CharacterEvent> Changed;
 
         CharacterRegistryFailure Create(CharacterDefinition definition, CharacterKinematicState initialState, out CharacterSnapshot snapshot);
-        CharacterRegistryFailure Bind(CharacterId id, CharacterBinding binding);
-        CharacterRegistryFailure UpdateKinematics(CharacterId id, CharacterKinematicState state, out CharacterSnapshot snapshot);
-        CharacterRegistryFailure MarkDefeated(CharacterId id, out CharacterSnapshot snapshot);
         CharacterRegistryFailure Remove(CharacterId id);
     }
 }
