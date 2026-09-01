@@ -235,27 +235,34 @@ namespace Game.GameplayReplication.Adapters
     public sealed class ContinuityGameplayProjectionSource : IGameplayProjectionSource
     {
         private readonly IContinuityQuery _query;
-        public ContinuityGameplayProjectionSource(IContinuityQuery query, bool requiredForGameplayReady = true)
+        private readonly IPartySessionQuery _sessions;
+
+        public ContinuityGameplayProjectionSource(IContinuityQuery query, IPartySessionQuery sessions, bool requiredForGameplayReady = true)
         {
             _query = query ?? throw new ArgumentNullException(nameof(query));
+            _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
             Descriptor = new GameplayProjectionDescriptor(new GameplayProjectionId("continuity"), 1, requiredForGameplayReady);
         }
+
         public GameplayProjectionDescriptor Descriptor { get; }
+
         public GameplayProjectionState Capture()
         {
-            ContinuitySnapshot snapshot = _query.Snapshot();
-            var entries = new List<GameplayProjectionEntry>
-            {
-                new GameplayProjectionEntry("revision", snapshot.Revision.ToString(CultureInfo.InvariantCulture))
-            };
-            var members = new List<ContinuityMemberSnapshot>(snapshot.Members);
+            PartyRosterSnapshot roster = _sessions.Snapshot();
+            var members = new List<PartyMemberSnapshot>(roster.Members);
             members.Sort((a, b) => a.MemberId.CompareTo(b.MemberId));
-            foreach (ContinuityMemberSnapshot member in members)
+            var entries = new List<GameplayProjectionEntry>();
+
+            foreach (PartyMemberSnapshot member in members)
             {
+                if (!_query.TryGetRecovery(member.MemberId, out RecoverySnapshot recovery))
+                    continue;
+
                 string p = "member/" + member.MemberId.Value + "/";
-                entries.Add(new GameplayProjectionEntry(p + "state", member.State.ToString()));
-                entries.Add(new GameplayProjectionEntry(p + "revision", member.Revision.ToString(CultureInfo.InvariantCulture)));
+                entries.Add(new GameplayProjectionEntry(p + "state", recovery.State.ToString()));
+                entries.Add(new GameplayProjectionEntry(p + "grace-deadline", recovery.GraceDeadline.ToString("R", CultureInfo.InvariantCulture)));
             }
+
             return new GameplayProjectionState(Descriptor, entries);
         }
     }
