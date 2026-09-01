@@ -1,7 +1,7 @@
 {
   "name": "Game.Continuity.Runtime",
   "rootNamespace": "Game.Continuity.Runtime",
-  "references": ["Game.Continuity.Api", "Game.Sessions.Api"],
+  "references": ["Game.Continuity.Api", "Game.Sessions.Api", "Game.GameplayReplication.Api"],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
