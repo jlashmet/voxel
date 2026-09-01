@@ -4,11 +4,15 @@
   "integrationGate": false,
   "fallback": false,
   "productionPaths": [
+    "Assets/Game/Composition/Showcase/ShowcaseCatalogue.cs",
     "Assets/Game/Composition/Showcase/ShowcaseMountainDragonLayout.cs",
     "Assets/Game/Composition/Showcase/MountainDragonEncounterRuntime.cs",
     "Assets/Game/Composition/Showcase/SceneRuntime/MountainDragonShowcaseDriver.cs",
-    "Assets/Game/WorldBuilder/Voxel/WorldBuilderMountainLandmarkCatalogue.cs",
-    "Assets/Game/WorldBuilder/Voxel/WorldBuilderMountainLandmarkMaterialCatalogue.cs"
+    "Assets/Game/WorldBuilder/Api/MountainClimate.cs",
+    "Assets/Game/WorldBuilder/Api/MountainLandform.cs",
+    "Assets/Game/WorldBuilder/Voxel/MountainLandformSurface.cs",
+    "Assets/Game/WorldBuilder/Voxel/WorldBuilderMountainLandformCatalogue.cs",
+    "Assets/Game/WorldBuilder/Voxel/WorldBuilderMountainRoadIntegration.cs"
   ],
   "sharedPaths": [],
   "tests": [
