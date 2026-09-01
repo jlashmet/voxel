@@ -70,15 +70,24 @@ namespace Game.Characters.Api
         }
     }
 
-    public interface ICharacterRegistry
+    /// <summary>
+    /// Read-only consumer seam for gameplay identity/state. Systems such as AI, encounters,
+    /// sessions, replication, inventory, cutscenes and presentation can resolve/query characters
+    /// without receiving lifecycle mutation authority.
+    /// </summary>
+    public interface ICharacterQuery
+    {
+        IReadOnlyList<CharacterSnapshot> GetAll();
+        bool TryGet(CharacterId id, out CharacterSnapshot snapshot);
+        bool TryResolve(CharacterBinding binding, out CharacterId id);
+    }
+
+    public interface ICharacterRegistry : ICharacterQuery
     {
         event Action<CharacterEvent> Changed;
 
-        IReadOnlyList<CharacterSnapshot> GetAll();
-        bool TryGet(CharacterId id, out CharacterSnapshot snapshot);
         CharacterRegistryFailure Create(CharacterDefinition definition, CharacterKinematicState initialState, out CharacterSnapshot snapshot);
         CharacterRegistryFailure Bind(CharacterId id, CharacterBinding binding);
-        bool TryResolve(CharacterBinding binding, out CharacterId id);
         CharacterRegistryFailure UpdateKinematics(CharacterId id, CharacterKinematicState state, out CharacterSnapshot snapshot);
         CharacterRegistryFailure MarkDefeated(CharacterId id, out CharacterSnapshot snapshot);
         CharacterRegistryFailure Remove(CharacterId id);
