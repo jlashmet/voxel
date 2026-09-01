@@ -25,7 +25,7 @@
 - [x] Add real-caller discriminator `PlayableCompatibilityAuthoringLeavesMacroSelectionForCatalogueBuild`, invoking the internal playable Kentridge/Hightown adapters by reflection without widening production APIs.
 - [x] Classify run `33486393258` as test-harness compile red only: nonexistent `KentridgeHiddenSpaceGeometry` made the fixture invalid, so it provides no product signal.
 - [x] Correct the discriminator at source `930b6bfe28095fb4939dd26a1de12b2786de9a87` to mirror shipped semantics: playable authoring adapters run for side effects, then the valid production `Build(seed, settings, allocator)` overload consumes the handoff; no production changes or test-only geometry.
-- [ ] Validate the corrected real-caller discriminator on the same sole CI transport.
+- [ ] Validate the corrected real-caller discriminator on the same sole CI transport. BLOCKED: request commit `bb12938d95b6ddf5c966df2f4545f33119518564`, run `33495686226`, exact source `1e7bb5f8b704023b661132facd46f9c1c0835476` is admitted/queued; do not replace it.
 - [ ] If corrected discriminator passes, isolate exact Fairy/Orc runtime region generation/publication before another production fix; if it fails, identify the real handoff consumer from the managed assertion.
 - [ ] Re-run built-player authored shell/roof probes and require Fairy/Orc storage plus readable captures after a demonstrated product fix.
 
