@@ -5,7 +5,6 @@ using Game.WorldBuilder.Voxel;
 using Unity.Collections;
 using VoxelEngine.Composition.Api;
 using VoxelEngine.Structures.Api;
-using VoxelEngine.Structures.Runtime;
 
 namespace VoxelEngine.Showcase
 {
