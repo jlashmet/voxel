@@ -10,6 +10,7 @@
     "Assets/Game/Composition/Showcase/Editor/MountainDragonSourceArchive.cs",
     "Assets/Game/Composition/Showcase/Editor/MountainDragonValidationBuildPreprocessor.cs",
     "Assets/Game/Composition/Showcase/Validation/MountainDragonVoxelization/MountainDragonVoxelValidationShowcase.cs",
+    "Assets/Game/Composition/Showcase/Validation/MountainDragonVoxelization/MountainDragonVoxelValidation.unity",
     "Assets/Resources/VoxelShowcase/MountainDragonBake/**"
   ],
   "sharedPaths": [
