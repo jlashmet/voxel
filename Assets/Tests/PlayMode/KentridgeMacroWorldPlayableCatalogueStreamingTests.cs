@@ -1,6 +1,8 @@
 using System;
 using System.Reflection;
+using Game.Composition.Campaign.Content;
 using Game.Composition.WorldBuilderWorldGen.Runtime;
+using Game.Cutscenes.Api;
 using Game.WorldBuilder.Api;
 using Game.WorldBuilder.Runtime;
 using MountingForce.WorldGen;
@@ -147,6 +149,82 @@ namespace VoxelEngine.Tests.PlayMode
                 TestContext.WriteLine(
                     "MACRO_PLAYABLE_COMPATIBILITY_SELECTION " +
                     $"definitions={catalogue.Definitions.Length}");
+            }
+            finally
+            {
+                if (catalogue.IsCreated) catalogue.Dispose();
+                GameObject presentation = GameObject.Find("Kentridge Top-Down World Layout");
+                if (presentation != null) UnityEngine.Object.DestroyImmediate(presentation);
+            }
+        }
+
+        [Test]
+        public void PlayableProductionPlanningLeavesMacroSelectionForGeometryCatalogueBuild()
+        {
+            TopDownWorldLayout layout = MountingForceTopDownWorldDefinition.Build(Seed);
+            TopDownWorldLayoutSelection.Select(
+                layout,
+                KentridgeDefinition.TownCentreDm.X,
+                KentridgeDefinition.TownCentreDm.Y,
+                MountingForceTopDownWorldDefinition.CellSizeDm);
+            Assert.That(TopDownWorldLayoutSelection.TryConsume(Seed, out _), Is.True,
+                "The fixture must start with an empty one-shot handoff.");
+
+            Assembly playableAssembly = typeof(Game.Kentridge.PlayableSlice.KentridgePlayableSlice).Assembly;
+            Type playableKentridge = playableAssembly.GetType(
+                "Game.Kentridge.PlayableSlice.KentridgeDefinition",
+                throwOnError: true);
+            Type playableHightown = playableAssembly.GetType(
+                "Game.Kentridge.PlayableSlice.HightownDefinition",
+                throwOnError: true);
+            Type playableCampaign = playableAssembly.GetType(
+                "Game.Kentridge.PlayableSlice.KentridgeCampaignSessionBootstrap",
+                throwOnError: true);
+            MethodInfo buildKentridge = playableKentridge.GetMethod(
+                "Build",
+                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+            MethodInfo buildHightown = playableHightown.GetMethod(
+                "Build",
+                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+            MethodInfo planCampaign = playableCampaign.GetMethod(
+                "Plan",
+                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+            Assert.That(buildKentridge, Is.Not.Null);
+            Assert.That(buildHightown, Is.Not.Null);
+            Assert.That(planCampaign, Is.Not.Null);
+
+            FeatureCatalogue catalogue = default;
+            try
+            {
+                var destination = new CutsceneDefinition(
+                    "macro-selection-destination",
+                    CutsceneStageSetupDefinition.Empty,
+                    Array.Empty<CutsceneStep>());
+                KnownOpeningCampaignContent content = KnownOpeningCampaignContent.Build(destination);
+                SettlementPlan settlement = (SettlementPlan)buildKentridge.Invoke(null, new object[] { Seed });
+                buildHightown.Invoke(null, new object[] { Seed });
+                var generation = (KentridgeCampaignGenerationPlan)planCampaign.Invoke(
+                    null,
+                    new object[] { content.Blueprint, settlement });
+
+                catalogue = KentridgeCombinedVoxelCatalogue.Build(
+                    settlement,
+                    Settings(kentridge: true),
+                    generation.HiddenSpaces,
+                    Allocator.Temp);
+
+                Assert.That(
+                    ContainsDefinitionStarting(catalogue, "macro-town-building-fairy-village-"),
+                    Is.True,
+                    "The exact playable authoring + campaign-planning sequence must preserve Fairy macro definitions through the settlement/hidden-space catalogue overload.");
+                Assert.That(
+                    ContainsDefinitionStarting(catalogue, "macro-town-building-orc-village-"),
+                    Is.True,
+                    "The exact playable authoring + campaign-planning sequence must preserve Orc macro definitions through the settlement/hidden-space catalogue overload.");
+
+                TestContext.WriteLine(
+                    "MACRO_PLAYABLE_PRODUCTION_PLANNING_SELECTION " +
+                    $"hiddenSpaces={generation.HiddenSpaces.Count} definitions={catalogue.Definitions.Length}");
             }
             finally
             {
