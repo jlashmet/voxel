@@ -17,11 +17,19 @@ namespace VoxelEngine.Showcase
         public const float DragonSmoothness = 0f;
         private const string ValidationSceneName = "MountainDragonVoxelValidation";
 
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-        private static void RegisterScenePresentation()
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        private static void ApplyToLoadedValidationScene()
         {
-            SceneManager.sceneLoaded -= ApplyToValidationScene;
-            SceneManager.sceneLoaded += ApplyToValidationScene;
+            Scene scene = SceneManager.GetActiveScene();
+            if (!string.Equals(scene.name, ValidationSceneName, System.StringComparison.Ordinal))
+                return;
+
+            MaterialPresentationComposition.Apply(CreateDefinitions());
+            Debug.Log(
+                "MOUNTAIN_DRAGON_MATTE_PRESENTATION material="
+                + MountainDragonPalettePolicy.DragonMaterial
+                + " roughness=" + DragonRoughness.ToString("F1")
+                + " smoothness=" + DragonSmoothness.ToString("F1"));
         }
 
         public static MaterialPresentationDefinition[] CreateDefinitions()
@@ -54,19 +62,6 @@ namespace VoxelEngine.Showcase
 
             throw new System.InvalidOperationException(
                 "Mountain Dragon material is missing from the game rendering catalogue.");
-        }
-
-        private static void ApplyToValidationScene(Scene scene, LoadSceneMode mode)
-        {
-            if (!string.Equals(scene.name, ValidationSceneName, System.StringComparison.Ordinal))
-                return;
-
-            MaterialPresentationComposition.Apply(CreateDefinitions());
-            Debug.Log(
-                "MOUNTAIN_DRAGON_MATTE_PRESENTATION material="
-                + MountainDragonPalettePolicy.DragonMaterial
-                + " roughness=" + DragonRoughness.ToString("F1")
-                + " smoothness=" + DragonSmoothness.ToString("F1"));
         }
     }
 }
