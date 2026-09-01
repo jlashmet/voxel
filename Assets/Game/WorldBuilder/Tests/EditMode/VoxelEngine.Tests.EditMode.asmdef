@@ -1,5 +1,5 @@
 {
-    "name": "Game.WorldBuilder.Tests.EditMode",
+    "name": "VoxelEngine.Tests.EditMode",
     "rootNamespace": "VoxelEngine.Tests.EditMode",
     "references": [
         "VoxelEngine.Tests.Support",
