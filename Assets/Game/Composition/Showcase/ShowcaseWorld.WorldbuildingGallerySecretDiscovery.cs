@@ -34,8 +34,9 @@ namespace VoxelEngine.Showcase
         /// Adds the final acceptance secret to the existing generated gallery cave. Gallery bakes
         /// intentionally persist voxels rather than traversal-candidate metadata, so this bounded
         /// compatibility pass deterministically replays only the cave authoring operation to recover
-        /// the production terminal set. It verifies the replay follows the baked main-path route
-        /// before any secret-specific mutation is accepted.
+        /// the production terminal set. The replay runs through a read-through/write-discard authoring
+        /// session: it may observe the authoritative baked world but cannot alter it while recovering
+        /// metadata. Route compatibility is verified before any secret-specific mutation is accepted.
         /// </summary>
         public void EnsureWorldbuildingGallerySecretDiscoveryBlocking()
         {
@@ -46,7 +47,8 @@ namespace VoxelEngine.Showcase
 
             PreloadGalleryRegions();
             IStructureAuthoringSession authoring = CreateStructureAuthoringSession(4_000_000);
-            CaveAuthoringResult cave = AuthorGalleryCave(authoring);
+            IStructureAuthoringSession replayAuthoring = new WorldbuildingGalleryCaveReplaySession(authoring);
+            CaveAuthoringResult cave = AuthorGalleryCave(replayAuthoring);
             if (!IsWorldbuildingGalleryCaveReplayCompatible(GalleryCavePathEnd, in cave))
                 throw new InvalidOperationException(
                     $"Gallery cave replay diverged from baked route semantics: expected={GalleryCavePathEnd} actual={cave.MainPathEnd}.");
@@ -221,6 +223,53 @@ namespace VoxelEngine.Showcase
             h ^= h >> 15;
             h *= 0x846CA68Bu;
             return h ^ (h >> 16);
+        }
+
+        /// <summary>
+        /// Compatibility replay adapter for the checked-in Gallery bake. Cave generation is reused
+        /// to recover deterministic traversal metadata, but all geometry writes are deliberately
+        /// discarded so replay cannot carve a second, vertically-shifted cave into authoritative
+        /// baked storage before secret-pocket physical preflight.
+        /// </summary>
+        private sealed class WorldbuildingGalleryCaveReplaySession : IStructureAuthoringSession
+        {
+            private readonly IStructureAuthoringSession _source;
+
+            public WorldbuildingGalleryCaveReplaySession(IStructureAuthoringSession source)
+            {
+                _source = source ?? throw new ArgumentNullException(nameof(source));
+            }
+
+            public bool BudgetExceeded => false;
+            public int WriteBudget => int.MaxValue;
+            public long TotalVoxelsWritten => 0;
+
+            public byte Get(int x, int y, int z) => _source.Get(x, y, z);
+            public byte GetCoating(int x, int y, int z) => _source.GetCoating(x, y, z);
+            public bool IsSolid(int x, int y, int z) => _source.IsSolid(x, y, z);
+
+            public void Set(int x, int y, int z, byte material) { }
+            public void SetStyled(int x, int y, int z, byte material, ushort surfaceStyle,
+                byte coating = Coatings.None, VoxelSurfaceFlags flags = VoxelSurfaceFlags.None) { }
+            public void Coat(int x, int y, int z, byte coating) { }
+            public void FillBulk(int3 min, int3 size, byte material) { }
+            public void FillColumnBulk(int x, int minY, int maxYExclusive, int z, byte material) { }
+            public void Box(int3 min, int3 size, byte material) { }
+            public void HollowBox(int3 min, int3 size, int thickness, byte material, bool floor, bool ceiling) { }
+            public void Cylinder(int cx, int baseY, int cz, int radius, int height, byte material,
+                int innerRadius = 0) { }
+            public void Disc(int cx, int y, int cz, int radius, byte material) { }
+            public void Cone(int cx, int baseY, int cz, int radius, int height, byte material) { }
+            public void HangingCone(int cx, int ceilingY, int cz, int radius, int height, byte material) { }
+            public void Gable(int3 min, int3 size, bool alongX, byte material) { }
+            public void Crenellate(int3 start, int3 step, int count, int width, int height,
+                int merlon, int gap, byte material) { }
+            public void CrenellateRing(int cx, int y, int cz, int radius, int height, byte material) { }
+            public void Arch(int3 min, int width, int height, int depth, int depthAxis, byte material) { }
+            public void Stairs(int3 min, int width, int steps, int rise, int run, int axis, byte material) { }
+            public void SpiralStair(int cx, int baseY, int cz, int radius, int height, byte material) { }
+            public void Carve(int3 min, int3 size) { }
+            public void Weather(int3 min, int3 size, byte coating, uint seed, int chanceOutOf100) { }
         }
     }
 }
