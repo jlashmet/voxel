@@ -3,20 +3,19 @@ using System.Collections.Generic;
 using Game.CharacterAI.Api;
 using Game.Characters.Api;
 using Game.Combat.Api;
-using Game.Combat.Runtime;
 
 namespace Game.CharacterAI.Adapters.Combat
 {
     /// <summary>
     /// Perception adapter over Combat authority. It exposes only CharacterIds plus semantic combat facts
-    /// to policy code; CombatService remains the tactical-domain owner.
+    /// to policy code; the combat implementation remains the tactical-domain owner.
     /// </summary>
     public sealed class CombatPerceptionSource : IAiPerceptionSource
     {
-        private readonly CombatService _combat;
+        private readonly ICombatService _combat;
         private readonly IReadOnlyDictionary<CombatParticipantId, CharacterId> _characters;
 
-        public CombatPerceptionSource(CombatService combat, IReadOnlyDictionary<CombatParticipantId, CharacterId> characters)
+        public CombatPerceptionSource(ICombatService combat, IReadOnlyDictionary<CombatParticipantId, CharacterId> characters)
         {
             _combat = combat ?? throw new ArgumentNullException(nameof(combat));
             _characters = characters ?? throw new ArgumentNullException(nameof(characters));
@@ -50,9 +49,8 @@ namespace Game.CharacterAI.Adapters.Combat
     }
 
     /// <summary>
-    /// Semantic bridge into the existing deterministic CombatAiBattleDriver. CharacterAI does not
-    /// reproduce tactical target selection or combat mutation; the existing Combat-owned mechanic
-    /// remains authoritative and executes through CombatService's command boundary.
+    /// Semantic bridge into Combat-owned tactical execution. CharacterAI does not reproduce tactical
+    /// target selection or combat mutation; composition supplies the authoritative combat step.
     /// </summary>
     public sealed class CombatTacticalIntentPolicy : IAiIntentPolicy
     {
@@ -67,11 +65,11 @@ namespace Game.CharacterAI.Adapters.Combat
 
     public sealed class CombatTacticalIntentExecutor : IAiIntentExecutor
     {
-        private readonly CombatAiBattleDriver _driver;
+        private readonly Func<bool> _stepCombat;
 
-        public CombatTacticalIntentExecutor(CombatAiBattleDriver driver)
+        public CombatTacticalIntentExecutor(Func<bool> stepCombat)
         {
-            _driver = driver ?? throw new ArgumentNullException(nameof(driver));
+            _stepCombat = stepCombat ?? throw new ArgumentNullException(nameof(stepCombat));
         }
 
         public AiIntentExecutionResult TryExecute(AiIntent intent)
@@ -80,7 +78,7 @@ namespace Game.CharacterAI.Adapters.Combat
                 return AiIntentExecutionResult.Reject("Combat adapter accepts only TacticalCombat intent.");
             try
             {
-                return _driver.Step()
+                return _stepCombat()
                     ? AiIntentExecutionResult.Accept()
                     : AiIntentExecutionResult.Reject("Combat authority is not active.");
             }
