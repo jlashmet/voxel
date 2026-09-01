@@ -18,12 +18,13 @@ namespace VoxelEngine.Showcase
     [DisallowMultipleComponent]
     public sealed class MountainDragonVoxelValidationShowcase : MonoBehaviour
     {
+        public const string SourceResourcePath =
+            "VoxelShowcase/MountainDragonSource/mountain_dragon_clean";
+
         private const uint EvidenceSeed = 0x5EED1234u;
         private const int SourceOriginX = 90;
         private const int VoxelOriginX = 235;
         private const int ExhibitOriginZ = 160;
-
-        [SerializeField] private GameObject m_SourceDragonPrefab;
 
         private ShowcaseWorld _world;
         private Camera _camera;
@@ -32,9 +33,10 @@ namespace VoxelEngine.Showcase
 
         private void Awake()
         {
-            if (m_SourceDragonPrefab == null)
+            GameObject sourcePrefab = Resources.Load<GameObject>(SourceResourcePath);
+            if (sourcePrefab == null)
                 throw new InvalidOperationException(
-                    "Mountain Dragon validation requires the exact Editor-reconstructed source OBJ.");
+                    "Mountain Dragon validation source resource is missing. The Editor build preprocessor must reconstruct it.");
 
             long started = Stopwatch.GetTimestamp();
             _world = new ShowcaseWorld(
@@ -51,7 +53,7 @@ namespace VoxelEngine.Showcase
 
             BakedVoxelStructure bake = MountainDragonBakedArtifact.Load();
             MeshStructurePlacementResult placement = _world.PlaceMountainDragon(voxelOrigin);
-            StageSourceMesh(bake, sourceOrigin);
+            StageSourceMesh(sourcePrefab, bake, sourceOrigin);
 
             var renderingWorld = new RenderingWorldBinding(
                 _world.ReadStorage,
@@ -84,9 +86,9 @@ namespace VoxelEngine.Showcase
                 + " voxel_origin=" + voxelOrigin.x + "," + voxelOrigin.y + "," + voxelOrigin.z);
         }
 
-        private void StageSourceMesh(BakedVoxelStructure bake, int3 sourceOrigin)
+        private void StageSourceMesh(GameObject sourcePrefab, BakedVoxelStructure bake, int3 sourceOrigin)
         {
-            _sourceDragon = Instantiate(m_SourceDragonPrefab);
+            _sourceDragon = Instantiate(sourcePrefab);
             _sourceDragon.name = "Source Mesh — presentation only";
 
             float scale = ShowcaseWorld.VoxelSize / bake.VoxelSize;
