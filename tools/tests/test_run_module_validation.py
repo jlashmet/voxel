@@ -11,7 +11,7 @@ spec.loader.exec_module(runner)
 
 
 class RunModuleValidationTests(unittest.TestCase):
-    def _run_test_with_results(self, xml_text, platform="PlayMode", assembly="Water.Tests.PlayMode"):
+    def _run_test_with_results(self, xml_text, platform="PlayMode", assembly="Water.Tests.PlayMode", test_filter=None):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             captured_args = []
@@ -25,13 +25,26 @@ class RunModuleValidationTests(unittest.TestCase):
 
             item = {"module": "water", "platform": platform, "assembly": assembly}
             with mock.patch.object(runner.subprocess, "run", side_effect=fake_run):
-                seconds = runner.run_test("/fake/unity", item, root)
+                seconds = runner.run_test("/fake/unity", item, root, test_filter=test_filter)
             return seconds, captured_args
 
-    def _run_persistent(self, edit=True, play=True, skipped=0):
+    def _run_persistent(self, edit=True, play=True, skipped_index=None, zero_index=None, requested_test=""):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             captured = {}
+
+            items = []
+            edit_assemblies = []
+            play_assemblies = []
+            if edit:
+                edit_assemblies = ["Terrain.Tests.EditMode", "Water.Tests.EditMode"]
+                items.extend([
+                    {"module": "terrain", "platform": "EditMode", "assembly": edit_assemblies[0]},
+                    {"module": "water", "platform": "EditMode", "assembly": edit_assemblies[1]},
+                ])
+            if play:
+                play_assemblies = ["Water.Tests.PlayMode"]
+                items.append({"module": "water", "platform": "PlayMode", "assembly": play_assemblies[0]})
 
             def fake_run(args, check, env):
                 captured["args"] = list(args)
@@ -42,30 +55,32 @@ class RunModuleValidationTests(unittest.TestCase):
                     "exit_code=0\nstatus=passed\nmessage=Persistent test phases passed.\n",
                     encoding="utf-8",
                 )
-                if edit:
-                    (out / "persistent-editmode.txt").write_text(
-                        f"passed=2\nfailed=0\nskipped={skipped}\ninconclusive=0\n",
-                        encoding="utf-8",
-                    )
-                if play:
-                    (out / "persistent-playmode.txt").write_text(
-                        "passed=3\nfailed=0\nskipped=0\ninconclusive=0\n",
+                flat_index = 0
+                for platform, assemblies in (("editmode", edit_assemblies), ("playmode", play_assemblies)):
+                    for index, assembly in enumerate(assemblies):
+                        skipped = 1 if skipped_index == flat_index else 0
+                        passed = 0 if zero_index == flat_index else 2
+                        (out / f"persistent-{platform}-{index}.txt").write_text(
+                            f"phase={platform}-{index}\nassembly={assembly}\npassed={passed}\nfailed=0\n"
+                            f"skipped={skipped}\ninconclusive=0\n",
+                            encoding="utf-8",
+                        )
+                        flat_index += 1
+                if requested_test:
+                    (out / "persistent-requested.txt").write_text(
+                        f"phase=requested\ntest={requested_test}\npassed=1\nfailed=0\nskipped=0\ninconclusive=0\n",
                         encoding="utf-8",
                     )
                 return mock.Mock(returncode=0)
 
-            items = []
-            if edit:
-                items.extend([
-                    {"module": "terrain", "platform": "EditMode", "assembly": "Terrain.Tests.EditMode"},
-                    {"module": "water", "platform": "EditMode", "assembly": "Water.Tests.EditMode"},
-                ])
-            if play:
-                items.append(
-                    {"module": "water", "platform": "PlayMode", "assembly": "Water.Tests.PlayMode"}
-                )
             with mock.patch.object(runner.subprocess, "run", side_effect=fake_run):
-                seconds = runner.run_persistent_tests("/fake/unity", items, root)
+                seconds = runner.run_persistent_tests(
+                    "/fake/unity",
+                    items,
+                    root,
+                    requested_test=requested_test,
+                    requested_platform="EditMode" if requested_test else "",
+                )
             return seconds, captured
 
     def test_required_module_test_rejects_zero_match(self):
@@ -95,14 +110,9 @@ class RunModuleValidationTests(unittest.TestCase):
     def test_compatible_editmode_and_playmode_share_one_persistent_editor(self):
         seconds, captured = self._run_persistent()
         self.assertGreaterEqual(seconds, 0)
-        self.assertEqual(
-            captured["env"]["VOXEL_CI_EDITMODE_ASSEMBLIES"],
-            "Terrain.Tests.EditMode;Water.Tests.EditMode",
-        )
-        self.assertEqual(
-            captured["env"]["VOXEL_CI_PLAYMODE_ASSEMBLIES"],
-            "Water.Tests.PlayMode",
-        )
+        self.assertEqual(captured["env"]["VOXEL_CI_EDITMODE_ASSEMBLIES"], "Terrain.Tests.EditMode;Water.Tests.EditMode")
+        self.assertEqual(captured["env"]["VOXEL_CI_PLAYMODE_ASSEMBLIES"], "Water.Tests.PlayMode")
+        self.assertEqual(captured["env"]["VOXEL_CI_PER_ASSEMBLY"], "1")
         self.assertEqual(captured["env"]["VOXEL_CI_BAKE_SHOWCASE"], "0")
         self.assertIn("-executeMethod", captured["args"])
         self.assertEqual(
@@ -112,14 +122,41 @@ class RunModuleValidationTests(unittest.TestCase):
         self.assertNotIn("-runTests", captured["args"])
         self.assertNotIn("-nographics", captured["args"])
 
-    def test_persistent_required_module_tests_reject_skips(self):
+    def test_each_required_persistent_assembly_must_execute_tests(self):
         with self.assertRaises(SystemExit) as raised:
-            self._run_persistent(play=False, skipped=1)
-        self.assertIn("did not all pass", str(raised.exception))
+            self._run_persistent(zero_index=1)
+        self.assertIn("Water.Tests.EditMode", str(raised.exception))
+        self.assertIn("executed zero tests", str(raised.exception))
+
+    def test_persistent_required_module_tests_reject_skips_per_assembly(self):
+        with self.assertRaises(SystemExit) as raised:
+            self._run_persistent(play=False, skipped_index=1)
+        self.assertIn("Water.Tests.EditMode", str(raised.exception))
         self.assertIn("1 skipped", str(raised.exception))
+
+    def test_compatible_requested_test_runs_in_same_persistent_editor(self):
+        requested = "Game.WorldBuilder.Tests.SecretDiscoveryTests.GeneratesClues"
+        _, captured = self._run_persistent(play=False, requested_test=requested)
+        self.assertEqual(captured["env"]["VOXEL_CI_REQUESTED_TEST"], requested)
+        self.assertEqual(captured["env"]["VOXEL_CI_REQUESTED_PLATFORM"], "EditMode")
+
+    def test_persistent_timeout_scales_with_selected_work(self):
+        _, captured = self._run_persistent()
+        self.assertEqual(captured["env"]["UNITY_MAX_MINUTES"], "12")
 
     def test_known_native_allocation_suite_remains_process_isolated(self):
         self.assertIn("VoxelEngine.Tests.PlayMode", runner.PROCESS_ISOLATED_ASSEMBLIES)
+        self.assertTrue(runner._requested_is_process_isolated("VoxelEngine.Tests.PlayMode.SomeRegression"))
+        self.assertFalse(runner._requested_is_process_isolated("VoxelEngine.Tests.Features.SomeRegression"))
+
+    def test_isolated_requested_filter_is_forwarded(self):
+        _, args = self._run_test_with_results(
+            '<test-run><test-case result="Passed" /></test-run>',
+            platform="PlayMode",
+            assembly="VoxelEngine.Tests.PlayMode",
+            test_filter="VoxelEngine.Tests.PlayMode.SomeRegression",
+        )
+        self.assertEqual(args[args.index("-testFilter") + 1], "VoxelEngine.Tests.PlayMode.SomeRegression")
 
 
 if __name__ == "__main__":
