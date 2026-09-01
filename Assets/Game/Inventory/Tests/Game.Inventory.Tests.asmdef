@@ -1,0 +1,14 @@
+{
+  "name": "Game.Inventory.Tests",
+  "rootNamespace": "Game.Inventory.Tests",
+  "references": ["Game.Inventory.Api", "Game.Inventory.Runtime", "Game.Characters.Api"],
+  "includePlatforms": ["Editor"],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
