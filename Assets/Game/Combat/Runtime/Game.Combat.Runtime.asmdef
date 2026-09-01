@@ -3,6 +3,7 @@
   "rootNamespace": "Game.Combat.Runtime",
   "references": [
     "Game.Combat.Api",
+    "Game.Encounters.Api",
     "Game.Input.Api"
   ],
   "includePlatforms": [],
