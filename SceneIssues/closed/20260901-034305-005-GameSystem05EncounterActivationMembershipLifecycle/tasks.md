@@ -32,7 +32,7 @@
 - [x] **T05-022 — Combat encounter integration fixture.** Semantic activation -> stable membership -> semantic Combat request -> Combat resolution -> cleanup is covered headlessly and production Kentridge follows the same seam.
 - [x] **T05-023 — Non-combat encounter fixture.** Same module resolves an authored Hightown social dispute without Combat.
 - [x] **T05-024 — Restore test.** Restores active membership/current state while proving no activation fact or Combat request replay.
-- [ ] **T05-025 — Independent authored fixture and automatic module validation.** Independent Hightown fixture is implemented; exact-SHA automatic module/dependent validation remains pending.
+- [x] **T05-025 — Independent authored fixture and automatic module validation.** Independent Hightown fixture is implemented; exact-SHA request `410a0f13afc38672b59a2df0fc7ecbe7e925836f` validated feature source `adc80ccb7d0d28f2c230f49beec6de17ee528e8a` in run `33490738386`: focused EditMode tests, automatic module validation, and standalone SceneIssue replay all passed.
 
 ## Cleanup / close
 
