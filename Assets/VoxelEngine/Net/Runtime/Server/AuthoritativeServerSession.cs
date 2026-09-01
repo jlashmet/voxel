@@ -48,10 +48,13 @@ namespace VoxelEngine.Net.Runtime.Server
             _regionStateInbox = new ServerRegionStateRequestInbox();
             _players = new ServerPlayerRegistry();
             _rateLimiter = new AlterationRateLimiter();
+            _gameplayStateEmitter = gameplayStateEmitter;
             _network = new ServerNetworkRuntime(
+                _inbox,
                 _inbox,
                 _convergenceInbox,
                 _regionStateInbox,
+                _gameplayStateEmitter,
                 maxConnections,
                 initialEventCapacity);
             _processor = new ServerCommandProcessor(_inbox, _players, _rateLimiter, serverSeed, densityCap);
@@ -59,7 +62,6 @@ namespace VoxelEngine.Net.Runtime.Server
             _bulkRegionState = new ServerBulkRegionStateManager(_regionStateInbox, _players);
             _playerStates = new ServerPlayerStateReplicator(_players, _processor, playerStateIntervalTicks);
             _defaultAlterationApplier = alterationApplier;
-            _gameplayStateEmitter = gameplayStateEmitter;
 
             _network.ConnectionOpened += OnConnectionOpened;
             _network.ConnectionClosed += OnConnectionClosed;
