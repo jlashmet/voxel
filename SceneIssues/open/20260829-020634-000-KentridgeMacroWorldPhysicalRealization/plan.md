@@ -17,8 +17,10 @@ A missing one-shot macro selection initially looked plausible, but source inspec
 
 The first real-caller discriminator run `33486393258` was terminal red before tests because the fixture called a nonexistent `KentridgeHiddenSpaceGeometry` type and therefore did not compile. This is a test-harness failure with no product signal. Source `930b6bfe28095fb4939dd26a1de12b2786de9a87` corrects only that fixture: it invokes the internal playable Kentridge/Hightown `Build` adapters for their shipped authoring side effects, then consumes the pending selection through the same valid production `KentridgeCombinedVoxelCatalogue.Build(seed, settings, allocator)` overload already proven by the shared contract test. No production behavior changed and no test-only geometry is injected.
 
+Exact feature head `1e7bb5f8b704023b661132facd46f9c1c0835476` has one corrected discriminator request on the sole transport: request commit `bb12938d95b6ddf5c966df2f4545f33119518564`, run `33495686226`. The run is admitted but queued; do not replace it. CI capacity is the current external blocker, so no discriminator-dependent product change is justified yet.
+
 ## Next gates
-1. Validate corrected real-caller discriminator source on the sole `ci-test/fixes/agent-6` transport now that `33486393258` is terminal.
+1. Monitor run `33495686226` without replacement and classify the corrected real-caller discriminator result.
 2. If it passes, isolate runtime region generation/publication for exact Fairy/Orc authored regions before any production fix. If it fails, identify the actual selector consumer from the managed assertion.
 3. After a demonstrated fix, require exact built-player stored shells plus readable Moordell/Rossdam/Fairy/Orc settlements, lake/constrained route, ridge/pass, network, and CharacterMotor traversal.
 4. Measure final route/water/feature/streaming/render/FPS/memory and vertical-residency blast radius.
