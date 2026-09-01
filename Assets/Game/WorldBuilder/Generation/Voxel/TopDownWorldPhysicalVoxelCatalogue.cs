@@ -376,14 +376,33 @@ namespace MountingForce.WorldGen.Voxel
             int foundationTop = terrainRelief + normalFoundationHeight;
             int wallHeight = Math.Max(scale, height - normalFoundationHeight);
             int wallThickness = Math.Max(scale, BuildingWallThicknessDm * scale);
+            int foundationWidth = width + inset * 2;
+            int foundationDepth = depth + inset * 2;
+            int foundationThickness = Math.Max(wallThickness, inset + wallThickness);
+            int foundationInnerDepth = Math.Max(scale, foundationDepth - foundationThickness * 2);
             int innerDepth = Math.Max(scale, depth - wallThickness * 2);
             int roofBase = terrainRelief + height;
             int roofHeight = BuildingRoofDm * scale;
             return new[]
             {
+                // A generic blockout only needs a grounded perimeter plinth. The outer foundation
+                // still spans the sampled terrain relief and supports every exterior timber wall,
+                // while the intentionally unused interior no longer pays solid-slab raster cost.
                 (int)ShapeOp.EmitBox, 0,
                 0, 0, 0,
-                width + inset * 2, foundationTop, depth + inset * 2,
+                foundationWidth, foundationTop, foundationThickness,
+                foundation, 0, 0, (int)PrimitiveMode.Fill,
+                (int)ShapeOp.EmitBox, 0,
+                0, 0, foundationDepth - foundationThickness,
+                foundationWidth, foundationTop, foundationThickness,
+                foundation, 0, 0, (int)PrimitiveMode.Fill,
+                (int)ShapeOp.EmitBox, 0,
+                0, 0, foundationThickness,
+                foundationThickness, foundationTop, foundationInnerDepth,
+                foundation, 0, 0, (int)PrimitiveMode.Fill,
+                (int)ShapeOp.EmitBox, 0,
+                foundationWidth - foundationThickness, 0, foundationThickness,
+                foundationThickness, foundationTop, foundationInnerDepth,
                 foundation, 0, 0, (int)PrimitiveMode.Fill,
 
                 // Readable generic blockouts only need an exterior shell. Four bounded wall boxes
@@ -408,7 +427,7 @@ namespace MountingForce.WorldGen.Voxel
 
                 (int)ShapeOp.EmitPrism, 0,
                 0, roofBase, 0,
-                width + inset * 2, roofHeight, depth + inset * 2,
+                foundationWidth, roofHeight, foundationDepth,
                 (int)PrismProfile.Gable,
                 roof, 0, 0, (int)PrimitiveMode.Fill,
                 (int)ShapeOp.End, 0
