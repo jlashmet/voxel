@@ -6,13 +6,20 @@ namespace Game.GameplayReplication.Api
 {
     public readonly struct GameplayRevision : IEquatable<GameplayRevision>, IComparable<GameplayRevision>
     {
+        public GameplayRevision(int value) : this((long)value) { }
+
         public GameplayRevision(long value)
         {
             if (value < 0) throw new ArgumentOutOfRangeException(nameof(value));
+            Value = (ulong)value;
+        }
+
+        public GameplayRevision(ulong value)
+        {
             Value = value;
         }
 
-        public long Value { get; }
+        public ulong Value { get; }
         public bool IsInitial => Value == 0;
         public bool IsValid => Value > 0;
         public GameplayRevision Next() => new GameplayRevision(checked(Value + 1));
