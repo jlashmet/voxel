@@ -36,6 +36,16 @@ World authoring/generation owns canonical feature truth. A reusable far-bake cap
 
 Reuse existing terrain coverage/detail work, deterministic vegetation/canopy work, projected-significance math, batching, and generic spatial-index code only where they conform to those boundaries. Remove or fold castle-specific visibility code before adding another feature type.
 
+## Current validated implementation state
+
+- **T002 validated:** `FeatureGeneration.EvaluateInstance` + `ShapeProgram.Evaluate` are the canonical pre-residency large-feature representation for catalogue-driven generated content. They emit deterministic bounded primitives/anchors without touching voxel bricks or region residency. Existing production Kentridge structure and WorldBuilder mountain generators both pass through this path.
+- **T003 validated:** `FeaturePresentationBake` + `FeaturePresentationBaker` derive stable identity/revision, conservative bounds, style/material family and generic coarse primitive payloads. `FeaturePresentationCatalogueBaker` provides one catalogue-level lifecycle hook and handles ordinary rules plus structural-root expansion without per-object visibility adapters. Exact focused CI run `33473262150` passed on CI child `e21a9b13e46723aa0595bf914f21eaedf25c476e`, parent feature SHA `303cb0b3e5e2b06405f23c1406676ee560b2344a`.
+- **T004 validated:** `IFeaturePresentationSource` / `FeaturePresentationManifest` provide a generic metadata-only sparse index with deterministic sector query, cross-sector de-duplication, stable SourceId ordering, replacement and removal. Exact focused CI run `33475203893` passed on CI child `44b4b34d300a142f05984bc2ef62961a737cb442`, parent feature SHA `303cb0b3e5e2b06405f23c1406676ee560b2344a`.
+
+## Next task: T005 planned castle lifecycle
+
+The castle is currently an outlier from the catalogue-driven path. `QueueLandmarks()` creates its deterministic `CastlePlan` before detailed residency, but normal `CastleAuthoringBuild` starts only after all castle terrain regions are generated. The build consumes the generic `IStructureAuthoringSession`, which is the reusable authoring seam, but castle site shaping performs `IsSolid` reads. Therefore a naive pre-residency recorder would be incorrect: T005 must either run the same canonical authoring recipe against a deterministic nonresident read model or migrate the castle planning/generation lifecycle so the generic bake sees canonical geometry before residency. A castle-only descriptor/event/manifest/renderer adapter remains explicitly disallowed.
+
 ## Remaining gates
 
-Audit canonical generation representation and prove generic bake feasibility -> automatic bake for two unrelated producers -> generic index/render handoff -> renderer readiness/hysteresis -> module-local built-player distance scene -> visual transition and landmark evidence -> device CPU/GPU/memory measurements -> exact-SHA module/Kentridge gates -> cleanup/docs/closure.
+T005 automatic planned-castle bake -> independent T006 producer -> population promotion -> generic render contract/selection/rendering/HLOD/readiness -> remove rejected castle/structure-specific paths -> terrain coverage/material/transition -> production-faithful module built-player validation -> visual/budget evidence -> exact-head gates -> cleanup/docs/closure.
