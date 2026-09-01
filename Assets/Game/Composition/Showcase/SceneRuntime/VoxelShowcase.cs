@@ -106,8 +106,6 @@ namespace VoxelEngine.Showcase
         [SerializeField] private int m_MaxBrushRadius = 40;
 
         [Header("Mesh Structures")]
-        [Tooltip("Baked sparse mountain-dragon artifact. Runtime decodes only voxel cells; the source mesh is never gameplay authority.")]
-        [SerializeField] private TextAsset m_MountainDragonVoxelBake;
         [SerializeField] private float m_StructurePlacementDistanceMetres = 12f;
 
         [Header("Networking")]
@@ -485,33 +483,11 @@ namespace VoxelEngine.Showcase
                  + $"structures={(_farTerrain.Structures != null)}";
         }
 
-        /// <summary>
-        /// Walks the player on a scripted loop instead of from the keyboard.
-        ///
-        /// Frame cost while moving is the number that matters and it was previously produced by a
-        /// human driving a window, which is neither repeatable nor separable from the stationary
-        /// measurement in the same log. This substitutes synthetic input at the top of the
-        /// existing movement path — the same wish vector, the same motor step, the same streaming
-        /// — rather than teleporting the transform, because a teleport helper skips exactly the
-        /// per-frame work being measured.
-        /// </summary>
         public bool AutoWalk { get; set; }
-
-        /// <summary>
-        /// Flies straight back from the landmark while keeping it centred, so every LOD ring
-        /// boundary is crossed in view.
-        ///
-        /// Popping is a transition between rings, and a ring boundary is only crossed by changing
-        /// distance to a fixed object. The circular walk keeps distance roughly constant and so
-        /// cannot show it at all; only receding can. Distance is logged with the frame line so a
-        /// visible pop can be matched to the ring cut that produced it.
-        /// </summary>
         public bool AutoRecede { get; set; }
-
         public float RecedeSpeedMetresPerSecond { get; set; } = 8f;
         public float RecedeMaxDistanceMetres { get; set; } = 360f;
 
-        /// <summary>Metres from the player to the landmark this world was built around.</summary>
         public float DistanceToLandmarkMetres
         {
             get
@@ -532,32 +508,9 @@ namespace VoxelEngine.Showcase
                                ShowcaseWorld.LandmarkCentreZ * 0.1f);
         }
 
-        /// <summary>
-        /// Backs away from the landmark at a fixed rate, aimed at it throughout.
-        ///
-        /// This flies rather than walks. Walking backwards over hundreds of metres of unsculpted
-        /// terrain ends up climbing hillsides and looking at the ground, which is a test of the
-        /// character motor rather than of the renderer.
-        /// </summary>
-        /// <summary>
-        /// Stands on top of the landmark and turns slowly, looking down at the surrounding
-        /// ground.
-        ///
-        /// Holes in terrain are reported from up here and are invisible from the ground, because
-        /// at eye level the near ground occludes everything a missing chunk would expose. The
-        /// vantage has to be high, aimed down, and turning, or the defect cannot be captured.
-        /// </summary>
         public bool AutoSurvey { get; set; }
-
         public float SurveyHeightMetres { get; set; } = 55f;
         public float SurveyPitchDegrees { get; set; } = 28f;
-
-        /// <summary>
-        /// Degrees a second the survey turns. Zero holds a heading, which separates "this chunk
-        /// has not been built yet" from "this chunk cannot be built": a turning camera
-        /// continuously brings unbuilt ground into view, so a standing backlog under rotation is
-        /// not the same defect as one that persists while still.
-        /// </summary>
         public float SurveySpinDegreesPerSecond { get; set; } = 30f;
 
         private void StepAutoSurvey()
@@ -585,8 +538,6 @@ namespace VoxelEngine.Showcase
             {
                 Vector3 direction = away / distance;
                 float travelled = RecedeSpeedMetresPerSecond * Time.deltaTime;
-                // Rise with distance so the castle stays in frame rather than sinking behind the
-                // terrain between here and it.
                 float height = landmark.y + 12f + distance * 0.16f;
                 Vector3 next = landmark + direction * (distance + travelled);
                 transform.position = new Vector3(next.x, height, next.z);
@@ -615,11 +566,6 @@ namespace VoxelEngine.Showcase
             transform.rotation = Quaternion.Euler(_pitch, _yaw, 0f);
         }
 
-        /// <summary>
-        /// Turns steadily while walking forward, so the path is a wide circle. Straight-line
-        /// travel leaves the small map; a circle keeps streaming and surface extraction working
-        /// continuously without the run degenerating into a teleport back to the middle.
-        /// </summary>
         private void StepAutoWalk()
         {
             const float DegreesPerSecond = 24f;
@@ -684,9 +630,6 @@ namespace VoxelEngine.Showcase
                 return;
             }
 
-            // Walking. Movement is flattened to the ground plane so looking up does not slow
-            // you down, and held while the region under the character is still generating —
-            // an ungenerated region reads as empty and would drop the player through it.
             if (!_world.IsGenerated(ShowcaseWorld.RegionAt(_motor.Position)))
             {
                 transform.position = _motor.EyePosition;
@@ -710,30 +653,12 @@ namespace VoxelEngine.Showcase
             Cursor.visible = !locked;
         }
 
-        /// <summary>
-        /// Reacquires mouse capture after focus comes back, which the editor otherwise never does.
-        ///
-        /// Losing focus releases the mouse — alt-tab, a click into the Inspector, any dialog —
-        /// but leaves <see cref="Cursor.lockState"/> reading <c>Locked</c>. So the state this
-        /// component believes in and the state the editor is actually enforcing disagree, and
-        /// because assigning a property its current value does nothing, no amount of setting
-        /// <c>Locked</c> on the way back re-captures anything. The result is a live pointer over
-        /// a character that will not turn.
-        ///
-        /// The transition is what the editor acts on, so this drives one: release on the frame
-        /// focus returns, capture on the next. Both halves have to be real assignments, and they
-        /// have to land in different frames — collapsed into one frame the editor coalesces them
-        /// back into the no-op this exists to avoid.
-        /// </summary>
         private void SyncCursorLock()
         {
             bool focused = Application.isFocused;
             bool regained = focused && !_hadFocus;
             _hadFocus = focused;
 
-            // `_mouseLook` is the intent, so a cursor deliberately released with Escape stays
-            // released, and an unfocused editor never has the mouse snatched back out from under
-            // whatever window the developer is actually working in.
             if (regained && _mouseLook) _relockFrames = 2;
             if (_relockFrames == 0 || !focused || !_mouseLook) return;
 
@@ -745,9 +670,6 @@ namespace VoxelEngine.Showcase
 
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
-
-            // The pointer was free for a frame and travelled. Left in the axes, that distance
-            // arrives as one enormous delta and snaps the view the instant capture resumes.
             Input.ResetInputAxes();
         }
 
@@ -765,13 +687,13 @@ namespace VoxelEngine.Showcase
 
         private bool TryPlaceSelectedStructure(int selectedIndex)
         {
-            if (selectedIndex != 0 || _world == null || m_MountainDragonVoxelBake == null)
+            if (selectedIndex != 0 || _world == null)
             {
                 _lastEditLabel = "mountain dragon bake unavailable";
                 return false;
             }
 
-            BakedVoxelStructure bake = BakedVoxelStructureCodec.Decode(m_MountainDragonVoxelBake.text);
+            BakedVoxelStructure bake = MountainDragonBakedArtifact.Load();
             MountainDragonVoxelBakePolicy.ValidateBakeEnvelope(bake);
 
             Vector3 forward = Vector3.ProjectOnPlane(transform.forward, Vector3.up);
@@ -833,17 +755,11 @@ namespace VoxelEngine.Showcase
                                             m_MinBrushRadius, m_MaxBrushRadius);
         }
 
-        /// <summary>Whether the player-facing E prompt should currently be visible.</summary>
         public bool InteractionPromptVisible => _multiplayer?.IsActive != true
             && _world != null && _motor != null
             && (_world.CanOpenCastleFrontGate(_motor.Position)
                 || _world.CanOpenCastleTrapdoor(_motor.Position));
 
-        /// <summary>
-        /// Performs the interaction bound to E. Keeping this as a callable driver operation lets
-        /// tests exercise the same motor-position gate and feedback path as keyboard input rather
-        /// than bypassing the showcase and calling the world mutation directly.
-        /// </summary>
         public bool TryInteract()
         {
             if (_world == null || _motor == null || _multiplayer?.IsActive == true) return false;
@@ -887,7 +803,6 @@ namespace VoxelEngine.Showcase
                 _flashlightEnabled, transform.position, transform.forward);
         }
 
-        /// <summary>Launches a visible corkscrew projectile; impact remains world-authoritative.</summary>
         public void LaunchTornado(Vector3 origin, Vector3 direction, int impactRadius)
         {
             if (_tornadoes.Count >= MaxActiveTornadoes)
@@ -938,7 +853,6 @@ namespace VoxelEngine.Showcase
             }
 
             CreateTornadoCore(shot);
-
             UpdateTornadoVisual(shot);
             _tornadoes.Add(shot);
         }
@@ -957,8 +871,6 @@ namespace VoxelEngine.Showcase
 
                 if (TryTornadoImpact(previous, shot.Position, out int3 hit, out bool semanticTreeHit))
                 {
-                    // Structural classification is CPU-authoritative. Serialize impacts so a
-                    // shotgun burst cannot schedule several large connectivity walks in one frame.
                     if (impactsThisFrame > 0)
                     {
                         shot.Position = previous;
@@ -1182,9 +1094,6 @@ namespace VoxelEngine.Showcase
         private void EnsureTornadoMaterial()
         {
             if (_tornadoMaterial != null) return;
-            // UI/Default is a late transparent vertex-colour shader. The custom voxel pass
-            // fills the opaque target immediately before transparents, so the effect stays in the
-            // late transparent queue and composes over extracted voxel geometry.
             Shader shader = Shader.Find("UI/Default");
             if (shader == null) shader = Shader.Find("Sprites/Default");
             if (shader == null) shader = Shader.Find("Universal Render Pipeline/Particles/Unlit");
@@ -1200,8 +1109,6 @@ namespace VoxelEngine.Showcase
             var root = new GameObject("Tornado impact");
             root.transform.position = position;
             var particles = root.AddComponent<ParticleSystem>();
-            // A newly-added ParticleSystem starts immediately. Stop it before configuring
-            // duration and bursts; Unity rejects those mutations while it is playing.
             particles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
             var main = particles.main;
             main.duration = 0.18f;
@@ -1226,16 +1133,12 @@ namespace VoxelEngine.Showcase
             Destroy(root, 1.2f);
         }
 
-        // -- interaction prompt --------------------------------------------------
-
         private void OnGUI()
         {
             if (!Application.isPlaying || _world == null) return;
 
             DrawNetworkPanel();
 
-            // Placement mode owns wheel + Space. Outside it, the ordinary brush and movement
-            // meanings remain untouched.
             if (StructurePlacementActive)
             {
                 var placement = new GUIStyle(GUI.skin.box)
