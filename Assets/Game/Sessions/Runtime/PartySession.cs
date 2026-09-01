@@ -39,6 +39,8 @@ namespace Game.Sessions.Runtime
         public PartySession(GameSessionId sessionId, SessionStartupConfiguration configuration, ICharacterBindingWriter characterBindings = null)
         {
             if (!sessionId.IsValid) throw new ArgumentException("Session id is required.", nameof(sessionId));
+            if (configuration.Capacity < 1 || string.IsNullOrWhiteSpace(configuration.ProtocolVersion) || string.IsNullOrWhiteSpace(configuration.ContentCompatibilityKey))
+                throw new ArgumentException("A valid startup configuration is required.", nameof(configuration));
             _sessionId = sessionId;
             _configuration = configuration;
             _characterBindings = characterBindings;
@@ -146,19 +148,44 @@ namespace Game.Sessions.Runtime
             }
 
             MemberState state = _members[index];
-            if (state.CharacterId.IsValid && state.CharacterId != characterId)
+            if (state.CharacterId == characterId)
+                return true;
+            if (state.CharacterId.IsValid)
                 return false;
 
             if (_characterBindings != null)
             {
                 CharacterRegistryFailure failure = _characterBindings.Bind(characterId, new CharacterBinding("party-member", memberId.Value));
-                if (failure != CharacterRegistryFailure.None && failure != CharacterRegistryFailure.DuplicateBinding)
+                if (failure != CharacterRegistryFailure.None)
                     return false;
             }
 
             state.CharacterId = characterId;
             _members[index] = state;
             Publish(SessionLifecycleEventKind.CharacterBound, memberId);
+            return true;
+        }
+
+        public bool TransferLeadership(PartyMemberId successorId)
+        {
+            if (!_indexByMember.TryGetValue(successorId, out int successorIndex))
+                return false;
+            if (_members[successorIndex].LeadershipRole == PartyLeadershipRole.Leader)
+                return true;
+
+            for (int i = 0; i < _members.Count; i++)
+            {
+                if (_members[i].LeadershipRole != PartyLeadershipRole.Leader) continue;
+                MemberState current = _members[i];
+                current.LeadershipRole = PartyLeadershipRole.Member;
+                _members[i] = current;
+                break;
+            }
+
+            MemberState successor = _members[successorIndex];
+            successor.LeadershipRole = PartyLeadershipRole.Leader;
+            _members[successorIndex] = successor;
+            Publish(SessionLifecycleEventKind.LeaderChanged, successorId);
             return true;
         }
 
@@ -175,12 +202,7 @@ namespace Game.Sessions.Runtime
             Publish(SessionLifecycleEventKind.MemberRemoved, memberId);
 
             if (wasLeader && _members.Count > 0 && _configuration.LeaderTransferPolicy == LeaderTransferPolicy.OldestRemainingMember)
-            {
-                MemberState successor = _members[0];
-                successor.LeadershipRole = PartyLeadershipRole.Leader;
-                _members[0] = successor;
-                Publish(SessionLifecycleEventKind.LeaderChanged, successor.MemberId);
-            }
+                TransferLeadership(_members[0].MemberId);
             return true;
         }
 
