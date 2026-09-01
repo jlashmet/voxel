@@ -84,7 +84,8 @@ These are existing foundations and are not candidates to rebuild from scratch.
   - Present durable party/session identities, readiness, teammate state, and reconnect continuity without coupling UI to transport connections or duplicating gameplay state.
 - [x] **21. [Gameplay audio integration & semantic cue presentation](game-systems/21-gameplay-audio-integration-semantic-cue-presentation.md)**
   - Map typed semantic gameplay and authored cutscene cues into client-side audio presentation without putting clip identity, playback commands, or Unity audio dependencies into gameplay authority.
-- [ ] **22. Combat / interaction VFX and feedback**
+- [x] **22. [Combat / interaction VFX & semantic feedback](game-systems/22-combat-interaction-vfx-semantic-feedback.md)**
+  - Derive transient and state-driven visual feedback from semantic gameplay truth without coupling authority to Unity VFX, prefab identity, or cosmetic destruction.
 - [ ] **23. Game menus / settings / start flow**
 - [ ] **24. Integrated built-player vertical slice**
 - [ ] **25. Multiplayer end-to-end gameplay tests**
