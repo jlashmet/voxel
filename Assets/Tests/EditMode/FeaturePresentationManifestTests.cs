@@ -12,10 +12,10 @@ namespace VoxelEngine.Tests.EditMode
         {
             var manifest = new FeaturePresentationManifest(sectorSizeVoxels: 100);
             FeaturePresentationBake mountain = Bake(
-                sourceId: 30, revision: 1, FeatureKind.Landform,
+                30, 1, FeatureKind.Landform,
                 new int3(80, 10, -20), new int3(180, 140, 90), PrimitiveShape.Frustum);
             FeaturePresentationBake structure = Bake(
-                sourceId: 10, revision: 1, FeatureKind.Structure,
+                10, 1, FeatureKind.Structure,
                 new int3(-30, 20, -30), new int3(40, 90, 40), PrimitiveShape.Box);
 
             manifest.Upsert(mountain);
@@ -36,7 +36,7 @@ namespace VoxelEngine.Tests.EditMode
         {
             var manifest = new FeaturePresentationManifest(sectorSizeVoxels: 100);
             manifest.Upsert(Bake(
-                sourceId: 20, revision: 1, FeatureKind.Infrastructure,
+                20, 1, FeatureKind.Infrastructure,
                 new int3(90, 200, 90), new int3(210, 260, 210), PrimitiveShape.Ramp));
 
             var below = manifest.Query(new FeaturePresentationBounds(
@@ -54,10 +54,10 @@ namespace VoxelEngine.Tests.EditMode
         {
             var manifest = new FeaturePresentationManifest(sectorSizeVoxels: 100);
             manifest.Upsert(Bake(
-                sourceId: 7, revision: 1, FeatureKind.Structure,
+                7, 1, FeatureKind.Structure,
                 new int3(0, 0, 0), new int3(30, 30, 30), PrimitiveShape.Box));
             manifest.Upsert(Bake(
-                sourceId: 7, revision: 2, FeatureKind.Structure,
+                7, 2, FeatureKind.Structure,
                 new int3(300, 0, 300), new int3(340, 40, 340), PrimitiveShape.RoundedBox));
 
             Assert.That(manifest.Count, Is.EqualTo(1));
@@ -76,7 +76,7 @@ namespace VoxelEngine.Tests.EditMode
         {
             var manifest = new FeaturePresentationManifest(sectorSizeVoxels: 100);
             manifest.Upsert(Bake(
-                sourceId: 9, revision: 1, FeatureKind.Landform,
+                9, 1, FeatureKind.Landform,
                 new int3(90, 0, 90), new int3(210, 120, 210), PrimitiveShape.Ellipsoid));
 
             Assert.That(manifest.Remove(9), Is.True);
@@ -108,7 +108,7 @@ namespace VoxelEngine.Tests.EditMode
                 revision,
                 kind,
                 min,
-                orientation: 0,
+                0,
                 min,
                 max,
                 new[] { primitive });
