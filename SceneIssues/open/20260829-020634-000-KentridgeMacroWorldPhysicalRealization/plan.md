@@ -13,17 +13,18 @@
 - Shared selector contract run `33485694443` is green, confirming the seed catalogue requires and consumes the explicit semantic handoff.
 - Corrected real-caller discriminator run `33495686226` passed the requested PlayMode test and repository-derived module validation on exact source `1e7bb5f8...`; its standalone replay did not run because the request used a bare SceneIssue id.
 - Corrected runtime-trace run `33500236600` is fully green on exact source `91997c77e7b4218bc2c2c2877526211e107f80b0`: focused production storage, module validation, and 60-second standalone replay all passed. The player logs `runtime-catalogue definitions=434` while Fairy, Orc, Moordell, Rossdam, roads, ridge, and water are all absent (`0/0/0@none`) before remote generation. This selects catalogue composition/handoff as the failing boundary, not evaluator, rasterizer, region publication, or later storage overwrite.
+- Exact production-planning discriminator run `33503231955` is green on source `e43c40579563cc72ded9027aadd1c485d5526475`: the shipped Kentridge authoring -> Hightown authoring -> opening campaign planning -> settlement/hidden-space `KentridgeCombinedVoxelCatalogue.Build(...)` sequence retains Fairy and Orc macro definitions, and automatic module validation also passes.
 
 ## Current root-cause isolation
-The existing green `PlayableCompatibilityAuthoringLeavesMacroSelectionForCatalogueBuild` already mirrors Kentridge then Hightown authoring, so Hightown does not consume the one-shot macro selection. Campaign planning does not directly access `TopDownWorldLayoutSelection`.
+The synchronous production path through the exact Kentridge catalogue overload is now proven correct. Hightown authoring is not the consumer, campaign planning does not drain the handoff, and the settlement/hidden-space overload returns macro content under the same production sequence.
 
-The remaining production-only delta is the catalogue overload: the green discriminator consumes through `KentridgeCombinedVoxelCatalogue.Build(seed, settings, allocator)`, while shipped `KentridgePlayableSlice.OnEnable` consumes after real opening campaign planning through `Build(settlement, settings, generation.HiddenSpaces, allocator)`.
+The prior `PlayableCatalogueRetainsFairySettlementAfterHightownAndCorridorCombine` also proves final Kentridge+Hightown+corridor combination, `ShowcaseWorld.ConfigureGeneratedContentForGameplay`, signed negative-Z streaming, and storage preserve macro content when macro input is present. Therefore another generic combine/configure test would duplicate already-green evidence.
 
-Feature head `48614eb3fba318e05d734cb9a698053d0ba41d57` adds `PlayableProductionPlanningLeavesMacroSelectionForGeometryCatalogueBuild`, mirroring Kentridge authoring -> Hightown authoring -> real opening campaign planning -> exact settlement/hidden-space catalogue build. No production behavior changed.
+The remaining discrepancy is player lifecycle/ownership between the synchronous catalogue return and the built-player runtime diagnostic: duplicate `KentridgePlayableSlice` enablement, another one-shot consumer, deferred presentation lifecycle, or diagnostic/instance ownership could explain why the player reports a local-only 434-definition catalogue while focused production sequencing is green. Isolate that exact player-only boundary before any product fix.
 
 ## Next gates
-1. Run the new exact production-planning discriminator on the sole `ci-test/fixes/agent-6` transport without replacing any queued/running request.
-2. If it fails, use its first failing assertion as the minimal repro/root cause and fix only that demonstrated handoff/overload defect. If it passes, isolate the final Kentridge+Hightown+corridor composition/configure boundary before any product fix.
+1. Inspect exact feature source and scene composition for `KentridgeTopDownWorldLayoutPresentation` lifecycle, every `TopDownWorldLayoutSelection.TryConsume`/Kentridge catalogue consumer, the `runtime-catalogue` diagnostic, and all `KentridgePlayableSlice` instances/enable paths.
+2. Add the smallest lifecycle/duplicate-consumer regression or diagnostic that discriminates the first proven player-only owner; do not make another product fix until this minimal repro identifies it.
 3. After a demonstrated product fix, require exact built-player macro definitions, authoritative stored shell/roof probes, and readable Moordell/Rossdam/Fairy/Orc settlements plus lake/constrained route, ridge/pass, network, and CharacterMotor traversal.
 4. Measure final route/water/feature/streaming/render/FPS/memory and vertical-residency blast radius.
 5. Merge current master before final exact-SHA gates; close and non-force promote only after every checklist/acceptance item is green.
