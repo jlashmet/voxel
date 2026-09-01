@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Game.CharacterAI.Adapters.Combat;
 using Game.CharacterAI.Api;
 using Game.CharacterAI.Runtime;
 using Game.Characters.Api;
