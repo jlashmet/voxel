@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "runSeconds": 37,
+  "runSeconds": 45,
   "capture": {
     "width": 1600,
     "height": 900,
@@ -12,7 +12,8 @@
     "requiredLogPatterns": [
       "MOUNTAIN_DRAGON_VALIDATION_COST",
       "MOUNTAIN_DRAGON_VALIDATION ready:",
-      "MOUNTAIN_DRAGON_CAPTURE view=tail-closeup"
+      "MOUNTAIN_DRAGON_CAPTURE view=tail-closeup",
+      "MOUNTAIN_DRAGON_DESTRUCTION_WORLD_TRUTH"
     ],
     "forbiddenLogPatterns": [
       "NullReferenceException",
