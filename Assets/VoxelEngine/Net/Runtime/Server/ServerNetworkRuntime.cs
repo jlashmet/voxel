@@ -152,9 +152,14 @@ namespace VoxelEngine.Net.Runtime.Server
         {
             ThrowIfDisposed();
             if (!ProtocolEnvelope.TryReadHeader(packet, out ProtocolMessageKind kind, out _) ||
-                kind != ProtocolMessageKind.S_GameplayState)
+                kind != ProtocolMessageKind.S_GameplayState ||
+                packet.Length > ChannelSetup.k_MaxBulkPacketBytes)
                 return false;
-            return _host.TrySend(connectionId, UtpChannel.Event, packet);
+
+            UtpChannel channel = packet.Length <= ChannelSetup.k_MaxEventPacketBytes
+                ? UtpChannel.Event
+                : UtpChannel.Bulk;
+            return _host.TrySend(connectionId, channel, packet);
         }
 
         public int UpdateConnectionPosition(uint connectionId, int3 playerVoxelPosition)
