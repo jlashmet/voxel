@@ -14,23 +14,25 @@ World generators remain authoritative. `FeaturePresentationBake` is derived pres
 
 ## Validated state
 
-- T002: `FeatureGeneration.EvaluateInstance` / `ShapeProgram.Evaluate` is the canonical pre-residency representation used by unrelated production structure and landform generators.
-- T003: generic bake/catalogue lifecycle validated by run `33473262150` on feature `303cb0b3e5e2b06405f23c1406676ee560b2344a`.
-- T004: generic sparse `FeaturePresentationManifest` validated by run `33475203893` on the same feature SHA.
-- T005: planned Showcase castle enters the normal bake path before detailed residency; RNG zero-seed production defect fixed. Run `33490275502` passed on feature `c147864826f4a5e90b365548c526b4e2556f8a22`.
-- T006: castle + independent production mountain/landform coexist through the same manifest with stable identities/revisions/bounds and zero detailed-region generation. Focused + automatic module validation passed on feature `50e0dab2a2e9740a8ce3c8440401f46f3f5812f4`.
-- T007: ordinary scatter stays in deterministic population queries while exceptional members promote once into the generic sparse presentation path. The corrected request with empty `scene_issue` passed exactly in run `33499579137` on CI child `ac18adb464d0bad07c1bba910f9ee7ae80e4de68`.
+- T002: canonical pre-residency generation representation established through `FeatureGeneration.EvaluateInstance` / `ShapeProgram.Evaluate`.
+- T003: generic bake/catalogue lifecycle passed run `33473262150` on feature `303cb0b3e5e2b06405f23c1406676ee560b2344a`.
+- T004: generic sparse `FeaturePresentationManifest` passed run `33475203893` on the same feature SHA.
+- T005: never-visited planned Showcase castle enters the normal bake path before detailed residency; run `33490275502` passed on feature `c147864826f4a5e90b365548c526b4e2556f8a22`.
+- T006: castle + independent production landform coexist through the same manifest with stable identity/revision/bounds and zero detailed-region generation; focused + automatic module validation passed on feature `50e0dab2a2e9740a8ce3c8440401f46f3f5812f4`.
+- T007: ordinary scatter stays in population queries while exceptional members promote once into generic sparse presentation; run `33499579137` passed on CI child `ac18adb464d0bad07c1bba910f9ee7ae80e4de68`.
+- T008: generic `FarFeatureInstance` / `IFarFeatureRenderer` contract and zero-persistent-object renderer are implemented; the stale `FarStructureInstance` test-surface migration was completed and its focused gate passed before T009 work.
+- T009: `FarFeaturePresentationAdapter` plus projected-significance/hysteresis policy is wired generically. Exact run `33520315630` passed `FarFeaturePresentationSelectionTests` on CI child `c3d2c6c556df78f67d3f3480f72159efeec80a8e`, parent feature `39e03bc3f215a1d3d9eb70ef6504c6bce9ae7f19`.
 
-## Current discriminator / blocker
+## Current discriminator
 
-T008 is implemented narrowly on the feature branch: Rendering API exposes `FarFeatureTier`, `FarFeatureVisualFlags`, `FarFeatureInstance`, and `IFarFeatureRenderer`; Showcase adapts its game-owned structure selection into that generic contract; `ProceduralFarFeatureRenderer` treats geometry/style keys as opaque and keeps zero persistent per-feature GameObjects.
+T010 exposed a real architecture gap: `ProceduralFarFeatureRenderer` cached/batched correctly but collapsed every `GeometryKey` to one fallback cube, so unrelated baked silhouettes were lost. The selected fix keeps the Rendering API producer-neutral while adding immutable normalized `FarFeatureGeometry` primitives. `FarFeaturePresentationAdapter` converts the canonical bake primitive stream at the composition boundary; Rendering.Runtime generically builds cached conservative massing (including distinct cylinder massing) and retains the old cube only for legacy callers with no geometry payload. A regression sends unrelated structure-box and landform-cylinder bakes through the same adapter/renderer, asserts distinct meshes, cache reuse, stable batching inputs, and zero per-feature GameObjects.
 
-Two materially different T008 compile fixes exposed the same acceptance symptom: the generic render contract replaced/deleted `FarStructureInstance`, but branch-local regression files created earlier in this assignment were not migrated atomically. Run `33508370189` failed on three stale `ShowcaseFarStructureSourceTests` helper signatures; feature `4d8e02128f3c8ce804da941edd3ec2bb20572818` migrated that file. Exact rerun `33509860849` then failed only on `SettlementFarHlodTests` lines 38/50/54 with the same missing `FarStructureInstance` symbol. The compiler reported no remaining `FarStructureInstance` errors in other files. This is now the isolated root cause/minimal repro required by the two-failure rule: incomplete test-surface migration after deleting the legacy render type, not a renderer behavior defect.
+Exact T010 request SHA `2fda448add86529f0d877ed29db7c9bc643935ff` (parent feature `7c3255bba7d6abbd680caa2336c2f020a279ee6d`) is queued as run `33528870152` for `VoxelEngine.Tests.EditMode.FarFeatureRenderingTests`. The self-hosted macOS job has not acquired a runner; do not replace it.
 
 ## Next independent work
 
-Migrate `SettlementFarHlodTests` output-side assertions from `FarStructureInstance`/`ProxyKey`/render-tier expectations to `FarFeatureInstance`/`GeometryKey`/`FarFeatureTier`, while preserving `FarStructureTier` only where it remains the scene-owned selection-policy input. Then rerun the same T008 focused exact-SHA gate. Do not pull T009 projected-significance policy or T010 baked-geometry implementation forward until T008 is exact green.
+If T010 passes, mark it validated and begin T011 by auditing the existing settlement cluster and forest-canopy aggregate owners for generic truth inputs, deterministic/hysteretic member handoff, landmark independence, and revision-scoped invalidation. If T010 fails, fix that proven cause before any new CI request.
 
 ## Remaining gates
 
-T008 generic render contract -> generic selection/rendering/HLOD/readiness -> delete rejected structure/castle-specific paths -> terrain coverage/material/transition -> production-faithful module built-player validation -> visual/budget evidence -> final exact-head gates -> cleanup/docs/closure.
+T010 exact green -> T011 aggregate HLOD -> T012 readiness handoff -> remove rejected castle/parallel structure far authority -> terrain coverage/material/transition -> production-faithful module built-player validation -> visual/budget evidence -> final exact-head gates -> cleanup/docs/closure.
