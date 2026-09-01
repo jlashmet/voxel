@@ -46,17 +46,6 @@ jobs:
           clean: true
           fetch-depth: 0
 
-      - name: Publish pending commit status
-        if: github.event_name == 'push'
-        uses: actions/github-script@v7
-        env:
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        with:
-          script: |
-            await github.rest.repos.createCommitStatus({owner: context.repo.owner, repo: context.repo.repo,
-              sha: context.sha, state: 'pending', context: 'ci/single-test',
-              description: 'Exact-SHA validation is running', target_url: process.env.RUN_URL});
-
       - name: Resolve request and feature source
         id: request
         shell: bash
@@ -97,6 +86,18 @@ jobs:
           fi
           printf 'test=%s\nplatform=%s\nrequest_id=%s\nscene_issue=%s\nreplay_seconds=%s\nsource_sha=%s\n' \
             "$test_name" "$platform" "$request_id" "$scene_issue" "$replay_seconds" "$source_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Publish pending commit status
+        if: github.event_name == 'push'
+        uses: actions/github-script@v7
+        env:
+          SOURCE_SHA: ${{ steps.request.outputs.source_sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          script: |
+            await github.rest.repos.createCommitStatus({owner: context.repo.owner, repo: context.repo.repo,
+              sha: process.env.SOURCE_SHA, state: 'pending', context: 'ci/single-test',
+              description: 'Exact-SHA validation is running', target_url: process.env.RUN_URL});
 
       - name: Resolve Unity
         id: unity
@@ -216,11 +217,12 @@ jobs:
         if: always() && github.event_name == 'push'
         uses: actions/github-script@v7
         env:
+          SOURCE_SHA: ${{ steps.request.outputs.source_sha }}
           JOB_STATUS: ${{ job.status }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
           script: |
             const success=process.env.JOB_STATUS === 'success';
             await github.rest.repos.createCommitStatus({owner: context.repo.owner, repo: context.repo.repo,
-              sha: context.sha, state: success ? 'success' : 'failure', context: 'ci/single-test',
+              sha: process.env.SOURCE_SHA, state: success ? 'success' : 'failure', context: 'ci/single-test',
               description: success ? 'Exact-SHA validation passed' : 'Exact-SHA validation failed', target_url: process.env.RUN_URL});
