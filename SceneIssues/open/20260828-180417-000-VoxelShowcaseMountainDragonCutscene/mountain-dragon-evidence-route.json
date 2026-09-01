@@ -338,8 +338,8 @@
     },
     {
       "name": "mid-turn",
-      "x": -142.0,
-      "z": 28.0,
+      "x": -142.6,
+      "z": 26.6,
       "requireGrounded": true,
       "holdSeconds": 1.0,
       "capture": "04-mid-turn.png",
