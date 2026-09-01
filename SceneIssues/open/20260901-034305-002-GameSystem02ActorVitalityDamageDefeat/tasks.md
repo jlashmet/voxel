@@ -14,6 +14,7 @@
   - **BLOCKED:** public signature depends on the System 03 `CharacterId` contract and ticket-specified shared session identity.
 - [ ] **T02-004 — Define damage contract.** Add authoritative damage request/result including stable request identity only where existing command delivery can duplicate requests; represent rejection reasons semantically.
   - **BLOCKED:** public signature depends on the System 03 `CharacterId` contract and ticket-specified shared session identity.
+  - Delivery decision: System 01 specifies a semantic in-process Combat -> Vitality call, while System 06 owns ordered replicated snapshot/delta revisions and stale-delta rejection. Do not add a speculative network command/idempotency token to `DamageRequest`; test deterministic repeated damage/defeat behavior locally and leave stale projection rejection to GameplayReplication.
 - [ ] **T02-005 — Define defeat transition/event.** Guarantee one transition event when crossing the terminal threshold; do not conflate defeat with removal, combat resolution, or game outcome.
   - **BLOCKED:** public signature depends on the System 03 `CharacterId` contract and ticket-specified shared session identity.
 - [x] **T02-006 — Add heal/restore contract only if required.** Inspect current content/tests first; do not invent revive/respawn semantics.
