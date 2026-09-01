@@ -35,7 +35,7 @@ namespace VoxelEngine.Showcase.Editor
             }
         }
 
-        public static Result GeneratePinnedBake()
+        public static MeshVoxelizationSource LoadPinnedSource()
         {
             MountainDragonSourceArchive.ReconstructImportedAsset();
             GameObject sourceRoot = AssetDatabase.LoadAssetAtPath<GameObject>(
@@ -52,7 +52,12 @@ namespace VoxelEngine.Showcase.Editor
                 throw new InvalidOperationException(
                     $"Mountain-dragon imported triangle count changed: expected " +
                     $"{MountainDragonVoxelBakePolicy.ExpectedSourceTriangleCount}, got {source.Triangles.Length}.");
+            return source;
+        }
 
+        public static Result GeneratePinnedBake()
+        {
+            MeshVoxelizationSource source = LoadPinnedSource();
             MeshVoxelizationSettings settings = MountainDragonAuthoringPolicy.CreateVoxelizationSettings();
             BakedVoxelStructure bake = MeshVoxelizer.Voxelize(in source, in settings);
             MountainDragonVoxelBakePolicy.ValidateBakeEnvelope(bake);
