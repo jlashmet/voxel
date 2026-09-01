@@ -5,6 +5,8 @@ using Game.Combat.Api;
 using Game.Combat.Runtime;
 using Game.Input.Api;
 using Game.Input.Runtime;
+using Game.Vitality.Api;
+using Game.Vitality.Runtime;
 using MountingForce.WorldGen;
 using MountingForce.WorldGen.Content.Hightown;
 using MountingForce.WorldGen.Content.Kentridge;
@@ -17,7 +19,7 @@ namespace Game.Composition.Kentridge.Playable
     /// Production composition seam for the first Combat/Input vertical slice in Kentridge.
     /// The encounter owns only cross-module wiring: authored world placement, proximity lifecycle,
     /// input-context ownership, battle stepping, and presentation identities. Combat rules remain in Game.Combat,
-    /// while stable gameplay identity/lifecycle/kinematics live in Game.Characters.
+    /// while stable gameplay identity/lifecycle/kinematics live in Game.Characters and actor life truth lives in Vitality.
     /// </summary>
     [DefaultExecutionOrder(-10000)]
     public sealed class KentridgeForestBanditEncounter : MonoBehaviour
@@ -28,6 +30,7 @@ namespace Game.Composition.Kentridge.Playable
         private const float DecimetresToMetres = 0.1f;
         private const int ForestEntryInsetDm = 240;
         private const int AutonomousBattleSeed = 20260829;
+        private const int InitialCombatVitality = 6;
         private const float BattleActionIntervalSeconds = 0.10f;
         private static readonly LocalPlayerId LocalPlayer = new LocalPlayerId(0);
         private static readonly CombatParticipantId PlayerParticipant = new CombatParticipantId("kentridge-player");
@@ -41,6 +44,7 @@ namespace Game.Composition.Kentridge.Playable
         private ICharacterRegistry _characters;
         private InputContextService _inputContexts;
         private UnityPlayerInputReader _inputReader;
+        private VitalityRegistry _vitality;
         private CombatService _combat;
         private CombatInputController _combatInput;
         private CombatAiBattleDriver _battleDriver;
@@ -103,7 +107,8 @@ namespace Game.Composition.Kentridge.Playable
         {
             _inputContexts = new InputContextService();
             _inputReader = new UnityPlayerInputReader(_inputContexts);
-            _combat = new CombatService();
+            _vitality = new VitalityRegistry();
+            _combat = new CombatService(_vitality);
             BuildAuthoredAmbushPlan();
         }
 
@@ -276,18 +281,31 @@ namespace Game.Composition.Kentridge.Playable
         {
             if (_combat.IsActive || _encounterResolved) return;
 
+            CharacterId playerCharacter;
+            if (!_characters.TryResolve(new CharacterBinding("combat-participant", PlayerParticipant.Value), out playerCharacter))
+                throw new InvalidOperationException("Kentridge combat player is not bound to gameplay character authority.");
+
+            EnsureVitalityRegistered(playerCharacter);
             var participants = new CombatParticipant[4];
-            participants[0] = new CombatParticipant(PlayerParticipant, CombatTeam.Player);
+            participants[0] = CombatParticipant.FromCharacter(playerCharacter, CombatTeam.Player);
             for (int i = 0; i < 3; i++)
-                participants[i + 1] = new CombatParticipant(
-                    new CombatParticipantId("forest-bandit-" + (i + 1)),
-                    CombatTeam.Enemy);
+            {
+                EnsureVitalityRegistered(_banditCharacterIds[i]);
+                participants[i + 1] = CombatParticipant.FromCharacter(_banditCharacterIds[i], CombatTeam.Enemy);
+            }
 
             _combat.BeginCombat(new CombatEncounterRequest("kentridge-forest-bandits", participants));
             _combatContext = _inputContexts.Push(InputContextId.Combat);
-            _combatInput = new CombatInputController(_combat, _inputReader, LocalPlayer, PlayerParticipant);
+            _combatInput = new CombatInputController(_combat, _inputReader, LocalPlayer, participants[0].Id);
             _battleDriver = new CombatAiBattleDriver(_combat, AutonomousBattleSeed);
             _nextBattleActionTime = Time.unscaledTime + BattleActionIntervalSeconds;
+        }
+
+        private void EnsureVitalityRegistered(CharacterId characterId)
+        {
+            if (_vitality.TryGet(characterId, out _)) return;
+            if (!_vitality.Register(VitalitySnapshot.Alive(characterId, InitialCombatVitality)))
+                throw new InvalidOperationException("Failed to register combat vitality for character '" + characterId + "'.");
         }
 
         private void SettleCompletedCombat()
