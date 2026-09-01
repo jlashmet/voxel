@@ -49,18 +49,21 @@
 - [x] Add a behavioral regression for deterministic clue coating and preserved secret barrier topology.
 - [x] Run `33445911882`; it failed before visual capture on a compile error (`Coatings.None` did not exist).
 - [x] Fix that compiler defect by treating zero as the byte coating sentinel rather than introducing a new presentation dependency.
-- [ ] Exact current-head CI compiles/runs the focused regression and automatically required dedicated module validation.
-- [ ] Inspect full-resolution dedicated-scene screenshots; reject obscured, misframed, non-production, or visually ambiguous evidence.
+- [x] Exact feature `1a30df7a27fe2b1a86a2ebace0b645ee310a27da` passed focused regression and automatically required module validation in run `33508045854`.
+- [x] Inspect run `33508045854` full-resolution evidence: dedicated scene used production rendering, but Gallery authored-breakable audit remained visually invalid and was rejected.
+- [ ] Exact current-head CI compiles/runs after the refined terminal-interior camera correction.
+- [ ] Inspect full-resolution dedicated-scene and Gallery screenshots; reject obscured, misframed, non-production, or visually ambiguous evidence.
 
 ## Built-player / representative acceptance
 
 - [x] Earlier exact `WorldbuildingGalleryShowcase` replay reached a usable rendered state without runtime exceptions.
 - [x] Full-resolution evidence was inspected; primitive validation/gallery clue implementations were not production-quality and were rejected.
 - [x] Two materially different primitive presentation fixes failed the same quality symptom; experiment 005 isolated the parallel-renderer root cause.
+- [x] Experiment 011 isolated and then refined the authored-breakable camera failure: the 17-voxel helper position sits at the far edge of the final 18-voxel segment and exact run `33508045854` still rendered outside valid tunnel space.
 - [ ] Representative natural terrain/cave route example with environmental/traversal clues and no required interactable is visually proven at gameplay scale.
 - [ ] Interactable-backed mechanism representative is visually proven through a supported generated feature, or unsupported architectural realization is documented and an allowed alternative supported generated feature is used.
 - [ ] Player can infer and reach representative secrets from intentional pre-solve evidence without universal glowing markers or wall-spamming.
-- [ ] Add only a thin final `WorldbuildingGalleryShowcase` acceptance consumer after reusable dedicated-scene proof is green.
+- [x] Add only a thin final `WorldbuildingGalleryShowcase` acceptance consumer after reusable dedicated-scene proof is green.
 - [ ] Exact built `WorldbuildingGalleryShowcase` full-resolution screenshots pass clue readability, route legibility, accidental bypass, placeholder/sign-like evidence, and production-quality review.
 
 ## Cost / blast radius / closure
