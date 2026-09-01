@@ -128,13 +128,15 @@ namespace VoxelEngine.Showcase
             float originalFieldOfView = cameraComponent != null ? cameraComponent.fieldOfView : 60f;
             if (cameraComponent != null) cameraComponent.fieldOfView = 75f;
 
-            // The Gallery helper deliberately places the eye 17 voxels behind the selected terminal,
-            // inside the guaranteed final 18-voxel cave segment. Do not stretch this to an arbitrary
-            // 3 m stand-off: the preceding segment may have turned, so a longer straight retreat can
-            // move the camera back into solid terrain even though the authored pocket is valid.
+            // The Gallery helper sits at the far edge of the final 18-voxel segment. The previous
+            // exact-SHA replay proved that this edge position can still land outside the reliably
+            // carved interior when the preceding segment turns. Move only the acceptance camera
+            // toward the authored barrier, retaining a gameplay-scale view while keeping the eye
+            // well inside the terminal segment instead of changing cave or pocket topology.
             float3 breakablePosition = world.WorldbuildingGalleryBreakableSecretCameraPosition();
             float3 breakableTarget = world.WorldbuildingGalleryBreakableSecretLookTarget();
-            RequireMinimumFramingDistance(breakablePosition, breakableTarget, 1.7f, "authored-breakable-boundary");
+            breakablePosition = math.lerp(breakablePosition, breakableTarget, 0.35f);
+            RequireMinimumFramingDistance(breakablePosition, breakableTarget, 1.1f, "authored-breakable-boundary");
             yield return CaptureView(
                 world,
                 breakablePosition,
