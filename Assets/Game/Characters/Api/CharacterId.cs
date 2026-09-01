@@ -19,6 +19,23 @@ namespace Game.Characters.Api
             Value = value;
         }
 
+        /// <summary>
+        /// Canonical migration helper for existing semantic identity sources. Composition owns the
+        /// scope/key choice (for example scope "npc" with an authored NpcRef id); Characters only
+        /// guarantees a stable lower-case scope plus exact key in the serialized "scope:key" value.
+        /// </summary>
+        public static CharacterId FromStableKey(string scope, string key)
+        {
+            if (string.IsNullOrWhiteSpace(scope))
+                throw new ArgumentException("Character identity scope is required.", nameof(scope));
+            if (scope.IndexOf(':') >= 0)
+                throw new ArgumentException("Character identity scope cannot contain ':'.", nameof(scope));
+            if (string.IsNullOrWhiteSpace(key))
+                throw new ArgumentException("Character identity key is required.", nameof(key));
+
+            return new CharacterId(scope.Trim().ToLowerInvariant() + ":" + key);
+        }
+
         public int CompareTo(CharacterId other) =>
             StringComparer.Ordinal.Compare(Value ?? string.Empty, other.Value ?? string.Empty);
 
