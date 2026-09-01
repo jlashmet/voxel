@@ -9,7 +9,6 @@
 - [x] Record old path/core minimal repro after repeated visual failures (`experiment-010-switchback-core-gap-minimal-repro.md`).
 - [x] Reject the old revision-6/8/9 path-driven mountain family after built-player review. The road terraces/support geometry define the landform and do not read as a natural mountain.
 - [x] Record reconstruction CI failures: `33447340071` failed compile due omitted proven dependencies; source `a109bf20...` restored them. Retry `33449145780` compiled and standalone replay succeeded but requested focused filter matched zero tests, so it is not acceptance evidence.
-- [x] Confirm no agent-4 CI is queued/running and current `origin/master` (`c73ab9d1...` at last check) is already an ancestor of the reconstructed feature; obsolete PR #182/#192 merge blocker removed.
 
 ## Reusable mountain redesign
 - [x] Replace path-coupled `MountainLandmarkSpec` ownership with a semantic parameterized mountain-landform contract: placement, footprint/aspect, height, summit character, deterministic seed, macro shape/ridge/asymmetry, and bounded roughness only. No road, switchback, traversal, dragon, or Showcase policy in the generic landform.
@@ -20,36 +19,41 @@
 
 ## Existing road-system integration
 - [x] Resolve the Mountain Dragon ascent through `WorldRoadIntent` / `WorldRoadResolver` using the mountain surface as `IWorldRoadTerrain`; do not create a parallel mountain-road resolver.
-- [x] If necessary, add only a narrow reusable terrain-composition adapter so road resolution can sample authored mountain surface plus base terrain outside its footprint. Do not refactor Kentridge road policy. `MountainLandformRoadTerrain` composes mountain + fallback terrain without changing road policy.
+- [x] Add only the narrow reusable terrain-composition adapter required for road resolution to sample authored mountain surface plus base terrain outside its footprint. `MountainLandformRoadTerrain` composes mountain + fallback terrain without changing road policy.
 - [x] Lower the resolved ascent through `WorldRoadNetwork` + `WorldRoadNetworkVoxelCatalogue` / generic terrain-corridor rasterization so existing road grade, cut/fill, shoulder, clearance, and presentation semantics remain authoritative. The WorldBuilder wrapper only hides backend voxel settings/material plumbing.
-- [x] Derive Mountain Dragon traversal waypoints/evidence from the same resolved road geometry rather than duplicated switchback coordinates. Encounter proximity and focused validation both consume the resolved production route.
-- [ ] Prove the road cuts/fills into the natural mountain within the configured `MaximumGradePermille` / `MaximumCutFillDm` bounds and does not create freestanding support towers/causeways. Run `33465874998` was invalid evidence because its CI transport parented from older request commit `00e9aab...`, so the requested test did not exist and matched zero tests; standalone replay still succeeded. Retry from the exact current feature source through the same transport.
+- [x] Derive encounter proximity and focused validation from the same resolved road geometry rather than duplicated legacy switchback coordinates.
+- [ ] Prove the production road cuts/fills into the natural mountain within the configured 280 permille / 42 dm bounds and does not create freestanding support towers/causeways. Run `33468581318` exposed a real 60 dm cut/fill failure at point 33; source now keeps the same contracts and same 1.5-turn ascent while doubling semantic control resolution from 13 to 25 so the shared resolver follows the ridged contour. Exact-source retry `33469216133` is queued and must not be replaced.
 
 ## Independent reuse / correctness / cost
-- [ ] Add a non-Showcase fixture that builds at least two materially different mountain shape/climate combinations from the same reusable builder. `MountainClimateReuseTests.SameBuilderSupportsMateriallyDifferentShapeAndClimateCombinations` is implemented; exact-head execution evidence is still required.
-- [ ] Prove deterministic shape/surface output for the same parameters/seed and materially different output for different shape parameters/seeds.
-- [ ] Prove surface-query and voxel-landform correspondence at representative base/flank/ridge/summit samples.
-- [ ] Prove road resolution against the generic mountain surface independently of Mountain Dragon composition, including a successful bounded-cut/fill ascent and a rejected over-grade/over-cut case. `MountainRoadIntegrationTests` is implemented; run `33465874998` was a zero-test transport failure and is not evidence.
-- [ ] Check feature primitive counts, raster/build cost, memory/bake blast radius, and shared-road behavior; keep existing global budgets and 240 s / 14 GiB guards unchanged.
+- [ ] Execute current-head `MountainClimateReuseTests.SameBuilderSupportsMateriallyDifferentShapeAndClimateCombinations`; the independent non-Showcase two-shape/two-climate fixture is already implemented.
+- [ ] Execute current-head `MountainLandformTests.SameSpecProducesSameMassesAndSurfaceSamples` and `SemanticShapeInputsProduceMateriallyDifferentMountainFamilies`; the deterministic/different-shape assertions are already implemented.
+- [ ] Execute current-head `MountainLandformTests.VoxelCatalogueCompilesExactSurfaceMassesWithinPrimitiveBudget`; it already checks every generated mass against the emitted voxel catalogue and the feature primitive budget.
+- [ ] Execute current-head `MountainRoadIntegrationTests`: legal route must remain within semantic grade/cut-fill bounds, over-constrained route must reject, and lowering must use shared `EmitTerrainCorridor` with no `EmitRamp`. Run `33468581318` executed 2/3; its remaining failure was an invalid `>8` point-density assumption, now replaced with semantic route/cut-fill assertions.
+- [ ] Check raster/build cost, memory/bake blast radius, and shared-road behavior; keep existing global budgets and 240 s / 14 GiB guards unchanged.
 
 ## Mountain Dragon composition
 - [x] Recompose VoxelShowcase from: parameterized natural mountain + existing road ascent + usable summit + supported red cube dragon + existing proximity/cutscene dialogue.
 - [ ] Keep mountain placement clear of unrelated castle/feature ownership while ensuring the road entrance connects to normal accessible terrain.
-- [x] Update/rewrite focused behavioral regressions to exercise the new production WorldBuilder mountain + road path rather than old path-tier internals. `MountainDragonValidationSceneDriver` now builds the production landform/network and validates resolved grade/cut-fill/summit approach.
-- [ ] Repair the focused exact-test filter/registration so the intended Mountain Dragon acceptance test is actually discoverable; do not weaken or rename acceptance merely to obtain green CI.
+- [x] Update focused behavioral regressions to exercise the new production WorldBuilder mountain + road path rather than old path-tier internals. `MountainDragonValidationSceneDriver` builds the production landform/network and validates resolved grade/cut-fill/summit approach.
+- [x] Repair focused validation registration: `mountain-dragon.module-validation.json` now tracks the redesigned Showcase/landform/road production files and retains the exact PlayMode filter.
+- [x] Migrate `MountainDragonProductionAcceptanceTests` from removed `CreateLandmark`/legacy `MountainLandmarkSpec` assumptions to the current landform, resolved road, shared terrain-corridor, summit placeholder, production composition, and exact dialogue flow.
+- [ ] Regenerate `mountain-dragon-evidence-route.json` from the final resolved production road. Current file is legacy switchback/Y-offset evidence and must not be used for closure.
 - [ ] Bump startup-bake provenance for the redesigned landform/road realization so rejected old bytes cannot satisfy the new source.
 
+## CI blocker
+- [ ] External prerequisite: exact-source request `33469216133` (CI `8656913e...`, source parent `c2bfa596...`) is queued on the authorized `ci-test/fixes/agent-4` transport with no runner assigned (`runner_id=0`). Repeated checks show no repository workflow in progress. Preserve it; do not replace it while queued/running. Current feature head has documentation-only commits after that source, so a final exact-head gate will still be required after this request completes.
+
 ## Production visual / built-player acceptance
-- [ ] Merge then-current `origin/master` before the exact visual-final request; stop only for real conflicts outside this assignment.
+- [ ] Merge then-current `origin/master` before the exact visual-final request; current master `71e5b6b1...` is one commit ahead of the feature merge-base.
 - [ ] Run exact-source focused + automatically derived module/player validation through only `ci-test/fixes/agent-4`; never replace a queued/running request.
 - [ ] Capture and human-review the exact production `VoxelShowcase` approach. It must read first as one substantial coherent natural mountain, not terraces/support structures.
 - [ ] Human-review path base and representative lower/mid/upper ascent. The existing road must read as carved/graded into the landform, with continuous supported walking surface and no trench/tunnel/causeway artifacts.
-- [ ] Verify normal grounded traversal base -> summit through the resolved road route without jumps/teleports and within the production replay contract.
+- [ ] Verify normal grounded traversal base -> summit through the final resolved road route without jumps/teleports and within the production replay contract.
 - [ ] Human-review summit: usable natural summit, cube dragon visibly/stably supported, normal approach triggers exact `Hello, I'm Mr. Dragon.` dialogue.
 - [ ] Re-check final accepted bake/runtime cost under unchanged 240 s / 14 GiB contracts.
 
 ## Checked-in startup payload
-- [x] Runtime requires both `ShowcaseWorld.bytes` and matching `ShowcaseWorld.manifest.txt`; existing tracked payload is stale.
+- [x] Runtime requires both `ShowcaseWorld.bytes` and matching `ShowcaseWorld.manifest.txt`; existing tracked payload is stale. Current branch has only the 11,074,525-byte legacy `ShowcaseWorld.bytes` and no manifest.
 - [x] Mountain-Dragon-only evidence collection preserves fresh same-run payload, manifest, source SHA, byte size, and SHA-256 under uploaded artifacts.
 - [ ] From the final visually accepted run, record exact payload size/SHA-256/content signature and manifest.
 - [ ] Replace tracked `Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes` with that exact accepted payload and add the matching manifest through the repository-sanctioned binary Git-object path.
