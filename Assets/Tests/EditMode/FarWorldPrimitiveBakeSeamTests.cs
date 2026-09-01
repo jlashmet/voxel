@@ -23,7 +23,7 @@ namespace VoxelEngine.Tests.EditMode
                 mountainMaterial: 1,
                 pathMaterial: 13,
                 placeholderMaterial: 2,
-                Allocator.Temp);
+                allocator: Allocator.Temp);
 
             try
             {
@@ -105,9 +105,9 @@ namespace VoxelEngine.Tests.EditMode
                     origin,
                     orientation: 0,
                     terrainSeed: Seed,
-                    instanceSeed,
-                    primitives,
-                    anchors);
+                    instanceSeed: instanceSeed,
+                    primitives: primitives,
+                    anchors: anchors);
 
                 Assert.AreEqual(EvaluationResult.Ok, result);
                 Assert.Greater(primitives.Length, 0,
