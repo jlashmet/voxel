@@ -90,6 +90,16 @@ class PlannerTests(unittest.TestCase):
                 [item["assembly"] for item in result["tests"]],
             )
 
+    def test_test_only_module_change_does_not_claim_production_ownership(self):
+        td, root = self.fixture()
+        with td:
+            result = planner.plan(["Assets/Structures/Tests/EditMode/StructuresTests.cs"], planner.discover(root))
+            self.assertFalse(result["hasProductionChanges"])
+            self.assertFalse(result["hasValidationWork"])
+            self.assertEqual([], result["modules"])
+            self.assertEqual([], result["tests"])
+            self.assertEqual([], result["playerValidations"])
+
     def test_validation_scene_and_scenario_are_discovered_by_pairing_convention(self):
         td, root = self.fixture()
         with td:
@@ -98,6 +108,14 @@ class PlannerTests(unittest.TestCase):
             self.assertEqual(["Assets/Water"], result["modules"])
             self.assertEqual(1, len(result["playerValidations"]))
             self.assertEqual("Assets/Water/Validation/Water/WaterDemo.player-scenario.json", result["playerValidations"][0]["scenario"])
+
+    def test_deleted_obsolete_manifest_path_is_nonproduction(self):
+        td, root = self.fixture()
+        with td:
+            result = planner.plan(["Assets/Game/Scenes/legacy.module-validation.json"], planner.discover(root))
+            self.assertFalse(result["hasProductionChanges"])
+            self.assertFalse(result["hasValidationWork"])
+            self.assertEqual([], result["fallbackPaths"])
 
     def test_missing_scene_scenario_pair_fails_closed(self):
         td, root = self.fixture()
