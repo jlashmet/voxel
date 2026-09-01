@@ -19,7 +19,6 @@
     "MountingForce.WorldGen.Core",
     "MountingForce.WorldGen.Runtime",
     "VoxelEngine.Characters.Runtime",
-    "VoxelEngine.Core",
     "VoxelEngine.Showcase"
   ],
   "includePlatforms": [],
@@ -27,7 +26,7 @@
   "allowUnsafeCode": false,
   "overrideReferences": false,
   "precompiledReferences": [],
-  "autoReferenced": true,
+  "autoReferenced": false,
   "defineConstraints": [],
   "versionDefines": [],
   "noEngineReferences": false
