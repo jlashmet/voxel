@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Diff-driven validation planning from repository structure.
 
-A module is any lower-level Assets subtree that owns Tests/EditMode and/or
-Tests/PlayMode assemblies. Repository-wide Assets/Tests/PlayMode remains a
+A module is any lower-level Assets subtree that owns tests beneath a Tests
+folder. Tests/EditMode and Tests/PlayMode are explicit platform conventions;
+a direct Tests/*.asmdef is the compact EditMode convention used by modules that
+only need Editor tests. Repository-wide Assets/Tests/PlayMode remains a
 high-level integration/smoke assembly and does not define production ownership.
-Production ownership is the longest matching module root. Focused Unity tests
-are every asmdef below the owning module's test directories. Player-visible
+Production ownership is the longest matching module root. Player-visible
 validation is opt-in by placing paired scene/scenario files under
 <module>/Validation. KentridgePlayableSlice is the canonical production-change
 integration gate.
@@ -54,19 +55,18 @@ def _asmdef_guid(path: Path) -> str | None:
 
 def _module_roots(root: Path) -> list[Path]:
     roots: set[Path] = set()
-    for platform in ("EditMode", "PlayMode"):
-        for asmdef in root.glob(f"Assets/**/Tests/{platform}/**/*.asmdef"):
-            parts = asmdef.relative_to(root).parts
-            try:
-                tests_index = parts.index("Tests")
-            except ValueError:
-                continue
-            if tests_index == 0:
-                continue
-            module_parts = parts[:tests_index]
-            if module_parts == ("Assets",):
-                continue
-            roots.add(root.joinpath(*module_parts))
+    for asmdef in root.glob("Assets/**/Tests/**/*.asmdef"):
+        parts = asmdef.relative_to(root).parts
+        try:
+            tests_index = parts.index("Tests")
+        except ValueError:
+            continue
+        if tests_index == 0:
+            continue
+        module_parts = parts[:tests_index]
+        if module_parts == ("Assets",):
+            continue
+        roots.add(root.joinpath(*module_parts))
     return sorted(roots, key=lambda p: p.as_posix())
 
 
@@ -139,8 +139,12 @@ def discover(root: Path) -> dict:
     for module_root in _module_roots(root):
         module_name = _rel(module_root, root)
         tests = []
+        tests_root = module_root / "Tests"
+        for asmdef_path in sorted(tests_root.glob("*.asmdef")):
+            asmdef = _load_asmdef(asmdef_path)
+            tests.append({"module": module_name, "platform": "EditMode", "assembly": asmdef["name"]})
         for platform in ("EditMode", "PlayMode"):
-            test_root = module_root / "Tests" / platform
+            test_root = tests_root / platform
             if not test_root.is_dir():
                 continue
             for asmdef_path in sorted(test_root.rglob("*.asmdef")):
@@ -167,7 +171,7 @@ def discover(root: Path) -> dict:
             "runtimeAssemblies": runtime_assemblies,
         })
     if not modules:
-        raise ConventionError("no module-owned test assemblies discovered under Assets/**/Tests/{EditMode,PlayMode}")
+        raise ConventionError("no module-owned test assemblies discovered under Assets/**/Tests")
 
     assembly_owner: dict[str, str] = {}
     for module in modules:
@@ -241,8 +245,6 @@ def plan(changed_paths: list[str], discovered: dict) -> dict:
             if production_path and _is_dependency_contract_path(path):
                 dependency_contract_modules.add(owner["name"])
         elif production_path and not _is_integration_only_path(path):
-            # Truly unowned production is fail-safe broad. Top-level Game/Composition paths are
-            # application wiring and are proven by the mandatory assembled-game Kentridge gate.
             selected.update(by_name)
             fallback_paths.append(path)
 
