@@ -13,6 +13,7 @@ namespace VoxelEngine.Net.Runtime.Protocol
         C_RegionRequest = 3,
         C_PlayerInputBundle = 4,
         C_RegionHashMismatch = 5,
+        C_GameplayStateRepairRequest = 6,
 
         // Server -> client.
         S_AlterationEvent = 32,
@@ -71,6 +72,7 @@ namespace VoxelEngine.Net.Runtime.Protocol
                 case ProtocolMessageKind.C_RegionRequest:
                 case ProtocolMessageKind.C_PlayerInputBundle:
                 case ProtocolMessageKind.C_RegionHashMismatch:
+                case ProtocolMessageKind.C_GameplayStateRepairRequest:
                 case ProtocolMessageKind.S_AlterationEvent:
                 case ProtocolMessageKind.S_AlterationEventBatch:
                 case ProtocolMessageKind.S_AlterationRejected:
