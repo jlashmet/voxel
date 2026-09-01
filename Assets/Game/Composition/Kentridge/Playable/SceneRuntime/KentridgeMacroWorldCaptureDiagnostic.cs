@@ -12,6 +12,7 @@ using UnityEngine;
 using VoxelEngine.Composition;
 using VoxelEngine.Showcase;
 using VoxelEngine.Storage.Api;
+using VoxelEngine.Structures.Api;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
 
 namespace Game.Kentridge.PlayableSlice
@@ -19,9 +20,9 @@ namespace Game.Kentridge.PlayableSlice
     /// <summary>
     /// Validation-only end-of-frame discriminator for macro settlement captures. It observes the
     /// already-authored survey camera after the settlement-lens composition has run and reports the
-    /// actual FOV/pose plus viewport, exact authored shell/roof storage, and published surface state
-    /// for all generic blockouts. It never changes camera, streaming, world generation, rendering,
-    /// residency, or replay state.
+    /// actual FOV/pose plus viewport, exact authored shell/roof storage, installed macro catalogue,
+    /// and published surface state for all generic blockouts. It never changes camera, streaming,
+    /// world generation, rendering, residency, or replay state.
     /// </summary>
     [DefaultExecutionOrder(20000)]
     internal sealed class KentridgeMacroWorldCaptureDiagnostic : MonoBehaviour
@@ -45,6 +46,9 @@ namespace Game.Kentridge.PlayableSlice
         private static readonly FieldInfo s_WorldField = typeof(KentridgePlayableSlice).GetField(
             "_world",
             BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo s_CatalogueField = typeof(ShowcaseWorld).GetField(
+            "_catalogue",
+            BindingFlags.Instance | BindingFlags.NonPublic);
 
         private readonly HashSet<string> _reported = new HashSet<string>(StringComparer.Ordinal);
         private Survey[] _surveys;
@@ -52,6 +56,7 @@ namespace Game.Kentridge.PlayableSlice
         private ShowcaseWorld _world;
         private string _readySurvey;
         private int _stableReadyFrames;
+        private bool _runtimeCatalogueReported;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void InstallForAssignedProfile()
@@ -196,6 +201,7 @@ namespace Game.Kentridge.PlayableSlice
             if (_slice == null || s_WorldField == null) return false;
             _world ??= s_WorldField.GetValue(_slice) as ShowcaseWorld;
             if (_world == null || !RenderingComposition.HasCompletePublishedNearSurfaceCoverage()) return false;
+            ReportRuntimeCatalogueOnce();
 
             for (var i = 0; i < survey.Buildings.Length; i++)
             {
@@ -208,6 +214,66 @@ namespace Game.Kentridge.PlayableSlice
                 if (!_world.IsPresentationColumnContentSettled(worldPoint)) return false;
             }
             return true;
+        }
+
+        private void ReportRuntimeCatalogueOnce()
+        {
+            if (_runtimeCatalogueReported) return;
+            _runtimeCatalogueReported = true;
+            if (s_CatalogueField == null)
+            {
+                Debug.LogError("MACROEVIDENCE runtime-catalogue field=missing");
+                return;
+            }
+
+            object boxed = s_CatalogueField.GetValue(_world);
+            if (!(boxed is FeatureCatalogue catalogue) || !catalogue.IsCreated)
+            {
+                Debug.LogError("MACROEVIDENCE runtime-catalogue created=False");
+                return;
+            }
+
+            Debug.Log(
+                "MACROEVIDENCE runtime-catalogue " +
+                $"definitions={catalogue.Definitions.Length} rules={catalogue.Rules.Length} placements={catalogue.ExplicitPlacements.Length} " +
+                SummarizeCatalogue(catalogue, "fairy", "macro-town-building-fairy-village-") + " " +
+                SummarizeCatalogue(catalogue, "orc", "macro-town-building-orc-village-") + " " +
+                SummarizeCatalogue(catalogue, "moordell", "macro-town-building-moordell-") + " " +
+                SummarizeCatalogue(catalogue, "rossdam", "macro-town-building-rossdam-") + " " +
+                SummarizeCatalogue(catalogue, "roads", "macro-road-") + " " +
+                SummarizeCatalogue(catalogue, "ridge", "macro-region-ridge-") + " " +
+                SummarizeCatalogue(catalogue, "water", TopDownWorldWaterBodyVoxelCatalogue.DefinitionPrefix));
+        }
+
+        private static string SummarizeCatalogue(
+            FeatureCatalogue catalogue,
+            string label,
+            string definitionPrefix)
+        {
+            int definitions = 0;
+            int rules = 0;
+            int placements = 0;
+            string firstPlacement = "none";
+            for (var definitionIndex = 0; definitionIndex < catalogue.Definitions.Length; definitionIndex++)
+            {
+                string name = catalogue.Definitions[definitionIndex].Name.ToString();
+                if (!name.StartsWith(definitionPrefix, StringComparison.Ordinal)) continue;
+                definitions++;
+                for (var ruleIndex = 0; ruleIndex < catalogue.Rules.Length; ruleIndex++)
+                {
+                    PlacementRule rule = catalogue.Rules[ruleIndex];
+                    if (rule.DefinitionId != definitionIndex) continue;
+                    rules++;
+                    placements += rule.ExplicitCount;
+                    if (!string.Equals(firstPlacement, "none", StringComparison.Ordinal)
+                        || rule.ExplicitCount <= 0
+                        || rule.ExplicitOffset < 0
+                        || rule.ExplicitOffset >= catalogue.ExplicitPlacements.Length)
+                        continue;
+                    firstPlacement = Format(catalogue.ExplicitPlacements[rule.ExplicitOffset].Position);
+                }
+            }
+            return $"{label}={definitions}/{rules}/{placements}@{firstPlacement}";
         }
 
         private void ResetReadyFrames(string survey = null)
