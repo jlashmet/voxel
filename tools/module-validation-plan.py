@@ -77,7 +77,18 @@ def _module_for_path(path: str, modules: list[dict]) -> dict | None:
 
 def _is_test_path(path: str) -> bool:
     path = path.replace("\\", "/")
-    return "/Tests/" in path or path.startswith("Assets/Tests/")
+    return "/Tests/" in path or path.startswith("Assets/Tests/") or path.endswith("/Tests.meta")
+
+
+def _is_module_validation_path(path: str) -> bool:
+    """Meaningful module-owned validation content, excluding Unity metadata/retired manifests."""
+    path = path.replace("\\", "/")
+    return (
+        path.startswith("Assets/")
+        and "/Validation/" in path
+        and not path.endswith(".meta")
+        and not path.endswith(".module-validation.json")
+    )
 
 
 def _is_integration_only_path(path: str) -> bool:
@@ -223,11 +234,13 @@ def plan(changed_paths: list[str], discovered: dict) -> dict:
 
     for path in changed:
         owner = _module_for_path(path, modules)
-        if owner and not _is_test_path(path):
+        production_path = is_production(path)
+        validation_path = _is_module_validation_path(path)
+        if owner and (production_path or validation_path):
             selected.add(owner["name"])
-            if is_production(path) and _is_dependency_contract_path(path):
+            if production_path and _is_dependency_contract_path(path):
                 dependency_contract_modules.add(owner["name"])
-        elif is_production(path) and not _is_integration_only_path(path):
+        elif production_path and not _is_integration_only_path(path):
             # Truly unowned production is fail-safe broad. Top-level Game/Composition paths are
             # application wiring and are proven by the mandatory assembled-game Kentridge gate.
             selected.update(by_name)
