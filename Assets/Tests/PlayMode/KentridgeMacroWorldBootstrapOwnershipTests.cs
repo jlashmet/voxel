@@ -1,7 +1,5 @@
 using System;
 using Game.WorldBuilder.Api;
-using Game.WorldBuilder.Macro.Api;
-using Game.WorldBuilder.Macro.Runtime;
 using Game.WorldBuilder.Runtime;
 using MountingForce.WorldGen;
 using MountingForce.WorldGen.Content.Kentridge;
