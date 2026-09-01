@@ -14,7 +14,7 @@ namespace VoxelEngine.Tests.EditMode
     public sealed class CaveSecretPocketCluePresentationTests
     {
         [Test]
-        public void BoundaryEvidenceIsDeterministicAndPreservesVerifiedSeal()
+        public void BoundaryEvidenceIsDeterministicFractureOnCaveFaceAndPreservesVerifiedSeal()
         {
             var world = new SolidWorldSession();
             var terminal = new CaveTraversalCandidate
@@ -51,7 +51,7 @@ namespace VoxelEngine.Tests.EditMode
 
             long writesBeforeClue = world.TotalVoxelsWritten;
             var clueConfig = new CaveSecretPocketCluePresentationConfig(
-                Coatings.Moss, 42, 0x434C5545u);
+                Coatings.Soot, 64, 0x434C5545u);
             Assert.That(CaveSecretPocketCluePresentation.TryApplyBoundaryEvidence(
                 world, in projection, in clueConfig, out int firstCount), Is.True);
             int3[] firstPositions = world.Coated.OrderBy(p => p.x).ThenBy(p => p.y).ThenBy(p => p.z).ToArray();
@@ -61,18 +61,27 @@ namespace VoxelEngine.Tests.EditMode
                 world, in projection, in clueConfig, out int secondCount), Is.True);
             int3[] secondPositions = world.Coated.OrderBy(p => p.x).ThenBy(p => p.y).ThenBy(p => p.z).ToArray();
 
+            DecorationBounds barrier = projection.Pocket.Barrier;
+            int distinctRows = firstPositions.Select(p => p.y).Distinct().Count();
+
             Assert.Multiple(() =>
             {
                 Assert.That(firstCount, Is.GreaterThan(0));
                 Assert.That(secondCount, Is.EqualTo(firstCount));
                 Assert.That(secondPositions, Is.EqualTo(firstPositions),
-                    "The same physical secret and seed must produce the same boundary evidence.");
+                    "The same physical secret and seed must produce the same fracture evidence.");
                 Assert.That(world.TotalVoxelsWritten, Is.EqualTo(writesBeforeClue),
-                    "Clue presentation must not carve or fill the verified secret topology.");
-                Assert.That(firstPositions.All(p => Contains(in projection.Pocket.Barrier, p)), Is.True,
+                    "Crack presentation must not carve or fill the verified secret topology.");
+                Assert.That(firstPositions.All(p => Contains(in barrier, p)), Is.True,
                     "Presentation may coat only the retained verified barrier.");
+                Assert.That(firstPositions.All(p => p.x == barrier.Min.x), Is.True,
+                    "East-facing crack evidence must live only on the cave-facing barrier layer.");
+                Assert.That(distinctRows, Is.GreaterThanOrEqualTo(barrier.Size.y - 2),
+                    "The main fracture must read as a continuous vertical crack rather than random speckle.");
+                Assert.That(firstPositions.Length, Is.LessThan(barrier.Size.x * barrier.Size.y),
+                    "The clue should remain a sparse fracture, not highlight the entire wall.");
                 Assert.That(firstPositions.All(p => world.IsSolid(p.x, p.y, p.z)), Is.True,
-                    "Every clue voxel must remain part of the solid false wall.");
+                    "Every crack-marked voxel must remain part of the solid false wall.");
             });
         }
 
@@ -90,7 +99,7 @@ namespace VoxelEngine.Tests.EditMode
             public int WriteBudget => int.MaxValue;
             public long TotalVoxelsWritten => _empty.Count;
             public byte Get(int x, int y, int z) => IsSolid(x, y, z) ? (byte)2 : (byte)0;
-            public byte GetCoating(int x, int y, int z) => Coated.Contains(new int3(x, y, z)) ? Coatings.Moss : (byte)0;
+            public byte GetCoating(int x, int y, int z) => Coated.Contains(new int3(x, y, z)) ? Coatings.Soot : (byte)0;
             public bool IsSolid(int x, int y, int z) => !_empty.Contains(new int3(x, y, z));
             public void Set(int x, int y, int z, byte material)
             {
