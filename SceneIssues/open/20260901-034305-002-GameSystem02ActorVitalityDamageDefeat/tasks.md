@@ -9,7 +9,7 @@
 - [x] **T02-001 — Baseline existing health state.** Find every authoritative/prototype health, alive/dead, damage, defeat and reset store; classify each as migrate, presentation-only, or obsolete.
   - Evidence: `plan.md` ownership table records `CombatCore.CombatState`, production `Game.Combat.Runtime.CombatService`, `ChainUnitState`/`ChainCombatBoard`, and the `Assets/CombatPrototype` presentation surface, with explicit migration/adapter ownership boundaries.
 - [ ] **T02-002 — Create/update module assemblies.** Establish `Assets/Game/Vitality/Api` and `Runtime` asmdefs with Runtime -> own API and `Characters.Api`; assert API has no Unity/Runtime dependency.
-  - **BLOCKED:** `Game.Characters.Api.CharacterId` is absent at feature/master SHA `71e5b6b146cb7dd3b7da0305d0ab42bcc9cea22e`; do not create a placeholder identity type.
+  - **BLOCKED:** `Game.Characters.Api.CharacterId` remains absent on current `origin/master` SHA `ef5240c7b24550dab86d0ed75388d6c99a44d47b`; repository commit search also finds no published `CharacterId` implementation. Do not create a placeholder identity type.
 - [ ] **T02-003 — Define vitality state contract.** Add immutable snapshot/state keyed by `CharacterId`, with only semantic current/max/defeated data demonstrated by current gameplay.
   - **BLOCKED:** public signature depends on the System 03 `CharacterId` contract.
 - [ ] **T02-004 — Define damage contract.** Add authoritative damage request/result including stable request identity only where existing command delivery can duplicate requests; represent rejection reasons semantically.
