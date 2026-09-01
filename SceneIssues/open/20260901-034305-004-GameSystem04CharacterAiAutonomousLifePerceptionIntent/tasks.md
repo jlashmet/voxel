@@ -6,34 +6,34 @@
 
 ## Baseline / API
 
-- [ ] **T04-001 — Map existing AI ownership.** Inventory tactical combat AI, behavior trees/planners, perception sources, enemy controllers, NPC schedules, and scene-specific decision code; identify reusable mechanics versus content policy.
-- [ ] **T04-002 — Establish asmdefs and dependency direction.** `CharacterAI.Runtime` may depend on Characters/Encounters/world-query APIs; gameplay modules must not depend on CharacterAI.Runtime.
-- [ ] **T04-003 — Define semantic perception observations.** Represent characters, world objects, sites, encounter/combat context and relevant facts by stable ids/data, never scene objects.
-- [ ] **T04-004 — Define goal/intent contract.** Capture what an AI wants to do, not concrete Runtime calls; include deterministic priority/tie-break data only if demonstrated by current AI.
-- [ ] **T04-005 — Define AI control/read state.** Expose enabled/control mode/current intent/diagnostic information needed by tests/presentation without leaking planner internals.
-- [ ] **T04-006 — Define policy seams.** Keep reusable planner/behavior policy interfaces semantic/config-driven and keep named character schedules/content outside the generic module.
+- [x] **T04-001 — Map existing AI ownership.** Production tactical mechanics are `CombatAiBattleDriver`; `ChainEnemyTacticalAI` is an isolated older Combat-board prototype; Kentridge drives the production driver directly. No shared behavior-tree or named NPC schedule framework was found.
+- [x] **T04-002 — Establish asmdefs and dependency direction.** `CharacterAI.Api` is engine-neutral; generic Runtime references only CharacterAI.Api + Characters.Api. Combat-specific Runtime dependencies are isolated in `Game.CharacterAI.CombatAdapter`.
+- [x] **T04-003 — Define semantic perception observations.** Characters, world objects, sites, encounters/combat context and facts use `CharacterId`/semantic ids/data only.
+- [x] **T04-004 — Define goal/intent contract.** `AiIntent` captures semantic desired action/target plus deterministic priority/tie-break metadata, not component calls.
+- [x] **T04-005 — Define AI control/read state.** Enabled/control mode/current intent/last acceptance/diagnostic are exposed without planner internals.
+- [x] **T04-006 — Define policy seams.** `IAiPerceptionSource`, `IAiIntentPolicy`, and `IAiIntentExecutor` are semantic; `SemanticIntentPolicy` is configuration-driven with no named-character schedule policy.
 
 ## Runtime / migration
 
-- [ ] **T04-010 — Adapt tactical AI to the common intent seam.** Wrap/reuse current combat decision logic rather than rewriting it; prove it can emit semantic intents.
-- [ ] **T04-011 — Build perception adapters.** Consume Characters, Encounters and world-query APIs to produce observations; prohibit direct Runtime/scene traversal for domain truth.
-- [ ] **T04-012 — Add persistent non-combat intent execution.** Support at least one authored autonomous behavior outside Combat through the same planner seam.
-- [ ] **T04-013 — Implement combat-context transition.** Enter/leave tactical intent based on semantic encounter/combat state while preserving the same CharacterId and AI owner.
-- [ ] **T04-014 — Route intents through owner APIs.** Movement, interaction, combat participation, etc. must be requested through their public APIs and may be rejected normally.
-- [ ] **T04-015 — Add deterministic update/order policy.** Make equal inputs produce equal intent selection and record any required stable ordering.
-- [ ] **T04-016 — Add simulation-LOD hook only if demonstrated.** If far simulation is already required, lower fidelity without changing semantic outcomes; otherwise leave this task satisfied by documenting no current need.
+- [x] **T04-010 — Adapt tactical AI to the common intent seam.** Combat adapter emits/consumes `TacticalCombat` intent and delegates actual tactical selection/execution to the existing `CombatAiBattleDriver`; no parallel tactical planner was added.
+- [x] **T04-011 — Build perception adapters.** `CombatPerceptionSource` translates Combat public authority to semantic combat/character observations with no scene traversal.
+- [x] **T04-012 — Add persistent non-combat intent execution.** Independent autonomous NPC fixture uses the same controller/rule/executor path for semantic movement intent outside Combat.
+- [x] **T04-013 — Implement combat-context transition.** Regression preserves one CharacterId/controller as semantic observations switch autonomous to tactical context.
+- [x] **T04-014 — Route intents through owner APIs.** Generic Runtime only calls `IAiIntentExecutor`; Combat adapter delegates to Combat's existing command-owning driver; rejection is a normal result.
+- [x] **T04-015 — Add deterministic update/order policy.** Rule priority is descending and equal priority uses ordinal `TieBreakKey`; each tick starts with a fresh semantic observation.
+- [x] **T04-016 — Add simulation-LOD hook only if demonstrated.** No current far-simulation requirement is demonstrated, so no parallel LOD planner is added; composition owns tick frequency while semantics remain unchanged.
 
 ## Verification
 
-- [ ] **T04-020 — Tactical reuse regression.** Existing enemy combat behavior continues through the new intent seam with no parallel tactical planner.
-- [ ] **T04-021 — Non-combat reuse fixture.** An autonomous NPC uses the same perception/intent/runtime path outside combat.
-- [ ] **T04-022 — Determinism tests.** Same observations/configuration must select the same intent and stable tie break.
-- [ ] **T04-023 — Rejection handling test.** When an owning system rejects an AI intent, AI updates from semantic truth rather than mutating the domain directly.
-- [ ] **T04-024 — Headless/core tests.** Core planner/perception tests run without Unity scene objects.
-- [ ] **T04-025 — Run module and dependent Encounter/Combat tests automatically.**
+- [x] **T04-020 — Tactical reuse regression.** Headless test routes existing `CombatAiBattleDriver` behavior through common CharacterAI intent/controller seams and verifies Combat action execution.
+- [x] **T04-021 — Non-combat reuse fixture.** Independent non-Kentridge market-going NPC fixture uses the same perception/intent/runtime path.
+- [x] **T04-022 — Determinism tests.** Same observations/config select the same intent and ordinal tie-break deterministically.
+- [x] **T04-023 — Rejection handling test.** Rejected move intent is followed by fresh semantic perception; changed truth produces Idle rather than direct domain mutation.
+- [x] **T04-024 — Headless/core tests.** CharacterAI API/Runtime/CombatAdapter are engine-neutral and regressions require no scene objects.
+- [ ] **T04-025 — Run module and dependent Encounter/Combat tests automatically.** Pending exact-SHA targeted CI and automatic module validation.
 
 ## Cleanup / close
 
-- [ ] **T04-030 — Remove bypassing AI controllers.** Search for enemy/NPC decision paths that directly mutate Characters/Combat/WorldObjects and migrate or justify them.
-- [ ] **T04-031 — Boundary audit.** No quest/story ownership, named schedules, GameObjects, or other module Runtime types in CharacterAI.Api.
-- [ ] **T04-032 — Close with two-consumer proof.** One tactical and one non-combat character must demonstrably share the module.
+- [x] **T04-030 — Remove bypassing AI controllers.** No new per-scene AI registry/controller bypass was introduced. Existing Kentridge direct Combat driver and legacy `ChainEnemyTacticalAI` remain Combat-owned tactical mechanics; CharacterAI wraps the production driver rather than duplicating/moving Combat authority.
+- [x] **T04-031 — Boundary audit.** CharacterAI.Api contains no quest/story ownership, named schedules, GameObjects, or other module Runtime types; generic CharacterAI.Runtime has no Combat/scene dependency.
+- [x] **T04-032 — Close with two-consumer proof.** Tactical Combat adapter and independent non-combat NPC fixture demonstrably share `CharacterAiController` + semantic contracts.
