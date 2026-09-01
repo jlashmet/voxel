@@ -3,10 +3,14 @@ using System.Collections.Generic;
 using System.Globalization;
 using Game.Characters.Api;
 using Game.Combat.Api;
+using Game.Continuity.Api;
 using Game.Encounters.Api;
 using Game.GameplayReplication.Api;
 using Game.Inventory.Api;
+using Game.Outcomes.Api;
+using Game.Progression.Api;
 using Game.Sessions.Api;
+using Game.Vitality.Api;
 
 namespace Game.GameplayReplication.Adapters
 {
@@ -39,6 +43,32 @@ namespace Game.GameplayReplication.Adapters
             v.X.ToString("R", CultureInfo.InvariantCulture) + "," +
             v.Y.ToString("R", CultureInfo.InvariantCulture) + "," +
             v.Z.ToString("R", CultureInfo.InvariantCulture);
+    }
+
+    public sealed class VitalityGameplayProjectionSource : IGameplayProjectionSource
+    {
+        private readonly IVitalityQuery _query;
+        public VitalityGameplayProjectionSource(IVitalityQuery query, bool requiredForGameplayReady = true)
+        {
+            _query = query ?? throw new ArgumentNullException(nameof(query));
+            Descriptor = new GameplayProjectionDescriptor(new GameplayProjectionId("vitality"), 1, requiredForGameplayReady);
+        }
+        public GameplayProjectionDescriptor Descriptor { get; }
+        public GameplayProjectionState Capture()
+        {
+            var snapshots = new List<VitalitySnapshot>(_query.GetAll());
+            snapshots.Sort((a, b) => a.CharacterId.CompareTo(b.CharacterId));
+            var entries = new List<GameplayProjectionEntry>();
+            foreach (VitalitySnapshot s in snapshots)
+            {
+                string p = s.CharacterId.Value + "/";
+                entries.Add(new GameplayProjectionEntry(p + "current", s.Current.ToString(CultureInfo.InvariantCulture)));
+                entries.Add(new GameplayProjectionEntry(p + "maximum", s.Maximum.ToString(CultureInfo.InvariantCulture)));
+                entries.Add(new GameplayProjectionEntry(p + "defeated", s.Defeated ? "true" : "false"));
+                entries.Add(new GameplayProjectionEntry(p + "revision", s.Revision.ToString(CultureInfo.InvariantCulture)));
+            }
+            return new GameplayProjectionState(Descriptor, entries);
+        }
     }
 
     public sealed class EncounterGameplayProjectionSource : IGameplayProjectionSource
@@ -127,6 +157,50 @@ namespace Game.GameplayReplication.Adapters
         }
     }
 
+    public sealed class ProgressionGameplayProjectionSource : IGameplayProjectionSource
+    {
+        private readonly IProgressionQuery _query;
+        public ProgressionGameplayProjectionSource(IProgressionQuery query, bool requiredForGameplayReady = true)
+        {
+            _query = query ?? throw new ArgumentNullException(nameof(query));
+            Descriptor = new GameplayProjectionDescriptor(new GameplayProjectionId("progression"), 1, requiredForGameplayReady);
+        }
+        public GameplayProjectionDescriptor Descriptor { get; }
+        public GameplayProjectionState Capture()
+        {
+            ProgressionSnapshot snapshot = _query.Snapshot();
+            var entries = new List<GameplayProjectionEntry>
+            {
+                new GameplayProjectionEntry("revision", snapshot.Revision.ToString(CultureInfo.InvariantCulture))
+            };
+            var quests = new List<QuestProgressSnapshot>(snapshot.Quests);
+            quests.Sort((a, b) => a.Id.CompareTo(b.Id));
+            foreach (QuestProgressSnapshot quest in quests)
+            {
+                string p = "quest/" + quest.Id.Value + "/";
+                entries.Add(new GameplayProjectionEntry(p + "state", quest.State.ToString()));
+                entries.Add(new GameplayProjectionEntry(p + "revision", quest.Revision.ToString(CultureInfo.InvariantCulture)));
+                var objectives = new List<ObjectiveProgressSnapshot>(quest.Objectives);
+                objectives.Sort((a, b) => a.Id.CompareTo(b.Id));
+                foreach (ObjectiveProgressSnapshot objective in objectives)
+                {
+                    string op = p + "objective/" + objective.Id.Value + "/";
+                    entries.Add(new GameplayProjectionEntry(op + "state", objective.State.ToString()));
+                    entries.Add(new GameplayProjectionEntry(op + "revision", objective.Revision.ToString(CultureInfo.InvariantCulture)));
+                }
+            }
+            var standalone = new List<ObjectiveProgressSnapshot>(snapshot.StandaloneObjectives);
+            standalone.Sort((a, b) => a.Id.CompareTo(b.Id));
+            foreach (ObjectiveProgressSnapshot objective in standalone)
+            {
+                string p = "objective/" + objective.Id.Value + "/";
+                entries.Add(new GameplayProjectionEntry(p + "state", objective.State.ToString()));
+                entries.Add(new GameplayProjectionEntry(p + "revision", objective.Revision.ToString(CultureInfo.InvariantCulture)));
+            }
+            return new GameplayProjectionState(Descriptor, entries);
+        }
+    }
+
     public sealed class SessionsGameplayProjectionSource : IGameplayProjectionSource
     {
         private readonly IPartySessionQuery _sessions;
@@ -135,9 +209,7 @@ namespace Game.GameplayReplication.Adapters
             _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
             Descriptor = new GameplayProjectionDescriptor(new GameplayProjectionId("sessions"), 1, requiredForGameplayReady);
         }
-
         public GameplayProjectionDescriptor Descriptor { get; }
-
         public GameplayProjectionState Capture()
         {
             PartyRosterSnapshot snapshot = _sessions.Snapshot();
@@ -147,7 +219,6 @@ namespace Game.GameplayReplication.Adapters
             {
                 new GameplayProjectionEntry("session-id", snapshot.SessionId.Value)
             };
-
             foreach (PartyMemberSnapshot member in members)
             {
                 string p = "slot/" + member.Slot.Value.ToString(CultureInfo.InvariantCulture) + "/";
@@ -157,8 +228,57 @@ namespace Game.GameplayReplication.Adapters
                 entries.Add(new GameplayProjectionEntry(p + "readiness", member.Readiness.ToString()));
                 entries.Add(new GameplayProjectionEntry(p + "character-id", member.HasCharacter ? member.CharacterId.Value : string.Empty));
             }
-
             return new GameplayProjectionState(Descriptor, entries);
+        }
+    }
+
+    public sealed class ContinuityGameplayProjectionSource : IGameplayProjectionSource
+    {
+        private readonly IContinuityQuery _query;
+        public ContinuityGameplayProjectionSource(IContinuityQuery query, bool requiredForGameplayReady = true)
+        {
+            _query = query ?? throw new ArgumentNullException(nameof(query));
+            Descriptor = new GameplayProjectionDescriptor(new GameplayProjectionId("continuity"), 1, requiredForGameplayReady);
+        }
+        public GameplayProjectionDescriptor Descriptor { get; }
+        public GameplayProjectionState Capture()
+        {
+            ContinuitySnapshot snapshot = _query.Snapshot();
+            var entries = new List<GameplayProjectionEntry>
+            {
+                new GameplayProjectionEntry("revision", snapshot.Revision.ToString(CultureInfo.InvariantCulture))
+            };
+            var members = new List<ContinuityMemberSnapshot>(snapshot.Members);
+            members.Sort((a, b) => a.MemberId.CompareTo(b.MemberId));
+            foreach (ContinuityMemberSnapshot member in members)
+            {
+                string p = "member/" + member.MemberId.Value + "/";
+                entries.Add(new GameplayProjectionEntry(p + "state", member.State.ToString()));
+                entries.Add(new GameplayProjectionEntry(p + "revision", member.Revision.ToString(CultureInfo.InvariantCulture)));
+            }
+            return new GameplayProjectionState(Descriptor, entries);
+        }
+    }
+
+    public sealed class OutcomesGameplayProjectionSource : IGameplayProjectionSource
+    {
+        private readonly IGameOutcomeQuery _query;
+        public OutcomesGameplayProjectionSource(IGameOutcomeQuery query, bool requiredForGameplayReady = true)
+        {
+            _query = query ?? throw new ArgumentNullException(nameof(query));
+            Descriptor = new GameplayProjectionDescriptor(new GameplayProjectionId("outcomes"), 1, requiredForGameplayReady);
+        }
+        public GameplayProjectionDescriptor Descriptor { get; }
+        public GameplayProjectionState Capture()
+        {
+            GameOutcomeSnapshot snapshot = _query.Snapshot();
+            return new GameplayProjectionState(Descriptor, new[]
+            {
+                new GameplayProjectionEntry("lifecycle", snapshot.Lifecycle.ToString()),
+                new GameplayProjectionEntry("disposition", snapshot.Disposition.ToString()),
+                new GameplayProjectionEntry("outcome-ref", snapshot.Outcome.IsValid ? snapshot.Outcome.Value : string.Empty),
+                new GameplayProjectionEntry("revision", snapshot.Revision.ToString(CultureInfo.InvariantCulture))
+            });
         }
     }
 }
