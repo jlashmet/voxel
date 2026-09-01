@@ -109,7 +109,7 @@ namespace Game.GameplayReplication.Transport
                 publication = new GameplayPublication(new GameplayRevision(revisionValue), publicationKind, projections);
                 return true;
             }
-            catch (Exception ex) when (ex is IOException || ex is EndOfStreamException || ex is DecoderFallbackException || ex is ArgumentException || ex is OverflowException)
+            catch (Exception ex) when (ex is IOException || ex is DecoderFallbackException || ex is ArgumentException || ex is OverflowException || ex is FormatException)
             {
                 publication = null;
                 return false;
@@ -119,14 +119,15 @@ namespace Game.GameplayReplication.Transport
 
     /// <summary>
     /// Game-owned publisher plugged into AuthoritativeServerSession's existing fixed-tick emitter
-    /// seam. A new/reconnected authenticated connection causes one full snapshot for every client
-    /// at the same global gameplay revision; ordinary ticks emit deltas.
+    /// seam. A new/reconnected authenticated connection or a validated repair request causes one
+    /// full snapshot for every client at the same global gameplay revision; ordinary ticks emit deltas.
     /// </summary>
     public sealed class GameplayStateServerEmitter : IAuthoritativeGameplayStateEmitter
     {
         private readonly GameplayPublicationBuilder _builder;
         private readonly List<ServerPlayerRegistry.PlayerSession> _players = new List<ServerPlayerRegistry.PlayerSession>(8);
         private readonly HashSet<uint> _knownConnections = new HashSet<uint>();
+        private readonly HashSet<uint> _repairRequests = new HashSet<uint>();
 
         public GameplayStateServerEmitter(IEnumerable<IGameplayProjectionSource> sources)
         {
@@ -135,6 +136,12 @@ namespace Game.GameplayReplication.Transport
 
         public GameplayRevision CurrentRevision => _builder.CurrentRevision;
         public int LastSendFailureCount { get; private set; }
+
+        public void HandleGameplayStateRepairRequest(uint connectionId, in C_GameplayStateRepairRequest request)
+        {
+            if (connectionId != 0)
+                _repairRequests.Add(connectionId);
+        }
 
         public void Emit(uint serverTick, ServerPlayerRegistry players, IGameplayStatePacketSink sink)
         {
@@ -146,6 +153,7 @@ namespace Game.GameplayReplication.Transport
             if (_players.Count == 0)
             {
                 _knownConnections.Clear();
+                _repairRequests.Clear();
                 LastSendFailureCount = 0;
                 return;
             }
@@ -153,7 +161,8 @@ namespace Game.GameplayReplication.Transport
             bool requiresSnapshot = _builder.CurrentRevision.IsInitial;
             for (int i = 0; i < _players.Count; i++)
             {
-                if (!_knownConnections.Contains(_players[i].ConnectionId))
+                uint connectionId = _players[i].ConnectionId;
+                if (!_knownConnections.Contains(connectionId) || _repairRequests.Contains(connectionId))
                 {
                     requiresSnapshot = true;
                     break;
@@ -177,6 +186,7 @@ namespace Game.GameplayReplication.Transport
             _knownConnections.Clear();
             for (int i = 0; i < _players.Count; i++)
                 _knownConnections.Add(_players[i].ConnectionId);
+            _repairRequests.Clear();
         }
     }
 
@@ -184,14 +194,23 @@ namespace Game.GameplayReplication.Transport
     public sealed class GameplayStateClientPacketHandler : IGameplayStatePacketHandler
     {
         private readonly IGameplayPublicationSink _sink;
+        private readonly IGameplayReplicationReadState _readState;
+        private Func<C_GameplayStateRepairRequest, bool> _repairRequester;
 
         public GameplayStateClientPacketHandler(IGameplayPublicationSink sink)
         {
             _sink = sink ?? throw new ArgumentNullException(nameof(sink));
+            _readState = sink as IGameplayReplicationReadState;
         }
 
         public GameplayApplyResult? LastApplyResult { get; private set; }
+        public bool? LastRepairRequestAccepted { get; private set; }
         public event Action<GameplayApplyResult> RepairRequired;
+
+        public void BindRepairRequester(Func<C_GameplayStateRepairRequest, bool> repairRequester)
+        {
+            _repairRequester = repairRequester ?? throw new ArgumentNullException(nameof(repairRequester));
+        }
 
         public bool HandleGameplayStatePacket(ReadOnlySpan<byte> packet)
         {
@@ -201,7 +220,15 @@ namespace Game.GameplayReplication.Transport
             GameplayApplyResult result = _sink.Apply(publication);
             LastApplyResult = result;
             if (result == GameplayApplyResult.GapDetected || result == GameplayApplyResult.IncompatibleProjection)
+            {
+                ulong knownRevision = _readState == null ? 0UL : checked((ulong)_readState.Revision.Value);
+                var reason = result == GameplayApplyResult.GapDetected
+                    ? C_GameplayStateRepairRequest.RepairReason.GapDetected
+                    : C_GameplayStateRepairRequest.RepairReason.IncompatibleProjection;
+                var request = new C_GameplayStateRepairRequest(knownRevision, reason);
+                LastRepairRequestAccepted = _repairRequester?.Invoke(request);
                 RepairRequired?.Invoke(result);
+            }
             return true;
         }
     }
