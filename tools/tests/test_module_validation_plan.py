@@ -89,6 +89,19 @@ class PlannerTests(unittest.TestCase):
             self.assertEqual(["Assets/Structures"], result["modules"])
             self.assertEqual(["Structures.Tests.EditMode"], [item["assembly"] for item in result["tests"]])
 
+    def test_direct_module_tests_asmdef_is_discovered_as_editmode(self):
+        td, root = self.fixture()
+        with td:
+            asmdef(root, "Assets/Characters/Runtime/Characters.Runtime.asmdef", "Characters.Runtime")
+            asmdef(root, "Assets/Characters/Tests/Characters.Tests.asmdef", "Characters.Tests")
+            write(root, "Assets/Characters/Runtime/Registry.cs")
+            result = planner.plan(["Assets/Characters/Runtime/Registry.cs"], planner.discover(root))
+            self.assertEqual(["Assets/Characters"], result["modules"])
+            self.assertEqual(
+                [("EditMode", "Characters.Tests")],
+                [(item["platform"], item["assembly"]) for item in result["tests"]],
+            )
+
     def test_new_test_assembly_is_selected_without_metadata_or_planner_change(self):
         td, root = self.fixture()
         with td:
