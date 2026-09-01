@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "module": "Game.Encounters",
+  "productionPaths": [
+    "Assets/Game/Encounters/Api/**",
+    "Assets/Game/Encounters/Runtime/**"
+  ],
+  "sharedPaths": [],
+  "tests": [
+    {
+      "platform": "EditMode",
+      "filter": "Game.Encounters.Tests.EncounterRegistryTests"
+    }
+  ],
+  "integrationGate": false,
+  "fallback": false
+}
