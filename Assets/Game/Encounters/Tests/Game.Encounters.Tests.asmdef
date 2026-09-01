@@ -1,0 +1,20 @@
+{
+  "name": "Game.Encounters.Tests",
+  "rootNamespace": "Game.Encounters.Tests",
+  "references": [
+    "Game.Encounters.Api",
+    "Game.Encounters.Runtime",
+    "Game.Characters.Api"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

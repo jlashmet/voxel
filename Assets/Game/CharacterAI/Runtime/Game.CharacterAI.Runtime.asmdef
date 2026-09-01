@@ -1,0 +1,17 @@
+{
+  "name": "Game.CharacterAI.Runtime",
+  "rootNamespace": "Game.CharacterAI.Runtime",
+  "references": [
+    "Game.CharacterAI.Api",
+    "Game.Characters.Api"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}

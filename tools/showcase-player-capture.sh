@@ -20,6 +20,7 @@ Options:
   --height N
   --screenshot-every N
   --minimum-frames N
+  --evidence-after N
   --auto-dialogue N
   --autowalk-after N
   --converging-builds N
@@ -49,6 +50,7 @@ PLAYER_WIDTH=1600
 PLAYER_HEIGHT=900
 SCREENSHOT_EVERY=10
 MINIMUM_FRAMES=2
+EVIDENCE_AFTER=0
 REQUIRED_LOG_PATTERNS_FILE=""
 FORBIDDEN_LOG_PATTERNS_FILE=""
 
@@ -77,6 +79,7 @@ while (( $# > 0 )); do
     --height) PLAYER_HEIGHT="$2"; shift 2 ;;
     --screenshot-every) SCREENSHOT_EVERY="$2"; shift 2 ;;
     --minimum-frames) MINIMUM_FRAMES="$2"; shift 2 ;;
+    --evidence-after) EVIDENCE_AFTER="$2"; shift 2 ;;
     --auto-dialogue) AUTO_DIALOGUE="$2"; shift 2 ;;
     --autowalk-after) AUTOWALK_AFTER="$2"; shift 2 ;;
     --converging-builds) CONVERGING_BUILDS="$2"; shift 2 ;;
@@ -153,6 +156,18 @@ validate_positive_int "$SCREENSHOT_EVERY" screenshot-every
 validate_positive_int "$MINIMUM_FRAMES" minimum-frames
 : "${RUN_SECONDS:=30}"
 if [[ ! "$RUN_SECONDS" =~ ^[0-9]+([.][0-9]+)?$ ]]; then echo "ERROR: run-seconds must be numeric." >&2; exit 2; fi
+if ! python3 - "$EVIDENCE_AFTER" "$RUN_SECONDS" <<'PY'
+import sys
+try:
+    evidence_after=float(sys.argv[1]); run_seconds=float(sys.argv[2])
+except ValueError:
+    raise SystemExit(1)
+raise SystemExit(0 if 0 <= evidence_after < run_seconds else 1)
+PY
+then
+  echo "ERROR: evidence-after must be numeric, non-negative, and less than run-seconds." >&2
+  exit 2
+fi
 if [[ -n "$STATIONARY_SAMPLE" && ( -n "$AUTOWALK_AFTER" || -n "$SURVEY_AFTER" ) ]]; then
   echo "ERROR: stationary sampling cannot be combined with movement." >&2
   exit 2
@@ -242,6 +257,12 @@ if [[ -n "$FORBIDDEN_LOG_PATTERNS_FILE" ]]; then
     if grep -Fq -- "$pattern" "$PLAYER_LOG"; then echo "ERROR: forbidden player-log pattern found: $pattern" >&2; exit 1; fi
   done < "$FORBIDDEN_LOG_PATTERNS_FILE"
 fi
+
+# A module may need startup time before its output is meaningful visual evidence. Keep capture
+# cadence generic, but let declarative scenario metadata exclude frames taken before that semantic
+# evidence window. This prevents startup-clear frames from satisfying a visual gate without adding
+# module/scene-name policy to the shared harness.
+python3 tools/player-evidence.py --screenshots "$SHOTS_DIR" --evidence-after "$EVIDENCE_AFTER"
 
 shots="$(find "$SHOTS_DIR" -type f -name '*.png' -size +1k | wc -l | tr -d ' ')"
 echo "real-player screenshots captured: $shots"

@@ -11,6 +11,8 @@
     "Game.Combat.Api",
     "Game.Combat.Runtime",
     "Game.Cutscenes.Api",
+    "Game.Encounters.Api",
+    "Game.Encounters.Runtime",
     "Game.Input.Api",
     "Game.Input.Runtime",
     "Game.Vitality.Api",
