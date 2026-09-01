@@ -10,7 +10,7 @@
   "timeline": {},
   "assertions": {
     "requiredLogPatterns": [
-      "MOUNTAIN_DRAGON_MATTE_PRESENTATION material=6 roughness=1.0 smoothness=0.0",
+      "MOUNTAIN_DRAGON_BLOCK_PRESENTATION material=6 surface_style=7 roughness=1.0 smoothness=0.0",
       "MOUNTAIN_DRAGON_VALIDATION_COST",
       "MOUNTAIN_DRAGON_VALIDATION ready:",
       "MOUNTAIN_DRAGON_CAPTURE view=tail-closeup",
