@@ -56,11 +56,9 @@ namespace Game.WorldBuilder.Voxel
     }
 
     /// <summary>
-    /// Canonical voxel realization boundary for one authored WorldBuilder town.
+    /// Canonical voxel realization boundary for an authored WorldBuilder town.
     /// The exact backend plan produced by WorldBuilder is bound into the voxel settings, which
     /// prevents the backend's compatibility fallback from authoring Kentridge a second time.
-    /// Game-level macro-world composition remains owned by the gameplay composition root rather
-    /// than being consumed as an implicit side effect of realizing this authored town.
     /// </summary>
     public static class WorldBuilderVoxelCatalogue
     {
@@ -98,10 +96,7 @@ namespace Game.WorldBuilder.Voxel
                 materials: backendMaterials,
                 settlement: settlement);
 
-            return KentridgeCombinedVoxelCatalogue.BuildAuthoredSettlementOnly(
-                town.Seed,
-                settings,
-                allocator);
+            return KentridgeCombinedVoxelCatalogue.Build(town.Seed, settings, allocator);
         }
     }
 }
