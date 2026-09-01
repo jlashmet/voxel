@@ -1,5 +1,5 @@
+using System;
 using Unity.Mathematics;
-using UnityEngine;
 using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Storage.Runtime
@@ -43,7 +43,7 @@ namespace VoxelEngine.Storage.Runtime
             int resident = _table.ResidentCount;
             if (resident >= _nextResidentLogThreshold)
             {
-                Debug.Log(
+                Log(
                     $"[VoxelResidency] residentRegions={resident:N0} " +
                     $"mixed={_pool.AllocatedCount:N0}/{_pool.Capacity:N0} " +
                     $"evicted={_regionsEvicted:N0} reclaimedMixed={_mixedBricksReclaimed:N0}");
@@ -70,7 +70,7 @@ namespace VoxelEngine.Storage.Runtime
                 if (pressureBucket != _lastPressureBucket)
                 {
                     _lastPressureBucket = pressureBucket;
-                    Debug.Log(
+                    Log(
                         $"[VoxelResidency] pressure={pressureBucket * 10}% " +
                         $"mixed={allocatedBlocks:N0}/{capacityBlocks:N0} " +
                         $"residentRegions={_table.ResidentCount:N0} " +
@@ -120,7 +120,7 @@ namespace VoxelEngine.Storage.Runtime
                 && (long)mixedAfter * 10L >= (long)_pool.Capacity * 9L;
             if ((_regionsEvicted & 15) == 0 || highPressure)
             {
-                Debug.Log(
+                Log(
                     $"[VoxelResidency] evict#{_regionsEvicted:N0} rc={regionCoord} " +
                     $"resident={residentBefore:N0}->{_table.ResidentCount:N0} " +
                     $"mixed={mixedBefore:N0}->{mixedAfter:N0} reclaimed={reclaimed:N0} " +
@@ -133,5 +133,7 @@ namespace VoxelEngine.Storage.Runtime
 
         public bool TryGetNextResidentCoord(ref int cursor, out int3 regionCoord) =>
             _table.TryGetNextResidentCoord(ref cursor, out regionCoord);
+
+        private static void Log(string message) => Console.WriteLine(message);
     }
 }
