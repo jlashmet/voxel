@@ -130,9 +130,11 @@ namespace VoxelEngine.Showcase
 
             float3 naturalPosition = world.WorldbuildingGalleryNaturalSecretCameraPosition();
             float3 naturalTarget = world.WorldbuildingGalleryNaturalSecretLookTarget();
-            naturalPosition += new float3(-5.5f, 1.8f, -1.5f);
-            naturalTarget += new float3(0f, -0.2f, -3.5f);
-            RequireMinimumFramingDistance(naturalPosition, naturalTarget, 7.5f, "natural-cave-approach");
+            // The authored moss trail runs south from the cave mouth across ordinary terrain. Audit
+            // it from above so nearby Gallery structures cannot occlude the environmental evidence.
+            naturalPosition += new float3(0f, 24f, -18f);
+            naturalTarget += new float3(0f, -1f, -45f);
+            RequireMinimumFramingDistance(naturalPosition, naturalTarget, 12f, "natural-cave-approach");
             yield return CaptureView(
                 world,
                 naturalPosition,
