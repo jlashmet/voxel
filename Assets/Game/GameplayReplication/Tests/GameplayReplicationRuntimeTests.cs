@@ -222,6 +222,14 @@ namespace Game.GameplayReplication.Tests
             public CombatLifecycleState State => CombatLifecycleState.Active;
             public CombatSessionId ActiveSessionId { get; }
             public IReadOnlyList<CombatParticipant> ActiveParticipants => _participants;
+            public int TurnNumber => 1;
+            public bool IsAlive(CombatParticipantId participant)
+            {
+                for (int i = 0; i < _participants.Length; i++)
+                    if (_participants[i].Id.Equals(participant))
+                        return true;
+                return false;
+            }
             public CombatSessionId BeginCombat(CombatEncounterRequest request) => throw new NotSupportedException();
             public void CompleteCombat() => throw new NotSupportedException();
         }
