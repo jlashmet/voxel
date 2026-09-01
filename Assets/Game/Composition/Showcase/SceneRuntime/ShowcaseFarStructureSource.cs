@@ -38,7 +38,7 @@ namespace VoxelEngine.Showcase
         private readonly Func<float2, float> _groundHeightMetres;
         private readonly ClusterConfiguration _clusters;
         private readonly IStructureVisualStateSource _visualState;
-        private readonly List<FarStructureInstance> _instances = new List<FarStructureInstance>();
+        private readonly List<FarFeatureInstance> _instances = new List<FarFeatureInstance>();
         private readonly List<StructureFarPresentation> _activeRecords = new List<StructureFarPresentation>();
         private readonly HashSet<ulong> _clusteredMembers = new HashSet<ulong>();
 
@@ -73,7 +73,7 @@ namespace VoxelEngine.Showcase
             _visualState = visualState;
         }
 
-        public IReadOnlyList<FarStructureInstance> Query(float2 cameraXZMetres, float radiusMetres)
+        public IReadOnlyList<FarFeatureInstance> Query(float2 cameraXZMetres, float radiusMetres)
         {
             if (!(radiusMetres > 0f) || !math.isfinite(radiusMetres))
                 throw new ArgumentOutOfRangeException(nameof(radiusMetres));
@@ -152,7 +152,7 @@ namespace VoxelEngine.Showcase
             }
         }
 
-        private FarStructureInstance ToInstance(StructureFarPresentation record, FarStructureTier tier)
+        private FarFeatureInstance ToInstance(StructureFarPresentation record, FarStructureTier tier)
         {
             float minX = record.FootprintMinDm.X * DmToMetres;
             float minZ = record.FootprintMinDm.Y * DmToMetres;
@@ -164,8 +164,8 @@ namespace VoxelEngine.Showcase
             float2 centerXZ = new float2((minX + maxX) * 0.5f, (minZ + maxZ) * 0.5f);
             float groundY = _groundHeightMetres(centerXZ);
 
-            FarStructureVisualFlags flags = ToFlags(record.VisibilityClass);
-            return new FarStructureInstance(
+            FarFeatureVisualFlags flags = ToFlags(record.VisibilityClass);
+            return new FarFeatureInstance(
                 record.StructureKey,
                 new float3(centerXZ.x, groundY, centerXZ.y),
                 quaternion.RotateY(math.radians(90f * (byte)record.Facing)),
@@ -174,11 +174,11 @@ namespace VoxelEngine.Showcase
                 new float3(width * 0.5f, height * 0.5f, depth * 0.5f),
                 record.Archetype.ToString(),
                 record.MaterialFamilyKey.ToString("X16"),
-                tier,
+                ToRenderTier(tier),
                 flags);
         }
 
-        private FarStructureInstance ToInstance(
+        private FarFeatureInstance ToInstance(
             WorldVisibilityClusterBuilder.Cluster cluster,
             FarStructureTier tier)
         {
@@ -192,7 +192,7 @@ namespace VoxelEngine.Showcase
             float2 centerXZ = new float2((minX + maxX) * 0.5f, (minZ + maxZ) * 0.5f);
             float groundY = _groundHeightMetres(centerXZ);
 
-            return new FarStructureInstance(
+            return new FarFeatureInstance(
                 cluster.ClusterKey,
                 new float3(centerXZ.x, groundY, centerXZ.y),
                 quaternion.identity,
@@ -201,22 +201,37 @@ namespace VoxelEngine.Showcase
                 new float3(width * 0.5f, height * 0.5f, depth * 0.5f),
                 "settlement-cluster",
                 cluster.DominantMaterialFamilyKey.ToString("X16"),
-                tier,
-                FarStructureVisualFlags.SettlementAnchor);
+                ToRenderTier(tier),
+                FarFeatureVisualFlags.SettlementAnchor);
         }
 
-        private static FarStructureVisualFlags ToFlags(StructureVisibilityClass visibilityClass)
+        private static FarFeatureVisualFlags ToFlags(StructureVisibilityClass visibilityClass)
         {
             switch (visibilityClass)
             {
                 case StructureVisibilityClass.SettlementAnchor:
-                    return FarStructureVisualFlags.SettlementAnchor;
+                    return FarFeatureVisualFlags.SettlementAnchor;
                 case StructureVisibilityClass.Landmark:
-                    return FarStructureVisualFlags.Landmark;
+                    return FarFeatureVisualFlags.Landmark;
                 case StructureVisibilityClass.HorizonLandmark:
-                    return FarStructureVisualFlags.Landmark | FarStructureVisualFlags.HorizonLandmark;
+                    return FarFeatureVisualFlags.Landmark | FarFeatureVisualFlags.HorizonLandmark;
                 default:
-                    return FarStructureVisualFlags.None;
+                    return FarFeatureVisualFlags.None;
+            }
+        }
+
+        private static FarFeatureTier ToRenderTier(FarStructureTier tier)
+        {
+            switch (tier)
+            {
+                case FarStructureTier.Mid:
+                    return FarFeatureTier.Mid;
+                case FarStructureTier.Far:
+                    return FarFeatureTier.Far;
+                case FarStructureTier.Horizon:
+                    return FarFeatureTier.Horizon;
+                default:
+                    return FarFeatureTier.Culled;
             }
         }
 
