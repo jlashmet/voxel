@@ -65,7 +65,8 @@ namespace VoxelEngine.Net.Runtime.Transport
             IClientEventCommandHandler eventHandler,
             IClientInputCommandHandler inputHandler = null,
             IClientConvergenceCommandHandler convergenceHandler = null,
-            IClientRegionRequestHandler regionRequestHandler = null)
+            IClientRegionRequestHandler regionRequestHandler = null,
+            IClientGameplayStateRepairHandler gameplayStateRepairHandler = null)
         {
             ThrowIfDisposed();
             if (eventHandler == null)
@@ -82,7 +83,8 @@ namespace VoxelEngine.Net.Runtime.Transport
                     eventHandler,
                     inputHandler,
                     convergenceHandler,
-                    regionRequestHandler);
+                    regionRequestHandler,
+                    gameplayStateRepairHandler);
 
             for (int i = 0; i < _disconnectScratch.Count; i++)
                 RemoveConnection(_disconnectScratch[i]);
@@ -169,7 +171,8 @@ namespace VoxelEngine.Net.Runtime.Transport
             IClientEventCommandHandler eventHandler,
             IClientInputCommandHandler inputHandler,
             IClientConvergenceCommandHandler convergenceHandler,
-            IClientRegionRequestHandler regionRequestHandler)
+            IClientRegionRequestHandler regionRequestHandler,
+            IClientGameplayStateRepairHandler gameplayStateRepairHandler)
         {
             Span<byte> packetScratch = stackalloc byte[ChannelSetup.k_MaxEventPacketBytes];
 
@@ -193,7 +196,8 @@ namespace VoxelEngine.Net.Runtime.Transport
                                            packetScratch.Slice(0, bytesRead),
                                            eventHandler,
                                            convergenceHandler,
-                                           regionRequestHandler);
+                                           regionRequestHandler,
+                                           gameplayStateRepairHandler);
                         }
                         else if (pipeline.Equals(_channels.Ephemeral) && inputHandler != null)
                         {
