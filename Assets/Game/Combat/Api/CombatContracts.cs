@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Game.Characters.Api;
 
 namespace Game.Combat.Api
 {
@@ -46,13 +47,31 @@ namespace Game.Combat.Api
     public sealed class CombatParticipant
     {
         public CombatParticipantId Id { get; }
+        public CharacterId CharacterId { get; }
+        public bool IsCharacterBacked => CharacterId.IsValid;
         public CombatTeam Team { get; }
 
         public CombatParticipant(CombatParticipantId id, CombatTeam team)
         {
             if (!id.IsValid) throw new ArgumentException("Participant id is required.", nameof(id));
             Id = id;
+            CharacterId = default;
             Team = team;
+        }
+
+        public CombatParticipant(CombatParticipantId id, CharacterId characterId, CombatTeam team)
+        {
+            if (!id.IsValid) throw new ArgumentException("Participant id is required.", nameof(id));
+            if (!characterId.IsValid) throw new ArgumentException("Character id is required.", nameof(characterId));
+            Id = id;
+            CharacterId = characterId;
+            Team = team;
+        }
+
+        public static CombatParticipant FromCharacter(CharacterId characterId, CombatTeam team)
+        {
+            if (!characterId.IsValid) throw new ArgumentException("Character id is required.", nameof(characterId));
+            return new CombatParticipant(new CombatParticipantId(characterId.Value), characterId, team);
         }
     }
 
