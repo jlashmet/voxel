@@ -134,9 +134,6 @@ namespace VoxelEngine.Composition
                 importance != FarFeatureImportance.Default,
                 previous);
 
-            // Semantic importance is an optional gameplay override, not required metadata. Within
-            // its configured cap it may retain a minimal horizon representation even below the
-            // ordinary projected-size cutoff.
             if (selected == FarFeatureTier.Culled && importance != FarFeatureImportance.Default)
                 selected = FarFeatureTier.Horizon;
 
@@ -260,7 +257,8 @@ namespace VoxelEngine.Composition
                     GeometryKeyFor(bake),
                     StyleKeyFor(bake),
                     tier,
-                    FlagsFor(importance)));
+                    FlagsFor(importance),
+                    GeometryFor(bake)));
             }
 
             return _instances;
@@ -293,6 +291,47 @@ namespace VoxelEngine.Composition
             extents = scale * 0.5f;
             center = min + extents;
             position = new float3(center.x, min.y, center.z);
+        }
+
+        private static FarFeatureGeometry GeometryFor(FeaturePresentationBake bake)
+        {
+            var primitives = new List<FarFeatureGeometryPrimitive>(bake.PrimitiveCount);
+            float3 bakeMin = new float3(bake.BoundsMin.x, bake.BoundsMin.y, bake.BoundsMin.z);
+            int3 maxExclusiveVoxel = bake.BoundsMax + new int3(1);
+            float3 bakeSize = math.max(
+                new float3(
+                    maxExclusiveVoxel.x - bake.BoundsMin.x,
+                    maxExclusiveVoxel.y - bake.BoundsMin.y,
+                    maxExclusiveVoxel.z - bake.BoundsMin.z),
+                new float3(1f));
+            var originOffset = new float3(0.5f, 0f, 0.5f);
+
+            for (int i = 0; i < bake.PrimitiveCount; i++)
+            {
+                Primitive primitive = bake.GetPrimitive(i);
+                if (primitive.Mode != PrimitiveMode.Fill && primitive.Mode != PrimitiveMode.FillIfEmpty)
+                    continue;
+
+                primitive.Bounds(out int3 primitiveMinVoxel, out int3 primitiveMaxVoxel);
+                int3 primitiveMaxExclusiveVoxel = primitiveMaxVoxel + new int3(1);
+                float3 primitiveMin = new float3(
+                    primitiveMinVoxel.x,
+                    primitiveMinVoxel.y,
+                    primitiveMinVoxel.z);
+                float3 primitiveMaxExclusive = new float3(
+                    primitiveMaxExclusiveVoxel.x,
+                    primitiveMaxExclusiveVoxel.y,
+                    primitiveMaxExclusiveVoxel.z);
+                float3 normalizedMin = (primitiveMin - bakeMin) / bakeSize - originOffset;
+                float3 normalizedMax = (primitiveMaxExclusive - bakeMin) / bakeSize - originOffset;
+                primitives.Add(new FarFeatureGeometryPrimitive(
+                    (FarFeatureGeometryShape)(byte)primitive.Shape,
+                    normalizedMin,
+                    normalizedMax,
+                    primitive.Axis));
+            }
+
+            return primitives.Count == 0 ? null : new FarFeatureGeometry(primitives.ToArray());
         }
 
         private static string GeometryKeyFor(FeaturePresentationBake bake) =>
