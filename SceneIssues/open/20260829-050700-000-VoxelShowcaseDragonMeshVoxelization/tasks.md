@@ -10,10 +10,10 @@
 - [x] Separate print supports and reproduce the dominant dragon/scenic-base derivation semantics.
 - [x] Reproduce the exact deterministic support-free OBJ: 860,349 bytes, SHA-256 `f1f44d59f7d9c775b600ac0b9ad066a15a3c652bf685a12b2344b8c383ff12b1`, 29,734 triangles, 13,465 serialized vertices / 13,431 referenced clusters.
 - [x] Reproduce deterministic gzip: 352,348 bytes, SHA-256 `fd2f8253fcf5bc32b275640448511f59d20dcc7d01c307f99124b224431892d4`.
-- [x] Vendor the exact reconstructable derived archive into this repository without changing geometry. `MountainDragonSourceArchiveTests.ReconstructObjBytes_CommittedArchiveMatchesPinnedIdentity` passed exact-SHA CI run `33451165954` for feature SHA `5b26f2b00924de6ec33f0798d2351c6b7dbc3ed0`; the previous corrupt-transfer failure was fixed rather than retried unchanged.
+- [x] Vendor the exact reconstructable derived archive into this repository without changing geometry; exact reconstruction passed CI `33451165954`.
 - [x] Replace corruption-history diagnostics with behavioral source-integrity regressions: committed exact reconstruction succeeds, missing logical parts fail closed, and valid-Base64 mutations fail pinned gzip identity.
 - [x] Record project-owner commercial-use confirmation for this exact recovered source in `verification-source-license.txt`.
-- [ ] Complete exact upstream provenance required by acceptance: original source URL, original author/creator, and named upstream license/permission text remain unavailable. Record as external blocker; do not invent metadata or weaken acceptance.
+- [ ] Complete exact upstream provenance required by acceptance: original source URL, original author/creator, and named upstream license/permission text remain unavailable. Public searches on 2026-09-01 for both exact source hashes and `mountain_dragon_supported.stl` returned no exact match. External blocker remains; do not infer metadata from similar listings or weaken acceptance.
 - [x] Verify the candidate is detailed/non-voxel-native with readable head/horns, body, wings, limbs/feet, long curved tail, secondary surface detail, and scenic base.
 - [x] Isolate source-topology behavior and use explicit `VoxelShellFill` only after proving conservative rasterization closes the intended shell; preserve `Reject` and `SurfaceOnly` semantics.
 
@@ -24,8 +24,8 @@
 - [x] Cover one-shot selection and input ownership through `StructurePlacementInputRouterTests`.
 - [x] Cover reusable fidelity/cost instrumentation: surface extraction, connectedness/material/brick counts, symmetric p95 distance, fixed-view silhouette IoU, and transformed mesh→bake measurement.
 - [x] Add independent non-dragon nearly-closed-shell regression proving `VoxelShellFill` does not invent interiors for genuinely open rasters.
-- [x] Add dragon-specific production regression proving required anatomical regions are non-empty/spatially plausible through produced bake data, not source-string/count-only assertions. `MountainDragonBakedArtifactTests.CheckedInBake_DecodesCanonicalArtifactAndPreservesDragonAnatomy` covers body, both wings, head/horns, both feet/claws, and curled tail against the canonical bake.
-- [x] Validate `MountainDragonBakeGenerationTests.CheckedInBake_MeetsPinnedSourceFidelityTargets` at an exact feature SHA. Exact-parent run `33476063393` passed the requested regression on feature SHA `645b7f37979103f4a1d8b57278f786469a6d2356`, and run `33477581134` passed it again through automatic module validation. The regression enforces sampled symmetric p95 <= 1.5 voxels and front/side/top silhouette IoU >= 0.90 against the exact reconstructed source.
+- [x] Add dragon-specific production regression proving required anatomical regions are non-empty/spatially plausible through produced bake data, not source-string/count-only assertions.
+- [x] Validate `MountainDragonBakeGenerationTests.CheckedInBake_MeetsPinnedSourceFidelityTargets` at exact feature SHAs; runs `33476063393`, `33477581134`, and `33490519425` passed required fidelity/module validation.
 
 ## Implementation
 - [x] Add reusable semantic/config-driven transformed triangle mesh→voxel API/configuration with bounded cost and explicit fill/topology/material/thin-feature policy.
@@ -37,34 +37,36 @@
 - [x] Add source-specific Editor reconstruction/import tooling; ordinary runtime never reads source triangles/archive.
 - [x] Add explicit reusable `VoxelShellFill` policy and independent reuse coverage.
 - [x] Add source-specific bake policy/configuration: 29,734 source triangles, 0.30 source units/voxel, bounded sparse envelope, canonical dragon material mapping.
-- [x] Generate, validate, retrieve, and commit the exact sparse dragon bake produced by `MountainDragonBakeGenerator.GeneratePinnedBakeAndWriteArtifact()` through the shared importer/voxelizer. Exact generator CI run `33451568424` produced canonical SHA `83370421048606be2dc658315ec9acc2cae39d2a7a20011151d7d561267bec41`, 99×107×107 bounds, and 98,100 authored voxels. The compact runtime transport was independently reproduced from that artifact at pinned SHA `758612c8b63316e3757a7695bfdb07f99ee5709f3706c504688d657017ecc961`; commit `da60731f20b829a0d25f25450a2b4bbaa0d504d9` repaired the corrupted Base64 payload without changing canonical bake identity.
+- [x] Generate and commit the exact sparse dragon bake through the shared importer/voxelizer: 99×107×107 bounds, 98,100 authored voxels, 594 sparse bricks, canonical SHA `83370421048606be2dc658315ec9acc2cae39d2a7a20011151d7d561267bec41`, runtime transport SHA `758612c8b63316e3757a7695bfdb07f99ee5709f3706c504688d657017ecc961`.
 - [x] Apply deterministic semantic showcase palette mapping. STL has no standard material/color regions, so unmaterialed exterior/interior maps to canonical `DarkStone`; do not claim absent source color preservation.
-- [ ] Instantiate the decoded baked dragon through normal `ShowcaseWorld.PlaceBakedMeshStructure` / WorldBuilder voxel authoring so rendering, collision, edit, and destruction share canonical storage. Placement/rendering are proven in exact built run `33485072972`; keep this unchecked until the new built destruction/collision proof also passes.
-- [ ] Repair the explicit VoxelShowcase placement mode so it consumes the pinned `MountainDragonBakedArtifact` through Showcase composition. Inspection shows `Assets/Scenes/VoxelShowcase.unity` serializes no `m_MountainDragonVoxelBake`, and the current mode uses generic `BakedVoxelStructureCodec.Decode` even though the pinned runtime transport is MDVP owned by `MountainDragonBakedArtifact.Load()`. Do not move Dragon transport policy into the shared codec.
-- [x] Add labeled matched `Mesh -> Voxels` comparison area with identical effective pose/scale/orientation/ground/lighting; source mesh is presentation-only and has no gameplay/collider authority. Exact-parent run `33485072972` produced the module-owned built comparison and direct human inspection accepted all required views.
-- [x] Add module-owned dragon validation scene/fixture using production systems; do not use Worldbuilding Gallery or the top-level showcase as the feature fixture. `MountainDragonVoxelValidationShowcase`, `MountainDragonVoxelValidation.unity`, its standalone scenario, and `mountain-dragon-voxelization.module-validation.json` are committed under `Assets/Game/Composition/Showcase/Validation/MountainDragonVoxelization/`.
-- [x] Integrate durable capture support for front, side, rear, front 3/4, rear 3/4, top/elevated 3/4, head/horns, wing, feet/claws, and tail. Exact run `33485072972` produced all ten semantic built-player frames and each was directly inspected.
-- [ ] Emit/record source triangle count, voxel resolution, authored voxel count, sparse brick/chunk count, voxelization duration, serialized size, resident/runtime placement/build cost. Bake metrics already record source triangles/resolution/cells/bricks/voxelization/serialized bytes; the current fixture additionally records canonical `StoragePressure` bytes, but keep this unchecked until exact built evidence for those new metrics passes.
-- [ ] Add destruction/world-truth validation proving edits affect rendered/collision truth without source-mesh shell/collider fallback. Implementation is committed after the ten pristine views; exact built validation remains pending.
+- [x] Instantiate the decoded baked dragon through normal `ShowcaseWorld.PlaceBakedMeshStructure` / WorldBuilder voxel authoring so rendering, collision, edit, and destruction share canonical storage. Exact run `33490519425` wrote all 98,100 voxels and then proved canonical destruction/collision truth in the built player.
+- [x] Repair explicit VoxelShowcase placement mode in Showcase composition. Commit `b4b87cefcc1174d9c43cebc35b62d3eb62cc2def` removes the optional inspector bake dependency and calls `MountainDragonBakedArtifact.Load()`; shared codec remains Dragon-agnostic.
+- [x] Add labeled matched `Mesh -> Voxels` comparison area with identical effective pose/scale/orientation/ground/lighting; source mesh is presentation-only and has no gameplay/collider authority. Exact run `33485072972` produced and passed direct human inspection of required views.
+- [x] Add module-owned dragon validation scene/fixture using production systems; do not use Worldbuilding Gallery or the top-level showcase as the feature fixture.
+- [x] Integrate durable capture support for front, side, rear, front 3/4, rear 3/4, top/elevated 3/4, head/horns, wing, feet/claws, and tail.
+- [x] Emit/record source triangle count, voxel resolution, authored voxel count, sparse brick count, serialized transport size, runtime placement cost, storage footprint/capacity, and renderer/world-build diagnostics. Exact run `33490519425` plus `verification-ci-33490519425.txt` records these values without weakening budgets.
+- [x] Add destruction/world-truth validation proving edits affect rendered/collision truth without source-mesh shell/collider fallback. Exact built run `33490519425` changed 1,144 voxels, changed the target from material 6 to empty, and changed collision from blocked to unblocked with zero source colliders.
 
 ## Reusability / ownership review
 - [x] Keep shared mesh voxelization, codec, replay, and metrics APIs mesh-agnostic; no dragon/source/showcase policy in shared engine APIs.
 - [x] Keep source reconstruction, dragon bake/palette policy, comparison staging, and placement controls in Editor/game/showcase composition.
 - [x] Prove a second non-dragon consumer uses the importer/codec/canonical replay path without dragon branches.
+- [x] Re-run feature diff/reuse/ownership review against current `master`: feature paths remain concentrated in Structures mesh import, Editor adapter/tooling, Showcase composition/validation, tests, resource bake, and this SceneIssue. No global voxel scale, terrain/building storage semantics, collision rules, or device budgets are intentionally changed. `master` is substantially advanced/diverged, so a normal merge is still required before final validation/promotion.
 
 ## Dragon acceptance / validation
-- [ ] Third-party source is legitimately redistributable with exact required provenance committed. Commercial-use permission is recorded; upstream URL/author/named-license metadata remains blocked.
-- [x] Generated structure is volumetric, sparse, bounded, and preserves recognizable head/body/wings/limbs/feet/tail/secondary detail. Structural/anatomy regressions plus direct inspection of exact built run `33485072972` prove the same detailed sculpture remains recognizable across all semantic views.
-- [x] Quantitative fidelity passes: surface distance <= 1.5 voxels and silhouette IoU >= 0.90 for required views. Exact-parent run `33476063393` passed the pinned-source fidelity regression, and automatic module validation in `33477581134` passed it again.
-- [x] Source and voxel exhibit use the same effective transform/pose; material/color acceptance is explicitly correct for STL with no standard material regions. Exact run `33485072972` directly proved matched pose/scale/orientation/ground/lighting in all ten views.
-- [x] Exact built module-owned fixture renders the comparison without exceptions and records durable evidence. Run `33485072972` was fully green across focused test, automatic module validation, built players, top-level replay, previews, and final status.
+- [ ] Third-party source is legitimately redistributable with exact required provenance committed. Commercial-use permission is recorded; upstream URL/author/named-license metadata remains externally blocked.
+- [x] Generated structure is volumetric, sparse, bounded, and preserves recognizable head/body/wings/limbs/feet/tail/secondary detail.
+- [x] Quantitative fidelity passes: surface distance <= 1.5 voxels and silhouette IoU >= 0.90 for required views.
+- [x] Source and voxel exhibit use the same effective transform/pose; material/color acceptance is explicitly correct for STL with no standard material regions.
+- [x] Exact built module-owned fixture renders the comparison without exceptions and records durable evidence.
 - [x] Human review confirms the voxel result is unmistakably this exact source, not merely a generic dragon, and classifies the ten-view comparison evidence as production-quality for this feature fixture.
-- [ ] Built-app destruction/world truth and one-shot placement are directly validated. Destruction proof is implemented but not yet exact-CI proven; top-level placement composition remains defective.
-- [ ] Record import/voxelization time, occupied cells, sparse bricks/chunks, serialized bytes, resident/storage impact, render/world-build cost, and confirm blast radius/budgets.
-- [ ] Re-run final feature diff/reuse/ownership review after artifact/showcase/evidence work.
-- [ ] Refresh/merge current `origin/master` immediately before final exact-SHA gates if advanced.
+- [ ] Built-app one-shot VoxelShowcase placement input is directly exercised end-to-end. Composition now consumes the pinned artifact and router behavior is covered independently, but the top-level built replay does not synthesize B/Space input; keep this unproven gate unchecked rather than substituting editor-only evidence.
+- [x] Built-app destruction/world truth is directly validated by exact run `33490519425`; rendering/collision both follow canonical voxel mutation and no source collider survives.
+- [x] Record import/bake characteristics, occupied cells, sparse bricks, serialized bytes, placed storage footprint/capacity, placement/world-build cost, renderer diagnostics, and confirm no budget weakening. Durable values are in `verification-ci-33490519425.txt`.
+- [x] Inspect exact run `33490519425` post-destruction frames directly and confirm no runtime/assertion exception; all ten pristine comparison frames remain present.
+- [ ] Merge current `origin/master` immediately before final exact-SHA gates; master is currently ahead/diverged and must be integrated non-force.
 - [ ] Issue final exact-SHA focused + module-owned built-player validation only through `ci-test/fixes/agent-1`; never replace queued/running CI.
-- [ ] Inspect all required final captures directly and confirm no startup/runtime exceptions.
+- [ ] Inspect all required final captures directly after the final master merge and confirm no startup/runtime exceptions.
 
 ## Promotion / closure
 - [ ] Complete issue metadata (`status`, `resolutionSummary`, `regressionTest`, `fixCommit`, `resolvedUtc`) only after every acceptance gate passes.
