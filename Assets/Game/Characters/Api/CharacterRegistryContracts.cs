@@ -40,7 +40,9 @@ namespace Game.Characters.Api
         UnknownCharacterId = 3,
         DuplicateBinding = 4,
         UnknownBinding = 5,
-        CharacterAlreadyDefeated = 6
+        CharacterAlreadyDefeated = 6,
+        RegistryNotEmpty = 7,
+        InvalidState = 8
     }
 
     public enum CharacterEventKind
