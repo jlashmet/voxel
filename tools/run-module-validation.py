@@ -14,11 +14,12 @@ def run_test(unity: str, item: dict, root: Path) -> float:
     out.mkdir(parents=True, exist_ok=True)
     xml = out / "results.xml"
     log = out / "unity.log"
-    args = ["tools/unity-run.sh", "-batchmode", "-job-worker-count", "1"]
-    if platform == "EditMode":
-        args.append("-nographics")
-    args += ["-projectPath", str(Path.cwd()), "-runTests", "-testPlatform", platform,
-             "-assemblyNames", assembly, "-testResults", str(xml), "-logFile", str(log)]
+    # Required module suites may contain graphics/compute regressions even when they are EditMode.
+    # Keep the graphics device available so those tests execute rather than silently becoming
+    # unavailable under -nographics; skipped required cases are intentionally treated as failures.
+    args = ["tools/unity-run.sh", "-batchmode", "-job-worker-count", "1",
+            "-projectPath", str(Path.cwd()), "-runTests", "-testPlatform", platform,
+            "-assemblyNames", assembly, "-testResults", str(xml), "-logFile", str(log)]
     env = os.environ.copy()
     env.update({"UNITY_BIN": unity, "UNITY_MAX_RSS_MB": "14336", "UNITY_MAX_MINUTES": "4"})
     started = time.monotonic()
