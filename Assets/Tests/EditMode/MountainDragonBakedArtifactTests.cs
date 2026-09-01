@@ -18,20 +18,53 @@ namespace VoxelEngine.Tests.EditMode
 
             string text = payload.text;
             var invalid = new List<string>();
-            for (int i = 0; i < text.Length && invalid.Count < 16; i++)
+            int nonWhitespace = 0;
+            int whitespace = 0;
+            int padding = 0;
+            int firstPadding = -1;
+            int symbolsAfterPadding = 0;
+            for (int i = 0; i < text.Length; i++)
             {
                 char c = text[i];
-                bool base64 = (c >= 'A' && c <= 'Z')
+                if (char.IsWhiteSpace(c))
+                {
+                    whitespace++;
+                    continue;
+                }
+
+                nonWhitespace++;
+                bool alphabet = (c >= 'A' && c <= 'Z')
                     || (c >= 'a' && c <= 'z')
                     || (c >= '0' && c <= '9')
-                    || c == '+' || c == '/' || c == '=' || char.IsWhiteSpace(c);
-                if (!base64) invalid.Add($"index={i}, U+{(int)c:X4}");
+                    || c == '+' || c == '/';
+                if (c == '=')
+                {
+                    padding++;
+                    if (firstPadding < 0) firstPadding = i;
+                }
+                else
+                {
+                    if (!alphabet && invalid.Count < 16) invalid.Add($"index={i}, U+{(int)c:X4}");
+                    if (firstPadding >= 0) symbolsAfterPadding++;
+                }
             }
 
             Assert.That(invalid, Is.Empty,
-                $"Unity TextAsset changed the checked-in Base64 transport. textLength={text.Length}, byteLength={payload.bytes.Length}, invalid={string.Join("; ", invalid)}");
-            Assert.DoesNotThrow(() => Convert.FromBase64String(text),
-                $"Unity TextAsset contains only Base64/whitespace but Convert still rejected it. textLength={text.Length}, byteLength={payload.bytes.Length}.");
+                $"Unity TextAsset changed the checked-in Base64 alphabet. textLength={text.Length}, byteLength={payload.bytes.Length}, invalid={string.Join("; ", invalid)}");
+            try
+            {
+                Convert.FromBase64String(text);
+            }
+            catch (FormatException exception)
+            {
+                string head = text.Substring(0, Math.Min(24, text.Length));
+                string tail = text.Substring(Math.Max(0, text.Length - 24));
+                Assert.Fail(
+                    $"Base64 structure is invalid. textLength={text.Length}, byteLength={payload.bytes.Length}, " +
+                    $"nonWhitespace={nonWhitespace}, nonWhitespaceMod4={nonWhitespace % 4}, whitespace={whitespace}, " +
+                    $"padding={padding}, firstPadding={firstPadding}, symbolsAfterPadding={symbolsAfterPadding}, " +
+                    $"head='{head}', tail='{tail}', error='{exception.Message}'.");
+            }
         }
 
         [Test]
