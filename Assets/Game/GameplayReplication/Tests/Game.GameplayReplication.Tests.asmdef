@@ -5,11 +5,13 @@
     "Game.GameplayReplication.Api",
     "Game.GameplayReplication.Runtime",
     "Game.GameplayReplication.Adapters",
+    "Game.GameplayReplication.Transport",
     "Game.Characters.Api",
     "Game.Combat.Api",
     "Game.Encounters.Api",
     "Game.Inventory.Api",
-    "Game.Sessions.Api"
+    "Game.Sessions.Api",
+    "VoxelEngine.Net.Runtime"
   ],
   "includePlatforms": [
     "Editor"
