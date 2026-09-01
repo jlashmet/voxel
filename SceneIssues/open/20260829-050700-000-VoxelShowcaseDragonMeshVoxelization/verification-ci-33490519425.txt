@@ -1,0 +1,52 @@
+Exact targeted-CI evidence — run 33490519425
+Request/transport SHA: 445e50b76da60807667f54b7a581e6f4d90ecf56
+Feature parent: b0e500870aaddaa49de84ac5794bd3aa8c6af6f6
+Result: success
+
+Required gates completed successfully:
+- requested focused test: MountainDragonBakedArtifactTests (4/4 passed)
+- automatic module validation EditMode:
+  - MountainDragonBakedArtifactTests
+  - MountainDragonBakeGenerationTests.CheckedInBake_MeetsPinnedSourceFidelityTargets
+  - MeshVoxelizationReuseTests.IndependentBoxFixture_UsesImporterCodecAndCanonicalAuthoringPath
+- automatic built-player validation:
+  - mountain-dragon-voxelization module fixture
+  - canonical Kentridge integration player
+- top-level SceneIssue VoxelShowcase standalone player replay
+- screenshot preview generation and artifact upload
+- final commit status
+
+Mountain Dragon built-player placement/cost evidence:
+MOUNTAIN_DRAGON_VALIDATION_COST placement_ms=60.122 requested_voxels=98100 written_voxels=98100 regions_prepared=1 brick_pool_capacity=2367424 tier_budget_bytes=5000000000 storage_used_bytes=35656896 storage_capacity_bytes=4999999488 storage_critical_bytes=4999695360 storage_under_pressure=False allocated_bytes=5097189464 reserved_bytes=5190893568 setup_ticks=69799795
+MOUNTAIN_DRAGON_VALIDATION ready: source_triangles=29734 authored_voxels=98100 source_origin=-886,221,160 voxel_origin=220,221,160 source_colliders_disabled=0
+
+Pinned bake evidence already established by earlier exact-SHA generation/fidelity gates:
+- source triangles: 29,734
+- authored voxels: 98,100
+- sparse bricks: 594
+- bounds: 99 x 107 x 107
+- source-space resolution: 0.30 source units / voxel
+- canonical bake SHA-256: 83370421048606be2dc658315ec9acc2cae39d2a7a20011151d7d561267bec41
+- runtime transport SHA-256: 758612c8b63316e3757a7695bfdb07f99ee5709f3706c504688d657017ecc961
+- checked-in Base64 transport file size: 15,801 bytes
+
+Built-player render/world-build evidence after placement:
+- renderer stayed active through all ten pristine semantic captures plus post-destruction captures
+- representative settled renderer diagnostics after startup remained low-cost (worker p95 about 0.08 ms, residency p95 about 0.007 ms, admission frame about 0.09 ms in the final capture interval)
+- the placement fixture remained below storage pressure with 35,656,896 bytes used against 4,999,999,488 bytes capacity
+- ordinary runtime consumed only the pinned sparse bake; no source-mesh voxelization occurred in the player
+
+Built destruction/world-truth proof:
+MOUNTAIN_DRAGON_DESTRUCTION_WORLD_TRUTH target=272,278,215 before_material=6 after_material=0 changed_voxels=1144 collision_blocked_before=True collision_blocked_after=False source_enabled_colliders=0 storage_used_bytes=35665344 storage_capacity_bytes=4999999488 storage_under_pressure=False
+
+The proof mutates canonical ShowcaseWorld voxel state after all ten pristine comparison captures. The exact target transitions from occupied material 6 to empty material 0, and the collision query transitions from blocked to unblocked. Source mesh colliders are absent, so neither visual nor collision authority falls back to polygon geometry.
+
+Direct artifact inspection:
+- all ten pristine comparison frames from the earlier accepted visual sequence remain present in this exact run
+- frame_010_t039.0.png and frame_011_t042.0.png were inspected directly after the destruction event; the authoritative voxel side remains rendered and the source side remains presentation-only
+- player logs contain no assertion failure or runtime exception; the module player exits normally after the 45 s harness window
+
+Provenance search update, 2026-09-01:
+- searched public web sources for the exact ZIP SHA-256, STL SHA-256, and filename mountain_dragon_supported.stl
+- no exact public match was found
+- therefore original upstream URL, author/creator, and named upstream license/permission text remain an external acceptance blocker and are not inferred from similar Mountain Dragon listings
