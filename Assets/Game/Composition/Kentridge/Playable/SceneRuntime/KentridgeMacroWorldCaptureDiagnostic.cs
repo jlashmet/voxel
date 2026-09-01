@@ -7,6 +7,7 @@ using Game.WorldBuilder.Runtime;
 using MountingForce.WorldGen;
 using MountingForce.WorldGen.Content.Kentridge;
 using MountingForce.WorldGen.Voxel;
+using Unity.Mathematics;
 using UnityEngine;
 using VoxelEngine.Composition;
 using VoxelEngine.Showcase;
@@ -18,8 +19,8 @@ namespace Game.Kentridge.PlayableSlice
     /// <summary>
     /// Validation-only end-of-frame discriminator for macro settlement captures. It observes the
     /// already-authored survey camera after the settlement-lens composition has run and reports the
-    /// actual FOV/pose plus viewport and authoritative/published surface state at all authored
-    /// generic blockout centres. It never changes camera, streaming, world generation, rendering,
+    /// actual FOV/pose plus viewport, exact authored shell/roof storage, and published surface state
+    /// for all generic blockouts. It never changes camera, streaming, world generation, rendering,
     /// residency, or replay state.
     /// </summary>
     [DefaultExecutionOrder(20000)]
@@ -32,11 +33,14 @@ namespace Game.Kentridge.PlayableSlice
         private const float HeightToleranceMetres = 1.5f;
         private const int SurveyHorizontalOffsetDm = 60;
         private const float CameraMatchToleranceMetres = 2f;
-        private const int TopProbeBelowTerrainVoxels = 16;
-        private const int TopProbeAboveTerrainVoxels = 400;
         private const float CentreCoverageWidthMetres = 4f;
         private const float CentreCoverageHeightMetres = 40f;
         private const int StableReadyFrames = 4;
+        private const int BuildingFoundationInsetDm = 6;
+        private const int BuildingTerrainSamplesPerAxis = 5;
+        private const int TimberProbeHeightDm = 10;
+        private const byte TimberMaterialId = 2;
+        private const byte RoofTileMaterialId = 8;
 
         private static readonly FieldInfo s_WorldField = typeof(KentridgePlayableSlice).GetField(
             "_world",
@@ -118,10 +122,12 @@ namespace Game.Kentridge.PlayableSlice
                 _reported.Add(survey.Label);
 
                 bool allCentresInside = true;
-                var centres = new string[survey.BuildingCentresDm.Length];
-                for (var i = 0; i < survey.BuildingCentresDm.Length; i++)
+                bool allAuthoredShellsStored = true;
+                var buildings = new string[survey.Buildings.Length];
+                for (var i = 0; i < survey.Buildings.Length; i++)
                 {
-                    Int2 centreDm = survey.BuildingCentresDm[i];
+                    TopDownWorldBuildingBlockoutPlan building = survey.Buildings[i];
+                    Int2 centreDm = building.CentreDm;
                     int groundVoxel = TerrainSampler.HeightAt(centreDm.X, centreDm.Y, Seed);
                     float ground = groundVoxel * DmToMetres;
                     Vector3 viewport = camera.WorldToViewportPoint(new Vector3(
@@ -133,14 +139,21 @@ namespace Game.Kentridge.PlayableSlice
                                   && viewport.y >= 0.04f && viewport.y <= 0.96f;
                     allCentresInside &= inside;
 
-                    bool hasTop = _world.SurfaceQuery.TryFindTopSolid(
-                        centreDm.X,
-                        centreDm.Y,
-                        groundVoxel - TopProbeBelowTerrainVoxels,
-                        groundVoxel + TopProbeAboveTerrainVoxels,
-                        out int topY,
-                        out VoxelCell topCell);
-                    int topDelta = hasTop ? topY - groundVoxel : int.MinValue;
+                    int maximumGround = SampleMaximumGround(building);
+                    var timberVoxel = new int3(
+                        building.CentreDm.X,
+                        maximumGround + TimberProbeHeightDm,
+                        building.CentreDm.Y - building.HalfExtentZDm + 1);
+                    var roofVoxel = new int3(
+                        building.CentreDm.X,
+                        maximumGround + building.HeightDm,
+                        building.CentreDm.Y);
+                    bool timberRead = TryReadCell(_world.ReadStorage, timberVoxel, out VoxelCell timberCell);
+                    bool roofRead = TryReadCell(_world.ReadStorage, roofVoxel, out VoxelCell roofCell);
+                    bool timberStored = timberRead && timberCell.BaseMaterialId == TimberMaterialId;
+                    bool roofStored = roofRead && roofCell.BaseMaterialId == RoofTileMaterialId;
+                    allAuthoredShellsStored &= timberStored && roofStored;
+
                     var coverageBounds = new Bounds(
                         new Vector3(
                             centreDm.X * DmToMetres,
@@ -154,12 +167,11 @@ namespace Game.Kentridge.PlayableSlice
                         coverageBounds,
                         DmToMetres,
                         out SurfaceBoundsCoverage coverage);
-                    centres[i] =
+                    buildings[i] =
                         $"b{i}=({viewport.x:0.000},{viewport.y:0.000},{viewport.z:0.0}) inside={inside}" +
-                        $" top={(hasTop ? topY.ToString() : "none")}" +
-                        $" delta={(hasTop ? topDelta.ToString() : "none")}" +
-                        $" material={(hasTop ? topCell.BaseMaterialId.ToString() : "none")}" +
-                        $" surfaceStyle={(hasTop ? topCell.Surface.ReconstructionStyleId.ToString() : "none")}" +
+                        $" maxGround={maximumGround}" +
+                        $" timberVoxel={Format(timberVoxel)} timberRead={timberRead} timberMaterial={(timberRead ? timberCell.BaseMaterialId.ToString() : "none")} timberStored={timberStored}" +
+                        $" roofVoxel={Format(roofVoxel)} roofRead={roofRead} roofMaterial={(roofRead ? roofCell.BaseMaterialId.ToString() : "none")} roofStored={roofStored}" +
                         $" coverage={queried}/{coverage.ReadyChunkCount}/{coverage.ReadyIndexCount}" +
                         $" sourceStep={coverage.MinimumSourceStep}-{coverage.MaximumSourceStep}";
                 }
@@ -169,7 +181,8 @@ namespace Game.Kentridge.PlayableSlice
                     $"MACROEVIDENCE end-frame-survey target={survey.Label} fov={camera.fieldOfView:0.0} " +
                     $"position=({position.x:0.0},{position.y:0.0},{position.z:0.0}) " +
                     $"euler=({euler.x:0.0},{euler.y:0.0},{euler.z:0.0}) allBuildingCentresInside={allCentresInside} " +
-                    string.Join(" ", centres));
+                    $"allAuthoredShellsStored={allAuthoredShellsStored} " +
+                    string.Join(" ", buildings));
                 ResetReadyFrames();
                 return;
             }
@@ -184,9 +197,9 @@ namespace Game.Kentridge.PlayableSlice
             _world ??= s_WorldField.GetValue(_slice) as ShowcaseWorld;
             if (_world == null || !RenderingComposition.HasCompletePublishedNearSurfaceCoverage()) return false;
 
-            for (var i = 0; i < survey.BuildingCentresDm.Length; i++)
+            for (var i = 0; i < survey.Buildings.Length; i++)
             {
-                Int2 centreDm = survey.BuildingCentresDm[i];
+                Int2 centreDm = survey.Buildings[i].CentreDm;
                 int ground = TerrainSampler.HeightAt(centreDm.X, centreDm.Y, Seed);
                 var worldPoint = new Vector3(
                     centreDm.X * DmToMetres,
@@ -208,9 +221,9 @@ namespace Game.Kentridge.PlayableSlice
             if (!physical.TryGetSettlement(nodeId, out TopDownWorldSettlementPlan settlement))
                 throw new InvalidOperationException("Capture diagnostic has no settlement '" + nodeId + "'.");
 
-            var centres = new Int2[settlement.Buildings.Count];
+            var buildings = new TopDownWorldBuildingBlockoutPlan[settlement.Buildings.Count];
             TopDownWorldBuildingBlockoutPlan first = settlement.Buildings[0];
-            centres[0] = first.CentreDm;
+            buildings[0] = first;
             int minX = first.CentreDm.X - first.HalfExtentXDm;
             int maxX = first.CentreDm.X + first.HalfExtentXDm;
             int minZ = first.CentreDm.Y - first.HalfExtentZDm;
@@ -218,7 +231,7 @@ namespace Game.Kentridge.PlayableSlice
             for (var i = 1; i < settlement.Buildings.Count; i++)
             {
                 TopDownWorldBuildingBlockoutPlan building = settlement.Buildings[i];
-                centres[i] = building.CentreDm;
+                buildings[i] = building;
                 minX = Math.Min(minX, building.CentreDm.X - building.HalfExtentXDm);
                 maxX = Math.Max(maxX, building.CentreDm.X + building.HalfExtentXDm);
                 minZ = Math.Min(minZ, building.CentreDm.Y - building.HalfExtentZDm);
@@ -229,7 +242,42 @@ namespace Game.Kentridge.PlayableSlice
             return new Survey(
                 nodeId,
                 new Int2(focusDm.X + SurveyHorizontalOffsetDm, focusDm.Y + SurveyHorizontalOffsetDm),
-                centres);
+                buildings);
+        }
+
+        private static int SampleMaximumGround(TopDownWorldBuildingBlockoutPlan building)
+        {
+            int leftDm = building.CentreDm.X - building.HalfExtentXDm - BuildingFoundationInsetDm;
+            int rightDm = building.CentreDm.X + building.HalfExtentXDm + BuildingFoundationInsetDm;
+            int backDm = building.CentreDm.Y - building.HalfExtentZDm - BuildingFoundationInsetDm;
+            int frontDm = building.CentreDm.Y + building.HalfExtentZDm + BuildingFoundationInsetDm;
+            int maximumGround = int.MinValue;
+            for (var x = 0; x < BuildingTerrainSamplesPerAxis; x++)
+            {
+                int sampleX = leftDm + (rightDm - leftDm) * x / (BuildingTerrainSamplesPerAxis - 1);
+                for (var z = 0; z < BuildingTerrainSamplesPerAxis; z++)
+                {
+                    int sampleZ = backDm + (frontDm - backDm) * z / (BuildingTerrainSamplesPerAxis - 1);
+                    maximumGround = Math.Max(maximumGround, TerrainSampler.HeightAt(sampleX, sampleZ, Seed));
+                }
+            }
+            return maximumGround;
+        }
+
+        private static bool TryReadCell(IRegionReadSource reads, int3 worldVoxel, out VoxelCell cell)
+        {
+            int edge = ShowcaseWorld.RegionVoxelEdge;
+            var region = new int3(
+                (int)math.floor((float)worldVoxel.x / edge),
+                (int)math.floor((float)worldVoxel.y / edge),
+                (int)math.floor((float)worldVoxel.z / edge));
+            int3 local = worldVoxel - region * edge;
+            if (!reads.TryAcquireRegion(region, out RegionReadView view))
+            {
+                cell = default;
+                return false;
+            }
+            return view.TryReadCell(local, out cell);
         }
 
         private static bool TryReadValidationProfile(out string profile)
@@ -257,17 +305,19 @@ namespace Game.Kentridge.PlayableSlice
             return null;
         }
 
+        private static string Format(int3 value) => $"({value.x},{value.y},{value.z})";
+
         private readonly struct Survey
         {
             public string Label { get; }
             public Int2 CameraDm { get; }
-            public Int2[] BuildingCentresDm { get; }
+            public TopDownWorldBuildingBlockoutPlan[] Buildings { get; }
 
-            public Survey(string label, Int2 cameraDm, Int2[] buildingCentresDm)
+            public Survey(string label, Int2 cameraDm, TopDownWorldBuildingBlockoutPlan[] buildings)
             {
                 Label = label;
                 CameraDm = cameraDm;
-                BuildingCentresDm = buildingCentresDm;
+                Buildings = buildings;
             }
         }
     }
