@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 using Game.Composition.WorldBuilderWorldGen.Runtime;
 using Game.WorldBuilder.Api;
 using Game.WorldBuilder.Runtime;
@@ -9,6 +10,7 @@ using MountingForce.WorldGen.Voxel;
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
+using UnityEngine;
 using VoxelEngine.Showcase;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
@@ -36,8 +38,8 @@ namespace VoxelEngine.Tests.PlayMode
             TopDownWorldLayout layout = MountingForceTopDownWorldDefinition.Build(Seed);
             VoxelWorldGenSettings settings = Settings(kentridge: true);
 
-            // Establish a deterministic empty handoff before reproducing the playable catalogue call.
-            // Select/TryConsume is intentionally one-shot; no scene-global reset API is needed.
+            // This test documents the shared one-shot contract only. It is not a playable root-cause
+            // proof because the scene compatibility adapter already performs Select during authoring.
             TopDownWorldLayoutSelection.Select(
                 layout,
                 KentridgeDefinition.TownCentreDm.X,
@@ -56,7 +58,7 @@ namespace VoxelEngine.Tests.PlayMode
                 Assert.That(
                     ContainsDefinitionStarting(withoutSelection, "macro-town-building-fairy-village-"),
                     Is.False,
-                    "The production Kentridge catalogue cannot contain the macro settlement unless composition selects the semantic macro layout first.");
+                    "The shared production catalogue cannot contain macro settlements without the explicit semantic handoff.");
                 Assert.That(
                     ContainsDefinitionStarting(withoutSelection, "macro-town-building-orc-village-"),
                     Is.False);
@@ -72,15 +74,13 @@ namespace VoxelEngine.Tests.PlayMode
                     Allocator.Temp);
                 Assert.That(
                     ContainsDefinitionStarting(withSelection, "macro-town-building-fairy-village-"),
-                    Is.True,
-                    "The same production catalogue must include Fairy once the explicit semantic handoff is present.");
+                    Is.True);
                 Assert.That(
                     ContainsDefinitionStarting(withSelection, "macro-town-building-orc-village-"),
-                    Is.True,
-                    "The same production catalogue must include Orc once the explicit semantic handoff is present.");
+                    Is.True);
 
                 TestContext.WriteLine(
-                    "MACRO_PLAYABLE_SELECTION " +
+                    "MACRO_SELECTION_CONTRACT " +
                     $"withoutDefinitions={withoutSelection.Definitions.Length} " +
                     $"withDefinitions={withSelection.Definitions.Length}");
             }
@@ -88,6 +88,68 @@ namespace VoxelEngine.Tests.PlayMode
             {
                 if (withSelection.IsCreated) withSelection.Dispose();
                 if (withoutSelection.IsCreated) withoutSelection.Dispose();
+            }
+        }
+
+        [Test]
+        public void PlayableCompatibilityAuthoringLeavesMacroSelectionForCatalogueBuild()
+        {
+            TopDownWorldLayout layout = MountingForceTopDownWorldDefinition.Build(Seed);
+            TopDownWorldLayoutSelection.Select(
+                layout,
+                KentridgeDefinition.TownCentreDm.X,
+                KentridgeDefinition.TownCentreDm.Y,
+                MountingForceTopDownWorldDefinition.CellSizeDm);
+            Assert.That(TopDownWorldLayoutSelection.TryConsume(Seed, out _), Is.True,
+                "The fixture must start with an empty one-shot handoff.");
+
+            Assembly playableAssembly = typeof(Game.Kentridge.PlayableSlice.KentridgePlayableSlice).Assembly;
+            Type playableKentridge = playableAssembly.GetType(
+                "Game.Kentridge.PlayableSlice.KentridgeDefinition",
+                throwOnError: true);
+            Type playableHightown = playableAssembly.GetType(
+                "Game.Kentridge.PlayableSlice.HightownDefinition",
+                throwOnError: true);
+            MethodInfo buildKentridge = playableKentridge.GetMethod(
+                "Build",
+                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+            MethodInfo buildHightown = playableHightown.GetMethod(
+                "Build",
+                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+            Assert.That(buildKentridge, Is.Not.Null);
+            Assert.That(buildHightown, Is.Not.Null);
+
+            FeatureCatalogue catalogue = default;
+            try
+            {
+                var kentridge = (SettlementPlan)buildKentridge.Invoke(null, new object[] { Seed });
+                // Match the shipped OnEnable ordering: Hightown authoring runs after Kentridge's
+                // compatibility adapter selected the macro layout and before the catalogue consumes it.
+                buildHightown.Invoke(null, new object[] { Seed });
+
+                catalogue = KentridgeCombinedVoxelCatalogue.Build(
+                    kentridge,
+                    Settings(kentridge: true),
+                    Array.Empty<KentridgeHiddenSpaceGeometry>(),
+                    Allocator.Temp);
+
+                Assert.That(
+                    ContainsDefinitionStarting(catalogue, "macro-town-building-fairy-village-"),
+                    Is.True,
+                    "The real playable compatibility authoring path must leave its selected macro layout pending for the production catalogue build.");
+                Assert.That(
+                    ContainsDefinitionStarting(catalogue, "macro-town-building-orc-village-"),
+                    Is.True);
+
+                TestContext.WriteLine(
+                    "MACRO_PLAYABLE_COMPATIBILITY_SELECTION " +
+                    $"definitions={catalogue.Definitions.Length}");
+            }
+            finally
+            {
+                if (catalogue.IsCreated) catalogue.Dispose();
+                GameObject presentation = GameObject.Find("Kentridge Top-Down World Layout");
+                if (presentation != null) UnityEngine.Object.DestroyImmediate(presentation);
             }
         }
 
