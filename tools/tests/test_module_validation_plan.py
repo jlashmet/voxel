@@ -36,8 +36,8 @@ class PlannerTests(unittest.TestCase):
         asmdef(root, "Assets/Water/Tests/EditMode/Water.Tests.EditMode.asmdef", "Water.Tests.EditMode")
         asmdef(root, "Assets/Water/Tests/PlayMode/Water.Tests.PlayMode.asmdef", "Water.Tests.PlayMode")
         write(root, "Assets/Water/Runtime/Surface.cs")
-        write(root, "Assets/Water/Demo/Scenes/WaterDemo.unity")
-        write(root, "Assets/Water/Demo/Scenes/WaterDemo.player-scenario.json", "{}")
+        write(root, "Assets/Water/Validation/Water/WaterDemo.unity")
+        write(root, "Assets/Water/Validation/Water/WaterDemo.player-scenario.json", "{}")
 
         asmdef(root, "Assets/Structures/Runtime/Structures.Runtime.asmdef", "Structures.Runtime")
         asmdef(root, "Assets/Structures/Tests/EditMode/Structures.Tests.EditMode.asmdef", "Structures.Tests.EditMode")
@@ -57,7 +57,7 @@ class PlannerTests(unittest.TestCase):
                 [(item["platform"], item["assembly"]) for item in result["tests"]],
             )
             self.assertEqual(
-                ["Assets/Water/Demo/Scenes/WaterDemo.unity", planner.KENTRIDGE_SCENE],
+                ["Assets/Water/Validation/Water/WaterDemo.unity", planner.KENTRIDGE_SCENE],
                 [item["scene"] for item in result["playerValidations"]],
             )
             self.assertTrue(result["hasProductionChanges"])
@@ -93,23 +93,23 @@ class PlannerTests(unittest.TestCase):
     def test_validation_scene_and_scenario_are_discovered_by_pairing_convention(self):
         td, root = self.fixture()
         with td:
-            result = planner.plan(["Assets/Water/Demo/Scenes/WaterDemo.unity"], planner.discover(root))
+            result = planner.plan(["Assets/Water/Validation/Water/WaterDemo.unity"], planner.discover(root))
             self.assertFalse(result["hasProductionChanges"])
             self.assertEqual(["Assets/Water"], result["modules"])
             self.assertEqual(1, len(result["playerValidations"]))
-            self.assertEqual("Assets/Water/Demo/Scenes/WaterDemo.player-scenario.json", result["playerValidations"][0]["scenario"])
+            self.assertEqual("Assets/Water/Validation/Water/WaterDemo.player-scenario.json", result["playerValidations"][0]["scenario"])
 
     def test_missing_scene_scenario_pair_fails_closed(self):
         td, root = self.fixture()
         with td:
-            (root / "Assets/Water/Demo/Scenes/WaterDemo.player-scenario.json").unlink()
+            (root / "Assets/Water/Validation/Water/WaterDemo.player-scenario.json").unlink()
             with self.assertRaisesRegex(planner.ConventionError, "missing paired scenario"):
                 planner.discover(root)
 
     def test_orphan_scenario_fails_closed(self):
         td, root = self.fixture()
         with td:
-            write(root, "Assets/Water/Demo/Scenes/Orphan.player-scenario.json", "{}")
+            write(root, "Assets/Water/Validation/Water/Orphan.player-scenario.json", "{}")
             with self.assertRaisesRegex(planner.ConventionError, "missing paired scene"):
                 planner.discover(root)
 
