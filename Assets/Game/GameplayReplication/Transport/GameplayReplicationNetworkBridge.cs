@@ -136,6 +136,7 @@ namespace Game.GameplayReplication.Transport
 
         public GameplayRevision CurrentRevision => _builder.CurrentRevision;
         public int LastSendFailureCount { get; private set; }
+        public int PendingRepairRequestCount => _repairRequests.Count;
 
         public void HandleGameplayStateRepairRequest(uint connectionId, in C_GameplayStateRepairRequest request)
         {
