@@ -6,6 +6,7 @@ using Game.Combat.Api;
 using Game.Encounters.Api;
 using Game.GameplayReplication.Api;
 using Game.Inventory.Api;
+using Game.Sessions.Api;
 
 namespace Game.GameplayReplication.Adapters
 {
@@ -122,6 +123,41 @@ namespace Game.GameplayReplication.Adapters
             var entries = new List<GameplayProjectionEntry>();
             foreach (InventoryItemSnapshot item in items)
                 entries.Add(new GameplayProjectionEntry(item.Definition.Ref.Id, item.Quantity.ToString(CultureInfo.InvariantCulture)));
+            return new GameplayProjectionState(Descriptor, entries);
+        }
+    }
+
+    public sealed class SessionsGameplayProjectionSource : IGameplayProjectionSource
+    {
+        private readonly IPartySessionQuery _sessions;
+        public SessionsGameplayProjectionSource(IPartySessionQuery sessions, bool requiredForGameplayReady = true)
+        {
+            _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
+            Descriptor = new GameplayProjectionDescriptor(new GameplayProjectionId("sessions"), 1, requiredForGameplayReady);
+        }
+
+        public GameplayProjectionDescriptor Descriptor { get; }
+
+        public GameplayProjectionState Capture()
+        {
+            PartyRosterSnapshot snapshot = _sessions.Snapshot();
+            var members = new List<PartyMemberSnapshot>(snapshot.Members);
+            members.Sort((a, b) => a.Slot.CompareTo(b.Slot));
+            var entries = new List<GameplayProjectionEntry>
+            {
+                new GameplayProjectionEntry("session-id", snapshot.SessionId.Value)
+            };
+
+            foreach (PartyMemberSnapshot member in members)
+            {
+                string p = "slot/" + member.Slot.Value.ToString(CultureInfo.InvariantCulture) + "/";
+                entries.Add(new GameplayProjectionEntry(p + "member-id", member.MemberId.Value));
+                entries.Add(new GameplayProjectionEntry(p + "leadership", member.LeadershipRole.ToString()));
+                entries.Add(new GameplayProjectionEntry(p + "presence", member.Presence.ToString()));
+                entries.Add(new GameplayProjectionEntry(p + "readiness", member.Readiness.ToString()));
+                entries.Add(new GameplayProjectionEntry(p + "character-id", member.HasCharacter ? member.CharacterId.Value : string.Empty));
+            }
+
             return new GameplayProjectionState(Descriptor, entries);
         }
     }
