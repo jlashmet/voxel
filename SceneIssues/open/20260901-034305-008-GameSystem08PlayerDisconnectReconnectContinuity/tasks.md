@@ -26,13 +26,13 @@
 
 ## Verification
 
-- [ ] **T08-020 — Fast reconnect test.** Authored: new connection 99, same PartyMemberId/PlayerSlot/CharacterId; pending exact CI.
-- [ ] **T08-021 — Full-resync reconnect test.** Path-selection/identity regression authored; full current-state resync proof blocked by missing system 06.
+- [x] **T08-020 — Fast reconnect test.** Exact CI run 33506812126 passed on request `9b9fa56c0c6cd35f15eb7861e6525ec63fdb03d3` whose direct feature parent is `20d2e386e7fe9bd7b277ab339d5cc2b321dabb29`; regression proves connection 99 with unchanged PartyMemberId/PlayerSlot/CharacterId.
+- [ ] **T08-021 — Full-resync reconnect test.** Path-selection/identity regression is green in exact CI, but full current-state resync proof remains blocked by missing system 06.
 - [ ] **T08-022 — Absent-state mutation test.** Blocked by missing GameplayReplication current-state API.
-- [ ] **T08-023 — Duplicate-character regression.** Authored: repeated reconnect cannot create another roster member/CharacterId; pending exact CI.
-- [ ] **T08-024 — Explicit leave test.** Authored; pending exact CI.
-- [ ] **T08-025 — Grace-expiration test.** Authored; pending exact CI.
-- [ ] **T08-026 — Run automatic Continuity/Sessions/Replication tests.** Continuity/Sessions can run independently; required Replication portion remains blocked until system 06 lands.
+- [x] **T08-023 — Duplicate-character regression.** Exact CI run 33506812126 passed the authored regression proving repeated reconnect cannot create another roster member/CharacterId.
+- [x] **T08-024 — Explicit leave test.** Exact CI run 33506812126 passed the authored explicit-leave regression.
+- [x] **T08-025 — Grace-expiration test.** Exact CI run 33506812126 passed the authored expiration/credential-invalidation regression.
+- [ ] **T08-026 — Run automatic Continuity/Sessions/Replication tests.** Exact CI run 33506812126 passed automatic required module validation for the currently available Continuity/Sessions slice; required GameplayReplication validation remains blocked until system 06 lands.
 
 ## Cleanup / close
 
