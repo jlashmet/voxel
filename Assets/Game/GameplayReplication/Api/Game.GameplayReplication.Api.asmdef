@@ -1,7 +1,7 @@
 {
   "name": "Game.GameplayReplication.Api",
   "rootNamespace": "Game.GameplayReplication.Api",
-  "references": [],
+  "references": ["Game.Sessions.Api"],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
