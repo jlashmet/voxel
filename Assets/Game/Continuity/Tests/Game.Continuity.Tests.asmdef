@@ -1,0 +1,14 @@
+{
+  "name": "Game.Continuity.Tests",
+  "rootNamespace": "Game.Continuity.Tests",
+  "references": ["Game.Continuity.Api", "Game.Sessions.Api"],
+  "includePlatforms": ["Editor"],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
