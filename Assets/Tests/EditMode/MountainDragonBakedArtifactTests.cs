@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using NUnit.Framework;
 using Unity.Mathematics;
 using UnityEngine;
@@ -11,17 +10,11 @@ namespace VoxelEngine.Tests.EditMode
     public sealed class MountainDragonBakedArtifactTests
     {
         [Test]
-        public void CheckedInBake_ResourceTextIsValidBase64()
+        public void CheckedInBake_ResourceTextDecodesThroughPinnedTransport()
         {
             TextAsset payload = Resources.Load<TextAsset>(MountainDragonBakedArtifact.ResourcePath);
             Assert.That(payload, Is.Not.Null);
-
-            string outputDirectory = Path.Combine("Artifacts", "SingleTest", "Requested");
-            Directory.CreateDirectory(outputDirectory);
-            string outputPath = Path.Combine(outputDirectory, "mountain-dragon-imported.b64.txt");
-            File.WriteAllText(outputPath, payload.text);
-
-            Assert.Fail($"Exported Unity-imported mountain-dragon transport to {outputPath} for exact single-symbol recovery.");
+            Assert.DoesNotThrow(() => MountainDragonBakedArtifact.DecodeBase64(payload.text));
         }
 
         [Test]
