@@ -19,6 +19,42 @@ namespace Game.WorldBuilder.Runtime
         HorizonLandmark = 2,
     }
 
+    /// <summary>
+    /// Composition-provided policy for deciding which members of a deterministic natural-scatter
+    /// population deserve sparse far presentation. Projection is evaluated at a configured reference
+    /// horizon using integer microradians so promotion is deterministic and camera/render independent.
+    /// Semantic importance remains an override rather than a second persistence model.
+    /// </summary>
+    public readonly struct NaturalScatterPromotionPolicy
+    {
+        public NaturalScatterPromotionPolicy(
+            int referenceDistanceDm,
+            int minimumProjectedMicroradians,
+            NaturalScatterImportance minimumImportanceOverride = NaturalScatterImportance.Landmark)
+        {
+            if (referenceDistanceDm <= 0) throw new ArgumentOutOfRangeException(nameof(referenceDistanceDm));
+            if (minimumProjectedMicroradians <= 0)
+                throw new ArgumentOutOfRangeException(nameof(minimumProjectedMicroradians));
+            ReferenceDistanceDm = referenceDistanceDm;
+            MinimumProjectedMicroradians = minimumProjectedMicroradians;
+            MinimumImportanceOverride = minimumImportanceOverride;
+        }
+
+        public int ReferenceDistanceDm { get; }
+        public int MinimumProjectedMicroradians { get; }
+        public NaturalScatterImportance MinimumImportanceOverride { get; }
+
+        public bool ShouldPromote(in NaturalScatterRecord record)
+        {
+            if (record.Importance >= MinimumImportanceOverride) return true;
+
+            long diameterDm = checked((long)record.RadiusDm * 2L);
+            long dominantExtentDm = Math.Max(diameterDm, record.HeightDm);
+            long projectedMicroradians = checked(dominantExtentDm * 1_000_000L) / ReferenceDistanceDm;
+            return projectedMicroradians >= MinimumProjectedMicroradians;
+        }
+    }
+
     public readonly struct NaturalScatterRecord : IEquatable<NaturalScatterRecord>
     {
         public NaturalScatterRecord(
@@ -59,9 +95,10 @@ namespace Game.WorldBuilder.Runtime
     }
 
     /// <summary>
-    /// Renderer-neutral deterministic natural-scatter records. Ordinary boulders can be regenerated
-    /// from world seed + fixed sector; exceptional features are explicit records with landmark
-    /// importance. Neither path depends on camera position, voxel residency, or render output.
+    /// Renderer-neutral deterministic natural-scatter records. Ordinary members are regenerated from
+    /// world seed + fixed sector and stay in this mass-population stream. Sparse landmark presentation
+    /// is derived from these same records by configured promotion policy; this type owns no second
+    /// exceptional-object registry and depends on neither camera state nor voxel residency.
     /// </summary>
     public static class NaturalScatterVisibilityIndex
     {
