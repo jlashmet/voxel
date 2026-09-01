@@ -1,8 +1,5 @@
 using System;
 using System.IO;
-using System.IO.Compression;
-using System.Security.Cryptography;
-using System.Text;
 using NUnit.Framework;
 using Unity.Mathematics;
 using UnityEngine;
@@ -19,63 +16,12 @@ namespace VoxelEngine.Tests.EditMode
             TextAsset payload = Resources.Load<TextAsset>(MountainDragonBakedArtifact.ResourcePath);
             Assert.That(payload, Is.Not.Null);
 
-            string text = payload.text;
-            int paddingIndex = text.IndexOf('=');
-            Assert.That(paddingIndex, Is.GreaterThan(0));
-            Assert.That(text.Length % 4, Is.EqualTo(3), "Diagnostic assumes exactly one missing Base64 symbol.");
+            string outputDirectory = Path.Combine("Artifacts", "SingleTest", "Requested");
+            Directory.CreateDirectory(outputDirectory);
+            string outputPath = Path.Combine(outputDirectory, "mountain-dragon-imported.b64.txt");
+            File.WriteAllText(outputPath, payload.text);
 
-            string endPatched = text.Insert(paddingIndex, "A");
-            byte[] probeBytes = Convert.FromBase64String(endPatched);
-            long compressedFailureOffset;
-            long decompressedBeforeFailure = 0;
-            using (var input = new OneByteReadStream(probeBytes))
-            using (var gzip = new GZipStream(input, CompressionMode.Decompress, leaveOpen: true))
-            {
-                var buffer = new byte[4096];
-                try
-                {
-                    while (true)
-                    {
-                        int read = gzip.Read(buffer, 0, buffer.Length);
-                        if (read == 0) break;
-                        decompressedBeforeFailure += read;
-                    }
-                }
-                catch (IOException)
-                {
-                    // Mono reports corrupt gzip/deflate data as IOException; expected for this probe.
-                }
-                compressedFailureOffset = input.Position;
-            }
-
-            int estimatedSymbol = checked((int)(compressedFailureOffset * 4L / 3L));
-            const string alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-            const int searchRadius = 512;
-            int start = Math.Max(0, estimatedSymbol - searchRadius);
-            int end = Math.Min(paddingIndex, estimatedSymbol + searchRadius);
-            string found = null;
-            using (SHA256 sha = SHA256.Create())
-            {
-                for (int index = start; index <= end && found == null; index++)
-                {
-                    for (int symbol = 0; symbol < alphabet.Length; symbol++)
-                    {
-                        string candidate = text.Insert(index, alphabet[symbol].ToString());
-                        byte[] compressed = Convert.FromBase64String(candidate);
-                        string hash = Hex(sha.ComputeHash(compressed));
-                        if (string.Equals(hash, MountainDragonBakedArtifact.ExpectedTransportSha256, StringComparison.Ordinal))
-                        {
-                            found = $"index={index}, symbol='{alphabet[symbol]}', compressedBytes={compressed.Length}";
-                            break;
-                        }
-                    }
-                }
-            }
-
-            Assert.Fail(
-                $"Missing-symbol diagnostic: found={found ?? "none"}; compressedFailureOffset={compressedFailureOffset}; " +
-                $"decompressedBeforeFailure={decompressedBeforeFailure}; estimatedSymbol={estimatedSymbol}; " +
-                $"searched=[{start},{end}]; textLength={text.Length}; paddingIndex={paddingIndex}.");
+            Assert.Fail($"Exported Unity-imported mountain-dragon transport to {outputPath} for exact single-symbol recovery.");
         }
 
         [Test]
@@ -110,35 +56,6 @@ namespace VoxelEngine.Tests.EditMode
             string corrupt = text.Substring(0, index) + replacement + text.Substring(index + 1);
 
             Assert.Throws<InvalidOperationException>(() => MountainDragonBakedArtifact.DecodeBase64(corrupt));
-        }
-
-        private static string Hex(byte[] bytes)
-        {
-            var text = new StringBuilder(bytes.Length * 2);
-            for (int i = 0; i < bytes.Length; i++) text.Append(bytes[i].ToString("x2"));
-            return text.ToString();
-        }
-
-        private sealed class OneByteReadStream : Stream
-        {
-            private readonly MemoryStream inner;
-
-            public OneByteReadStream(byte[] bytes) => inner = new MemoryStream(bytes, writable: false);
-            public override bool CanRead => true;
-            public override bool CanSeek => false;
-            public override bool CanWrite => false;
-            public override long Length => inner.Length;
-            public override long Position { get => inner.Position; set => throw new NotSupportedException(); }
-            public override void Flush() { }
-            public override int Read(byte[] buffer, int offset, int count) => inner.Read(buffer, offset, Math.Min(1, count));
-            public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
-            public override void SetLength(long value) => throw new NotSupportedException();
-            public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
-            protected override void Dispose(bool disposing)
-            {
-                if (disposing) inner.Dispose();
-                base.Dispose(disposing);
-            }
         }
 
         private static void AssertRegion(
