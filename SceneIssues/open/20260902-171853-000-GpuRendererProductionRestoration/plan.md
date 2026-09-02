@@ -11,6 +11,8 @@ Historical run `33677903232` passed both production density-oracle source steps 
 
 Run `33682727099` proved the exact standalone `CSSampleDensity` + full `SampleField` path is correct when `VOXEL_FORCE_DENSE_LOOKUP` compiles persistent lookup out. Run `33684089590` proved `VOXEL_FORCE_PERSISTENT_LOOKUP` returns the same Planar density/material/surface/boundary as dense lookup for the same synthetic 4x4x4 world. The earlier minimal helper-reachability probe also passed. Therefore persistent directory semantics themselves are correct; the Metal defect requires the full density program and persistent-directory code to coexist in the same compilation unit.
 
+Run `33692310999` falsified a second combined-lookup design before production activation. Merely adding a bounded prepared-table alternate path plus two extra SRVs to the shared density include made both production density oracles fail `2197/2197` with GPU density `0.0`, collapsed downstream topology/transition output, and even perturbed the forced-persistent standalone control. The failed include experiment was reverted exactly. Because two materially different alternate-lookup designs now reproduce the same class of compiler corruption, production integration is blocked until the test-only `GpuPreparedLookupCompilerProbeTests` separates extra-resource declaration/layout from reachable alternate-resource branching on real Metal.
+
 ## Repair direction
 
 Do not attempt more syntax reshaping. Preserve the world-scoped persistent GPU mirror, but isolate its coordinate hash/probe logic in a dedicated GPU resolver. That resolver produces the same packed empty/uniform/mixed brick entries as the legacy dense cache. All density, faceted, decoration, profile, and transition sampling then consumes only the resolved dense window, so `VoxelBrickDensity.hlsl` can compile without persistent-directory resolution. This must not reintroduce CPU per-chunk brick staging or readback.
@@ -32,4 +34,4 @@ Keep CPU voxel/storage truth authoritative. GPU code is a derived presentation b
 
 ## Remaining gates
 
-Isolated resolver regression -> production dense-window integration -> production density parity step 1/2 -> CPU/GPU semantic/topology suite -> persistent mirror correctness -> explicit no-silent-fallback/recovery contract -> automatic module validation -> exact-SHA built-player VoxelShowcase plus independent-consumer evidence -> performance/memory review -> close.
+Prepared-resource compiler boundary probes -> production dense-window integration -> production density parity step 1/2 -> CPU/GPU semantic/topology suite -> persistent mirror correctness -> explicit no-silent-fallback/recovery contract -> automatic module validation -> exact-SHA built-player VoxelShowcase plus independent-consumer evidence -> performance/memory review -> close.
