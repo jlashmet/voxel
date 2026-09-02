@@ -45,6 +45,10 @@ void CSProbeDispatchCoordinate(uint3 id : SV_DispatchThreadID)
     int gy = yz % _GridSize;
     int gz = yz / _GridSize;
     int3 p = _ChunkOriginVoxel + (int3(gx, gy, gz) - _Padding) * _SourceStep;
+    int3 worldBrick = WorldBrickOf(p);
+    int3 localBrick = worldBrick - _BrickCacheOrigin;
+    int brickIndex = localBrick.x
+                   + _BrickCacheEdge * (localBrick.y + _BrickCacheEdge * localBrick.z);
 
     uint rawSurface, rawBoundary;
     uint rawMaterial = ReadMaterial(p, rawSurface, rawBoundary);
@@ -61,5 +65,12 @@ void CSProbeDispatchCoordinate(uint3 id : SV_DispatchThreadID)
     _ProbeWords[6] = sampledSurface;
     _ProbeWords[7] = sampledBoundary;
     _ProbeWords[8] = _SolidWaterMaterialMask;
+    _ProbeWords[9] = asuint(_BrickCacheOrigin.x);
+    _ProbeWords[10] = asuint(_BrickCacheOrigin.y);
+    _ProbeWords[11] = asuint(_BrickCacheOrigin.z);
+    _ProbeWords[12] = asuint(_BrickCacheEdge);
+    _ProbeWords[13] = _BrickCache[0];
+    _ProbeWords[14] = asuint(localBrick.y);
+    _ProbeWords[15] = asuint(brickIndex);
     _ProbeFloats[0] = density;
 }
