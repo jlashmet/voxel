@@ -185,6 +185,14 @@ resident candidates
  -> pixels shaded
 ```
 
+### Reversed-Z requirement
+
+Unity already uses reversed-Z on important modern backends such as Metal and DirectX. Treat reversed-Z as a foundation to verify and preserve rather than a new optimization to invent.
+
+Any custom depth or Hi-Z code must use the active platform convention (`SystemInfo.usesReversedZBuffer` / `UNITY_REVERSED_Z`) rather than assuming near=0 and far=1. For reversed-Z, near depth is approximately 1 and far depth approaches 0, so hierarchical reduction and occlusion comparisons must be chosen accordingly.
+
+This should be explicitly tested because a wrong Hi-Z comparison can create false occlusion and missing terrain. Also investigate whether an infinite-far reversed-Z projection is useful for the project's extreme viewing distances, without weakening semantic culling or far-HLOD bounds.
+
 ## 4. Eliminate fixed empty indirect submissions
 
 The current paged GPU render path prepares indirect draw buckets, but when any paged geometry is visible the render pass can issue the fixed bucket count of indirect submissions even when many buckets have zero work.
@@ -266,18 +274,113 @@ Any refinement must continue to guarantee:
 - deterministic behavior around thresholds;
 - bounded regeneration/upload churn.
 
+## 11. Integrate per-camera GPU work with Unity RenderGraph
+
+The renderer already enters URP through `VoxelRenderFeature` / `VoxelRenderPass`, but much of the current GPU work is still orchestrated outside explicit RenderGraph dependencies, and the final surface draw uses one `AddUnsafePass` that manually sets render targets and emits procedural draws.
+
+The target architecture should distinguish persistent world/presentation work from per-camera rendering work.
+
+### Keep outside per-camera RenderGraph
+
+These systems are not fundamentally camera-render operations and should remain independently owned:
+
+- authoritative Storage and persistence;
+- edits and change journal;
+- semantic LOD/readiness policy;
+- brick demand and mirror residency policy;
+- world generation;
+- persistent GPU voxel mirror state;
+- persistent surface page arena lifetime;
+- potentially surface extraction itself, because generated geometry can survive for many frames and cameras.
+
+Surface extraction is a gray area: it may eventually benefit from graph/async-compute scheduling, but should not be moved into a camera render pass merely for organizational consistency.
+
+### Move per-camera GPU work into explicit graph passes
+
+A better long-term pipeline is:
+
+```text
+CPU / persistent world work
+---------------------------
+Storage + changes
+semantic LOD/readiness
+mirror residency
+persistent GPU extraction / surface arena
+
+                |
+                v
+
+URP RenderGraph per camera
+--------------------------
+GPU frustum compute
+        |
+        v
+Hi-Z build
+        |
+        v
+occlusion + visible compaction
+        |
+        v
+indirect command generation
+        |
+        v
+voxel surface raster
+        |
+        v
+water raster (if useful as a separate dependency)
+```
+
+Specific candidates:
+
+- **GPU frustum culling:** `AddComputePass`; read candidate bounds/handles and write survivor handles.
+- **Hi-Z pyramid generation:** explicit graph pass(es) reading camera depth and writing the hierarchy.
+- **Occlusion + visible compaction:** `AddComputePass`; read Hi-Z and candidates, write visible handles/counts.
+- **Indirect argument / draw metadata generation:** graph compute pass instead of standalone `ComputeShader.Dispatch` orchestration in `GpuSurfaceDrawDispatcher`.
+- **Voxel surface drawing:** migrate from `AddUnsafePass` toward a proper raster pass with declared color/depth attachments and buffer dependencies where Unity APIs permit.
+- **Water:** consider a separate raster pass if its resources/order differ enough to benefit; do not split it merely for code organization.
+
+### Why this matters
+
+Explicit RenderGraph dependencies let URP understand which passes read/write depth, color, visibility buffers, draw metadata, and indirect arguments. This gives Unity more freedom to manage resource transitions, pass ordering, attachment lifetime, tile-memory behavior, and possible pass merging instead of treating the renderer as an opaque command stream.
+
+This is especially relevant on tile-based GPUs such as Apple Silicon, where unnecessary attachment transitions/store-load behavior can be expensive.
+
+Do not create many `ScriptableRendererFeature` objects merely to mirror these stages. One renderer feature / integration point can record multiple graph passes.
+
+### Hi-Z sequencing and voxel self-occlusion
+
+The current voxel surface pass defaults near `BeforeRenderingTransparents`, so the existing opaque depth can be consumed before drawing voxels. That is enough to occlude voxels behind normal URP opaque geometry, but it does not include the current frame's voxel terrain itself.
+
+Potential self-occlusion strategies:
+
+1. voxel depth prepass -> Hi-Z -> main voxel draw;
+2. previous-frame voxel depth / Hi-Z with conservative temporal rules;
+3. initially use only existing scene depth, then add voxel self-occlusion after basic GPU frustum/occlusion infrastructure is proven.
+
+Do not assume a full voxel depth prepass is automatically worthwhile; it can duplicate substantial vertex/geometry work. Prototype the simpler options and measure.
+
+### Target ownership boundary
+
+The intended architecture is:
+
+> CPU owns the persistent voxel world and semantic correctness decisions; Unity RenderGraph owns the per-camera GPU visibility -> command generation -> raster pipeline.
+
+Avoid adding future frustum/Hi-Z work as more ad-hoc standalone `ComputeShader.Dispatch()` calls if those operations consume camera resources or feed same-frame rasterization. Express those dependencies through RenderGraph instead.
+
 ## Suggested priority
 
 Profile and prototype roughly in this order:
 
-1. **Instrumentation first**: triangle/page/bucket/visibility/upload funnel metrics.
+1. **Instrumentation first**: triangle/page/bucket/visibility/upload funnel metrics; also verify depth convention/reversed-Z on supported backends.
 2. **Planar/greedy merging prototype** for a controlled flat/cubic terrain case.
-3. **GPU frustum culling**, because it is simpler and lower risk than occlusion.
-4. **Hi-Z occlusion + GPU visible compaction**.
-5. **Compact/multi indirect command submission** to remove fixed empty bucket calls.
-6. **Transfer compression/RLE experiment** only if uploads are measured as a bottleneck.
-7. **Arena/page tuning and shader/lighting work** based on remaining bottlenecks.
-8. **True meshlets / async compute** only with evidence that simpler measures are insufficient.
+3. **RenderGraph integration foundation** for per-camera compute/raster dependencies; avoid building the next GPU visibility stages as ad-hoc dispatches.
+4. **GPU frustum culling** as an explicit compute pass.
+5. **Hi-Z occlusion + GPU visible compaction**, explicitly correct for reversed-Z.
+6. **Compact/multi indirect command generation/submission**, keeping command creation GPU-resident where possible.
+7. **Migrate/reduce the unsafe raster path** when supported by the required indirect/procedural APIs and verify benefit on Metal/tile GPUs.
+8. **Transfer compression/RLE experiment** only if uploads are measured as a bottleneck.
+9. **Arena/page tuning, water batching, and shader/lighting work** based on remaining bottlenecks.
+10. **True meshlets / async compute** only with evidence that simpler measures are insufficient.
 
 ## Benchmark scenes / acceptance measurements for experiments
 
@@ -315,6 +418,14 @@ For every optimization, record at minimum:
 - generated vertices/indices/triangles;
 - draw/indirect submission count;
 - visual/oracle correctness.
+
+For RenderGraph experiments, additionally record:
+
+- pass count and graph order;
+- whether passes remain unsafe or become compute/raster passes;
+- attachment load/store behavior where observable;
+- GPU resource/barrier cost where observable;
+- Metal/tile-GPU render time before and after restructuring.
 
 ## Guiding rule
 
