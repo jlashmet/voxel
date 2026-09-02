@@ -364,6 +364,51 @@ namespace VoxelEngine.Tests.EditMode
                 "passData.TransvoxelEntries[i].Draw(cmd, passData.Material)", renderPass);
         }
 
+        [Test]
+        public void ProductionGpuSurfacePathHasNoCounterReadbackOrCpuRangePublication()
+        {
+            string coordinator = ReadRenderingSource(
+                Path.Combine("GpuVoxel", "GpuSurfaceMirrorCoordinator.cs"));
+            string extractor = ReadRenderingSource(
+                Path.Combine("GpuVoxel", "GpuSurfaceExtractor.cs"));
+            string mesher = File.ReadAllText(
+                "Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute");
+            string context = ReadRenderingSource(
+                Path.Combine("GpuVoxel", "GpuSurfaceExtractionContext.cs"));
+            string cache = ReadRenderingSource(
+                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+            string renderPass = ReadRenderingSource(
+                Path.Combine("RenderFeature", "VoxelRenderPass.cs"));
+
+            StringAssert.DoesNotContain("AsyncGPUReadback", coordinator);
+            StringAssert.DoesNotContain("TryPublishCountBatch", coordinator);
+            StringAssert.Contains("CompletePagedBatch", coordinator);
+            StringAssert.DoesNotContain("TryCompleteStage(out", cache);
+            StringAssert.DoesNotContain("TryTakeCountBatchLease", cache);
+            StringAssert.Contains("TryTakePagedBatch", cache);
+            StringAssert.Contains("if (_stageAdmissionPending)", context);
+            StringAssert.Contains("TryAdmitPendingStage()", context);
+            StringAssert.Contains("else if (_countDispatchPending)", context);
+            StringAssert.Contains("TryDispatchPendingCount()", context);
+            StringAssert.Contains("if (IsBlockDemanded(block) || IsBlockActive(block))", coordinator);
+            StringAssert.DoesNotContain(
+                "s_Mirror.Remove(block);\n                unchecked { s_CoverageEpoch++; }",
+                coordinator);
+            StringAssert.Contains("Graphics.CreateGraphicsFence", coordinator);
+            StringAssert.Contains("!s_ExtractionFence.passed", coordinator);
+            StringAssert.Contains("PagedIndirectArgs", renderPass);
+            StringAssert.Contains("DrawProceduralIndirect", renderPass);
+            StringAssert.DoesNotContain(
+                "&& _buildProfileBlocks.Length == 0\n                              && _build.RequiresContinuousTopology",
+                cache);
+            StringAssert.Contains("profileBlocks: _buildProfileBlocks", cache);
+            StringAssert.Contains("request.ProfileBlocks", context);
+            StringAssert.Contains("resources.StageProfiles(requests, recordCount)", extractor);
+            StringAssert.Contains("CSBatchCountProfiles", mesher);
+            StringAssert.Contains("CSBatchWriteProfiles", mesher);
+            StringAssert.Contains("BatchProfileSuppressionMask", mesher);
+        }
+
 
         [Test]
         public void GameplaySurfaceDiagnosticsAndIndirectArgsAvoidManagedFrameGarbage()

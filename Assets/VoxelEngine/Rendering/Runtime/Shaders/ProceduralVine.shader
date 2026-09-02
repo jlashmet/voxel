@@ -82,10 +82,12 @@ Shader "VoxelEngine/ProceduralVine"
                 UNITY_TRANSFER_INSTANCE_ID(input, output);
 
                 float3 positionWS = TransformObjectToWorld(input.positionOS.xyz);
-                float phase = dot(positionWS.xz, float2(0.41, 0.29)) + AnimationTime() * 1.35 + input.uv.y * 7.0;
+                float phase = dot(positionWS.xz, float2(0.41, 0.29)) + AnimationTime() * 1.60 + input.uv.y * 7.0;
                 float freeEnd = smoothstep(0.18, 1.0, input.uv.y);
-                positionWS.x += sin(phase) * _WindStrength * 0.07 * freeEnd;
-                positionWS.z += cos(phase * 0.73) * _WindStrength * 0.05 * freeEnd;
+                // Keep the attachment fixed while giving the free end enough world-space travel to
+                // remain readable after MSAA and pixel quantisation at the gameplay camera distance.
+                positionWS.x += sin(phase) * _WindStrength * 0.18 * freeEnd;
+                positionWS.z += cos(phase * 0.73) * _WindStrength * 0.12 * freeEnd;
 
                 output.positionCS = TransformWorldToHClip(positionWS);
                 output.positionWS = positionWS;

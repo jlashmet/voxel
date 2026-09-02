@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
@@ -46,6 +47,9 @@ namespace VoxelEngine.Tests.EditMode
                     Boundary = new VoxelBoundarySample { Packed = 0xA7 },
                 };
                 pool.SetCell(mixedPoolIndex, voxelIndex, in authored);
+                int waterVoxelIndex = 1 | (2 << 3) | (3 << 6);
+                var water = new VoxelCell { BaseMaterialId = 11 };
+                pool.SetCell(mixedPoolIndex, waterVoxelIndex, in water);
 
                 int mixedBlockIndex = Region.BrickIndex(mixedBlock.x, mixedBlock.y, mixedBlock.z);
                 Assert.IsTrue(region.MarkHardSurfaceBrick(mixedBlockIndex));
@@ -78,6 +82,15 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.AreEqual(VoxelReadBlockKind.Mixed, mixed.Kind);
                 Assert.IsTrue(view.IsBlockOccupied(mixedBlock));
                 Assert.IsTrue(view.IsHardSurfaceBlock(mixedBlock));
+                Assert.IsTrue(view.TryWorldBlockContainsEitherMaterial(
+                    uniformBlock, 11, 16, out bool uniformContainsWater));
+                Assert.IsFalse(uniformContainsWater);
+                Assert.IsTrue(view.TryWorldBlockContainsEitherMaterial(
+                    mixedBlock, 11, 16, out bool mixedContainsWater));
+                Assert.IsTrue(mixedContainsWater);
+                Assert.IsTrue(view.TryWorldBlockContainsEitherMaterial(
+                    int3.zero, 11, 16, out bool emptyContainsWater));
+                Assert.IsFalse(emptyContainsWater);
 
                 int3 authoredVoxel = mixedBlock * 8 + inner;
                 Assert.IsTrue(view.TryReadCell(authoredVoxel, out VoxelCell read));
@@ -119,6 +132,80 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void BulkRegionSummaryPreservesEveryBrickStateWithinCompletionBudget()
+        {
+            var table = new RegionTable(1, Allocator.Persistent);
+            var pool = new BrickPool(3, Allocator.Persistent);
+            var region = new Region(int3.zero, Allocator.Persistent);
+
+            try
+            {
+                int partialPool = pool.Allocate();
+                pool.FillBrick(partialPool, VoxelGrid.MaterialEmpty);
+                var partialCell = new VoxelCell { BaseMaterialId = 7 };
+                pool.SetCell(partialPool, 0, in partialCell);
+
+                int fullPool = pool.Allocate();
+                pool.FillBrick(fullPool, 9);
+
+                int emptyMixedPool = pool.Allocate();
+                pool.FillBrick(emptyMixedPool, VoxelGrid.MaterialEmpty);
+
+                int[] uniformSolid = { 0, 63, 64, VoxelDimensions.BricksPerRegion - 1 };
+                for (int i = 0; i < uniformSolid.Length; i++)
+                    region.BrickRefs[uniformSolid[i]] = BrickRef.Uniform(4);
+                const int partial = 65;
+                const int fullMixed = 129;
+                const int emptyMixed = 130;
+                region.BrickRefs[partial] = BrickRef.FromPoolIndex(partialPool);
+                region.BrickRefs[fullMixed] = BrickRef.FromPoolIndex(fullPool);
+                region.BrickRefs[emptyMixed] = BrickRef.FromPoolIndex(emptyMixedPool);
+
+                for (int i = 0; i < Region.BlockSummaryWordCount; i++)
+                {
+                    region.OccupiedBlockWords[i] = ulong.MaxValue;
+                    region.FullySolidBlockWords[i] = ulong.MaxValue;
+                }
+
+                var storage = new RegionMutationStore(in table, in pool);
+                storage.RefreshRegionSummary(ref region);
+
+                var expectedOccupied = new ulong[Region.BlockSummaryWordCount];
+                var expectedFullySolid = new ulong[Region.BlockSummaryWordCount];
+                for (int i = 0; i < uniformSolid.Length; i++)
+                {
+                    SetSummaryBit(expectedOccupied, uniformSolid[i]);
+                    SetSummaryBit(expectedFullySolid, uniformSolid[i]);
+                }
+                SetSummaryBit(expectedOccupied, partial);
+                SetSummaryBit(expectedOccupied, fullMixed);
+                SetSummaryBit(expectedFullySolid, fullMixed);
+
+                for (int i = 0; i < Region.BlockSummaryWordCount; i++)
+                {
+                    Assert.AreEqual(expectedOccupied[i], region.OccupiedBlockWords[i],
+                        $"Occupied summary word {i} changed semantics.");
+                    Assert.AreEqual(expectedFullySolid[i], region.FullySolidBlockWords[i],
+                        $"Fully-solid summary word {i} changed semantics.");
+                }
+
+                var stopwatch = Stopwatch.StartNew();
+                storage.RefreshRegionSummary(ref region);
+                stopwatch.Stop();
+                TestContext.WriteLine(
+                    $"Bulk region summary: {stopwatch.Elapsed.TotalMilliseconds:F3} ms");
+                Assert.Less(stopwatch.Elapsed.TotalMilliseconds, 25.0,
+                    "The bulk summary catch-up must fit the traversal completion-frame budget.");
+            }
+            finally
+            {
+                if (region.IsCreated) region.Dispose();
+                if (table.IsCreated) table.Dispose();
+                if (pool.IsCreated) pool.Dispose();
+            }
+        }
+
+        [Test]
         public void MissingRegionAndOutOfRangeReadsReturnFalse()
         {
             var table = new RegionTable(1, Allocator.Persistent);
@@ -134,6 +221,8 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.IsFalse(view.TryReadCell(new int3(-1, 0, 0), out _));
                 Assert.IsFalse(view.TryReadCell(new int3(VoxelGrid.RegionVoxelEdge, 0, 0), out _));
                 Assert.IsFalse(view.TryGetBlock(new int3(64, 0, 0), out _));
+                Assert.IsFalse(view.TryWorldBlockContainsEitherMaterial(
+                    new int3(64, 0, 0), 11, 16, out _));
             }
             finally
             {
@@ -141,5 +230,8 @@ namespace VoxelEngine.Tests.EditMode
                 if (pool.IsCreated) pool.Dispose();
             }
         }
+
+        private static void SetSummaryBit(ulong[] words, int blockIndex) =>
+            words[blockIndex >> 6] |= 1UL << (blockIndex & 63);
     }
 }
