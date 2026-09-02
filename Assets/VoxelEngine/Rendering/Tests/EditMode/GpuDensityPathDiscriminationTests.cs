@@ -16,7 +16,7 @@ namespace VoxelEngine.Tests.EditMode
     public sealed class GpuDensityPathDiscriminationTests
     {
         private const string ShaderPath =
-            "Assets/VoxelEngine/Rendering/Tests/EditMode/GpuMesherCompilerSafe.compute";
+            "Assets/VoxelEngine/Rendering/Tests/EditMode/GpuMesherLoopFastoptProbe.compute";
         private const int CellsPerAxis = 8;
         private const int Padding = 2;
         private const int SourceStep = 1;
@@ -88,8 +88,9 @@ namespace VoxelEngine.Tests.EditMode
             Assert.IsTrue(planar.Matches && smooth.Matches,
                 "CPU/GPU first-sample comparison at world (-2,-2,-2). "
               + $"Planar: [{planar}]. Smooth: [{smooth}]. "
-              + "This run uses the compiler-safe mesher wrapper, which preserves the production "
-              + "mesher while materializing SampleField at the two sampling kernel call sites.");
+              + "This run compiles the current production mesher through the loop-attribute "
+              + "discriminator, preserving the persistent directory probe while remapping its "
+              + "explicit [loop] optimization attribute to [fastopt].");
         }
 
         private static SampleResult SampleFirstWorldVoxel(ComputeShader shader, ushort defaultStyle)
