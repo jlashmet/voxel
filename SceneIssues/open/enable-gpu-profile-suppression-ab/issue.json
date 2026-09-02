@@ -1,0 +1,15 @@
+{
+  "formatVersion": 3,
+  "id": "enable-gpu-profile-suppression-ab",
+  "capturedUtc": "2026-09-02T00:00:00Z",
+  "note": "SmallVoxelShowcase GPU missing-geometry A/B with profile-owned regular-triangle suppression disabled.",
+  "status": "open",
+  "unityVersion": "6000.5.6f1",
+  "platform": "Architecture",
+  "sceneName": "SmallVoxelShowcase",
+  "scenePath": "Assets/Scenes/SmallVoxelShowcase.unity",
+  "sceneBuildIndex": 0,
+  "screenWidth": 1600,
+  "screenHeight": 900,
+  "captures": []
+}
