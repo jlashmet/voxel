@@ -7,7 +7,9 @@
 
 Exact-SHA targeted run `33665456593` reproduced the density divergence on current master in the existing production oracle `GpuDensityMatchesTheCpuJobSampleForSample(1)`: **1300/2197 samples disagree**, worst at sample 0 (`CPU 0.50000`, `GPU -0.14000`). Unity/Metal compilation also warns that `IsSolidSample`, `ReadMaterial`, `AddTap`, and `SampleField` may use uninitialized state in the full `VoxelBrickMesher` kernels. This is a product failure, not runner infrastructure (33 GB free at launch, 6.1 GB peak RSS).
 
-Exact-SHA diagnostic run `33666261165` then localized the first divergence to world voxel `(-2,-2,-2)`: density CPU `0.50000` vs GPU `-0.14000`; material CPU/GPU both `1`; boundary CPU/GPU both `0`; surface CPU `0x04000001` vs GPU `0x00000001`. The GPU therefore preserves the expected presentation style/material but loses the transient authoritative-solid bit while computing a negative smooth density. This makes a raw cache/material fetch defect less likely and directly implicates `centreSolid` or the full smooth `SampleField` execution path.
+Exact-SHA diagnostic run `33666261165` localized the first divergence to world voxel `(-2,-2,-2)`: density CPU `0.50000` vs GPU `-0.14000`; material CPU/GPU both `1`; boundary CPU/GPU both `0`; surface CPU `0x04000001` vs GPU `0x00000001`. The GPU preserves presentation style/material but loses the transient authoritative-solid bit.
+
+Exact-SHA discriminator run `33666796147` then ran the same full shader/cache under material-default Planar and Smooth. **Both are identically wrong** at `(-2,-2,-2)` (CPU +0.50, GPU -0.14; material/style correct; authoritative-solid bit missing). Planar should return from `SampleField` immediately after `centreSolid` and before any weighted `AddTap`, so a smooth-tap-only defect is falsified. The failure is in or above centre occupancy. The public storage wire enum is `Empty=0, Uniform=1, Mixed=2`, matching the shader's hardcoded convention, and `PackBrickCacheEntry` writes the content value directly into the low bits; kind encoding is not the leading hypothesis.
 
 ## Acceptance
 
@@ -20,10 +22,10 @@ Exact-SHA diagnostic run `33666261165` then localized the first divergence to wo
 
 ## Hypotheses / next experiment
 
-- **H1:** full-mesher compilation/execution corrupts `SampleField` centre occupancy or smooth-tap state even though material lookup data survives. The Metal uninitialized-state warnings and missing authoritative-solid bit strengthen this hypothesis.
-- **H2:** shared production state/buffer binding or persistent-lookup mode contaminates otherwise-correct sampling. This is weaker because the failing diagnostic uses the explicit dense cache and returns the expected material/boundary.
+- **H1 (leading):** the full Metal mesher miscompiles or otherwise mis-evaluates centre occupancy (`IsSolidSample` or its immediate control flow) even though `ReadMaterial` returns the expected material/style/boundary. This fits the missing authoritative-solid bit, identical Planar/Smooth failure, and compiler warnings around `IsSolidSample`/`SampleField`.
+- **H2:** lower cache/binding state is corrupt. This is now weak: dense-cache diagnostics return the correct material/style/boundary, public brick-kind values match the shader, and persistent lookup is not involved in the failing fixture.
 
-Next run the same full mesher and uniform-brick bindings under material-default `Planar` and `Smooth` reconstruction. Planar takes the `centreSolid` early return before `AddTap`; Smooth executes the weighted tap path. If Planar is correct while Smooth fails, isolate to smooth/tap codegen. If Planar also treats the same voxel as air, isolate `centreSolid`/`IsSolidSample` in the full method before any production fix.
+Next isolate centre occupancy in the same full compute shader with a diagnostic output that records `ReadMaterial(...).x` and the direct result of `IsSolidSample(material)` before `SampleField`. If material=1 and `IsSolidSample` itself is false, rewrite only that proven compiler-hazard expression into explicit non-short-circuit branches and validate both diagnostics/oracles. If `IsSolidSample` is true but `SampleField` loses it, isolate the immediate Planar branch/control-flow state instead.
 
 ## Architecture / blast radius
 
@@ -33,4 +35,4 @@ Production inventory confirms the current cutover policy defaults GPU **off** un
 
 ## Remaining gates
 
-Discriminate root cause -> focused regression/fix -> CPU/GPU semantic suite -> explicit no-silent-fallback/recovery contract -> automatic module validation -> exact-SHA built-player VoxelShowcase plus independent-consumer evidence -> performance/memory review -> close.
+Isolate centre occupancy -> focused regression/fix -> CPU/GPU semantic suite -> explicit no-silent-fallback/recovery contract -> automatic module validation -> exact-SHA built-player VoxelShowcase plus independent-consumer evidence -> performance/memory review -> close.
