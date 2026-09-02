@@ -31,23 +31,14 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         private readonly ComputeShader _shader;
         private readonly int _kernel;
-        private readonly int _capacity;
         private readonly int _edge;
-        private readonly int _bricksPerRequest;
-        private readonly ComputeBuffer _requestViews;
-        private readonly ComputeBuffer _directoryHeader;
-        private readonly ComputeBuffer _denseEntries;
-        private readonly GpuBrickCacheRequestView[] _requestStaging;
-        private readonly uint[] _headerStaging = new uint[2];
+        private readonly GpuBrickCachePreparationBuffers _buffers;
         private bool _disposed;
 
-        internal ComputeBuffer RequestViews => _requestViews;
-        internal ComputeBuffer DenseEntries => _denseEntries;
-        internal int BricksPerRequest => _bricksPerRequest;
-        internal long CommittedBytes =>
-            (long)_capacity * GpuBrickCacheRequestView.Stride
-            + sizeof(uint) * 2L
-            + (long)_capacity * _bricksPerRequest * sizeof(uint);
+        internal ComputeBuffer RequestViews => _buffers.RequestViews;
+        internal ComputeBuffer DenseEntries => _buffers.DenseEntries;
+        internal int BricksPerRequest => _buffers.BricksPerRequest;
+        internal long CommittedBytes => _buffers.CommittedBytes;
 
         internal GpuBrickCachePreparation(int capacity, int edge, ComputeShader shader = null)
         {
@@ -61,15 +52,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
             _shader = shader;
             _kernel = shader.FindKernel("CSResolveBrickCache");
-            _capacity = capacity;
             _edge = edge;
-            _bricksPerRequest = checked(edge * edge * edge);
-            _requestViews = new ComputeBuffer(capacity, GpuBrickCacheRequestView.Stride,
-                                              ComputeBufferType.Structured);
-            _directoryHeader = new ComputeBuffer(2, sizeof(uint), ComputeBufferType.Structured);
-            _denseEntries = new ComputeBuffer(checked(capacity * _bricksPerRequest), sizeof(uint),
-                                              ComputeBufferType.Structured);
-            _requestStaging = new GpuBrickCacheRequestView[capacity];
+            _buffers = new GpuBrickCachePreparationBuffers(capacity, edge);
         }
 
         internal void Dispatch(GpuVoxelBrickMirror mirror,
@@ -79,33 +63,34 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             ThrowIfDisposed();
             if (mirror == null) throw new ArgumentNullException(nameof(mirror));
             if (requests == null) throw new ArgumentNullException(nameof(requests));
-            if (recordCount <= 0 || recordCount > _capacity || recordCount > requests.Length)
+            if (recordCount <= 0 || recordCount > _buffers.Capacity || recordCount > requests.Length)
                 throw new ArgumentOutOfRangeException(nameof(recordCount));
 
             for (int i = 0; i < recordCount; i++)
             {
                 int3 origin = requests[i].BrickCacheOrigin;
-                _requestStaging[i] = new GpuBrickCacheRequestView
+                _buffers.RequestStaging[i] = new GpuBrickCacheRequestView
                 {
                     OriginX = origin.x,
                     OriginY = origin.y,
                     OriginZ = origin.z,
-                    OutputBase = checked(i * _bricksPerRequest),
+                    OutputBase = checked(i * _buffers.BricksPerRequest),
                 };
             }
-            _requestViews.SetData(_requestStaging, 0, 0, recordCount);
+            _buffers.RequestViews.SetData(_buffers.RequestStaging, 0, 0, recordCount);
 
-            _headerStaging[0] = unchecked((uint)mirror.DirectoryWordOffset);
-            _headerStaging[1] = unchecked((uint)mirror.DirectoryMask);
-            _directoryHeader.SetData(_headerStaging);
+            _buffers.HeaderStaging[0] = unchecked((uint)mirror.DirectoryWordOffset);
+            _buffers.HeaderStaging[1] = unchecked((uint)mirror.DirectoryMask);
+            _buffers.DirectoryHeader.SetData(_buffers.HeaderStaging);
 
             _shader.SetBuffer(_kernel, IdBrickMaterials, mirror.Materials);
-            _shader.SetBuffer(_kernel, IdPersistentLookupHeader, _directoryHeader);
-            _shader.SetBuffer(_kernel, IdRequests, _requestViews);
-            _shader.SetBuffer(_kernel, IdWrite, _denseEntries);
+            _shader.SetBuffer(_kernel, IdPersistentLookupHeader, _buffers.DirectoryHeader);
+            _shader.SetBuffer(_kernel, IdRequests, _buffers.RequestViews);
+            _shader.SetBuffer(_kernel, IdWrite, _buffers.DenseEntries);
             _shader.SetInt(IdEdge, _edge);
             _shader.SetInt(IdRequestCount, recordCount);
-            _shader.Dispatch(_kernel, (_bricksPerRequest + ThreadGroupSize - 1) / ThreadGroupSize,
+            _shader.Dispatch(_kernel,
+                             (_buffers.BricksPerRequest + ThreadGroupSize - 1) / ThreadGroupSize,
                              recordCount, 1);
         }
 
@@ -113,9 +98,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             if (_disposed) return;
             _disposed = true;
-            _requestViews?.Release();
-            _directoryHeader?.Release();
-            _denseEntries?.Release();
+            _buffers?.Dispose();
         }
 
         private void ThrowIfDisposed()
