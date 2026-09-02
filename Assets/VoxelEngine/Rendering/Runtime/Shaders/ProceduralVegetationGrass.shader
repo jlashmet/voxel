@@ -62,6 +62,8 @@ Shader "VoxelEngine/ProceduralVegetationGrass"
             // registered interactor and use only the strongest influence at a blade root.
             float4 _GrassInteractorPositions[64];
             int _GrassInteractorCount;
+            float _ValidationAnimationTime;
+            float _UseValidationAnimationTime;
 
             float Smooth01(float x)
             {
@@ -128,10 +130,12 @@ Shader "VoxelEngine/ProceduralVegetationGrass"
                         awaySide);
                 }
 
-                // Use the engine-managed GPU clock already proven by the authored sky in this exact
-                // built player. Two CPU-published _GrassTime paths advanced in tests but produced
-                // byte-identical grass frames, so wind must not depend on that failed uniform boundary.
-                float presentationTime = _Time.y;
+                // Production uses the engine-managed GPU clock. Validation can override that clock
+                // explicitly so deterministic captures can compare two semantic wind states without
+                // depending on wall-clock frame advancement.
+                float presentationTime = _UseValidationAnimationTime > 0.5
+                    ? _ValidationAnimationTime
+                    : _Time.y;
                 float gust = sin(presentationTime * 0.82 + rootWS.x * 0.26 + rootWS.z * 0.10) * 0.050;
                 float wave = sin(presentationTime * 0.46 - rootWS.x * 0.08 + rootWS.z * 0.18) * 0.024;
                 float local = sin(presentationTime * 1.06 + phase) * 0.005;
