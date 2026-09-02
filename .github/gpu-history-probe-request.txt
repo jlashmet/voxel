@@ -1,0 +1,2 @@
+candidate=ab1f0ced6d3a97eacfc92b8e08690adab403c735
+purpose=Find latest gpu-v2 Metal density-oracle passing point for SceneIssue 20260902-171853-000-GpuRendererProductionRestoration.
