@@ -15,6 +15,8 @@ A first production attempt to mirror the water mask from `SolidMaterialClassific
 
 The isolated include probe `GpuSolidClassificationProbeTests.MaterialOneIsSolidWhenWaterMaskIsZero` then passed on retry attempt 2 of exact-SHA run `33668009978` after attempt 1 suffered a native Burst import crash. The probe includes the same `VoxelBrickDensity.hlsl`, observes `_SolidWaterMaterialMask == 0`, and confirms `IsSolidSample(1) == true` on Metal. Therefore the helper expression and global scalar work in isolation; the failure requires the full `VoxelBrickMesher.compute` compilation/execution context.
 
+Exact-SHA run `33668767375` then bound `_SolidWaterMaterialMask=0` directly on the production `ComputeShader` instance before the same full-mesher Planar/Smooth discriminator. The result was unchanged: Planar and Smooth both returned GPU `-0.14`, material `1`, correct resolved style, boundary `0`, and no authoritative-solid bit. That falsifies global-vs-compute-local mask binding as the cause.
+
 ## Acceptance
 
 1. GPU density/sample semantics match the real CPU jobs for every supported reconstruction path and supported source step exercised by production.
@@ -26,10 +28,10 @@ The isolated include probe `GpuSolidClassificationProbeTests.MaterialOneIsSolidW
 
 ## Hypotheses / next experiment
 
-- **H1 (leading):** full-mesher Metal code generation/control flow corrupts `centreSolid` even though `ReadMaterial` returns the expected material/style/boundary and the exact classifier helper works in isolation.
-- **H2:** lower cache/binding state is corrupt. This is now weak: dense-cache diagnostics return correct material/style/boundary, brick-kind encoding matches, persistent lookup is not involved, and the isolated classifier observes the expected global mask.
+- **H1 (leading):** full-mesher Metal code generation/control flow corrupts the occupancy value between `ReadMaterial` and the `SampleField` branch even though `ReadMaterial`'s externally observed material/style/boundary are correct and the exact classifier helper works in isolation.
+- **H2:** lower cache/binding state is corrupt. This is now weak: dense-cache diagnostics return correct material/style/boundary, brick-kind encoding matches, persistent lookup is not involved, the isolated classifier observes the expected mask, and direct compute-local mask binding does not change the failure.
 
-Next make the smallest production-semantic rewrite of `IsSolidSample` from the short-circuit boolean expression into explicit ordered branches (`0 -> false`, `>=32 -> true`, water-bit -> false, otherwise true). This keeps the exact semantic contract while removing the compiler-hazardous compound expression highlighted by Metal warnings. Validate the existing Planar/Smooth discriminator and density oracle before any additional production fix. If the same parity symptom survives this second materially different production attempt, TGPU-006 requires a full-mesher diagnostic kernel/minimal shader slice before any third fix.
+TGPU-006 is now active: no further production fix is allowed until a minimal full-mesher repro/root cause is established. Add a temporary diagnostic kernel to the existing `VoxelBrickMesher.compute` (not a second renderer) that samples the same world coordinate and reports, in one dispatch, raw `ReadMaterial`, direct `IsSolidSample`, resolved surface, and `SampleField` output. If direct `IsSolidSample` is true but `SampleField` loses occupancy, isolate the immediate `SampleField` control flow; if direct classification is false only in the full mesher, isolate full-shader code generation around the helper. Remove the temporary kernel after a focused regression captures the proven invariant.
 
 ## Architecture / blast radius
 
@@ -39,4 +41,4 @@ Production inventory confirms the current cutover policy defaults GPU **off** un
 
 ## Remaining gates
 
-Explicit classifier rewrite -> focused parity validation -> CPU/GPU semantic suite -> explicit no-silent-fallback/recovery contract -> automatic module validation -> exact-SHA built-player VoxelShowcase plus independent-consumer evidence -> performance/memory review -> close.
+Full-mesher occupancy isolation -> proven density root-cause fix -> focused parity validation -> CPU/GPU semantic suite -> explicit no-silent-fallback/recovery contract -> automatic module validation -> exact-SHA built-player VoxelShowcase plus independent-consumer evidence -> performance/memory review -> close.
