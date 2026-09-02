@@ -42,6 +42,7 @@ namespace VoxelEngine.Vegetation.Runtime
             BranchCut = null;
             DamageChanged = null;
             TreeSevered = null;
+            TreeWorldReadSource.Instance.Rebind();
             unchecked
             {
                 s_Version++;
