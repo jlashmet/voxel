@@ -6,13 +6,12 @@ namespace VoxelEngine.Showcase
 {
     /// <summary>
     /// Diagnostic-only telemetry for built-player SceneIssue waypoint replay.
-    /// Activated only when the existing -voxel-scene-issue command-line seam is present.
+    /// The active replay harness attaches this observer after it has bound the production motor/route.
     /// This component observes replay and CharacterMotor state; it never changes movement or world state.
     /// </summary>
     [DefaultExecutionOrder(-8999)]
     internal sealed class ShowcaseWaypointReplayDiagnostics : MonoBehaviour
     {
-        private const string SceneIssueArgument = "-voxel-scene-issue";
         private const float SampleSeconds = 1f;
 
         private static readonly FieldInfo IndexField = typeof(ShowcaseWaypointReplayHarness).GetField(
@@ -28,31 +27,24 @@ namespace VoxelEngine.Showcase
         private Vector3 _lastFeet;
         private bool _hasLastFeet;
 
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        private static void Install()
+        internal static void AttachTo(GameObject root, ShowcaseWaypointReplayHarness harness)
         {
-            if (string.IsNullOrEmpty(Argument(SceneIssueArgument))) return;
-            var root = new GameObject("Showcase Waypoint Replay Diagnostics")
-            {
-                hideFlags = HideFlags.DontSave
-            };
-            root.AddComponent<ShowcaseWaypointReplayDiagnostics>();
-            UnityEngine.Object.DontDestroyOnLoad(root);
+            if (root == null) throw new ArgumentNullException(nameof(root));
+            if (harness == null) throw new ArgumentNullException(nameof(harness));
+
+            var diagnostics = root.AddComponent<ShowcaseWaypointReplayDiagnostics>();
+            diagnostics._harness = harness;
+            Debug.Log("WAYPOINT_REPLAY diagnostic activated");
         }
 
         private void Update()
         {
-            if (_harness == null)
+            if (_harness == null) return;
+            if (IndexField == null || RouteField == null || MotorField == null)
             {
-                _harness = UnityEngine.Object.FindFirstObjectByType<ShowcaseWaypointReplayHarness>(
-                    FindObjectsInactive.Include);
-                if (_harness == null) return;
-                if (IndexField == null || RouteField == null || MotorField == null)
-                {
-                    Debug.LogError("WAYPOINT_REPLAY diagnostic could not bind replay state.");
-                    enabled = false;
-                    return;
-                }
+                Debug.LogError("WAYPOINT_REPLAY diagnostic could not bind replay state.");
+                enabled = false;
+                return;
             }
 
             _sampleElapsed += Time.unscaledDeltaTime;
@@ -93,15 +85,6 @@ namespace VoxelEngine.Showcase
             _lastIndex = index;
             _lastFeet = feet;
             _hasLastFeet = true;
-        }
-
-        private static string Argument(string name)
-        {
-            string[] args = Environment.GetCommandLineArgs();
-            for (int i = 0; i + 1 < args.Length; i++)
-                if (string.Equals(args[i], name, StringComparison.Ordinal))
-                    return args[i + 1];
-            return null;
         }
     }
 }
