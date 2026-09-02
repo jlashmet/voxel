@@ -55,7 +55,7 @@
 - [ ] Quantify actual additional vertical resident/generated region count against baseline; numerically prove no horizontal interest-radius/device-budget change.
 - [ ] Measure final lake dimensions/depth/cells, route tile/solve/constrained counts, feature work/time, CPU/FPS, memory, streaming convergence, render/far-field telemetry against budgets.
 - [ ] Quantify final fixed-replay target timing.
-- [ ] Re-check exact feature diff after merge of master `b1b69290a59278b0e7caba798641c76a9866aa5c` into feature merge `a8bdad310f37715f560aadba6cce56d302a9867d`; if master advances before closure, fetch/merge again.
+- [x] Re-check exact feature diff after merge of master `b1b69290a59278b0e7caba798641c76a9866aa5c` into feature merge `a8bdad310f37715f560aadba6cce56d302a9867d`; diff remains limited to this assignment's Kentridge macro-world production/evidence/tests and SceneIssue records. If master advances before closure, fetch/merge again.
 - [ ] Re-run final exact-SHA targeted CI after the master merge; focused regression + repository-derived module validation + supported real-player smoke must all be green for the same final feature SHA.
 
 ## Acceptance / closure
