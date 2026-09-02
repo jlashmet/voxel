@@ -6,10 +6,11 @@
 
 StructuredBuffer<uint> _BrickMaterials;
 StructuredBuffer<uint> _PersistentLookupHeader;
+StructuredBuffer<int4> _ResolvedBrickCacheRequests;
 RWStructuredBuffer<uint> _ResolvedBrickCacheWrite;
 
-int3 _ResolvedBrickCacheOrigin;
 int _ResolvedBrickCacheEdge;
+int _ResolvedBrickCacheRequestCount;
 
 #define DIRECTORY_WORDS_PER_ENTRY 5u
 #define DIRECTORY_OCCUPIED 1u
@@ -51,14 +52,18 @@ uint PersistentBrickEntry(int3 coordinate)
 [numthreads(64, 1, 1)]
 void CSResolveBrickCache(uint3 id : SV_DispatchThreadID)
 {
+    int requestIndex = (int)id.y;
+    if (requestIndex >= _ResolvedBrickCacheRequestCount) return;
+
     int index = (int)id.x;
     int total = _ResolvedBrickCacheEdge * _ResolvedBrickCacheEdge * _ResolvedBrickCacheEdge;
     if (index >= total) return;
 
+    int4 request = _ResolvedBrickCacheRequests[requestIndex];
     int x = index % _ResolvedBrickCacheEdge;
     int yz = index / _ResolvedBrickCacheEdge;
     int y = yz % _ResolvedBrickCacheEdge;
     int z = yz / _ResolvedBrickCacheEdge;
-    int3 coordinate = _ResolvedBrickCacheOrigin + int3(x, y, z);
-    _ResolvedBrickCacheWrite[index] = PersistentBrickEntry(coordinate);
+    int3 coordinate = request.xyz + int3(x, y, z);
+    _ResolvedBrickCacheWrite[request.w + index] = PersistentBrickEntry(coordinate);
 }
