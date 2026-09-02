@@ -1,7 +1,8 @@
 #pragma kernel CSProbeFullMesherOccupancy
+#pragma kernel CSProbeDispatchCoordinate
 
 // Compile the complete production mesher into this test shader so Metal sees the same helper graph,
-// declarations, and code-generation context. The added kernel is diagnostic only; it does not
+// declarations, and code-generation context. The added kernels are diagnostic only; they do not
 // duplicate extraction or change production behavior.
 #include "../../Resources/VoxelBrickMesher.compute"
 
@@ -26,6 +27,36 @@ void CSProbeFullMesherOccupancy(uint3 id : SV_DispatchThreadID)
     _ProbeWords[2] = rawBoundary;
     _ProbeWords[3] = directSolid ? 1u : 0u;
     _ProbeWords[4] = resolvedSurface;
+    _ProbeWords[5] = sampledMaterial;
+    _ProbeWords[6] = sampledSurface;
+    _ProbeWords[7] = sampledBoundary;
+    _ProbeWords[8] = _SolidWaterMaterialMask;
+    _ProbeFloats[0] = density;
+}
+
+[numthreads(64, 1, 1)]
+void CSProbeDispatchCoordinate(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x != 0u) return;
+
+    int index = (int)id.x;
+    int gx = index % _GridSize;
+    int yz = index / _GridSize;
+    int gy = yz % _GridSize;
+    int gz = yz / _GridSize;
+    int3 p = _ChunkOriginVoxel + (int3(gx, gy, gz) - _Padding) * _SourceStep;
+
+    uint rawSurface, rawBoundary;
+    uint rawMaterial = ReadMaterial(p, rawSurface, rawBoundary);
+    bool directSolid = IsSolidSample(rawMaterial);
+    uint sampledMaterial, sampledSurface, sampledBoundary;
+    float density = SampleField(p, _SourceStep, sampledMaterial, sampledSurface, sampledBoundary);
+
+    _ProbeWords[0] = asuint(p.x);
+    _ProbeWords[1] = asuint(p.y);
+    _ProbeWords[2] = asuint(p.z);
+    _ProbeWords[3] = rawMaterial;
+    _ProbeWords[4] = directSolid ? 1u : 0u;
     _ProbeWords[5] = sampledMaterial;
     _ProbeWords[6] = sampledSurface;
     _ProbeWords[7] = sampledBoundary;
