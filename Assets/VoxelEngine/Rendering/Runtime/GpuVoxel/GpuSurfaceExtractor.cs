@@ -267,6 +267,12 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private static readonly int IdSampleBoundaryWrite = Shader.PropertyToID("_SampleBoundaryWrite");
         private static readonly int IdCellVertexCountsWrite = Shader.PropertyToID("_CellVertexCountsWrite");
         private static readonly int IdCellTriangleCountsWrite = Shader.PropertyToID("_CellTriangleCountsWrite");
+        private static readonly int IdProfileSuppressionEnabled =
+            Shader.PropertyToID("_ProfileSuppressionEnabled");
+        // Diagnostic gate mirroring VOXEL_DISABLE_GPU_CUTOVER: owned-triangle suppression is
+        // presentation-only, so disabling it never changes world truth or coverage.
+        internal static int ProfileSuppressionEnabled { get; } =
+            Environment.GetEnvironmentVariable("VOXEL_GPU_PROFILE_SUPPRESSION") == "0" ? 0 : 1;
         private static readonly int IdCellReconstructionFlagsWrite =
             Shader.PropertyToID("_CellReconstructionFlagsWrite");
         private static readonly int IdSampleMaterial = Shader.PropertyToID("_SampleMaterial");
@@ -1823,7 +1829,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _shader.SetBuffer(kernel, IdBatchCellReconstructionFlags,
                               resources.CellReconstructionFlags);
             _shader.SetBuffer(kernel, IdBatchCellReconstructionFlagsWrite,
-                              resources.CellReconstructionFlags);
+                               resources.CellReconstructionFlags);
+            _shader.SetInt(IdProfileSuppressionEnabled, ProfileSuppressionEnabled);
             _shader.SetBuffer(kernel, IdBatchFaceDensity, resources.FaceDensity);
             _shader.SetBuffer(kernel, IdBatchFaceDensityWrite, resources.FaceDensity);
             _shader.SetBuffer(kernel, IdBatchFaceMaterial, resources.FaceMaterial);
