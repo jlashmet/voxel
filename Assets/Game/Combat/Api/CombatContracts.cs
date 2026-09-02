@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using Game.Characters.Api;
-using Game.Encounters.Api;
 
 namespace Game.Combat.Api
 {
@@ -48,88 +46,14 @@ namespace Game.Combat.Api
     public sealed class CombatParticipant
     {
         public CombatParticipantId Id { get; }
-        public CharacterId CharacterId { get; }
-        public bool IsCharacterBacked => CharacterId.IsValid;
         public CombatTeam Team { get; }
 
         public CombatParticipant(CombatParticipantId id, CombatTeam team)
         {
             if (!id.IsValid) throw new ArgumentException("Participant id is required.", nameof(id));
             Id = id;
-            CharacterId = default;
             Team = team;
         }
-
-        public CombatParticipant(CombatParticipantId id, CharacterId characterId, CombatTeam team)
-        {
-            if (!id.IsValid) throw new ArgumentException("Participant id is required.", nameof(id));
-            if (!characterId.IsValid) throw new ArgumentException("Character id is required.", nameof(characterId));
-            Id = id;
-            CharacterId = characterId;
-            Team = team;
-        }
-
-        public static CombatParticipant FromCharacter(CharacterId characterId, CombatTeam team)
-        {
-            if (!characterId.IsValid) throw new ArgumentException("Character id is required.", nameof(characterId));
-            return new CombatParticipant(new CombatParticipantId(characterId.Value), characterId, team);
-        }
-    }
-
-    public sealed class CombatStartRequest
-    {
-        public EncounterId EncounterId { get; }
-        public IReadOnlyList<CombatParticipant> Participants { get; }
-
-        public CombatStartRequest(EncounterId encounterId, IReadOnlyList<CombatParticipant> participants)
-        {
-            if (!encounterId.IsValid) throw new ArgumentException("Encounter id is required.", nameof(encounterId));
-            if (participants == null) throw new ArgumentNullException(nameof(participants));
-            if (participants.Count < 2) throw new ArgumentException("Combat requires at least two participants.", nameof(participants));
-
-            var copy = new CombatParticipant[participants.Count];
-            for (int i = 0; i < participants.Count; i++)
-                copy[i] = participants[i] ?? throw new ArgumentException("Combat participant cannot be null.", nameof(participants));
-
-            EncounterId = encounterId;
-            Participants = Array.AsReadOnly(copy);
-        }
-    }
-
-    public readonly struct CombatStartResult
-    {
-        public EncounterId EncounterId { get; }
-        public CombatSessionId SessionId { get; }
-
-        public CombatStartResult(EncounterId encounterId, CombatSessionId sessionId)
-        {
-            if (!encounterId.IsValid) throw new ArgumentException("Encounter id is required.", nameof(encounterId));
-            if (!sessionId.IsValid) throw new ArgumentException("Combat session id is required.", nameof(sessionId));
-            EncounterId = encounterId;
-            SessionId = sessionId;
-        }
-    }
-
-    public readonly struct CombatResolved
-    {
-        public EncounterId EncounterId { get; }
-        public CombatSessionId SessionId { get; }
-        public CombatTeam WinningTeam { get; }
-
-        public CombatResolved(EncounterId encounterId, CombatSessionId sessionId, CombatTeam winningTeam)
-        {
-            if (!encounterId.IsValid) throw new ArgumentException("Encounter id is required.", nameof(encounterId));
-            if (!sessionId.IsValid) throw new ArgumentException("Combat session id is required.", nameof(sessionId));
-            EncounterId = encounterId;
-            SessionId = sessionId;
-            WinningTeam = winningTeam;
-        }
-    }
-
-    public interface IEncounterCombatCoordinator
-    {
-        CombatStartResult Start(CombatStartRequest request);
-        bool TryTakeResolved(out CombatResolved resolved);
     }
 
     public sealed class CombatEncounterRequest
@@ -159,13 +83,25 @@ namespace Game.Combat.Api
         Completed = 2
     }
 
+    /// <summary>
+    /// Semantic combat authority/read boundary used by non-combat modules. Concrete combat runtime
+    /// types stay behind the composition layer.
+    /// </summary>
     public interface ICombatService
     {
         bool IsActive { get; }
         CombatLifecycleState State { get; }
         CombatSessionId ActiveSessionId { get; }
         IReadOnlyList<CombatParticipant> ActiveParticipants { get; }
+        int TurnNumber { get; }
+        bool IsAlive(CombatParticipantId participant);
         CombatSessionId BeginCombat(CombatEncounterRequest request);
         void CompleteCombat();
+    }
+
+    /// <summary>Minimal semantic tactical execution boundary for autonomous combat actors.</summary>
+    public interface ICombatTacticalDriver
+    {
+        bool Step();
     }
 }
