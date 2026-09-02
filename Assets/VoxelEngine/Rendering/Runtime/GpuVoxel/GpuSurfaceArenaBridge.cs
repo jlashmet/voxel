@@ -1,5 +1,6 @@
 using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 
+#if UNITY_EDITOR
 namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 {
     /// <summary>
@@ -96,3 +97,4 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         }
     }
 }
+#endif

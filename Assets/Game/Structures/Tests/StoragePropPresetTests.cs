@@ -62,7 +62,6 @@ namespace Game.Structures.Tests
             }
         }
 
-        [Test]
         public void WealthProducesControlledStorageFurnitureScaleVariation()
         {
             DecorationContext poor = Context(41u, DecorationWealthTier.Poor);

@@ -1,37 +1,26 @@
 #ifndef VOXEL_BRICK_DENSITY_INCLUDED
 #define VOXEL_BRICK_DENSITY_INCLUDED
 
-// Density sampling for the GPU mesher.
-//
-// This is a deliberate line-by-line port of TransvoxelDensityJob.SampleField. The two meshers must
-// agree: a GPU surface that differs from the CPU one for the same voxels is not a faster renderer,
-// it is a second renderer, and the drift between them is the recurring look regression this project
-// already knows about. The oracle test compares the two outputs directly, so any divergence here is
-// a test failure rather than something noticed months later on a rooftop.
-//
-// Where the CPU reads a NativeArray this reads a packed buffer; the arithmetic is otherwise
-// identical, including the tap weights and the order they accumulate in.
+// Density sampling for the GPU mesher. This remains a line-by-line semantic port of the CPU
+// Transvoxel density job, but production may now resolve world bricks from the persistent GPU
+// mirror instead of receiving a CPU-flattened dense brick neighbourhood for every chunk.
 
-// -- authoritative brick payload (the mirror) --------------------------------
+StructuredBuffer<uint> _BrickMaterials;        // payload followed by persistent lookup directory
+StructuredBuffer<uint> _BrickSurfaceSemantics;
+StructuredBuffer<uint> _BrickBoundarySamples;
 
-StructuredBuffer<uint> _BrickMaterials;        // 4 material bytes per word
-StructuredBuffer<uint> _BrickSurfaceSemantics; // 2 PackedStorage ushorts per word
-StructuredBuffer<uint> _BrickBoundarySamples;  // 4 boundary bytes per word
-
-// One entry per brick in the meshed chunk's neighbourhood, mirroring the CPU brick cache:
-//   bits  0..1  kind (0 empty, 1 uniform, 2 mixed)
-//   bits  8..15 uniform material
-//   bits 16..31 mirror slot for a mixed brick
+// Legacy mode: one dense entry per brick in the chunk neighbourhood.
+// Persistent mode: entries 0..2 are a tiny classifier-safe header. Values that could look like
+// brick kinds are shifted left by two so the existing raw classifier sees all three as empty:
+//   [0] masked magic, [1] directory word offset << 2, [2] directory mask << 2.
 StructuredBuffer<uint> _BrickCache;
 
 int3 _BrickCacheOrigin;
 int _BrickCacheEdge;
 
-// -- catalogues --------------------------------------------------------------
-
-StructuredBuffer<uint> _StyleWords;    // GpuSurfaceCataloguePacking.PackStyle
-StructuredBuffer<uint> _JoinWords;     // GpuSurfaceCataloguePacking.PackJoin
-StructuredBuffer<uint> _CoatingWords;  // 3 words per coating
+StructuredBuffer<uint> _StyleWords;
+StructuredBuffer<uint> _JoinWords;
+StructuredBuffer<uint> _CoatingWords;
 StructuredBuffer<uint> _MaterialDefaultStyle;
 uint _SolidWaterMaterialMask;
 
@@ -48,14 +37,14 @@ uint _SolidWaterMaterialMask;
 #define COMPATIBILITY_JOIN 0
 #define CONTINUITY_DISCONTINUOUS 0
 #define AUTHORITATIVE_SOLID_BIT (1u << 26)
-
-// SurfaceStyles: MaterialDefault is 0 and Smooth is 1, not a sentinel and zero. Getting this
-// backwards means the default style is never resolved and every cell reads style 0 instead, which
-// is a planar fallback — so smooth terrain silently meshes as though it were architecture.
 #define SURFACE_STYLE_MATERIAL_DEFAULT 0u
 #define SURFACE_STYLE_SMOOTH 1u
 #define SURFACE_STYLE_MATERIAL_BLEND 16u
 #define SURFACE_STYLE_RECONSTRUCTION_MASK 15u
+
+#define PERSISTENT_LOOKUP_MAGIC 0x47505540u
+#define DIRECTORY_WORDS_PER_ENTRY 5u
+#define DIRECTORY_OCCUPIED 1u
 
 bool IsMaterialBlendSurface(uint surface)
 {
@@ -102,10 +91,9 @@ struct JoinRule
 JoinRule LoadJoin(uint groupA, uint groupB)
 {
     JoinRule join;
-    // Out-of-range groups fall back to a sharp seam, matching SurfaceJoinReadRule.SharpSeam.
     if (groupA >= JOIN_GROUP_COUNT || groupB >= JOIN_GROUP_COUNT)
     {
-        join.compatibility = 1u;               // Seam
+        join.compatibility = 1u;
         join.continuity = CONTINUITY_DISCONTINUOUS;
         join.blendWidth = 0u;
         return join;
@@ -127,8 +115,6 @@ float CoatingDisplacement(uint surface)
     uint word1 = _CoatingWords[coating * COATING_WORDS + 1];
     return (word1 & 0xFFu) * (1.0 / 64.0);
 }
-
-// -- voxel reads -------------------------------------------------------------
 
 // Matches the shared semantic solid classifier: material IDs are opaque and the installed
 // presentation mask decides which renderer materials are water.
@@ -157,10 +143,6 @@ uint ResolveSurface(uint material, uint surface)
     return (surface & 0xFFFF0000u) | blendMarker | (style & SURFACE_STYLE_RECONSTRUCTION_MASK);
 }
 
-// Storage keeps surface semantics in a compact ushort while every reconstruction path consumes the
-// runtime 32-bit layout. Mirror uploads intentionally preserve Storage bytes, so decode at the GPU
-// read boundary exactly as VoxelSurfaceSemantics.FromStorage does on the CPU:
-// style 0..4, coating 5..8, flags 9..10, detail 11..15.
 uint DecodeSurfaceStorage(uint packedStorage)
 {
     uint style = packedStorage & 0x1Fu;
@@ -170,24 +152,70 @@ uint DecodeSurfaceStorage(uint packedStorage)
     return style | (coating << 16) | ((flags | (detail << 3)) << 24);
 }
 
-// Arithmetic shift for floor division, so the half of the world at negative coordinates does not
-// fold onto the origin. HLSL's >> on int is arithmetic, which is what this relies on.
 int3 WorldBrickOf(int3 p) { return int3(p.x >> 3, p.y >> 3, p.z >> 3); }
+
+uint HashBrickCoordinate(int3 coordinate)
+{
+    uint h = asuint(coordinate.x) * 0x8da6b343u;
+    h ^= asuint(coordinate.y) * 0xd8163841u;
+    h ^= asuint(coordinate.z) * 0xcb1ab31fu;
+    h ^= h >> 16;
+    h *= 0x7feb352du;
+    h ^= h >> 15;
+    return h;
+}
+
+bool TryPersistentBrickEntry(int3 coordinate, out uint entry)
+{
+    entry = 0u;
+    uint wordOffset = _BrickCache[1] >> 2;
+    uint mask = _BrickCache[2] >> 2;
+    uint start = HashBrickCoordinate(coordinate) & mask;
+
+    // The CPU directory inserts with the identical linear-probe rule. Ready regions contain every
+    // logical brick, including empty/uniform ones, so normal lookups terminate after very few probes;
+    // the full bound exists only to make collision handling exact rather than probabilistic.
+    [loop]
+    for (uint probe = 0u; probe <= mask; probe++)
+    {
+        uint slot = (start + probe) & mask;
+        uint word = wordOffset + slot * DIRECTORY_WORDS_PER_ENTRY;
+        uint state = _BrickMaterials[word + 4u];
+        if (state == 0u) return false;
+        if (state != DIRECTORY_OCCUPIED) continue;
+        if (asint(_BrickMaterials[word + 0u]) != coordinate.x
+         || asint(_BrickMaterials[word + 1u]) != coordinate.y
+         || asint(_BrickMaterials[word + 2u]) != coordinate.z)
+            continue;
+        entry = _BrickMaterials[word + 3u];
+        return true;
+    }
+    return false;
+}
 
 uint ReadMaterial(int3 p, out uint surface, out uint boundary)
 {
     surface = 0u;
     boundary = 0u;
 
-    int3 localBrick = WorldBrickOf(p) - _BrickCacheOrigin;
-    if ((uint)localBrick.x >= (uint)_BrickCacheEdge
-     || (uint)localBrick.y >= (uint)_BrickCacheEdge
-     || (uint)localBrick.z >= (uint)_BrickCacheEdge)
-        return 0u;
+    int3 worldBrick = WorldBrickOf(p);
+    uint entry = 0u;
+    if (_BrickCache[0] == PERSISTENT_LOOKUP_MAGIC)
+    {
+        if (!TryPersistentBrickEntry(worldBrick, entry)) return 0u;
+    }
+    else
+    {
+        int3 localBrick = worldBrick - _BrickCacheOrigin;
+        if ((uint)localBrick.x >= (uint)_BrickCacheEdge
+         || (uint)localBrick.y >= (uint)_BrickCacheEdge
+         || (uint)localBrick.z >= (uint)_BrickCacheEdge)
+            return 0u;
+        int brickIndex = localBrick.x
+                       + _BrickCacheEdge * (localBrick.y + _BrickCacheEdge * localBrick.z);
+        entry = _BrickCache[brickIndex];
+    }
 
-    int brickIndex = localBrick.x
-                   + _BrickCacheEdge * (localBrick.y + _BrickCacheEdge * localBrick.z);
-    uint entry = _BrickCache[brickIndex];
     uint kind = entry & 0x3u;
     if (kind == 0u) return 0u;
     if (kind == 1u) return (entry >> 8) & 0xFFu;
@@ -208,8 +236,6 @@ uint ReadMaterial(int3 p, out uint surface, out uint boundary)
     return material;
 }
 
-// Matches VoxelBoundarySample. The sample is authored whenever any bit is set; the offset is a
-// 6-bit field biased by 32, and the top two bits carry the extrusion axis (0 meaning "all axes").
 bool BoundaryIsAuthored(uint packed) { return packed != 0u; }
 
 int BoundarySignedQ3(uint packed)
@@ -249,8 +275,6 @@ float AddTap(int3 p, float weight, bool centreSolid, StyleDefinition centreStyle
     if (join.compatibility != COMPATIBILITY_JOIN || join.continuity == CONTINUITY_DISCONTINUOUS)
         return weight;
 
-    // Smooth-compatible neighbours share their reconstruction influence. This pairwise rule is what lets
-    // curvature propagate without a style deciding unilaterally how its neighbour is rebuilt.
     float neighbourCurvature = CurvatureFactor(neighbourStyle);
     return weight * lerp(1.0, neighbourCurvature, saturate(join.blendWidth * 0.5));
 }
@@ -262,13 +286,6 @@ void ConsiderExposedMaterial(int exposedDistance, bool preferVisibleTopMaterial,
                              inout uint dominantMaterial, inout uint dominantSurface)
 {
     bestDistance = min(bestDistance, exposedDistance);
-
-    // Geometry and material answer different questions. Geometry needs the nearest crossing on any
-    // axis so the coarse scalar field keeps its fine-voxel phase. Terrain material is vertically
-    // layered: grass/snow is stored only on the exposed cap while a nearby side crossing can
-    // legitimately expose dirt/rock. If this sample has a +Y cap inside the same coarse step, use
-    // that cap for colour without moving the crossing. Walls, ceilings and cave sides have no +Y
-    // cap and retain the old nearest-crossing rule.
     bool shouldUseMaterial = preferVisibleTopMaterial
                           || (!hasVisibleTopMaterial && exposedDistance < bestMaterialDistance);
     if (!shouldUseMaterial) return;
@@ -279,8 +296,6 @@ void ConsiderExposedMaterial(int exposedDistance, bool preferVisibleTopMaterial,
     dominantSurface = surface;
 }
 
-// Coarse lattice samples can sit below the actually exposed voxel. Match the CPU density job's
-// crossing-ray correction so LOD2 does not turn buried material depth into coarse colour bands.
 void ConsiderCrossingRay(int3 p, int3 direction, bool preferVisibleTopMaterial, int sourceStep,
                          uint centreMaterial, uint centreSurface,
                          inout int bestDistance, inout int bestMaterialDistance,
@@ -379,9 +394,6 @@ float SampleField(int3 p, int sourceStep, out uint dominantMaterial, out uint do
     bool centreSolid = IsSolidSample(centre);
     centreSurface = ResolveSurface(centre, centreSurface);
 
-    // Must stay identical to TransvoxelDensityJob.SampleField: an authored sample is trusted exactly
-    // when its sign agrees with authoritative occupancy. See the comment there for why both the old
-    // six-neighbour gate and no gate at all are wrong.
     if (packedBoundary != 0u && centreSolid == (BoundarySignedQ3(packedBoundary) >= 0))
     {
         dominantMaterial = centreSolid ? centre : 0u;

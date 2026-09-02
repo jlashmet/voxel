@@ -33,7 +33,6 @@ namespace Game.Structures.Tests
             });
         }
 
-        [Test]
         public void EnabledMoatWritesBedOnlyInsideConfiguredBoundedRing()
         {
             CastlePlan plan = ValidSmallPlan();

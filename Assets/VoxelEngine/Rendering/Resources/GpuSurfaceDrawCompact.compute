@@ -1,0 +1,108 @@
+#pragma kernel CSClearDrawBuckets
+#pragma kernel CSClassifyVisibleHandles
+#pragma kernel CSPrefixDrawBuckets
+#pragma kernel CSScatterVisibleHandles
+
+struct ChunkGeometryRecord
+{
+    uint generationLow;
+    uint generationHigh;
+    uint bank;
+    uint vertexCount;
+    uint indexCount;
+    uint vertexPageCount;
+    uint indexPageCount;
+    uint ready;
+};
+
+struct PagedDrawMetadata
+{
+    uint handle;
+    uint indexCount;
+    uint bank;
+    uint padding;
+};
+
+StructuredBuffer<uint> _VisibleChunkHandles;
+StructuredBuffer<ChunkGeometryRecord> _LiveChunkGeometry;
+RWStructuredBuffer<uint> _DrawBucketState; // count, max index count, start, scatter cursor
+RWStructuredBuffer<uint> _DrawIndirectArgs;
+RWStructuredBuffer<PagedDrawMetadata> _PagedDrawMetadata;
+int _VisibleHandleCount;
+int _DrawBucketCount;
+
+int BucketFor(uint indexCount)
+{
+    uint count = max(1u,indexCount);
+    int exponent = firstbithigh(count);
+    uint lower = 1u << exponent;
+    int subdivision = (int)min(3u,((count-lower)*4u)/lower);
+    return min(_DrawBucketCount-1,exponent*4+subdivision);
+}
+
+[numthreads(64,1,1)]
+void CSClearDrawBuckets(uint3 id : SV_DispatchThreadID)
+{
+    int bucket=(int)id.x;
+    if(bucket>=_DrawBucketCount)return;
+    int state=bucket*4, args=bucket*4;
+    _DrawBucketState[state+0]=0u;
+    _DrawBucketState[state+1]=0u;
+    _DrawBucketState[state+2]=0u;
+    _DrawBucketState[state+3]=0u;
+    _DrawIndirectArgs[args+0]=0u;
+    _DrawIndirectArgs[args+1]=0u;
+    _DrawIndirectArgs[args+2]=0u;
+    _DrawIndirectArgs[args+3]=0u;
+}
+
+[numthreads(64,1,1)]
+void CSClassifyVisibleHandles(uint3 id : SV_DispatchThreadID)
+{
+    int visible=(int)id.x;
+    if(visible>=_VisibleHandleCount)return;
+    uint handle=_VisibleChunkHandles[visible];
+    ChunkGeometryRecord live=_LiveChunkGeometry[handle];
+    if(live.ready==0u||live.indexCount==0u)return;
+    int state=BucketFor(live.indexCount)*4;
+    uint ignored;
+    InterlockedAdd(_DrawBucketState[state],1u,ignored);
+    InterlockedMax(_DrawBucketState[state+1],live.indexCount,ignored);
+}
+
+[numthreads(1,1,1)]
+void CSPrefixDrawBuckets(uint3 id : SV_DispatchThreadID)
+{
+    uint start=0u;
+    for(int bucket=0;bucket<_DrawBucketCount;bucket++)
+    {
+        int state=bucket*4,args=bucket*4;
+        uint count=_DrawBucketState[state];
+        _DrawBucketState[state+2]=start;
+        _DrawBucketState[state+3]=0u;
+        _DrawIndirectArgs[args+0]=_DrawBucketState[state+1];
+        _DrawIndirectArgs[args+1]=count;
+        _DrawIndirectArgs[args+2]=0u;
+        _DrawIndirectArgs[args+3]=start;
+        start+=count;
+    }
+}
+
+[numthreads(64,1,1)]
+void CSScatterVisibleHandles(uint3 id : SV_DispatchThreadID)
+{
+    int visible=(int)id.x;
+    if(visible>=_VisibleHandleCount)return;
+    uint handle=_VisibleChunkHandles[visible];
+    ChunkGeometryRecord live=_LiveChunkGeometry[handle];
+    if(live.ready==0u||live.indexCount==0u)return;
+    int state=BucketFor(live.indexCount)*4;
+    uint ordinal;
+    InterlockedAdd(_DrawBucketState[state+3],1u,ordinal);
+    PagedDrawMetadata draw;
+    draw.handle=handle;
+    draw.indexCount=live.indexCount;
+    draw.bank=live.bank;
+    draw.padding=0u;
+    _PagedDrawMetadata[_DrawBucketState[state+2]+ordinal]=draw;
+}

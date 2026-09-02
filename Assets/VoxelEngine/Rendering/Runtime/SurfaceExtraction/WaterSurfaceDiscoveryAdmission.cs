@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Unity.Mathematics;
+using UnityEngine;
 using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
@@ -13,16 +14,17 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
     internal sealed class WaterSurfaceDiscoveryAdmission
     {
         internal const int SurfaceDiscoveryBricksPerPrepare = 32;
+        internal const int DeadlineCheckStride = 4;
 
         private readonly Queue<int3> _pending = new(SurfaceDiscoveryBricksPerPrepare * 4);
         private readonly HashSet<int3> _queued = new();
-        private readonly List<int3> _batch = new(SurfaceDiscoveryBricksPerPrepare);
 
         public int PendingCount => _pending.Count;
 
         public void EnqueueAndStep(CpuWaterSurfaceChunkCache water,
                                    IRegionReadSource storage,
-                                   IReadOnlyList<int3> discoveredSurfaceBricks)
+                                   IReadOnlyList<int3> discoveredSurfaceBricks,
+                                   double deadlineSeconds)
         {
             if (water == null || storage == null) return;
 
@@ -36,16 +38,22 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 }
             }
 
-            _batch.Clear();
-            while (_batch.Count < SurfaceDiscoveryBricksPerPrepare && _pending.Count > 0)
+            int processed = 0;
+            RegionReadView cachedRegion = default;
+            while (processed < SurfaceDiscoveryBricksPerPrepare && _pending.Count > 0)
             {
+                // A four-brick progress floor prevents a sub-millisecond budget from starving
+                // water discovery on coarse timers. Beyond that floor, every individual block is
+                // a deadline boundary; the former 32-block synchronous batch produced 29 ms
+                // presentation hitches while the solid GPU path itself stayed below 3 ms.
+                if (processed >= DeadlineCheckStride
+                    && Time.realtimeSinceStartupAsDouble >= deadlineSeconds)
+                    break;
                 int3 worldBrick = _pending.Dequeue();
                 _queued.Remove(worldBrick);
-                _batch.Add(worldBrick);
+                water.InvalidateSurfaceBrick(storage, worldBrick, ref cachedRegion);
+                processed++;
             }
-
-            if (_batch.Count > 0)
-                water.InvalidateSurfaceBricks(storage, _batch);
         }
     }
 }

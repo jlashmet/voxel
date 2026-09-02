@@ -38,6 +38,20 @@ namespace VoxelEngine.Tests.EditMode
         [TestCase(2)]
         public void MixedLodVertexMaterialsAndNormalsMatchCpu(int sourceStep)
         {
+            AssertVertexParity(sourceStep, isolatedSmoothCorner: false);
+        }
+
+        [Test]
+        public void SmoothSingleCornerTopologyRetainsInterpolatedNormals()
+        {
+            // One authored solid sample creates the everyday single-corner-cut
+            // three-vertex/three-index topology.
+            // Count equality must not make the write kernel reinterpret it as planar.
+            AssertVertexParity(sourceStep: 1, isolatedSmoothCorner: true);
+        }
+
+        private void AssertVertexParity(int sourceStep, bool isolatedSmoothCorner)
+        {
             const float voxelSize = 0.1f;
             const int perBrick = 512;
 
@@ -49,12 +63,15 @@ namespace VoxelEngine.Tests.EditMode
             for (int x = 0; x < 8; x++)
             {
                 int i = x + 8 * (y + 8 * z);
-                voxels[i] = (byte)(y < 4 ? 1 : 0);
-                semantics[i] = (ushort)(((x + z) & 1) == 0 ? SurfaceStyles.Smooth
-                                                           : SurfaceStyles.Rounded);
-                boundary[i] = y == 3
-                    ? VoxelBoundarySample.FromSignedQ4(6, extrusionAxis: 1).Packed
-                    : (byte)0;
+                bool solid = isolatedSmoothCorner ? x == 4 && y == 4 && z == 4 : y < 4;
+                voxels[i] = (byte)(solid ? 1 : 0);
+                semantics[i] = isolatedSmoothCorner
+                    ? (ushort)SurfaceStyles.Smooth
+                    : (ushort)(((x + z) & 1) == 0 ? SurfaceStyles.Smooth
+                                                       : SurfaceStyles.Rounded);
+                // Fully authored signed samples make the parity fixture independent of catalogue
+                // curvature while retaining Smooth/Rounded reconstruction and both source steps.
+                boundary[i] = VoxelBoundarySample.FromSignedQ4(solid ? 8 : -8).Packed;
             }
 
             using var mirror = new GpuVoxelBrickMirror(slotCapacity: 8);
@@ -102,11 +119,17 @@ namespace VoxelEngine.Tests.EditMode
                     kinds[x + edge * (y + edge * z)] = 2;
                 }
 
+                List<OracleAttributedTriangle> cpu = CpuVertexAttributeOracle.MeshNeighbourhood(
+                    int3.zero, brickCacheOrigin, edge, CellsPerAxis, Padding,
+                    sourceStep, voxelSize, kinds, uniforms, voxels, semantics, boundary,
+                    surfaces, coatings, palette);
+
                 GpuExtractionResult result = extractor.Extract(
                     mirror, tables, int3.zero, brickCacheOrigin, sourceStep, voxelSize,
                     vertices, indices, capacity, capacity);
                 Assert.IsFalse(result.Overflowed);
-                Assert.Greater(result.IndexCount, 0, "The reproduction must emit terrain geometry.");
+                Assert.Greater(result.IndexCount, 0,
+                    $"The reproduction must emit terrain geometry (CPU triangles={cpu.Count}).");
 
                 var readbackVertices = new GpuSurfaceExtractor.ReadbackVertex[
                     Mathf.Max(1, result.VertexCount)];
@@ -122,11 +145,6 @@ namespace VoxelEngine.Tests.EditMode
                         ToSurfaceVertex(readbackVertices[readbackIndices[i + 1]]),
                         ToSurfaceVertex(readbackVertices[readbackIndices[i + 2]])));
                 }
-
-                List<OracleAttributedTriangle> cpu = CpuVertexAttributeOracle.MeshNeighbourhood(
-                    int3.zero, brickCacheOrigin, edge, CellsPerAxis, Padding,
-                    sourceStep, voxelSize, kinds, uniforms, voxels, semantics, boundary,
-                    surfaces, coatings, palette);
 
                 Assert.Greater(cpu.Count, 0, "The CPU reproduction must emit terrain geometry.");
                 AssertMultisetEqual(cpu, gpu, t => t.GeometryKey(),

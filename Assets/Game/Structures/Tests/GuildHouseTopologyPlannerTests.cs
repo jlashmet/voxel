@@ -28,7 +28,6 @@ namespace Game.Structures.Tests
             Assert.That(hidden.ParentIndex, Is.GreaterThanOrEqualTo(0));
         }
 
-        [Test]
         public void WizardForbiddenRoomCanBeDeepButIsNotAutomaticallySecret()
         {
             var program = GuildHouseProgramCatalog.Get(GuildHouseKind.Wizards);

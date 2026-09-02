@@ -78,7 +78,7 @@ namespace Game.Structures.Api
                     PitchRun = 2,
                     EaveOverhang = 0,
                     Thickness = 1,
-                    ParapetHeight = 6,
+                    ParapetHeight = 0,
                     MaterialRole = StructureMaterialRole.Roof,
                     TrimMaterialRole = StructureMaterialRole.Trim,
                 },
