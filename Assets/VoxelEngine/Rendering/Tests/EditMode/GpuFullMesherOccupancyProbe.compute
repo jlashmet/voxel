@@ -1,0 +1,34 @@
+#pragma kernel CSProbeFullMesherOccupancy
+
+// Compile the complete production mesher into this test shader so Metal sees the same helper graph,
+// declarations, and code-generation context. The added kernel is diagnostic only; it does not
+// duplicate extraction or change production behavior.
+#include "../../Resources/VoxelBrickMesher.compute"
+
+RWStructuredBuffer<uint> _ProbeWords;
+RWStructuredBuffer<float> _ProbeFloats;
+
+[numthreads(1, 1, 1)]
+void CSProbeFullMesherOccupancy(uint3 id : SV_DispatchThreadID)
+{
+    const int3 p = int3(-2, -2, -2);
+
+    uint rawSurface, rawBoundary;
+    uint rawMaterial = ReadMaterial(p, rawSurface, rawBoundary);
+    bool directSolid = IsSolidSample(rawMaterial);
+    uint resolvedSurface = ResolveSurface(rawMaterial, rawSurface);
+
+    uint sampledMaterial, sampledSurface, sampledBoundary;
+    float density = SampleField(p, 1, sampledMaterial, sampledSurface, sampledBoundary);
+
+    _ProbeWords[0] = rawMaterial;
+    _ProbeWords[1] = rawSurface;
+    _ProbeWords[2] = rawBoundary;
+    _ProbeWords[3] = directSolid ? 1u : 0u;
+    _ProbeWords[4] = resolvedSurface;
+    _ProbeWords[5] = sampledMaterial;
+    _ProbeWords[6] = sampledSurface;
+    _ProbeWords[7] = sampledBoundary;
+    _ProbeWords[8] = _SolidWaterMaterialMask;
+    _ProbeFloats[0] = density;
+}
