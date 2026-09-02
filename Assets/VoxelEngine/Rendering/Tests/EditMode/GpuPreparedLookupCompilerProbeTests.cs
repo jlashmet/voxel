@@ -69,7 +69,6 @@ namespace VoxelEngine.Tests.EditMode
             // Bind the probe-only resources even for the declaration control so both kernels have
             // the same Unity/Metal resource setup. Request count 0 keeps the reachable branch false.
             using var probeRequests = new ComputeBuffer(1, sizeof(int) * 4, ComputeBufferType.Structured);
-            probeRequests.SetData(new[] { new Vector4Int(0, 0, 0, 0) });
             using var probeEntries = Structured(new[] { 1u | (1u << 8) });
 
             const int grid = 13;
