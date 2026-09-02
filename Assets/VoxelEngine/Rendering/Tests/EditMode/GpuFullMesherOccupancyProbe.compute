@@ -99,11 +99,15 @@ void CSProbeInlineSampleAssignment(uint3 id : SV_DispatchThreadID)
     _SampleBoundaryWrite[index] = boundary;
 }
 
-// Candidate shared-boundary repair: materialize the complex SampleField result before returning
-// from a thin function. The caller deliberately keeps the original direct UAV assignment shape.
+// Candidate shared-boundary repair: initialize the output storage before entering SampleField and
+// materialize its return inside the wrapper. The caller deliberately keeps the original direct UAV
+// assignment shape so this specifically discriminates the Metal uninitialized-state warning.
 float SampleFieldCompilerSafe(int3 p, int sourceStep,
                               out uint material, out uint surface, out uint boundary)
 {
+    material = 0u;
+    surface = 0u;
+    boundary = 0u;
     float density = SampleField(p, sourceStep, material, surface, boundary);
     return density;
 }
@@ -118,7 +122,7 @@ void CSProbeWrappedInlineSampleAssignment(uint3 id : SV_DispatchThreadID)
     int yz = index / _GridSize;
     int gy = yz % _GridSize;
     int gz = yz / _GridSize;
-    int3 p = _ChunkOriginVoxel + (int3(gx, gy, gz) - _Padding) * _SourceStep;
+    int3 p = _ChunkOriginVoxel + (int3(gx, gy,gz) - _Padding) * _SourceStep;
 
     uint material, surface, boundary;
     _DensityWrite[index] = SampleFieldCompilerSafe(
