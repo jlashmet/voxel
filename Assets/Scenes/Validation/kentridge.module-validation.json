@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "module": "kentridge-integration",
+  "integrationGate": true,
+  "productionPaths": [
+    "Assets/Scenes/KentridgePlayableSlice.unity"
+  ],
+  "sharedPaths": [],
+  "tests": [
+    {
+      "platform": "PlayMode",
+      "filter": "VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests.*"
+    }
+  ],
+  "playerValidation": {
+    "scene": "Assets/Scenes/KentridgePlayableSlice.unity",
+    "scenario": "Assets/Scenes/Validation/kentridge.player-scenario.json"
+  }
+}
