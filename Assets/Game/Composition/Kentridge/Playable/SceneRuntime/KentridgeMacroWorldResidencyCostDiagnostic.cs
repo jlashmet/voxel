@@ -31,6 +31,7 @@ namespace Game.Kentridge.PlayableSlice
         private const int SurveyHorizontalOffsetDm = 60;
         private const float CameraMatchToleranceMetres = 2f;
         private const int MaxSurfaceLayersPerColumn = 3;
+        private const int TerrainSurfaceMarginVoxels = 8;
 
         private static readonly FieldInfo s_WorldField = typeof(KentridgePlayableSlice).GetField(
             "_world",
@@ -190,10 +191,11 @@ namespace Game.Kentridge.PlayableSlice
                 highest = math.max(highest, height);
             }
 
-            lowest -= VoxelDimensions.BrickEdge;
-            highest += VoxelDimensions.BrickEdge;
-            minLayer = lowest >> VoxelDimensions.RegionVoxelEdgeLog2;
-            maxLayer = highest >> VoxelDimensions.RegionVoxelEdgeLog2;
+            // ShowcaseWorld expands the sampled surface by one 8-voxel storage brick.
+            lowest -= TerrainSurfaceMarginVoxels;
+            highest += TerrainSurfaceMarginVoxels;
+            minLayer = lowest >> VoxelGrid.RegionVoxelEdgeLog2;
+            maxLayer = highest >> VoxelGrid.RegionVoxelEdgeLog2;
             if (minLayer < 0) minLayer = 0;
             if (maxLayer < minLayer) maxLayer = minLayer;
         }
