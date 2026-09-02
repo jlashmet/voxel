@@ -47,11 +47,13 @@ namespace VoxelEngine.Vegetation.Runtime
                 s_Version++;
                 s_DamageVersion++;
             }
+            TreeWorldReadSource.Instance.Rebind();
             TreeWorldReadRegistry.Register(TreeWorldReadSource.Instance);
         }
 
         public static void Replace(IReadOnlyList<TreeInstance> instances)
         {
+            TreeWorldReadSource.Instance.Rebind();
             TreeWorldReadRegistry.Register(TreeWorldReadSource.Instance);
             s_Instances.Clear();
             s_Damage.Clear();
