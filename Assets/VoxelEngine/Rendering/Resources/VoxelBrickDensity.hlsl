@@ -22,6 +22,7 @@ StructuredBuffer<uint> _StyleWords;
 StructuredBuffer<uint> _JoinWords;
 StructuredBuffer<uint> _CoatingWords;
 StructuredBuffer<uint> _MaterialDefaultStyle;
+uint _SolidWaterMaterialMask;
 
 #define STYLE_COUNT 32
 #define JOIN_GROUP_COUNT 16
@@ -35,6 +36,7 @@ StructuredBuffer<uint> _MaterialDefaultStyle;
 
 #define COMPATIBILITY_JOIN 0
 #define CONTINUITY_DISCONTINUOUS 0
+#define AUTHORITATIVE_SOLID_BIT (1u << 26)
 #define SURFACE_STYLE_MATERIAL_DEFAULT 0u
 #define SURFACE_STYLE_SMOOTH 1u
 #define SURFACE_STYLE_MATERIAL_BLEND 16u
@@ -52,6 +54,11 @@ bool IsMaterialBlendSurface(uint surface)
 uint ReconstructionStyleId(uint surface)
 {
     return (surface & 0xFFFFu) & SURFACE_STYLE_RECONSTRUCTION_MASK;
+}
+
+uint WithAuthoritativeOccupancy(uint surface, bool solid)
+{
+    return solid ? surface | AUTHORITATIVE_SOLID_BIT : surface & ~AUTHORITATIVE_SOLID_BIT;
 }
 
 struct StyleDefinition
@@ -109,9 +116,12 @@ float CoatingDisplacement(uint surface)
     return (word1 & 0xFFu) * (1.0 / 64.0);
 }
 
+// Matches the shared semantic solid classifier: material IDs are opaque and the installed
+// presentation mask decides which renderer materials are water.
 bool IsSolidSample(uint material)
 {
-    return material != 0u && material != 11u && material != 16u;
+    if (material == 0u) return false;
+    return material >= 32u || (_SolidWaterMaterialMask & (1u << material)) == 0u;
 }
 
 float CurvatureFactor(StyleDefinition style)
@@ -338,7 +348,7 @@ int PreferNearestCrossingSurfaceMaterial(int3 p, int sourceStep,
         bestDistance, bestMaterialDistance, hasVisibleTopMaterial, dominantMaterial, dominantSurface);
     ConsiderCrossingRay(p, int3(0, 0,  1), false, sourceStep, centreMaterial, centreSurface,
         bestDistance, bestMaterialDistance, hasVisibleTopMaterial, dominantMaterial, dominantSurface);
-    ConsiderCrossingRay(p, int3(0, 0, -1), false, sourceStep, centreMaterial, centreSurface,
+    ConsiderCrossingRay(p, int3(0, 0,-1), false, sourceStep, centreMaterial, centreSurface,
         bestDistance, bestMaterialDistance, hasVisibleTopMaterial, dominantMaterial, dominantSurface);
     return bestDistance;
 }
@@ -387,7 +397,7 @@ float SampleField(int3 p, int sourceStep, out uint dominantMaterial, out uint do
     if (packedBoundary != 0u && centreSolid == (BoundarySignedQ3(packedBoundary) >= 0))
     {
         dominantMaterial = centreSolid ? centre : 0u;
-        dominantSurface = centreSolid ? centreSurface : 0u;
+        dominantSurface = WithAuthoritativeOccupancy(centreSolid ? centreSurface : 0u, centreSolid);
         return BoundarySignedQ3(packedBoundary) * 0.125 + CoatingDisplacement(centreSurface);
     }
 
@@ -397,7 +407,7 @@ float SampleField(int3 p, int sourceStep, out uint dominantMaterial, out uint do
                      || centreStyle.reconstruction == RECONSTRUCTION_CUBIC))
     {
         dominantMaterial = centre;
-        dominantSurface = centreSurface;
+        dominantSurface = WithAuthoritativeOccupancy(centreSurface, true);
         return 0.5 + CoatingDisplacement(centreSurface);
     }
 
@@ -444,6 +454,10 @@ float SampleField(int3 p, int sourceStep, out uint dominantMaterial, out uint do
             density = centreSolid ? phase : -phase;
         }
     }
+
+    // Match TransvoxelDensityJob.Execute: presentation identity can extend onto nearby air-centred
+    // samples, but the transient occupancy bit always records the authoritative centre voxel.
+    dominantSurface = WithAuthoritativeOccupancy(dominantSurface, centreSolid);
 
     return density + (centreSolid ? CoatingDisplacement(centreSurface) : 0.0);
 }
