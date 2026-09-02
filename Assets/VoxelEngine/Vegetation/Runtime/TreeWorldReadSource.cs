@@ -7,17 +7,42 @@ namespace VoxelEngine.Vegetation.Runtime
     internal sealed class TreeWorldReadSource : ITreeWorldReadSource
     {
         internal static readonly TreeWorldReadSource Instance = new();
-        private TreeWorldReadSource() { }
+
+        private TreeWorldReadSource()
+        {
+            Rebind();
+        }
+
         public IReadOnlyList<TreeInstance> Instances => TreeWorldState.Instances;
         public IReadOnlyList<TreeDamageState> Damage => TreeWorldState.Damage;
         public int Version => TreeWorldState.Version;
         public int DamageVersion => TreeWorldState.DamageVersion;
-        public event Action SnapshotChanged { add => TreeWorldState.SnapshotChanged += value; remove => TreeWorldState.SnapshotChanged -= value; }
-        public event Action<TreeBranchCutEvent> BranchCut { add => TreeWorldState.BranchCut += value; remove => TreeWorldState.BranchCut -= value; }
-        public event Action<TreeDamageChangedEvent> DamageChanged { add => TreeWorldState.DamageChanged += value; remove => TreeWorldState.DamageChanged -= value; }
-        public event Action<TreeSeveredEvent> TreeSevered { add => TreeWorldState.TreeSevered += value; remove => TreeWorldState.TreeSevered -= value; }
+
+        public event Action SnapshotChanged;
+        public event Action<TreeBranchCutEvent> BranchCut;
+        public event Action<TreeDamageChangedEvent> DamageChanged;
+        public event Action<TreeSeveredEvent> TreeSevered;
+
+        internal void Rebind()
+        {
+            TreeWorldState.SnapshotChanged -= ForwardSnapshotChanged;
+            TreeWorldState.BranchCut -= ForwardBranchCut;
+            TreeWorldState.DamageChanged -= ForwardDamageChanged;
+            TreeWorldState.TreeSevered -= ForwardTreeSevered;
+
+            TreeWorldState.SnapshotChanged += ForwardSnapshotChanged;
+            TreeWorldState.BranchCut += ForwardBranchCut;
+            TreeWorldState.DamageChanged += ForwardDamageChanged;
+            TreeWorldState.TreeSevered += ForwardTreeSevered;
+        }
+
         public IReadOnlyCollection<int> RemovedBranches(int treeIndex) => TreeWorldState.RemovedBranches(treeIndex);
         public TreeSkeletonSnapshot SkeletonFor(int treeIndex) => ProceduralTreeDamageService.SkeletonFor(treeIndex);
         public TreeSkeletonSnapshot SkeletonFor(in TreeInstance instance) => ProceduralTreeSkeletonBuilder.Generate(in instance);
+
+        private void ForwardSnapshotChanged() => SnapshotChanged?.Invoke();
+        private void ForwardBranchCut(TreeBranchCutEvent change) => BranchCut?.Invoke(change);
+        private void ForwardDamageChanged(TreeDamageChangedEvent change) => DamageChanged?.Invoke(change);
+        private void ForwardTreeSevered(TreeSeveredEvent change) => TreeSevered?.Invoke(change);
     }
 }
