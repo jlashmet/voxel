@@ -44,7 +44,7 @@ namespace VoxelEngine.Showcase
         {
             output.Clear();
             const int columns = 4;
-            const float spacing = 4.6f;
+            const float spacing = 4.9f;
 
             for (int i = 0; i < AmbientLifeCatalogue.Count; i++)
             {
