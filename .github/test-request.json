@@ -1,7 +1,7 @@
 {
   "platform": "EditMode",
-  "test": "VoxelEngine.Tests.EditMode.ArchitectureShapeProgramBuilderTests.PrimitiveOverridesRejectNegativeCornerRadius",
-  "request_id": "template",
+  "test": "VoxelEngine.Tests.EditMode.GpuSurfaceExtractorOracleTests.GpuDensityMatchesTheCpuJobSampleForSample",
+  "request_id": "gpu-restoration-history-ad9d650",
   "scene_issue": "",
   "replay_seconds": ""
 }
