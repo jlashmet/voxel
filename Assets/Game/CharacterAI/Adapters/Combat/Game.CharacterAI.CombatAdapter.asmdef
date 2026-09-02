@@ -1,0 +1,18 @@
+{
+  "name": "Game.CharacterAI.CombatAdapter",
+  "rootNamespace": "Game.CharacterAI.Adapters.Combat",
+  "references": [
+    "Game.CharacterAI.Api",
+    "Game.Characters.Api",
+    "Game.Combat.Api"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}

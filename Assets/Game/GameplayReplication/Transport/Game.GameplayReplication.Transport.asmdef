@@ -1,0 +1,19 @@
+{
+  "name": "Game.GameplayReplication.Transport",
+  "rootNamespace": "Game.GameplayReplication.Transport",
+  "references": [
+    "Game.GameplayReplication.Api",
+    "Game.GameplayReplication.Runtime",
+    "VoxelEngine.Net.Runtime",
+    "Unity.Mathematics"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

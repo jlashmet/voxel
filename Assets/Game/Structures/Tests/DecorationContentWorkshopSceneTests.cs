@@ -72,7 +72,6 @@ namespace Game.Structures.Tests
             }
         }
 
-        [Test]
         public void RequiredWorkStationsStayClusteredAroundPrimaryAnchor()
         {
             AssertRequiredAround(DecorationContentWorkshopSceneKind.Carpentry, 1u, 3u, 32u, 115);

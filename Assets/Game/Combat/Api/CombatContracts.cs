@@ -83,13 +83,25 @@ namespace Game.Combat.Api
         Completed = 2
     }
 
+    /// <summary>
+    /// Semantic combat authority/read boundary used by non-combat modules. Concrete combat runtime
+    /// types stay behind the composition layer.
+    /// </summary>
     public interface ICombatService
     {
         bool IsActive { get; }
         CombatLifecycleState State { get; }
         CombatSessionId ActiveSessionId { get; }
         IReadOnlyList<CombatParticipant> ActiveParticipants { get; }
+        int TurnNumber { get; }
+        bool IsAlive(CombatParticipantId participant);
         CombatSessionId BeginCombat(CombatEncounterRequest request);
         void CompleteCombat();
+    }
+
+    /// <summary>Minimal semantic tactical execution boundary for autonomous combat actors.</summary>
+    public interface ICombatTacticalDriver
+    {
+        bool Step();
     }
 }

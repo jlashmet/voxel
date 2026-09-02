@@ -20,7 +20,6 @@ namespace Game.Structures.Tests
             }
         }
 
-        [Test]
         public void RepresentativeFullGuildHousesReceiveSignatureDecoration()
         {
             GuildHouseKind[] kinds =

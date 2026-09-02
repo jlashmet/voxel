@@ -23,6 +23,15 @@ def optional_number(value, name: str):
     return value
 
 
+def nonnegative_number(value, name: str):
+    value = optional_number(value, name)
+    if value is None:
+        return 0
+    if value < 0:
+        fail(f"{name} must be non-negative")
+    return value
+
+
 def load_scenario(path: Path) -> dict:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -38,6 +47,10 @@ def load_scenario(path: Path) -> dict:
     height = positive_int(capture.get("height"), "capture.height", 240, 4320)
     interval = positive_int(capture.get("intervalSeconds"), "capture.intervalSeconds", 1, 60)
     minimum = positive_int(capture.get("minimumFrames"), "capture.minimumFrames", 1, 100)
+    evidence_after = nonnegative_number(capture.get("evidenceAfterSeconds", 0),
+                                        "capture.evidenceAfterSeconds")
+    if evidence_after >= run_seconds:
+        fail("capture.evidenceAfterSeconds must be less than runSeconds")
     timeline = data.get("timeline", {})
     if not isinstance(timeline, dict):
         fail("timeline must be an object")
@@ -56,7 +69,8 @@ def load_scenario(path: Path) -> dict:
         if not isinstance(values, list) or any(not isinstance(v, str) or not v for v in values):
             fail(f"assertions.{field} must be an array of non-empty strings")
     return {"runSeconds": run_seconds, "width": width, "height": height, "interval": interval,
-            "minimum": minimum, "timeline": timeline, "required": required, "forbidden": forbidden}
+            "minimum": minimum, "evidenceAfter": evidence_after, "timeline": timeline,
+            "required": required, "forbidden": forbidden}
 
 
 def main(argv=None) -> int:
@@ -75,7 +89,8 @@ def main(argv=None) -> int:
     cmd = ["bash", "tools/showcase-player-capture.sh", "--unity", ns.unity, "--output", ns.output,
            "--scene", scene.as_posix(), "--run-seconds", str(cfg["runSeconds"]),
            "--width", str(cfg["width"]), "--height", str(cfg["height"]),
-           "--screenshot-every", str(cfg["interval"]), "--minimum-frames", str(cfg["minimum"])]
+           "--screenshot-every", str(cfg["interval"]), "--minimum-frames", str(cfg["minimum"]),
+           "--evidence-after", str(cfg["evidenceAfter"])]
     flags = {"autoDialogue":"--auto-dialogue", "autowalkAfter":"--autowalk-after",
              "convergingBuilds":"--converging-builds", "surveyAfter":"--survey-after",
              "surveyHeight":"--survey-height", "surveySpin":"--survey-spin"}

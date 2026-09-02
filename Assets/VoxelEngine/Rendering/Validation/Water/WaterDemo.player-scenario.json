@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "runSeconds": 30,
+  "capture": {
+    "width": 1600,
+    "height": 900,
+    "intervalSeconds": 6,
+    "minimumFrames": 3,
+    "evidenceAfterSeconds": 4
+  },
+  "timeline": {},
+  "assertions": {
+    "requiredLogPatterns": [
+      "WATER_RENDERING_SHOWCASE ready:",
+      "WATER_VALIDATION liquid-ready:"
+    ],
+    "forbiddenLogPatterns": [
+      "WATER_VALIDATION liquid renderer did not converge:",
+      "NullReferenceException",
+      "MissingReferenceException",
+      "Shader error"
+    ]
+  }
+}

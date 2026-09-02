@@ -1,0 +1,270 @@
+#pragma kernel CSAllocateBatchPages
+#pragma kernel CSPublishBatchPages
+#pragma kernel CSApplyHandleCommands
+
+// GPU-owned page allocation for voxel presentation geometry. The CPU assigns stable chunk handles
+// and authoritative generations, but never observes counts, page IDs, offsets, or completion.
+
+struct BatchChunkDescriptor
+{
+    int3 chunkOriginVoxel;
+    int sourceStep;
+    uint transitionFaceMask;
+    float voxelSize;
+    uint handle;
+    uint generationLow;
+    uint generationHigh;
+};
+
+struct ChunkGeometryRecord
+{
+    uint generationLow;
+    uint generationHigh;
+    uint bank;
+    uint vertexCount;
+    uint indexCount;
+    uint vertexPageCount;
+    uint indexPageCount;
+    uint ready;
+};
+
+struct RetiredPage
+{
+    uint page;
+    uint readyEpoch;
+};
+
+struct HandleCommand
+{
+    uint handle;
+    uint generationLow;
+    uint generationHigh;
+    uint release;
+};
+
+StructuredBuffer<BatchChunkDescriptor> _BatchChunks;
+RWStructuredBuffer<uint> _BatchCounters;
+StructuredBuffer<uint> _BatchCountersRead;
+RWStructuredBuffer<uint> _ArenaState;
+RWStructuredBuffer<uint> _FreeVertexPages;
+RWStructuredBuffer<uint> _FreeIndexPages;
+RWStructuredBuffer<RetiredPage> _RetiredVertexPages;
+RWStructuredBuffer<RetiredPage> _RetiredIndexPages;
+StructuredBuffer<RetiredPage> _RetiredVertexPagesRead;
+StructuredBuffer<RetiredPage> _RetiredIndexPagesRead;
+RWStructuredBuffer<uint2> _DesiredGenerations;
+StructuredBuffer<uint2> _DesiredGenerationsRead;
+StructuredBuffer<HandleCommand> _HandleCommands;
+RWStructuredBuffer<ChunkGeometryRecord> _LiveChunkGeometry;
+RWStructuredBuffer<ChunkGeometryRecord> _PendingChunkGeometry;
+StructuredBuffer<ChunkGeometryRecord> _LiveChunkGeometryRead;
+StructuredBuffer<ChunkGeometryRecord> _PendingChunkGeometryRead;
+RWStructuredBuffer<uint> _VertexPageTable;
+RWStructuredBuffer<uint> _IndexPageTable;
+StructuredBuffer<uint> _VertexPageTableRead;
+StructuredBuffer<uint> _IndexPageTableRead;
+
+int _BatchRecordCount;
+int _BatchRecordWords;
+int _VertexPageSize;
+int _IndexPageSize;
+int _MaxVertexPagesPerChunk;
+int _MaxIndexPagesPerChunk;
+int _VertexPageCount;
+int _IndexPageCount;
+uint _ArenaEpoch;
+uint _RetirementDelay;
+int _HandleCommandCount;
+
+static const uint AllocationReady = 0u;
+static const uint AllocationExhausted = 1u;
+static const uint AllocationStale = 2u;
+static const uint AllocationTooLarge = 3u;
+
+int RecordWord(int record) { return 4 + record * _BatchRecordWords; }
+int VertexTableWord(uint handle, uint bank, uint page)
+{
+    return ((int)handle * 2 + (int)bank) * _MaxVertexPagesPerChunk + (int)page;
+}
+int IndexTableWord(uint handle, uint bank, uint page)
+{
+    return ((int)handle * 2 + (int)bank) * _MaxIndexPagesPerChunk + (int)page;
+}
+
+void ReclaimVertexPages()
+{
+    uint head = _ArenaState[2], tail = _ArenaState[3];
+    while (head < tail)
+    {
+        RetiredPage retired = _RetiredVertexPagesRead[head % (uint)_VertexPageCount];
+        if (retired.readyEpoch > _ArenaEpoch) break;
+        _FreeVertexPages[_ArenaState[0]++] = retired.page;
+        head++;
+    }
+    _ArenaState[2] = head;
+}
+
+void ReclaimIndexPages()
+{
+    uint head = _ArenaState[4], tail = _ArenaState[5];
+    while (head < tail)
+    {
+        RetiredPage retired = _RetiredIndexPagesRead[head % (uint)_IndexPageCount];
+        if (retired.readyEpoch > _ArenaEpoch) break;
+        _FreeIndexPages[_ArenaState[1]++] = retired.page;
+        head++;
+    }
+    _ArenaState[4] = head;
+}
+
+void RetireVertexPage(uint page)
+{
+    uint tail = _ArenaState[3]++;
+    RetiredPage retired; retired.page = page;
+    retired.readyEpoch = _ArenaEpoch + _RetirementDelay;
+    _RetiredVertexPages[tail % (uint)_VertexPageCount] = retired;
+}
+
+void RetireIndexPage(uint page)
+{
+    uint tail = _ArenaState[5]++;
+    RetiredPage retired; retired.page = page;
+    retired.readyEpoch = _ArenaEpoch + _RetirementDelay;
+    _RetiredIndexPages[tail % (uint)_IndexPageCount] = retired;
+}
+
+void RetireVertexPageAtomic(uint page)
+{
+    uint tail;
+    InterlockedAdd(_ArenaState[3], 1u, tail);
+    RetiredPage retired; retired.page = page;
+    retired.readyEpoch = _ArenaEpoch + _RetirementDelay;
+    _RetiredVertexPages[tail % (uint)_VertexPageCount] = retired;
+}
+
+void RetireIndexPageAtomic(uint page)
+{
+    uint tail;
+    InterlockedAdd(_ArenaState[5], 1u, tail);
+    RetiredPage retired; retired.page = page;
+    retired.readyEpoch = _ArenaEpoch + _RetirementDelay;
+    _RetiredIndexPages[tail % (uint)_IndexPageCount] = retired;
+}
+
+[numthreads(64, 1, 1)]
+void CSApplyHandleCommands(uint3 id : SV_DispatchThreadID)
+{
+    int commandIndex = (int)id.x;
+    if (commandIndex >= _HandleCommandCount) return;
+    HandleCommand command = _HandleCommands[commandIndex];
+    _DesiredGenerations[command.handle] = uint2(command.generationLow,command.generationHigh);
+    if (command.release == 0u) return;
+    ChunkGeometryRecord live = _LiveChunkGeometryRead[command.handle];
+    if (live.ready != 0u)
+    {
+        for (uint page=0u;page<live.vertexPageCount;page++)
+            RetireVertexPageAtomic(
+                _VertexPageTableRead[VertexTableWord(command.handle,live.bank,page)]);
+        for (uint page=0u;page<live.indexPageCount;page++)
+            RetireIndexPageAtomic(
+                _IndexPageTableRead[IndexTableWord(command.handle,live.bank,page)]);
+    }
+    live.ready=0u;
+    _LiveChunkGeometry[command.handle]=live;
+}
+
+[numthreads(1, 1, 1)]
+void CSAllocateBatchPages(uint3 id : SV_DispatchThreadID)
+{
+    ReclaimVertexPages();
+    ReclaimIndexPages();
+    for (int record = 0; record < _BatchRecordCount; record++)
+    {
+        int word = RecordWord(record);
+        BatchChunkDescriptor chunk = _BatchChunks[record];
+        _BatchCounters[word + 10] = AllocationStale;
+        _BatchCounters[word + 11] = chunk.handle;
+        _BatchCounters[word + 12] = chunk.generationLow;
+        _BatchCounters[word + 13] = chunk.generationHigh;
+        uint2 desired = _DesiredGenerationsRead[chunk.handle];
+        if (desired.x != chunk.generationLow || desired.y != chunk.generationHigh) continue;
+
+        uint vertexCount = _BatchCounters[word + 2];
+        uint indexCount = _BatchCounters[word + 3];
+        uint vertexPages = (vertexCount + (uint)_VertexPageSize - 1u) / (uint)_VertexPageSize;
+        uint indexPages = (indexCount + (uint)_IndexPageSize - 1u) / (uint)_IndexPageSize;
+        if (vertexPages > (uint)_MaxVertexPagesPerChunk
+         || indexPages > (uint)_MaxIndexPagesPerChunk)
+        {
+            _BatchCounters[word + 10] = AllocationTooLarge;
+            _ArenaState[6]++;
+            continue;
+        }
+        if (vertexPages > _ArenaState[0] || indexPages > _ArenaState[1])
+        {
+            _BatchCounters[word + 10] = AllocationExhausted;
+            _ArenaState[6]++;
+            continue;
+        }
+
+        ChunkGeometryRecord live = _LiveChunkGeometryRead[chunk.handle];
+        uint bank = live.ready != 0u ? 1u - live.bank : 0u;
+        for (uint page = 0u; page < vertexPages; page++)
+            _VertexPageTable[VertexTableWord(chunk.handle, bank, page)] =
+                _FreeVertexPages[--_ArenaState[0]];
+        for (uint page = 0u; page < indexPages; page++)
+            _IndexPageTable[IndexTableWord(chunk.handle, bank, page)] =
+                _FreeIndexPages[--_ArenaState[1]];
+
+        ChunkGeometryRecord pending;
+        pending.generationLow = chunk.generationLow;
+        pending.generationHigh = chunk.generationHigh;
+        pending.bank = bank;
+        pending.vertexCount = vertexCount;
+        pending.indexCount = indexCount;
+        pending.vertexPageCount = vertexPages;
+        pending.indexPageCount = indexPages;
+        pending.ready = 1u;
+        _PendingChunkGeometry[chunk.handle] = pending;
+        _BatchCounters[word + 10] = AllocationReady;
+        _BatchCounters[word + 14] = bank;
+        _BatchCounters[word + 15] = vertexPages;
+        _BatchCounters[word + 16] = indexPages;
+    }
+}
+
+[numthreads(1, 1, 1)]
+void CSPublishBatchPages(uint3 id : SV_DispatchThreadID)
+{
+    for (int record = 0; record < _BatchRecordCount; record++)
+    {
+        int word = RecordWord(record);
+        if (_BatchCountersRead[word + 10] != AllocationReady) continue;
+        uint handle = _BatchCountersRead[word + 11];
+        ChunkGeometryRecord pending = _PendingChunkGeometryRead[handle];
+        uint2 desired = _DesiredGenerationsRead[handle];
+        bool current = desired.x == pending.generationLow && desired.y == pending.generationHigh;
+        ChunkGeometryRecord live = _LiveChunkGeometryRead[handle];
+
+        if (current)
+        {
+            if (live.ready != 0u)
+            {
+                for (uint page = 0u; page < live.vertexPageCount; page++)
+                    RetireVertexPage(_VertexPageTableRead[VertexTableWord(handle,live.bank,page)]);
+                for (uint page = 0u; page < live.indexPageCount; page++)
+                    RetireIndexPage(_IndexPageTableRead[IndexTableWord(handle,live.bank,page)]);
+            }
+            _LiveChunkGeometry[handle] = pending;
+        }
+        else
+        {
+            for (uint page = 0u; page < pending.vertexPageCount; page++)
+                RetireVertexPage(_VertexPageTableRead[VertexTableWord(handle,pending.bank,page)]);
+            for (uint page = 0u; page < pending.indexPageCount; page++)
+                RetireIndexPage(_IndexPageTableRead[IndexTableWord(handle,pending.bank,page)]);
+        }
+        pending.ready = 0u;
+        _PendingChunkGeometry[handle] = pending;
+    }
+}
