@@ -23,6 +23,8 @@ Historical probe run `33678983799` pins the regression to immediate child commit
 
 Three later construct-level discriminators further narrow the compiler defect without fixing semantics. Run `33679450700` removed only the nested persistent helper `out uint entry`; the wrong result changed from the later `-0.14` signature to GPU `+0.10`. Run `33680452567` forced the persistent-vs-dense selection with `[branch]`; the result stayed GPU `+0.10`. Run `33681093762` kept the same dynamic directory probe but remapped its explicit `[loop]` optimization attribute to `[fastopt]`; Planar and Smooth again stayed GPU `+0.10` with material/style correct and the authoritative-solid bit absent. Therefore nested `out`, branch flattening, and the explicit loop optimization attribute are not the sole trigger. The stable boundary is the persistent-directory helper body/compiler context itself being reachable from `ReadMaterial` in the density shader compilation unit.
 
+A standalone architecture discriminator now compiles the exact production `CSSampleDensity` body with the current `VoxelBrickDensity.hlsl` but without the count/write mesher body. This directly tests whether sampling becomes correct when isolated into its own compute compilation unit while preserving the same dense cache and semantic helper implementation. Exact-SHA CI is pending on feature head `70bdb745d5daa488cfd26430fa8474855a287657`.
+
 ## Acceptance
 
 1. GPU density/sample semantics match the real CPU jobs for every supported reconstruction path and supported source step exercised by production.
@@ -34,7 +36,7 @@ Three later construct-level discriminators further narrow the compiler defect wi
 
 ## Current root-cause boundary / repair direction
 
-The introducing defect is not the UAV assignment, nested `out`, branch hint, or loop hint. The latest evidence localizes the Metal miscompile to the persistent-directory lookup implementation being part of the same reachable density-sampling compiler path, even when dense mode does not execute it. After repeated materially different failed syntax fixes, do not keep reshaping the same function. The next production change should isolate persistent world-brick resolution from density sampling while preserving GPU-only mirror semantics — for example, resolve the required persistent brick entries into GPU-owned dense per-chunk/per-batch cache storage before density dispatch, then let the proven dense `ReadMaterial` path service sampling. This must not reintroduce CPU per-chunk brick staging or weaken persistent mirror correctness.
+The introducing defect is not the UAV assignment, nested `out`, branch hint, or loop hint. The latest evidence localizes the Metal miscompile to the persistent-directory lookup implementation being part of the same reachable density-sampling compiler path, even when dense mode does not execute it. After repeated materially different failed syntax fixes, do not keep reshaping the same function. The next production change should isolate persistent world-brick resolution from density sampling while preserving GPU-only mirror semantics — for example, resolve the required persistent brick entries into GPU-owned dense per-chunk/per-batch cache storage before density dispatch, or place sampling in a dedicated compute compilation unit if the standalone exact-shape probe proves that boundary sufficient. This must not reintroduce CPU per-chunk brick staging or weaken persistent mirror correctness.
 
 ## Architecture / blast radius
 
