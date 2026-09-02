@@ -1,0 +1,3 @@
+candidate_renderer_sha=ad9d650a4fdc3b8077c7cfff6cd51a94954d3c98
+probe=GpuSurfaceExtractorOracleTests.GpuDensityMatchesTheCpuJobSampleForSample
+mode=EditMode Metal graphics enabled
