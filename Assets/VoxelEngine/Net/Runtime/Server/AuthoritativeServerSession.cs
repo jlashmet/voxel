@@ -23,6 +23,7 @@ namespace VoxelEngine.Net.Runtime.Server
         private readonly ServerBulkRegionStateManager _bulkRegionState;
         private readonly ServerPlayerStateReplicator _playerStates;
         private readonly IAlterationApplier _defaultAlterationApplier;
+        private readonly IAuthoritativeGameplayStateEmitter _gameplayStateEmitter;
         private bool _disposed;
 
         public event Action<uint, NetworkEndpoint> ConnectionOpened;
@@ -39,17 +40,21 @@ namespace VoxelEngine.Net.Runtime.Server
             int maxConnections = 64,
             int initialEventCapacity = 64,
             uint hashIntervalTicks = ServerConvergenceManager.DefaultHashIntervalTicks,
-            uint playerStateIntervalTicks = ServerPlayerStateReplicator.DefaultIntervalTicks)
+            uint playerStateIntervalTicks = ServerPlayerStateReplicator.DefaultIntervalTicks,
+            IAuthoritativeGameplayStateEmitter gameplayStateEmitter = null)
         {
             _inbox = new ServerCommandInbox();
             _convergenceInbox = new ServerConvergenceInbox();
             _regionStateInbox = new ServerRegionStateRequestInbox();
             _players = new ServerPlayerRegistry();
             _rateLimiter = new AlterationRateLimiter();
+            _gameplayStateEmitter = gameplayStateEmitter;
             _network = new ServerNetworkRuntime(
+                _inbox,
                 _inbox,
                 _convergenceInbox,
                 _regionStateInbox,
+                _gameplayStateEmitter,
                 maxConnections,
                 initialEventCapacity);
             _processor = new ServerCommandProcessor(_inbox, _players, _rateLimiter, serverSeed, densityCap);
@@ -196,6 +201,7 @@ namespace VoxelEngine.Net.Runtime.Server
             // Game-owned ApplyInput may update ServerPlayerRegistry kinematics through
             // UpdateAuthoritativePlayerKinematics. Sample only after the fixed-tick input work is done.
             _playerStates.Emit(serverTick, _network.Replication.Subscriptions, _network);
+            _gameplayStateEmitter?.Emit(serverTick, _players, _network);
 
             _network.FlushReplication();
             _convergence.EmitHashes(

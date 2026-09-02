@@ -3,8 +3,8 @@ run-name: Validation · ${{ github.ref_name }} · ${{ github.event_name }}
 
 # Exact-SHA agent transport. On ci-test/* pushes the feature diff determines the owning
 # module assemblies, optional module-local standalone scenes, and Kentridge integration.
-# A legacy explicit test may still be supplied as an extra fast gate, but it is not required
-# to register or select the automatic validation set.
+# Compatible requested regressions share the same persistent Unity editor as automatic
+# EditMode/PlayMode validation; known process-isolated suites still use a fresh editor.
 on:
   workflow_dispatch:
     inputs:
@@ -119,8 +119,10 @@ jobs:
             sleep 5
           done
 
-      - name: Run optional explicitly requested test
-        if: steps.request.outputs.test != ''
+      # Manual dispatch has no diff-derived validation plan, so keep its direct focused gate.
+      # ci-test/* pushes fold compatible focused tests into the persistent automatic runner below.
+      - name: Run optional explicitly requested test (manual dispatch)
+        if: github.event_name == 'workflow_dispatch' && steps.request.outputs.test != ''
         shell: bash
         env:
           UNITY_BIN: ${{ steps.unity.outputs.path }}
@@ -171,14 +173,16 @@ jobs:
           PY
 
       - name: Run automatically required module validation
-        if: github.event_name == 'push' && steps.plan.outputs.required == 'true'
+        if: github.event_name == 'push' && (steps.plan.outputs.required == 'true' || steps.request.outputs.test != '')
         shell: bash
         run: |
           set -euo pipefail
           python3 tools/run-module-validation.py \
             --unity "${{ steps.unity.outputs.path }}" \
             --plan Artifacts/SingleTest/ModuleValidation/plan.json \
-            --output Artifacts/SingleTest/ModuleValidation/Results
+            --output Artifacts/SingleTest/ModuleValidation/Results \
+            --requested-test "${{ steps.request.outputs.test }}" \
+            --requested-platform "${{ steps.request.outputs.platform }}"
 
       - name: Replay SceneIssue through standalone player
         if: always() && steps.request.outputs.scene_issue != ''

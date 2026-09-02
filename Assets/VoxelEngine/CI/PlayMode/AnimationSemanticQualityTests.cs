@@ -184,7 +184,7 @@ namespace VoxelEngine.CI
         private static void ValidateVegetationPolicies()
         {
             var csv = new StringBuilder("kind,growth_form,shader_class,wind_strength,emission_strength,animation_policy\n");
-            var seen = new bool[4];
+            var seen = new bool[Enum.GetValues(typeof(VegetationShaderClass)).Length];
             for (int i = 0; i < VegetationCatalogue.Count; i++)
             {
                 VegetationKind kind = VegetationCatalogue.KindAt(i);

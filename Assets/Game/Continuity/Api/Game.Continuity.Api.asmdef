@@ -1,0 +1,14 @@
+{
+  "name": "Game.Continuity.Api",
+  "rootNamespace": "Game.Continuity.Api",
+  "references": ["Game.Sessions.Api"],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}

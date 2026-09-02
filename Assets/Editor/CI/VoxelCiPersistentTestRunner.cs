@@ -19,6 +19,12 @@ public static class VoxelCiPersistentTestRunner
     private const string PlayAssembliesKey = Prefix + "PlayAssemblies";
     private const string ResultsRootKey = Prefix + "ResultsRoot";
     private const string BakeShowcaseKey = Prefix + "BakeShowcase";
+    private const string PerAssemblyKey = Prefix + "PerAssembly";
+    private const string EditIndexKey = Prefix + "EditIndex";
+    private const string PlayIndexKey = Prefix + "PlayIndex";
+    private const string RequestedTestKey = Prefix + "RequestedTest";
+    private const string RequestedPlatformKey = Prefix + "RequestedPlatform";
+    private const string RequestedPendingKey = Prefix + "RequestedPending";
 
     private static TestRunnerApi s_Api;
     private static CiCallbacks s_Callbacks;
@@ -27,10 +33,8 @@ public static class VoxelCiPersistentTestRunner
 
     static VoxelCiPersistentTestRunner()
     {
-        if (!SessionState.GetBool(ActiveKey, false))
-            return;
-
-        EditorApplication.delayCall += RestoreAfterDomainReload;
+        if (SessionState.GetBool(ActiveKey, false))
+            EditorApplication.delayCall += RestoreAfterDomainReload;
     }
 
     public static void Run()
@@ -45,51 +49,42 @@ public static class VoxelCiPersistentTestRunner
         string resultsRoot = Environment.GetEnvironmentVariable("VOXEL_CI_RESULTS_ROOT");
         if (string.IsNullOrWhiteSpace(resultsRoot))
             resultsRoot = Path.Combine(Directory.GetCurrentDirectory(), "Artifacts", "PersistentCiTests");
-
         resultsRoot = Path.GetFullPath(resultsRoot);
         Directory.CreateDirectory(resultsRoot);
 
-        string editAssemblies = NormalizeAssemblies(
-            Environment.GetEnvironmentVariable("VOXEL_CI_EDITMODE_ASSEMBLIES"));
-        string playAssemblies = NormalizeAssemblies(
-            Environment.GetEnvironmentVariable("VOXEL_CI_PLAYMODE_ASSEMBLIES"));
-        bool bakeShowcase = IsTruthy(Environment.GetEnvironmentVariable("VOXEL_CI_BAKE_SHOWCASE"));
+        string editAssemblies = NormalizeAssemblies(Environment.GetEnvironmentVariable("VOXEL_CI_EDITMODE_ASSEMBLIES"));
+        string playAssemblies = NormalizeAssemblies(Environment.GetEnvironmentVariable("VOXEL_CI_PLAYMODE_ASSEMBLIES"));
+        string requestedTest = (Environment.GetEnvironmentVariable("VOXEL_CI_REQUESTED_TEST") ?? string.Empty).Trim();
+        string requestedPlatform = (Environment.GetEnvironmentVariable("VOXEL_CI_REQUESTED_PLATFORM") ?? string.Empty).Trim();
+        if (!string.IsNullOrEmpty(requestedTest) && requestedPlatform != "EditMode" && requestedPlatform != "PlayMode")
+        {
+            Debug.LogError("VOXEL_CI_REQUESTED_PLATFORM must be EditMode or PlayMode when VOXEL_CI_REQUESTED_TEST is set.");
+            EditorApplication.Exit(2);
+            return;
+        }
 
         File.WriteAllText(Path.Combine(resultsRoot, "persistent-failures.txt"), string.Empty);
-
         SessionState.SetBool(ActiveKey, true);
         SessionState.SetString(EditAssembliesKey, editAssemblies);
         SessionState.SetString(PlayAssembliesKey, playAssemblies);
         SessionState.SetString(ResultsRootKey, resultsRoot);
-        SessionState.SetBool(BakeShowcaseKey, bakeShowcase);
+        SessionState.SetBool(BakeShowcaseKey, IsTruthy(Environment.GetEnvironmentVariable("VOXEL_CI_BAKE_SHOWCASE")));
+        SessionState.SetBool(PerAssemblyKey, IsTruthy(Environment.GetEnvironmentVariable("VOXEL_CI_PER_ASSEMBLY")));
+        SessionState.SetInt(EditIndexKey, 0);
+        SessionState.SetInt(PlayIndexKey, 0);
+        SessionState.SetString(RequestedTestKey, requestedTest);
+        SessionState.SetString(RequestedPlatformKey, requestedPlatform);
+        SessionState.SetBool(RequestedPendingKey, !string.IsNullOrEmpty(requestedTest));
 
         EnsureCallbackRegistered();
-
-        if (!string.IsNullOrEmpty(editAssemblies))
-        {
-            QueuePhase("editmode");
-            return;
-        }
-
-        if (!string.IsNullOrEmpty(playAssemblies))
-        {
-            QueuePhase("playmode");
-            return;
-        }
-
-        ScheduleFinish(0, "No persistent test assemblies selected.");
+        QueueNextPhase();
     }
 
     private static void RestoreAfterDomainReload()
     {
         if (!SessionState.GetBool(ActiveKey, false))
             return;
-
         EnsureCallbackRegistered();
-
-        // A queued transition can be interrupted by a script-domain reload. If so,
-        // resume it here. Once Execute starts, Pending is cleared and the Test
-        // Framework owns any reloads needed by that run.
         if (SessionState.GetBool(PendingKey, false))
             EditorApplication.delayCall += StartPendingPhase;
     }
@@ -98,7 +93,6 @@ public static class VoxelCiPersistentTestRunner
     {
         if (s_Registered)
             return;
-
         s_Api = ScriptableObject.CreateInstance<TestRunnerApi>();
         s_Callbacks = new CiCallbacks();
         s_Api.RegisterCallbacks(s_Callbacks, 100);
@@ -112,36 +106,60 @@ public static class VoxelCiPersistentTestRunner
         EditorApplication.delayCall += StartPendingPhase;
     }
 
+    private static void QueueNextPhase()
+    {
+        bool perAssembly = SessionState.GetBool(PerAssemblyKey, false);
+        string[] edit = SplitAssemblies(SessionState.GetString(EditAssembliesKey, string.Empty));
+        string[] play = SplitAssemblies(SessionState.GetString(PlayAssembliesKey, string.Empty));
+        int editIndex = SessionState.GetInt(EditIndexKey, 0);
+        int playIndex = SessionState.GetInt(PlayIndexKey, 0);
+
+        if (editIndex < edit.Length)
+        {
+            QueuePhase(perAssembly ? "editmode-" + editIndex : "editmode");
+            return;
+        }
+        if (playIndex < play.Length)
+        {
+            QueuePhase(perAssembly ? "playmode-" + playIndex : "playmode");
+            return;
+        }
+        if (SessionState.GetBool(RequestedPendingKey, false))
+        {
+            QueuePhase("requested");
+            return;
+        }
+        ScheduleFinish(0, edit.Length == 0 && play.Length == 0 ? "No persistent test assemblies selected." : "Persistent test phases passed.");
+    }
+
     private static void StartPendingPhase()
     {
-        if (!SessionState.GetBool(ActiveKey, false) ||
-            !SessionState.GetBool(PendingKey, false))
+        if (!SessionState.GetBool(ActiveKey, false) || !SessionState.GetBool(PendingKey, false))
             return;
 
         string phase = SessionState.GetString(PhaseKey, string.Empty);
-        string encodedAssemblies = phase == "editmode"
-            ? SessionState.GetString(EditAssembliesKey, string.Empty)
-            : SessionState.GetString(PlayAssembliesKey, string.Empty);
-
-        string[] assemblies = SplitAssemblies(encodedAssemblies);
-        if (assemblies.Length == 0)
-        {
-            if (phase == "editmode" &&
-                !string.IsNullOrEmpty(SessionState.GetString(PlayAssembliesKey, string.Empty)))
-            {
-                QueuePhase("playmode");
-                return;
-            }
-
-            ScheduleFinish(0, "No tests selected for the pending phase.");
-            return;
-        }
-
+        bool perAssembly = SessionState.GetBool(PerAssemblyKey, false);
+        string[] assemblies = Array.Empty<string>();
+        string requestedTest = string.Empty;
         TestMode mode;
-        if (phase == "editmode")
+
+        if (phase.StartsWith("editmode", StringComparison.Ordinal))
+        {
             mode = TestMode.EditMode;
-        else if (phase == "playmode")
+            string[] all = SplitAssemblies(SessionState.GetString(EditAssembliesKey, string.Empty));
+            assemblies = perAssembly ? new[] { all[SessionState.GetInt(EditIndexKey, 0)] } : all;
+        }
+        else if (phase.StartsWith("playmode", StringComparison.Ordinal))
+        {
             mode = TestMode.PlayMode;
+            string[] all = SplitAssemblies(SessionState.GetString(PlayAssembliesKey, string.Empty));
+            assemblies = perAssembly ? new[] { all[SessionState.GetInt(PlayIndexKey, 0)] } : all;
+        }
+        else if (phase == "requested")
+        {
+            requestedTest = SessionState.GetString(RequestedTestKey, string.Empty);
+            mode = SessionState.GetString(RequestedPlatformKey, string.Empty) == "PlayMode" ? TestMode.PlayMode : TestMode.EditMode;
+        }
         else
         {
             ScheduleFinish(2, "Unknown persistent CI phase: " + phase);
@@ -150,17 +168,15 @@ public static class VoxelCiPersistentTestRunner
 
         SessionState.SetBool(PendingKey, false);
         EnsureCallbackRegistered();
+        var filter = new Filter { testMode = mode };
+        if (assemblies.Length > 0)
+            filter.assemblyNames = assemblies;
+        if (!string.IsNullOrEmpty(requestedTest))
+            filter.testNames = new[] { requestedTest };
 
-        Debug.Log(
-            $"Persistent CI: starting {phase} in the existing Unity editor for " +
-            $"{string.Join(", ", assemblies)}");
-
-        var filter = new Filter
-        {
-            testMode = mode,
-            assemblyNames = assemblies
-        };
-
+        Debug.Log(phase == "requested"
+            ? $"Persistent CI: starting requested {mode} test {requestedTest} in the existing Unity editor."
+            : $"Persistent CI: starting {phase} in the existing Unity editor for {string.Join(", ", assemblies)}");
         try
         {
             s_Api.Execute(new ExecutionSettings(filter));
@@ -179,36 +195,28 @@ public static class VoxelCiPersistentTestRunner
 
         string phase = SessionState.GetString(PhaseKey, "unknown");
         WritePhaseSummary(phase, result);
-
-        bool failed =
-            result.TestStatus == TestStatus.Failed ||
-            result.FailCount > 0 ||
-            result.InconclusiveCount > 0;
-
+        bool failed = result.TestStatus == TestStatus.Failed || result.FailCount > 0 || result.InconclusiveCount > 0;
         if (failed)
         {
-            ScheduleFinish(
-                1,
-                $"{phase} failed: {result.FailCount} failed, " +
-                $"{result.InconclusiveCount} inconclusive.");
+            ScheduleFinish(1, $"{phase} failed: {result.FailCount} failed, {result.InconclusiveCount} inconclusive.");
             return;
         }
 
-        if (phase == "editmode" &&
-            !string.IsNullOrEmpty(SessionState.GetString(PlayAssembliesKey, string.Empty)))
-        {
-            QueuePhase("playmode");
-            return;
-        }
+        bool perAssembly = SessionState.GetBool(PerAssemblyKey, false);
+        if (phase.StartsWith("editmode", StringComparison.Ordinal))
+            SessionState.SetInt(EditIndexKey, perAssembly ? SessionState.GetInt(EditIndexKey, 0) + 1 : SplitAssemblies(SessionState.GetString(EditAssembliesKey, string.Empty)).Length);
+        else if (phase.StartsWith("playmode", StringComparison.Ordinal))
+            SessionState.SetInt(PlayIndexKey, perAssembly ? SessionState.GetInt(PlayIndexKey, 0) + 1 : SplitAssemblies(SessionState.GetString(PlayAssembliesKey, string.Empty)).Length);
+        else if (phase == "requested")
+            SessionState.SetBool(RequestedPendingKey, false);
 
-        ScheduleFinish(0, "Persistent test phases passed.");
+        QueueNextPhase();
     }
 
     private static void ScheduleFinish(int exitCode, string message)
     {
         if (s_FinishScheduled)
             return;
-
         s_FinishScheduled = true;
         EditorApplication.delayCall += () => Finish(exitCode, message);
     }
@@ -217,19 +225,11 @@ public static class VoxelCiPersistentTestRunner
     {
         if (!SessionState.GetBool(ActiveKey, false))
             return;
-
-        string resultsRoot = SessionState.GetString(
-            ResultsRootKey,
-            Path.Combine(Directory.GetCurrentDirectory(), "Artifacts", "PersistentCiTests"));
-
+        string resultsRoot = SessionState.GetString(ResultsRootKey, Path.Combine(Directory.GetCurrentDirectory(), "Artifacts", "PersistentCiTests"));
         try
         {
             if (exitCode == 0 && SessionState.GetBool(BakeShowcaseKey, false))
-            {
-                Debug.Log("Persistent CI: baking Voxel Showcase before leaving the editor.");
                 InvokeShowcaseBake();
-            }
-
             WriteFinalSummary(resultsRoot, exitCode, message);
         }
         catch (Exception ex)
@@ -237,63 +237,33 @@ public static class VoxelCiPersistentTestRunner
             exitCode = 2;
             message = "Persistent CI finalization failed: " + ex;
             AppendFailure(message);
-            try
-            {
-                WriteFinalSummary(resultsRoot, exitCode, message);
-            }
-            catch
-            {
-                // The editor log still contains the original exception.
-            }
+            try { WriteFinalSummary(resultsRoot, exitCode, message); } catch { }
         }
-        finally
-        {
-            ClearState();
-        }
-
+        finally { ClearState(); }
         Debug.Log($"Persistent CI: exiting Unity with code {exitCode}. {message}");
         EditorApplication.Exit(exitCode);
     }
 
     private static void InvokeShowcaseBake()
     {
-        Type bakerType = AppDomain.CurrentDomain
-            .GetAssemblies()
-            .Select(assembly => assembly.GetType(
-                "VoxelEngine.Showcase.Editor.ShowcaseWorldBaker",
-                throwOnError: false))
+        Type bakerType = AppDomain.CurrentDomain.GetAssemblies()
+            .Select(assembly => assembly.GetType("VoxelEngine.Showcase.Editor.ShowcaseWorldBaker", false))
             .FirstOrDefault(type => type != null);
-
         if (bakerType == null)
             throw new InvalidOperationException("Could not find ShowcaseWorldBaker.");
-
-        MethodInfo bake = bakerType
-            .GetMethods(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
-            .FirstOrDefault(method =>
-                method.Name == "BakeShowcaseWorld" &&
-                method.GetParameters().Length == 0);
-
+        MethodInfo bake = bakerType.GetMethods(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
+            .FirstOrDefault(method => method.Name == "BakeShowcaseWorld" && method.GetParameters().Length == 0);
         if (bake == null)
-            throw new InvalidOperationException(
-                "Could not find parameterless ShowcaseWorldBaker.BakeShowcaseWorld.");
-
-        try
-        {
-            bake.Invoke(null, null);
-        }
+            throw new InvalidOperationException("Could not find parameterless ShowcaseWorldBaker.BakeShowcaseWorld.");
+        try { bake.Invoke(null, null); }
         catch (TargetInvocationException ex) when (ex.InnerException != null)
-        {
-            throw new InvalidOperationException("Showcase bake failed.", ex.InnerException);
-        }
+        { throw new InvalidOperationException("Showcase bake failed.", ex.InnerException); }
     }
 
     private static void WritePhaseSummary(string phase, ITestResultAdaptor result)
     {
-        string root = SessionState.GetString(
-            ResultsRootKey,
-            Path.Combine(Directory.GetCurrentDirectory(), "Artifacts", "PersistentCiTests"));
+        string root = SessionState.GetString(ResultsRootKey, Path.Combine(Directory.GetCurrentDirectory(), "Artifacts", "PersistentCiTests"));
         Directory.CreateDirectory(root);
-
         var text = new StringBuilder();
         text.AppendLine("phase=" + phase);
         text.AppendLine("result_state=" + result.ResultState);
@@ -303,6 +273,20 @@ public static class VoxelCiPersistentTestRunner
         text.AppendLine("inconclusive=" + result.InconclusiveCount);
         text.AppendLine("asserts=" + result.AssertCount);
         text.AppendLine("duration_seconds=" + result.Duration.ToString("0.###"));
+        if (phase.StartsWith("editmode", StringComparison.Ordinal))
+        {
+            string[] all = SplitAssemblies(SessionState.GetString(EditAssembliesKey, string.Empty));
+            int index = SessionState.GetBool(PerAssemblyKey, false) ? SessionState.GetInt(EditIndexKey, 0) : -1;
+            text.AppendLine("assembly=" + (index >= 0 && index < all.Length ? all[index] : string.Join(";", all)));
+        }
+        else if (phase.StartsWith("playmode", StringComparison.Ordinal))
+        {
+            string[] all = SplitAssemblies(SessionState.GetString(PlayAssembliesKey, string.Empty));
+            int index = SessionState.GetBool(PerAssemblyKey, false) ? SessionState.GetInt(PlayIndexKey, 0) : -1;
+            text.AppendLine("assembly=" + (index >= 0 && index < all.Length ? all[index] : string.Join(";", all)));
+        }
+        else if (phase == "requested")
+            text.AppendLine("test=" + SessionState.GetString(RequestedTestKey, string.Empty));
         File.WriteAllText(Path.Combine(root, "persistent-" + phase + ".txt"), text.ToString());
     }
 
@@ -313,12 +297,11 @@ public static class VoxelCiPersistentTestRunner
         text.AppendLine("exit_code=" + exitCode);
         text.AppendLine("status=" + (exitCode == 0 ? "passed" : "failed"));
         text.AppendLine("message=" + message.Replace('\n', ' ').Replace('\r', ' '));
-        text.AppendLine(
-            "editmode_assemblies=" + SessionState.GetString(EditAssembliesKey, string.Empty));
-        text.AppendLine(
-            "playmode_assemblies=" + SessionState.GetString(PlayAssembliesKey, string.Empty));
-        text.AppendLine(
-            "showcase_bake=" + SessionState.GetBool(BakeShowcaseKey, false));
+        text.AppendLine("editmode_assemblies=" + SessionState.GetString(EditAssembliesKey, string.Empty));
+        text.AppendLine("playmode_assemblies=" + SessionState.GetString(PlayAssembliesKey, string.Empty));
+        text.AppendLine("requested_test=" + SessionState.GetString(RequestedTestKey, string.Empty));
+        text.AppendLine("requested_platform=" + SessionState.GetString(RequestedPlatformKey, string.Empty));
+        text.AppendLine("showcase_bake=" + SessionState.GetBool(BakeShowcaseKey, false));
         File.WriteAllText(Path.Combine(root, "persistent-summary.txt"), text.ToString());
     }
 
@@ -326,44 +309,28 @@ public static class VoxelCiPersistentTestRunner
     {
         try
         {
-            string root = SessionState.GetString(
-                ResultsRootKey,
-                Path.Combine(Directory.GetCurrentDirectory(), "Artifacts", "PersistentCiTests"));
+            string root = SessionState.GetString(ResultsRootKey, Path.Combine(Directory.GetCurrentDirectory(), "Artifacts", "PersistentCiTests"));
             Directory.CreateDirectory(root);
-            File.AppendAllText(
-                Path.Combine(root, "persistent-failures.txt"),
-                message + Environment.NewLine);
+            File.AppendAllText(Path.Combine(root, "persistent-failures.txt"), message + Environment.NewLine);
         }
-        catch
-        {
-            // Never mask the test failure because diagnostics could not be written.
-        }
+        catch { }
     }
 
-    private static string NormalizeAssemblies(string value)
-    {
-        return string.Join(";", SplitAssemblies(value));
-    }
+    private static string NormalizeAssemblies(string value) => string.Join(";", SplitAssemblies(value));
 
     private static string[] SplitAssemblies(string value)
     {
         if (string.IsNullOrWhiteSpace(value))
             return Array.Empty<string>();
-
-        return value
-            .Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
-            .Select(item => item.Trim())
-            .Where(item => item.Length > 0)
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
+        return value.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(item => item.Trim()).Where(item => item.Length > 0)
+            .Distinct(StringComparer.Ordinal).ToArray();
     }
 
-    private static bool IsTruthy(string value)
-    {
-        return string.Equals(value, "1", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(value, "true", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(value, "yes", StringComparison.OrdinalIgnoreCase);
-    }
+    private static bool IsTruthy(string value) =>
+        string.Equals(value, "1", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(value, "true", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(value, "yes", StringComparison.OrdinalIgnoreCase);
 
     private static void ClearState()
     {
@@ -374,40 +341,29 @@ public static class VoxelCiPersistentTestRunner
         SessionState.SetString(PlayAssembliesKey, string.Empty);
         SessionState.SetString(ResultsRootKey, string.Empty);
         SessionState.SetBool(BakeShowcaseKey, false);
+        SessionState.SetBool(PerAssemblyKey, false);
+        SessionState.SetInt(EditIndexKey, 0);
+        SessionState.SetInt(PlayIndexKey, 0);
+        SessionState.SetString(RequestedTestKey, string.Empty);
+        SessionState.SetString(RequestedPlatformKey, string.Empty);
+        SessionState.SetBool(RequestedPendingKey, false);
     }
 
     private sealed class CiCallbacks : IErrorCallbacks
     {
         public void RunStarted(ITestAdaptor testsToRun)
         {
-            Debug.Log(
-                $"Persistent CI: {SessionState.GetString(PhaseKey, "unknown")} " +
-                $"discovered {testsToRun.TestCaseCount} test cases.");
+            Debug.Log($"Persistent CI: {SessionState.GetString(PhaseKey, "unknown")} discovered {testsToRun.TestCaseCount} test cases.");
         }
-
-        public void RunFinished(ITestResultAdaptor result)
-        {
-            OnRunFinished(result);
-        }
-
-        public void TestStarted(ITestAdaptor test)
-        {
-        }
-
+        public void RunFinished(ITestResultAdaptor result) => OnRunFinished(result);
+        public void TestStarted(ITestAdaptor test) { }
         public void TestFinished(ITestResultAdaptor result)
         {
             if (result.HasChildren)
                 return;
-
-            if (result.TestStatus == TestStatus.Failed ||
-                result.TestStatus == TestStatus.Inconclusive)
-            {
-                AppendFailure(
-                    $"{result.FullName}: {result.ResultState}{Environment.NewLine}" +
-                    $"{result.Message}{Environment.NewLine}{result.StackTrace}");
-            }
+            if (result.TestStatus == TestStatus.Failed || result.TestStatus == TestStatus.Inconclusive)
+                AppendFailure($"{result.FullName}: {result.ResultState}{Environment.NewLine}{result.Message}{Environment.NewLine}{result.StackTrace}");
         }
-
         public void OnError(string message)
         {
             AppendFailure("Test Runner error: " + message);

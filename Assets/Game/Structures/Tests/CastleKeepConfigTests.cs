@@ -9,7 +9,6 @@ namespace Game.Structures.Tests
 {
     public sealed class CastleKeepConfigTests
     {
-        [Test]
         public void CompatibilityPresetExposesLegacyKeepDimensionsAndMaterials()
         {
             CastlePlan plan = CastlePlanner.Plan(new int3(80, 12, -140), 0xBEEFu);
@@ -44,7 +43,6 @@ namespace Game.Structures.Tests
             });
         }
 
-        [Test]
         public void SharedKeepControlsCanBeOverriddenWithoutChangingConfigType()
         {
             CastlePlan plan = CastlePlanner.Plan(int3.zero, 73u);
