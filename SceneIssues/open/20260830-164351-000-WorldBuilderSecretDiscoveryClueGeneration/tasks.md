@@ -46,16 +46,17 @@
 
 - [x] Create `Assets/Game/WorldBuilder/Validation/SecretDiscovery/` as the focused production-path visual proof surface.
 - [x] Scene consumes production voxel world generation, cave authoring/composition, material/coating rendering, vegetation, meshing, and destruction.
-- [x] Register the dedicated player scenario in `worldbuilder-secret-discovery.module-validation.json`.
+- [x] Remove obsolete `worldbuilder-secret-discovery.module-validation.json`; current repository convention discovers module-local tests and paired `Validation/` scene/scenario automatically.
 - [x] Deterministic walkthrough: entrance -> interior -> deeper cave -> fracture approach -> close wall -> breach -> hidden pocket.
 - [x] Destroy the authored false wall through `ShowcaseWorld.Explode`; wall-destroyed log is required.
 - [x] 24-second player capture at 3-second intervals produces eight frames.
-- [x] Exact run `33537413920` passed all automatic WorldBuilder focused tests, dedicated player validation, and Kentridge integration.
+- [x] Exact run `33537413920` passed all automatic WorldBuilder focused tests, dedicated player validation, and Kentridge integration before the master merge.
 - [x] Full-resolution 9s/12s/15s frames visibly show the fracture before destruction.
 - [x] Full-resolution 18s frame shows the breached route; player log reports 607 voxels removed.
 - [x] Full-resolution 21s frame shows the authored hidden pocket from the opened route.
 - [x] Built-player run has required ready/destruction logs and no `NullReferenceException` / `MissingReferenceException`.
 - [x] The 0s image is a pre-ready transient; it is not used as acceptance evidence. The 3s frame is the first valid entrance proof.
+- [ ] Revalidate the merged/convention-correct exact feature SHA through `ci-test/fixes/agent-5`, including convention-discovered module tests, dedicated player scene, and Kentridge integration; inspect full-resolution artifacts.
 
 ## Built-player / representative acceptance
 
@@ -71,7 +72,8 @@
 - [x] Cave composition is bounded by traversal candidates and stops on non-physical failures; no frame polling/search cost added.
 - [x] Clue fracture authors 35 coating voxels once at scene generation; no recurring runtime work.
 - [x] Dedicated destruction is validation orchestration only; production explosion removed 607 voxels in the proof run.
-- [x] Current compare against `origin/master` is intentionally broad because the branch is long-lived/diverged: 163 commits ahead / 750 behind at master `f5c68da8d0ead8939794d10e70185ed09e9e1ab0`. Final blast-radius judgment must be repeated after the mandatory master merge.
-- [ ] All required acceptance criteria and exact-SHA gates green — blocked by unresolved Gallery acceptance conflict and later mandatory master merge/revalidation.
+- [x] Merged `origin/master` `b1b69290a59278b0e7caba798641c76a9866aa5c` into the feature branch at `dee150fa000597d6abe1a2693e3a15d429266fb5`; tests were reconciled into the current module-local WorldBuilder test layout.
+- [ ] Repeat final blast-radius/cost judgment after merged exact-SHA CI artifacts are available.
+- [ ] All required acceptance criteria and exact-SHA gates green — blocked by unresolved Gallery acceptance conflict plus merged-SHA revalidation.
 - [ ] Move assigned SceneIssue directly `open -> closed`, set `status=fixed` and `resolvedUtc`.
-- [ ] Merge current `origin/master`, revalidate the merged exact SHA, then push exact feature head to `origin/master` non-force.
+- [ ] Fetch/merge current `origin/master` again immediately before promotion, then push exact feature head to `origin/master` non-force.
