@@ -15,5 +15,19 @@
   "sceneBuildIndex": 2,
   "screenWidth": 1600,
   "screenHeight": 900,
-  "captures": []
+  "captures": [],
+  "assignment": {
+    "owner": "agent-4",
+    "branch": "fixes/agent-4",
+    "ci_branch": "ci-test/fixes/agent-4",
+    "claimed_at": 1787968362.842,
+    "lease_history": [
+      {
+        "claimed_at": 1787940793.543,
+        "ended_as": "fixed",
+        "last_heartbeat": 1787963187.977,
+        "owner": "agent-6"
+      }
+    ]
+  }
 }
