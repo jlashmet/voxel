@@ -1,0 +1,15 @@
+{
+  "formatVersion": 3,
+  "id": "enable-gpu-smallvoxel-debug",
+  "capturedUtc": "2026-09-02T00:00:00Z",
+  "note": "Temporary GPU rendering investigation capture for SmallVoxelShowcase. Reproduce missing near-ring geometry with GPU surface extraction enabled.",
+  "status": "open",
+  "unityVersion": "6000.5.6f1",
+  "platform": "Architecture",
+  "sceneName": "SmallVoxelShowcase",
+  "scenePath": "Assets/Scenes/SmallVoxelShowcase.unity",
+  "sceneBuildIndex": 0,
+  "screenWidth": 1600,
+  "screenHeight": 900,
+  "captures": []
+}
