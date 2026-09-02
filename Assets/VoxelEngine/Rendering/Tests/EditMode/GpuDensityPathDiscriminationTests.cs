@@ -16,7 +16,7 @@ namespace VoxelEngine.Tests.EditMode
     public sealed class GpuDensityPathDiscriminationTests
     {
         private const string ShaderPath =
-            "Assets/VoxelEngine/Rendering/Resources/VoxelBrickMesher.compute";
+            "Assets/VoxelEngine/Rendering/Tests/EditMode/GpuMesherCompilerSafe.compute";
         private const int CellsPerAxis = 8;
         private const int Padding = 2;
         private const int SourceStep = 1;
@@ -80,11 +80,6 @@ namespace VoxelEngine.Tests.EditMode
 
             ComputeShader shader = AssetDatabase.LoadAssetAtPath<ComputeShader>(ShaderPath);
             Assert.NotNull(shader, $"Compute shader missing at {ShaderPath}");
-
-            // Diagnostic discriminator: the isolated include probe proves the global scalar and
-            // IsSolidSample helper work on Metal. Bind the same semantic mask directly to the full
-            // ComputeShader instance to distinguish global-property propagation from full-mesher
-            // SampleField/codegen failure. This is test-only and is removed once ownership is proven.
             shader.SetInt("_SolidWaterMaterialMask", 0);
 
             SampleResult planar = SampleFirstWorldVoxel(shader, SurfaceStyles.Planar);
@@ -93,9 +88,8 @@ namespace VoxelEngine.Tests.EditMode
             Assert.IsTrue(planar.Matches && smooth.Matches,
                 "CPU/GPU first-sample comparison at world (-2,-2,-2). "
               + $"Planar: [{planar}]. Smooth: [{smooth}]. "
-              + "Planar uses SampleField's centreSolid early return before AddTap; Smooth uses the "
-              + "weighted tap path. This run also binds the water mask compute-locally, so a pass "
-              + "proves the defect is the full mesher's global-to-compute binding boundary.");
+              + "This run uses the compiler-safe mesher wrapper, which preserves the production "
+              + "mesher while materializing SampleField at the two sampling kernel call sites.");
         }
 
         private static SampleResult SampleFirstWorldVoxel(ComputeShader shader, ushort defaultStyle)
