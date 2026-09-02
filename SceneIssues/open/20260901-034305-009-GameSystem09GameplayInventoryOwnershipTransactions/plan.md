@@ -45,3 +45,8 @@ No equipment, crafting, slot grids, weight/capacity, use/consume semantics, or U
 - `Game.Inventory.Tests.InventoryTransactionTests` covers invalid/unknown inputs, insufficient removal, successful and failed conservation, duplicate/conflicting ids, competing removals, character/container reuse, and deterministic capture/restore ordering and revisions.
 - The System16 seam is intentionally limited to deterministic InventoryId/content state assigned here. Persisting transaction-delivery infrastructure is not added without the absent Persistence/System16 contract.
 - Final repository-wide bypass/boundary claims remain pending the repository-selected automatic module validation. System10/Loot remains an external prerequisite and is not implemented or simulated by this assignment.
+
+## Validation history
+
+- Exact-source run `33636160073` against `f2f3867a1507a1703e021fd3bc9f7c00b4fe0675` completed failed. The uploaded persistent Unity log isolated stale dependent regressions: `GameplayReplicationRuntimeTests` still implemented removed `IInventoryRuntime`/`InventoryItemSnapshot`, and `KentridgeWellQuestInventoryTests` still constructed/called the legacy single-inventory API. The standalone replay failure in the same run was secondary runner memory pressure after module validation was killed.
+- Migrated those dependent tests to the assigned API boundary: GameplayReplication now uses an independent `IInventoryQuery` fixture and validates schema-v2 inventory keys; Kentridge PlayMode constructs a stable inventory descriptor, uses the authority/query APIs, and binds presentation with the explicit InventoryId. Retry must use the same `ci-test/fixes/agent-2` transport.
