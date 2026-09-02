@@ -1,0 +1,85 @@
+name: GPU renderer history probe
+run-name: GPU history probe · ${{ github.ref_name }}
+
+on:
+  push:
+    branches:
+      - 'history/gpu-renderer-probe-b1b6929'
+    paths:
+      - '.github/gpu-history-probe-request.txt'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gpu-renderer-history-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: true
+          fetch-depth: 1
+      - name: Resolve Unity
+        id: unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(awk '/m_EditorVersion:/ {print $2}' ProjectSettings/ProjectVersion.txt)"
+          path="/Applications/Unity/Hub/Editor/${version}/Unity.app/Contents/MacOS/Unity"
+          test -x "$path"
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+      - name: Wait for Unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 60))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+            (( SECONDS < deadline )) || { pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true; exit 1; }
+            sleep 5
+          done
+      - name: Run GPU density oracle with Metal graphics
+        shell: bash
+        env:
+          UNITY_BIN: ${{ steps.unity.outputs.path }}
+        run: |
+          set -euo pipefail
+          root="$GITHUB_WORKSPACE/Artifacts/GpuHistoryProbe"
+          mkdir -p "$root"
+          set +e
+          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=4 tools/unity-run.sh \
+            -batchmode -job-worker-count 1 \
+            -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform EditMode \
+            -testFilter 'VoxelEngine.Tests.EditMode.GpuSurfaceExtractorOracleTests.GpuDensityMatchesTheCpuJobSampleForSample' \
+            -testResults "$root/results.xml" -logFile "$root/unity.log"
+          unity_status=$?
+          set -e
+          python3 - "$root/results.xml" "$unity_status" <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          path, unity_status = sys.argv[1], int(sys.argv[2])
+          root = ET.parse(path).getroot()
+          cases = root.findall('.//test-case')
+          failed = [c for c in cases if c.get('result') not in ('Passed', 'Success')]
+          print(f'Unity status={unity_status}; executed {len(cases)} GPU density oracle case(s); failed={len(failed)}.')
+          if not cases:
+              raise SystemExit('ERROR: GPU oracle filter matched zero tests')
+          for case in failed:
+              print('FAILED:', case.get('fullname') or case.get('name'))
+              failure = case.find('failure')
+              if failure is not None:
+                  print((failure.findtext('message') or '').strip())
+          if failed or unity_status != 0:
+              raise SystemExit(1)
+          PY
+      - name: Upload probe evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gpu-history-probe-${{ github.run_id }}
+          path: Artifacts/GpuHistoryProbe/**
+          if-no-files-found: error
+          retention-days: 1
