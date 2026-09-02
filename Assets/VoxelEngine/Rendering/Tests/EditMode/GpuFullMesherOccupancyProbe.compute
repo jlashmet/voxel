@@ -1,6 +1,7 @@
 #pragma kernel CSProbeFullMesherOccupancy
 #pragma kernel CSProbeDispatchCoordinate
 #pragma kernel CSProbeInlineSampleAssignment
+#pragma kernel CSProbeWrappedInlineSampleAssignment
 
 // Compile the complete production mesher into this test shader so Metal sees the same helper graph,
 // declarations, and code-generation context. The added kernels are diagnostic only; they do not
@@ -93,6 +94,35 @@ void CSProbeInlineSampleAssignment(uint3 id : SV_DispatchThreadID)
 
     uint material, surface, boundary;
     _DensityWrite[index] = SampleField(p, _SourceStep, material, surface, boundary);
+    _SampleMaterialWrite[index] = material;
+    _SampleSurfaceWrite[index] = surface;
+    _SampleBoundaryWrite[index] = boundary;
+}
+
+// Candidate shared-boundary repair: materialize the complex SampleField result before returning
+// from a thin function. The caller deliberately keeps the original direct UAV assignment shape.
+float SampleFieldCompilerSafe(int3 p, int sourceStep,
+                              out uint material, out uint surface, out uint boundary)
+{
+    float density = SampleField(p, sourceStep, material, surface, boundary);
+    return density;
+}
+
+[numthreads(64, 1, 1)]
+void CSProbeWrappedInlineSampleAssignment(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x != 0u) return;
+
+    int index = (int)id.x;
+    int gx = index % _GridSize;
+    int yz = index / _GridSize;
+    int gy = yz % _GridSize;
+    int gz = yz / _GridSize;
+    int3 p = _ChunkOriginVoxel + (int3(gx, gy, gz) - _Padding) * _SourceStep;
+
+    uint material, surface, boundary;
+    _DensityWrite[index] = SampleFieldCompilerSafe(
+        p, _SourceStep, material, surface, boundary);
     _SampleMaterialWrite[index] = material;
     _SampleSurfaceWrite[index] = surface;
     _SampleBoundaryWrite[index] = boundary;
