@@ -1507,6 +1507,7 @@ float3 BatchDensityNormal(uint batch, int3 g)
 
 uint PackMaterial(uint material, uint surface)
 {
+    surface &= ~AUTHORITATIVE_SOLID_BIT;
     return (material & 0xFFu)
          | (((surface >> 16) & 0xFFu) << 8)
          | ((surface & 0xFFu) << 16)
