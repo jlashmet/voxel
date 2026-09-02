@@ -13,5 +13,19 @@
   "sceneName": "KentridgePlayableSlice",
   "scenePath": "Assets/Scenes/KentridgePlayableSlice.unity",
   "sceneBuildIndex": 2,
-  "captures": []
+  "captures": [],
+  "assignment": {
+    "owner": "agent-2",
+    "branch": "fixes/agent-2",
+    "ci_branch": "ci-test/fixes/agent-2",
+    "claimed_at": 1788298210.24,
+    "lease_history": [
+      {
+        "claimed_at": 1788276991.445,
+        "ended_as": "stale",
+        "last_heartbeat": 1788276991.445,
+        "owner": "agent-8"
+      }
+    ]
+  }
 }
