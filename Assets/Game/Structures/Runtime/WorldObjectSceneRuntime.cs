@@ -56,6 +56,10 @@ namespace Game.Structures.Runtime
         {
             result = default;
             if (!TryResolve(id, out WorldObjectResolvedState current)) return false;
+            if ((current.State & WorldObjectStateFlags.Hidden) != 0 &&
+                current.Descriptor.Kind != WorldObjectKind.SecretDoor &&
+                current.Descriptor.Kind != WorldObjectKind.RotatingWall)
+                return false;
             if (!WorldObjectBehavior.TryInteract(in current, interaction, out result)) return false;
             if (result.Changed)
             {
@@ -81,9 +85,26 @@ namespace Game.Structures.Runtime
         }
 
         /// <summary>
+        /// Restores every object with runtime state back to its deterministic descriptor baseline without
+        /// recreating the scene. StateChanged is raised once for each cleared delta so presentation sinks can
+        /// refresh proxies immediately. No gameplay signals are propagated during a developer reset.
+        /// </summary>
+        public int ResetAll()
+        {
+            WorldObjectStateDelta[] changed = _state.Snapshot();
+            if (changed.Length == 0) return 0;
+
+            _state.Clear();
+            for (int i = 0; i < changed.Length; i++)
+                StateChanged?.Invoke(changed[i].Id);
+            return changed.Length;
+        }
+
+        /// <summary>
         /// Advances deterministic coarse runtime timers. A triggered object with Parameter0 > 0 uses that value
         /// as its reset delay in ticks. The timer is stored in the sparse state delta and therefore survives
-        /// streaming/save boundaries without persisting frame-level animation state.
+        /// streaming/save boundaries without persisting frame-level animation state. Expiration emits the same
+        /// Deactivated signal as an explicit reset so connected targets observe one semantic reset path.
         /// </summary>
         public int Tick(int ticks = 1)
         {
@@ -105,12 +126,15 @@ namespace Game.Structures.Runtime
                     RuntimeValue0 = current.RuntimeValue0,
                     RuntimeValue1 = Math.Max(0, remaining),
                 };
-                if (remaining <= 0)
+                bool expired = remaining <= 0;
+                if (expired)
                 {
                     delta.State &= ~(WorldObjectStateFlags.Triggered | WorldObjectStateFlags.Active);
                     delta.RuntimeValue1 = 0;
                 }
                 SetState(in delta);
+                if (expired)
+                    Propagate(descriptor.Id, WorldObjectSignal.Deactivated);
                 changed++;
             }
             return changed;

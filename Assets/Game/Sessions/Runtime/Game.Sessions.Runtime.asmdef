@@ -1,0 +1,14 @@
+{
+  "name": "Game.Sessions.Runtime",
+  "rootNamespace": "Game.Sessions.Runtime",
+  "references": ["Game.Sessions.Api", "Game.Characters.Api", "VoxelEngine.Net.Api"],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}

@@ -27,6 +27,7 @@ namespace VoxelEngine.Net.Runtime.Client
         private readonly Dictionary<ushort, S_PlayerState> _pendingPlayerStates =
             new Dictionary<ushort, S_PlayerState>(16);
         private readonly IClientEventNotificationSink _notifications;
+        private readonly IGameplayStatePacketHandler _gameplayStateHandler;
         private IClientPredictionAdapter _predictionAdapter;
         private ushort _localPlayerId;
         private bool _disposed;
@@ -52,9 +53,11 @@ namespace VoxelEngine.Net.Runtime.Client
             IAlterationApplier alterationApplier,
             IClientEventNotificationSink notifications = null,
             int maxPendingAuthoritativeEvents = ClientAuthoritativeEventQueue.DefaultMaxPendingEvents,
-            int predictionHistoryCapacity = ClientPredictionReconciler.DefaultHistoryCapacity)
+            int predictionHistoryCapacity = ClientPredictionReconciler.DefaultHistoryCapacity,
+            IGameplayStatePacketHandler gameplayStateHandler = null)
         {
             _notifications = notifications;
+            _gameplayStateHandler = gameplayStateHandler;
             _events = new ClientAuthoritativeEventQueue(alterationApplier, maxPendingAuthoritativeEvents);
             _repair = new ClientRegionRepairAssembler();
             _fullState = new ClientRegionStateAssembler();
@@ -260,6 +263,18 @@ namespace VoxelEngine.Net.Runtime.Client
             return _host.TrySendAlterationRequest(in request);
         }
 
+        public bool TryRequestGameplayStateRepair(in C_GameplayStateRepairRequest request)
+        {
+            ThrowIfDisposed();
+            Span<byte> packet = stackalloc byte[GameplayStateRepairRequestPacket.PacketSize];
+            if (!GameplayStateRepairRequestPacket.TryEncode(packet, in request) ||
+                !_host.TrySend(UtpChannel.Event, packet))
+                return false;
+
+            _host.FlushSends();
+            return true;
+        }
+
         public bool TryRequestFullRegionState(int3 regionCoord)
         {
             ThrowIfDisposed();
@@ -302,7 +317,9 @@ namespace VoxelEngine.Net.Runtime.Client
                 case UtpChannel.Repair:
                     return _repair.TryAcceptPacket(packet);
                 case UtpChannel.Bulk:
-                    return _fullState.TryAcceptPacket(packet);
+                    return IsGameplayStatePacket(packet)
+                        ? _gameplayStateHandler != null && _gameplayStateHandler.HandleGameplayStatePacket(packet)
+                        : _fullState.TryAcceptPacket(packet);
                 default:
                     return false;
             }
@@ -318,7 +335,7 @@ namespace VoxelEngine.Net.Runtime.Client
             {
                 S_PlayerState state = decoded[i];
                 if (!_playerTimeline.TryAccept(in state))
-                    continue; // valid but stale/reordered supersedable snapshot.
+                    continue;
 
                 if (_pendingPlayerStates.Count >= MaxPendingPlayerSnapshots &&
                     !_pendingPlayerStates.ContainsKey(state.playerId))
@@ -334,6 +351,9 @@ namespace VoxelEngine.Net.Runtime.Client
         {
             if (!ProtocolEnvelope.TryReadHeader(packet, out ProtocolMessageKind kind, out _))
                 return false;
+
+            if (kind == ProtocolMessageKind.S_GameplayState)
+                return _gameplayStateHandler != null && _gameplayStateHandler.HandleGameplayStatePacket(packet);
 
             if (kind != ProtocolMessageKind.S_RegionResyncRequired)
                 return _events.TryEnqueueEventPacket(packet, _notifications);
@@ -355,6 +375,10 @@ namespace VoxelEngine.Net.Runtime.Client
 
             return true;
         }
+
+        private static bool IsGameplayStatePacket(ReadOnlySpan<byte> packet) =>
+            ProtocolEnvelope.TryReadHeader(packet, out ProtocolMessageKind kind, out _) &&
+            kind == ProtocolMessageKind.S_GameplayState;
 
         void IRegionHashMismatchSink.OnRegionHashMismatch(in C_RegionHashMismatch mismatch)
         {

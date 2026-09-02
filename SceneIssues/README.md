@@ -1,49 +1,48 @@
 # SceneIssues workflow
 
-`SceneIssues` is the shared work queue for both captured scene defects and acceptance-driven feature work.
+`SceneIssues` tracks captured defects and acceptance-driven features.
 
-Use the specific guide for the assignment:
+Use the assignment-specific guide:
+- `SceneIssues/issue-readme.md` — capture-driven defects.
+- `SceneIssues/feature-readme.md` — feature work.
 
-- `SceneIssues/issue-readme.md` — capture-driven defects in an existing scene.
-- `SceneIssues/feature-readme.md` — regular feature work tracked through the SceneIssues queue.
-
-`AGENTS.md` and this file contain the common rules. The work-specific guide adds investigation, planning, validation, and evidence requirements.
+`AGENTS.md` and this file define common rules.
 
 ## Queue state
 
-The folders on `origin/master` are authoritative:
+`origin/master` is authoritative:
+- `open/` — available or active work.
+- `closed/` — completed work on master.
 
-- `open/`: available or actively assigned;
-- `pending/`: implementation/required pre-closure work complete and awaiting final verified closure/promotion; and
-- `closed/`: completed work on master.
-
-Blocked work stays open unless the applicable workflow explicitly permits pending. Never move an assignment backward merely because a prompt names an older path.
+Keep blocked or unfinished work in `open/`. Do not invent intermediate queue states.
 
 ## Assignment and branches
 
-The coordinator assigns one task and two persistent refs to each slot:
+Each worker uses:
 
 ```text
 fixes/agent-N
 ci-test/fixes/agent-N
 ```
 
-Work only on the assigned task. Fetch first; create the feature branch from current `origin/master` or resume it without discarding valid work. Refresh/merge current master before a substantial new attempt and again before final promotion. Do not self-select another assignment or modify another SceneIssue.
+Work only on the assigned task. Fetch first; create the feature branch from current `origin/master` or resume valid work. Merge current master when compatibility requires it and always before final validation/promotion. Do not self-select work or modify another SceneIssue.
 
-For captured defects, new captures must reach `master` before assignment; never introduce a new capture on a worker or CI branch.
+For captured defects, publish new captures to `master` before assignment; never introduce them on worker or CI branches.
 
 ## Targeted CI
 
-Commit and push production/test work to `fixes/agent-N`. `ci-test/fixes/agent-N` is the only targeted-CI transport for that worker. Build request commits from the exact feature SHA and change `.github/test-request.json` only on the CI branch.
+Commit production/test work to `fixes/agent-N`. `ci-test/fixes/agent-N` is that worker's only targeted-CI transport. Build each request from the exact feature SHA; change `.github/test-request.json` only on the CI branch.
 
-Never replace queued/running CI. After a completed failed/cancelled/timed-out request, inspect the run/artifact, fix a product failure (or retry a proven infrastructure failure), then reuse the same assigned CI transport for the next exact-SHA request. Do not create extra CI branches, PRs, no-op commits, custom workflows, or permission probes as alternate transports.
+Never replace queued/running CI. After a completed failure, inspect evidence, fix the product failure or retry proven infrastructure failure, then reuse the same transport. Do not create alternate CI branches, PRs, no-op commits, custom workflows, or permission probes.
 
-Use the smallest focused regression that proves the change. When acceptance involves a scene, rendering, traversal, interaction, or other player-visible behavior, final validation must build/launch the real application/player on the exact feature SHA and produce durable evidence; editor-only green tests are supplemental.
+The explicit request remains the exact-SHA trigger and optional fast targeted regression. For production diffs, CI additionally derives module validation from repository structure: affected lower-level modules from paths/Unity assembly ownership, all module-local EditMode and module-scoped PlayMode assemblies, convention-discovered paired player targets under each module's `Validation/` area, and the canonical built-player `KentridgePlayableSlice` integration gate. `*.module-validation.json` registration and per-test module filters are not used. `*.player-scenario.json` contains executable scenario behavior only, not ownership/test registration. Agents must not manually enumerate automatically required module/player targets. Required zero-match tests, missing/ambiguous scenes/scenarios, missing captures, skipped player targets, or failed required artifact proof are failures.
+
+Use the smallest regression that proves the change. Player-visible acceptance requires exact-SHA built-player validation and durable evidence; editor-only tests are supplemental. PlayMode screenshots or RenderTextures are not visual acceptance evidence.
 
 ## Completion and merge
 
-Before pending/closure, satisfy every acceptance criterion and required checklist item from the applicable work-specific guide. Complete `resolutionSummary`, `regressionTest`, and `fixCommit` when the implementation/verification state supports them.
+Before closure, satisfy every acceptance criterion and required checklist item. Complete `resolutionSummary`, `regressionTest`, and `fixCommit` when supported by the verified result.
 
-After all required exact-SHA gates are green, move only the assigned task from `pending/` to `closed/`, set `status: fixed` and `resolvedUtc`, and commit the final bookkeeping on the feature branch. Do not create a review branch or pull request.
+After all required exact-SHA gates pass, move only the assigned task from `open/` to `closed/`, set `status: fixed` and `resolvedUtc`, and commit the bookkeeping on the feature branch.
 
-Fetch current `origin/master`, merge it into the feature branch, resolve only in-scope conflicts, push the feature branch, verify its exact head, then push that exact head to `origin/master` non-force. If master advances, fetch, merge, revalidate affected work as needed, and retry. Never force-push master.
+Fetch current `origin/master`, merge it into the feature branch, resolve only in-scope conflicts, push the branch, then push that exact head to `origin/master` non-force. If master advances, fetch, merge, revalidate affected work as needed, and retry. Never force-push master.

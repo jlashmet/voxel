@@ -1,0 +1,19 @@
+{
+  "name": "VoxelEngine.Structures.Tests.RuntimeSupport",
+  "rootNamespace": "VoxelEngine.Structures.Tests.RuntimeSupport",
+  "references": [
+    "VoxelEngine.Structures.Api",
+    "VoxelEngine.Structures.Runtime",
+    "Unity.Collections",
+    "Unity.Mathematics"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

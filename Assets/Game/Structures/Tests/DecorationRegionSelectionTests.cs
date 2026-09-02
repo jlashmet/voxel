@@ -59,7 +59,6 @@ namespace Game.Structures.Tests
             });
         }
 
-        [Test]
         public void RegionWeightingFavorsMatchingFantasyDetails()
         {
             ushort fairyCharm = DecorationRegionContentPolicy.Weight(

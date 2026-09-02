@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using MountingForce.WorldGen.Architecture;
 using MountingForce.WorldGen.Content.Kentridge;
 
@@ -81,12 +83,60 @@ namespace MountingForce.WorldGen.Voxel
             StructureIntent intent = KentridgeDefinition.StructureIntent(plot);
             ArchitectureTheme theme = KentridgeDefinition.Theme;
             StructureForm form = ArchitectureCompiler.Resolve(intent, theme, seed);
+            ValidateSharedSiteClearance(plot, seed, intent, theme, form);
             return new KentridgeBuildingForm(intent, theme, form);
         }
 
         public static void ValidateGenerated(KentridgeBuildingForm form)
         {
             ArchitectureCompiler.ValidateGenerated(form.Intent, form.Theme, form.Inner);
+        }
+
+        private static void ValidateSharedSiteClearance(
+            BuildingPlot plot,
+            uint seed,
+            StructureIntent intent,
+            ArchitectureTheme theme,
+            StructureForm form)
+        {
+            if (plot.Archetype == StructureArchetype.Well) return;
+            if (!StructureSiteGeometryResolver.TryResolve(intent, theme, form, out StructureSiteGeometry geometry))
+                throw new InvalidOperationException(
+                    "Kentridge architecture could not publish site geometry for role '" + plot.RoleId + "'.");
+
+            SpatialReservationSnapshot source = KentridgeTownPlanner.BuildReservationSnapshot(seed);
+            string hostOwner = "kentridge-site:" + plot.RoleId;
+            string hostRoutePrefix = "kentridge-route:" + plot.RoleId + ":";
+            var external = new List<SpatialReservation>(source.Reservations.Count);
+            for (int i = 0; i < source.Reservations.Count; i++)
+            {
+                SpatialReservation claim = source.Reservations[i];
+                if (string.Equals(claim.OwnerId, hostOwner, StringComparison.Ordinal)) continue;
+                // The planner publishes the building's own generated access route into the same
+                // reservation snapshot. That route is the intended connector handoff for this
+                // public entrance. Treat those road segments as part of the host handoff while still
+                // validating the generated architecture against every other protected road claim.
+                if (claim.OwnerId.StartsWith(hostRoutePrefix, StringComparison.Ordinal)) continue;
+                external.Add(claim);
+            }
+
+            SpatialReservationSnapshot snapshot = SpatialReservationSnapshot.Create(
+                external, source.Window, source.BucketSizeDm);
+            SpatialReservation site = StructureSiteReservationAdapter.SiteClearance(
+                "kentridge-architecture-site:" + plot.RoleId,
+                geometry,
+                minYDm: 0,
+                maxYDm: Math.Max(1, intent.EnvelopeDm.Y),
+                horizontalClearanceDm: 0,
+                compatibleConsumers: ReservationConsumerKind.Connector,
+                provenance: "KentridgeBuildingGrammar.Resolve | StructureSiteGeometry");
+            ReservationQueryResult result = snapshot.Query(
+                site,
+                ReservationConsumerKind.StructuralChild,
+                ReservationCategory.Building | ReservationCategory.Plaza | ReservationCategory.Road);
+            if (!result.IsAccepted)
+                throw new InvalidOperationException(
+                    "Kentridge architecture site violates shared reservation ownership: " + result.Describe());
         }
     }
 }
