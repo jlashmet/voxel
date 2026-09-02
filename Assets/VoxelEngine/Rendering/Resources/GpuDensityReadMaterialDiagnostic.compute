@@ -1,0 +1,31 @@
+#pragma kernel CSMain
+
+#include "VoxelBrickDensity.hlsl"
+
+RWStructuredBuffer<uint> _DiagRawMaterial;
+RWStructuredBuffer<uint> _DiagSolid;
+
+int3 _DiagChunkOriginVoxel;
+int _DiagGridSize;
+int _DiagPadding;
+int _DiagSourceStep;
+
+[numthreads(64, 1, 1)]
+void CSMain(uint3 id : SV_DispatchThreadID)
+{
+    int index = (int)id.x;
+    int total = _DiagGridSize * _DiagGridSize * _DiagGridSize;
+    if (index >= total) return;
+
+    int gx = index % _DiagGridSize;
+    int yz = index / _DiagGridSize;
+    int gy = yz % _DiagGridSize;
+    int gz = yz / _DiagGridSize;
+    int3 p = _DiagChunkOriginVoxel
+           + (int3(gx, gy, gz) - _DiagPadding) * _DiagSourceStep;
+
+    uint surface, boundary;
+    uint material = ReadMaterial(p, surface, boundary);
+    _DiagRawMaterial[index] = material;
+    _DiagSolid[index] = IsSolidSample(material) ? 1u : 0u;
+}
