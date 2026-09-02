@@ -1,5 +1,6 @@
 #pragma kernel CSProbeFullMesherOccupancy
 #pragma kernel CSProbeDispatchCoordinate
+#pragma kernel CSProbeInlineSampleAssignment
 
 // Compile the complete production mesher into this test shader so Metal sees the same helper graph,
 // declarations, and code-generation context. The added kernels are diagnostic only; they do not
@@ -73,4 +74,26 @@ void CSProbeDispatchCoordinate(uint3 id : SV_DispatchThreadID)
     _ProbeWords[14] = asuint(localBrick.y);
     _ProbeWords[15] = asuint(brickIndex);
     _ProbeFloats[0] = density;
+}
+
+// Exact expression shape used by production CSSampleDensity: SampleField's return value is written
+// directly to a UAV while three uninitialized locals are passed as out parameters, then those locals
+// are written to their UAVs. The split-local probe above is the control case.
+[numthreads(64, 1, 1)]
+void CSProbeInlineSampleAssignment(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x != 0u) return;
+
+    int index = (int)id.x;
+    int gx = index % _GridSize;
+    int yz = index / _GridSize;
+    int gy = yz % _GridSize;
+    int gz = yz / _GridSize;
+    int3 p = _ChunkOriginVoxel + (int3(gx, gy, gz) - _Padding) * _SourceStep;
+
+    uint material, surface, boundary;
+    _DensityWrite[index] = SampleField(p, _SourceStep, material, surface, boundary);
+    _SampleMaterialWrite[index] = material;
+    _SampleSurfaceWrite[index] = surface;
+    _SampleBoundaryWrite[index] = boundary;
 }
