@@ -135,6 +135,150 @@ The main unresolved risks are:
 5. **Collision/navigation do not disappear.** CPU authoritative voxels remain the source for gameplay/collision/navigation even if rendering becomes Aokana-like.
 6. **No false-occlusion tolerance.** Temporal Hi-Z and traversal must remain conservative under rapid movement and edits.
 
+## Aokana compatibility / implementation risk matrix
+
+The feature list should be separated into **routine integration work**, **important engineering risks**, and **architecture-decision risks**. Most existing voxel-engine features do not prevent an Aokana-derived renderer; two areas are decisive: fast editable hierarchy maintenance and faithful smooth-density surface reconstruction.
+
+| Capability | Difficulty | Likely approach | Architecture blocker? |
+| --- | --- | --- | --- |
+| CPU-authoritative Storage | Low | Keep Storage as truth; GPU hierarchy is derived presentation state fed by the existing change journal | No |
+| Collision / gameplay / navigation | Low | Continue deriving/querying these from authoritative CPU voxel state or specialized CPU structures | No |
+| Cutaways / cross-section clipping | Low | Traversal treats samples inside the active cutaway volume as non-renderable and continues to the next valid surface instead of terminating at the clipped surface | No |
+| Dedicated water rendering | Low-medium | Keep liquid voxels on a specialized exposed-water surface/render path unless measurement shows a reason to fold them into traversal | No |
+| Standard materials / lighting | Medium | Traversal resolves compact surface identity; a visibility/material resolve pass performs normal shading | No |
+| Hybrid Aokana + planar/mesh ownership | Medium | Exactly one active presentation generation owns each bounded region; representation transitions publish atomically | No, but complexity cost must be justified |
+| Metal / Apple tile-GPU performance | Medium-high / unknown | Benchmark traversal divergence, random memory access, compute occupancy, and visibility-buffer bandwidth on real Metal hardware early | Potential deployment blocker if performance loses badly |
+| Rich material + surface semantic compression | High | Separate occupancy/spatial hierarchy from material/surface/coating payloads so unique attributes do not unnecessarily destroy DAG sharing | Possibly, if attribute bandwidth dominates |
+| Smooth density / Transvoxel-quality surfaces | High | Use hierarchy for broad spatial skipping, then perform local density/implicit-surface intersection in the reached brick/leaf or retain a smooth near-mesh path | **Yes: decisive quality/performance risk** |
+| Rapid arbitrary destruction / edit propagation | Highest | Bounded shallow-chunk rebuild, GPU-editable HashDAG/SVDAG techniques, generation-safe local publication, and strict dirty-amplification limits | **Yes: primary architecture risk** |
+
+### Cutaways are not a major concern
+
+The current renderer already carries a voxel-space cutaway box (`_CutawayEnabled`, `_CutawayMinVoxel`, `_CutawayMaxVoxel`) for clipping/revealing interior regions. In a triangle shader, clipped fragments can simply be rejected. In a traversal renderer, a hit inside the cutaway cannot terminate the ray; traversal must continue until it reaches the next non-cutaway surface.
+
+Conceptually:
+
+```text
+ray
+ |
+ v
+surface A inside cutaway -> ignore / continue
+ |
+ v
+surface B outside cutaway -> visible hit
+```
+
+This is traversal semantics work, not a fundamental representation problem.
+
+### Water should remain specialized initially
+
+Do not require the solid Aokana experiment to solve liquid rendering. Water has different topology, exposure rules, transparency/refraction, animation, and shading. The initial architecture should remain:
+
+```text
+solid voxels  -> Aokana-style solid traversal candidate
+liquid voxels -> dedicated water surface renderer
+```
+
+If a later unified representation is measurably better, it can be investigated independently.
+
+### Materials and semantics should not be embedded naively in DAG identity
+
+Occupancy/spatial repetition may compress well even when material/coating data is unique. Avoid requiring every material or semantic difference to create a structurally unique hierarchy node when that would destroy sharing.
+
+Prefer a separation such as:
+
+```text
+spatial / occupancy hierarchy
+            +
+compact surface/material identity
+            +
+material / coating / semantic payload tables
+```
+
+A visibility-buffer-style path is attractive here: traversal determines the winning surface identity first, then the normal voxel material/lighting system shades only the final visible sample.
+
+### Smooth surfaces are a first-class experiment, not an afterthought
+
+Aokana-style occupancy traversal naturally fits discrete/block surfaces. Our source data also contains density/boundary information used to produce smooth Transvoxel-style surfaces. A universal Aokana replacement therefore has to prove that it can recover equivalent smooth geometry without turning every ray into an expensive iterative root-finding problem.
+
+A promising split is hierarchical broad-phase plus local fine intersection:
+
+```text
+shallow hierarchy traversal
+        |
+        v
+candidate detailed brick / leaf
+        |
+        v
+local density / boundary intersection
+        |
+        v
+accurate smooth surface hit
+```
+
+The benchmark must compare surface position, normals, silhouettes, material boundaries, LOD stability, and GPU traversal cost against the CPU/GPU surface oracle. If this cannot reach acceptable quality/performance, retain rasterized generated geometry for smooth near surfaces while using voxel traversal elsewhere.
+
+### Destruction is the primary architecture gate
+
+The ideal edit path is:
+
+```text
+edit N authoritative voxels
+        |
+        v
+identify bounded affected shallow chunks/pages
+        |
+        v
+GPU/local hierarchy update or rebuild
+        |
+        v
+publish new generation atomically
+        |
+        v
+next traversal observes the edit
+```
+
+Avoid a design where a small edit causes a rebuild proportional to world size, visible distance, or a deep global DAG. Track:
+
+- hierarchy nodes/pages rebuilt per authoritative voxel changed;
+- bytes rewritten per edit;
+- CPU and GPU maintenance time;
+- edit-to-visible latency;
+- maximum rebuild radius;
+- old/new generation overlap memory;
+- behavior under sustained edit storms.
+
+Recent GPU-editable HashDAG/SVDAG research makes this plausible, but it must be proven in our data rather than assumed from mostly-static Aokana results.
+
+### Renderer-ownership invariant for a hybrid
+
+If some regions remain raster meshes while others use voxel traversal, avoid overlapping ownership ambiguity. A useful invariant is:
+
+> **Each bounded spatial presentation region has exactly one active representation generation for a given rendering domain.**
+
+Representation changes should follow the same no-hole publication model as current GPU geometry:
+
+```text
+old representation remains live
+        |
+new representation builds / becomes ready
+        |
+atomic ownership publication
+        |
+old representation retires later
+```
+
+This prevents cracks, double rendering, and temporary missing regions when promoting/demoting between Aokana, planar/heightfield, and generated-mesh paths.
+
+### Architecture gates
+
+The Aokana-primary experiment should answer these two questions before broad migration:
+
+1. **Can edits update the hierarchical presentation locally enough that destruction remains immediate and bounded?**
+2. **Can the traversal recover our smooth/material-rich surfaces at acceptable quality and cost?**
+
+If both are yes, the other listed capabilities appear tractable and there is no obvious feature-level reason Aokana cannot become the primary solid renderer. If either fails badly, treat Aokana as one representation in a hybrid renderer rather than forcing it universally.
+
 Recent work on GPU-editable compact voxel representations makes the edit problem less discouraging: a future implementation does not necessarily require rebuilding compressed hierarchy state on the CPU after every edit.
 
 ## Required A/B/C benchmark
