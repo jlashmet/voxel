@@ -27,7 +27,7 @@
 - [x] **T01-021 — Add resolution/idempotency tests.** `EncounterCombatIntegrationTests` proves `EncounterCombatCoordinator.TryTakeResolved` emits one terminal fact per session under repeated polling and the real `EncounterRegistry.ApplyCombatResolved` accepts an identical repeat without another revision mutation.
 - [x] **T01-022 — Add encounter mapping tests.** `EncounterCombatIntegrationTests` proves real `EncounterCombatRequest` membership maps through production CharacterIds into Combat participants and preserves the same `EncounterId` through start and terminal result.
 - [ ] **T01-023 — Add independent reuse fixture.** Reuse proof includes non-Kentridge Character binding, Encounter registry integration, and independent `IVitalityService` Combat tests. Final checkbox remains open until a real Vitality Runtime is present in assembled production composition.
-- [ ] **T01-024 — Run module-owned EditMode/PlayMode tests.** Prior exact-SHA `746de4cae082cc456c000153048166c0e4f967e3` was green before the Vitality migration. Run `33525068619` proved the later Combat code compiled and its focused/dependent suites passed, but the API-only Vitality path then triggered broad fallback. After merging current master, `Assets/Game/Vitality/Tests` now makes Vitality convention-owned, so a fresh exact-SHA gate is independently unblocked and required.
+- [x] **T01-024 — Run module-owned EditMode/PlayMode tests.** Exact-SHA feature `82138a7bd45d923f55750bea1aa17f1a0f914b0f` passed targeted CI run `33639183537`: automatic module validation completed successfully after the master merge, proving the old Vitality API fallback blocker is gone. The workflow skipped standalone replay, so assembled production proof remains T01-025.
 - [ ] **T01-025 — Run assembled integration proof.** Earlier Kentridge player gate is green, but this checkbox remains open until Kentridge uses the final Vitality-backed production Combat path.
 
 ## Cleanup and close
@@ -38,9 +38,10 @@
 
 ## Active dependency / CI evidence
 
-- `fixes/agent-3` is merged through current master `b1b69290a59278b0e7caba798641c76a9866aa5c` and is behind master by 0 commits at the last comparison.
-- Current master now contains `Assets/Game/Vitality/Api` and `Assets/Game/Vitality/Tests`; the old planner broad-fallback blocker is therefore resolved. Master still has no `Assets/Game/Vitality/Runtime`, so production Kentridge injection remains externally blocked.
+- `fixes/agent-3` is merged through master `b1b69290a59278b0e7caba798641c76a9866aa5c` and was behind master by 0 commits at the last comparison before this documentation-only update.
+- Current master contains `Assets/Game/Vitality/Api` and `Assets/Game/Vitality/Tests`; the old planner broad-fallback blocker is resolved. Master still has no `Assets/Game/Vitality/Runtime`, so production Kentridge injection remains externally blocked.
 - During the master sync, agent-3 preserved master Vitality Unity GUIDs and master `IVitalityQuery`/revision fields, then added only the damage/service contract Combat needs. Master’s newer `ICombatService` semantic surface was also preserved.
 - `Game.Combat.Runtime` directly references `Game.Characters.Api` because Vitality signatures expose `CharacterId`; this fixed exact-SHA run `33520829134` compiler errors.
-- Exact-SHA run `33525068619` then passed CharacterAI, Characters, Combat, CharacterEquipment, and Encounters before unrelated Materials fallback failures. That fallback cause is no longer present after the master merge and requires a fresh gate.
+- Exact-SHA run `33525068619` then passed CharacterAI, Characters, Combat, CharacterEquipment, and Encounters before unrelated Materials fallback failures.
+- Exact-SHA run `33639183537` on feature `82138a7bd45d923f55750bea1aa17f1a0f914b0f` completed successfully: automatic module validation passed, screenshot/result/final-status steps passed, and standalone replay was skipped by the planner.
 - `ci-test/fixes/agent-3` remains the only authorized targeted-CI transport. Never replace a queued/running request.
