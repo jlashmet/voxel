@@ -4,6 +4,7 @@ using Unity.Mathematics;
 using UnityEditor;
 using UnityEngine;
 using VoxelEngine.Rendering.Runtime.GpuVoxel;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Tests.EditMode
@@ -66,6 +67,15 @@ namespace VoxelEngine.Tests.EditMode
               + $"material cpu={CpuMaterial} gpu={GpuMaterial}; "
               + $"surface cpu=0x{CpuSurface:X8} gpu=0x{GpuSurface:X8}; "
               + $"boundary cpu={CpuBoundary} gpu={GpuBoundary}";
+        }
+
+        [SetUp]
+        public void SetUp()
+        {
+            // The CPU classifier defaults to no water. Push that same semantic mask to the GPU
+            // explicitly so the oracle verifies one shared classification contract rather than
+            // depending on whatever global shader value a previous editor test left behind.
+            SolidMaterialClassification.SetWaterMaterialMask(0u);
         }
 
         [Test]
