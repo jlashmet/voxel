@@ -35,14 +35,14 @@
 - [x] Keep the product fix scene-local: commit `7cbef3ac...` builds/combines the intended playable catalogue before constructing `ShowcaseWorld`; shared WorldBuilder/macro APIs remain unchanged. Focused regression `KentridgeMacroWorldBootstrapOwnershipTests` asserts graph reachability plus generated street/building/route definitions under that ownership ordering.
 - [x] Classify CI run `33522587461` as test-harness compile red only: its fixture used obsolete/non-public layout shapes (`Placements`, `TopDownWorldNodeId`, and the wrong reachability/placement API form), so the product path never executed. The current regression is rewritten against public string `RootId` / `CanReach` and physical-plan settlement/route surfaces; temporary nonexistent `Game.WorldBuilder.Macro.*` imports were removed in `0be93963...`.
 - [x] Validate the ownership fix on exact source `d36d96eefe159b4b62bb8e9a275bbdc69744e84b`: run `33562388717` passed the focused macro ownership/reachability regression, repository-derived module validation, and standalone player; shipped runtime catalogue contains 480 definitions with macro towns/routes/geography.
-- [x] Re-run focused production storage plus a 180-second built-player replay on `d36d96...`: run `33563288872` proves all 16 editor storage shells and real-player Moordell shell/roof storage, but Moordell does not settle until ~164 s and only `macro-moordell.png` is emitted; Fairy/Orc evidence remains unmet.
+- [x] Re-run focused production storage plus a 180-second built-player replay on `d36d96...`: run `33563288872` proves all 16 editor storage shells and real-player Moordell shell/roof storage, but Moordell does not become content-ready until about 175 s in the captured runtime log and only `macro-moordell.png` is emitted; Fairy/Orc evidence remains unmet.
 - [x] Isolate the remaining convergence defect from runtime traces: simple fallback buildings still pay a solid full-footprint foundation slab, with individual Moordell structures writing roughly 460k voxels even after the timber body became hollow.
 - [x] Replace that demonstrated-cost slab with four bounded perimeter-foundation boxes while preserving sampled-relief grounding, outer footprint, foundation material, wall support, collision silhouette, and definition bounds; extend the independent synthetic blockout regression to prove hollow foundation + <50% former slab volume.
-- [ ] Validate the perimeter-foundation throughput fix on exact merged SHA; require the focused blockout regression, repository-derived module validation, and canonical built-player integration to pass.
+- [ ] Validate the perimeter-foundation throughput fix on the current exact SHA; blocked externally after runs `33635511188` and same-SHA retry `33635715141` were both killed by `unity-run.sh` at the runner's 8192 MB free-memory floor before any Unity test/player product execution. Do not issue a third identical retry until runner memory is available.
 - [ ] Re-run built-player authored shell/roof probes and require Fairy/Orc storage plus readable captures after the throughput fix.
 
 ## Remaining visual acceptance
-- [ ] Full-resolution Moordell/Rossdam/Fairy/Orc surveys visibly show readable grounded authored blockouts, internal street/open space, and road arrival/exit.
+- [ ] Full-resolution Moordell/Rossdam/Fairy/Orc surveys visibly show readable grounded authored blockouts, internal street/open space, and road arrival/exit. Pre-fix `macro-moordell.png` demonstrates the intended lower blockout bar (4+ grounded building-scale volumes around a legible street junction with hard-road arrival/exit); final exact SHA must reproduce it for all four destinations.
 - [ ] Rossdam lake frame visibly shows substantial authored water plus the constrained route, not a thin distant strip.
 - [ ] Southern Ridge/pass frame visibly establishes the barrier/pass relationship.
 - [ ] Final `macro-network-overview` remains closure-quality on the final exact SHA.
@@ -50,11 +50,12 @@
 
 ## Runtime / cost
 - [x] Terrain-relief sampling remains bounded to 25 x 16 = 400 deterministic catalogue queries; shared feature scheduler unchanged.
-- [x] Existing exact evidence: 20 hard routes, 824 route tiles, 5 constrained routes, 16 generic buildings; captured steady-state FPS >200 on later replay windows.
+- [x] Existing exact physical baseline: 20 hard routes, 824 route tiles, 5 constrained routes, 1,090 solve steps, 16 generic buildings, max road rise 2 voxels, road step 30 dm, Rossdam water depth 24 voxels, water primitive bounding cells 9,281,584.
+- [x] Horizontal residency remains radius 3 = exactly 29 accepted X/Z columns (`dx²+dz² <= 9`). `QueueFeatureRegionsForColumn` is called only inside that existing horizontal loop and adds only Y layers; no horizontal interest-radius expansion. Player device-tier allocation path and generation budgets are unchanged by the plinth fix.
 - [x] No unrelated SceneIssue implementation, feature-branch `.github/test-request.json`, custom CI transport/workflow, CharacterMotor/load-radius/device-budget change.
-- [ ] Quantify actual additional vertical resident/generated region count against baseline; numerically prove no horizontal interest-radius/device-budget change.
-- [ ] Measure final lake dimensions/depth/cells, route tile/solve/constrained counts, feature work/time, CPU/FPS, memory, streaming convergence, render/far-field telemetry against budgets.
-- [ ] Quantify final fixed-replay target timing.
+- [ ] Quantify actual additional vertical resident/generated region count against baseline. Pre-fix player telemetry observed 16 then 32 resident regions during the macro evidence sequence, but a final exact-SHA delta is still required.
+- [ ] Measure final feature work/time, CPU/FPS, memory, streaming convergence, render/far-field telemetry against budgets. Pre-fix 180-second player baseline after t>=30 s had median interval FPS ~27 with bursty feature generation; this is not final plinth validation.
+- [ ] Quantify final fixed-replay target timing; pre-fix Moordell became content-ready at ~175 s and later targets did not complete.
 - [x] Re-check exact feature diff after merge of master `b1b69290a59278b0e7caba798641c76a9866aa5c` into feature merge `a8bdad310f37715f560aadba6cce56d302a9867d`; diff remains limited to this assignment's Kentridge macro-world production/evidence/tests and SceneIssue records. If master advances before closure, fetch/merge again.
 - [ ] Re-run final exact-SHA targeted CI after the master merge; focused regression + repository-derived module validation + supported real-player smoke must all be green for the same final feature SHA.
 
