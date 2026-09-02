@@ -1,0 +1,64 @@
+#pragma kernel CSResolveBrickCache
+
+// Persistent world-directory resolution is intentionally isolated from VoxelBrickDensity.hlsl.
+// Metal miscompiles the full density program when this hash/probe body shares its compilation unit;
+// keeping resolution here lets the mesher consume only a plain dense cache.
+
+StructuredBuffer<uint> _BrickMaterials;
+StructuredBuffer<uint> _PersistentLookupHeader;
+RWStructuredBuffer<uint> _ResolvedBrickCacheWrite;
+
+int3 _ResolvedBrickCacheOrigin;
+int _ResolvedBrickCacheEdge;
+
+#define DIRECTORY_WORDS_PER_ENTRY 5u
+#define DIRECTORY_OCCUPIED 1u
+
+uint HashBrickCoordinate(int3 coordinate)
+{
+    uint h = asuint(coordinate.x) * 0x8da6b343u;
+    h ^= asuint(coordinate.y) * 0xd8163841u;
+    h ^= asuint(coordinate.z) * 0xcb1ab31fu;
+    h ^= h >> 16;
+    h *= 0x7feb352du;
+    h ^= h >> 15;
+    return h;
+}
+
+uint PersistentBrickEntry(int3 coordinate)
+{
+    uint wordOffset = _PersistentLookupHeader[0];
+    uint mask = _PersistentLookupHeader[1];
+    uint start = HashBrickCoordinate(coordinate) & mask;
+
+    [loop]
+    for (uint probe = 0u; probe <= mask; probe++)
+    {
+        uint slot = (start + probe) & mask;
+        uint word = wordOffset + slot * DIRECTORY_WORDS_PER_ENTRY;
+        uint state = _BrickMaterials[word + 4u];
+        if (state == 0u) return 0u;
+        if (state != DIRECTORY_OCCUPIED) continue;
+        if (asint(_BrickMaterials[word + 0u]) != coordinate.x
+         || asint(_BrickMaterials[word + 1u]) != coordinate.y
+         || asint(_BrickMaterials[word + 2u]) != coordinate.z)
+            continue;
+        return _BrickMaterials[word + 3u];
+    }
+    return 0u;
+}
+
+[numthreads(64, 1, 1)]
+void CSResolveBrickCache(uint3 id : SV_DispatchThreadID)
+{
+    int index = (int)id.x;
+    int total = _ResolvedBrickCacheEdge * _ResolvedBrickCacheEdge * _ResolvedBrickCacheEdge;
+    if (index >= total) return;
+
+    int x = index % _ResolvedBrickCacheEdge;
+    int yz = index / _ResolvedBrickCacheEdge;
+    int y = yz % _ResolvedBrickCacheEdge;
+    int z = yz / _ResolvedBrickCacheEdge;
+    int3 coordinate = _ResolvedBrickCacheOrigin + int3(x, y, z);
+    _ResolvedBrickCacheWrite[index] = PersistentBrickEntry(coordinate);
+}
