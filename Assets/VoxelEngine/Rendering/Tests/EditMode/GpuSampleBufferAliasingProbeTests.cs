@@ -145,9 +145,8 @@ namespace VoxelEngine.Tests.EditMode
             {
                 bool solid = y < 2;
                 int index = x + BrickEdge * (y + BrickEdge * z);
-                cache[index] = VoxelEngine.Rendering.Runtime.GpuVoxel.GpuSurfaceExtractor.PackBrickCacheEntry(
-                    solid ? VoxelBrickContent.Uniform : VoxelBrickContent.Empty,
-                    solid ? (byte)1 : (byte)0, -1);
+                // Production wire layout: kind in low 2 bits, uniform material in bits 8..15.
+                cache[index] = solid ? 1u | (1u << 8) : 0u;
             }
             return cache;
         }
