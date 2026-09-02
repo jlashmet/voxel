@@ -1,0 +1,54 @@
+#pragma kernel CSSampleDensity
+#pragma kernel CSBatchSampleDensity
+
+// Preserve the entire production mesher while replacing only the two sampling function bodies.
+// Unity's included #pragma declarations continue to expose all other production kernels.
+#define CSSampleDensity CSSampleDensityInlineBroken
+#define CSBatchSampleDensity CSBatchSampleDensityInlineBroken
+#include "../../Resources/VoxelBrickMesher.compute"
+#undef CSSampleDensity
+#undef CSBatchSampleDensity
+
+[numthreads(64, 1, 1)]
+void CSSampleDensity(uint3 id : SV_DispatchThreadID)
+{
+    int index = (int)id.x;
+    int total = _GridSize * _GridSize * _GridSize;
+    if (index >= total) return;
+
+    int gx = index % _GridSize;
+    int yz = index / _GridSize;
+    int gy = yz % _GridSize;
+    int gz = yz / _GridSize;
+    int3 p = _ChunkOriginVoxel + (int3(gx, gy, gz) - _Padding) * _SourceStep;
+
+    uint material, surface, boundary;
+    float density = SampleField(p, _SourceStep, material, surface, boundary);
+    _DensityWrite[index] = density;
+    _SampleMaterialWrite[index] = material;
+    _SampleSurfaceWrite[index] = surface;
+    _SampleBoundaryWrite[index] = boundary;
+}
+
+[numthreads(64, 1, 1)]
+void CSBatchSampleDensity(uint3 id : SV_DispatchThreadID)
+{
+    int index = (int)id.x;
+    int total = BatchSampleCount();
+    if (index >= total) return;
+    BatchChunkDescriptor chunk = _BatchChunks[id.y];
+    int gx = index % _GridSize;
+    int yz = index / _GridSize;
+    int gy = yz % _GridSize;
+    int gz = yz / _GridSize;
+    int3 p = chunk.chunkOriginVoxel
+           + (int3(gx, gy, gz) - _Padding) * chunk.sourceStep;
+
+    uint material, surface, boundary;
+    int output = (int)id.y * total + index;
+    float density = SampleField(p, chunk.sourceStep, material, surface, boundary);
+    _BatchDensityWrite[output] = density;
+    _BatchSampleMaterialWrite[output] = material;
+    _BatchSampleSurfaceWrite[output] = surface;
+    _BatchSampleBoundaryWrite[output] = boundary;
+}
