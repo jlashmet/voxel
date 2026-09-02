@@ -1,0 +1,40 @@
+#pragma kernel CSSampleDensity
+
+#define VOXEL_FORCE_DENSE_LOOKUP 1
+#include "../../Resources/VoxelBrickDensity.hlsl"
+
+// These resources intentionally match the failed prepared-cache experiment, but this control
+// never references them. If this kernel fails on Metal, declaration/layout alone is sufficient.
+StructuredBuffer<int4> _ProbePreparedRequests;
+StructuredBuffer<uint> _ProbePreparedEntries;
+int _ProbePreparedRequestCount;
+
+RWStructuredBuffer<float> _DensityWrite;
+RWStructuredBuffer<uint> _SampleMaterialWrite;
+RWStructuredBuffer<uint> _SampleSurfaceWrite;
+RWStructuredBuffer<uint> _SampleBoundaryWrite;
+
+int3 _ChunkOriginVoxel;
+int _GridSize;
+int _Padding;
+int _SourceStep;
+
+[numthreads(64, 1, 1)]
+void CSSampleDensity(uint3 id : SV_DispatchThreadID)
+{
+    int index = (int)id.x;
+    int total = _GridSize * _GridSize * _GridSize;
+    if (index >= total) return;
+
+    int gx = index % _GridSize;
+    int yz = index / _GridSize;
+    int gy = yz % _GridSize;
+    int gz = yz / _GridSize;
+    int3 p = _ChunkOriginVoxel + (int3(gx, gy, gz) - _Padding) * _SourceStep;
+
+    uint material, surface, boundary;
+    _DensityWrite[index] = SampleField(p, _SourceStep, material, surface, boundary);
+    _SampleMaterialWrite[index] = material;
+    _SampleSurfaceWrite[index] = surface;
+    _SampleBoundaryWrite[index] = boundary;
+}
