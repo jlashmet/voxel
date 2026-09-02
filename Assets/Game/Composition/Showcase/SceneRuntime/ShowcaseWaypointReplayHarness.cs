@@ -104,6 +104,7 @@ namespace VoxelEngine.Showcase
                 replay._ordinaryWalkSpeed = motor.WalkSpeed;
                 replay._route = route;
                 replay._screenshotDirectory = screenshotDirectory;
+                ShowcaseWaypointReplayDiagnostics.AttachTo(root, replay);
                 UnityEngine.Object.DontDestroyOnLoad(root);
                 Debug.Log($"WAYPOINT_REPLAY armed route={Path.GetFileName(routePath)} waypoints={route.waypoints.Length}");
             }
@@ -266,7 +267,7 @@ namespace VoxelEngine.Showcase
         private static void Validate(RouteSpec route)
         {
             if (route == null || route.waypoints == null || route.waypoints.Length == 0)
-                throw new InvalidOperationException("Waypoint route must contain at least one waypoint.");
+                throw new InvalidOperationException($"Waypoint route must contain at least one waypoint.");
             if (route.timeoutSeconds <= 0f || route.arrivalRadius <= 0f)
                 throw new InvalidOperationException("Waypoint route timeoutSeconds and arrivalRadius must be positive.");
             if (route.initialPlayerPlacement != null
