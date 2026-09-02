@@ -122,7 +122,7 @@ Shader "VoxelEngine/ProceduralAmbientLife"
                 {
                     float wisp = sin(phase * 0.39);
                     local.x *= 1.0 - wisp * 0.055;
-                    local.y *= 1.0 + wisp * 0.085;
+                    local.y *= 1.0 + wisp * 0.13;
                 }
                 else if (shape > 8.5)
                 {
