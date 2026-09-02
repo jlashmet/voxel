@@ -1,8 +1,34 @@
 #pragma kernel CSSampleDensity
 #pragma kernel CSBatchSampleDensity
+#pragma kernel CSCountCells
+#pragma kernel CSBatchCountCells
+#pragma kernel CSCountFacetedFaces
+#pragma kernel CSBatchCountFacetedFaces
+#pragma kernel CSCountDecorations
+#pragma kernel CSBatchCountDecorations
+#pragma kernel CSBatchSampleFaces
+#pragma kernel CSBatchCountTransitions
+#pragma kernel CSBatchCountProfiles
+#pragma kernel CSBatchWriteTransitions
+#pragma kernel CSBatchWriteProfiles
+#pragma kernel CSBatchPublishArgs
+#pragma kernel CSWriteCells
+#pragma kernel CSBatchWriteCells
+#pragma kernel CSWriteFacetedFaces
+#pragma kernel CSBatchWriteFacetedFaces
+#pragma kernel CSWriteDecorations
+#pragma kernel CSBatchWriteDecorations
+#pragma kernel CSCopyVertices
+#pragma kernel CSCopyIndices
+#pragma kernel CSPublishArgs
+#pragma kernel CSCopyCountersToBatch
+#pragma kernel CSPrefixBatchCounts
+#pragma kernel CSSampleFace
+#pragma kernel CSTransitionCells
 
 // Preserve the entire production mesher while replacing only the two sampling function bodies.
-// Unity's included #pragma declarations continue to expose all other production kernels.
+// Included pragma declarations are not exported by Unity, so this wrapper declares the production
+// kernel surface explicitly before including the unchanged mesher implementation.
 #define CSSampleDensity CSSampleDensityInlineBroken
 #define CSBatchSampleDensity CSBatchSampleDensityInlineBroken
 #include "../../Resources/VoxelBrickMesher.compute"
