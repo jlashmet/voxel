@@ -165,9 +165,8 @@ uint HashBrickCoordinate(int3 coordinate)
     return h;
 }
 
-bool TryPersistentBrickEntry(int3 coordinate, out uint entry)
+uint PersistentBrickEntry(int3 coordinate)
 {
-    entry = 0u;
     uint wordOffset = _BrickCache[1] >> 2;
     uint mask = _BrickCache[2] >> 2;
     uint start = HashBrickCoordinate(coordinate) & mask;
@@ -181,16 +180,15 @@ bool TryPersistentBrickEntry(int3 coordinate, out uint entry)
         uint slot = (start + probe) & mask;
         uint word = wordOffset + slot * DIRECTORY_WORDS_PER_ENTRY;
         uint state = _BrickMaterials[word + 4u];
-        if (state == 0u) return false;
+        if (state == 0u) return 0u;
         if (state != DIRECTORY_OCCUPIED) continue;
         if (asint(_BrickMaterials[word + 0u]) != coordinate.x
          || asint(_BrickMaterials[word + 1u]) != coordinate.y
          || asint(_BrickMaterials[word + 2u]) != coordinate.z)
             continue;
-        entry = _BrickMaterials[word + 3u];
-        return true;
+        return _BrickMaterials[word + 3u];
     }
-    return false;
+    return 0u;
 }
 
 uint ReadMaterial(int3 p, out uint surface, out uint boundary)
@@ -202,7 +200,7 @@ uint ReadMaterial(int3 p, out uint surface, out uint boundary)
     uint entry = 0u;
     if (_BrickCache[0] == PERSISTENT_LOOKUP_MAGIC)
     {
-        if (!TryPersistentBrickEntry(worldBrick, entry)) return 0u;
+        entry = PersistentBrickEntry(worldBrick);
     }
     else
     {
