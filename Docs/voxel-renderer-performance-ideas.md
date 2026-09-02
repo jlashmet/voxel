@@ -44,7 +44,9 @@ Ownership boundary:
 4. **Exploit temporal coherence.** Camera visibility and residency usually change incrementally.
 5. **Make every GPU stage measurable.** Candidate counts, survivor counts, page pressure, triangle counts, and submission counts need explicit telemetry.
 6. **Specialize representations by topology.** Flat heightfield-safe terrain should not necessarily pay the same representation cost as caves, destruction, overhangs, and structures.
-7. **Never trade edit correctness for a static-mesh optimization without a bounded invalidation/rebuild model.**
+7. **Partition dynamic derived geometry so edits have bounded rebuild radius.** A small edit should not force rebuild of a huge terrain section.
+8. **Benchmark steady-state rendering separately from edit maintenance and retained representation memory.** The fastest renderer can still be the wrong choice if edits make its derived data prohibitively expensive.
+9. **Never trade edit correctness for a static-mesh optimization without a bounded invalidation/rebuild model.**
 
 # Priority
 
@@ -52,7 +54,7 @@ This is the current research-informed order. Re-rank after measurements.
 
 | Priority | Idea | Expected value | Risk / scope |
 | --- | --- | --- | --- |
-| P0 | Instrument the full visibility/geometry/upload funnel | Required for every other decision | Low |
+| P0 | Instrument the full visibility/geometry/upload/edit-maintenance funnel | Required for every other decision | Low |
 | P0 | Verify reversed-Z/depth conventions on every supported backend | Correctness foundation for Hi-Z | Low |
 | P1 | Prototype Unity multi-command indirect instead of 128 indirect submissions | Potentially large CPU/render-thread win | Low-medium |
 | P1 | Planar/greedy surface merging | Potentially enormous geometry reduction | Medium |
@@ -60,7 +62,8 @@ This is the current research-informed order. Re-rank after measurements.
 | P1 | Move per-camera GPU stages into explicit RenderGraph compute/raster dependencies | Foundation for GPU-driven visibility | Medium |
 | P1 | GPU frustum culling | Large and relatively simple | Medium |
 | P1 | Two-pass / temporal Hi-Z occlusion + visible compaction | Large in dense/occluded scenes | Medium-high |
-| P2 | Hybrid heightfield-safe terrain representation | Potentially enormous for open terrain | Medium-high |
+| P2 | Hybrid heightfield-safe + general mesh terrain representation | Potentially enormous for open terrain | Medium-high |
+| P2 | Partitioned, variable-resolution terrain sections with local rebuilds | Strong fit for destructible/editable terrain | Medium-high |
 | P2 | Runtime cluster/meshlet hierarchy with screen-space error LOD | Biggest long-term geometry architecture | High |
 | P2 | GPU-resident candidate/visibility/indirect pipeline | Removes CPU visible-handle upload and submission pressure | Medium-high |
 | P2 | Cluster cone/backface culling | Strong once clusters exist | Medium |
@@ -98,14 +101,7 @@ one multi-command indirect submission where supported
 
 Do not read bucket occupancy back to the CPU each frame merely to skip empty commands.
 
-Measure:
-
-- occupied buckets;
-- old submission count;
-- new submission count;
-- render-thread CPU time;
-- GPU command-processing time;
-- backend behavior on Metal, Vulkan, and DX12 targets.
+Measure occupied buckets, old/new submission count, render-thread CPU time, GPU command-processing time, and backend behavior on Metal, Vulkan, and DX12 targets.
 
 ## 2. Planar / greedy surface merging
 
@@ -150,14 +146,7 @@ The vertex shader can reconstruct world position from chunk/page metadata.
 
 Targets to test: 16-byte, 12-byte, and 8-byte encoded vertices, but correctness determines the floor.
 
-Benefits can compound across:
-
-- arena capacity;
-- page count;
-- geometry write bandwidth;
-- vertex fetch bandwidth;
-- cache behavior;
-- residency lifetime.
+Benefits can compound across arena capacity, page count, geometry write bandwidth, vertex fetch bandwidth, cache behavior, and residency lifetime.
 
 ## 4. Selective RLE / compressed brick transfer
 
@@ -283,7 +272,41 @@ This attacks meshing, geometry residency, page pressure, and triangle count at o
 
 Transitions and promotion back to full voxel topology are the hard part. Treat the authoritative voxel world as truth and the heightfield as a derived representation.
 
-## 9. Runtime virtual geometry / cluster hierarchy
+## 9. Partitioned non-uniform mesh terrain
+
+Unreal Engine 5.8's experimental Mesh Terrain is a useful 2026 signal: Epic is moving beyond a heightfield-only terrain representation toward spatially partitioned mesh terrain that supports arbitrary topology such as overhangs, tunnels, and sheer cliffs while allowing non-uniform resolution.
+
+The most transferable idea is not the authoring tool; it is the **partition/rebuild boundary**. Epic explicitly warns that very large terrain sections make even a small modifier edit expensive because the entire section is recalculated.
+
+For this renderer, test a derived terrain layout where:
+
+- sections/patches are spatially bounded;
+- resolution can vary by semantic importance/projected error;
+- local topology changes invalidate only nearby sections;
+- section publication is generation-based and atomic;
+- the authoritative voxel data remains independent of the derived mesh partition;
+- neighboring sections maintain crack-free transition contracts.
+
+This complements rather than replaces the heightfield-safe path. A useful hierarchy could be:
+
+```text
+heightfield-safe region
+    -> cheapest compact terrain representation
+
+non-heightfield but coherent terrain section
+    -> variable-resolution partitioned mesh
+
+highly dynamic / cave / structure / arbitrary topology
+    -> general voxel surface clusters
+```
+
+Sources:
+
+- https://dev.epicgames.com/documentation/unreal-engine/mesh-terrain-in-unreal-engine
+- https://dev.epicgames.com/documentation/unreal-engine/crafting-mesh-terrain-in-unreal-engine
+- https://dev.epicgames.com/documentation/unreal-engine/unreal-engine-5-8-release-notes
+
+## 10. Runtime virtual geometry / cluster hierarchy
 
 Long term, the surface arena can evolve from "one selected chunk mesh at one SourceStep" toward a local hierarchy of small triangle clusters.
 
@@ -317,7 +340,7 @@ This changes camera movement from "regenerate another LOD mesh" toward "select a
 
 Do not build this until simpler geometry reduction, compressed vertices, and GPU visibility are measured; however, design new page metadata so it does not make this evolution unnecessarily hard.
 
-## 10. Cluster cone/backface culling
+## 11. Cluster cone/backface culling
 
 Once geometry is clustered, store conservative spatial bounds plus a normal cone. If every triangle in a cluster must face away from the camera, kill the whole cluster before rasterization.
 
@@ -325,7 +348,7 @@ Useful for cliffs, walls, caves, structures, and other directional surfaces.
 
 # Lighting and shading
 
-## 11. Clustered/Forward+ lighting first
+## 12. Clustered/Forward+ lighting first
 
 The current voxel shader can evaluate many local lights per pixel. A practical next architecture is screen/frustum clustering:
 
@@ -338,25 +361,19 @@ lights
 
 Godot's Forward+ renderer demonstrates this conservative, production-friendly approach. Prefer it before a much more complex stochastic ray-traced lighting architecture.
 
-## 12. Stochastic direct lighting is a future option
+## 13. Stochastic direct lighting is a future option
 
 Unreal's current MegaLights path uses importance sampling and a fixed number of rays per pixel so cost is much less dependent on the number of lights. It combines sample generation, ray tracing, and denoising and can run parts on async compute.
 
-This is interesting if the game eventually needs very large numbers of dynamic shadowed lights. It is not a near-term replacement for clustered lighting because it introduces:
+This is interesting if the game eventually needs very large numbers of dynamic shadowed lights. It is not a near-term replacement for clustered lighting because it introduces ray-tracing scene maintenance, denoising/temporal stability, platform constraints, another simplified geometry representation for RT, and substantial RenderGraph complexity.
 
-- ray-tracing scene maintenance;
-- denoising/temporal stability;
-- platform constraints;
-- another simplified geometry representation for RT;
-- substantial RenderGraph complexity.
-
-## 13. Variable Rate Shading
+## 14. Variable Rate Shading
 
 If profiling becomes fragment/shading bound, use VRS on supported platforms to reduce shading frequency for distant/low-detail screen regions while retaining full depth/geometry coverage.
 
 Potential shading-rate inputs include distance, motion, semantic importance, depth discontinuity, and material frequency. This is platform-dependent and should not shape the core geometry architecture.
 
-## 14. Visibility-buffer shading
+## 15. Visibility-buffer shading
 
 Aokana and modern GPU-driven renderers reinforce the idea of separating visibility determination from expensive shading. A visibility buffer can record compact primitive/surface identity first and perform material/light work only for final visible pixels.
 
@@ -431,6 +448,20 @@ Sources:
 - https://dev.epicgames.com/documentation/unreal-engine/using-nanite-with-landscapes-in-unreal-engine
 - https://dev.epicgames.com/documentation/en-us/unreal-engine/world-partition---hierarchical-level-of-detail-in-unreal-engine
 
+## Unreal Engine 5.8 Mesh Terrain
+
+This is a significant new 2026 direction. Mesh Terrain is an experimental, next-generation mesh-based terrain system intended to remove the constraints of heightfield-only landscapes. Epic documents arbitrary 3D terrain shapes, non-uniform resolution, spatial mesh partitions, non-destructive modifiers, and Nanite integration.
+
+The section-size guidance is especially relevant: edits are rebuilt at section granularity, so oversized sections increase the cost of small local changes.
+
+**Recommendation:** copy the architectural lesson, not the editor workflow. Derived voxel terrain should use bounded spatial partitions with topology/resolution chosen per region, and edit cost should scale with the affected partition footprint rather than the size of the visible world.
+
+Sources:
+
+- https://dev.epicgames.com/documentation/unreal-engine/mesh-terrain-in-unreal-engine
+- https://dev.epicgames.com/documentation/unreal-engine/crafting-mesh-terrain-in-unreal-engine
+- https://dev.epicgames.com/documentation/unreal-engine/unreal-engine-5-8-release-notes
+
 ## Unreal Virtual Shadow Maps and MegaLights
 
 Virtual Shadow Maps demonstrate the same virtual-memory/page idea applied to shadow depth: allocate high resolution only where needed and cache/reuse pages.
@@ -466,7 +497,6 @@ Lessons for this renderer:
 
 Sources:
 
-- https://docs.godotengine.org/en/latest/tutorials/rendering/renderers.html
 - https://docs.godotengine.org/en/4.7/engine_details/architecture/internal_rendering_architecture.html
 - https://docs.godotengine.org/en/latest/tutorials/3d/occlusion_culling.html
 - https://docs.godotengine.org/en/latest/tutorials/3d/mesh_lod.html
@@ -476,21 +506,9 @@ Sources:
 
 ## Aokana: GPU-Driven Voxel Rendering for Open World Games (2025)
 
-This is the most directly relevant paper found.
+This is the most directly relevant voxel-rendering paper found.
 
-Aokana uses:
-
-- multiple relatively shallow SVDAG chunks rather than one extremely deep DAG;
-- separate compression of geometry and color information;
-- LOD and streaming for open worlds;
-- previous-frame Hi-Z;
-- 8x8 screen tiles and tile/chunk candidate pairs;
-- a 64-bit visibility buffer;
-- GPU voxel ray traversal;
-- integration into a forward renderer between opaque and transparent passes;
-- a Unity implementation demonstrating engine integration.
-
-The paper reports substantially better high-resolution performance than HashDAG and a much smaller active VRAM working set for navigation.
+Aokana uses multiple relatively shallow SVDAG chunks rather than one extremely deep DAG, separates geometry/color compression, adds LOD and streaming, uses previous-frame Hi-Z, screen-tile/chunk candidate pairs, a compact visibility buffer, and GPU voxel traversal. The authors implemented it in Unity and designed it to coexist with mesh-based rendering.
 
 **Transferable idea:** our renderer does not have to choose "mesh everything" or "ray trace everything." A hybrid may eventually use:
 
@@ -506,6 +524,24 @@ Only prototype this after the current GPU mesher is correct and measured. SVDAG 
 
 Source: https://doi.org/10.1145/3728299
 
+## Six Ways to Draw Vangers with WebGPU (August 2026)
+
+This new benchmark is unusually relevant because it compares six rendering approaches over the **same editable multi-layer game terrain data path** rather than using conventional single-valued DEM terrain.
+
+The compared methods include heightfield ray marching, voxel-accelerated ray marching, sliced proxy geometry, per-sample bar rasterization, compute scattering, and a fitted triangle mesh. Every method had to preserve two vertical solid intervals per ground sample and reflect local terrain destruction without reloading the level.
+
+At the selected quality settings, the greedy triangulated irregular network (TIN) mesh had the lowest mean frame time on every tested device. But that result comes with an important cost: fitting complexity was driven by the second terrain layer/caves, and the editable mesh retained very large derived CPU and GPU data structures.
+
+**Transferable lesson:** do not select terrain representation from steady-state frame time alone. For each candidate representation measure three independent axes:
+
+1. **steady-state render cost**;
+2. **edit/update latency and rebuild radius**;
+3. **retained CPU + GPU representation memory**.
+
+This result strengthens rather than weakens the hybrid strategy: a greedy/partitioned mesh can be an excellent presentation for coherent regions, while layered/cave-heavy or highly edited regions may justify a different representation.
+
+Source: https://arxiv.org/abs/2608.17390
+
 ## Editing Compact Voxel Representations on the GPU (Pacific Graphics 2024)
 
 This work extends HashDAG-style compact voxel representations with GPU hash tables so large edits such as painting can remain GPU-side at interactive rates.
@@ -516,7 +552,7 @@ Source: https://doi.org/10.2312/pg.20241310
 
 ## Encoding Occupancy in Memory Location for Efficient and Compact High-Resolution Voxel Structures (2025/2026 publication cycle)
 
-This work encodes structural occupancy information into memory location/addressing so traversal can infer information without fetching another node. The paper reports roughly halving important interior/leaf memory reads in its experiments and retains compatibility with editable HashDAG-like structures.
+This work encodes structural occupancy information into memory location/addressing so traversal can infer information without fetching another node. It retains compatibility with editable HashDAG-like structures.
 
 **Transferable idea:** for hierarchical voxel traversal, reducing dependent memory accesses may matter more than maximizing theoretical compression. Any future hierarchy should optimize **bytes accessed and pointer-chasing depth**, not just bytes stored.
 
@@ -524,7 +560,7 @@ Source: https://doi.org/10.1111/cgf.70292
 
 ## Dynamic Mesh Processing on the GPU (SIGGRAPH/TOG 2025)
 
-This work partitions a dynamic triangle mesh into small patches, performs topology/attribute updates in GPU shared memory, and uses speculative conflict handling. It demonstrates GPU remeshing, decimation, surface tracking, and related topology changes with large speedups over CPU solutions.
+This work partitions a dynamic triangle mesh into small patches, performs topology/attribute updates in GPU shared memory, and uses speculative conflict handling. It demonstrates GPU remeshing and other topology-changing workloads with major speedups over CPU approaches.
 
 **Transferable idea:** a future runtime cluster hierarchy does not necessarily require expensive CPU simplification after each voxel edit. Locally affected surface patches may be rebuilt/simplified entirely on the GPU.
 
@@ -591,6 +627,7 @@ shared voxel mirror
             v
 DYNAMIC GPU SURFACE REPRESENTATIONS
 heightfield-safe terrain where possible
+partitioned variable-resolution terrain where useful
 compressed detailed surface clusters where necessary
 optional compact voxel hierarchy for selected far/complex regions
             |
@@ -636,17 +673,23 @@ Flat ground with holes and repeated edits. Measures local invalidation and publi
 ### Smooth hill field
 A surface where planar merging should mostly decline to act.
 
+### Multi-layer/cave strip
+At least two vertical solid intervals in some X/Z columns, with tunnels/walls and local destruction. Specifically tests the failure mode highlighted by the 2026 Vangers benchmark.
+
 ### Cave/overhang field
 Forces general 3D topology and demonstrates where a heightfield path must promote to full representation.
 
 ### Occlusion city/canyon
-Many resident candidates with most geometry hidden. Measures frustum + temporal Hi-Z funnel.
+Many resident candidates with most geometry hidden. Measures frustum + Hi-Z funnel.
 
 ### Dense-light interior
 Measures clustered lighting and future stochastic-lighting need.
 
 ### Camera sprint
 High-speed traversal to expose residency/page thrash, LOD churn, and temporal-occlusion failure cases.
+
+### Edit storm
+Repeated local edits across one partition and then across many neighboring partitions. Measures rebuild radius, dirty amplification, and edit-to-visible latency.
 
 ## Metrics
 
@@ -660,11 +703,17 @@ For every experiment record at minimum:
 - dirty mirror bytes/frame;
 - resident mirror bytes;
 - resident geometry bytes;
+- **retained method-specific CPU memory**;
+- **retained method-specific GPU memory**;
 - vertex stride and index stride;
 - pages allocated/used/wasted;
 - candidate -> frustum -> occlusion -> drawn counts;
 - generated vertices/indices/triangles by LOD/style;
 - occupied draw commands and actual submission count;
+- **steady-state frame cost separate from edit-maintenance cost**;
+- **edit rebuild/refit CPU and GPU time**;
+- **number/area of sections dirtied per edit**;
+- **dirty amplification: derived bytes/triangles rebuilt per authoritative voxel changed**;
 - edit-to-visible latency;
 - LOD regeneration frequency;
 - peak residency and steady-state residency;
@@ -684,8 +733,8 @@ For RenderGraph work additionally record:
 
 The renderer should move toward **work proportional to visible perceptual complexity and actual edits**, not world size, voxel count, or a fixed number of chunk/bucket submissions.
 
-The strongest long-term pattern across Unity Virtual Mesh, Unreal Nanite, Godot's screen-space LOD/HLOD layering, Aokana, and recent graphics research is consistent:
+The strongest pattern across Unity Virtual Mesh, Unreal Nanite and Mesh Terrain, Godot's screen-space LOD/HLOD layering, Aokana, the 2026 Vangers comparison, and recent graphics research is consistent:
 
-> compact spatial representations + hierarchical screen-space selection + GPU visibility + fine-grained residency + local updates.
+> compact spatial representations + bounded partitions + hierarchical screen-space selection + GPU visibility + fine-grained residency + local updates.
 
-Our unique advantage is that voxel structure gives us more opportunities than a generic mesh renderer: we can cheaply identify empty/uniform regions, exploit grid-relative vertex encodings, derive heightfield-safe regions, and rebuild only local surface areas after edits.
+Our unique advantage is that voxel structure gives us more options than a generic mesh renderer: we can cheaply identify empty/uniform regions, exploit grid-relative vertex encodings, derive heightfield-safe regions, choose a partitioned mesh where it wins, keep arbitrary 3D topology where required, and rebuild only local surface areas after edits.
