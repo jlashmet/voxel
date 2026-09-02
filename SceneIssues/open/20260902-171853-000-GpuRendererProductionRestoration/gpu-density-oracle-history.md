@@ -91,6 +91,52 @@ Before the exact boundary was found, commit `315dec0805e45c5bef20a96fb5c921f2285
 5. The introducing change is the persistent-directory lookup logic added to `VoxelBrickDensity.hlsl`; the dense oracle does not take that branch, strongly implicating Metal whole-shader compiler/code-generation context rather than incorrect persistent lookup data.
 6. The most useful next discriminator is to reduce the `b4de1b5` HLSL delta construct-by-construct while preserving semantics: especially the `TryPersistentBrickEntry(..., out entry)` helper/call boundary and its dynamic `[loop]` probe loop. A production fix should preserve persistent lookup behavior rather than simply remove the feature to make the dense oracle pass.
 
+## Architecture recommendation
+
+The **persistent GPU mirror/world-brick directory is a desirable capability and should be preserved**. Its purpose is aligned with the GPU-renderer architecture: Storage publishes changed voxel bricks once into GPU-resident state, and multiple chunk extractions should reuse those resident bricks without the CPU repeatedly rebuilding and uploading the same chunk-local voxel neighbourhood.
+
+The questionable part is the implementation introduced by `b4de1b5`: performing the world-coordinate hash-table lookup directly inside the shared hot `ReadMaterial()`/density HLSL path. That puts hashing, coordinate comparisons, an `out`-parameter helper, and a dynamic probe loop into the same compilation unit used by every density sample. The exact green-to-red boundary shows that this code can change Metal code generation even when the persistent branch is not executed. It also makes a relatively expensive lookup primitive transitively reachable from the hottest reconstruction path.
+
+### Preferred design
+
+Keep `GpuVoxelBrickMirror` and its persistent world-coordinate directory, but move world-coordinate resolution out of `SampleField`/`ReadMaterial` and into a **separate GPU preparation/indirection stage**:
+
+1. Storage continues publishing changed bricks into the persistent GPU mirror/directory.
+2. Before meshing a chunk, a small GPU preparation kernel resolves the chunk's required world-brick coordinates against the persistent directory.
+3. That kernel writes a compact dense chunk-local table of packed brick entries / mirror-slot indirections.
+4. The actual density/meshing kernel consumes that compact table using the simple known-good indexing shape from `5716e56`.
+
+Conceptually:
+
+`persistent GPU world directory -> GPU resolve/preparation kernel -> compact chunk-local indirection table -> density/meshing kernel`
+
+This retains the important architectural property that the **CPU does not flatten the neighbourhood**. Resolution still happens on the GPU, voxel data remain persistently resident, and neighbouring chunks can reuse the same mirror contents. The difference is that hash-table traversal happens once per required brick during preparation rather than repeatedly inside density sampling.
+
+This design also restores a clean separation of concerns: persistent world lookup answers **where a brick lives**, while density reconstruction answers **what field value the voxel data produce**. The density shader can remain close to the CPU semantic port and therefore easier to oracle-test and reason about.
+
+### Acceptable fallback design
+
+If a preparation kernel proves materially worse after measurement, the next-best design is to compile persistent lookup and dense lookup as **separate kernels/includes** rather than branching between both implementations inside one shared `ReadMaterial()` body. The goal is to prevent the persistent hash-table machinery from altering compilation/code generation of the known-good dense density implementation.
+
+### What not to do
+
+- Do not simply delete persistent GPU residency and return to CPU-built neighbourhood uploads solely to make the oracle green; that gives up a useful renderer architecture capability.
+- Do not preserve the current `b4de1b5` hot-path lookup shape merely because the feature intent is sound. The historical evidence demonstrates that this implementation boundary is unsafe on Metal.
+- Do not treat a compiler-shaping workaround as sufficient unless both dense and persistent semantics pass the production CPU/GPU oracles and the resulting path meets frame/upload/memory budgets.
+
+### Recommended validation
+
+A replacement should prove all of the following before production cutover:
+
+- the existing dense CPU/GPU density oracle returns to the `5716e56`-equivalent result;
+- persistent world-coordinate lookup resolves empty, uniform, mixed, negative-coordinate, edited, evicted, and re-published bricks correctly;
+- the resolved compact table is semantically identical to the CPU neighbourhood representation for the same chunk;
+- topology/material/transition/negative-shell parity remains green after the density fix;
+- no CPU voxel-neighbourhood flattening or readback is reintroduced on the production GPU path;
+- measured preparation cost plus meshing cost is no worse than the current intended persistent design within repository frame/upload/memory budgets.
+
+Unless measurements disprove it, **the GPU preparation/indirection stage is the recommended production direction** because it preserves the desirable persistent-mirror feature while removing persistent hash-table traversal from the fragile and extremely hot density reconstruction path.
+
 ## History-probe hygiene
 
 The `history/gpu-renderer-probe-*` branches and their workflow/request files were created only to obtain graphics-enabled historical evidence. They are not production changes and should not be merged into the feature branch.
