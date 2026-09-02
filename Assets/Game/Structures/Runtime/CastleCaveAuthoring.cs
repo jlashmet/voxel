@@ -2,8 +2,6 @@ using Game.Materials.Api;
 using Game.Structures.Api;
 using Unity.Mathematics;
 using VoxelEngine.Structures.Api;
-using SharedCaveAuthoring = VoxelEngine.Structures.Runtime.CaveAuthoring;
-using CaveAuthoringResult = VoxelEngine.Structures.Runtime.CaveAuthoringResult;
 
 namespace Game.Structures.Runtime
 {
@@ -78,14 +76,16 @@ namespace Game.Structures.Runtime
         }
 
         public static CaveAuthoringResult Author(
+            ICaveAuthoring caveAuthoring,
             IStructureAuthoringSession authoring,
             in CastlePlan plan,
             int3 at)
         {
+            if (caveAuthoring == null) throw new System.ArgumentNullException(nameof(caveAuthoring));
             CaveConfig config = CompatibilityConfig;
             CaveMaterialPalette palette = CompatibilityPalette;
             CaveGenerationRequest request = Request(in plan, at);
-            return SharedCaveAuthoring.Author(
+            return caveAuthoring.Author(
                 authoring,
                 in request,
                 in config,

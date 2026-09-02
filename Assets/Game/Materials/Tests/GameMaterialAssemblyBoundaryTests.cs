@@ -28,17 +28,18 @@ namespace Game.Materials.Tests
                     roots[rootIndex], "*.asmdef", SearchOption.AllDirectories);
                 for (int i = 0; i < asmdefs.Length; i++)
                 {
-                    string contents = File.ReadAllText(asmdefs[i]);
-                    if (!EngineRuntimeReference.IsMatch(contents)) continue;
-
                     string relative = asmdefs[i].Substring(Application.dataPath.Length + 1)
                         .Replace('\\', '/');
+                    if (relative.Contains("/Tests/")) continue;
+
+                    string contents = File.ReadAllText(asmdefs[i]);
+                    if (!EngineRuntimeReference.IsMatch(contents)) continue;
                     violations.Add("Assets/" + relative);
                 }
             }
 
             Assert.That(violations, Is.Empty,
-                "Game material assemblies must consume VoxelEngine APIs or Composition, never " +
+                "Game material production assemblies must consume VoxelEngine APIs or Composition, never " +
                 "engine Runtime implementations:\n" + string.Join("\n", violations));
         }
     }

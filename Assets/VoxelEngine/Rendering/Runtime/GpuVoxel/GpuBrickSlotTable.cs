@@ -98,17 +98,12 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         ///
         /// A delta with no payload never consumes a slot, and releases one it previously held: a
         /// brick that was blown open into air must stop occupying mirror memory, not linger with
-        /// geometry nobody can reach.
+        /// geometry nobody can reach. Generation ordering is checked before that release so a stale
+        /// empty/uniform delta cannot tear down a newer mixed payload.
         /// </summary>
         public GpuBrickAdmission TryAdmit(in VoxelBrickDelta delta, out int slot)
         {
             slot = -1;
-
-            if (!delta.NeedsSlot)
-            {
-                Release(delta.Coordinate);
-                return GpuBrickAdmission.NoPayload;
-            }
 
             if (_slotByCoordinate.TryGetValue(delta.Coordinate, out int existing))
             {
@@ -119,6 +114,12 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                     return GpuBrickAdmission.Stale;
                 }
 
+                if (!delta.NeedsSlot)
+                {
+                    Release(delta.Coordinate);
+                    return GpuBrickAdmission.NoPayload;
+                }
+
                 slot = existing;
                 Touch(existing);
                 if (delta.SourceGeneration == resident) return GpuBrickAdmission.Resident;
@@ -126,6 +127,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 _slots[existing].Generation = delta.SourceGeneration;
                 return GpuBrickAdmission.Admitted;
             }
+
+            if (!delta.NeedsSlot) return GpuBrickAdmission.NoPayload;
 
             if (!TryTakeSlot(out slot))
             {

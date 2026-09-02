@@ -110,13 +110,16 @@ namespace Game.WorldBuilder.Api
     /// <summary>
     /// Deterministic aggregate over resolved road geometry. All spatial consumers query this object
     /// rather than reproducing polyline-distance, shoulder, clearance, or local-frame logic.
-    /// The aggregate is deliberately compact: it stores only route-local resolved points and derives
-    /// junctions from shared resolved vertices, so streaming order cannot change its answers.
+    /// The aggregate stores route-local resolved points, derives exact shared-vertex junctions, and
+    /// caches presentation paths/influences after topology is known. Streaming order cannot change
+    /// its answers and repeated spatial queries allocate no presentation geometry.
     /// </summary>
     public sealed class WorldRoadNetwork
     {
         private readonly WorldRoadNetworkRoute[] _routes;
         private readonly WorldRoadJunction[] _junctions;
+        private readonly IReadOnlyList<ResolvedWorldRoadPoint>[] _presentationPaths;
+        private readonly WorldRoadInfluence[] _influences;
 
         public IReadOnlyList<WorldRoadNetworkRoute> Routes => _routes;
         public IReadOnlyList<WorldRoadJunction> Junctions => _junctions;
@@ -137,6 +140,16 @@ namespace Game.WorldBuilder.Api
                     throw new ArgumentException("Road network contains duplicate route id '" + _routes[i].Id + "'.", nameof(routes));
 
             _junctions = BuildJunctions(_routes);
+            _presentationPaths = new IReadOnlyList<ResolvedWorldRoadPoint>[_routes.Length];
+            _influences = new WorldRoadInfluence[_routes.Length];
+            for (var i = 0; i < _routes.Length; i++)
+            {
+                _presentationPaths[i] = WorldRoadPresentationPath.Build(_routes[i].Road, _junctions);
+                _influences[i] = new WorldRoadInfluence(
+                    _routes[i].Road,
+                    _junctions,
+                    _routes[i].ShoulderWidthDm);
+            }
         }
 
         public bool TryGetRoute(string id, out WorldRoadNetworkRoute route)
@@ -163,9 +176,8 @@ namespace Game.WorldBuilder.Api
             for (var i = 0; i < _routes.Length; i++)
             {
                 WorldRoadNetworkRoute route = _routes[i];
-                var influence = new WorldRoadInfluence(route.Road);
-                if (!influence.TrySample(xdm, zdm, out WorldRoadInfluenceSample roadSample)) continue;
-                ClosestSegment(route.Road, xdm, zdm, out int distance, out int tangentX, out int tangentZ);
+                if (!_influences[i].TrySample(xdm, zdm, out WorldRoadInfluenceSample roadSample)) continue;
+                ClosestSegment(_presentationPaths[i], xdm, zdm, out int distance, out int tangentX, out int tangentZ);
                 int clearanceCoverage = Coverage(distance, route.ClearanceRadiusDm);
                 var candidate = new WorldRoadNetworkSample(route, roadSample, tangentX, tangentZ, clearanceCoverage);
                 if (!found || Better(candidate, best)) { best = candidate; found = true; }
@@ -181,12 +193,11 @@ namespace Game.WorldBuilder.Api
             for (var i = 0; i < _routes.Length; i++)
             {
                 WorldRoadNetworkRoute route = _routes[i];
-                ClosestSegment(route.Road, xdm, zdm, out int distance, out int tangentX, out int tangentZ);
+                ClosestSegment(_presentationPaths[i], xdm, zdm, out int distance, out int tangentX, out int tangentZ);
                 if (distance > route.ClearanceRadiusDm) continue;
 
-                var influence = new WorldRoadInfluence(route.Road);
                 WorldRoadInfluenceSample physical;
-                if (!influence.TrySample(xdm, zdm, out physical))
+                if (!_influences[i].TrySample(xdm, zdm, out physical))
                     physical = new WorldRoadInfluenceSample(distance, 0, 0, 0, false);
                 int clearanceCoverage = Coverage(distance, route.ClearanceRadiusDm);
                 var candidate = new WorldRoadNetworkSample(route, physical, tangentX, tangentZ, clearanceCoverage);
@@ -219,7 +230,7 @@ namespace Game.WorldBuilder.Api
         }
 
         private static void ClosestSegment(
-            ResolvedWorldRoad road,
+            IReadOnlyList<ResolvedWorldRoadPoint> points,
             int xdm,
             int zdm,
             out int distanceDm,
@@ -229,10 +240,10 @@ namespace Game.WorldBuilder.Api
             long bestDistanceSquared = long.MaxValue;
             tangentXdm = 0;
             tangentZdm = 1;
-            for (var i = 0; i + 1 < road.Points.Count; i++)
+            for (var i = 0; i + 1 < points.Count; i++)
             {
-                ResolvedWorldRoadPoint a = road.Points[i];
-                ResolvedWorldRoadPoint b = road.Points[i + 1];
+                ResolvedWorldRoadPoint a = points[i];
+                ResolvedWorldRoadPoint b = points[i + 1];
                 long dx = (long)b.Xdm - a.Xdm;
                 long dz = (long)b.Zdm - a.Zdm;
                 long lengthSquared = dx * dx + dz * dz;

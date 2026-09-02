@@ -7,6 +7,7 @@ namespace Game.Structures.Runtime
     public sealed class CastleAuthoringBuild
     {
         private IStructureAuthoringSession _authoring;
+        private ICaveAuthoring _caveAuthoring;
         private CastlePlan _plan;
         private CastleComponentConfig _components;
         private CastleCurtainConfig _curtain;
@@ -16,36 +17,52 @@ namespace Game.Structures.Runtime
         private int _stage;
         private int _keepStage;
 
-        public CastleAuthoringBuild(IStructureAuthoringSession authoring, in CastlePlan plan,
+        public CastleAuthoringBuild(
+            IStructureAuthoringSession authoring,
+            ICaveAuthoring caveAuthoring,
+            in CastlePlan plan,
             uint terrainSeed)
         {
             StructureMaterialPalette palette = CastleStructurePalette.Compatibility;
             CastlePresetConfig preset = CastlePresets.Compatibility(in plan, in palette);
-            Initialize(authoring, in plan, in preset.Components, in preset.Curtain,
+            Initialize(authoring, caveAuthoring, in plan, in preset.Components, in preset.Curtain,
                 in preset.Stages, terrainSeed);
         }
 
-        public CastleAuthoringBuild(IStructureAuthoringSession authoring, in CastlePlan plan,
-            CastleComponentConfig components, uint terrainSeed)
+        public CastleAuthoringBuild(
+            IStructureAuthoringSession authoring,
+            ICaveAuthoring caveAuthoring,
+            in CastlePlan plan,
+            CastleComponentConfig components,
+            uint terrainSeed)
         {
             CastleCurtainConfig curtain = CastleCurtainPresets.Compatibility(in components);
             CastleBuildStageConfig stages = CastleBuildStageConfig.Full;
-            Initialize(authoring, in plan, in components, in curtain, in stages, terrainSeed);
+            Initialize(authoring, caveAuthoring, in plan, in components, in curtain, in stages, terrainSeed);
         }
 
-        public CastleAuthoringBuild(IStructureAuthoringSession authoring, in CastlePlan plan,
-            CastleComponentConfig components, CastleCurtainConfig curtain, uint terrainSeed)
+        public CastleAuthoringBuild(
+            IStructureAuthoringSession authoring,
+            ICaveAuthoring caveAuthoring,
+            in CastlePlan plan,
+            CastleComponentConfig components,
+            CastleCurtainConfig curtain,
+            uint terrainSeed)
         {
             CastleBuildStageConfig stages = CastleBuildStageConfig.Full;
-            Initialize(authoring, in plan, in components, in curtain, in stages, terrainSeed);
+            Initialize(authoring, caveAuthoring, in plan, in components, in curtain, in stages, terrainSeed);
         }
 
-        public CastleAuthoringBuild(IStructureAuthoringSession authoring, in CastlePlan plan,
-            CastlePresetConfig preset, uint terrainSeed)
+        public CastleAuthoringBuild(
+            IStructureAuthoringSession authoring,
+            ICaveAuthoring caveAuthoring,
+            in CastlePlan plan,
+            CastlePresetConfig preset,
+            uint terrainSeed)
         {
             if (!preset.IsWellFormed)
                 throw new System.ArgumentException("Castle preset configuration is invalid.", nameof(preset));
-            Initialize(authoring, in plan, in preset.Components, in preset.Curtain,
+            Initialize(authoring, caveAuthoring, in plan, in preset.Components, in preset.Curtain,
                 in preset.Stages, terrainSeed);
         }
 
@@ -104,7 +121,7 @@ namespace Game.Structures.Runtime
                 case 7:
                     stageName = "dungeon";
                     if (_stages.Dungeon)
-                        CastleDungeonAuthoring.Author(_authoring, in _plan);
+                        CastleDungeonAuthoring.Author(_caveAuthoring, _authoring, in _plan);
                     break;
                 case 8:
                     stageName = "landscape details";
@@ -120,11 +137,17 @@ namespace Game.Structures.Runtime
             return IsComplete;
         }
 
-        private void Initialize(IStructureAuthoringSession authoring, in CastlePlan plan,
-            in CastleComponentConfig components, in CastleCurtainConfig curtain,
-            in CastleBuildStageConfig stages, uint terrainSeed)
+        private void Initialize(
+            IStructureAuthoringSession authoring,
+            ICaveAuthoring caveAuthoring,
+            in CastlePlan plan,
+            in CastleComponentConfig components,
+            in CastleCurtainConfig curtain,
+            in CastleBuildStageConfig stages,
+            uint terrainSeed)
         {
             _authoring = authoring ?? throw new System.ArgumentNullException(nameof(authoring));
+            _caveAuthoring = caveAuthoring ?? throw new System.ArgumentNullException(nameof(caveAuthoring));
             if (!components.IsWellFormed)
                 throw new System.ArgumentException(
                     "Castle authoring refused: shared castle component configuration is invalid.",

@@ -1,0 +1,19 @@
+{
+  "name": "Game.Characters.Tests",
+  "rootNamespace": "Game.Characters.Tests",
+  "references": [
+    "Game.Characters.Api",
+    "Game.Characters.Runtime"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

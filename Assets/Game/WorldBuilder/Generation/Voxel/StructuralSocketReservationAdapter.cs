@@ -1,13 +1,12 @@
 using System;
 using Unity.Mathematics;
 using VoxelEngine.Structures.Api;
-using VoxelEngine.Structures.Runtime;
 
 namespace MountingForce.WorldGen.Voxel
 {
     /// <summary>
     /// Bridges an already-solved typed structural attachment into the shared WorldBuilder spatial
-    /// reservation service. StructuralCompositionPlanner remains authoritative for compatibility,
+    /// reservation service. Structural composition remains authoritative for compatibility,
     /// orientation, topology, support and sibling clearance; this adapter only checks the resolved
     /// socket clearance against external WorldBuilder claims.
     /// </summary>
@@ -15,24 +14,24 @@ namespace MountingForce.WorldGen.Voxel
     {
         public static SpatialReservation ClearanceClaim(
             in SlotSpec socket,
-            in StructuralAttachmentDecision decision,
+            in StructuralAttachmentInspection inspection,
             byte parentOrientation,
             int voxelsPerDecimetre,
             string ownerId,
             int precedence = 40,
-            string provenance = "StructuralCompositionPlanner typed socket clearance")
+            string provenance = "Structural composition typed socket clearance")
         {
-            if (!decision.Accepted)
-                throw new ArgumentException("Only an accepted structural attachment has resolved socket clearance.", nameof(decision));
-            if (socket.SocketId == 0 || decision.SocketId != socket.SocketId)
-                throw new ArgumentException("Structural attachment decision does not match the supplied socket.", nameof(decision));
+            if (!inspection.Accepted)
+                throw new ArgumentException("Only an accepted structural attachment has resolved socket clearance.", nameof(inspection));
+            if (socket.SocketId == 0 || inspection.SocketId != socket.SocketId)
+                throw new ArgumentException("Structural attachment inspection does not match the supplied socket.", nameof(inspection));
             if (parentOrientation > 3)
                 throw new ArgumentOutOfRangeException(nameof(parentOrientation));
             if (voxelsPerDecimetre <= 0)
                 throw new ArgumentOutOfRangeException(nameof(voxelsPerDecimetre));
 
-            int3 voxelMin = decision.AttachmentPosition + RotateVector(socket.ClearanceMin, parentOrientation);
-            int3 voxelMax = decision.AttachmentPosition + RotateVector(socket.ClearanceMax, parentOrientation);
+            int3 voxelMin = inspection.AttachmentPosition + RotateVector(socket.ClearanceMin, parentOrientation);
+            int3 voxelMax = inspection.AttachmentPosition + RotateVector(socket.ClearanceMax, parentOrientation);
             Normalize(ref voxelMin, ref voxelMax);
             if (voxelMax.x <= voxelMin.x || voxelMax.y <= voxelMin.y || voxelMax.z <= voxelMin.z)
                 throw new ArgumentException("Typed socket must publish a non-empty 3D clearance volume.", nameof(socket));
@@ -55,18 +54,18 @@ namespace MountingForce.WorldGen.Voxel
         public static ReservationQueryResult QueryClearance(
             SpatialReservationSnapshot snapshot,
             in SlotSpec socket,
-            in StructuralAttachmentDecision decision,
+            in StructuralAttachmentInspection inspection,
             byte parentOrientation,
             int voxelsPerDecimetre,
             ReservationCategory categoryMask,
             string ownerId,
             int precedence = 40,
-            string provenance = "StructuralCompositionPlanner typed socket clearance")
+            string provenance = "Structural composition typed socket clearance")
         {
             if (snapshot == null) throw new ArgumentNullException(nameof(snapshot));
             SpatialReservation claim = ClearanceClaim(
                 in socket,
-                in decision,
+                in inspection,
                 parentOrientation,
                 voxelsPerDecimetre,
                 ownerId,
