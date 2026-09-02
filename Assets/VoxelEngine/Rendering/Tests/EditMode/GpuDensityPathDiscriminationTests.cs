@@ -70,13 +70,7 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [SetUp]
-        public void SetUp()
-        {
-            // The CPU classifier defaults to no water. Push that same semantic mask to the GPU
-            // explicitly so the oracle verifies one shared classification contract rather than
-            // depending on whatever global shader value a previous editor test left behind.
-            SolidMaterialClassification.SetWaterMaterialMask(0u);
-        }
+        public void SetUp() => SolidMaterialClassification.SetWaterMaterialMask(0u);
 
         [Test]
         public void PlanarEarlyReturnAndSmoothWeightedPathShareCentreOccupancy()
@@ -87,6 +81,12 @@ namespace VoxelEngine.Tests.EditMode
             ComputeShader shader = AssetDatabase.LoadAssetAtPath<ComputeShader>(ShaderPath);
             Assert.NotNull(shader, $"Compute shader missing at {ShaderPath}");
 
+            // Diagnostic discriminator: the isolated include probe proves the global scalar and
+            // IsSolidSample helper work on Metal. Bind the same semantic mask directly to the full
+            // ComputeShader instance to distinguish global-property propagation from full-mesher
+            // SampleField/codegen failure. This is test-only and is removed once ownership is proven.
+            shader.SetInt("_SolidWaterMaterialMask", 0);
+
             SampleResult planar = SampleFirstWorldVoxel(shader, SurfaceStyles.Planar);
             SampleResult smooth = SampleFirstWorldVoxel(shader, SurfaceStyles.Smooth);
 
@@ -94,8 +94,8 @@ namespace VoxelEngine.Tests.EditMode
                 "CPU/GPU first-sample comparison at world (-2,-2,-2). "
               + $"Planar: [{planar}]. Smooth: [{smooth}]. "
               + "Planar uses SampleField's centreSolid early return before AddTap; Smooth uses the "
-              + "weighted tap path. Their relative result discriminates centre occupancy from "
-              + "smooth-field/tap execution without changing the production shader or bindings.");
+              + "weighted tap path. This run also binds the water mask compute-locally, so a pass "
+              + "proves the defect is the full mesher's global-to-compute binding boundary.");
         }
 
         private static SampleResult SampleFirstWorldVoxel(ComputeShader shader, ushort defaultStyle)
