@@ -23,20 +23,20 @@ namespace VoxelEngine.Tests.EditMode
             Assert.NotNull(shader, $"Probe shader missing at {ShaderPath}");
             int kernel = shader.FindKernel("CSProbeFullMesherOccupancy");
 
-            using var brickCache = Structured(new uint[] { 1u | (1u << 8) }); // Uniform, material 1.
+            using var brickCache = Structured(new uint[] { 1u | (1u << 8) });
             using var brickMaterials = Structured(new uint[1]);
             using var brickSurfaces = Structured(new uint[1]);
             using var brickBoundaries = Structured(new uint[1]);
 
             var styleWords = new uint[32];
-            styleWords[2] = 1u; // style 2 reconstructs as Planar.
+            styleWords[2] = 1u;
             using var styles = Structured(styleWords);
             using var joins = Structured(new uint[16 * 16]);
             using var coatings = Structured(new uint[32 * 3]);
             var defaults = new uint[256];
             defaults[1] = 2u;
             using var materialDefaults = Structured(defaults);
-            using var probeWords = Structured(new uint[9]);
+            using var probeWords = Structured(new uint[16]);
             using var probeFloats = FloatBuffer();
 
             BindCommon(shader, kernel, brickCache, brickMaterials, brickSurfaces, brickBoundaries,
@@ -101,7 +101,7 @@ namespace VoxelEngine.Tests.EditMode
             var defaults = new uint[256];
             defaults[1] = 2u;
             using var materialDefaults = Structured(defaults);
-            using var probeWords = Structured(new uint[9]);
+            using var probeWords = Structured(new uint[16]);
             using var probeFloats = FloatBuffer();
 
             BindCommon(shader, kernel, brickCache, brickMaterials, brickSurfaces, brickBoundaries,
@@ -120,20 +120,33 @@ namespace VoxelEngine.Tests.EditMode
             int px = unchecked((int)words[0]);
             int py = unchecked((int)words[1]);
             int pz = unchecked((int)words[2]);
+            int ox = unchecked((int)words[9]);
+            int oy = unchecked((int)words[10]);
+            int oz = unchecked((int)words[11]);
+            int edge = unchecked((int)words[12]);
+            int localY = unchecked((int)words[14]);
+            int brickIndex = unchecked((int)words[15]);
+            string lookup = $"p=({px},{py},{pz}) origin=({ox},{oy},{oz}) edge={edge} "
+                          + $"cache0=0x{words[13]:X8} localY={localY} index={brickIndex} "
+                          + $"raw={words[3]} solid={words[4]} mask=0x{words[8]:X8} density={floats[0]:F5}";
 
-            Assert.AreEqual(-2, px, "Thread zero x must match CSSampleDensity coordinate math.");
-            Assert.AreEqual(-2, py, "Thread zero y must match CSSampleDensity coordinate math.");
-            Assert.AreEqual(-2, pz, "Thread zero z must match CSSampleDensity coordinate math.");
-            Assert.AreEqual(1u, words[3],
-                $"Raw centre material at ({px},{py},{pz}) must be 1; mask=0x{words[8]:X8}.");
-            Assert.AreEqual(1u, words[4],
-                $"Direct centre occupancy at ({px},{py},{pz}) must be solid; raw={words[3]}.");
-            Assert.AreEqual(1u, words[5], "SampleField must preserve material 1.");
+            Assert.AreEqual(-2, px, $"Thread zero x mismatch; {lookup}.");
+            Assert.AreEqual(-2, py, $"Thread zero y mismatch; {lookup}.");
+            Assert.AreEqual(-2, pz, $"Thread zero z mismatch; {lookup}.");
+            Assert.AreEqual(-1, ox, $"Brick-cache origin x mismatch; {lookup}.");
+            Assert.AreEqual(-1, oy, $"Brick-cache origin y mismatch; {lookup}.");
+            Assert.AreEqual(-1, oz, $"Brick-cache origin z mismatch; {lookup}.");
+            Assert.AreEqual(brickEdge, edge, $"Brick-cache edge mismatch; {lookup}.");
+            Assert.AreEqual(0x00000101u, words[13], $"Brick-cache word zero mismatch; {lookup}.");
+            Assert.AreEqual(0, localY, $"Expected local brick y zero; {lookup}.");
+            Assert.AreEqual(0, brickIndex, $"Expected brick index zero; {lookup}.");
+            Assert.AreEqual(1u, words[3], $"Raw centre material must be 1; {lookup}.");
+            Assert.AreEqual(1u, words[4], $"Direct centre occupancy must be solid; {lookup}.");
+            Assert.AreEqual(1u, words[5], $"SampleField must preserve material 1; {lookup}.");
             Assert.AreEqual(1u, (words[6] >> 26) & 1u,
-                $"SampleField lost authoritative occupancy at ({px},{py},{pz}); raw={words[3]} solid={words[4]}.");
+                $"SampleField lost authoritative occupancy; {lookup}, sampledSurface=0x{words[6]:X8}.");
             Assert.AreEqual(0.5f, floats[0], 1e-4f,
-                $"SampleField at computed p=({px},{py},{pz}) diverged: density={floats[0]:F5}, "
-              + $"raw={words[3]}, solid={words[4]}, sampledSurface=0x{words[6]:X8}, mask=0x{words[8]:X8}.");
+                $"SampleField at computed coordinate diverged; {lookup}, sampledSurface=0x{words[6]:X8}.");
         }
 
         private static void BindCommon(ComputeShader shader, int kernel,
@@ -165,7 +178,7 @@ namespace VoxelEngine.Tests.EditMode
 
         private static uint[] ReadWords(ComputeBuffer buffer)
         {
-            var values = new uint[9];
+            var values = new uint[16];
             buffer.GetData(values);
             return values;
         }
