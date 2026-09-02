@@ -570,23 +570,41 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         internal bool TryTakePagedBatch(out int handle, out bool failed)
         {
-            handle = _pagedHandle;
-            failed = _pagedBatchFailed;
-
             // The worker's paged phase is the owner of this asynchronous state machine. Mirror
             // coverage can take several bounded scans/recovery frames, and an admitted request can
             // still wait for a free cross-chunk lane. The former counter-readback poll used to
             // advance both states incidentally; the readback-free path must do so explicitly.
             if (_stageAdmissionPending)
             {
-                if (!TryAdmitPendingStage()) return false;
+                if (!TryAdmitPendingStage())
+                {
+                    handle = -1;
+                    failed = false;
+                    return false;
+                }
             }
             else if (_countDispatchPending)
             {
-                if (!TryDispatchPendingCount()) return false;
+                if (!TryDispatchPendingCount())
+                {
+                    handle = -1;
+                    failed = false;
+                    return false;
+                }
             }
 
-            if (!_pagedBatchReady) return false;
+            if (!_pagedBatchReady)
+            {
+                handle = -1;
+                failed = false;
+                return false;
+            }
+
+            // Dispatch/admission above is allowed to complete the paged batch synchronously.
+            // Snapshot the result only after advancing that state machine so a fresh handle cannot
+            // be lost behind the previous sentinel value (-1).
+            handle = _pagedHandle;
+            failed = _pagedBatchFailed;
             _pagedBatchReady = false;
             _pagedBatchFailed = false;
             return true;
