@@ -8,7 +8,7 @@ using VoxelEngine.Net.Runtime.Transport;
 namespace VoxelEngine.Net.Runtime.Server
 {
     /// <summary>Composition root for authoritative UTP networking.</summary>
-    public sealed class ServerNetworkRuntime : IDisposable, IAuthoritativeAlterationPublisher, IAlterationRejectionSink, IPlayerStateBundleSink
+    public sealed class ServerNetworkRuntime : IDisposable, IAuthoritativeAlterationPublisher, IAlterationRejectionSink, IPlayerStateBundleSink, IGameplayStatePacketSink
     {
         private readonly UtpServerHost _host;
         private readonly EventDrivenReplicationPipeline _replication;
@@ -17,6 +17,7 @@ namespace VoxelEngine.Net.Runtime.Server
         private readonly IClientInputCommandHandler _inputHandler;
         private readonly IClientConvergenceCommandHandler _convergenceHandler;
         private readonly IClientRegionRequestHandler _regionRequestHandler;
+        private readonly IClientGameplayStateRepairHandler _gameplayStateRepairHandler;
         private readonly ServerCommandInbox _commandInbox;
         private readonly ServerConvergenceInbox _convergenceInbox;
         private readonly ServerRegionStateRequestInbox _regionRequestInbox;
@@ -31,14 +32,14 @@ namespace VoxelEngine.Net.Runtime.Server
             ServerCommandInbox commandInbox,
             int maxConnections = 64,
             int initialEventCapacity = 64)
-            : this(commandInbox, commandInbox, null, null, maxConnections, initialEventCapacity) { }
+            : this(commandInbox, commandInbox, null, null, null, maxConnections, initialEventCapacity) { }
 
         public ServerNetworkRuntime(
             ServerCommandInbox commandInbox,
             ServerConvergenceInbox convergenceInbox,
             int maxConnections = 64,
             int initialEventCapacity = 64)
-            : this(commandInbox, commandInbox, convergenceInbox, null, maxConnections, initialEventCapacity) { }
+            : this(commandInbox, commandInbox, convergenceInbox, null, null, maxConnections, initialEventCapacity) { }
 
         public ServerNetworkRuntime(
             ServerCommandInbox commandInbox,
@@ -46,13 +47,13 @@ namespace VoxelEngine.Net.Runtime.Server
             ServerRegionStateRequestInbox regionRequestInbox,
             int maxConnections = 64,
             int initialEventCapacity = 64)
-            : this(commandInbox, commandInbox, convergenceInbox, regionRequestInbox, maxConnections, initialEventCapacity) { }
+            : this(commandInbox, commandInbox, convergenceInbox, regionRequestInbox, null, maxConnections, initialEventCapacity) { }
 
         public ServerNetworkRuntime(
             IClientEventCommandHandler eventHandler,
             int maxConnections = 64,
             int initialEventCapacity = 64)
-            : this(eventHandler, null, null, null, maxConnections, initialEventCapacity) { }
+            : this(eventHandler, null, null, null, null, maxConnections, initialEventCapacity) { }
 
         public ServerNetworkRuntime(
             IClientEventCommandHandler eventHandler,
@@ -60,7 +61,7 @@ namespace VoxelEngine.Net.Runtime.Server
             IClientConvergenceCommandHandler convergenceHandler,
             int maxConnections = 64,
             int initialEventCapacity = 64)
-            : this(eventHandler, inputHandler, convergenceHandler, null, maxConnections, initialEventCapacity) { }
+            : this(eventHandler, inputHandler, convergenceHandler, null, null, maxConnections, initialEventCapacity) { }
 
         public ServerNetworkRuntime(
             IClientEventCommandHandler eventHandler,
@@ -69,11 +70,22 @@ namespace VoxelEngine.Net.Runtime.Server
             IClientRegionRequestHandler regionRequestHandler,
             int maxConnections = 64,
             int initialEventCapacity = 64)
+            : this(eventHandler, inputHandler, convergenceHandler, regionRequestHandler, null, maxConnections, initialEventCapacity) { }
+
+        public ServerNetworkRuntime(
+            IClientEventCommandHandler eventHandler,
+            IClientInputCommandHandler inputHandler,
+            IClientConvergenceCommandHandler convergenceHandler,
+            IClientRegionRequestHandler regionRequestHandler,
+            IClientGameplayStateRepairHandler gameplayStateRepairHandler,
+            int maxConnections = 64,
+            int initialEventCapacity = 64)
         {
             _eventHandler = eventHandler ?? throw new ArgumentNullException(nameof(eventHandler));
             _inputHandler = inputHandler;
             _convergenceHandler = convergenceHandler;
             _regionRequestHandler = regionRequestHandler;
+            _gameplayStateRepairHandler = gameplayStateRepairHandler;
             _commandInbox = ReferenceEquals(eventHandler, inputHandler) ? eventHandler as ServerCommandInbox : null;
             _convergenceInbox = convergenceHandler as ServerConvergenceInbox;
             _regionRequestInbox = regionRequestHandler as ServerRegionStateRequestInbox;
@@ -102,7 +114,7 @@ namespace VoxelEngine.Net.Runtime.Server
         public void PumpTransport()
         {
             ThrowIfDisposed();
-            _host.Pump(_eventHandler, _inputHandler, _convergenceHandler, _regionRequestHandler);
+            _host.Pump(_eventHandler, _inputHandler, _convergenceHandler, _regionRequestHandler, _gameplayStateRepairHandler);
         }
 
         public void BeginTick(uint tick) { ThrowIfDisposed(); _replication.BeginTick(tick); }
@@ -146,6 +158,20 @@ namespace VoxelEngine.Net.Runtime.Server
             Span<byte> packet = stackalloc byte[PlayerStateBundlePacket.MaxPacketSize];
             return PlayerStateBundlePacket.TryEncode(packet, states, out int bytesWritten) &&
                    _host.TrySend(connectionId, UtpChannel.Ephemeral, packet.Slice(0, bytesWritten));
+        }
+
+        public bool SendGameplayStatePacket(uint connectionId, ReadOnlySpan<byte> packet)
+        {
+            ThrowIfDisposed();
+            if (!ProtocolEnvelope.TryReadHeader(packet, out ProtocolMessageKind kind, out _) ||
+                kind != ProtocolMessageKind.S_GameplayState ||
+                packet.Length > ChannelSetup.k_MaxBulkPacketBytes)
+                return false;
+
+            UtpChannel channel = packet.Length <= ChannelSetup.k_MaxEventPacketBytes
+                ? UtpChannel.Event
+                : UtpChannel.Bulk;
+            return _host.TrySend(connectionId, channel, packet);
         }
 
         public int UpdateConnectionPosition(uint connectionId, int3 playerVoxelPosition)

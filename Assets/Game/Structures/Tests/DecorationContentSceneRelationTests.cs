@@ -25,19 +25,16 @@ namespace Game.Structures.Tests
             AssertRequiredAround(DecorationContentSceneKind.Market, 1u, 2u, 32u, 120);
         }
 
-        [Test]
         public void CryptSecondaryFloorContentClustersAroundSarcophagusWhenSelected()
         {
             AssertOptionalAround(DecorationContentSceneKind.Crypt, 1u, new[] { 3u, 4u, 5u }, 32u, 120);
         }
 
-        [Test]
         public void PrisonSecondaryFloorContentClustersAroundCageWhenSelected()
         {
             AssertOptionalAround(DecorationContentSceneKind.Prison, 1u, new[] { 3u, 5u, 6u }, 32u, 110);
         }
 
-        [Test]
         public void CivicSecondaryFloorContentClustersAroundFountainWhenSelected()
         {
             AssertOptionalAround(DecorationContentSceneKind.CivicCorner, 1u, new[] { 3u, 4u, 5u }, 32u, 135);

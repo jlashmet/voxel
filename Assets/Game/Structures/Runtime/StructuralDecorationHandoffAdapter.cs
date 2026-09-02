@@ -1,7 +1,6 @@
 using Game.Structures.Api;
 using Unity.Mathematics;
 using VoxelEngine.Structures.Api;
-using VoxelEngine.Structures.Runtime;
 
 namespace Game.Structures.Runtime
 {
@@ -13,8 +12,8 @@ namespace Game.Structures.Runtime
     public static class StructuralDecorationHandoffAdapter
     {
         public static bool TryCreateSpace(
-            in StructuralInstance instance,
-            in FeatureDefinition definition,
+            in StructuralDecorationInstanceHandoff instance,
+            int3 authoredFootprint,
             DecorationSpaceKind kind,
             out DecorationSpace space)
         {
@@ -23,8 +22,8 @@ namespace Game.Structures.Runtime
                 return false;
 
             int3 footprint = (instance.Orientation & 1) == 0
-                ? definition.Footprint
-                : new int3(definition.Footprint.z, definition.Footprint.y, definition.Footprint.x);
+                ? authoredFootprint
+                : new int3(authoredFootprint.z, authoredFootprint.y, authoredFootprint.x);
             if (math.any(footprint <= 0))
                 return false;
 
@@ -45,7 +44,7 @@ namespace Game.Structures.Runtime
         }
 
         public static DecorationSocket[] CreateSockets(
-            in StructuralAttachmentDecision decision,
+            in StructuralDecorationAttachmentHandoff decision,
             in SlotSpec authoredSlot,
             byte parentOrientation)
         {
@@ -83,7 +82,7 @@ namespace Game.Structures.Runtime
         }
 
         private static void Append(
-            in StructuralAttachmentDecision decision,
+            in StructuralDecorationAttachmentHandoff decision,
             StructuralDecorationHandoff handoff,
             DecorationSocketKind kind,
             int3 facing,

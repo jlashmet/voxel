@@ -2,8 +2,6 @@ using Game.Materials.Api;
 using Game.Structures.Api;
 using Unity.Mathematics;
 using VoxelEngine.Structures.Api;
-using SharedOpeningAuthoring = VoxelEngine.Structures.Runtime.StructureOpeningAuthoring;
-using SharedRoofAuthoring = VoxelEngine.Structures.Runtime.StructureRoofAuthoring;
 
 namespace Game.Structures.Runtime
 {
@@ -16,21 +14,26 @@ namespace Game.Structures.Runtime
             public int Depth;
         }
 
-        public static void Author(IStructureAuthoringSession a, int3 origin, in CathedralConfig c)
+        public static void Author(
+            IStructureComponentAuthoring components,
+            IStructureAuthoringSession a,
+            int3 origin,
+            in CathedralConfig c)
         {
+            if (components == null) throw new System.ArgumentNullException(nameof(components));
             if (a == null) throw new System.ArgumentNullException(nameof(a));
             if (!c.IsWellFormed) throw new System.ArgumentException("Cathedral configuration is invalid.", nameof(c));
             Foundation(a, origin, in c);
             ChurchConfig church = c.Church;
             church.Footprint.FoundationStyle = StructureFoundationStyle.None;
             church.Footprint.FoundationDepth = 0;
-            ChurchAuthoring.Author(a, origin, in church);
-            ExtraAisles(a, origin, in c);
-            Transept(a, origin, in c);
-            Chapels(a, origin, in c);
-            Rose(a, origin, in c);
-            FrontTowers(a, origin, in c);
-            CrossingTower(a, origin, in c);
+            ChurchAuthoring.Author(components, a, origin, in church);
+            ExtraAisles(components, a, origin, in c);
+            Transept(components, a, origin, in c);
+            Chapels(components, a, origin, in c);
+            Rose(components, a, origin, in c);
+            FrontTowers(components, a, origin, in c);
+            CrossingTower(components, a, origin, in c);
             Crypt(a, origin, in c);
         }
 
@@ -43,7 +46,7 @@ namespace Game.Structures.Runtime
                 c.Church.Palette.Resolve(c.Footprint.FoundationMaterial));
         }
 
-        private static void ExtraAisles(IStructureAuthoringSession a, int3 origin, in CathedralConfig c)
+        private static void ExtraAisles(IStructureComponentAuthoring components, IStructureAuthoringSession a, int3 origin, in CathedralConfig c)
         {
             if (c.ExtraAisleCountPerSide<=0) return;
             ChurchConfig ch=c.Church; int front=ch.Footprint.Primary.Min.y;
@@ -61,22 +64,22 @@ namespace Game.Structures.Runtime
                 Rect w=Resolve(in wl,origin,ch.EntryFacing), e=Resolve(in el,origin,ch.EntryFacing);
                 Rect pw=Resolve(in pwLocal,origin,ch.EntryFacing), pe=Resolve(in peLocal,origin,ch.EntryFacing);
                 Shell(a,in w,c.ExtraAisleHeight,in ch); Shell(a,in e,c.ExtraAisleHeight,in ch);
-                Open(a,in pw,pwHeight,in c.ExtraAisleArch,arches,west,c.ExtraAisleArch.Spacing,0,in ch);
-                Open(a,in w,c.ExtraAisleHeight,in c.ExtraAisleArch,arches,east,c.ExtraAisleArch.Spacing,0,in ch);
-                Open(a,in pe,peHeight,in c.ExtraAisleArch,arches,east,c.ExtraAisleArch.Spacing,0,in ch);
-                Open(a,in e,c.ExtraAisleHeight,in c.ExtraAisleArch,arches,west,c.ExtraAisleArch.Spacing,0,in ch);
-                Roof(a,in w,origin.y+c.ExtraAisleHeight,in c.ExtraAisleRoof,in ch);
-                Roof(a,in e,origin.y+c.ExtraAisleHeight,in c.ExtraAisleRoof,in ch);
+                Open(components,a,in pw,pwHeight,in c.ExtraAisleArch,arches,west,c.ExtraAisleArch.Spacing,0,in ch);
+                Open(components,a,in w,c.ExtraAisleHeight,in c.ExtraAisleArch,arches,east,c.ExtraAisleArch.Spacing,0,in ch);
+                Open(components,a,in pe,peHeight,in c.ExtraAisleArch,arches,east,c.ExtraAisleArch.Spacing,0,in ch);
+                Open(components,a,in e,c.ExtraAisleHeight,in c.ExtraAisleArch,arches,west,c.ExtraAisleArch.Spacing,0,in ch);
+                Roof(components,a,in w,origin.y+c.ExtraAisleHeight,in c.ExtraAisleRoof,in ch);
+                Roof(components,a,in e,origin.y+c.ExtraAisleHeight,in c.ExtraAisleRoof,in ch);
                 if(level==c.ExtraAisleCountPerSide-1)
                 {
-                    Open(a,in w,c.ExtraAisleHeight,in c.ExtraAisleWindow,windows,west,c.ExtraAisleWindow.Spacing,0,in ch);
-                    Open(a,in e,c.ExtraAisleHeight,in c.ExtraAisleWindow,windows,east,c.ExtraAisleWindow.Spacing,0,in ch);
+                    Open(components,a,in w,c.ExtraAisleHeight,in c.ExtraAisleWindow,windows,west,c.ExtraAisleWindow.Spacing,0,in ch);
+                    Open(components,a,in e,c.ExtraAisleHeight,in c.ExtraAisleWindow,windows,east,c.ExtraAisleWindow.Spacing,0,in ch);
                 }
                 pwLocal=wl; peLocal=el; pwHeight=c.ExtraAisleHeight; peHeight=c.ExtraAisleHeight;
             }
         }
 
-        private static void Transept(IStructureAuthoringSession a,int3 origin,in CathedralConfig c)
+        private static void Transept(IStructureComponentAuthoring components,IStructureAuthoringSession a,int3 origin,in CathedralConfig c)
         {
             ChurchConfig ch=c.Church; int front=ch.Footprint.Primary.Min.y;
             int z=front+c.TranseptCentreFromNaveFront-c.TranseptDepth/2;
@@ -87,10 +90,10 @@ namespace Game.Structures.Runtime
                 new int2(c.NaveAssemblyWidth-ch.WallThickness*2,c.TranseptDepth));
             Rect crossing=Resolve(in crossingLocal,origin,ch.EntryFacing);
             a.Box(crossing.Min,new int3(crossing.Width,c.CrossingClearanceHeight,crossing.Depth),ch.Palette.Resolve(StructureMaterialRole.Opening));
-            Roof(a,in r,origin.y+c.TranseptHeight,in c.TranseptRoof,in ch);
+            Roof(components,a,in r,origin.y+c.TranseptHeight,in c.TranseptRoof,in ch);
         }
 
-        private static void Chapels(IStructureAuthoringSession a,int3 origin,in CathedralConfig c)
+        private static void Chapels(IStructureComponentAuthoring components,IStructureAuthoringSession a,int3 origin,in CathedralConfig c)
         {
             if(!c.SideChapelsEnabled) return;
             ChurchConfig ch=c.Church; int front=ch.Footprint.Primary.Min.y;
@@ -107,37 +110,37 @@ namespace Game.Structures.Runtime
                 StructureFootprintRect el=new StructureFootprintRect(new int2(ch.SanctuaryWidth/2,cz-c.SideChapelWidth/2),new int2(c.SideChapelDepth,c.SideChapelWidth));
                 Rect w=Resolve(in wl,origin,ch.EntryFacing), e=Resolve(in el,origin,ch.EntryFacing);
                 Shell(a,in w,c.SideChapelHeight,in ch); Shell(a,in e,c.SideChapelHeight,in ch);
-                Open(a,in sanctuary,ch.SanctuaryHeight,in c.SideChapelArch,1,west,0,offset,in ch);
-                Open(a,in w,c.SideChapelHeight,in c.SideChapelArch,1,east,0,0,in ch);
-                Open(a,in sanctuary,ch.SanctuaryHeight,in c.SideChapelArch,1,east,0,offset,in ch);
-                Open(a,in e,c.SideChapelHeight,in c.SideChapelArch,1,west,0,0,in ch);
-                Roof(a,in w,origin.y+c.SideChapelHeight,in c.SideChapelRoof,in ch);
-                Roof(a,in e,origin.y+c.SideChapelHeight,in c.SideChapelRoof,in ch);
+                Open(components,a,in sanctuary,ch.SanctuaryHeight,in c.SideChapelArch,1,west,0,offset,in ch);
+                Open(components,a,in w,c.SideChapelHeight,in c.SideChapelArch,1,east,0,0,in ch);
+                Open(components,a,in sanctuary,ch.SanctuaryHeight,in c.SideChapelArch,1,east,0,offset,in ch);
+                Open(components,a,in e,c.SideChapelHeight,in c.SideChapelArch,1,west,0,0,in ch);
+                Roof(components,a,in w,origin.y+c.SideChapelHeight,in c.SideChapelRoof,in ch);
+                Roof(components,a,in e,origin.y+c.SideChapelHeight,in c.SideChapelRoof,in ch);
             }
         }
 
-        private static void Rose(IStructureAuthoringSession a,int3 origin,in CathedralConfig c)
+        private static void Rose(IStructureComponentAuthoring components,IStructureAuthoringSession a,int3 origin,in CathedralConfig c)
         {
             if(!c.RoseWindowEnabled) return;
             ChurchConfig ch=c.Church;
             StructureFootprintRect local=new StructureFootprintRect(new int2(-ch.NaveWidth/2,ch.Footprint.Primary.Min.y),new int2(ch.NaveWidth,ch.NaveLength));
             Rect r=Resolve(in local,origin,ch.EntryFacing);
-            Open(a,in r,ch.NaveWalls.Height,in c.RoseWindow,1,World(Facing.South,in ch),0,0,in ch);
+            Open(components,a,in r,ch.NaveWalls.Height,in c.RoseWindow,1,World(Facing.South,in ch),0,0,in ch);
         }
 
-        private static void FrontTowers(IStructureAuthoringSession a,int3 origin,in CathedralConfig c)
+        private static void FrontTowers(IStructureComponentAuthoring components,IStructureAuthoringSession a,int3 origin,in CathedralConfig c)
         {
             if(!c.WestFrontTowersEnabled) return;
-            FrontTower(a,origin,-c.WestTowerCentreOffset,in c); FrontTower(a,origin,c.WestTowerCentreOffset,in c);
+            FrontTower(components,a,origin,-c.WestTowerCentreOffset,in c); FrontTower(components,a,origin,c.WestTowerCentreOffset,in c);
         }
 
-        private static void FrontTower(IStructureAuthoringSession a,int3 origin,int cx,in CathedralConfig c)
+        private static void FrontTower(IStructureComponentAuthoring components,IStructureAuthoringSession a,int3 origin,int cx,in CathedralConfig c)
         {
             ChurchConfig ch=c.Church; TowerConfig t=c.WestFrontTower; int front=ch.Footprint.Primary.Min.y;
             StructureFootprintRect local=new StructureFootprintRect(new int2(cx-t.Width/2,front),new int2(t.Width,t.Depth));
             Rect r=Resolve(in local,origin,ch.EntryFacing); TowerShell(a,in r,origin.y,in t,in ch);
-            Open(a,in r,t.Height,in ch.MainPortal,1,World(Facing.North,in ch),0,0,in ch); TowerWindows(a,in r,in t,in ch);
-            Roof(a,in r,origin.y+t.Height,in t.Roof,in ch);
+            Open(components,a,in r,t.Height,in ch.MainPortal,1,World(Facing.North,in ch),0,0,in ch); TowerWindows(components,a,in r,in t,in ch);
+            Roof(components,a,in r,origin.y+t.Height,in t.Roof,in ch);
             if(c.WestTowerSpiresEnabled)
             {
                 int2 centre=StructureCardinalTransform.Point(new int2(cx,front+t.Depth/2),ch.EntryFacing);
@@ -146,14 +149,14 @@ namespace Game.Structures.Runtime
             }
         }
 
-        private static void CrossingTower(IStructureAuthoringSession a,int3 origin,in CathedralConfig c)
+        private static void CrossingTower(IStructureComponentAuthoring components,IStructureAuthoringSession a,int3 origin,in CathedralConfig c)
         {
             if(!c.CrossingTowerEnabled) return;
             ChurchConfig ch=c.Church; TowerConfig t=c.CrossingTower;
             int cz=ch.Footprint.Primary.Min.y+c.TranseptCentreFromNaveFront;
             StructureFootprintRect local=new StructureFootprintRect(new int2(-t.Width/2,cz-t.Depth/2),new int2(t.Width,t.Depth));
             Rect r=Resolve(in local,origin,ch.EntryFacing); int baseY=origin.y+math.max(ch.NaveWalls.Height,c.TranseptHeight); r.Min.y=baseY;
-            TowerShell(a,in r,baseY,in t,in ch); TowerWindows(a,in r,in t,in ch); Roof(a,in r,baseY+t.Height,in t.Roof,in ch);
+            TowerShell(a,in r,baseY,in t,in ch); TowerWindows(components,a,in r,in t,in ch); Roof(components,a,in r,baseY+t.Height,in t.Roof,in ch);
             if(c.CrossingSpireEnabled)
             {
                 int2 centre=StructureCardinalTransform.Point(new int2(0,cz),ch.EntryFacing);
@@ -180,22 +183,47 @@ namespace Game.Structures.Runtime
         private static void TowerShell(IStructureAuthoringSession a,in Rect r,int baseY,in TowerConfig t,in ChurchConfig ch)=>
             a.HollowBox(new int3(r.Min.x,baseY,r.Min.z),new int3(r.Width,t.Height,r.Depth),ch.WallThickness,ch.Palette.Resolve(t.WallMaterialRole),false,false);
 
-        private static void TowerWindows(IStructureAuthoringSession a,in Rect r,in TowerConfig t,in ChurchConfig ch)
+        private static void TowerWindows(IStructureComponentAuthoring components,IStructureAuthoringSession a,in Rect r,in TowerConfig t,in ChurchConfig ch)
         {
             if(!t.OpeningsEnabled) return;
-            Open(a,in r,t.Height,in t.Opening,1,World(Facing.South,in ch),0,0,in ch);
-            Open(a,in r,t.Height,in t.Opening,1,World(Facing.North,in ch),0,0,in ch);
-            Open(a,in r,t.Height,in t.Opening,1,World(Facing.West,in ch),0,0,in ch);
-            Open(a,in r,t.Height,in t.Opening,1,World(Facing.East,in ch),0,0,in ch);
+            Open(components,a,in r,t.Height,in t.Opening,1,World(Facing.South,in ch),0,0,in ch);
+            Open(components,a,in r,t.Height,in t.Opening,1,World(Facing.North,in ch),0,0,in ch);
+            Open(components,a,in r,t.Height,in t.Opening,1,World(Facing.West,in ch),0,0,in ch);
+            Open(components,a,in r,t.Height,in t.Opening,1,World(Facing.East,in ch),0,0,in ch);
         }
 
-        private static void Open(IStructureAuthoringSession a,in Rect r,int height,in OpeningConfig opening,int count,Facing facade,int spacing,int offset,in ChurchConfig ch)=>
-            SharedOpeningAuthoring.AuthorRepeated(a,r.Min,r.Width,height,r.Depth,ch.WallThickness,in opening,count,facade,offset,spacing,in ch.Palette);
+        private static void Open(IStructureComponentAuthoring components,IStructureAuthoringSession a,in Rect r,int height,in OpeningConfig opening,int count,Facing facade,int spacing,int offset,in ChurchConfig ch)
+        {
+            var request = new StructureOpeningAuthoringRequest
+            {
+                ShellMin = r.Min,
+                Width = r.Width,
+                Height = height,
+                Depth = r.Depth,
+                WallThickness = ch.WallThickness,
+                Opening = opening,
+                Count = count,
+                Facade = facade,
+                GroupOffset = offset,
+                Spacing = spacing,
+                Palette = ch.Palette,
+            };
+            components.AuthorOpenings(a, in request);
+        }
 
-        private static void Roof(IStructureAuthoringSession a,in Rect r,int y,in RoofConfig local,in ChurchConfig ch)
+        private static void Roof(IStructureComponentAuthoring components,IStructureAuthoringSession a,in Rect r,int y,in RoofConfig local,in ChurchConfig ch)
         {
             RoofConfig roof=local; roof.RidgeAxis=StructureCardinalTransform.Axis(local.RidgeAxis,ch.EntryFacing);
-            SharedRoofAuthoring.Author(a,r.Min,r.Width,r.Depth,y,in roof,ch.Palette.Resolve(roof.MaterialRole));
+            var request = new StructureRoofAuthoringRequest
+            {
+                FootprintMin = r.Min,
+                Width = r.Width,
+                Depth = r.Depth,
+                BaseY = y,
+                Roof = roof,
+                Material = ch.Palette.Resolve(roof.MaterialRole),
+            };
+            components.AuthorRoof(a, in request);
         }
 
         private static Rect Resolve(in StructureFootprintRect local,int3 origin,Facing facing)

@@ -32,12 +32,13 @@ namespace Game.Materials.Tests
             Assert.That(GameMaterialIds.MasonryMedium, Is.EqualTo(19));
             Assert.That(GameMaterialIds.MasonryLarge, Is.EqualTo(20));
             Assert.That(GameMaterialIds.FlowerWhite, Is.EqualTo(21));
+            Assert.That(GameMaterialIds.RiverWater, Is.EqualTo(22));
         }
 
         [Test]
         public void CanonicalCatalogue_CoversEveryStableMaterialId()
         {
-            Assert.That(GameMaterialCatalogue.Count, Is.EqualTo(22));
+            Assert.That(GameMaterialCatalogue.Count, Is.EqualTo(23));
             for (byte materialId = 0; materialId < GameMaterialCatalogue.Count; materialId++)
             {
                 Assert.That(GameMaterialCatalogue.IsCanonicalId(materialId), Is.True);
@@ -121,7 +122,7 @@ namespace Game.Materials.Tests
         {
             Assert.That(GameTerrainMaterials.Default.Deep, Is.EqualTo(GameMaterialIds.Bedrock));
             Assert.That(GameTerrainMaterials.Default.Subsurface, Is.EqualTo(GameMaterialIds.Dirt));
-            Assert.That(GameTerrainMaterials.Default.LowSurface, Is.EqualTo(GameMaterialIds.Dirt));
+            Assert.That(GameTerrainMaterials.Default.LowSurface, Is.EqualTo(GameMaterialIds.Grass));
             Assert.That(GameTerrainMaterials.Default.Surface, Is.EqualTo(GameMaterialIds.Grass));
         }
     }

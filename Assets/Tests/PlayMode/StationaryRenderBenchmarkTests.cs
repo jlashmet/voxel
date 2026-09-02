@@ -49,21 +49,30 @@ namespace VoxelEngine.Tests.PlayMode
                 "Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs");
             string admission = File.ReadAllText(
                 "Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/WaterSurfaceDiscoveryAdmission.cs");
+            string cache = File.ReadAllText(
+                "Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuWaterSurfaceChunkCache.cs");
 
             StringAssert.Contains("_water.InvalidateSurfaceBricks(storage, _changedWaterBricks);", scheduler,
                 "authoritative water mutations must remain immediate");
             StringAssert.Contains(
-                "_waterDiscoveryAdmission.EnqueueAndStep(_water, storage, _discoveredSurfaceBricks);",
+                "_water, storage, _discoveredSurfaceBricks, waterBuildDeadline);",
                 scheduler,
-                "initial/streaming discovery must use bounded water classification");
+                "initial/streaming water classification must share the bounded build deadline");
             StringAssert.DoesNotContain(
                 "_water.InvalidateSurfaceBricks(storage, _discoveredSurfaceBricks);", scheduler,
                 "a whole solid-discovery batch must not be synchronously water-classified");
             StringAssert.Contains("SurfaceDiscoveryBricksPerPrepare = 32", admission);
+            StringAssert.Contains("DeadlineCheckStride = 4", admission,
+                "water discovery needs a small progress floor between deadline checks");
             StringAssert.Contains("_queued.Add(worldBrick)", admission,
                 "repeated discovery publications must deduplicate pending classification");
-            StringAssert.Contains("while (_batch.Count < SurfaceDiscoveryBricksPerPrepare", admission,
+            StringAssert.Contains("processed < SurfaceDiscoveryBricksPerPrepare", admission,
                 "each frame must drain only the bounded classification slice");
+            StringAssert.Contains("TryWorldBlockContainsEitherMaterial", cache,
+                "discovery classification must inspect only material bytes from the borrowed view");
+            StringAssert.DoesNotContain(
+                "bool containsWater = TryLoadBrickMaterials(storage, worldBrick", cache,
+                "discovery classification must not copy all three render-payload channels");
         }
 
         [Test]
