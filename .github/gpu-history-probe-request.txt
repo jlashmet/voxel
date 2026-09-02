@@ -1,0 +1,2 @@
+candidate=b4de1b576dfb06821ada42b6094bf9cbe7c9c31f
+oracle=VoxelEngine.Tests.EditMode.GpuSurfaceExtractorOracleTests.GpuDensityMatchesTheCpuJobSampleForSample
