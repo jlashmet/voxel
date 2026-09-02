@@ -1,5 +1,4 @@
 using System;
-using System.Runtime.InteropServices;
 using Unity.Mathematics;
 using UnityEngine;
 
@@ -30,17 +29,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private static readonly int IdRequestCount =
             Shader.PropertyToID("_ResolvedBrickCacheRequestCount");
 
-        [StructLayout(LayoutKind.Sequential)]
-        private struct RequestView
-        {
-            internal int OriginX;
-            internal int OriginY;
-            internal int OriginZ;
-            internal int OutputBase;
-
-            internal const int Stride = sizeof(int) * 4;
-        }
-
         private readonly ComputeShader _shader;
         private readonly int _kernel;
         private readonly int _capacity;
@@ -49,7 +37,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private readonly ComputeBuffer _requestViews;
         private readonly ComputeBuffer _directoryHeader;
         private readonly ComputeBuffer _denseEntries;
-        private readonly RequestView[] _requestStaging;
+        private readonly GpuBrickCacheRequestView[] _requestStaging;
         private readonly uint[] _headerStaging = new uint[2];
         private bool _disposed;
 
@@ -57,7 +45,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         internal ComputeBuffer DenseEntries => _denseEntries;
         internal int BricksPerRequest => _bricksPerRequest;
         internal long CommittedBytes =>
-            (long)_capacity * RequestView.Stride
+            (long)_capacity * GpuBrickCacheRequestView.Stride
             + sizeof(uint) * 2L
             + (long)_capacity * _bricksPerRequest * sizeof(uint);
 
@@ -76,12 +64,12 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _capacity = capacity;
             _edge = edge;
             _bricksPerRequest = checked(edge * edge * edge);
-            _requestViews = new ComputeBuffer(capacity, RequestView.Stride,
+            _requestViews = new ComputeBuffer(capacity, GpuBrickCacheRequestView.Stride,
                                               ComputeBufferType.Structured);
             _directoryHeader = new ComputeBuffer(2, sizeof(uint), ComputeBufferType.Structured);
             _denseEntries = new ComputeBuffer(checked(capacity * _bricksPerRequest), sizeof(uint),
                                               ComputeBufferType.Structured);
-            _requestStaging = new RequestView[capacity];
+            _requestStaging = new GpuBrickCacheRequestView[capacity];
         }
 
         internal void Dispatch(GpuVoxelBrickMirror mirror,
@@ -97,7 +85,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             for (int i = 0; i < recordCount; i++)
             {
                 int3 origin = requests[i].BrickCacheOrigin;
-                _requestStaging[i] = new RequestView
+                _requestStaging[i] = new GpuBrickCacheRequestView
                 {
                     OriginX = origin.x,
                     OriginY = origin.y,
