@@ -1,7 +1,7 @@
 {
   "platform": "EditMode",
-  "test": "VoxelEngine.Tests.EditMode.GpuDensitySampleDiagnosticTests.ReportFirstDensityStageDivergences",
-  "request_id": "enable-gpu-density-sample-diagnostic-20260902",
+  "test": "VoxelEngine.Tests.EditMode.GpuReadMaterialDiagnosticTests.UniformSolidCacheReadsSolidAtEveryPaddedSample",
+  "request_id": "enable-gpu-read-material-diagnostic-20260902",
   "scene_issue": "",
   "replay_seconds": ""
 }
