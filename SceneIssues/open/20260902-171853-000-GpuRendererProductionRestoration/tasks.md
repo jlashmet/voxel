@@ -6,7 +6,7 @@
 
 ## Establish the failure and ownership boundary
 
-- [ ] **TGPU-001 — Rebase the investigation on current master.** Fetch `origin/master`, record the exact starting SHA, and reproduce the smallest current GPU failure before carrying forward any `enable_gpu` diagnostic conclusion.
+- [x] **TGPU-001 — Rebase the investigation on current master.** Starting SHA `b18d470f66221c7cb6091249f4683c2d994bffec`; exact-SHA run `33665456593` reproduced `GpuDensityMatchesTheCpuJobSampleForSample(1)` with 1300/2197 mismatches, worst sample 0 CPU 0.50000 vs GPU -0.14000.
 - [ ] **TGPU-002 — Inventory production GPU selection and fallback.** Trace `VoxelSurfaceScheduler`, `CpuTransvoxelChunkCache`, GPU eligibility/policy, worker/context creation, draw publication, and every eligible-solid CPU fallback counter/path.
 - [ ] **TGPU-003 — Inventory supported semantic surface features.** Enumerate reconstruction styles, material-default resolution, material blending, water classification, coatings/displacement/decorations, authored boundary samples, source steps/LOD, regular cells, faceted cells, negative-shell ownership, and transition faces. Mark only genuinely unsupported cases as explicit eligibility exclusions.
 - [ ] **TGPU-004 — Preserve the current minimal density repro.** Add/retain a behavioral CPU-job-vs-GPU sample regression that reports the first divergent world sample plus density/material/surface/boundary values; no second hand-written CPU implementation.
