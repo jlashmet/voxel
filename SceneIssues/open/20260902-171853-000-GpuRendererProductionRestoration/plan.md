@@ -5,7 +5,9 @@
 
 ## Observed behavior
 
-Exact-SHA targeted run `33665456593` reproduced the density divergence on current master in the existing production oracle `GpuDensityMatchesTheCpuJobSampleForSample(1)`: **1300/2197 samples disagree**, worst at sample 0 (`CPU 0.50000`, `GPU -0.14000`). Unity/Metal compilation also warns that `IsSolidSample`, `ReadMaterial`, `AddTap`, and `SampleField` may use uninitialized state in the full `VoxelBrickMesher` kernels. This is a product failure, not runner infrastructure (33 GB free at launch, 6.1 GB peak RSS). The prior raw-read diagnostic remains only a clue: the current failure is proven in the real full-mesher path.
+Exact-SHA targeted run `33665456593` reproduced the density divergence on current master in the existing production oracle `GpuDensityMatchesTheCpuJobSampleForSample(1)`: **1300/2197 samples disagree**, worst at sample 0 (`CPU 0.50000`, `GPU -0.14000`). Unity/Metal compilation also warns that `IsSolidSample`, `ReadMaterial`, `AddTap`, and `SampleField` may use uninitialized state in the full `VoxelBrickMesher` kernels. This is a product failure, not runner infrastructure (33 GB free at launch, 6.1 GB peak RSS).
+
+Exact-SHA diagnostic run `33666261165` then localized the first divergence to world voxel `(-2,-2,-2)`: density CPU `0.50000` vs GPU `-0.14000`; material CPU/GPU both `1`; boundary CPU/GPU both `0`; surface CPU `0x04000001` vs GPU `0x00000001`. The GPU therefore preserves the expected presentation style/material but loses the transient authoritative-solid bit while computing a negative smooth density. This makes a raw cache/material fetch defect less likely and directly implicates `centreSolid` or the full smooth `SampleField` execution path.
 
 ## Acceptance
 
@@ -18,17 +20,17 @@ Exact-SHA targeted run `33665456593` reproduced the density divergence on curren
 
 ## Hypotheses / next experiment
 
-- **H1:** full-mesher compilation/execution corrupts `SampleField` centre occupancy or smooth-tap state even though isolated raw material reads are correct. The Metal uninitialized-state warnings strengthen this hypothesis but do not yet prove causality.
-- **H2:** shared production state/buffer binding or persistent-lookup mode contaminates otherwise-correct sampling.
+- **H1:** full-mesher compilation/execution corrupts `SampleField` centre occupancy or smooth-tap state even though material lookup data survives. The Metal uninitialized-state warnings and missing authoritative-solid bit strengthen this hypothesis.
+- **H2:** shared production state/buffer binding or persistent-lookup mode contaminates otherwise-correct sampling. This is weaker because the failing diagnostic uses the explicit dense cache and returns the expected material/boundary.
 
-Next compare (a) isolated raw read, (b) planar early-return `SampleField`, and (c) smooth full `SampleField` in the same full mesher/bindings. This discriminates lookup/binding from smooth-field logic/codegen before changing production behavior.
+Next run the same full mesher and uniform-brick bindings under material-default `Planar` and `Smooth` reconstruction. Planar takes the `centreSolid` early return before `AddTap`; Smooth executes the weighted tap path. If Planar is correct while Smooth fails, isolate to smooth/tap codegen. If Planar also treats the same voxel as air, isolate `centreSolid`/`IsSolidSample` in the full method before any production fix.
 
 ## Architecture / blast radius
 
 Keep CPU voxel/storage truth authoritative. GPU code is a derived presentation backend. Fix shared GPU rendering semantics rather than VoxelShowcase policy. Unsupported inputs must be explicit eligibility results, not wrong geometry or incidental fallback. Preserve the existing world-scoped mirror and production composition unless evidence proves a boundary defect.
 
-Production inventory already confirms the current cutover policy defaults GPU **off** unless `VOXEL_ENABLE_EXPERIMENTAL_GPU_CUTOVER=1`; source steps 1/2 are the claimed GPU-supported solid rings; device/context failures increment eligible GPU fallback counters and resume CPU density extraction. TGPU-002 will finish tracing all selection/publication/fallback paths before changing that policy.
+Production inventory confirms the current cutover policy defaults GPU **off** unless `VOXEL_ENABLE_EXPERIMENTAL_GPU_CUTOVER=1`; source steps 1/2 are the claimed GPU-supported solid rings; device/context failures increment eligible GPU fallback counters and resume CPU density extraction. GPU semantics already implement all five built-in reconstruction modes plus material-default/blend, water classification, coating/boundary, regular/faceted/negative-shell/transition/profile paths; unsupported results are classified by reconstruction/decoration semantics.
 
 ## Remaining gates
 
-Complete production-path inventory -> discriminate root cause -> focused regression/fix -> CPU/GPU semantic suite -> explicit no-silent-fallback/recovery contract -> automatic module validation -> exact-SHA built-player VoxelShowcase plus independent-consumer evidence -> performance/memory review -> close.
+Discriminate root cause -> focused regression/fix -> CPU/GPU semantic suite -> explicit no-silent-fallback/recovery contract -> automatic module validation -> exact-SHA built-player VoxelShowcase plus independent-consumer evidence -> performance/memory review -> close.
