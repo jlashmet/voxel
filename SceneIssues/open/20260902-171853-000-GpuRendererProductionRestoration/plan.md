@@ -17,6 +17,8 @@ The isolated include probe `GpuSolidClassificationProbeTests.MaterialOneIsSolidW
 
 Exact-SHA run `33668767375` then bound `_SolidWaterMaterialMask=0` directly on the production `ComputeShader` instance before the same full-mesher Planar/Smooth discriminator. The result was unchanged: Planar and Smooth both returned GPU `-0.14`, material `1`, correct resolved style, boundary `0`, and no authoritative-solid bit. That falsifies global-vs-compute-local mask binding as the cause.
 
+The required minimal-root-cause isolation is now complete. Exact-SHA run `33669435649` compiled the complete production mesher into a test-only probe and proved a normal local `SampleField` call returns material 1, solid occupancy, and density `+0.5`. Run `33670311041` then removed the sample kernel's read-only aliases and still reproduced `-0.14`, falsifying SRV/UAV aliasing. Run `33671055825` reproduced the production 64-thread dispatch shape while reporting thread-zero state and proved the computed coordinate `(-2,-2,-2)`, `_BrickCacheOrigin=(-1,-1,-1)`, edge `4`, cache word `0x00000101`, brick index `0`, raw material `1`, direct solid classification, and local `SampleField=+0.5` are all correct. Finally, exact-SHA run `33671401799` changed only the expression shape: assigning `SampleField` to a local returns `+0.5`, while writing the same function call directly into the UAV (`_DensityWrite[index] = SampleField(... out locals ...)`) returns `-0.14` and drops authoritative occupancy. This reproduces the production failure without changing coordinate, cache, classifier, catalogue, or density semantics and matches the Metal uninitialized-state warnings. The same hazardous expression exists in both `CSSampleDensity` and production `CSBatchSampleDensity`; transition-face sampling does not use `SampleField`.
+
 ## Acceptance
 
 1. GPU density/sample semantics match the real CPU jobs for every supported reconstruction path and supported source step exercised by production.
@@ -26,12 +28,9 @@ Exact-SHA run `33668767375` then bound `_SolidWaterMaterialMask=0` directly on t
 5. Built-player traversal/edit evidence is visually production-correct: no holes, cracks, stale geometry, missing surfaces, wrong materials, or fallback-hidden success.
 6. Frame-path blocking, frame latency, upload/memory, and committed GPU resource cost remain within repository budgets.
 
-## Hypotheses / next experiment
+## Proven root cause / next fix
 
-- **H1 (leading):** full-mesher Metal code generation/control flow corrupts the occupancy value between `ReadMaterial` and the `SampleField` branch even though `ReadMaterial`'s externally observed material/style/boundary are correct and the exact classifier helper works in isolation.
-- **H2:** lower cache/binding state is corrupt. This is now weak: dense-cache diagnostics return correct material/style/boundary, brick-kind encoding matches, persistent lookup is not involved, the isolated classifier observes the expected mask, and direct compute-local mask binding does not change the failure.
-
-TGPU-006 is now active: no further production fix is allowed until a minimal full-mesher repro/root cause is established. Add a temporary diagnostic kernel to the existing `VoxelBrickMesher.compute` (not a second renderer) that samples the same world coordinate and reports, in one dispatch, raw `ReadMaterial`, direct `IsSolidSample`, resolved surface, and `SampleField` output. If direct `IsSolidSample` is true but `SampleField` loses occupancy, isolate the immediate `SampleField` control flow; if direct classification is false only in the full mesher, isolate full-shader code generation around the helper. Remove the temporary kernel after a focused regression captures the proven invariant.
+The density mismatch is a Metal compiler/code-generation hazard caused by directly assigning the return value of `SampleField`, which also fills three `out` locals, into a UAV. The identical function/input state is correct when the return value is first materialized in a local scalar. TGPU-006 is therefore satisfied and the next allowed production change is deliberately narrow: in both `CSSampleDensity` and `CSBatchSampleDensity`, evaluate `SampleField` into a local `float density` and then write that scalar to the output UAV. Do not change classifier rules, cache addressing, material policy, or CPU semantics. Validate the original CPU/GPU density oracle and a batched-production sampling consumer on the exact resulting SHA before advancing TGPU-010.
 
 ## Architecture / blast radius
 
@@ -41,4 +40,4 @@ Production inventory confirms the current cutover policy defaults GPU **off** un
 
 ## Remaining gates
 
-Full-mesher occupancy isolation -> proven density root-cause fix -> focused parity validation -> CPU/GPU semantic suite -> explicit no-silent-fallback/recovery contract -> automatic module validation -> exact-SHA built-player VoxelShowcase plus independent-consumer evidence -> performance/memory review -> close.
+Proven density root-cause fix -> focused parity validation -> CPU/GPU semantic suite -> explicit no-silent-fallback/recovery contract -> automatic module validation -> exact-SHA built-player VoxelShowcase plus independent-consumer evidence -> performance/memory review -> close.
