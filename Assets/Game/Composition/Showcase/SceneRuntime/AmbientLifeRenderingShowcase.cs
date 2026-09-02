@@ -44,7 +44,7 @@ namespace VoxelEngine.Showcase
         {
             output.Clear();
             const int columns = 4;
-            const float spacing = 4.6f;
+            const float spacing = 5.2f;
 
             for (int i = 0; i < AmbientLifeCatalogue.Count; i++)
             {
@@ -62,7 +62,9 @@ namespace VoxelEngine.Showcase
                     Kind = kind,
                     Seed = clusterSeed == 0u ? 1u : clusterSeed,
                     Count = (ushort)(6 + i % 3),
-                    RadiusMetres = 2.15f,
+                    // Give each agent enough local screen-space separation that the cluster reads
+                    // as a flock/swarm of silhouettes instead of one connected billboard mass.
+                    RadiusMetres = 2.55f,
                 });
             }
         }
