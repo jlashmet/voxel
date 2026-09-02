@@ -2,17 +2,15 @@
 #define VOXEL_BRICK_DENSITY_INCLUDED
 
 // Density sampling for the GPU mesher. This remains a line-by-line semantic port of the CPU
-// Transvoxel density job, but production may now resolve world bricks from the persistent GPU
-// mirror instead of receiving a CPU-flattened dense brick neighbourhood for every chunk.
+// Transvoxel density job. Production meshing consumes a dense GPU-prepared brick table; persistent
+// world-directory hashing is isolated to the preparation kernel so it cannot perturb this hot path.
 
 StructuredBuffer<uint> _BrickMaterials;        // payload followed by persistent lookup directory
 StructuredBuffer<uint> _BrickSurfaceSemantics;
 StructuredBuffer<uint> _BrickBoundarySamples;
 
-// Legacy mode: one dense entry per brick in the chunk neighbourhood.
-// Persistent mode: entries 0..2 are a tiny classifier-safe header. Values that could look like
-// brick kinds are shifted left by two so the existing raw classifier sees all three as empty:
-//   [0] masked magic, [1] directory word offset << 2, [2] directory mask << 2.
+// One dense entry per brick in the chunk neighbourhood. Persistent lookup remains available only
+// to explicit resolver/probe compilation through VOXEL_FORCE_PERSISTENT_LOOKUP.
 StructuredBuffer<uint> _BrickCache;
 
 int3 _BrickCacheOrigin;
@@ -154,7 +152,7 @@ uint DecodeSurfaceStorage(uint packedStorage)
 
 int3 WorldBrickOf(int3 p) { return int3(p.x >> 3, p.y >> 3, p.z >> 3); }
 
-#if !defined(VOXEL_FORCE_DENSE_LOOKUP)
+#if defined(VOXEL_FORCE_PERSISTENT_LOOKUP)
 uint HashBrickCoordinate(int3 coordinate)
 {
     uint h = asuint(coordinate.x) * 0x8da6b343u;
@@ -200,7 +198,9 @@ uint ReadMaterial(int3 p, out uint surface, out uint boundary)
 
     int3 worldBrick = WorldBrickOf(p);
     uint entry = 0u;
-#if defined(VOXEL_FORCE_DENSE_LOOKUP)
+#if defined(VOXEL_FORCE_PERSISTENT_LOOKUP)
+    entry = PersistentBrickEntry(worldBrick);
+#else
     int3 localBrick = worldBrick - _BrickCacheOrigin;
     if ((uint)localBrick.x >= (uint)_BrickCacheEdge
      || (uint)localBrick.y >= (uint)_BrickCacheEdge
@@ -209,25 +209,6 @@ uint ReadMaterial(int3 p, out uint surface, out uint boundary)
     int brickIndex = localBrick.x
                    + _BrickCacheEdge * (localBrick.y + _BrickCacheEdge * localBrick.z);
     entry = _BrickCache[brickIndex];
-#elif defined(VOXEL_FORCE_PERSISTENT_LOOKUP)
-    entry = PersistentBrickEntry(worldBrick);
-#else
-    [branch]
-    if (_BrickCache[0] == PERSISTENT_LOOKUP_MAGIC)
-    {
-        entry = PersistentBrickEntry(worldBrick);
-    }
-    else
-    {
-        int3 localBrick = worldBrick - _BrickCacheOrigin;
-        if ((uint)localBrick.x >= (uint)_BrickCacheEdge
-         || (uint)localBrick.y >= (uint)_BrickCacheEdge
-         || (uint)localBrick.z >= (uint)_BrickCacheEdge)
-            return 0u;
-        int brickIndex = localBrick.x
-                       + _BrickCacheEdge * (localBrick.y + _BrickCacheEdge * localBrick.z);
-        entry = _BrickCache[brickIndex];
-    }
 #endif
 
     uint kind = entry & 0x3u;
