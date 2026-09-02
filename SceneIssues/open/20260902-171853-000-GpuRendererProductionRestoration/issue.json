@@ -13,5 +13,12 @@
   "sceneName": "VoxelShowcase",
   "scenePath": "Assets/Scenes/VoxelShowcase.unity",
   "sceneBuildIndex": 3,
-  "captures": []
+  "captures": [],
+  "assignment": {
+    "owner": "agent-1",
+    "branch": "fixes/agent-1",
+    "ci_branch": "ci-test/fixes/agent-1",
+    "claimed_at": 1788372314.927,
+    "lease_history": []
+  }
 }
