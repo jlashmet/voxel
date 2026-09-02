@@ -198,6 +198,7 @@ uint ReadMaterial(int3 p, out uint surface, out uint boundary)
 
     int3 worldBrick = WorldBrickOf(p);
     uint entry = 0u;
+    [branch]
     if (_BrickCache[0] == PERSISTENT_LOOKUP_MAGIC)
     {
         entry = PersistentBrickEntry(worldBrick);
