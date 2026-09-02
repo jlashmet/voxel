@@ -1,7 +1,7 @@
 {
   "platform": "EditMode",
-  "test": "VoxelEngine.Tests.EditMode.ArchitectureShapeProgramBuilderTests.PrimitiveOverridesRejectNegativeCornerRadius",
-  "request_id": "template",
+  "test": "VoxelEngine.Tests.EditMode.GpuDensitySampleDiagnosticTests.ReportFirstDensityStageDivergences",
+  "request_id": "enable-gpu-density-sample-diagnostic-20260902",
   "scene_issue": "",
   "replay_seconds": ""
 }
