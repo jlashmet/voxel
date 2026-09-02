@@ -1,5 +1,6 @@
 #pragma kernel CSSampleDensity
 
+#define VOXEL_FORCE_DENSE_LOOKUP 1
 #include "../../Resources/VoxelBrickDensity.hlsl"
 
 RWStructuredBuffer<float> _DensityWrite;
