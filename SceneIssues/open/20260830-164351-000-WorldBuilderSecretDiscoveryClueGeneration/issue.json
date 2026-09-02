@@ -40,5 +40,12 @@
     "verifiedUtc": null,
     "unityVersion": null,
     "notes": null
+  },
+  "assignment": {
+    "owner": "agent-5",
+    "branch": "fixes/agent-5",
+    "ci_branch": "ci-test/fixes/agent-5",
+    "claimed_at": 1788148566.626,
+    "lease_history": []
   }
 }
