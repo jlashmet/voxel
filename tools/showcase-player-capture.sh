@@ -20,6 +20,7 @@ Options:
   --height N
   --screenshot-every N
   --minimum-frames N
+  --evidence-after N
   --auto-dialogue N
   --autowalk-after N
   --converging-builds N
@@ -49,6 +50,7 @@ PLAYER_WIDTH=1600
 PLAYER_HEIGHT=900
 SCREENSHOT_EVERY=10
 MINIMUM_FRAMES=2
+EVIDENCE_AFTER=0
 REQUIRED_LOG_PATTERNS_FILE=""
 FORBIDDEN_LOG_PATTERNS_FILE=""
 
@@ -77,6 +79,7 @@ while (( $# > 0 )); do
     --height) PLAYER_HEIGHT="$2"; shift 2 ;;
     --screenshot-every) SCREENSHOT_EVERY="$2"; shift 2 ;;
     --minimum-frames) MINIMUM_FRAMES="$2"; shift 2 ;;
+    --evidence-after) EVIDENCE_AFTER="$2"; shift 2 ;;
     --auto-dialogue) AUTO_DIALOGUE="$2"; shift 2 ;;
     --autowalk-after) AUTOWALK_AFTER="$2"; shift 2 ;;
     --converging-builds) CONVERGING_BUILDS="$2"; shift 2 ;;
@@ -138,6 +141,11 @@ fi
 [[ -n "$OUTPUT_ROOT" ]] || { echo "ERROR: --output is required." >&2; exit 2; }
 [[ -n "$SCENE" && -f "$SCENE" && "$SCENE" == *.unity ]] || { echo "ERROR: a valid --scene or --scene-issue is required." >&2; exit 2; }
 
+# The standalone app may resolve relative command-line paths from its bundle/runtime directory.
+# Normalize the artifact root once so logs and presented-frame captures always return to the caller's
+# requested location regardless of how the player changes its working directory at launch.
+if [[ "$OUTPUT_ROOT" != /* ]]; then OUTPUT_ROOT="$PWD/$OUTPUT_ROOT"; fi
+
 validate_positive_int() {
   local value="$1" name="$2"
   [[ "$value" =~ ^[0-9]+$ && "$value" -gt 0 ]] || { echo "ERROR: $name must be a positive integer." >&2; exit 2; }
@@ -148,6 +156,18 @@ validate_positive_int "$SCREENSHOT_EVERY" screenshot-every
 validate_positive_int "$MINIMUM_FRAMES" minimum-frames
 : "${RUN_SECONDS:=30}"
 if [[ ! "$RUN_SECONDS" =~ ^[0-9]+([.][0-9]+)?$ ]]; then echo "ERROR: run-seconds must be numeric." >&2; exit 2; fi
+if ! python3 - "$EVIDENCE_AFTER" "$RUN_SECONDS" <<'PY'
+import sys
+try:
+    evidence_after=float(sys.argv[1]); run_seconds=float(sys.argv[2])
+except ValueError:
+    raise SystemExit(1)
+raise SystemExit(0 if 0 <= evidence_after < run_seconds else 1)
+PY
+then
+  echo "ERROR: evidence-after must be numeric, non-negative, and less than run-seconds." >&2
+  exit 2
+fi
 if [[ -n "$STATIONARY_SAMPLE" && ( -n "$AUTOWALK_AFTER" || -n "$SURVEY_AFTER" ) ]]; then
   echo "ERROR: stationary sampling cannot be combined with movement." >&2
   exit 2
@@ -165,10 +185,11 @@ trap 'cleanup_build; cleanup_patterns' EXIT
 
 wait_for_unity_quiet() {
   local deadline=$((SECONDS + 900))
-  while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+  local unity_process='^/Applications/Unity/Hub/Editor/[^/]*/Unity.app/Contents/MacOS/Unity( |$)'
+  while pgrep -f "$unity_process" >/dev/null 2>&1; do
     if (( SECONDS >= deadline )); then
       echo "ERROR: Unity did not become idle before real-player build." >&2
-      pgrep -alf '/Unity.app/Contents/MacOS/Unity' >&2 || true
+      pgrep -alf "$unity_process" >&2 || true
       return 1
     fi
     sleep 5
@@ -219,6 +240,11 @@ kill "$WATCHDOG" 2>/dev/null || true
 wait "$WATCHDOG" 2>/dev/null || true
 (( status == 0 )) || exit "$status"
 
+if [[ -s "$PLAYER_LOG" ]] && grep -q 'FRAMEPIPE ' "$PLAYER_LOG"; then
+  echo "=== REAL PLAYER CPU/GPU FRAME PIPELINE TAIL ==="
+  grep 'FRAMEPIPE ' "$PLAYER_LOG" | tail -30
+fi
+
 if [[ -n "$STATIONARY_SAMPLE" ]]; then
   grep 'STATIONARY result=' "$PLAYER_LOG" > "$STATIONARY_LOG" || true
   grep -q 'STATIONARY result=PASS' "$STATIONARY_LOG" || { echo "ERROR: stationary benchmark did not pass." >&2; exit 1; }
@@ -237,6 +263,12 @@ if [[ -n "$FORBIDDEN_LOG_PATTERNS_FILE" ]]; then
     if grep -Fq -- "$pattern" "$PLAYER_LOG"; then echo "ERROR: forbidden player-log pattern found: $pattern" >&2; exit 1; fi
   done < "$FORBIDDEN_LOG_PATTERNS_FILE"
 fi
+
+# A module may need startup time before its output is meaningful visual evidence. Keep capture
+# cadence generic, but let declarative scenario metadata exclude frames taken before that semantic
+# evidence window. This prevents startup-clear frames from satisfying a visual gate without adding
+# module/scene-name policy to the shared harness.
+python3 tools/player-evidence.py --screenshots "$SHOTS_DIR" --evidence-after "$EVIDENCE_AFTER"
 
 shots="$(find "$SHOTS_DIR" -type f -name '*.png' -size +1k | wc -l | tr -d ' ')"
 echo "real-player screenshots captured: $shots"
