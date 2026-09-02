@@ -2,7 +2,7 @@
 
 ## Defect / acceptance
 
-WorldBuilder needs deterministic `Secret -> Route(s) -> Clue(s)` planning with stable identity, semantic pre-solve evidence, explicit bypass policy, reusable route/discovery integration, and built-player proof. There are no original captures/marked regions. `issue.json` still requires representative `WorldbuildingGalleryShowcase` examples and exact built Gallery validation; the user later explicitly directed this assignment not to integrate into that Gallery. Acceptance may not be silently weakened, so that conflict is a closure blocker.
+WorldBuilder needs deterministic `Secret -> Route(s) -> Clue(s)` planning with stable identity, semantic pre-solve evidence, explicit bypass policy, reusable route/discovery integration, and built-player proof. There are no original captures/marked regions. `issue.json` still requires representative `WorldbuildingGalleryShowcase` examples and exact built Gallery validation; the user explicitly directed this assignment not to integrate the feature into that Gallery. Acceptance may not be silently weakened, so that conflict remains a closure blocker.
 
 ## Hypotheses / results
 
@@ -10,7 +10,8 @@ WorldBuilder needs deterministic `Secret -> Route(s) -> Clue(s)` planning with s
 - Canonical interactable/discovery integration is available and proven: run `33419056074` is green and revisit/reload/repeated activation remains idempotent.
 - Generated cave secret geometry is reusable: `CaveSecretPocketComposition` authors verified barrier/connector/pocket topology and canonical WorldBuilder projection; run `33420376990` is green.
 - Primitive/parallel visual proof failed production-quality review and was removed.
-- Random moss coating preserved topology but was too subtle as a clue. Replaced with a deterministic cave-face fracture mask. Exact run `33537413920` passed the focused fracture regression plus all automatic module/player/Kentridge gates.
+- Random moss coating preserved topology but was too subtle as a clue. Replaced with a deterministic cave-face fracture mask. Exact run `33537413920` passed the focused fracture regression plus the then-current module/player/Kentridge gates.
+- Current repository convention no longer uses `*.module-validation.json`; the dedicated scene/scenario and module-local tests are convention-discovered. The obsolete registration file was removed after merging current master.
 
 ## Selected direction
 
@@ -20,6 +21,6 @@ Full-resolution run `33537413920`: 3s entrance, 6s interior, 9/12/15s readable f
 
 ## Current state / remaining gates
 
-Last exact production source `8cc35bd4dd8d0c34444123a865f555cbde7ca21c` is green via request `9d018001d36b66f2c9002bc683f381d7eb0a5963` / run `33537413920`. Current branch has only durable evidence updates after that SHA.
+`origin/master` at `b1b69290a59278b0e7caba798641c76a9866aa5c` was merged into the feature branch in merge commit `dee150fa000597d6abe1a2693e3a15d429266fb5`. Conflict resolution moved this assignment's tests into the current module-local `Assets/Game/WorldBuilder/Tests/EditMode/` assembly layout. After the merge, the obsolete module-validation registration was removed in `eec43c913620425c36f65380efb04d3882c92390`.
 
-Independent implementation/regression/player work is complete enough to validate the dedicated scene. Do **not** close while the Gallery acceptance conflict remains. Once resolved, merge current `origin/master`, re-run exact-SHA gates after the merge, inspect full-resolution evidence, complete issue metadata, move `open -> closed`, and push that exact head to `origin/master` non-force.
+Next discriminator is exact-SHA CI on the merged/convention-correct branch: the behavioral regression must still pass, convention discovery must run the module-local suite and dedicated player scene, Kentridge integration must remain green, and full-resolution dedicated captures must retain the fracture/breach/reveal sequence. Do **not** close while the Gallery acceptance conflict remains. If exact-SHA validation is green, record it as independent work complete and remain open on the acceptance blocker.
