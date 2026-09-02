@@ -1,7 +1,7 @@
 {
   "platform": "EditMode",
-  "test": "VoxelEngine.Tests.EditMode.ArchitectureShapeProgramBuilderTests.PrimitiveOverridesRejectNegativeCornerRadius",
-  "request_id": "template",
-  "scene_issue": "",
-  "replay_seconds": ""
+  "test": "",
+  "request_id": "enable-gpu-smallvoxel-20260902",
+  "scene_issue": "SceneIssues/open/enable-gpu-smallvoxel-debug/issue.json",
+  "replay_seconds": "30"
 }
