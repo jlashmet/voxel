@@ -31,6 +31,11 @@ namespace VoxelEngine.Showcase.Tests.EditMode
                 "The startup payload exceeded the established compact-bake envelope.");
 
             string manifest = ShowcaseStartupBakeContract.CreateManifest(bytes);
+            File.WriteAllText(
+                ShowcaseStartupBakeContract.ManifestAssetPath,
+                manifest,
+                new System.Text.UTF8Encoding(false));
+
             Directory.CreateDirectory(ArtifactDirectory);
             File.WriteAllBytes(Path.Combine(ArtifactDirectory, "ShowcaseWorld.bytes"), bytes);
             File.WriteAllText(
