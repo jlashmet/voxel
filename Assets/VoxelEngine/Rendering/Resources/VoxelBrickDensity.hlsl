@@ -152,6 +152,20 @@ uint DecodeSurfaceStorage(uint packedStorage)
 
 int3 WorldBrickOf(int3 p) { return int3(p.x >> 3, p.y >> 3, p.z >> 3); }
 
+struct DenseBrickCacheView
+{
+    int3 origin;
+    uint baseIndex;
+};
+
+DenseBrickCacheView DefaultDenseBrickCacheView()
+{
+    DenseBrickCacheView view;
+    view.origin = _BrickCacheOrigin;
+    view.baseIndex = 0u;
+    return view;
+}
+
 #if defined(VOXEL_FORCE_PERSISTENT_LOOKUP)
 uint HashBrickCoordinate(int3 coordinate)
 {
@@ -191,7 +205,8 @@ uint PersistentBrickEntry(int3 coordinate)
 }
 #endif
 
-uint ReadMaterial(int3 p, out uint surface, out uint boundary)
+uint ReadMaterialWithCache(int3 p, DenseBrickCacheView cache,
+                           out uint surface, out uint boundary)
 {
     surface = 0u;
     boundary = 0u;
@@ -201,14 +216,14 @@ uint ReadMaterial(int3 p, out uint surface, out uint boundary)
 #if defined(VOXEL_FORCE_PERSISTENT_LOOKUP)
     entry = PersistentBrickEntry(worldBrick);
 #else
-    int3 localBrick = worldBrick - _BrickCacheOrigin;
+    int3 localBrick = worldBrick - cache.origin;
     if ((uint)localBrick.x >= (uint)_BrickCacheEdge
      || (uint)localBrick.y >= (uint)_BrickCacheEdge
      || (uint)localBrick.z >= (uint)_BrickCacheEdge)
         return 0u;
     int brickIndex = localBrick.x
                    + _BrickCacheEdge * (localBrick.y + _BrickCacheEdge * localBrick.z);
-    entry = _BrickCache[brickIndex];
+    entry = _BrickCache[cache.baseIndex + (uint)brickIndex];
 #endif
 
     uint kind = entry & 0x3u;
@@ -231,6 +246,11 @@ uint ReadMaterial(int3 p, out uint surface, out uint boundary)
     return material;
 }
 
+uint ReadMaterial(int3 p, out uint surface, out uint boundary)
+{
+    return ReadMaterialWithCache(p, DefaultDenseBrickCacheView(), surface, boundary);
+}
+
 bool BoundaryIsAuthored(uint packed) { return packed != 0u; }
 
 int BoundarySignedQ3(uint packed)
@@ -251,10 +271,11 @@ bool BoundaryAppliesAlong(uint packed, int edgeAxis)
 }
 
 float AddTap(int3 p, float weight, bool centreSolid, StyleDefinition centreStyle,
+             DenseBrickCacheView cache,
              inout uint dominantMaterial, inout uint dominantSurface)
 {
     uint surface, boundary;
-    uint material = ReadMaterial(p, surface, boundary);
+    uint material = ReadMaterialWithCache(p, cache, surface, boundary);
     if (!IsSolidSample(material)) return 0.0;
 
     surface = ResolveSurface(material, surface);
@@ -292,13 +313,14 @@ void ConsiderExposedMaterial(int exposedDistance, bool preferVisibleTopMaterial,
 }
 
 void ConsiderCrossingRay(int3 p, int3 direction, bool preferVisibleTopMaterial, int sourceStep,
-                         uint centreMaterial, uint centreSurface,
+                         uint centreMaterial, uint centreSurface, DenseBrickCacheView cache,
                          inout int bestDistance, inout int bestMaterialDistance,
                          inout bool hasVisibleTopMaterial,
                          inout uint dominantMaterial, inout uint dominantSurface)
 {
     uint farSurface, farBoundary;
-    uint farMaterial = ReadMaterial(p + direction * sourceStep, farSurface, farBoundary);
+    uint farMaterial = ReadMaterialWithCache(
+        p + direction * sourceStep, cache, farSurface, farBoundary);
     if (IsSolidSample(farMaterial)) return;
 
     uint lastMaterial = centreMaterial;
@@ -306,7 +328,8 @@ void ConsiderCrossingRay(int3 p, int3 direction, bool preferVisibleTopMaterial, 
     for (int distance = 1; distance < sourceStep; distance++)
     {
         uint surface, boundary;
-        uint material = ReadMaterial(p + direction * distance, surface, boundary);
+        uint material = ReadMaterialWithCache(
+            p + direction * distance, cache, surface, boundary);
         if (!IsSolidSample(material))
         {
             ConsiderExposedMaterial(distance - 1, preferVisibleTopMaterial,
@@ -326,6 +349,7 @@ void ConsiderCrossingRay(int3 p, int3 direction, bool preferVisibleTopMaterial, 
 
 int PreferNearestCrossingSurfaceMaterial(int3 p, int sourceStep,
                                          uint centreMaterial, uint centreSurface,
+                                         DenseBrickCacheView cache,
                                          inout uint dominantMaterial,
                                          inout uint dominantSurface)
 {
@@ -333,32 +357,34 @@ int PreferNearestCrossingSurfaceMaterial(int3 p, int sourceStep,
     int bestMaterialDistance = sourceStep;
     bool hasVisibleTopMaterial = false;
 
-    ConsiderCrossingRay(p, int3( 1, 0, 0), false, sourceStep, centreMaterial, centreSurface,
+    ConsiderCrossingRay(p, int3( 1, 0, 0), false, sourceStep, centreMaterial, centreSurface, cache,
         bestDistance, bestMaterialDistance, hasVisibleTopMaterial, dominantMaterial, dominantSurface);
-    ConsiderCrossingRay(p, int3(-1, 0, 0), false, sourceStep, centreMaterial, centreSurface,
+    ConsiderCrossingRay(p, int3(-1, 0, 0), false, sourceStep, centreMaterial, centreSurface, cache,
         bestDistance, bestMaterialDistance, hasVisibleTopMaterial, dominantMaterial, dominantSurface);
-    ConsiderCrossingRay(p, int3(0,  1, 0), true, sourceStep, centreMaterial, centreSurface,
+    ConsiderCrossingRay(p, int3(0,  1, 0), true, sourceStep, centreMaterial, centreSurface, cache,
         bestDistance, bestMaterialDistance, hasVisibleTopMaterial, dominantMaterial, dominantSurface);
-    ConsiderCrossingRay(p, int3(0, -1, 0), false, sourceStep, centreMaterial, centreSurface,
+    ConsiderCrossingRay(p, int3(0, -1, 0), false, sourceStep, centreMaterial, centreSurface, cache,
         bestDistance, bestMaterialDistance, hasVisibleTopMaterial, dominantMaterial, dominantSurface);
-    ConsiderCrossingRay(p, int3(0, 0,  1), false, sourceStep, centreMaterial, centreSurface,
+    ConsiderCrossingRay(p, int3(0, 0,  1), false, sourceStep, centreMaterial, centreSurface, cache,
         bestDistance, bestMaterialDistance, hasVisibleTopMaterial, dominantMaterial, dominantSurface);
-    ConsiderCrossingRay(p, int3(0, 0,-1), false, sourceStep, centreMaterial, centreSurface,
+    ConsiderCrossingRay(p, int3(0, 0,-1), false, sourceStep, centreMaterial, centreSurface, cache,
         bestDistance, bestMaterialDistance, hasVisibleTopMaterial, dominantMaterial, dominantSurface);
     return bestDistance;
 }
 
 void ConsiderPhaseCrossingRay(int3 p, int3 direction, int sourceStep, bool centreSolid,
-                              inout int bestDistance)
+                              DenseBrickCacheView cache, inout int bestDistance)
 {
     uint farSurface, farBoundary;
-    uint farMaterial = ReadMaterial(p + direction * sourceStep, farSurface, farBoundary);
+    uint farMaterial = ReadMaterialWithCache(
+        p + direction * sourceStep, cache, farSurface, farBoundary);
     if (IsSolidSample(farMaterial) == centreSolid) return;
 
     for (int distance = 1; distance < sourceStep; distance++)
     {
         uint surface, boundary;
-        uint material = ReadMaterial(p + direction * distance, surface, boundary);
+        uint material = ReadMaterialWithCache(
+            p + direction * distance, cache, surface, boundary);
         if (IsSolidSample(material) == centreSolid) continue;
         bestDistance = min(bestDistance, distance - 1);
         return;
@@ -367,23 +393,25 @@ void ConsiderPhaseCrossingRay(int3 p, int3 direction, int sourceStep, bool centr
     bestDistance = min(bestDistance, sourceStep - 1);
 }
 
-int FindNearestCrossingDistance(int3 p, int sourceStep, bool centreSolid)
+int FindNearestCrossingDistance(int3 p, int sourceStep, bool centreSolid,
+                                DenseBrickCacheView cache)
 {
     int bestDistance = sourceStep;
-    ConsiderPhaseCrossingRay(p, int3( 1, 0, 0), sourceStep, centreSolid, bestDistance);
-    ConsiderPhaseCrossingRay(p, int3(-1, 0, 0), sourceStep, centreSolid, bestDistance);
-    ConsiderPhaseCrossingRay(p, int3(0,  1, 0), sourceStep, centreSolid, bestDistance);
-    ConsiderPhaseCrossingRay(p, int3(0, -1, 0), sourceStep, centreSolid, bestDistance);
-    ConsiderPhaseCrossingRay(p, int3(0, 0,  1), sourceStep, centreSolid, bestDistance);
-    ConsiderPhaseCrossingRay(p, int3(0, 0, -1), sourceStep, centreSolid, bestDistance);
+    ConsiderPhaseCrossingRay(p, int3( 1, 0, 0), sourceStep, centreSolid, cache, bestDistance);
+    ConsiderPhaseCrossingRay(p, int3(-1, 0, 0), sourceStep, centreSolid, cache, bestDistance);
+    ConsiderPhaseCrossingRay(p, int3(0,  1, 0), sourceStep, centreSolid, cache, bestDistance);
+    ConsiderPhaseCrossingRay(p, int3(0, -1, 0), sourceStep, centreSolid, cache, bestDistance);
+    ConsiderPhaseCrossingRay(p, int3(0, 0,  1), sourceStep, centreSolid, cache, bestDistance);
+    ConsiderPhaseCrossingRay(p, int3(0, 0, -1), sourceStep, centreSolid, cache, bestDistance);
     return bestDistance;
 }
 
-float SampleField(int3 p, int sourceStep, out uint dominantMaterial, out uint dominantSurface,
-                  out uint dominantBoundary)
+float SampleFieldWithCache(int3 p, int sourceStep, DenseBrickCacheView cache,
+                           out uint dominantMaterial, out uint dominantSurface,
+                           out uint dominantBoundary)
 {
     uint centreSurface, packedBoundary;
-    uint centre = ReadMaterial(p, centreSurface, packedBoundary);
+    uint centre = ReadMaterialWithCache(p, cache, centreSurface, packedBoundary);
     dominantBoundary = packedBoundary;
 
     bool centreSolid = IsSolidSample(centre);
@@ -413,20 +441,20 @@ float SampleField(int3 p, int sourceStep, out uint dominantMaterial, out uint do
     dominantSurface = centreSolid ? centreSurface : 0u;
 
     float near = 0.06 * curvature;
-    mass += AddTap(p + int3( 1, 0, 0), near, centreSolid, centreStyle, dominantMaterial, dominantSurface);
-    mass += AddTap(p + int3(-1, 0, 0), near, centreSolid, centreStyle, dominantMaterial, dominantSurface);
-    mass += AddTap(p + int3( 0, 1, 0), near, centreSolid, centreStyle, dominantMaterial, dominantSurface);
-    mass += AddTap(p + int3( 0,-1, 0), near, centreSolid, centreStyle, dominantMaterial, dominantSurface);
-    mass += AddTap(p + int3( 0, 0, 1), near, centreSolid, centreStyle, dominantMaterial, dominantSurface);
-    mass += AddTap(p + int3( 0, 0,-1), near, centreSolid, centreStyle, dominantMaterial, dominantSurface);
+    mass += AddTap(p + int3( 1, 0, 0), near, centreSolid, centreStyle, cache, dominantMaterial, dominantSurface);
+    mass += AddTap(p + int3(-1, 0, 0), near, centreSolid, centreStyle, cache, dominantMaterial, dominantSurface);
+    mass += AddTap(p + int3( 0, 1, 0), near, centreSolid, centreStyle, cache, dominantMaterial, dominantSurface);
+    mass += AddTap(p + int3( 0,-1, 0), near, centreSolid, centreStyle, cache, dominantMaterial, dominantSurface);
+    mass += AddTap(p + int3( 0, 0, 1), near, centreSolid, centreStyle, cache, dominantMaterial, dominantSurface);
+    mass += AddTap(p + int3( 0, 0,-1), near, centreSolid, centreStyle, cache, dominantMaterial, dominantSurface);
 
     float far = 0.04 * curvature;
-    mass += AddTap(p + int3( 2, 0, 0), far, centreSolid, centreStyle, dominantMaterial, dominantSurface);
-    mass += AddTap(p + int3(-2, 0, 0), far, centreSolid, centreStyle, dominantMaterial, dominantSurface);
-    mass += AddTap(p + int3( 0, 2, 0), far, centreSolid, centreStyle, dominantMaterial, dominantSurface);
-    mass += AddTap(p + int3( 0,-2, 0), far, centreSolid, centreStyle, dominantMaterial, dominantSurface);
-    mass += AddTap(p + int3( 0, 0, 2), far, centreSolid, centreStyle, dominantMaterial, dominantSurface);
-    mass += AddTap(p + int3( 0, 0,-2), far, centreSolid, centreStyle, dominantMaterial, dominantSurface);
+    mass += AddTap(p + int3( 2, 0, 0), far, centreSolid, centreStyle, cache, dominantMaterial, dominantSurface);
+    mass += AddTap(p + int3(-2, 0, 0), far, centreSolid, centreStyle, cache, dominantMaterial, dominantSurface);
+    mass += AddTap(p + int3( 0, 2, 0), far, centreSolid, centreStyle, cache, dominantMaterial, dominantSurface);
+    mass += AddTap(p + int3( 0,-2, 0), far, centreSolid, centreStyle, cache, dominantMaterial, dominantSurface);
+    mass += AddTap(p + int3( 0, 0, 2), far, centreSolid, centreStyle, cache, dominantMaterial, dominantSurface);
+    mass += AddTap(p + int3( 0, 0,-2), far, centreSolid, centreStyle, cache, dominantMaterial, dominantSurface);
 
     float density = mass - 0.5;
     int nearestCrossingDistance = sourceStep;
@@ -435,11 +463,12 @@ float SampleField(int3 p, int sourceStep, out uint dominantMaterial, out uint do
         if (centreSolid)
         {
             nearestCrossingDistance = PreferNearestCrossingSurfaceMaterial(
-                p, sourceStep, centre, centreSurface, dominantMaterial, dominantSurface);
+                p, sourceStep, centre, centreSurface, cache, dominantMaterial, dominantSurface);
         }
         else
         {
-            nearestCrossingDistance = FindNearestCrossingDistance(p, sourceStep, centreSolid);
+            nearestCrossingDistance = FindNearestCrossingDistance(
+                p, sourceStep, centreSolid, cache);
         }
 
         bool densitySignMatchesOccupancy = centreSolid ? density >= 0.0 : density < 0.0;
@@ -455,6 +484,14 @@ float SampleField(int3 p, int sourceStep, out uint dominantMaterial, out uint do
     dominantSurface = WithAuthoritativeOccupancy(dominantSurface, centreSolid);
 
     return density + (centreSolid ? CoatingDisplacement(centreSurface) : 0.0);
+}
+
+float SampleField(int3 p, int sourceStep, out uint dominantMaterial, out uint dominantSurface,
+                  out uint dominantBoundary)
+{
+    return SampleFieldWithCache(
+        p, sourceStep, DefaultDenseBrickCacheView(),
+        dominantMaterial, dominantSurface, dominantBoundary);
 }
 
 #endif // VOXEL_BRICK_DENSITY_INCLUDED
