@@ -154,6 +154,7 @@ uint DecodeSurfaceStorage(uint packedStorage)
 
 int3 WorldBrickOf(int3 p) { return int3(p.x >> 3, p.y >> 3, p.z >> 3); }
 
+#if !defined(VOXEL_FORCE_DENSE_LOOKUP)
 uint HashBrickCoordinate(int3 coordinate)
 {
     uint h = asuint(coordinate.x) * 0x8da6b343u;
@@ -190,6 +191,7 @@ uint PersistentBrickEntry(int3 coordinate)
     }
     return 0u;
 }
+#endif
 
 uint ReadMaterial(int3 p, out uint surface, out uint boundary)
 {
@@ -198,6 +200,18 @@ uint ReadMaterial(int3 p, out uint surface, out uint boundary)
 
     int3 worldBrick = WorldBrickOf(p);
     uint entry = 0u;
+#if defined(VOXEL_FORCE_DENSE_LOOKUP)
+    int3 localBrick = worldBrick - _BrickCacheOrigin;
+    if ((uint)localBrick.x >= (uint)_BrickCacheEdge
+     || (uint)localBrick.y >= (uint)_BrickCacheEdge
+     || (uint)localBrick.z >= (uint)_BrickCacheEdge)
+        return 0u;
+    int brickIndex = localBrick.x
+                   + _BrickCacheEdge * (localBrick.y + _BrickCacheEdge * localBrick.z);
+    entry = _BrickCache[brickIndex];
+#elif defined(VOXEL_FORCE_PERSISTENT_LOOKUP)
+    entry = PersistentBrickEntry(worldBrick);
+#else
     [branch]
     if (_BrickCache[0] == PERSISTENT_LOOKUP_MAGIC)
     {
@@ -214,6 +228,7 @@ uint ReadMaterial(int3 p, out uint surface, out uint boundary)
                        + _BrickCacheEdge * (localBrick.y + _BrickCacheEdge * localBrick.z);
         entry = _BrickCache[brickIndex];
     }
+#endif
 
     uint kind = entry & 0x3u;
     if (kind == 0u) return 0u;
