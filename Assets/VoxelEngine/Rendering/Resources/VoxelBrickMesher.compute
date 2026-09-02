@@ -200,7 +200,7 @@ uint VertexSlot(uint local) { return (uint)_VertexWriteBase + ArenaVertex(local)
 uint ArenaIndexSlot(uint local)
 {
     uint page = _ChunkPages[local / (uint)_IndicesPerPage];
-    return (uint)_IndexWriteBase + page * (uint)_IndicesPerPage + local % (uint)_IndicesPerPage;
+    return (uint)_VertexWriteBase + page * (uint)_IndicesPerPage + local % (uint)_IndicesPerPage;
 }
 
 int GridIndex(int3 g) { return g.x + _GridSize * (g.y + _GridSize * g.z); }
@@ -362,7 +362,8 @@ void CSSampleDensity(uint3 id : SV_DispatchThreadID)
     int3 p = _ChunkOriginVoxel + (int3(gx, gy, gz) - _Padding) * _SourceStep;
 
     uint material, surface, boundary;
-    _DensityWrite[index] = SampleField(p, _SourceStep, material, surface, boundary);
+    float density = SampleField(p, _SourceStep, material, surface, boundary);
+    _DensityWrite[index] = density;
     _SampleMaterialWrite[index] = material;
     _SampleSurfaceWrite[index] = surface;
     _SampleBoundaryWrite[index] = boundary;
@@ -383,8 +384,8 @@ void CSBatchSampleDensity(uint3 id : SV_DispatchThreadID)
            + (int3(gx, gy, gz) - _Padding) * chunk.sourceStep;
     uint material, surface, boundary;
     int output = (int)id.y * total + index;
-    _BatchDensityWrite[output] = SampleField(
-        p, chunk.sourceStep, material, surface, boundary);
+    float density = SampleField(p, chunk.sourceStep, material, surface, boundary);
+    _BatchDensityWrite[output] = density;
     _BatchSampleMaterialWrite[output] = material;
     _BatchSampleSurfaceWrite[output] = surface;
     _BatchSampleBoundaryWrite[output] = boundary;
