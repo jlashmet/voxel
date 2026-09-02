@@ -281,6 +281,423 @@ If both are yes, the other listed capabilities appear tractable and there is no 
 
 Recent work on GPU-editable compact voxel representations makes the edit problem less discouraging: a future implementation does not necessarily require rebuilding compressed hierarchy state on the CPU after every edit.
 
+# Minimal Aokana kill-test experiment program
+
+The existing renderer benchmark harness is **Experiment 0 and already exists**. Do not build another benchmark framework. Reuse the existing deterministic scenes/camera paths/timing and add only counters or outputs that are required by an experiment.
+
+The goal of this sequence is not to build Aokana. It is to discover the cheapest reason to stop, narrow, or continue the approach. Experimental code may be ugly, hard-coded, single-scene, preallocated, CPU-built, or otherwise non-production-quality when that reduces work without invalidating the result.
+
+Do **not** build production streaming, generalized hierarchy allocators, full materials, automatic representation classification, production GPU editing, editor tooling, or a second renderer architecture before the corresponding experiment earns that work.
+
+## Experiment order
+
+| Order | Question | Minimal artifact | Stop/go value |
+| ---: | --- | --- | --- |
+| 1 | Do SVO/SVDAG structures compress our actual world data enough to justify hierarchy complexity? | CPU-only hierarchy microbenchmark | Can eliminate DAG or hierarchy direction before shaders |
+| 2 | Is raw hierarchical voxel traversal remotely competitive on target GPUs, especially Metal? | Depth-only compute traversal over prebuilt resident data | Detect platform-level failure immediately |
+| 3 | Can hierarchy traversal recover smooth density surfaces at acceptable quality/cost? | Broad-phase hierarchy + local density intersection | Decides whether Aokana can plausibly be universal |
+| 4 | Can ordinary destruction update the hierarchy cheaply enough with the simplest rebuild scheme? | Rebuild one bounded shallow chunk and generation-swap it | Decides whether the renderer fits a destructible game |
+| 5 | Do Aokana-style screen tiles + temporal Hi-Z materially reduce realistic traversal cost? | Conservative tile/chunk candidates + previous-frame Hi-Z | Establishes realistic optimized traversal value |
+| 6 | Can material/surface identity remain separate and cheap? | Tiny visibility buffer + 4-8 material resolve | Tests semantic/data separation without porting shaders |
+| 7 | Are simple planar regions sufficiently worse under traversal to justify a hybrid? | Manually route one benchmark region to a quad/grid | Determines whether automatic hybrid ownership is worth engineering |
+| 8 | Do cutaways/water reveal hidden integration blockers? | One cutaway predicate; existing water composed unchanged | Integration check only after architecture survives |
+
+The first five experiments should be sufficient to choose the broad architecture direction.
+
+## Experiment 1: CPU-only SVO vs SVDAG representation test
+
+### Question
+
+Do hierarchy compression and DAG deduplication actually help with **our** voxel data, or would a simpler shallow sparse octree be better for a dynamic world?
+
+### Minimal implementation
+
+No rendering and no GPU code.
+
+Build temporary CPU representations over representative authoritative voxel regions:
+
+```text
+dense/source representation
+        vs
+shallow SVO
+        vs
+shallow SVDAG
+```
+
+Initially encode only spatial occupancy/classification needed for traversal. Do **not** place material/coating payload in DAG identity; that would confound the geometry-sharing result.
+
+Test a small set of shallow spatial sizes such as 32^3, 64^3, and 128^3 where the existing brick/chunk layout permits meaningful comparison. These are experiment parameters, not proposed production sizes.
+
+Use at minimum:
+
+- flat terrain;
+- smooth hills;
+- cave/overhang region;
+- structure/castle region;
+- heavily destroyed region;
+- deliberately noisy/worst-case region.
+
+### Measure
+
+- source bytes represented;
+- SVO node count and bytes;
+- SVDAG unique-node count and bytes;
+- SVDAG deduplication ratio relative to SVO;
+- CPU build time;
+- maximum and average hierarchy depth;
+- after one voxel edit: nodes/bytes that would need replacement for a local rebuild;
+- after a small explosion edit: same dirty amplification metrics.
+
+### Stop/go criteria
+
+- **Drop SVDAG deduplication** if SVDAG saves little memory versus SVO on representative gameplay data while materially increasing build/update complexity. Aokana-style traversal/visibility may still continue with a shallow SVO.
+- **Continue SVDAG research** only if sharing gives a clear material memory/bandwidth advantage on representative data, not merely synthetic best cases.
+- **Question the hierarchy direction entirely** if both SVO and SVDAG retain so much data or require such pathological structure that they cannot plausibly beat the current detailed mirror + geometry cost.
+
+This experiment explicitly permits the outcome:
+
+```text
+Aokana traversal ideas = useful
+SVDAG sharing          = not useful
+```
+
+## Experiment 2: raw depth-only GPU traversal
+
+### Question
+
+Before adding Aokana's visibility machinery, is basic shallow-hierarchy traversal viable on the GPUs we actually care about?
+
+### Minimal implementation
+
+Use a hierarchy built offline/CPU-side and uploaded once. No streaming, edits, materials, lighting, smooth density reconstruction, water, or LOD sophistication.
+
+One compute/raster integration point should emit only:
+
+```text
+R32 depth
++ optional hit/miss/debug counters
+```
+
+For each pixel/ray:
+
+```text
+camera ray
+   -> shallow hierarchy traversal
+   -> first occupied leaf/voxel
+   -> write depth
+```
+
+Do not add Hi-Z yet. The point is to expose raw traversal divergence, memory behavior, and platform cost.
+
+Run at minimum on:
+
+- Apple Metal hardware;
+- one discrete GPU through the intended Vulkan/DX12-class backend.
+
+Use flat, cave, and noisy scenes because they exercise very different hit/miss/traversal behavior.
+
+### Measure
+
+- GPU traversal milliseconds;
+- total GPU frame delta relative to the same benchmark without the experiment;
+- average node visits per ray/pixel;
+- p95/p99 node visits;
+- hit-ray node visits;
+- miss-ray node visits;
+- dependent node loads if cheaply countable;
+- pixels dispatched and pixels hitting geometry;
+- hierarchy bytes resident.
+
+### Stop/go criteria
+
+Do not require raw traversal to beat the mature mesh renderer yet; it intentionally lacks Aokana's visibility advantages.
+
+- **Stop Aokana-as-primary on a platform** if depth-only traversal is catastrophically slower than the entire current solid-render cost, especially on Metal, with no plausible amount of visibility rejection able to close the gap.
+- **Continue** if raw traversal is in the same broad performance regime as the current renderer or if the measured cost is dominated by work that Experiment 5 can clearly avoid.
+- If Metal fails badly while discrete GPUs are good, classify this as a platform architecture problem immediately rather than postponing it until after full implementation.
+
+## Experiment 3: smooth-density local intersection
+
+### Question
+
+Can hierarchy traversal reproduce our smooth Transvoxel/density surfaces without excessive per-pixel fine sampling?
+
+### Minimal implementation
+
+Do **not** encode the full smooth field into the DAG.
+
+Use hierarchy traversal only as broad phase:
+
+```text
+ray
+ -> skip empty/full macro space with hierarchy
+ -> reach candidate detailed mixed brick/leaf
+ -> use existing detailed GPU voxel/density data
+ -> local DDA/cell search
+ -> detect density sign crossing
+ -> interpolate surface hit
+ -> estimate/reconstruct normal
+```
+
+Reuse the existing detailed mirror and density semantics where possible. The experiment should avoid designing a new storage format.
+
+Render only depth and normal for three controlled smooth cases:
+
+- sphere or equivalent analytic curved fixture;
+- smooth hill;
+- smooth cave/interior surface.
+
+Compare against the existing GPU/CPU surface oracle and current renderer from identical cameras.
+
+### Measure
+
+- depth/surface-position error in voxel units;
+- silhouette mismatch pixels;
+- holes/missing-hit count;
+- normal angular error;
+- material-boundary position error where available cheaply;
+- hierarchy visits per pixel;
+- detailed density samples per successful hit;
+- GPU time for broad traversal separately from local fine intersection if possible.
+
+### Stop/go criteria
+
+- **Aokana can remain a universal candidate** if equivalent/acceptable silhouettes and surface positions can be recovered with bounded local sampling and competitive GPU cost.
+- **Demote to hybrid** if block/discrete traversal is fast but smooth surfaces require excessive density evaluations or visibly fail near-camera quality. Retain generated mesh for smooth near surfaces rather than forcing universal traversal.
+- **Stop the traversal direction** if even the hierarchy broad phase cannot reliably identify/reconstruct the existing smooth surface semantics without essentially re-running a more expensive mesher/root finder per pixel.
+
+Do not solve materials, shadows, or production normal filtering in this experiment.
+
+## Experiment 4: simplest possible destruction maintenance
+
+### Question
+
+Can ordinary game edits update the hierarchy cheaply enough **without** first implementing editable GPU HashDAG machinery?
+
+### Minimal implementation
+
+Use the deliberately simple solution first:
+
+```text
+authoritative edit
+   -> identify affected shallow hierarchy chunk
+   -> rebuild that whole bounded chunk on CPU
+   -> upload replacement node blob
+   -> generation-safe pointer/table swap
+   -> retire old blob later
+```
+
+No individual-node editing. No GPU allocator. No dynamic compaction. No production hash table.
+
+Try a small range of hierarchy chunk sizes discovered in Experiment 1. The purpose is to learn whether whole-small-chunk rebuild is already cheap enough.
+
+Use these edit shapes:
+
+1. one voxel;
+2. 3x3x3 edit;
+3. small radius explosion;
+4. repeated drilling through a wall;
+5. random edit storm within one hierarchy chunk;
+6. edits crossing neighboring hierarchy chunks.
+
+### Measure
+
+- authoritative voxels changed;
+- hierarchy chunks rebuilt;
+- nodes rebuilt;
+- bytes rebuilt;
+- bytes uploaded;
+- dirty amplification = derived bytes/nodes rebuilt per authoritative voxel changed;
+- CPU rebuild time;
+- GPU upload/publication time where measurable;
+- edit-to-visible latency;
+- temporary old+new generation memory;
+- worst-case sustained edit-storm frame impact.
+
+### Stop/go criteria
+
+- **Prefer whole bounded-chunk rebuild** if normal gameplay edits stay comfortably within the frame/update budget and cost scales with affected local partitions rather than visible world size. Do not build a more sophisticated editable DAG merely because a paper has one.
+- **Earn an editable GPU hierarchy experiment** only if local CPU rebuild/upload is demonstrably too expensive while the traversal architecture otherwise looks strong.
+- **Stop Aokana-as-primary for destructible regions** if small edits produce unbounded rebuild radius, extreme dirty amplification, or persistent multi-frame visibility latency even at practical shallow partition sizes.
+
+The desired result is proportional local work, not a particular absolute implementation technique.
+
+## Experiment 5: minimal Aokana visibility benefit
+
+### Question
+
+Once raw traversal is proven viable, do Aokana's key visibility ideas reduce real gameplay cost enough to outperform or seriously challenge generated meshes?
+
+### Minimal implementation
+
+Add only the highest-value conservative visibility stages:
+
+```text
+resident shallow hierarchy chunks
+    -> frustum reject
+    -> project chunk AABB to coarse screen tiles
+    -> conservative tile/chunk candidate list
+    -> previous-frame Hi-Z reject
+    -> traverse survivors
+```
+
+A simple fixed 8x8 or 16x16 tile size is sufficient initially. Candidate generation can be conservative and inefficient as long as it remains correct; do not build a production allocator or sophisticated adaptive tile scheme.
+
+Use two contrasting scenes:
+
+- open mountains/terrain with relatively low occlusion;
+- canyon/city/cave view with high occlusion.
+
+### Measure
+
+Visibility funnel:
+
+```text
+resident chunks
+ -> frustum survivors
+ -> tile/chunk candidates
+ -> Hi-Z survivors
+ -> traversed chunk/pixel pairs
+ -> final visible hits
+```
+
+Also measure:
+
+- GPU milliseconds for candidate generation;
+- Hi-Z test time;
+- traversal time after rejection;
+- total Aokana experimental GPU cost;
+- nodes visited per visible pixel;
+- pixels/chunks avoided versus Experiment 2;
+- false-occlusion count, which must remain zero;
+- disocclusion behavior during the existing camera-sprint path.
+
+### Stop/go criteria
+
+- **Continue toward primary renderer** if realistic visibility reduction brings total traversal into a clearly competitive range while preserving conservative correctness.
+- **Keep only the visibility ideas** if Hi-Z/tile culling is valuable but traversal itself remains a poor primary representation; those ideas can feed the mesh renderer.
+- **Stop further Aokana-specific optimization** if realistic culling cannot materially reduce the traversal bottleneck in the scenes where the game needs it.
+
+After this experiment, there should be enough evidence to classify the architecture before building production streaming or rich shading.
+
+## Experiment 6: minimal material/surface identity separation
+
+### Question
+
+Can rich presentation attributes stay outside hierarchy identity so material diversity does not destroy spatial sharing or traversal locality?
+
+### Minimal implementation
+
+Traversal emits only a tiny visibility payload, for example:
+
+```text
+depth
+normal or reconstruction data
+surface/material ID
+```
+
+A simple fullscreen/compute resolve maps 4-8 IDs to deliberately distinct materials. Include a checkerboard/high-frequency material fixture intended to stress attribute diversity.
+
+Do not port the full voxel shader or coating system.
+
+### Measure
+
+- hierarchy node/byte count with constant versus highly varied materials;
+- visibility-buffer bytes/pixel;
+- surface-ID lookup bandwidth/time;
+- traversal time with material resolution enabled/disabled;
+- material correctness at boundaries.
+
+### Stop/go criteria
+
+- **Continue separated attributes** if material diversity primarily affects attribute payload/lookups rather than hierarchy structure.
+- **Revisit representation design** if ordinary material variation destroys DAG sharing or forces large random attribute traffic that dominates traversal.
+
+## Experiment 7: manual planar fast-path upper bound
+
+### Question
+
+If Aokana survives the architecture gates, are simple coherent surfaces enough slower under traversal to justify the complexity of a hybrid renderer?
+
+### Minimal implementation
+
+Do not build automatic topology classification.
+
+Hard-code one benchmark region as either:
+
+```text
+Traversal
+```
+
+or:
+
+```text
+Planar/procedural
+ -> one quad or simple reusable grid
+```
+
+Use flat terrain and a large planar wall/building fixture. Everything else remains unchanged.
+
+### Measure
+
+- total GPU frame difference;
+- traversal work avoided;
+- draw/submission overhead added;
+- memory difference;
+- transition seam correctness in one manually placed boundary.
+
+### Stop/go criteria
+
+- **Earn automatic hybrid classification** only if the manually idealized fast path produces a material whole-frame win.
+- **Do not build hybrid machinery** if the simple-region win is small enough that universal traversal remains simpler and adequately fast.
+
+This experiment estimates the upper bound of hybrid value with almost no infrastructure.
+
+## Experiment 8: cutaway and water integration checks
+
+These are not architecture research tasks and should happen only after the primary path survives Experiments 1-5.
+
+### Cutaway
+
+Implement one traversal predicate:
+
+```text
+candidate hit inside cutaway -> ignore and continue traversal
+candidate hit outside cutaway -> accept
+```
+
+Validate a cutaway through an exterior wall reveals the expected interior surface behind it.
+
+### Water
+
+Do not rewrite liquid rendering. Compose:
+
+```text
+Aokana-derived candidate -> solids
+existing water renderer   -> liquids
+```
+
+Verify depth/order/composition in one controlled scene.
+
+### Stop/go criteria
+
+These tests should reveal integration defects, not decide the renderer architecture. Escalate only if an unexpected fundamental depth/visibility conflict appears.
+
+## Architecture decision after Experiment 5
+
+Do not continue automatically through every experiment. After Experiment 5, classify the evidence:
+
+| Observed result | Direction |
+| --- | --- |
+| Traversal fast, smooth reconstruction good, edits cheap | **Aokana-derived primary solid renderer** |
+| Traversal fast and edits cheap, smooth reconstruction expensive | **Aokana primary for suitable topology + smooth near generated mesh** |
+| Complex topology wins but simple terrain loses materially | **Region-based hybrid; Experiment 7 determines whether specialization is worth it** |
+| SVDAG sharing weak but traversal works | **Use simpler shallow SVO/chunk hierarchy; keep Aokana visibility/traversal ideas** |
+| Visibility ideas work but traversal loses | **Keep current/generated mesh representation; steal GPU tile/Hi-Z/visibility pipeline ideas** |
+| Metal traversal poor or destruction maintenance fundamentally unbounded | **Do not use Aokana as universal primary renderer** |
+
+Only after choosing one of these outcomes should production-quality streaming, allocation, editing, materials, and automatic representation selection be designed.
+
 ## Required A/B/C benchmark
 
 Use the **same authoritative voxel data, camera path, material intent, and visibility range** for all candidates:
