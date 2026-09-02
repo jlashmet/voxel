@@ -281,13 +281,83 @@ If both are yes, the other listed capabilities appear tractable and there is no 
 
 Recent work on GPU-editable compact voxel representations makes the edit problem less discouraging: a future implementation does not necessarily require rebuilding compressed hierarchy state on the CPU after every edit.
 
+## Implementation architecture: Aokana as a second renderer backend
+
+The Aokana experiment should be implemented as a **separate solid-renderer backend**, not as another branch inside the current mesh-oriented `VoxelRenderPass`.
+
+The current production wiring does not yet expose a generic `IVoxelRenderer` abstraction: `VoxelRenderFeature` constructs `VoxelRenderPass` directly, and that pass owns mesh-specific scheduling, Transvoxel draw entries, vertex/index buffers, page tables, draw buckets, and surface-arena state. Those concepts should remain private to the mesh backend rather than becoming requirements of a shared renderer interface.
+
+The useful seam already exists on the input side. `VoxelRenderBridge` supplies a renderer-neutral `VoxelWorldView` backed by authoritative Storage plus palette/surface/coating/profile data, and exposes the versioned voxel change source independently. The experiment should preserve that boundary and place a thin backend-selection seam above the concrete render passes:
+
+```text
+                    VoxelWorldView
+                         +
+                   IVoxelChangeSource
+                         |
+              +----------+----------+
+              |                     |
+              v                     v
+    TRANSVOXEL BACKEND       AOKANA-DERIVED BACKEND
+    current implementation    experimental traversal
+              |                     |
+        mesh extraction        shallow hierarchy
+        surface arena          local density hit
+        indirect raster        traversal / visibility
+              |                     |
+              +----------+----------+
+                         |
+                         v
+                    URP / RenderGraph
+```
+
+A conceptual selection at `VoxelRenderFeature` level is enough initially:
+
+```text
+SolidRendererBackend.Transvoxel
+SolidRendererBackend.DirectTraversalExperimental
+```
+
+The exact interface should stay deliberately small and should be introduced only when the experiment needs it. A shared backend contract may expose world/change inputs, camera/render-target context, voxel/render scale, presentation semantics, lifecycle/release hooks, and diagnostics. It **must not** expose mesh-specific details such as surface vertices, indices, page arenas, draw buckets, `SourceStep` meshes, or Transvoxel cache entries.
+
+Implementation rules for the experiment:
+
+- both backends consume the **same authoritative `VoxelWorldView` and change stream**;
+- keep the current Transvoxel implementation intact as the production/reference backend during the experiment;
+- put traversal state, hierarchy buffers, traversal shaders, and local density-intersection logic in a separate pass/backend;
+- do not duplicate authoritative world ownership or invent a second gameplay/storage representation;
+- keep water specialized and shared/composed separately at first rather than forcing the experimental solid backend to own it;
+- allow a serialized/debug backend selector so the same scene, camera path, and world state can run through either implementation;
+- when useful, add a comparison mode that renders both backends to separate targets and compares depth, normals, silhouettes, and material identity, using the existing renderer as the visual/oracle reference;
+- if the Aokana-derived path wins, it can become the default implementation behind the same seam; if it loses, remove the experimental backend without contaminating the production mesh renderer.
+
+The desired experiment topology is therefore:
+
+```text
+same Storage + same world snapshot + same camera
+                 |
+        +--------+--------+
+        |                 |
+        v                 v
+ current Transvoxel    direct traversal
+        |                 |
+        v                 v
+ reference targets     candidate targets
+        |                 |
+        +--------+--------+
+                 v
+        correctness + performance
+             comparison
+```
+
+This is intentionally different from a region-level hybrid. **Backend selection** answers “which renderer implementation are we testing/running?”; **hybrid representation ownership** answers “which representation owns this bounded world region inside a renderer?” The first is useful immediately for clean A/B testing. The second should only be built if measurements show that mixed ownership materially wins.
+
 # Minimal Aokana kill-test experiment program
 
 The existing renderer benchmark harness is **Experiment 0 and already exists**. Do not build another benchmark framework. Reuse the existing deterministic scenes/camera paths/timing and add only counters or outputs that are required by an experiment.
 
 The goal of this sequence is not to build Aokana. It is to discover the cheapest reason to stop, narrow, or continue the approach. Experimental code may be ugly, hard-coded, single-scene, preallocated, CPU-built, or otherwise non-production-quality when that reduces work without invalidating the result.
 
-Do **not** build production streaming, generalized hierarchy allocators, full materials, automatic representation classification, production GPU editing, editor tooling, or a second renderer architecture before the corresponding experiment earns that work.
+Do **not** build production streaming, generalized hierarchy allocators, full materials, automatic representation classification, production GPU editing, editor tooling, or a production-grade renderer framework before the corresponding experiment earns that work. A thin second-backend seam is allowed when needed to run the same world/camera through Transvoxel and the traversal candidate cleanly.
 
 ## Experiment order
 
