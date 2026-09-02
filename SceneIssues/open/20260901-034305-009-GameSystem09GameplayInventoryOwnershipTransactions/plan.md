@@ -34,3 +34,14 @@ No equipment, crafting, slot grids, weight/capacity, use/consume semantics, or U
 - `Game.Composition.Kentridge.Runtime` is the composition root that constructs `Game.Inventory.Runtime`; player-facing code does not need the Runtime assembly and its direct reference will be removed.
 - `Game.Loot` / System10 is not present on current master, so automatic dependent Loot validation cannot be run until that external prerequisite exists. Inventory will expose only the API seam System10 needs and will not create Loot locally.
 - No standalone `Game.Persistence` module is present; capture/restore will therefore be an Inventory API seam plus deterministic runtime implementation, ready for System16 rather than inventing persistence transport.
+
+## Implementation evidence (2026-09-02)
+
+- `InventoryId` is stable and owner-agnostic; generic `InventoryBindingMetadata` is supplied by composition, with character and container fixtures proving the same runtime path.
+- `IInventoryQuery`, `IInventoryAuthority`, and `IInventoryStatePort` separate read truth, authoritative mutation, and capture/restore without exposing Runtime collections.
+- Add/remove/transfer are serialized under one authority gate, return explicit results/revisions, publish committed change events, reject invalid or insufficient mutations, and journal transaction ids so duplicate delivery cannot double-apply.
+- Kentridge reward mutation now uses `IInventoryAuthority`; the playable presentation uses the query seam; only Kentridge composition constructs the concrete Runtime.
+- GameplayReplication projects deterministic multi-inventory snapshots solely through `IInventoryQuery` and no longer depends on the mutable Runtime contract.
+- `Game.Inventory.Tests.InventoryTransactionTests` covers invalid/unknown inputs, insufficient removal, successful and failed conservation, duplicate/conflicting ids, competing removals, character/container reuse, and deterministic capture/restore ordering and revisions.
+- The System16 seam is intentionally limited to deterministic InventoryId/content state assigned here. Persisting transaction-delivery infrastructure is not added without the absent Persistence/System16 contract.
+- Final repository-wide bypass/boundary claims remain pending the repository-selected automatic module validation. System10/Loot remains an external prerequisite and is not implemented or simulated by this assignment.
