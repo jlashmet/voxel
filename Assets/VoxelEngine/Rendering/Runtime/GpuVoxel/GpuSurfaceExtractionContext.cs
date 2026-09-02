@@ -104,6 +104,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         public ulong ChunksUnsupportedDecoration { get; private set; }
         public ulong ChunksOverflowed { get; private set; }
         public ulong CountReadbackRetryCount { get; private set; }
+        public ulong PagedPublicationFailureCount { get; private set; }
         public long MirrorCommittedBytes => _mirror.CommittedBytes;
         public bool HasActiveRequest => _stageRequestStartedSeconds > 0.0;
         public double ActiveRequestAgeMs => !HasActiveRequest ? 0.0
@@ -553,7 +554,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         internal bool CompletePagedBatch(uint token, int handle)
         {
-            if (_disposed || !_hasStaged || token != _countBatchToken || handle < 0) return false;
+            if (_disposed || !_hasStaged || token != _countBatchToken || handle < 0
+                || _pagedBatchReady)
+                return false;
             _pagedHandle = handle;
             _pagedBatchReady = true;
             return true;
@@ -606,6 +609,14 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             handle = _pagedHandle;
             failed = _pagedBatchFailed;
             _pagedBatchReady = false;
+            if (handle < 0)
+            {
+                // A ready paged batch without a valid handle is an internal publication failure.
+                // Surface it as a failed batch so the worker rejects/retries this build instead
+                // of throwing inside the render graph.
+                failed = true;
+                PagedPublicationFailureCount++;
+            }
             _pagedBatchFailed = false;
             return true;
         }

@@ -257,7 +257,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             internal void PublishGpuPaged(int handle)
             {
-                if (handle < 0) throw new ArgumentOutOfRangeException(nameof(handle));
+                if (handle < 0) throw new ArgumentOutOfRangeException(
+                    nameof(handle),
+                    $"GPU paged publication received handle {handle} for chunk {Coordinate} " +
+                    $"step {SourceStep} version {SourceVersion:X16} wasGpuPaged={IsGpuPaged} " +
+                    $"oldHandle={GpuHandle} ready={Ready}");
                 CancelUpload();
                 _arena.Release(in _liveLease);
                 _liveLease = default;

@@ -94,6 +94,7 @@ namespace VoxelEngine.Rendering.Runtime
 
         private Material _surfaceMaterial;
         private Material _waterMaterial;
+        private static bool s_StaticGlobalsBound;
         private readonly MaterialPropertyBlock _surfaceProperties = new();
         private readonly MaterialPropertyBlock _waterProperties = new();
         private Texture2DArray _albedoTextures;
@@ -122,6 +123,7 @@ namespace VoxelEngine.Rendering.Runtime
                           Texture2D dirtNormal = null, Texture2D darkStoneTexture = null,
                           Texture2D darkStoneNormal = null, Texture2D skyTexture = null)
         {
+            s_StaticGlobalsBound = false;
             CoreUtils.Destroy(_surfaceMaterial);
             CoreUtils.Destroy(_waterMaterial);
             CoreUtils.Destroy(_albedoTextures);
@@ -197,6 +199,8 @@ namespace VoxelEngine.Rendering.Runtime
             public ComputeBuffer PagedIndexPageTable;
             public ComputeBuffer PagedDrawMetadata;
             public ComputeBuffer PagedIndirectArgs;
+            public System.Collections.Generic.IReadOnlyList<int> PagedNonEmptyBuckets;
+            public bool PagedNonEmptyBucketsReady;
             public int VisiblePagedCount;
             public CpuWaterSurfaceChunkCache.Entry[] WaterEntries;
             public int WaterEntryCount;
@@ -370,12 +374,15 @@ namespace VoxelEngine.Rendering.Runtime
             data.VisibleSolidCount = transvoxelVisible.Count;
             GpuSurfacePageArena gpuArena = _scheduler.GpuPageArena;
             GpuSurfaceDrawDispatcher gpuDraw = _scheduler.GpuDrawDispatcher;
+            gpuDraw?.PollNonEmptyBuckets();
             data.PagedVertices = gpuArena?.Vertices;
             data.PagedIndices = gpuArena?.Indices;
             data.PagedVertexPageTable = gpuArena?.VertexPageTable;
             data.PagedIndexPageTable = gpuArena?.IndexPageTable;
             data.PagedDrawMetadata = gpuDraw?.ActiveDrawMetadata;
             data.PagedIndirectArgs = gpuDraw?.ActiveIndirectArgs;
+            data.PagedNonEmptyBuckets = gpuDraw?.NonEmptyBuckets;
+            data.PagedNonEmptyBucketsReady = gpuDraw?.HasNonEmptyBuckets ?? false;
             data.VisiblePagedCount = _scheduler.VisibleGpuHandles.Count;
             data.WaterEntries = _waterDrawEntries;
             data.WaterEntryCount = waterVisible.Count;
@@ -394,28 +401,36 @@ namespace VoxelEngine.Rendering.Runtime
                 // re-uploading the entire block ~1,400 times a frame once the arena grew large
                 // enough to actually cover the view. Bind it once as global state; per-chunk
                 // offsets now live in the compact metadata table used by the instanced batches.
-                cmd.SetGlobalVectorArray(s_MaterialAlbedo,
-                    VoxelPresentationCatalogue.MaterialAlbedo);
-                cmd.SetGlobalVectorArray(s_MaterialSampling,
-                    VoxelPresentationCatalogue.MaterialSampling);
-                cmd.SetGlobalVectorArray(s_MaterialSurface,
-                    VoxelPresentationCatalogue.MaterialSurface);
-                cmd.SetGlobalVectorArray(s_MaterialVariation,
-                    VoxelPresentationCatalogue.MaterialVariation);
-                cmd.SetGlobalVectorArray(s_CoatingTint,
-                    VoxelPresentationCatalogue.CoatingTint);
-                cmd.SetGlobalVectorArray(s_CoatingSampling,
-                    VoxelPresentationCatalogue.CoatingSampling);
-                cmd.SetGlobalVectorArray(s_CoatingResponse,
-                    VoxelPresentationCatalogue.CoatingResponse);
-                cmd.SetGlobalVectorArray(s_SurfacePattern,
-                    VoxelPresentationCatalogue.SurfacePattern);
-                cmd.SetGlobalVectorArray(s_SurfaceJointColour,
-                    VoxelPresentationCatalogue.SurfaceJointColour);
-                cmd.SetGlobalVectorArray(s_SurfaceDetailResponse,
-                    VoxelPresentationCatalogue.SurfaceDetailResponse);
-                cmd.SetGlobalTexture(s_AlbedoTextures, passData.AlbedoTextures);
-                cmd.SetGlobalTexture(s_NormalTextures, passData.NormalTextures);
+                // The material/coating presentation tables and texture arrays are immutable for
+                // the lifetime of the bound world. Re-uploading ~1,300 floats every frame was a
+                // measurable stationary-frame cost, so bind them once and only refresh the frame
+                // state below.
+                if (!s_StaticGlobalsBound)
+                {
+                    cmd.SetGlobalVectorArray(s_MaterialAlbedo,
+                        VoxelPresentationCatalogue.MaterialAlbedo);
+                    cmd.SetGlobalVectorArray(s_MaterialSampling,
+                        VoxelPresentationCatalogue.MaterialSampling);
+                    cmd.SetGlobalVectorArray(s_MaterialSurface,
+                        VoxelPresentationCatalogue.MaterialSurface);
+                    cmd.SetGlobalVectorArray(s_MaterialVariation,
+                        VoxelPresentationCatalogue.MaterialVariation);
+                    cmd.SetGlobalVectorArray(s_CoatingTint,
+                        VoxelPresentationCatalogue.CoatingTint);
+                    cmd.SetGlobalVectorArray(s_CoatingSampling,
+                        VoxelPresentationCatalogue.CoatingSampling);
+                    cmd.SetGlobalVectorArray(s_CoatingResponse,
+                        VoxelPresentationCatalogue.CoatingResponse);
+                    cmd.SetGlobalVectorArray(s_SurfacePattern,
+                        VoxelPresentationCatalogue.SurfacePattern);
+                    cmd.SetGlobalVectorArray(s_SurfaceJointColour,
+                        VoxelPresentationCatalogue.SurfaceJointColour);
+                    cmd.SetGlobalVectorArray(s_SurfaceDetailResponse,
+                        VoxelPresentationCatalogue.SurfaceDetailResponse);
+                    cmd.SetGlobalTexture(s_AlbedoTextures, passData.AlbedoTextures);
+                    cmd.SetGlobalTexture(s_NormalTextures, passData.NormalTextures);
+                    s_StaticGlobalsBound = true;
+                }
                 cmd.SetGlobalColor(s_BaseColor, passData.BaseColor);
                 cmd.SetGlobalVector(s_SunDirection, passData.SunDirection);
                 cmd.SetGlobalVector(s_SkyHorizon, passData.SkyHorizon);
@@ -469,13 +484,26 @@ namespace VoxelEngine.Rendering.Runtime
                         GpuSurfacePageArena.MaxVertexPagesPerChunk);
                     cmd.SetGlobalInteger(s_PagedMaxIndexPages,
                         GpuSurfacePageArena.MaxIndexPagesPerChunk);
-                    for (int bucket = 0; bucket < GpuSurfaceDrawDispatcher.BucketCount; bucket++)
+                    if (passData.PagedNonEmptyBucketsReady && passData.PagedNonEmptyBuckets != null)
                     {
-                        cmd.DrawProceduralIndirect(Matrix4x4.identity, passData.Material, 0,
-                            MeshTopology.Triangles, passData.PagedIndirectArgs,
-                            bucket * sizeof(uint) * 4);
+                        foreach (int bucket in passData.PagedNonEmptyBuckets)
+                        {
+                            cmd.DrawProceduralIndirect(Matrix4x4.identity, passData.Material, 0,
+                                MeshTopology.Triangles, passData.PagedIndirectArgs,
+                                bucket * sizeof(uint) * 4);
+                        }
+                        solidSubmissionCalls += passData.PagedNonEmptyBuckets.Count;
                     }
-                    solidSubmissionCalls += GpuSurfaceDrawDispatcher.BucketCount;
+                    else
+                    {
+                        for (int bucket = 0; bucket < GpuSurfaceDrawDispatcher.BucketCount; bucket++)
+                        {
+                            cmd.DrawProceduralIndirect(Matrix4x4.identity, passData.Material, 0,
+                                MeshTopology.Triangles, passData.PagedIndirectArgs,
+                                bucket * sizeof(uint) * 4);
+                        }
+                        solidSubmissionCalls += GpuSurfaceDrawDispatcher.BucketCount;
+                    }
                 }
                 cmd.SetGlobalInteger(s_SurfacePagedDraw, 0);
                 for (int bucket = 0; bucket < SolidDrawBucketCount; bucket++)

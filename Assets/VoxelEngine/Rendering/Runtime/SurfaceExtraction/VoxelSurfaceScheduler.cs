@@ -1652,6 +1652,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private Vector3 _lastVisibilityCameraPosition;
         private Quaternion _lastVisibilityCameraRotation;
         private ulong _lastVisibilityDemandVersion;
+        private ulong _lastGpuDrawDemandVersion;
         private bool _hasVisibilityCache;
 
         /// <summary>
@@ -1713,7 +1714,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             double reuseStart = Time.realtimeSinceStartupAsDouble;
             _water.CollectVisible(camera, voxelSize);
-            _gpuDrawDispatcher?.Prepare(_visibleGpuHandles, frame);
+            if (demand != _lastGpuDrawDemandVersion)
+            {
+                _gpuDrawDispatcher?.Prepare(_visibleGpuHandles, frame);
+                _lastGpuDrawDemandVersion = demand;
+            }
             TrackReappearances(frame);
             LastVisibilityMainThreadMs = ElapsedMs(reuseStart);
             _visibilityTiming.Add(LastVisibilityMainThreadMs);
@@ -1812,6 +1817,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
                 _water.CollectVisible(camera, voxelSize);
                 _gpuDrawDispatcher?.Prepare(_visibleGpuHandles, frame);
+                _lastGpuDrawDemandVersion = _lastVisibilityDemandVersion;
             }
 
             int missingVisible = 0;
@@ -2217,8 +2223,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 _surfaceDiscoveryQueue.Enqueue(region);
         }
 
+        private bool _disposed;
+
         public void Dispose()
         {
+            if (_disposed) return;
+            _disposed = true;
+
             if (_surfaceDiscoveryJobScheduled)
             {
                 _surfaceDiscoveryJobHandle.Complete();

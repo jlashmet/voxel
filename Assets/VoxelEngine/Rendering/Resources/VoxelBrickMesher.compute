@@ -144,6 +144,9 @@ struct GpuProfileBlock
 };
 StructuredBuffer<GpuProfileBlock> _BatchProfiles;
 int _BatchProfileCount;
+// Diagnostic/emergency gate (VOXEL_GPU_PROFILE_SUPPRESSION=0): owned-triangle suppression is
+// presentation-only, so the identical scene can be A/B measured without a source change.
+int _ProfileSuppressionEnabled = 1;
 RWStructuredBuffer<float> _BatchDensityWrite;
 RWStructuredBuffer<uint> _BatchSampleMaterialWrite;
 RWStructuredBuffer<uint> _BatchSampleSurfaceWrite;
@@ -285,6 +288,10 @@ uint BatchProfileSuppressionMask(uint batch, int3 cell, uint caseCode, uint cell
                                  uint sourceVertexCount, uint sourceIndexCount)
 {
     if (_BatchChunks[batch].profileCount == 0u) return 0u;
+    // A cell without triangles has nothing a profile can own. Most cells of a chunk are interior
+    // or empty, so this must come before the corner sampling and vertex reconstruction below.
+    if (sourceIndexCount == 0u) return 0u;
+    if (!_ProfileSuppressionEnabled) return 0u;
     float density[8];
     uint material[8];
     uint boundary[8];
