@@ -1,0 +1,16 @@
+{
+  "name": "Game.CharacterAI.Api",
+  "rootNamespace": "Game.CharacterAI.Api",
+  "references": [
+    "Game.Characters.Api"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}

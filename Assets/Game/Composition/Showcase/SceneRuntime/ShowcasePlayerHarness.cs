@@ -296,7 +296,18 @@ namespace VoxelEngine.Showcase
             private ulong _reappearBase;
 
             private readonly float[] _intervals = new float[Capacity];
+            private readonly FrameTiming[] _latestFrameTiming = new FrameTiming[1];
+            private readonly double[] _cpuFrameMilliseconds = new double[Capacity];
+            private readonly double[] _cpuMainMilliseconds = new double[Capacity];
+            private readonly double[] _cpuRenderMilliseconds = new double[Capacity];
+            private readonly double[] _cpuPresentWaitMilliseconds = new double[Capacity];
+            private readonly double[] _gpuFrameMilliseconds = new double[Capacity];
             private int _count;
+            private int _cpuFrameCount;
+            private int _cpuMainCount;
+            private int _cpuRenderCount;
+            private int _cpuPresentWaitCount;
+            private int _gpuFrameCount;
             private float _windowElapsed;
             private float _totalElapsed;
             private int _window;
@@ -313,6 +324,7 @@ namespace VoxelEngine.Showcase
                 // the conclusion that something periodic is wrong.
                 if (_shotThisFrame) _shotThisFrame = false;
                 else if (_count < Capacity) _intervals[_count++] = dt;
+                CaptureUnityFrameTiming();
 
                 CaptureIfDue();
 
@@ -392,6 +404,11 @@ namespace VoxelEngine.Showcase
                     Report();
                     _windowElapsed = 0f;
                     _count = 0;
+                    _cpuFrameCount = 0;
+                    _cpuMainCount = 0;
+                    _cpuRenderCount = 0;
+                    _cpuPresentWaitCount = 0;
+                    _gpuFrameCount = 0;
                     _window++;
                 }
 
@@ -576,6 +593,79 @@ namespace VoxelEngine.Showcase
                     _totalElapsed, _count, _count / Mathf.Max(0.0001f, _windowElapsed),
                     Percentile(sorted, 0.50) * 1000f, Percentile(sorted, 0.95) * 1000f,
                     Percentile(sorted, 0.99) * 1000f, sorted[_count - 1] * 1000f, mean * 1000f));
+
+                TimingStats cpuFrame = Summarize(_cpuFrameMilliseconds, _cpuFrameCount);
+                TimingStats cpuMain = Summarize(_cpuMainMilliseconds, _cpuMainCount);
+                TimingStats cpuRender = Summarize(_cpuRenderMilliseconds, _cpuRenderCount);
+                TimingStats presentWait = Summarize(
+                    _cpuPresentWaitMilliseconds, _cpuPresentWaitCount);
+                TimingStats gpuFrame = Summarize(_gpuFrameMilliseconds, _gpuFrameCount);
+                Debug.Log(string.Format(CultureInfo.InvariantCulture,
+                    "FRAMEPIPE t={0:0.0} "
+                    + "cpu.ms[n={1} p50={2:0.00} p95={3:0.00} max={4:0.00}] "
+                    + "main.ms[n={5} p50={6:0.00} p95={7:0.00} max={8:0.00}] "
+                    + "render.ms[n={9} p50={10:0.00} p95={11:0.00} max={12:0.00}] "
+                    + "presentWait.ms[n={13} p50={14:0.00} p95={15:0.00} max={16:0.00}] "
+                    + "gpu.ms[n={17} p50={18:0.00} p95={19:0.00} max={20:0.00}]",
+                    _totalElapsed,
+                    cpuFrame.Count, cpuFrame.P50, cpuFrame.P95, cpuFrame.Max,
+                    cpuMain.Count, cpuMain.P50, cpuMain.P95, cpuMain.Max,
+                    cpuRender.Count, cpuRender.P50, cpuRender.P95, cpuRender.Max,
+                    presentWait.Count, presentWait.P50, presentWait.P95, presentWait.Max,
+                    gpuFrame.Count, gpuFrame.P50, gpuFrame.P95, gpuFrame.Max));
+            }
+
+            private void CaptureUnityFrameTiming()
+            {
+                uint timingCount = FrameTimingManager.GetLatestTimings(1, _latestFrameTiming);
+                if (timingCount > 0)
+                {
+                    FrameTiming timing = _latestFrameTiming[0];
+                    AddPositive(timing.cpuFrameTime, _cpuFrameMilliseconds, ref _cpuFrameCount);
+                    AddPositive(timing.cpuMainThreadFrameTime,
+                                _cpuMainMilliseconds, ref _cpuMainCount);
+                    AddPositive(timing.cpuRenderThreadFrameTime,
+                                _cpuRenderMilliseconds, ref _cpuRenderCount);
+                    AddPositive(timing.cpuMainThreadPresentWaitTime,
+                                _cpuPresentWaitMilliseconds, ref _cpuPresentWaitCount);
+                    AddPositive(timing.gpuFrameTime, _gpuFrameMilliseconds, ref _gpuFrameCount);
+                }
+                FrameTimingManager.CaptureFrameTimings();
+            }
+
+            private static void AddPositive(double milliseconds, double[] destination,
+                                            ref int count)
+            {
+                if (milliseconds <= 0.0 || double.IsNaN(milliseconds)
+                    || double.IsInfinity(milliseconds) || count >= destination.Length) return;
+                destination[count++] = milliseconds;
+            }
+
+            private readonly struct TimingStats
+            {
+                internal readonly int Count;
+                internal readonly double P50;
+                internal readonly double P95;
+                internal readonly double Max;
+
+                internal TimingStats(int count, double p50, double p95, double max)
+                {
+                    Count = count;
+                    P50 = p50;
+                    P95 = p95;
+                    Max = max;
+                }
+            }
+
+            private static TimingStats Summarize(double[] samples, int count)
+            {
+                if (count <= 0) return default;
+                Array.Sort(samples, 0, count);
+                return new TimingStats(
+                    count,
+                    samples[Mathf.Clamp(Mathf.CeilToInt(count * 0.50f) - 1, 0, count - 1)],
+                    samples[Mathf.Clamp(Mathf.CeilToInt(count * 0.95f) - 1, 0, count - 1)],
+                    samples[count - 1]);
             }
 
             private static float Percentile(float[] sorted, double fraction)

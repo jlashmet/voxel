@@ -3,9 +3,7 @@
   "rootNamespace": "Game.WorldBuilder.Api",
   "references": [
     "Game.Cutscenes.Api",
-    "Game.Quests.Api",
-    "MountingForce.WorldGen.Architecture",
-    "MountingForce.WorldGen.Core"
+    "Game.Quests.Api"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

@@ -11,7 +11,6 @@
         "VoxelEngine.Composition",
         "VoxelEngine.Terrain.Api",
         "VoxelEngine.Rendering.Api",
-        "VoxelEngine.Rendering.Runtime",
         "VoxelEngine.Structures.Api",
         "VoxelEngine.Structures.Runtime",
         "VoxelEngine.Tiering.Api",

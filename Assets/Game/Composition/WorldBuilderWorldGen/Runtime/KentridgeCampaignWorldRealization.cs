@@ -22,7 +22,6 @@ namespace Game.Composition.WorldBuilderWorldGen.Runtime
         public PlanningGraph Graph { get; }
         public AuthoredTownPlan Town { get; }
         internal SettlementPlan Settlement { get; }
-        public IWorldVisibilitySource Visibility { get; }
         public SiteResolutionResult Sites { get; }
         public IReadOnlyList<NpcSiteAssignment> NpcAssignments { get; }
         public IReadOnlyList<KentridgeHiddenSpaceGeometry> HiddenSpaces { get; }
@@ -33,7 +32,6 @@ namespace Game.Composition.WorldBuilderWorldGen.Runtime
             PlanningGraph graph,
             AuthoredTownPlan town,
             SettlementPlan settlement,
-            IWorldVisibilitySource visibility,
             SiteResolutionResult sites,
             IReadOnlyList<NpcSiteAssignment> npcAssignments,
             IReadOnlyList<KentridgeHiddenSpaceGeometry> hiddenSpaces,
@@ -43,7 +41,6 @@ namespace Game.Composition.WorldBuilderWorldGen.Runtime
             Graph = graph ?? throw new ArgumentNullException(nameof(graph));
             Town = town ?? throw new ArgumentNullException(nameof(town));
             Settlement = settlement ?? throw new ArgumentNullException(nameof(settlement));
-            Visibility = visibility ?? throw new ArgumentNullException(nameof(visibility));
             Sites = sites ?? throw new ArgumentNullException(nameof(sites));
             NpcAssignments = npcAssignments ?? throw new ArgumentNullException(nameof(npcAssignments));
             HiddenSpaces = hiddenSpaces ?? throw new ArgumentNullException(nameof(hiddenSpaces));
@@ -103,7 +100,6 @@ namespace Game.Composition.WorldBuilderWorldGen.Runtime
             PlanningGraph graph = BlueprintCompiler.Compile(blueprint);
             WorldSettlementPlan semanticSettlement = ResolveSemanticSettlement(graph.HierarchyPlan);
             ValidateSupportedHierarchy(graph.HierarchyPlan, semanticSettlement);
-            IWorldVisibilitySource visibility = KentridgeFarPresentationPlanner.Build(settlement);
 
             var projections = new KentridgeArchitectureSiteProjectionProvider(settlement);
             var traversal = new SettlementStreetTraversalFacts(settlement, projections);
@@ -142,7 +138,6 @@ namespace Game.Composition.WorldBuilderWorldGen.Runtime
                 graph,
                 town,
                 settlement,
-                visibility,
                 sites,
                 npcAssignments,
                 hiddenSpaces,

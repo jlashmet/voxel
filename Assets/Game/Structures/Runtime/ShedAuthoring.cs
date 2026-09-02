@@ -1,16 +1,19 @@
 using Game.Structures.Api;
 using Unity.Mathematics;
 using VoxelEngine.Structures.Api;
-using SharedOpeningAuthoring = VoxelEngine.Structures.Runtime.StructureOpeningAuthoring;
-using SharedRoofAuthoring = VoxelEngine.Structures.Runtime.StructureRoofAuthoring;
 
 namespace Game.Structures.Runtime
 {
     /// <summary>Deterministic shed composition over shared architectural component configs.</summary>
     public static class ShedAuthoring
     {
-        public static void Author(IStructureAuthoringSession authoring, int3 origin, in ShedConfig config)
+        public static void Author(
+            IStructureComponentAuthoring components,
+            IStructureAuthoringSession authoring,
+            int3 origin,
+            in ShedConfig config)
         {
+            if (components == null) throw new System.ArgumentNullException(nameof(components));
             if (authoring == null) throw new System.ArgumentNullException(nameof(authoring));
             if (!config.IsWellFormed)
                 throw new System.ArgumentException("Shed configuration is invalid.", nameof(config));
@@ -29,20 +32,51 @@ namespace Game.Structures.Runtime
                 false,
                 false);
 
-            SharedOpeningAuthoring.AuthorRepeated(
-                authoring, shellMin, config.Width, config.Height, config.Depth,
-                config.WallThickness, in config.Door, config.DoorCount,
-                config.DoorFacade, config.DoorGroupOffset, config.DoorSpacing, in config.Palette);
+            var door = new StructureOpeningAuthoringRequest
+            {
+                ShellMin = shellMin,
+                Width = config.Width,
+                Height = config.Height,
+                Depth = config.Depth,
+                WallThickness = config.WallThickness,
+                Opening = config.Door,
+                Count = config.DoorCount,
+                Facade = config.DoorFacade,
+                GroupOffset = config.DoorGroupOffset,
+                Spacing = config.DoorSpacing,
+                Palette = config.Palette,
+            };
+            components.AuthorOpenings(authoring, in door);
 
             if (config.WindowsEnabled)
-                SharedOpeningAuthoring.AuthorRepeated(
-                    authoring, shellMin, config.Width, config.Height, config.Depth,
-                    config.WallThickness, in config.Window, config.WindowCount,
-                    config.WindowFacade, config.WindowGroupOffset, config.WindowSpacing, in config.Palette);
+            {
+                var window = new StructureOpeningAuthoringRequest
+                {
+                    ShellMin = shellMin,
+                    Width = config.Width,
+                    Height = config.Height,
+                    Depth = config.Depth,
+                    WallThickness = config.WallThickness,
+                    Opening = config.Window,
+                    Count = config.WindowCount,
+                    Facade = config.WindowFacade,
+                    GroupOffset = config.WindowGroupOffset,
+                    Spacing = config.WindowSpacing,
+                    Palette = config.Palette,
+                };
+                components.AuthorOpenings(authoring, in window);
+            }
 
-            SharedRoofAuthoring.Author(
-                authoring, shellMin, config.Width, config.Depth, baseY + config.Height,
-                in config.Roof, config.Palette.Resolve(config.Roof.MaterialRole));
+            var roof = new StructureRoofAuthoringRequest
+            {
+                FootprintMin = shellMin,
+                Width = config.Width,
+                Depth = config.Depth,
+                BaseY = baseY + config.Height,
+                Roof = config.Roof,
+                Material = config.Palette.Resolve(config.Roof.MaterialRole),
+            };
+            components.AuthorRoof(authoring, in roof);
         }
 
         private static void AuthorFoundation(

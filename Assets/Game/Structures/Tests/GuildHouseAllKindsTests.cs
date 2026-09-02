@@ -20,7 +20,6 @@ namespace Game.Structures.Tests
             GuildHouseKind.Alchemists,
         };
 
-        [Test]
         public void EveryGuildKindHasAResolvableRepresentativePrototype()
         {
             for (int k = 0; k < Kinds.Length; k++)

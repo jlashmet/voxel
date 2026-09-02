@@ -1,0 +1,16 @@
+{
+  "name": "VoxelEngine.Rendering.Validation.Water",
+  "rootNamespace": "VoxelEngine.Rendering.Validation",
+  "references": [
+    "VoxelEngine.Rendering.Runtime"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

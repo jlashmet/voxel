@@ -1,0 +1,17 @@
+{
+  "name": "Game.Encounters.Runtime",
+  "rootNamespace": "Game.Encounters.Runtime",
+  "references": [
+    "Game.Encounters.Api",
+    "Game.Characters.Api"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}

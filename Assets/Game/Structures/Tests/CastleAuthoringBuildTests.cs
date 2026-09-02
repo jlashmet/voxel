@@ -9,12 +9,12 @@ namespace Game.Structures.Tests
 {
     public sealed class CastleAuthoringBuildTests
     {
-        [Test]
         public void Build_PreservesLegacyOuterAndKeepStageProgression()
         {
             var authoring = new NullAuthoringSession(int.MaxValue);
+            var caveAuthoring = new NullCaveAuthoring();
             CastlePlan plan = SmallPlan();
-            var build = new CastleAuthoringBuild(authoring, in plan, 19u);
+            var build = new CastleAuthoringBuild(authoring, caveAuthoring, in plan, 19u);
 
             Assert.That(build.StageNumber, Is.EqualTo(1));
             AdvancePastStage(build, 1);
@@ -41,14 +41,14 @@ namespace Game.Structures.Tests
             Assert.That(build.IsComplete, Is.False);
         }
 
-        [Test]
         public void Constructor_RejectsPlanWhoseEstimatedWritesExceedSessionBudget()
         {
             CastlePlan plan = SmallPlan();
             var authoring = new NullAuthoringSession(1);
+            var caveAuthoring = new NullCaveAuthoring();
 
             Assert.Throws<System.InvalidOperationException>(() =>
-                new CastleAuthoringBuild(authoring, in plan, 19u));
+                new CastleAuthoringBuild(authoring, caveAuthoring, in plan, 19u));
         }
 
         private static void AdvancePastStage(CastleAuthoringBuild build, int stage)
@@ -83,6 +83,15 @@ namespace Game.Structures.Tests
             Floors = 2,
             Seed = 19u,
         };
+
+        private sealed class NullCaveAuthoring : ICaveAuthoring
+        {
+            public CaveAuthoringResult Author(
+                IStructureAuthoringSession authoring,
+                in CaveGenerationRequest request,
+                in CaveConfig config,
+                in CaveMaterialPalette palette) => default;
+        }
 
         private sealed class NullAuthoringSession : IStructureAuthoringSession
         {

@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
@@ -7,10 +6,24 @@ using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
 namespace VoxelEngine.Showcase
 {
     /// <summary>
-    /// A coarse, permanent record of authored world surfaces — anonymous built silhouettes and
-    /// terrain sculpts — so they can be drawn at the same distance terrain is. Known semantic
-    /// buildings may suppress the positive-silhouette fallback once an independent proxy exists;
-    /// terrain lowering/material overrides remain independent and authoritative.
+    /// A coarse, permanent record of authored world surfaces — the castle, Kentridge, terrain
+    /// sculpts, and other generated content — so they can be drawn at the same distance terrain is.
+    ///
+    /// <para><b>The problem this solves.</b> Terrain renders to the horizon because
+    /// <see cref="TerrainSampler"/> is a pure function: any coordinate can be answered with no
+    /// storage. Authored content is not fully described by that function, and resident voxel
+    /// regions are too expensive to retain to the horizon.</para>
+    ///
+    /// <para><b>What this stores instead.</b> One coarse sample per 3.2 m column. Tall authored
+    /// surfaces retain the old positive silhouette record. Authored terrain that ends below the
+    /// analytic height field is recorded separately as a surface override, including the sampled
+    /// material, so a gorge, cliff cut, moat, or water receiver is not filled back in or recolored
+    /// by the fallback terrain proxy.</para>
+    ///
+    /// <para>The trade is honest and deliberate: at range a structure becomes a silhouette with
+    /// no overhangs, no interior, and no destruction detail. Runtime destruction is intentionally
+    /// not captured; this store is refreshed only at the world's existing authored-content capture
+    /// boundaries.</para>
     /// </summary>
     public sealed class FarFieldStructureStore
     {
@@ -30,7 +43,6 @@ namespace VoxelEngine.Showcase
         private readonly Dictionary<int2, int[]> _columns = new();
         private readonly Dictionary<int2, int[]> _authoredTerrain = new();
         private readonly Dictionary<int2, byte[]> _authoredTerrainMaterials = new();
-        private readonly Dictionary<int2, bool[]> _suppressedBuiltColumns = new();
 
         /// <summary>Regions holding positive built-content silhouettes.</summary>
         public int RecordedRegionCount => _columns.Count;
@@ -39,16 +51,19 @@ namespace VoxelEngine.Showcase
         public int RecordedTerrainRegionCount => _authoredTerrain.Count;
 
         /// <summary>
-        /// Bumped whenever recorded content or fallback suppression changes. Consumers cache meshes
-        /// built from this data and need to rebuild when the representation source changes.
+        /// Bumped whenever recorded content changes. Consumers cache meshes built from this
+        /// data and would otherwise never show content that finished generating after their last
+        /// rebuild — the castle completes long after the rings first build.
         /// </summary>
         public int Version { get; private set; }
 
         /// <summary>
         /// Scans an authored region after its current generation stage and records both tall built
         /// silhouettes and any surface that was deliberately sculpted below the analytic terrain.
-        /// The caller invokes this only at authored-content boundaries; ordinary player destruction
-        /// does not become permanent far presentation state.
+        ///
+        /// The caller already invokes this only at authored-content boundaries (terrain/features,
+        /// then again when a landmark finishes). It is not a mutation listener, so ordinary player
+        /// destruction never leaks into the permanent far representation.
         /// </summary>
         public void CaptureRegion(int3 regionCoord, IRegionReadSource storage, uint seed)
         {
@@ -74,6 +89,11 @@ namespace VoxelEngine.Showcase
                 int terrain = TerrainSampler.HeightAt(voxelX, voxelZ, seed);
                 int index = cx + cz * ColumnsPerRegion;
 
+                // A post-authoring surface below the deterministic height field is authoritative
+                // world data, not destruction detail. Keep the lowest authored value ever captured
+                // so later eviction/regeneration of plain terrain cannot erase the distant sculpt.
+                // Material travels with that surface; an equal-height semantic recapture may update
+                // it (for example a baked grass shelf repaired to water) without changing geometry.
                 if (top < terrain)
                 {
                     loweredTerrain ??= NewOverrideArray();
@@ -95,86 +115,11 @@ namespace VoxelEngine.Showcase
         }
 
         /// <summary>
-        /// Suppresses only the positive built-silhouette fallback in the supplied world-voxel XZ
-        /// bounds. The bounds are generic presentation-space data; callers decide which known
-        /// semantic structures have independent proxies. Lowered terrain/material overrides are not
-        /// touched, and anonymous built silhouettes outside these bounds remain available.
-        /// </summary>
-        public void SuppressBuiltSilhouette(
-            int minWorldVoxelX,
-            int minWorldVoxelZ,
-            int maxWorldVoxelXExclusive,
-            int maxWorldVoxelZExclusive)
-        {
-            if (maxWorldVoxelXExclusive <= minWorldVoxelX)
-                throw new ArgumentOutOfRangeException(nameof(maxWorldVoxelXExclusive));
-            if (maxWorldVoxelZExclusive <= minWorldVoxelZ)
-                throw new ArgumentOutOfRangeException(nameof(maxWorldVoxelZExclusive));
-
-            int minRegionX = FloorDiv(minWorldVoxelX, ShowcaseWorld.RegionVoxelEdge);
-            int minRegionZ = FloorDiv(minWorldVoxelZ, ShowcaseWorld.RegionVoxelEdge);
-            int maxRegionX = FloorDiv(maxWorldVoxelXExclusive - 1, ShowcaseWorld.RegionVoxelEdge);
-            int maxRegionZ = FloorDiv(maxWorldVoxelZExclusive - 1, ShowcaseWorld.RegionVoxelEdge);
-            bool changed = false;
-
-            for (int regionZ = minRegionZ; regionZ <= maxRegionZ; regionZ++)
-            for (int regionX = minRegionX; regionX <= maxRegionX; regionX++)
-            {
-                var key = new int2(regionX, regionZ);
-                if (!_suppressedBuiltColumns.TryGetValue(key, out bool[] suppressed))
-                {
-                    suppressed = new bool[ColumnsPerRegion * ColumnsPerRegion];
-                    _suppressedBuiltColumns.Add(key, suppressed);
-                }
-
-                int regionOriginX = regionX * ShowcaseWorld.RegionVoxelEdge;
-                int regionOriginZ = regionZ * ShowcaseWorld.RegionVoxelEdge;
-                for (int cz = 0; cz < ColumnsPerRegion; cz++)
-                for (int cx = 0; cx < ColumnsPerRegion; cx++)
-                {
-                    int columnMinX = regionOriginX + cx * VoxelsPerColumn;
-                    int columnMinZ = regionOriginZ + cz * VoxelsPerColumn;
-                    int columnMaxX = columnMinX + VoxelsPerColumn;
-                    int columnMaxZ = columnMinZ + VoxelsPerColumn;
-                    if (columnMaxX <= minWorldVoxelX || columnMinX >= maxWorldVoxelXExclusive
-                        || columnMaxZ <= minWorldVoxelZ || columnMinZ >= maxWorldVoxelZExclusive)
-                        continue;
-
-                    int index = cx + cz * ColumnsPerRegion;
-                    if (suppressed[index]) continue;
-                    suppressed[index] = true;
-                    changed = true;
-                }
-            }
-
-            if (changed) Version++;
-        }
-
-        /// <summary>
-        /// Returns whether the built-silhouette fallback is suppressed at this world column.
-        /// Terrain lowering/material channels are intentionally independent of this result.
-        /// </summary>
-        public bool IsBuiltSilhouetteSuppressedAt(int worldVoxelX, int worldVoxelZ)
-        {
-            int regionX = FloorDiv(worldVoxelX, ShowcaseWorld.RegionVoxelEdge);
-            int regionZ = FloorDiv(worldVoxelZ, ShowcaseWorld.RegionVoxelEdge);
-            if (!_suppressedBuiltColumns.TryGetValue(
-                    new int2(regionX, regionZ), out bool[] suppressed))
-                return false;
-
-            int index = ColumnIndex(worldVoxelX, worldVoxelZ, regionX, regionZ);
-            return suppressed[index];
-        }
-
-        /// <summary>
         /// Built-surface height in voxels at a world column, or <c>int.MinValue</c> where no
-        /// anonymous fallback structure should be presented.
+        /// structure was recorded and the caller should use the terrain surface.
         /// </summary>
         public int HeightAt(int worldVoxelX, int worldVoxelZ)
         {
-            if (IsBuiltSilhouetteSuppressedAt(worldVoxelX, worldVoxelZ))
-                return int.MinValue;
-
             int regionX = FloorDiv(worldVoxelX, ShowcaseWorld.RegionVoxelEdge);
             int regionZ = FloorDiv(worldVoxelZ, ShowcaseWorld.RegionVoxelEdge);
             if (!_columns.TryGetValue(new int2(regionX, regionZ), out int[] heights))
@@ -186,7 +131,7 @@ namespace VoxelEngine.Showcase
         }
 
         /// <summary>
-        /// Authored terrain surface in voxels where generation lowered the analytic terrain field,
+        /// Authored terrain surface in voxels where generation lowered the analytic height field,
         /// or <c>int.MinValue</c> when the ordinary terrain sampler remains authoritative.
         /// </summary>
         public int AuthoredTerrainHeightAt(int worldVoxelX, int worldVoxelZ)
@@ -222,7 +167,6 @@ namespace VoxelEngine.Showcase
             _columns.Clear();
             _authoredTerrain.Clear();
             _authoredTerrainMaterials.Clear();
-            _suppressedBuiltColumns.Clear();
             Version++;
         }
 
@@ -291,6 +235,8 @@ namespace VoxelEngine.Showcase
                     continue;
                 }
 
+                // Equal geometry can still represent a semantic material change. This is required
+                // when a restored bake is repaired in place before its far proxy is recaptured.
                 if (existingMaterials[i] == incomingMaterial) continue;
                 existingMaterials[i] = incomingMaterial;
                 changed = true;
@@ -307,6 +253,12 @@ namespace VoxelEngine.Showcase
             return cx + cz * ColumnsPerRegion;
         }
 
+        /// <summary>
+        /// Topmost non-empty voxel in a column within one region's vertical span. Skip empty 8^3
+        /// blocks through the compact block-ref/occupancy summary first; only the top occupied
+        /// mixed block needs up to eight cell reads. The material returned is the exact top-cell
+        /// material consumed by the far presentation path.
+        /// </summary>
         private static int TopSurfaceVoxel(in RegionReadView region,
                                            int worldX, int worldZ, int baseY, int height,
                                            out byte material)

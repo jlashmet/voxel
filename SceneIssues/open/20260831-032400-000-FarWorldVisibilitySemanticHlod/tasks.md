@@ -1,208 +1,304 @@
 # Far-World Visibility Implementation Tasks
 
-**Architecture reset:** 2026-08-31  
-**Feature head when reset began:** `fa26c6d1b8087818b1277ee0ade07ec133a2eb35`  
-**Rule:** work the next unchecked non-blocked task. Existing green tests remain useful evidence only where the implementation survives this reset; they do not grandfather rejected castle-specific architecture.
+**Baseline analyzed:** `master` at `86506ec2315b18401a82a0e409544537644edaec`
 
-## Phase 0 — Reset the architecture before more implementation
+This is the code-grounded implementation delta for `004-far-world-visibility`. It deliberately reuses the existing WorldBuilder semantic structure data, voxel surface scheduler, vegetation/tree world state, and procedural renderers. It does **not** make distant voxel regions resident and does not create duplicate world truth.
 
-- [x] **T000 — Replace the SceneIssue plan with the scalable far-world direction.**
-  - Reject one descriptor/manifest subsystem per large object type.
-  - Require zero manual far-visibility integration for ordinary new generated features.
-  - Preserve acceptance: never-resident landmarks, 12 km visibility, terrain coherence, HLOD, stable handoff, and device budgets.
+## Phase 0 — Correct far-terrain coverage before adding structure HLOD
 
-- [x] **T001 — Audit the current branch and classify every far-world addition as retain, migrate, or delete.**
-  - Inventory `StructureFarPresentation`, `IWorldVisibilitySource`, `WorldVisibilityManifest`, `ShowcaseCastleFarPresentation`, `ShowcaseCastleVisibilityManifest`, `ShowcaseFarStructureSource`, `ShowcaseFarWorldRendering`, far render API/runtime, cluster code, natural-scatter visibility, vegetation/tree visibility, canopy rendering, terrain coverage/detail changes, and their tests.
-  - **Retain** only code whose abstraction is generic and has one clear owner.
-  - **Migrate** structure-only contracts that are actually generic derived-feature/representation concepts.
-  - **Delete** Showcase/castle-specific visibility ownership and tests that merely prove the rejected design.
-  - Check API/runtime assembly direction while auditing; other modules may depend only on module API assemblies.
-  - Record the resulting keep/migrate/delete table in this file before changing production code.
+- [ ] **T001 — Replace heuristic clipmap ring count with guaranteed-coverage math.**
+  - **Modify:** `Assets/Game/Composition/Showcase/SceneRuntime/VoxelFarTerrain.cs`
+  - Extract testable helpers for ring spacing, ring half-extent, camera-snap loss, and guaranteed coverage.
+  - Replace `RingCount()`'s `innerRadius * 2` doubling heuristic with selection of the minimum ring count whose **worst-case snapped authoritative extent** covers `m_OuterRadiusMetres` on every cardinal side.
+  - Keep `MaxRings` as a guard, but emit an explicit failure/diagnostic when the requested range cannot be covered rather than silently under-covering it.
+  - Do not hard-code a six-ring answer; calculate from inner radius, resolution, requested outer radius, and snap spacing.
+  - **Regression:** new `Assets/Tests/EditMode/VoxelFarTerrainCoverageTests.cs` proves the shipped `409.6 m -> 12,000 m` configuration has at least 12 km guaranteed coverage for representative and worst-case camera snap phases.
 
-  **T001 audit result — 2026-08-31 (`e005d10d`)**
+- [ ] **T002 — Retire the startup fallback only after authoritative coverage is complete.**
+  - **Modify:** `Assets/Game/Composition/Showcase/SceneRuntime/VoxelFarTerrain.cs`
+  - Replace the current rule "last allocated ring published => disable startup fallback" with "all rings required for requested guaranteed coverage are published and collectively cover the requested extent".
+  - Preserve fallback coverage while outer authoritative rings are still pending.
+  - **Regression:** `VoxelFarTerrainCoverageTests` verifies there is no frame/state transition where requested far coverage shrinks when the fallback is removed.
 
-  | Classification | Current additions | Decision / owner after reset |
-  | --- | --- | --- |
-  | **Migrate** | `StructureFarPresentation`, `StructureFarPresentationResolver`, `StructureFarPresentationTests` | The deterministic identity/revision, conservative bounds, material/style-family derivation, and pre-residency derivation are useful, but the contract is structure-only and carries structure vocabulary (`Archetype`, `Facing`, `SettlementKey`, `StructureVisibilityClass`). Replace it with one generic baked-feature output owned by the canonical world-feature/generation path; structure generation may use a private intermediate only. |
-  | **Migrate** | `IWorldVisibilitySource`, `WorldVisibilityManifest`, `WorldVisibilityManifestTests` | Keep sector membership, de-duplication, stable ordering, replacement/removal, and no-residency query semantics. Generalize key/value/bounds from `StructureFarPresentation` to baked sparse features. `Game.WorldBuilder.Api` must no longer reference the structure-generation assembly merely to expose visibility. |
-  | **Migrate** | `WorldVisibilityClusterBuilder`, `WorldVisibilityClusterBuilderTests`, `SettlementFarHlodTests` | Deterministic aggregation is useful presentation infrastructure, but it currently clusters only ordinary structures by settlement. Rebase it on generic baked-feature inputs / explicit aggregation grouping so clusters remain disposable presentation, not structure truth. |
-  | **Migrate** | `StructureVisualState`, `IStructureVisualStateSource`, `StructureVisualStateStore` | Preserve the lightweight CPU-side removed/restored-state idea for far presentation, but key it by generic source identity and keep authoritative mutation with the owning world/game system. Do not retain a parallel structure-only state concept. |
-  | **Delete after generic parity** | `ShowcaseCastleFarPresentation`, `ShowcaseCastleVisibilityManifest`, `ShowcaseWorld.FarVisibility.cs`, `ShowcaseCastleFarPresentationTests`, `ShowcaseCastleVisibilityManifestTests` | Rejected per-object integration. `CastlePlan` must enter the same automatic bake path as every other normal generated macro feature; no castle descriptor, registry, event, or manifest owner remains. |
-  | **Migrate then delete adapter** | `KentridgeFarPresentationPlanner`, `KentridgeFarVisibilityPlanningTests`, related `KentridgeCampaignWorldRealization` hook | This currently re-walks a Kentridge settlement to explicitly manufacture far records. Reuse its proof inputs while implementing the generic bake, then remove the named planner so normal settlement generation emits derived far data automatically. |
-  | **Migrate** | `ShowcaseFarStructureSource`, `ShowcaseFarStructureSourceTests` | Retain query-radius conversion, generic adaptation shape, cluster/member suppression, and renderer-ready handoff. Replace structure/settlement types and structure visual-state dependency with the generic baked-feature contract. Ground-height and thresholds stay composition policy. |
-  | **Migrate** | `FarWorldVisibilityPolicy`, `FarWorldVisibilityPolicyTests` | Retain projected-significance math and hysteresis. Replace `StructureVisibilityClass`/structure keys with generic derived bounds plus optional semantic-importance override; concrete distance caps remain game composition/config. |
-  | **Migrate** | `FarWorldRendering.cs`, `ProceduralFarStructureRenderer`, `FarStructureVisibilityTests` | Retain render-ready instance boundary, immutable mesh caching, batching, `DrawMeshInstanced`, and zero persistent GameObjects per distant instance. Rename/generalize structure-only API. Delete renderer logic that parses `"castle"`/`"keep"`/`"fort"` proxy keys or hand-authors type-specific castle/house meshes; generic baked geometry must be the normal payload. |
-  | **Delete after generic composition exists** | `ShowcaseFarWorldRendering` | It owns a castle-specific subscription/manifest and rewrites the castle proxy key. Replace with a generic far-world composition consumer fed by automatic baked-feature publication/indexing. |
-  | **Retain / narrow** | `FarFieldStructureStore`, `FarFieldStructureStoreSuppressionTests` | Keep authored terrain lowering/material overrides and anonymous/legacy positive-silhouette fallback. Its semantic-proxy suppression is only a compatibility bridge; automatic baked features must not depend on a far-terrain sample hitting their footprint. |
-  | **Migrate ownership** | `NaturalScatterVisibilityIndex`, `NaturalScatterVisibilityIndexTests` | Keep deterministic sector/cell regeneration for ordinary mass scatter. Move/align it with the population owner rather than making WorldBuilder a second scatter authority. Remove explicit exceptional-record parallel semantics once automatic promotion feeds the generic sparse baked-feature path. |
-  | **Retain** | `VegetationVisibility`, `VegetationVisibilityTests` | Correct mass-population model: projection/query over existing vegetation/tree truth, stable IDs, sector filtering, no voxel residency or renderer authority. Keep external consumers on the Vegetation API boundary. |
-  | **Retain** | `VegetationCanopyClusters`, `ForestCanopyClusterBuilderTests` | Correct disposable HLOD derived from tree truth; stable cluster identity/revision and exclusion of independent landmarks are reusable. Exceptional landmark promotion policy must converge on the generic sparse-feature system rather than create another permanent tree manifest. |
-  | **Retain / migrate naming-policy** | `TreeFarPresentation`, `TreeVisibilitySelector`, `TreeVisibilityTierPolicyTests`, `TreeVisibilitySelectorTests`, `VisibleVegetationBatchAdapter`, `VisibleVegetationBatchAdapterTests`, `ProceduralForestCanopyRenderer`, `ProceduralForestCanopyRendererTests` | Preserve population rendering selection, hysteresis, batching, and canopy renderer. Keep semantic importance/promotion outside renderer ownership; rename only where needed to avoid implying a second world-truth model. |
-  | **Retain composition** | `ShowcaseTreeVisibilityComposition`, `ShowcaseForestCanopyRendering` | These are scene-level policy/wiring consumers rather than semantic owners. Keep only while they invoke production Vegetation/Rendering APIs; module-local validation must not clone their rendering logic. |
-  | **Retain** | engine `Rendering.Runtime/FarTerrainCoverageMath`, `VoxelFarTerrainCoverageTests` | Generic geometric coverage math with explicit inputs and no scene/world ownership. Continue to T016 and make diagnostics use real configured resolution. |
-  | **Delete compatibility duplicate** | Showcase `SceneRuntime/FarTerrainCoverageMath` | Thin duplicate wrapper around the engine implementation. Migrate call sites to the engine-owned math and remove the compatibility surface rather than preserving two owners. |
-  | **Retain / fix** | `FarTerrainCoverageDiagnostics`, `VoxelFarTerrain` coverage changes | Keep coverage diagnostics/fallback-retirement work, but remove hard-coded resolution and validate the 12 km guarantee from actual configuration. |
-  | **Retain pending visual proof** | `FarTerrain.shader`, `FarTerrainMaterialFamilyTests` | World-space macro/detail material work is generic Rendering-owned presentation. Keep only if built-player evidence proves near/far material-family continuity and stable detail frequency. |
-  | **Migrate assembly refs** | `Game.WorldBuilder.Api.asmdef`, `Game.WorldBuilder.Runtime.asmdef`, `VoxelEngine.Showcase.asmdef`, `VoxelEngine.Tests.EditMode.asmdef` changes | Current `Game.WorldBuilder.Api` imports `MountingForce.WorldGen.Architecture` solely because visibility exposes `StructureFarPresentation`, violating the desired API/runtime boundary. Generalizing the baked-feature API removes that dependency; other modules must consume only owning-module API assemblies. Test/composition refs are adjusted to the final ownership rather than preserved mechanically. |
+- [ ] **T003 — Expose coverage diagnostics needed to validate the system.**
+  - **Modify:** `VoxelFarTerrain.cs` and the existing Showcase debug/diagnostic surface used by the scene.
+  - Report requested outer radius, guaranteed authoritative radius, ring count, per-ring spacing, and whether startup fallback is active.
+  - Diagnostics are presentation/debug data only; they must not become authoritative world state.
 
-  **Audit invariant:** the retained implementation has three owners, not one giant far-world subsystem: (1) canonical generators own feature truth and emit/enable generic bake input, (2) sparse far bake/index + mass-population query layers own derived visibility data, and (3) Rendering owns disposable render resources. Showcase/Kentridge code may configure or demonstrate those APIs but may not own a second descriptor/manifest/renderer path.
+## Phase 0.5 — Make the entire far-terrain presentation visually coherent and performant
 
-- [x] **T002 — Locate the canonical generation representation from which far data can be baked automatically.**
-  - Inspect existing World Feature Authoring, Structures, WorldBuilder, vegetation/scatter, and voxel-authoring paths to identify the narrowest canonical representation available **before detailed region residency**: generation operations, geometry/form/site plans, authoring graph, voxel commands, or equivalent.
-  - Prefer a representation that all normal generated large objects already pass through so adding a new object automatically participates in far baking.
-  - Do not introduce a second required authoring interface whose sole purpose is far visibility.
-  - Determine whether the generic baker can replay the canonical generator into a coarse occupancy/geometry target, simplify an existing generator-owned geometry representation, or use another deterministic conservative derivation.
-  - **Discriminator:** prove on two existing unrelated generated feature shapes that conservative bounds/silhouette data can be derived without object-specific code and without loading their detailed distant voxel regions.
-  - **Validated:** catalogue-driven generated features already converge on `FeatureGeneration.EvaluateInstance` / `ShapeProgram.Evaluate`, which emits deterministic bounded primitives/anchors before voxel-region materialization. Production Kentridge structure and WorldBuilder mountain paths exercise unrelated shapes through this same canonical representation.
+- [ ] **T003A — Make far terrain derive the same visual terrain families from the same world-space facts as near terrain.**
+  - **Modify:** the `VoxelEngine/FarTerrain` shader/material path, `Assets/Game/Composition/Showcase/SceneRuntime/VoxelFarTerrain.cs`, and the narrowest existing terrain/material API needed to share renderer-neutral terrain classification inputs.
+  - Preserve the cheap analytic heightfield clipmap. Do **not** solve this by extending voxel residency or duplicating near voxel geometry/material ownership.
+  - Use deterministic world-space terrain facts already available to presentation (for example height/elevation, slope, biome/material family, rock/soil/grass relationships, and applicable authored surface overrides) so the far surface reads as the same world rather than a special smooth material regime.
+  - Keep shader/material decisions presentation-only; they must not become authoritative gameplay state and must not feed world generation.
+  - Prefer shared semantic/material-family inputs over copying a heavyweight near shader implementation verbatim when a cheaper far implementation can reproduce the same broad visual language.
+  - **Regression:** add focused tests for any extracted terrain-classification/material-family resolver so identical world positions/facts choose equivalent semantic surface families independent of camera position or clipmap ring.
 
-- [x] **T003 — Implement one generic far-bake output contract and bake pipeline.**
-  - The bake output is derived presentation data, not world truth. It carries stable source identity/revision, conservative bounds, transform/orientation, material/style family as available, and generic coarse geometry/massing payload sufficient for distant rendering.
-  - Bake at the natural lifecycle point: import/build for static authored assets, deterministic planning/generation for procedural features, and runtime creation/update for genuinely runtime-created content.
-  - Default importance/visibility comes from derived bounds/projected significance. Semantic tags/importance may override exceptional gameplay requirements but are not mandatory per-object metadata.
-  - Custom HLOD/far recipes are optional escape hatches only after a demonstrated visual defect; a newly created normal object must work without one.
-  - No `Mesh`, `GameObject`, camera state, Showcase/Kentridge type, or resident-region handle may leak into the authoritative generation API merely to support far rendering.
-  - **Regression:** two unrelated generated objects added through their normal generation path produce deterministic far-bake outputs with no new far-specific adapter/registration step.
-  - **Validated:** `FeaturePresentationBake` / `FeaturePresentationBaker` derive the generic presentation record, and `FeaturePresentationCatalogueBaker` supplies one catalogue lifecycle hook including structural-root expansion. Exact focused CI run `33473262150` passed `VoxelEngine.Tests.EditMode.FeaturePresentationCatalogueBakerTests` on child `e21a9b13e46723aa0595bf914f21eaedf25c476e`, parent feature SHA `303cb0b3e5e2b06405f23c1406676ee560b2344a`.
+- [ ] **T003B — Decouple far-terrain surface detail frequency from clipmap vertex spacing.**
+  - **Modify:** the far-terrain shader/material implementation and composition parameters.
+  - Add world-space/triplanar macro color breakup, roughness variation, and presentation/detail normals at frequencies finer than the 12.8-204.8 m geometric sample spacing where visually useful.
+  - Use deterministic world-space coordinates/seeded presentation parameters so detail does not swim as the camera or clipmap origin moves.
+  - Progressively filter/fade high-frequency detail with projected distance/mip scale so distant terrain does not shimmer, alias, or retain inappropriate centimeter-scale noise at kilometer range.
+  - Geometry remains responsible for broad silhouette/valleys/ridges; shader detail must not masquerade as authoritative collision or voxel shape.
+  - If a small auxiliary normal/material clipmap texture is demonstrated to be cheaper/better than procedural evaluation, it may be used, but it must be camera-windowed presentation data derived from deterministic world facts and measured against the device matrix.
+  - **Built-player proof:** terrain-dominant views around ~0.5, 1, 3, 6, 10, and 12 km retain coherent rock/soil/grass/material character without obvious smooth-far-world appearance or temporal shimmer.
 
-- [x] **T004 — Generalize the sparse spatial visibility source around baked feature outputs.**
-  - Adapt or replace `IWorldVisibilitySource` / `WorldVisibilityManifest` so the index stores/query generic baked sparse features rather than `StructureFarPresentation`.
-  - Keep it metadata/presentation-cache only: no voxel bricks, interiors, renderer objects, AI, collision, or physics.
-  - Deterministic sector query, de-duplication for cross-sector bounds, stable ordering, replacement/removal by stable source identity/revision.
-  - **Regression:** query requires no region generation/residency and supports unrelated feature shapes through the same API.
-  - **Validated:** `IFeaturePresentationSource` / `FeaturePresentationManifest` implement a generic metadata-only sparse source with deterministic sector query, cross-sector de-duplication, stable SourceId ordering, replacement and removal. Exact focused CI run `33475203893` passed `VoxelEngine.Tests.EditMode.FeaturePresentationManifestTests` on child `44b4b34d300a142f05984bc2ef62961a737cb442`, parent feature SHA `303cb0b3e5e2b06405f23c1406676ee560b2344a`.
+- [ ] **T003C — Measure silhouette loss and add a denser inner far-terrain tier only if the current first ring remains visibly too coarse.**
+  - **Modify only if evidence requires it:** `VoxelFarTerrain.cs` clipmap layout/configuration and focused coverage/geometry tests.
+  - First validate T003A/T003B with the existing geometry. Separate shading/material defects from actual silhouette/shape loss.
+  - If built-player evidence still shows conspicuous flattening or loss of ridges/slopes near the resident boundary because the current first far ring is ~12.8 m spacing versus ~0.8 m outer near source spacing, add the minimum configurable **inner far** density/tier needed to remove the demonstrated defect.
+  - Keep the denser geometry spatially bounded to the inner far range; outer rings must remain aggressively coarse. Do not raise all 12 km terrain to the new density.
+  - Do not hard-code a presumed 6.4 m answer. Select spacing/range from measured perceptual need and device budgets.
+  - Preserve clipmap snapping/coverage guarantees and do not increase near voxel residency.
+  - **Regression:** geometry/coverage tests prove any new inner tier has deterministic spacing/extents and cannot create a coverage hole; built-player evidence around ~400 m-1 km proves materially improved silhouette continuity.
 
-## Phase 1 — Prove new objects require no far-visibility work
+- [ ] **T003D — Make the resident-terrain -> far-terrain transition visually continuous after whole-range fidelity is fixed.**
+  - **Modify:** `VoxelShowcase.cs`, `VoxelFarTerrain.cs`, and the narrowest material/transition configuration required.
+  - Treat this as a final continuity gate, not as a substitute for T003A/T003B. The entire far field must already look correct on its own.
+  - Across approximately the ~350-600 m transition region, near and far representations must agree closely enough on terrain height, broad normals, semantic material family, large-scale color, fog/atmospheric response, and lighting that the renderer boundary is not conspicuous.
+  - Use overlap/readiness and, if required, a bounded geometric/material blend or compatible normal/material evaluation; avoid a permanently expensive double-rendered band.
+  - Test approach/retreat from multiple headings and elevations, including clipmap snap changes.
+  - **Built-player proof:** no obvious hard seam, sudden flattening, color/material shift, normal/lighting jump, fog mismatch, popping, or exposed gap while crossing the boundary.
 
-- [ ] **T005 — Prove automatic bake for a planned structure with no castle-specific visibility integration.**
-  - Use the existing castle/large-structure generation path as one consumer, but do not add a castle descriptor, castle visibility manifest, castle event, or castle renderer adapter.
-  - The normal generation/planning path must automatically feed the generic far baker.
-  - **Regression:** a never-visited planned castle is queryable/renderable from baked far data before any intersecting detailed voxel region is generated.
+## Phase 1 — Produce semantic far-structure data before voxel residency
 
-- [ ] **T006 — Prove automatic bake for an independent non-castle feature without changing the far system.**
-  - Use a genuinely different generated category required by acceptance, preferably a giant rock/monolith or another existing non-building generator.
-  - No changes to the bake contract, visibility index, selection policy, or renderer query interface are allowed merely because this producer is different.
-  - The test should model the future workflow: create/use the object through its normal generator and obtain far rendering automatically.
-  - **Regression:** structure and natural feature coexist with independent stable identity/revision and require no residency or per-object far plumbing.
+- [ ] **T004 — Add a renderer-neutral far-presentation descriptor derived from existing WorldBuilder facts.**
+  - **Add:** `Assets/Game/WorldBuilder/Generation/Architecture/StructureFarPresentation.cs`.
+  - Add a compact deterministic record containing only data needed to reconstruct/select a distant exterior proxy: stable structure key, world bounds/footprint, height, facing, structure/archetype key, architecture/material-family key, settlement/cluster key, visibility class, and deterministic revision/hash.
+  - Add `StructureVisibilityClass` with semantic categories sufficient for policy selection (ordinary structure, settlement anchor, landmark, horizon landmark).
+  - Add a resolver that consumes the existing `StructureIntent`, `StructureForm`, `StructureSiteGeometry`, and applicable `StructureGeometryProfile`/theme data. Do **not** add `Mesh`, `Material`, `GameObject`, renderer, or camera dependencies to WorldBuilder generation.
+  - **Regression:** identical planning inputs produce byte/value-equivalent far descriptors; bounds/facing agree with `StructureSiteGeometry`; landmark classification is semantic/config-driven rather than scene-coordinate-driven.
 
-- [ ] **T007 — Keep high-volume populations out of the sparse baked-feature index and automate promotion.**
-  - Ordinary trees/rocks/shrubs remain deterministic sector/cell queries owned by their population module; do not bake/register millions of sparse records.
-  - Preserve/rework existing vegetation, canopy, and natural-scatter query code where it already follows this model.
-  - Exceptional members whose derived bounds/projected significance exceed configured thresholds automatically promote into the generic sparse far-bake/index path; explicit semantic importance remains an override.
-  - **Regression:** ordinary forest/rock populations do not grow sparse-index cardinality; an exceptional member is promoted exactly once with stable identity without object-specific registration.
+- [ ] **T005 — Carry far-presentation records in existing planning results instead of reconstructing them from voxels.**
+  - **Modify:** the existing WorldBuilder planning result types in `Assets/Game/Composition/WorldBuilderWorldGen/Runtime/KentridgeCampaignWorldRealization.cs` and the structure/castle planning result types returned by `StructuresComposition.PlanCastle(...)`.
+  - Populate far descriptors at planning time, when structure intent/form/site geometry is already known.
+  - Do not wait for physical voxel realization and do not scan voxel storage to discover known semantic structures.
+  - **Regression:** a planned castle/house has a stable far descriptor before any intersecting voxel region is generated.
 
-## Phase 2 — Make rendering generic downstream of baked data
+## Phase 2 — Add a spatial visibility manifest without duplicating world truth
 
-- [ ] **T008 — Replace structure-specific render input with a generic far-feature render contract.**
-  - Audit `FarWorldRendering.cs`; rename/generalize structure-only types where necessary.
-  - Rendering API may contain render-ready bounds/transform, stable ID, generic baked geometry handle/key, material/style family, selected representation tier, and visual-state flags.
-  - Rendering API/runtime must not reference WorldBuilder/Game planning types or special-case castles, Kentridge, or Showcase.
-  - **Regression:** rendering contract can represent T005 and T006 outputs without API changes.
+- [ ] **T006 — Add a deterministic spatial index for semantic far descriptors.**
+  - **Add:** `Assets/Game/WorldBuilder/Api/IWorldVisibilitySource.cs` and a concrete implementation under `Assets/Game/WorldBuilder/Runtime/` (for example `WorldVisibilityManifest.cs`).
+  - Store lightweight references/descriptors only; the manifest must not own voxel bricks, interiors, colliders, NPCs, physics, or render objects.
+  - Index records by deterministic integer world sectors and allow bounds/sector queries without loading voxel regions.
+  - Structures crossing sector boundaries must be returned once; query output must have deterministic ordering independent of insertion/hash-map order.
+  - Support stable replacement/removal by structure key so regenerated or persistently changed semantic structures do not duplicate.
+  - **Regression:** new `Assets/Tests/EditMode/WorldVisibilityManifestTests.cs` covers cross-sector queries, deterministic order, replacement/removal, and verifies queries do not call region generation/storage residency paths.
 
-- [ ] **T009 — Generalize adaptation and projected-significance selection.**
-  - One generic adapter/query path consumes baked sparse features, applies configured projected-size + optional semantic-importance + hysteresis/readiness policy, and emits render-ready instances.
-  - Concrete thresholds/caps stay in game composition/config; shared renderer/policy contains no scene coordinates or named-content rules.
-  - Reuse existing projected-significance math if it satisfies this boundary.
-  - **Regression:** ordinary small feature culls while large/important feature persists; back/forth motion around thresholds is stable.
+- [ ] **T007 — Register planned Showcase landmarks before their voxel regions are queued/generated.**
+  - **Modify:** `Assets/Game/Composition/Showcase/ShowcaseWorld.cs`.
+  - Own or receive an `IWorldVisibilitySource`/manifest for the Showcase composition.
+  - In the existing `QueueLandmarks()` / castle-plan flow, register the planned castle's semantic far descriptor immediately after planning and **before** `_castleRegions` are required to become resident.
+  - Keep `StepLandmarks()` responsible for physical voxel realization only; it must no longer be a prerequisite for distant visual existence.
+  - Expose the read-only visibility source to scene composition.
+  - **Regression:** after castle planning but before any castle region has completed generation, a query around the castle returns its far descriptor.
 
-- [ ] **T010 — Render generic baked geometry before considering custom recipes.**
-  - Prefer generic conservative/simplified baked geometry or massing that preserves the source silhouette over a registry requiring a hand-authored recipe per object type.
-  - Reuse cached/instanced rendering infrastructure; immutable baked resources are cached/batched and there is no persistent GameObject per distant feature.
-  - Only introduce optional presentation overrides when built-player evidence shows the generic bake cannot preserve a required landmark relationship within budget.
-  - **Regression:** two unrelated automatically baked feature shapes render through the same renderer path with stable batching and no per-type renderer implementation.
+- [ ] **T008 — Populate the same visibility source from Kentridge/campaign planning.**
+  - **Modify:** `Assets/Game/Composition/WorldBuilderWorldGen/Runtime/KentridgeCampaignWorldRealization.cs` and its composition handoff.
+  - Register the existing planned settlement structures using their existing IDs/site geometry; do not create a second Kentridge-specific structure database.
+  - Ensure settlement, landmark, and ordinary-house records exist as soon as deterministic planning finishes, independent of later voxel physical realization.
+  - **Regression:** campaign plan output can enumerate/query the planned settlement without generating its voxel regions.
 
-- [ ] **T011 — Preserve aggregate HLOD for dense groups without changing semantic truth.**
-  - Settlement/building clustering and forest canopy clustering are disposable presentation aggregation over baked feature/population truth.
-  - Cluster activation must not duplicate constituent draws; landmark members remain independent when policy requires.
-  - Reuse existing deterministic cluster/canopy builders only if ownership and input contracts remain generic.
-  - **Regression:** cluster/member handoff is deterministic and hysteretic; state changes invalidate only affected aggregate revisions.
+## Phase 3 — Add an engine rendering contract and independent far-structure renderer
 
-- [ ] **T012 — Implement readiness-aware near/far representation handoff.**
-  - Far representation stays until the authoritative near surface covering the feature is actually ready, not merely resident/queued.
-  - On retreat/eviction, far representation becomes ready before near presentation disappears.
-  - Keep overlap bounded; no missing frame and no permanent double rendering.
-  - **Regression:** approach/retreat across the resident boundary for both a sparse baked feature and forest/tree representation.
+- [ ] **T009 — Add a Game-agnostic far-structure rendering API.**
+  - **Add:** `Assets/VoxelEngine/Rendering/Api/FarWorldRendering.cs` (or equivalent file in the existing Rendering API assembly).
+  - Define render-ready types such as `FarStructureInstance`, `FarStructureTier`, and `IFarStructureRenderer`.
+  - The engine-facing instance may contain stable ID, transform/bounds, proxy/archetype key, material/style key, selected tier, and compact visual-state flags, but must not reference WorldBuilder `StructureIntent` or Game composition types.
+  - Preserve assembly direction: Game/WorldBuilder adapts semantic records **into** the VoxelEngine rendering API; VoxelEngine Rendering must not depend on Game/WorldBuilder.
 
-## Phase 3 — Remove the rejected castle-specific path and duplicate authority
+- [ ] **T010 — Add a composition adapter from semantic records to render-ready instances.**
+  - **Add:** a Showcase composition class under `Assets/Game/Composition/Showcase/SceneRuntime/` (for example `ShowcaseFarStructureSource.cs`).
+  - Query `IWorldVisibilitySource` around the camera, apply configured visibility policy, and convert selected `StructureFarPresentation` values into `FarStructureInstance` values.
+  - This adapter is the boundary for scene/game policy. It must not request full voxel regions merely to render a distant structure.
+  - Keep structure IDs stable across queries so renderer caches and handoffs do not churn as the camera moves.
 
-- [ ] **T013 — Delete/fold castle-specific visibility plumbing after generic parity exists.**
-  - Remove `ShowcaseCastleFarPresentation` and `ShowcaseCastleVisibilityManifest`.
-  - Remove castle-only global event/plumbing in `ShowcaseWorld.FarVisibility.cs` if generic bake lifecycle supersedes it.
-  - Replace `ShowcaseFarStructureSource` / `ShowcaseFarWorldRendering` structure assumptions with the generic baked-feature path rather than layering the new system beside the old one.
-  - Remove obsolete castle-specific tests and replace them with automatic-bake regressions from T005/T006.
+- [ ] **T011 — Implement cached low-poly semantic structure proxies.**
+  - **Add:** runtime implementation under `Assets/VoxelEngine/Rendering/Runtime/FarWorld/` (for example `ProceduralFarStructureRenderer.cs`).
+  - Build/cache proxy archetype meshes by semantic proxy key rather than creating a Unity `GameObject` per distant building.
+  - Provide progressively cheaper exterior massing tiers: a recognizable mid proxy, a coarse far proxy, and a horizon/landmark silhouette where policy requests one.
+  - Houses must retain wall/roof massing; castles/large landmarks must retain major wall, keep, tower, and roof silhouette masses. Interiors, collision, physics, gameplay scripts, and voxel bricks are excluded.
+  - Batch compatible proxies with GPU instancing or the repository's existing low-overhead draw pattern. Stable camera motion must not rebuild immutable proxy meshes each frame.
+  - **Regression:** new `Assets/Tests/EditMode/FarStructureVisibilityTests.cs` verifies deterministic tier/archetype selection, stable batching keys, and absence of per-instance persistent GameObjects.
 
-- [ ] **T014 — Remove or internalize `StructureFarPresentation` so there is one far-derived feature concept.**
-  - Migrate any generally useful fields into the generic bake output and delete the cross-module parallel structure concept.
-  - If structure generation needs a private intermediate, keep that internal to its owning runtime; it must not become a required far-visibility API for future structures.
-  - Prove there is one owner for source identity/revision and no duplicate manifest/state store for the same fact.
+## Phase 4 — Select HLOD by projected significance and make handoffs stable
 
-- [ ] **T015 — Keep `FarFieldStructureStore` only for nonsemantic authored surface deviation/fallback.**
-  - Automatically baked features must not depend on far-terrain vertices landing inside their footprint.
-  - Preserve useful terrain lowering/raising and anonymous/legacy voxel-silhouette fallback for content that genuinely lacks a normal feature-generation lifecycle.
-  - **Regression:** baked landmark remains visible when no far-terrain sample hits its footprint; anonymous terrain alteration still affects far terrain.
+- [ ] **T012 — Add a configurable screen-space/semantic visibility policy.**
+  - **Add:** a rendering-policy API/config type (for example `FarWorldVisibilityPolicy`) and instantiate/configure it in Game composition.
+  - Compute projected significance from camera/FOV/viewport and world bounds; use semantic visibility class to set minimum/maximum allowed representation.
+  - Add separate enter/exit thresholds (hysteresis) so a house/cluster/landmark does not oscillate tiers at a boundary.
+  - Keep concrete distance caps and quality thresholds in composition/config, not hard-coded in the shared renderer.
+  - A large castle may remain visible near the horizon while an ordinary sub-pixel house may cull.
+  - **Regression:** boundary tests move a camera back/forth around thresholds and prove stable tier selection.
 
-## Phase 4 — Complete terrain correctness and visual continuity
+- [ ] **T013 — Add readiness-aware near-voxel/proxy handoff.**
+  - **Modify:** `Assets/Game/Composition/Showcase/SceneRuntime/VoxelShowcase.cs` and the narrowest existing rendering-composition/surface-scheduler API needed to expose whether the near voxel surface covering a semantic structure's footprint is ready.
+  - **Only if necessary, minimally modify:** `Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/VoxelSurfaceScheduler.cs` to expose readiness; do **not** change its source-step/ring LOD algorithm as part of this feature.
+  - Keep the far proxy visible while near voxel regions are resident but their meshes are still pending.
+  - Hide the proxy only when all required intersecting near surfaces are ready; on unload/eviction, re-enable the proxy before the near representation disappears.
+  - Use hysteresis/readiness to avoid visible holes and prolonged double-rendering.
+  - **Regression:** approach and retreat across the resident-world boundary without a missing castle/house frame.
 
-- [ ] **T016 — Finish geometric coverage diagnostics and guarantee configured far radius.**
-  - Keep the existing reusable `FarTerrainCoverageMath` if correct.
-  - Fix the current diagnostics draft so clipmap resolution is supplied from real configuration, not hard-coded.
-  - Expose requested radius, guaranteed radius, ring count/spacings, and fallback state on the existing diagnostic surface.
-  - **Regression:** 409.6 m -> 12 km is guaranteed across worst snap phases and fallback retirement never shrinks coverage.
+## Phase 5 — Stop using terrain vertices as the primary semantic-building representation
 
-- [ ] **T017 — Validate/fix whole-range far-terrain material and detail coherence.**
-  - Reuse current world-space macro/detail shader work only if built-player evidence confirms it derives compatible terrain families/lighting language from the same world facts as near terrain.
-  - Surface detail may be finer than clipmap vertices but must be distance-filtered and stable in absolute world space.
-  - Add a denser bounded inner far-geometry tier only if visual evidence still proves silhouette loss after shading/material continuity is fixed.
+- [ ] **T014 — Split `FarFieldStructureStore` into semantic-independent fallback channels.**
+  - **Modify:** `Assets/Game/Composition/Showcase/FarFieldStructureStore.cs`.
+  - Preserve its useful responsibilities: authored terrain lowering/material overrides and anonymous/arbitrary voxel silhouette fallback that cannot be reconstructed from a semantic plan.
+  - Add an explicit way to exclude/suppress known semantic structures from the built-silhouette channel once those structures have independent proxies (for example capture mode, semantic exclusion bounds/keys, or separate internal channels).
+  - Do not delete the store: arbitrary sculpts/player-created or legacy voxel forms still need a coarse far fallback.
+  - Preserve deterministic `HeightAt`/surface-deviation behavior for terrain alterations.
 
-- [ ] **T018 — Complete the ~350–600 m resident/far terrain transition.**
-  - Multiple headings/elevations and snap phases.
-  - No hard geometry, material-family, normal, color, fog, lighting, or coverage seam.
-  - Do not extend near voxel residency to solve the problem.
+- [ ] **T015 — Make `VoxelFarTerrain` consume only terrain/surface fallback, not semantic structure identity.**
+  - **Modify:** `Assets/Game/Composition/Showcase/SceneRuntime/VoxelFarTerrain.cs`, `VoxelShowcase.cs`, and `ShowcaseWorld.cs`.
+  - Replace/rename the current generic `Structures` dependency with a surface-deviation/fallback contract whose meaning excludes semantic buildings handled by the proxy renderer.
+  - The terrain clipmap may still incorporate lowered/raised nonsemantic voxel surface deviations, but a castle/house must not depend on a 12.8-204.8 m terrain vertex landing inside its footprint to exist visually.
+  - **Regression:** a ~100 m castle remains represented at ~10 km even when no outer clipmap sample vertex falls inside its footprint; terrain sculpts still affect far terrain.
 
-## Phase 5 — Production-faithful module validation and acceptance evidence
+- [ ] **T016 — Remove double representation for semantic castle/Kentridge structures only after proxy parity.**
+  - **Modify:** `ShowcaseWorld.cs` far-field capture calls and semantic capture/exclusion bookkeeping.
+  - Known planned buildings use semantic proxy rendering; do not also raise the far-terrain heightfield for the same structure.
+  - Continue capturing nonsemantic terrain edits/anonymous voxel structures.
+  - **Regression:** castle/house renders once, while an anonymous authored voxel tower and an authored terrain cut still retain far fallback behavior.
 
-- [ ] **T019 — Add the module-local far-world built-player validation consumer.**
-  - Follow repository `*.module-validation.json` discovery; do not hand-register every test.
-  - Validation scene/scenario must invoke production terrain, normal feature generators + automatic far bake/index, generic far renderer, vegetation/tree/canopy, materials, atmosphere/lighting, and production composition boundaries.
-  - Test code may control deterministic seed, cameras, instrumentation, and assertions only. No fake planes/cubes/trees/materials or parallel renderer.
+## Phase 6 — Add settlement HLOD so distant towns do not render every house independently
 
-- [ ] **T020 — Capture the required fixed-distance terrain comparison.**
-  - Durable built-player captures at approximately **0.5, 1, 3, 6, 10, and 12 km** from comparable terrain-dominant views.
-  - Inspect material family, broad terrain character, slope/rock/soil relationships, lighting/fog, surface-frequency stability, silhouette loss, and shimmer.
-  - Produce a comparison sheet/artifact if the harness supports it; these captures replace the unrelated Kentridge opening screenshots as visual evidence.
+- [ ] **T017 — Build deterministic settlement/neighborhood cluster descriptors from existing structure records.**
+  - **Add:** a WorldBuilder generation/runtime cluster builder adjacent to the visibility manifest.
+  - Cluster by existing settlement/neighborhood membership and deterministic spatial sectors; assign stable cluster IDs independent of camera position.
+  - Produce aggregate bounds/massing/style information sufficient for a coarse village/town silhouette.
+  - Keep semantically important members such as churches, towers, keeps, or other `SettlementAnchor`/`Landmark` structures independently addressable so clustering does not erase them.
+  - **Regression:** repeated generation creates identical cluster membership/IDs; a structure crossing a sector boundary is not duplicated.
 
-- [ ] **T021 — Prove never-resident automatically baked feature visibility at 8/10/12 km.**
-  - Cardinal and diagonal views, representative/worst snap phases.
-  - Assert target detailed voxel regions are not resident/generated while the generic baked-feature path remains visible.
-  - Run for both the structure and independent producer from T005/T006.
+- [ ] **T018 — Switch between individual structure proxies and cluster HLOD in the far source/renderer.**
+  - **Modify:** the T010 far-structure source, T011 renderer, and T012 visibility policy.
+  - Mid range: draw selected individual house/building proxies.
+  - Far range: draw cluster massing plus independently significant anchors/landmarks.
+  - Add readiness/hysteresis so cluster and members do not flicker or double-render during the handoff.
+  - **Regression:** a dense hillside settlement has a bounded far draw/instance count while preserving settlement density, roofline, and major landmark silhouettes.
 
-- [ ] **T022 — Prove population HLOD and automatic promotion behavior visually.**
-  - Horizon mountains read as forested without individual horizon trees.
-  - Ordinary small scatter disappears by projected significance.
-  - Exceptional natural feature automatically promotes/remains visible without custom object-specific far plumbing.
-  - Verify no obvious tree/canopy or cluster/member holes/double representation during travel.
+## Phase 7 — Add far tiers around the existing vegetation truth/rendering systems
 
-- [ ] **T023 — Measure blast radius and authoritative device budgets.**
-  - Record bake cost, CPU query/build/update cost, render-thread/draw cost, GPU cost where available, allocation/GC behavior, baked proxy/cache memory, canopy/cluster counts, and far-terrain vertex/build cost against the repository device matrix.
-  - Compare initial procedural bake, steady camera, moving camera, dense forest/settlement, runtime-created content if supported, and 12 km landmark cases.
-  - Do not weaken budgets or acceptance to fit results.
+- [ ] **T019 — Add deterministic spatial queries for existing vegetation/tree instances.**
+  - **Modify/add around:** `Assets/VoxelEngine/Vegetation/Api/VegetationPlacement.cs`, existing tree read-source APIs in `Assets/VoxelEngine/Vegetation/Runtime/TreeWorldState.cs`, and Showcase population composition.
+  - Add/query deterministic sector membership for render visibility without creating a second tree or plant ownership model.
+  - Existing tree IDs/skeleton/damage/sever state remain authoritative; lightweight vegetation remains deterministic placement data.
+  - Queries return stable IDs/order and do not force voxel region residency.
+  - **Regression:** same seed/sector returns same vegetation membership/order; moved camera changes queried sectors without mutating world truth.
 
-## Phase 6 — Exact-head validation and cleanup
+- [ ] **T020 — Make `ProceduralVegetationBatchRenderer` consume visible/tiered subsets rather than one whole-world flat list.**
+  - **Modify:** `Assets/VoxelEngine/Rendering/Runtime/Vegetation/ProceduralVegetationBatchRenderer.cs` and the `IVegetationBatchRenderer` API only as needed.
+  - Preserve existing mesh/material cache and GPU-instanced batching.
+  - Feed it camera-selected sector/tier batches (or an equivalent visible-instance update) so it does not blindly maintain/draw every non-grass world instance at all distances.
+  - Keep semantic placement rules outside the renderer.
+  - **Regression:** invisible sectors produce no draw instances; batch keys/material reuse remain stable when sectors enter/leave visibility.
 
-- [ ] **T024 — Run focused behavioral CI on the final architecture.**
-  - Smallest regression proving normal generation -> automatic bake -> query -> representation plus required affected-module automatic validation.
-  - Use only `ci-test/fixes/agent-7`; never replace queued/running CI.
+- [ ] **T021 — Add simplified tree proxy tiers on top of `ProceduralTreeRenderer`/tree read state.**
+  - **Modify:** `Assets/VoxelEngine/Rendering/Runtime/Vegetation/ProceduralTreeRenderer.cs` and its composition adapter.
+  - Near: retain the existing full procedural tree presentation.
+  - Mid: use simplified trunk/crown silhouette derived from the same stable tree identity/species parameters.
+  - Far: allow the tree to participate in deterministic forest-canopy clusters instead of drawing full individual geometry.
+  - Severed/destroyed trees must disappear/change through the existing `TreeWorldState`; do not add a duplicate persistent tree-status table.
+  - Promote semantically exceptional/giant trees to landmark visibility rather than forcing all trees to the same max distance.
 
-- [ ] **T025 — Run exact-SHA module-local built-player evidence and canonical Kentridge integration.**
-  - Required module scene/scenario and `KentridgePlayableSlice` must pass on the exact feature SHA.
-  - Inspect artifacts directly; green automation without production-quality visual evidence is insufficient.
+- [ ] **T022 — Add deterministic forest-canopy HLOD clusters.**
+  - **Add:** a vegetation cluster builder and lightweight canopy proxy path using the same sector scheme as T019.
+  - Build stable canopy/treeline massing from member trees; do not regenerate cluster identity based on camera location.
+  - Exclude/promote landmark trees so they can retain an independent silhouette.
+  - Invalidate/rebuild only affected cluster presentation when persistent tree state materially changes.
+  - **Regression:** a dense far forest uses bounded cluster proxies, preserves deterministic skyline/density, and does not pop between unrelated cluster layouts as the camera moves.
 
-- [ ] **T026 — Final architecture/ownership cleanup.**
-  - Search for castle-/Showcase-specific far-visibility ownership, duplicate feature descriptors, required per-object far adapters/registrations, renderer references to Game/WorldBuilder runtime types, and dead migration adapters.
-  - Confirm adding a normal new generated large object through the canonical generation path requires **zero far-system code changes**.
-  - Confirm API/runtime module boundaries and independent-producer reuse.
-  - Update `architecture-proposal.md` to the implemented automatic far-bake architecture; remove obsolete per-structure guidance.
-  - Update `plan.md` with final measured results and remaining gates only.
+- [ ] **T023 — Route boulders/other natural scatter through the same deterministic sector/visibility pattern.**
+  - **Modify an existing deterministic boulder/scatter placement source if present at implementation time; otherwise add a renderer-neutral scatter descriptor/index under WorldBuilder rather than making distant boulders voxel-resident.**
+  - Reuse the far visibility policy and instanced proxy renderer pattern; do not create a separate camera-specific world truth.
+  - Promote exceptional rock spires/megafeatures to landmark records; ordinary sub-pixel boulders cull/cluster according to policy.
+  - **Regression:** natural scatter is deterministic by world sector and does not require distant voxel region generation.
 
-- [ ] **T027 — Close only after every acceptance criterion is proven.**
-  - Complete SceneIssue resolution fields/evidence.
-  - Merge current `master`, revalidate affected exact head if necessary, move only this SceneIssue `open` -> `closed`, then non-force merge/push to `master` per workflow.
+## Phase 8 — Persist coarse visual state without retaining full distant voxels
+
+- [ ] **T024 — Add lightweight semantic structure visual-state persistence keyed by existing stable structure ID.**
+  - **Add:** a Game/WorldBuilder-side state source for coarse far presentation state (at minimum intact vs removed/ruined; add finer damaged states only where authoritative gameplay already supplies them).
+  - Update it from authoritative CPU/world events when nearby voxel destruction changes a semantic structure enough to alter its far silhouette. GPU/render output must never be the source of truth.
+  - Feed the state through the T010 adapter into the far renderer so a destroyed landmark does not reappear when viewed from distance.
+  - Do not store the destroyed structure's full voxel volume solely for far rendering.
+  - **Regression:** destroy/remove a semantic landmark, unload its voxel regions, query/render it from far away, and observe the persisted coarse state.
+
+- [ ] **T025 — Reuse existing tree state for far proxy invalidation.**
+  - **Modify:** the T019/T021/T022 query/adapters only.
+  - Read existing tree damage/sever/removal state from `TreeWorldState`; invalidate the affected individual/cluster proxy when that state changes.
+  - Explicitly do **not** add a second tree persistence system.
+
+## Phase 9 — Wire the complete system into composition
+
+- [ ] **T026 — Integrate far structures into `VoxelShowcase`.**
+  - **Modify:** `Assets/Game/Composition/Showcase/SceneRuntime/VoxelShowcase.cs`.
+  - Instantiate/receive the visibility manifest/source, far-structure source/adapter, renderer, and visibility policy.
+  - Update visible far structures from the scene camera without generating distant voxel regions.
+  - Keep `VoxelFarTerrain` responsible for terrain/surface fallback only.
+  - Dispose renderer/cache resources through the existing scene lifetime path.
+  - Add debug toggles/metrics through existing Showcase diagnostics rather than scene-specific ad-hoc GameObjects.
+
+- [ ] **T027 — Integrate the same contracts into Kentridge/macro-world composition.**
+  - **Modify:** `KentridgeCampaignWorldRealization.cs` and the composition code that consumes its plan.
+  - Use the same visibility manifest, render adapter contract, and policy types as Showcase; do not create a Kentridge-only far renderer.
+  - Planned settlement structures must be far-visible before physical voxel regions are realized.
+  - **Reuse proof:** a second consumer/fixture outside the original Showcase castle path renders/query-selects semantic proxies from the shared contracts.
+
+- [ ] **T028 — Integrate vegetation/scatter far visibility into Showcase composition.**
+  - **Modify:** `Assets/Game/Composition/Showcase/SceneRuntime/ShowcaseTreePopulation.cs`, `VegetationRenderingShowcase.cs`, and composition wiring.
+  - Replace the single all-world flat render submission with sector/tier-aware visible submissions while leaving deterministic generation/tree state ownership unchanged.
+  - Feed giant-tree/natural-landmark records into the same semantic visibility policy where applicable.
+
+## Phase 10 — Behavioral, visual, and budget validation
+
+- [ ] **T029 — Add the complete EditMode behavioral regression suite.**
+  - **Add/extend:**
+    - `Assets/Tests/EditMode/VoxelFarTerrainCoverageTests.cs`
+    - `Assets/Tests/EditMode/WorldVisibilityManifestTests.cs`
+    - `Assets/Tests/EditMode/FarStructureVisibilityTests.cs`
+    - `Assets/Tests/EditMode/FarVegetationVisibilityTests.cs`
+    - focused terrain presentation/classification tests added by T003A/T003C where the logic is testable outside shaders.
+  - Required cases:
+    1. 12 km guaranteed terrain coverage across camera snap phases.
+    2. Fallback retirement cannot reduce coverage.
+    3. Castle proxy selection at 8 km, 10 km, and 12 km.
+    4. Never-visited castle exists in the visibility manifest without voxel generation.
+    5. A structure narrower than the outer terrain grid spacing is not lost.
+    6. Near/proxy approach and retreat handoff has no representation hole.
+    7. Dense settlement deterministically switches between members and cluster HLOD.
+    8. Manifest/cluster/vegetation query order and hashes are deterministic.
+    9. Terrain sculpts and anonymous voxel fallback still work after semantic separation.
+    10. Existing tree sever/removal state propagates into individual/canopy far presentation.
+    11. Any extracted far-terrain material-family/classification resolver is deterministic and camera/ring independent for the same world-space terrain facts.
+    12. Any added inner far-terrain density tier has deterministic spacing/extents and preserves guaranteed coverage through camera snap phases.
+  - Use behavioral assertions; do not use source-string assertions as proof.
+
+- [ ] **T030 — Add built-player visibility fixtures/evidence for the actual perceptual requirements.**
+  - Create/extend SceneIssue validation scenes using the canonical `SceneIssues/README.md` workflow rather than treating unit tests as visual acceptance.
+  - Required structure/object fixtures/captures: castle at 8/10/12 km; approach/retreat through proxy-to-voxel handoff; hillside settlement with many houses; forest valley; exceptional giant tree/rock landmark; persisted destroyed landmark.
+  - Required **terrain-fidelity** fixtures/captures: terrain-dominant views around ~0.5 km, 1 km, 3 km, 6 km, 10 km, and 12 km; matched views emphasizing slope/rock/soil/grass transitions; and camera travel across approximately ~350-600 m from multiple headings/elevations.
+  - Move/rotate the camera through clipmap snap boundaries and HLOD thresholds.
+  - Inspect terrain for: conspicuous smooth/flat far-world appearance, loss of broad surface character, different material family/color, coarse-triangle lighting, normal discontinuity, fog/atmosphere mismatch, shimmer/aliasing, silhouette loss, seam/popping, and regression after any inner-density change.
+  - Inspect objects for: popping, holes, double images, terrain/building intersections, silhouette loss, and unstable cluster layouts.
+  - Rendered evidence must meet the repository's production-quality bar; passing coverage/structure tests does **not** waive terrain-fidelity acceptance.
+
+- [ ] **T031 — Validate CPU/GPU/memory cost against the authoritative device matrix.**
+  - Instrument/query existing metrics for: far-terrain ring builds, **per-ring vertex/index counts, height/sample work, rebuild frequency/churn, far-terrain material/shader GPU cost**, structure records queried, individual/cluster proxies selected, instanced batches/draw calls, vegetation sectors/instances/clusters, cache sizes, and handoff counts.
+  - If T003C adds a denser inner tier, report its incremental CPU build/sampling cost, GPU vertices/draws, memory, and rebuild churn separately from the existing outer clipmap.
+  - Profile representative terrain-only, dense settlement, and forest views on supported tiers against `specs/001-destructible-voxel-engine/device-matrix.md`.
+  - Device tiers may reduce presentation complexity/thresholds only; they must not change deterministic world truth, gameplay interest radius, collision, or authoritative simulation.
+  - Do not increase near voxel residency or make the full 12 km clipmap uniformly dense to pass visual acceptance.
+
+## Phase 11 — Remove obsolete semantic-heightfield behavior after parity is proven
+
+- [ ] **T032 — Remove the legacy requirement that known semantic buildings be captured into `FarFieldStructureStore`.**
+  - **Modify:** `ShowcaseWorld.cs` and `FarFieldStructureStore.cs` after T029-T031 pass.
+  - Stop castle/Kentridge semantic visibility from depending on post-build `CaptureRegion()`.
+  - Retain capture for terrain deviation and anonymous/arbitrary voxel forms.
+  - Remove `ApplyGuaranteedSentinelOverlay()` only if its validation purpose is replaced by deterministic regressions; otherwise keep it isolated as validation-only behavior.
+
+- [ ] **T033 — Update the far-world architecture docs to match final code boundaries and measured limits.**
+  - **Modify:** `specs/004-far-world-visibility/plan.md` and `architecture-proposal.md` only where implementation evidence changes the proposal.
+  - Record final policy/config ownership, actual guaranteed far-terrain coverage, **far-terrain material/detail-frequency strategy, any measured inner far geometry tier**, proxy/cluster handoff rules, persistent-state ownership, and measured budget results.
+  - Do not leave documentation claiming that the old five-ring heuristic guarantees 12 km if the final math/config differs.
+  - Do not leave documentation implying that far-terrain visual quality is accepted merely because coverage is correct; record the final built-player fidelity evidence and performance tradeoff.

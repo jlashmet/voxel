@@ -18,6 +18,11 @@ namespace VoxelEngine.Net.Runtime.Server
         void HandleRegionRequest(uint connectionId, in C_RegionRequest request);
     }
 
+    public interface IClientGameplayStateRepairHandler
+    {
+        void HandleGameplayStateRepairRequest(uint connectionId, in C_GameplayStateRepairRequest request);
+    }
+
     /// <summary>
     /// Server-side reliable EVENT dispatcher. Framing/type validation happens here; decoded intent
     /// is handed to bounded queues with transport-owned connection identity supplied separately.
@@ -29,7 +34,8 @@ namespace VoxelEngine.Net.Runtime.Server
             ReadOnlySpan<byte> packet,
             IClientEventCommandHandler eventHandler,
             IClientConvergenceCommandHandler convergenceHandler = null,
-            IClientRegionRequestHandler regionRequestHandler = null)
+            IClientRegionRequestHandler regionRequestHandler = null,
+            IClientGameplayStateRepairHandler gameplayStateRepairHandler = null)
         {
             if (eventHandler == null)
                 throw new ArgumentNullException(nameof(eventHandler));
@@ -56,6 +62,13 @@ namespace VoxelEngine.Net.Runtime.Server
                         !RegionRequestPacket.TryDecode(packet, out C_RegionRequest regionRequest))
                         return false;
                     regionRequestHandler.HandleRegionRequest(connectionId, in regionRequest);
+                    return true;
+
+                case ProtocolMessageKind.C_GameplayStateRepairRequest:
+                    if (gameplayStateRepairHandler == null ||
+                        !GameplayStateRepairRequestPacket.TryDecode(packet, out C_GameplayStateRepairRequest gameplayRepair))
+                        return false;
+                    gameplayStateRepairHandler.HandleGameplayStateRepairRequest(connectionId, in gameplayRepair);
                     return true;
 
                 default:
