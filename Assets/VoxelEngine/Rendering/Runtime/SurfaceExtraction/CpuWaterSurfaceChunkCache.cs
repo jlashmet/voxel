@@ -10,7 +10,7 @@ using VoxelEngine.Storage.Api;
 namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 {
     /// <summary>
-    /// Derived raster mesh for authoritative voxels whose installed presentation is water.
+    /// Derived raster mesh for authoritative water (material 11) and cascade (material 16) voxels.
     /// Water remains presentation-only derived geometry; authoritative voxel memory is read through
     /// Storage.Api and no physical pool/region representation crosses into Rendering.
     /// </summary>
@@ -323,38 +323,50 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             RegionReadView cachedRegion = default;
             for (int i = 0; i < worldBricks.Count; i++)
+                InvalidateSurfaceBrick(storage, worldBricks[i], ref cachedRegion);
+        }
+
+        internal void InvalidateSurfaceBrick(IRegionReadSource storage, int3 worldBrick,
+                                             ref RegionReadView cachedRegion)
+        {
+            if (storage == null) return;
+
+            int3 chunk = WorldBrickChunk(worldBrick);
+            if (!cachedRegion.IsCreated || !cachedRegion.ContainsWorldBlock(worldBrick))
             {
-                int3 worldBrick = worldBricks[i];
-                int3 chunk = WorldBrickChunk(worldBrick);
-                bool containsWater = TryLoadBrickMaterials(storage, worldBrick, ref cachedRegion)
-                                  && LoadedBrickContainsWater();
-
-                if (containsWater)
-                {
-                    if (!_waterBricks.TryGetValue(chunk, out HashSet<int3> set))
-                    {
-                        set = new HashSet<int3>();
-                        _waterBricks.Add(chunk, set);
-                        TrackResidentChunk(chunk);
-                    }
-                    if (set.Add(worldBrick)) Invalidate(chunk);
-                }
-                else if (_waterBricks.TryGetValue(chunk, out HashSet<int3> existing)
-                         && existing.Remove(worldBrick))
-                {
-                    Invalidate(chunk);
-                }
-
-                int rx = worldBrick.x & (BricksPerAxis - 1);
-                int ry = worldBrick.y & (BricksPerAxis - 1);
-                int rz = worldBrick.z & (BricksPerAxis - 1);
-                if (rx == 0) MarkKnownDirty(chunk + new int3(-1, 0, 0));
-                if (rx == BricksPerAxis - 1) MarkKnownDirty(chunk + new int3(1, 0, 0));
-                if (ry == 0) MarkKnownDirty(chunk + new int3(0, -1, 0));
-                if (ry == BricksPerAxis - 1) MarkKnownDirty(chunk + new int3(0, 1, 0));
-                if (rz == 0) MarkKnownDirty(chunk + new int3(0, 0, -1));
-                if (rz == BricksPerAxis - 1) MarkKnownDirty(chunk + new int3(0, 0, 1));
+                if (!storage.TryAcquireRegionContainingBlock(worldBrick, out cachedRegion))
+                    cachedRegion = default;
             }
+            bool containsWater = cachedRegion.IsCreated
+                              && cachedRegion.TryWorldBlockContainsEitherMaterial(
+                                  worldBrick, 11, 16, out bool foundWater)
+                              && foundWater;
+
+            if (containsWater)
+            {
+                if (!_waterBricks.TryGetValue(chunk, out HashSet<int3> set))
+                {
+                    set = new HashSet<int3>();
+                    _waterBricks.Add(chunk, set);
+                    TrackResidentChunk(chunk);
+                }
+                if (set.Add(worldBrick)) Invalidate(chunk);
+            }
+            else if (_waterBricks.TryGetValue(chunk, out HashSet<int3> existing)
+                     && existing.Remove(worldBrick))
+            {
+                Invalidate(chunk);
+            }
+
+            int rx = worldBrick.x & (BricksPerAxis - 1);
+            int ry = worldBrick.y & (BricksPerAxis - 1);
+            int rz = worldBrick.z & (BricksPerAxis - 1);
+            if (rx == 0) MarkKnownDirty(chunk + new int3(-1, 0, 0));
+            if (rx == BricksPerAxis - 1) MarkKnownDirty(chunk + new int3(1, 0, 0));
+            if (ry == 0) MarkKnownDirty(chunk + new int3(0, -1, 0));
+            if (ry == BricksPerAxis - 1) MarkKnownDirty(chunk + new int3(0, 1, 0));
+            if (rz == 0) MarkKnownDirty(chunk + new int3(0, 0, -1));
+            if (rz == BricksPerAxis - 1) MarkKnownDirty(chunk + new int3(0, 0, 1));
         }
 
         public void InvalidateDirtyRegions(HashSet<int3> dirtyRegions)
@@ -615,7 +627,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 {
                     BrickBaseVoxels = _waterBatchBrickBases,
                     SnapshotMaterials = _waterBatchMaterials,
-                    WaterMaterialMask = global::VoxelEngine.Rendering.Runtime.VoxelPresentationCatalogue.WaterMaterialMask,
                     BatchCount = _waterBatchCount,
                     VoxelSize = voxelSize,
                     MaskScratch = _waterMeshMask,
@@ -624,6 +635,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     Overflow = _waterMeshOverflow,
                 }.Schedule();
                 _waterMeshJobScheduled = true;
+                // Never spin on freshly scheduled mesh work.
                 return false;
             }
 
@@ -743,8 +755,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             return true;
         }
 
-        private static bool IsWater(byte material) =>
-            global::VoxelEngine.Rendering.Runtime.VoxelPresentationCatalogue.IsWaterMaterial(material);
+        private static bool IsWater(byte material) => material == 11 || material == 16;
 
         private void MarkKnownDirty(int3 chunk)
         {
@@ -871,6 +882,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (farthest < 0f) return false;
             if (!_entries.TryGetValue(victim, out Entry entry)) return false;
 
+            // Arena pressure is publication backpressure, not authoritative water eviction.
+            // Keep the discovered brick set + residency record so the chunk is rebuilt later.
             _entries.Remove(victim);
             ReleaseEntry(entry);
             MarkDirty(victim);

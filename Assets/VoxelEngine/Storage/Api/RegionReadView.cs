@@ -118,6 +118,39 @@ namespace VoxelEngine.Storage.Api
                                 surfaceSemantics, boundarySamples, destinationOffset);
         }
 
+        /// <summary>
+        /// Tests two material ids without copying the block's render payload. This is intended for
+        /// lightweight derived-surface classification; callers that need a stable payload for a
+        /// job must still pin the block through <see cref="IRegionReadSource.TryPinWorldBlock"/>.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool TryWorldBlockContainsEitherMaterial(
+            int3 worldBlockCoord, byte first, byte second, out bool contains)
+        {
+            contains = false;
+            if (!ContainsWorldBlock(worldBlockCoord)) return false;
+
+            int3 localBlock = WorldToLocalBlock(worldBlockCoord);
+            int encoded = _encodedBlockRefs[BlockIndex(localBlock)];
+            if (encoded == -1) return true;
+            if (encoded < 0)
+            {
+                byte uniform = (byte)(-encoded - 1);
+                contains = uniform == first || uniform == second;
+                return true;
+            }
+
+            int sourceOffset = encoded * VoxelReadGrid.VoxelsPerBlock;
+            for (int i = 0; i < VoxelReadGrid.VoxelsPerBlock; i++)
+            {
+                byte material = _mixedVoxels[sourceOffset + i];
+                if (material != first && material != second) continue;
+                contains = true;
+                break;
+            }
+            return true;
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryGetBlock(int3 localBlock, out VoxelReadBlock block)
         {

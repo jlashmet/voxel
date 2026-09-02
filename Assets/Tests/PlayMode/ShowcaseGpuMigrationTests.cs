@@ -7,29 +7,40 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 using VoxelEngine.Rendering.Runtime;
+using VoxelEngine.Rendering.Runtime.GpuVoxel;
 using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 using VoxelEngine.Showcase;
 
 namespace VoxelEngine.Tests.PlayMode
 {
     /// <summary>
-    /// Regression for SceneIssue 20260825-192751-413: the legacy per-worker GPU-v1 cutover must
-    /// stay out of production after two exact traversal runs lost every visible voxel draw. The
-    /// optimized CPU renderer must preserve moving coverage and frame-time gates at the scene's
-    /// actual unsprinted fly-speed ceiling while GPU-v1 remains explicit diagnostic opt-in only.
+    /// Behavioral regression for SceneIssue 20260825-192751-413.
+    ///
+    /// Supported step-1/step-2 chunks must take the production GPU surface path with no silent CPU
+    /// fallback once classified GPU-eligible. Geometry/rings the GPU backend does not implement may
+    /// continue through the CPU path. The old ready geometry must remain visible during replacement,
+    /// traversal must move at the scene's actual fly-speed cap, and the final run reports both
+    /// moving-frame latency and settled stationary headroom.
     /// </summary>
     public sealed class ShowcaseGpuMigrationTests
     {
         private const string ScenePath = "Assets/Scenes/VoxelShowcase.unity";
         private const double MaxCoverageWarmupSeconds = 30.0;
-        private const double MaxTraversalSeconds = 30.0;
+        // Liveness only. Movement intentionally caps displacement per rendered frame, so slow
+        // frames cannot be hidden by catch-up motion; the moving p95/p99 assertions remain the
+        // performance gates for the same traversal.
+        private const double MaxTraversalSeconds = 45.0;
+        private const double MaxStationarySettleSeconds = 20.0;
         private const float TraversalDistanceMetres = 210f;
         private const float MaxTraversalStepMetres = 0.5f;
+        private const int MinimumGpuBuildsDuringTraversal = 8;
+        private const int StationaryBenchmarkFrames = 240;
         private const double MaxMovingP95FrameMs = 18.0;
         private const double MaxMovingP99FrameMs = 25.0;
+        private const double MaxStationaryP95FrameMs = 8.0;
 
         [UnityTest, Timeout(900000)]
-        public IEnumerator MovingShowcaseKeepsLegacyGpuV1OffAndPreservesCoverage()
+        public IEnumerator MovingShowcaseCompletesGpuSurfaceBuildsAndPreservesCoverage()
         {
             UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(
                 ScenePath, new LoadSceneParameters(LoadSceneMode.Single));
@@ -41,8 +52,8 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.NotNull(showcase);
             Assert.NotNull(far);
             Assert.NotNull(camera);
-            Assert.True(CpuTransvoxelChunkCache.GpuCutoverDisabled,
-                "Production startup did not apply the legacy GPU-v1 safety gate.");
+            Assert.False(CpuTransvoxelChunkCache.GpuCutoverDisabled,
+                "Production startup disabled the validated near-ring GPU surface path.");
 
             SetShowcaseField(showcase, "m_FlyMode", true);
             SetShowcaseField(showcase, "_mouseLook", false);
@@ -52,7 +63,7 @@ namespace VoxelEngine.Tests.PlayMode
 
             var target = new RenderTexture(320, 180, 24, RenderTextureFormat.ARGB32)
             {
-                name = "ShowcaseGpuMigrationTests.ProductionSafety",
+                name = "ShowcaseGpuMigrationTests.ProductionGpu",
                 antiAliasing = 1,
             };
             RenderTexture previousTarget = camera.targetTexture;
@@ -64,28 +75,31 @@ namespace VoxelEngine.Tests.PlayMode
                 yield return WaitForFallbackSafeVisibleCoverage(
                     camera, far, MaxCoverageWarmupSeconds);
 
+                VoxelSurfaceMetrics initial = VoxelRenderBridge.SurfaceMetrics;
+                Assert.True(initial.GpuCutoverAvailable,
+                    "Production workers do not advertise the near-ring GPU cutover.");
+
                 Vector3 origin = showcase.transform.position;
                 Quaternion originRotation = showcase.transform.rotation;
                 Vector3 position = origin;
                 float pathMetres = 0f;
-                ulong initialGpuCompleted = VoxelRenderBridge.SurfaceMetrics.GpuCompletedSolidBuilds;
+                ulong initialGpuCompleted = initial.GpuCompletedSolidBuilds;
+                ulong initialCompleted = initial.CompletedSolidBuilds;
+                ulong initialGpuFallback = initial.GpuFallbackSolidBuilds;
+                ulong initialGpuWaits = initial.GpuReadbackWaitSlices;
+                ulong initialSnapshotlessStages = initial.GpuSnapshotlessSolidStages;
                 var frameTimesMs = new List<double>(1024);
                 var frameClock = new Stopwatch();
                 var traversalClock = Stopwatch.StartNew();
                 double previousMotionSeconds = traversalClock.Elapsed.TotalSeconds;
                 bool sawStreamingWork = false;
+                bool sawGpuBackend = initial.GpuResidentBackends > 0;
+                int maxGpuBackends = initial.GpuResidentBackends;
                 int crossedRegionBoundaries = 0;
                 int previousRegionX = Mathf.FloorToInt(origin.x / ShowcaseWorld.RegionMetres);
                 int frame = 0;
-                VoxelSurfaceMetrics last = default;
+                VoxelSurfaceMetrics last = initial;
 
-                // The old regression advanced 0.5 m on every rendered frame. At its own 18 ms
-                // budget that is already ~28 m/s, and at the scene's target frame rates it becomes
-                // hundreds of metres per second. That tests a frame-rate-dependent teleport, not
-                // player movement. Advance by real elapsed time at the scene's unsprinted fly-speed
-                // ceiling, retaining the 0.5 m per-frame cap so a slow CI frame can never make the
-                // test less strict than the old spatial step. A gentle heading weave still forces
-                // clipmap changes off one perfectly aligned axis.
                 while (position.x - origin.x < TraversalDistanceMetres)
                 {
                     double nowSeconds = traversalClock.Elapsed.TotalSeconds;
@@ -125,18 +139,21 @@ namespace VoxelEngine.Tests.PlayMode
                     last = VoxelRenderBridge.SurfaceMetrics;
 
                     Assert.AreEqual(0ul, last.FramePathBlockingCompletionViolations,
-                        $"Production safety frame {frame} synchronously completed geometry work.");
+                        $"GPU traversal frame {frame} synchronously completed geometry work.");
                     if (last.VisibleSolidChunks <= 0)
                         Assert.Fail(DescribeVisibilityFailure(
                             frame, in last, showcase.transform, far));
-                    Assert.AreEqual(0, last.GpuResidentBackends,
-                        $"Production safety frame {frame} allocated a legacy GPU-v1 backend.");
+
+                    Assert.True(last.GpuCutoverAvailable,
+                        $"GPU traversal frame {frame} lost production cutover availability.");
+                    sawGpuBackend |= last.GpuResidentBackends > 0;
+                    maxGpuBackends = Mathf.Max(maxGpuBackends, last.GpuResidentBackends);
 
                     if (NearCoverageIsIncomplete(in last))
                     {
                         Assert.LessOrEqual(far.HoleRadiusMetres, 0.05f,
-                            $"Production safety frame {frame} had incomplete near coverage but "
-                          + $"opened a {far.HoleRadiusMetres:F2} m far-field hole.");
+                            $"GPU traversal frame {frame} had incomplete near coverage but opened "
+                          + $"a {far.HoleRadiusMetres:F2} m far-field hole.");
                     }
 
                     sawStreamingWork |= last.SolidDirtyChunks > 0
@@ -148,7 +165,7 @@ namespace VoxelEngine.Tests.PlayMode
                     if (traversalClock.Elapsed.TotalSeconds > MaxTraversalSeconds)
                     {
                         Assert.Fail(
-                            $"Production-speed traversal exceeded {MaxTraversalSeconds:F0}s after "
+                            $"Production-speed GPU traversal exceeded {MaxTraversalSeconds:F0}s after "
                           + $"{position.x - origin.x:F1}/{TraversalDistanceMetres:F0} m and "
                           + $"{frame + 1} rendered frames.");
                     }
@@ -156,28 +173,102 @@ namespace VoxelEngine.Tests.PlayMode
                 }
 
                 Assert.GreaterOrEqual(position.x - origin.x, TraversalDistanceMetres - 0.01f,
-                    "Production safety traversal did not cover the required world-space distance.");
+                    "GPU traversal did not cover the required world-space distance.");
                 Assert.GreaterOrEqual(crossedRegionBoundaries, 4,
-                    "Production safety traversal did not cross enough region boundaries.");
+                    "GPU traversal did not cross enough region boundaries.");
                 Assert.True(sawStreamingWork,
-                    "Production safety traversal never exercised streaming/publication work.");
-                Assert.False(last.GpuCutoverAvailable,
-                    "Production workers still advertised the legacy GPU-v1 cutover.");
-                Assert.AreEqual(initialGpuCompleted, last.GpuCompletedSolidBuilds,
-                    "Production completed GPU-v1 surface builds despite the safety rollback.");
+                    "GPU traversal never exercised streaming/publication work.");
+                Assert.True(sawGpuBackend,
+                    "No production worker allocated the GPU surface backend during traversal.");
+
+                ulong gpuCompletedDelta = last.GpuCompletedSolidBuilds - initialGpuCompleted;
+                ulong completedDelta = last.CompletedSolidBuilds - initialCompleted;
+                ulong gpuFallbackDelta = last.GpuFallbackSolidBuilds - initialGpuFallback;
+                ulong gpuWaitDelta = last.GpuReadbackWaitSlices - initialGpuWaits;
+                ulong snapshotlessStageDelta =
+                    last.GpuSnapshotlessSolidStages - initialSnapshotlessStages;
+                ulong gpuEligibleAttempts = gpuCompletedDelta + gpuFallbackDelta;
+                double gpuEligibleAdoption = gpuEligibleAttempts > 0
+                    ? (double)gpuCompletedDelta / gpuEligibleAttempts : 0.0;
+                double overallGpuShare = completedDelta > 0
+                    ? (double)gpuCompletedDelta / completedDelta : 0.0;
+
+                Assert.GreaterOrEqual(gpuCompletedDelta, (ulong)MinimumGpuBuildsDuringTraversal,
+                    $"Production GPU path completed only {gpuCompletedDelta} chunks during the "
+                  + $"210 m traversal; this is not sustained cutover adoption.");
+                Assert.GreaterOrEqual(snapshotlessStageDelta, gpuCompletedDelta,
+                    "Every completed GPU build must have entered compute before CPU exact "
+                  + "metadata/classification and mixed-payload snapshot pinning.");
+                Assert.AreEqual(0ul, gpuFallbackDelta,
+                    $"{gpuFallbackDelta} GPU-eligible solid builds fell back to CPU during the "
+                  + $"210 m traversal. Implemented GPU paths require 100% adoption; "
+                  + $"completed={gpuCompletedDelta}, eligibleAttempts={gpuEligibleAttempts}, "
+                  + $"context={last.GpuContextFailureSolidBuilds}, "
+                  + $"arena={last.GpuArenaFullSolidBuilds}, "
+                  + $"count={last.GpuCountFailureSolidBuilds}, "
+                  + $"write={last.GpuWriteFailureSolidBuilds}, "
+                  + $"unsupported={last.GpuUnsupportedSolidBuilds}.");
 
                 frameTimesMs.Sort();
-                double p95 = Percentile(frameTimesMs, 0.95);
-                double p99 = Percentile(frameTimesMs, 0.99);
+                double movingP95 = Percentile(frameTimesMs, 0.95);
+                double movingP99 = Percentile(frameTimesMs, 0.99);
+                Assert.Less(movingP95, MaxMovingP95FrameMs,
+                    $"Production GPU traversal p95 regressed to {movingP95:F3} ms; "
+                  + $"gpuCompleted={gpuCompletedDelta}, gpuFallback={gpuFallbackDelta}, "
+                  + $"countRetries={last.GpuCountFailureSolidBuilds}, "
+                  + $"writeRetries={last.GpuWriteFailureSolidBuilds}, "
+                  + $"arenaWaits={last.GpuArenaFullSolidBuilds}, "
+                  + $"gpuWaitSlices={gpuWaitDelta}.");
+                Assert.Less(movingP99, MaxMovingP99FrameMs,
+                    $"Production GPU traversal p99 regressed to {movingP99:F3} ms.");
+
+                yield return WaitForSettledVisibleCoverage(
+                    camera, MaxStationarySettleSeconds);
+
+                var stationaryTimesMs = new List<double>(StationaryBenchmarkFrames);
+                for (int i = 0; i < StationaryBenchmarkFrames; i++)
+                {
+                    frameClock.Restart();
+                    yield return null;
+                    camera.Render();
+                    frameClock.Stop();
+                    stationaryTimesMs.Add(frameClock.Elapsed.TotalMilliseconds);
+
+                    VoxelSurfaceMetrics metrics = VoxelRenderBridge.SurfaceMetrics;
+                    last = metrics;
+                    Assert.AreEqual(0ul, metrics.FramePathBlockingCompletionViolations,
+                        $"Stationary benchmark frame {i} synchronously completed geometry work.");
+                    Assert.Greater(metrics.VisibleSolidChunks, 0,
+                        $"Stationary benchmark frame {i} lost visible voxel geometry.");
+                }
+
+                ulong gpuFallbackThroughStationary =
+                    last.GpuFallbackSolidBuilds - initialGpuFallback;
+                Assert.AreEqual(0ul, gpuFallbackThroughStationary,
+                    $"{gpuFallbackThroughStationary} GPU-eligible solid builds fell back to CPU "
+                  + "during traversal/settle. Implemented GPU paths require 100% adoption.");
+
+                stationaryTimesMs.Sort();
+                double stationaryP50 = Percentile(stationaryTimesMs, 0.50);
+                double stationaryP95 = Percentile(stationaryTimesMs, 0.95);
+                double stationaryFpsP50 = stationaryP50 > 0.0 ? 1000.0 / stationaryP50 : 0.0;
+                double stationaryFpsP95 = stationaryP95 > 0.0 ? 1000.0 / stationaryP95 : 0.0;
+
                 UnityEngine.Debug.Log(
-                    $"### SHOWCASE_GPU_ROLLBACK_TRAVERSAL frames={frameTimesMs.Count} "
+                    $"### SHOWCASE_GPU_TRAVERSAL frames={frameTimesMs.Count} "
                   + $"distance={position.x - origin.x:F1}m path={pathMetres:F1}m "
-                  + $"speedCap={productionFlySpeed:F1}m/s p95={p95:F3}ms p99={p99:F3}ms "
-                  + $"max={frameTimesMs[^1]:F3}ms");
-                Assert.Less(p95, MaxMovingP95FrameMs,
-                    $"Production CPU traversal p95 regressed to {p95:F3} ms.");
-                Assert.Less(p99, MaxMovingP99FrameMs,
-                    $"Production CPU traversal p99 regressed to {p99:F3} ms.");
+                  + $"speedCap={productionFlySpeed:F1}m/s movingP95={movingP95:F3}ms "
+                  + $"movingP99={movingP99:F3}ms movingMax={frameTimesMs[^1]:F3}ms "
+                  + $"gpuCompleted={gpuCompletedDelta} totalCompleted={completedDelta} "
+                  + $"gpuEligibleAdoption={gpuEligibleAdoption:P1} "
+                  + $"overallGpuShare={overallGpuShare:P1} gpuFallback={gpuFallbackThroughStationary} "
+                  + $"gpuWaitSlices={gpuWaitDelta} gpuBackendsMax={maxGpuBackends} "
+                  + $"stationaryP50={stationaryP50:F3}ms stationaryP95={stationaryP95:F3}ms "
+                  + $"stationaryFpsP50={stationaryFpsP50:F0} stationaryFpsP95={stationaryFpsP95:F0}");
+
+                Assert.Less(stationaryP95, MaxStationaryP95FrameMs,
+                    $"Settled full-showcase p95 is {stationaryP95:F3} ms "
+                  + $"(~{stationaryFpsP95:F0} FPS), above the {MaxStationaryP95FrameMs:F1} ms gate.");
             }
             finally
             {
@@ -190,18 +281,16 @@ namespace VoxelEngine.Tests.PlayMode
         private static IEnumerator WaitForFallbackSafeVisibleCoverage(
             Camera camera, VoxelFarTerrain far, double maxSeconds)
         {
-            var warmupClock = Stopwatch.StartNew();
-            int renderedFrames = 0;
+            var clock = Stopwatch.StartNew();
             int stableFrames = 0;
             VoxelSurfaceMetrics last = default;
-            while (warmupClock.Elapsed.TotalSeconds < maxSeconds)
+            while (clock.Elapsed.TotalSeconds < maxSeconds)
             {
-                renderedFrames++;
                 yield return null;
                 camera.Render();
                 last = VoxelRenderBridge.SurfaceMetrics;
                 Assert.AreEqual(0ul, last.FramePathBlockingCompletionViolations,
-                    "Geometry work blocked while preparing production traversal coverage.");
+                    "Geometry work blocked while preparing GPU traversal coverage.");
 
                 bool nearIncomplete = NearCoverageIsIncomplete(in last);
                 bool fallbackSafe = !nearIncomplete || far.HoleRadiusMetres <= 0.05f;
@@ -211,102 +300,69 @@ namespace VoxelEngine.Tests.PlayMode
             }
 
             Assert.Fail(
-                $"Showcase never reached fallback-safe visible coverage within "
-              + $"{maxSeconds:F0}s ({renderedFrames} rendered frames); "
+                $"Showcase never reached fallback-safe visible coverage within {maxSeconds:F0}s; "
               + $"known={last.SolidKnownChunks} resident={last.SolidResidentChunks} "
               + $"dirty={last.SolidDirtyChunks} visible={last.VisibleSolidChunks} "
               + $"missing={last.MissingVisibleSolidChunks} jobs={last.RunningSolidJobs} "
+              + $"gpu={last.GpuCompletedSolidBuilds}/{last.GpuFallbackSolidBuilds} "
               + $"farHole={far.HoleRadiusMetres:F2}m.");
         }
 
+        private static IEnumerator WaitForSettledVisibleCoverage(Camera camera, double maxSeconds)
+        {
+            var clock = Stopwatch.StartNew();
+            int stableFrames = 0;
+            VoxelSurfaceMetrics last = default;
+            while (clock.Elapsed.TotalSeconds < maxSeconds)
+            {
+                yield return null;
+                camera.Render();
+                last = VoxelRenderBridge.SurfaceMetrics;
+                Assert.AreEqual(0ul, last.FramePathBlockingCompletionViolations,
+                    "Geometry work blocked while waiting for the stationary benchmark.");
+
+                bool settled = last.VisibleSolidChunks > 0
+                            && last.MissingVisibleSolidChunks == 0
+                            && last.RunningSolidJobs == 0
+                            && last.SolidMeshesAwaitingUpload == 0
+                            && last.SolidPendingUploadBytes == 0;
+                stableFrames = settled ? stableFrames + 1 : 0;
+                if (stableFrames >= 8) yield break;
+            }
+
+            Assert.Fail(
+                $"Showcase did not settle before the stationary benchmark within {maxSeconds:F0}s; "
+              + $"visible={last.VisibleSolidChunks} missing={last.MissingVisibleSolidChunks} "
+              + $"dirty={last.SolidDirtyChunks} jobs={last.RunningSolidJobs} "
+              + $"uploads={last.SolidMeshesAwaitingUpload}/{last.SolidPendingUploadBytes}B "
+              + $"gpu={last.GpuCompletedSolidBuilds}/{last.GpuFallbackSolidBuilds} "
+              + $"unsupported={last.GpuUnsupportedSolidBuilds} "
+              + $"countFailures={last.GpuCountFailureSolidBuilds} "
+              + $"writeFailures={last.GpuWriteFailureSolidBuilds} "
+              + $"arenaWaits={last.GpuArenaFullSolidBuilds} "
+              + $"gpuWaitSlices={last.GpuReadbackWaitSlices} "
+              + $"mirrorReady={GpuSurfaceMirrorCoordinator.ReadyBlockCount} "
+              + $"mirrorPending={GpuSurfaceMirrorCoordinator.PendingBlockCount} "
+              + $"mixed={GpuSurfaceMirrorCoordinator.ResidentMixedBrickCount}/"
+              + $"{GpuSurfaceMirrorCoordinator.MirrorSlotCapacity} "
+              + $"activeExtractions={GpuSurfaceMirrorCoordinator.ActiveExtractions}.");
+        }
+
         private static string DescribeVisibilityFailure(
-            int frame,
-            in VoxelSurfaceMetrics metrics,
-            Transform pose,
-            VoxelFarTerrain far)
+            int frame, in VoxelSurfaceMetrics metrics, Transform pose, VoxelFarTerrain far)
         {
             Vector3 position = pose.position;
-            return $"Production safety frame {frame} lost every visible voxel draw; "
+            return $"GPU traversal frame {frame} lost every visible voxel draw; "
                  + $"camera=({position.x:F2},{position.y:F2},{position.z:F2}) "
                  + $"farHole={far.HoleRadiusMetres:F2}m "
                  + $"known={metrics.SolidKnownChunks} resident={metrics.SolidResidentChunks} "
                  + $"dirty={metrics.SolidDirtyChunks} missing={metrics.MissingVisibleSolidChunks} "
                  + $"jobs={metrics.RunningSolidJobs} uploads={metrics.SolidMeshesAwaitingUpload} "
-                 + $"candidates={metrics.VisibilityKnownCandidates}/{metrics.VisibilityInBandCandidates}/"
-                 + $"{metrics.VisibilityFrustumCandidates} "
-                 + $"step4={metrics.Step4VisibilityKnown}/{metrics.Step4VisibilityInBand}/"
-                 + $"{metrics.Step4VisibilityFrustum}/{metrics.Step4VisibilityReady}/"
-                 + $"{metrics.Step4VisibilityEmpty}; "
-                 + DescribePhysicalWorkerVisibility();
-        }
-
-        /// <summary>
-        /// Test-only minimal isolation for the first zero-draw frame. Production workers have
-        /// already populated their read-only Visible lists when this runs. If physicalTotal is
-        /// positive while aggregate VisibleSolidChunks is zero, cross-ring aggregation erased
-        /// valid geometry. If physicalTotal is also zero, the loss occurred earlier in the
-        /// worker/ring visibility funnel. Reflection avoids adding a runtime diagnostics API.
-        /// </summary>
-        private static string DescribePhysicalWorkerVisibility()
-        {
-            PropertyInfo activePassProperty = typeof(VoxelRenderBridge).GetProperty(
-                "ActivePass", BindingFlags.Static | BindingFlags.NonPublic);
-            object pass = activePassProperty?.GetValue(null);
-            if (pass == null) return "physicalVisibility=unavailable(pass-null)";
-
-            FieldInfo schedulerField = pass.GetType().GetField(
-                "_scheduler", BindingFlags.Instance | BindingFlags.NonPublic);
-            object scheduler = schedulerField?.GetValue(pass);
-            if (scheduler == null) return "physicalVisibility=unavailable(scheduler-null)";
-
-            FieldInfo ringsField = scheduler.GetType().GetField(
-                "_rings", BindingFlags.Instance | BindingFlags.NonPublic);
-            System.Array rings = ringsField?.GetValue(scheduler) as System.Array;
-            if (rings == null) return "physicalVisibility=unavailable(rings-null)";
-
-            int physicalTotal = 0;
-            var details = new System.Text.StringBuilder();
-            for (int r = 0; r < rings.Length; r++)
-            {
-                object ring = rings.GetValue(r);
-                if (ring == null) continue;
-                FieldInfo sourceStepField = ring.GetType().GetField(
-                    "SourceStep", BindingFlags.Instance | BindingFlags.Public);
-                FieldInfo workersField = ring.GetType().GetField(
-                    "Workers", BindingFlags.Instance | BindingFlags.Public);
-                int sourceStep = sourceStepField != null
-                    ? (int)sourceStepField.GetValue(ring) : -1;
-                CpuTransvoxelChunkCache[] workers =
-                    workersField?.GetValue(ring) as CpuTransvoxelChunkCache[];
-                if (workers == null) continue;
-
-                int known = 0;
-                int inBand = 0;
-                int frustum = 0;
-                int ready = 0;
-                int empty = 0;
-                int visible = 0;
-                for (int w = 0; w < workers.Length; w++)
-                {
-                    CpuTransvoxelChunkCache worker = workers[w];
-                    known += worker.LastVisibilityKnownCount;
-                    inBand += worker.LastVisibilityInBandCount;
-                    frustum += worker.LastVisibilityFrustumCount;
-                    ready += worker.LastVisibilityReadyCount;
-                    empty += worker.LastVisibilityEmptyCount;
-                    visible += worker.Visible.Count;
-                }
-
-                physicalTotal += visible;
-                if (details.Length > 0) details.Append(' ');
-                details.Append("s").Append(sourceStep)
-                    .Append("=").Append(known).Append('/')
-                    .Append(inBand).Append('/').Append(frustum).Append('/')
-                    .Append(ready).Append('/').Append(empty)
-                    .Append(" physical=").Append(visible);
-            }
-
-            return $"physicalTotal={physicalTotal} rings[{details}]";
+                 + $"gpuAvailable={metrics.GpuCutoverAvailable} "
+                 + $"gpuBackends={metrics.GpuResidentBackends} "
+                 + $"gpuCompleted={metrics.GpuCompletedSolidBuilds} "
+                 + $"gpuFallback={metrics.GpuFallbackSolidBuilds} "
+                 + $"gpuWaitSlices={metrics.GpuReadbackWaitSlices}.";
         }
 
         private static bool NearCoverageIsIncomplete(in VoxelSurfaceMetrics metrics) =>

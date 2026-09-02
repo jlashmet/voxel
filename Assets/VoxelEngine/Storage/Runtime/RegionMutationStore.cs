@@ -258,11 +258,58 @@ namespace VoxelEngine.Storage.Runtime
         /// exactly that — never touches it, leaving the summary at its initial all-empty state.
         /// Surface discovery reads only the summary, so such a region reads as air and is never
         /// meshed no matter how much solid voxel data it holds.
+        ///
+        /// The bulk path deliberately assembles one 64-block summary word at a time. Calling the
+        /// single-block updater 262,144 times used to read/modify/write both NativeArray summary
+        /// words for every block, turning the otherwise time-sliced Showcase region completion
+        /// into a large player-frame spike. This computes the same bits while writing each pair
+        /// of summary words once.
         /// </summary>
         public void RefreshRegionSummary(ref Region region)
         {
-            for (int blockIndex = 0; blockIndex < VoxelDimensions.BricksPerRegion; blockIndex++)
-                RefreshBlockSummary(ref region, blockIndex);
+            if (!region.BrickRefs.IsCreated
+                || !region.OccupiedBlockWords.IsCreated
+                || !region.FullySolidBlockWords.IsCreated)
+                return;
+
+            int blockIndex = 0;
+            for (int wordIndex = 0; wordIndex < Region.BlockSummaryWordCount; wordIndex++)
+            {
+                ulong occupiedWord = 0UL;
+                ulong fullySolidWord = 0UL;
+
+                for (int bit = 0; bit < 64; bit++, blockIndex++)
+                {
+                    BrickRef block = region.BrickRefs[blockIndex];
+                    bool occupied;
+                    bool fullySolid;
+
+                    if (block.IsUniform)
+                    {
+                        occupied = block.UniformMaterial != VoxelGrid.MaterialEmpty;
+                        fullySolid = occupied;
+                    }
+                    else
+                    {
+                        int occupancyOffset = _pool.OccupancyOffset(block.PoolIndex);
+                        occupied = false;
+                        fullySolid = true;
+                        for (int i = 0; i < VoxelReadGrid.OccupancyWordsPerBlock; i++)
+                        {
+                            ulong occupancy = _pool.Occupancy[occupancyOffset + i];
+                            occupied |= occupancy != 0UL;
+                            fullySolid &= occupancy == ulong.MaxValue;
+                        }
+                    }
+
+                    ulong mask = 1UL << bit;
+                    if (occupied) occupiedWord |= mask;
+                    if (fullySolid) fullySolidWord |= mask;
+                }
+
+                region.OccupiedBlockWords[wordIndex] = occupiedWord;
+                region.FullySolidBlockWords[wordIndex] = fullySolidWord;
+            }
         }
 
         private void RefreshBlockSummary(ref Region region, int blockIndex)

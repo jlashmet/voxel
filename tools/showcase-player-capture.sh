@@ -185,10 +185,11 @@ trap 'cleanup_build; cleanup_patterns' EXIT
 
 wait_for_unity_quiet() {
   local deadline=$((SECONDS + 900))
-  while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+  local unity_process='^/Applications/Unity/Hub/Editor/[^/]*/Unity.app/Contents/MacOS/Unity( |$)'
+  while pgrep -f "$unity_process" >/dev/null 2>&1; do
     if (( SECONDS >= deadline )); then
       echo "ERROR: Unity did not become idle before real-player build." >&2
-      pgrep -alf '/Unity.app/Contents/MacOS/Unity' >&2 || true
+      pgrep -alf "$unity_process" >&2 || true
       return 1
     fi
     sleep 5
@@ -238,6 +239,11 @@ wait "$PID" || status=$?
 kill "$WATCHDOG" 2>/dev/null || true
 wait "$WATCHDOG" 2>/dev/null || true
 (( status == 0 )) || exit "$status"
+
+if [[ -s "$PLAYER_LOG" ]] && grep -q 'FRAMEPIPE ' "$PLAYER_LOG"; then
+  echo "=== REAL PLAYER CPU/GPU FRAME PIPELINE TAIL ==="
+  grep 'FRAMEPIPE ' "$PLAYER_LOG" | tail -30
+fi
 
 if [[ -n "$STATIONARY_SAMPLE" ]]; then
   grep 'STATIONARY result=' "$PLAYER_LOG" > "$STATIONARY_LOG" || true
