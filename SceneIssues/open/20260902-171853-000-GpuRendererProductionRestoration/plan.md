@@ -9,7 +9,11 @@ Exact-SHA targeted run `33665456593` reproduced the density divergence on curren
 
 Exact-SHA diagnostic run `33666261165` localized the first divergence to world voxel `(-2,-2,-2)`: density CPU `0.50000` vs GPU `-0.14000`; material CPU/GPU both `1`; boundary CPU/GPU both `0`; surface CPU `0x04000001` vs GPU `0x00000001`. The GPU preserves presentation style/material but loses the transient authoritative-solid bit.
 
-Exact-SHA discriminator run `33666796147` then ran the same full shader/cache under material-default Planar and Smooth. **Both are identically wrong** at `(-2,-2,-2)` (CPU +0.50, GPU -0.14; material/style correct; authoritative-solid bit missing). Planar should return from `SampleField` immediately after `centreSolid` and before any weighted `AddTap`, so a smooth-tap-only defect is falsified. The failure is in or above centre occupancy. The public storage wire enum is `Empty=0, Uniform=1, Mixed=2`, matching the shader's hardcoded convention, and `PackBrickCacheEntry` writes the content value directly into the low bits; kind encoding is not the leading hypothesis.
+Exact-SHA discriminator run `33666796147` ran the same full shader/cache under material-default Planar and Smooth. **Both are identically wrong** at `(-2,-2,-2)` (CPU +0.50, GPU -0.14; material/style correct; authoritative-solid bit missing). Planar returns from `SampleField` immediately after `centreSolid`, before weighted `AddTap`, so a smooth-tap-only defect is falsified. The failure is in or above centre occupancy. The public storage wire enum is `Empty=0, Uniform=1, Mixed=2`, matching the shader's hardcoded convention, and `PackBrickCacheEntry` writes the content value directly into the low bits.
+
+A first production attempt to mirror the water mask from `SolidMaterialClassification.SetWaterMaterialMask` did not change the parity symptom on run `33667605313`; production already publishes `_SolidWaterMaterialMask` at `VoxelMaterialPresentationInstaller.Apply`, so that duplicate ownership was reverted.
+
+The isolated include probe `GpuSolidClassificationProbeTests.MaterialOneIsSolidWhenWaterMaskIsZero` then passed on retry attempt 2 of exact-SHA run `33668009978` after attempt 1 suffered a native Burst import crash. The probe includes the same `VoxelBrickDensity.hlsl`, observes `_SolidWaterMaterialMask == 0`, and confirms `IsSolidSample(1) == true` on Metal. Therefore the helper expression and global scalar work in isolation; the failure requires the full `VoxelBrickMesher.compute` compilation/execution context.
 
 ## Acceptance
 
@@ -22,10 +26,10 @@ Exact-SHA discriminator run `33666796147` then ran the same full shader/cache un
 
 ## Hypotheses / next experiment
 
-- **H1 (leading):** the full Metal mesher miscompiles or otherwise mis-evaluates centre occupancy (`IsSolidSample` or its immediate control flow) even though `ReadMaterial` returns the expected material/style/boundary. This fits the missing authoritative-solid bit, identical Planar/Smooth failure, and compiler warnings around `IsSolidSample`/`SampleField`.
-- **H2:** lower cache/binding state is corrupt. This is now weak: dense-cache diagnostics return the correct material/style/boundary, public brick-kind values match the shader, and persistent lookup is not involved in the failing fixture.
+- **H1 (leading):** full-mesher Metal code generation/control flow corrupts `centreSolid` even though `ReadMaterial` returns the expected material/style/boundary and the exact classifier helper works in isolation.
+- **H2:** lower cache/binding state is corrupt. This is now weak: dense-cache diagnostics return correct material/style/boundary, brick-kind encoding matches, persistent lookup is not involved, and the isolated classifier observes the expected global mask.
 
-Next isolate centre occupancy in the same full compute shader with a diagnostic output that records `ReadMaterial(...).x` and the direct result of `IsSolidSample(material)` before `SampleField`. If material=1 and `IsSolidSample` itself is false, rewrite only that proven compiler-hazard expression into explicit non-short-circuit branches and validate both diagnostics/oracles. If `IsSolidSample` is true but `SampleField` loses it, isolate the immediate Planar branch/control-flow state instead.
+Next make the smallest production-semantic rewrite of `IsSolidSample` from the short-circuit boolean expression into explicit ordered branches (`0 -> false`, `>=32 -> true`, water-bit -> false, otherwise true). This keeps the exact semantic contract while removing the compiler-hazardous compound expression highlighted by Metal warnings. Validate the existing Planar/Smooth discriminator and density oracle before any additional production fix. If the same parity symptom survives this second materially different production attempt, TGPU-006 requires a full-mesher diagnostic kernel/minimal shader slice before any third fix.
 
 ## Architecture / blast radius
 
@@ -35,4 +39,4 @@ Production inventory confirms the current cutover policy defaults GPU **off** un
 
 ## Remaining gates
 
-Isolate centre occupancy -> focused regression/fix -> CPU/GPU semantic suite -> explicit no-silent-fallback/recovery contract -> automatic module validation -> exact-SHA built-player VoxelShowcase plus independent-consumer evidence -> performance/memory review -> close.
+Explicit classifier rewrite -> focused parity validation -> CPU/GPU semantic suite -> explicit no-silent-fallback/recovery contract -> automatic module validation -> exact-SHA built-player VoxelShowcase plus independent-consumer evidence -> performance/memory review -> close.
