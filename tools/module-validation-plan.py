@@ -64,6 +64,11 @@ def _module_for_path(path: str, modules: list[dict]) -> dict | None:
     return max(candidates, key=lambda m: len(m["root"]), default=None)
 
 
+def _nearest_module_root(path: Path, module_roots: list[Path]) -> Path | None:
+    candidates = [module_root for module_root in module_roots if path == module_root or module_root in path.parents]
+    return max(candidates, key=lambda p: len(p.parts), default=None)
+
+
 def _is_test_path(path: str) -> bool:
     path = path.replace("\\", "/")
     return "/Tests/" in path or path.startswith("Assets/Tests/") or path.endswith("/Tests.meta")
@@ -121,8 +126,9 @@ def discover(root: Path, allow_existing_obsolete: bool = False) -> dict:
     if top_level:
         raise ConventionError("repository-wide Assets/Tests/EditMode assembly is not allowed: " + _rel(top_level[0], root))
 
+    module_roots = _module_roots(root)
     modules = []
-    for module_root in _module_roots(root):
+    for module_root in module_roots:
         module_name = _rel(module_root, root)
         tests = []
         tests_root = module_root / "Tests"
@@ -143,6 +149,8 @@ def discover(root: Path, allow_existing_obsolete: bool = False) -> dict:
         for asmdef_path in sorted(module_root.rglob("*.asmdef")):
             rel = _rel(asmdef_path, root)
             if "/Tests/" in rel or "/Validation/" in rel:
+                continue
+            if _nearest_module_root(asmdef_path, module_roots) != module_root:
                 continue
             asmdef = _load_asmdef(asmdef_path)
             runtime_assemblies.append({
