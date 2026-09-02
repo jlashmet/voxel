@@ -11,6 +11,22 @@ namespace VoxelEngine.Tests.EditMode
         private const uint DirectoryOccupied = 1u;
         private const int DirectoryWordsPerEntry = 5;
 
+        private struct ResolverRequest
+        {
+            public int X;
+            public int Y;
+            public int Z;
+            public int OutputBase;
+
+            public ResolverRequest(int x, int y, int z, int outputBase)
+            {
+                X = x;
+                Y = y;
+                Z = z;
+                OutputBase = outputBase;
+            }
+        }
+
         [Test]
         public void PersistentDirectoryResolvesToExactDenseBrickEntries()
         {
@@ -56,13 +72,13 @@ namespace VoxelEngine.Tests.EditMode
             var words = new uint[directoryWordOffset
                                + directoryCapacity * DirectoryWordsPerEntry];
             expected = new uint[sliceLength * origins.Length];
-            var requests = new Vector4Int[origins.Length];
+            var requests = new ResolverRequest[origins.Length];
 
             for (int requestIndex = 0; requestIndex < origins.Length; requestIndex++)
             {
                 Vector3Int origin = origins[requestIndex];
                 int sliceBase = requestIndex * sliceLength;
-                requests[requestIndex] = new Vector4Int(origin.x, origin.y, origin.z, sliceBase);
+                requests[requestIndex] = new ResolverRequest(origin.x, origin.y, origin.z, sliceBase);
 
                 int cursor = 0;
                 for (int z = 0; z < edge; z++)
