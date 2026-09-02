@@ -1,0 +1,47 @@
+#pragma kernel CSProbe
+
+StructuredBuffer<uint> _BrickCache;
+int3 _BrickCacheOrigin;
+int _BrickCacheEdge;
+uint _SolidWaterMaterialMask;
+RWStructuredBuffer<float> _ProbeDensity;
+RWStructuredBuffer<uint> _ProbeWords;
+
+#define AUTHORITATIVE_SOLID_BIT (1u << 26)
+
+bool IsSolidSample(uint material)
+{
+    if (material == 0u) return false;
+    return material >= 32u || (_SolidWaterMaterialMask & (1u << material)) == 0u;
+}
+
+int3 WorldBrickOf(int3 p) { return int3(p.x >> 3, p.y >> 3, p.z >> 3); }
+
+uint ReadMaterial(int3 p)
+{
+    int3 worldBrick = WorldBrickOf(p);
+    int3 localBrick = worldBrick - _BrickCacheOrigin;
+    if ((uint)localBrick.x >= (uint)_BrickCacheEdge
+     || (uint)localBrick.y >= (uint)_BrickCacheEdge
+     || (uint)localBrick.z >= (uint)_BrickCacheEdge)
+        return 0u;
+    int brickIndex = localBrick.x
+                   + _BrickCacheEdge * (localBrick.y + _BrickCacheEdge * localBrick.z);
+    uint entry = _BrickCache[brickIndex];
+    uint kind = entry & 0x3u;
+    if (kind == 0u) return 0u;
+    if (kind == 1u) return (entry >> 8) & 0xFFu;
+    return 0u;
+}
+
+[numthreads(64, 1, 1)]
+void CSProbe(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x != 0u) return;
+    const int3 p = int3(-2, -2, -2);
+    uint material = ReadMaterial(p);
+    bool solid = IsSolidSample(material);
+    _ProbeWords[0] = material;
+    _ProbeWords[1] = solid ? AUTHORITATIVE_SOLID_BIT : 0u;
+    _ProbeDensity[0] = solid ? 0.5 : -0.5;
+}
