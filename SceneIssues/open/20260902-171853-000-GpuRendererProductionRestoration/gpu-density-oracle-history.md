@@ -99,29 +99,49 @@ The questionable part is the implementation introduced by `b4de1b5`: performing 
 
 ### Preferred design
 
-Keep `GpuVoxelBrickMirror` and its persistent world-coordinate directory, but move world-coordinate resolution out of `SampleField`/`ReadMaterial` and into a **separate GPU preparation/indirection stage**:
+Keep `GpuVoxelBrickMirror` and its persistent world-coordinate directory, but move world-coordinate resolution out of `SampleField`/`ReadMaterial` and into a **separate, batched GPU preparation/indirection stage**:
 
 1. Storage continues publishing changed bricks into the persistent GPU mirror/directory.
-2. Before meshing a chunk, a small GPU preparation kernel resolves the chunk's required world-brick coordinates against the persistent directory.
-3. That kernel writes a compact dense chunk-local table of packed brick entries / mirror-slot indirections.
-4. The actual density/meshing kernel consumes that compact table using the simple known-good indexing shape from `5716e56`.
+2. Collect the chunks/extraction requests that actually need surface regeneration into a work batch.
+3. One batched GPU preparation pass (or a small bounded number of passes) resolves the required world-brick coordinates for the whole batch against the persistent directory and writes compact dense per-request/per-chunk tables of packed brick entries / mirror-slot indirections.
+4. The density/meshing stage consumes those compact tables using the simple known-good indexing shape from `5716e56`; where practical, extraction should itself remain batched rather than forcing one submission per chunk.
 
 Conceptually:
 
-`persistent GPU world directory -> GPU resolve/preparation kernel -> compact chunk-local indirection table -> density/meshing kernel`
+```text
+persistent GPU world directory
+            |
+            v
+changed/requested extraction batch
+            |
+            v
+batched GPU resolve/preparation
+   chunk A -> compact table A
+   chunk B -> compact table B
+   chunk C -> compact table C
+            |
+            v
+batched density/meshing
+            |
+            v
+persistent surface pages
+```
 
 This retains the important architectural property that the **CPU does not flatten the neighbourhood**. Resolution still happens on the GPU, voxel data remain persistently resident, and neighbouring chunks can reuse the same mirror contents. The difference is that hash-table traversal happens once per required brick during preparation rather than repeatedly inside density sampling.
+
+This is **not** a recommendation to introduce one preparation dispatch per chunk. The preparation stage should be batch-oriented so dispatch/submission overhead does not scale one-for-one with the number of chunks needing extraction unless profiling proves that cost acceptable. This matches the renderer performance direction of keeping persistent world work change-driven, batching GPU work, and avoiding fixed per-item CPU/render-thread overhead.
 
 This design also restores a clean separation of concerns: persistent world lookup answers **where a brick lives**, while density reconstruction answers **what field value the voxel data produce**. The density shader can remain close to the CPU semantic port and therefore easier to oracle-test and reason about.
 
 ### Acceptable fallback design
 
-If a preparation kernel proves materially worse after measurement, the next-best design is to compile persistent lookup and dense lookup as **separate kernels/includes** rather than branching between both implementations inside one shared `ReadMaterial()` body. The goal is to prevent the persistent hash-table machinery from altering compilation/code generation of the known-good dense density implementation.
+If a batched preparation stage proves materially worse after measurement, the next-best design is to compile persistent lookup and dense lookup as **separate kernels/includes** rather than branching between both implementations inside one shared `ReadMaterial()` body. The goal is to prevent the persistent hash-table machinery from altering compilation/code generation of the known-good dense density implementation.
 
 ### What not to do
 
 - Do not simply delete persistent GPU residency and return to CPU-built neighbourhood uploads solely to make the oracle green; that gives up a useful renderer architecture capability.
 - Do not preserve the current `b4de1b5` hot-path lookup shape merely because the feature intent is sound. The historical evidence demonstrates that this implementation boundary is unsafe on Metal.
+- Do not replace the hot-path hash lookup with an architecture that issues a fixed preparation dispatch for every chunk without measuring the resulting CPU/render-thread and GPU dispatch cost.
 - Do not treat a compiler-shaping workaround as sufficient unless both dense and persistent semantics pass the production CPU/GPU oracles and the resulting path meets frame/upload/memory budgets.
 
 ### Recommended validation
@@ -133,9 +153,10 @@ A replacement should prove all of the following before production cutover:
 - the resolved compact table is semantically identical to the CPU neighbourhood representation for the same chunk;
 - topology/material/transition/negative-shell parity remains green after the density fix;
 - no CPU voxel-neighbourhood flattening or readback is reintroduced on the production GPU path;
-- measured preparation cost plus meshing cost is no worse than the current intended persistent design within repository frame/upload/memory budgets.
+- preparation dispatch/submission count is batch-oriented rather than scaling one-for-one with extracted chunks unless profiling explicitly justifies that tradeoff;
+- measured batched preparation cost plus meshing cost, including CPU/render-thread submission overhead, is no worse than the current intended persistent design within repository frame/upload/memory budgets.
 
-Unless measurements disprove it, **the GPU preparation/indirection stage is the recommended production direction** because it preserves the desirable persistent-mirror feature while removing persistent hash-table traversal from the fragile and extremely hot density reconstruction path.
+Unless measurements disprove it, **the batched GPU preparation/indirection stage is the recommended production direction** because it preserves the desirable persistent-mirror feature while removing persistent hash-table traversal from the fragile and extremely hot density reconstruction path without replacing it with avoidable per-chunk dispatch overhead.
 
 ## History-probe hygiene
 
