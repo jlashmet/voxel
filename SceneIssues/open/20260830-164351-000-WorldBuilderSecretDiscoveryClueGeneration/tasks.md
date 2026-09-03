@@ -54,10 +54,14 @@
 - [x] Full-resolution 9s/12s/15s frames visibly show the fracture before destruction.
 - [x] Full-resolution 18s frame shows the breached route; player log reports 607 voxels removed.
 - [x] Full-resolution 21s frame shows the authored hidden pocket from the opened route.
-- [x] Built-player run has required ready/destruction logs and no `NullReferenceException` / `MissingReferenceException`.
+- [x] Historical built-player proof had required ready/destruction logs and no `NullReferenceException` / `MissingReferenceException`.
 - [x] The 0s image is a pre-ready transient; it is not used as acceptance evidence. The 3s frame is the first valid entrance proof.
 - [x] After class and exact-method filters both produced the same zero-match symptom, isolate the minimal root cause before another retry; experiment 014 identifies the post-merge optional persistent requested-test path as the infrastructure regression.
-- [ ] Revalidate the merged/convention-correct exact feature SHA through `ci-test/fixes/agent-5`, including convention-discovered module tests, dedicated player scene, and Kentridge integration; inspect full-resolution artifacts.
+- [x] Required-gates run `33715584697` completed but full-resolution review caught missing near-surface voxel rendering despite a workflow-success status.
+- [x] Merge current master `b18d470f66221c7cb6091249f4683c2d994bffec` into source `731e55c2ed1808c2d6fb21189c96011887bec6e3` as the next renderer discriminator.
+- [x] Inspect exact post-master run `33716327931`: all 918 WorldBuilder EditMode cases pass; 9/12/15/18/21 second captures restore cave/fracture/breach/interior rendering; expected 35-clue/607-breach logs are present.
+- [x] Isolate the post-master failed-player root cause before another fix: experiment 015 traces failure to renderer teardown (`GpuSurfaceMirrorCoordinator.DetachPageArena` NRE followed by CPU transvoxel/URP disposal segfault), after WorldBuilder evidence completes.
+- [ ] **BLOCKER:** Revalidate a merged exact feature SHA through `ci-test/fixes/agent-5` with no runtime exceptions after the external renderer lifecycle defect is corrected. Do not mask the production teardown fault by omitting shared `RenderingComposition.ClearWorld()` cleanup.
 
 ## Built-player / representative acceptance
 
@@ -73,8 +77,8 @@
 - [x] Cave composition is bounded by traversal candidates and stops on non-physical failures; no frame polling/search cost added.
 - [x] Clue fracture authors 35 coating voxels once at scene generation; no recurring runtime work.
 - [x] Dedicated destruction is validation orchestration only; production explosion removed 607 voxels in the proof run.
-- [x] Merged `origin/master` `b1b69290a59278b0e7caba798641c76a9866aa5c` into the feature branch at `dee150fa000597d6abe1a2693e3a15d429266fb5`; tests were reconciled into the current module-local WorldBuilder test layout.
-- [ ] Repeat final blast-radius/cost judgment after merged exact-SHA CI artifacts are available.
-- [ ] All required acceptance criteria and exact-SHA gates green — blocked by unresolved Gallery acceptance conflict plus merged-SHA revalidation.
+- [x] Current `origin/master` `b18d470f66221c7cb6091249f4683c2d994bffec` is included in feature merge `731e55c2ed1808c2d6fb21189c96011887bec6e3`.
+- [x] Repeat blast-radius/cost judgment against merged artifacts: WorldBuilder behavior remains one-shot/bounded and the player reaches all authored evidence before failure; the observed failure is renderer resource teardown, not added WorldBuilder frame/search cost.
+- [ ] All required acceptance criteria and exact-SHA gates green — blocked by external renderer teardown plus unresolved Gallery acceptance conflict.
 - [ ] Move assigned SceneIssue directly `open -> closed`, set `status=fixed` and `resolvedUtc`.
 - [ ] Fetch/merge current `origin/master` again immediately before promotion, then push exact feature head to `origin/master` non-force.
