@@ -16,6 +16,13 @@ StructuredBuffer<uint> _BrickCache;
 int3 _BrickCacheOrigin;
 int _BrickCacheEdge;
 
+#if defined(VOXEL_BATCH_DENSE_LOOKUP)
+// Production batch kernels receive the same request views written by the isolated resolver. Each
+// view is int4(origin.xyz, denseSliceBase), so selecting the correct dense window requires only a
+// bounded spatial check; persistent hash/probe code is not present in this compilation variant.
+StructuredBuffer<int4> _BatchBrickCacheViews;
+#endif
+
 StructuredBuffer<uint> _StyleWords;
 StructuredBuffer<uint> _JoinWords;
 StructuredBuffer<uint> _CoatingWords;
@@ -166,6 +173,43 @@ DenseBrickCacheView DefaultDenseBrickCacheView()
     return view;
 }
 
+#if defined(VOXEL_BATCH_DENSE_LOOKUP)
+DenseBrickCacheView BatchDenseBrickCacheView(int requestIndex)
+{
+    int4 request = _BatchBrickCacheViews[requestIndex];
+    DenseBrickCacheView view;
+    view.origin = request.xyz;
+    view.baseIndex = (uint)request.w;
+    return view;
+}
+
+DenseBrickCacheView BatchDenseBrickCacheViewForPoint(int3 p)
+{
+    int3 worldBrick = WorldBrickOf(p);
+    uint viewCount, viewStride;
+    _BatchBrickCacheViews.GetDimensions(viewCount, viewStride);
+    [loop]
+    for (uint requestIndex = 0u; requestIndex < viewCount; requestIndex++)
+    {
+        int4 request = _BatchBrickCacheViews[requestIndex];
+        if (request.w < 0) continue;
+        DenseBrickCacheView view;
+        view.origin = request.xyz;
+        view.baseIndex = (uint)request.w;
+        int3 localBrick = worldBrick - view.origin;
+        if ((uint)localBrick.x < (uint)_BrickCacheEdge
+         && (uint)localBrick.y < (uint)_BrickCacheEdge
+         && (uint)localBrick.z < (uint)_BrickCacheEdge)
+            return view;
+    }
+
+    // Supported production sampling is fully covered by one request view. Returning the first view
+    // on a miss preserves the ordinary dense-cache out-of-range semantics (air) without introducing
+    // a second lookup mode or reading beyond the prepared buffer.
+    return BatchDenseBrickCacheView(0);
+}
+#endif
+
 #if defined(VOXEL_FORCE_PERSISTENT_LOOKUP)
 uint HashBrickCoordinate(int3 coordinate)
 {
@@ -248,7 +292,12 @@ uint ReadMaterialWithCache(int3 p, DenseBrickCacheView cache,
 
 uint ReadMaterial(int3 p, out uint surface, out uint boundary)
 {
+#if defined(VOXEL_BATCH_DENSE_LOOKUP)
+    return ReadMaterialWithCache(
+        p, BatchDenseBrickCacheViewForPoint(p), surface, boundary);
+#else
     return ReadMaterialWithCache(p, DefaultDenseBrickCacheView(), surface, boundary);
+#endif
 }
 
 bool BoundaryIsAuthored(uint packed) { return packed != 0u; }
@@ -489,9 +538,15 @@ float SampleFieldWithCache(int3 p, int sourceStep, DenseBrickCacheView cache,
 float SampleField(int3 p, int sourceStep, out uint dominantMaterial, out uint dominantSurface,
                   out uint dominantBoundary)
 {
+#if defined(VOXEL_BATCH_DENSE_LOOKUP)
+    return SampleFieldWithCache(
+        p, sourceStep, BatchDenseBrickCacheViewForPoint(p),
+        dominantMaterial, dominantSurface, dominantBoundary);
+#else
     return SampleFieldWithCache(
         p, sourceStep, DefaultDenseBrickCacheView(),
         dominantMaterial, dominantSurface, dominantBoundary);
+#endif
 }
 
 #endif // VOXEL_BRICK_DENSITY_INCLUDED

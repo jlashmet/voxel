@@ -18,18 +18,25 @@ namespace VoxelEngine.Tests.EditMode
             }
         }
 
-        private static string ReadExtractor() => File.ReadAllText(Path.Combine(
-            RepoRoot, "Assets", "VoxelEngine", "Rendering", "Runtime", "GpuVoxel",
-            "GpuSurfaceExtractor.cs"));
+        private static string ReadRenderingFile(params string[] path)
+        {
+            string fullPath = Path.Combine(RepoRoot, "Assets", "VoxelEngine", "Rendering");
+            foreach (string part in path) fullPath = Path.Combine(fullPath, part);
+            return File.ReadAllText(fullPath);
+        }
 
         [Test]
         public void ProductionBatchReusesGpuPreparedDenseCacheWithoutCpuReconstruction()
         {
-            string source = ReadExtractor();
+            string source = ReadRenderingFile("Runtime", "GpuVoxel", "GpuSurfaceExtractor.cs");
+            string preparation = ReadRenderingFile(
+                "Runtime", "GpuVoxel", "GpuBrickCachePreparation.cs");
+            string density = ReadRenderingFile("Resources", "VoxelBrickDensity.hlsl");
+            string mesher = ReadRenderingFile("Resources", "VoxelBrickMesher.compute");
             string countBatch = MethodBody(source, "internal void DispatchCountBatch",
                                            "internal void DispatchBaseWriteBatch");
             string bindBatch = MethodBody(source, "private void BindBatchShared",
-                                          "private void BindShared");
+                                          "private void RecordChunkUniforms");
 
             StringAssert.Contains("internal readonly GpuBrickCachePreparation PreparedCache;", source,
                 "Each shared batch lane must own one reusable GPU preparation resource.");
@@ -44,6 +51,20 @@ namespace VoxelEngine.Tests.EditMode
                 "Preparation resources must be reused by the lane rather than allocated per dispatch.");
             StringAssert.Contains("resources.PreparedCache.DenseEntries", bindBatch,
                 "Count and write kernels must consume the same GPU-prepared dense slices.");
+            StringAssert.Contains("resources.PreparedCache.RequestViews", bindBatch,
+                "Batch kernels must receive the resolver's per-record dense-cache views.");
+            StringAssert.Contains("OutputBase = -1", preparation,
+                "Reusable request buffers must invalidate stale views when a later batch is smaller.");
+            StringAssert.Contains("_BatchBrickCacheViews.GetDimensions", density,
+                "Batch dense lookup must derive its bounded view set from the reusable GPU buffer.");
+            StringAssert.DoesNotContain("PREPARED_BATCH_LOOKUP_MAGIC", density,
+                "Prepared lookup must be compile-time kernel policy, not a runtime cache marker.");
+            StringAssert.Contains(
+                "#pragma kernel CSBatchSampleDensity VOXEL_BATCH_DENSE_LOOKUP", mesher,
+                "Production density sampling must compile against prepared dense-cache semantics.");
+            StringAssert.Contains(
+                "#pragma kernel CSBatchWriteDecorations VOXEL_BATCH_DENSE_LOOKUP", mesher,
+                "Every production batch surface category must compile against the same dense view.");
         }
 
         private static string MethodBody(string source, string startMarker, string endMarker)

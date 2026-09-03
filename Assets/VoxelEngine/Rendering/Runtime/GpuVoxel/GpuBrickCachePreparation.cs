@@ -77,7 +77,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                     OutputBase = checked(i * _buffers.BricksPerRequest),
                 };
             }
-            _buffers.RequestViews.SetData(_buffers.RequestStaging, 0, 0, recordCount);
+            // The mesher sees the reusable buffer's full capacity. Mark unused views explicitly so
+            // a smaller following batch cannot observe stale coordinates from a previous dispatch.
+            for (int i = recordCount; i < _buffers.Capacity; i++)
+                _buffers.RequestStaging[i] = new GpuBrickCacheRequestView { OutputBase = -1 };
+            _buffers.RequestViews.SetData(_buffers.RequestStaging, 0, 0, _buffers.Capacity);
 
             _buffers.HeaderStaging[0] = unchecked((uint)mirror.DirectoryWordOffset);
             _buffers.HeaderStaging[1] = unchecked((uint)mirror.DirectoryMask);
