@@ -7,7 +7,8 @@
     "Game.WorldBuilder.Voxel",
     "VoxelEngine.Showcase.Editor",
     "VoxelEngine.Structures.Api",
-    "VoxelEngine.Structures.Runtime"
+    "VoxelEngine.Structures.Runtime",
+    "Unity.Collections"
   ],
   "includePlatforms": ["Editor"],
   "excludePlatforms": [],
