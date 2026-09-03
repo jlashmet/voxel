@@ -6,6 +6,7 @@ using Unity.Mathematics;
 using VoxelEngine.Composition;
 using VoxelEngine.Rendering.Api;
 using VoxelEngine.Showcase;
+using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Tests.EditMode
 {
