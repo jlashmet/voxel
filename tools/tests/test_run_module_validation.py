@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -157,6 +158,36 @@ class RunModuleValidationTests(unittest.TestCase):
             test_filter="VoxelEngine.Tests.PlayMode.SomeRegression",
         )
         self.assertEqual(args[args.index("-testFilter") + 1], "VoxelEngine.Tests.PlayMode.SomeRegression")
+
+    def test_player_validation_disables_gpu_cutover(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            plan = root / "plan.json"
+            output = root / "out"
+            plan.write_text(json.dumps({
+                "playerValidations": [{
+                    "module": "water",
+                    "scene": "WaterDemo",
+                    "scenario": "water",
+                }]
+            }), encoding="utf-8")
+            captured = {}
+
+            def fake_run(args, check, env):
+                captured["args"] = list(args)
+                captured["env"] = dict(env)
+                return mock.Mock(returncode=0)
+
+            with mock.patch.object(runner.subprocess, "run", side_effect=fake_run):
+                result = runner.main([
+                    "--unity", "/fake/unity",
+                    "--plan", str(plan),
+                    "--output", str(output),
+                ])
+
+            self.assertEqual(result, 0)
+            self.assertEqual(captured["env"]["VOXEL_DISABLE_GPU_CUTOVER"], "1")
+            self.assertEqual(captured["args"][:2], ["python3", "tools/player-validation.py"])
 
 
 if __name__ == "__main__":

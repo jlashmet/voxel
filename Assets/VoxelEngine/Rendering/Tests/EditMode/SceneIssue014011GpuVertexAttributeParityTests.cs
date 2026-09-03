@@ -50,7 +50,38 @@ namespace VoxelEngine.Tests.EditMode
             AssertVertexParity(sourceStep: 1, isolatedSmoothCorner: true);
         }
 
-        private void AssertVertexParity(int sourceStep, bool isolatedSmoothCorner)
+        [Test]
+        public void MaterialIdAboveWaterMaskRangeWithMaterialDefaultMatchesCpu()
+        {
+            AssertVertexParity(
+                sourceStep: 1,
+                isolatedSmoothCorner: false,
+                material: 40,
+                semanticMode: SemanticMode.MaterialDefault);
+        }
+
+        [Test]
+        public void GenericMaterialBlendPresentationMatchesCpu()
+        {
+            AssertVertexParity(
+                sourceStep: 1,
+                isolatedSmoothCorner: false,
+                material: 3,
+                semanticMode: SemanticMode.MaterialBlend);
+        }
+
+        private enum SemanticMode
+        {
+            AlternatingStyles,
+            MaterialDefault,
+            MaterialBlend,
+        }
+
+        private void AssertVertexParity(
+            int sourceStep,
+            bool isolatedSmoothCorner,
+            byte material = 1,
+            SemanticMode semanticMode = SemanticMode.AlternatingStyles)
         {
             const float voxelSize = 0.1f;
             const int perBrick = 512;
@@ -64,11 +95,8 @@ namespace VoxelEngine.Tests.EditMode
             {
                 int i = x + 8 * (y + 8 * z);
                 bool solid = isolatedSmoothCorner ? x == 4 && y == 4 && z == 4 : y < 4;
-                voxels[i] = (byte)(solid ? 1 : 0);
-                semantics[i] = isolatedSmoothCorner
-                    ? (ushort)SurfaceStyles.Smooth
-                    : (ushort)(((x + z) & 1) == 0 ? SurfaceStyles.Smooth
-                                                       : SurfaceStyles.Rounded);
+                voxels[i] = solid ? material : (byte)0;
+                semantics[i] = SurfaceStorageFor(semanticMode, isolatedSmoothCorner, x, z);
                 // Fully authored signed samples make the parity fixture independent of catalogue
                 // curvature while retaining Smooth/Rounded reconstruction and both source steps.
                 boundary[i] = VoxelBoundarySample.FromSignedQ4(solid ? 8 : -8).Packed;
@@ -175,6 +203,30 @@ namespace VoxelEngine.Tests.EditMode
                 vertices.Release();
                 indices.Release();
             }
+        }
+
+        private static ushort SurfaceStorageFor(
+            SemanticMode mode, bool isolatedSmoothCorner, int x, int z)
+        {
+            if (isolatedSmoothCorner)
+                return new VoxelSurfaceSemantics { StyleId = SurfaceStyles.Smooth }.PackedStorage;
+            if (mode == SemanticMode.MaterialDefault)
+                return VoxelSurfaceSemantics.Default.PackedStorage;
+            if (mode == SemanticMode.MaterialBlend)
+            {
+                ushort reconstruction = ((x + z) & 1) == 0
+                    ? SurfaceStyles.Smooth
+                    : SurfaceStyles.Rounded;
+                return VoxelSurfaceSemantics.MaterialBlend(
+                    reconstruction, secondaryMaterialId: 2, coverage31: 17).PackedStorage;
+            }
+
+            return new VoxelSurfaceSemantics
+            {
+                StyleId = (ushort)(((x + z) & 1) == 0
+                    ? SurfaceStyles.Smooth
+                    : SurfaceStyles.Rounded)
+            }.PackedStorage;
         }
 
         private static SmoothSurfaceVertex ToSurfaceVertex(
