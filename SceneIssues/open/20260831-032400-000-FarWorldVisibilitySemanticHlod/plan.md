@@ -1,69 +1,24 @@
 # Far-World Visibility Implementation Plan
 
-## Purpose
+## Acceptance and ownership
 
-Define a durable architecture for keeping terrain, settlements, castles, forests, landmark trees, rock formations, and ordinary scatter visually coherent from the resident voxel world through the far horizon without making distant voxel regions resident. The design must preserve deterministic world truth, reuse current terrain/voxel systems, and make representation choice semantic and budget-driven rather than scene-specific.
+Keep terrain, semantic structures, settlements, forests, landmark natural features, and ordinary scatter visually coherent from the resident voxel boundary through the configured horizon without making distant voxel regions resident. World truth remains deterministic CPU data; WorldBuilder stays renderer-neutral; VoxelEngine Rendering consumes render-ready contracts; scene thresholds/named-content policy remain in composition. Built-player evidence, not editor screenshots, is required for visible acceptance.
 
-This issue owns not only far-world coverage and object HLOD, but also the **visual fidelity of the entire far terrain representation**. The far landscape from the resident-world boundary to the configured horizon must continue to read as the same terrain system instead of becoming an obviously smoother, flatter, differently shaded special-purpose surface.
+Required final proof includes: 12 km guaranteed terrain coverage through camera snap phases; never-resident landmark visibility; stable semantic/proxy/cluster handoffs; deterministic settlement/vegetation clustering and persistent state propagation; whole-range terrain material/lighting continuity; and measured CPU/GPU/memory/draw cost against the device matrix.
 
-## Observed baseline
+## Current hypotheses / discriminators
 
-- `VoxelShowcase` currently streams eight 51.2 m regions (~409.6 m) and hands that radius to `VoxelFarTerrain`.
-- Near surface extraction already uses progressively coarser source steps; far terrain is a 96-cell geometric clipmap sampled analytically rather than from resident terrain voxels.
-- With the current ~409.6 m inner radius, far-ring spacing is approximately 12.8/25.6/51.2/102.4/204.8 m.
-- The outer resident voxel ring is approximately 0.8 m source spacing, so the first far ring introduces roughly a **16x geometry-sampling jump** at the representation boundary.
-- `VoxelFarTerrain` also uses a distinct far-terrain material/shading path. Coarse geometric normals plus a different surface treatment can make the entire far landscape look smoother and visually unrelated even when there is no literal seam or coverage hole.
-- `FarFieldStructureStore` retains authored raised/lowered surfaces in 16x16 columns per region (3.2 m columns) with a 2.4 m minimum raised-feature threshold, but `VoxelFarTerrain` point-samples that store only at clipmap vertices.
-- There are no dedicated persistent far representations for ordinary trees, boulders, shrubs, or other scatter.
+- **Coverage:** the old `innerRadius * 2` ring heuristic can under-cover because it ignores actual spacing and camera snap loss. Discriminator: compute outer-ring half-extent minus worst-case one-cell snap loss and require that value to cover the requested radius.
+- **Far terrain fidelity:** material/detail mismatch may dominate perceived smoothness; correct renderer-neutral terrain-family/detail inputs before adding geometry density. Add an inner density tier only if built-player evidence still shows silhouette loss.
+- **Semantic visibility:** known structures/trees/scatter should use deterministic lightweight descriptors/proxies/clusters rather than distant voxel residency or terrain-vertex coincidence.
 
-## Acceptance
+## Material results
 
-1. A declared landmark remains visible at 8, 10, and 12 km from cardinal and diagonal views, including camera snap phases, without requiring its voxel regions to be resident.
-2. A never-visited declared landmark can still appear from macro-world metadata.
-3. Broad terrain, semantic structures, and deterministic scatter use independent distance representations while sharing one deterministic world definition.
-4. Forested mountains remain visibly forested at horizon distance without retaining/drawing individual trees.
-5. Small scatter naturally disappears by projected significance while giant natural features are promoted to landmark treatment.
-6. Near/far transitions have overlap/hysteresis and do not visibly drop an object during representation handoff.
-7. Configured far radius is geometrically guaranteed; tests prove coverage rather than inferring it from ring count.
-8. CPU/GPU/memory budgets are measured against the authoritative device matrix before rollout.
-9. **The whole far-terrain range remains visually coherent with the near terrain.** At representative views around 0.5, 1, 3, 6, 10, and 12 km, terrain must retain the same material families, broad surface character, slope/rock/soil relationships, and plausible lighting response rather than becoming a conspicuously smooth or differently colored terrain regime.
-10. Far-terrain surface detail is **not limited by clipmap vertex spacing**. World-space macro/material variation and presentation-only normal/detail frequencies may be finer than the geometric grid, with distance filtering so they remain stable and do not shimmer at long range.
-11. If shading/material continuity is insufficient because the current 12.8 m first far ring loses important silhouette shape, add only the minimum measured/configured **inner far-terrain geometry tier** needed to fix that defect. Do not increase near voxel residency or make the whole 12 km field high density.
-12. Moving through the ~350-600 m transition from multiple directions/elevations must not reveal a hard geometry, normal, material, color, fog, or lighting boundary between resident and far terrain.
+- Exact-SHA run `33801450701` passed automatic module validation and standalone-player SceneIssue replay for source `4b9622ace9e4ca27ecf5da25900524341cffd8fe`, clearing the previously external Rendering GPU/arena blocker for already-integrated T025-T028 work.
+- Checklist reconciliation found T001 genuinely incomplete: `VoxelFarTerrain.RingCount` still used the old doubling heuristic.
+- T001 implementation now derives ring spacing, half-extent, snap loss, per-phase coverage, guaranteed coverage, and minimum required ring count. For the shipped ~409.6 m inner radius / 96-cell / 12 km target, five rings guarantee only ~9.63 km while six guarantee ~19.25 km.
+- New module-local `VoxelFarTerrainCoverageTests` covers representative and worst-case snap phases, minimum six-ring selection, helper values, and an explicit max-ring uncovered result.
 
-## Working hypotheses / discriminators
+## Current head and remaining gates
 
-- **H1:** Existing far-terrain structure sampling is sufficient if made conservative. Test a narrow castle footprint across outer-ring sample phases. If still silhouette-poor, semantic structure HLOD is required.
-- **H2:** Deterministic macro-cell scatter can reproduce convincing forests without persistent per-tree records. Compare regenerated cell identity/distribution across sessions and evaluate mid/far visual continuity.
-- **H3:** Most of the perceived far-terrain quality gap can be removed without materially increasing geometry by deriving far surface appearance from the same world-space terrain facts/material families as the near presentation and adding distance-filtered macro/detail normals, color, and roughness variation in the far shader.
-- **H4:** The current 12.8 m first far-ring spacing may still lose terrain silhouette/shape near the residency boundary after shading is corrected. Measure this separately. Add a denser inner far tier only if built-player evidence demonstrates residual geometric flattening; do not assume a fixed spacing before measurement.
-
-## Selected direction
-
-Keep `VoxelFarTerrain` for broad analytic terrain and `FarFieldStructureStore` as a generic authored-surface fallback. Do **not** solve far-terrain quality by extending voxel residency.
-
-Treat far terrain as two decoupled frequency domains:
-
-- **Geometry / low frequency:** the clipmap carries mountain silhouettes, valleys, ridges, and broad slopes. Keep outer rings aggressively coarse.
-- **Surface appearance / higher frequency:** derive material family, macro color, slope/rock/soil breakup, roughness, and presentation normals from deterministic world-space terrain inputs. These visual frequencies are allowed to be finer than the underlying triangles and are progressively filtered/faded with projected distance to avoid aliasing and shimmer.
-
-First make the material/normal language coherent. Then measure whether an additional bounded inner far-terrain annulus/tier is required for silhouette fidelity around the resident boundary. Any denser tier must be configurable, limited to the inner far range, and justified by CPU mesh-build, GPU vertex/draw, and memory measurements.
-
-Alongside terrain fidelity, add a small far-visibility data layer with semantic structure records, deterministic scatter-cell descriptors, projected-size/importance tier policy, structure HLOD, forest/canopy aggregation, and natural-landmark promotion. Full rationale, contracts, phases, tests, and migration details are in `architecture-proposal.md`.
-
-## Validation gates
-
-Implement in independently testable phases: coverage correctness -> **whole-range far-terrain material/normal/detail fidelity -> measured inner far geometry fidelity if still required -> near/far terrain transition proof** -> visibility manifest -> semantic structure HLOD -> deterministic scatter -> canopy/forest HLOD -> natural landmark promotion -> transition/budget stress validation.
-
-Built-player evidence must include terrain-dominant views at approximately 0.5, 1, 3, 6, 10, and 12 km plus camera travel across ~350-600 m from multiple directions/elevations. Inspect for smooth/flat far-world appearance, material-family changes, normal/lighting discontinuity, color/fog mismatch, shimmer/aliasing, silhouette loss, popping, and any seam.
-
-Performance validation must separately record far-terrain ring vertex counts, CPU sampling/build time, rebuild churn, shader/GPU cost, draw count, and memory. Existing SceneIssues remain the implementation units; do not duplicate active macro-world or terrain-streaming work.
-
-## Current execution note
-
-- T025 remains unchecked because exact-SHA repository validation is blocked externally: run `33734577506` validated source `ac445caac1b310a29eef2925390cfeac4804406d`; the T025 requested/preceding phases pass, then 16 existing `VoxelEngine.Rendering.Tests.EditMode` GPU/arena parity assertions fail. GPU renderer restoration is owned elsewhere, so agent-7 will not weaken or patch those failures.
-- T026 wires `VoxelShowcase` to the canonical feature-presentation source, shared semantic selection/state adapter, and `ProceduralFarFeatureRenderer`; runtime queries the scene camera without requesting distant voxel residency and owns renderer lifetime with the Showcase. The nested-asmdef compile defect found by run `33736795821` was fixed narrowly by referencing `VoxelEngine.Rendering.Runtime` from `VoxelEngine.Showcase`.
-- T027 wires Kentridge to the same far-feature contracts/renderer and adds a Kentridge reuse regression. Exact-SHA run `33741783211` reached the focused/independent-consumer work and then failed at the already-isolated shared `VoxelEngine.Rendering.Tests.EditMode` GPU/arena parity baseline (earliest named failure `GpuLod2ArenaPressureTests.SolidArenaPressureIsBackpressureWithRecoveryInsteadOfFragmentation`). T027 therefore remains unchecked rather than weakening an externally owned gate.
-- T028 is now the next independent task. `VegetationRenderingShowcase` derives stable sector queries from the deterministic placement list, applies the shared projected-significance/hysteresis policy in Showcase composition, and submits only the selected subset to the existing batch renderer. `ShowcaseTreePopulation` continues to own no render truth; it exposes sector queries over `TreeWorldReadRegistry` and a semantic height-based natural-landmark importance mapping so exceptional trees can enter the same shared far-feature policy without duplicating tree persistence.
-- Focused T028 regressions cover camera-dependent sector selection, distant ordinary-scatter exclusion, deterministic membership/order, and non-mutation of the authoritative placement list. T028 remains unchecked until exact-SHA validation completes.
-- Once the Rendering baseline is repaired on master, merge current master and revalidate the exact feature head before checking blocked tasks or closure.
+Current feature head: `b72c4e76990bfc003ce366c52456132a7c0cdfa8` (T001 implementation + regression metadata). T001 remains unchecked until exact-SHA CI passes. After T001 validation, continue strictly with T002, then T003/T003A... in checklist order, recording genuine blockers and independently advancing only non-blocked acceptance work. Do not close until all T001-T033 requirements, built-player visual proof, and budget gates are complete.
