@@ -26,6 +26,9 @@ public static class VoxelCiPersistentTestRunner
     private const string RequestedTestKey = Prefix + "RequestedTest";
     private const string RequestedPlatformKey = Prefix + "RequestedPlatform";
     private const string RequestedPendingKey = Prefix + "RequestedPending";
+    private const string FinishPendingKey = Prefix + "FinishPending";
+    private const string FinishExitCodeKey = Prefix + "FinishExitCode";
+    private const string FinishMessageKey = Prefix + "FinishMessage";
 
     private static readonly HashSet<string> QuarantinedTests = new HashSet<string>(StringComparer.Ordinal)
     {
@@ -38,7 +41,6 @@ public static class VoxelCiPersistentTestRunner
     private static TestRunnerApi s_Api;
     private static CiCallbacks s_Callbacks;
     private static bool s_Registered;
-    private static bool s_FinishScheduled;
     private static int s_QuarantinedFailureCount;
 
     static VoxelCiPersistentTestRunner()
@@ -85,6 +87,9 @@ public static class VoxelCiPersistentTestRunner
         SessionState.SetString(RequestedTestKey, requestedTest);
         SessionState.SetString(RequestedPlatformKey, requestedPlatform);
         SessionState.SetBool(RequestedPendingKey, !string.IsNullOrEmpty(requestedTest));
+        SessionState.SetBool(FinishPendingKey, false);
+        SessionState.SetInt(FinishExitCodeKey, 0);
+        SessionState.SetString(FinishMessageKey, string.Empty);
 
         EnsureCallbackRegistered();
         QueueNextPhase();
@@ -97,6 +102,8 @@ public static class VoxelCiPersistentTestRunner
         EnsureCallbackRegistered();
         if (SessionState.GetBool(PendingKey, false))
             EditorApplication.delayCall += StartPendingPhase;
+        else if (SessionState.GetBool(FinishPendingKey, false))
+            EditorApplication.delayCall += TryFinishPending;
     }
 
     private static void EnsureCallbackRegistered()
@@ -231,10 +238,30 @@ public static class VoxelCiPersistentTestRunner
 
     private static void ScheduleFinish(int exitCode, string message)
     {
-        if (s_FinishScheduled)
+        if (SessionState.GetBool(FinishPendingKey, false))
             return;
-        s_FinishScheduled = true;
-        EditorApplication.delayCall += () => Finish(exitCode, message);
+        SessionState.SetBool(FinishPendingKey, true);
+        SessionState.SetInt(FinishExitCodeKey, exitCode);
+        SessionState.SetString(FinishMessageKey, message ?? string.Empty);
+        EditorApplication.delayCall += TryFinishPending;
+    }
+
+    private static void TryFinishPending()
+    {
+        if (!SessionState.GetBool(ActiveKey, false) || !SessionState.GetBool(FinishPendingKey, false))
+            return;
+
+        int exitCode = SessionState.GetInt(FinishExitCodeKey, 2);
+        string message = SessionState.GetString(FinishMessageKey, string.Empty);
+        bool needsShowcaseBake = exitCode == 0 && SessionState.GetBool(BakeShowcaseKey, false);
+        if (needsShowcaseBake && (EditorApplication.isPlaying || EditorApplication.isPlayingOrWillChangePlaymode))
+        {
+            EditorApplication.delayCall += TryFinishPending;
+            return;
+        }
+
+        SessionState.SetBool(FinishPendingKey, false);
+        Finish(exitCode, message);
     }
 
     private static void Finish(int exitCode, string message)
@@ -365,6 +392,9 @@ public static class VoxelCiPersistentTestRunner
         SessionState.SetString(RequestedTestKey, string.Empty);
         SessionState.SetString(RequestedPlatformKey, string.Empty);
         SessionState.SetBool(RequestedPendingKey, false);
+        SessionState.SetBool(FinishPendingKey, false);
+        SessionState.SetInt(FinishExitCodeKey, 0);
+        SessionState.SetString(FinishMessageKey, string.Empty);
     }
 
     private sealed class CiCallbacks : IErrorCallbacks
