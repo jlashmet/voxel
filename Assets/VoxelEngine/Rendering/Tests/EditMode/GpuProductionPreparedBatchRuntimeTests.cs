@@ -4,6 +4,7 @@ using Unity.Mathematics;
 using UnityEditor;
 using UnityEngine;
 using VoxelEngine.Rendering.Runtime.GpuVoxel;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Tests.EditMode
