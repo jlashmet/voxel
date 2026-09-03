@@ -32,7 +32,7 @@
 - [x] **T09-022 — Duplicate/race tests.** Same request or competing requests never create negative/duplicated quantities.
 - [x] **T09-023 — Character/container reuse test.** Both consumers use identical transaction/runtime path.
 - [x] **T09-024 — Snapshot/restore determinism.** Stable ordering/identity and exact contents after restore.
-- [ ] **T09-025 — Run automatic Inventory and dependent Loot tests.** Required master synchronization completed at feature source `43cec11cb7a57b94bd116ec18903ae9a1dcdc7cd`, incorporating `origin/master` `f5593cc1236ba3963fc5713a11df35292628e97d`. Both that synchronized source and current master return no `Assets/Game/Loot`, and default-branch code search finds no `Game.Loot`, so the required dependent Loot validation remains externally blocked. Post-sync Inventory validation was submitted as CI run `33802369720` on the existing `ci-test/fixes/agent-2` transport and is queued; do not replace it. Acceptance is unchanged.
+- [ ] **T09-025 — Run automatic Inventory and dependent Loot tests.** Post-master-sync Inventory validation run `33802369720` completed successfully: automatic module validation and standalone SceneIssue replay both passed for synchronized source `43cec11cb7a57b94bd116ec18903ae9a1dcdc7cd`. System10/Loot exact-SHA run `33800800347` also completed successfully and its SceneIssue is closed on `fixes/agent-8`, but current `origin/master` remains `f5593cc1236ba3963fc5713a11df35292628e97d` and still has no `Game.Loot`. Do not consume the other assignment branch; dependent Loot validation remains externally blocked until that closed System10 head is promoted to master, then merge master and validate the combined authoritative tree. Acceptance is unchanged.
 
 ## Cleanup / close
 
