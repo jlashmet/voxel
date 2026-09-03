@@ -25,7 +25,9 @@ Do not work around the current teardown fault by omitting `RenderingComposition.
 
 ## Current state / remaining gates
 
-Current `origin/master` remains `b18d470f66221c7cb6091249f4683c2d994bffec`, already included in feature merge `731e55c2ed1808c2d6fb21189c96011887bec6e3`. WorldBuilder implementation/regressions remain independently proven, and the CPU fallback restores the missing near-surface visual publication. Required exact-SHA player validation cannot be accepted while teardown throws/crashes.
+Current `origin/master` is still `b18d470f66221c7cb6091249f4683c2d994bffec`, already included in feature merge `731e55c2ed1808c2d6fb21189c96011887bec6e3`. WorldBuilder implementation/regressions remain independently proven, and the CPU fallback restores the missing near-surface visual publication. Required exact-SHA player validation cannot be accepted while teardown throws/crashes.
+
+External prerequisite check on 2026-09-02 local time: the separate GPU renderer restoration work remains open on `fixes/agent-1`; its task `TGPU-035 — Verify renderer restart/lifecycle` is still unchecked. That confirms the lifecycle prerequisite has not yet been completed upstream, so another agent-5 CI request would only repeat the already-isolated failure and is not allowed work.
 
 Next action is to remain open and avoid another CI request until the external renderer lifecycle prerequisite changes. Once it changes, fetch/merge current master and rerun the convention-derived WorldBuilder tests, SecretDiscovery built player, Kentridge integration, and SceneIssue replay through `ci-test/fixes/agent-5`, then inspect full-resolution artifacts again.
 
