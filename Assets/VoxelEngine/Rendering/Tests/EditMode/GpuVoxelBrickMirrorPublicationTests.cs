@@ -36,7 +36,7 @@ namespace VoxelEngine.Tests.EditMode
             Fill(surfaces, 0x1234);
             Fill(boundaries, 0xab);
 
-            VoxelBrickDelta first = VoxelBrickDelta.MixedAt(coordinate, generation: 5, slot: 0);
+            VoxelBrickDelta first = VoxelBrickDelta.MixedAt(coordinate, generation: 5, sourceSlot: 0);
             first.AddMaterial(7);
             Assert.AreEqual(
                 GpuBrickPublish.Uploaded,
@@ -50,7 +50,7 @@ namespace VoxelEngine.Tests.EditMode
             Fill(materials, 9);
             Fill(surfaces, 0x4321);
             Fill(boundaries, 0x5a);
-            VoxelBrickDelta newer = VoxelBrickDelta.MixedAt(coordinate, generation: 6, slot: 0);
+            VoxelBrickDelta newer = VoxelBrickDelta.MixedAt(coordinate, generation: 6, sourceSlot: 0);
             newer.AddMaterial(9);
             Assert.AreEqual(
                 GpuBrickPublish.Uploaded,
@@ -62,7 +62,7 @@ namespace VoxelEngine.Tests.EditMode
             Fill(materials, 3);
             Fill(surfaces, 0x0f0f);
             Fill(boundaries, 0x33);
-            VoxelBrickDelta stale = VoxelBrickDelta.MixedAt(coordinate, generation: 4, slot: 0);
+            VoxelBrickDelta stale = VoxelBrickDelta.MixedAt(coordinate, generation: 4, sourceSlot: 0);
             stale.AddMaterial(3);
             Assert.AreEqual(
                 GpuBrickPublish.Stale,
@@ -108,7 +108,7 @@ namespace VoxelEngine.Tests.EditMode
             Fill(materials, 13);
             Fill(surfaces, 0x2468);
             Fill(boundaries, 0x7c);
-            VoxelBrickDelta mixed = VoxelBrickDelta.MixedAt(emptiedCoordinate, generation: 8, slot: 0);
+            VoxelBrickDelta mixed = VoxelBrickDelta.MixedAt(emptiedCoordinate, generation: 8, sourceSlot: 0);
             mixed.AddMaterial(13);
             Assert.AreEqual(
                 GpuBrickPublish.Uploaded,
