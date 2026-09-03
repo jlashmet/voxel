@@ -1,0 +1,17 @@
+{
+  "formatVersion": 3,
+  "id": "20260902-171853-000-GpuRendererProductionRestoration",
+  "capturedUtc": "2026-09-02T17:18:53.0000000Z",
+  "note": "FEATURE: Restore the GPU voxel renderer to a fully functional production backend.\n\nOBSERVED: The repository has a production GPU surface path and VoxelShowcase migration coverage, but current GPU work is not trustworthy enough to call fully functional. The active investigation on `enable_gpu` reproduced CPU/GPU density divergence in `GpuDensityMatchesTheCpuJobSampleForSample(1)` (1300/2197 samples on the diagnostic fixture). The failing GPU sample could preserve dominant material while losing the authoritative-solid occupancy bit; an isolated raw `ReadMaterial`/`IsSolidSample` compute diagnostic passed, narrowing that specific investigation into `SampleField`/full-mesher behavior rather than cache packing. Treat this as a starting clue, not a prescribed fix.\n\nBASELINE: SceneIssue created from master `c20f19dba999503a3214c5e7d4b0f64ffdeb0062`. Fetch current origin/master before implementation.\n\nACCEPTANCE: The supported GPU voxel surface backend is semantically equivalent to the CPU oracle for supported reconstruction/material/coating/boundary/LOD inputs; production VoxelShowcase and an independent production consumer use GPU extraction for GPU-eligible solid chunks without silent CPU fallback; persistent mirror publication/recovery/edit behavior remains correct; transition and negative-shell ownership do not create cracks or holes; built-player evidence shows correct production rendering during streaming/traversal and after edits; GPU operation preserves repository frame/memory/blocking budgets; unsupported work is explicitly classified rather than silently producing wrong geometry. Green editor tests alone do not satisfy player-visible acceptance, and a scene that appears correct because eligible chunks fell back to CPU does not pass.\n\nWORKFLOW: Follow `AGENTS.md`, `SceneIssues/feature-readme.md`, and `SceneIssues/README.md`. Maintain separate `plan.md` and `tasks.md`; work the next unchecked non-blocked task; record blockers and continue independent work; no opportunistic enhancements. If the same acceptance symptom/assertion fails after two materially different fixes, isolate a minimal repro/root cause before another fix. Do not weaken CPU parity, visual, performance, or no-fallback acceptance to close the issue.",
+  "status": "open",
+  "resolvedUtc": "",
+  "resolutionSummary": "",
+  "regressionTest": "",
+  "fixCommit": "",
+  "unityVersion": "6000.5.6f1",
+  "platform": "Feature",
+  "sceneName": "VoxelShowcase",
+  "scenePath": "Assets/Scenes/VoxelShowcase.unity",
+  "sceneBuildIndex": 3,
+  "captures": []
+}
