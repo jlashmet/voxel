@@ -110,7 +110,7 @@ jobs:
           mkdir -p "$ROOT"
           status=0
 
-          UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=40 \
+          UNITY_MAX_RSS_MB=20480 UNITY_MAX_MINUTES=40 \
           UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
             -batchmode -job-worker-count 1 \
             -projectPath "$GITHUB_WORKSPACE" \
@@ -156,7 +156,7 @@ jobs:
           for i in "${!FILTERS[@]}"; do
             label="${LABELS[$i]}"
             echo "::group::PlayMode $ASM ($label)"
-            UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=30 \
+            UNITY_MAX_RSS_MB=20480 UNITY_MAX_MINUTES=30 \
             UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
               -batchmode -job-worker-count 1 \
               -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
