@@ -74,6 +74,21 @@ namespace Game.Inventory.Api
         }
     }
 
+    public readonly struct InventoryQuantitySnapshot
+    {
+        public InventoryId InventoryId { get; }
+        public ItemRef Item { get; }
+        public int Quantity { get; }
+
+        public InventoryQuantitySnapshot(InventoryId inventoryId, ItemRef item, int quantity)
+        {
+            if (quantity <= 0) throw new ArgumentOutOfRangeException(nameof(quantity));
+            InventoryId = inventoryId;
+            Item = item;
+            Quantity = quantity;
+        }
+    }
+
     public enum InventoryTransactionFailure
     {
         None = 0,
@@ -113,6 +128,8 @@ namespace Game.Inventory.Api
         InventoryTransactionResult TryRemove(InventoryId inventoryId, ItemRef item, int quantity);
         InventoryTransactionResult TryTransfer(InventoryId sourceInventoryId, InventoryId destinationInventoryId, ItemRef item, int quantity);
         int Count(InventoryId inventoryId, ItemRef item);
+        IReadOnlyList<InventoryQuantitySnapshot> Capture();
+        bool TryRestore(IReadOnlyList<InventoryQuantitySnapshot> snapshots);
     }
 
     public interface IInventoryRuntime
