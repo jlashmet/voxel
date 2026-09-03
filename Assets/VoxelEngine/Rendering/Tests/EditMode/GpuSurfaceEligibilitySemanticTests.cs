@@ -31,6 +31,25 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("does not implement reconstruction", error.Message);
         }
 
+        [Test]
+        public void UnsupportedDecorationIsRejectedBeforeExtraction()
+        {
+            if (!SystemInfo.supportsComputeShaders)
+                Assert.Ignore("Compute shaders unavailable.");
+
+            ComputeShader shader = AssetDatabase.LoadAssetAtPath<ComputeShader>(ShaderPath);
+            Assert.NotNull(shader, $"Compute shader missing at {ShaderPath}");
+            using var extractor = new GpuSurfaceExtractor(shader, cellsPerAxis: 8, padding: 2);
+
+            SurfaceCatalogueView surfaces = SurfaceCatalogueView.CreateBuiltIns();
+            var source = new UnsupportedCoatingCatalogue();
+            CoatingCatalogueView coatings = CoatingCatalogueView.Capture(in source);
+
+            NotSupportedException error = Assert.Throws<NotSupportedException>(
+                () => extractor.SetCatalogues(in surfaces, in coatings, null));
+            StringAssert.Contains("does not implement decoration", error.Message);
+        }
+
         private struct UnsupportedSurfaceCatalogue : ISurfacePresentationCatalogue
         {
             public uint Version => 1;
@@ -49,6 +68,22 @@ namespace VoxelEngine.Tests.EditMode
 
             public SurfaceJoinReadRule GetPresentationJoin(byte groupA, byte groupB) =>
                 SurfaceJoinReadRule.SharpSeam;
+        }
+
+        private struct UnsupportedCoatingCatalogue : ICoatingPresentationCatalogue
+        {
+            public uint Version => 1;
+            public ulong CatalogueHash => 0xDEC0A7EUL;
+            public ulong ComputeHash() => CatalogueHash;
+
+            public CoatingReadDefinition GetPresentation(byte coatingId) => new()
+            {
+                StableId = coatingId,
+                AllowedMaterialMask = uint.MaxValue,
+                DecorationShape = coatingId == 9
+                    ? (SurfaceDecorationShape)99
+                    : SurfaceDecorationShape.None,
+            };
         }
     }
 }
