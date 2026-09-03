@@ -1,6 +1,5 @@
 #if UNITY_EDITOR
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -169,108 +168,23 @@ public static class VoxelCiPersistentTestRunner
 
         SessionState.SetBool(PendingKey, false);
         EnsureCallbackRegistered();
+        var filter = new Filter { testMode = mode };
+        if (assemblies.Length > 0)
+            filter.assemblyNames = assemblies;
+        if (!string.IsNullOrEmpty(requestedTest))
+            filter.testNames = new[] { requestedTest };
 
         Debug.Log(phase == "requested"
             ? $"Persistent CI: starting requested {mode} test {requestedTest} in the existing Unity editor."
-            : $"Persistent CI: resolving {phase} in the existing Unity editor for {string.Join(", ", assemblies)}");
-        try
-        {
-            if (assemblies.Length > 0)
-                ResolveAssemblyTestsAndExecute(phase, mode, assemblies);
-            else
-                ExecuteFilter(new Filter { testMode = mode, testNames = new[] { requestedTest } });
-        }
-        catch (Exception ex)
-        {
-            AppendFailure("Failed to start " + phase + ": " + ex);
-            ScheduleFinish(2, "Failed to start " + phase + ".");
-        }
-    }
-
-    private static void ResolveAssemblyTestsAndExecute(string phase, TestMode mode, string[] assemblies)
-    {
-        var treeFilter = new Filter { testMode = mode };
-        s_Api.RetrieveTestTree(new ExecutionSettings(treeFilter), root =>
-        {
-            try
-            {
-                var requested = new HashSet<string>(assemblies, StringComparer.Ordinal);
-                var found = new HashSet<string>(StringComparer.Ordinal);
-                var selectedLeafNames = new List<string>();
-                var outsideLeafNames = new HashSet<string>(StringComparer.Ordinal);
-
-                foreach (ITestAdaptor assemblyNode in EnumerateTests(root).Where(test => test.IsTestAssembly))
-                {
-                    string assemblyName = NormalizeTestAssemblyName(assemblyNode);
-                    bool isRequested = requested.Contains(assemblyName);
-                    if (isRequested)
-                        found.Add(assemblyName);
-
-                    foreach (ITestAdaptor leaf in EnumerateTests(assemblyNode).Where(test => !test.HasChildren))
-                    {
-                        if (isRequested)
-                            selectedLeafNames.Add(leaf.FullName);
-                        else
-                            outsideLeafNames.Add(leaf.FullName);
-                    }
-                }
-
-                string[] missing = requested.Where(name => !found.Contains(name)).OrderBy(name => name).ToArray();
-                if (missing.Length > 0)
-                    throw new InvalidOperationException("Could not resolve persistent CI test assembly node(s): " + string.Join(", ", missing));
-
-                string[] exactNames = selectedLeafNames.Distinct(StringComparer.Ordinal).ToArray();
-                if (exactNames.Length == 0)
-                    throw new InvalidOperationException("Resolved persistent CI assembly scope contains zero leaf tests: " + string.Join(", ", assemblies));
-
-                string[] duplicates = exactNames.Where(outsideLeafNames.Contains).OrderBy(name => name).ToArray();
-                if (duplicates.Length > 0)
-                    throw new InvalidOperationException("Persistent CI exact test-name scope is ambiguous across assemblies: " + string.Join(", ", duplicates.Take(8)));
-
-                Debug.Log($"Persistent CI: {phase} resolved {exactNames.Length} exact leaf tests from {string.Join(", ", assemblies)}.");
-                EditorApplication.delayCall += () => ExecuteFilter(new Filter { testMode = mode, testNames = exactNames });
-            }
-            catch (Exception ex)
-            {
-                AppendFailure("Failed to resolve " + phase + " assembly scope: " + ex);
-                ScheduleFinish(2, "Failed to resolve " + phase + " assembly scope.");
-            }
-        });
-    }
-
-    private static IEnumerable<ITestAdaptor> EnumerateTests(ITestAdaptor root)
-    {
-        yield return root;
-        if (!root.HasChildren)
-            yield break;
-        foreach (ITestAdaptor child in root.Children)
-        foreach (ITestAdaptor descendant in EnumerateTests(child))
-            yield return descendant;
-    }
-
-    private static string NormalizeTestAssemblyName(ITestAdaptor assemblyNode)
-    {
-        string value = string.IsNullOrEmpty(assemblyNode.Name) ? assemblyNode.FullName : assemblyNode.Name;
-        value = (value ?? string.Empty).Replace('\\', '/');
-        int slash = value.LastIndexOf('/');
-        if (slash >= 0)
-            value = value.Substring(slash + 1);
-        if (value.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
-            value = value.Substring(0, value.Length - 4);
-        return value;
-    }
-
-    private static void ExecuteFilter(Filter filter)
-    {
+            : $"Persistent CI: starting {phase} in the existing Unity editor for {string.Join(", ", assemblies)}");
         try
         {
             s_Api.Execute(new ExecutionSettings(filter));
         }
         catch (Exception ex)
         {
-            string phase = SessionState.GetString(PhaseKey, "unknown");
-            AppendFailure("Failed to execute " + phase + ": " + ex);
-            ScheduleFinish(2, "Failed to execute " + phase + ".");
+            AppendFailure("Failed to start " + phase + ": " + ex);
+            ScheduleFinish(2, "Failed to start " + phase + ".");
         }
     }
 
