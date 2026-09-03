@@ -1,0 +1,20 @@
+{
+  "name": "VoxelEngine.MeshVoxelization.Editor",
+  "rootNamespace": "VoxelEngine.MeshVoxelization.Editor",
+  "references": [
+    "VoxelEngine.Structures.Runtime",
+    "VoxelEngine.Structures.Api",
+    "Unity.Mathematics"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
