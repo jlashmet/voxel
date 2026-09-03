@@ -27,6 +27,8 @@ def run_test(unity: str, item: dict, root: Path, test_filter: str | None = None)
     args.extend(["-testResults", str(xml), "-logFile", str(log)])
     env = os.environ.copy()
     env.update({"UNITY_BIN": unity, "UNITY_MAX_RSS_MB": "14336", "UNITY_MAX_MINUTES": "4"})
+    if platform == "PlayMode":
+        env["VOXEL_DISABLE_GPU_CUTOVER"] = "1"
     started = time.monotonic()
     subprocess.run(args, check=True, env=env)
     if not xml.is_file():
@@ -216,10 +218,12 @@ def main(argv=None) -> int:
         module = item["module"]
         safe_module = "".join(c if c.isalnum() or c in "-_" else "_" for c in module)
         out = root / "Players" / safe_module
+        player_env = os.environ.copy()
+        player_env["VOXEL_DISABLE_GPU_CUTOVER"] = "1"
         started = time.monotonic()
         subprocess.run(["python3", "tools/player-validation.py", "--unity", ns.unity,
                         "--scene", item["scene"], "--scenario", item["scenario"],
-                        "--output", str(out)], check=True)
+                        "--output", str(out)], check=True, env=player_env)
         summary["players"].append({**item, "seconds": round(time.monotonic() - started, 2)})
     summary["totalSeconds"] = round(time.monotonic() - started_all, 2)
     (root / "module-validation-summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")

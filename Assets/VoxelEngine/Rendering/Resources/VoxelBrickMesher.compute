@@ -9,25 +9,25 @@
 // on the GPU through drawing, per the plan's no-readback invariant.
 
 #pragma kernel CSSampleDensity
-#pragma kernel CSBatchSampleDensity
+#pragma kernel CSBatchSampleDensity VOXEL_BATCH_DENSE_LOOKUP
 #pragma kernel CSCountCells
-#pragma kernel CSBatchCountCells
+#pragma kernel CSBatchCountCells VOXEL_BATCH_DENSE_LOOKUP
 #pragma kernel CSCountFacetedFaces
-#pragma kernel CSBatchCountFacetedFaces
+#pragma kernel CSBatchCountFacetedFaces VOXEL_BATCH_DENSE_LOOKUP
 #pragma kernel CSCountDecorations
-#pragma kernel CSBatchCountDecorations
-#pragma kernel CSBatchSampleFaces
-#pragma kernel CSBatchCountTransitions
-#pragma kernel CSBatchCountProfiles
-#pragma kernel CSBatchWriteTransitions
-#pragma kernel CSBatchWriteProfiles
-#pragma kernel CSBatchPublishArgs
+#pragma kernel CSBatchCountDecorations VOXEL_BATCH_DENSE_LOOKUP
+#pragma kernel CSBatchSampleFaces VOXEL_BATCH_DENSE_LOOKUP
+#pragma kernel CSBatchCountTransitions VOXEL_BATCH_DENSE_LOOKUP
+#pragma kernel CSBatchCountProfiles VOXEL_BATCH_DENSE_LOOKUP
+#pragma kernel CSBatchWriteTransitions VOXEL_BATCH_DENSE_LOOKUP
+#pragma kernel CSBatchWriteProfiles VOXEL_BATCH_DENSE_LOOKUP
+#pragma kernel CSBatchPublishArgs VOXEL_BATCH_DENSE_LOOKUP
 #pragma kernel CSWriteCells
-#pragma kernel CSBatchWriteCells
+#pragma kernel CSBatchWriteCells VOXEL_BATCH_DENSE_LOOKUP
 #pragma kernel CSWriteFacetedFaces
-#pragma kernel CSBatchWriteFacetedFaces
+#pragma kernel CSBatchWriteFacetedFaces VOXEL_BATCH_DENSE_LOOKUP
 #pragma kernel CSWriteDecorations
-#pragma kernel CSBatchWriteDecorations
+#pragma kernel CSBatchWriteDecorations VOXEL_BATCH_DENSE_LOOKUP
 #pragma kernel CSCopyVertices
 #pragma kernel CSCopyIndices
 #pragma kernel CSPublishArgs
