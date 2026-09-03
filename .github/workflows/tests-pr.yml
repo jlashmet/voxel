@@ -1,16 +1,17 @@
-name: Tests (PR — affected only)
+name: Tests (PR — unit + full app)
 
-# A behavior-changing pull request runs the EditMode tests its changes can affect. A
-# pending-to-closed SceneIssue review only approves already-tested evidence and
-# is ignored here and by tests-master.yml.
+# A behavior-changing pull request runs the EditMode/unit tests its changes can affect,
+# then the canonical standalone Kentridge full-application test. The required `affected`
+# job does not pass until both layers pass.
 #
-# Selection is computed from the .asmdef reference graph, not from file paths.
-# tools/select-tests.py walks the graph and falls back to running every EditMode
-# assembly whenever a changed file is outside it.
+# Unit-test selection is computed from the .asmdef reference graph, not from file paths.
+# tools/select-tests.py walks the graph and falls back to running every EditMode assembly
+# whenever a changed file is outside it.
 #
-# Automatic PlayMode suites are intentionally disabled. The standalone player-build
-# path is the repository-wide high-level validation; ticket-specific PlayMode evidence
-# remains available through targeted/manual validation when explicitly required.
+# General automatic PlayMode suites are intentionally disabled. The old suites were
+# removed because they were stale. The standalone player-build path is the repository-wide
+# high-level validation; ticket-specific PlayMode evidence remains available through
+# targeted/manual validation when explicitly required.
 
 on:
   pull_request:
@@ -110,6 +111,17 @@ jobs:
 
           test -s "$ROOT/persistent-summary.txt"
           grep -q '^status=passed$' "$ROOT/persistent-summary.txt"
+
+      - name: Canonical standalone full-application test
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/Artifacts/PrTests/FullApp"
+          mkdir -p "$ROOT"
+          bash tools/showcase-player-capture.sh \
+            --unity "${{ steps.unity.outputs.path }}" \
+            --output "$ROOT" \
+            --scene Assets/Scenes/KentridgePlayableSlice.unity
 
       - name: Upload results
         if: always()
