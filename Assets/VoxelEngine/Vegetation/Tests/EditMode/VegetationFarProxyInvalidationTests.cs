@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using NUnit.Framework;
 using Unity.Mathematics;
@@ -101,7 +100,7 @@ namespace VoxelEngine.Tests.EditMode
             IReadOnlyList<ForestCanopyCluster> after = ForestCanopyClusterBuilder.Build(_visible);
             Assert.That(after.Count, Is.EqualTo(1));
             Assert.That(after[0].MemberCount, Is.EqualTo(1));
-            Assert.That(Array.IndexOf(after[0].MemberIds, severedStableId), Is.EqualTo(-1));
+            Assert.That(Contains(after[0].MemberIds, severedStableId), Is.False);
         }
 
         private void Query(ITreeWorldReadSource source)
@@ -123,6 +122,17 @@ namespace VoxelEngine.Tests.EditMode
 
             Assert.Fail($"Missing tree visibility entry {stableId}.");
             return default;
+        }
+
+        private static bool Contains(IReadOnlyList<ulong> ids, ulong stableId)
+        {
+            for (int i = 0; i < ids.Count; i++)
+            {
+                if (ids[i] == stableId)
+                    return true;
+            }
+
+            return false;
         }
     }
 }
