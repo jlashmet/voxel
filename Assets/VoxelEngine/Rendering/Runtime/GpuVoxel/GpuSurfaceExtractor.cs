@@ -95,11 +95,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
     /// exist so the caller can reserve pages before anything is written; nothing here reads geometry
     /// back, per the plan's no-readback invariant.
     ///
-    /// The brick cache is the trick that keeps this simple. Density taps reach two voxels past the
-    /// chunk in every direction, which crosses brick boundaries, and resolving that on the GPU would
-    /// otherwise want a hash map from brick coordinate to mirror slot. Instead the caller flattens
-    /// the chunk's brick neighbourhood into a small dense array — exactly as the CPU job already
-    /// does for its own reads — so the shader indexes it with plain arithmetic.
+    /// Standalone/editor callers describe one dense brick neighbourhood directly. Production batch
+    /// lanes instead resolve the persistent mirror into reusable GPU-owned dense slices before the
+    /// meshing kernels run, keeping persistent directory traversal out of this shader compilation.
     /// </summary>
     public sealed class GpuSurfaceExtractor : IDisposable
     {
@@ -163,6 +161,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         internal sealed class CountBatchResources : IDisposable
         {
             internal readonly int Capacity;
+            internal readonly GpuBrickCachePreparation PreparedCache;
             internal readonly ComputeBuffer Chunks;
             internal readonly ComputeBuffer Density;
             internal readonly ComputeBuffer SampleMaterial;
@@ -181,9 +180,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             internal int ProfileCount;
 
             internal CountBatchResources(int capacity, int sampleCount, int cellCount,
-                                         int faceSampleCount)
+                                         int faceSampleCount, int brickCacheEdge)
             {
                 Capacity = capacity;
+                PreparedCache = new GpuBrickCachePreparation(capacity, brickCacheEdge);
                 Chunks = new ComputeBuffer(capacity, BatchChunkDescriptor.Stride,
                                            ComputeBufferType.Structured);
                 Density = new ComputeBuffer(capacity * sampleCount, sizeof(float),
@@ -245,6 +245,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
             public void Dispose()
             {
+                PreparedCache?.Dispose();
                 Chunks?.Release();
                 Density?.Release();
                 SampleMaterial?.Release();
@@ -351,6 +352,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private static readonly int IdBatchIndexAlignment =
             Shader.PropertyToID("_BatchIndexAlignment");
         private static readonly int IdBatchChunks = Shader.PropertyToID("_BatchChunks");
+        private static readonly int IdBatchBrickCacheViews =
+            Shader.PropertyToID("_BatchBrickCacheViews");
         private static readonly int IdBatchDensity = Shader.PropertyToID("_BatchDensity");
         private static readonly int IdBatchDensityWrite = Shader.PropertyToID("_BatchDensityWrite");
         private static readonly int IdBatchSampleMaterial =
@@ -843,7 +846,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             int regularCellsPerAxis = CellsPerAxis + 1;
             int cells = regularCellsPerAxis * regularCellsPerAxis * regularCellsPerAxis;
             int faceSamples = FaceSamplesPerAxis * FaceSamplesPerAxis;
-            return new CountBatchResources(capacity, samples, cells, faceSamples);
+            return new CountBatchResources(capacity, samples, cells, faceSamples, BrickCacheEdge);
         }
 
         /// <summary>
@@ -887,7 +890,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             }
             resources.StageProfiles(requests, recordCount);
             resources.Chunks.SetData(resources.Descriptors, 0, 0, recordCount);
-            _brickCache.SetData(_brickCacheStaging);
+            resources.PreparedCache.Dispatch(mirror, requests, recordCount);
             batchCounters.SetData(resources.CounterZeros, 0, 0,
                                   BatchHeaderWords + recordCount * BatchRecordWords);
 
@@ -1247,7 +1250,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         /// <summary>
         /// Writes the chunk into a plain contiguous range someone else allocated.
-        ///
         /// This is the seam onto the renderer's existing geometry arena, which hands out ranges
         /// rather than pages. Index values stay in the chunk's own numbering — the draw shader adds
         /// the chunk's vertex base when it dereferences them — so a range written here is
@@ -1796,7 +1798,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _shader.SetBuffer(kernel, IdBrickMaterials, mirror.Materials);
             _shader.SetBuffer(kernel, IdBrickSurface, mirror.SurfaceSemantics);
             _shader.SetBuffer(kernel, IdBrickBoundary, mirror.BoundarySamples);
-            _shader.SetBuffer(kernel, IdBrickCache, _brickCache);
+            _shader.SetBuffer(kernel, IdBrickCache, resources.PreparedCache.DenseEntries);
+            _shader.SetBuffer(kernel, IdBatchBrickCacheViews, resources.PreparedCache.RequestViews);
             _shader.SetBuffer(kernel, IdStyleWords, _styleWords);
             _shader.SetBuffer(kernel, IdJoinWords, _joinWords);
             _shader.SetBuffer(kernel, IdCoatingWords, _coatingWords);
