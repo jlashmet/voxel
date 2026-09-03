@@ -27,13 +27,13 @@
 - [x] **T01-021 — Add resolution/idempotency tests.** `EncounterCombatIntegrationTests` proves one terminal coordinator fact and idempotent Encounter resolution behavior.
 - [x] **T01-022 — Add encounter mapping tests.** Independent fixture maps real `EncounterCombatRequest` membership through CharacterIds and preserves Encounter identity through Combat start/result.
 - [x] **T01-023 — Add independent reuse fixture.** Non-Kentridge Character binding, Encounter registry integration, independent Vitality service, and landed production Vitality tests demonstrate reusable boundaries outside the Kentridge composition.
-- [x] **T01-024 — Run module-owned tests baseline.** Previous exact-SHA run `33800856291` passed affected module tests and renderer-restored Kentridge baseline. A fresh final gate is being submitted for the production cutover head.
-- [ ] **T01-025 — Run assembled integration proof.** Production Kentridge is now Vitality-backed; final checkbox waits for fresh exact-SHA built-player evidence on the current feature head.
+- [x] **T01-024 — Run module-owned tests baseline.** Previous exact-SHA run `33800856291` passed affected module tests and renderer-restored Kentridge baseline. Post-cutover run `33811046206` then failed at compile because `EncounterCombatIntegrationTests` retained one removed parameterless `CombatService` call; that test-only fixture is now migrated to `VitalityRegistry` injection.
+- [ ] **T01-025 — Run assembled integration proof.** Production Kentridge is Vitality-backed; final checkbox waits for fresh exact-SHA built-player evidence on the fixed current feature head.
 
 ## Cleanup and close
 
 - [x] **T01-030 — Search for bypasses.** Current master/feature has no parameterless `new CombatService()` production construction; Kentridge uses `new CombatService(_vitality)` with real CharacterId/Vitality registration.
-- [ ] **T01-031 — Check blast radius.** Final post-cutover exact-SHA automatic module + Kentridge player run pending.
+- [ ] **T01-031 — Check blast radius.** Final post-cutover exact-SHA automatic module + Kentridge player run pending after the stale test fixture fix.
 - [ ] **T01-032 — Close only with one authority.** Code audit shows Combat alive/HP decisions consume Vitality exclusively, Encounters owns lifecycle/resolution application, and Combat owns combat orchestration/result. Final checkbox waits for exact-SHA validation and final post-CI audit.
 
 ## Active dependency / CI evidence
@@ -41,5 +41,6 @@
 - System 02 dependency is no longer blocked: master `81ffa4bbc76c3feb6e0bde2376065b4144f3f10a` contains `Assets/Game/Vitality/Runtime/VitalityRegistry.cs`, Combat/Vitality integration, Kentridge production migration, and System 02 closure.
 - Agent-3 merged that master as `b53a2abff95475e6030da475706b3a8478d90ef9`, retaining landed production Combat/Vitality behavior and restoring agent-3 Encounter semantic contracts/coordinator/reuse tests.
 - Agent-3 tests were moved under the landed `Assets/Game/Combat/Tests/EditMode` assembly and its references were unioned with Encounters and Vitality Runtime to avoid a duplicate `Game.Combat.Tests` assembly.
+- Final run `33811046206` failed before tests with CS7036 in `EncounterCombatIntegrationTests.cs`: the fixture still called removed `new CombatService()`. Fix commit `7db3fa76599ca7ed4b9e68b3db27e73fc588f4fe` registers fixture vitality and injects `VitalityRegistry` into Combat. This is a product/test compatibility defect, not infrastructure, so the next action is a new exact-SHA request for the fixed feature head.
 - Previous exact request `74eae6b52d81462edbe250c13af48801298dacac` / run `33800856291` is baseline evidence only and does not satisfy final post-cutover acceptance.
 - `ci-test/fixes/agent-3` remains the only authorized targeted-CI transport. Never replace queued/running work.
