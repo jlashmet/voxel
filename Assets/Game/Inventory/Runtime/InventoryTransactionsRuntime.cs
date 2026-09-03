@@ -46,14 +46,16 @@ namespace Game.Inventory.Runtime
 
                 int existing;
                 inventory.TryGetValue(item, out existing);
+                int next;
                 try
                 {
-                    checked { inventory[item] = existing + quantity; }
+                    checked { next = existing + quantity; }
                 }
                 catch (OverflowException)
                 {
                     return InventoryTransactionResult.Reject(InventoryTransactionFailure.ArithmeticOverflow);
                 }
+                inventory[item] = next;
                 return InventoryTransactionResult.Success();
             }
         }
@@ -122,6 +124,51 @@ namespace Game.Inventory.Runtime
                 if (!_knownItems.Contains(item)) return 0;
                 int quantity;
                 return inventory.TryGetValue(item, out quantity) ? quantity : 0;
+            }
+        }
+
+        public IReadOnlyList<InventoryQuantitySnapshot> Capture()
+        {
+            lock (_gate)
+            {
+                var snapshots = new List<InventoryQuantitySnapshot>();
+                var inventoryIds = new List<InventoryId>(_inventories.Keys);
+                inventoryIds.Sort();
+                for (var i = 0; i < inventoryIds.Count; i++)
+                {
+                    var inventoryId = inventoryIds[i];
+                    var entries = new List<KeyValuePair<ItemRef, int>>(_inventories[inventoryId]);
+                    entries.Sort((left, right) => StringComparer.Ordinal.Compare(left.Key.Id, right.Key.Id));
+                    for (var j = 0; j < entries.Count; j++)
+                        snapshots.Add(new InventoryQuantitySnapshot(inventoryId, entries[j].Key, entries[j].Value));
+                }
+                return snapshots.ToArray();
+            }
+        }
+
+        public bool TryRestore(IReadOnlyList<InventoryQuantitySnapshot> snapshots)
+        {
+            if (snapshots == null) return false;
+
+            lock (_gate)
+            {
+                var restored = new Dictionary<InventoryId, Dictionary<ItemRef, int>>();
+                foreach (var inventoryId in _inventories.Keys)
+                    restored.Add(inventoryId, new Dictionary<ItemRef, int>());
+
+                for (var i = 0; i < snapshots.Count; i++)
+                {
+                    var snapshot = snapshots[i];
+                    Dictionary<ItemRef, int> inventory;
+                    if (!restored.TryGetValue(snapshot.InventoryId, out inventory)) return false;
+                    if (!_knownItems.Contains(snapshot.Item) || snapshot.Quantity <= 0) return false;
+                    if (inventory.ContainsKey(snapshot.Item)) return false;
+                    inventory.Add(snapshot.Item, snapshot.Quantity);
+                }
+
+                _inventories.Clear();
+                foreach (var pair in restored) _inventories.Add(pair.Key, pair.Value);
+                return true;
             }
         }
 
