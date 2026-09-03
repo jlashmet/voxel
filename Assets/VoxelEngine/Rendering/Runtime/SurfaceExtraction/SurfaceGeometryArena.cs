@@ -234,6 +234,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         {
             lease = default;
             if (_disposed) return false;
+            if (UsedArgsRecords >= _maxActiveLeases)
+            {
+                AllocationFailureCount++;
+                return false;
+            }
             int requestedDraws = argsWords / ArgsWordsPerDraw;
             if (UsedArgsRecords + requestedDraws > _maxActiveLeases)
             {
