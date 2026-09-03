@@ -1,12 +1,13 @@
 {
-  "name": "Game.Vitality.Tests",
-  "rootNamespace": "Game.Vitality.Tests",
+  "name": "Game.Loot.Tests",
+  "rootNamespace": "Game.Loot.Tests",
   "references": [
-    "Game.Characters.Api",
-    "Game.Combat.Api",
-    "Game.Combat.Runtime",
-    "Game.Vitality.Api",
-    "Game.Vitality.Runtime"
+    "Game.Loot.Api",
+    "Game.Loot.Runtime",
+    "Game.Inventory.Api",
+    "Game.Inventory.Runtime",
+    "Game.WorldObjects.Api",
+    "Game.Characters.Api"
   ],
   "includePlatforms": [
     "Editor"
