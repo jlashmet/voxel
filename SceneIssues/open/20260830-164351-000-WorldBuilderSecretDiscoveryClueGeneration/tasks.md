@@ -3,85 +3,46 @@
 ## Evidence and scope
 
 - [x] Read `AGENTS.md`, `SceneIssues/issue-readme.md`, and `SceneIssues/README.md`.
-- [x] Inspect SceneIssue captures/marked regions; none are present.
-- [x] Inspect `Docs/worldbuilder-secret-clues-design.md`, canonical secret topology, reusable world-object interaction, and discovery authority.
-- [x] Discriminate hypotheses: canonical hidden-destination selection already exists; deterministic route/readability/clue planning was the missing layer.
-- [x] Remove primitive/parallel player-visible validation approaches after they failed production-quality review.
-- [x] Per user correction, remove all `WorldbuildingGalleryShowcase` secret acceptance integration and Gallery-specific regression fixtures.
-- [ ] **BLOCKER:** `issue.json` still requires representative secret examples in `WorldbuildingGalleryShowcase`, while the user explicitly prohibited integrating this feature into that Gallery. Workflow rules forbid changing acceptance. Keep open until resolved.
+- [x] Inspect captures/marked regions; none are present.
+- [x] Inspect design/source systems and discriminate competing hypotheses with repository evidence.
+- [x] Remove primitive/parallel visual proof approaches that failed production-quality review.
+- [ ] **BLOCKER:** `issue.json` requires representative generated SecretDiscovery examples in `WorldbuildingGalleryShowcase`, while prior explicit user direction prohibited this feature-specific Gallery integration. Do not weaken acceptance; keep open until explicitly resolved.
 
-## Stable planning contracts
+## Planning / behavior
 
-- [x] Stable `SecretRouteId`, `SecretClueId`, semantic clue-anchor identity, route kind, clue channel, hidden-volume relation, importance/readability, and bypass policy.
-- [x] Route/clue plans retain canonical `SecretRef` / `ResolvedSecretPlan` identity; no second hidden-space solver.
-- [x] Semantic clue anchors encode observability/channel/role/distance/dependency metadata without prefab names or capture coordinates.
-- [x] Authored clue-chain contracts support site/NPC sources and secret-scoped memory topics without owning persistent save state.
+- [x] Stable secret/route/clue IDs and immutable plan metadata.
+- [x] Deterministic plan for same seed/inputs independent of candidate enumeration order.
+- [x] Standard/Major clue count/channel rules behaviorally tested.
+- [x] Pre-solve observability and circular dependency rejection behaviorally tested.
+- [x] Reusable semantic anchors avoid prefab names/capture coordinates.
+- [x] Interactable-backed and natural traversal routes both supported without duplicate interaction authority.
+- [x] Multiple legal routes resolve to one canonical discovery identity; revisit/reload/repeated activation is idempotent.
+- [x] `ProtectedShell`, `AuthoredBreakablesOnly`, and `SystemicBypassAllowed` represented and behaviorally tested, including accidental bypass/leakage prevention.
 
-## Deterministic planning and validation
+## Production-path regression / visual validation
 
-- [x] Standard secrets require meaningful pre-solve evidence; Major secrets require at least two clues across independent channels unless explicitly overridden.
-- [x] Required clues must be pre-solve observable; hidden/post-solve-only anchors cannot satisfy readability.
-- [x] Circular route/clue dependencies fail validation.
-- [x] Same seed + same inputs is stable independent of candidate enumeration order.
-- [x] Natural/systemic traversal requires no interactable.
-- [x] Diagnostics cover missing canonical secret, duplicate identities, source mismatch, missing anchors, circular dependency, readability shortfall, and bypass-policy failure.
-
-## Generated cave composition / bypass / discovery regressions
-
-- [x] `ProtectedShell`, `AuthoredBreakablesOnly`, and `SystemicBypassAllowed` are explicit route policies.
-- [x] Protected shell rejects trivial bypass and undesignated breakable leakage when supplied topology evidence.
-- [x] Authored-breakable route requires designated breakables and rejects surrounding leakage.
-- [x] Multiple natural + mechanism routes preserve one canonical discovery identity.
-- [x] `SecretRouteWorldObjectIntegrationTests.MechanismAndNaturalRoutesShareCanonicalDiscoveryAcrossInteractionAndReload` passed targeted run `33419056074`.
-- [x] Revisit/reload/repeated mechanism activation is idempotent through canonical `SecretDiscoveryState`.
-- [x] `SecretGeneratedCaveBypassIntegrationTests.VerifiedGeneratedCaveBarrierFeedsAuthoredBreakableBypassPolicy` passed targeted run `33420376990`.
-- [x] Generated cave regression authors a real `CaveSecretPocket`, resolves it through `CaveSecretPocketSecretCandidateProvider` / canonical `SecretPlanner`, scans actual barrier/connector/pocket occupancy, and feeds verified topology into bypass policy.
-- [x] Add reusable `CaveSecretPocketComposition` with deterministic physical-conflict fallback and no-match/zero-mutation behavior.
-- [x] Add reusable semantic cave clue anchors; exact run `33440180807` passed.
-- [x] Add deterministic normal-voxel clue presentation that preserves verified false-wall occupancy.
-- [x] Replace broad random speckling with a deterministic branching fracture restricted to the cave-facing barrier layer.
+- [x] Generated cave secret composition and verified topology exercised through production authoring.
+- [x] Deterministic branching fracture clue restricted to cave-facing false-wall layer; complete barrier remains solid before destruction.
 - [x] `BoundaryEvidenceIsDeterministicFractureOnCaveFaceAndPreservesVerifiedSeal` passed exact run `33537413920`.
+- [x] Dedicated module-local `SecretDiscovery` validation scene uses production voxel world generation, meshing/rendering, materials/coatings, vegetation, and destruction.
+- [x] Two repeated requested-filter zero-match failures isolated to persistent optional-request infrastructure (`experiment-014`); no third retry.
+- [x] Workflow-green blank-surface output was visually rejected; CPU-renderer merge restored cave rendering.
+- [x] Subsequent teardown failure isolated to renderer lifecycle cleanup (`experiment-015`) after WorldBuilder evidence completed.
+- [x] Exact run `33801222778` passed WorldBuilder EditMode, dedicated SecretDiscovery built player, Kentridge integration, and SceneIssue replay with clean teardown.
+- [x] Full-resolution 9/12/15s frames show sparse non-glowing fracture evidence; 18/21s frames show breached route/open hidden interior; logs show 35 clue voxels and 607 destroyed voxels.
+- [x] Exact built `WorldbuildingGalleryShowcase` replay reaches a usable rendered state without runtime exceptions.
+- [ ] Representative SecretDiscovery examples are visibly understandable in `WorldbuildingGalleryShowcase` at gameplay scale — blocked by instruction conflict.
+- [ ] Gallery visual review proves feature-specific geometry/material/environmental clue language rather than placeholder signs/universal glow — blocked by instruction conflict.
 
-## Dedicated module-local validation scene
+## Cost / integration / closure
 
-- [x] Create `Assets/Game/WorldBuilder/Validation/SecretDiscovery/` as the focused production-path visual proof surface.
-- [x] Scene consumes production voxel world generation, cave authoring/composition, material/coating rendering, vegetation, meshing, and destruction.
-- [x] Remove obsolete `worldbuilder-secret-discovery.module-validation.json`; current repository convention discovers module-local tests and paired `Validation/` scene/scenario automatically.
-- [x] Deterministic walkthrough: entrance -> interior -> deeper cave -> fracture approach -> close wall -> breach -> hidden pocket.
-- [x] Destroy the authored false wall through `ShowcaseWorld.Explode`; wall-destroyed log is required.
-- [x] 24-second player capture at 3-second intervals produces eight frames.
-- [x] Exact run `33537413920` passed all automatic WorldBuilder focused tests, dedicated player validation, and Kentridge integration before the master merge.
-- [x] Full-resolution 9s/12s/15s frames visibly show the fracture before destruction.
-- [x] Full-resolution 18s frame shows the breached route; player log reports 607 voxels removed.
-- [x] Full-resolution 21s frame shows the authored hidden pocket from the opened route.
-- [x] Historical built-player proof had required ready/destruction logs and no `NullReferenceException` / `MissingReferenceException`.
-- [x] The 0s image is a pre-ready transient; it is not used as acceptance evidence. The 3s frame is the first valid entrance proof.
-- [x] After class and exact-method filters both produced the same zero-match symptom, isolate the minimal root cause before another retry; experiment 014 identifies the post-merge optional persistent requested-test path as the infrastructure regression.
-- [x] Required-gates run `33715584697` completed but full-resolution review caught missing near-surface voxel rendering despite a workflow-success status.
-- [x] Merge master `b18d470f66221c7cb6091249f4683c2d994bffec` into source `731e55c2ed1808c2d6fb21189c96011887bec6e3` as the next renderer discriminator.
-- [x] Inspect exact post-master run `33716327931`: all 918 WorldBuilder EditMode cases pass; 9/12/15/18/21 second captures restore cave/fracture/breach/interior rendering; expected 35-clue/607-breach logs are present.
-- [x] Isolate the post-master failed-player root cause before another fix: experiment 015 traces failure to renderer teardown (`GpuSurfaceMirrorCoordinator.DetachPageArena` NRE followed by CPU transvoxel/URP disposal segfault), after WorldBuilder evidence completes.
-- [x] Merge current `origin/master` `f5593cc1236ba3963fc5713a11df35292628e97d`, containing direct renderer lifecycle corrections, into feature merge `342d7cf84a5dcfc23c752ffb0f08388605e54af9`.
-- [x] Revalidate exact feature source `7b9aada4852155efe85d8901631aba440bf8ba65` through sole transport request `2af8b8a99c21d8255f19b930bd307cd6aaaa57a6`; run `33801222778` is green. WorldBuilder EditMode, SecretDiscovery built player, Kentridge integration, and SceneIssue replay pass with no prior teardown NRE/native crash.
-- [x] Inspect full-resolution SecretDiscovery artifacts from run `33801222778`: 9/12/15 second captures show the sparse branching fracture; 18/21 second captures show the breached route/open hidden interior; expected 35-clue/607-breach logs remain present.
-
-## Built-player / representative acceptance
-
-- [x] Dedicated cave example communicates intentional pre-solve fracture evidence without emissive/glowing markers.
-- [x] False wall remains solid before destruction; regression rechecks the complete verified barrier after clue application.
-- [x] Production destruction opens the route and normal traversal space is visually reachable afterward.
-- [x] Exact built-application SceneIssue replay runs `WorldbuildingGalleryShowcase` and reaches a usable rendered state without runtime exceptions on run `33801222778`.
-- [ ] Required representative generated secret examples are visible and understandable in `WorldbuildingGalleryShowcase` at gameplay scale — blocked by the user prohibition above; the green replay alone does not prove this criterion.
-- [ ] Visual review of representative Gallery examples proves the feature-specific clues use intentional geometry/material/environmental language rather than placeholder signs/universal glow — cannot be checked while the representative Gallery integration remains prohibited.
-
-## Cost / blast radius / closure
-
-- [x] Planner/discovery code is one-shot/event-driven; no per-frame search/polling loop was added.
-- [x] Cave composition is bounded by traversal candidates and stops on non-physical failures; no frame polling/search cost added.
-- [x] Clue fracture authors 35 coating voxels once at scene generation; no recurring runtime work.
-- [x] Dedicated destruction is validation orchestration only; production explosion removed 607 voxels in the proof run.
-- [x] Current `origin/master` `81ffa4bbc76c3feb6e0bde2376065b4144f3f10a` is included in feature history through merge `39178b65cafde5f4ca590c51e262ee93523511e5`.
-- [x] Repeat blast-radius/cost judgment against green run `33801222778`: WorldBuilder behavior remains one-shot/bounded; the built player completes authored evidence and teardown without the prior renderer lifecycle failure.
-- [ ] All required acceptance criteria and exact-SHA gates green — the last exact gate was green before subsequent master merges; remaining blocker is the unresolved Gallery representative-example acceptance conflict, and a fresh exact-SHA gate is required once that conflict is resolved.
-- [ ] Move assigned SceneIssue directly `open -> closed`, set `status=fixed` and `resolvedUtc`.
-- [ ] Fetch/merge current `origin/master` again immediately before promotion, then push exact feature head to `origin/master` non-force.
+- [x] Planner/discovery work is one-shot/event-driven; no per-frame search/polling added.
+- [x] Cave composition is bounded by traversal candidates; clue fracture authors 35 coating voxels once.
+- [x] Blast-radius/cost rechecked against green run `33801222778`; no recurring runtime/search cost regression.
+- [x] Current master `431b7a5b501a8e1160d4b8ec90aeaa1752f72881` is merged into the feature through two-parent merge `51fd1d3dbd440823a0f11448804126e2e6e6e3cf`.
+- [x] Updated repository workflow reviewed: final SceneIssue promotion is PR-based; do not push a SceneIssue feature head directly to protected `master`.
+- [ ] All acceptance criteria green and fresh exact-SHA targeted gate green — pending Gallery conflict resolution and subsequent exact-SHA revalidation.
+- [ ] Move assigned SceneIssue `open -> closed`, set `status=fixed` and `resolvedUtc`, and complete supported resolution fields.
+- [ ] Fetch/merge current master after closure bookkeeping.
+- [ ] Open/update `fixes/agent-5` -> `master` PR, enable auto-merge, and require the `affected` PR gate plus canonical standalone Kentridge full-app test to pass.
+- [ ] Confirm closed SceneIssue is visible on `origin/master` after PR merge.
