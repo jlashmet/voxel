@@ -34,6 +34,8 @@ namespace VoxelEngine.Showcase
     [RequireComponent(typeof(MeshRenderer))]
     public sealed class VoxelFarTerrain : MonoBehaviour
     {
+        private const int MaxRings = 12;
+
         [Tooltip("Where the voxel world stops and this takes over, in metres.")]
         [SerializeField] private float m_InnerRadiusMetres = 220f;
 
@@ -77,6 +79,7 @@ namespace VoxelEngine.Showcase
         private MeshRenderer _renderer;
         private Camera _camera;
         private bool _ownsMaterial;
+        private bool _coverageFailureLogged;
 
         // Height sampling is deliberately single-flight. The old implementation scheduled a Burst
         // job and immediately Complete()d it in LateUpdate, then could repeat that for every ring
@@ -247,17 +250,93 @@ namespace VoxelEngine.Showcase
             return safeRadius;
         }
 
+        internal static int RingSpacingVoxels(
+            float innerRadiusMetres, int resolution, int ring)
+        {
+            float innerVoxels = innerRadiusMetres / 0.1f;
+            int spacing = Mathf.Max(1, Mathf.NextPowerOfTwo(
+                Mathf.CeilToInt(innerVoxels * 2f / resolution)));
+            return spacing << ring;
+        }
+
+        internal static float RingHalfExtentMetres(int spacingVoxels, int resolution)
+        {
+            return spacingVoxels * resolution * 0.05f;
+        }
+
+        internal static float CameraSnapLossMetres(int spacingVoxels)
+        {
+            return spacingVoxels * 0.1f;
+        }
+
+        internal static float CoverageAtSnapPhaseMetres(
+            int spacingVoxels, int resolution, float snapPhase)
+        {
+            float phase = Mathf.Clamp01(snapPhase);
+            return Mathf.Max(0f,
+                RingHalfExtentMetres(spacingVoxels, resolution)
+                - CameraSnapLossMetres(spacingVoxels) * phase);
+        }
+
+        internal static float GuaranteedCoverageMetres(int spacingVoxels, int resolution)
+        {
+            return CoverageAtSnapPhaseMetres(spacingVoxels, resolution, 1f);
+        }
+
+        internal static bool TryRequiredRingCount(
+            float innerRadiusMetres,
+            float outerRadiusMetres,
+            int resolution,
+            int maxRings,
+            out int ringCount,
+            out float guaranteedCoverageMetres)
+        {
+            ringCount = Mathf.Max(1, maxRings);
+            guaranteedCoverageMetres = 0f;
+            for (int ring = 0; ring < ringCount; ring++)
+            {
+                int spacing = RingSpacingVoxels(innerRadiusMetres, resolution, ring);
+                guaranteedCoverageMetres = GuaranteedCoverageMetres(spacing, resolution);
+                if (guaranteedCoverageMetres >= outerRadiusMetres)
+                {
+                    ringCount = ring + 1;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         public int RingCount
         {
             get
             {
-                int rings = 1;
-                float reach = m_InnerRadiusMetres * 2f;
-                while (reach < m_OuterRadiusMetres && rings < 12) { reach *= 2f; rings++; }
-                return rings;
+                if (TryRequiredRingCount(
+                        m_InnerRadiusMetres,
+                        m_OuterRadiusMetres,
+                        m_Resolution,
+                        MaxRings,
+                        out int rings,
+                        out float guaranteedCoverage))
+                {
+                    _coverageFailureLogged = false;
+                    return rings;
+                }
+
+                if (!_coverageFailureLogged)
+                {
+                    Debug.LogError(
+                        $"VoxelFarTerrain: requested {m_OuterRadiusMetres:F1} m far coverage "
+                        + $"cannot be guaranteed with {MaxRings} rings at resolution "
+                        + $"{m_Resolution}; worst-case snapped coverage is "
+                        + $"{guaranteedCoverage:F1} m.",
+                        this);
+                    _coverageFailureLogged = true;
+                }
+
+                return MaxRings;
             }
         }
-
         private void Awake()
         {
             _renderer = GetComponent<MeshRenderer>();
@@ -321,10 +400,7 @@ namespace VoxelEngine.Showcase
 
         public int SpacingForRing(int ring)
         {
-            float innerVoxels = m_InnerRadiusMetres / 0.1f;
-            int spacing = Mathf.Max(1, Mathf.NextPowerOfTwo(
-                Mathf.CeilToInt(innerVoxels * 2f / m_Resolution)));
-            return spacing << ring;
+            return RingSpacingVoxels(m_InnerRadiusMetres, m_Resolution, ring);
         }
 
         private void LateUpdate()
