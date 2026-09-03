@@ -115,6 +115,11 @@ namespace VoxelEngine.Tests.EditMode
             resolver.SetInt("_ResolvedBrickCacheEdge", 1);
             resolver.SetInt("_ResolvedBrickCacheRequestCount", 1);
             resolver.Dispatch(kernel, 1, 1, 1);
+
+            // Synchronize the resolver before the temporary header/request buffers are disposed.
+            // The returned dense buffer remains GPU-readable for the semantic probe below.
+            var synchronization = new uint[1];
+            resolved.GetData(synchronization);
             return resolved;
         }
 
