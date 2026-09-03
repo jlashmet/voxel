@@ -118,8 +118,8 @@ namespace VoxelEngine.Tests.EditMode
             {
                 int3 coordinate = origin + new int3(x, y, z);
                 VoxelBrickDelta delta = y < solidBrickYLimit
-                    ? VoxelBrickDelta.UniformAt(coordinate, generation: 1, material: 1)
-                    : VoxelBrickDelta.EmptyAt(coordinate, generation: 1);
+                    ? VoxelBrickDelta.UniformAt(coordinate, 1, 1)
+                    : VoxelBrickDelta.EmptyAt(coordinate, 1);
                 GpuBrickPublish publish = mirror.Publish(
                     delta,
                     default(NativeArray<byte>),
