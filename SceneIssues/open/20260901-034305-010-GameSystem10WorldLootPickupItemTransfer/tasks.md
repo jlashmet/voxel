@@ -6,7 +6,8 @@
 
 ## API / state
 
-- [ ] **T10-001 — Inventory current pickup/drop/container paths.** Find scene pickup components, world-item state, direct inventory mutation, container behavior and race handling.
+- [x] **T10-001 — Inventory current pickup/drop/container paths.** Find scene pickup components, world-item state, direct inventory mutation, container behavior and race handling.
+  - Discovery: no `Game.Loot` module or shared pickup/drop/container transfer path exists on the synced feature head. `Game.Inventory.Api.IInventoryRuntime` exposes `TryAddUnique`, `Add`, `Count`, and `Snapshot` only; it has no remove/transfer/capacity/transaction result contract. Kentridge quest rewards directly call `Inventory.TryAddUnique` in composition (`KentridgeWellQuestRewardRuntime`) and Kentridge well interaction/presentation uses scene-local proximity + `Input.GetKeyDown(KeyCode.E)`. The existing composition `WorldObjects` folder contains runtime bootstrap/composition only and no `Game.WorldObjects.Api` assembly. Existing showcase interaction remains an independent presentation fixture, not loot authority.
 - [ ] **T10-002 — Establish asmdefs.** Loot.Runtime depends on Inventory.Api, WorldObjects.Api and Characters.Api only; Loot.Api contains no prefab/Transform references.
 - [ ] **T10-003 — Define stable loot/world-item identity.** Reuse WorldObjectId where appropriate and add only the semantic item/payload identity actually needed.
 - [ ] **T10-004 — Define pickup/drop/container-transfer requests/results.** Include actor, source/destination and explicit failure reasons without duplicating Inventory transaction schema.
