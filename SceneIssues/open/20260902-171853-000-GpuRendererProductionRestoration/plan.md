@@ -29,6 +29,8 @@ Run `33706289961` exposed a distinct validation blocker in the prepared-batch pa
 
 Exact-SHA run `33801344286`, sourced from feature SHA `f9c07f60d635f23fc4c7a97bd99d10223da417a6`, passed the automatically required Rendering module validation and the standalone SceneIssue replay. This validates TGPU-012 material classification and TGPU-013 surface-style/unsupported-reconstruction coverage. The subsequent feature commits modify only TGPU-014 regressions: real Snow displacement, presentation-only Wet coating invariance, unsupported decoration rejection, and authored boundary extrusion-axis parity across X/Y/Z.
 
+TGPU-014 is now exact-SHA validated: CI request commit `0c4f7d1ddeb16967a8cf92fc15d1870340b820be` targets feature SHA `2521e787d2dde8624b71e55a9ede7398b0a46d5c`, and run `33803816245` completed successfully. The feature branch was then synchronized with current `master` `81ffa4bbc76c3feb6e0bde2376065b4144f3f10a` through merge commit `d277431677ce8e7f2f1bf58553be12b4d25668a1` before continuing persistent-mirror work. The existing `GpuPersistentMirrorExtractionTests` request also passed as run `33807347113` for feature SHA `78677ab8b5c24bd01c51da3ce8fe6cf468d7cb8a`, proving one repeated mixed-brick publication path; it does not yet satisfy the full TGPU-021 mixed/uniform/empty and generation contract.
+
 ## Required build-green rule
 
 Repository-selected required validation must be green before this assignment can close. A failure in an automatically required gate is a blocking defect for this assignment while it prevents TGPU-052/closure, even when the failing assertion predates the GPU density repair. Do not waive, relabel as baseline, or route around such failures. Fix the demonstrated production contract or merge an authoritative upstream fix, then rerun the same required gate.
@@ -49,4 +51,4 @@ Keep CPU voxel/storage truth authoritative. GPU code is a derived presentation b
 
 ## Remaining gates
 
-TGPU-014 exact-SHA boundary/coating/decoration parity -> regular/faceted/negative-shell/transition completion -> persistent mirror correctness -> explicit no-silent-fallback/recovery contract -> production GPU cutover in VoxelShowcase plus independent consumer -> automatic module/player validation -> exact-SHA built-player visual/edit evidence -> performance/memory review -> close.
+TGPU-020 dense-vs-persistent sample equivalence -> complete TGPU-021 publication semantics -> negative-coordinate/boundary lookup -> edit/eviction/liveness/frame-path correctness -> explicit no-silent-fallback/recovery contract -> production GPU cutover in VoxelShowcase plus independent consumer -> automatic module/player validation -> exact-SHA built-player visual/edit evidence -> performance/memory review -> close.
