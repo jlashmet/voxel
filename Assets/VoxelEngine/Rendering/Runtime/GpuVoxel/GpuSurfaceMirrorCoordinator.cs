@@ -88,6 +88,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private static ulong s_CoverageReadyRounds;
         private static readonly CountBatchLane[] s_CountBatchLanes =
             new CountBatchLane[CountBatchLaneCount];
+        private static int s_CountBatchSealCursor;
         private static ulong s_CountBatchReadbacks;
         private static ulong s_CountBatchRecords;
         private static ulong s_CountBatchArenaWaits;
@@ -248,8 +249,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         /// <summary>
         /// Appends one immutable chunk descriptor to a cross-chunk lane. On seal, batch-wide GPU
         /// count/prefix, page allocation, all-category generation, and publication execute without
-        /// transferring bookkeeping to the CPU. A lane seals at eight descriptors or after a
-        /// bounded delay, so sparse demand cannot wait forever.
+        /// transferring bookkeeping to the CPU. Full lanes are serviced by the next frame's fair
+        /// seal pass; sparse demand also seals after a bounded delay.
         /// </summary>
         internal static bool TryDispatchCountBatch(GpuSurfaceExtractionContext context,
                                                    uint token,
@@ -290,7 +291,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 s_MaxCountDispatchMsSinceReport,
                 (Time.realtimeSinceStartupAsDouble - dispatchStarted) * 1000.0);
             s_CountBatchRecords++;
-            if (lane.Count == CountBatchCapacity) SealCountBatch(lane);
             return true;
         }
 
@@ -309,12 +309,21 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         private static void AdvanceCountBatches(int frame)
         {
-            for (int laneIndex = 0; laneIndex < s_CountBatchLanes.Length; laneIndex++)
+            for (int offset = 0; offset < s_CountBatchLanes.Length; offset++)
             {
+                int laneIndex = (s_CountBatchSealCursor + offset) % s_CountBatchLanes.Length;
                 CountBatchLane lane = s_CountBatchLanes[laneIndex];
-                if (lane == null) continue;
-                if (lane.Count > 0 && frame - lane.FirstDispatchFrame >= CountBatchMaxFillFrames)
-                    SealCountBatch(lane);
+                if (lane == null || lane.Count == 0) continue;
+                bool full = lane.Count >= CountBatchCapacity;
+                bool aged = frame - lane.FirstDispatchFrame >= CountBatchMaxFillFrames;
+                if (!full && !aged) continue;
+
+                // Preserve the current cursor when the Metal fence/backpressure blocks this lane;
+                // it remains the oldest eligible authority next frame instead of being skipped by
+                // newer demand. Only a successful submission rotates service to the next lane.
+                if (!SealCountBatch(lane)) return;
+                s_CountBatchSealCursor = (laneIndex + 1) % s_CountBatchLanes.Length;
+                return;
             }
         }
 
@@ -332,9 +341,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             lane.Tables = null;
         }
 
-        private static void SealCountBatch(CountBatchLane lane)
+        private static bool SealCountBatch(CountBatchLane lane)
         {
-            if (lane == null || lane.Count == 0) return;
+            if (lane == null || lane.Count == 0) return false;
             if (s_PageArena == null)
                 throw new InvalidOperationException(
                     "Production GPU extraction requires the GPU-owned page arena.");
@@ -348,10 +357,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (s_ExtractionFenceValid && !s_ExtractionFence.passed)
             {
                 s_CountBatchArenaWaits++;
-                return;
+                return false;
             }
             s_ExtractionFenceValid = false;
-            if (!TryReserveExtractionDispatch(frame)) return;
+            if (!TryReserveExtractionDispatch(frame)) return false;
 
             s_PageArena.FlushHandleCommands(frame);
             lane.PrefixExtractor.DispatchCountBatch(
@@ -375,6 +384,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 lane.Contexts[record]?.CompletePagedBatch(
                     lane.Tokens[record], lane.Requests[record].Handle);
             ResetCountBatchLane(lane);
+            return true;
         }
 
         private static void ResetCountBatches()
@@ -391,6 +401,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 lane.Resources = null;
                 ResetCountBatchLane(lane);
             }
+            s_CountBatchSealCursor = 0;
             s_CountBatchReadbacks = 0;
             s_CountBatchRecords = 0;
             s_CountBatchArenaWaits = 0;
