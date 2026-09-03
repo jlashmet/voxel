@@ -58,3 +58,10 @@ Implement in independently testable phases: coverage correctness -> **whole-rang
 Built-player evidence must include terrain-dominant views at approximately 0.5, 1, 3, 6, 10, and 12 km plus camera travel across ~350-600 m from multiple directions/elevations. Inspect for smooth/flat far-world appearance, material-family changes, normal/lighting discontinuity, color/fog mismatch, shimmer/aliasing, silhouette loss, popping, and any seam.
 
 Performance validation must separately record far-terrain ring vertex counts, CPU sampling/build time, rebuild churn, shader/GPU cost, draw count, and memory. Existing SceneIssues remain the implementation units; do not duplicate active macro-world or terrain-streaming work.
+
+## Current execution note
+
+- T025 remains unchecked pending exact-SHA validation.
+- Exact-head CI run `33723075016` completed with compile failures, so it is treated as a product failure rather than an infrastructure retry.
+- Root causes were isolated to the T025 regression using NUnit's string-oriented `Does.Not.Contain` overload for a `ulong[]`, and the independent WorldBuilder reuse fixture directly consuming `VoxelEngine.Rendering.Api` without that assembly reference.
+- The fixes are intentionally narrow: use `Array.IndexOf` for canonical numeric canopy member IDs and add only `VoxelEngine.Rendering.Api` to the WorldBuilder EditMode test assembly. Revalidate on the sole `ci-test/fixes/agent-7` transport before advancing T025.
