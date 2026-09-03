@@ -19,7 +19,7 @@
 - [ ] **T01-012 — Preserve combat-only state.** Vitality-backed migration changes only life-state reads/damage. Round/readiness (`ChainRoundReadinessCoordinator`), committed tactical intents/enemy phase (`ChainEnemyTacticalAI`), reaction ownership (`ChainReactionReservationCoordinator`), planning/history (`ChainExecutionPlan`), and board/motion state remain Combat concerns. Final checkbox waits for production migration/blast-radius validation.
 - [x] **T01-013 — Integrate Encounter ownership.** `EncounterCombatCoordinator` is a thin engine-free adapter over the existing `CombatService`: it starts a session from `CombatStartRequest`, remembers the owning `EncounterId`, and emits exactly one `CombatResolved` fact after authoritative Combat completion. `EncounterCombatIntegrationTests` uses the real `EncounterRegistry` and keeps winner-to-EncounterResolution policy in composition.
 - [ ] **T01-014 — Migrate semantic input.** Current `CombatInputController` already reads `IPlayerInputReader`/`PlayerInputSnapshot` rather than raw keys. Production composition still constructs input/runtime locally in Kentridge, so final migration waits for the production composition seam.
-- [ ] **T01-015 — Remove scene-local combat construction.** **BLOCKED on publication/injection of a real Vitality Runtime into production composition.** Current master has convention-owned `Game.Vitality.Api` and `Game.Vitality.Tests`, but no `Assets/Game/Vitality/Runtime`; agent-3 will not invent or copy System 02 Runtime ownership.
+- [ ] **T01-015 — Remove scene-local combat construction.** **BLOCKED on publication/injection of a real Vitality Runtime into production composition.** Current master has convention-owned `Game.Vitality.Api` and `Game.Vitality.Tests`, but no `Assets/Game/Vitality/Runtime`; agent-3 will not invent, copy, merge, or cherry-pick System 02 Runtime ownership from another assignment branch.
 
 ## Verification
 
@@ -38,8 +38,9 @@
 
 ## Active dependency / CI evidence
 
-- Production-bearing feature `d8d6bd560e2eb7cd0950f3283ee25806e2d2653a` merges current checked master `b18d470f66221c7cb6091249f4683c2d994bffec`.
-- Current master contains `Assets/Game/Vitality/Api` and `Assets/Game/Vitality/Tests`, but still has no `Assets/Game/Vitality/Runtime`; production Kentridge injection remains externally blocked.
+- Current feature docs head follows production-bearing feature `d8d6bd560e2eb7cd0950f3283ee25806e2d2653a`, which merges checked master `b18d470f66221c7cb6091249f4683c2d994bffec`.
+- Current master still contains only `Assets/Game/Vitality/Api` and `Assets/Game/Vitality/Tests`; there is no `Assets/Game/Vitality/Runtime`, so production Kentridge injection remains externally blocked.
+- System 02 dependency branch `fixes/agent-9` now contains `Assets/Game/Vitality/Runtime/VitalityRegistry.cs`; inspection confirms `VitalityRegistry : IVitalityService` provides registration, authoritative damage, defeat events, capture, and restore. This narrows the dependency to normal publication onto master; agent-3 will not consume the unmerged assignment branch directly.
 - During master synchronization, agent-3 preserved master Vitality Unity GUIDs and `IVitalityQuery`/revision fields and added only damage/service semantics required by Combat; master’s `ICombatService` semantic surface is retained.
 - Exact-SHA run `33639183537` on feature `82138a7bd45d923f55750bea1aa17f1a0f914b0f` completed successfully for automatic module validation; standalone replay was skipped by that planner result.
 - Exact request commit `ab648a9966bfb2c7354c2ecdf17f305ab838ddd5` for feature `d8d6bd560e2eb7cd0950f3283ee25806e2d2653a` ran as `33714366352`. Module tests and scenario assertions passed; the overall run failed only after scenario completion during GPU renderer teardown. Do not classify this as green and do not retry unchanged.
