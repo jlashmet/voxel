@@ -146,6 +146,27 @@ namespace Game.Inventory.Api
         }
     }
 
+    /// <summary>
+    /// Flat current-state projection retained for cross-domain consumers such as Loot. The richer
+    /// InventoryStateCapture remains the authoritative persistence seam because it preserves revisions.
+    /// </summary>
+    public readonly struct InventoryQuantitySnapshot
+    {
+        public InventoryId InventoryId { get; }
+        public ItemRef Item { get; }
+        public int Quantity { get; }
+
+        public InventoryQuantitySnapshot(InventoryId inventoryId, ItemRef item, int quantity)
+        {
+            if (!inventoryId.IsValid) throw new ArgumentException("Inventory id is required.", nameof(inventoryId));
+            if (!item.IsValid) throw new ArgumentException("Item reference is required.", nameof(item));
+            if (quantity <= 0) throw new ArgumentOutOfRangeException(nameof(quantity));
+            InventoryId = inventoryId;
+            Item = item;
+            Quantity = quantity;
+        }
+    }
+
     public readonly struct InventoryTransactionId : IEquatable<InventoryTransactionId>, IComparable<InventoryTransactionId>
     {
         public string Value { get; }
@@ -187,7 +208,8 @@ namespace Game.Inventory.Api
         SameInventory = 8,
         QuantityOverflow = 9,
         TransactionConflict = 10,
-        InvalidRestore = 11
+        InvalidRestore = 11,
+        DestinationRejected = 12
     }
 
     public readonly struct InventoryAddRequest
@@ -302,6 +324,21 @@ namespace Game.Inventory.Api
             DestinationSnapshot = destinationSnapshot;
             Changes = changes ?? Array.Empty<InventoryChangeEvent>();
         }
+
+        public static InventoryTransactionResult Reject(InventoryMutationKind kind, InventoryFailureReason failureReason)
+        {
+            if (failureReason == InventoryFailureReason.None)
+                throw new ArgumentException("A rejected transaction requires a failure reason.", nameof(failureReason));
+            return new InventoryTransactionResult(
+                default,
+                kind,
+                failureReason,
+                false,
+                default,
+                false,
+                default,
+                Array.Empty<InventoryChangeEvent>());
+        }
     }
 
     public readonly struct InventoryStateCapture
@@ -329,6 +366,20 @@ namespace Game.Inventory.Api
         InventoryTransactionResult Add(InventoryAddRequest request);
         InventoryTransactionResult Remove(InventoryRemoveRequest request);
         InventoryTransactionResult Transfer(InventoryTransferRequest request);
+    }
+
+    /// <summary>
+    /// Cross-domain convenience seam. Implementations must delegate to the same authoritative transaction
+    /// store used by IInventoryAuthority; this interface must never imply a second quantity store.
+    /// </summary>
+    public interface IInventoryTransactions
+    {
+        InventoryTransactionResult TryAdd(InventoryId inventoryId, ItemRef item, int quantity);
+        InventoryTransactionResult TryRemove(InventoryId inventoryId, ItemRef item, int quantity);
+        InventoryTransactionResult TryTransfer(InventoryId sourceInventoryId, InventoryId destinationInventoryId, ItemRef item, int quantity);
+        int Count(InventoryId inventoryId, ItemRef item);
+        IReadOnlyList<InventoryQuantitySnapshot> Capture();
+        bool TryRestore(IReadOnlyList<InventoryQuantitySnapshot> snapshots);
     }
 
     /// <summary>Transport-agnostic deterministic capture/restore seam for persistence composition.</summary>
