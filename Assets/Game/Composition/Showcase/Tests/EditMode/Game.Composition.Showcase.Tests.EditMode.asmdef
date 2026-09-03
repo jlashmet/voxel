@@ -6,9 +6,11 @@
     "Game.WorldBuilder.Api",
     "Game.WorldBuilder.Voxel",
     "VoxelEngine.Showcase.Editor",
+    "VoxelEngine.Storage.Api",
     "VoxelEngine.Structures.Api",
     "VoxelEngine.Structures.Runtime",
-    "Unity.Collections"
+    "Unity.Collections",
+    "Unity.Mathematics"
   ],
   "includePlatforms": ["Editor"],
   "excludePlatforms": [],
