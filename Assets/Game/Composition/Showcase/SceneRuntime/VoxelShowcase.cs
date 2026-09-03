@@ -489,8 +489,20 @@ namespace VoxelEngine.Showcase
             if (_farTerrain == null) return "FAR none";
             float streamed = m_LoadRadiusRegions * ShowcaseWorld.RegionMetres;
             string semantic = _farFeatures != null ? _farFeatures.Describe() : "semantic=none";
+            VoxelFarTerrain.CoverageSnapshot coverage = _farTerrain.CoverageDiagnostics;
+            string spacings = string.Empty;
+            for (int ring = 0; ring < coverage.RingCount; ring++)
+            {
+                if (ring > 0) spacings += ",";
+                spacings += _farTerrain.RingSpacingMetres(ring).ToString("0.#");
+            }
+
             return $"FAR hole={_farTerrain.HoleRadiusMetres:0.#}m "
                  + $"inner={_farTerrain.InnerRadiusMetres:0.#}m streamed={streamed:0.#}m "
+                 + $"requested={coverage.RequestedOuterRadiusMetres:0.#}m "
+                 + $"authoritative={coverage.GuaranteedAuthoritativeRadiusMetres:0.#}m "
+                 + $"rings={coverage.RingCount} spacing=[{spacings}]m "
+                 + $"fallback={coverage.StartupFallbackActive} "
                  + $"residentGround={_world.ResidentGroundRadiusMetres(transform.position):0.#}m "
                  + $"coverage={RenderingComposition.HasCompletePublishedNearSurfaceCoverage()} "
                  + $"structures={(_farTerrain.Structures != null)} {semantic}";
