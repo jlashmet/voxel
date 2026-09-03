@@ -6,7 +6,7 @@
 
 ## Baseline / migration design
 
-- [ ] **T11-001 — Inventory both current progression owners.** Map `QuestRuntime` definitions/state/snapshots plus CampaignRuntime active/completed objective collections and direct interaction completion paths.
+- [x] **T11-001 — Inventory both current progression owners.** `QuestRuntime` owns quest definitions/status/step state/active index/observations/events/per-quest snapshots and exposes direct `Complete`; `CampaignRuntime` separately owns known/active/completed standalone objective sets and directly completes matching NPC-interaction objectives after Story dispatch. Plan notes record the competing-authority evidence and selected one-runtime migration direction.
 - [ ] **T11-002 — Catalog all current objective/quest consumers.** Story, campaign content, tests, UI/prototypes and persistence/replication hooks; classify API compatibility needed during migration.
 - [ ] **T11-003 — Establish Progression asmdefs.** `Progression.Api` is engine-neutral; Runtime may reuse/migrate Quest mechanics but no Story/Campaign Runtime dependency.
 - [ ] **T11-004 — Decide atomic migration/compatibility facade.** If callers cannot move in one change, define a temporary `Game.Quests` facade that delegates to Progression and a concrete removal task; never run both state machines.
