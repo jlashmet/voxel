@@ -1,1 +1,0 @@
-The CI transport was briefly advanced by a non-request `.github/test-request.json.tmp-agent7` commit while preparing T026 validation. That path did not match the validation trigger and admitted no workflow run. The transport is being rebuilt from the exact feature head with only `.github/test-request.json`; no queued/running CI is replaced.
