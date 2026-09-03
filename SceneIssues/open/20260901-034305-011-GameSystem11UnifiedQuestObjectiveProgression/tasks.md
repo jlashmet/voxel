@@ -8,8 +8,8 @@
 
 - [x] **T11-001 — Inventory both current progression owners.** `QuestRuntime` owns quest definitions/status/step state/active index/observations/events/per-quest snapshots and exposes direct `Complete`; `CampaignRuntime` separately owns known/active/completed standalone objective sets and directly completes matching NPC-interaction objectives after Story dispatch. Plan notes record the competing-authority evidence and selected one-runtime migration direction.
 - [x] **T11-002 — Catalog all current objective/quest consumers.** Story contracts, known campaign content, CampaignRuntime, existing Progression API/tests, replication adapters and continuity/persistence seams are mapped in `plan.md`; direct Progression migration is selected, with legacy naming allowed only as a stateless/delegating compile-time bridge if an uncatalogued caller requires it.
-- [ ] **T11-003 — Establish Progression asmdefs.** `Progression.Api` is engine-neutral; Runtime may reuse/migrate Quest mechanics but no Story/Campaign Runtime dependency.
-- [ ] **T11-004 — Decide atomic migration/compatibility facade.** If callers cannot move in one change, define a temporary `Game.Quests` facade that delegates to Progression and a concrete removal task; never run both state machines.
+- [x] **T11-003 — Establish Progression asmdefs.** Reused upstream engine-neutral `Game.Progression.Api`; added `Game.Progression.Runtime` with `noEngineReferences=true` and only `Game.Progression.Api` as a dependency.
+- [x] **T11-004 — Decide atomic migration/compatibility facade.** Known callers can migrate directly in this feature. No parallel/stateful Quests facade will be created; any temporary legacy naming must delegate to Progression and be removed by T11-027/T11-041.
 
 ## API
 
