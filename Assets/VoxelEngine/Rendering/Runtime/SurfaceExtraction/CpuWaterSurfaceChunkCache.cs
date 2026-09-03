@@ -28,6 +28,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private const int ArenaIndexCapacity = 768 * 1024;
         public const int ArenaDrawCapacity = 2048;
         private const uint FullyLitOcclusion = 0x0000FF00u;
+        private const uint AuthoritativeWaterMaterialMask = (1u << 11) | (1u << 16);
 
         private static readonly int s_SurfaceVertices = Shader.PropertyToID("_SurfaceVertices");
         private static readonly int s_SurfaceIndices = Shader.PropertyToID("_SurfaceIndices");
@@ -628,6 +629,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 {
                     BrickBaseVoxels = _waterBatchBrickBases,
                     SnapshotMaterials = _waterBatchMaterials,
+                    WaterMaterialMask = AuthoritativeWaterMaterialMask,
                     BatchCount = _waterBatchCount,
                     VoxelSize = voxelSize,
                     MaskScratch = _waterMeshMask,
