@@ -6,7 +6,8 @@
     "Game.WorldBuilder.Api",
     "Game.WorldBuilder.Voxel",
     "VoxelEngine.Showcase.Editor",
-    "VoxelEngine.Structures.Api"
+    "VoxelEngine.Structures.Api",
+    "VoxelEngine.Structures.Runtime"
   ],
   "includePlatforms": ["Editor"],
   "excludePlatforms": [],
