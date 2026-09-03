@@ -66,7 +66,7 @@ namespace Game.Loot.Tests
             Assert.That((resultA.Succeeded ? 1 : 0) + (resultB.Succeeded ? 1 : 0), Is.EqualTo(1));
             Assert.That(_inventory.Count(_actorInventory, _item), Is.EqualTo(1));
             var snapshots = _loot.Capture();
-            Assert.That(snapshots, Has.Count.EqualTo(1));
+            Assert.That(snapshots.Count, Is.EqualTo(1));
             Assert.That(snapshots[0].Availability, Is.EqualTo(LootAvailability.Removed));
         }
 
@@ -189,7 +189,7 @@ namespace Game.Loot.Tests
 
             Assert.That(_loot.TryRestore(snapshots), Is.True);
             var restored = _loot.Capture();
-            Assert.That(restored, Has.Count.EqualTo(3));
+            Assert.That(restored.Count, Is.EqualTo(3));
             Assert.That(restored[0].ObjectId.Value, Is.EqualTo("fixture.available"));
             Assert.That(restored[1].Availability, Is.EqualTo(LootAvailability.Claimed));
             Assert.That(restored[2].Availability, Is.EqualTo(LootAvailability.Removed));
