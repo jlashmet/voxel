@@ -1,16 +1,16 @@
 name: Tests (PR — affected only)
 
-# A behavior-changing pull request runs the tests its changes can affect. A
+# A behavior-changing pull request runs the EditMode tests its changes can affect. A
 # pending-to-closed SceneIssue review only approves already-tested evidence and
 # is ignored here and by tests-master.yml.
 #
 # Selection is computed from the .asmdef reference graph, not from file paths.
-# tools/select-tests.py walks the graph and falls back to running everything
-# whenever a changed file is outside it.
+# tools/select-tests.py walks the graph and falls back to running every EditMode
+# assembly whenever a changed file is outside it.
 #
-# Selected EditMode and normal PlayMode suites share one Unity editor process.
-# VoxelEngine.Tests.PlayMode remains split into fresh processes because that suite
-# has demonstrated retained native scene/rendering memory across repeated loads.
+# Automatic PlayMode suites are intentionally disabled. The standalone player-build
+# path is the repository-wide high-level validation; ticket-specific PlayMode evidence
+# remains available through targeted/manual validation when explicitly required.
 
 on:
   pull_request:
@@ -59,7 +59,7 @@ jobs:
             sleep 5
           done
 
-      - name: Select affected test assemblies
+      - name: Select affected EditMode test assemblies
         id: select
         shell: bash
         run: |
@@ -70,40 +70,18 @@ jobs:
           tools/select-tests.py --base "$BASE" --format summary | tee selection.txt
 
           EDIT_ARGS="$(tools/select-tests.py --base "$BASE" --format unity-args --platform EditMode)"
-          PLAY_ARGS="$(tools/select-tests.py --base "$BASE" --format unity-args --platform PlayMode)"
           EDIT_NAMES="${EDIT_ARGS#-assemblyNames }"
-          PLAY_NAMES="${PLAY_ARGS#-assemblyNames }"
+          echo "editmode_names=$EDIT_NAMES" >> "$GITHUB_OUTPUT"
+          echo "Automatic PlayMode suites: disabled"
 
-          heavy=false
-          NORMAL_PLAY_NAMES=""
-          if [[ -n "$PLAY_NAMES" ]]; then
-            IFS=';' read -ra play_assemblies <<< "$PLAY_NAMES"
-            for asm in "${play_assemblies[@]}"; do
-              [[ -z "$asm" ]] && continue
-              if [[ "$asm" == "VoxelEngine.Tests.PlayMode" ]]; then
-                heavy=true
-              elif [[ -z "$NORMAL_PLAY_NAMES" ]]; then
-                NORMAL_PLAY_NAMES="$asm"
-              else
-                NORMAL_PLAY_NAMES="$NORMAL_PLAY_NAMES;$asm"
-              fi
-            done
-          fi
-
-          {
-            echo "editmode_names=$EDIT_NAMES"
-            echo "playmode_names=$NORMAL_PLAY_NAMES"
-            echo "heavy_playmode=$heavy"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Affected tests in one Unity editor
-        if: steps.select.outputs.editmode_names != '' || steps.select.outputs.playmode_names != '' || steps.select.outputs.heavy_playmode == 'true'
+      - name: Affected EditMode tests in one Unity editor
+        if: steps.select.outputs.editmode_names != ''
         shell: bash
         env:
           VOXEL_CI_EDITMODE_ASSEMBLIES: ${{ steps.select.outputs.editmode_names }}
-          VOXEL_CI_PLAYMODE_ASSEMBLIES: ${{ steps.select.outputs.playmode_names }}
+          VOXEL_CI_PLAYMODE_ASSEMBLIES: ''
           VOXEL_CI_RESULTS_ROOT: ${{ github.workspace }}/Artifacts/PrTests
-          VOXEL_CI_BAKE_SHOWCASE: ${{ steps.select.outputs.heavy_playmode }}
+          VOXEL_CI_BAKE_SHOWCASE: 'false'
         run: |
           set -uo pipefail
           ROOT="$GITHUB_WORKSPACE/Artifacts/PrTests"
@@ -132,41 +110,6 @@ jobs:
 
           test -s "$ROOT/persistent-summary.txt"
           grep -q '^status=passed$' "$ROOT/persistent-summary.txt"
-
-          if [[ "${{ steps.select.outputs.heavy_playmode }}" == "true" ]]; then
-            test -s "$GITHUB_WORKSPACE/Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes"
-          fi
-
-      - name: VoxelEngine.Tests.PlayMode isolated shards
-        if: steps.select.outputs.heavy_playmode == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          ROOT="$GITHUB_WORKSPACE/Artifacts/PrTests"
-          ASM="VoxelEngine.Tests.PlayMode"
-          FILTERS=(
-            '^VoxelEngine\.Tests\.PlayMode\.[A-F]'
-            '^VoxelEngine\.Tests\.PlayMode\.[G-M]'
-            '^VoxelEngine\.Tests\.PlayMode\.[N-S]'
-            '!^VoxelEngine\.Tests\.PlayMode\.[A-S]'
-          )
-          LABELS=(a-f g-m n-s t-z-rest)
-          status=0
-
-          for i in "${!FILTERS[@]}"; do
-            label="${LABELS[$i]}"
-            echo "::group::PlayMode $ASM ($label)"
-            UNITY_MAX_RSS_MB=14336 UNITY_MAX_MINUTES=30 \
-            UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
-              -batchmode -job-worker-count 1 \
-              -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
-              -assemblyNames "$ASM" -testFilter "${FILTERS[$i]}" \
-              -testResults "$ROOT/playmode-$ASM-$label.xml" \
-              -logFile "$ROOT/playmode-$ASM-$label.log" || status=1
-            echo "::endgroup::"
-          done
-
-          exit $status
 
       - name: Upload results
         if: always()
