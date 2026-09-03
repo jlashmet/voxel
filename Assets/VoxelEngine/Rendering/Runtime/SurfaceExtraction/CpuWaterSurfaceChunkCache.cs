@@ -247,11 +247,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly SurfaceGeometryArena _geometryArena;
         private NativeList<SmoothSurfaceVertex> _vertices;
         private NativeList<uint> _indices;
-        private readonly NativeArray<byte> _brickMaterials =
+        private NativeArray<byte> _brickMaterials =
             new(VoxelReadGrid.VoxelsPerBlock, Allocator.Persistent);
-        private readonly NativeArray<ushort> _surfaceScratch =
+        private NativeArray<ushort> _surfaceScratch =
             new(VoxelReadGrid.VoxelsPerBlock, Allocator.Persistent);
-        private readonly NativeArray<byte> _boundaryScratch =
+        private NativeArray<byte> _boundaryScratch =
             new(VoxelReadGrid.VoxelsPerBlock, Allocator.Persistent);
         private NativeArray<int3> _waterBatchBrickBases;
         private NativeArray<byte> _waterBatchMaterials;
@@ -260,6 +260,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private JobHandle _waterMeshJobHandle;
         private bool _waterMeshJobScheduled;
         private bool _discardBuildAfterMeshJob;
+        private bool _disposed;
         private int _waterBatchCount;
         public ulong MeshOverflowCount { get; private set; }
         private BuildState _build;
@@ -892,6 +893,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         public void Dispose()
         {
+            if (_disposed) return;
+            _disposed = true;
+
             if (_waterMeshJobScheduled)
             {
                 _waterMeshJobHandle.Complete();
