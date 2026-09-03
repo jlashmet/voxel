@@ -59,7 +59,14 @@ namespace VoxelEngine.Vegetation.Api
 
     public readonly struct TreeVisibilityEntry
     {
-        public TreeVisibilityEntry(ulong stableId, int sourceIndex, int sectorX, int sectorZ, TreeInstance instance, TreeDamageState damage)
+        public TreeVisibilityEntry(
+            ulong stableId,
+            int sourceIndex,
+            int sectorX,
+            int sectorZ,
+            TreeInstance instance,
+            TreeDamageState damage,
+            ulong presentationRevision = 0UL)
         {
             StableId = stableId;
             SourceIndex = sourceIndex;
@@ -67,6 +74,7 @@ namespace VoxelEngine.Vegetation.Api
             SectorZ = sectorZ;
             Instance = instance;
             Damage = damage;
+            PresentationRevision = presentationRevision;
         }
 
         public ulong StableId { get; }
@@ -75,6 +83,12 @@ namespace VoxelEngine.Vegetation.Api
         public int SectorZ { get; }
         public TreeInstance Instance { get; }
         public TreeDamageState Damage { get; }
+
+        /// <summary>
+        /// Deterministic invalidation token derived from the authoritative tree read source. Far
+        /// presentation caches may compare this value, but it is not a second tree-state store.
+        /// </summary>
+        public ulong PresentationRevision { get; }
     }
 
     /// <summary>
@@ -126,8 +140,10 @@ namespace VoxelEngine.Vegetation.Api
                 int sectorZ = Sector(instance.PositionMetres.z, sectorSizeMetres);
                 if (!sectors.Contains(sectorX, sectorZ)) continue;
                 TreeDamageState state = i < damage.Count ? damage[i] : new TreeDamageState(1f, false);
+                ulong stableId = StableTreeId(instance);
+                ulong revision = TreePresentationRevision(stableId, state, source.RemovedBranches(i));
                 output.Add(new TreeVisibilityEntry(
-                    StableTreeId(instance), i, sectorX, sectorZ, instance, state));
+                    stableId, i, sectorX, sectorZ, instance, state, revision));
             }
             output.Sort((a, b) => a.StableId.CompareTo(b.StableId));
         }
@@ -159,12 +175,46 @@ namespace VoxelEngine.Vegetation.Api
             return hash;
         }
 
+        /// <summary>
+        /// Returns a deterministic invalidation token for one tree's far presentation using only
+        /// authoritative state already exposed by <see cref="ITreeWorldReadSource"/>. Branch removal
+        /// contribution is order-independent so HashSet-backed state remains deterministic.
+        /// </summary>
+        public static ulong TreePresentationRevision(
+            ulong stableId,
+            in TreeDamageState damage,
+            IReadOnlyCollection<int> removedBranches)
+        {
+            ulong hash = HashUlong(FnvOffset, stableId);
+            hash = HashInt(hash, QuantizeHealth(damage.FoliageHealth));
+            hash = HashByte(hash, damage.Severed ? (byte)1 : (byte)0);
+
+            ulong branchXor = 0UL;
+            ulong branchSum = 0UL;
+            int branchCount = 0;
+            if (removedBranches != null)
+            {
+                foreach (int branchIndex in removedBranches)
+                {
+                    ulong member = HashInt(FnvOffset, branchIndex);
+                    branchXor ^= member;
+                    branchSum = unchecked(branchSum + member);
+                    branchCount++;
+                }
+            }
+
+            hash = HashUlong(hash, branchXor);
+            hash = HashUlong(hash, branchSum);
+            return HashInt(hash, branchCount);
+        }
+
         private static int Sector(float metres, float sectorSizeMetres) =>
             (int)math.floor(metres / sectorSizeMetres);
 
         private static int QuantizePosition(float metres) => checked((int)math.round(metres * 10f));
         private static int QuantizeUnit(float value) => checked((int)math.round(value * 4096f));
         private static int QuantizeScale(float value) => checked((int)math.round(value * 4096f));
+        private static int QuantizeHealth(float value) => checked((int)math.round(math.saturate(value) * 4096f));
 
         private static void ValidateSectorSize(float sectorSizeMetres)
         {
@@ -186,6 +236,16 @@ namespace VoxelEngine.Vegetation.Api
         private static ulong HashUInt(ulong hash, uint value)
         {
             for (int shift = 0; shift < 32; shift += 8)
+            {
+                hash ^= (byte)(value >> shift);
+                hash *= FnvPrime;
+            }
+            return hash;
+        }
+
+        private static ulong HashUlong(ulong hash, ulong value)
+        {
+            for (int shift = 0; shift < 64; shift += 8)
             {
                 hash ^= (byte)(value >> shift);
                 hash *= FnvPrime;
