@@ -1,4 +1,5 @@
 using NUnit.Framework;
+using UnityEngine;
 
 namespace VoxelEngine.Showcase.Tests.EditMode
 {
@@ -77,6 +78,33 @@ namespace VoxelEngine.Showcase.Tests.EditMode
             Assert.That(VoxelFarTerrain.RingHalfExtentMetres(spacing, resolution), Is.EqualTo(614.4f).Within(0.001f));
             Assert.That(VoxelFarTerrain.CameraSnapLossMetres(spacing), Is.EqualTo(12.8f).Within(0.001f));
             Assert.That(VoxelFarTerrain.GuaranteedCoverageMetres(spacing, resolution), Is.EqualTo(601.6f).Within(0.001f));
+        }
+
+        [Test]
+        public void CoverageDiagnosticsExposeConfiguredRingsWithoutBecomingWorldState()
+        {
+            VoxelFarTerrain far = VoxelFarTerrain.Create(
+                parent: null,
+                seed: 123u,
+                innerRadiusMetres: 409.6f,
+                outerRadiusMetres: 12000f);
+            try
+            {
+                VoxelFarTerrain.CoverageSnapshot diagnostics = far.CoverageDiagnostics;
+
+                Assert.That(diagnostics.RequestedOuterRadiusMetres, Is.EqualTo(12000f));
+                Assert.That(diagnostics.RingCount, Is.EqualTo(6));
+                Assert.That(diagnostics.GuaranteedAuthoritativeRadiusMetres, Is.EqualTo(0f),
+                    "No authoritative ring has published before the runtime clipmap is initialized.");
+                Assert.That(diagnostics.StartupFallbackActive, Is.False,
+                    "The fallback is not active until runtime ring initialization begins.");
+                Assert.That(far.RingSpacingMetres(0), Is.EqualTo(12.8f).Within(0.001f));
+                Assert.That(far.RingSpacingMetres(5), Is.EqualTo(409.6f).Within(0.001f));
+            }
+            finally
+            {
+                Object.DestroyImmediate(far.gameObject);
+            }
         }
     }
 }
