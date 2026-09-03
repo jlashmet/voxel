@@ -3,6 +3,8 @@
   "rootNamespace": "VoxelEngine.Showcase.Tests.EditMode",
   "references": [
     "Game.Composition.Showcase",
+    "Game.WorldBuilder.Api",
+    "Game.WorldBuilder.Voxel",
     "VoxelEngine.Showcase.Editor"
   ],
   "includePlatforms": ["Editor"],
