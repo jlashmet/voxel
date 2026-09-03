@@ -21,7 +21,8 @@ The module-local route discriminator completed in run `33719954172` and emitted 
 
 ## Current blockers / independent evidence
 - Automatic module validation in run `33719954172` reaches and passes `Game.Composition.Showcase.Tests.EditMode` (including the route serializer and one-shot bake) but later fails in unrelated `VoxelEngine.Rendering.Tests.EditMode`; standalone SceneIssue replay is consequently skipped.
-- Run `33719954172` exported a fresh payload manifest with content signature `7554A9C4` and SHA-256 `44cb5af102a90ce84d9d51e9a40f9a5bf779bc9d1ad881fe9a04fd1a2d825632`; it is diagnostic evidence only until exact built-player visual/traversal acceptance is possible.
+- Run `33719954172` exported a fresh 15,697,105-byte payload manifest with content signature `7554A9C4` and SHA-256 `44cb5af102a90ce84d9d51e9a40f9a5bf779bc9d1ad881fe9a04fd1a2d825632`; it is diagnostic evidence only until exact built-player visual/traversal acceptance is possible.
+- Cost/blast-radius check is complete: run `33715318543` baked that same production payload in 167.186 s under the unchanged 240 s / 14 GiB contract; current feature-vs-master changes do not touch `WorldRoadNetwork`, `EmitTerrainCorridor`, generic rasterisation, or CI guard files, and run `33473157863` passed the exact shared-road integration regressions.
 - Fresh screenshots from earlier source-matched runs show one coherent natural mountain, but upper-road presentation remains visually ambiguous while renderer regressions are present.
 
 ## Remaining gates
