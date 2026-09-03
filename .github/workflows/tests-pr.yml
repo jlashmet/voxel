@@ -114,8 +114,6 @@ jobs:
 
       - name: Canonical standalone full-application test
         shell: bash
-        env:
-          TEST_FILTER: VoxelEngine.Tests.PlayMode.KentridgePlayableScenePlayTests.LaunchScene_NewGameCutscene_ReleasesControl_AndPlayerWalksOutIntoKentridge
         run: |
           set -euo pipefail
           ROOT="$GITHUB_WORKSPACE/Artifacts/PrTests/FullApp"
@@ -123,7 +121,7 @@ jobs:
           bash tools/showcase-player-capture.sh \
             --unity "${{ steps.unity.outputs.path }}" \
             --output "$ROOT" \
-            --test-filter "$TEST_FILTER"
+            --scene Assets/Scenes/KentridgePlayableSlice.unity
 
       - name: Upload results
         if: always()
