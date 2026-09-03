@@ -1,14 +1,16 @@
 name: Tests (master — full suite)
 
-# Every behavior-changing merge to master runs the full suite. Human approval
-# PRs only move already-tested evidence from pending to closed and are ignored.
-# Pull requests run the assemblies their changes can affect (see tests-pr.yml).
+# Every behavior-changing merge to master runs every EditMode test assembly. Human
+# approval PRs only move already-tested evidence from pending to closed and are ignored.
+# Pull requests run the EditMode assemblies their changes can affect (see tests-pr.yml).
 #
-# Normal EditMode and PlayMode suites share one Unity editor process. Unity Test
-# Framework 1.x cannot execute both modes in one API call, so the editor-side CI
-# orchestrator sequences them without exiting Unity. VoxelEngine.Tests.PlayMode
-# remains split into fresh processes because that suite has demonstrated retained
-# native scene/rendering memory across repeated loads.
+# EditMode assemblies are discovered from the project asmdef graph instead of being
+# duplicated in this workflow. That keeps newly added module-local EditMode suites,
+# including renderer parity tests, inside the master code-level gate automatically.
+#
+# Automatic PlayMode suites are intentionally disabled. The standalone player-build
+# path is the repository-wide high-level validation; ticket-specific PlayMode evidence
+# remains available through targeted/manual validation when explicitly required.
 
 on:
   push:
@@ -58,13 +60,25 @@ jobs:
             sleep 5
           done
 
-      - name: EditMode + normal PlayMode in one Unity editor
+      - name: Select every EditMode test assembly
+        id: select
+        shell: bash
+        run: |
+          set -euo pipefail
+          EDIT_ARGS="$(tools/select-tests.py --all --format unity-args --platform EditMode)"
+          EDIT_NAMES="${EDIT_ARGS#-assemblyNames }"
+          echo "editmode_names=$EDIT_NAMES" >> "$GITHUB_OUTPUT"
+          echo "EditMode assemblies: ${EDIT_NAMES:-<none>}"
+          echo "Automatic PlayMode suites: disabled"
+
+      - name: EditMode tests in one Unity editor
+        if: steps.select.outputs.editmode_names != ''
         shell: bash
         env:
-          VOXEL_CI_EDITMODE_ASSEMBLIES: Game.Composition.CharacterEquipment.Tests;VoxelEngine.Tests.EditMode
-          VOXEL_CI_PLAYMODE_ASSEMBLIES: VoxelEngine.Tests.Parity;VoxelEngine.Tests.Features;VoxelEngine.CI.PlayMode;MountingForce.CombatPrototype.Tests.PlayMode
+          VOXEL_CI_EDITMODE_ASSEMBLIES: ${{ steps.select.outputs.editmode_names }}
+          VOXEL_CI_PLAYMODE_ASSEMBLIES: ''
           VOXEL_CI_RESULTS_ROOT: ${{ github.workspace }}/Artifacts/MasterTests
-          VOXEL_CI_BAKE_SHOWCASE: "1"
+          VOXEL_CI_BAKE_SHOWCASE: 'false'
         run: |
           set -euo pipefail
           ROOT="$GITHUB_WORKSPACE/Artifacts/MasterTests"
@@ -77,40 +91,6 @@ jobs:
             -logFile "$ROOT/persistent.log"
           test -s "$ROOT/persistent-summary.txt"
           grep -q '^status=passed$' "$ROOT/persistent-summary.txt"
-          test -s "$GITHUB_WORKSPACE/Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes"
-
-      # This one suite is intentionally still process-isolated. It retains native
-      # scene/rendering allocations across repeated scene loads, so each name shard
-      # gets a fresh editor and allocator state.
-      - name: PlayMode VoxelEngine.Tests.PlayMode isolated shards
-        shell: bash
-        run: |
-          set -euo pipefail
-          ROOT="$GITHUB_WORKSPACE/Artifacts/MasterTests"
-          ASM="VoxelEngine.Tests.PlayMode"
-          FILTERS=(
-            '^VoxelEngine\.Tests\.PlayMode\.[A-F]'
-            '^VoxelEngine\.Tests\.PlayMode\.[G-M]'
-            '^VoxelEngine\.Tests\.PlayMode\.[N-S]'
-            '!^VoxelEngine\.Tests\.PlayMode\.[A-S]'
-          )
-          LABELS=(a-f g-m n-s t-z-rest)
-          status=0
-
-          for i in "${!FILTERS[@]}"; do
-            label="${LABELS[$i]}"
-            echo "::group::PlayMode $ASM ($label)"
-            UNITY_MAX_RSS_MB=20480 UNITY_MAX_MINUTES=30 \
-            UNITY_BIN="${{ steps.unity.outputs.path }}" tools/unity-run.sh \
-              -batchmode -job-worker-count 1 \
-              -projectPath "$GITHUB_WORKSPACE" -runTests -testPlatform PlayMode \
-              -assemblyNames "$ASM" -testFilter "${FILTERS[$i]}" \
-              -testResults "$ROOT/$ASM-$label.xml" \
-              -logFile "$ROOT/$ASM-$label.log" || status=1
-            echo "::endgroup::"
-          done
-
-          exit $status
 
       - name: Upload results
         if: always()

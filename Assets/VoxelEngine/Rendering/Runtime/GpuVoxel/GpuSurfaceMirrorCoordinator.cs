@@ -139,7 +139,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         internal static void DetachPageArena(GpuSurfacePageArena arena, int frame)
         {
-            if (!ReferenceEquals(s_PageArena, arena)) return;
+            if (s_PageArena == null || !ReferenceEquals(s_PageArena, arena)) return;
             s_PageArena.FlushHandleCommands(frame);
             s_ChunkHandles.Clear();
             s_PageArena = null;
