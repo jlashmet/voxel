@@ -9,6 +9,7 @@
 - [x] Record old path/core minimal repro after repeated visual failures (`experiment-010-switchback-core-gap-minimal-repro.md`).
 - [x] Reject the old path-driven mountain family after built-player review; terrace/support geometry must not define the landform.
 - [x] After repeated `resolved-49 -> mid-turn` failures, isolate root cause before another traversal fix. Experiments 017-020 progressively ruled out early waypoint acceptance, fixture drift, and missing telemetry; experiment 021 now proves horizontal arrival succeeds and the remaining failed predicate is real vertical ascent.
+- [x] After the late `resolved-89` stop survived the experiment-022 summit transition change, freeze traversal changes and isolate authoritative-route identity before another fix. Experiment 023 records the first exact-source diagnostic-selection failure and the module-local correction.
 
 ## Reusable mountain redesign
 - [x] Replace path-coupled `MountainLandmarkSpec` ownership with semantic parameterized natural-landform inputs only.
@@ -54,6 +55,10 @@
 - [x] Run `33532092736` reproduced the same transition after both fixture repairs; experiment 019 froze traversal changes and required motor telemetry.
 - [x] Run `33639437668` reproduced the route symptom but runner preflight had stale Unity and telemetry failed to activate; experiment 020 repaired only diagnostic activation.
 - [x] Run `33653746253` on exact source `cccfbd85...` produced valid telemetry: motor reaches `mid-turn` within centimetres, feetY remains ~22.10 m vs path-base 21.60 m, grounded true. Collision/steering are rejected; vertical ascent is genuinely absent. The run also proved obsolete module-registration failure. See experiment 021.
+- [x] Run `33655077271` used a fresh source-matched startup payload and climbed through lower/mid/upper ascent, then exposed a new grounded late stop at `resolved-89`.
+- [x] Run `33715318543` on exact source `88b43bac...` disproved the first summit-transition fix: bake passed in 167.186 s with matching 15,697,105-byte payload/SHA/signature, while replay reproduced the identical `resolved-89` stop; unrelated rendering tests remained the module blocker.
+- [x] Run `33718723662` correctly selected exact source `8b32f78d...` but did not execute the top-level route serializer because required persistent module validation failed earlier in unrelated rendering; no route-identity conclusion is drawn from this run.
+- [ ] Execute the module-local `MountainDragonResolvedRouteDiagnosticTests.CurrentProductionRouteSerializesForSummitRootCauseIsolation` on exact current feature source and compare its authoritative terminal points against the checked-in evidence route before any further traversal fix.
 - [ ] Run exact current feature head through only `ci-test/fixes/agent-4` requesting `ShowcaseStartupBakeArtifactTests.CurrentSourceBakeExportsPayloadAndMatchingManifest`, with the same SceneIssue replay. Require current-source bake + manifest, automatically derived module gates, and standalone replay in that same checkout. Never replace a queued/running request.
 
 ## Production visual / built-player acceptance
