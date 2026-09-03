@@ -1,11 +1,10 @@
 {
-  "name": "Game.Combat.Runtime",
-  "rootNamespace": "Game.Combat.Runtime",
+  "name": "Game.Loot.Api",
+  "rootNamespace": "Game.Loot.Api",
   "references": [
-    "Game.Combat.Api",
-    "Game.Input.Api",
-    "Game.Vitality.Api",
-    "Game.Characters.Api"
+    "Game.Characters.Api",
+    "Game.Inventory.Api",
+    "Game.WorldObjects.Api"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
