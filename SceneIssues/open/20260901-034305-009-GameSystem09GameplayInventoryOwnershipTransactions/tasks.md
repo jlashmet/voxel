@@ -32,10 +32,10 @@
 - [x] **T09-022 — Duplicate/race tests.** Same request or competing requests never create negative/duplicated quantities.
 - [x] **T09-023 — Character/container reuse test.** Both consumers use identical transaction/runtime path.
 - [x] **T09-024 — Snapshot/restore determinism.** Stable ordering/identity and exact contents after restore.
-- [ ] **T09-025 — Run automatic Inventory and dependent Loot tests.**
+- [ ] **T09-025 — Run automatic Inventory and dependent Loot tests.** Inventory and dependent present-module validation passed on exact source `1cc6a9524fc11869632a2263a3372250717585ed` in CI run `33637591593`; current `origin/master` `329f307131bffd87f1475009195447ec6bed8da1` still has no `Assets/Game/Loot`, so the required dependent Loot tests cannot yet be run. External prerequisite remains blocked; acceptance is unchanged.
 
 ## Cleanup / close
 
-- [ ] **T09-030 — Repository-wide mutation bypass search.** Remove external direct collection edits and duplicate authoritative item stores.
-- [ ] **T09-031 — Boundary audit.** No equipment/crafting/slots/capacity/UI semantics added; no external Inventory.Runtime reference.
+- [x] **T09-030 — Repository-wide mutation bypass search.** Remove external direct collection edits and duplicate authoritative item stores. Exact-source tree and changed-production audit found one Inventory authority/runtime; Kentridge reward mutations use `IInventoryAuthority`, readers use `IInventoryQuery`, and Runtime collections are private.
+- [x] **T09-031 — Boundary audit.** No equipment/crafting/slots/capacity/UI semantics added; no external Inventory.Runtime reference. Reusable/playable consumers depend on `Game.Inventory.Api`; the sole concrete Runtime dependency is the Kentridge composition root that constructs the implementation.
 - [ ] **T09-032 — Close with conservation proof.** Character and container inventories share one owner and every authoritative mutation flows through transactions.
