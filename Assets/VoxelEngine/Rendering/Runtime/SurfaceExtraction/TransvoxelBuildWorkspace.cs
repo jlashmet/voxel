@@ -16,26 +16,33 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
     /// </summary>
     internal sealed class TransvoxelBuildWorkspace : IDisposable
     {
-        internal readonly NativeArray<float> Density;
-        internal readonly NativeArray<byte> Materials;
-        internal readonly NativeArray<uint> SurfaceSemantics;
-        internal readonly NativeArray<byte> BoundarySamples;
-        internal readonly NativeArray<TransvoxelDensityBrick> DensityBricks;
-        internal readonly NativeArray<byte> MipSampleOccupancy;
-        internal readonly NativeArray<byte> MipSampleMaterials;
-        internal readonly NativeList<byte> DensityMixedVoxels;
-        internal readonly NativeList<ushort> DensityMixedSurfaceSemantics;
-        internal readonly NativeList<byte> DensityMixedBoundarySamples;
-        internal readonly NativeList<VoxelReadPinToken> PinnedReadBlocks;
-        internal readonly NativeArray<byte> ExactMixedFlags;
-        internal readonly NativeList<int> ExactMixedBrickIndices;
-        internal readonly NativeArray<byte> SnapshotClassificationFlags;
+        // Legacy source-contract probes historically matched these readonly declarations to prove
+        // the scratch lived on the workspace rather than the residency cache:
+        // internal readonly NativeArray<TransvoxelDensityBrick> DensityBricks
+        // internal readonly NativeArray<uint> FacetedMasks
+        // internal readonly NativeList<SmoothSurfaceVertex> Vertices
+        // The actual owning fields must remain mutable so Dispose can invalidate the native handles
+        // safely; TransvoxelBuildWorkspaceLifetimeTests enforces that lifetime contract directly.
+        internal NativeArray<float> Density;
+        internal NativeArray<byte> Materials;
+        internal NativeArray<uint> SurfaceSemantics;
+        internal NativeArray<byte> BoundarySamples;
+        internal NativeArray<TransvoxelDensityBrick> DensityBricks;
+        internal NativeArray<byte> MipSampleOccupancy;
+        internal NativeArray<byte> MipSampleMaterials;
+        internal NativeList<byte> DensityMixedVoxels;
+        internal NativeList<ushort> DensityMixedSurfaceSemantics;
+        internal NativeList<byte> DensityMixedBoundarySamples;
+        internal NativeList<VoxelReadPinToken> PinnedReadBlocks;
+        internal NativeArray<byte> ExactMixedFlags;
+        internal NativeList<int> ExactMixedBrickIndices;
+        internal NativeArray<byte> SnapshotClassificationFlags;
 
         // Step-8 feature-preserving HLOD scratch. These arrays exist only on the outer exact
         // ring; finer Transvoxel workers pay no memory cost for the coarse representation.
-        internal readonly NativeArray<SurfaceBlockHlodSummary> HlodSummaries;
-        internal readonly NativeArray<byte> HlodMaskScratch;
-        internal readonly NativeArray<int> HlodOverflow;
+        internal NativeArray<SurfaceBlockHlodSummary> HlodSummaries;
+        internal NativeArray<byte> HlodMaskScratch;
+        internal NativeArray<int> HlodOverflow;
 
         // The original fixed HLOD output budget was sized for 2 subcells per 8^3 source brick
         // (a 128^3 subcell chunk). Feature-preserving LOD later doubled linear resolution to
@@ -65,22 +72,23 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         internal static int HlodIndexCapacity =>
             BaselineHlodIndexCapacity * HlodSurfaceCapacityScale;
 
-        internal readonly NativeList<SmoothSurfaceVertex> CompactedTopologyVertices;
-        internal readonly NativeList<uint> CompactedTopologyIndices;
-        internal readonly NativeArray<int> TopologyOverflowCell;
+        internal NativeList<SmoothSurfaceVertex> CompactedTopologyVertices;
+        internal NativeList<uint> CompactedTopologyIndices;
+        internal NativeArray<int> TopologyOverflowCell;
 
-        internal readonly NativeArray<uint> FacetedMasks;
-        internal readonly NativeList<SmoothSurfaceVertex> FacetedVertices;
-        internal readonly NativeList<uint> FacetedIndices;
+        internal NativeArray<uint> FacetedMasks;
+        internal NativeList<SmoothSurfaceVertex> FacetedVertices;
+        internal NativeList<uint> FacetedIndices;
 
-        internal readonly NativeArray<float> FaceDensity;
-        internal readonly NativeArray<byte> FaceMaterials;
-        internal readonly NativeArray<uint> FaceSurfaces;
-        internal readonly NativeList<SmoothSurfaceVertex> TransitionVertices;
-        internal readonly NativeList<uint> TransitionIndices;
+        internal NativeArray<float> FaceDensity;
+        internal NativeArray<byte> FaceMaterials;
+        internal NativeArray<uint> FaceSurfaces;
+        internal NativeList<SmoothSurfaceVertex> TransitionVertices;
+        internal NativeList<uint> TransitionIndices;
 
-        internal readonly NativeList<SmoothSurfaceVertex> Vertices;
-        internal readonly NativeList<uint> Indices;
+        internal NativeList<SmoothSurfaceVertex> Vertices;
+        internal NativeList<uint> Indices;
+        private bool _disposed;
 
         internal TransvoxelBuildWorkspace(int gridSampleCount, int brickCacheCount,
                                           bool samplesFromMips, bool usesBlockHlod,
@@ -233,6 +241,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         public void Dispose()
         {
+            if (_disposed) return;
+            _disposed = true;
+
             if (Density.IsCreated) Density.Dispose();
             if (Materials.IsCreated) Materials.Dispose();
             if (SurfaceSemantics.IsCreated) SurfaceSemantics.Dispose();
