@@ -21,9 +21,13 @@ Do not attempt more syntax reshaping. Preserve the world-scoped persistent GPU m
 
 Production integration is implemented in feature commit `4609079f1109cb43b5dc747926020e0e28b08222`. `GpuSurfaceExtractor.CountBatchResources` owns one reusable `GpuBrickCachePreparation`; `DispatchCountBatch` resolves all lane requests in one resolver dispatch, removes the production `_brickCache.SetData(_brickCacheStaging)` CPU upload, and binds the resulting dense entries plus request views through both count and write batch kernels. Batch kernels compile with `VOXEL_BATCH_DENSE_LOOKUP`, while standalone/editor kernels retain the legacy one-window dense path. Unused reusable request slots are invalidated so smaller later batches cannot observe stale views. `GpuProductionBrickCacheArchitectureTests` guards the no-readback/no-CPU-reconstruction/reuse/binding contract.
 
-Exact-SHA Metal evidence now validates the production repair itself. Run `33699482967` passed `GpuSurfaceExtractorOracleTests.GpuDensityMatchesTheCpuJobSampleForSample(1)`. Run `33699824226` passed the corresponding source-step-2 oracle. Run `33700484569`, sourced from feature SHA `d9c371c78453f160fe7914c9cbfc842e132f8d93`, passed `GpuProductionPreparedBatchRuntimeTests.TwoSeparatedRequestsUseTheirOwnPreparedDenseSlicesForCountAndWrite`: two far-separated persistent-mirror requests use independent GPU-resolved dense slices through both count and write. Its persistent module summary contained only the same two unrelated/stale architecture failures (`GeometryPipelineArchitectureTests.SolidArenaPressureIsBackpressureNotBufferGrowth` and `GpuLod2CutoverPolicyTests.ProductionGpuCutoverDefaultsOnWithExplicitDisableFallback`). TGPU-010 and TGPU-011 are therefore validated.
+Exact-SHA Metal evidence now validates the production repair itself. Run `33699482967` passed `GpuSurfaceExtractorOracleTests.GpuDensityMatchesTheCpuJobSampleForSample(1)`. Run `33699824226` passed the corresponding source-step-2 oracle. Run `33700484569`, sourced from feature SHA `d9c371c78453f160fe7914c9cbfc842e132f8d93`, passed `GpuProductionPreparedBatchRuntimeTests.TwoSeparatedRequestsUseTheirOwnPreparedDenseSlicesForCountAndWrite`: two far-separated persistent-mirror requests use independent GPU-resolved dense slices through both count and write. Its persistent module summary contained only the recurring architecture failures `GeometryPipelineArchitectureTests.SolidArenaPressureIsBackpressureNotBufferGrowth` and `GpuLod2CutoverPolicyTests.ProductionGpuCutoverDefaultsOnWithExplicitDisableFallback`. TGPU-010 and TGPU-011 are therefore validated.
 
-Current feature head `2430e224a3dce40b0596f3d82c7ee77ef6b11ae3` adds semantic regression coverage for configured water, opaque material IDs above the 32-bit water-mask range, material-default style resolution, generic material-blend presentation, and explicit rejection of unsupported reconstruction before extraction. These are test-only additions and are pending exact-SHA module validation through `ci-test/fixes/agent-1`.
+Feature SHA `2430e224a3dce40b0596f3d82c7ee77ef6b11ae3` added semantic regression coverage for configured water, opaque material IDs above the 32-bit water-mask range, material-default style resolution, generic material-blend presentation, and explicit rejection of unsupported reconstruction before extraction. Run `33701207515` exercised that rendering module set on Metal and failed only the same two architecture assertions; the semantic, topology, negative-shell, transition, and eligibility tests under that source passed. Current feature work additionally contains a real built-in Snow coating-displacement parity regression because the older boundary/coating oracle used a default no-op coating catalogue and therefore did not actually exercise displacement.
+
+## Required build-green rule
+
+Repository-selected required validation must be green before this assignment can close. A failure in an automatically required gate is a blocking defect for this assignment while it prevents TGPU-052/closure, even when the failing assertion predates the GPU density repair. Do not waive, relabel as baseline, or route around such failures. Fix the demonstrated production contract or merge an authoritative upstream fix, then rerun the same required gate. The recurring solid-arena backpressure and GPU-cutover-default architecture failures are therefore active blocking work now.
 
 ## Acceptance
 
@@ -33,6 +37,7 @@ Current feature head `2430e224a3dce40b0596f3d82c7ee77ef6b11ae3` adds semantic re
 4. VoxelShowcase and at least one independent production consumer render GPU-eligible solid chunks through GPU extraction with zero silent eligible CPU fallbacks.
 5. Built-player traversal/edit evidence is visually production-correct: no holes, cracks, stale geometry, missing surfaces, wrong materials, or fallback-hidden success.
 6. Frame-path blocking, frame latency, upload/memory, and committed GPU resource cost remain within repository budgets.
+7. All repository-selected required build/CI gates for the exact feature SHA are green; recurring automatic failures are fixed rather than waived.
 
 ## Architecture / blast radius
 
@@ -40,4 +45,4 @@ Keep CPU voxel/storage truth authoritative. GPU code is a derived presentation b
 
 ## Remaining gates
 
-Material/surface semantic parity -> boundary/coating/topology/negative-shell/transition parity -> persistent mirror correctness -> explicit no-silent-fallback/recovery contract -> automatic module validation -> exact-SHA built-player VoxelShowcase plus independent-consumer evidence -> performance/memory review -> close.
+Required automatic architecture failures -> coating/topology semantic completion -> persistent mirror correctness -> explicit no-silent-fallback/recovery contract -> automatic module validation -> exact-SHA built-player VoxelShowcase plus independent-consumer evidence -> performance/memory review -> close.
