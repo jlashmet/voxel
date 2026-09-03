@@ -23,7 +23,8 @@ namespace VoxelEngine.Rendering.Api
         SettlementAnchor = 1 << 0,
         Landmark = 1 << 1,
         HorizonLandmark = 1 << 2,
-        NearSurfaceReady = 1 << 3
+        NearSurfaceReady = 1 << 3,
+        Ruined = 1 << 4
     }
 
     /// <summary>
