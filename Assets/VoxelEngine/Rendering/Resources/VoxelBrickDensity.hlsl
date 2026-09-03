@@ -186,13 +186,10 @@ DenseBrickCacheView BatchDenseBrickCacheView(int requestIndex)
 DenseBrickCacheView BatchDenseBrickCacheViewForPoint(int3 p)
 {
     int3 worldBrick = WorldBrickOf(p);
-    uint viewCount, viewStride;
-    _BatchBrickCacheViews.GetDimensions(viewCount, viewStride);
     [loop]
-    for (uint requestIndex = 0u; requestIndex < viewCount; requestIndex++)
+    for (int requestIndex = 0; requestIndex < _BatchRecordCount; requestIndex++)
     {
         int4 request = _BatchBrickCacheViews[requestIndex];
-        if (request.w < 0) continue;
         DenseBrickCacheView view;
         view.origin = request.xyz;
         view.baseIndex = (uint)request.w;
