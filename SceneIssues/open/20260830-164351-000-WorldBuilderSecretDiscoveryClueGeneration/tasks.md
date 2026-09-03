@@ -56,6 +56,7 @@
 - [x] Full-resolution 21s frame shows the authored hidden pocket from the opened route.
 - [x] Built-player run has required ready/destruction logs and no `NullReferenceException` / `MissingReferenceException`.
 - [x] The 0s image is a pre-ready transient; it is not used as acceptance evidence. The 3s frame is the first valid entrance proof.
+- [x] After class and exact-method filters both produced the same zero-match symptom, isolate the minimal root cause before another retry; experiment 014 identifies the post-merge optional persistent requested-test path as the infrastructure regression.
 - [ ] Revalidate the merged/convention-correct exact feature SHA through `ci-test/fixes/agent-5`, including convention-discovered module tests, dedicated player scene, and Kentridge integration; inspect full-resolution artifacts.
 
 ## Built-player / representative acceptance
