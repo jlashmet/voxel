@@ -139,20 +139,31 @@ namespace Game.GameplayReplication.Adapters
 
     public sealed class InventoryGameplayProjectionSource : IGameplayProjectionSource
     {
-        private readonly IInventoryRuntime _inventory;
-        public InventoryGameplayProjectionSource(IInventoryRuntime inventory, bool requiredForGameplayReady = true)
+        private readonly IInventoryQuery _inventory;
+        public InventoryGameplayProjectionSource(IInventoryQuery inventory, bool requiredForGameplayReady = true)
         {
             _inventory = inventory ?? throw new ArgumentNullException(nameof(inventory));
-            Descriptor = new GameplayProjectionDescriptor(new GameplayProjectionId("inventory"), 1, requiredForGameplayReady);
+            Descriptor = new GameplayProjectionDescriptor(new GameplayProjectionId("inventory"), 2, requiredForGameplayReady);
         }
         public GameplayProjectionDescriptor Descriptor { get; }
         public GameplayProjectionState Capture()
         {
-            var items = new List<InventoryItemSnapshot>(_inventory.Snapshot());
-            items.Sort((a, b) => string.CompareOrdinal(a.Definition.Ref.Id, b.Definition.Ref.Id));
+            var inventories = new List<InventorySnapshot>(_inventory.GetAllSnapshots());
+            inventories.Sort((a, b) => a.Id.CompareTo(b.Id));
             var entries = new List<GameplayProjectionEntry>();
-            foreach (InventoryItemSnapshot item in items)
-                entries.Add(new GameplayProjectionEntry(item.Definition.Ref.Id, item.Quantity.ToString(CultureInfo.InvariantCulture)));
+            foreach (InventorySnapshot inventory in inventories)
+            {
+                string prefix = "inventory/" + inventory.Id.Value + "/";
+                entries.Add(new GameplayProjectionEntry(
+                    prefix + "revision",
+                    inventory.Revision.ToString(CultureInfo.InvariantCulture)));
+                var items = new List<InventoryEntry>(inventory.Entries);
+                items.Sort((a, b) => a.Item.CompareTo(b.Item));
+                foreach (InventoryEntry item in items)
+                    entries.Add(new GameplayProjectionEntry(
+                        prefix + "item/" + item.Item.Id,
+                        item.Quantity.ToString(CultureInfo.InvariantCulture)));
+            }
             return new GameplayProjectionState(Descriptor, entries);
         }
     }
