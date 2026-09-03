@@ -11,7 +11,32 @@ namespace Game.Composition.EncounterRealization
         None = 0,
         MissingSiteRealization = 1,
         MissingCharacterRealization = 2,
-        DuplicateCharacter = 3
+        DuplicateCharacter = 3,
+        MissingSpawnRealization = 4
+    }
+
+    /// <summary>
+    /// Semantic encounter-local slot whose exact position is owned by world/campaign realization.
+    /// The value names intent only; the shared bridge never derives coordinates from it.
+    /// </summary>
+    public readonly struct EncounterSpawnPointRef : IEquatable<EncounterSpawnPointRef>
+    {
+        public string Value { get; }
+
+        public EncounterSpawnPointRef(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                throw new ArgumentException("Encounter spawn-point id is required.", nameof(value));
+            Value = value;
+        }
+
+        public bool Equals(EncounterSpawnPointRef other) =>
+            string.Equals(Value, other.Value, StringComparison.Ordinal);
+        public override bool Equals(object obj) => obj is EncounterSpawnPointRef other && Equals(other);
+        public override int GetHashCode() => StringComparer.Ordinal.GetHashCode(Value ?? string.Empty);
+        public override string ToString() => Value ?? string.Empty;
+        public static bool operator ==(EncounterSpawnPointRef left, EncounterSpawnPointRef right) => left.Equals(right);
+        public static bool operator !=(EncounterSpawnPointRef left, EncounterSpawnPointRef right) => !left.Equals(right);
     }
 
     public readonly struct EncounterCharacterIntent
@@ -20,7 +45,9 @@ namespace Game.Composition.EncounterRealization
         public EncounterParticipantOwnership Ownership { get; }
         public string Role { get; }
         public NpcRef Npc { get; }
+        public EncounterSpawnPointRef SpawnPoint { get; }
         public bool UsesNpcPlacement { get; }
+        public bool UsesSpawnPlacement { get; }
 
         public EncounterCharacterIntent(
             CharacterId characterId,
@@ -33,7 +60,9 @@ namespace Game.Composition.EncounterRealization
             Ownership = ownership;
             Role = role;
             Npc = default;
+            SpawnPoint = default;
             UsesNpcPlacement = false;
+            UsesSpawnPlacement = false;
         }
 
         public EncounterCharacterIntent(
@@ -45,6 +74,17 @@ namespace Game.Composition.EncounterRealization
         {
             Npc = npc;
             UsesNpcPlacement = true;
+        }
+
+        public EncounterCharacterIntent(
+            CharacterId characterId,
+            EncounterParticipantOwnership ownership,
+            string role,
+            EncounterSpawnPointRef spawnPoint)
+            : this(characterId, ownership, role)
+        {
+            SpawnPoint = spawnPoint;
+            UsesSpawnPlacement = true;
         }
     }
 
@@ -80,6 +120,7 @@ namespace Game.Composition.EncounterRealization
     {
         bool TryGetSiteAnchor(ResolvedSiteId site, out CharacterVector3 position);
         bool TryGetNpcAnchor(NpcRef npc, ResolvedSiteId site, out CharacterVector3 position);
+        bool TryGetSpawnAnchor(EncounterSpawnPointRef spawnPoint, ResolvedSiteId site, out CharacterVector3 position);
     }
 
     public readonly struct EncounterCharacterBinding
@@ -169,8 +210,16 @@ namespace Game.Composition.EncounterRealization
                         intent.CharacterId + "'.");
 
                 CharacterVector3 position = siteAnchor;
-                if (intent.UsesNpcPlacement &&
-                    !facts.TryGetNpcAnchor(intent.Npc, spec.Site, out position))
+                if (intent.UsesSpawnPlacement)
+                {
+                    if (!facts.TryGetSpawnAnchor(intent.SpawnPoint, spec.Site, out position))
+                        return EncounterRealizationResult.Fail(
+                            EncounterRealizationFailure.MissingSpawnRealization,
+                            "Encounter '" + spec.Definition.Id + "' requires spawn point '" + intent.SpawnPoint +
+                            "' at realized site '" + spec.Site + "', but WorldBuilder realization supplied no spawn anchor.");
+                }
+                else if (intent.UsesNpcPlacement &&
+                         !facts.TryGetNpcAnchor(intent.Npc, spec.Site, out position))
                 {
                     return EncounterRealizationResult.Fail(
                         EncounterRealizationFailure.MissingCharacterRealization,
