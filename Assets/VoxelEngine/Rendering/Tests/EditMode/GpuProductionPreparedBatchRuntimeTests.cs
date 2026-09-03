@@ -85,10 +85,10 @@ namespace VoxelEngine.Tests.EditMode
 
             uint expectedVertices = words[second + 2];
             uint expectedIndices = words[second + 3];
-            extractor.PrefixCountBatch(
-                counters, RecordCount,
-                SurfaceGeometryArena.VertexAlignment,
-                SurfaceGeometryArena.IndexAlignment);
+            // This fixture writes into standalone contiguous buffers, so unit alignment is the
+            // semantic requirement here. Production page/range alignment is exercised by the arena
+            // integration tests and is intentionally not coupled into this prepared-cache fixture.
+            extractor.PrefixCountBatch(counters, RecordCount, 1, 1);
 
             const int Capacity = 65536;
             using var vertices = new ComputeBuffer(
