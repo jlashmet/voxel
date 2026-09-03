@@ -31,6 +31,8 @@ namespace VoxelEngine.Tests.EditMode
             string source = ReadRenderingFile("Runtime", "GpuVoxel", "GpuSurfaceExtractor.cs");
             string preparation = ReadRenderingFile(
                 "Runtime", "GpuVoxel", "GpuBrickCachePreparation.cs");
+            string preparationBuffers = ReadRenderingFile(
+                "Runtime", "GpuVoxel", "GpuBrickCachePreparationBuffers.cs");
             string density = ReadRenderingFile("Resources", "VoxelBrickDensity.hlsl");
             string mesher = ReadRenderingFile("Resources", "VoxelBrickMesher.compute");
             string countBatch = MethodBody(source, "internal void DispatchCountBatch",
@@ -54,9 +56,14 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("resources.PreparedCache.RequestViews", bindBatch,
                 "Batch kernels must receive the resolver's per-record dense-cache views.");
             StringAssert.Contains("OutputBase = -1", preparation,
-                "Reusable request buffers must invalidate stale views when a later batch is smaller.");
-            StringAssert.Contains("_BatchBrickCacheViews.GetDimensions", density,
-                "Batch dense lookup must derive its bounded view set from the reusable GPU buffer.");
+                "Reusable request buffers must terminate active views and invalidate stale entries.");
+            StringAssert.Contains("new ComputeBuffer(capacity + 1", preparationBuffers,
+                "Prepared request views must reserve a terminator even at full logical capacity.");
+            StringAssert.Contains("request.w < 0", density,
+                "Metal-compatible dense lookup must stop at the reserved prepared-view terminator.");
+            StringAssert.DoesNotContain("_BatchBrickCacheViews.GetDimensions", density,
+                "Metal does not support StructuredBuffer size queries; the prepared-view terminator "
+              + "must bound lookup instead.");
             StringAssert.DoesNotContain("PREPARED_BATCH_LOOKUP_MAGIC", density,
                 "Prepared lookup must be compile-time kernel policy, not a runtime cache marker.");
             StringAssert.Contains(
