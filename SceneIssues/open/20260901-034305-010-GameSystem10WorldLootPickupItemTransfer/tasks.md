@@ -40,15 +40,15 @@
 
 ## Verification
 
-- [ ] **T10-020 — Two-actor pickup race.** Prove one winner, one rejection, one inventory increment and one world removal.
-- [ ] **T10-021 — Failed transfer invariant.** Full/invalid/unknown destination or rejected interaction leaves world state unchanged.
-- [ ] **T10-022 — Container transfer tests.** Both directions and competing transfers preserve total item quantity.
-- [ ] **T10-023 — Drop/pickup round-trip.** Quantity and semantic payload are conserved across inventory -> world -> inventory.
-- [ ] **T10-024 — Restore test.** Available/claimed/removed loot and container contents restore to current truth without duplicate items.
-- [ ] **T10-025 — Independent non-Kentridge fixture and automatic module tests.**
+- [x] **T10-020 — Two-actor pickup race.** `TwoActorPickupRace_CommitsExactlyOnceAndConservesQuantity` proves one successful contender, one rejection, one inventory increment and one removed world state.
+- [x] **T10-021 — Failed transfer invariant.** Regressions cover unknown destination, rejected interaction, and `DestinationRejected` (full/capacity-style policy) while asserting the loot payload stays available and inventory remains unchanged.
+- [x] **T10-022 — Container transfer tests.** Both directions and concurrent competing transfers preserve total quantity.
+- [x] **T10-023 — Drop/pickup round-trip.** Regression proves quantity and semantic payload are conserved across inventory -> world -> inventory.
+- [x] **T10-024 — Restore test.** Available/claimed/removed loot and character/container quantities restore current truth without duplicate world ids.
+- [x] **T10-025 — Independent non-Kentridge fixture and automatic module tests.** The Harbor semantic fixture consumes the same runtime with non-Kentridge ids; `Game.Loot.Tests` owns the automatic regressions.
 
 ## Cleanup / close
 
-- [ ] **T10-030 — Remove scene-local pickup authority/direct Inventory edits.** Search MonoBehaviours and interaction handlers for bypass paths.
-- [ ] **T10-031 — Boundary audit.** No random loot tables, rarity/economy/UI/equipment semantics and no dependency on Inventory/WorldObjects Runtime assemblies.
-- [ ] **T10-032 — Close with conservation proof.** Demonstrate item conservation across pickup, contention, container transfer, drop, restore and replication projection.
+- [x] **T10-030 — Remove scene-local pickup authority/direct Inventory edits.** Discovery found no existing pickup/drop/container authority to migrate. The remaining Kentridge `TryAddUnique` call is quest-reward composition rather than loot pickup/container authority, so changing it would be unrelated refactoring.
+- [x] **T10-031 — Boundary audit.** Loot contains no random tables, rarity/economy/UI/equipment semantics, Unity object references, or dependency on Inventory/WorldObjects Runtime assemblies. Minimal #09/#13 prerequisite contracts were added because those dependencies are absent on this branch.
+- [ ] **T10-032 — Close with conservation proof.** Source regressions now cover pickup, contention, container transfer, drop, restore and current-state projection; exact-SHA Unity/module/affected CI gates remain required before checking this item or closing the SceneIssue.
