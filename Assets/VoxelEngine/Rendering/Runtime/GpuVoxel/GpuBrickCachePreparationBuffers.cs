@@ -21,7 +21,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private bool _disposed;
 
         internal long CommittedBytes =>
-            (long)Capacity * GpuBrickCacheRequestView.Stride
+            (long)(Capacity + 1) * GpuBrickCacheRequestView.Stride
             + sizeof(uint) * 2L
             + (long)Capacity * BricksPerRequest * sizeof(uint);
 
@@ -32,12 +32,15 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
             Capacity = capacity;
             BricksPerRequest = checked(edge * edge * edge);
-            RequestViews = new ComputeBuffer(capacity, GpuBrickCacheRequestView.Stride,
+            // Reserve one extra request view as a permanent terminator. Metal cannot query a
+            // StructuredBuffer's size from shader code, so the dense-view lookup walks active
+            // records until it reaches this negative OutputBase sentinel instead.
+            RequestViews = new ComputeBuffer(capacity + 1, GpuBrickCacheRequestView.Stride,
                                              ComputeBufferType.Structured);
             DirectoryHeader = new ComputeBuffer(2, sizeof(uint), ComputeBufferType.Structured);
             DenseEntries = new ComputeBuffer(checked(capacity * BricksPerRequest), sizeof(uint),
                                              ComputeBufferType.Structured);
-            RequestStaging = new GpuBrickCacheRequestView[capacity];
+            RequestStaging = new GpuBrickCacheRequestView[capacity + 1];
         }
 
         public void Dispose()
