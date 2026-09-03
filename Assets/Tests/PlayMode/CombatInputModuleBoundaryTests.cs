@@ -1,6 +1,9 @@
+using Game.Characters.Api;
 using Game.Combat.Api;
 using Game.Combat.Runtime;
 using Game.Input.Api;
+using Game.Vitality.Api;
+using Game.Vitality.Runtime;
 using NUnit.Framework;
 
 namespace VoxelEngine.Tests.PlayMode
@@ -10,15 +13,20 @@ namespace VoxelEngine.Tests.PlayMode
         [Test]
         public void SyntheticReader_DrivesCombatMoveThroughDeviceNeutralBoundary()
         {
-            var player = new CombatParticipantId("boundary-player");
-            var enemy = new CombatParticipantId("boundary-enemy");
-            var combat = new CombatService();
+            var playerCharacter = new CharacterId("boundary-player");
+            var enemyCharacter = new CharacterId("boundary-enemy");
+            var player = new CombatParticipantId(playerCharacter.Value);
+            var enemy = new CombatParticipantId(enemyCharacter.Value);
+            var vitality = new VitalityRegistry();
+            Assert.That(vitality.Register(VitalitySnapshot.Alive(playerCharacter, 6)), Is.True);
+            Assert.That(vitality.Register(VitalitySnapshot.Alive(enemyCharacter, 6)), Is.True);
+            var combat = new CombatService(vitality);
             combat.BeginCombat(new CombatEncounterRequest(
                 "combat-input-boundary-regression",
                 new[]
                 {
-                    new CombatParticipant(player, CombatTeam.Player),
-                    new CombatParticipant(enemy, CombatTeam.Enemy)
+                    CombatParticipant.FromCharacter(playerCharacter, CombatTeam.Player),
+                    CombatParticipant.FromCharacter(enemyCharacter, CombatTeam.Enemy)
                 }));
 
             var input = new SyntheticInputReader(new PlayerInputSnapshot(

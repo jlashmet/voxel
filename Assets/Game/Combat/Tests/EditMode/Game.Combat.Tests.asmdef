@@ -1,10 +1,7 @@
 {
-  "name": "Game.CharacterAI.Tests",
-  "rootNamespace": "Game.CharacterAI.Tests",
+  "name": "Game.Combat.Tests",
+  "rootNamespace": "Game.Combat.Tests",
   "references": [
-    "Game.CharacterAI.Api",
-    "Game.CharacterAI.Runtime",
-    "Game.CharacterAI.CombatAdapter",
     "Game.Characters.Api",
     "Game.Combat.Api",
     "Game.Combat.Runtime",

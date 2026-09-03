@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Game.Combat.Api;
 using Game.Input.Api;
+using Game.Vitality.Api;
 
 namespace Game.Combat.Runtime
 {
@@ -75,23 +76,25 @@ namespace Game.Combat.Runtime
 
     /// <summary>
     /// Engine-independent authority for the production combat slice. Movement remains a free positioning command for
-    /// compatibility with the first Kentridge integration, while attacks are turn-consuming battle actions. Every
-    /// successful attack either selects the next living participant or atomically settles the session when one team has
-    /// no survivors. There is deliberately no animation/target-selection wait inside the authority.
+    /// compatibility with the first Kentridge integration, while attacks are turn-consuming battle actions. Actor life
+    /// truth is owned by Vitality; Combat retains only positioning, turn, team, and winner policy.
     /// </summary>
     public sealed class CombatService : ICombatService
     {
-        private const int ParticipantHitPoints = 6;
         private const int AttackDamage = 2;
 
         private static readonly IReadOnlyList<CombatParticipant> EmptyParticipants = Array.AsReadOnly(new CombatParticipant[0]);
         private readonly Dictionary<CombatParticipantId, CombatGridPosition> _positions =
             new Dictionary<CombatParticipantId, CombatGridPosition>();
-        private readonly Dictionary<CombatParticipantId, int> _hitPoints =
-            new Dictionary<CombatParticipantId, int>();
+        private readonly CombatVitalityAdapter _vitality;
         private IReadOnlyList<CombatParticipant> _participants = EmptyParticipants;
         private int _nextSessionId = 1;
         private int _turnIndex;
+
+        public CombatService(IVitalityService vitality)
+        {
+            _vitality = new CombatVitalityAdapter(vitality);
+        }
 
         public bool IsActive => State == CombatLifecycleState.Active;
         public CombatLifecycleState State { get; private set; } = CombatLifecycleState.Idle;
@@ -113,13 +116,16 @@ namespace Game.Combat.Runtime
             bool hasEnemy = false;
             int enemyIndex = 0;
             _positions.Clear();
-            _hitPoints.Clear();
 
             for (int i = 0; i < request.Participants.Count; i++)
             {
                 CombatParticipant participant = request.Participants[i];
                 if (!seen.Add(participant.Id))
                     throw new ArgumentException("Duplicate combat participant '" + participant.Id + "'.", nameof(request));
+                if (!participant.IsCharacterBacked)
+                    throw new ArgumentException("Combat participant '" + participant.Id + "' is not backed by a CharacterId.", nameof(request));
+                if (!_vitality.TryGetState(participant, out _))
+                    throw new ArgumentException("Combat participant '" + participant.Id + "' has no registered vitality state.", nameof(request));
 
                 if (participant.Team == CombatTeam.Player)
                 {
@@ -133,8 +139,6 @@ namespace Game.Combat.Runtime
                     _positions.Add(participant.Id, new CombatGridPosition(3 + enemyIndex / 2, lane));
                     enemyIndex++;
                 }
-
-                _hitPoints.Add(participant.Id, ParticipantHitPoints);
             }
 
             if (!hasPlayer || !hasEnemy)
@@ -205,7 +209,9 @@ namespace Game.Combat.Runtime
             if (attacker.Team == target.Team)
                 return CombatCommandResult.Reject("Combatants cannot attack their own team.");
 
-            _hitPoints[attack.Target] = Math.Max(0, _hitPoints[attack.Target] - AttackDamage);
+            DamageResult damage = _vitality.ApplyDamage(target, AttackDamage);
+            if (!damage.Accepted)
+                return CombatCommandResult.Reject("Vitality rejected combat damage: " + damage.RejectionReason + ".");
             ActionCount++;
 
             CombatTeam? winner = EvaluateWinner();
@@ -222,13 +228,23 @@ namespace Game.Combat.Runtime
         public bool TryGetGridPosition(CombatParticipantId participant, out CombatGridPosition position) =>
             _positions.TryGetValue(participant, out position);
 
-        public bool TryGetHitPoints(CombatParticipantId participant, out int hitPoints) =>
-            _hitPoints.TryGetValue(participant, out hitPoints);
+        public bool TryGetHitPoints(CombatParticipantId participant, out int hitPoints)
+        {
+            CombatParticipant actor = FindParticipant(participant);
+            if (actor != null && _vitality.TryGetState(actor, out VitalitySnapshot state))
+            {
+                hitPoints = state.Current;
+                return true;
+            }
+
+            hitPoints = 0;
+            return false;
+        }
 
         public bool IsAlive(CombatParticipantId participant)
         {
-            int hp;
-            return _hitPoints.TryGetValue(participant, out hp) && hp > 0;
+            CombatParticipant actor = FindParticipant(participant);
+            return actor != null && _vitality.IsAlive(actor);
         }
 
         public void CompleteCombat()

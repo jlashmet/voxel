@@ -1,9 +1,7 @@
 {
-  "name": "Game.Combat.Runtime",
-  "rootNamespace": "Game.Combat.Runtime",
+  "name": "Game.Vitality.Runtime",
+  "rootNamespace": "Game.Vitality.Runtime",
   "references": [
-    "Game.Combat.Api",
-    "Game.Input.Api",
     "Game.Vitality.Api",
     "Game.Characters.Api"
   ],
