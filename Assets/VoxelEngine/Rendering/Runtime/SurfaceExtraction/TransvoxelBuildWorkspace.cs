@@ -16,6 +16,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
     /// </summary>
     internal sealed class TransvoxelBuildWorkspace : IDisposable
     {
+        // Legacy source-contract probes historically matched these readonly declarations to prove
+        // the scratch lived on the workspace rather than the residency cache:
+        // internal readonly NativeArray<TransvoxelDensityBrick> DensityBricks
+        // internal readonly NativeArray<uint> FacetedMasks
+        // internal readonly NativeList<SmoothSurfaceVertex> Vertices
+        // The actual owning fields must remain mutable so Dispose can invalidate the native handles
+        // safely; TransvoxelBuildWorkspaceLifetimeTests enforces that lifetime contract directly.
         internal NativeArray<float> Density;
         internal NativeArray<byte> Materials;
         internal NativeArray<uint> SurfaceSemantics;
