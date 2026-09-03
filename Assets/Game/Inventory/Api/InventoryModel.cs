@@ -22,6 +22,29 @@ namespace Game.Inventory.Api
         public static bool operator !=(ItemRef left, ItemRef right) => !left.Equals(right);
     }
 
+    public readonly struct InventoryId : IEquatable<InventoryId>, IComparable<InventoryId>
+    {
+        public string Value { get; }
+        public bool IsValid => !string.IsNullOrWhiteSpace(Value);
+
+        public InventoryId(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                throw new ArgumentException("Inventory id is required.", nameof(value));
+            Value = value;
+        }
+
+        public int CompareTo(InventoryId other) =>
+            StringComparer.Ordinal.Compare(Value ?? string.Empty, other.Value ?? string.Empty);
+        public bool Equals(InventoryId other) =>
+            string.Equals(Value, other.Value, StringComparison.Ordinal);
+        public override bool Equals(object obj) => obj is InventoryId other && Equals(other);
+        public override int GetHashCode() => Value == null ? 0 : StringComparer.Ordinal.GetHashCode(Value);
+        public override string ToString() => Value ?? string.Empty;
+        public static bool operator ==(InventoryId left, InventoryId right) => left.Equals(right);
+        public static bool operator !=(InventoryId left, InventoryId right) => !left.Equals(right);
+    }
+
     public sealed class ItemDefinition
     {
         public ItemRef Ref { get; }
@@ -49,6 +72,47 @@ namespace Game.Inventory.Api
             if (quantity <= 0) throw new ArgumentOutOfRangeException(nameof(quantity));
             Quantity = quantity;
         }
+    }
+
+    public enum InventoryTransactionFailure
+    {
+        None = 0,
+        UnknownInventory = 1,
+        UnknownItem = 2,
+        InvalidQuantity = 3,
+        InsufficientQuantity = 4,
+        DestinationRejected = 5,
+        ArithmeticOverflow = 6
+    }
+
+    public readonly struct InventoryTransactionResult
+    {
+        public bool Succeeded { get; }
+        public InventoryTransactionFailure Failure { get; }
+
+        private InventoryTransactionResult(bool succeeded, InventoryTransactionFailure failure)
+        {
+            Succeeded = succeeded;
+            Failure = failure;
+        }
+
+        public static InventoryTransactionResult Success() =>
+            new InventoryTransactionResult(true, InventoryTransactionFailure.None);
+
+        public static InventoryTransactionResult Reject(InventoryTransactionFailure failure)
+        {
+            if (failure == InventoryTransactionFailure.None)
+                throw new ArgumentException("A rejected transaction requires a failure reason.", nameof(failure));
+            return new InventoryTransactionResult(false, failure);
+        }
+    }
+
+    public interface IInventoryTransactions
+    {
+        InventoryTransactionResult TryAdd(InventoryId inventoryId, ItemRef item, int quantity);
+        InventoryTransactionResult TryRemove(InventoryId inventoryId, ItemRef item, int quantity);
+        InventoryTransactionResult TryTransfer(InventoryId sourceInventoryId, InventoryId destinationInventoryId, ItemRef item, int quantity);
+        int Count(InventoryId inventoryId, ItemRef item);
     }
 
     public interface IInventoryRuntime
