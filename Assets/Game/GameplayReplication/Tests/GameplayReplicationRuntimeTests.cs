@@ -59,9 +59,12 @@ namespace Game.GameplayReplication.Tests
                 new CombatParticipant(new CombatParticipantId(enemy.Id.Value), CombatTeam.Enemy),
                 new CombatParticipant(new CombatParticipantId(hero.Id.Value), CombatTeam.Player)));
 
+            var inventoryId = new InventoryId("inventory:test");
             var inventory = new InventoryGameplayProjectionSource(new InventoryFixture(
-                new InventoryItemSnapshot(new ItemDefinition(new ItemRef("wood"), "Wood"), 5),
-                new InventoryItemSnapshot(new ItemDefinition(new ItemRef("ore"), "Ore"), 2)));
+                inventoryId,
+                7,
+                new InventoryEntry(new ItemRef("wood"), 5),
+                new InventoryEntry(new ItemRef("ore"), 2)));
 
             var builder = new GameplayPublicationBuilder(new IGameplayProjectionSource[] { inventory, combat, characters, encounters });
             GameplayPublication publication = builder.PublishSnapshot();
@@ -70,10 +73,12 @@ namespace Game.GameplayReplication.Tests
             Assert.That(publication.Projections[1].Descriptor.Id.Value, Is.EqualTo("combat"));
             Assert.That(publication.Projections[2].Descriptor.Id.Value, Is.EqualTo("encounters"));
             Assert.That(publication.Projections[3].Descriptor.Id.Value, Is.EqualTo("inventory"));
+            Assert.That(publication.Projections[3].Descriptor.SchemaVersion, Is.EqualTo(2));
             Assert.That(publication.Projections[0].Entries[0].Key, Is.EqualTo("character:enemy/facing"));
             Assert.That(publication.Projections[2].Entries[0].Key, Is.EqualTo("encounter:ridge/activation-cause"));
-            Assert.That(publication.Projections[3].Entries[0].Key, Is.EqualTo("ore"));
-            Assert.That(publication.Projections[3].Entries[0].Value, Is.EqualTo("2"));
+            Assert.That(EntryValue(publication.Projections[3], "inventory/inventory:test/revision"), Is.EqualTo("7"));
+            Assert.That(EntryValue(publication.Projections[3], "inventory/inventory:test/item/ore"), Is.EqualTo("2"));
+            Assert.That(EntryValue(publication.Projections[3], "inventory/inventory:test/item/wood"), Is.EqualTo("5"));
         }
 
         [Test]
@@ -163,6 +168,15 @@ namespace Game.GameplayReplication.Tests
         private static GameplayProjectionState State(GameplayProjectionDescriptor descriptor, string key, string value)
             => new GameplayProjectionState(descriptor, new[] { new GameplayProjectionEntry(key, value) });
 
+        private static string EntryValue(GameplayProjectionState state, string key)
+        {
+            for (var i = 0; i < state.Entries.Count; i++)
+                if (state.Entries[i].Key == key)
+                    return state.Entries[i].Value;
+            Assert.Fail("Missing projection entry '" + key + "'.");
+            return null;
+        }
+
         private sealed class StubSource : IGameplayProjectionSource
         {
             private readonly GameplayProjectionEntry[] _entries;
@@ -234,14 +248,49 @@ namespace Game.GameplayReplication.Tests
             public void CompleteCombat() => throw new NotSupportedException();
         }
 
-        private sealed class InventoryFixture : IInventoryRuntime
+        private sealed class InventoryFixture : IInventoryQuery
         {
-            private readonly InventoryItemSnapshot[] _items;
-            public InventoryFixture(params InventoryItemSnapshot[] items) => _items = items;
-            public bool TryAddUnique(ItemRef item) => throw new NotSupportedException();
-            public void Add(ItemRef item, int quantity = 1) => throw new NotSupportedException();
-            public int Count(ItemRef item) => throw new NotSupportedException();
-            public IReadOnlyList<InventoryItemSnapshot> Snapshot() => _items;
+            private readonly InventoryDescriptor _descriptor;
+            private readonly InventorySnapshot _snapshot;
+            private readonly Dictionary<ItemRef, ItemDefinition> _definitions = new Dictionary<ItemRef, ItemDefinition>();
+
+            public InventoryFixture(InventoryId id, ulong revision, params InventoryEntry[] entries)
+            {
+                _descriptor = new InventoryDescriptor(id, new InventoryBindingMetadata("test", id.Value));
+                _snapshot = new InventorySnapshot(id, revision, entries);
+                for (var i = 0; i < entries.Length; i++)
+                    _definitions[entries[i].Item] = new ItemDefinition(entries[i].Item, entries[i].Item.Id);
+            }
+
+            public bool TryGetDescriptor(InventoryId inventoryId, out InventoryDescriptor descriptor)
+            {
+                if (_descriptor.Id == inventoryId)
+                {
+                    descriptor = _descriptor;
+                    return true;
+                }
+                descriptor = default;
+                return false;
+            }
+
+            public bool TryGetDefinition(ItemRef item, out ItemDefinition definition)
+                => _definitions.TryGetValue(item, out definition);
+
+            public bool TryGetSnapshot(InventoryId inventoryId, out InventorySnapshot snapshot)
+            {
+                if (_snapshot.Id == inventoryId)
+                {
+                    snapshot = _snapshot;
+                    return true;
+                }
+                snapshot = default;
+                return false;
+            }
+
+            public int Count(InventoryId inventoryId, ItemRef item)
+                => inventoryId == _snapshot.Id ? _snapshot.Count(item) : 0;
+
+            public IReadOnlyList<InventorySnapshot> GetAllSnapshots() => new[] { _snapshot };
         }
 
         private sealed class SessionQueryFixture : IPartySessionQuery

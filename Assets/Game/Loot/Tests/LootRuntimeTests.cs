@@ -17,7 +17,7 @@ namespace Game.Loot.Tests
         private ItemRef _item;
         private InventoryId _actorInventory;
         private InventoryId _containerInventory;
-        private InventoryTransactionsRuntime _inventory;
+        private InventoryTransactionsAdapter _inventory;
         private TestInteractionValidator _validator;
         private LootRuntime _loot;
 
@@ -27,12 +27,18 @@ namespace Game.Loot.Tests
             _item = new ItemRef("fixture.apple");
             _actorInventory = new InventoryId("inventory.actor");
             _containerInventory = new InventoryId("inventory.container");
-            _inventory = new InventoryTransactionsRuntime(new[]
-            {
-                new ItemDefinition(_item, "Fixture Apple")
-            });
-            _inventory.Register(_actorInventory);
-            _inventory.Register(_containerInventory);
+            var authority = new InventoryRuntime(
+                new[] { new ItemDefinition(_item, "Fixture Apple") },
+                new[]
+                {
+                    new InventoryDescriptor(
+                        _actorInventory,
+                        new InventoryBindingMetadata("character", "fixture.actor")),
+                    new InventoryDescriptor(
+                        _containerInventory,
+                        new InventoryBindingMetadata("container", "fixture.container"))
+                });
+            _inventory = new InventoryTransactionsAdapter(authority, authority, authority);
             _validator = new TestInteractionValidator();
             _loot = new LootRuntime(_inventory, _validator);
         }
@@ -83,7 +89,7 @@ namespace Game.Loot.Tests
 
             Assert.That(result.Succeeded, Is.False);
             Assert.That(result.Failure, Is.EqualTo(LootTransferFailure.InventoryRejected));
-            Assert.That(result.InventoryFailure, Is.EqualTo(InventoryTransactionFailure.UnknownInventory));
+            Assert.That(result.InventoryFailure, Is.EqualTo(InventoryFailureReason.UnknownInventory));
             var snapshot = _loot.Capture()[0];
             Assert.That(snapshot.Availability, Is.EqualTo(LootAvailability.Available));
             Assert.That(snapshot.ClaimedBy.IsValid, Is.False);
