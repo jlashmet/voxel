@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using NUnit.Framework;
 using Unity.Mathematics;
@@ -100,7 +101,7 @@ namespace VoxelEngine.Tests.EditMode
             IReadOnlyList<ForestCanopyCluster> after = ForestCanopyClusterBuilder.Build(_visible);
             Assert.That(after.Count, Is.EqualTo(1));
             Assert.That(after[0].MemberCount, Is.EqualTo(1));
-            Assert.That(after[0].MemberIds, Does.Not.Contain(severedStableId));
+            Assert.That(Array.IndexOf(after[0].MemberIds, severedStableId), Is.EqualTo(-1));
         }
 
         private void Query(ITreeWorldReadSource source)
