@@ -362,7 +362,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             };
 
         private static int Stride(int axis) => axis == 0 ? 1 : axis == 1 ? Edge : Edge * Edge;
-        private bool IsWater(byte material) =>
-            material < 32 && (WaterMaterialMask & (1u << material)) != 0;
+        private bool IsWater(byte material)
+        {
+            uint mask = WaterMaterialMask != 0u
+                ? WaterMaterialMask
+                : SolidMaterialClassification.WaterMaterialMask;
+            return material < 32 && (mask & (1u << material)) != 0;
+        }
     }
 }
