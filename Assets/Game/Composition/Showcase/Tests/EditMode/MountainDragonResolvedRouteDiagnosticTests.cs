@@ -4,7 +4,9 @@ using Game.WorldBuilder.Api;
 using Game.WorldBuilder.Voxel;
 using NUnit.Framework;
 using Unity.Collections;
+using Unity.Mathematics;
 using UnityEngine;
+using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
 using VoxelEngine.Structures.Runtime;
 
@@ -16,7 +18,10 @@ namespace VoxelEngine.Showcase.Tests.EditMode
         private const string RouteLogPrefix = "MOUNTAIN_DRAGON_RESOLVED_ROUTE_DM=";
         private const string TerminalLogPrefix = "MOUNTAIN_DRAGON_TERMINAL_CORRIDOR=";
         private const string TerminalWinnerLogPrefix = "MOUNTAIN_DRAGON_TERMINAL_WINNER=";
+        private const string RealizedFootprintLogPrefix = "MOUNTAIN_DRAGON_REALIZED_STALL_FOOTPRINT=";
         private const byte RoadSurfaceMaterial = 13;
+        private const int StallXdm = -1085;
+        private const int StallZdm = 275;
 
         [Test]
         public void CurrentProductionRouteSerializesForSummitRootCauseIsolation()
@@ -197,6 +202,82 @@ namespace VoxelEngine.Showcase.Tests.EditMode
             }
         }
 
+        [Test]
+        public void CurrentProductionRealizedStallFootprintSerializesForCollisionIsolation()
+        {
+            MountainLandformSurface surface = ShowcaseMountainDragonLayout.CreateSurface(Seed);
+            WorldRoadNetwork ascent = ShowcaseMountainDragonLayout.CreateAscentNetwork(Seed, surface);
+            Assert.That(ascent.TryGetRoute(
+                ShowcaseMountainDragonLayout.AscentRouteId,
+                out WorldRoadNetworkRoute route), Is.True);
+            Assert.That(route.Road.IsResolved, Is.True, route.Road.FailureReason);
+            Assert.That(route.Road.Points.Count, Is.GreaterThan(91));
+
+            FeatureCatalogue catalogue = WorldBuilderRoadVoxelCatalogue.Build(
+                ascent,
+                RoadSurfaceMaterial,
+                Allocator.Temp);
+            var corridors = new NativeArray<Primitive>(
+                catalogue.Definitions.Length,
+                Allocator.Temp,
+                NativeArrayOptions.ClearMemory);
+            var names = new string[catalogue.Definitions.Length];
+            try
+            {
+                for (int definitionIndex = 0; definitionIndex < catalogue.Definitions.Length; definitionIndex++)
+                {
+                    corridors[definitionIndex] = DecodeCorridor(catalogue, definitionIndex);
+                    names[definitionIndex] = catalogue.Definitions[definitionIndex].Name.ToString();
+                }
+
+                // The replay's grounded hard-stop and p91 are both in horizontal region (-3,0).
+                // Their road/terrain surface is below y=512, so generating only (-3,0,0) exercises
+                // the exact production terrain + FeatureRegionBuild realization without streaming
+                // unrelated Showcase regions into this root-cause discriminator.
+                using var world = new ShowcaseWorld(
+                    Seed,
+                    brickPoolCapacity: 16_384,
+                    loadRadiusRegions: 1,
+                    unloadRadiusRegions: 2);
+                var realizedRegion = new int3(-3, 0, 0);
+                world.GenerateRegionBlocking(realizedRegion);
+                Assert.That(world.IsGenerated(realizedRegion), Is.True);
+
+                IVoxelSurfaceQuery query = world.SurfaceQuery;
+                ResolvedWorldRoadPoint destination = route.Road.Points[91];
+                var diagnostic = new StringBuilder(4096);
+                diagnostic.Append("stall=")
+                    .Append(StallXdm).Append(',').Append(StallZdm)
+                    .Append(" p91=");
+                AppendPoint(diagnostic, destination);
+                diagnostic.Append(" region=-3,0,0 approach=");
+
+                // Follow the actual remaining player-to-p91 vector, not the p90 centreline. The
+                // +/- (2,-4) dm samples are the same ~4.5 dm capsule-scale lateral footprint used
+                // by the preceding winner diagnostic, now against realized production columns.
+                for (int sample = 0; sample <= 8; sample++)
+                {
+                    int xdm = LerpRounded(StallXdm, destination.Xdm, sample, 8);
+                    int zdm = LerpRounded(StallZdm, destination.Zdm, sample, 8);
+                    if (sample > 0) diagnostic.Append(';');
+                    diagnostic.Append(sample).Append('{');
+                    AppendRealizedColumn(diagnostic, query, corridors, names, xdm, zdm, "C");
+                    diagnostic.Append(',');
+                    AppendRealizedColumn(diagnostic, query, corridors, names, xdm + 2, zdm - 4, "L");
+                    diagnostic.Append(',');
+                    AppendRealizedColumn(diagnostic, query, corridors, names, xdm - 2, zdm + 4, "R");
+                    diagnostic.Append('}');
+                }
+
+                Debug.Log(RealizedFootprintLogPrefix + diagnostic);
+            }
+            finally
+            {
+                corridors.Dispose();
+                catalogue.Dispose();
+            }
+        }
+
         private static Primitive DecodeCorridor(FeatureCatalogue catalogue, int definitionIndex)
         {
             FeatureDefinition definition = catalogue.Definitions[definitionIndex];
@@ -258,6 +339,49 @@ namespace VoxelEngine.Showcase.Tests.EditMode
             diagnostic.Append(names[winnerIndex])
                 .Append(" targetY=").Append(corridorSample.TargetHeightVoxels)
                 .Append(" dist=").Append(corridorSample.DistanceDm)
+                .Append(" surf=").Append(corridorSample.SurfaceCoverage31)
+                .Append(" grade=").Append(corridorSample.Coverage31);
+        }
+
+        private static void AppendRealizedColumn(
+            StringBuilder diagnostic,
+            IVoxelSurfaceQuery query,
+            NativeArray<Primitive> corridors,
+            string[] names,
+            int xdm,
+            int zdm,
+            string label)
+        {
+            diagnostic.Append(label).Append('@').Append(xdm).Append(',').Append(zdm).Append('=');
+            bool foundWinner = ContinuousTerrainCorridorRasteriser.TryChoose(
+                corridors,
+                xdm,
+                zdm,
+                out Primitive winner);
+            Assert.That(foundWinner, Is.True, "No corridor winner at realized stall sample.");
+            bool sampled = TerrainCorridorRasteriser.TrySample(
+                in winner,
+                xdm,
+                zdm,
+                out TerrainCorridorSample corridorSample);
+            Assert.That(sampled, Is.True);
+
+            int winnerIndex = FindPrimitive(corridors, in winner);
+            Assert.That(winnerIndex, Is.GreaterThanOrEqualTo(0));
+            bool foundTop = query.TryFindTopSolid(
+                xdm,
+                zdm,
+                0,
+                ShowcaseWorld.RegionVoxelEdge - 1,
+                out int topY,
+                out VoxelCell topCell);
+            Assert.That(foundTop, Is.True, "No realized top-solid voxel at stall footprint sample.");
+
+            diagnostic.Append(names[winnerIndex])
+                .Append(" targetY=").Append(corridorSample.TargetHeightVoxels)
+                .Append(" topY=").Append(topY)
+                .Append(" delta=").Append(topY - corridorSample.TargetHeightVoxels)
+                .Append(" mat=").Append(topCell.BaseMaterialId)
                 .Append(" surf=").Append(corridorSample.SurfaceCoverage31)
                 .Append(" grade=").Append(corridorSample.Coverage31);
         }
