@@ -21,14 +21,22 @@
 
 ## Runtime
 
-- [ ] **T10-010 — Bind lootable WorldObjects to Inventory payload.** Keep one authoritative payload mapping and reject stale/unknown bindings.
-- [ ] **T10-011 — Validate actor/object interaction through WorldObjects.Api.** Do not replicate reach/permission checks inside Loot.
-- [ ] **T10-012 — Execute pickup as coordinated transaction.** Claim/validate object, perform Inventory transaction, then update/remove world loot only on success.
-- [ ] **T10-013 — Implement deterministic competing claims.** Exactly one actor can win a single-claim pickup; losers receive semantic rejection and no inventory change.
-- [ ] **T10-014 — Implement container transfer.** Use the same Inventory transaction path for character/container sources and destinations.
-- [ ] **T10-015 — Implement drop round-trip.** Remove from inventory transactionally, create/bind authoritative world loot only after successful removal, and preserve semantic identity needed for persistence.
-- [ ] **T10-016 — Handle rollback/failure ordering.** Any failure before commit leaves both world and inventory at the prior conserved state.
-- [ ] **T10-017 — Add persistence/replication projection seams.** Current loot availability/container contents are reconstructible without replaying pickup events.
+- [x] **T10-010 — Bind lootable WorldObjects to Inventory payload.** Keep one authoritative payload mapping and reject stale/unknown bindings.
+  - `TryBind` owns one snapshot per `WorldObjectId`, rejects duplicate ids, and pickup rejects unknown ids before mutation.
+- [x] **T10-011 — Validate actor/object interaction through WorldObjects.Api.** Do not replicate reach/permission checks inside Loot.
+  - Pickup/container/drop all call `IWorldInteractionValidator.Validate(actorId, objectId)` and surface its semantic rejection without implementing reach/permission policy in Loot.
+- [x] **T10-012 — Execute pickup as coordinated transaction.** Claim/validate object, perform Inventory transaction, then update/remove world loot only on success.
+  - Pickup validates availability and interaction, records an in-lock claim, performs `IInventoryTransactions.TryAdd`, restores the previous snapshot on rejection, and transitions to `Removed` only after success.
+- [x] **T10-013 — Implement deterministic competing claims.** Exactly one actor can win a single-claim pickup; losers receive semantic rejection and no inventory change.
+  - All loot transitions are serialized by one runtime gate; once a pickup commits `Removed`, subsequent contenders receive `AlreadyRemoved`, preventing duplicate inventory mutation.
+- [x] **T10-014 — Implement container transfer.** Use the same Inventory transaction path for character/container sources and destinations.
+  - Container transfer delegates atomically to `IInventoryTransactions.TryTransfer` using generic source/destination `InventoryId`s.
+- [x] **T10-015 — Implement drop round-trip.** Remove from inventory transactionally, create/bind authoritative world loot only after successful removal, and preserve semantic identity needed for persistence.
+  - Drop rejects duplicate world ids and invalid interaction before `TryRemove`; only a successful removal creates the new available `WorldObjectId` + `LootPayload` binding.
+- [x] **T10-016 — Handle rollback/failure ordering.** Any failure before commit leaves both world and inventory at the prior conserved state.
+  - Interaction failures occur before inventory mutation; pickup restores pre-claim state on inventory rejection; transfer validation occurs before either side mutates; drop creates world state only after inventory removal succeeds.
+- [x] **T10-017 — Add persistence/replication projection seams.** Current loot availability/container contents are reconstructible without replaying pickup events.
+  - Loot `Capture`/`TryRestore` projects sorted current world-item truth; the prerequisite inventory transaction seam independently captures/restores current per-inventory quantities, allowing container truth to be reconstructed without event replay.
 
 ## Verification
 
