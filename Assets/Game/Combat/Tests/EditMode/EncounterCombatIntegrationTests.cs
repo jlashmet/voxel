@@ -4,6 +4,8 @@ using Game.Combat.Api;
 using Game.Combat.Runtime;
 using Game.Encounters.Api;
 using Game.Encounters.Runtime;
+using Game.Vitality.Api;
+using Game.Vitality.Runtime;
 using NUnit.Framework;
 
 namespace Game.Combat.Tests
@@ -41,7 +43,10 @@ namespace Game.Combat.Tests
                 combatParticipants.Add(CombatParticipant.FromCharacter(participant.CharacterId, team));
             }
 
-            var combat = new CombatService();
+            var vitality = new VitalityRegistry();
+            Assert.That(vitality.Register(VitalitySnapshot.Alive(playerId, 6)), Is.True);
+            Assert.That(vitality.Register(VitalitySnapshot.Alive(enemyId, 6)), Is.True);
+            var combat = new CombatService(vitality);
             IEncounterCombatCoordinator coordinator = new EncounterCombatCoordinator(combat);
             CombatStartResult start = coordinator.Start(new CombatStartRequest(encounterRequest.EncounterId, combatParticipants));
             Assert.That(start.EncounterId, Is.EqualTo(encounterId));
