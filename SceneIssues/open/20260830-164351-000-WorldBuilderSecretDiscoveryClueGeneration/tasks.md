@@ -8,7 +8,7 @@
 - [x] Discriminate hypotheses: canonical hidden-destination selection already exists; deterministic route/readability/clue planning was the missing layer.
 - [x] Remove primitive/parallel player-visible validation approaches after they failed production-quality review.
 - [x] Per user correction, remove all `WorldbuildingGalleryShowcase` secret acceptance integration and Gallery-specific regression fixtures.
-- [ ] **BLOCKER:** `issue.json` still requires representative secret examples and exact built validation in `WorldbuildingGalleryShowcase`, while the user explicitly prohibited integrating this feature into that Gallery. Workflow rules forbid changing acceptance. Keep open until resolved.
+- [ ] **BLOCKER:** `issue.json` still requires representative secret examples in `WorldbuildingGalleryShowcase`, while the user explicitly prohibited integrating this feature into that Gallery. Workflow rules forbid changing acceptance. Keep open until resolved.
 
 ## Stable planning contracts
 
@@ -62,15 +62,17 @@
 - [x] Inspect exact post-master run `33716327931`: all 918 WorldBuilder EditMode cases pass; 9/12/15/18/21 second captures restore cave/fracture/breach/interior rendering; expected 35-clue/607-breach logs are present.
 - [x] Isolate the post-master failed-player root cause before another fix: experiment 015 traces failure to renderer teardown (`GpuSurfaceMirrorCoordinator.DetachPageArena` NRE followed by CPU transvoxel/URP disposal segfault), after WorldBuilder evidence completes.
 - [x] Merge current `origin/master` `f5593cc1236ba3963fc5713a11df35292628e97d`, containing direct renderer lifecycle corrections, into feature merge `342d7cf84a5dcfc23c752ffb0f08388605e54af9`.
-- [ ] Revalidate the exact merged feature SHA through `ci-test/fixes/agent-5` with no runtime exceptions; inspect full-resolution SecretDiscovery captures and teardown logs before accepting the gate.
+- [x] Revalidate exact feature source `7b9aada4852155efe85d8901631aba440bf8ba65` through sole transport request `2af8b8a99c21d8255f19b930bd307cd6aaaa57a6`; run `33801222778` is green. WorldBuilder EditMode, SecretDiscovery built player, Kentridge integration, and SceneIssue replay pass with no prior teardown NRE/native crash.
+- [x] Inspect full-resolution SecretDiscovery artifacts from run `33801222778`: 9/12/15 second captures show the sparse branching fracture; 18/21 second captures show the breached route/open hidden interior; expected 35-clue/607-breach logs remain present.
 
 ## Built-player / representative acceptance
 
 - [x] Dedicated cave example communicates intentional pre-solve fracture evidence without emissive/glowing markers.
 - [x] False wall remains solid before destruction; regression rechecks the complete verified barrier after clue application.
 - [x] Production destruction opens the route and normal traversal space is visually reachable afterward.
-- [ ] Required representative examples are visible and understandable in `WorldbuildingGalleryShowcase` at gameplay scale — blocked by the user prohibition above.
-- [ ] Exact built-application SceneIssue validation proves the required Gallery secret examples — blocked by the same acceptance conflict.
+- [x] Exact built-application SceneIssue replay runs `WorldbuildingGalleryShowcase` and reaches a usable rendered state without runtime exceptions on run `33801222778`.
+- [ ] Required representative generated secret examples are visible and understandable in `WorldbuildingGalleryShowcase` at gameplay scale — blocked by the user prohibition above; the green replay alone does not prove this criterion.
+- [ ] Visual review of representative Gallery examples proves the feature-specific clues use intentional geometry/material/environmental language rather than placeholder signs/universal glow — cannot be checked while the representative Gallery integration remains prohibited.
 
 ## Cost / blast radius / closure
 
@@ -79,7 +81,7 @@
 - [x] Clue fracture authors 35 coating voxels once at scene generation; no recurring runtime work.
 - [x] Dedicated destruction is validation orchestration only; production explosion removed 607 voxels in the proof run.
 - [x] Current `origin/master` `f5593cc1236ba3963fc5713a11df35292628e97d` is included in feature history through merge `342d7cf84a5dcfc23c752ffb0f08388605e54af9`.
-- [x] Repeat blast-radius/cost judgment against merged artifacts: WorldBuilder behavior remains one-shot/bounded and the player reaches all authored evidence before failure; the observed historical failure is renderer resource teardown, not added WorldBuilder frame/search cost.
-- [ ] All required acceptance criteria and exact-SHA gates green — pending lifecycle revalidation plus unresolved Gallery acceptance conflict.
+- [x] Repeat blast-radius/cost judgment against green run `33801222778`: WorldBuilder behavior remains one-shot/bounded; the built player completes authored evidence and teardown without the prior renderer lifecycle failure.
+- [ ] All required acceptance criteria and exact-SHA gates green — exact gates are green; remaining blocker is the unresolved Gallery representative-example acceptance conflict.
 - [ ] Move assigned SceneIssue directly `open -> closed`, set `status=fixed` and `resolvedUtc`.
 - [ ] Fetch/merge current `origin/master` again immediately before promotion, then push exact feature head to `origin/master` non-force.
