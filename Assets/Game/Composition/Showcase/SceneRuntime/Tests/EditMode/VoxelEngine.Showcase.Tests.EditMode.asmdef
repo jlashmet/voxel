@@ -1,0 +1,23 @@
+{
+  "name": "VoxelEngine.Showcase.Tests.EditMode",
+  "rootNamespace": "VoxelEngine.Tests.EditMode",
+  "references": [
+    "VoxelEngine.Showcase",
+    "VoxelEngine.Composition",
+    "VoxelEngine.Rendering.Api",
+    "VoxelEngine.Structures.Api",
+    "VoxelEngine.Vegetation.Api",
+    "Game.WorldBuilder.Api",
+    "Game.WorldBuilder.Runtime",
+    "Unity.Mathematics"
+  ],
+  "includePlatforms": ["Editor"],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": true,
+  "precompiledReferences": ["nunit.framework.dll"],
+  "autoReferenced": false,
+  "defineConstraints": ["UNITY_INCLUDE_TESTS"],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
