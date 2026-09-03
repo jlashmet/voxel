@@ -61,8 +61,7 @@ Performance validation must separately record far-terrain ring vertex counts, CP
 
 ## Current execution note
 
-- T025 remains unchecked pending exact-SHA validation.
-- Targeted CI run `33724941982` completed with compiler errors against source SHA `8457fc60be2b3b117c11f605d7e3bd4804425a88`; it did **not** contain the subsequent root-cause fixes, so it is recorded as the second failing T025 validation symptom rather than retried as infrastructure.
-- The repeated compile symptom was isolated before another fix, per the two-fix rule: the canopy assertion passed an `IReadOnlyList<ulong>` to `Array.IndexOf`, and the WorldBuilder test assembly contained Showcase-composition adapter assertions outside its module boundary.
-- Exact-head run `33734289648` validated source SHA `976371849ccd69ec68578a3caa072c6281b64f0d`. Those two prior compiler errors are gone; the only product compile failure is the newly relocated Showcase test missing the existing `VoxelEngine.Structures.Api` namespace for `IFeaturePresentationSource`, `FeaturePresentationBake`, and `FeaturePresentationBounds`.
-- The narrow follow-up is only the missing Structures API import on the Showcase fixture. No production API or assembly dependency is changed. Revalidate the new exact feature head on the sole `ci-test/fixes/agent-7` transport before checking T025 or advancing to T026.
+- T025 remains unchecked because the exact-SHA repository gate is blocked externally, not because its requested regression still fails.
+- Exact-head run `33734577506` validated source SHA `ac445caac1b310a29eef2925390cfeac4804406d`: the T025/Showcase fixture compiles, the requested vegetation invalidation test phase and all preceding affected-module phases pass, then `VoxelEngine.Rendering.Tests.EditMode` fails 16 existing GPU/arena parity assertions. The feature diff does not modify those GPU extractor/arena implementations.
+- `origin/master` is `b18d470f66221c7cb6091249f4683c2d994bffec`; GPU renderer restoration is an external prerequisite owned elsewhere. Do not weaken, patch, or retry those unrelated failures from agent-7.
+- Continue independent work at T026 while leaving T025 unchecked; once the rendering baseline is repaired on master, merge it and revalidate the exact feature head on `ci-test/fixes/agent-7`.
