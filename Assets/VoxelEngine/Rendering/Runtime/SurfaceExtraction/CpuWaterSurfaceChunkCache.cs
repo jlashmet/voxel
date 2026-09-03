@@ -28,6 +28,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private const int ArenaIndexCapacity = 768 * 1024;
         public const int ArenaDrawCapacity = 2048;
         private const uint FullyLitOcclusion = 0x0000FF00u;
+        private const uint AuthoritativeWaterMaterialMask = (1u << 11) | (1u << 16);
 
         private static readonly int s_SurfaceVertices = Shader.PropertyToID("_SurfaceVertices");
         private static readonly int s_SurfaceIndices = Shader.PropertyToID("_SurfaceIndices");
@@ -247,11 +248,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly SurfaceGeometryArena _geometryArena;
         private NativeList<SmoothSurfaceVertex> _vertices;
         private NativeList<uint> _indices;
-        private readonly NativeArray<byte> _brickMaterials =
+        private NativeArray<byte> _brickMaterials =
             new(VoxelReadGrid.VoxelsPerBlock, Allocator.Persistent);
-        private readonly NativeArray<ushort> _surfaceScratch =
+        private NativeArray<ushort> _surfaceScratch =
             new(VoxelReadGrid.VoxelsPerBlock, Allocator.Persistent);
-        private readonly NativeArray<byte> _boundaryScratch =
+        private NativeArray<byte> _boundaryScratch =
             new(VoxelReadGrid.VoxelsPerBlock, Allocator.Persistent);
         private NativeArray<int3> _waterBatchBrickBases;
         private NativeArray<byte> _waterBatchMaterials;
@@ -260,6 +261,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private JobHandle _waterMeshJobHandle;
         private bool _waterMeshJobScheduled;
         private bool _discardBuildAfterMeshJob;
+        private bool _disposed;
         private int _waterBatchCount;
         public ulong MeshOverflowCount { get; private set; }
         private BuildState _build;
@@ -627,6 +629,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 {
                     BrickBaseVoxels = _waterBatchBrickBases,
                     SnapshotMaterials = _waterBatchMaterials,
+                    WaterMaterialMask = AuthoritativeWaterMaterialMask,
                     BatchCount = _waterBatchCount,
                     VoxelSize = voxelSize,
                     MaskScratch = _waterMeshMask,
@@ -892,6 +895,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         public void Dispose()
         {
+            if (_disposed) return;
+            _disposed = true;
+
             if (_waterMeshJobScheduled)
             {
                 _waterMeshJobHandle.Complete();
