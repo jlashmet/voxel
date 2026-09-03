@@ -187,9 +187,10 @@ DenseBrickCacheView BatchDenseBrickCacheViewForPoint(int3 p)
 {
     int3 worldBrick = WorldBrickOf(p);
     [loop]
-    for (int requestIndex = 0; requestIndex < _BatchRecordCount; requestIndex++)
+    for (int requestIndex = 0; ; requestIndex++)
     {
         int4 request = _BatchBrickCacheViews[requestIndex];
+        if (request.w < 0) break;
         DenseBrickCacheView view;
         view.origin = request.xyz;
         view.baseIndex = (uint)request.w;
@@ -200,9 +201,9 @@ DenseBrickCacheView BatchDenseBrickCacheViewForPoint(int3 p)
             return view;
     }
 
-    // Supported production sampling is fully covered by one request view. Returning the first view
-    // on a miss preserves the ordinary dense-cache out-of-range semantics (air) without introducing
-    // a second lookup mode or reading beyond the prepared buffer.
+    // GpuBrickCachePreparation always reserves a negative-OutputBase terminator after the active
+    // views, including at full logical capacity. A miss therefore preserves the ordinary first-view
+    // out-of-range semantics without a Metal-unsupported StructuredBuffer size query.
     return BatchDenseBrickCacheView(0);
 }
 #endif
