@@ -1,0 +1,18 @@
+{
+  "name": "Game.Loot.Api",
+  "rootNamespace": "Game.Loot.Api",
+  "references": [
+    "Game.Characters.Api",
+    "Game.Inventory.Api",
+    "Game.WorldObjects.Api"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}
