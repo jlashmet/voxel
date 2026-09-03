@@ -2,12 +2,12 @@
 
 #include "../../Resources/VoxelBrickDensity.hlsl"
 
+uint _ProbeMaterial;
 RWStructuredBuffer<uint> _ProbeOutput;
 
 [numthreads(1, 1, 1)]
 void CSProbe(uint3 id : SV_DispatchThreadID)
 {
-    const uint material = 1u;
-    _ProbeOutput[0] = IsSolidSample(material) ? 1u : 0u;
+    _ProbeOutput[0] = IsSolidSample(_ProbeMaterial) ? 1u : 0u;
     _ProbeOutput[1] = _SolidWaterMaterialMask;
 }
