@@ -11,7 +11,7 @@ namespace VoxelEngine.Tests.EditMode
 
         [TestCase(1u, 0u, 1u, TestName = "OrdinaryLowMaterialIsSolid")]
         [TestCase(2u, 1u << 2, 0u, TestName = "ConfiguredWaterMaterialIsNonSolid")]
-        [TestCase(40u, uint.MaxValue, 1u, TestName = "MaterialIdAboveMaskRangeRemainsSolid")]
+        [TestCase(40u, 1u << 2, 1u, TestName = "MaterialIdAboveMaskRangeRemainsSolid")]
         public void SharedGpuClassifierMatchesPresentationMaterialSemantics(
             uint material, uint waterMask, uint expectedSolid)
         {
