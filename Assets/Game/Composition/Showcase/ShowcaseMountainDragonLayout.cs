@@ -151,7 +151,7 @@ namespace VoxelEngine.Showcase
             MountainLandformSurface surface)
         {
             MountainLandformMass summit = surface.GetMass(0);
-            var controls = new List<WorldRoadPlanPoint>(SpiralControlCount + 1);
+            var controls = new List<WorldRoadPlanPoint>(SpiralControlCount + 2);
             for (int i = 0; i < SpiralControlCount; i++)
             {
                 int radius = EntryRadiusDm
@@ -162,6 +162,15 @@ namespace VoxelEngine.Showcase
                     summit.CentreXdm + DirectionX[direction] * radius / 1024,
                     summit.CentreZdm + DirectionZ[direction] * radius / 1024));
             }
+
+            // Continue the same angular progression once more while moving onto the broad summit.
+            // Jumping directly from the 105 dm spiral exit to the centre created a rasterized
+            // terrain-corridor seam at that exact radius in the built player. Keeping this as a
+            // semantic scene control lets the shared resolver grade/carve the transition normally.
+            int summitDirection = (12 + SpiralControlCount) & 15;
+            controls.Add(new WorldRoadPlanPoint(
+                summit.CentreXdm + DirectionX[summitDirection] * SummitRadius / 1024,
+                summit.CentreZdm + DirectionZ[summitDirection] * SummitRadius / 1024));
             controls.Add(new WorldRoadPlanPoint(summit.CentreXdm, summit.CentreZdm));
             return controls;
         }
