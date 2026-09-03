@@ -80,8 +80,8 @@
 - [x] Cave composition is bounded by traversal candidates and stops on non-physical failures; no frame polling/search cost added.
 - [x] Clue fracture authors 35 coating voxels once at scene generation; no recurring runtime work.
 - [x] Dedicated destruction is validation orchestration only; production explosion removed 607 voxels in the proof run.
-- [x] Current `origin/master` `f5593cc1236ba3963fc5713a11df35292628e97d` is included in feature history through merge `342d7cf84a5dcfc23c752ffb0f08388605e54af9`.
+- [x] Current `origin/master` `81ffa4bbc76c3feb6e0bde2376065b4144f3f10a` is included in feature history through merge `39178b65cafde5f4ca590c51e262ee93523511e5`.
 - [x] Repeat blast-radius/cost judgment against green run `33801222778`: WorldBuilder behavior remains one-shot/bounded; the built player completes authored evidence and teardown without the prior renderer lifecycle failure.
-- [ ] All required acceptance criteria and exact-SHA gates green — exact gates are green; remaining blocker is the unresolved Gallery representative-example acceptance conflict.
+- [ ] All required acceptance criteria and exact-SHA gates green — the last exact gate was green before subsequent master merges; remaining blocker is the unresolved Gallery representative-example acceptance conflict, and a fresh exact-SHA gate is required once that conflict is resolved.
 - [ ] Move assigned SceneIssue directly `open -> closed`, set `status=fixed` and `resolvedUtc`.
 - [ ] Fetch/merge current `origin/master` again immediately before promotion, then push exact feature head to `origin/master` non-force.
