@@ -38,16 +38,16 @@ The System 01 SceneIssue design identifies the minimum identity seam required by
 
 Regression coverage includes damage boundaries, exactly-once defeat, non-Combat reuse, restore, Character-backed Combat identity, direct Combat adapter semantics, production `CombatService` damage/winner behavior against canonical Vitality, rejection of legacy/unregistered participants, and the Combat Runtime API-only dependency boundary.
 
-Foundation exact-SHA request `49e2d5bb0153451263195b9c3c787bd2f8763a23` for feature parent `0fc4e0ae1f58f6ea7bfba405a4a2406c6c88d7de` passed workflow run `33485053919`. Because T02-015 materially changed Combat and Kentridge afterward, a new exact-SHA automatic module/player validation run is required before closure.
+Foundation exact-SHA request `49e2d5bb0153451263195b9c3c787bd2f8763a23` for feature parent `0fc4e0ae1f58f6ea7bfba405a4a2406c6c88d7de` passed workflow run `33485053919`.
 
 ## Final validation history
 
-Exact feature source `682539206b05790d1f115d4cfe01650de2a3bfeb` was validated by CI transport commit `e317e50496807ae2e8c99a522a26f6c5204d137e` in workflow run `33714819448`. Module discovery was correctly owned (`fallbackPaths=[]`): `Game.CharacterAI.Tests` passed 6/6, `Game.Combat.Tests` passed 4/4, `Game.Continuity.Tests` passed 7/7, `Game.GameplayReplication.Tests` passed 14/14, `Game.Vitality.Tests` passed 13/13, and the explicit `Game.Combat.Tests.CombatServiceVitalityIntegrationTests` request passed 4/4. The automatic Kentridge player harness also reached `HARNESS done after 80.0s, assertion failures 0`.
+Exact feature source `682539206b05790d1f115d4cfe01650de2a3bfeb` was validated by CI transport commit `e317e50496807ae2e8c99a522a26f6c5204d137e` in workflow run `33714819448`. Module discovery was correctly owned (`fallbackPaths=[]`): `Game.CharacterAI.Tests` passed 6/6, `Game.Combat.Tests` passed 4/4, `Game.Continuity.Tests` passed 7/7, `Game.GameplayReplication.Tests` passed 14/14, `Game.Vitality.Tests` passed 13/13, and explicit Combat/Vitality integration passed 4/4. The Kentridge player harness reached zero assertion failures, but renderer teardown crashed afterward.
 
-That gate exited red after harness completion because renderer teardown threw `NullReferenceException` in `VoxelEngine.Rendering.Runtime.GpuVoxel.GpuSurfaceMirrorCoordinator.DetachPageArena` from `VoxelSurfaceScheduler.Dispose`, followed by a native Mono shutdown crash. This was isolated as an external System 02 prerequisite rather than a vitality/combat failure.
+That external prerequisite was resolved by GPU renderer restoration on `origin/master` at `f5593cc1236ba3963fc5713a11df35292628e97d`, merged into this feature as `8946d54e4b64820b47fb4a55ca0be98dee543c3b`.
 
-The prerequisite is now available: `origin/master` advanced to `f5593cc1236ba3963fc5713a11df35292628e97d` with the validated GPU renderer restoration, including CPU-only GPU arena teardown handling. It was merged into `fixes/agent-9` as merge commit `8946d54e4b64820b47fb4a55ca0be98dee543c3b`. T02-025 is therefore unblocked and resumes with a new exact-SHA automatic module/player plus standalone SceneIssue validation run.
+Final exact-SHA validation used feature source `8e2c5e1d6225af4781a16ac78f71bbf7b9d515fd` and CI transport commit `afaaa8156c4f0490d230dd4f9a5ee1a4fca8087c`. Workflow run `33801284371` completed successfully: automatic module validation passed, standalone SceneIssue replay passed, and final commit status publication succeeded.
 
-## Remaining gates
+## Closure proof
 
-Run exact-SHA CI for the current merged feature head and require both automatic module/player validation and the standalone SceneIssue replay to be green. Then perform the final ownership/boundary proof and only then close/promote. No respawn/revive policy, UI bars, game-over rules, or Combat-team semantics are added.
+All required tasks are complete. Production Character life has exactly one owner in `VitalityRegistry`; Combat stores no HP and keeps only turn/team/winner/session policy; Kentridge composition owns initial vitality and Character wiring; Outcomes remains independent. No respawn/revive policy, UI bars, game-over rules, or Combat-team semantics were added.
