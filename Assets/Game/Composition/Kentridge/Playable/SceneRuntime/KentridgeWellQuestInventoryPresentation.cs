@@ -31,15 +31,25 @@ namespace Game.Kentridge.PlayableSlice
 
         private readonly IInputContextService _inputContexts = new InputContextService();
         private KentridgeCampaignSession _session;
-        private IInventoryRuntime _inventory;
+        private IInventoryQuery _inventory;
+        private InventoryId _inventoryId;
         private IInputContextLease _uiLease;
         private Vector3 _wellWorldPosition;
         private bool _inventoryOpen;
         private string _statusMessage = string.Empty;
 
         public bool InventoryOpen => _inventoryOpen;
-        public int VisibleTileCount => _inventory?.Snapshot().Count ?? 0;
-        public int RewardCount => _inventory?.Count(RewardRef) ?? 0;
+        public int VisibleTileCount
+        {
+            get
+            {
+                InventorySnapshot snapshot;
+                return _inventory != null && _inventory.TryGetSnapshot(_inventoryId, out snapshot)
+                    ? snapshot.Entries.Count
+                    : 0;
+            }
+        }
+        public int RewardCount => _inventory?.Count(_inventoryId, RewardRef) ?? 0;
         public InputContextId ActiveInputContext => _inputContexts.ActiveContext;
         public bool QuestCompleted =>
             _session != null && _session.Runtime.IsQuestCompleted(KentridgeWellQuestDefinition.Ref);
@@ -94,9 +104,11 @@ namespace Game.Kentridge.PlayableSlice
                 TryInteractWithWell();
         }
 
-        public void SetInventory(IInventoryRuntime inventory)
+        public void SetInventory(IInventoryQuery inventory, InventoryId inventoryId)
         {
             _inventory = inventory ?? throw new ArgumentNullException(nameof(inventory));
+            if (!inventoryId.IsValid) throw new ArgumentException("Inventory id is required.", nameof(inventoryId));
+            _inventoryId = inventoryId;
         }
 
         public void ToggleInventory()
@@ -169,6 +181,7 @@ namespace Game.Kentridge.PlayableSlice
 
             _session = live;
             _inventory = live.Inventory;
+            _inventoryId = live.PlayerInventoryId;
             _wellWorldPosition = ResolveWellWorldPosition(settlement);
             _session.SynchronizeRewards();
         }
@@ -225,20 +238,23 @@ namespace Game.Kentridge.PlayableSlice
                 panelHeight);
             GUI.Box(panel, "Inventory   (I or Esc to close)");
 
-            IReadOnlyList<InventoryItemSnapshot> items = _inventory.Snapshot();
-            for (var i = 0; i < items.Count; i++)
+            InventorySnapshot snapshot;
+            if (!_inventory.TryGetSnapshot(_inventoryId, out snapshot)) return;
+            for (var i = 0; i < snapshot.Entries.Count; i++)
             {
                 int column = i % 6;
                 int row = i / 6;
                 float x = panel.x + 26f + column * 78f;
                 float y = panel.y + 48f + row * 92f;
                 Rect tile = new Rect(x, y, ItemTileSizePixels, ItemTileSizePixels);
-                InventoryItemSnapshot item = items[i];
-                GUI.Box(tile, item.Definition.IconText);
+                InventoryEntry item = snapshot.Entries[i];
+                ItemDefinition definition;
+                if (!_inventory.TryGetDefinition(item.Item, out definition)) continue;
+                GUI.Box(tile, definition.IconText);
                 GUI.Label(new Rect(x, y + ItemTileSizePixels + 2f, 72f, 24f),
                     item.Quantity > 1
-                        ? item.Definition.DisplayName + " x" + item.Quantity
-                        : item.Definition.DisplayName);
+                        ? definition.DisplayName + " x" + item.Quantity
+                        : definition.DisplayName);
             }
         }
     }
