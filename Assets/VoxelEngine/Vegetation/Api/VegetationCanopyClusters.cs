@@ -47,8 +47,8 @@ namespace VoxelEngine.Vegetation.Api
 
     /// <summary>
     /// Deterministic forest HLOD facts derived from current tree visibility records. The builder owns
-    /// no tree persistence. Landmark selection is injected policy; severed trees are omitted and
-    /// damage contributes only to the affected cluster revision/presentation values.
+    /// no tree persistence. Landmark selection is injected policy; severed trees are omitted and each
+    /// member's authoritative presentation revision invalidates only its affected cluster.
     /// </summary>
     public static class ForestCanopyClusterBuilder
     {
@@ -112,6 +112,9 @@ namespace VoxelEngine.Vegetation.Api
                 heightSum += height;
                 healthSum += math.saturate(member.Damage.FoliageHealth);
                 revision = HashUlong(revision, member.StableId);
+                revision = HashUlong(revision, member.PresentationRevision);
+                // Preserve deterministic revision changes for manually-authored visibility fixtures
+                // that predate PresentationRevision and therefore carry its default zero value.
                 revision = HashInt(revision, QuantizeHealth(member.Damage.FoliageHealth));
             }
 
