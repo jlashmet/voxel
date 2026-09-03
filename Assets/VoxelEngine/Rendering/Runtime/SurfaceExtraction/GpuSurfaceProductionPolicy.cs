@@ -4,11 +4,12 @@ using UnityEngine;
 namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 {
     /// <summary>
-    /// Keeps the near-ring GPU surface cutover opt-in while the GPU path is still being stabilized.
+    /// Production policy for the supported near-ring GPU surface cutover.
     ///
-    /// Production starts on the CPU renderer unless a fresh process explicitly opts in with
-    /// VOXEL_ENABLE_EXPERIMENTAL_GPU_CUTOVER=1. VOXEL_DISABLE_GPU_CUTOVER=1 always wins so the
-    /// same build can still force the CPU path for diagnostics and regression comparison.
+    /// Supported GPU extraction is enabled by default. VOXEL_DISABLE_GPU_CUTOVER=1 is the
+    /// explicit emergency/A-B fallback to the CPU renderer. The retired experimental opt-in is
+    /// accepted only as an ignored compatibility input so old launch environments cannot
+    /// accidentally disable the production GPU path.
     /// </summary>
     internal static class GpuSurfaceProductionPolicy
     {
@@ -18,7 +19,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         internal static bool ShouldDisableLegacyGpuCutover(
             string explicitDisable, string experimentalOptIn) =>
-            explicitDisable == "1" || experimentalOptIn != "1";
+            explicitDisable == "1";
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void Apply()

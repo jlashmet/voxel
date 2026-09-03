@@ -1,0 +1,23 @@
+{
+  "name": "Game.Loot.Tests",
+  "rootNamespace": "Game.Loot.Tests",
+  "references": [
+    "Game.Loot.Api",
+    "Game.Loot.Runtime",
+    "Game.Inventory.Api",
+    "Game.Inventory.Runtime",
+    "Game.WorldObjects.Api",
+    "Game.Characters.Api"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
