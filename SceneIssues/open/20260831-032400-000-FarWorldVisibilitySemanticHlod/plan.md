@@ -62,6 +62,7 @@ Performance validation must separately record far-terrain ring vertex counts, CP
 ## Current execution note
 
 - T025 remains unchecked pending exact-SHA validation.
-- Exact-head CI run `33723075016` completed with compile failures, so it is treated as a product failure rather than an infrastructure retry.
-- Root causes were isolated to the T025 regression using NUnit's string-oriented `Does.Not.Contain` overload for a `ulong[]`, and the independent WorldBuilder reuse fixture directly consuming `VoxelEngine.Rendering.Api` without that assembly reference.
-- The fixes are intentionally narrow: use `Array.IndexOf` for canonical numeric canopy member IDs and add only `VoxelEngine.Rendering.Api` to the WorldBuilder EditMode test assembly. Revalidate on the sole `ci-test/fixes/agent-7` transport before advancing T025.
+- Targeted CI run `33724941982` completed with compiler errors against source SHA `8457fc60be2b3b117c11f605d7e3bd4804425a88`; it did **not** contain the subsequent root-cause fixes, so it is recorded as the second failing T025 validation symptom rather than retried as infrastructure.
+- The repeated compile symptom was isolated before another fix, per the two-fix rule: the canopy assertion passed an `IReadOnlyList<ulong>` to `Array.IndexOf`, and the WorldBuilder test assembly contained Showcase-composition adapter assertions outside its module boundary.
+- The narrow fixes are now on the feature branch: use a collection-agnostic stable-ID membership helper in `VegetationFarProxyInvalidationTests`, keep WorldBuilder's fixture limited to the state store, and place `ShowcaseFarFeatureStateAdapter` persistence/flag regressions under the Showcase composition test boundary.
+- Revalidate the current exact feature head on the sole `ci-test/fixes/agent-7` transport before checking T025 or advancing to T026.
