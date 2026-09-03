@@ -196,7 +196,7 @@ namespace Game.Loot.Tests
 
             var duplicate = new[] { snapshots[0], snapshots[0] };
             Assert.That(_loot.TryRestore(duplicate), Is.False);
-            Assert.That(_loot.Capture(), Has.Count.EqualTo(3));
+            Assert.That(_loot.Capture().Count, Is.EqualTo(3));
         }
 
         [Test]
