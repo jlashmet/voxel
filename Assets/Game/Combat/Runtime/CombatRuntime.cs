@@ -75,35 +75,27 @@ namespace Game.Combat.Runtime
     }
 
     /// <summary>
-    /// Engine-independent authority for combat orchestration. Character-backed life state is delegated to Vitality;
-    /// the parameterless constructor retains the legacy participant-id health path only until production composition
-    /// is migrated to inject IVitalityService.
+    /// Engine-independent authority for the production combat slice. Movement remains a free positioning command for
+    /// compatibility with the first Kentridge integration, while attacks are turn-consuming battle actions. Actor life
+    /// truth is owned by Vitality; Combat retains only positioning, turn, team, and winner policy.
     /// </summary>
     public sealed class CombatService : ICombatService
     {
-        private const int ParticipantHitPoints = 6;
         private const int AttackDamage = 2;
 
         private static readonly IReadOnlyList<CombatParticipant> EmptyParticipants = Array.AsReadOnly(new CombatParticipant[0]);
         private readonly Dictionary<CombatParticipantId, CombatGridPosition> _positions =
             new Dictionary<CombatParticipantId, CombatGridPosition>();
-        private readonly Dictionary<CombatParticipantId, int> _legacyHitPoints =
-            new Dictionary<CombatParticipantId, int>();
-        private readonly IVitalityService _vitality;
+        private readonly CombatVitalityAdapter _vitality;
         private IReadOnlyList<CombatParticipant> _participants = EmptyParticipants;
         private int _nextSessionId = 1;
         private int _turnIndex;
 
-        public CombatService()
-        {
-        }
-
         public CombatService(IVitalityService vitality)
         {
-            _vitality = vitality ?? throw new ArgumentNullException(nameof(vitality));
+            _vitality = new CombatVitalityAdapter(vitality);
         }
 
-        public bool IsVitalityBacked => _vitality != null;
         public bool IsActive => State == CombatLifecycleState.Active;
         public CombatLifecycleState State { get; private set; } = CombatLifecycleState.Idle;
         public CombatSessionId ActiveSessionId { get; private set; }
@@ -124,16 +116,16 @@ namespace Game.Combat.Runtime
             bool hasEnemy = false;
             int enemyIndex = 0;
             _positions.Clear();
-            _legacyHitPoints.Clear();
 
             for (int i = 0; i < request.Participants.Count; i++)
             {
                 CombatParticipant participant = request.Participants[i];
                 if (!seen.Add(participant.Id))
                     throw new ArgumentException("Duplicate combat participant '" + participant.Id + "'.", nameof(request));
-
-                if (_vitality != null && !participant.IsCharacterBacked)
-                    throw new ArgumentException("Vitality-backed combat requires character-backed participants.", nameof(request));
+                if (!participant.IsCharacterBacked)
+                    throw new ArgumentException("Combat participant '" + participant.Id + "' is not backed by a CharacterId.", nameof(request));
+                if (!_vitality.TryGetState(participant, out _))
+                    throw new ArgumentException("Combat participant '" + participant.Id + "' has no registered vitality state.", nameof(request));
 
                 if (participant.Team == CombatTeam.Player)
                 {
@@ -146,18 +138,6 @@ namespace Game.Combat.Runtime
                     int lane = (enemyIndex % 2 == 0) ? -1 : 1;
                     _positions.Add(participant.Id, new CombatGridPosition(3 + enemyIndex / 2, lane));
                     enemyIndex++;
-                }
-
-                if (_vitality != null)
-                {
-                    VitalitySnapshot existing;
-                    if (!_vitality.TryGet(participant.CharacterId, out existing) &&
-                        !_vitality.Register(VitalitySnapshot.Alive(participant.CharacterId, ParticipantHitPoints)))
-                        throw new InvalidOperationException("Vitality registration failed for character '" + participant.CharacterId + "'.");
-                }
-                else
-                {
-                    _legacyHitPoints.Add(participant.Id, ParticipantHitPoints);
                 }
             }
 
@@ -229,17 +209,9 @@ namespace Game.Combat.Runtime
             if (attacker.Team == target.Team)
                 return CombatCommandResult.Reject("Combatants cannot attack their own team.");
 
-            if (_vitality != null)
-            {
-                DamageResult damage = _vitality.ApplyDamage(new DamageRequest(target.CharacterId, AttackDamage));
-                if (!damage.Accepted)
-                    return CombatCommandResult.Reject("Vitality rejected damage: " + damage.RejectionReason + ".");
-            }
-            else
-            {
-                _legacyHitPoints[attack.Target] = Math.Max(0, _legacyHitPoints[attack.Target] - AttackDamage);
-            }
-
+            DamageResult damage = _vitality.ApplyDamage(target, AttackDamage);
+            if (!damage.Accepted)
+                return CombatCommandResult.Reject("Vitality rejected combat damage: " + damage.RejectionReason + ".");
             ActionCount++;
 
             CombatTeam? winner = EvaluateWinner();
@@ -258,15 +230,10 @@ namespace Game.Combat.Runtime
 
         public bool TryGetHitPoints(CombatParticipantId participant, out int hitPoints)
         {
-            if (_vitality == null)
-                return _legacyHitPoints.TryGetValue(participant, out hitPoints);
-
-            CombatParticipant combatParticipant = FindParticipant(participant);
-            VitalitySnapshot snapshot;
-            if (combatParticipant != null && combatParticipant.IsCharacterBacked &&
-                _vitality.TryGet(combatParticipant.CharacterId, out snapshot))
+            CombatParticipant actor = FindParticipant(participant);
+            if (actor != null && _vitality.TryGetState(actor, out VitalitySnapshot state))
             {
-                hitPoints = snapshot.Current;
+                hitPoints = state.Current;
                 return true;
             }
 
@@ -276,8 +243,8 @@ namespace Game.Combat.Runtime
 
         public bool IsAlive(CombatParticipantId participant)
         {
-            int hp;
-            return TryGetHitPoints(participant, out hp) && hp > 0;
+            CombatParticipant actor = FindParticipant(participant);
+            return actor != null && _vitality.IsAlive(actor);
         }
 
         public void CompleteCombat()
@@ -351,6 +318,11 @@ namespace Game.Combat.Runtime
         }
     }
 
+    /// <summary>
+    /// Deterministic, allocation-light battle driver used by autonomous actors and regression validation. It has no
+    /// hidden wait state: one Step either executes one legal attack and advances authority state, or throws with a
+    /// high-signal diagnostic. The seeded PRNG is a tiny fixed LCG so results do not depend on framework RNG details.
+    /// </summary>
     public sealed class CombatAiBattleDriver
     {
         private readonly CombatService _combat;

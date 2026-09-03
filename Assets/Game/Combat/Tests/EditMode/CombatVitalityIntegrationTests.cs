@@ -24,7 +24,6 @@ namespace Game.Combat.Tests
             CombatParticipant enemy = CombatParticipant.FromCharacter(enemyId, CombatTeam.Enemy);
             combat.BeginCombat(new CombatEncounterRequest("fixture:vitality", new[] { player, enemy }));
 
-            Assert.That(combat.IsVitalityBacked, Is.True);
             Assert.That(combat.TryGetHitPoints(enemy.Id, out int initial), Is.True);
             Assert.That(initial, Is.EqualTo(4), "Combat must preserve pre-existing actor Vitality instead of resetting a private HP store.");
 
@@ -67,78 +66,39 @@ namespace Game.Combat.Tests
 
         private sealed class FixtureVitalityService : IVitalityService
         {
-            private readonly Dictionary<CharacterId, VitalitySnapshot> _states =
-                new Dictionary<CharacterId, VitalitySnapshot>();
-
+            private readonly Dictionary<CharacterId, VitalitySnapshot> _states = new Dictionary<CharacterId, VitalitySnapshot>();
             public event Action<DefeatEvent> Defeated;
             public int DamageCallCount { get; private set; }
             public DamageRequest LastDamage { get; private set; }
-
-            public bool Register(VitalitySnapshot initialState)
-            {
-                if (_states.ContainsKey(initialState.CharacterId)) return false;
-                _states.Add(initialState.CharacterId, initialState);
-                return true;
-            }
-
+            public bool Register(VitalitySnapshot initialState) { if (_states.ContainsKey(initialState.CharacterId)) return false; _states.Add(initialState.CharacterId, initialState); return true; }
             public bool Remove(CharacterId characterId) => _states.Remove(characterId);
-
-            public bool TryGet(CharacterId characterId, out VitalitySnapshot snapshot) =>
-                _states.TryGetValue(characterId, out snapshot);
-
+            public bool TryGet(CharacterId characterId, out VitalitySnapshot snapshot) => _states.TryGetValue(characterId, out snapshot);
+            public IReadOnlyList<VitalitySnapshot> GetAll() => new List<VitalitySnapshot>(_states.Values).AsReadOnly();
             public DamageResult ApplyDamage(DamageRequest request)
             {
                 DamageCallCount++;
                 LastDamage = request;
-
-                if (request.Amount <= 0)
-                    return new DamageResult(false, DamageRejectionReason.InvalidAmount, 0, default, false);
-
-                VitalitySnapshot current;
-                if (!_states.TryGetValue(request.Target, out current))
-                    return new DamageResult(false, DamageRejectionReason.UnknownCharacter, 0, default, false);
-                if (current.IsDefeated)
-                    return new DamageResult(false, DamageRejectionReason.AlreadyDefeated, 0, current, false);
-
+                if (request.Amount <= 0) return new DamageResult(false, DamageRejectionReason.InvalidAmount, 0, default, false);
+                if (!_states.TryGetValue(request.Target, out VitalitySnapshot current)) return new DamageResult(false, DamageRejectionReason.UnknownCharacter, 0, default, false);
+                if (current.IsDefeated) return new DamageResult(false, DamageRejectionReason.AlreadyDefeated, 0, current, false);
                 int applied = Math.Min(current.Current, request.Amount);
                 int remaining = current.Current - applied;
                 bool defeated = remaining == 0;
-                var next = new VitalitySnapshot(request.Target, remaining, current.Maximum, defeated);
+                var next = new VitalitySnapshot(request.Target, remaining, current.Maximum, defeated, current.Revision + 1UL);
                 _states[request.Target] = next;
                 if (defeated) Defeated?.Invoke(new DefeatEvent(request.Target, next));
                 return new DamageResult(true, DamageRejectionReason.None, applied, next, defeated);
             }
-
-            public VitalitySnapshot[] Capture()
-            {
-                var snapshots = new VitalitySnapshot[_states.Count];
-                _states.Values.CopyTo(snapshots, 0);
-                return snapshots;
-            }
-
+            public VitalitySnapshot[] Capture() { var snapshots = new VitalitySnapshot[_states.Count]; _states.Values.CopyTo(snapshots, 0); return snapshots; }
             public VitalityRestoreResult Restore(VitalitySnapshot[] snapshots)
             {
-                if (snapshots == null)
-                    return new VitalityRestoreResult(false, VitalityRestoreRejectionReason.NullSnapshotSet);
-
+                if (snapshots == null) return new VitalityRestoreResult(false, VitalityRestoreRejectionReason.NullSnapshotSet);
                 var replacement = new Dictionary<CharacterId, VitalitySnapshot>();
-                for (int i = 0; i < snapshots.Length; i++)
-                {
-                    if (replacement.ContainsKey(snapshots[i].CharacterId))
-                        return new VitalityRestoreResult(false, VitalityRestoreRejectionReason.DuplicateCharacter);
-                    replacement.Add(snapshots[i].CharacterId, snapshots[i]);
-                }
-
-                _states.Clear();
-                foreach (KeyValuePair<CharacterId, VitalitySnapshot> pair in replacement)
-                    _states.Add(pair.Key, pair.Value);
+                for (int i = 0; i < snapshots.Length; i++) { if (replacement.ContainsKey(snapshots[i].CharacterId)) return new VitalityRestoreResult(false, VitalityRestoreRejectionReason.DuplicateCharacter); replacement.Add(snapshots[i].CharacterId, snapshots[i]); }
+                _states.Clear(); foreach (KeyValuePair<CharacterId, VitalitySnapshot> pair in replacement) _states.Add(pair.Key, pair.Value);
                 return new VitalityRestoreResult(true, VitalityRestoreRejectionReason.None);
             }
-
-            public void Set(VitalitySnapshot snapshot)
-            {
-                _states[snapshot.CharacterId] = snapshot;
-            }
+            public void Set(VitalitySnapshot snapshot) { _states[snapshot.CharacterId] = snapshot; }
         }
     }
 }
