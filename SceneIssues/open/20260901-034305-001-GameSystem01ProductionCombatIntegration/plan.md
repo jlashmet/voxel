@@ -11,12 +11,13 @@
 - Agent-3 merged that master into `fixes/agent-3` as `b53a2abff95475e6030da475706b3a8478d90ef9`, resolving overlapping Combat files by retaining the landed production Vitality implementation while restoring agent-3's EncounterId semantic contracts/coordinator and independent reuse tests.
 - `KentridgeForestBanditEncounter` now constructs `VitalityRegistry`, injects it into `CombatService`, registers real Encounter member `CharacterId`s in Vitality, and builds Combat participants via `CombatParticipant.FromCharacter`. The previous parameterless Combat health path is absent from current master/feature search.
 - Previous exact-SHA baseline run `33800856291` remains useful renderer evidence only; a fresh exact-SHA gate is required for the merged production cutover.
+- Final run `33811046206` failed before tests because `EncounterCombatIntegrationTests` still constructed the removed parameterless `CombatService`. The durable Unity log identified CS7036 at that fixture. The fixture is now migrated to a real `VitalityRegistry` and registers both fixture CharacterIds before constructing `CombatService(vitality)`.
 
 ## Hypotheses / discriminating results
 
 1. **Production Vitality Runtime was the blocking prerequisite for removing Combat-owned life state.** Confirmed by the landed System 02 implementation: current Kentridge uses real `VitalityRegistry`, and current `CombatService` has only the injected `IVitalityService` constructor and routes life reads/damage through Vitality.
 2. **The renderer restoration resolves the prior assembled-player teardown blocker.** Confirmed by baseline run `33800856291`; the final migrated run must still prove no regression on the new exact SHA.
-3. **Agent-3's Encounter integration remains compatible with the landed System 02 Combat implementation.** The merge keeps master's production Combat runtime and restores only semantic Encounter contracts/coordinator plus their engine-free tests. Exact-SHA CI will discriminate any API/assembly incompatibility before closure.
+3. **Agent-3's Encounter integration remains compatible with the landed System 02 Combat implementation.** The first post-cutover CI exposed one stale test-only constructor call, not a production contract defect. That fixture has been migrated to the same injected Vitality boundary; fresh exact-SHA CI will discriminate any remaining incompatibility.
 
 ## Selected approach / boundaries
 
@@ -28,7 +29,7 @@
 
 ## Remaining gates
 
-- Fresh exact-SHA automatic module validation for the current merged feature.
+- Fresh exact-SHA automatic module validation for the current merged feature after the fixture constructor fix.
 - Fresh Kentridge built-player validation with durable evidence and clean process exit.
 - Final one-authority/bypass audit after CI evidence, then complete T01-025/031/032.
 - Populate closure fields, move `open/` directly to `closed/`, merge current master, and non-force push the exact final feature head to master only after every required gate is green.
