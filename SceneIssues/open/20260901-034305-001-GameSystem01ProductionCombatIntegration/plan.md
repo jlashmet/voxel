@@ -5,29 +5,30 @@
 ## Acceptance / current state
 
 - Combat binds real `CharacterId` and `EncounterId`, keeps only combat team/session/result semantics, and leaves role-to-team, winner-to-`EncounterResolution`, spawning, cleanup, and presentation policy in composition.
-- Vitality must be the sole production life-state authority. Combat retains round/readiness, tactical-intent, reaction, plan/history, board/motion, and combat-resolution state. Input remains semantic through `Game.Input.Api`.
+- Vitality is the production life-state authority. Combat retains positioning, turns, tactical execution, team/winner semantics, and combat-resolution state. Input remains semantic through `Game.Input.Api`.
 - Reusable seams are implemented: `CombatParticipant.FromCharacter`, `CombatStartRequest`/`CombatStartResult`, `CombatResolved`, `EncounterCombatCoordinator`, and `CombatService(IVitalityService)`. Independent Character, Encounter, and `IVitalityService` fixtures cover those boundaries.
-- `fixes/agent-3` has merged current master `149d7f85cc3fc293fb0abcaf9cb950346bb0aee5`. The intervening master changes are Inventory/Loot/WorldObjects and GameSystem10 closure work and do not overlap agent-3 Combat/Vitality paths.
-- Exact feature `0669bd2ed9981fdba6bff9c8c0abb9ba3290a8e0` passed exact-SHA run `33800856291`: all five affected automatic EditMode assemblies passed; Kentridge built, completed its 80-second player scenario, produced seven real-player captures, and exited cleanly. The previous renderer teardown failure no longer reproduces on this baseline.
-- `KentridgeForestBanditEncounter` still constructs the parameterless legacy `CombatService`. Current master still has `Assets/Game/Vitality/Api` and `Assets/Game/Vitality/Tests`, but no `Assets/Game/Vitality/Runtime`; production cutover remains externally blocked and agent-3 will not invent or copy System 02 Runtime ownership.
-- Dependency inspection shows System 02 has implemented `Game.Vitality.Runtime.VitalityRegistry : IVitalityService` on `fixes/agent-9`, including registration, authoritative damage, defeat events, capture, and restore. It is not yet published to `master`, so agent-3 will not merge/cherry-pick another assignment branch; the blocker is publication/integration availability on master.
+- System 02 has now landed on `master` at `81ffa4bbc76c3feb6e0bde2376065b4144f3f10a`, including `Game.Vitality.Runtime.VitalityRegistry`, the Combat/Vitality adapter, Kentridge production composition, module regressions, and built-scene tests.
+- Agent-3 merged that master into `fixes/agent-3` as `b53a2abff95475e6030da475706b3a8478d90ef9`, resolving overlapping Combat files by retaining the landed production Vitality implementation while restoring agent-3's EncounterId semantic contracts/coordinator and independent reuse tests.
+- `KentridgeForestBanditEncounter` now constructs `VitalityRegistry`, injects it into `CombatService`, registers real Encounter member `CharacterId`s in Vitality, and builds Combat participants via `CombatParticipant.FromCharacter`. The previous parameterless Combat health path is absent from current master/feature search.
+- Previous exact-SHA baseline run `33800856291` remains useful renderer evidence only; a fresh exact-SHA gate is required for the merged production cutover.
 
 ## Hypotheses / discriminating results
 
-1. **A production Vitality Runtime is required before duplicate Kentridge HP authority can be removed.** Current-master inspection at `149d7f85cc3fc293fb0abcaf9cb950346bb0aee5` confirms the Runtime is still absent, while the dependency branch confirms the intended concrete implementation exists but has not landed. Therefore T01-002/010/011/012/014/015 and their assembled follow-ons remain blocked on publication of System 02 through normal ownership flow.
-2. **The renderer restoration resolves the prior assembled-player teardown blocker for agent-3's current baseline.** Confirmed: exact run `33800856291` passed affected CharacterAI, Combat, Continuity, GameplayReplication, and Vitality tests and the Kentridge player completed and exited cleanly. No Combat change is warranted for the old teardown symptom.
+1. **Production Vitality Runtime was the blocking prerequisite for removing Combat-owned life state.** Confirmed by the landed System 02 implementation: current Kentridge uses real `VitalityRegistry`, and current `CombatService` has only the injected `IVitalityService` constructor and routes life reads/damage through Vitality.
+2. **The renderer restoration resolves the prior assembled-player teardown blocker.** Confirmed by baseline run `33800856291`; the final migrated run must still prove no regression on the new exact SHA.
+3. **Agent-3's Encounter integration remains compatible with the landed System 02 Combat implementation.** The merge keeps master's production Combat runtime and restores only semantic Encounter contracts/coordinator plus their engine-free tests. Exact-SHA CI will discriminate any API/assembly incompatibility before closure.
 
 ## Selected approach / boundaries
 
-- Preserve master contracts/GUIDs and add only Combat-required Vitality damage/service semantics.
-- Do not patch renderer teardown, create a fake Vitality implementation, copy System 02 Runtime, or merge/cherry-pick another assignment branch into agent-3.
-- Keep the current green run as baseline evidence only; it cannot validate the not-yet-landed production Vitality cutover.
-- When the real Vitality Runtime is published to master, merge current master, inspect the landed API/runtime, inject it in Kentridge composition, register/bind production CharacterIds, remove production use of the parameterless Combat health path, and keep Encounter/game-result policy in composition.
+- Treat the landed System 02 Vitality Runtime and Kentridge cutover as upstream production truth; do not duplicate or replace it.
+- Preserve agent-3's EncounterId semantic API and exactly-once `EncounterCombatCoordinator` as reusable Combat/Encounter boundary proof.
+- Keep role-to-team mapping, EncounterResolution mapping, authored actor realization, cleanup, input-context ownership, and presentation in Kentridge composition.
+- Character lifecycle defeat markers in composition are treated only as downstream Character lifecycle projection; Combat alive/HP decisions read Vitality exclusively. Revisit only if exact-SHA acceptance demonstrates an authority conflict.
 - Do not refactor the older experimental CombatPrototype chain; its orchestration state is outside this production life-authority migration.
 
 ## Remaining gates
 
-- Real Vitality Runtime publication to master and Kentridge production cutover.
-- Final bypass/one-authority audit and independent reuse confirmation in assembled production.
-- Fresh exact-SHA automatic module plus Kentridge player validation after the production cutover; inspect durable built-player evidence.
-- Complete T01-023/025/030/031/032, populate closure fields, move `open/` directly to `closed/`, merge current master, and non-force push the exact feature head to master only after every required gate is green.
+- Fresh exact-SHA automatic module validation for the current merged feature.
+- Fresh Kentridge built-player validation with durable evidence and clean process exit.
+- Final one-authority/bypass audit after CI evidence, then complete T01-025/031/032.
+- Populate closure fields, move `open/` directly to `closed/`, merge current master, and non-force push the exact final feature head to master only after every required gate is green.
