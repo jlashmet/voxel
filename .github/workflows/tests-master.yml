@@ -4,6 +4,10 @@ name: Tests (master — full suite)
 # PRs only move already-tested evidence from pending to closed and are ignored.
 # Pull requests run the assemblies their changes can affect (see tests-pr.yml).
 #
+# Test assemblies are discovered from the project asmdef graph instead of being
+# duplicated in this workflow. That keeps newly added module-local suites, including
+# renderer parity tests, inside the master gate automatically.
+#
 # Normal EditMode and PlayMode suites share one Unity editor process. Unity Test
 # Framework 1.x cannot execute both modes in one API call, so the editor-side CI
 # orchestrator sequences them without exiting Unity. VoxelEngine.Tests.PlayMode
@@ -58,13 +62,50 @@ jobs:
             sleep 5
           done
 
+      - name: Select every test assembly
+        id: select
+        shell: bash
+        run: |
+          set -euo pipefail
+          EDIT_ARGS="$(tools/select-tests.py --all --format unity-args --platform EditMode)"
+          PLAY_ARGS="$(tools/select-tests.py --all --format unity-args --platform PlayMode)"
+          EDIT_NAMES="${EDIT_ARGS#-assemblyNames }"
+          PLAY_NAMES="${PLAY_ARGS#-assemblyNames }"
+
+          heavy=false
+          NORMAL_PLAY_NAMES=""
+          if [[ -n "$PLAY_NAMES" ]]; then
+            IFS=';' read -ra play_assemblies <<< "$PLAY_NAMES"
+            for asm in "${play_assemblies[@]}"; do
+              [[ -z "$asm" ]] && continue
+              if [[ "$asm" == "VoxelEngine.Tests.PlayMode" ]]; then
+                heavy=true
+              elif [[ -z "$NORMAL_PLAY_NAMES" ]]; then
+                NORMAL_PLAY_NAMES="$asm"
+              else
+                NORMAL_PLAY_NAMES="$NORMAL_PLAY_NAMES;$asm"
+              fi
+            done
+          fi
+
+          {
+            echo "editmode_names=$EDIT_NAMES"
+            echo "playmode_names=$NORMAL_PLAY_NAMES"
+            echo "heavy_playmode=$heavy"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "EditMode assemblies: ${EDIT_NAMES:-<none>}"
+          echo "PlayMode assemblies: ${NORMAL_PLAY_NAMES:-<none>}"
+          echo "Isolated VoxelEngine.Tests.PlayMode: $heavy"
+
       - name: EditMode + normal PlayMode in one Unity editor
+        if: steps.select.outputs.editmode_names != '' || steps.select.outputs.playmode_names != '' || steps.select.outputs.heavy_playmode == 'true'
         shell: bash
         env:
-          VOXEL_CI_EDITMODE_ASSEMBLIES: Game.Composition.CharacterEquipment.Tests;VoxelEngine.Tests.EditMode
-          VOXEL_CI_PLAYMODE_ASSEMBLIES: VoxelEngine.Tests.Parity;VoxelEngine.Tests.Features;VoxelEngine.CI.PlayMode;MountingForce.CombatPrototype.Tests.PlayMode
+          VOXEL_CI_EDITMODE_ASSEMBLIES: ${{ steps.select.outputs.editmode_names }}
+          VOXEL_CI_PLAYMODE_ASSEMBLIES: ${{ steps.select.outputs.playmode_names }}
           VOXEL_CI_RESULTS_ROOT: ${{ github.workspace }}/Artifacts/MasterTests
-          VOXEL_CI_BAKE_SHOWCASE: "1"
+          VOXEL_CI_BAKE_SHOWCASE: ${{ steps.select.outputs.heavy_playmode }}
         run: |
           set -euo pipefail
           ROOT="$GITHUB_WORKSPACE/Artifacts/MasterTests"
@@ -77,12 +118,15 @@ jobs:
             -logFile "$ROOT/persistent.log"
           test -s "$ROOT/persistent-summary.txt"
           grep -q '^status=passed$' "$ROOT/persistent-summary.txt"
-          test -s "$GITHUB_WORKSPACE/Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes"
+          if [[ "${{ steps.select.outputs.heavy_playmode }}" == "true" ]]; then
+            test -s "$GITHUB_WORKSPACE/Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes"
+          fi
 
       # This one suite is intentionally still process-isolated. It retains native
       # scene/rendering allocations across repeated scene loads, so each name shard
       # gets a fresh editor and allocator state.
       - name: PlayMode VoxelEngine.Tests.PlayMode isolated shards
+        if: steps.select.outputs.heavy_playmode == 'true'
         shell: bash
         run: |
           set -euo pipefail
