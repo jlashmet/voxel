@@ -25,3 +25,9 @@ Two actors racing one pickup, failed transfer leaves world unchanged, container 
 ## Do not build
 
 No inventory UI, equipment, random loot tables, rarity system, or scene-local pickup authority.
+
+## Execution notes / blockers
+
+- The synced feature head did not contain the #09 transaction API required by this design. GameSystem10 therefore adds only the minimal generic `InventoryId`/transaction contract and deterministic transaction runtime needed for pickup, container transfer, drop and conservation; it does not implement the rest of #09 ownership/UI scope.
+- The synced feature head did not contain `Game.WorldObjects.Api` from #13. GameSystem10 therefore adds only the semantic `WorldObjectId` and interaction-validation contract required to delegate reach/permission/state validation; no WorldObjects runtime or scene policy is implemented here.
+- This session has no usable local Unity checkout/runtime, so Unity compilation/player validation remains an external validation blocker until exact-SHA targeted CI is requested through `ci-test/fixes/agent-8`. Acceptance is unchanged.
