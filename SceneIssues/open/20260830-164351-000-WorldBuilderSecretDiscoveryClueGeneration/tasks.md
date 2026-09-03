@@ -39,7 +39,8 @@
 - [x] Planner/discovery work is one-shot/event-driven; no per-frame search/polling added.
 - [x] Cave composition is bounded by traversal candidates; clue fracture authors 35 coating voxels once.
 - [x] Blast-radius/cost rechecked against green run `33801222778`; no recurring runtime/search cost regression.
-- [x] Current master `431b7a5b501a8e1160d4b8ec90aeaa1752f72881` is merged into the feature through two-parent merge `51fd1d3dbd440823a0f11448804126e2e6e6e3cf`.
+- [x] Current master `c7774f8f3455481f003898bbe473789348cd4f66` is included through two-parent merge `6a48636f8134af2936c44912e73abd95151cc455`; compare reports `behind_by=0` and the exact master as merge base.
+- [x] Master-side GameSystem09 Inventory/Kentridge changes and `.github/test-request.json` removal are preserved; this feature overlays only its own WorldBuilder/CaveWorldBuilder/Showcase and assigned SceneIssue paths.
 - [x] Updated repository workflow reviewed: final SceneIssue promotion is PR-based; do not push a SceneIssue feature head directly to protected `master`.
 - [ ] All acceptance criteria green and fresh exact-SHA targeted gate green — pending Gallery conflict resolution and subsequent exact-SHA revalidation.
 - [ ] Move assigned SceneIssue `open -> closed`, set `status=fixed` and `resolvedUtc`, and complete supported resolution fields.
