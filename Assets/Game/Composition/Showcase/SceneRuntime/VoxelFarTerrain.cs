@@ -34,6 +34,26 @@ namespace VoxelEngine.Showcase
     [RequireComponent(typeof(MeshRenderer))]
     public sealed class VoxelFarTerrain : MonoBehaviour
     {
+        public readonly struct CoverageSnapshot
+        {
+            public CoverageSnapshot(
+                float requestedOuterRadiusMetres,
+                float guaranteedAuthoritativeRadiusMetres,
+                int ringCount,
+                bool startupFallbackActive)
+            {
+                RequestedOuterRadiusMetres = requestedOuterRadiusMetres;
+                GuaranteedAuthoritativeRadiusMetres = guaranteedAuthoritativeRadiusMetres;
+                RingCount = ringCount;
+                StartupFallbackActive = startupFallbackActive;
+            }
+
+            public float RequestedOuterRadiusMetres { get; }
+            public float GuaranteedAuthoritativeRadiusMetres { get; }
+            public int RingCount { get; }
+            public bool StartupFallbackActive { get; }
+        }
+
         private const int MaxRings = 12;
 
         [Tooltip("Where the voxel world stops and this takes over, in metres.")]
@@ -116,6 +136,43 @@ namespace VoxelEngine.Showcase
         public float InnerRadiusMetres => m_InnerRadiusMetres;
         public float OuterRadiusMetres => m_OuterRadiusMetres;
         public uint Seed { get => m_Seed; set => m_Seed = value; }
+
+        /// <summary>
+        /// Read-only presentation diagnostics. This snapshot observes clipmap publication state;
+        /// it never feeds generation, streaming, or rendering decisions.
+        /// </summary>
+        public CoverageSnapshot CoverageDiagnostics
+        {
+            get
+            {
+                float guaranteed = 0f;
+                if (_ringMeshes.Count > 0)
+                {
+                    Vector3 observer = _camera != null
+                        ? _camera.transform.position
+                        : transform.position;
+                    ulong publishedMask = CurrentAuthoritativePublishedMask(observer);
+                    int contiguous = FarTerrainStartupCoverage.ContiguousPublishedRing(
+                        publishedMask, _ringMeshes.Count);
+                    if (contiguous >= 0)
+                        guaranteed = GuaranteedCoverageMetres(
+                            _ringSpacing[contiguous], m_Resolution);
+                }
+
+                return new CoverageSnapshot(
+                    m_OuterRadiusMetres,
+                    guaranteed,
+                    RingCount,
+                    _startupFallbackRing >= 0);
+            }
+        }
+
+        public float RingSpacingMetres(int ring)
+        {
+            if (ring < 0 || ring >= RingCount)
+                throw new ArgumentOutOfRangeException(nameof(ring));
+            return SpacingForRing(ring) * 0.1f;
+        }
 
         /// <summary>
         /// Resolves the material used by one far-field vertex. Positive structure silhouettes win;
