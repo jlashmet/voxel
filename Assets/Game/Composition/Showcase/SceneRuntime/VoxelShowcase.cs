@@ -148,6 +148,8 @@ namespace VoxelEngine.Showcase
         private readonly List<TornadoShot> _tornadoes = new();
         private Material _tornadoMaterial;
         private VoxelFarTerrain _farTerrain;
+        private ShowcaseFarFeatureRuntime _farFeatures;
+        private Camera _sceneCamera;
 
         private const float TornadoSpeed = 28f;
         private const float TornadoLifetime = 3f;
@@ -230,6 +232,21 @@ namespace VoxelEngine.Showcase
             // and both are.
             _farTerrain = VoxelFarTerrain.Create(transform, m_Seed, streamedMetres, 12000f);
             _farTerrain.Structures = _world.FarField;
+
+            // Semantic structures are a separate derived representation from the terrain clipmap.
+            // Their source is baked from the canonical feature catalogue and is queryable before
+            // detailed voxel regions become resident. Scene-specific thresholds live in this
+            // Showcase composition layer; the shared renderer remains producer-agnostic.
+            _sceneCamera = GetComponent<Camera>();
+            if (_sceneCamera == null) _sceneCamera = Camera.main;
+            _farFeatures = new ShowcaseFarFeatureRuntime(
+                transform,
+                _world.FarFeaturePresentation,
+                _world.FarFeaturePresentationCount,
+                _world.StructureVisualStates,
+                ShowcaseWorld.VoxelSize,
+                _sceneCamera);
+
             var renderingWorld = new RenderingWorldBinding(
                 _world.ReadStorage,
                 _world.Palette,
@@ -268,6 +285,10 @@ namespace VoxelEngine.Showcase
             _tornadoes.Clear();
             if (_tornadoMaterial != null) Destroy(_tornadoMaterial);
             _tornadoMaterial = null;
+
+            _farFeatures?.Dispose();
+            _farFeatures = null;
+            _sceneCamera = null;
 
             // The far field is dynamically created by OnEnable and owns Persistent NativeArrays,
             // meshes, and a reference to this world's FarFieldStructureStore. Leaving the child
@@ -433,6 +454,10 @@ namespace VoxelEngine.Showcase
                 if (StreamingEnabled)
                     _world.StepStreaming(transform.position, m_GenerateBudgetMs);
 
+                // Semantic proxies follow the actual scene camera and query only the derived
+                // feature manifest. No distant region generation/residency is requested here.
+                _farFeatures?.Update(_sceneCamera, transform.position);
+
                 // The far field's hole has to follow what streaming has actually finished, not
                 // the radius it was configured with. Set after StepStreaming so a region that
                 // completed this frame closes the gap on this frame rather than the next.
@@ -463,11 +488,12 @@ namespace VoxelEngine.Showcase
         {
             if (_farTerrain == null) return "FAR none";
             float streamed = m_LoadRadiusRegions * ShowcaseWorld.RegionMetres;
+            string semantic = _farFeatures != null ? _farFeatures.Describe() : "semantic=none";
             return $"FAR hole={_farTerrain.HoleRadiusMetres:0.#}m "
                  + $"inner={_farTerrain.InnerRadiusMetres:0.#}m streamed={streamed:0.#}m "
                  + $"residentGround={_world.ResidentGroundRadiusMetres(transform.position):0.#}m "
                  + $"coverage={RenderingComposition.HasCompletePublishedNearSurfaceCoverage()} "
-                 + $"structures={(_farTerrain.Structures != null)}";
+                 + $"structures={(_farTerrain.Structures != null)} {semantic}";
         }
 
         /// <summary>
