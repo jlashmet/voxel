@@ -9,8 +9,11 @@ namespace VoxelEngine.Tests.EditMode
         private const string ShaderPath =
             "Assets/VoxelEngine/Rendering/Tests/EditMode/GpuSolidClassificationProbe.compute";
 
-        [Test]
-        public void MaterialOneIsSolidWhenWaterMaskIsZero()
+        [TestCase(1u, 0u, 1u, TestName = "OrdinaryLowMaterialIsSolid")]
+        [TestCase(2u, 1u << 2, 0u, TestName = "ConfiguredWaterMaterialIsNonSolid")]
+        [TestCase(40u, uint.MaxValue, 1u, TestName = "MaterialIdAboveMaskRangeRemainsSolid")]
+        public void SharedGpuClassifierMatchesPresentationMaterialSemantics(
+            uint material, uint waterMask, uint expectedSolid)
         {
             if (!SystemInfo.supportsComputeShaders)
                 Assert.Ignore("No compute support on this device; the classifier cannot be exercised.");
@@ -18,21 +21,21 @@ namespace VoxelEngine.Tests.EditMode
             ComputeShader shader = AssetDatabase.LoadAssetAtPath<ComputeShader>(ShaderPath);
             Assert.NotNull(shader, $"Probe shader missing at {ShaderPath}");
 
-            Shader.SetGlobalInt("_SolidWaterMaterialMask", 0);
+            Shader.SetGlobalInt("_SolidWaterMaterialMask", unchecked((int)waterMask));
             int kernel = shader.FindKernel("CSProbe");
             using var output = new ComputeBuffer(2, sizeof(uint), ComputeBufferType.Structured);
             output.SetData(new uint[2]);
+            shader.SetInt("_ProbeMaterial", unchecked((int)material));
             shader.SetBuffer(kernel, "_ProbeOutput", output);
             shader.Dispatch(kernel, 1, 1, 1);
 
             var values = new uint[2];
             output.GetData(values);
-            Assert.AreEqual(0u, values[1], "The probe must observe the zero water mask supplied by the test.");
-            Assert.AreEqual(1u, values[0],
-                "IsSolidSample(1) must be true when material 1 is not classified as water. "
-              + "If this minimal include probe passes while the full mesher reports air for the "
-              + "same material/mask, the defect is full-shader code generation/control flow rather "
-              + "than the classifier expression or global uniform itself.");
+            Assert.AreEqual(waterMask, values[1],
+                "The classifier must observe the presentation water mask supplied by composition.");
+            Assert.AreEqual(expectedSolid, values[0],
+                $"Material {material} classification diverged from the shared renderer contract "
+              + $"for water mask 0x{waterMask:X8}.");
         }
     }
 }
