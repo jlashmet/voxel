@@ -19,9 +19,11 @@
 - [ ] **T24-012 — Exercise system 13 interaction.** Interact with a real Kentridge WorldObject/NPC through semantic input and observe authoritative result.
 - [ ] **T24-013 — Exercise system 11 progression/story consequence.** Real interaction/site/gameplay fact advances an authored objective/Story rule; driver cannot call completion setters.
 - [ ] **T24-014 — Exercise system 12 encounter realization.** Kentridge authored encounter consumes WorldBuilder-realized semantic placement/bindings.
-- [ ] **T24-015 — Exercise systems 05/01/02/03 combat chain.** Encounter activates real Combat with Character/Vitality authority and reaches semantic combat/encounter resolution through player actions.
+- [ ] **T24-015 — Exercise systems 05/01/02/03 squad-beat combat chain.** Encounter activates real Combat with Character/Vitality authority; system 01 selects the active squad member for a beat, the player submits one deliberate move for that member, non-active members continue autonomous/basic behavior, and combat reaches semantic encounter resolution without serial turns for every squad member.
 - [ ] **T24-016 — Exercise systems 13/10/09 loot/inventory chain.** Perform a real world pickup/container/drop/transfer action sufficient to prove authoritative inventory integration.
-- [ ] **T24-017 — Exercise production presentation.** HUD plus relevant inventory/progression/session/audio/VFX presentation consume semantic truth; none are required for authority.
+- [ ] **T24-017 — Exercise production presentation.** HUD plus relevant inventory/progression/session/audio/VFX presentation consume semantic truth; combat presentation shows the current/upcoming active sequence, selected member's action choices and event-chain feedback without owning authority.
+- [ ] **T24-018 — Exercise an event-driven combo.** During the representative beat, have at least one non-active character use configured behavior to join and redirect or transform/escalate an in-flight movement/projectile/impact/spell/world event; the chain cannot be proved solely by a generic status-triggered follow-up attack.
+- [ ] **T24-019 — Exercise spatial/world combo readability.** Prefer at least one trajectory, collision, launch/fall, ally augmentation or destructible-world consequence so the resulting chain is visibly attributable to the original action and its modification.
 
 ## Save / continue proof
 
@@ -35,13 +37,14 @@
 
 - [ ] **T24-030 — Reuse the shared built-player harness.** Add only generic capability if missing; do not create a Kentridge-specific process runner.
 - [ ] **T24-031 — Make scenario milestone-driven.** Wait on semantic readiness/action/outcome milestones with bounded timeouts; eliminate arbitrary sleeps as primary synchronization.
-- [ ] **T24-032 — Restrict diagnostic access to read-only state.** Diagnostic snapshot may expose stable ids/current semantic state but no setters or privileged gameplay commands.
+- [ ] **T24-032 — Restrict diagnostic access to read-only state.** Diagnostic snapshot may expose stable ids/current semantic state including current beat/sequence/event-chain ids but no setters or privileged gameplay commands.
 - [ ] **T24-033 — Capture failure artifacts.** Role/process log, semantic milestone history and relevant screenshot/render artifact on failure through shared harness conventions.
 - [ ] **T24-034 — Run editor/module-local tests before built-player proof.** Automatic affected-module discovery plus top-level Kentridge integration tests.
 - [ ] **T24-035 — Run canonical standalone built-player scenario on exact built SHA.** Record build/commit identity and require no unhandled exceptions/assertions.
+- [ ] **T24-036 — Capture combat usability evidence.** Built-player evidence must show the player can identify the system-selected current member, at least the next upcoming member, one deliberate action choice and the resulting event-driven combo without being presented a 20–30-character turn queue.
 
 ## Cleanup / close
 
 - [ ] **T24-040 — Search Kentridge for alternate service ownership/private test shortcuts.** Remove production scene-local authority and privileged setters.
 - [ ] **T24-041 — Verify module-local validation remains distinct.** Kentridge is assembled-game proof, not a substitute for each changed module's focused tests/scenario.
-- [ ] **T24-042 — Close only when every representative domain runs through its production public boundary.** No fallback/prototype path may be accepted as equivalent.
+- [ ] **T24-042 — Close only when every representative domain runs through its production public boundary.** No fallback/prototype path may be accepted as equivalent, including alternate combat sequencing/reaction paths.
