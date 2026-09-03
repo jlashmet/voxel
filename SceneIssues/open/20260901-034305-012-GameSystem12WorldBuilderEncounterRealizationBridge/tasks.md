@@ -48,6 +48,7 @@
   - The Kentridge encounter's physical placement is player-visible, so use existing automatic/module and SceneIssue player validation rather than adding a bespoke harness.
 - [ ] **T12-025 — Kentridge assembled proof.** Verify its encounter realizes through the bridge; broader route remains system 24 acceptance.
   - `KentridgeForestEncounterRealizationTests` added to prove exact macro-layout reuse and failure behavior; assembled player proof pending CI.
+  - Validation attempt: exact source `7601f3b7328a79e56d70db9807df07ee4fd4c137`, transport `d6a4093c5c56e634df0b6841691bf1fc15da918a`, workflow `33813168179` completed failure before test execution because Unity reported CS0118 at `KentridgeForestBanditEncounter.cs:53` (`EncounterRealization` namespace/type collision). The assignment-scoped compile cause was isolated and fixed with a Kentridge-local forwarding type bridge; revalidation required on the new source SHA.
 
 ## Cleanup / close
 
