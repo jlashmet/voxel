@@ -75,8 +75,8 @@ namespace VoxelEngine.Tests.EditMode
                 capacity, sizeof(uint), ComputeBufferType.Structured);
 
             GpuExtractionResult result = extractor.Extract(
-                mirror, tables, int3.zero, brickCacheOrigin, sourceStep: 1, VoxelSize,
-                vertices, indices, capacity, capacity);
+                mirror, tables, int3.zero, brickCacheOrigin, sourceStep: 1,
+                voxelSize: VoxelSize, vertices, indices, capacity, capacity);
             Assert.IsFalse(result.Overflowed);
             Assert.Greater(result.IndexCount, 0,
                 "The asymmetric boundary fixture must emit real geometry.");
@@ -98,8 +98,8 @@ namespace VoxelEngine.Tests.EditMode
 
             List<OracleTriangle> cpu = CpuTopologyOracle.MeshNeighbourhood(
                 int3.zero, brickCacheOrigin, edge, CellsPerAxis, Padding,
-                sourceStep: 1, VoxelSize, kinds, uniforms, voxels, semantics, boundaries,
-                surfaces, coatings, palette);
+                sourceStep: 1, voxelSize: VoxelSize, kinds, uniforms, voxels, semantics,
+                boundaries, surfaces, coatings, palette);
             var cpuKeys = new Dictionary<string, int>();
             foreach (OracleTriangle triangle in cpu)
             {
