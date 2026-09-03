@@ -9,7 +9,7 @@
 - [x] Record old path/core minimal repro after repeated visual failures (`experiment-010-switchback-core-gap-minimal-repro.md`).
 - [x] Reject the old path-driven mountain family after built-player review; terrace/support geometry must not define the landform.
 - [x] After repeated `resolved-49 -> mid-turn` failures, isolate root cause before another traversal fix. Experiments 017-020 progressively ruled out early waypoint acceptance, fixture drift, and missing telemetry; experiment 021 now proves horizontal arrival succeeds and the remaining failed predicate is real vertical ascent.
-- [x] After the late `resolved-89` stop survived the experiment-022 summit transition change, freeze traversal changes and isolate authoritative-route identity before another fix. Experiment 023 records the first exact-source diagnostic-selection failure and the module-local correction.
+- [x] After the late `resolved-89` stop survived the experiment-022 summit transition change, freeze traversal changes and isolate authoritative-route identity before another fix. Experiments 023-024 prove the terminal fixture is stale after summit-supported, but current resolved point 89 is unchanged; the collision symptom therefore still requires a realized-corridor root cause.
 
 ## Reusable mountain redesign
 - [x] Replace path-coupled `MountainLandmarkSpec` ownership with semantic parameterized natural-landform inputs only.
@@ -41,9 +41,10 @@
 - [x] Migrate `MountainDragonProductionAcceptanceTests` from removed legacy landmark assumptions to current landform/road/placeholder/composition/dialogue contracts.
 - [x] Diagnose repeated 60 dm then 50 dm production cut/fill symptom before third fix; lower only Showcase `RidgeStrengthPermille` from 620 to 300 based on experiment 016, leaving shared APIs and road constraints unchanged.
 - [x] Correct stale acceptance-test proxies without weakening production policy: semantic mountain size is configured >=1000 dm major diameter with >=80% realized occupancy; road-grade validation uses resolver planar-distance semantics.
-- [x] Regenerate `mountain-dragon-evidence-route.json` from the final resolved production road and keep representative grounded vertical evidence through summit proximity.
+- [ ] Regenerate `mountain-dragon-evidence-route.json` terminal points from the current 96-point authoritative production road. Preserve the grounded/vertical evidence semantics; fixture correction is not the traversal fix.
 - [x] Keep constrained `resolved-49` turn-entry point on authoritative route with only `arrivalRadius: 0.35`; route-wide tolerance and production motor/road policy stay unchanged.
 - [x] Restore startup-bake provenance for redesigned landform/road source: reusable byte/signature helper, Showcase revision 10 source signature, and runtime manifest validation now reject stale bytes.
+- [ ] Isolate a minimal realized terrain-corridor/collision mismatch around current resolved points 88-91 before any further route-control, motor/tolerance, grade/cut-fill, or summit-placement change.
 
 ## Latest exact-source CI
 - [x] Run `33472689582` completed success: focused production acceptance, automatic module validation, selected validation players, and standalone SceneIssue replay passed before later evidence-route corrections.
@@ -58,11 +59,11 @@
 - [x] Run `33655077271` used a fresh source-matched startup payload and climbed through lower/mid/upper ascent, then exposed a new grounded late stop at `resolved-89`.
 - [x] Run `33715318543` on exact source `88b43bac...` disproved the first summit-transition fix: bake passed in 167.186 s with matching 15,697,105-byte payload/SHA/signature, while replay reproduced the identical `resolved-89` stop; unrelated rendering tests remained the module blocker.
 - [x] Run `33718723662` correctly selected exact source `8b32f78d...` but did not execute the top-level route serializer because required persistent module validation failed earlier in unrelated rendering; no route-identity conclusion is drawn from this run.
-- [ ] Execute the module-local `MountainDragonResolvedRouteDiagnosticTests.CurrentProductionRouteSerializesForSummitRootCauseIsolation` on exact current feature source and compare its authoritative terminal points against the checked-in evidence route before any further traversal fix.
+- [x] Run `33719954172` executed module-local `MountainDragonResolvedRouteDiagnosticTests.CurrentProductionRouteSerializesForSummitRootCauseIsolation`: current route has 96 points and diverges from the fixture only after summit-supported; current resolved point 89 remains `(-1080,468,280)` dm. The same module emitted a fresh bake manifest (`7554A9C4`, SHA-256 `44cb5af1...`). Overall CI still failed in unrelated `VoxelEngine.Rendering.Tests.EditMode`, so replay was skipped.
 - [ ] Run exact current feature head through only `ci-test/fixes/agent-4` requesting `ShowcaseStartupBakeArtifactTests.CurrentSourceBakeExportsPayloadAndMatchingManifest`, with the same SceneIssue replay. Require current-source bake + manifest, automatically derived module gates, and standalone replay in that same checkout. Never replace a queued/running request.
 
 ## Production visual / built-player acceptance
-- [x] Merge latest master once during final visual preparation; PR #218 merged master `b1b69290...` into agent-4. Master has advanced since and must be merged again only for final promotion per closure workflow.
+- [x] Merge latest master once during final visual preparation; current branch has since been synchronized through master `b18d470f...` and is presently behind by 0. Final promotion still requires the then-current master merge per closure workflow.
 - [ ] Independently validate the regenerated route on a fresh current-source startup payload: require `WAYPOINT_REPLAY` setup/arm/reached/vertical/complete, no exceptions, and inspect screenshots.
 - [ ] Capture and human-review exact production `VoxelShowcase` approach as one substantial coherent natural mountain.
 - [ ] Human-review path base and representative lower/mid/upper ascent as continuous supported road carved/graded into the landform, with no trench/tunnel/causeway artifacts.
