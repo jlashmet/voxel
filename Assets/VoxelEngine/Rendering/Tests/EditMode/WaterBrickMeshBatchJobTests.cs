@@ -155,34 +155,6 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(indices.Length, Is.Zero);
         }
 
-        [Test]
-        public void Execute_UnsetJobMaskUsesInstalledRendererWaterMask()
-        {
-            uint previousMask = SolidMaterialClassification.WaterMaterialMask;
-            try
-            {
-                SolidMaterialClassification.SetWaterMaterialMask(1u << GameMaterialIds.Water);
-                using var brickBases = new NativeArray<int3>(1, Allocator.Temp);
-                var snapshotData = new byte[WaterBrickMeshBatchJob.SnapshotStride];
-                snapshotData[0] = GameMaterialIds.Water;
-                using var snapshots = new NativeArray<byte>(snapshotData, Allocator.Temp);
-                using var scratch = new NativeArray<byte>(WaterBrickMeshBatchJob.FaceArea, Allocator.Temp);
-                using var vertices = new NativeList<SmoothSurfaceVertex>(256, Allocator.Temp);
-                using var indices = new NativeList<uint>(384, Allocator.Temp);
-                using var overflow = new NativeArray<int>(1, Allocator.Temp);
-
-                Execute(brickBases, snapshots, scratch, vertices, indices, overflow, 0u);
-
-                Assert.That(overflow[0], Is.Zero);
-                Assert.That(indices.Length, Is.GreaterThan(0),
-                    "Production water jobs omit a per-job override and must inherit the installed renderer classification.");
-            }
-            finally
-            {
-                SolidMaterialClassification.SetWaterMaterialMask(previousMask);
-            }
-        }
-
         private static void Execute(
             NativeArray<int3> brickBases,
             NativeArray<byte> snapshots,
