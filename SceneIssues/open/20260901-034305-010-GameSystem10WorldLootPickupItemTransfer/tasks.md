@@ -10,10 +10,14 @@
   - Discovery: no `Game.Loot` module or shared pickup/drop/container transfer path exists on the synced feature head. `Game.Inventory.Api.IInventoryRuntime` exposes `TryAddUnique`, `Add`, `Count`, and `Snapshot` only; it has no remove/transfer/capacity/transaction result contract. Kentridge quest rewards directly call `Inventory.TryAddUnique` in composition (`KentridgeWellQuestRewardRuntime`) and Kentridge well interaction/presentation uses scene-local proximity + `Input.GetKeyDown(KeyCode.E)`. The existing composition `WorldObjects` folder contains runtime bootstrap/composition only and no `Game.WorldObjects.Api` assembly. Existing showcase interaction remains an independent presentation fixture, not loot authority.
 - [x] **T10-002 — Establish asmdefs.** Loot.Runtime depends on Inventory.Api, WorldObjects.Api and Characters.Api only; Loot.Api contains no prefab/Transform references.
   - `Game.Loot.Api` and `Game.Loot.Runtime` are engine-free asmdefs; Runtime references only Loot.Api plus the three required API assemblies. The API contract uses semantic ids/payloads only and has no UnityEngine, Transform, GameObject or prefab type.
-- [ ] **T10-003 — Define stable loot/world-item identity.** Reuse WorldObjectId where appropriate and add only the semantic item/payload identity actually needed.
-- [ ] **T10-004 — Define pickup/drop/container-transfer requests/results.** Include actor, source/destination and explicit failure reasons without duplicating Inventory transaction schema.
-- [ ] **T10-005 — Define claim/current-state contract.** Represent enough authoritative state to serialize competing pickup attempts and project current availability.
-- [ ] **T10-006 — Define committed transfer facts.** Emit semantic results after both world and inventory sides commit; downstream systems never infer success from presentation disappearance.
+- [x] **T10-003 — Define stable loot/world-item identity.** Reuse WorldObjectId where appropriate and add only the semantic item/payload identity actually needed.
+  - Loot identity is the prerequisite `WorldObjectId`; `LootPayload` adds only `ItemRef` plus positive quantity, so no parallel scene/prefab identity was introduced.
+- [x] **T10-004 — Define pickup/drop/container-transfer requests/results.** Include actor, source/destination and explicit failure reasons without duplicating Inventory transaction schema.
+  - `PickupRequest`, `ContainerTransferRequest`, `DropRequest`, and `LootTransferResult` carry `CharacterId`, world context, `InventoryId` endpoints and loot-specific failure while preserving the underlying `InventoryTransactionFailure`/`WorldInteractionFailure` instead of copying their schemas.
+- [x] **T10-005 — Define claim/current-state contract.** Represent enough authoritative state to serialize competing pickup attempts and project current availability.
+  - `LootStateSnapshot` stores object id, payload, `Available`/`Claimed`/`Removed`, and claimant identity; capture/restore uses this current-state representation.
+- [x] **T10-006 — Define committed transfer facts.** Emit semantic results after both world and inventory sides commit; downstream systems never infer success from presentation disappearance.
+  - `LootTransferFact` records transfer kind, actor, object, payload and inventory endpoints; Runtime constructs it only on the success path after the inventory transaction and authoritative loot state update succeed.
 
 ## Runtime
 
