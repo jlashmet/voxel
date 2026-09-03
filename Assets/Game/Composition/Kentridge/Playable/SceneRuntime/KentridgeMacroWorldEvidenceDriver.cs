@@ -23,6 +23,7 @@ namespace Game.Kentridge.PlayableSlice
     /// before continuing through the remaining physical-plan targets. Production streaming/rendering
     /// remains authoritative throughout.
     /// </summary>
+    [DefaultExecutionOrder(-100)]
     internal sealed class KentridgeMacroWorldEvidenceDriver : MonoBehaviour
     {
         private const string ValidationProfile = "kentridge-macro-world";
@@ -680,24 +681,42 @@ namespace Game.Kentridge.PlayableSlice
 
         private void PinToTargetDemand(EvidenceTarget target)
         {
-            int x = target.FocusDm.X;
-            int z = target.FocusDm.Y;
-            int ground = TerrainSampler.HeightAt(x, z, Seed);
-            _motor.Position = new Vector3(
-                x * DmToMetres,
-                ground * DmToMetres + 0.1f,
-                z * DmToMetres);
+            // Match the scene's built-in AutoSurvey contract: the CharacterMotor remains the
+            // streaming authority, so its eye must occupy the same world point as the real camera.
+            // Keeping it on the ground while the camera surveyed 70 m overhead made Storage and the
+            // renderer converge around different 3D demand points and left GPU core coverage waiting
+            // on non-resident regions indefinitely.
+            _motor.Position = ResolveSurveyMotorPosition(
+                target.CameraDm,
+                target.CameraHeightMetres,
+                _motor.EyeHeight);
             _motor.Velocity = Vector3.zero;
+        }
+
+        private static Vector3 ResolveSurveyMotorPosition(
+            Int2 cameraDm,
+            float cameraHeightMetres,
+            float eyeHeightMetres) =>
+            ResolveSurveyCameraPosition(cameraDm, cameraHeightMetres)
+            - Vector3.up * eyeHeightMetres;
+
+        private static Vector3 ResolveSurveyCameraPosition(
+            Int2 cameraDm,
+            float cameraHeightMetres)
+        {
+            int cameraGround = TerrainSampler.HeightAt(cameraDm.X, cameraDm.Y, Seed);
+            return new Vector3(
+                cameraDm.X * DmToMetres,
+                cameraGround * DmToMetres + cameraHeightMetres,
+                cameraDm.Y * DmToMetres);
         }
 
         private void ApplySurveyCamera(EvidenceTarget target)
         {
             if (_slice == null) return;
-            int cameraGround = TerrainSampler.HeightAt(target.CameraDm.X, target.CameraDm.Y, Seed);
-            _slice.transform.position = new Vector3(
-                target.CameraDm.X * DmToMetres,
-                cameraGround * DmToMetres + target.CameraHeightMetres,
-                target.CameraDm.Y * DmToMetres);
+            _slice.transform.position = ResolveSurveyCameraPosition(
+                target.CameraDm,
+                target.CameraHeightMetres);
             int focusGround = TerrainSampler.HeightAt(target.FocusDm.X, target.FocusDm.Y, Seed);
             Vector3 focus = new Vector3(
                 target.FocusDm.X * DmToMetres,
