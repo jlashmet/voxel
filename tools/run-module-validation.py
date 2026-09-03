@@ -27,6 +27,8 @@ def run_test(unity: str, item: dict, root: Path, test_filter: str | None = None)
     args.extend(["-testResults", str(xml), "-logFile", str(log)])
     env = os.environ.copy()
     env.update({"UNITY_BIN": unity, "UNITY_MAX_RSS_MB": "14336", "UNITY_MAX_MINUTES": "4"})
+    if platform == "PlayMode":
+        env["VOXEL_DISABLE_GPU_CUTOVER"] = "1"
     started = time.monotonic()
     subprocess.run(args, check=True, env=env)
     if not xml.is_file():
