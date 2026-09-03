@@ -39,6 +39,7 @@
 - [x] Isolate the remaining convergence defect from runtime traces: simple fallback buildings still pay a solid full-footprint foundation slab, with individual Moordell structures writing roughly 460k voxels even after the timber body became hollow.
 - [x] Replace that demonstrated-cost slab with four bounded perimeter-foundation boxes while preserving sampled-relief grounding, outer footprint, foundation material, wall support, collision silhouette, and definition bounds; extend the independent synthetic blockout regression to prove hollow foundation + <50% former slab volume.
 - [x] Prove the current documentation-only feature head does not justify another CI retry: comparing Retry 5 source `7e6d308...` to `9f6af00...` changes only this assignment's `plan.md`, `tasks.md`, and experiments 030-032, with zero production/test/workflow/scene deltas. See experiment 033.
+- [x] Audit renderer-independent acceptance against the current executable-equivalent state: source graph authority, physical hard-route reachability, semantic blocked-geography routing, reusable geographic authoring, and absence of a second scene-local/static graph are satisfied. Keep visual/cost and the newly extended perimeter regression gates open. See experiment 034.
 - [ ] Validate the perimeter-foundation throughput fix on the current exact SHA. Runs `33635511188` and `33635715141` were runner-memory infra failures. Retry 5 `33641059051` on exact source `7e6d30858677f2504763e891289293c9507cfd9f` had healthy admission but repository-derived validation failed first in 15 unrelated renderer/GPU EditMode tests, so the requested process-isolated Kentridge regression never executed. Current master `b18d470f...` now contains GPU renderer restoration, but the coordinator order requires green exact-SHA gates before merging current master; the current head has no executable delta from Retry 5, so do not issue an identical retry, cherry-pick/copy renderer changes, or claim this checkbox green. See experiments 030/031/033.
 - [ ] Re-run built-player authored shell/roof probes and require Fairy/Orc storage plus readable captures after the throughput fix. Retry 5 independently proves Moordell content-ready by ~85 s and correct 480-definition macro ownership, but renderer publication coverage stayed false through 180 s so strict evidence capture never advanced beyond Moordell readiness.
 
@@ -62,15 +63,15 @@
 - [ ] Re-run final exact-SHA targeted CI after the master merge; focused regression + repository-derived module validation + supported real-player smoke must all be green for the same final feature SHA.
 
 ## Acceptance / closure
-- [ ] (1) Source-backed macro graph remains authoritative through shared WorldBuilder APIs.
+- [x] (1) Source-backed macro graph remains authoritative through shared WorldBuilder APIs. Static/current-source audit plus prior ownership/module green evidence; experiment 034.
 - [ ] (2) Every settlement has readable physical presence, including >=4 grounded generic blockouts where no richer generator owns it.
-- [ ] (3) Every settlement is physically reachable from Kentridge over contiguous generated hard-route surfaces.
-- [ ] (4) Roads are terrain-aware; blocked geography requires explicit semantic solutions and no silent lake/cliff/building crossing.
-- [ ] (5) Reusable geographic authoring/query covers required region kinds, extents/elevation, relationships, deterministic variation, terrain output, and route/placement constraints.
+- [x] (3) Every settlement is physically reachable from Kentridge over contiguous generated hard-route surfaces. Production physical-plan regression and prior seven-target/ownership green evidence; experiment 034.
+- [x] (4) Roads are terrain-aware; blocked geography requires explicit semantic solutions and no silent lake/cliff/building crossing. Shared strict planner + independent blocked-water failure/solution fixture; experiment 034.
+- [x] (5) Reusable geographic authoring/query covers required region kinds, extents/elevation, relationships, deterministic variation, terrain output, and route/placement constraints. Shared config-driven API/planner plus independent fixtures; experiment 034.
 - [ ] (6) Built world visibly contains a substantial lake + ridge and at least one geography-altered hard route.
 - [ ] (7) Regional terrain visibly reads as differentiated countryside rather than a flat debug plane.
-- [ ] (8) No second scene-local graph/direct voxel-writing/static destination hierarchy.
-- [ ] (9) Focused behavioral regressions cover determinism, reachability, roads, settlements, constraints, blocked-route failure, spatial reservations, bounded water cost, evidence sequencing, vertical residency/readiness, settlement framing, hollow-shell cost, and runtime publication/storage discriminators.
+- [x] (8) No second scene-local graph/direct voxel-writing/static destination hierarchy. No `.unity` scene delta; Kentridge composition consumes shared graph/catalogues and semantic intent only; experiment 034.
+- [ ] (9) Focused behavioral regressions cover determinism, reachability, roads, settlements, constraints, blocked-route failure, spatial reservations, bounded water cost, evidence sequencing, vertical residency/readiness, settlement framing, hollow-shell cost, and runtime publication/storage discriminators. Broad suite exists, but keep unchecked until the newly extended perimeter-foundation regression executes green on the required exact state.
 - [ ] (10) Exact built-player evidence covers settlements, roads entering/leaving settlements, network survey, geography, constrained route, and CharacterMotor traversal without runtime exceptions.
 - [ ] (11) Blast radius and world-build/route/CPU/GPU/memory/streaming cost are measured against budgets.
 - [ ] Complete `resolutionSummary`, `regressionTest`, and `fixCommit` from the verified final result.
