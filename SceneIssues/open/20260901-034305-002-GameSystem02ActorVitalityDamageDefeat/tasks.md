@@ -49,7 +49,9 @@
 - [x] **T02-024 — Verify defeat does not resolve game.** Assert no direct dependency/call to Outcomes or session teardown.
   - Evidence: runtime assembly regression asserts no `Game.Outcomes.Runtime` or `Game.Combat.Runtime` reference.
 - [ ] **T02-025 — Run automatic module tests and dependent Combat tests.** Do not manually enumerate CI tests.
-  - Foundation evidence: exact-SHA feature parent `0fc4e0ae1f58f6ea7bfba405a4a2406c6c88d7de` passed workflow run `33485053919`, including automatic module validation and standalone-player replay. **Reopened for final validation** because T02-015 subsequently changed production Combat/Kentridge code; run a new exact-SHA gate and fix any constructor/call-site regressions it exposes.
+  - Foundation evidence: exact-SHA feature parent `0fc4e0ae1f58f6ea7bfba405a4a2406c6c88d7de` passed workflow run `33485053919`, including automatic module validation and standalone-player replay.
+  - Final-attempt evidence: source `682539206b05790d1f115d4cfe01650de2a3bfeb`, transport `e317e50496807ae2e8c99a522a26f6c5204d137e`, run `33714819448`. Module ownership is correct (`fallbackPaths=[]`). `Game.CharacterAI.Tests` 6/6, `Game.Combat.Tests` 4/4, `Game.Continuity.Tests` 7/7, `Game.GameplayReplication.Tests` 14/14, `Game.Vitality.Tests` 13/13, and explicit Combat/Vitality integration 4/4 all passed. Kentridge automatic player harness reached 80.0s with zero assertion failures, and the standalone SceneIssue replay also passed.
+  - **Blocked:** after the successful automatic player harness, renderer teardown throws `NullReferenceException` in `GpuSurfaceMirrorCoordinator.DetachPageArena` via `VoxelSurfaceScheduler.Dispose`, then Mono crashes during shutdown. Current `origin/master` is still `b18d470f66221c7cb6091249f4683c2d994bffec` and has no prerequisite fix. Do not change acceptance or the separate GPU renderer assignment; merge the renderer fix from master when available and rerun exact-SHA CI.
 
 ## Cleanup / close
 
