@@ -22,8 +22,13 @@
 - [x] Because the same strict-coverage symptom remained after that fix, isolate the new boundary before another production change. Experiment 038 shows `missingVisible=0/coreAbsent=0` immediately before the first macro survey, then `coreAbsent=2178` and `2922` as the evidence camera moves ~70m above the ground-pinned CharacterMotor; GPU requests remain admission-bound while strict coverage never recovers.
 - [x] Correct only the macro evidence composition to match the existing shipped `StepAutoSurvey` contract: explicit pre-slice execution order, one resolved survey camera position, and `CharacterMotor.EyePosition == rendered survey camera`. No shared renderer/world policy, load radius, generation/device budget, or strict coverage semantic changed.
 - [x] Classify run `33811917743` on exact source `a0f9998b755ab9bd467c05a2b1c478598ec84734` as test-harness compile red only: the new focused regression omitted `using MountingForce.WorldGen;`, so `Int2` did not resolve in either module validation or player build. No NUnit/product/player signal exists; experiment 039 records the boundary and the namespace-only correction.
-- [ ] Validate `KentridgeMacroWorldSurveyStreamingAlignmentTests.ElevatedSurveyPinsStreamingDemandToRenderedCameraBeforeSliceStreaming` on the corrected current exact feature SHA through `ci-test/fixes/agent-6` with the required 180-second SceneIssue replay.
-- [ ] Require strict built-player coverage to advance beyond Moordell after the survey-demand alignment fix; if the same symptom remains, isolate the new failure boundary before another fix.
+- [x] Validate `KentridgeMacroWorldSurveyStreamingAlignmentTests.ElevatedSurveyPinsStreamingDemandToRenderedCameraBeforeSliceStreaming`: run `33812580159` is workflow-green on exact source `32b8972a9e6f3876b87b2c2885f806727da23d78`, including the requested regression, repository-derived module validation, and the full 180-second standalone SceneIssue replay.
+- [x] Reject artifact `9915578779` for closure despite that green run: Moordell content becomes ready and radius-3 residency is correct, but strict publication never advances to Rossdam/Fairy/Orc/ridge/network. Eight GPU requests remain in phase 2 while some geometry continues publishing.
+- [x] Apply the required two-material-fix rule before a third remediation. Experiment 040 isolates a deterministic shared-renderer liveness defect: four two-record count-batch lanes share one dispatch-per-frame token, while fixed lane-0 sealing plus inline refill can starve the six records held by lanes 1-3 indefinitely.
+- [x] Implement the smallest renderer correctness correction: remove inline sealing, retain all existing capacities/budgets/fences/backpressure, and service eligible full/aged lanes through one round-robin seal cursor that advances only after successful GPU submission.
+- [x] Add `GpuCountBatchLaneFairnessTests.SaturatedCountBatchLanesUseRoundRobinSealAuthorityWithoutInlineBypass` as an independent source-contract/liveness regression for the demonstrated saturated-refill pattern.
+- [ ] Validate the GPU count-batch fairness regression on the current exact feature SHA through `ci-test/fixes/agent-6` with the required 180-second SceneIssue replay.
+- [ ] Require strict built-player coverage to advance beyond Moordell after the fairness fix; if the same symptom remains, isolate the new failure boundary before another fix.
 - [ ] Require real-player authored shell/roof storage and readable evidence for Fairy and Orc, not only Moordell.
 
 ## Remaining visual acceptance
@@ -37,12 +42,12 @@
 - [x] Terrain-relief sampling remains bounded to 25 x 16 = 400 deterministic catalogue queries; shared feature scheduler unchanged.
 - [x] Existing exact physical baseline: 20 hard routes, 824 route tiles, 5 constrained routes, 1,090 solve steps, 16 generic buildings, max road rise 2 voxels, road step 30 dm, Rossdam water depth 24 voxels, water primitive bounding cells 9,281,584.
 - [x] Horizontal residency remains radius 3 = exactly 29 accepted X/Z columns (`dx²+dz² <= 9`); no horizontal interest-radius expansion or device-budget change.
-- [x] Latest pre-survey-alignment replay preserves Moordell readiness around 85 s with 29 in-radius baseline residents and zero feature-only vertical extras.
+- [x] Latest aligned-survey replay reports Moordell radius-3 residency with `horizontalColumns=29`, `residentInRadius=58`, `baselineResident=58`, and `featureVerticalExtra=0`; the publication failure is not caused by added vertical residency.
 - [x] Partial runtime cost context captured: median FPS 103.9, median mean-frame 9.61 ms, worker-p95 median 3.018 ms, admission-total median 1.1605 ms, ~26.99 MiB cumulative render-arena uploads over 114 calls. These are not final steady-state/memory closure evidence.
 - [ ] Quantify final additional vertical resident/generated region count across the completed multi-target replay.
 - [ ] Quantify final target convergence timing for Moordell, Rossdam/lake, Fairy, Orc, ridge/pass, and network.
 - [ ] Measure final feature work/time, CPU/FPS, streaming convergence, render/far-field telemetry, and process/managed/native/GPU memory footprint against budgets.
-- [x] No unrelated SceneIssue implementation, feature-branch `.github/test-request.json`, alternate CI transport/workflow, CharacterMotor/load-radius/device-budget change, shared renderer semantic change, or weakened coverage gate.
+- [x] No unrelated SceneIssue implementation, feature-branch `.github/test-request.json`, alternate CI transport/workflow, CharacterMotor/load-radius/device-budget change, weakened coverage gate, or increased renderer concurrency/budget.
 - [ ] Re-check the final feature diff after the required final current-master merge and revalidate affected work if master advanced.
 
 ## Acceptance / closure
@@ -54,7 +59,7 @@
 - [ ] (6) Built world visibly contains a substantial lake + ridge and at least one geography-altered hard route.
 - [ ] (7) Regional terrain visibly reads as differentiated countryside rather than a flat debug plane.
 - [x] (8) No second scene-local graph/direct voxel-writing/static destination hierarchy.
-- [x] (9) Focused behavioral regressions cover determinism, reachability, roads, settlements, constraints, blocked-route failure, spatial reservations, bounded water cost, evidence sequencing, vertical residency/readiness, settlement framing, hollow-shell/plinth cost, and runtime publication/storage discriminators. The perimeter-foundation assertion is green in exact-SHA run `33800775569`; the independent coverage-radius regression is green in `33804821454`; the survey-demand alignment regression is pending corrected exact-SHA validation after the harness-only compile failure in `33811917743`.
+- [ ] (9) Focused behavioral regressions cover determinism, reachability, roads, settlements, constraints, blocked-route failure, spatial reservations, bounded water cost, evidence sequencing, vertical residency/readiness, settlement framing, hollow-shell/plinth cost, runtime publication/storage discriminators, and GPU count-batch liveness. Prior regressions are green; the new count-batch fairness regression is pending exact-SHA validation.
 - [ ] (10) Exact built-player evidence covers settlements, roads entering/leaving settlements, network survey, geography, constrained route, and CharacterMotor traversal without runtime exceptions.
 - [ ] (11) Blast radius and world-build/route/CPU/GPU/memory/streaming cost are measured against budgets; memory footprint and final multi-target steady-state evidence remain missing.
 - [ ] Complete `resolutionSummary`, `regressionTest`, and `fixCommit` from the verified final result.
