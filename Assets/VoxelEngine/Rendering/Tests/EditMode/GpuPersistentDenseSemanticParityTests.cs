@@ -43,55 +43,64 @@ namespace VoxelEngine.Tests.EditMode
             Assert.NotNull(probe, $"Semantic probe shader missing at {ProbeShaderPath}");
 
             using var mirror = new GpuVoxelBrickMirror(slotCapacity: 4);
-            using var materials = new NativeArray<byte>(
+            var materials = new NativeArray<byte>(
                 VoxelReadGrid.VoxelsPerBlock, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
-            using var surfaces = new NativeArray<ushort>(
+            var surfaces = new NativeArray<ushort>(
                 VoxelReadGrid.VoxelsPerBlock, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
-            using var boundaries = new NativeArray<byte>(
+            var boundaries = new NativeArray<byte>(
                 VoxelReadGrid.VoxelsPerBlock, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
 
-            Fill(materials, 3);
-            Fill(surfaces, 0x0021);
-            Fill(boundaries, 0x11);
+            try
+            {
+                Fill(materials, 3);
+                Fill(surfaces, 0x0021);
+                Fill(boundaries, 0x11);
 
-            int3 brickCoordinate = new(-3, 2, -5);
-            int3 localVoxel = new(3, 4, 5);
-            int voxelIndex = localVoxel.x
-                           + VoxelReadGrid.BlockEdge * (localVoxel.y
-                           + VoxelReadGrid.BlockEdge * localVoxel.z);
-            materials[voxelIndex] = 23;
-            surfaces[voxelIndex] = 0x5A6D;
-            boundaries[voxelIndex] = 0xC7;
+                int3 brickCoordinate = new(-3, 2, -5);
+                int3 localVoxel = new(3, 4, 5);
+                int voxelIndex = localVoxel.x
+                               + VoxelReadGrid.BlockEdge * (localVoxel.y
+                               + VoxelReadGrid.BlockEdge * localVoxel.z);
+                materials[voxelIndex] = 23;
+                surfaces[voxelIndex] = 0x5A6D;
+                boundaries[voxelIndex] = 0xC7;
 
-            VoxelBrickDelta delta = VoxelBrickDelta.MixedAt(
-                brickCoordinate, generation: 7, sourceSlot: 0);
-            delta.AddMaterial(3);
-            delta.AddMaterial(23);
-            Assert.AreEqual(
-                GpuBrickPublish.Uploaded,
-                mirror.Publish(delta, materials, surfaces, boundaries, elementOffset: 0, hasPayload: true));
-            Assert.IsTrue(mirror.TryGetSlot(brickCoordinate, out int slot));
+                VoxelBrickDelta delta = VoxelBrickDelta.MixedAt(
+                    brickCoordinate, generation: 7, sourceSlot: 0);
+                delta.AddMaterial(3);
+                delta.AddMaterial(23);
+                Assert.AreEqual(
+                    GpuBrickPublish.Uploaded,
+                    mirror.Publish(delta, materials, surfaces, boundaries, elementOffset: 0, hasPayload: true));
+                Assert.IsTrue(mirror.TryGetSlot(brickCoordinate, out int slot));
 
-            uint packedMixedEntry = 2u | (unchecked((uint)slot) << 16);
-            using var explicitDense = Structured(new[] { packedMixedEntry });
-            using var preparedDense = ResolvePersistentEntry(resolver, mirror, brickCoordinate);
+                uint packedMixedEntry = 2u | (unchecked((uint)slot) << 16);
+                using var explicitDense = Structured(new[] { packedMixedEntry });
+                using var preparedDense = ResolvePersistentEntry(resolver, mirror, brickCoordinate);
 
-            var preparedEntry = new uint[1];
-            preparedDense.GetData(preparedEntry);
-            Assert.AreEqual(packedMixedEntry, preparedEntry[0],
-                "Production persistent lookup must resolve the same packed mixed entry as an explicit dense cache.");
+                var preparedEntry = new uint[1];
+                preparedDense.GetData(preparedEntry);
+                Assert.AreEqual(packedMixedEntry, preparedEntry[0],
+                    "Production persistent lookup must resolve the same packed mixed entry as an explicit dense cache.");
 
-            int3 worldVoxel = brickCoordinate * VoxelReadGrid.BlockEdge + localVoxel;
-            uint[] explicitInputs = Sample(probe, mirror, explicitDense, brickCoordinate, worldVoxel);
-            uint[] persistentInputs = Sample(probe, mirror, preparedDense, brickCoordinate, worldVoxel);
+                int3 worldVoxel = brickCoordinate * VoxelReadGrid.BlockEdge + localVoxel;
+                uint[] explicitInputs = Sample(probe, mirror, explicitDense, brickCoordinate, worldVoxel);
+                uint[] persistentInputs = Sample(probe, mirror, preparedDense, brickCoordinate, worldVoxel);
 
-            Assert.AreEqual(23u, explicitInputs[0], "The probe must select the intended material byte.");
-            Assert.AreNotEqual(0u, explicitInputs[1], "The authored surface semantics must survive GPU payload decoding.");
-            Assert.AreEqual(0xC7u, explicitInputs[2], "The probe must select the intended boundary byte.");
-            CollectionAssert.AreEqual(
-                explicitInputs,
-                persistentInputs,
-                "Persistent directory resolution and explicit dense-cache sampling must expose identical material, surface, and boundary inputs.");
+                Assert.AreEqual(23u, explicitInputs[0], "The probe must select the intended material byte.");
+                Assert.AreNotEqual(0u, explicitInputs[1], "The authored surface semantics must survive GPU payload decoding.");
+                Assert.AreEqual(0xC7u, explicitInputs[2], "The probe must select the intended boundary byte.");
+                CollectionAssert.AreEqual(
+                    explicitInputs,
+                    persistentInputs,
+                    "Persistent directory resolution and explicit dense-cache sampling must expose identical material, surface, and boundary inputs.");
+            }
+            finally
+            {
+                if (boundaries.IsCreated) boundaries.Dispose();
+                if (surfaces.IsCreated) surfaces.Dispose();
+                if (materials.IsCreated) materials.Dispose();
+            }
         }
 
         private static ComputeBuffer ResolvePersistentEntry(
