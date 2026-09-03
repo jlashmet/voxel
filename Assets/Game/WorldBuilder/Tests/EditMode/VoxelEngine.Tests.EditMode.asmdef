@@ -9,6 +9,7 @@
         "VoxelEngine.Simulation.Runtime",
         "VoxelEngine.Composition",
         "VoxelEngine.Terrain.Api",
+        "VoxelEngine.Rendering.Api",
         "VoxelEngine.Rendering.Runtime",
         "VoxelEngine.Net.Api",
         "VoxelEngine.Net.Runtime",
