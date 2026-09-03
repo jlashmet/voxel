@@ -31,7 +31,7 @@
 - [x] Execute current-head `MountainLandformTests.SameSpecProducesSameMassesAndSurfaceSamples` and `SemanticShapeInputsProduceMateriallyDifferentMountainFamilies`; run `33473157863` passed both plus climate semantic checks.
 - [x] Execute current-head `MountainLandformTests.VoxelCatalogueCompilesExactSurfaceMassesWithinPrimitiveBudget`; run `33473157863` passed.
 - [x] Execute current-head `MountainRoadIntegrationTests`: legal route remains within semantic grade/cut-fill bounds, over-constrained route rejects, and lowering uses shared `EmitTerrainCorridor` with no `EmitRamp`. Exact-source run `33473157863` passed all three road integration tests.
-- [ ] Check raster/build cost, memory/bake blast radius, and shared-road behavior; keep global budgets and 240 s / 14 GiB guards unchanged.
+- [x] Check raster/build cost, memory/bake blast radius, and shared-road behavior; keep global budgets and 240 s / 14 GiB guards unchanged. Run `33715318543` baked the production payload in 167.186 s under the unchanged guard at 15,697,105 bytes; current-source run `33719954172` emitted the same-size payload with current signature/SHA. Current feature-vs-master diff changes neither shared `WorldRoadNetwork`/`EmitTerrainCorridor`, generic rasterisation, nor CI guard files; exact shared-road integration remained green in run `33473157863`.
 
 ## Mountain Dragon composition
 - [x] Recompose VoxelShowcase from parameterized natural mountain + shared road ascent + usable summit + supported red cube dragon + reusable proximity/cutscene dialogue.
