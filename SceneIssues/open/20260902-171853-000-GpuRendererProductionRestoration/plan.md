@@ -13,11 +13,15 @@ Run `33682727099` proved the exact standalone `CSSampleDensity` + full `SampleFi
 
 Run `33692310999` falsified a second combined-lookup design before production activation. Merely adding a bounded prepared-table alternate path plus two extra SRVs to the shared density include made both production density oracles fail `2197/2197` with GPU density `0.0`, collapsed downstream topology/transition output, and even perturbed the forced-persistent standalone control. The failed include experiment was reverted exactly. Because two materially different alternate-lookup designs now reproduce the same class of compiler corruption, production integration is blocked until the test-only `GpuPreparedLookupCompilerProbeTests` separates extra-resource declaration/layout from reachable alternate-resource branching on real Metal.
 
+Subsequent exact-SHA compiler probes separated that boundary: declaring the prepared SRVs but never using them passes, and a reachable runtime-disabled prepared branch also passes. Corruption therefore requires the active alternate lookup semantics to participate in the shared density path, not merely extra resources or branch reachability. The repair must keep persistent hash/probe resolution in a separate compute compilation unit.
+
 ## Repair direction
 
 Do not attempt more syntax reshaping. Preserve the world-scoped persistent GPU mirror, but isolate its coordinate hash/probe logic in a dedicated GPU resolver. That resolver produces the same packed empty/uniform/mixed brick entries as the legacy dense cache. All density, faceted, decoration, profile, and transition sampling then consumes only the resolved dense window, so `VoxelBrickDensity.hlsl` can compile without persistent-directory resolution. This must not reintroduce CPU per-chunk brick staging or readback.
 
 The first production slice is `VoxelBrickCacheResolver.compute`, an isolated resolver containing only persistent directory lookup and dense-entry publication. Its regression covers negative coordinates plus empty/uniform/mixed packed entries. After that kernel is proven, integrate it into the live batched extraction path while preserving batching/backpressure and then rerun the real production density oracle for source steps 1 and 2.
+
+Production integration is now implemented in feature commit `4609079f1109cb43b5dc747926020e0e28b08222`. `GpuSurfaceExtractor.CountBatchResources` owns one reusable `GpuBrickCachePreparation`; `DispatchCountBatch` resolves all lane requests in one resolver dispatch, removes the production `_brickCache.SetData(_brickCacheStaging)` CPU upload, and binds the resulting dense entries plus request views through both count and write batch kernels. Batch kernels compile with `VOXEL_BATCH_DENSE_LOOKUP`, while standalone/editor kernels retain the legacy one-window dense path. Unused reusable request slots are invalidated so smaller later batches cannot observe stale views. `GpuProductionBrickCacheArchitectureTests` guards the no-readback/no-CPU-reconstruction/reuse/binding contract. TGPU-010 remains open until exact-SHA Metal density/sample parity proves the implementation rather than only its architecture.
 
 ## Acceptance
 
@@ -34,4 +38,4 @@ Keep CPU voxel/storage truth authoritative. GPU code is a derived presentation b
 
 ## Remaining gates
 
-Prepared-resource compiler boundary probes -> production dense-window integration -> production density parity step 1/2 -> CPU/GPU semantic/topology suite -> persistent mirror correctness -> explicit no-silent-fallback/recovery contract -> automatic module validation -> exact-SHA built-player VoxelShowcase plus independent-consumer evidence -> performance/memory review -> close.
+Exact-SHA production density parity step 1/2 -> CPU/GPU semantic/topology suite -> persistent mirror correctness -> explicit no-silent-fallback/recovery contract -> automatic module validation -> exact-SHA built-player VoxelShowcase plus independent-consumer evidence -> performance/memory review -> close.
