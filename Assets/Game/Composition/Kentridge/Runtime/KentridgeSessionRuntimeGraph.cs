@@ -35,6 +35,16 @@ namespace Game.Composition.Kentridge.Runtime
     }
 
     /// <summary>
+    /// Optional capability on a composition-supplied actor host. It exposes only the extension factory;
+    /// concrete Input/Encounter/Combat/Vitality services remain private to the extension and are never
+    /// published as a broad service locator.
+    /// </summary>
+    public interface IKentridgeSessionRuntimeExtensionSource
+    {
+        IKentridgeSessionRuntimeExtensionFactory SessionRuntimeExtensionFactory { get; }
+    }
+
+    /// <summary>
     /// Kentridge composition adapter for the production SessionOrchestration graph. It reuses the
     /// existing campaign/world bootstrap and composes optional Unity-bound gameplay extensions from a
     /// factory supplied by the playable composition root.
@@ -87,7 +97,10 @@ namespace Game.Composition.Kentridge.Runtime
             IKentridgeSessionRuntimeExtension extension = null;
             try
             {
-                extension = _extensionFactory?.Compose(identity, _actors);
+                IKentridgeSessionRuntimeExtensionFactory extensionFactory =
+                    _extensionFactory
+                    ?? (_actors as IKentridgeSessionRuntimeExtensionSource)?.SessionRuntimeExtensionFactory;
+                extension = extensionFactory?.Compose(identity, _actors);
                 Current = new KentridgeSessionRuntimeGraph(session, extension, OnDisposed);
                 return Current;
             }
