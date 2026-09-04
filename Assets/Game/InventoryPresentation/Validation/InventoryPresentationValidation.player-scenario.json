@@ -11,6 +11,7 @@
   "timeline": {},
   "assertions": {
     "requiredLogPatterns": [
+      "INVENTORY_PRESENTATION_VALIDATION production-view-bound: True",
       "INVENTORY_PRESENTATION_VALIDATION ready: personal=6 chest=3 input=Ui",
       "INVENTORY_PRESENTATION_VALIDATION pending-stable: personal=6",
       "INVENTORY_PRESENTATION_VALIDATION transfer-committed: personal=4 chest=5",
