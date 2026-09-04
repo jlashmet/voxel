@@ -1,9 +1,15 @@
 {
-  "name": "Game.Input.Runtime",
-  "rootNamespace": "Game.Input.Runtime",
+  "name": "Game.Vfx.Runtime",
+  "rootNamespace": "Game.Vfx.Runtime",
   "references": [
-    "Game.Input.Api",
-    "Unity.InputSystem"
+    "Game.Vfx.Api",
+    "Game.Characters.Api",
+    "Game.WorldObjects.Api",
+    "Game.Vitality.Api",
+    "Game.Combat.Api",
+    "Game.Outcomes.Api",
+    "VoxelEngine.Edits.Api",
+    "Unity.Mathematics"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

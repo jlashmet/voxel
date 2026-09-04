@@ -1,0 +1,23 @@
+{
+  "name": "Game.Application.Validation",
+  "rootNamespace": "Game.Application.Validation",
+  "references": [
+    "Game.Application.Api",
+    "Game.Application.Runtime",
+    "Game.Input.Api",
+    "Game.Sessions.Api",
+    "Game.SessionOrchestration.Api",
+    "Game.Persistence.Api",
+    "Game.SessionPresentation.Api",
+    "Game.Outcomes.Api"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

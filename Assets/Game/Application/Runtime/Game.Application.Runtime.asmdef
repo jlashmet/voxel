@@ -1,9 +1,14 @@
 {
-  "name": "Game.Input.Runtime",
-  "rootNamespace": "Game.Input.Runtime",
+  "name": "Game.Application.Runtime",
+  "rootNamespace": "Game.Application.Runtime",
   "references": [
+    "Game.Application.Api",
     "Game.Input.Api",
-    "Unity.InputSystem"
+    "Game.Sessions.Api",
+    "Game.SessionOrchestration.Api",
+    "Game.Persistence.Api",
+    "Game.SessionPresentation.Api",
+    "Game.Outcomes.Api"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

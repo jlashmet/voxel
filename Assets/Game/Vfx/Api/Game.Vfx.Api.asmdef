@@ -1,9 +1,9 @@
 {
-  "name": "Game.Input.Runtime",
-  "rootNamespace": "Game.Input.Runtime",
+  "name": "Game.Vfx.Api",
+  "rootNamespace": "Game.Vfx.Api",
   "references": [
-    "Game.Input.Api",
-    "Unity.InputSystem"
+    "Game.Characters.Api",
+    "Game.WorldObjects.Api"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
@@ -13,5 +13,5 @@
   "autoReferenced": false,
   "defineConstraints": [],
   "versionDefines": [],
-  "noEngineReferences": false
+  "noEngineReferences": true
 }
