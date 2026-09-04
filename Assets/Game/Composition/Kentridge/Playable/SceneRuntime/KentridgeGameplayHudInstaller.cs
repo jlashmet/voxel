@@ -73,8 +73,8 @@ namespace Game.Kentridge.PlayableSlice
                 gameplay.VitalityQuery,
                 gameplay.EncounterQuery,
                 new KentridgeInteractionSource(slice, anchor.Characters),
-                progression: null,
-                transients: null,
+                null,
+                null,
                 _bindings,
                 gameplay.InputContexts);
 
