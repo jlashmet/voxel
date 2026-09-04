@@ -5,6 +5,8 @@ using Game.Encounters.Api;
 using Game.Hud.Api;
 using Game.Input.Api;
 using Game.Input.Runtime;
+using Game.Progression.Api;
+using Game.ProgressionPresentation.Api;
 using Game.Sessions.Api;
 using Game.Vitality.Api;
 using UnityEngine;
@@ -43,13 +45,14 @@ namespace Game.Hud.Runtime.Validation
                 null, "validation", "", 1);
 
             var bindings = new UnityInputBindingService();
+            var progression = new TrackedObjectiveHudSource(local, new Progression());
             var projector = new HudSnapshotProjector(
                 new Resolver(local, memberId),
                 new Party(partyMember),
                 new Vitality(new VitalitySnapshot(characterId, 73, 100, false, 4)),
                 new Encounters(encounter),
                 new Interaction(characterId),
-                new Progression(),
+                progression,
                 null,
                 bindings,
                 new Context());
@@ -58,7 +61,8 @@ namespace Game.Hud.Runtime.Validation
             if (!snapshot.Vitality.Visible || snapshot.Vitality.Current != 73 || !snapshot.Interaction.Visible
                 || snapshot.Interaction.BindingLabel != "E" || !snapshot.Encounter.Visible
                 || !snapshot.Encounter.CombatRequired || snapshot.Readiness != HudReadinessState.GameplayReady
-                || !snapshot.TrackedProgression.Visible)
+                || !snapshot.TrackedProgression.Visible
+                || snapshot.TrackedProgression.StableId != "quest:validation/objective:reach-gate")
                 throw new InvalidOperationException("HUD semantic projection did not produce the required validation state.");
 
             bindings.Rebind(StandardInputActions.Interact, KeyCode.F);
@@ -69,7 +73,7 @@ namespace Game.Hud.Runtime.Validation
 
             GameplayHudPresenter presenter = gameObject.AddComponent<GameplayHudPresenter>();
             presenter.Configure(projector, local);
-            Debug.Log(Success + " vitality=73/100 prompt=E combat=true readiness=GameplayReady objective=Reach the gate");
+            Debug.Log(Success + " vitality=73/100 prompt=E combat=true readiness=GameplayReady objective=Reach the gate source=System19");
         }
 
         private sealed class Resolver : IHudLocalPlayerResolver
@@ -109,8 +113,23 @@ namespace Game.Hud.Runtime.Validation
                 candidate = default; return false;
             }
         }
-        private sealed class Progression : IHudTrackedProgressionSource
-        { public bool TryGetTracked(LocalPlayerId local, out HudTrackedProgressionView tracked) { tracked = new HudTrackedProgressionView(true, "objective:gate", "Reach the gate", "2 / 3 landmarks"); return true; } }
+        private sealed class Progression : ITrackedObjectiveProjection
+        {
+            public bool TryGetTrackedObjective(out TrackedObjectiveSummary summary)
+            {
+                summary = new TrackedObjectiveSummary(
+                    new JournalObjectiveKey(
+                        new QuestId("quest:validation"),
+                        new ObjectiveId("objective:reach-gate")),
+                    "Way to Kentridge",
+                    "Reach the gate",
+                    ProgressionLifecycleState.Active,
+                    2,
+                    3,
+                    5);
+                return true;
+            }
+        }
         private sealed class Context : IInputContextService
         { public InputContextId ActiveContext => InputContextId.Exploration; public IInputContextLease Push(InputContextId context) { throw new NotSupportedException(); } }
     }
