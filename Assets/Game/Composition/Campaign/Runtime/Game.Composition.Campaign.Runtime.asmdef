@@ -9,7 +9,9 @@
     "Game.Story.Runtime",
     "Game.WorldBuilder.Api",
     "Game.Quests.Api",
-    "Game.Quests.Runtime"
+    "Game.Quests.Runtime",
+    "Game.Progression.Api",
+    "Game.Progression.Runtime"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
