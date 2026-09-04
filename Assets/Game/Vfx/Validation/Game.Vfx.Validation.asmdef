@@ -1,0 +1,23 @@
+{
+  "name": "Game.Vfx.Validation",
+  "rootNamespace": "Game.Vfx.Validation",
+  "references": [
+    "Game.Vfx.Api",
+    "Game.Vfx.Runtime",
+    "Game.Characters.Api",
+    "Game.WorldObjects.Api",
+    "Game.Vitality.Api",
+    "Game.Vitality.Runtime",
+    "VoxelEngine.Edits.Api",
+    "Unity.Mathematics"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

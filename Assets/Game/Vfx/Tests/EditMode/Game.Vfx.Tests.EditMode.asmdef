@@ -1,0 +1,24 @@
+{
+  "name": "Game.Vfx.Tests.EditMode",
+  "rootNamespace": "Game.Vfx.Tests",
+  "references": [
+    "Game.Vfx.Api",
+    "Game.Vfx.Runtime",
+    "Game.Characters.Api",
+    "Game.WorldObjects.Api",
+    "Game.Vitality.Api",
+    "Game.Vitality.Runtime",
+    "VoxelEngine.Edits.Api",
+    "Unity.Mathematics"
+  ],
+  "includePlatforms": ["Editor"],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": ["UNITY_INCLUDE_TESTS"],
+  "versionDefines": [],
+  "noEngineReferences": false,
+  "optionalUnityReferences": ["TestAssemblies"]
+}

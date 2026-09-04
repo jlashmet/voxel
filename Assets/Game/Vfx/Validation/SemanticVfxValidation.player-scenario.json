@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "runSeconds": 11,
+  "capture": {
+    "width": 1280,
+    "height": 720,
+    "intervalSeconds": 1.25,
+    "minimumFrames": 8,
+    "evidenceAfterSeconds": 1
+  },
+  "timeline": {},
+  "assertions": {
+    "requiredLogPatterns": [
+      "VFX_VALIDATION ready:",
+      "VFX_VALIDATION dedupe: predicted=Played confirmed=Deduplicated plays=1",
+      "VFX_VALIDATION defeat: occurred=True persistent=1",
+      "VFX_VALIDATION destruction: result=Played gameplayPhysics=0",
+      "VFX_VALIDATION reconnect: persistent=1"
+    ],
+    "forbiddenLogPatterns": [
+      "VFX_VALIDATION failure:",
+      "NullReferenceException",
+      "MissingReferenceException",
+      "Shader error"
+    ]
+  }
+}
