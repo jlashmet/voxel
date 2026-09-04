@@ -1,0 +1,17 @@
+{
+  "name": "Game.SessionOrchestration.Runtime",
+  "rootNamespace": "Game.SessionOrchestration.Runtime",
+  "references": [
+    "Game.SessionOrchestration.Api",
+    "Game.Outcomes.Api"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}
