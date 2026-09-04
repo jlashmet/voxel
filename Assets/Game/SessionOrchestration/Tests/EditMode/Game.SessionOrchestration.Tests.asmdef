@@ -1,0 +1,31 @@
+{
+  "name": "Game.SessionOrchestration.Tests",
+  "rootNamespace": "Game.SessionOrchestration.Tests",
+  "references": [
+    "Game.SessionOrchestration.Api",
+    "Game.SessionOrchestration.Runtime",
+    "Game.Outcomes.Api",
+    "Game.Characters.Api",
+    "Game.Encounters.Api",
+    "Game.Encounters.Runtime",
+    "Game.Combat.Api",
+    "Game.Combat.Runtime",
+    "Game.Vitality.Api",
+    "Game.Vitality.Runtime",
+    "Game.Composition.Campaign",
+    "Game.Composition.Campaign.Runtime",
+    "Game.Cutscenes.Api",
+    "Game.Progression.Api",
+    "Game.Quests.Api",
+    "Game.WorldBuilder.Api"
+  ],
+  "includePlatforms": ["Editor"],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

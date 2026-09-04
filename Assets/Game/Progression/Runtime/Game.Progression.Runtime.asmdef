@@ -2,7 +2,9 @@
   "name": "Game.Progression.Runtime",
   "rootNamespace": "Game.Progression.Runtime",
   "references": [
-    "Game.Progression.Api"
+    "Game.Progression.Api",
+    "Game.WorldObjects.Api",
+    "Game.Characters.Api"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
