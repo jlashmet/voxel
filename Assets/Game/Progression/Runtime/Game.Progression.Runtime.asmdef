@@ -1,0 +1,18 @@
+{
+  "name": "Game.Progression.Runtime",
+  "rootNamespace": "Game.Progression.Runtime",
+  "references": [
+    "Game.Progression.Api",
+    "Game.WorldObjects.Api",
+    "Game.Characters.Api"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}

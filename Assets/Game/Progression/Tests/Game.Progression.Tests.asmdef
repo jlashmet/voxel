@@ -1,14 +1,19 @@
 {
   "name": "Game.Progression.Tests",
   "rootNamespace": "Game.Progression.Tests",
-  "references": ["Game.Progression.Api"],
+  "references": [
+    "Game.Progression.Api",
+    "Game.Progression.Runtime",
+    "Game.Quests.Api",
+    "Game.Quests.Runtime"
+  ],
   "includePlatforms": ["Editor"],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
-  "overrideReferences": false,
-  "precompiledReferences": [],
+  "overrideReferences": true,
+  "precompiledReferences": ["nunit.framework.dll"],
   "autoReferenced": false,
-  "defineConstraints": [],
+  "defineConstraints": ["UNITY_INCLUDE_TESTS"],
   "versionDefines": [],
   "noEngineReferences": false
 }

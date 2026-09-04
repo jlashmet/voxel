@@ -1,0 +1,17 @@
+{
+  "formatVersion": 3,
+  "id": "20260831-032400-000-FarWorldVisibilitySemanticHlod",
+  "capturedUtc": "2026-08-31T03:24:00.0000000Z",
+  "note": "Far-world semantic HLOD / visibility feature. The selected design and original architectural requirements are retained in architecture-proposal.md; the completed implementation ledger and final validation evidence are retained in tasks.md and plan.md.",
+  "status": "fixed",
+  "resolvedUtc": "2026-09-04T06:29:23Z",
+  "resolutionSummary": "Implemented deterministic far-world terrain coverage, semantic structure presentation/HLOD, settlement clustering, vegetation/canopy/scatter far tiers, readiness-aware handoff, persistent coarse visual state, semantic/fallback separation, and shared Showcase/Kentridge integration without distant voxel residency. Exact targeted CI transport 7ec463acea2b5c228b318add583d5d9037948a4b validated feature source 507463a1382b1013d1b5fa4ab149a7d89800c88a in workflow run 33843669375. Affected module validation and standalone FarWorld/Water/Kentridge built-player validation passed. FarWorld evidence reached near/handoff/1/3/6/8/10/12 km with 66 semantic features, 3,185 near-terrain vertices and 6,321 far-terrain vertices. Final budget evidence recorded frameAvgMs=0.423, frameMaxMs=18.968, allocatedBytes=147478135, reservedBytes=241139712, rendererFound=1, instances=66, batches=9, cachedMeshes=5, cachedMaterials=6; the macOS player did not expose FrameTimingManager CPU/GPU split samples, so whole-frame timing was retained as the available timing evidence.",
+  "regressionTest": "Workflow 33843669375 on exact transport 7ec463acea2b5c228b318add583d5d9037948a4b: requested VoxelEngine.Tests.EditMode.FarFieldSemanticOwnershipTests; automatically required module validation passed; FarWorldVisibilityDemo, WaterDemo, and KentridgePlayableSlice standalone-player validations passed; required FARWORLD_VALIDATION ready/view=12km patterns present and forbidden failure/NullReference/MissingReference/shader-error patterns absent.",
+  "fixCommit": "507463a1382b1013d1b5fa4ab149a7d89800c88a",
+  "unityVersion": "6000.5.6f1",
+  "platform": "Rendering / WorldBuilder / Vegetation",
+  "sceneName": "FarWorldVisibilityDemo",
+  "scenePath": "Assets/VoxelEngine/Rendering/Validation/FarWorld/FarWorldVisibilityDemo.unity",
+  "sceneBuildIndex": 0,
+  "captures": []
+}
