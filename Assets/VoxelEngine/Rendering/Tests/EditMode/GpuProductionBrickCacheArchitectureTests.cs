@@ -100,7 +100,7 @@ namespace VoxelEngine.Tests.EditMode
             AssertNoBlockingGpuSync(writeBatch, "production write batch");
             AssertNoBlockingGpuSync(copyPublish, "production copy/publication");
             AssertNoBlockingGpuSync(context, "production extraction context");
-            AssertNoBlockingGpuSync(coordinator, "production mirror coordinator");
+            AssertNoBlockingGpuWait(coordinator, "production mirror coordinator");
             AssertNoBlockingGpuSync(pageArena, "production page arena");
             AssertNoBlockingGpuSync(gpuPhase, "solid worker GPU phase");
 
@@ -112,12 +112,23 @@ namespace VoxelEngine.Tests.EditMode
                 "Pending GPU work must not become a CPU snapshot merely because it is unfinished.");
             StringAssert.Contains("!s_ExtractionFence.passed", coordinator,
                 "The coordinator must inspect fence readiness without waiting on the fence.");
+            StringAssert.Contains("AsyncGPUReadback.Request(lane.Counters)", coordinator,
+                "Page-allocation bookkeeping must be requested asynchronously.");
+            StringAssert.Contains("!lane.Readback.done", coordinator,
+                "The coordinator must yield until asynchronous bookkeeping has completed.");
+            StringAssert.Contains("lane.Readback.GetData<uint>()", coordinator,
+                "Completed asynchronous bookkeeping may be inspected without blocking the frame.");
         }
 
         private static void AssertNoBlockingGpuSync(string source, string path)
         {
             StringAssert.DoesNotContain(".GetData(", source,
                 $"{path} must not synchronously read GPU buffers.");
+            AssertNoBlockingGpuWait(source, path);
+        }
+
+        private static void AssertNoBlockingGpuWait(string source, string path)
+        {
             StringAssert.DoesNotContain("WaitForCompletion(", source,
                 $"{path} must not synchronously wait for GPU readback.");
             StringAssert.DoesNotContain("WaitOnAsyncGraphicsFence(", source,
