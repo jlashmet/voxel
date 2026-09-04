@@ -203,12 +203,16 @@ namespace Game.Kentridge.PlayableSlice
                 _motor = new KentridgeCharacterHost(m_WalkSpeed);
                 _actors = _motor;
                 _presentation = new SlicePresentation(ApplyCutsceneCamera);
+                KentridgeForestBanditEncounter forestSessionExtension =
+                    GetComponent<KentridgeForestBanditEncounter>()
+                    ?? gameObject.AddComponent<KentridgeForestBanditEncounter>();
                 var sessionFactory = new KentridgeSessionRuntimeGraphFactory(
                     content.Blueprint,
                     generation,
                     new KentridgeVoxelSiteRealizationFacts(settlement, 1),
                     _actors,
-                    _presentation);
+                    _presentation,
+                    extensionFactory: forestSessionExtension);
                 _sessionOrchestration = new GameSessionOrchestrator(sessionFactory);
                 GameSessionOperationResult prepared = _sessionOrchestration.Prepare(
                     GameSessionStartRequest.NewGame(
