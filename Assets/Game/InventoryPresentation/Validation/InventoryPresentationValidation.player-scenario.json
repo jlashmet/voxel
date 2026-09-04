@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "runSeconds": 11,
+  "capture": {
+    "width": 1280,
+    "height": 720,
+    "intervalSeconds": 2,
+    "minimumFrames": 5,
+    "evidenceAfterSeconds": 1
+  },
+  "timeline": {},
+  "assertions": {
+    "requiredLogPatterns": [
+      "INVENTORY_PRESENTATION_VALIDATION ready: personal=6 chest=3 input=Ui",
+      "INVENTORY_PRESENTATION_VALIDATION pending-stable: personal=6",
+      "INVENTORY_PRESENTATION_VALIDATION transfer-committed: personal=4 chest=5",
+      "INVENTORY_PRESENTATION_VALIDATION drop-pending: gems=2",
+      "INVENTORY_PRESENTATION_VALIDATION drop-committed: gems=1",
+      "INVENTORY_PRESENTATION_VALIDATION recreate-stable: personal=4 gems=1",
+      "INVENTORY_PRESENTATION_VALIDATION nested-unwind: active=Ui"
+    ],
+    "forbiddenLogPatterns": [
+      "NullReferenceException",
+      "MissingReferenceException",
+      "INVENTORY_PRESENTATION_VALIDATION failure:"
+    ]
+  }
+}
