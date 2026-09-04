@@ -1,101 +1,151 @@
 using System;
 using System.Collections.Generic;
 
-namespace Game.Progression
+namespace Game.Progression.Api
 {
-    public enum ProgressionEntryKind { Quest = 0, StandaloneObjective = 1 }
-    public enum ProgressionNodeStatus { Inactive = 0, Active = 1, Completed = 2 }
-    public enum ProgressionConditionKind { Event = 0, NpcInteraction = 1, Interaction = 2, Always = 3 }
-    public enum ProgressionTransitionKind { EntryStarted = 0, NodeActivated = 1, NodeCompleted = 2, EntryCompleted = 3, RewardEmitted = 4 }
+    public enum ProgressionEntryKind
+    {
+        Quest = 0,
+        StandaloneObjective = 1
+    }
+
+    public enum ProgressionConditionKind
+    {
+        NpcInteraction = 0,
+        Interaction = 1
+    }
+
+    public enum ProgressionSignalKind
+    {
+        NpcInteracted = 0,
+        Interacted = 1
+    }
+
+    public enum ProgressionTransitionKind
+    {
+        EntryStarted = 0,
+        NodeActivated = 1,
+        ObjectiveProgressed = 2,
+        NodeCompleted = 3,
+        EntryCompleted = 4
+    }
+
+    public enum ProgressionApplyStatus
+    {
+        Applied = 0,
+        Replay = 1,
+        Rejected = 2
+    }
 
     public readonly struct ProgressionCondition
     {
-        public ProgressionCondition(ProgressionConditionKind kind, string subjectId)
+        private ProgressionCondition(ProgressionConditionKind kind, string subjectId)
         {
+            if (string.IsNullOrWhiteSpace(subjectId))
+                throw new ArgumentException("Progression condition subject id is required.", nameof(subjectId));
             Kind = kind;
-            SubjectId = subjectId ?? string.Empty;
+            SubjectId = subjectId;
         }
+
         public ProgressionConditionKind Kind { get; }
         public string SubjectId { get; }
-        public static ProgressionCondition Event(string eventId) => new ProgressionCondition(ProgressionConditionKind.Event, eventId);
-        public static ProgressionCondition NpcInteraction(string npcId) => new ProgressionCondition(ProgressionConditionKind.NpcInteraction, npcId);
-        public static ProgressionCondition Interaction(string subjectId) => new ProgressionCondition(ProgressionConditionKind.Interaction, subjectId);
-        public static ProgressionCondition Always() => new ProgressionCondition(ProgressionConditionKind.Always, string.Empty);
+
+        public static ProgressionCondition NpcInteraction(string npcId) =>
+            new ProgressionCondition(ProgressionConditionKind.NpcInteraction, npcId);
+
+        public static ProgressionCondition Interaction(string subjectId) =>
+            new ProgressionCondition(ProgressionConditionKind.Interaction, subjectId);
     }
 
+    /// <summary>
+    /// One reusable objective primitive. Quest steps compose these definitions and campaign objectives
+    /// register the same type directly.
+    /// </summary>
     public sealed class ObjectiveDefinition
     {
-        public ObjectiveDefinition(string objectiveId, string eventId, int requiredCount)
-            : this(objectiveId, ProgressionCondition.Event(eventId), requiredCount, string.Empty) { }
-        public ObjectiveDefinition(string objectiveId, ProgressionCondition condition, int requiredCount, string rewardId = "")
+        public ObjectiveDefinition(ObjectiveId id, ProgressionCondition condition, int requiredCount = 1)
         {
-            ObjectiveId = objectiveId;
+            if (!id.IsValid) throw new ArgumentException("Objective id is required.", nameof(id));
+            if (requiredCount <= 0) throw new ArgumentOutOfRangeException(nameof(requiredCount));
+            Id = id;
             Condition = condition;
             RequiredCount = requiredCount;
-            RewardId = rewardId ?? string.Empty;
         }
-        public string ObjectiveId { get; }
-        public string EventId => Condition.Kind == ProgressionConditionKind.Event ? Condition.SubjectId : string.Empty;
+
+        public ObjectiveDefinition(string objectiveId, ProgressionCondition condition, int requiredCount = 1)
+            : this(new ObjectiveId(objectiveId), condition, requiredCount) { }
+
+        public ObjectiveId Id { get; }
         public ProgressionCondition Condition { get; }
         public int RequiredCount { get; }
-        public string RewardId { get; }
     }
 
     public sealed class QuestStepDefinition
     {
-        public QuestStepDefinition(string stepId, IReadOnlyList<ObjectiveDefinition> objectives, IReadOnlyList<string> nextStepIds)
+        private readonly ObjectiveDefinition[] _objectives;
+
+        public QuestStepDefinition(
+            string stepId,
+            IReadOnlyList<ObjectiveDefinition> objectives,
+            string nextStepId = "")
         {
+            if (string.IsNullOrWhiteSpace(stepId)) throw new ArgumentException("Quest step id is required.", nameof(stepId));
+            if (objectives == null) throw new ArgumentNullException(nameof(objectives));
+            _objectives = new ObjectiveDefinition[objectives.Count];
+            for (var i = 0; i < objectives.Count; i++)
+                _objectives[i] = objectives[i] ?? throw new ArgumentException("Quest objective cannot be null.", nameof(objectives));
             StepId = stepId;
-            Objectives = objectives ?? Array.Empty<ObjectiveDefinition>();
-            NextStepIds = nextStepIds ?? Array.Empty<string>();
+            NextStepId = nextStepId ?? string.Empty;
         }
+
         public string StepId { get; }
-        public IReadOnlyList<ObjectiveDefinition> Objectives { get; }
-        public IReadOnlyList<string> NextStepIds { get; }
+        public IReadOnlyList<ObjectiveDefinition> Objectives => _objectives;
+        public string NextStepId { get; }
     }
 
     public sealed class QuestGraphDefinition
     {
-        public QuestGraphDefinition(string questId, string firstStepId, IReadOnlyList<QuestStepDefinition> steps)
+        private readonly QuestStepDefinition[] _steps;
+
+        public QuestGraphDefinition(QuestId id, string firstStepId, IReadOnlyList<QuestStepDefinition> steps)
         {
-            QuestId = questId;
+            if (!id.IsValid) throw new ArgumentException("Quest id is required.", nameof(id));
+            if (string.IsNullOrWhiteSpace(firstStepId)) throw new ArgumentException("First quest step id is required.", nameof(firstStepId));
+            if (steps == null) throw new ArgumentNullException(nameof(steps));
+            _steps = new QuestStepDefinition[steps.Count];
+            for (var i = 0; i < steps.Count; i++)
+                _steps[i] = steps[i] ?? throw new ArgumentException("Quest step cannot be null.", nameof(steps));
+            Id = id;
             FirstStepId = firstStepId;
-            Steps = steps ?? Array.Empty<QuestStepDefinition>();
         }
-        public string QuestId { get; }
+
+        public QuestGraphDefinition(string questId, string firstStepId, IReadOnlyList<QuestStepDefinition> steps)
+            : this(new QuestId(questId), firstStepId, steps) { }
+
+        public QuestId Id { get; }
         public string FirstStepId { get; }
-        public IReadOnlyList<QuestStepDefinition> Steps { get; }
+        public IReadOnlyList<QuestStepDefinition> Steps => _steps;
     }
 
-    public sealed class StandaloneObjectiveDefinition
-    {
-        public StandaloneObjectiveDefinition(string objectiveId, string eventId, int requiredCount)
-            : this(objectiveId, ProgressionCondition.Event(eventId), requiredCount, string.Empty) { }
-        public StandaloneObjectiveDefinition(string objectiveId, ProgressionCondition condition, int requiredCount, string rewardId = "")
-        {
-            ObjectiveId = objectiveId;
-            Condition = condition;
-            RequiredCount = requiredCount;
-            RewardId = rewardId ?? string.Empty;
-        }
-        public string ObjectiveId { get; }
-        public string EventId => Condition.Kind == ProgressionConditionKind.Event ? Condition.SubjectId : string.Empty;
-        public ProgressionCondition Condition { get; }
-        public int RequiredCount { get; }
-        public string RewardId { get; }
-    }
-
-    public enum ProgressionSignalKind { Event = 0, NpcInteracted = 1, Interacted = 2 }
-
+    /// <summary>
+    /// Semantic gameplay fact. Callers report what happened; only Progression evaluates completion.
+    /// </summary>
     public readonly struct ProgressionUpdateSignal
     {
-        public ProgressionUpdateSignal(string operationId, ProgressionSignalKind kind, string subjectId, int amount = 1)
+        public ProgressionUpdateSignal(
+            string operationId,
+            ProgressionSignalKind kind,
+            string subjectId,
+            int amount = 1)
         {
+            if (string.IsNullOrWhiteSpace(subjectId)) throw new ArgumentException("Progression subject id is required.", nameof(subjectId));
+            if (amount <= 0) throw new ArgumentOutOfRangeException(nameof(amount));
             OperationId = operationId ?? string.Empty;
             Kind = kind;
-            SubjectId = subjectId ?? string.Empty;
+            SubjectId = subjectId;
             Amount = amount;
         }
+
         public string OperationId { get; }
         public ProgressionSignalKind Kind { get; }
         public string SubjectId { get; }
@@ -104,87 +154,96 @@ namespace Game.Progression
 
     public readonly struct ProgressionTransition
     {
-        public ProgressionTransition(ProgressionTransitionKind kind, string entryId, string nodeId, string rewardId = "")
+        public ProgressionTransition(
+            ProgressionTransitionKind kind,
+            string entryId,
+            string nodeId,
+            string objectiveId = "",
+            int currentCount = 0,
+            int requiredCount = 0)
         {
             Kind = kind;
             EntryId = entryId ?? string.Empty;
             NodeId = nodeId ?? string.Empty;
-            RewardId = rewardId ?? string.Empty;
+            ObjectiveId = objectiveId ?? string.Empty;
+            CurrentCount = currentCount;
+            RequiredCount = requiredCount;
         }
+
         public ProgressionTransitionKind Kind { get; }
         public string EntryId { get; }
         public string NodeId { get; }
-        public string RewardId { get; }
+        public string ObjectiveId { get; }
+        public int CurrentCount { get; }
+        public int RequiredCount { get; }
     }
 
     public sealed class ProgressionUpdateResult
     {
-        public ProgressionUpdateResult(ProgressionApplyStatus status, IReadOnlyList<ProgressionTransition> transitions, string reason = "")
+        private readonly ProgressionTransition[] _transitions;
+
+        public ProgressionUpdateResult(
+            ProgressionApplyStatus status,
+            IReadOnlyList<ProgressionTransition> transitions,
+            string reason = "")
         {
+            if (transitions == null) throw new ArgumentNullException(nameof(transitions));
+            _transitions = new ProgressionTransition[transitions.Count];
+            for (var i = 0; i < transitions.Count; i++) _transitions[i] = transitions[i];
             Status = status;
-            Transitions = transitions ?? Array.Empty<ProgressionTransition>();
             Reason = reason ?? string.Empty;
         }
+
         public ProgressionApplyStatus Status { get; }
-        public IReadOnlyList<ProgressionTransition> Transitions { get; }
+        public IReadOnlyList<ProgressionTransition> Transitions => _transitions;
         public string Reason { get; }
     }
 
+    /// <summary>Focused entry view for Story/compatibility queries; persistence uses ProgressionSnapshot.</summary>
     public sealed class ProgressionEntrySnapshot
     {
-        public ProgressionEntrySnapshot(string entryId, ProgressionEntryKind kind, ProgressionNodeStatus status, string activeNodeId,
-            IReadOnlyList<string> completedNodeIds, IReadOnlyDictionary<string, int> objectiveCounts)
+        private readonly string[] _completedNodeIds;
+        private readonly Dictionary<string, int> _objectiveCounts;
+
+        public ProgressionEntrySnapshot(
+            string entryId,
+            ProgressionEntryKind kind,
+            ProgressionLifecycleState status,
+            string activeNodeId,
+            IReadOnlyList<string> completedNodeIds,
+            IReadOnlyDictionary<string, int> objectiveCounts,
+            ulong revision)
         {
-            EntryId = entryId ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(entryId)) throw new ArgumentException("Progression entry id is required.", nameof(entryId));
+            if (completedNodeIds == null) throw new ArgumentNullException(nameof(completedNodeIds));
+            if (objectiveCounts == null) throw new ArgumentNullException(nameof(objectiveCounts));
+            _completedNodeIds = new string[completedNodeIds.Count];
+            for (var i = 0; i < completedNodeIds.Count; i++) _completedNodeIds[i] = completedNodeIds[i];
+            _objectiveCounts = new Dictionary<string, int>(objectiveCounts, StringComparer.Ordinal);
+            EntryId = entryId;
             Kind = kind;
             Status = status;
             ActiveNodeId = activeNodeId ?? string.Empty;
-            CompletedNodeIds = completedNodeIds ?? Array.Empty<string>();
-            ObjectiveCounts = objectiveCounts ?? new Dictionary<string, int>();
+            Revision = revision;
         }
+
         public string EntryId { get; }
         public ProgressionEntryKind Kind { get; }
-        public ProgressionNodeStatus Status { get; }
+        public ProgressionLifecycleState Status { get; }
         public string ActiveNodeId { get; }
-        public IReadOnlyList<string> CompletedNodeIds { get; }
-        public IReadOnlyDictionary<string, int> ObjectiveCounts { get; }
+        public IReadOnlyList<string> CompletedNodeIds => _completedNodeIds;
+        public IReadOnlyDictionary<string, int> ObjectiveCounts => _objectiveCounts;
+        public ulong Revision { get; }
     }
 
-    public sealed class ProgressionStateSnapshot
-    {
-        public ProgressionStateSnapshot(IReadOnlyList<ProgressionEntrySnapshot> entries, IReadOnlyList<string> appliedOperationIds,
-            IReadOnlyList<string> emittedRewardIds, long compatibilitySequence)
-        {
-            Entries = entries ?? Array.Empty<ProgressionEntrySnapshot>();
-            AppliedOperationIds = appliedOperationIds ?? Array.Empty<string>();
-            EmittedRewardIds = emittedRewardIds ?? Array.Empty<string>();
-            CompatibilitySequence = compatibilitySequence;
-        }
-        public IReadOnlyList<ProgressionEntrySnapshot> Entries { get; }
-        public IReadOnlyList<string> AppliedOperationIds { get; }
-        public IReadOnlyList<string> EmittedRewardIds { get; }
-        public long CompatibilitySequence { get; }
-        public static ProgressionStateSnapshot Empty => new ProgressionStateSnapshot(Array.Empty<ProgressionEntrySnapshot>(), Array.Empty<string>(), Array.Empty<string>(), 0);
-    }
-
-    public interface IReadOnlyQuestGraphRegistry { bool TryGet(string questId, out QuestGraphDefinition definition); }
-    public interface IReadOnlyStandaloneObjectiveRegistry { bool TryGet(string objectiveId, out StandaloneObjectiveDefinition definition); }
-
-    public interface IProgressionCompletionConditionResolver
-    {
-        bool Matches(ProgressionCondition condition, ProgressionUpdateSignal signal);
-    }
-
-    public interface IProgressionRuntime
+    public interface IProgressionRuntime : IProgressionQuery
     {
         void RegisterQuest(QuestGraphDefinition definition);
-        void RegisterStandaloneObjective(StandaloneObjectiveDefinition definition);
+        void RegisterStandaloneObjective(ObjectiveDefinition definition);
         ProgressionUpdateResult Start(string entryId, string operationId = "");
         ProgressionUpdateResult Observe(ProgressionUpdateSignal signal);
-        ProgressionUpdateResult ForceComplete(string entryId, string operationId = "");
         ProgressionEntrySnapshot GetSnapshot(string entryId);
-        ProgressionStateSnapshot CaptureState();
-        void RestoreState(ProgressionStateSnapshot snapshot);
+        void RestoreState(ProgressionSnapshot snapshot);
         void Reset();
     }
 }
