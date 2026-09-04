@@ -38,6 +38,8 @@
 
 - [x] **T12-017 — Resolve WorldBuilder campaign factory symbol collision.** Exact-SHA revalidation must compile the Kentridge bridge by explicitly binding the existing `Game.WorldBuilder.Api.Campaign` factory instead of allowing the enclosing `Game.Composition.Campaign` namespace to win name resolution.
   - Evidence: exact-SHA workflow `33815602358` failed at `KentridgeForestEncounterRealization.cs:89` with CS0234 before tests/player build; `CampaignBlueprint.cs` confirms the intended public factory is `Game.WorldBuilder.Api.Campaign.Create`. `KentridgeForestEncounterRealization` now aliases that factory as `WorldBuilderCampaign`, keeping the fix local and API-neutral.
+- [ ] **T12-018 — Reconcile feature branch with authoritative current master.** Rebuild the System12 feature tree on current `origin/master` without carrying stale/reverted unrelated System09 or workflow content, then exact-SHA revalidate the reconciled source before closure.
+  - Evidence: after workflow `33821720482` passed source `3b9e2b80a7e1ee15d8270cfef206a292fa220546`, `origin/master` advanced to `04c43482768548f96db6f18234f1709a25b0d983`. Compare shows the prior history-only merge preserved the pre-master feature tree and would revert unrelated master content if promoted; this must be corrected before the final PR.
 
 ## Verification
 
