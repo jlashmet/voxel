@@ -1,0 +1,17 @@
+{
+  "name": "Game.Vitality.Runtime",
+  "rootNamespace": "Game.Vitality.Runtime",
+  "references": [
+    "Game.Vitality.Api",
+    "Game.Characters.Api"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}

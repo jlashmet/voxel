@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Game.Characters.Api;
 using Game.Composition.Campaign.Runtime;
 using Game.Composition.Kentridge.Api;
 using Game.Composition.WorldBuilderWorldGen;
@@ -16,17 +17,33 @@ namespace Game.Composition.Kentridge.Runtime
     {
         private static readonly ItemRef RewardRef =
             new ItemRef(KentridgeWellQuestDefinition.RewardItemId);
+        private static readonly InventoryTransactionId RewardTransactionId =
+            new InventoryTransactionId("kentridge.well-quest.reward");
 
-        public IInventoryRuntime Inventory { get; }
+        private readonly IInventoryQuery _inventory;
+        private readonly IInventoryAuthority _authority;
+        private readonly InventoryId _inventoryId;
 
-        public KentridgeWellQuestRewardRuntime(IInventoryRuntime inventory)
+        public KentridgeWellQuestRewardRuntime(
+            IInventoryQuery inventory,
+            IInventoryAuthority authority,
+            InventoryId inventoryId)
         {
-            Inventory = inventory ?? throw new ArgumentNullException(nameof(inventory));
+            _inventory = inventory ?? throw new ArgumentNullException(nameof(inventory));
+            _authority = authority ?? throw new ArgumentNullException(nameof(authority));
+            if (!inventoryId.IsValid) throw new ArgumentException("Inventory id is required.", nameof(inventoryId));
+            _inventoryId = inventoryId;
         }
 
         public bool Synchronize(bool questCompleted)
         {
-            return questCompleted && Inventory.TryAddUnique(RewardRef);
+            if (!questCompleted || _inventory.Count(_inventoryId, RewardRef) > 0) return false;
+            InventoryTransactionResult result = _authority.Add(new InventoryAddRequest(
+                RewardTransactionId,
+                _inventoryId,
+                RewardRef,
+                1));
+            return result.Succeeded && result.Changes.Count > 0;
         }
     }
 
@@ -38,19 +55,31 @@ namespace Game.Composition.Kentridge.Runtime
         public KentridgeCampaignGenerationPlan Generation { get; }
         public KentridgeCampaignWorldRealization World { get; }
         public CampaignRuntime Runtime { get; }
-        public IInventoryRuntime Inventory => _wellQuestRewards.Inventory;
+        public IInventoryQuery Inventory { get; }
+        public IInventoryAuthority InventoryAuthority { get; }
+        public IInventoryStatePort InventoryState { get; }
+        public InventoryId PlayerInventoryId { get; }
 
         internal KentridgeCampaignSession(
             CampaignBlueprint blueprint,
             KentridgeCampaignGenerationPlan generation,
             KentridgeCampaignWorldRealization world,
             CampaignRuntime runtime,
+            IInventoryQuery inventory,
+            IInventoryAuthority inventoryAuthority,
+            IInventoryStatePort inventoryState,
+            InventoryId playerInventoryId,
             KentridgeWellQuestRewardRuntime wellQuestRewards)
         {
             Blueprint = blueprint ?? throw new ArgumentNullException(nameof(blueprint));
             Generation = generation ?? throw new ArgumentNullException(nameof(generation));
             World = world ?? throw new ArgumentNullException(nameof(world));
             Runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
+            Inventory = inventory ?? throw new ArgumentNullException(nameof(inventory));
+            InventoryAuthority = inventoryAuthority ?? throw new ArgumentNullException(nameof(inventoryAuthority));
+            InventoryState = inventoryState ?? throw new ArgumentNullException(nameof(inventoryState));
+            if (!playerInventoryId.IsValid) throw new ArgumentException("Player inventory id is required.", nameof(playerInventoryId));
+            PlayerInventoryId = playerInventoryId;
             _wellQuestRewards = wellQuestRewards ?? throw new ArgumentNullException(nameof(wellQuestRewards));
         }
 
@@ -131,17 +160,30 @@ namespace Game.Composition.Kentridge.Runtime
                 KentridgeWellQuestDefinition.CreateDefinitions());
 
             ItemRef reward = new ItemRef(KentridgeWellQuestDefinition.RewardItemId);
-            var inventory = new InventoryRuntime(new[]
-            {
-                new ItemDefinition(reward, "Well Rescue Token", "W")
-            });
-            var rewards = new KentridgeWellQuestRewardRuntime(inventory);
+            CharacterId primaryCharacter = CharacterId.FromStableKey("player-slot", "0");
+            var playerInventoryId = new InventoryId("kentridge.inventory.player-slot-0");
+            var inventory = new InventoryRuntime(
+                new[] { new ItemDefinition(reward, "Well Rescue Token", "W") },
+                new[]
+                {
+                    new InventoryDescriptor(
+                        playerInventoryId,
+                        new InventoryBindingMetadata("character", primaryCharacter.Value))
+                });
+            var rewards = new KentridgeWellQuestRewardRuntime(
+                inventory,
+                inventory,
+                playerInventoryId);
 
             return new KentridgeCampaignSession(
                 blueprint,
                 generation,
                 world,
                 runtime,
+                inventory,
+                inventory,
+                inventory,
+                playerInventoryId,
                 rewards);
         }
 

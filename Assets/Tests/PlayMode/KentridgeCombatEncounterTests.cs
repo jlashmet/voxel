@@ -1,9 +1,12 @@
 using System.Collections;
 using System.Collections.Generic;
+using Game.Characters.Api;
 using Game.Combat.Api;
 using Game.Combat.Runtime;
 using Game.Composition.Kentridge.Playable;
 using Game.Input.Api;
+using Game.Vitality.Api;
+using Game.Vitality.Runtime;
 using MountingForce.WorldGen;
 using NUnit.Framework;
 using UnityEngine;
@@ -39,8 +42,6 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(encounter.CombatActive, Is.False, "Combat must not begin before the player enters a bandit's proximity radius.");
             Assert.That(encounter.ActiveInputContext, Is.EqualTo(InputContextId.Exploration));
 
-            // Start runs after all scene Awakes. Give the one-shot presentation repair one frame,
-            // then prove runtime gear uses the same player-compatible shader as the rigged actor.
             yield return null;
             for (int i = 0; i < encounter.Bandits.Count; i++)
                 AssertBanditGearUsesCharacterShader(encounter.Bandits[i]);
@@ -161,8 +162,6 @@ namespace VoxelEngine.Tests.PlayMode
             AssertTerminalTeams(authority, encounter.BattleDiagnostic);
             Assert.That(authority.ActiveParticipant.IsValid, Is.False, "Terminal combat cannot retain an active turn owner.");
 
-            // Stay in the trigger volume after terminal state. The resolved encounter must remain settled rather than
-            // immediately starting a fresh session from the same nearby bandit.
             float settleDeadline = Time.realtimeSinceStartup + 0.5f;
             while (Time.realtimeSinceStartup < settleDeadline)
                 yield return null;
@@ -176,14 +175,25 @@ namespace VoxelEngine.Tests.PlayMode
 
         private static BattleSnapshot RunDeterministicBattle(int seed)
         {
+            var characterIds = new[]
+            {
+                new CharacterId("kentridge-player"),
+                new CharacterId("forest-bandit-1"),
+                new CharacterId("forest-bandit-2"),
+                new CharacterId("forest-bandit-3")
+            };
             var participants = new CombatParticipant[]
             {
-                new CombatParticipant(new CombatParticipantId("kentridge-player"), CombatTeam.Player),
-                new CombatParticipant(new CombatParticipantId("forest-bandit-1"), CombatTeam.Enemy),
-                new CombatParticipant(new CombatParticipantId("forest-bandit-2"), CombatTeam.Enemy),
-                new CombatParticipant(new CombatParticipantId("forest-bandit-3"), CombatTeam.Enemy)
+                CombatParticipant.FromCharacter(characterIds[0], CombatTeam.Player),
+                CombatParticipant.FromCharacter(characterIds[1], CombatTeam.Enemy),
+                CombatParticipant.FromCharacter(characterIds[2], CombatTeam.Enemy),
+                CombatParticipant.FromCharacter(characterIds[3], CombatTeam.Enemy)
             };
-            var combat = new CombatService();
+            var vitality = new VitalityRegistry();
+            for (int i = 0; i < characterIds.Length; i++)
+                Assert.That(vitality.Register(VitalitySnapshot.Alive(characterIds[i], 6)), Is.True);
+
+            var combat = new CombatService(vitality);
             combat.BeginCombat(new CombatEncounterRequest("kentridge-forest-bandits", participants));
             var driver = new CombatAiBattleDriver(combat, seed);
             var actorsSeen = new HashSet<string>();
