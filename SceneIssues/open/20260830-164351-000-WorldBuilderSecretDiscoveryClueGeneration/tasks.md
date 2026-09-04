@@ -19,7 +19,7 @@
 - [x] Multiple legal routes resolve to one canonical discovery identity; revisit/reload/repeated activation is idempotent.
 - [x] `ProtectedShell`, `AuthoredBreakablesOnly`, and `SystemicBypassAllowed` represented and behaviorally tested.
 - [ ] Make clue realization explicitly route/mechanism-aware: direct traversal, terrain manipulation, interactable-backed mechanism, or allowed systemic bypass must drive compatible clue intent/presentation.
-- [ ] Reuse canonical interactable mechanisms for levers/buttons/plates/pushables/etc.; WorldBuilder may place/connect them but must not own duplicate interaction state.
+- [x] Reuse canonical interactable mechanisms for levers/buttons/plates/pushables/etc.; WorldBuilder may place/connect them but must not own duplicate interaction state. `SecretRouteWorldObjectIntegrationTests` proves mechanism execution/state restoration through the canonical WorldObject runtime and one canonical SecretDiscovery identity.
 - [ ] Introduce deterministic anomaly-composition selection across multiple motif families instead of a universal visual marker.
 - [ ] Make anomaly realization context-relative: score/alter local normality (for example density, material, silhouette, alignment, repetition, negative space) so the same clue intent can realize differently by environment.
 - [ ] Ensure mechanism-specific clue language supports player hypothesis formation (for example blastable wall reads as structurally breakable, diggable route reads as disturbed/soft terrain, lever route exposes mechanical evidence linking control and barrier).
@@ -45,7 +45,7 @@
 - [x] Exact request `698aa3347a3065d1e495ba260cc90913fde71907` / run `33852280392` completed without replacement and passed automatic module validation plus standalone SceneIssue replay on source `3e6cd24436fa0a5b3f8f23279697ada624734d16`.
 - [x] Full-resolution review of `33852280392` completed and classified visual evidence `unacceptable`: breakable frame remains below/through terrain with large void; natural frame still does not communicate an understandable cave clue at gameplay scale.
 - [x] Apply the issue-guide two-fix rule: stop speculative SecretDiscovery-side visual changes after publication, convergence, and validation-fidelity fixes all leave the same base Gallery renderer symptom.
-- [x] Shared GPU renderer restoration became authoritative on master via PR #230 and was merged into `fixes/agent-5` via PR #266, producing feature head `cf0e95237d1965c99d0f9522e302794ab8a13a4a` before these documentation changes.
+- [x] Shared GPU renderer restoration became authoritative on master via PR #230 and was merged into `fixes/agent-5` via PR #266, producing feature head `cf0e95237d1965c99d0f9522e302794ab8a13a4a` before later work.
 - [x] Classify run `33863772871` failure in `derive automatic module validation plan`: required master sync introduced nested tested module roots (`.../Playable` and `.../Playable/SceneRuntime`), and recursive runtime asmdef discovery assigned `Game.Kentridge.PlayableSlice` to both before `plan.json` could be written. This is a deterministic planner regression, not retryable infrastructure and not a SecretDiscovery replay failure.
 - [x] Fix nested module ownership narrowly by assigning runtime asmdefs to the nearest discovered module root while retaining duplicate-token fail-closed checks; add a focused Python regression fixture for the nested Kentridge shape.
 - [ ] Run fresh exact-SHA targeted validation on the new feature head after confirming then-current master state.
@@ -60,7 +60,7 @@
 - [x] Fresh exact-SHA targeted gate was green for feature SHA `3e6cd24436fa0a5b3f8f23279697ada624734d16` via run `33852280392`; later branch changes require a new exact validation before closure.
 - [ ] All acceptance criteria green from exact tests + built-player evidence.
 - [ ] Move assigned SceneIssue `open -> closed`, set `status=fixed` and `resolvedUtc`, and complete supported resolution fields.
-- [ ] Integrate then-current `origin/master` into `fixes/agent-5` before final promotion.
+- [x] Integrate then-current `origin/master` into `fixes/agent-5` before the next validation; current master `283b512cf6dac4feba5f1cfd5b9d79ef0b3075e8` was merged through PR #272. Recheck again before final promotion if master advances.
 - [ ] Open final `fixes/agent-5` -> `master` PR and enable auto-merge immediately.
 - [ ] Required PR `affected` gate plus canonical standalone Kentridge full-app test pass.
 - [ ] Confirm PR merged and closed SceneIssue visible on `origin/master`.
