@@ -7,7 +7,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using VoxelEngine.Collision.Api;
-using VoxelEngine.Rendering.Runtime;
+using VoxelEngine.Composition;
 
 namespace VoxelEngine.Showcase
 {
@@ -219,72 +219,39 @@ namespace VoxelEngine.Showcase
         /// <summary>
         /// The Gallery player can finish its blocking bake/bootstrap before URP has built the
         /// camera's visible solid chunks. Capturing an underground clue during that cold interval
-        /// photographs the world underside even though authoritative cave voxels are correct. For
-        /// SceneIssue/offline evidence only, spend a larger share of the existing renderer budgets
-        /// and wait for the production surface metrics to report no missing visible solid chunks.
-        /// No geometry, camera placement, storage state or renderer implementation is substituted.
+        /// photographs the world underside even though authoritative cave voxels are correct.
+        /// Reset the production renderer's application-owned diagnostics after the camera is pinned,
+        /// then wait for two consecutive complete visible-surface frames. This preserves the
+        /// Rendering.Runtime boundary instead of reaching into VoxelRenderBridge from Showcase.
         /// </summary>
         private IEnumerator WaitForSolidRendererConvergence(string label)
         {
-            double originalBuildBudgetMs = VoxelRenderBridge.SolidBuildBudgetMs;
-            int originalUploadBudgetBytes = VoxelRenderBridge.SolidUploadBudgetBytes;
-            double originalUploadBudgetMs = VoxelRenderBridge.SolidUploadBudgetMs;
-            double originalDiscoveryBudgetMs = VoxelRenderBridge.SurfaceDiscoveryBudgetMs;
-            double originalConvergenceScale = VoxelRenderBridge.SurfaceConvergenceBudgetScale;
-            int initialPassCount = VoxelRenderBridge.SurfacePassRecordCount;
+            RenderingComposition.ResetSurfacePassDiagnostics($"secret-discovery-{label}");
             float waited = 0f;
             int stableFrames = 0;
             _rendererConvergenceFailed = false;
 
-            try
+            while (waited < BreakableRendererConvergenceTimeoutSeconds)
             {
-                // VoxelRenderBridge explicitly reserves these knobs for loading/offline capture
-                // convergence. Raise only the validation replay's spend; production defaults are
-                // restored in finally even when convergence times out.
-                VoxelRenderBridge.SolidBuildBudgetMs = Math.Max(originalBuildBudgetMs, 2.0);
-                VoxelRenderBridge.SolidUploadBudgetBytes = Math.Max(originalUploadBudgetBytes, 8 * 1024 * 1024);
-                VoxelRenderBridge.SolidUploadBudgetMs = Math.Max(originalUploadBudgetMs, 1.0);
-                VoxelRenderBridge.SurfaceDiscoveryBudgetMs = Math.Max(originalDiscoveryBudgetMs, 0.75);
-                VoxelRenderBridge.SurfaceConvergenceBudgetScale = Math.Max(originalConvergenceScale, 16.0);
+                yield return null;
+                waited += Time.unscaledDeltaTime;
 
-                while (waited < BreakableRendererConvergenceTimeoutSeconds)
-                {
-                    yield return null;
-                    waited += Time.unscaledDeltaTime;
+                RenderingComposition.GetVoxelSurfaceCounts(out int visible, out int missing);
+                bool completeVisibleSurface = visible > 0 && missing == 0;
+                stableFrames = completeVisibleSurface ? stableFrames + 1 : 0;
+                if (stableFrames < 2) continue;
 
-                    var metrics = VoxelRenderBridge.SurfaceMetrics;
-                    bool renderedAfterPin = VoxelRenderBridge.SurfacePassRecordCount > initialPassCount;
-                    bool completeVisibleSurface = renderedAfterPin
-                        && metrics.VisibleSolidChunks > 0
-                        && metrics.MissingVisibleSolidChunks == 0;
-                    stableFrames = completeVisibleSurface ? stableFrames + 1 : 0;
-                    if (stableFrames < 2) continue;
-
-                    UnityEngine.Debug.Log(
-                        $"SECRET_DISCOVERY_RENDER_CONVERGENCE result=PASS frame={label} " +
-                        $"waited={waited:0.###} visible={metrics.VisibleSolidChunks} " +
-                        $"missing={metrics.MissingVisibleSolidChunks} dirty={metrics.SolidDirtyChunks} " +
-                        $"running={metrics.RunningGeometryJobs} pendingUploads={metrics.SolidMeshesAwaitingUpload}");
-                    yield break;
-                }
-
-                var finalMetrics = VoxelRenderBridge.SurfaceMetrics;
-                _rendererConvergenceFailed = true;
-                UnityEngine.Debug.LogError(
-                    $"SECRET_DISCOVERY_RENDER_CONVERGENCE result=FAIL frame={label} " +
-                    $"waited={waited:0.###} passes={VoxelRenderBridge.SurfacePassRecordCount - initialPassCount} " +
-                    $"visible={finalMetrics.VisibleSolidChunks} missing={finalMetrics.MissingVisibleSolidChunks} " +
-                    $"dirty={finalMetrics.SolidDirtyChunks} running={finalMetrics.RunningGeometryJobs} " +
-                    $"pendingUploads={finalMetrics.SolidMeshesAwaitingUpload}");
+                UnityEngine.Debug.Log(
+                    $"SECRET_DISCOVERY_RENDER_CONVERGENCE result=PASS frame={label} " +
+                    $"waited={waited:0.###} visible={visible} missing={missing}");
+                yield break;
             }
-            finally
-            {
-                VoxelRenderBridge.SolidBuildBudgetMs = originalBuildBudgetMs;
-                VoxelRenderBridge.SolidUploadBudgetBytes = originalUploadBudgetBytes;
-                VoxelRenderBridge.SolidUploadBudgetMs = originalUploadBudgetMs;
-                VoxelRenderBridge.SurfaceDiscoveryBudgetMs = originalDiscoveryBudgetMs;
-                VoxelRenderBridge.SurfaceConvergenceBudgetScale = originalConvergenceScale;
-            }
+
+            RenderingComposition.GetVoxelSurfaceCounts(out int finalVisible, out int finalMissing);
+            _rendererConvergenceFailed = true;
+            UnityEngine.Debug.LogError(
+                $"SECRET_DISCOVERY_RENDER_CONVERGENCE result=FAIL frame={label} " +
+                $"waited={waited:0.###} visible={finalVisible} missing={finalMissing}");
         }
 
         private static void RequireMinimumFramingDistance(
