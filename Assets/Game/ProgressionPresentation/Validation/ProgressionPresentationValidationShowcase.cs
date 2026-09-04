@@ -114,13 +114,25 @@ namespace Game.ProgressionPresentation.Validation
                 { ReachGate, new ObjectivePresentationContent(ReachGate, "Reach the old gate", "Follow the road to the ruined gate.", 10) },
                 { OpenGate, new ObjectivePresentationContent(OpenGate, "Open the gate", "Find a way through without revealing future objectives early.", 20) }
             };
+
             public bool TryGetQuest(QuestId questId, out QuestPresentationContent content)
             {
                 content = new QuestPresentationContent(Quest, "The Old Road", 10);
                 return questId == Quest;
             }
-            public bool TryGetObjective(QuestId questId, ObjectiveId objectiveId, out ObjectivePresentationContent content) => questId == Quest && _objectives.TryGetValue(objectiveId, out content);
-            public bool TryGetStandaloneObjective(ObjectiveId objectiveId, out ObjectivePresentationContent content) { content = default; return false; }
+
+            public bool TryGetObjective(QuestId questId, ObjectiveId objectiveId, out ObjectivePresentationContent content)
+            {
+                if (questId == Quest) return _objectives.TryGetValue(objectiveId, out content);
+                content = default;
+                return false;
+            }
+
+            public bool TryGetStandaloneObjective(ObjectiveId objectiveId, out ObjectivePresentationContent content)
+            {
+                content = default;
+                return false;
+            }
         }
     }
 }
