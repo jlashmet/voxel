@@ -1,189 +1,148 @@
 using System;
 using System.Collections.Generic;
+using Game.Progression;
+using Game.Progression.Runtime;
 using Game.Quests.Api;
 
 namespace Game.Quests.Runtime
 {
-    /// <summary>
-    /// Deterministic authoritative quest-state machine. Definitions are immutable; this type owns only
-    /// mutable progression state. The first slice supports linear multi-step quests while preserving an
-    /// API shape that can later add branching without changing authored/generated QuestDefinition identity.
-    /// </summary>
+    /// <summary>Compatibility facade. Canonical mutable quest state is owned by ProgressionRuntime.</summary>
     public sealed class QuestRuntime
     {
-        private sealed class RuntimeQuest
-        {
-            public QuestDefinition Definition { get; }
-            public QuestStepStatus[] StepStates { get; }
-            public QuestStatus Status { get; set; }
-            public int ActiveStepIndex { get; set; }
-
-            public RuntimeQuest(QuestDefinition definition)
-            {
-                Definition = definition ?? throw new ArgumentNullException(nameof(definition));
-                StepStates = new QuestStepStatus[definition.Steps.Count];
-                for (var i = 0; i < StepStates.Length; i++)
-                    StepStates[i] = QuestStepStatus.Locked;
-                Status = QuestStatus.Inactive;
-                ActiveStepIndex = -1;
-            }
-        }
-
-        private readonly List<RuntimeQuest> _ordered = new List<RuntimeQuest>();
-        private readonly Dictionary<QuestRef, RuntimeQuest> _byRef =
-            new Dictionary<QuestRef, RuntimeQuest>();
+        private readonly List<QuestDefinition> _ordered = new List<QuestDefinition>();
+        private readonly Dictionary<QuestRef, QuestDefinition> _byRef = new Dictionary<QuestRef, QuestDefinition>();
+        private readonly ProgressionRuntime _progression;
 
         public QuestRuntime(IReadOnlyList<QuestDefinition> definitions)
+            : this(definitions, new ProgressionRuntime()) { }
+
+        public QuestRuntime(IReadOnlyList<QuestDefinition> definitions, ProgressionRuntime progression)
         {
             if (definitions == null) throw new ArgumentNullException(nameof(definitions));
-
+            _progression = progression ?? throw new ArgumentNullException(nameof(progression));
             for (var i = 0; i < definitions.Count; i++)
             {
-                QuestDefinition definition = definitions[i]
-                    ?? throw new InvalidOperationException(
-                        "Quest definition collection contains null at index " + i + ".");
-                if (_byRef.ContainsKey(definition.Ref))
-                    throw new InvalidOperationException(
-                        "Quest definition collection contains duplicate quest ref '" + definition.Ref + "'.");
-
-                var runtime = new RuntimeQuest(definition);
-                _ordered.Add(runtime);
-                _byRef.Add(definition.Ref, runtime);
+                QuestDefinition definition = definitions[i] ?? throw new InvalidOperationException("Quest definition collection contains null at index " + i + ".");
+                if (_byRef.ContainsKey(definition.Ref)) throw new InvalidOperationException("Quest definition collection contains duplicate quest ref '" + definition.Ref + "'.");
+                _ordered.Add(definition);
+                _byRef.Add(definition.Ref, definition);
+                _progression.RegisterQuest(ToProgressionDefinition(definition));
             }
         }
+
+        public ProgressionRuntime Progression => _progression;
 
         public IReadOnlyList<QuestEvent> Start(QuestRef quest)
         {
-            RuntimeQuest runtime = RequireQuest(quest);
-            if (runtime.Status == QuestStatus.Completed)
-                throw new InvalidOperationException("Cannot restart completed quest '" + quest + "'.");
-            if (runtime.Status == QuestStatus.Failed)
-                throw new InvalidOperationException("Cannot restart failed quest '" + quest + "'.");
-            if (runtime.Status == QuestStatus.Active)
-                return Array.Empty<QuestEvent>();
-
-            runtime.Status = QuestStatus.Active;
-            runtime.ActiveStepIndex = 0;
-            runtime.StepStates[0] = QuestStepStatus.Active;
-
-            return new[]
-            {
-                QuestEvent.Started(quest),
-                QuestEvent.StepActivated(quest, runtime.Definition.Steps[0].Ref)
-            };
+            QuestDefinition definition = RequireQuest(quest);
+            ProgressionEntrySnapshot before = _progression.GetSnapshot(quest.Id);
+            if (before.Status == ProgressionNodeStatus.Completed) throw new InvalidOperationException("Cannot restart completed quest '" + quest + "'.");
+            if (before.Status == ProgressionNodeStatus.Active) return Array.Empty<QuestEvent>();
+            ProgressionUpdateResult result = _progression.Start(quest.Id);
+            return MapTransitions(result.Transitions, definition.Ref);
         }
 
         public IReadOnlyList<QuestEvent> Observe(QuestObservation observation)
         {
-            var events = new List<QuestEvent>();
-
-            // Definition order is authoritative. Never use dictionary enumeration here: one gameplay
-            // observation may advance several active quests and their emitted event order must be stable.
-            for (var i = 0; i < _ordered.Count; i++)
+            ProgressionSignalKind kind;
+            switch (observation.Kind)
             {
-                RuntimeQuest runtime = _ordered[i];
-                if (runtime.Status != QuestStatus.Active || runtime.ActiveStepIndex < 0)
-                    continue;
-
-                int stepIndex = runtime.ActiveStepIndex;
-                QuestStepDefinition step = runtime.Definition.Steps[stepIndex];
-                if (!Matches(step.Completion, observation))
-                    continue;
-
-                runtime.StepStates[stepIndex] = QuestStepStatus.Completed;
-                runtime.ActiveStepIndex = -1;
-                events.Add(QuestEvent.StepCompleted(runtime.Definition.Ref, step.Ref));
-
-                int next = stepIndex + 1;
-                if (next < runtime.Definition.Steps.Count)
-                {
-                    runtime.ActiveStepIndex = next;
-                    runtime.StepStates[next] = QuestStepStatus.Active;
-                    events.Add(QuestEvent.StepActivated(
-                        runtime.Definition.Ref,
-                        runtime.Definition.Steps[next].Ref));
-                }
-                else
-                {
-                    runtime.Status = QuestStatus.Completed;
-                    events.Add(QuestEvent.Completed(runtime.Definition.Ref));
-                }
+                case QuestObservationKind.NpcInteracted: kind = ProgressionSignalKind.NpcInteracted; break;
+                case QuestObservationKind.Interacted: kind = ProgressionSignalKind.Interacted; break;
+                default: throw new InvalidOperationException("Unsupported quest observation kind '" + observation.Kind + "'.");
             }
-
+            ProgressionUpdateResult result = _progression.Observe(new ProgressionUpdateSignal(string.Empty, kind, observation.SubjectId, 1));
+            var events = new List<QuestEvent>();
+            for (var i = 0; i < result.Transitions.Count; i++)
+            {
+                ProgressionTransition transition = result.Transitions[i];
+                QuestDefinition definition;
+                if (!TryGetById(transition.EntryId, out definition)) continue;
+                AppendMapped(events, transition, definition.Ref);
+            }
             return events;
         }
 
         public IReadOnlyList<QuestEvent> Complete(QuestRef quest)
         {
-            RuntimeQuest runtime = RequireQuest(quest);
-            if (runtime.Status != QuestStatus.Active)
-                throw new InvalidOperationException(
-                    "Cannot complete quest '" + quest + "' because it is not active.");
-
-            var events = new List<QuestEvent>();
-            if (runtime.ActiveStepIndex >= 0)
-            {
-                int active = runtime.ActiveStepIndex;
-                runtime.StepStates[active] = QuestStepStatus.Completed;
-                events.Add(QuestEvent.StepCompleted(
-                    runtime.Definition.Ref,
-                    runtime.Definition.Steps[active].Ref));
-            }
-
-            for (var i = 0; i < runtime.StepStates.Length; i++)
-                if (runtime.StepStates[i] == QuestStepStatus.Locked)
-                    runtime.StepStates[i] = QuestStepStatus.Skipped;
-
-            runtime.ActiveStepIndex = -1;
-            runtime.Status = QuestStatus.Completed;
-            events.Add(QuestEvent.Completed(runtime.Definition.Ref));
-            return events;
+            QuestDefinition definition = RequireQuest(quest);
+            if (_progression.GetSnapshot(quest.Id).Status != ProgressionNodeStatus.Active)
+                throw new InvalidOperationException("Cannot complete quest '" + quest + "' because it is not active.");
+            ProgressionUpdateResult result = _progression.ForceComplete(quest.Id);
+            return MapTransitions(result.Transitions, definition.Ref);
         }
 
-        public bool IsActive(QuestRef quest) => RequireQuest(quest).Status == QuestStatus.Active;
-        public bool IsCompleted(QuestRef quest) => RequireQuest(quest).Status == QuestStatus.Completed;
+        public bool IsActive(QuestRef quest) => _progression.GetSnapshot(RequireQuest(quest).Ref.Id).Status == ProgressionNodeStatus.Active;
+        public bool IsCompleted(QuestRef quest) => _progression.GetSnapshot(RequireQuest(quest).Ref.Id).Status == ProgressionNodeStatus.Completed;
 
         public QuestSnapshot GetSnapshot(QuestRef quest)
         {
-            RuntimeQuest runtime = RequireQuest(quest);
-            var steps = new QuestStepSnapshot[runtime.Definition.Steps.Count];
+            QuestDefinition definition = RequireQuest(quest);
+            ProgressionEntrySnapshot snapshot = _progression.GetSnapshot(quest.Id);
+            var completed = new HashSet<string>(snapshot.CompletedNodeIds, StringComparer.Ordinal);
+            var steps = new QuestStepSnapshot[definition.Steps.Count];
             for (var i = 0; i < steps.Length; i++)
             {
-                QuestStepDefinition definition = runtime.Definition.Steps[i];
-                steps[i] = new QuestStepSnapshot(
-                    definition.Ref,
-                    definition.TargetId,
-                    runtime.StepStates[i]);
+                QuestStepDefinition step = definition.Steps[i];
+                QuestStepStatus status = completed.Contains(step.Ref.Id) ? QuestStepStatus.Completed :
+                    string.Equals(snapshot.ActiveNodeId, step.Ref.Id, StringComparison.Ordinal) ? QuestStepStatus.Active :
+                    snapshot.Status == ProgressionNodeStatus.Completed ? QuestStepStatus.Skipped : QuestStepStatus.Locked;
+                steps[i] = new QuestStepSnapshot(step.Ref, step.TargetId, status);
             }
-
-            return new QuestSnapshot(runtime.Definition.Ref, runtime.Status, steps);
+            QuestStatus questStatus = snapshot.Status == ProgressionNodeStatus.Active ? QuestStatus.Active :
+                snapshot.Status == ProgressionNodeStatus.Completed ? QuestStatus.Completed : QuestStatus.Inactive;
+            return new QuestSnapshot(definition.Ref, questStatus, steps);
         }
 
-        private RuntimeQuest RequireQuest(QuestRef quest)
+        private QuestDefinition RequireQuest(QuestRef quest)
         {
-            RuntimeQuest runtime;
-            if (!_byRef.TryGetValue(quest, out runtime))
-                throw new InvalidOperationException("Unknown quest '" + quest + "'.");
-            return runtime;
+            QuestDefinition definition;
+            if (!_byRef.TryGetValue(quest, out definition)) throw new InvalidOperationException("Unknown quest '" + quest + "'.");
+            return definition;
         }
 
-        private static bool Matches(IQuestCompletionSpec completion, QuestObservation observation)
+        private bool TryGetById(string id, out QuestDefinition definition)
         {
-            if (completion is NpcInteractionQuestCompletionSpec interaction)
-            {
-                return observation.Kind == QuestObservationKind.NpcInteracted
-                    && string.Equals(interaction.NpcId, observation.SubjectId, StringComparison.Ordinal);
-            }
+            for (var i = 0; i < _ordered.Count; i++) if (string.Equals(_ordered[i].Ref.Id, id, StringComparison.Ordinal)) { definition = _ordered[i]; return true; }
+            definition = null; return false;
+        }
 
-            if (completion is InteractionQuestCompletionSpec worldInteraction)
+        private static Game.Progression.QuestGraphDefinition ToProgressionDefinition(QuestDefinition definition)
+        {
+            var steps = new Game.Progression.QuestStepDefinition[definition.Steps.Count];
+            for (var i = 0; i < definition.Steps.Count; i++)
             {
-                return observation.Kind == QuestObservationKind.Interacted
-                    && string.Equals(worldInteraction.SubjectId, observation.SubjectId, StringComparison.Ordinal);
+                QuestStepDefinition source = definition.Steps[i];
+                ProgressionCondition condition;
+                if (source.Completion is NpcInteractionQuestCompletionSpec npc)
+                    condition = ProgressionCondition.NpcInteraction(npc.NpcId);
+                else if (source.Completion is InteractionQuestCompletionSpec interaction)
+                    condition = ProgressionCondition.Interaction(interaction.SubjectId);
+                else
+                    throw new InvalidOperationException("Unsupported quest completion type: " + (source.Completion?.GetType().FullName ?? "<null>") + ".");
+                var objective = new ObjectiveDefinition(source.Ref.Id + ".completion", condition, 1);
+                string[] next = i + 1 < definition.Steps.Count ? new[] { definition.Steps[i + 1].Ref.Id } : Array.Empty<string>();
+                steps[i] = new Game.Progression.QuestStepDefinition(source.Ref.Id, new[] { objective }, next);
             }
+            return new Game.Progression.QuestGraphDefinition(definition.Ref.Id, definition.Steps[0].Ref.Id, steps);
+        }
 
-            throw new InvalidOperationException(
-                "Unsupported quest completion type: " +
-                (completion?.GetType().FullName ?? "<null>") + ".");
+        private static IReadOnlyList<QuestEvent> MapTransitions(IReadOnlyList<ProgressionTransition> transitions, QuestRef quest)
+        {
+            var events = new List<QuestEvent>();
+            for (var i = 0; i < transitions.Count; i++) AppendMapped(events, transitions[i], quest);
+            return events;
+        }
+
+        private static void AppendMapped(List<QuestEvent> events, ProgressionTransition transition, QuestRef quest)
+        {
+            switch (transition.Kind)
+            {
+                case ProgressionTransitionKind.EntryStarted: events.Add(QuestEvent.Started(quest)); break;
+                case ProgressionTransitionKind.NodeActivated: events.Add(QuestEvent.StepActivated(quest, new QuestStepRef(transition.NodeId))); break;
+                case ProgressionTransitionKind.NodeCompleted: events.Add(QuestEvent.StepCompleted(quest, new QuestStepRef(transition.NodeId))); break;
+                case ProgressionTransitionKind.EntryCompleted: events.Add(QuestEvent.Completed(quest)); break;
+            }
         }
     }
 }
