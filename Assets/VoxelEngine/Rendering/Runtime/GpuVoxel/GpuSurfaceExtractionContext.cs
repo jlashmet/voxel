@@ -302,20 +302,12 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             Release();
             ChunksRequested++;
             _stageRequestStartedSeconds = Time.realtimeSinceStartupAsDouble;
-            if (!TryCaptureStorageGeneration(out _stageStorageGeneration))
-            {
-                ChunksRefusedNoSlot++;
-                _stageRequestStartedSeconds = 0.0;
-                return GpuStageOutcome.NoSlot;
-            }
 
-            // The caller's generation is its renderer-local dirty/build sequence; the mirror uses
-            // Storage/change-journal versions. The persistent mirror represents live Storage, not a
-            // historical snapshot, so a bounded recovery can legitimately span later Storage
-            // generations. TryAdmitPendingStage refreshes this mirror-only gate on every retry.
-            // CpuTransvoxelChunkCache keeps the renderer generation on the immutable build and
-            // rejects that build before publication when a relevant edit made it stale. This lets
-            // recovery converge without ever publishing newer mirror data as an older render build.
+            // Once a production context exists, temporary world handoff, mirror recovery, active
+            // extraction pressure and handle pressure are GPU backpressure—not CPU eligibility
+            // signals. Keep the immutable request in the admission state machine and let later
+            // worker slices retry it. Only TryCreate returning null may classify the device/backend
+            // as unavailable before CpuTransvoxelChunkCache marks work GPU-eligible.
             _staged = request;
             _stageAdmissionPending = true;
             _coverageRequested = false;
@@ -348,7 +340,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             // the demanded blocks have been recovered. Refresh only this mirror generation; the
             // caller's immutable renderer generation is deliberately unchanged and remains the
             // authority that can discard this build before publication.
-            if (!TryCaptureStorageGeneration(out _stageStorageGeneration)) return false;
+            if (!TryCaptureStorageGeneration(out _stageStorageGeneration))
+            {
+                ChunksRefusedNoSlot++;
+                return false;
+            }
             if (!BeginPersistentStage(_staged, _stageStorageGeneration)) return false;
 
             unchecked { _countBatchToken++; }
