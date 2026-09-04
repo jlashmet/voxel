@@ -1,0 +1,14 @@
+{
+  "name": "Game.Outcomes.Runtime",
+  "rootNamespace": "Game.Outcomes.Runtime",
+  "references": ["Game.Outcomes.Api"],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}
