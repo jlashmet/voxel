@@ -2,6 +2,8 @@ using System;
 using System.IO;
 using System.Reflection;
 using Game.Composition.Kentridge.Playable;
+using Game.WorldBuilder.Api;
+using Game.WorldBuilder.Runtime;
 using MountingForce.WorldGen;
 using MountingForce.WorldGen.Content.Kentridge;
 using UnityEngine;
@@ -13,45 +15,47 @@ namespace Game.Kentridge.PlayableSlice
     /// Validation-only composition for readable close settlement evidence. The production evidence
     /// driver still owns semantic target selection, content-settlement checks, strict renderer
     /// coverage, capture timing, and road traversal. This component only composes the settlement
-    /// survey target into a genuinely close oblique view and keeps the CharacterMotor streaming
-    /// authority at that same camera point. Production world generation, residency radius, LOD
-    /// bands, renderer budgets, and normal gameplay cameras are unchanged.
+    /// survey pose: close enough for readable authored shells/streets, oblique enough to show massing,
+    /// and with CharacterMotor streaming authority pinned to the same presentation point.
     /// </summary>
-    [DefaultExecutionOrder(-50)]
+    [DefaultExecutionOrder(-90)]
     internal sealed class KentridgeMacroWorldSettlementSurveyComposition : MonoBehaviour
     {
         private const string ValidationProfile = "kentridge-macro-world";
+        private const float CloseSurveyHeightMetres = 31f;
+        private const float CloseSurveyHorizontalOffsetMetres = 22f;
+        private const float CloseSurveyFocusHeightMetres = 5f;
+        private const float MaximumSurveyFieldOfView = 60f;
         private const uint Seed = 0x4B454E54u;
         private const float DmToMetres = 0.1f;
-        private const int CloseSurveyHorizontalOffsetDm = 260;
-        private const float CloseSurveyHeightMetres = 31f;
-        private const float CloseSurveyFocusHeightMetres = 8f;
-        private const float MaximumReadableSettlementFieldOfView = 60f;
 
-        private static readonly FieldInfo s_TargetIndexField =
-            typeof(KentridgeMacroWorldEvidenceDriver).GetField(
-                "_targetIndex", BindingFlags.Instance | BindingFlags.NonPublic);
-        private static readonly FieldInfo s_TargetsField =
-            typeof(KentridgeMacroWorldEvidenceDriver).GetField(
-                "_targets", BindingFlags.Instance | BindingFlags.NonPublic);
-        private static readonly FieldInfo s_TargetCapturedField =
-            typeof(KentridgeMacroWorldEvidenceDriver).GetField(
-                "_targetCaptured", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo s_WorldField = typeof(KentridgePlayableSlice).GetField(
+            "_world",
+            BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo s_MotorField = typeof(KentridgePlayableSlice).GetField(
-            "_motor", BindingFlags.Instance | BindingFlags.NonPublic);
+            "_motor",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo s_TargetsField = typeof(KentridgeMacroWorldEvidenceDriver).GetField(
+            "_targets",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo s_TargetIndexField = typeof(KentridgeMacroWorldEvidenceDriver).GetField(
+            "_targetIndex",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo s_TargetContentReadyLoggedField = typeof(KentridgeMacroWorldEvidenceDriver).GetField(
+            "_targetContentReadyLogged",
+            BindingFlags.Instance | BindingFlags.NonPublic);
 
-        private KentridgeMacroWorldEvidenceDriver _driver;
         private KentridgePlayableSlice _slice;
+        private KentridgeMacroWorldEvidenceDriver _driver;
+        private KentridgeCharacterHost _motor;
         private Camera _camera;
-        private float _normalFieldOfView;
-        private bool _fieldOfViewOverridden;
-        private bool _closeSurveyActive;
-        private Int2 _focusDm;
-        private Int2 _cameraDm;
-        private int _activeTargetIndex = -1;
-        private int _loggedTargetIndex = -1;
-        private PropertyInfo _labelProperty;
-        private PropertyInfo _focusProperty;
+        private Type _targetType;
+        private FieldInfo _targetLabelField;
+        private FieldInfo _targetFocusDmField;
+        private int _lastTargetIndex = -1;
+        private bool _lastCloseSettlement;
+        private Vector3 _closeSurveyPosition;
+        private Vector3 _closeSurveyFocus;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void InstallForAssignedProfile()
@@ -60,109 +64,90 @@ namespace Game.Kentridge.PlayableSlice
                 || !string.Equals(profile, ValidationProfile, StringComparison.Ordinal))
                 return;
 
-            var host = new GameObject("Kentridge Macro Settlement Survey Composition");
+            var host = new GameObject("Kentridge Close Settlement Survey Composition");
             host.hideFlags = HideFlags.DontSave;
             host.AddComponent<KentridgeMacroWorldSettlementSurveyComposition>();
         }
 
-        private void OnDisable() => RestoreNormalFieldOfView();
-
-        private void OnDestroy() => RestoreNormalFieldOfView();
-
-        private void Update()
-        {
-            _driver ??= FindFirstObjectByType<KentridgeMacroWorldEvidenceDriver>();
-            _slice ??= FindFirstObjectByType<KentridgePlayableSlice>();
-            if (_driver == null || _slice == null || !TryResolveCloseSettlementTarget(out int targetIndex))
-            {
-                _closeSurveyActive = false;
-                _activeTargetIndex = -1;
-                return;
-            }
-
-            _closeSurveyActive = true;
-            _activeTargetIndex = targetIndex;
-            _cameraDm = new Int2(
-                _focusDm.X + CloseSurveyHorizontalOffsetDm,
-                _focusDm.Y + CloseSurveyHorizontalOffsetDm);
-
-            KentridgeCharacterHost motor = s_MotorField?.GetValue(_slice) as KentridgeCharacterHost;
-            if (motor != null)
-            {
-                motor.Position = ResolveSurveyCameraPosition(_cameraDm)
-                               - Vector3.up * motor.EyeHeight;
-                motor.Velocity = Vector3.zero;
-            }
-        }
-
         private void LateUpdate()
         {
-            Camera camera = Camera.main;
-            if (!_closeSurveyActive || camera == null)
+            _slice ??= FindFirstObjectByType<KentridgePlayableSlice>();
+            _driver ??= FindFirstObjectByType<KentridgeMacroWorldEvidenceDriver>();
+            if (_slice == null || _driver == null) return;
+
+            if (s_MotorField == null || s_TargetsField == null || s_TargetIndexField == null
+                || s_TargetContentReadyLoggedField == null)
+                throw new InvalidOperationException(
+                    "Close settlement survey composition cannot resolve macro evidence driver state.");
+
+            _motor ??= s_MotorField.GetValue(_slice) as KentridgeCharacterHost;
+            if (_motor == null || s_WorldField?.GetValue(_slice) == null) return;
+
+            int targetIndex = (int)s_TargetIndexField.GetValue(_driver);
+            Array targets = s_TargetsField.GetValue(_driver) as Array;
+            if (targets == null || targetIndex < 0 || targetIndex >= targets.Length)
             {
-                RestoreNormalFieldOfView();
+                _lastTargetIndex = -1;
+                _lastCloseSettlement = false;
                 return;
             }
 
-            if (_camera != camera)
+            object target = targets.GetValue(targetIndex);
+            EnsureTargetFields(target);
+            string label = _targetLabelField.GetValue(target) as string;
+            bool closeSettlement = IsCloseSettlement(label);
+            if (targetIndex != _lastTargetIndex)
             {
-                RestoreNormalFieldOfView();
-                _camera = camera;
-                _normalFieldOfView = camera.fieldOfView;
+                _lastTargetIndex = targetIndex;
+                _lastCloseSettlement = closeSettlement;
+                if (closeSettlement)
+                {
+                    Int2 focusDm = (Int2)_targetFocusDmField.GetValue(target);
+                    BuildCloseSurveyPose(focusDm, out _closeSurveyPosition, out _closeSurveyFocus);
+                    Debug.Log(
+                        $"MACROEVIDENCE close-survey target={label} position={Format(_closeSurveyPosition)} " +
+                        $"focus={Format(_closeSurveyFocus)} heightM={CloseSurveyHeightMetres:0.0}");
+                }
             }
 
-            if (!_fieldOfViewOverridden)
-            {
-                _normalFieldOfView = camera.fieldOfView;
-                _fieldOfViewOverridden = true;
-            }
-            camera.fieldOfView = ResolveReadableSurveyFieldOfView(_normalFieldOfView);
+            if (!_lastCloseSettlement) return;
 
-            Vector3 position = ResolveSurveyCameraPosition(_cameraDm);
-            int focusGround = TerrainSampler.HeightAt(_focusDm.X, _focusDm.Y, Seed);
-            Vector3 focus = new Vector3(
-                _focusDm.X * DmToMetres,
-                focusGround * DmToMetres + CloseSurveyFocusHeightMetres,
-                _focusDm.Y * DmToMetres);
-            Vector3 direction = focus - position;
-            camera.transform.position = position;
-            if (direction.sqrMagnitude > 0.01f)
-                camera.transform.rotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
+            // Keep streaming authority and rendered presentation at one point. This preserves the
+            // strict production coverage gate rather than widening it or treating missing chunks as
+            // optional evidence.
+            _motor.Position = _closeSurveyPosition;
+            _motor.Velocity = Vector3.zero;
+            _slice.transform.position = _closeSurveyPosition;
+            _slice.transform.rotation = Quaternion.LookRotation(
+                (_closeSurveyFocus - _closeSurveyPosition).normalized,
+                Vector3.up);
 
-            if (_loggedTargetIndex != _activeTargetIndex)
-            {
-                _loggedTargetIndex = _activeTargetIndex;
-                Debug.Log(
-                    $"MACROEVIDENCE close-survey-composition targetIndex={_activeTargetIndex} " +
-                    $"cameraHeightM={CloseSurveyHeightMetres:0.0} " +
-                    $"horizontalOffsetDm={CloseSurveyHorizontalOffsetDm} " +
-                    $"fov={camera.fieldOfView:0.0}");
-            }
+            _camera ??= Camera.main;
+            if (_camera != null && _camera.fieldOfView > MaximumSurveyFieldOfView)
+                _camera.fieldOfView = MaximumSurveyFieldOfView;
+
+            // The evidence driver's content-ready flag remains authoritative. Log only when its
+            // production readiness gate has actually turned green at this close pose.
+            if ((bool)s_TargetContentReadyLoggedField.GetValue(_driver))
+                Debug.LogOncePerFrame(
+                    $"MACROEVIDENCE close-survey-content-ready target={label} demand={Format(_motor.EyePosition)}");
         }
 
-        private bool TryResolveCloseSettlementTarget(out int targetIndex)
+        private void EnsureTargetFields(object target)
         {
-            targetIndex = -1;
-            if (s_TargetIndexField == null || s_TargetsField == null || s_TargetCapturedField == null)
-                return false;
-            if ((bool)s_TargetCapturedField.GetValue(_driver)) return false;
-
-            targetIndex = (int)s_TargetIndexField.GetValue(_driver);
-            if (targetIndex < 0) return false;
-            Array targets = s_TargetsField.GetValue(_driver) as Array;
-            if (targets == null || targetIndex >= targets.Length) return false;
-
-            object target = targets.GetValue(targetIndex);
-            if (target == null) return false;
+            if (target == null) throw new InvalidOperationException("Macro evidence target is null.");
             Type targetType = target.GetType();
-            _labelProperty ??= targetType.GetProperty("Label", BindingFlags.Instance | BindingFlags.Public);
-            _focusProperty ??= targetType.GetProperty("FocusDm", BindingFlags.Instance | BindingFlags.Public);
-            if (_labelProperty == null || _focusProperty == null) return false;
-
-            string label = _labelProperty.GetValue(target) as string;
-            if (!IsCloseSettlement(label)) return false;
-            _focusDm = (Int2)_focusProperty.GetValue(target);
-            return true;
+            if (_targetType == targetType) return;
+            _targetType = targetType;
+            _targetLabelField = targetType.GetField(
+                "Label",
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            _targetFocusDmField = targetType.GetField(
+                "FocusDm",
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            if (_targetLabelField == null || _targetFocusDmField == null)
+                throw new InvalidOperationException(
+                    "Close settlement survey composition cannot resolve evidence target label/focus state.");
         }
 
         private static bool IsCloseSettlement(string label) =>
@@ -171,48 +156,52 @@ namespace Game.Kentridge.PlayableSlice
             || string.Equals(label, MountingForceTopDownWorldDefinition.FairyVillage, StringComparison.Ordinal)
             || string.Equals(label, MountingForceTopDownWorldDefinition.OrcVillage, StringComparison.Ordinal);
 
-        private static Vector3 ResolveSurveyCameraPosition(Int2 cameraDm)
+        private static void BuildCloseSurveyPose(Int2 focusDm, out Vector3 position, out Vector3 focus)
         {
-            int cameraGround = TerrainSampler.HeightAt(cameraDm.X, cameraDm.Y, Seed);
-            return new Vector3(
-                cameraDm.X * DmToMetres,
-                cameraGround * DmToMetres + CloseSurveyHeightMetres,
-                cameraDm.Y * DmToMetres);
-        }
+            float focusX = focusDm.X * DmToMetres;
+            float focusZ = focusDm.Y * DmToMetres;
+            float groundY = TerrainSampler.HeightAt(focusDm.X, focusDm.Y, Seed) * DmToMetres;
+            focus = new Vector3(focusX, groundY + CloseSurveyFocusHeightMetres, focusZ);
 
-        private void RestoreNormalFieldOfView()
-        {
-            if (!_fieldOfViewOverridden || _camera == null) return;
-            _camera.fieldOfView = _normalFieldOfView;
-            _fieldOfViewOverridden = false;
+            // The diagonal offset keeps streets and front/side wall planes legible while avoiding
+            // the near-nadir evidence that previously reduced settlements to indistinct roof pixels.
+            float diagonal = CloseSurveyHorizontalOffsetMetres * 0.70710678f;
+            position = new Vector3(
+                focusX - diagonal,
+                groundY + CloseSurveyHeightMetres,
+                focusZ - diagonal);
         }
-
-        private static float ResolveReadableSurveyFieldOfView(float normalFieldOfView) =>
-            Mathf.Min(normalFieldOfView, MaximumReadableSettlementFieldOfView);
 
         private static bool TryReadValidationProfile(out string profile)
         {
-            profile = null;
-            string path = ReadArgument("-voxel-scene-issue");
-            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return false;
-            string json = File.ReadAllText(path);
-            const string key = "\"validationProfile\"";
-            int keyIndex = json.IndexOf(key, StringComparison.Ordinal);
-            if (keyIndex < 0) return false;
-            int colon = json.IndexOf(':', keyIndex + key.Length);
-            int firstQuote = colon >= 0 ? json.IndexOf('"', colon + 1) : -1;
-            int secondQuote = firstQuote >= 0 ? json.IndexOf('"', firstQuote + 1) : -1;
-            if (firstQuote < 0 || secondQuote <= firstQuote) return false;
-            profile = json.Substring(firstQuote + 1, secondQuote - firstQuote - 1);
-            return true;
+            profile = ReadArgument("-voxel-validation-profile");
+            return !string.IsNullOrWhiteSpace(profile);
         }
 
-        private static string ReadArgument(string name)
+        private static string ReadArgument(string key)
         {
             string[] args = Environment.GetCommandLineArgs();
-            for (var i = 0; i < args.Length - 1; i++)
-                if (string.Equals(args[i], name, StringComparison.Ordinal)) return args[i + 1];
-            return null;
+            for (int i = 0; i + 1 < args.Length; i++)
+                if (string.Equals(args[i], key, StringComparison.Ordinal)) return args[i + 1];
+            return string.Empty;
+        }
+
+        private static string Format(Vector3 value) =>
+            $"({value.x:0.0},{value.y:0.0},{value.z:0.0})";
+    }
+
+    internal static class KentridgeMacroWorldSettlementSurveyCompositionLogExtensions
+    {
+        private static int s_LastFrame = -1;
+        private static string s_LastMessage;
+
+        internal static void LogOncePerFrame(this object _, string message)
+        {
+            int frame = Time.frameCount;
+            if (frame == s_LastFrame && string.Equals(message, s_LastMessage, StringComparison.Ordinal)) return;
+            s_LastFrame = frame;
+            s_LastMessage = message;
+            Debug.Log(message);
         }
     }
 }
