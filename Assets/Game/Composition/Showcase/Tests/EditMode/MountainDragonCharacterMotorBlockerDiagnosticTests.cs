@@ -17,8 +17,9 @@ namespace VoxelEngine.Showcase.Tests.EditMode
 
         // Exact current-source standalone run 33839531278 repeatedly hard-stopped here while
         // grounded, targeting resolved-89 at (-108.0, 28.0) metres X/Z. The intended X motion is
-        // negative; built-player telemetry reported x=voxel:true/wood:false while the current and
-        // raised positions were clear and the same X sweep remained blocked after the normal step-up.
+        // negative; built-player telemetry reported x=voxel:true/wood:false, raised=voxel:false,
+        // and raisedX=voxel:true/wood:false. Coordinates in the player log are rounded to 3 decimals,
+        // and telemetry did not directly classify the unshifted current AABB.
         private static readonly Vector3 StallFeet = new Vector3(-104.590f, 45.600f, 28.000f);
 
         [Test]
@@ -60,19 +61,8 @@ namespace VoxelEngine.Showcase.Tests.EditMode
             ProbeResult raisedResult = Probe(world, motor, footMin, footMax, isBlocked, raised, radius, height);
             ProbeResult raisedXResult = Probe(world, motor, footMin, footMax, isBlocked, raisedXProbe, radius, height);
 
-            Assert.That(currentResult.Blocked, Is.False,
-                "The exact built-player stall position must itself remain occupiable.");
-            Assert.That(xResult.Blocked, Is.True,
-                "The production half-voxel negative-X sweep must reproduce the built-player blocker.");
-            Assert.That(raisedResult.Blocked, Is.False,
-                "The production step-up position must itself remain occupiable.");
-            Assert.That(raisedXResult.Blocked, Is.True,
-                "The same negative-X sweep must remain blocked after the production 0.3 m step-up.");
-            Assert.That(xResult.OccupiedVoxelCount, Is.GreaterThan(0),
-                "Built-player telemetry rejected vegetation; the focused repro must identify the authoritative voxel blocker.");
-            Assert.That(raisedXResult.OccupiedVoxelCount, Is.GreaterThan(0),
-                "Raised negative-X sweep must identify the authoritative voxel blocker rather than only semantic vegetation.");
-
+            // Emit the authoritative cells before assertions so even a rounded-coordinate mismatch
+            // remains useful root-cause evidence instead of hiding the blocker behind a test premise.
             var diagnostic = new StringBuilder(4096);
             diagnostic.Append("radius=").Append(radius.ToString("F3"))
                 .Append(" height=").Append(height.ToString("F3"))
@@ -83,6 +73,17 @@ namespace VoxelEngine.Showcase.Tests.EditMode
             AppendProbe(diagnostic, "raised", raised, raisedResult);
             AppendProbe(diagnostic, "raisedX", raisedXProbe, raisedXResult);
             Debug.Log(LogPrefix + diagnostic);
+
+            Assert.That(xResult.Blocked, Is.True,
+                "The production half-voxel negative-X sweep must reproduce the built-player blocker.");
+            Assert.That(raisedResult.Blocked, Is.False,
+                "The production step-up position must reproduce the built-player clear raised probe.");
+            Assert.That(raisedXResult.Blocked, Is.True,
+                "The same negative-X sweep must remain blocked after the production 0.3 m step-up.");
+            Assert.That(xResult.OccupiedVoxelCount, Is.GreaterThan(0),
+                "Built-player telemetry rejected vegetation; the focused repro must identify the authoritative voxel blocker.");
+            Assert.That(raisedXResult.OccupiedVoxelCount, Is.GreaterThan(0),
+                "Raised negative-X sweep must identify the authoritative voxel blocker rather than only semantic vegetation.");
         }
 
         [Test]
