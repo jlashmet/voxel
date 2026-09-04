@@ -1,37 +1,25 @@
 # 12 WorldBuilder encounter realization bridge — implementation plan
 
-**Target ownership:** composition-only assembly, `Assets/Game/Composition/EncounterRealization` / `Game.Composition.EncounterRealization`. Do not create `Api`/`Runtime` just to mirror the pattern.
+**Ownership:** shared composition module `Assets/Game/Composition/EncounterRealization` (`Game.Composition.EncounterRealization`) plus the Kentridge consumer under `Assets/Game/Composition/Kentridge/Playable`. Do not create ceremonial Api/Runtime layers.
 
-## Responsibility
+## Acceptance / architecture
 
-Translate authored semantic encounter/site/NPC intent plus realized `Game.WorldBuilder.Api` output into the narrow realization data required by `Game.Encounters.Api` and `Game.Characters.Api`.
+Translate authored WorldBuilder site/NPC/spawn intent plus exact realized placement facts into `Encounters.Api` / `Characters.Api` bindings. Shared code remains place-agnostic and API-only; Kentridge owns named forest/formation policy. Encounter scene code must consume bridge output instead of recomputing generated placement.
 
-## Implementation
+## Selected approach
 
-1. Identify the minimal WorldBuilder realization facts Encounters actually needs: stable site/object/NPC bindings, positions/areas, spawn-capable points, etc.
-2. Add missing semantic queries to WorldBuilder API only when reusable and demonstrated by at least one second consumer where practical.
-3. Build a pure adapter/composer that produces encounter realization/binding records.
-4. Move Kentridge or scene-specific placement policy into Kentridge/campaign composition; shared bridge contains no named places or encounters.
-5. Remove duplicate placement calculations from encounter runtime/scene scripts.
+`EncounterRealizationComposer` accepts an `EncounterRealizationSpec` and an `IEncounterRealizationFacts` provider. It returns semantic success/failure plus exact site anchor and character bindings. WorldBuilder API was not widened because its existing semantic identities are sufficient; backend physical positions are adapted at composition boundaries. `KentridgeForestEncounterRealization` receives the exact selected `TopDownWorldLayout`, derives the forest physical anchor once, owns the three encounter-local formation slots, and feeds the shared composer. `KentridgeForestBanditEncounter` consumes the resulting bindings.
 
-## Dependencies
+## Reuse / validation surfaces
 
-WorldBuilder API, 03 Characters API, 05 Encounters API. It should not depend on their Runtime internals.
+- `Assets/Game/Composition/EncounterRealization` is pure headless composition: no meaningful scene behavior. Its module-local EditMode assembly is the required validation surface; no module-local scene applies.
+- `Assets/Game/Composition/Kentridge/Playable` has player-visible/runtime behavior. It owns `Validation/KentridgeEncounterRealizationValidation.unity` plus the paired player scenario. The validation bootstrap supplies deterministic WorldBuilder input but invokes the real `KentridgeForestEncounterRealization` production adapter and shared composer; it does not reproduce bridge logic or presentation geometry.
+- Repository-wide `KentridgePlayableSlice` remains the assembled integration gate and proves the production installer/character presentation path.
 
-## Tests / proof
+## Evidence / results so far
 
-At least two independently authored encounter/site fixtures consume the bridge; generated placements are reused rather than recomputed; module-local built-player scene only if player-visible realization needs proof.
+Two independently authored bridge fixtures, exact-placement reuse regressions, missing-realization diagnostics, Kentridge macro-layout replacement, and dependency-boundary coverage are implemented. Prior exact-SHA attempts found and fixed two scoped compile defects: the `EncounterRealization` namespace/type collision and the WorldBuilder `Campaign` factory symbol collision. Current `master` (`e27afc78bb47c2578fbd6b85d1604d588d78d854`) was merged into the feature branch by reconciliation merge `5a9fa033cd1dc373307fc5bb4a00716a3070519b`; the branch is now ahead of and not behind master.
 
-## Do not build
+## Blast radius / remaining gates
 
-No parallel world generator, encounter lifecycle, or Kentridge-specific policy in the shared bridge.
-
-## Investigation / implementation record
-
-- Baseline `fixes/agent-9` started exactly at `origin/master` `81ffa4bbc76c3feb6e0bde2376065b4144f3f10a`.
-- The demonstrated duplicate placement owner is `KentridgeForestBanditEncounter`: it reconstructs a pine-forest encounter anchor by combining Kentridge/Hightown authored coordinates and scanning `RegionThemeMap`, then invents three local bandit offsets and a hardcoded realization id. This is the concrete placement duplication to remove.
-- `Game.WorldBuilder.Api` already exposes stable semantic `SiteRef`/`NpcRef`, `ResolvedSiteId`, site-role bindings, and NPC-to-realized-site assignments. It deliberately does not expose backend physical coordinates. Existing `KentridgeCampaignWorldRealization` demonstrates the intended later boundary: backend/campaign composition adapts exact generated placement facts rather than recomputing them in consumers.
-- Therefore no speculative WorldBuilder API widening is currently justified. The shared bridge accepts an `IEncounterRealizationFacts` supplied by the realization owner and depends only on `Game.WorldBuilder.Api`, `Game.Encounters.Api`, and `Game.Characters.Api`.
-- `Game.Composition.EncounterRealization` now contains a pure `EncounterRealizationComposer`, semantic failure results, exact site/NPC placement bindings, and no named Kentridge policy or Runtime dependencies.
-- Module-local regressions now exercise two independently authored semantic fixtures with deliberately different exact supplied placements, missing-realization failure, and assembly dependency boundaries. CI validation is still pending.
-- Remaining implementation work is to identify/adapt the authoritative Kentridge forest/spawn realization facts, make the assembled forest encounter consume bridge output, and remove its parallel coordinate/offset calculations. If no reusable physical fact exists for the three spawn positions, keep the required adapter in Kentridge composition rather than broadening WorldBuilder API without demonstrated reuse.
+No world generator, encounter lifecycle, shared Runtime dependency, global budget, or unrelated assertion is changed. Remaining work: run convention-derived module tests, the Kentridge module-local standalone scene, and SceneIssue/Kentridge assembled exact-SHA validation; then complete closure bookkeeping, re-merge master if it advances, open the final PR, enable auto-merge, and require the PR `affected` gate to pass.
