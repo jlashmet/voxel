@@ -39,54 +39,46 @@ namespace VoxelEngine.Showcase.Tests.EditMode
             MethodInfo footMin = RequirePrivateStatic(motorType, "FootMin");
             MethodInfo footMax = RequirePrivateStatic(motorType, "FootMax");
             MethodInfo isBlocked = RequirePrivateStatic(motorType, "IsBlocked");
+            object motor = Activator.CreateInstance(motorType);
 
-            var owner = new GameObject("MountainDragonCharacterMotorDiagnostic");
-            try
-            {
-                Component motor = owner.AddComponent(motorType);
-                float radius = ReadFloatProperty(motorType, motor, "Radius");
-                float height = ReadFloatProperty(motorType, motor, "Height");
-                float stepHeight = ReadFloatProperty(motorType, motor, "StepHeight");
-                float probeDistance = ShowcaseWorld.VoxelSize * 0.5f;
+            float radius = ReadFloatField(motorType, motor, "Radius");
+            float height = ReadFloatField(motorType, motor, "Height");
+            float stepHeight = ReadFloatField(motorType, motor, "StepHeight");
+            float probeDistance = ShowcaseWorld.VoxelSize * 0.5f;
 
-                Vector3 current = StallFeet;
-                Vector3 zProbe = current + Vector3.back * probeDistance;
-                Vector3 raised = current + Vector3.up * stepHeight;
-                Vector3 raisedZProbe = zProbe + Vector3.up * stepHeight;
+            Vector3 current = StallFeet;
+            Vector3 zProbe = current + Vector3.back * probeDistance;
+            Vector3 raised = current + Vector3.up * stepHeight;
+            Vector3 raisedZProbe = zProbe + Vector3.up * stepHeight;
 
-                ProbeResult currentResult = Probe(world, footMin, footMax, isBlocked, current, radius, height);
-                ProbeResult zResult = Probe(world, footMin, footMax, isBlocked, zProbe, radius, height);
-                ProbeResult raisedResult = Probe(world, footMin, footMax, isBlocked, raised, radius, height);
-                ProbeResult raisedZResult = Probe(world, footMin, footMax, isBlocked, raisedZProbe, radius, height);
+            ProbeResult currentResult = Probe(world, footMin, footMax, isBlocked, current, radius, height);
+            ProbeResult zResult = Probe(world, footMin, footMax, isBlocked, zProbe, radius, height);
+            ProbeResult raisedResult = Probe(world, footMin, footMax, isBlocked, raised, radius, height);
+            ProbeResult raisedZResult = Probe(world, footMin, footMax, isBlocked, raisedZProbe, radius, height);
 
-                Assert.That(currentResult.Blocked, Is.False,
-                    "The exact built-player stall position must itself remain occupiable.");
-                Assert.That(zResult.Blocked, Is.True,
-                    "The production half-voxel Z sweep must reproduce the built-player blocker.");
-                Assert.That(raisedResult.Blocked, Is.False,
-                    "The production step-up position must itself remain occupiable.");
-                Assert.That(raisedZResult.Blocked, Is.True,
-                    "The same forward sweep must remain blocked after the production 0.3 m step-up.");
-                Assert.That(zResult.OccupiedVoxelCount, Is.GreaterThan(0),
-                    "Built-player telemetry already rejected vegetation; the focused repro must identify the authoritative voxel blocker.");
-                Assert.That(raisedZResult.OccupiedVoxelCount, Is.GreaterThan(0),
-                    "Raised forward sweep must identify the authoritative voxel blocker rather than only semantic vegetation.");
+            Assert.That(currentResult.Blocked, Is.False,
+                "The exact built-player stall position must itself remain occupiable.");
+            Assert.That(zResult.Blocked, Is.True,
+                "The production half-voxel Z sweep must reproduce the built-player blocker.");
+            Assert.That(raisedResult.Blocked, Is.False,
+                "The production step-up position must itself remain occupiable.");
+            Assert.That(raisedZResult.Blocked, Is.True,
+                "The same forward sweep must remain blocked after the production 0.3 m step-up.");
+            Assert.That(zResult.OccupiedVoxelCount, Is.GreaterThan(0),
+                "Built-player telemetry already rejected vegetation; the focused repro must identify the authoritative voxel blocker.");
+            Assert.That(raisedZResult.OccupiedVoxelCount, Is.GreaterThan(0),
+                "Raised forward sweep must identify the authoritative voxel blocker rather than only semantic vegetation.");
 
-                var diagnostic = new StringBuilder(4096);
-                diagnostic.Append("radius=").Append(radius.ToString("F3"))
-                    .Append(" height=").Append(height.ToString("F3"))
-                    .Append(" step=").Append(stepHeight.ToString("F3"))
-                    .Append(" voxelSize=").Append(ShowcaseWorld.VoxelSize.ToString("F3"));
-                AppendProbe(diagnostic, "current", current, currentResult);
-                AppendProbe(diagnostic, "z", zProbe, zResult);
-                AppendProbe(diagnostic, "raised", raised, raisedResult);
-                AppendProbe(diagnostic, "raisedZ", raisedZProbe, raisedZResult);
-                Debug.Log(LogPrefix + diagnostic);
-            }
-            finally
-            {
-                UnityEngine.Object.DestroyImmediate(owner);
-            }
+            var diagnostic = new StringBuilder(4096);
+            diagnostic.Append("radius=").Append(radius.ToString("F3"))
+                .Append(" height=").Append(height.ToString("F3"))
+                .Append(" step=").Append(stepHeight.ToString("F3"))
+                .Append(" voxelSize=").Append(ShowcaseWorld.VoxelSize.ToString("F3"));
+            AppendProbe(diagnostic, "current", current, currentResult);
+            AppendProbe(diagnostic, "z", zProbe, zResult);
+            AppendProbe(diagnostic, "raised", raised, raisedResult);
+            AppendProbe(diagnostic, "raisedZ", raisedZProbe, raisedZResult);
+            Debug.Log(LogPrefix + diagnostic);
         }
 
         private static ProbeResult Probe(
@@ -155,11 +147,11 @@ namespace VoxelEngine.Showcase.Tests.EditMode
             return method;
         }
 
-        private static float ReadFloatProperty(Type type, object instance, string name)
+        private static float ReadFloatField(Type type, object instance, string name)
         {
-            PropertyInfo property = type.GetProperty(name, BindingFlags.Public | BindingFlags.Instance);
-            Assert.That(property, Is.Not.Null, $"Missing CharacterMotor.{name} property.");
-            return (float)property.GetValue(instance);
+            FieldInfo field = type.GetField(name, BindingFlags.Public | BindingFlags.Instance);
+            Assert.That(field, Is.Not.Null, $"Missing CharacterMotor.{name} field.");
+            return (float)field.GetValue(instance);
         }
 
         private readonly struct ProbeResult
