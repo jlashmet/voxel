@@ -134,6 +134,57 @@ namespace VoxelEngine.Tests.EditMode
                 "The old packed entry may remain physically present, but a tombstone must make it unreachable to GPU lookup.");
         }
 
+        [Test]
+        public void EvictedMixedBrickIsUnreachableBeforeItsSlotIsReused()
+        {
+            if (!SystemInfo.supportsComputeShaders)
+                Assert.Ignore("No compute support on this device; GPU mirror publication cannot run.");
+
+            using var mirror = new GpuVoxelBrickMirror(slotCapacity: 1);
+            using var materials = new NativeArray<byte>(
+                VoxelReadGrid.VoxelsPerBlock, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+            using var surfaces = new NativeArray<ushort>(
+                VoxelReadGrid.VoxelsPerBlock, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+            using var boundaries = new NativeArray<byte>(
+                VoxelReadGrid.VoxelsPerBlock, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+
+            int3 evictedCoordinate = new(-9, 0, 4);
+            Fill(materials, 17);
+            Fill(surfaces, 0x1357);
+            Fill(boundaries, 0x3c);
+            VoxelBrickDelta first = VoxelBrickDelta.MixedAt(evictedCoordinate, generation: 1, sourceSlot: 0);
+            first.AddMaterial(17);
+            Assert.AreEqual(
+                GpuBrickPublish.Uploaded,
+                mirror.Publish(first, materials, surfaces, boundaries, elementOffset: 0, hasPayload: true));
+            Assert.IsTrue(mirror.TryGetSlot(evictedCoordinate, out int reusedSlot));
+            AssertDirectoryEntry(mirror, evictedCoordinate, DirectoryOccupied, PackMixed(reusedSlot));
+
+            int3 replacementCoordinate = new(12, -2, 7);
+            Fill(materials, 29);
+            Fill(surfaces, 0x2468);
+            Fill(boundaries, 0xa5);
+            VoxelBrickDelta replacement = VoxelBrickDelta.MixedAt(
+                replacementCoordinate, generation: 1, sourceSlot: 0);
+            replacement.AddMaterial(29);
+            Assert.AreEqual(
+                GpuBrickPublish.Uploaded,
+                mirror.Publish(
+                    replacement, materials, surfaces, boundaries, elementOffset: 0, hasPayload: true));
+
+            Assert.AreEqual(1UL, mirror.Evictions);
+            Assert.IsFalse(mirror.TryGetSlot(evictedCoordinate, out _));
+            Assert.IsTrue(mirror.TryGetSlot(replacementCoordinate, out int replacementSlot));
+            Assert.AreEqual(reusedSlot, replacementSlot,
+                "A capacity-one mirror must reuse the physical payload slot for the replacement brick.");
+            AssertDirectoryNotOccupied(
+                mirror, evictedCoordinate,
+                "The evicted world coordinate must be tombstoned before the reused slot contains another brick's payload.");
+            AssertDirectoryEntry(
+                mirror, replacementCoordinate, DirectoryOccupied, PackMixed(replacementSlot));
+            AssertGpuPayload(mirror, replacementSlot, 29, 0x2468, 0xa5);
+        }
+
         private static void AssertGpuPayload(GpuVoxelBrickMirror mirror, int slot,
                                              byte material, ushort surface, byte boundary)
         {
@@ -180,6 +231,25 @@ namespace VoxelEngine.Tests.EditMode
             }
 
             Assert.Fail(message ?? $"GPU directory contains no entry for {coordinate}.");
+        }
+
+        private static void AssertDirectoryNotOccupied(GpuVoxelBrickMirror mirror, int3 coordinate,
+                                                       string message)
+        {
+            ComputeBuffer buffer = mirror.Materials;
+            var words = new uint[buffer.count];
+            buffer.GetData(words);
+
+            for (int entry = 0; entry < mirror.DirectoryCapacity; entry++)
+            {
+                int word = mirror.DirectoryWordOffset + entry * GpuVoxelBrickMirror.DirectoryWordsPerEntry;
+                if (unchecked((int)words[word + 0]) != coordinate.x
+                    || unchecked((int)words[word + 1]) != coordinate.y
+                    || unchecked((int)words[word + 2]) != coordinate.z)
+                    continue;
+
+                Assert.AreNotEqual(DirectoryOccupied, words[word + 4], message);
+            }
         }
 
         private static void AssertAll(uint[] actual, uint expected, string channel)
