@@ -37,7 +37,12 @@ namespace Game.ProgressionPresentation.Runtime
             _progression = progression ?? throw new ArgumentNullException(nameof(progression));
             _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
             _preferences = preferences ?? new JournalLocalPreferences();
-            _current = new QuestJournalSnapshot(0, _preferences.SortMode, _preferences.FilterMode, Array.Empty<JournalQuestEntry>());
+            _current = new QuestJournalSnapshot(
+                0,
+                _preferences.SortMode,
+                _preferences.FilterMode,
+                Array.Empty<JournalQuestEntry>(),
+                Array.Empty<JournalObjectiveEntry>());
         }
 
         public QuestJournalSnapshot Rebuild()
@@ -68,9 +73,21 @@ namespace Game.ProgressionPresentation.Runtime
                 quests.Add(new QuestBuild(quest, questContent, objectives, q));
             }
 
+            var standalone = new List<ObjectiveBuild>();
+            for (var o = 0; o < authoritative.StandaloneObjectives.Count; o++)
+            {
+                ObjectiveProgressSnapshot objective = authoritative.StandaloneObjectives[o];
+                if (!_catalog.TryGetStandaloneObjective(objective.Id, out ObjectivePresentationContent content)) continue;
+                if (!IsVisible(objective.State, content.VisibleWhileInactive)) continue;
+                JournalObjectiveKey key = JournalObjectiveKey.Standalone(objective.Id);
+                var visible = new VisibleObjective(key, string.Empty, content, objective, authoritative.Revision);
+                _visible[key] = visible;
+                standalone.Add(new ObjectiveBuild(visible, o));
+            }
+
             ReconcileLocalSelection();
-            ApplyOrdering(quests);
-            var projected = new List<JournalQuestEntry>();
+            ApplyQuestOrdering(quests);
+            var projectedQuests = new List<JournalQuestEntry>();
             for (var q = 0; q < quests.Count; q++)
             {
                 QuestBuild source = quests[q];
@@ -84,7 +101,7 @@ namespace Game.ProgressionPresentation.Runtime
                 }
 
                 if (_preferences.FilterMode != JournalFilterMode.AllVisible && objectives.Count == 0) continue;
-                projected.Add(new JournalQuestEntry(
+                projectedQuests.Add(new JournalQuestEntry(
                     source.Progress.Id,
                     source.Content.Title,
                     source.Progress.State,
@@ -93,7 +110,21 @@ namespace Game.ProgressionPresentation.Runtime
                     objectives));
             }
 
-            _current = new QuestJournalSnapshot(authoritative.Revision, _preferences.SortMode, _preferences.FilterMode, projected);
+            ApplyObjectiveOrdering(standalone);
+            var projectedStandalone = new List<JournalObjectiveEntry>();
+            for (var i = 0; i < standalone.Count; i++)
+            {
+                VisibleObjective visible = standalone[i].Visible;
+                if (!MatchesFilter(visible.Progress.State)) continue;
+                projectedStandalone.Add(ToEntry(visible));
+            }
+
+            _current = new QuestJournalSnapshot(
+                authoritative.Revision,
+                _preferences.SortMode,
+                _preferences.FilterMode,
+                projectedQuests,
+                projectedStandalone);
             return _current;
         }
 
@@ -171,24 +202,38 @@ namespace Game.ProgressionPresentation.Runtime
             {
                 JournalQuestEntry source = _current.Quests[q];
                 var objectives = new List<JournalObjectiveEntry>(source.Objectives.Count);
-                for (var o = 0; o < source.Objectives.Count; o++)
-                {
-                    JournalObjectiveEntry entry = source.Objectives[o];
-                    objectives.Add(new JournalObjectiveEntry(
-                        entry.Key,
-                        entry.Label,
-                        entry.Detail,
-                        entry.State,
-                        entry.CurrentCount,
-                        entry.RequiredCount,
-                        entry.AuthoritativeRevision,
-                        IsSelected(entry.Key),
-                        IsTracked(entry.Key)));
-                }
-                quests.Add(new JournalQuestEntry(source.QuestId, source.Title, source.State, source.AuthoritativeRevision, _preferences.IsCollapsed(source.QuestId), objectives));
+                for (var o = 0; o < source.Objectives.Count; o++) objectives.Add(Reproject(source.Objectives[o]));
+                quests.Add(new JournalQuestEntry(
+                    source.QuestId,
+                    source.Title,
+                    source.State,
+                    source.AuthoritativeRevision,
+                    _preferences.IsCollapsed(source.QuestId),
+                    objectives));
             }
-            _current = new QuestJournalSnapshot(_current.ProgressionRevision, _preferences.SortMode, _preferences.FilterMode, quests);
+
+            var standalone = new List<JournalObjectiveEntry>(_current.StandaloneObjectives.Count);
+            for (var i = 0; i < _current.StandaloneObjectives.Count; i++)
+                standalone.Add(Reproject(_current.StandaloneObjectives[i]));
+
+            _current = new QuestJournalSnapshot(
+                _current.ProgressionRevision,
+                _preferences.SortMode,
+                _preferences.FilterMode,
+                quests,
+                standalone);
         }
+
+        private JournalObjectiveEntry Reproject(JournalObjectiveEntry entry) => new JournalObjectiveEntry(
+            entry.Key,
+            entry.Label,
+            entry.Detail,
+            entry.State,
+            entry.CurrentCount,
+            entry.RequiredCount,
+            entry.AuthoritativeRevision,
+            IsSelected(entry.Key),
+            IsTracked(entry.Key));
 
         private JournalObjectiveEntry ToEntry(VisibleObjective visible) => new JournalObjectiveEntry(
             visible.Key,
@@ -217,12 +262,14 @@ namespace Game.ProgressionPresentation.Runtime
         private static bool IsVisible(ProgressionLifecycleState state, bool visibleWhileInactive) =>
             state != ProgressionLifecycleState.Inactive || visibleWhileInactive;
 
-        private void ApplyOrdering(List<QuestBuild> quests)
+        private void ApplyQuestOrdering(List<QuestBuild> quests)
         {
             if (_preferences.SortMode == JournalSortMode.Title)
                 quests.Sort((a, b) => StringComparer.Ordinal.Compare(a.Content.Title, b.Content.Title));
             else
-                quests.Sort((a, b) => a.Content.Order != b.Content.Order ? a.Content.Order.CompareTo(b.Content.Order) : a.OriginalIndex.CompareTo(b.OriginalIndex));
+                quests.Sort((a, b) => a.Content.Order != b.Content.Order
+                    ? a.Content.Order.CompareTo(b.Content.Order)
+                    : a.OriginalIndex.CompareTo(b.OriginalIndex));
         }
 
         private void ApplyObjectiveOrdering(List<ObjectiveBuild> objectives)
@@ -230,7 +277,9 @@ namespace Game.ProgressionPresentation.Runtime
             if (_preferences.SortMode == JournalSortMode.Title)
                 objectives.Sort((a, b) => StringComparer.Ordinal.Compare(a.Visible.Content.Label, b.Visible.Content.Label));
             else
-                objectives.Sort((a, b) => a.Visible.Content.Order != b.Visible.Content.Order ? a.Visible.Content.Order.CompareTo(b.Visible.Content.Order) : a.OriginalIndex.CompareTo(b.OriginalIndex));
+                objectives.Sort((a, b) => a.Visible.Content.Order != b.Visible.Content.Order
+                    ? a.Visible.Content.Order.CompareTo(b.Visible.Content.Order)
+                    : a.OriginalIndex.CompareTo(b.OriginalIndex));
         }
 
         private readonly struct VisibleObjective
@@ -271,6 +320,7 @@ namespace Game.ProgressionPresentation.Runtime
         {
             public VisibleObjective Visible { get; }
             public int OriginalIndex { get; }
+
             public ObjectiveBuild(VisibleObjective visible, int originalIndex)
             {
                 Visible = visible;
