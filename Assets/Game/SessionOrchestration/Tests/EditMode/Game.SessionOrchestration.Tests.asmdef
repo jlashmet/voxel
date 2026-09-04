@@ -4,7 +4,14 @@
   "references": [
     "Game.SessionOrchestration.Api",
     "Game.SessionOrchestration.Runtime",
-    "Game.Outcomes.Api"
+    "Game.Outcomes.Api",
+    "Game.Characters.Api",
+    "Game.Encounters.Api",
+    "Game.Encounters.Runtime",
+    "Game.Combat.Api",
+    "Game.Combat.Runtime",
+    "Game.Vitality.Api",
+    "Game.Vitality.Runtime"
   ],
   "includePlatforms": ["Editor"],
   "excludePlatforms": [],
