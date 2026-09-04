@@ -1,0 +1,20 @@
+{
+  "name": "Game.InventoryPresentation.Runtime",
+  "rootNamespace": "Game.InventoryPresentation.Runtime",
+  "references": [
+    "Game.InventoryPresentation.Api",
+    "Game.Inventory.Api",
+    "Game.Loot.Api",
+    "Game.Input.Api",
+    "Game.GameplayReplication.Api"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}
