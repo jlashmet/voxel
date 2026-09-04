@@ -10,6 +10,7 @@ using Game.Loot.Api;
 using Game.Loot.Runtime;
 using Game.WorldObjects.Api;
 using NUnit.Framework;
+using UnityEngine;
 
 namespace Game.InventoryPresentation.Tests
 {
@@ -109,6 +110,34 @@ namespace Game.InventoryPresentation.Tests
             Assert.That(f.Input.ActiveContext, Is.EqualTo(InputContextId.Ui));
             outer.Dispose();
             Assert.That(f.Input.ActiveContext, Is.EqualTo(InputContextId.Exploration));
+        }
+
+        [Test]
+        public void ProductionView_BindOwnsUiLeaseAndUnbindRestoresGameplayContext()
+        {
+            Fixture f = new Fixture();
+            var viewObject = new GameObject("InventoryPresentationViewTest");
+            try
+            {
+                InventoryPresentationView view = viewObject.AddComponent<InventoryPresentationView>();
+                Assert.That(f.Input.ActiveContext, Is.EqualTo(InputContextId.Exploration));
+
+                view.Bind(f.Presenter);
+                Assert.That(view.IsBound, Is.True);
+                Assert.That(f.Input.ActiveContext, Is.EqualTo(InputContextId.Ui));
+
+                IInputContextLease nested = f.Presenter.OpenUi();
+                nested.Dispose();
+                Assert.That(f.Input.ActiveContext, Is.EqualTo(InputContextId.Ui));
+
+                view.Unbind();
+                Assert.That(view.IsBound, Is.False);
+                Assert.That(f.Input.ActiveContext, Is.EqualTo(InputContextId.Exploration));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(viewObject);
+            }
         }
 
         [Test]
