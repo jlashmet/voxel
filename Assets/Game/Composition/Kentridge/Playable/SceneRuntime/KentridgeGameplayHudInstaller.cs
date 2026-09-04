@@ -26,6 +26,8 @@ namespace Game.Kentridge.PlayableSlice
 
         private UnityInputBindingService _bindings;
         private GameplayHudPresenter _presenter;
+        private KentridgePlayableSlice _slice;
+        private KentridgeTrackedObjectiveProjection _trackedObjectiveProjection;
         private bool _configured;
 
         public IInputBindingPresentation BindingPresentation => _bindings;
@@ -38,16 +40,22 @@ namespace Game.Kentridge.PlayableSlice
         private void OnEnable()
         {
             _configured = false;
+            _slice = null;
+            _trackedObjectiveProjection = null;
         }
 
         private void Update()
         {
             if (!_configured) TryConfigure();
+            if (_configured && _slice != null && _trackedObjectiveProjection != null)
+                _trackedObjectiveProjection.Refresh(_slice.TravelObjectiveActive);
         }
 
         private void OnDisable()
         {
             _presenter?.Clear();
+            _slice = null;
+            _trackedObjectiveProjection = null;
             _configured = false;
         }
 
@@ -65,6 +73,13 @@ namespace Game.Kentridge.PlayableSlice
             if (slice == null || gameplay == null || anchor == null || anchor.Characters == null) return;
             if (!gameplay.GameplayBindingsReady || !slice.OpeningCutsceneStarted) return;
             if (gameplay.VitalityQuery == null || gameplay.EncounterQuery == null || gameplay.InputContexts == null) return;
+            if (slice.ProgressionQuery == null || string.IsNullOrWhiteSpace(slice.TravelObjectiveId)) return;
+
+            var trackedObjectiveProjection = new KentridgeTrackedObjectiveProjection(
+                slice.ProgressionQuery,
+                slice.TravelObjectiveId);
+            trackedObjectiveProjection.Refresh(slice.TravelObjectiveActive);
+            var trackedProgression = new TrackedObjectiveHudSource(LocalPlayer, trackedObjectiveProjection);
 
             var party = new KentridgeHudPartyQuery(slice, anchor.Characters);
             var projector = new HudSnapshotProjector(
@@ -73,13 +88,15 @@ namespace Game.Kentridge.PlayableSlice
                 gameplay.VitalityQuery,
                 gameplay.EncounterQuery,
                 new KentridgeInteractionSource(slice, anchor.Characters),
-                null,
+                trackedProgression,
                 null,
                 _bindings,
                 gameplay.InputContexts);
 
             _presenter = GetComponent<GameplayHudPresenter>() ?? gameObject.AddComponent<GameplayHudPresenter>();
             _presenter.Configure(projector, LocalPlayer);
+            _slice = slice;
+            _trackedObjectiveProjection = trackedObjectiveProjection;
             _configured = true;
         }
 
