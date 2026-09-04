@@ -1,0 +1,14 @@
+{
+  "name": "Game.Audio.Api",
+  "rootNamespace": "Game.Audio.Api",
+  "references": ["Game.Characters.Api"],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}

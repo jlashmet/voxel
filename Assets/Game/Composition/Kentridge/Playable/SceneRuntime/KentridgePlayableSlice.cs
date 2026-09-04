@@ -218,7 +218,10 @@ namespace Game.Kentridge.PlayableSlice
 
                 _motor = new KentridgeCharacterHost(m_WalkSpeed);
                 _actors = _motor;
-                _presentation = new SlicePresentation(ApplyCutsceneCamera);
+                KentridgeGameplayAudioIntegration audioPresentation =
+                    GetComponent<KentridgeGameplayAudioIntegration>()
+                    ?? gameObject.AddComponent<KentridgeGameplayAudioIntegration>();
+                _presentation = new SlicePresentation(ApplyCutsceneCamera, audioPresentation);
                 KentridgeForestBanditEncounter forestSessionExtension =
                     GetComponent<KentridgeForestBanditEncounter>()
                     ?? gameObject.AddComponent<KentridgeForestBanditEncounter>();
@@ -1145,12 +1148,18 @@ namespace Game.Kentridge.PlayableSlice
         private sealed class SlicePresentation : ICutscenePresentation
         {
             private readonly Action<CutsceneCueId> _camera;
+            private readonly ICutsceneSoundCueRuntime _sound;
 
             public string LastCue { get; private set; } = string.Empty;
             public DialogueLine Pending { get; private set; }
 
-            public SlicePresentation(Action<CutsceneCueId> camera) =>
+            public SlicePresentation(
+                Action<CutsceneCueId> camera,
+                ICutsceneSoundCueRuntime sound)
+            {
                 _camera = camera ?? throw new ArgumentNullException(nameof(camera));
+                _sound = sound ?? throw new ArgumentNullException(nameof(sound));
+            }
 
             public ICutsceneOperation SetCamera(CutsceneCueId cameraCue)
             {
@@ -1186,7 +1195,9 @@ namespace Game.Kentridge.PlayableSlice
             public ICutsceneOperation PlaySound(CutsceneCueId soundCue)
             {
                 LastCue = soundCue.Value;
-                return CompletedCutsceneOperation.Instance;
+                return _sound.Execute(soundCue)
+                       ?? throw new InvalidOperationException(
+                           "Kentridge sound runtime returned no operation for cue '" + soundCue + "'.");
             }
         }
     }

@@ -1,0 +1,14 @@
+{
+  "name": "Game.Audio.Validation",
+  "rootNamespace": "Game.Audio.Validation",
+  "references": ["Game.Application.Api", "Game.Input.Api", "Game.Audio.Api", "Game.Audio.Runtime", "Game.Cutscenes.Api"],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
