@@ -1,4 +1,3 @@
-using System;
 using System.Collections;
 using System.Reflection;
 using Game.WorldBuilder.Api;
@@ -25,19 +24,26 @@ namespace VoxelEngine.Showcase.Validation
             "_pitch", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo MouseLookField = typeof(VoxelShowcase).GetField(
             "_mouseLook", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo MotorField = typeof(VoxelShowcase).GetField(
+            "_motor", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo WorldField = typeof(VoxelShowcase).GetField(
+            "_world", BindingFlags.Instance | BindingFlags.NonPublic);
 
         private IEnumerator Start()
         {
             VoxelShowcase showcase = GetComponent<VoxelShowcase>();
-            if (showcase == null)
+            if (showcase == null || YawField == null || PitchField == null || MouseLookField == null
+                || MotorField == null || WorldField == null)
             {
-                Fail("scene must host the production VoxelShowcase component");
+                Fail("scene could not bind the production VoxelShowcase inspection state");
                 yield break;
             }
 
-            if (YawField == null || PitchField == null || MouseLookField == null)
+            CharacterMotor motor = MotorField.GetValue(showcase) as CharacterMotor;
+            ShowcaseWorld world = WorldField.GetValue(showcase) as ShowcaseWorld;
+            if (motor == null || world == null)
             {
-                Fail("could not bind the production showcase inspection heading");
+                Fail("production world or CharacterMotor was not initialized");
                 yield break;
             }
 
@@ -52,12 +58,26 @@ namespace VoxelEngine.Showcase.Validation
                 yield break;
             }
 
-            // VoxelShowcase.OnEnable has already created the real ShowcaseWorld before Start.
-            // Use its public player-placement seam, which is the same path used by SceneIssue replay.
+            // Use the production placement seam. The first teleport puts streaming at the authored
+            // entrance even if that region has not yet become resident; after residency arrives,
+            // repeat the same placement so SnapToGround reads authoritative road/terrain voxels.
             float entryX = ShowcaseMountainDragonLayout.EntryXdm * ShowcaseWorld.VoxelSize;
             float entryZ = ShowcaseMountainDragonLayout.EntryZdm * ShowcaseWorld.VoxelSize;
-            showcase.TeleportTo(new Vector3(entryX, 0f, entryZ));
+            Vector3 entry = new Vector3(entryX, 0f, entryZ);
+            showcase.TeleportTo(entry);
             showcase.AutoWalk = false;
+
+            float residencyDeadline = Time.realtimeSinceStartup + 8f;
+            while (!world.IsGenerated(ShowcaseWorld.RegionAt(motor.Position)))
+            {
+                if (Time.realtimeSinceStartup >= residencyDeadline)
+                {
+                    Fail("the production region under the authored mountain entrance did not become resident");
+                    yield break;
+                }
+                yield return null;
+            }
+            showcase.TeleportTo(entry);
 
             Vector3 target = new Vector3(
                 ShowcaseMountainDragonLayout.CentreXdm * ShowcaseWorld.VoxelSize,
@@ -72,7 +92,7 @@ namespace VoxelEngine.Showcase.Validation
             MouseLookField.SetValue(showcase, false);
             transform.rotation = Quaternion.Euler(pitch, yaw, 0f);
 
-            // Give production streaming/meshing several frames to publish the nearby landmark.
+            // Let the production surface scheduler publish the nearby mountain before capture.
             yield return new WaitForSecondsRealtime(4f);
 
             string far = showcase.DescribeFarTerrain();
@@ -80,7 +100,8 @@ namespace VoxelEngine.Showcase.Validation
                 $"{ReadyPrefix} routePoints={route.Road.Points.Count} "
                 + $"entry=({entryX:0.0},{entryZ:0.0}) centre="
                 + $"({ShowcaseMountainDragonLayout.CentreXdm * ShowcaseWorld.VoxelSize:0.0},"
-                + $"{ShowcaseMountainDragonLayout.CentreZdm * ShowcaseWorld.VoxelSize:0.0}) {far}");
+                + $"{ShowcaseMountainDragonLayout.CentreZdm * ShowcaseWorld.VoxelSize:0.0}) "
+                + $"grounded={motor.Grounded} {far}");
         }
 
         private static void Fail(string detail)
