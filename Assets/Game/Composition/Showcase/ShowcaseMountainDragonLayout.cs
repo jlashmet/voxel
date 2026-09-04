@@ -23,15 +23,14 @@ namespace VoxelEngine.Showcase
         public const int PlaceholderSize = 60;
         public const string AscentRouteId = "showcase-mountain-dragon-ascent";
 
-        // The standalone character can step 3dm while grounded. Keep each 20dm resolver sample
-        // below that rise so the authored ascent cannot realize a directional terrace seam that
-        // traps the capsule between adjacent road samples (exact-SHA replay 33839531278 stalled
-        // at resolved-89 with X blocked while Z and the raised probe were clear).
-        public const int RoadSampleSpacingDm = 20;
-        public const int MaximumAscentGradePermille = 140;
+        // The standalone character can step 3dm while grounded. Retain the proven 280-permille
+        // road/cut-fill policy and sample the resolver every 10dm, which caps each graded sample
+        // rise at 2.8dm without flattening the authored spiral into excessive terrain cuts.
+        public const int RoadSampleSpacingDm = 10;
+        public const int MaximumAscentGradePermille = 280;
         public const int MaximumRoadSampleRiseDm = 3;
         public const int RoadTransitionWidthDm = 48;
-        public const int RoadMaximumCutFillDm = 64;
+        public const int RoadMaximumCutFillDm = 42;
         public const int RoadShoulderWidthDm = 10;
         public const int RoadClearanceWidthDm = 18;
 
