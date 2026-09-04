@@ -26,16 +26,17 @@
 
 ## Verification
 
-- [ ] **T15-020 — Nonterminal combat-loss regression.** Defeat/combat loss alone leaves outcome Running.
-- [ ] **T15-021 — Authored success test.** Configured campaign terminal condition requests a semantic success and resolves exactly once.
-- [ ] **T15-022 — Authored failure-policy test.** Only when configured, the selected semantic failure condition resolves accordingly.
-- [ ] **T15-023 — Competing/duplicate request tests.** Deterministic authoritative processing order, one immutable winner, one resolution event.
-- [ ] **T15-024 — Technical shutdown regression.** Server/application shutdown without gameplay terminal policy creates no GameOutcome.
-- [ ] **T15-025 — Snapshot/restore test.** Resolved state remains resolved and cannot re-emit historical resolution as a new outcome.
-- [ ] **T15-026 — Run automatic Outcomes/Orchestration/Story dependent tests.** Exact-SHA request `a4d6c80f3112b7a36612265545cda9d80a24d6a7` validates product SHA `e25ea88da78ab2fc45c9a2e111a4437dfca0d3c0`; workflow run 33834559402 is queued and must not be replaced.
+- [x] **T15-020 — Nonterminal combat-loss regression.** `UnmappedCombatLossLeavesOutcomeRunning` proves defeat/combat loss alone leaves outcome `Running` at revision 0.
+- [x] **T15-021 — Authored success test.** `ConfiguredCampaignSuccessResolvesExactlyOnce` proves a configured campaign terminal condition resolves semantic success once and a duplicate is idempotent.
+- [x] **T15-022 — Authored failure-policy test.** `PartyDefeatResolvesOnlyWhenAuthoredPolicyMapsIt` proves the same defeat fact remains nonterminal without policy and resolves failure only when authored.
+- [x] **T15-023 — Competing/duplicate request tests.** `DuplicateAndCompetingRequestsKeepFirstWinnerAndEmitOneEvent` plus `FirstAuthoredRuleWinsWhenOneConditionHasCompetingMappings` prove deterministic first-winner ordering, immutable outcome, and exactly one resolution event.
+- [x] **T15-024 — Technical shutdown regression.** `TechnicalShutdownWithoutGameplayPolicyCreatesNoOutcome` proves server/application shutdown facts do not create a gameplay outcome.
+- [x] **T15-025 — Snapshot/restore test.** `RestoredResolvedSnapshotDoesNotReplayHistoricalResolution` proves restored terminal state remains immutable and emits no historical resolution event.
+- [x] **T15-026 — Run automatic Outcomes/dependent tests.** Exact-SHA request `6f91e7e36484e8bcd4e2f5fcccb6030f4cf0bddb` validated feature SHA `b9d11d54aff204d71b0bea94dc2dd583883a342b` in workflow run `33839483224`: `Game.Continuity.Tests` 7/7 passed, `Game.GameplayReplication.Tests` 14/14 passed, `Game.Outcomes.Tests` 11/11 passed, no failures/skips; canonical `KentridgePlayableSlice` player validation completed with 0 assertion failures. Total repository-selected validation time was 204.71 seconds, below the five-minute budget.
+- [x] **T15-027 — Preserve relocated Outcomes test asset identities.** Initial exact-SHA run `33834559402` exposed invalid 40-character Git blob SHAs in the relocated test asmdef/API-contract `.meta` files; restored their original valid Unity GUIDs and proved the correction with green replacement run `33839483224`.
 
 ## Cleanup / close
 
 - [x] **T15-030 — Remove implicit game-over ownership.** Audited current Combat/Campaign/Story ownership plus repository searches for direct quit/scene-load/game-over paths; no demonstrated global terminal owner exists to migrate, so no unrelated production path was changed.
 - [x] **T15-031 — Boundary audit.** Outcomes production diff contains no final-boss flags, score UI, save deletion, scene transitions, engine shutdown, or network teardown; Runtime references only Outcomes API.
-- [ ] **T15-032 — Close with exactly-one proof.** A run can remain Running through ordinary losses and commits one immutable terminal result only via authored authority.
+- [x] **T15-032 — Close with exactly-one proof.** The regressions prove ordinary combat/party loss and technical shutdown remain `Running`; only an authored request from configured authority can commit revision 1, emit one resolution event, and become the immutable terminal result while identical retries are idempotent and competitors are rejected.
