@@ -8,6 +8,7 @@
 - [x] Keep work scoped to the assigned SceneIssue; never use `pending` or push the feature head directly to `master`.
 - [x] Reassess against module-local ownership: WorldBuilder, CaveWorldBuilder, and Showcase each own focused EditMode coverage and production-path validation.
 - [x] Adopt current module-local validation convention: `Assets/Game/WorldBuilder/Validation/SecretDiscovery/WorldBuilderSecretDiscoveryValidation.unity` is the authoritative built-player visual gate; legacy Gallery captures remain historical regression evidence only.
+- [x] Update SceneIssue scene metadata so standalone replay targets `WorldBuilderSecretDiscoveryValidation` instead of `WorldbuildingGalleryShowcase`.
 
 ## Planning / behavior
 
@@ -41,7 +42,13 @@
 - [x] Update module-local validation scene to consume `SecretClueAnomalyPlanner`: natural approach uses dense-vegetation discontinuity/negative-space language while the breakable barrier uses structural-fracture language.
 - [x] Classify exact request `36d6a7d297ed0a8023993b9482b463e869b0ac14` / run `33898606330`: module planning succeeded, but Unity compilation failed because the local validation assembly imported `Game.WorldBuilder.Runtime` without referencing `Game.WorldBuilder.Runtime`; standalone replay failed for the same compile error. This is a deterministic validation-assembly dependency defect, not renderer/gameplay evidence and not retryable infrastructure.
 - [x] Fix the failed-run cause narrowly by adding `Game.WorldBuilder.Runtime` to `Game.WorldBuilder.SecretDiscovery.Validation.asmdef`; anomaly behavior/source remains otherwise unchanged.
-- [ ] Run fresh exact-SHA targeted validation on the fixed anomaly feature head.
+- [x] Exact request `c4adea52a154bba78d36741bd32bbbf560ea8f81` / run `33899750246` passed automatic module validation and standalone player replay after the assembly-reference fix.
+- [x] Confirm module player validation builds and launches a real standalone `.app` through `tools/player-validation.py` / `tools/showcase-player-capture.sh`.
+- [x] Identify remaining harness gap: `WorldBuilderSecretDiscoveryValidation` still manually constructs `ShowcaseWorld`, rendering, cave authoring, and vegetation, so standalone execution is not yet equivalent to the normal gameplay composition lifecycle.
+- [x] Identify canonical gameplay lifecycle boundary: production Kentridge uses `KentridgeSessionRuntimeGraphFactory` + `GameSessionOrchestrator` (`Prepare` / `EnterRunning` / `Tick` / `Shutdown`).
+- [ ] Refactor local SecretDiscovery validation to enter through the canonical application/session composition lifecycle; scene code should only supply deterministic scenario/configuration, camera/evidence sequencing, and assertions/observation.
+- [ ] Add behavioral/architecture regression proving the local validation cannot silently bypass `GameSessionOrchestrator` with a parallel validation-only runtime graph/state machine.
+- [ ] Run fresh exact-SHA targeted validation after the SceneIssue scene/harness refactor and prove the standalone SceneIssue replay no longer launches Gallery.
 - [ ] Full-resolution module-local screenshot review proves the natural approach visibly communicates an intentional anomaly and plausible traversal/investigation hypothesis without glow/icon/signage.
 - [ ] Full-resolution module-local screenshot review proves the breakable barrier visibly communicates a plausible break/destruction hypothesis without becoming a universal marker.
 - [ ] Local built-scene visual review is `production-quality`: no stale terrain, placeholder signs, universal glow, floating/intersecting geometry, void/underside, or invalid framing.
@@ -51,7 +58,7 @@
 - [x] Planner/discovery/anomaly work is one-shot/event-driven; no per-frame search/polling added.
 - [x] Cave composition is bounded by traversal candidates; presentation changes are bounded to selected clue realization and local validation vegetation.
 - [x] All named/created exact CI requests were left untouched while queued/running and diagnosed only after completion.
-- [ ] All acceptance criteria green from exact tests + module-local built-player evidence.
+- [ ] All acceptance criteria green from exact tests + full-app-harness module-local built-player evidence.
 - [ ] Move assigned SceneIssue `open -> closed`, set `status=fixed` and `resolvedUtc`, and complete supported resolution fields.
 - [ ] Recheck and integrate then-current `origin/master` into `fixes/agent-5` immediately before final promotion if master advances.
 - [ ] Open final `fixes/agent-5` -> `master` PR and enable auto-merge immediately.
