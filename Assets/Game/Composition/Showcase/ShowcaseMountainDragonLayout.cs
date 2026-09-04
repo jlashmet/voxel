@@ -60,20 +60,21 @@ namespace VoxelEngine.Showcase
                 // landform authority does not select the tall aspect-shoulder pair. The previous
                 // 500x400dm policy produced three exposed overlapping frusta in exact-player
                 // captures. A 500x460dm footprint keeps a subtle authored aspect while resolving
-                // to one broad, coherent 0.61-slope core instead of scene-owned support geometry.
+                // to one broad, coherent core instead of scene-owned support geometry.
                 radiusZdm: MountainRadius - 40,
                 heightDm: MountainHeight,
                 summitRadiusDm: SummitRadius,
                 macroShape: MountainMacroShape.Massif,
                 summitCharacter: MountainSummitCharacter.Broad,
                 seed: seed ^ 0xA4D14A6Fu,
-                // The shared landform continues to support ridges and roughness for independent
-                // consumers. This landmark intentionally uses only its broad semantic core because
-                // those narrow full-height masses were demonstrated to create trench-like road views.
+                // The shared landform continues to support ridges, roughness and asymmetry for
+                // independent consumers. This landmark intentionally keeps its broad core concentric:
+                // exact-player evidence showed that even a small summit offset read as a separate
+                // giant lobe once the road wrapped around the upper mountain.
                 ridgeCount: 0,
                 ridgeStrengthPermille: 0,
-                asymmetryXPermille: 90,
-                asymmetryZPermille: -70,
+                asymmetryXPermille: 0,
+                asymmetryZPermille: 0,
                 roughnessAmplitudeDm: 0,
                 roughnessScaleDm: 72,
                 erosionStrengthPermille: 720);
