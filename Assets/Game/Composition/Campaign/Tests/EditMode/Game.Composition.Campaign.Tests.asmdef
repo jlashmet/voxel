@@ -1,11 +1,17 @@
 {
-  "name": "Game.Progression.Tests",
-  "rootNamespace": "Game.Progression.Tests",
+  "name": "Game.Composition.Campaign.Tests",
+  "rootNamespace": "Game.Composition.Campaign.Tests",
   "references": [
+    "Game.Composition.Campaign",
+    "Game.Composition.Campaign.Content",
+    "Game.Composition.Campaign.Runtime",
+    "Game.Composition.Kentridge.Api",
+    "Game.Cutscenes.Api",
     "Game.Progression.Api",
     "Game.Progression.Runtime",
     "Game.Quests.Api",
-    "Game.Quests.Runtime"
+    "Game.Quests.Runtime",
+    "Game.WorldBuilder.Api"
   ],
   "includePlatforms": ["Editor"],
   "excludePlatforms": [],
