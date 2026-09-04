@@ -113,10 +113,11 @@ namespace Game.Outcomes.Api
 
     public enum GameOutcomeResolutionStatus : byte
     {
-        Accepted = 0,
-        Idempotent = 1,
-        RejectedUnauthorized = 2,
-        RejectedAlreadyResolved = 3
+        NoRequest = 0,
+        Accepted = 1,
+        Idempotent = 2,
+        RejectedUnauthorized = 3,
+        RejectedAlreadyResolved = 4
     }
 
     public readonly struct GameOutcomeResolutionRequest
