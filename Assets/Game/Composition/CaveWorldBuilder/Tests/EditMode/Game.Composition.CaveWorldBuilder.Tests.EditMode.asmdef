@@ -2,6 +2,7 @@
   "name": "Game.Composition.CaveWorldBuilder.Tests.EditMode",
   "rootNamespace": "Game.Composition.CaveWorldBuilder.Tests.EditMode",
   "references": [
+    "VoxelEngine.Tests.Support",
     "Game.Composition.CaveWorldBuilder",
     "Game.Materials.Api",
     "Game.Structures.Api",
