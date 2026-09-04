@@ -1,0 +1,22 @@
+{
+  "name": "Game.SessionPresentation.Tests.EditMode",
+  "rootNamespace": "Game.SessionPresentation.Tests",
+  "references": [
+    "Game.SessionPresentation.Api",
+    "Game.SessionPresentation.Runtime",
+    "Game.Sessions.Api",
+    "Game.Sessions.Runtime",
+    "Game.Continuity.Api",
+    "Game.GameplayReplication.Api",
+    "Game.Characters.Api"
+  ],
+  "includePlatforms": ["Editor"],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
