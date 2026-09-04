@@ -17,8 +17,8 @@ namespace VoxelEngine.Showcase
         public const int OriginZ = -400;
         public const int FootprintEdge = 1200;
         public const int MountainRadius = 500;
-        public const int MountainHeight = 240;
-        public const int SummitRadius = 80;
+        public const int MountainHeight = 220;
+        public const int SummitRadius = 100;
         public const int PathWidth = 30;
         public const int PlaceholderSize = 60;
         public const string AscentRouteId = "showcase-mountain-dragon-ascent";
@@ -56,19 +56,20 @@ namespace VoxelEngine.Showcase
                 originYdm: baseY,
                 originZdm: CentreZdm,
                 radiusXdm: MountainRadius,
-                // A visibly elliptical massif gives the landmark a natural asymmetric silhouette
-                // while keeping every analytic mass broad enough that the spiral road does not run
-                // between narrow cone/ridge walls. The previous 465dm near-circle plus tall ridge and
-                // roughness frusta produced repeated 4m-class trench faces in built-player evidence.
-                radiusZdm: MountainRadius - 100,
+                // Keep the Mountain Dragon massif close enough to circular that the shared
+                // landform authority does not select the tall aspect-shoulder pair. The previous
+                // 500x400dm policy produced three exposed overlapping frusta in exact-player
+                // captures. A 500x460dm footprint keeps a subtle authored aspect while resolving
+                // to one broad, coherent 0.61-slope core instead of scene-owned support geometry.
+                radiusZdm: MountainRadius - 40,
                 heightDm: MountainHeight,
                 summitRadiusDm: SummitRadius,
                 macroShape: MountainMacroShape.Massif,
                 summitCharacter: MountainSummitCharacter.Broad,
                 seed: seed ^ 0xA4D14A6Fu,
-                // Keep showcase policy on broad overlapping mountain masses. The reusable landform
-                // still supports ridges/roughness for other consumers, but their narrow full-height
-                // frusta were the demonstrated source of this encounter's wall-like road views.
+                // The shared landform continues to support ridges and roughness for independent
+                // consumers. This landmark intentionally uses only its broad semantic core because
+                // those narrow full-height masses were demonstrated to create trench-like road views.
                 ridgeCount: 0,
                 ridgeStrengthPermille: 0,
                 asymmetryXPermille: 90,
@@ -86,11 +87,11 @@ namespace VoxelEngine.Showcase
 
         public static MountainClimateProfile CreateClimateProfile() =>
             new MountainClimateProfile(
-                // Keep most of the approach in ground cover and restrict bright snow to the crest.
-                // The prior 31%/74.5% bands amplified the already-too-steep ridge masses into huge
-                // gray/white faces directly beside the road.
-                groundCoverCeilingPermille: 450,
-                snowLinePermille: 850,
+                // Keep the broad lower/middle massif in ground cover, reserve a restrained rock
+                // band for the upper slope and bright snow for the crest. The old 45%/85% split
+                // amplified the rejected faceted masses into large gray/white roadside faces.
+                groundCoverCeilingPermille: 700,
+                snowLinePermille: 920,
                 steepRockSlopePermille: 1100);
 
         public static WorldRoadNetwork CreateAscentNetwork(
