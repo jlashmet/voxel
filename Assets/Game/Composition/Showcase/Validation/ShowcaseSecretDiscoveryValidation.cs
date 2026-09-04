@@ -14,7 +14,9 @@ namespace VoxelEngine.Showcase.Validation
     [RequireComponent(typeof(Camera))]
     public sealed class ShowcaseSecretDiscoveryValidation : MonoBehaviour
     {
-        [SerializeField] private uint m_Seed = 0x53484F57u;
+        // The production Gallery bake is authored for the Showcase scene's deterministic seed.
+        // Module validation must use that same composition contract rather than a mnemonic-only seed.
+        [SerializeField] private uint m_Seed = 0x5EED1234u;
         [SerializeField] private int m_BrickPoolCapacity = 196608;
         [SerializeField] private int m_LoadRadiusRegions = 2;
         [SerializeField] private int m_UnloadRadiusRegions = 3;
