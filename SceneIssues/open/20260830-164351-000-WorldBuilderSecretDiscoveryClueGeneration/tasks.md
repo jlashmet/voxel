@@ -18,6 +18,13 @@
 - [x] Interactable-backed and natural traversal routes both supported without duplicate interaction authority.
 - [x] Multiple legal routes resolve to one canonical discovery identity; revisit/reload/repeated activation is idempotent.
 - [x] `ProtectedShell`, `AuthoredBreakablesOnly`, and `SystemicBypassAllowed` represented and behaviorally tested.
+- [ ] Make clue realization explicitly route/mechanism-aware: direct traversal, terrain manipulation, interactable-backed mechanism, or allowed systemic bypass must drive compatible clue intent/presentation.
+- [ ] Reuse canonical interactable mechanisms for levers/buttons/plates/pushables/etc.; WorldBuilder may place/connect them but must not own duplicate interaction state.
+- [ ] Introduce deterministic anomaly-composition selection across multiple motif families instead of a universal visual marker.
+- [ ] Make anomaly realization context-relative: score/alter local normality (for example density, material, silhouette, alignment, repetition, negative space) so the same clue intent can realize differently by environment.
+- [ ] Ensure mechanism-specific clue language supports player hypothesis formation (for example blastable wall reads as structurally breakable, diggable route reads as disturbed/soft terrain, lever route exposes mechanical evidence linking control and barrier).
+- [ ] Add deterministic variety/repetition control so nearby secrets do not repeatedly use the same motif family when compatible alternatives exist.
+- [ ] Behaviorally validate that clue realization is semantically compatible with the selected route mechanism and remains deterministic for identical inputs/seed.
 
 ## Production-path regression / visual validation
 
@@ -38,17 +45,18 @@
 - [x] Exact request `698aa3347a3065d1e495ba260cc90913fde71907` / run `33852280392` completed without replacement and passed automatic module validation plus standalone SceneIssue replay on source `3e6cd24436fa0a5b3f8f23279697ada624734d16`.
 - [x] Full-resolution review of `33852280392` completed and classified visual evidence `unacceptable`: breakable frame remains below/through terrain with large void; natural frame still does not communicate an understandable cave clue at gameplay scale.
 - [x] Apply the issue-guide two-fix rule: stop speculative SecretDiscovery-side visual changes after publication, convergence, and validation-fidelity fixes all leave the same base Gallery renderer symptom.
-- [ ] Shared GPU renderer restoration is authoritative on `origin/master` (external prerequisite; current restoration work is not merged to master).
-- [ ] After renderer prerequisite lands, merge current `origin/master` into `fixes/agent-5` and rerun exact-SHA targeted validation.
-- [ ] Representative SecretDiscovery examples are visibly understandable in `WorldbuildingGalleryShowcase` at gameplay scale.
-- [ ] Gallery visual review is `production-quality`: feature-specific natural + breakable clue language, no stale terrain, placeholder signs, universal glow, floating/intersecting geometry, void/underside, or invalid framing.
+- [x] Shared GPU renderer restoration became authoritative on master via PR #230 and was merged into `fixes/agent-5` via PR #266, producing feature head `cf0e95237d1965c99d0f9522e302794ab8a13a4a` before these documentation changes.
+- [ ] Classify run `33863772871` failure in `derive automatic module validation plan` before issuing any replacement exact-SHA request; standalone SecretDiscovery replay already passed in that run.
+- [ ] After the failure is classified/fixed as required, run fresh exact-SHA targeted validation on the new feature head.
+- [ ] Representative SecretDiscovery examples visibly communicate an intentional anomaly and a plausible action hypothesis at gameplay scale.
+- [ ] Gallery visual review is `production-quality`: varied feature-specific natural + mechanism-backed clue language, no stale terrain, placeholder signs, universal glow, floating/intersecting geometry, void/underside, or invalid framing.
 
 ## Cost / integration / closure
 
 - [x] Planner/discovery work is one-shot/event-driven; no per-frame search/polling added.
 - [x] Cave composition is bounded by traversal candidates; post-bake content invalidation is bounded to the same nine preloaded secret-cave regions.
 - [x] All named/created exact CI requests were left untouched while queued/running and diagnosed only after completion.
-- [x] Fresh exact-SHA targeted gate is green for feature SHA `3e6cd24436fa0a5b3f8f23279697ada624734d16` via run `33852280392`.
+- [x] Fresh exact-SHA targeted gate was green for feature SHA `3e6cd24436fa0a5b3f8f23279697ada624734d16` via run `33852280392`; later branch changes require a new exact validation before closure.
 - [ ] All acceptance criteria green from exact tests + built-player evidence.
 - [ ] Move assigned SceneIssue `open -> closed`, set `status=fixed` and `resolvedUtc`, and complete supported resolution fields.
 - [ ] Integrate then-current `origin/master` into `fixes/agent-5` before final promotion.
