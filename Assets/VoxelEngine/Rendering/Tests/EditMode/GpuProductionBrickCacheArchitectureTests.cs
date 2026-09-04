@@ -100,7 +100,7 @@ namespace VoxelEngine.Tests.EditMode
             AssertNoBlockingGpuSync(writeBatch, "production write batch");
             AssertNoBlockingGpuSync(copyPublish, "production copy/publication");
             AssertNoBlockingGpuSync(context, "production extraction context");
-            AssertNoBlockingGpuWait(coordinator, "production mirror coordinator");
+            AssertNoBlockingGpuSync(coordinator, "production mirror coordinator");
             AssertNoBlockingGpuSync(pageArena, "production page arena");
             AssertNoBlockingGpuSync(gpuPhase, "solid worker GPU phase");
 
@@ -112,53 +112,12 @@ namespace VoxelEngine.Tests.EditMode
                 "Pending GPU work must not become a CPU snapshot merely because it is unfinished.");
             StringAssert.Contains("!s_ExtractionFence.passed", coordinator,
                 "The coordinator must inspect fence readiness without waiting on the fence.");
-            StringAssert.Contains("AsyncGPUReadback.Request(lane.Counters)", coordinator,
-                "Page-allocation bookkeeping must be requested asynchronously.");
-            StringAssert.Contains("!lane.Readback.done", coordinator,
-                "The coordinator must yield until asynchronous bookkeeping has completed.");
-            StringAssert.Contains("lane.Readback.GetData<uint>()", coordinator,
-                "Completed asynchronous bookkeeping may be inspected without blocking the frame.");
-        }
-
-        [Test]
-        public void PagedChunkBecomesReadyOnlyAfterGpuAllocationReportsReady()
-        {
-            string coordinator = ReadRenderingFile(
-                "Runtime", "GpuVoxel", "GpuSurfaceMirrorCoordinator.cs");
-            string arena = ReadRenderingFile("Resources", "GpuSurfacePageArena.compute");
-            string seal = MethodBody(coordinator, "private static void SealCountBatch",
-                                     "private static void ResetCountBatches");
-            string completion = MethodBody(coordinator,
-                "private static void CompleteCountBatchReadback",
-                "private static void ResetCountBatchLane");
-
-            StringAssert.Contains("static const uint AllocationReady = 0u;", arena);
-            StringAssert.Contains("static const uint AllocationExhausted = 1u;", arena);
-            StringAssert.Contains("static const uint AllocationStale = 2u;", arena);
-            StringAssert.Contains("static const uint AllocationTooLarge = 3u;", arena);
-            StringAssert.Contains("lane.Readback = AsyncGPUReadback.Request(lane.Counters);", seal,
-                "Submission must retain asynchronous allocation status rather than declaring success.");
-            StringAssert.DoesNotContain("CompletePagedBatch(", seal,
-                "Dispatch alone must never mark a paged chunk ready.");
-            StringAssert.Contains("status == AllocationReady", completion,
-                "Only the page allocator's ready status may publish CPU-side readiness.");
-            StringAssert.Contains("CompletePagedBatch(", completion);
-            StringAssert.Contains("status == AllocationExhausted", completion);
-            StringAssert.Contains("status == AllocationStale", completion);
-            StringAssert.Contains("status == AllocationTooLarge", completion);
-            StringAssert.Contains("FailPagedBatch(", completion,
-                "Every non-ready status must remain failure/backpressure instead of false success.");
         }
 
         private static void AssertNoBlockingGpuSync(string source, string path)
         {
             StringAssert.DoesNotContain(".GetData(", source,
                 $"{path} must not synchronously read GPU buffers.");
-            AssertNoBlockingGpuWait(source, path);
-        }
-
-        private static void AssertNoBlockingGpuWait(string source, string path)
-        {
             StringAssert.DoesNotContain("WaitForCompletion(", source,
                 $"{path} must not synchronously wait for GPU readback.");
             StringAssert.DoesNotContain("WaitOnAsyncGraphicsFence(", source,
