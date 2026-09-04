@@ -36,8 +36,8 @@ namespace VoxelEngine.Showcase.Tests.EditMode
             Assert.That(world.IsGenerated(upperRegion), Is.True);
 
             Type motorType = Type.GetType("VoxelEngine.Showcase.CharacterMotor, VoxelEngine.Showcase", throwOnError: true);
-            MethodInfo footMin = RequirePrivateStatic(motorType, "FootMin");
-            MethodInfo footMax = RequirePrivateStatic(motorType, "FootMax");
+            MethodInfo footMin = RequirePrivateInstance(motorType, "FootMin");
+            MethodInfo footMax = RequirePrivateInstance(motorType, "FootMax");
             MethodInfo isBlocked = RequirePrivateStatic(motorType, "IsBlocked");
             object motor = Activator.CreateInstance(motorType);
 
@@ -51,10 +51,10 @@ namespace VoxelEngine.Showcase.Tests.EditMode
             Vector3 raised = current + Vector3.up * stepHeight;
             Vector3 raisedZProbe = zProbe + Vector3.up * stepHeight;
 
-            ProbeResult currentResult = Probe(world, footMin, footMax, isBlocked, current, radius, height);
-            ProbeResult zResult = Probe(world, footMin, footMax, isBlocked, zProbe, radius, height);
-            ProbeResult raisedResult = Probe(world, footMin, footMax, isBlocked, raised, radius, height);
-            ProbeResult raisedZResult = Probe(world, footMin, footMax, isBlocked, raisedZProbe, radius, height);
+            ProbeResult currentResult = Probe(world, motor, footMin, footMax, isBlocked, current, radius, height);
+            ProbeResult zResult = Probe(world, motor, footMin, footMax, isBlocked, zProbe, radius, height);
+            ProbeResult raisedResult = Probe(world, motor, footMin, footMax, isBlocked, raised, radius, height);
+            ProbeResult raisedZResult = Probe(world, motor, footMin, footMax, isBlocked, raisedZProbe, radius, height);
 
             Assert.That(currentResult.Blocked, Is.False,
                 "The exact built-player stall position must itself remain occupiable.");
@@ -83,6 +83,7 @@ namespace VoxelEngine.Showcase.Tests.EditMode
 
         private static ProbeResult Probe(
             ShowcaseWorld world,
+            object motor,
             MethodInfo footMin,
             MethodInfo footMax,
             MethodInfo isBlocked,
@@ -90,9 +91,16 @@ namespace VoxelEngine.Showcase.Tests.EditMode
             float radius,
             float height)
         {
-            var min = (Vector3)footMin.Invoke(null, new object[] { feet, radius });
-            var max = (Vector3)footMax.Invoke(null, new object[] { feet, radius, height });
+            var min = (Vector3)footMin.Invoke(motor, new object[] { feet });
+            var max = (Vector3)footMax.Invoke(motor, new object[] { feet, height });
             bool blocked = (bool)isBlocked.Invoke(null, new object[] { world, min, max });
+
+            // Radius is passed explicitly so the diagnostic also proves the reflected production
+            // field agrees with the exact FootMin/FootMax bounds rather than silently drifting.
+            Assert.That(min.x, Is.EqualTo(feet.x - radius).Within(1e-5f));
+            Assert.That(min.z, Is.EqualTo(feet.z - radius).Within(1e-5f));
+            Assert.That(max.x, Is.EqualTo(feet.x + radius).Within(1e-5f));
+            Assert.That(max.z, Is.EqualTo(feet.z + radius).Within(1e-5f));
 
             int minX = Mathf.FloorToInt(min.x / ShowcaseWorld.VoxelSize);
             int minY = Mathf.FloorToInt(min.y / ShowcaseWorld.VoxelSize);
@@ -138,6 +146,13 @@ namespace VoxelEngine.Showcase.Tests.EditMode
                 .Append("..").Append(result.MaxX).Append(',').Append(result.MaxY).Append(',').Append(result.MaxZ)
                 .Append(" occupied=").Append(result.OccupiedVoxelCount)
                 .Append(" cells=[").Append(result.Cells).Append(']');
+        }
+
+        private static MethodInfo RequirePrivateInstance(Type type, string name)
+        {
+            MethodInfo method = type.GetMethod(name, BindingFlags.NonPublic | BindingFlags.Instance);
+            Assert.That(method, Is.Not.Null, $"Missing production CharacterMotor.{name} capsule seam.");
+            return method;
         }
 
         private static MethodInfo RequirePrivateStatic(Type type, string name)
