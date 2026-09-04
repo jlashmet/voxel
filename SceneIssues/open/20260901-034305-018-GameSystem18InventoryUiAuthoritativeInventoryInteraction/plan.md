@@ -1,21 +1,21 @@
 # 18 Inventory UI & authoritative inventory interaction — implementation plan
 
-**Current base:** `aa61895f28d70f35c67d07db6a4fa93beee635eb` (synced with `origin/master`).
-**Owning module:** `Assets/Game/InventoryPresentation/{Api,Runtime,Tests,Validation}`. API/model is engine-free and independent of Inventory Runtime; Runtime depends only on public Inventory/Loot/Input/GameplayReplication APIs. The module owns `Validation/InventoryPresentationValidation.unity` plus its player scenario.
+**Current base:** `aa61895f28d70f35c67d07db6a4fa93beee635eb` (current `origin/master`).
+**Owning module:** `Assets/Game/InventoryPresentation/{Api,Runtime,Tests,Validation}`. API is engine-free; Runtime depends only on public Presentation/Inventory/Loot/Input/GameplayReplication APIs. The module owns `Validation/InventoryPresentationValidation.unity` and its player scenario.
 
 ## Observed behavior / acceptance
 
-Inventory and Loot are already authoritative and headless. Repository-tree/code search found no existing inventory screen/controller, drag/drop handler, UI-owned quantity cache, or `InventoryPresentation` module to migrate; therefore T18-017/T18-030 require a final boundary audit, not deletion of a legacy presenter. Inventory exposes snapshot/query truth; Loot owns container-transfer/drop semantics; Input owns stackable `Ui` leases.
+Inventory is authoritative snapshot/query truth; Loot owns container transfer/drop; Input owns stackable `Ui` leases. Initial repository audit found no legacy inventory screen/controller or UI-owned quantity store to migrate. Presentation must therefore remain a projection plus semantic intent layer, never a second inventory authority.
 
 ## Hypotheses and result
 
-1. **Prototype UI owns quantities/direct mutations.** Falsified by repository audit: no inventory presentation/controller layer exists.
-2. **A presentation module can project canonical snapshots and delegate intents without new authority.** Selected. Stable row identity is `(InventoryId, ItemRef)`; selection/filter/sort/pending are ephemeral local state. Transfer/drop requests are queued as presentation pending operations, then executed through `ILootRuntime`; displayed quantities always come from `IInventoryQuery`.
+1. **Existing UI owns direct inventory mutation.** Falsified: no prior inventory presentation/controller path existed.
+2. **Canonical snapshots + Loot intents are sufficient.** Confirmed. Stable row identity is `(InventoryId, ItemRef)`; selection/filter/sort/pending are ephemeral. Displayed quantities are always projected from `IInventoryQuery`; transfer/drop execute only through `ILootRuntime`.
 
-## Implementation / blast radius
+## Selected implementation / blast radius
 
-Add `Game.InventoryPresentation.Api` contracts and `Game.InventoryPresentation.Runtime.InventoryPresenter`. Personal and container inventories use the same panel/row model with no slot/equipment/crafting/use/capacity semantics. `OpenUi()` acquires a stackable `Ui` input lease; rebuild/reconnect clears stale pending state and reprojects authoritative snapshots. No Inventory/Loot/Input production implementation changes are planned.
+`Game.InventoryPresentation.Api` defines row/panel/pending models and semantic intent wrappers. `InventoryPresenter` projects personal/container snapshots, tracks local UI state, delegates mutations to Loot, handles rejection/rebuild, and acquires `Ui` leases. `InventoryPresentationView` is the production player-visible fantasy inventory realization. Validation now only composes real `InventoryRuntime` + `LootRuntime` + `InputContextService`, binds the production view, drives deterministic intents, and records assertions. No Inventory/Loot/Input production implementation changed; no slot/equipment/crafting/use/capacity semantics were added.
 
-## Validation gates
+## Material validation result / remaining gates
 
-Module-local EditMode regressions cover snapshot revisions, empty/add/remove selection behavior, delayed pending, authoritative transfer/drop success, race rejection convergence, nested input-context unwind, reconnect rebuild, and destroy/recreate authority. Module-local built-player validation exercises the same presenter over real `InventoryRuntime` + `LootRuntime` and captures the functional personal/container UI. Then run exact-SHA targeted CI, close bookkeeping, merge current master into the branch, and use final PR + auto-merge `affected` gate.
+Exact-SHA request `4882e1a1836a821363780d00e37332b8b1babc9c` (run `33875652528`) passed the first presenter/scene behavior, but its capture exposed a quality/fidelity defect: Validation itself drew a blockout UI. That path is removed. The production view now owns rendering and its input lease, with a regression for bind/nested-unwind/unbind. Remaining gate: run targeted CI from the new exact feature SHA, inspect durable standalone-player captures and require `production-quality`; then complete verification checkboxes, close bookkeeping, sync current master, and promote by PR + auto-merge `affected` gate.
