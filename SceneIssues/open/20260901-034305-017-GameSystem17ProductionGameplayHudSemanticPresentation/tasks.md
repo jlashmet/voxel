@@ -42,20 +42,20 @@
 
 ## Verification
 
-- [ ] **T17-020 — Presenter unit tests without Unity views.** Snapshot -> deterministic view model for vitality/prompt/combat/readiness.
-  - Tests cover controlled vitality, semantic prompt, encounter/combat, readiness lifecycle, and InputContext. Requests `be9badbc0e2a1f4ea07e3c0ad56b9e1b9f8b5cdc` and `1c7c70bb71010f7891c8fb2216755601391815a0` both failed before Unity module tests because the repository planner attributed nested `Game.Kentridge.PlayableSlice` to two module roots. No product-test result exists yet.
-- [ ] **T17-021 — Binding-change regression.** Change Input binding and prove prompt text/glyph updates without gameplay code changes.
-  - Regression uses real `UnityInputBindingService.Rebind(Interact, KeyCode.F)` and proves the unchanged semantic candidate projects `F`; pending executable exact-SHA CI.
-- [ ] **T17-022 — Local-player identity test.** Two local/represented players cannot display each other's controlled-character vitality/prompt state.
-  - Regression added with two independent local/member/CharacterId bindings; pending executable exact-SHA CI.
-- [ ] **T17-023 — Reconnect rebuild test.** Current state reappears correctly and old transient events are not replayed.
-  - Regression added; pending executable exact-SHA CI.
-- [ ] **T17-024 — Headless gameplay regression.** Authoritative gameplay runs with Hud assembly absent.
-  - `Game.Hud.HeadlessRegression.Tests` is a separate EditMode assembly with no Hud reference. It drives real `PartySession` through join/connect/character-bind/synchronize/GameplayReady/start and real `VitalityRegistry` through damage, then asserts the test/Sessions/Vitality assemblies reference no `Game.Hud` assembly. Pending executable exact-SHA CI.
-- [ ] **T17-025 — Module-local built-player visual validation.** Use shared validation harness and semantic milestones; no bespoke screenshot driver.
-  - Validation assets are at `Assets/Game/Hud/Validation/`; the scene uses the real `HudSnapshotProjector`, production `GameplayHudPresenter`, and real `UnityInputBindingService`, with deterministic semantic providers. Workflow `33852244050` passed the canonical standalone Kentridge replay with zero assertion failures but skipped Hud module validation because planner derivation failed first.
+- [x] **T17-020 — Presenter unit tests without Unity views.** Snapshot -> deterministic view model for vitality/prompt/combat/readiness.
+  - Exact-SHA feature `1ca523f2fedb05599a445bb1a539d04fbf3e7774`, request `e3fb4b46000882770b983a6653c6d4b5293b3a43`, workflow `33864869873`: repository-selected `Game.Hud.Tests` passed 11/11 with 0 failed/skipped/inconclusive; requested `Game.Hud.Tests.HudSnapshotProjectorTests` also passed 11/11.
+- [x] **T17-021 — Binding-change regression.** Change Input binding and prove prompt text/glyph updates without gameplay code changes.
+  - Verified in the green 11/11 projector suite: real `UnityInputBindingService.Rebind(Interact, KeyCode.F)` changes only the projected binding label to `F` while target/action semantics remain unchanged.
+- [x] **T17-022 — Local-player identity test.** Two local/represented players cannot display each other's controlled-character vitality/prompt state.
+  - Verified in the green projector suite with two independent local/member/CharacterId bindings and distinct vitality/interaction state.
+- [x] **T17-023 — Reconnect rebuild test.** Current state reappears correctly and old transient events are not replayed.
+  - Verified in the green projector suite: updated authoritative vitality is reprojected after rebuild, pre-reconnect transient IDs are baselined, and only newly arriving events display afterward.
+- [x] **T17-024 — Headless gameplay regression.** Authoritative gameplay runs with Hud assembly absent.
+  - Exact-SHA workflow `33864869873`: independent `Game.Hud.HeadlessRegression.Tests` passed 1/1. The assembly has no Hud reference, drives real `PartySession` through readiness/start and real `VitalityRegistry` through damage, and asserts Sessions/Vitality/test assemblies do not reference `Game.Hud`.
+- [x] **T17-025 — Module-local built-player visual validation.** Use shared validation harness and semantic milestones; no bespoke screenshot driver.
+  - Exact-SHA workflow `33864869873`: `Assets/Game/Hud/Validation/HudSemanticPresentationValidation.unity` passed in 30.1s using the real `HudSnapshotProjector`, production `GameplayHudPresenter`, and real `UnityInputBindingService`; player log emitted `HUD_SEMANTIC_PRESENTATION_VALIDATION PASS vitality=73/100 prompt=E combat=true readiness=GameplayReady objective=Reach the gate`. Durable settled screenshot evidence is classified **production-quality**: crisp readable hierarchy, consistent panel alignment, semantic state accents, immediate vitality/prompt readability, and no placeholder or validation-only presentation path. Canonical Kentridge integration validation and the separate SceneIssue standalone replay also passed.
 - [x] **T17-026 — Repair exact-SHA planner blocker with a minimal ownership regression.** Nested module roots must assign a runtime asmdef only to its nearest/deepest module owner.
-  - Evidence: after two identical CI failures, a minimal repro was isolated. `tools/tests/test_module_validation_nested_roots.py` reproduces parent/child Kentridge-style test roots; `tools/module-validation-plan.py` now filters runtime asmdefs by nearest module root instead of recursively claiming nested assemblies. Local focused regression passes. This changes planner ownership only and does not rearrange unrelated Kentridge tests.
+  - Evidence: after two identical CI failures, a minimal repro was isolated. `tools/tests/test_module_validation_nested_roots.py` reproduces parent/child Kentridge-style test roots; `tools/module-validation-plan.py` now filters runtime asmdefs by nearest module root instead of recursively claiming nested assemblies. Workflow `33864869873` proves automatic module-plan derivation now succeeds and all derived validation completes green.
 
 ## Cleanup / close
 
@@ -63,4 +63,5 @@
   - Kentridge cleanup is coupled to blocked T17-018/T14-019; do not delete its current fallback controls before the production graph can supply Hud semantically.
 - [x] **T17-031 — Boundary audit.** No Inventory journal/party screen authority and no commands that mutate gameplay directly from Hud state.
   - Evidence: Hud.Api exposes read/presentation contracts only; Hud.Runtime references Query interfaces (`IPartySessionQuery`, `IVitalityQuery`, `IEncounterQuery`) plus Input presentation/context seams. Neither Hud assembly references Inventory, journal/party UI authority, or gameplay mutation services.
-- [ ] **T17-032 — Close with rebuild proof.** HUD is a pure projection that can be destroyed/recreated from current semantic state at any time.
+- [x] **T17-032 — Close with rebuild proof.** HUD is a pure projection that can be destroyed/recreated from current semantic state at any time.
+  - Evidence: `GameplayHudPresenter` owns no gameplay state and calls the provider for a fresh snapshot each draw. `HudSnapshotProjector` owns no persistent gameplay snapshot; every `Project` re-resolves member/controlled CharacterId and current Sessions/Vitality/Encounter/interaction/progression state. The exact-SHA reconnect regression proves current state changes are reprojected and only transient event IDs require presentation dedupe/baselining.
