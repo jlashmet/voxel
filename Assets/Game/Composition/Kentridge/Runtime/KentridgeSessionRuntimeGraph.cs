@@ -9,6 +9,7 @@ using Game.Quests.Api;
 using Game.SessionOrchestration.Api;
 using Game.SessionOrchestration.Runtime;
 using Game.Story.Api;
+using Game.WorldBuilder.Api;
 
 namespace Game.Composition.Kentridge.Runtime
 {
