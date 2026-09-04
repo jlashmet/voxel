@@ -1,28 +1,19 @@
 # 13 Authoritative world-object interaction — implementation plan
 
-**Target module:** `Assets/Game/WorldObjects/Api` / `Runtime` (`Game.WorldObjects.Api`, `Game.WorldObjects.Runtime`). Migrate/generalize existing authoritative world-object behavior from WorldBuilder/runtime code rather than duplicating it.
+**Target module:** `Assets/Game/WorldObjects/Api` / `Runtime` (`Game.WorldObjects.Api`, `Game.WorldObjects.Runtime`). Migrate/generalize existing authoritative world-object behavior rather than duplicating it.
 
-## API
+## Acceptance / ownership
 
-`WorldObjectId`, semantic object state snapshot, interaction intent/context, interaction result/fact, behavior capability/handler seam, and state-change events. Actor is referenced by CharacterId; spatial context stays semantic/minimal.
+WorldObjects owns authoritative object identity, semantic state, validation, deterministic behavior dispatch, capture/restore, and accepted interaction facts. Characters supplies `CharacterId`; Loot and Progression remain downstream adapters. No UI/input authority, inventory mutation, scene-specific IDs/policy, Unity objects, or parallel interaction runtime belong in generic WorldObjects.
 
-## Runtime
+Required proof: multiple behavior types through one runtime, explicit invalid actor/range/state/capability rejection, deterministic repeated interaction, save/restore without side-effect replay, independent non-Kentridge reuse, repository-selected dependent module tests, and the required standalone application gate.
 
-1. Establish stable registry/binding for realized world objects.
-2. Route character interaction intent to the authoritative object behavior with validation (identity, reach/context, current state, capability).
-3. Apply deterministic state transitions and emit semantic facts.
-4. Provide adapters so Loot and Progression can react without direct runtime coupling.
-5. Add capture/restore and replication projections.
-6. Migrate scene-local `E`/raycast-to-behavior shortcuts to shared Input + interaction requests.
+## Current result / hypotheses
 
-## Dependencies
+Implementation and focused regressions are complete. Exact-SHA run `33823479614` correctly resolved source `208ffa4068948e3e559ef61c2416ff1fb2709f21`, then both module validation and standalone-player build failed at compile time with CS0012 in `WorldObjectProgressionAdapter`: `Game.Progression.Runtime` consumes `WorldInteractionFact.ActorId` (`CharacterId`) but its asmdef lacks `Game.Characters.Api`.
 
-03 Characters, existing WorldBuilder realization API, existing Input API at the client/composition edge.
+Hypothesis A: missing direct assembly reference is the sole compiler blocker. Hypothesis B: the adapter is exposing an unintended WorldObjects→Characters ownership leak. The existing contract already intentionally defines actor identity as `CharacterId`, and WorldObjects Runtime directly references Characters Api, so the discriminating evidence selects A; adding the consumer-side direct asmdef reference preserves the planned dependency direction.
 
-## Tests / proof
+## Selected fix / remaining gates
 
-Two different object behaviors through one runtime, invalid actor/range/state rejection, repeated interaction, save/restore, and independent non-Kentridge consumer.
-
-## Do not build
-
-No UI prompt ownership, inventory mutation inside generic WorldObjects, or scene-specific object ids/policies.
+Add only `Game.Characters.Api` to `Game.Progression.Runtime` references; do not change interaction contracts or ownership. Re-run exact-SHA targeted CI on the new feature SHA. If green, complete T13-025 and closure metadata, move only this SceneIssue `open/`→`closed/`, merge current `origin/master` into `fixes/agent-2`, then promote only through PR + auto-merge and the required `affected` PR gate.

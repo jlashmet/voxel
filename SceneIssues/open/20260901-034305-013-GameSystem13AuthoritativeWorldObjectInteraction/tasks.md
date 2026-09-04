@@ -32,7 +32,7 @@
 - [x] **T13-022 — Repeated interaction/state conflict tests.** Door/nested repeated transitions are deterministic; pickup second interaction rejects and neither inventory nor Progression is invoked twice.
 - [x] **T13-023 — Snapshot/restore test.** Pickup, door, nested-subscene, and ordered registry state round-trip; consumed pickup restore explicitly proves no transfer replay.
 - [x] **T13-024 — Independent non-Kentridge fixture.** `Game.WorldObjects.Tests` is a scene-free semantic fixture using independent `fixture:*` ids/positions and no Kentridge composition dependency.
-- [ ] **T13-025 — Run automatic WorldObjects and dependent Loot/Progression tests.** Pending repository exact-SHA targeted CI; an earlier diagnostic request remains queued and will not be replaced while queued/running.
+- [ ] **T13-025 — Run automatic WorldObjects and dependent Loot/Progression tests.** Exact-SHA run `33823479614` resolved source `208ffa4068948e3e559ef61c2416ff1fb2709f21` correctly but failed before tests because `Game.Progression.Runtime` omitted the direct `Game.Characters.Api` reference required by `WorldInteractionFact.ActorId`. Fix the asmdef dependency, then rerun repository exact-SHA targeted CI; do not check this item until required module validation and standalone application validation are green.
 
 ## Cleanup / close
 
