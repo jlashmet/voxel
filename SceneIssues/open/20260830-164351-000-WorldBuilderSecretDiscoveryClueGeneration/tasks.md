@@ -29,13 +29,16 @@
 - [x] Add CaveWorldBuilder and Showcase module-owned EditMode assemblies and focused module-local validation scenes.
 - [x] Exact run `33835125556` selected CaveWorldBuilder, Showcase, and WorldBuilder correctly; Cave player passed, Showcase failed before readiness.
 - [x] Isolate Showcase readiness failure to validation seed drift; align C# + serialized scene with production Gallery seed `0x5EED1234`.
-- [x] Falsify Gallery camera/framing and missing-geometry hypotheses using authoritative occupancy + focused rendered evidence.
+- [x] Falsify Gallery camera/framing and missing-authoritative-geometry hypotheses using authoritative occupancy + focused rendered evidence.
 - [x] Exact request `56af2443f352fa4ce6561c784143243ecfb0cecc` / run `33839912405` completed without replacement. Cave focused tests passed; standalone Gallery semantic replay passed; Showcase focused tests exposed a fixture-only startup-radius mismatch.
 - [x] Full-resolution review of run `33839912405` rejects closure because `02-authored-breakable-boundary.png` still shows underside/void; generic post-bake residency publication is therefore falsified as a complete visual fix.
 - [x] Correct the Showcase publication regression fixture to use the production Gallery bake startup radius 4 and unload radius 6.
 - [x] Strengthen the regression to require a content-dirty `VoxelChangeKind`, explicitly rejecting residency-only publication.
 - [x] Apply the repository's established post-bulk-authoring remesh semantic: publish the bounded 3x3 secret-cave footprint with `VoxelChangeKind.All`, matching the completed-castle path that requires re-mesh/re-upload.
-- [ ] Fresh exact-SHA CI module-validation plan selects CaveWorldBuilder, Showcase, and WorldBuilder EditMode assemblies plus adjacent validation scenes and Kentridge integration.
+- [x] Exact run `33842982484` selected CaveWorldBuilder, Showcase, and WorldBuilder EditMode assemblies plus their module-local players and Kentridge; automatic validation stopped only because the publication regression's BrickPool tier was smaller than the production Gallery scene.
+- [x] Match the publication regression to production Gallery `m_BrickPoolCapacity: 800000` so it can reach the content-dirty assertion.
+- [x] Falsify another notification-only fix with run `33842982484`: full-resolution authored-breakable evidence still shows underside/void while player diagnostics show the renderer is cold (`visible=48`, `missingMax=647`) immediately before capture and continues converging afterward.
+- [x] Replace the authored-breakable evidence's blind 1.25-second delay with production-renderer convergence gating: require post-pin render passes, nonzero visible solids, and zero missing visible solid chunks for two frames; fail capture on timeout and restore all temporary offline-capture budgets.
 - [ ] Fresh exact-SHA Showcase content-dirty publication regression passes.
 - [ ] Representative SecretDiscovery examples are visibly understandable in `WorldbuildingGalleryShowcase` at gameplay scale.
 - [ ] Gallery visual review is `production-quality`: feature-specific natural + breakable clue language, no stale terrain, placeholder signs, universal glow, floating/intersecting geometry, or invalid framing.
