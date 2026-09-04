@@ -7,6 +7,7 @@ using Unity.Mathematics;
 using VoxelEngine.Composition;
 using VoxelEngine.Composition.Api;
 using VoxelEngine.Storage.Api;
+using VoxelEngine.Structures.Api;
 
 namespace VoxelEngine.Showcase
 {
@@ -97,6 +98,20 @@ namespace VoxelEngine.Showcase
                    materialDefinitions, GameShowcaseMaterials.Default,
                    maxMixedBrickAllocationBytes, features, startup)
         {
+        }
+
+        /// <summary>
+        /// Creates a Structures.Api authoring capability against this world's owned storage and
+        /// mutable material catalogue. The mutable catalogue deliberately remains private to the
+        /// composition root; consumers receive only the semantic authoring session.
+        /// </summary>
+        public IStructureAuthoringSession CreateStructureAuthoringSession(int writeBudget)
+        {
+            return StructuresComposition.CreateAuthoringSession(
+                ReadStorage,
+                MutationStorage,
+                _palette,
+                writeBudget);
         }
     }
 }
