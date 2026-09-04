@@ -219,7 +219,9 @@ namespace Game.Progression.Api
             if (objectiveCounts == null) throw new ArgumentNullException(nameof(objectiveCounts));
             _completedNodeIds = new string[completedNodeIds.Count];
             for (var i = 0; i < completedNodeIds.Count; i++) _completedNodeIds[i] = completedNodeIds[i];
-            _objectiveCounts = new Dictionary<string, int>(objectiveCounts, StringComparer.Ordinal);
+            _objectiveCounts = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (KeyValuePair<string, int> pair in objectiveCounts)
+                _objectiveCounts.Add(pair.Key, pair.Value);
             EntryId = entryId;
             Kind = kind;
             Status = status;
