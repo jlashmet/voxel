@@ -74,6 +74,56 @@ namespace VoxelEngine.Tests.EditMode
                 "Every production batch surface category must compile against the same dense view.");
         }
 
+        [Test]
+        public void ProductionGpuFramePathYieldsInsteadOfSynchronizing()
+        {
+            string extractor = ReadRenderingFile("Runtime", "GpuVoxel", "GpuSurfaceExtractor.cs");
+            string context = ReadRenderingFile(
+                "Runtime", "GpuVoxel", "GpuSurfaceExtractionContext.cs");
+            string coordinator = ReadRenderingFile(
+                "Runtime", "GpuVoxel", "GpuSurfaceMirrorCoordinator.cs");
+            string pageArena = ReadRenderingFile(
+                "Runtime", "GpuVoxel", "GpuSurfacePageArena.cs");
+            string cache = ReadRenderingFile(
+                "Runtime", "SurfaceExtraction", "CpuTransvoxelChunkCache.cs");
+
+            string countBatch = MethodBody(extractor, "internal void DispatchCountBatch",
+                                           "internal void DispatchBaseWriteBatch");
+            string writeBatch = MethodBody(extractor, "internal void DispatchBaseWriteBatch",
+                                           "internal void PrefixCountBatch");
+            string copyPublish = MethodBody(extractor, "public void WriteScratchCopyAndPublish",
+                                            "public void PublishEmpty");
+            string gpuPhase = MethodBody(cache, "if (_build.Phase == 9)",
+                                         "if (_build.Phase == 11)");
+
+            AssertNoBlockingGpuSync(countBatch, "production count batch");
+            AssertNoBlockingGpuSync(writeBatch, "production write batch");
+            AssertNoBlockingGpuSync(copyPublish, "production copy/publication");
+            AssertNoBlockingGpuSync(context, "production extraction context");
+            AssertNoBlockingGpuSync(coordinator, "production mirror coordinator");
+            AssertNoBlockingGpuSync(pageArena, "production page arena");
+            AssertNoBlockingGpuSync(gpuPhase, "solid worker GPU phase");
+
+            StringAssert.Contains("_gpuExtraction.TryTakePagedBatch", gpuPhase,
+                "The worker must poll the GPU stage instead of synchronizing it.");
+            StringAssert.Contains("break;", gpuPhase,
+                "An unfinished GPU stage must yield the current frame.");
+            StringAssert.DoesNotContain("GpuCpuSnapshotRequired", gpuPhase,
+                "Pending GPU work must not become a CPU snapshot merely because it is unfinished.");
+            StringAssert.Contains("!s_ExtractionFence.passed", coordinator,
+                "The coordinator must inspect fence readiness without waiting on the fence.");
+        }
+
+        private static void AssertNoBlockingGpuSync(string source, string path)
+        {
+            StringAssert.DoesNotContain(".GetData(", source,
+                $"{path} must not synchronously read GPU buffers.");
+            StringAssert.DoesNotContain("WaitForCompletion(", source,
+                $"{path} must not synchronously wait for GPU readback.");
+            StringAssert.DoesNotContain("WaitOnAsyncGraphicsFence(", source,
+                $"{path} must not wait for a graphics fence on the frame path.");
+        }
+
         private static string MethodBody(string source, string startMarker, string endMarker)
         {
             int start = source.IndexOf(startMarker, StringComparison.Ordinal);
