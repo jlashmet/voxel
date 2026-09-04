@@ -6,36 +6,36 @@
 
 ## Baseline / API
 
-- [ ] **T13-001 — Inventory current world-object behaviors.** Find existing authoritative WorldBuilder/world-object state, interactable MonoBehaviours, raycast/E-key handlers, doors/containers/secrets/NPC interaction bridges and duplicate ids.
-- [ ] **T13-002 — Establish asmdefs and migration boundary.** Generalize existing authoritative behavior instead of creating parallel state; API depends on Characters.Api for actor identity but no scene types.
-- [ ] **T13-003 — Define stable `WorldObjectId`.** Specify binding/serialization semantics for realized objects and migration from existing ids.
-- [ ] **T13-004 — Define semantic object state snapshot.** Expose only reusable current behavior/capability state needed by consumers/replication/persistence.
-- [ ] **T13-005 — Define interaction intent/context.** CharacterId + WorldObjectId + semantic action/context; no Camera/RaycastHit/GameObject in API.
-- [ ] **T13-006 — Define interaction result/fact and rejection reasons.** Distinguish invalid actor, unavailable capability, reach/context failure and state conflict.
-- [ ] **T13-007 — Define behavior capability/handler seam.** Runtime dispatches to object behavior without generic WorldObjects knowing Loot/Quest-specific state.
+- [x] **T13-001 — Inventory current world-object behaviors.** Repository searches for `Input.GetKey*`, mouse-button polling, `KeyCode.E`, `Physics.Raycast`, `Interact`, door/nested-subscene helpers, and the existing WorldObjects/Loot contracts found no competing production interaction authority on current master; GameSystem10 exposes validation/loot semantics only.
+- [x] **T13-002 — Establish asmdefs and migration boundary.** Added `Game.WorldObjects.Runtime` with only `Game.WorldObjects.Api` + `Game.Characters.Api` dependencies; Loot and Progression integrations live in their owning consumer modules.
+- [x] **T13-003 — Define stable `WorldObjectId`.** Preserved the existing ordinal, serialization-safe `WorldObjectId` contract and original failure enum values for GameSystem10 compatibility.
+- [x] **T13-004 — Define semantic object state snapshot.** `WorldObjectStateSnapshot` carries stable id, behavior kind, enabled/state code, and revision without Unity/scene objects.
+- [x] **T13-005 — Define interaction intent/context.** `WorldInteractionContext` carries semantic `CharacterId`; `InteractionClickedProcessor` translates sender Steam binding and co-located candidate selection without Camera/RaycastHit/GameObject types.
+- [x] **T13-006 — Define interaction result/fact and rejection reasons.** Added explicit no-target, invalid-payload, missing-inventory, inventory-rejected semantics while preserving existing actor/object/range/permission/state/capability failures; accepted transitions emit `WorldInteractionFact`.
+- [x] **T13-007 — Define behavior capability/handler seam.** `IWorldObjectBehavior` owns semantic interaction/capture/restore while generic WorldObjects depends only on `IWorldItemPickupTransfer` for the pickup side-effect seam.
 
 ## Runtime / migration
 
-- [ ] **T13-010 — Implement authoritative object registry/binding.** Bind realized world objects to stable ids/state/behavior and reject duplicate bindings.
-- [ ] **T13-011 — Centralize interaction validation.** Validate actor identity, current object state, semantic capability and demonstrated spatial/reach context using owning APIs.
-- [ ] **T13-012 — Dispatch behavior deterministically.** Apply state transitions exactly once and return authoritative result; repeated requests follow explicit idempotency/conflict rules.
-- [ ] **T13-013 — Emit semantic state-change/interaction facts.** Downstream adapters consume facts rather than reaching into behavior Runtime.
-- [ ] **T13-014 — Add Loot adapter seam.** System 10 can coordinate pickup/container behavior without WorldObjects directly mutating Inventory.
-- [ ] **T13-015 — Add Progression/Story interaction adapter seam.** Semantic facts can become observations/events through composition without WorldObjects knowing quest/story rules.
-- [ ] **T13-016 — Add capture/restore and replication projection seams.** Restore current object truth without replaying prior interaction one-shots.
-- [ ] **T13-017 — Migrate raw interaction input.** Unity/Input layer selects candidate and sends semantic request; remove `E`/raycast-to-behavior direct authority paths.
+- [x] **T13-010 — Implement authoritative object registry/binding.** `WorldObjectRegistry` rejects duplicate ids, returns co-located candidates sorted by `WorldObjectId`, and provides ordered capture/restore.
+- [x] **T13-011 — Centralize interaction validation.** `InteractionClickedProcessor` resolves `CharacterBinding("steam", senderSteamId)` through `ICharacterQuery`, validates object existence and exact semantic co-location, and returns explicit failures.
+- [x] **T13-012 — Dispatch behavior deterministically.** Only the lowest-id co-located candidate is attempted; pickup disables only after transfer success, doors toggle deterministically, nested subscenes reject invalid state, and repeated consumed pickup requests reject without duplicate side effects.
+- [x] **T13-013 — Emit semantic state-change/interaction facts.** The processor publishes exactly one fact after a successful transition and no fact after rejection; composite/null sink seams keep downstream ownership external.
+- [x] **T13-014 — Add Loot adapter seam.** `WorldObjectLootAdapter` uses the existing `IInventoryTransactions` authority plus explicit `CharacterInventoryBindings`; generic WorldObjects never imports Inventory or invents inventory ids.
+- [x] **T13-015 — Add Progression/Story interaction adapter seam.** `WorldObjectProgressionAdapter` translates accepted world facts into `IProgressionFactSink` facts without WorldObjects depending on Progression.
+- [x] **T13-016 — Add capture/restore and replication projection seams.** Registry/object snapshots are ordered semantic current-state projections; restore validates identity/kind/state and does not replay pickup transfer side effects.
+- [x] **T13-017 — Migrate raw interaction input.** Required audit found no current production `E`/raw-key/mouse/raycast-to-behavior authority path to migrate; the new server-side processor consumes semantic sender/candidate state only.
 
 ## Verification
 
-- [ ] **T13-020 — Two-behavior reuse test.** Exercise two distinct object behaviors through one registry/interaction pipeline.
-- [ ] **T13-021 — Validation rejection tests.** Invalid CharacterId, object, range/context, capability and stale state all reject without mutation.
-- [ ] **T13-022 — Repeated interaction/state conflict tests.** No duplicate effects from repeated/late requests.
-- [ ] **T13-023 — Snapshot/restore test.** Current interactive state round-trips with stable WorldObjectId and no replayed effects.
-- [ ] **T13-024 — Independent non-Kentridge fixture.** Prove semantic interaction outside the primary composition.
-- [ ] **T13-025 — Run automatic WorldObjects and dependent Loot/Progression tests.**
+- [x] **T13-020 — Two-behavior reuse test.** EditMode coverage registers three pickups, three doors, and three nested-subscene toggles through one registry; deterministic multi-target selection is also covered.
+- [x] **T13-021 — Validation rejection tests.** Coverage includes unknown requester, unknown object, out-of-range object, no target, unsupported capability, invalid payload, missing inventory, destination rejection, consumed/stale pickup state, and invalid nested state.
+- [x] **T13-022 — Repeated interaction/state conflict tests.** Door/nested repeated transitions are deterministic; pickup second interaction rejects and neither inventory nor Progression is invoked twice.
+- [x] **T13-023 — Snapshot/restore test.** Pickup, door, nested-subscene, and ordered registry state round-trip; consumed pickup restore explicitly proves no transfer replay.
+- [x] **T13-024 — Independent non-Kentridge fixture.** `Game.WorldObjects.Tests` is a scene-free semantic fixture using independent `fixture:*` ids/positions and no Kentridge composition dependency.
+- [ ] **T13-025 — Run automatic WorldObjects and dependent Loot/Progression tests.** Pending repository exact-SHA targeted CI; an earlier diagnostic request remains queued and will not be replaced while queued/running.
 
 ## Cleanup / close
 
-- [ ] **T13-030 — Remove scene-object authoritative identity and direct behavior shortcuts.** Repository-wide search for interaction handlers bypassing WorldObjects.
-- [ ] **T13-031 — Boundary audit.** No UI prompt ownership, Inventory mutation, quest policy or named scene/object policy in generic module; no external Runtime dependency.
-- [ ] **T13-032 — Close with single-owner proof.** Every production world-object interaction reaches the same authoritative registry/behavior pipeline.
+- [x] **T13-030 — Remove scene-object authoritative identity and direct behavior shortcuts.** Repository-wide search found no existing production raw-input/raycast/interaction shortcut to remove; no duplicate helper was introduced.
+- [x] **T13-031 — Boundary audit.** Generic WorldObjects owns no UI prompts, Inventory mutation, quest policy, named scene/object policy, Unity engine object, or external Runtime dependency.
+- [x] **T13-032 — Close with single-owner proof.** The production semantic entry point is `InteractionClickedProcessor` -> sorted `IWorldObjectRegistry` -> one `IWorldObjectBehavior`; Loot and Progression attach only through side-effect/fact adapters and do not process clicks independently.
