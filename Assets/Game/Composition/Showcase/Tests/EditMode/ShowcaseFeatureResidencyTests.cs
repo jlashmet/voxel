@@ -8,7 +8,7 @@ namespace VoxelEngine.Showcase.Tests
 {
     public sealed class ShowcaseFeatureResidencyTests
     {
-        private const uint Seed = 0x46524553u;
+        private const uint Seed = 0x4B454E54u;
         private const double StreamingBudgetMs = 5000.0;
         private const int MaximumStreamingSteps = 64;
 
