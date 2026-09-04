@@ -30,32 +30,25 @@
 - [x] Exact run `33835125556` selected CaveWorldBuilder, Showcase, and WorldBuilder correctly; Cave player passed, Showcase failed before readiness.
 - [x] Isolate Showcase readiness failure to validation seed drift; align C# + serialized scene with production Gallery seed `0x5EED1234`.
 - [x] Falsify Gallery camera/framing and missing-authoritative-geometry hypotheses using authoritative occupancy + focused rendered evidence.
-- [x] Exact request `56af2443f352fa4ce6561c784143243ecfb0cecc` / run `33839912405` completed without replacement. Cave focused tests passed; standalone Gallery semantic replay passed; Showcase focused tests exposed a fixture-only startup-radius mismatch.
-- [x] Full-resolution review of run `33839912405` rejects closure because `02-authored-breakable-boundary.png` still shows underside/void; generic post-bake residency publication is therefore falsified as a complete visual fix.
-- [x] Correct the Showcase publication regression fixture to use the production Gallery bake startup radius 4 and unload radius 6.
-- [x] Strengthen the regression to require a content-dirty `VoxelChangeKind`, explicitly rejecting residency-only publication.
-- [x] Apply the repository's established post-bulk-authoring remesh semantic: publish the bounded 3x3 secret-cave footprint with `VoxelChangeKind.All`, matching the completed-castle path that requires re-mesh/re-upload.
-- [x] Exact run `33842982484` selected CaveWorldBuilder, Showcase, and WorldBuilder EditMode assemblies plus their module-local players and Kentridge; automatic validation stopped only because the publication regression's BrickPool tier was smaller than the production Gallery scene.
-- [x] Match the publication regression to production Gallery `m_BrickPoolCapacity: 800000` so it can reach the content-dirty assertion.
-- [x] Falsify another notification-only fix with run `33842982484`: full-resolution authored-breakable evidence still shows underside/void while player diagnostics show the renderer is cold (`visible=48`, `missingMax=647`) immediately before capture and continues converging afterward.
-- [x] Replace the authored-breakable evidence's blind 1.25-second delay with production-renderer convergence gating: require post-pin render diagnostics, nonzero visible solids, and zero missing visible solid chunks for two frames; fail capture on timeout.
-- [x] Exact run `33844103873` selected the correct module/player plan but failed compile before tests because Showcase directly imported `VoxelEngine.Rendering.Runtime`.
-- [x] Isolate the compile failure to an ownership-boundary mistake rather than a missing asmdef reference; route convergence evidence through existing `RenderingComposition` diagnostics and remove direct `VoxelRenderBridge` access.
-- [x] Exact run `33851419365` proves the Showcase content-dirty publication regression now passes; all persistent EditMode batches report zero effective failures.
-- [x] Exact run `33851419365` proves the strict breakable renderer predicate can converge (`visible=487 missing=0`) and both audit captures can complete.
-- [x] Full-resolution review of `33851419365` falsifies renderer-cold as the remaining explanation: the breakable frame still shows underside/void after strict convergence, and ordinary Gallery frames show the same base-renderer void/floating presentation outside the SecretDiscovery camera.
-- [x] Isolate the remaining automatic validation failure to module-local Gallery storage fidelity (196608 / radius 2/3 versus production 800000 / radius 4/6) and align the Showcase validation player with production.
+- [x] Correct Showcase publication regression/player fidelity to production Gallery startup radius 4, unload radius 6, and BrickPool 800000.
+- [x] Strengthen publication regression to require content-dirty `VoxelChangeKind` and publish the bounded 3x3 secret-cave footprint with `VoxelChangeKind.All`.
+- [x] Replace blind capture delay with production-renderer convergence gating through `RenderingComposition` diagnostics; do not import renderer internals from Showcase.
+- [x] Exact run `33851419365` proves the Showcase content-dirty publication regression passes and the strict renderer predicate can converge (`visible=487 missing=0`).
+- [x] Full-resolution review of `33851419365` falsifies renderer-cold as the remaining explanation; ordinary Gallery frames also show the base void/floating presentation.
+- [x] Exact request `698aa3347a3065d1e495ba260cc90913fde71907` / run `33852280392` completed without replacement and passed automatic module validation plus standalone SceneIssue replay on source `3e6cd24436fa0a5b3f8f23279697ada624734d16`.
+- [x] Full-resolution review of `33852280392` completed and classified visual evidence `unacceptable`: breakable frame remains below/through terrain with large void; natural frame still does not communicate an understandable cave clue at gameplay scale.
+- [x] Apply the issue-guide two-fix rule: stop speculative SecretDiscovery-side visual changes after publication, convergence, and validation-fidelity fixes all leave the same base Gallery renderer symptom.
+- [ ] Shared GPU renderer restoration is authoritative on `origin/master` (external prerequisite; current restoration work is not merged to master).
+- [ ] After renderer prerequisite lands, merge current `origin/master` into `fixes/agent-5` and rerun exact-SHA targeted validation.
 - [ ] Representative SecretDiscovery examples are visibly understandable in `WorldbuildingGalleryShowcase` at gameplay scale.
-- [ ] Gallery visual review is `production-quality`: feature-specific natural + breakable clue language, no stale terrain, placeholder signs, universal glow, floating/intersecting geometry, or invalid framing.
+- [ ] Gallery visual review is `production-quality`: feature-specific natural + breakable clue language, no stale terrain, placeholder signs, universal glow, floating/intersecting geometry, void/underside, or invalid framing.
 
 ## Cost / integration / closure
 
 - [x] Planner/discovery work is one-shot/event-driven; no per-frame search/polling added.
 - [x] Cave composition is bounded by traversal candidates; post-bake content invalidation is bounded to the same nine preloaded secret-cave regions.
-- [x] User-named exact request `56af2443f352fa4ce6561c784143243ecfb0cecc` was monitored through completion without replacement.
-- [x] Exact request `d003d5ad69f23b47278a8a6157957b7471c716bb` / run `33844103873` was allowed to complete and was not replaced while queued/running; its product compile failure was inspected before another request.
-- [x] Exact requests `d8c4a223faa3a3d91d74af3d686847d0267b22bc` / `33850697058` and `663a1a9d14fd9f9f96c69884b0385299c9a5a216` / `33851419365` were each allowed to complete without transport replacement before diagnosis/fix.
-- [ ] Fresh exact-SHA targeted gate green against current feature head after Showcase validation fidelity fix.
+- [x] All named/created exact CI requests were left untouched while queued/running and diagnosed only after completion.
+- [x] Fresh exact-SHA targeted gate is green for feature SHA `3e6cd24436fa0a5b3f8f23279697ada624734d16` via run `33852280392`.
 - [ ] All acceptance criteria green from exact tests + built-player evidence.
 - [ ] Move assigned SceneIssue `open -> closed`, set `status=fixed` and `resolvedUtc`, and complete supported resolution fields.
 - [ ] Integrate then-current `origin/master` into `fixes/agent-5` before final promotion.
