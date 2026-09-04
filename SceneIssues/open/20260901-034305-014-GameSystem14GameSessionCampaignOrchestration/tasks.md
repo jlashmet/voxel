@@ -39,6 +39,6 @@
 
 ## Cleanup / close
 
-- [ ] **T14-030 — Remove alternate composition roots.** Search scenes/tests for direct production construction of Campaign/Combat/Input/etc.; fixtures may compose explicitly only when testing modules.
-- [ ] **T14-031 — God-object audit.** No campaign rules, serialization, network protocol, domain state stores or broad subsystem query facade in SessionOrchestration.
+- [x] **T14-030 — Remove alternate composition roots.** Feature-diff audit confirms the playable scene now enters `GameSessionOrchestrator`; authoritative Campaign construction lives in `KentridgeSessionRuntimeGraphFactory`, Encounter/Combat/Input construction lives in its session extension, and scene anchors only hand those factories/registries across composition boundaries. Direct construction remaining in tests is fixture-only.
+- [x] **T14-031 — God-object audit.** SessionOrchestration product assemblies own lifecycle/order and semantic ports only; Campaign/Story/Progression rules, serializers, network protocol, subsystem state stores and broad service/query access remain outside the orchestrator.
 - [ ] **T14-032 — Close with lifecycle proof.** New, resume, running, resolved reaction and teardown all use one production runtime graph.
