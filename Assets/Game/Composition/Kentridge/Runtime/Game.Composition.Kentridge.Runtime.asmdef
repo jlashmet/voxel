@@ -4,6 +4,7 @@
   "references": [
     "Game.Composition.Kentridge.Api",
     "Game.Composition.Campaign",
+    "Game.Composition.Campaign.Content",
     "Game.Composition.Campaign.Runtime",
     "Game.Composition.WorldBuilderWorldGen",
     "Game.Composition.WorldBuilderWorldGen.Runtime",
@@ -15,7 +16,8 @@
     "Game.Characters.Api",
     "Game.Outcomes.Api",
     "Game.SessionOrchestration.Api",
-    "Game.SessionOrchestration.Runtime"
+    "Game.SessionOrchestration.Runtime",
+    "Game.Story.Api"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
