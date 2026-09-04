@@ -4,6 +4,7 @@ using Game.Characters.Api;
 using Game.Encounters.Api;
 using Game.Hud.Api;
 using Game.Input.Api;
+using Game.Input.Runtime;
 using Game.Sessions.Api;
 using Game.Vitality.Api;
 using UnityEngine;
@@ -41,6 +42,7 @@ namespace Game.Hud.Runtime.Validation
                 new EncounterMembershipSnapshot(new[] { new EncounterParticipant(characterId, EncounterParticipantOwnership.Persistent, "player") }),
                 null, "validation", "", 1);
 
+            var bindings = new UnityInputBindingService();
             var projector = new HudSnapshotProjector(
                 new Resolver(local, memberId),
                 new Party(partyMember),
@@ -49,7 +51,7 @@ namespace Game.Hud.Runtime.Validation
                 new Interaction(characterId),
                 new Progression(),
                 null,
-                new Binding("E"),
+                bindings,
                 new Context());
 
             HudSnapshot snapshot = projector.Project(local);
@@ -58,6 +60,12 @@ namespace Game.Hud.Runtime.Validation
                 || !snapshot.Encounter.CombatRequired || snapshot.Readiness != HudReadinessState.GameplayReady
                 || !snapshot.TrackedProgression.Visible)
                 throw new InvalidOperationException("HUD semantic projection did not produce the required validation state.");
+
+            bindings.Rebind(StandardInputActions.Interact, KeyCode.F);
+            HudSnapshot rebound = projector.Project(local);
+            if (!rebound.Interaction.Visible || rebound.Interaction.BindingLabel != "F")
+                throw new InvalidOperationException("HUD prompt did not reflect the production input rebinding seam.");
+            bindings.Rebind(StandardInputActions.Interact, KeyCode.E);
 
             GameplayHudPresenter presenter = gameObject.AddComponent<GameplayHudPresenter>();
             presenter.Configure(projector, local);
@@ -103,8 +111,6 @@ namespace Game.Hud.Runtime.Validation
         }
         private sealed class Progression : IHudTrackedProgressionSource
         { public bool TryGetTracked(LocalPlayerId local, out HudTrackedProgressionView tracked) { tracked = new HudTrackedProgressionView(true, "objective:gate", "Reach the gate", "2 / 3 landmarks"); return true; } }
-        private sealed class Binding : IInputBindingPresentation
-        { private readonly string _label; public Binding(string label) { _label = label; } public bool TryGetDisplayLabel(LocalPlayerId local, InputActionId action, out string label) { label = _label; return true; } }
         private sealed class Context : IInputContextService
         { public InputContextId ActiveContext => InputContextId.Exploration; public IInputContextLease Push(InputContextId context) { throw new NotSupportedException(); } }
     }
