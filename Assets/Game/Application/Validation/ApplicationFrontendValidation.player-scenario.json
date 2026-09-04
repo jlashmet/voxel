@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "runSeconds": 10,
+  "capture": {
+    "width": 1280,
+    "height": 720,
+    "intervalSeconds": 2,
+    "minimumFrames": 4,
+    "evidenceAfterSeconds": 1
+  },
+  "timeline": {},
+  "assertions": {
+    "requiredLogPatterns": [
+      "APPLICATION_VALIDATION ready: lifecycle=FrontEnd screen=MainMenu",
+      "APPLICATION_VALIDATION new-game: lifecycle=InGame ready=True",
+      "APPLICATION_VALIDATION continue: restore=save-continue lifecycle=InGame",
+      "APPLICATION_VALIDATION multiplayer: host=hosted-party join=joined-party partySemantic=True",
+      "APPLICATION_VALIDATION menus-settings: context=Exploration persisted=True binding=Confirm",
+      "APPLICATION_VALIDATION outcome-return: disposition=Success lifecycle=FrontEnd",
+      "APPLICATION_FRONTEND_VIEW ready: bound=True lifecycle=FrontEnd"
+    ],
+    "forbiddenLogPatterns": [
+      "NullReferenceException",
+      "MissingReferenceException",
+      "APPLICATION_VALIDATION failure:"
+    ]
+  }
+}

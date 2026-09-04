@@ -1,0 +1,17 @@
+{
+  "name": "Game.SessionPresentation.Api",
+  "rootNamespace": "Game.SessionPresentation.Api",
+  "references": [
+    "Game.Sessions.Api",
+    "Game.Characters.Api"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}

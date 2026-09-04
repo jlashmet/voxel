@@ -34,6 +34,28 @@ namespace VoxelEngine.Showcase
     [RequireComponent(typeof(MeshRenderer))]
     public sealed class VoxelFarTerrain : MonoBehaviour
     {
+        public readonly struct CoverageSnapshot
+        {
+            public CoverageSnapshot(
+                float requestedOuterRadiusMetres,
+                float guaranteedAuthoritativeRadiusMetres,
+                int ringCount,
+                bool startupFallbackActive)
+            {
+                RequestedOuterRadiusMetres = requestedOuterRadiusMetres;
+                GuaranteedAuthoritativeRadiusMetres = guaranteedAuthoritativeRadiusMetres;
+                RingCount = ringCount;
+                StartupFallbackActive = startupFallbackActive;
+            }
+
+            public float RequestedOuterRadiusMetres { get; }
+            public float GuaranteedAuthoritativeRadiusMetres { get; }
+            public int RingCount { get; }
+            public bool StartupFallbackActive { get; }
+        }
+
+        private const int MaxRings = 12;
+
         [Tooltip("Where the voxel world stops and this takes over, in metres.")]
         [SerializeField] private float m_InnerRadiusMetres = 220f;
 
@@ -66,6 +88,7 @@ namespace VoxelEngine.Showcase
         private readonly List<int2> _ringOrigin = new();
         private readonly List<NativeArray<int>> _ringHeights = new();
         private readonly List<bool> _ringHeightValid = new();
+        private readonly List<bool> _ringAuthoritativePublished = new();
         private readonly List<int> _ringBuiltStructureVersion = new();
         private readonly List<float> _ringBuiltTopologyHoleMetres = new();
         private readonly List<int> _indicesScratch = new();
@@ -77,6 +100,7 @@ namespace VoxelEngine.Showcase
         private MeshRenderer _renderer;
         private Camera _camera;
         private bool _ownsMaterial;
+        private bool _coverageFailureLogged;
 
         // Height sampling is deliberately single-flight. The old implementation scheduled a Burst
         // job and immediately Complete()d it in LateUpdate, then could repeat that for every ring
@@ -112,6 +136,43 @@ namespace VoxelEngine.Showcase
         public float InnerRadiusMetres => m_InnerRadiusMetres;
         public float OuterRadiusMetres => m_OuterRadiusMetres;
         public uint Seed { get => m_Seed; set => m_Seed = value; }
+
+        /// <summary>
+        /// Read-only presentation diagnostics. This snapshot observes clipmap publication state;
+        /// it never feeds generation, streaming, or rendering decisions.
+        /// </summary>
+        public CoverageSnapshot CoverageDiagnostics
+        {
+            get
+            {
+                float guaranteed = 0f;
+                if (_ringMeshes.Count > 0)
+                {
+                    Vector3 observer = _camera != null
+                        ? _camera.transform.position
+                        : transform.position;
+                    ulong publishedMask = CurrentAuthoritativePublishedMask(observer);
+                    int contiguous = FarTerrainStartupCoverage.ContiguousPublishedRing(
+                        publishedMask, _ringMeshes.Count);
+                    if (contiguous >= 0)
+                        guaranteed = GuaranteedCoverageMetres(
+                            _ringSpacing[contiguous], m_Resolution);
+                }
+
+                return new CoverageSnapshot(
+                    m_OuterRadiusMetres,
+                    guaranteed,
+                    RingCount,
+                    _startupFallbackRing >= 0);
+            }
+        }
+
+        public float RingSpacingMetres(int ring)
+        {
+            if (ring < 0 || ring >= RingCount)
+                throw new ArgumentOutOfRangeException(nameof(ring));
+            return SpacingForRing(ring) * 0.1f;
+        }
 
         /// <summary>
         /// Resolves the material used by one far-field vertex. Positive structure silhouettes win;
@@ -247,14 +308,91 @@ namespace VoxelEngine.Showcase
             return safeRadius;
         }
 
+        internal static int RingSpacingVoxels(
+            float innerRadiusMetres, int resolution, int ring)
+        {
+            float innerVoxels = innerRadiusMetres / 0.1f;
+            int spacing = Mathf.Max(1, Mathf.NextPowerOfTwo(
+                Mathf.CeilToInt(innerVoxels * 2f / resolution)));
+            return spacing << ring;
+        }
+
+        internal static float RingHalfExtentMetres(int spacingVoxels, int resolution)
+        {
+            return spacingVoxels * resolution * 0.05f;
+        }
+
+        internal static float CameraSnapLossMetres(int spacingVoxels)
+        {
+            return spacingVoxels * 0.1f;
+        }
+
+        internal static float CoverageAtSnapPhaseMetres(
+            int spacingVoxels, int resolution, float snapPhase)
+        {
+            float phase = Mathf.Clamp01(snapPhase);
+            return Mathf.Max(0f,
+                RingHalfExtentMetres(spacingVoxels, resolution)
+                - CameraSnapLossMetres(spacingVoxels) * phase);
+        }
+
+        internal static float GuaranteedCoverageMetres(int spacingVoxels, int resolution)
+        {
+            return CoverageAtSnapPhaseMetres(spacingVoxels, resolution, 1f);
+        }
+
+        internal static bool TryRequiredRingCount(
+            float innerRadiusMetres,
+            float outerRadiusMetres,
+            int resolution,
+            int maxRings,
+            out int ringCount,
+            out float guaranteedCoverageMetres)
+        {
+            ringCount = Mathf.Max(1, maxRings);
+            guaranteedCoverageMetres = 0f;
+            for (int ring = 0; ring < ringCount; ring++)
+            {
+                int spacing = RingSpacingVoxels(innerRadiusMetres, resolution, ring);
+                guaranteedCoverageMetres = GuaranteedCoverageMetres(spacing, resolution);
+                if (guaranteedCoverageMetres >= outerRadiusMetres)
+                {
+                    ringCount = ring + 1;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         public int RingCount
         {
             get
             {
-                int rings = 1;
-                float reach = m_InnerRadiusMetres * 2f;
-                while (reach < m_OuterRadiusMetres && rings < 12) { reach *= 2f; rings++; }
-                return rings;
+                if (TryRequiredRingCount(
+                        m_InnerRadiusMetres,
+                        m_OuterRadiusMetres,
+                        m_Resolution,
+                        MaxRings,
+                        out int rings,
+                        out float guaranteedCoverage))
+                {
+                    _coverageFailureLogged = false;
+                    return rings;
+                }
+
+                if (!_coverageFailureLogged)
+                {
+                    Debug.LogError(
+                        $"VoxelFarTerrain: requested {m_OuterRadiusMetres:F1} m far coverage "
+                        + $"cannot be guaranteed with {MaxRings} rings at resolution "
+                        + $"{m_Resolution}; worst-case snapped coverage is "
+                        + $"{guaranteedCoverage:F1} m.",
+                        this);
+                    _coverageFailureLogged = true;
+                }
+
+                return MaxRings;
             }
         }
 
@@ -311,6 +449,7 @@ namespace VoxelEngine.Showcase
             for (int i = 0; i < _ringMeshes.Count; i++)
                 if (_ringMeshes[i] != null) Destroy(_ringMeshes[i]);
             _ringMeshes.Clear();
+            _ringAuthoritativePublished.Clear();
             _ringBuiltTopologyHoleMetres.Clear();
 
             if (_ownsMaterial && m_Material != null)
@@ -321,10 +460,7 @@ namespace VoxelEngine.Showcase
 
         public int SpacingForRing(int ring)
         {
-            float innerVoxels = m_InnerRadiusMetres / 0.1f;
-            int spacing = Mathf.Max(1, Mathf.NextPowerOfTwo(
-                Mathf.CeilToInt(innerVoxels * 2f / m_Resolution)));
-            return spacing << ring;
+            return RingSpacingVoxels(m_InnerRadiusMetres, m_Resolution, ring);
         }
 
         private void LateUpdate()
@@ -347,31 +483,26 @@ namespace VoxelEngine.Showcase
                 _ringHeightValid[ring] = true;
                 _ringOrigin[ring] = _heightJobOrigin;
 
-                float requestedHole = _holeRadiusMetres;
-                bool staleCriticalPublication = ring == 0
-                    && !OriginFor(cameraPosition, _ringSpacing[0]).Equals(_heightJobOrigin);
-                if (staleCriticalPublication) _holeRadiusMetres = 0f;
-                RebuildRingFromCachedHeights(ring, _ringOrigin[ring], _ringSpacing[ring]);
-                if (staleCriticalPublication) _holeRadiusMetres = requestedHole;
+                bool fallbackSlot = ring == _startupFallbackRing;
+                if (!fallbackSlot)
+                {
+                    float requestedHole = _holeRadiusMetres;
+                    bool staleCriticalPublication = ring == 0
+                        && !OriginFor(cameraPosition, _ringSpacing[0]).Equals(_heightJobOrigin);
+                    if (staleCriticalPublication) _holeRadiusMetres = 0f;
+                    RebuildRingFromCachedHeights(ring, _ringOrigin[ring], _ringSpacing[ring]);
+                    if (staleCriticalPublication) _holeRadiusMetres = requestedHole;
 
-                if (_startupFallbackRing >= 0
-                    && ring != _startupFallbackRing
-                    && ring == _startupFallbackCoverageRing + 1)
-                {
-                    _startupFallbackCoverageRing = ring;
-                    BuildStartupFallback(
-                        _ringMeshes[_startupFallbackRing], _startupFallbackCoverageRing);
+                    _ringAuthoritativePublished[ring] = true;
+                    _ringBuiltStructureVersion[ring] = structureVersion;
+                    if (ring == 0)
+                        _builtHoleRadiusMetres = staleCriticalPublication ? 0f : _holeRadiusMetres;
+                    rebuiltThisFrame = true;
                 }
-                if (ring == _startupFallbackRing)
-                {
-                    _startupFallbackRing = -1;
-                    _startupFallbackCoverageRing = -1;
-                }
-                _ringBuiltStructureVersion[ring] = structureVersion;
-                if (ring == 0)
-                    _builtHoleRadiusMetres = staleCriticalPublication ? 0f : _holeRadiusMetres;
+
                 _ringWorkCursor = (ring + 1) % _ringMeshes.Count;
-                rebuiltThisFrame = true;
+                if (RefreshStartupFallbackPublication(cameraPosition, structureVersion))
+                    rebuiltThisFrame = true;
             }
 
             if (_startupFallbackRing >= 0)
@@ -401,6 +532,7 @@ namespace VoxelEngine.Showcase
             if (!rebuiltThisFrame && RingNeedsPresentationRefresh(0, cameraPosition, structureVersion))
             {
                 RebuildRingFromCachedHeights(0, _ringOrigin[0], _ringSpacing[0]);
+                _ringAuthoritativePublished[0] = true;
                 _ringBuiltStructureVersion[0] = structureVersion;
                 _builtHoleRadiusMetres = _holeRadiusMetres;
                 _ringWorkCursor = _ringMeshes.Count > 1 ? 1 : 0;
@@ -418,6 +550,7 @@ namespace VoxelEngine.Showcase
 
                     RebuildRingFromCachedHeights(
                         ring, _ringOrigin[ring], _ringSpacing[ring]);
+                    _ringAuthoritativePublished[ring] = true;
                     _ringBuiltStructureVersion[ring] = structureVersion;
                     _ringWorkCursor = (ring + 1) % _ringMeshes.Count;
                     rebuiltThisFrame = true;
@@ -465,6 +598,7 @@ namespace VoxelEngine.Showcase
         {
             if (ring < 0 || ring >= _ringMeshes.Count || !_ringHeightValid[ring])
                 return false;
+            if (ring == _startupFallbackRing) return false;
 
             if (_heightJobScheduled && _heightJobRing == ring)
                 return false;
@@ -473,6 +607,59 @@ namespace VoxelEngine.Showcase
             if (!targetOrigin.Equals(_ringOrigin[ring])) return false;
             if (_ringBuiltStructureVersion[ring] != structureVersion) return true;
             return ring == 0 && Mathf.Abs(_holeRadiusMetres - _builtHoleRadiusMetres) >= 1f;
+        }
+
+        private bool RefreshStartupFallbackPublication(
+            Vector3 cameraPosition, int structureVersion)
+        {
+            if (_startupFallbackRing < 0) return false;
+
+            int fallbackRing = _startupFallbackRing;
+            ulong publishedMask = CurrentAuthoritativePublishedMask(cameraPosition);
+            int contiguous = FarTerrainStartupCoverage.ContiguousPublishedRing(
+                publishedMask, fallbackRing);
+            if (contiguous >= 0 && contiguous != _startupFallbackCoverageRing)
+            {
+                _startupFallbackCoverageRing = contiguous;
+                BuildStartupFallback(_ringMeshes[fallbackRing], contiguous);
+            }
+
+            int2 finalOrigin = OriginFor(cameraPosition, _ringSpacing[fallbackRing]);
+            bool finalSamplesReady = _ringHeightValid[fallbackRing]
+                && finalOrigin.Equals(_ringOrigin[fallbackRing]);
+            float finalGuaranteedCoverage = GuaranteedCoverageMetres(
+                _ringSpacing[fallbackRing], m_Resolution);
+            if (!FarTerrainStartupCoverage.CanPublishFinalRingAndRetireFallback(
+                    _ringMeshes.Count,
+                    fallbackRing,
+                    publishedMask,
+                    finalSamplesReady,
+                    finalGuaranteedCoverage,
+                    m_OuterRadiusMetres))
+                return false;
+
+            RebuildRingFromCachedHeights(
+                fallbackRing, _ringOrigin[fallbackRing], _ringSpacing[fallbackRing]);
+            _ringAuthoritativePublished[fallbackRing] = true;
+            _ringBuiltStructureVersion[fallbackRing] = structureVersion;
+            _startupFallbackRing = -1;
+            _startupFallbackCoverageRing = -1;
+            return true;
+        }
+
+        private ulong CurrentAuthoritativePublishedMask(Vector3 cameraPosition)
+        {
+            ulong mask = 0UL;
+            int count = Mathf.Min(_ringMeshes.Count, 63);
+            for (int ring = 0; ring < count; ring++)
+            {
+                if (ring == _startupFallbackRing) continue;
+                if (!_ringAuthoritativePublished[ring] || !_ringHeightValid[ring]) continue;
+                int2 targetOrigin = OriginFor(cameraPosition, _ringSpacing[ring]);
+                if (!targetOrigin.Equals(_ringOrigin[ring])) continue;
+                mask |= 1UL << ring;
+            }
+            return mask;
         }
 
         private int2 OriginFor(Vector3 cameraPosition, int spacing)
@@ -535,6 +722,7 @@ namespace VoxelEngine.Showcase
                 _ringHeights.Add(new NativeArray<int>(
                     sampleCount, Allocator.Persistent, NativeArrayOptions.UninitializedMemory));
                 _ringHeightValid.Add(false);
+                _ringAuthoritativePublished.Add(false);
                 _ringBuiltStructureVersion.Add(int.MinValue);
                 _ringBuiltTopologyHoleMetres.Add(float.NaN);
             }
@@ -575,6 +763,7 @@ namespace VoxelEngine.Showcase
             _ringHeightValid[ring] = true;
             _ringOrigin[ring] = origin;
             RebuildRingFromCachedHeights(ring, origin, spacing);
+            _ringAuthoritativePublished[ring] = true;
             _ringBuiltStructureVersion[ring] = Structures?.Version ?? 0;
             _builtHoleRadiusMetres = _holeRadiusMetres;
             _ringWorkCursor = _ringMeshes.Count > 1 ? 1 : 0;

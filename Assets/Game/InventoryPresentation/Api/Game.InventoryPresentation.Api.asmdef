@@ -1,0 +1,17 @@
+{
+  "name": "Game.InventoryPresentation.Api",
+  "rootNamespace": "Game.InventoryPresentation.Api",
+  "references": [
+    "Game.Inventory.Api",
+    "Game.Loot.Api"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}
