@@ -10,8 +10,8 @@
   "fixCommit": "",
   "unityVersion": "6000.5.6f1",
   "platform": "Rendering / WorldBuilder / Vegetation",
-  "sceneName": "KentridgePlayableSlice",
-  "scenePath": "Assets/Scenes/KentridgePlayableSlice.unity",
-  "sceneBuildIndex": 2,
+  "sceneName": "FarWorldVisibilityDemo",
+  "scenePath": "Assets/VoxelEngine/Rendering/Validation/FarWorld/FarWorldVisibilityDemo.unity",
+  "sceneBuildIndex": 0,
   "captures": []
 }
