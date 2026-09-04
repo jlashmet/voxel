@@ -124,9 +124,9 @@ namespace VoxelEngine.Showcase
         /// <summary>Drops the character onto the surface below the given position.</summary>
         public void SnapToGround(ShowcaseWorld world, Vector3 near)
         {
-            // Ground against the complete capsule footprint. Sampling only the centre column
-            // embeds an edge of the player whenever the terrain rises by one voxel beneath its
-            // 60 cm width—the exact failure an oblique hillside spawn exposed.
+            // Ground against the complete circular capsule footprint. Sampling only the centre
+            // column embeds an edge of the player on oblique terrain, while sampling every corner
+            // of the footprint AABB can snap to voxels the capsule does not actually overlap.
             int minX = Mathf.FloorToInt((near.x - Radius) / VoxelSize);
             int maxX = Mathf.FloorToInt((near.x + Radius - CollisionBoundaryEpsilon) / VoxelSize);
             int minZ = Mathf.FloorToInt((near.z - Radius) / VoxelSize);
@@ -134,7 +134,11 @@ namespace VoxelEngine.Showcase
             int surface = int.MinValue;
             for (int z = minZ; z <= maxZ; z++)
             for (int x = minX; x <= maxX; x++)
+            {
+                if (!CapsuleFootprintOverlapsVoxel(near.x, near.z, Radius, x, z))
+                    continue;
                 surface = Mathf.Max(surface, world.OccupiedSurfaceHeight(x, z));
+            }
 
             Position = new Vector3(near.x, (surface + 2) * VoxelSize, near.z);
             Velocity = Vector3.zero;
@@ -233,30 +237,63 @@ namespace VoxelEngine.Showcase
         private Vector3 FootMax(Vector3 feet, float height) => new(feet.x + Radius, feet.y + height, feet.z + Radius);
 
         /// <summary>
-        /// True when authoritative voxel or semantic-tree wood overlaps the character box.
+        /// Returns whether the horizontal circle of the character capsule overlaps a voxel column.
+        /// Touching only at the capsule boundary is not overlap, matching the half-open voxel-face
+        /// semantics used vertically by <see cref="IsBlocked"/>.
+        /// </summary>
+        internal static bool CapsuleFootprintOverlapsVoxel(
+            float centreX,
+            float centreZ,
+            float radius,
+            int voxelX,
+            int voxelZ)
+        {
+            float voxelMinX = voxelX * VoxelSize;
+            float voxelMaxX = voxelMinX + VoxelSize;
+            float voxelMinZ = voxelZ * VoxelSize;
+            float voxelMaxZ = voxelMinZ + VoxelSize;
+            float closestX = Mathf.Clamp(centreX, voxelMinX, voxelMaxX);
+            float closestZ = Mathf.Clamp(centreZ, voxelMinZ, voxelMaxZ);
+            float dx = centreX - closestX;
+            float dz = centreZ - closestZ;
+            float effectiveRadius = Mathf.Max(0f, radius - CollisionBoundaryEpsilon);
+            return dx * dx + dz * dz < effectiveRadius * effectiveRadius;
+        }
+
+        /// <summary>
+        /// True when authoritative voxel or semantic-tree wood overlaps the character capsule.
         ///
         /// Non-resident voxel regions read as empty, which means the character would fall through a
         /// region that has not finished generating — the driver holds physics until the region
-        /// under the character exists rather than letting that happen. Tree collision is branch-only:
-        /// foliage remains traversable and a branch stops blocking as soon as damage removes it.
+        /// under the character exists rather than letting that happen. Voxel overlap uses the
+        /// circular horizontal capsule footprint rather than its enclosing square AABB. Tree
+        /// collision remains branch-only through the canonical semantic-tree query: foliage remains
+        /// traversable and a branch stops blocking as soon as damage removes it.
         /// </summary>
         private static bool IsBlocked(ShowcaseWorld world, Vector3 min, Vector3 max)
         {
-            // Treat the character AABB as half-open on both sides. Adding/subtracting the same tiny
-            // tolerance prevents float division at an exact voxel face (for example 45.6m / 0.1m)
-            // from rounding just across the boundary and counting the supporting voxel as overlap.
+            // Treat the vertical extent and broad candidate bounds as half-open on both sides.
+            // Adding/subtracting the same tiny tolerance prevents float division at an exact voxel
+            // face (for example 45.6m / 0.1m) from rounding just across the boundary and counting
+            // the supporting voxel as overlap.
             int minX = Mathf.FloorToInt((min.x + CollisionBoundaryEpsilon) / VoxelSize);
             int minY = Mathf.FloorToInt((min.y + CollisionBoundaryEpsilon) / VoxelSize);
             int minZ = Mathf.FloorToInt((min.z + CollisionBoundaryEpsilon) / VoxelSize);
             int maxX = Mathf.FloorToInt((max.x - CollisionBoundaryEpsilon) / VoxelSize);
             int maxY = Mathf.FloorToInt((max.y - CollisionBoundaryEpsilon) / VoxelSize);
             int maxZ = Mathf.FloorToInt((max.z - CollisionBoundaryEpsilon) / VoxelSize);
+            float centreX = (min.x + max.x) * 0.5f;
+            float centreZ = (min.z + max.z) * 0.5f;
+            float radius = Mathf.Min(max.x - min.x, max.z - min.z) * 0.5f;
 
             IVoxelSurfaceQuery surface = world.SurfaceQuery;
             for (int y = minY; y <= maxY; y++)
             for (int z = minZ; z <= maxZ; z++)
             for (int x = minX; x <= maxX; x++)
             {
+                if (!CapsuleFootprintOverlapsVoxel(centreX, centreZ, radius, x, z))
+                    continue;
+
                 if (surface.TryRead(new int3(x, y, z), out VoxelCell cell) &&
                     cell.BaseMaterialId != VoxelGrid.MaterialEmpty)
                     return true;
