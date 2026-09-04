@@ -32,10 +32,14 @@ namespace Game.Audio.Validation
             float elapsed = Time.unscaledTime - _started;
             if (!_cutsceneLogged && elapsed >= 1f)
             {
+                AudioDispatchResult door = _audio.DispatchOneShot(new AudioOneShotRequest(
+                    new AudioEventId("validation:door-open"),
+                    AudioSemanticCues.DoorOpened,
+                    AudioSemanticOrigin.Global));
                 var cutscene = new CutsceneAudioCueRuntime(_audio, AudioSemanticCues.CutsceneGeneric);
                 cutscene.Execute(new CutsceneCueId("validation.cutscene.bell"));
                 cutscene.Execute(new CutsceneCueId("validation.cutscene.bell"));
-                Debug.Log("AUDIO_VALIDATION cutscene-shared: oneShots=" + _backend.AudibleOneShotCount + " playedEvents=" + _audio.PlayedEventCount);
+                Debug.Log("AUDIO_VALIDATION cutscene-shared: door=" + door.Status + " oneShots=" + _backend.AudibleOneShotCount + " playedEvents=" + _audio.PlayedEventCount);
                 _cutsceneLogged = true;
             }
             if (!_sustainedLogged && elapsed >= 2f)
