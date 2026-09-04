@@ -46,8 +46,9 @@
 - [x] Full-resolution review of `33852280392` completed and classified visual evidence `unacceptable`: breakable frame remains below/through terrain with large void; natural frame still does not communicate an understandable cave clue at gameplay scale.
 - [x] Apply the issue-guide two-fix rule: stop speculative SecretDiscovery-side visual changes after publication, convergence, and validation-fidelity fixes all leave the same base Gallery renderer symptom.
 - [x] Shared GPU renderer restoration became authoritative on master via PR #230 and was merged into `fixes/agent-5` via PR #266, producing feature head `cf0e95237d1965c99d0f9522e302794ab8a13a4a` before these documentation changes.
-- [ ] Classify run `33863772871` failure in `derive automatic module validation plan` before issuing any replacement exact-SHA request; standalone SecretDiscovery replay already passed in that run.
-- [ ] After the failure is classified/fixed as required, run fresh exact-SHA targeted validation on the new feature head.
+- [x] Classify run `33863772871` failure in `derive automatic module validation plan`: required master sync introduced nested tested module roots (`.../Playable` and `.../Playable/SceneRuntime`), and recursive runtime asmdef discovery assigned `Game.Kentridge.PlayableSlice` to both before `plan.json` could be written. This is a deterministic planner regression, not retryable infrastructure and not a SecretDiscovery replay failure.
+- [x] Fix nested module ownership narrowly by assigning runtime asmdefs to the nearest discovered module root while retaining duplicate-token fail-closed checks; add a focused Python regression fixture for the nested Kentridge shape.
+- [ ] Run fresh exact-SHA targeted validation on the new feature head after confirming then-current master state.
 - [ ] Representative SecretDiscovery examples visibly communicate an intentional anomaly and a plausible action hypothesis at gameplay scale.
 - [ ] Gallery visual review is `production-quality`: varied feature-specific natural + mechanism-backed clue language, no stale terrain, placeholder signs, universal glow, floating/intersecting geometry, void/underside, or invalid framing.
 
