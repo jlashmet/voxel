@@ -38,25 +38,25 @@
 
 - [x] **T12-017 — Resolve WorldBuilder campaign factory symbol collision.** Exact-SHA revalidation must compile the Kentridge bridge by explicitly binding the existing `Game.WorldBuilder.Api.Campaign` factory instead of allowing the enclosing `Game.Composition.Campaign` namespace to win name resolution.
   - Evidence: exact-SHA workflow `33815602358` failed at `KentridgeForestEncounterRealization.cs:89` with CS0234 before tests/player build; `CampaignBlueprint.cs` confirms the intended public factory is `Game.WorldBuilder.Api.Campaign.Create`. `KentridgeForestEncounterRealization` now aliases that factory as `WorldBuilderCampaign`, keeping the fix local and API-neutral.
-- [x] **T12-018 — Reconcile feature branch with authoritative current master.** Rebuild the System12 feature tree on current `origin/master` without carrying stale/reverted unrelated System09 or workflow content, then exact-SHA revalidate the reconciled source before closure.
-  - Evidence: current master `e27afc78bb47c2578fbd6b85d1604d588d78d854` was merged into `fixes/agent-9` through reconciliation PR #251, producing merge `5a9fa033cd1dc373307fc5bb4a00716a3070519b`; compare now reports the feature branch ahead of master and `behind_by: 0`.
+- [x] **T12-018 — Reconcile feature branch with authoritative current master.** Rebuild the System12 feature tree on current `origin/master` without carrying stale/reverted unrelated content, then exact-SHA revalidate the reconciled source before closure.
+  - Evidence: the final pre-closure reconciliation merged master `abe9602e1025b5e02f11a7aa6b8a5965aa1c7fe3` into the feature as two-parent merge `73741dc8532ee693f706ac8ec528a1f486d9187f`; exact workflow `33836877402` validated that post-sync source successfully.
 - [x] **T12-019 — Add required module-local validation ownership.** Apply the repository's module-validation convention introduced after the feature began.
-  - Evidence: the shared `EncounterRealization` module is pure headless composition and retains module-local EditMode coverage as documented in `plan.md`. The player-visible Kentridge module now owns `Validation/KentridgeEncounterRealizationValidation.unity` with a paired `.player-scenario.json`; its bootstrap supplies deterministic WorldBuilder input and invokes the real Kentridge production adapter/shared composer rather than duplicating realization logic.
+  - Evidence: the shared `EncounterRealization` module is pure headless composition and retains module-local EditMode coverage as documented in `plan.md`. The player-visible Kentridge module owns `Validation/KentridgeEncounterRealizationValidation.unity` with a paired `.player-scenario.json`; its bootstrap supplies deterministic WorldBuilder input and invokes the real Kentridge production adapter/shared composer rather than duplicating realization logic.
 
 ## Verification
 
-- [ ] **T12-020 — Two independent authored fixtures.** Resolve two different encounter/site definitions through the same bridge.
-  - Regression added (`alpha` / `beta` authored fixtures); pending exact-SHA CI execution.
-- [ ] **T12-021 — Placement-reuse regression.** Assert encounter binding uses the exact generated semantic placement rather than a separately calculated approximation.
-  - Regressions supply deliberately different exact site/NPC/spawn vectors and a second Kentridge macro layout; pending exact-SHA CI execution.
-- [ ] **T12-022 — Missing-realization test.** Absent required generated fact fails deterministically with useful semantic diagnostics.
-  - Missing site, missing spawn, and missing Kentridge forest-node regressions added; pending exact-SHA CI execution.
-- [ ] **T12-023 — Dependency-boundary test/review.** No bridge reference to `WorldBuilder.Runtime`, `Encounters.Runtime`, or `Characters.Runtime`.
-  - Assembly regression added and asmdef reviewed; pending exact-SHA CI execution.
+- [x] **T12-020 — Two independent authored fixtures.** Resolve two different encounter/site definitions through the same bridge.
+  - Evidence: the `alpha` and `beta` authored fixtures exercise the same composer with independent semantic definitions and distinct exact placements; required module validation passed in exact-SHA workflow `33836877402` for source `73741dc8532ee693f706ac8ec528a1f486d9187f`.
+- [x] **T12-021 — Placement-reuse regression.** Assert encounter binding uses the exact generated semantic placement rather than a separately calculated approximation.
+  - Evidence: regressions supply deliberately different exact site/NPC/spawn vectors and a second Kentridge macro layout; required module validation passed in exact-SHA workflow `33836877402`.
+- [x] **T12-022 — Missing-realization test.** Absent required generated fact fails deterministically with useful semantic diagnostics.
+  - Evidence: missing site, missing spawn, and missing Kentridge forest-node regressions all ran under the successful required module validation in exact-SHA workflow `33836877402`.
+- [x] **T12-023 — Dependency-boundary test/review.** No bridge reference to `WorldBuilder.Runtime`, `Encounters.Runtime`, or `Characters.Runtime`.
+  - Evidence: the assembly boundary regression passed in exact-SHA workflow `33836877402`; `Game.Composition.EncounterRealization.asmdef` references only `Game.WorldBuilder.Api`, `Game.Encounters.Api`, and `Game.Characters.Api`.
 - [x] **T12-024 — Module-local visual/player validation only if needed.** If realization is visually material, add optional standalone validation using the shared harness; do not invent a feature-specific harness.
-  - Evidence: physical encounter placement is player-visible, so `Assets/Game/Composition/Kentridge/Playable/Validation/KentridgeEncounterRealizationValidation.unity` and its paired scenario use repository auto-discovery/shared player harness. Execution remains part of T12-025 exact-SHA proof.
-- [ ] **T12-025 — Kentridge assembled proof.** Verify its encounter realizes through the bridge; broader route remains system 24 acceptance.
-  - `KentridgeForestEncounterRealizationTests` prove exact macro-layout reuse and failure behavior; the module-local standalone scene and repository-wide Kentridge player gate are pending exact-SHA CI.
+  - Evidence: physical encounter placement is player-visible, so `Assets/Game/Composition/Kentridge/Playable/Validation/KentridgeEncounterRealizationValidation.unity` and its paired scenario use repository auto-discovery/shared player harness.
+- [x] **T12-025 — Kentridge assembled proof.** Verify its encounter realizes through the bridge; broader route remains system 24 acceptance.
+  - Evidence: exact-SHA workflow `33836877402` passed automatically required module validation, including the Kentridge module-local validation discovered from repository structure, and passed the SceneIssue standalone player replay. Screenshot previews, artifact upload, and final status publication also succeeded. `KentridgeForestEncounterRealizationTests` cover exact macro-layout reuse and missing-node failure behavior.
   - Prior attempt `33813168179` failed before test execution at `KentridgeForestBanditEncounter.cs:53` because `EncounterRealization` resolved as a namespace; fixed by the Kentridge-local forwarding type bridge.
 
 ## Cleanup / close
@@ -65,4 +65,5 @@
   - Evidence: feature audit confirms the migrated encounter contains no `RegionThemeMap.ForKentridgeHightown`, `ForestEntryInsetDm`, old `kentridge-pine-forest-ambush` realization id, or the former `5.4m` spawn-offset calculation. Ground-contact raycasts remain presentation/terrain contact, not site selection.
 - [x] **T12-031 — Scope audit.** No world generation, encounter lifecycle, named Kentridge policy or second API/Runtime introduced.
   - Evidence: diff adds one composition-only shared bridge, module-local tests, one Kentridge-local adapter, one assembly reference, exact macro-layout handoff/migration, and required module-local validation ownership. No new world generator, encounter lifecycle, or public Runtime dependency was introduced.
-- [ ] **T12-032 — Close with reuse proof.** Two authored consumers share the adapter and both use WorldBuilder as the single placement owner.
+- [x] **T12-032 — Close with reuse proof.** Two authored consumers share the adapter and both use WorldBuilder as the single placement owner.
+  - Evidence: independent `alpha` / `beta` authored fixtures share `EncounterRealizationComposer`, while Kentridge supplies its exact selected WorldBuilder macro layout through the production adapter; exact-SHA workflow `33836877402` passed the focused/module and standalone player proof.
