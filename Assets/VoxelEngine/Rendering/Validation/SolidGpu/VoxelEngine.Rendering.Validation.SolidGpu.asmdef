@@ -1,0 +1,19 @@
+{
+  "name": "VoxelEngine.Rendering.Validation.SolidGpu",
+  "rootNamespace": "VoxelEngine.Rendering.Validation",
+  "references": [
+    "VoxelEngine.Composition",
+    "VoxelEngine.Rendering.Runtime",
+    "VoxelEngine.Storage.Api",
+    "Unity.Mathematics"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
