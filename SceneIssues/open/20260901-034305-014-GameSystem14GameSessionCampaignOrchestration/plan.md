@@ -4,21 +4,23 @@
 
 ## Acceptance / observed baseline
 
-Own one semantic session lifecycle and one production runtime graph for new/resume, readiness, deterministic updates, outcome reaction, persistence seams, and ordered teardown. Kentridge currently constructs `KentridgeCampaignSession` directly in `KentridgePlayableSlice`, ticks `CampaignRuntime` from the scene, and clears session/world resources locally. `CampaignRuntime` itself correctly owns campaign/story/quest rules and must remain domain-focused. Outcomes API is present; Persistence #16 is not yet on master.
+Own one semantic session lifecycle and one production runtime graph for new/resume, readiness, deterministic updates, outcome reaction, persistence seams, and ordered teardown. The former Kentridge path constructed and ticked campaign/session authority from `KentridgePlayableSlice`; the feature now enters the shared SessionOrchestration graph instead. `CampaignRuntime` remains responsible for campaign/story/quest rules. Outcomes integrates through its API; Persistence #16 remains an external capture/restore port until that system lands.
 
 ## Architecture / hypotheses
 
-1. **Selected:** SessionOrchestration owns lifecycle/order around a composition-supplied `ISessionRuntimeGraphFactory`; semantic API requests contain only campaign/world/session/config/save-source identity. Kentridge adapts its existing production bootstrap into that graph boundary. This removes scene-local session authority without moving domain rules.
-2. **Rejected:** make SessionOrchestration directly construct every subsystem Runtime. That would couple it to concrete modules, duplicate composition policy, and trend toward the forbidden giant GameMode/service locator.
+1. **Selected:** SessionOrchestration owns lifecycle/order around a composition-supplied `ISessionRuntimeGraphFactory`; semantic API requests contain only campaign/world/session/config/save-source identity. Kentridge adapts its existing production bootstrap into that graph boundary. New/resume share graph construction; only initialize-vs-restore differs.
+2. **Rejected:** directly construct every subsystem Runtime inside SessionOrchestration. That couples orchestration to concrete gameplay modules, duplicates composition policy, and creates the forbidden giant GameMode/service locator.
 
-New/resume share graph construction; only initialize-vs-restore differs. Runtime steps are explicitly ordered. `GameplayReady` is a graph binding barrier. Outcomes are observed through `IGameOutcomeQuery`; orchestration transitions lifecycle but does not decide outcomes. Persistence uses capture/restore ports so #16 can integrate without serialization here.
+**Discriminating proof:** focused headless tests must exercise the lifecycle plus real public Story/progression/Encounter/Combat APIs and deterministic phase ordering; exact-SHA automatic module validation plus the SceneIssue Kentridge built-player replay must prove the production composition path.
 
-## Blast radius / cost
+## Validation ownership / blast radius
 
-Expected changes: new SessionOrchestration API/Runtime/tests; Kentridge Runtime adapter and PlayableSlice lifecycle migration; asmdef dependency updates; no rendering/world-generation changes. Per-frame overhead is a bounded ordered step list plus one outcome snapshot check.
+`Game.SessionOrchestration.Api` and `.Runtime` are engine-neutral/headless lifecycle assemblies with no scene realization or player-visible rendering. Per the repository rule, their module-local validation surface is the owned EditMode test assembly; a `Validation/*.unity` scene would add no meaningful runtime behavior. Kentridge changes live under integration-only `Assets/Game/Composition/...`; their player-facing proof is the exact SceneIssue replay of `KentridgePlayableSlice`, not a substitute for a headless module scene.
 
-**Current base:** `04c43482768548f96db6f18234f1709a25b0d983`.
+Expected cost is a bounded ordered step list plus one outcome snapshot check per tick. No rendering/world-generation changes are required.
+
+**Current merged base:** `13b3c6a752deb030effba0f6e430863d0c1fd115`.
 
 ## Remaining gates
 
-Implement API/runtime, focused new/resume/readiness/routing/outcome/teardown regressions, migrate Kentridge, audit alternate roots/god-object boundaries, run exact-SHA module + SceneIssue built-player validation, complete all tasks/closure fields, merge current master, then PR + auto-merge.
+Validate the strengthened headless new/resume/readiness/routing/outcome/teardown regressions, audit alternate production roots and god-object boundaries, run exact-SHA automatic module + SceneIssue built-player validation, complete every checklist/closure field, merge any newer master, then promote only by PR + auto-merge.
