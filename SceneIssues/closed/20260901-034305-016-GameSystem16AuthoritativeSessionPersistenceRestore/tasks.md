@@ -28,17 +28,17 @@
 
 ## Verification
 
-- [ ] **T16-020 — Mid-run round-trip test.** Save mixed character/vitality/inventory/progression/world state, tear graph down, restore fresh graph and compare semantic truth.
-- [ ] **T16-021 — Active encounter/session round-trip where supported.** Preserve current lifecycle/membership without replaying activation/combat/audio/VFX one-shots.
-- [ ] **T16-022 — Resolved-outcome round-trip.** Resolved remains immutable after restore.
-- [ ] **T16-023 — Corrupt/incomplete-save tests.** Reject deterministically without starting a partial gameplay graph.
-- [ ] **T16-024 — Schema/content incompatibility tests.** Surface explicit compatibility failure to Application.
-- [ ] **T16-025 — Atomic-write interruption test.** Partial/staged save is never listed as valid current save.
-- [ ] **T16-026 — Multiplayer rehost identity test.** Gameplay identities persist while new transport connections are established.
-- [ ] **T16-027 — Run automatic Persistence/domain integration tests.**
+- [x] **T16-020 — Mid-run round-trip test.** `MidRunSave_RestoresFreshGraphWithEquivalentSemanticTruth` saves mixed character/vitality/inventory/progression/world/encounter/outcome state, mutates the old graph, restores a fresh graph, and compares semantic truth.
+- [x] **T16-021 — Active encounter/session round-trip where supported.** `ActiveEncounterRestore_DoesNotReplayHistoricalOneShotEvents` preserves active encounter semantic state and proves one-shot replay count remains zero.
+- [x] **T16-022 — Resolved-outcome round-trip.** `ResolvedOutcome_RemainsResolvedAndImmutableAfterRestore` proves a resolved victory remains resolved and rejects a later attempt to return it to pending.
+- [x] **T16-023 — Corrupt/incomplete-save tests.** `CorruptOrIncompleteSave_IsRejectedBeforeGraphCreation` rejects checksum corruption and truncated data before any gameplay graph is created.
+- [x] **T16-024 — Schema/content incompatibility tests.** `SchemaAndContentMismatch_SurfaceExplicitCompatibilityFailures` proves unsupported envelope versions and content mismatch surface explicit failures before graph creation.
+- [x] **T16-025 — Atomic-write interruption test.** `StagedFile_IsNeverListedUntilAtomicPublication` proves staged files cannot appear in the published save listing.
+- [x] **T16-026 — Multiplayer rehost identity test.** `MultiplayerRehost_PreservesGameplayIdsButNotTransportConnection` preserves stable character/slot/inventory identity while a fresh transport connection id is generated outside persisted state.
+- [x] **T16-027 — Run automatic Persistence/domain integration tests.** Exact-SHA request `ea06b3acfae774f4bb6c1b27dceebf3680ad9d0a`, direct parent/product SHA `c04ac1aacb59dd30ae4e28ac8fe1f39a2c9560e4`, passed repository-selected module validation and standalone `KentridgePlayableSlice` replay in workflow run `33838283811`.
 
 ## Cleanup / close
 
-- [ ] **T16-030 — Remove duplicate durable state stores.** Search campaign/scene/prototype saves that persist the same authoritative subsystem truth and migrate/delete them.
-- [ ] **T16-031 — Serialized-type audit.** Inspect persisted schema for forbidden Runtime/Unity/transport/presentation types.
-- [ ] **T16-032 — Close with fresh-graph proof.** A save recreates equivalent semantic state through normal system 14 composition, with no historical replay or alternate runtime path.
+- [x] **T16-030 — Remove duplicate durable state stores.** Baseline and final searches found no competing PlayerPrefs/persistentDataPath/campaign-session durable store on current master; no duplicate authoritative store required migration or deletion.
+- [x] **T16-031 — Serialized-type audit.** Persistence.Runtime references only Persistence.Api; persisted schema is stable header values plus guarded semantic payloads. `SchemaGuard_RejectsUnityTransportAndPresentationTypes` rejects Unity, transport, UI and audio declarations, while public domain snapshot types remain accepted semantic inputs.
+- [x] **T16-032 — Close with fresh-graph proof.** Fresh-graph tests validate all sections before any apply, create state only through `ISessionRestoreGraphFactory`, complete the new graph only after successful deterministic restore, preserve active/resolved lifecycle truth, and do not replay historical one-shots. Exact-SHA CI run `33838283811` passed both focused module validation and standalone application validation.
