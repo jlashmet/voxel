@@ -1,0 +1,25 @@
+{
+  "name": "Game.InventoryPresentation.Validation",
+  "rootNamespace": "Game.InventoryPresentation.Validation",
+  "references": [
+    "Game.InventoryPresentation.Api",
+    "Game.InventoryPresentation.Runtime",
+    "Game.Inventory.Api",
+    "Game.Inventory.Runtime",
+    "Game.Loot.Api",
+    "Game.Loot.Runtime",
+    "Game.Input.Api",
+    "Game.Input.Runtime",
+    "Game.Characters.Api",
+    "Game.WorldObjects.Api"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
