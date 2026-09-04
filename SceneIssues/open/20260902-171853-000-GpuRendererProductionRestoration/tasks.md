@@ -27,8 +27,8 @@
 
 ## Persistent GPU mirror correctness
 
-- [ ] **TGPU-020 — Verify dense test cache and persistent directory agree.** The same world bricks sampled through explicit dense-cache mode and production persistent lookup must produce identical material/surface/boundary inputs.
-- [ ] **TGPU-021 — Verify publication semantics.** Mixed, uniform, and empty brick deltas; slot metadata; payload staging; directory entries; and generation handling must not expose stale or wrong-brick data.
+- [x] **TGPU-020 — Verify dense test cache and persistent directory agree.** `GpuPersistentDenseSemanticParityTests.PersistentResolvedDenseEntryMatchesExplicitDenseSemanticInputs` resolves a production persistent directory entry for a negative world coordinate and requires the production resolver result to match explicitly prepared dense material/surface/boundary inputs byte-for-byte. Exact feature source SHA `655d2006de1c41b36b984888a0d65c0ddb5c9a76`, exact CI request commit `5981e516900960b4b72f699ee67294424eeea794`, run `33820999133`; run completed successfully after the fixture's `NativeArray` lifetime compiler fix.
+- [ ] **TGPU-021 — Verify publication semantics.** Mixed, uniform, and empty brick deltas; slot metadata; payload staging; directory entries; and generation handling must not expose stale or wrong-brick data. The first eviction-directory request (`84c70ff44ec47de761483ed8c1e5520fb69d80cf`, run `33821413272`) was cancelled before completion when the CI transport advanced; it is not counted as validation and must be rerun.
 - [ ] **TGPU-022 — Verify negative-coordinate and boundary lookup.** Exercise world bricks around zero, negative coordinates, directory collisions, cache/region boundaries, and padded density taps.
 - [ ] **TGPU-023 — Verify edit propagation.** Runtime voxel/material/surface/boundary edits must invalidate/rebuild the affected GPU geometry and visibly converge without stale geometry.
 - [ ] **TGPU-024 — Verify eviction/recovery/liveness.** Slot pressure, coverage recovery, generation advancement, and re-admission must converge without permanent holes, deadlock, or silent CPU takeover.
