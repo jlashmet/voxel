@@ -1,0 +1,14 @@
+{
+  "name": "Game.Residency.Tests.EditMode",
+  "rootNamespace": "Game.Residency.Tests",
+  "references": ["Game.Residency.Api", "Game.Residency.Runtime", "VoxelEngine.Streaming.Api", "Unity.Mathematics"],
+  "includePlatforms": ["Editor"],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
