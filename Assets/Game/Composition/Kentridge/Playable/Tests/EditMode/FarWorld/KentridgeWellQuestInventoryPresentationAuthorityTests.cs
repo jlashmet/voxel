@@ -65,5 +65,27 @@ namespace VoxelEngine.Tests.EditMode
                 Is.EqualTo("Game.Quests.Api.QuestSnapshot"));
             Assert.That(parameters[3].ParameterType, Is.EqualTo(typeof(Vector3)));
         }
+
+        [Test]
+        public void ForestEncounter_HasNoAutonomousSceneInstaller()
+        {
+            Type encounter = Type.GetType(
+                "Game.Composition.Kentridge.Playable.KentridgeForestBanditEncounter, Game.Composition.Kentridge.Playable");
+            Assert.That(encounter, Is.Not.Null,
+                "Kentridge forest encounter type must be available to the production playable composition.");
+
+            const BindingFlags Methods = BindingFlags.Instance | BindingFlags.Static |
+                                         BindingFlags.Public | BindingFlags.NonPublic;
+            MethodInfo[] methods = encounter.GetMethods(Methods);
+            Assert.That(
+                methods.Any(method => method.GetCustomAttributes(
+                    typeof(RuntimeInitializeOnLoadMethodAttribute), false).Length != 0),
+                Is.False,
+                "Forest encounter must be supplied by explicit production composition, not a global scene installer.");
+            Assert.That(
+                methods.Any(method => method.Name == "InstallIntoPlayableSlice"),
+                Is.False,
+                "Forest encounter must not keep a hidden scene-name bootstrap fallback.");
+        }
     }
 }
