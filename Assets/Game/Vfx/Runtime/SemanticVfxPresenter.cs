@@ -119,7 +119,7 @@ namespace Game.Vfx.Runtime
             main.duration = Mathf.Max(0.25f, profile.LifetimeSeconds);
             main.simulationSpace = ParticleSystemSimulationSpace.World;
             main.maxParticles = persistent ? Mathf.Max(profile.ParticleCount * 4, 64) : Mathf.Max(profile.ParticleCount * 2, 64);
-            main.startLifetime = persistent ? new ParticleSystem.MinMaxCurve(0.9f, 1.5f) : Lifetime(profile.Style, profile.LifetimeSeconds);
+            main.startLifetime = persistent ? new ParticleSystem.MinMaxCurve(1.1f, 1.8f) : Lifetime(profile.Style, profile.LifetimeSeconds);
             main.startSpeed = Speed(profile.Style, profile.Scale);
             main.startSize = Size(profile.Style, profile.Scale);
             main.startRotation = new ParticleSystem.MinMaxCurve(-Mathf.PI, Mathf.PI);
@@ -128,7 +128,7 @@ namespace Game.Vfx.Runtime
 
             var emission = system.emission;
             emission.enabled = persistent;
-            emission.rateOverTime = persistent ? Mathf.Max(8f, profile.ParticleCount) : 0f;
+            emission.rateOverTime = persistent ? Mathf.Max(12f, profile.ParticleCount * 1.2f) : 0f;
 
             var shape = system.shape;
             shape.enabled = true;
@@ -146,11 +146,11 @@ namespace Game.Vfx.Runtime
                     break;
                 case VfxEffectStyle.InteractionPulse:
                     shape.shapeType = ParticleSystemShapeType.Circle;
-                    shape.radius = 0.48f * profile.Scale;
+                    shape.radius = 0.32f * profile.Scale;
                     break;
                 default:
                     shape.shapeType = ParticleSystemShapeType.Sphere;
-                    shape.radius = profile.Style == VfxEffectStyle.DefeatedAura ? 0.78f * profile.Scale : 0.18f * profile.Scale;
+                    shape.radius = profile.Style == VfxEffectStyle.DefeatedAura ? 0.52f * profile.Scale : 0.18f * profile.Scale;
                     break;
             }
 
@@ -158,7 +158,8 @@ namespace Game.Vfx.Runtime
             color.enabled = true;
             Gradient gradient = new Gradient();
             Color start = ColorFor(profile.Style);
-            Color hot = Color.Lerp(start, Color.white, profile.Style == VfxEffectStyle.Debris ? 0.32f : 0.62f);
+            float whiteMix = profile.Style == VfxEffectStyle.Debris ? 0.32f : profile.Style == VfxEffectStyle.DefeatedAura ? 0.36f : 0.62f;
+            Color hot = Color.Lerp(start, Color.white, whiteMix);
             gradient.SetKeys(
                 new[] { new GradientColorKey(hot, 0f), new GradientColorKey(start, 0.45f), new GradientColorKey(start * 0.72f, 1f) },
                 new[] { new GradientAlphaKey(start.a, 0f), new GradientAlphaKey(start.a, 0.52f), new GradientAlphaKey(0f, 1f) });
@@ -166,32 +167,52 @@ namespace Game.Vfx.Runtime
 
             var size = system.sizeOverLifetime;
             size.enabled = true;
+            float initialSize = profile.Style == VfxEffectStyle.DefeatBurst ? 0.16f : profile.Style == VfxEffectStyle.DefeatedAura ? 0.42f : 0.58f;
+            float finalSize = profile.Style == VfxEffectStyle.DefeatedAura ? 0.32f : 0f;
             AnimationCurve sizeCurve = new AnimationCurve(
-                new Keyframe(0f, profile.Style == VfxEffectStyle.DefeatBurst ? 0.16f : 0.58f),
+                new Keyframe(0f, initialSize),
                 new Keyframe(0.28f, 1f),
-                new Keyframe(1f, profile.Style == VfxEffectStyle.DefeatedAura ? 0.55f : 0f));
+                new Keyframe(1f, finalSize));
             size.size = new ParticleSystem.MinMaxCurve(1f, sizeCurve);
 
             var noise = system.noise;
             noise.enabled = profile.Style == VfxEffectStyle.InteractionPulse || profile.Style == VfxEffectStyle.DefeatedAura;
-            noise.strength = profile.Style == VfxEffectStyle.DefeatedAura ? 0.34f : 0.18f;
-            noise.frequency = profile.Style == VfxEffectStyle.DefeatedAura ? 0.48f : 0.72f;
-            noise.scrollSpeed = 0.2f;
+            noise.strength = profile.Style == VfxEffectStyle.DefeatedAura ? 0.48f : 0.18f;
+            noise.frequency = profile.Style == VfxEffectStyle.DefeatedAura ? 0.38f : 0.72f;
+            noise.scrollSpeed = profile.Style == VfxEffectStyle.DefeatedAura ? 0.34f : 0.2f;
 
             var rotation = system.rotationOverLifetime;
             rotation.enabled = profile.Style == VfxEffectStyle.InteractionPulse || profile.Style == VfxEffectStyle.DefeatedAura;
             rotation.z = new ParticleSystem.MinMaxCurve(-1.8f, 1.8f);
 
+            var trails = system.trails;
+            trails.enabled = profile.Style == VfxEffectStyle.DefeatedAura;
+            if (trails.enabled)
+            {
+                trails.ratio = 0.58f;
+                trails.lifetime = 0.38f;
+                trails.dieWithParticles = true;
+                trails.sizeAffectsWidth = true;
+            }
+
             ParticleSystemRenderer renderer = system.GetComponent<ParticleSystemRenderer>();
-            bool stretched = profile.Style == VfxEffectStyle.Impact || profile.Style == VfxEffectStyle.Debris;
+            bool stretched = profile.Style == VfxEffectStyle.Impact ||
+                             profile.Style == VfxEffectStyle.DefeatBurst ||
+                             profile.Style == VfxEffectStyle.InteractionPulse ||
+                             profile.Style == VfxEffectStyle.ResolutionBurst ||
+                             profile.Style == VfxEffectStyle.Debris;
             renderer.renderMode = stretched ? ParticleSystemRenderMode.Stretch : ParticleSystemRenderMode.Billboard;
             if (stretched)
             {
-                renderer.velocityScale = profile.Style == VfxEffectStyle.Debris ? 0.18f : 0.28f;
-                renderer.lengthScale = profile.Style == VfxEffectStyle.Debris ? 1.45f : 2.2f;
+                renderer.velocityScale = VelocityScale(profile.Style);
+                renderer.lengthScale = LengthScale(profile.Style);
             }
             renderer.sortingOrder = 50;
-            if (_particleMaterial != null) renderer.sharedMaterial = _particleMaterial;
+            if (_particleMaterial != null)
+            {
+                renderer.sharedMaterial = _particleMaterial;
+                if (trails.enabled) renderer.trailMaterial = _particleMaterial;
+            }
         }
 
         private void EnsureMaterial()
@@ -271,9 +292,36 @@ namespace Game.Vfx.Runtime
             {
                 case VfxEffectStyle.Impact: return new ParticleSystem.MinMaxCurve(0.045f * scale, 0.13f * scale);
                 case VfxEffectStyle.DefeatBurst: return new ParticleSystem.MinMaxCurve(0.08f * scale, 0.26f * scale);
+                case VfxEffectStyle.DefeatedAura: return new ParticleSystem.MinMaxCurve(0.14f * scale, 0.32f * scale);
                 case VfxEffectStyle.InteractionPulse: return new ParticleSystem.MinMaxCurve(0.055f * scale, 0.16f * scale);
                 case VfxEffectStyle.Debris: return new ParticleSystem.MinMaxCurve(0.05f * scale, 0.15f * scale);
                 default: return new ParticleSystem.MinMaxCurve(0.07f * scale, 0.2f * scale);
+            }
+        }
+
+        private static float VelocityScale(VfxEffectStyle style)
+        {
+            switch (style)
+            {
+                case VfxEffectStyle.Impact: return 0.28f;
+                case VfxEffectStyle.DefeatBurst: return 0.2f;
+                case VfxEffectStyle.InteractionPulse: return 0.14f;
+                case VfxEffectStyle.ResolutionBurst: return 0.18f;
+                case VfxEffectStyle.Debris: return 0.18f;
+                default: return 0.15f;
+            }
+        }
+
+        private static float LengthScale(VfxEffectStyle style)
+        {
+            switch (style)
+            {
+                case VfxEffectStyle.Impact: return 2.2f;
+                case VfxEffectStyle.DefeatBurst: return 1.6f;
+                case VfxEffectStyle.InteractionPulse: return 1.1f;
+                case VfxEffectStyle.ResolutionBurst: return 1.45f;
+                case VfxEffectStyle.Debris: return 1.45f;
+                default: return 1f;
             }
         }
 
