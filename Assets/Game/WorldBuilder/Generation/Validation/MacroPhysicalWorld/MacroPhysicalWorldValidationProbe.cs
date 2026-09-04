@@ -1,6 +1,6 @@
 using System;
 using System.Collections;
-using System.Diagnostics;
+using Stopwatch = System.Diagnostics.Stopwatch;
 using Game.WorldBuilder.Api;
 using MountingForce.WorldGen;
 using MountingForce.WorldGen.Voxel;
@@ -45,14 +45,23 @@ namespace MountingForce.WorldGen.Validation
         private IEnumerator Start()
         {
             FeatureCatalogue catalogue = default;
+            TopDownWorldPhysicalPlan plan = null;
+            TopDownWorldRegionPlan lake = null;
+            TopDownWorldRegionPlan ridge = null;
+            TopDownWorldRegionPlan pass = null;
+            var definitions = 0;
+            var rules = 0;
+            var placements = 0;
+            Exception setupFailure = null;
             var total = Stopwatch.StartNew();
+
             try
             {
                 VoxelWorldGenSettings settings = Settings();
                 TopDownWorldLayout layout = BuildLayout();
                 TopDownWorldPhysicalIntentSpec intent = BuildIntent();
 
-                TopDownWorldPhysicalPlan plan = TopDownWorldPhysicalPlanner.Plan(
+                plan = TopDownWorldPhysicalPlanner.Plan(
                     layout,
                     intent,
                     new Int2(0, 0),
@@ -75,13 +84,13 @@ namespace MountingForce.WorldGen.Validation
                 Require(plan.RouteTileCount == replay.RouteTileCount
                         && plan.RouteSolveSteps == replay.RouteSolveSteps,
                     "production planning must replay deterministically for the same seed and semantic inputs");
-                Require(plan.TryGetRegion("validation-lake", out TopDownWorldRegionPlan lake)
+                Require(plan.TryGetRegion("validation-lake", out lake)
                         && lake.Spec.Kind == TopDownWorldRegionKind.WaterBody,
                     "water barrier must survive semantic planning");
-                Require(plan.TryGetRegion("validation-ridge", out TopDownWorldRegionPlan ridge)
+                Require(plan.TryGetRegion("validation-ridge", out ridge)
                         && ridge.Spec.Kind == TopDownWorldRegionKind.MountainRidge,
                     "ridge barrier must survive semantic planning");
-                Require(plan.TryGetRegion("validation-pass", out TopDownWorldRegionPlan pass)
+                Require(plan.TryGetRegion("validation-pass", out pass)
                         && pass.Spec.Kind == TopDownWorldRegionKind.ValleyPass,
                     "designated pass must survive semantic planning");
 
@@ -96,9 +105,9 @@ namespace MountingForce.WorldGen.Validation
                     Allocator.Persistent);
                 Require(catalogue.IsCreated,
                     "production physical voxel catalogue was not created");
-                int definitions = catalogue.Definitions.Length;
-                int rules = catalogue.Rules.Length;
-                int placements = catalogue.ExplicitPlacements.Length;
+                definitions = catalogue.Definitions.Length;
+                rules = catalogue.Rules.Length;
+                placements = catalogue.ExplicitPlacements.Length;
                 Require(definitions > 0 && rules > 0 && placements > 0,
                     "production catalogue must contain authored definitions, rules, and placements");
 
@@ -112,47 +121,51 @@ namespace MountingForce.WorldGen.Validation
 
                 ConfigureProductionRenderer();
                 EnsurePresentationCameraAndLight();
-
-                Int2 settlementCentre = plan.Settlements[0].CentreDm;
-                ValidationView[] views =
-                {
-                    new("settlement-road", settlementCentre, new Vector3(-0.75f, 0f, -1f)),
-                    new("lake-detour", lake.CentreDm, new Vector3(-0.9f, 0f, -0.75f)),
-                    new("ridge-pass", pass.CentreDm, new Vector3(-0.65f, 0f, -1f)),
-                };
-
-                for (var i = 0; i < views.Length; i++)
-                    yield return ValidateRenderedView(views[i]);
-
-                total.Stop();
-                long managed = Profiler.GetTotalAllocatedMemoryLong();
-                long reserved = Profiler.GetTotalReservedMemoryLong();
-                RenderingComposition.GetVoxelSurfaceCounts(out int visible, out int missing);
-                Debug.Log(
-                    "MACRO_PHYSICAL_WORLD_COST " +
-                    $"seconds={total.Elapsed.TotalSeconds:F2} regions={plan.Regions.Count} " +
-                    $"settlements={plan.Settlements.Count} buildings={plan.BuildingCount} " +
-                    $"routes={plan.Routes.Count} route_tiles={plan.RouteTileCount} " +
-                    $"solve_steps={plan.RouteSolveSteps} constrained_routes={plan.GeographyConstrainedRouteCount} " +
-                    $"definitions={definitions} rules={rules} placements={placements} " +
-                    $"generated_regions={_world.RegionsGenerated} feature_voxels={_world.FeatureVoxelsBuilt} " +
-                    $"visible={visible} missing={missing} managed_bytes={managed} reserved_bytes={reserved}");
-                Debug.Log(
-                    "MACRO_PHYSICAL_WORLD_VALIDATION ready: " +
-                    $"independent_graph=true deterministic=true blocked_route_rejected=true " +
-                    $"production_voxel_rendering=true lake={lake.HalfExtentXDm * 2}x{lake.HalfExtentZDm * 2}dm " +
-                    $"ridge_height_delta={ridge.ElevationDeltaDm}dm pass={pass.Spec.Id}");
-                _status = "ready — planner/catalogue streamed through production voxel rendering";
             }
             catch (Exception ex)
             {
-                _status = "FAILED — " + ex.Message;
-                Debug.LogError("MACRO_PHYSICAL_WORLD_VALIDATION FAILED: " + ex);
+                setupFailure = ex;
             }
-            finally
+
+            if (setupFailure != null)
             {
-                if (catalogue.IsCreated) catalogue.Dispose();
+                if (catalogue.IsCreated)
+                    catalogue.Dispose();
+                _status = "FAILED — " + setupFailure.Message;
+                Debug.LogError("MACRO_PHYSICAL_WORLD_VALIDATION FAILED: " + setupFailure);
+                yield break;
             }
+
+            Int2 settlementCentre = plan.Settlements[0].CentreDm;
+            ValidationView[] views =
+            {
+                new("settlement-road", settlementCentre, new Vector3(-0.75f, 0f, -1f)),
+                new("lake-detour", lake.CentreDm, new Vector3(-0.9f, 0f, -0.75f)),
+                new("ridge-pass", pass.CentreDm, new Vector3(-0.65f, 0f, -1f)),
+            };
+
+            for (var i = 0; i < views.Length; i++)
+                yield return ValidateRenderedView(views[i]);
+
+            total.Stop();
+            long managed = Profiler.GetTotalAllocatedMemoryLong();
+            long reserved = Profiler.GetTotalReservedMemoryLong();
+            RenderingComposition.GetVoxelSurfaceCounts(out int visible, out int missing);
+            Debug.Log(
+                "MACRO_PHYSICAL_WORLD_COST " +
+                $"seconds={total.Elapsed.TotalSeconds:F2} regions={plan.Regions.Count} " +
+                $"settlements={plan.Settlements.Count} buildings={plan.BuildingCount} " +
+                $"routes={plan.Routes.Count} route_tiles={plan.RouteTileCount} " +
+                $"solve_steps={plan.RouteSolveSteps} constrained_routes={plan.GeographyConstrainedRouteCount} " +
+                $"definitions={definitions} rules={rules} placements={placements} " +
+                $"generated_regions={_world.RegionsGenerated} feature_voxels={_world.FeatureVoxelsBuilt} " +
+                $"visible={visible} missing={missing} managed_bytes={managed} reserved_bytes={reserved}");
+            Debug.Log(
+                "MACRO_PHYSICAL_WORLD_VALIDATION ready: " +
+                $"independent_graph=true deterministic=true blocked_route_rejected=true " +
+                $"production_voxel_rendering=true lake={lake.HalfExtentXDm * 2}x{lake.HalfExtentZDm * 2}dm " +
+                $"ridge_height_delta={ridge.ElevationDeltaDm}dm pass={pass.Spec.Id}");
+            _status = "ready — planner/catalogue streamed through production voxel rendering";
         }
 
         private IEnumerator ValidateRenderedView(ValidationView view)
