@@ -23,6 +23,7 @@
 - [ ] **T18-015 — Integrate `Ui` InputContext stack.** Opening inventory pushes Ui context; nested screens unwind correctly; opening inventory does not globally pause gameplay.
 - [ ] **T18-016 — Rebuild after reconnect/restore.** Drop stale pending operations according to request status and reconstruct all authoritative rows from snapshots.
 - [ ] **T18-017 — Replace prototype direct-mutation UI.** No prototype code was found; close after final parity/boundary audit confirms there is nothing to remove.
+- [ ] **T18-018 — Move visible inventory realization into production Runtime and meet visual-quality bar.** First exact-SHA player proof was behaviorally green but the captured UI was drawn by Validation code and classified `prototype/blockout quality`. Add a production Runtime view, make Validation a thin composition consumer, and revalidate durable built-player evidence.
 
 ## Verification
 
