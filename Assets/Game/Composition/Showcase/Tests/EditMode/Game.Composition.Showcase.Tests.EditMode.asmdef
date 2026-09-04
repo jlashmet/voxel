@@ -2,12 +2,14 @@
   "name": "Game.Composition.Showcase.Tests.EditMode",
   "rootNamespace": "Game.Composition.Showcase.Tests.EditMode",
   "references": [
+    "VoxelEngine.Tests.Support",
     "Game.Composition.Showcase",
     "Game.Materials.Api",
     "VoxelEngine.Storage.Api",
     "VoxelEngine.Structures.Api",
     "VoxelEngine.Structures.Runtime",
     "VoxelEngine.Terrain.Api",
+    "Unity.Collections",
     "Unity.Mathematics",
     "UnityEngine.TestRunner",
     "UnityEditor.TestRunner"
