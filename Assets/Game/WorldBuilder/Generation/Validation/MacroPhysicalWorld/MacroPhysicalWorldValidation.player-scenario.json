@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "runSeconds": 24,
+  "capture": {
+    "width": 1600,
+    "height": 900,
+    "intervalSeconds": 6,
+    "minimumFrames": 3,
+    "evidenceAfterSeconds": 2
+  },
+  "timeline": {},
+  "assertions": {
+    "requiredLogPatterns": [
+      "MACRO_PHYSICAL_WORLD_VALIDATION ready:",
+      "MACRO_PHYSICAL_WORLD_COST "
+    ],
+    "forbiddenLogPatterns": [
+      "MACRO_PHYSICAL_WORLD_VALIDATION FAILED:",
+      "NullReferenceException",
+      "MissingReferenceException",
+      "Shader error"
+    ]
+  }
+}
