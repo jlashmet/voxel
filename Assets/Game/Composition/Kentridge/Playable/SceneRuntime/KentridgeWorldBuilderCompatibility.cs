@@ -1,5 +1,6 @@
 using System;
 using Game.Composition.Kentridge.Api;
+using Game.Composition.Kentridge.Playable;
 using Game.Composition.Kentridge.Runtime;
 using Game.Composition.WorldBuilderWorldGen.Runtime;
 using Game.Cutscenes.Api;
@@ -41,6 +42,12 @@ namespace Game.Kentridge.PlayableSlice
             // consumes this once when it builds the Kentridge catalogue. No macro route or marker
             // is authored directly in scene code, and unrelated Kentridge catalogues pay no cost.
             TopDownWorldLayout macro = MountingForceTopDownWorldDefinition.Build(seed);
+            KentridgeForestEncounterRealization.RememberMacroLayout(
+                macro,
+                MountingForceTopDownWorldDefinition.Forest,
+                TownCentreDm.X,
+                TownCentreDm.Y,
+                MountingForceTopDownWorldDefinition.CellSizeDm);
             TopDownWorldLayoutSelection.Select(
                 macro,
                 TownCentreDm.X,

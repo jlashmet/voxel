@@ -1,0 +1,22 @@
+{
+  "name": "Game.Composition.Kentridge.Playable.Tests",
+  "rootNamespace": "Game.Composition.Kentridge.Playable.Tests",
+  "references": [
+    "Game.Characters.Api",
+    "Game.Composition.EncounterRealization",
+    "Game.Composition.Kentridge.Playable",
+    "Game.Encounters.Api",
+    "Game.WorldBuilder.Api"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
