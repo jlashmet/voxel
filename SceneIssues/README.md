@@ -29,6 +29,17 @@ Work only on the assigned task. Fetch first; create the feature branch from curr
 
 For captured defects, publish new captures to `master` before assignment; never introduce them on worker or CI branches.
 
+## Module-local test and validation ownership
+
+Every affected module/assembly owns its focused regression surface. Module-local EditMode/unit tests belong under that module's test assemblies, and every module with meaningful player-visible/runtime behavior must own one or more focused test/validation scenes physically under its own `<Module>/Validation/` directory.
+
+- The scene must exercise the owning module through the real production authoring, composition, rendering, material, interaction, and runtime path that the shipped game uses.
+- Keep the scene minimal and deterministic. Test-only setup may supply bounded inputs, camera/player setup, instrumentation, and assertions; it must not create a parallel renderer, fake art stack, or duplicate production logic.
+- Add a module-local `*.player-scenario.json` when the scene needs runtime actions, timing, captures, or runtime assertions. The scenario describes behavior only; repository structure owns registration.
+- A top-level showcase, gallery, `VoxelShowcase`, `KentridgePlayableSlice`, or another module's validation scene is integration evidence and does not satisfy this module-local ownership requirement.
+- If a SceneIssue changes player-visible/runtime behavior in a module that lacks a suitable local validation scene, creating that scene is required in-scope work, not an opportunistic enhancement.
+- A pure headless/domain module with no meaningful scene behavior may rely on module-local EditMode/unit coverage instead; the worker must state that exception and its rationale in the SceneIssue plan.
+
 ## Targeted CI
 
 Commit production/test work to `fixes/agent-N`. `ci-test/fixes/agent-N` is that worker's only targeted-CI transport. Build each request from the exact feature SHA; change `.github/test-request.json` only on the CI branch.
