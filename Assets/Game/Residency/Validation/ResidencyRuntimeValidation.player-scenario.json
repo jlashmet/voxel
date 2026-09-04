@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "runSeconds": 6,
+  "capture": { "width": 1280, "height": 720, "intervalSeconds": 2, "minimumFrames": 2, "evidenceAfterSeconds": 1 },
+  "timeline": {},
+  "assertions": {
+    "requiredLogPatterns": [
+      "RESIDENCY_VALIDATION coarse: id=npc:residency-validation-worker semantic=AtHome detailed=0",
+      "RESIDENCY_VALIDATION detailed: current=Detailed worldReady=true demands=2",
+      "RESIDENCY_VALIDATION independent-release: current=Coarse demands=1",
+      "RESIDENCY_VALIDATION dormant: id=npc:residency-validation-worker"
+    ],
+    "forbiddenLogPatterns": ["RESIDENCY_VALIDATION failure:", "NullReferenceException", "MissingReferenceException"]
+  }
+}

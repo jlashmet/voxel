@@ -1,0 +1,14 @@
+{
+  "name": "Game.Residency.Validation",
+  "rootNamespace": "Game.Residency.Validation",
+  "references": ["Game.Residency.Api", "Game.Residency.Runtime", "Game.Characters.Api", "Game.Characters.Runtime", "Game.CharacterAI.Api", "Game.CharacterAI.Runtime", "VoxelEngine.Streaming.Api", "VoxelEngine.Streaming.Runtime", "VoxelEngine.Storage.Api", "VoxelEngine.Storage.Runtime", "Unity.Collections", "Unity.Mathematics"],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
