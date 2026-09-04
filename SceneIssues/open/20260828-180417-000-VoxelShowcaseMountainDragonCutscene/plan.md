@@ -1,28 +1,31 @@
 # Plan
 
 ## Acceptance
-Built `VoxelShowcase` must show one substantial grounded natural mountain with a readable shared-road ascent, normal grounded traversal from accessible exterior terrain to a usable summit, a visibly supported allowed cube dragon, and exact proximity dialogue `Hello, I'm Mr. Dragon.` Final proof must be exact-SHA standalone-player output, production-quality by `AGENTS.md`, source-matched to the checked-in startup bake, with unchanged 240 s / 14 GiB guards.
+Built `VoxelShowcase` must show one substantial grounded natural mountain with a readable shared-road ascent, normal grounded traversal from accessible exterior terrain to a usable summit, a visibly supported allowed cube dragon, and exact proximity dialogue `Hello, I'm Mr. Dragon.` Final proof must be green exact-SHA standalone-player output, `production-quality` by `AGENTS.md`, source-matched to the checked-in startup bake, with unchanged 240 s / 14 GiB guards.
 
 ## Ownership
 - `MountainLandformSpec` / `MountainLandformSurface`: deterministic semantic landform.
-- `WorldRoadIntent` / `WorldRoadResolver` / `WorldRoadNetwork` / `EmitTerrainCorridor`: canonical route and physical road realization.
-- `ShowcaseMountainDragonLayout`: scene-only mountain/road/dragon composition policy.
-- `CharacterMotor`: shared production movement/collision; this feature may fix demonstrated reusable collision defects but must not weaken collision policy for the scene.
-- `StartupBakeProvenance` / `ShowcaseStartupBakeContract`: exact source-to-payload binding.
+- `WorldRoadIntent` / resolver / `EmitTerrainCorridor`: canonical road truth.
+- `ShowcaseMountainDragonLayout`: scene-only mountain/road/dragon policy.
+- `CharacterMotor`: shared collision/movement; fix only reusable demonstrated defects.
+- startup-bake provenance: exact source-to-payload binding.
 
 ## Proven state
-Natural-landform-first composition, ridge strength 300, shared 280 permille grade / 42 dm cut-fill, and the shared road pipeline are retained. Experiments 025-027 ruled out analytic cut allowance, corridor winner/order discontinuity, and incorrect realized top-road columns. Experiment 028 isolated authoritative voxel collision rather than tree wood. Experiment 029 proved the then-terminal blocker was material 9: the solid dragon cube; the route now finishes beside that placeholder and its clearance regression remains.
+Natural-landform-first composition, ridge strength 300, 280 permille grade / 42 dm cut-fill, shared road lowering, terminal route beside the cube, and reusable provenance remain. Experiments 025-029 ruled out cut allowance, corridor winner/order, realized top-road mismatch, vegetation, and the old terminal cube overlap.
 
-Exact current-source bake/replay `33839531278` then exposed a distinct upper-approach stop: feet `(-104.590,45.600,28.000)` m, target `(-108.0,28.0)` X/Z, grounded with zero movement; intended X sweep was voxel-blocked before and after the normal step-up. Its screenshots also remain rejected for segmented mountain massing and abrupt upper-road faces.
+Experiment 030/run `33859073259` found material-13 road support one voxel below nominal feet. The narrow half-open minimum-face correction is retained; focused production collision regression passed in run `33867932199` before a later Unity Test Framework cleanup failure.
 
-The attempted 140-permille / 64 dm terrace policy failed deterministically, and run `33857362837` falsified the replacement 3 dm-per-resolved-point invariant because `WorldRoadResolver` removes collinear search samples. Those speculative production changes are backed out; effective layout remains the source-matched 20 dm / 280 / 42 configuration.
+Current master was merged through PR #268; post-merge feature head `9ae65b51...` was behind master by zero at validation time. Exact post-merge run `33868687506` is **failed**, not accepted. Its requested current-source bake test passed in 167.245 s and exported 15,692,523 bytes, signature `7554A9C4`, SHA-256 `874c8fd12fdc99fc894c4d91669656cc45ec9dc4fb4228b7f4184daede3b2fb0`, but the workflow later failed and the real player timed out at `resolved-89`, feet about `(-104.589,45.600,28.000)` m, grounded and stationary. Therefore that payload is diagnostic only.
 
-## CharacterMotor blocker root cause and correction
-Experiment 030 exact request `da61cfb8dde34c7f6dece9eedaf09acbb2b077e1` / run `33859073259` identified every late-stall authoritative blocker cell as material 13, the road surface, exactly one voxel below the nominal feet. Earlier realized-corridor evidence already proved the road top equals its authoritative target there. `CharacterMotor.IsBlocked` was half-open only on maximum AABB faces: raw flooring of a minimum face on an exact voxel boundary could round infinitesimally downward and include the supporting voxel as body overlap.
+Fresh built-player screenshots are `unacceptable`: the brown road is visible, but giant gray/white mountain rock/snow faces dominate approach/lower/mid/upper captures; the ascent reads as a trench/wall relationship, not a production-quality carved road.
 
-The narrow reusable correction treats both minimum and maximum voxel collision faces with the same existing 0.1 mm boundary tolerance. It does not change route geometry, road grade/cut-fill, step height, summit placement, or ground-probe depth. The deliberate 2 cm downward ground-contact query still overlaps support normally.
+## Current hypotheses / discriminator
+1. **Traversal:** the 280-permille road plus voxel/crown variation creates a capsule-footprint rise that exceeds the 0.3 m step even though centreline grade is legal.
+2. **Traversal alternative:** a different authoritative voxel intersects the exact raised movement AABB; the old replay discriminator is insufficient because it still uses raw minimum-face quantization.
 
-Exact feature source `fbc5a35d309a99abfa2b86b188d1b4770e424c62` is covered by `MountainDragonCharacterMotorBlockerDiagnosticTests.UpperApproachRoadSupportFaceDoesNotCountAsCapsuleOverlap`: nominal support-face contact and normal raised position are free, a genuine 1 cm support penetration still collides, and the production 2 cm grounded probe still detects support. Run `33867932199` passed that regression in 21.868 s; the workflow later exited only on the known Unity Test Framework post-build cleanup lifecycle failure. Actual traversal, rather than rounded synthetic X coordinates, is the next product proof.
+Exact request `33874459381` on source `4e1de8ec...` uses production `CharacterMotor.IsBlocked`, serializes every occupied raised-negative-X cell plus the complete footprint surface-height range, and makes no product change. Do not change traversal policy before its result.
+
+For visuals, first determine whether the wall faces are the canonical mountain cut relationship or unrelated feature overlap; only then change road/landform composition.
 
 ## Remaining gates
-Merge then-current `origin/master`; run exact-SHA current-source bake + matching manifest + automatically derived module gates + the same grounded standalone SceneIssue replay. Require full base-to-summit completion and exact proximity dialogue, then inspect fresh approach/lower/mid/upper/summit screenshots against the mandatory visual bar. If visuals still show segmented mountain masses or abrupt road faces, isolate and repair only the demonstrated presentation relationship. Promote only a visually accepted payload/manifest, prove clean-checkout consumption, complete all `tasks.md`/`issue.json` criteria, move only this task `open -> closed` with fixed metadata, run final exact-head validation, then promote `fixes/agent-4 -> master` through PR + auto-merge and monitor the required gate until merged.
+Resolve traversal and mandatory visual defects; add/update the required Showcase module-local validation scene for changed player-visible motor/composition behavior; merge then-current master; obtain green exact-SHA current-source bake + derived module gates + full grounded replay + exact dialogue; human-accept all production screenshots; promote the exact accepted payload/manifest and make normal bake emit its manifest; prove clean-checkout consumption; complete `tasks.md`/`issue.json`; move only this task `open -> closed`; final exact-head validation; PR `fixes/agent-4 -> master` with auto-merge and monitor until merged.
