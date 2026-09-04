@@ -135,6 +135,7 @@ namespace VoxelEngine.Showcase
 
             if (_catalogue.IsCreated)
                 _catalogue.Dispose();
+            ResetFarFeaturePresentation();
             _catalogue = catalogue;
 
             _castleBuild = null;

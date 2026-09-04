@@ -5,6 +5,7 @@
         "VoxelEngine.Showcase",
         "VoxelEngine.Composition",
         "VoxelEngine.Rendering.Api",
+        "VoxelEngine.Rendering.Runtime",
         "VoxelEngine.Storage.Api",
         "VoxelEngine.Structures.Api",
         "VoxelEngine.Tiering.Api",
