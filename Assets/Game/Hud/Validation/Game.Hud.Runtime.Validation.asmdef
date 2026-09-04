@@ -1,7 +1,7 @@
 {
   "name": "Game.Hud.Runtime.Validation",
   "rootNamespace": "Game.Hud.Runtime.Validation",
-  "references": ["Game.Hud.Api", "Game.Hud.Runtime", "Game.Input.Api", "Game.Sessions.Api", "Game.Characters.Api", "Game.Vitality.Api", "Game.Encounters.Api"],
+  "references": ["Game.Hud.Api", "Game.Hud.Runtime", "Game.Input.Api", "Game.Input.Runtime", "Game.Sessions.Api", "Game.Characters.Api", "Game.Vitality.Api", "Game.Encounters.Api"],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
