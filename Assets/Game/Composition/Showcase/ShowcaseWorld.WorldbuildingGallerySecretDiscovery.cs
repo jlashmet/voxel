@@ -108,12 +108,11 @@ namespace VoxelEngine.Showcase
             if (_galleryNaturalApproachClueVoxels <= 0)
                 throw new InvalidOperationException("Gallery cave approach produced no environmental clue evidence.");
 
-            // The production Gallery is restored from a bake before SecretDiscovery is composed.
-            // Bulk structure authoring mutates authoritative resident storage without publishing
-            // per-voxel journal entries, so derived rendering/collision consumers would otherwise
-            // keep the snapshots they observed before this cave, pocket and clue pass. Publish the
-            // finished bounded resident state once, matching the existing post-bake repair contract.
-            _storage.PublishAllResidentRegions();
+            // This is post-bake structure authoring: the affected regions are already resident and
+            // may already have meshes. Residency publication alone cannot invalidate that content.
+            // Publish the same content-dirty semantic used by the established post-castle path so
+            // rendering/collision consumers remesh and re-read the authored cave, pocket and clues.
+            PublishWorldbuildingGallerySecretCaveContentDirty(_gallerySecretEntrance);
 
             _gallerySecretDiscoveryReady = true;
         }
@@ -124,13 +123,26 @@ namespace VoxelEngine.Showcase
             return new int3(GallerySecretCaveX, surfaceY + 1, GallerySecretCaveZ);
         }
 
-        private void PreloadWorldbuildingGallerySecretCaveRegions(int3 entrance)
+        private static int3 WorldbuildingGallerySecretCaveRegionCentre(int3 entrance)
         {
             float3 metres = (float3)entrance * VoxelSize;
-            int3 centre = RegionAt(metres);
+            return RegionAt(metres);
+        }
+
+        private void PreloadWorldbuildingGallerySecretCaveRegions(int3 entrance)
+        {
+            int3 centre = WorldbuildingGallerySecretCaveRegionCentre(entrance);
             for (int z = -1; z <= 1; z++)
             for (int x = -1; x <= 1; x++)
                 GenerateRegionBlocking(centre + new int3(x, 0, z));
+        }
+
+        private void PublishWorldbuildingGallerySecretCaveContentDirty(int3 entrance)
+        {
+            int3 centre = WorldbuildingGallerySecretCaveRegionCentre(entrance);
+            for (int z = -1; z <= 1; z++)
+            for (int x = -1; x <= 1; x++)
+                _changes.PublishRegion(centre + new int3(x, 0, z), VoxelChangeKind.All);
         }
 
         private CaveAuthoringResult AuthorWorldbuildingGallerySecretCave(
