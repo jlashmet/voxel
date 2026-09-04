@@ -68,6 +68,8 @@ namespace Game.Kentridge.PlayableSlice
         private RegionThemeMap _themes;
         private RegionCorridorPlan _corridorPlan;
         private VoxelFarTerrain _farTerrain;
+        private KentridgeFarFeatureRuntime _farFeatures;
+        private Camera _sceneCamera;
         private SettlementPlan _kentridgePlan;
         private SettlementPlan _hightownPlan;
         private KentridgeRegionLife _life;
@@ -185,6 +187,18 @@ namespace Game.Kentridge.PlayableSlice
                 _world.ConfigureGeneratedContentForGameplay(catalogue);
                 catalogue = default(FeatureCatalogue);
 
+                // Bind semantic far presentation immediately after deterministic planning/catalogue
+                // composition and before any GenerateAt call below. The same derived manifest used
+                // by Showcase is therefore queryable before a Kentridge voxel region is realized.
+                _sceneCamera = GetComponent<Camera>();
+                if (_sceneCamera == null) _sceneCamera = Camera.main;
+                _farFeatures = new KentridgeFarFeatureRuntime(
+                    transform,
+                    _world.FarFeaturePresentation,
+                    _world.FarFeaturePresentationCount,
+                    ShowcaseWorld.VoxelSize,
+                    _sceneCamera);
+
                 RegionCorridorPlan corridorPlan = RegionCorridorCatalogue.Plan(
                     m_Seed, BuildSettings(kentridge: true),
                     settlement.CentreDm, hightown.CentreDm);
@@ -279,6 +293,10 @@ namespace Game.Kentridge.PlayableSlice
             RenderingComposition.ResetTransientPresentation();
             RenderingComposition.ClearWorld();
             RenderingComposition.SetSurfaceBuildEnabled(true);
+
+            _farFeatures?.Dispose();
+            _farFeatures = null;
+            _sceneCamera = null;
 
             if (_farTerrain != null)
             {
@@ -381,6 +399,8 @@ namespace Game.Kentridge.PlayableSlice
             else
                 transform.position = _motor.EyePosition;
 
+            _farFeatures?.Update(_sceneCamera, transform.position);
+
             float budget = hasActiveCutscene
                 ? m_LoadingGenerateBudgetMs
                 : m_GenerateBudgetMs;
@@ -396,6 +416,7 @@ namespace Game.Kentridge.PlayableSlice
         private void TickOpeningPreload()
         {
             ApplyOpeningCameraPose();
+            _farFeatures?.Update(_sceneCamera, transform.position);
             _world.StepStreaming(_motor.EyePosition, m_LoadingGenerateBudgetMs);
             if (_farTerrain != null)
             {
@@ -625,11 +646,14 @@ namespace Game.Kentridge.PlayableSlice
         {
             if (_farTerrain == null) return "FAR none";
             float streamed = m_LoadRadiusRegions * ShowcaseWorld.RegionMetres;
+            string semantic = _farFeatures != null
+                ? $"semantic={_farFeatures.VisibleInstanceCount}/{_farFeatures.SourceCount}"
+                : "semantic=none";
             return $"FAR hole={_farTerrain.HoleRadiusMetres:0.#}m "
                  + $"inner={_farTerrain.InnerRadiusMetres:0.#}m streamed={streamed:0.#}m "
                  + $"residentGround={_world.ResidentGroundRadiusMetres(transform.position):0.#}m "
                  + $"coverage={RenderingComposition.HasCompletePublishedNearSurfaceCoverage()} "
-                 + $"structures={(_farTerrain.Structures != null)}";
+                 + $"structures={(_farTerrain.Structures != null)} {semantic}";
         }
 
         private Vector3 LandmarkWorldPosition()

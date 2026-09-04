@@ -11,6 +11,10 @@ namespace VoxelEngine.Rendering.Runtime
     /// </summary>
     public static class VoxelMaterialPresentationInstaller
     {
+        private static readonly int s_MaterialAlbedo = Shader.PropertyToID("_MaterialAlbedo");
+        private static readonly int s_MaterialSampling = Shader.PropertyToID("_MaterialSampling");
+        private static readonly int s_MaterialSurface = Shader.PropertyToID("_MaterialSurface");
+        private static readonly int s_MaterialVariation = Shader.PropertyToID("_MaterialVariation");
         private static readonly int s_WaterShallow = Shader.PropertyToID("_WaterShallow");
         private static readonly int s_WaterDeep = Shader.PropertyToID("_WaterDeep");
         private static readonly int s_WaterMotion = Shader.PropertyToID("_WaterMotion");
@@ -63,6 +67,15 @@ namespace VoxelEngine.Rendering.Runtime
                 VoxelPresentationCatalogue.MaterialVariation[materialIndex] = ToVector4(definition.Variation);
                 VoxelPresentationCatalogue.SetWater(materialIndex, in definition.Water);
             }
+
+            // Material presentation is renderer-global state, not a property of the near-surface
+            // extraction pass. Publish the fixed rows at installation so any renderer-owned
+            // consumer (including far-world geometry) sees the same semantic-free catalogue even
+            // before the first near-surface pass records a command buffer.
+            Shader.SetGlobalVectorArray(s_MaterialAlbedo, VoxelPresentationCatalogue.MaterialAlbedo);
+            Shader.SetGlobalVectorArray(s_MaterialSampling, VoxelPresentationCatalogue.MaterialSampling);
+            Shader.SetGlobalVectorArray(s_MaterialSurface, VoxelPresentationCatalogue.MaterialSurface);
+            Shader.SetGlobalVectorArray(s_MaterialVariation, VoxelPresentationCatalogue.MaterialVariation);
 
             // Solid extraction is Burst/GPU-staging code and cannot read managed presentation
             // arrays directly. Publish the same semantic water mask through its Burst-safe mirror
