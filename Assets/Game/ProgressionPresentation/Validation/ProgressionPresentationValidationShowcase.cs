@@ -120,6 +120,7 @@ namespace Game.ProgressionPresentation.Validation
                 return questId == Quest;
             }
             public bool TryGetObjective(QuestId questId, ObjectiveId objectiveId, out ObjectivePresentationContent content) => questId == Quest && _objectives.TryGetValue(objectiveId, out content);
+            public bool TryGetStandaloneObjective(ObjectiveId objectiveId, out ObjectivePresentationContent content) { content = default; return false; }
         }
     }
 }
