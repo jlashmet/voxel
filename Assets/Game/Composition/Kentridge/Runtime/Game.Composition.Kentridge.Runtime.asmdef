@@ -12,7 +12,10 @@
     "Game.Quests.Api",
     "Game.Inventory.Api",
     "Game.Inventory.Runtime",
-    "Game.Characters.Api"
+    "Game.Characters.Api",
+    "Game.Outcomes.Api",
+    "Game.SessionOrchestration.Api",
+    "Game.SessionOrchestration.Runtime"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
