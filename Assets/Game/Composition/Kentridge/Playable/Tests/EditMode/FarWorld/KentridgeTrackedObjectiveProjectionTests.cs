@@ -1,6 +1,7 @@
 using System;
 using Game.Hud.Api;
 using Game.Hud.Runtime;
+using Game.Input.Api;
 using Game.Progression.Api;
 using Game.Sessions.Api;
 using NUnit.Framework;
