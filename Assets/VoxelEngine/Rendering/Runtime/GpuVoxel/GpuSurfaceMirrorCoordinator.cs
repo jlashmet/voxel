@@ -42,6 +42,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             new(TrackedRegionCapacity);
         private static readonly Dictionary<ActiveFootprint, int> s_DemandFootprints =
             new(32);
+        private static readonly Dictionary<ActiveFootprint, int> s_PendingBlocksByDemandFootprint =
+            new(32);
         private static readonly HashSet<int3> s_PendingBlocks = new(TrackedBlockCapacity);
         private static readonly HashSet<int3> s_ReadyBlocks = new(TrackedBlockCapacity);
         private static readonly Dictionary<int3, HashSet<int3>> s_ReadyBlocksByRegion =
@@ -126,6 +128,26 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             public override int GetHashCode() => HashCode.Combine(Origin.GetHashCode(), SourceStep);
         }
 
+        private readonly struct ActiveFootprint : IEquatable<ActiveFootprint>
+        {
+            internal readonly int3 Origin;
+            internal readonly int Edge;
+
+            internal ActiveFootprint(int3 origin, int edge)
+            {
+                Origin = origin;
+                Edge = edge;
+            }
+
+            public bool Equals(ActiveFootprint other) =>
+                Edge == other.Edge && math.all(Origin == other.Origin);
+
+            public override bool Equals(object obj) =>
+                obj is ActiveFootprint other && Equals(other);
+
+            public override int GetHashCode() => HashCode.Combine(Origin.GetHashCode(), Edge);
+        }
+
         internal static void ConfigurePageArena(GpuSurfacePageArena arena)
         {
             if (s_PageArena != null && !ReferenceEquals(s_PageArena, arena))
@@ -165,26 +187,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             var key = new ChunkHandleKey(origin, sourceStep);
             if (!s_ChunkHandles.Remove(key, out int handle)) return;
             s_PageArena.QueueRelease(handle, generation);
-        }
-
-        private readonly struct ActiveFootprint : IEquatable<ActiveFootprint>
-        {
-            internal readonly int3 Origin;
-            internal readonly int Edge;
-
-            internal ActiveFootprint(int3 origin, int edge)
-            {
-                Origin = origin;
-                Edge = edge;
-            }
-
-            public bool Equals(ActiveFootprint other) =>
-                Edge == other.Edge && math.all(Origin == other.Origin);
-
-            public override bool Equals(object obj) =>
-                obj is ActiveFootprint other && Equals(other);
-
-            public override int GetHashCode() => HashCode.Combine(Origin.GetHashCode(), Edge);
         }
 
         internal static GpuVoxelBrickMirror Acquire(long requestedBudgetBytes)
@@ -492,6 +494,16 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         internal static bool TryBeginExtraction(int3 brickCacheOrigin, int brickCacheEdge)
         {
+            // A change that lands inside a demand footprint after its bounded coverage cursor has
+            // already passed that block must invalidate only that footprint. Keep the global epoch
+            // for world replacement/history loss, and hold this request until its own queued
+            // recovery has published the changed blocks. Unrelated edits therefore cannot restart
+            // every 18^3 scan, while an in-footprint edit still cannot admit stale mirror data.
+            var footprint = new ActiveFootprint(brickCacheOrigin, brickCacheEdge);
+            if (s_PendingBlocksByDemandFootprint.TryGetValue(footprint, out int pending)
+                && pending > 0)
+                return false;
+
             // A direct ComputeShader dispatch shares Metal's graphics queue with rendering. Do not
             // admit more complete count/write/copy chains than one count lane can service; deeper
             // queues increase presentation latency without increasing useful parallelism.
@@ -657,8 +669,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                         s_ChangedReadyScratch.Add(block);
                 }
             }
-            if (s_ChangedReadyScratch.Count > 0)
-                unchecked { s_CoverageEpoch++; }
             for (int i = 0; i < s_ChangedReadyScratch.Count; i++)
             {
                 int3 block = s_ChangedReadyScratch[i];
@@ -678,6 +688,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             if (!IsBlockDemanded(block)) return;
             if (!s_PendingBlocks.Add(block)) return;
+            ChangePendingFootprintCounts(block, 1);
             int3 region = block >> VoxelReadGrid.BlocksPerRegionEdgeLog2;
             if (!s_PendingBlocksByRegion.TryGetValue(region, out Queue<int3> blocks))
             {
@@ -724,7 +735,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                     if (!s_PendingBlocks.Contains(worldBlock)
                         || !IsBlockDemanded(worldBlock))
                     {
-                        s_PendingBlocks.Remove(worldBlock);
+                        if (s_PendingBlocks.Remove(worldBlock))
+                            ChangePendingFootprintCounts(worldBlock, -1);
                         madeProgress = true;
                         RecordConcurrentRecoveryProgress(ref concurrentProgressRecorded);
                         continue;
@@ -736,7 +748,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                     }
 
                     madeProgress = true;
-                    s_PendingBlocks.Remove(worldBlock);
+                    if (s_PendingBlocks.Remove(worldBlock))
+                        ChangePendingFootprintCounts(worldBlock, -1);
                     int3 localBlock = worldBlock
                         - (region << VoxelReadGrid.BlocksPerRegionEdgeLog2);
                     if (!resident)
@@ -872,14 +885,43 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             var footprint = new ActiveFootprint(origin, edge);
             s_DemandFootprints.TryGetValue(footprint, out int readers);
+            int previousReaders = readers;
             readers += delta;
             if (readers > 0)
             {
                 s_DemandFootprints[footprint] = readers;
+                if (previousReaders <= 0)
+                    s_PendingBlocksByDemandFootprint[footprint] =
+                        CountPendingBlocksInFootprint(footprint);
                 return;
             }
 
             s_DemandFootprints.Remove(footprint);
+            s_PendingBlocksByDemandFootprint.Remove(footprint);
+        }
+
+        private static int CountPendingBlocksInFootprint(in ActiveFootprint footprint)
+        {
+            int count = 0;
+            int3 end = footprint.Origin + new int3(footprint.Edge);
+            foreach (int3 block in s_PendingBlocks)
+            {
+                if (math.all(block >= footprint.Origin & block < end)) count++;
+            }
+            return count;
+        }
+
+        private static void ChangePendingFootprintCounts(int3 block, int delta)
+        {
+            if (delta == 0) return;
+            foreach (ActiveFootprint footprint in s_DemandFootprints.Keys)
+            {
+                int3 end = footprint.Origin + new int3(footprint.Edge);
+                if (!math.all(block >= footprint.Origin & block < end)) continue;
+                s_PendingBlocksByDemandFootprint.TryGetValue(footprint, out int pending);
+                pending += delta;
+                s_PendingBlocksByDemandFootprint[footprint] = Math.Max(0, pending);
+            }
         }
 
         private static bool IsBlockDemanded(int3 block)
@@ -996,6 +1038,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             }
             s_PendingBlocksByRegion.Clear();
             s_PendingBlocks.Clear();
+            foreach (ActiveFootprint footprint in s_DemandFootprints.Keys)
+                s_PendingBlocksByDemandFootprint[footprint] = 0;
         }
 
         private static void ClearReadyBlocks()
@@ -1049,6 +1093,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             s_ActiveRegionReaders.Clear();
             s_ActiveFootprints.Clear();
             s_DemandFootprints.Clear();
+            s_PendingBlocksByDemandFootprint.Clear();
             s_Changes.Clear();
 
             if (!disposeMirror || s_Mirror == null) return;
