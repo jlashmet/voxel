@@ -30,19 +30,21 @@
 - [x] Exact run `33835125556` selected CaveWorldBuilder, Showcase, and WorldBuilder correctly; Cave player passed, Showcase failed before readiness.
 - [x] Isolate Showcase readiness failure to validation seed drift; align C# + serialized scene with production Gallery seed `0x5EED1234`.
 - [x] Falsify Gallery camera/framing and missing-geometry hypotheses using authoritative occupancy + focused rendered evidence.
-- [x] Add Showcase-owned behavioral regression requiring post-bake SecretDiscovery authoring to advance the world change feed.
-- [x] Apply smallest proven production fix: publish completed resident state once after post-bake cave/pocket/clue bulk authoring.
-- [x] Exact run `33837600536` selected the required modules/players but stopped at compile; isolate the sole error to the new Showcase publication regression's missing `Game.Composition.WorldObjects.Runtime` test-asmdef reference and correct that module-owned dependency.
+- [x] Exact request `56af2443f352fa4ce6561c784143243ecfb0cecc` / run `33839912405` completed without replacement. Cave focused tests passed; standalone Gallery semantic replay passed; Showcase focused tests exposed a fixture-only startup-radius mismatch.
+- [x] Full-resolution review of run `33839912405` rejects closure because `02-authored-breakable-boundary.png` still shows underside/void; generic post-bake residency publication is therefore falsified as a complete visual fix.
+- [x] Correct the Showcase publication regression fixture to use the production Gallery bake startup radius 4 and unload radius 6.
+- [x] Strengthen the regression to require a content-dirty `VoxelChangeKind`, explicitly rejecting residency-only publication.
+- [x] Apply the repository's established post-bulk-authoring remesh semantic: publish the bounded 3x3 secret-cave footprint with `VoxelChangeKind.All`, matching the completed-castle path that requires re-mesh/re-upload.
 - [ ] Fresh exact-SHA CI module-validation plan selects CaveWorldBuilder, Showcase, and WorldBuilder EditMode assemblies plus adjacent validation scenes and Kentridge integration.
-- [ ] Fresh exact-SHA Showcase publication regression passes.
+- [ ] Fresh exact-SHA Showcase content-dirty publication regression passes.
 - [ ] Representative SecretDiscovery examples are visibly understandable in `WorldbuildingGalleryShowcase` at gameplay scale.
 - [ ] Gallery visual review is `production-quality`: feature-specific natural + breakable clue language, no stale terrain, placeholder signs, universal glow, floating/intersecting geometry, or invalid framing.
 
 ## Cost / integration / closure
 
 - [x] Planner/discovery work is one-shot/event-driven; no per-frame search/polling added.
-- [x] Cave composition is bounded by traversal candidates; post-bake publication is one bounded startup publication over resident regions.
-- [x] Exact request `13183c5afa4da36d6f22c1f34df0b17aa6351896` / run `33837600536` completed failure and was not replaced while queued/running; its compile cause is isolated and fixed before retry.
+- [x] Cave composition is bounded by traversal candidates; post-bake content invalidation is bounded to the same nine preloaded secret-cave regions.
+- [x] User-named exact request `56af2443f352fa4ce6561c784143243ecfb0cecc` was monitored through completion without replacement.
 - [ ] Fresh exact-SHA targeted gate green against current feature head.
 - [ ] All acceptance criteria green from exact tests + built-player evidence.
 - [ ] Move assigned SceneIssue `open -> closed`, set `status=fixed` and `resolvedUtc`, and complete supported resolution fields.
