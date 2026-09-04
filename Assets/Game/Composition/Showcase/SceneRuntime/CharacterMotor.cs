@@ -24,6 +24,7 @@ namespace VoxelEngine.Showcase
     {
         /// <summary>Metres per voxel.</summary>
         private const float VoxelSize = ShowcaseWorld.VoxelSize;
+        private const float CollisionBoundaryEpsilon = 1e-4f;
 
         public float Height = 1.8f;
         public float Radius = 0.3f;
@@ -127,9 +128,9 @@ namespace VoxelEngine.Showcase
             // embeds an edge of the player whenever the terrain rises by one voxel beneath its
             // 60 cm width—the exact failure an oblique hillside spawn exposed.
             int minX = Mathf.FloorToInt((near.x - Radius) / VoxelSize);
-            int maxX = Mathf.FloorToInt((near.x + Radius - 1e-4f) / VoxelSize);
+            int maxX = Mathf.FloorToInt((near.x + Radius - CollisionBoundaryEpsilon) / VoxelSize);
             int minZ = Mathf.FloorToInt((near.z - Radius) / VoxelSize);
-            int maxZ = Mathf.FloorToInt((near.z + Radius - 1e-4f) / VoxelSize);
+            int maxZ = Mathf.FloorToInt((near.z + Radius - CollisionBoundaryEpsilon) / VoxelSize);
             int surface = int.MinValue;
             for (int z = minZ; z <= maxZ; z++)
             for (int x = minX; x <= maxX; x++)
@@ -241,12 +242,15 @@ namespace VoxelEngine.Showcase
         /// </summary>
         private static bool IsBlocked(ShowcaseWorld world, Vector3 min, Vector3 max)
         {
-            int minX = Mathf.FloorToInt(min.x / VoxelSize);
-            int minY = Mathf.FloorToInt(min.y / VoxelSize);
-            int minZ = Mathf.FloorToInt(min.z / VoxelSize);
-            int maxX = Mathf.FloorToInt((max.x - 1e-4f) / VoxelSize);
-            int maxY = Mathf.FloorToInt((max.y - 1e-4f) / VoxelSize);
-            int maxZ = Mathf.FloorToInt((max.z - 1e-4f) / VoxelSize);
+            // Treat the character AABB as half-open on both sides. Adding/subtracting the same tiny
+            // tolerance prevents float division at an exact voxel face (for example 45.6m / 0.1m)
+            // from rounding just across the boundary and counting the supporting voxel as overlap.
+            int minX = Mathf.FloorToInt((min.x + CollisionBoundaryEpsilon) / VoxelSize);
+            int minY = Mathf.FloorToInt((min.y + CollisionBoundaryEpsilon) / VoxelSize);
+            int minZ = Mathf.FloorToInt((min.z + CollisionBoundaryEpsilon) / VoxelSize);
+            int maxX = Mathf.FloorToInt((max.x - CollisionBoundaryEpsilon) / VoxelSize);
+            int maxY = Mathf.FloorToInt((max.y - CollisionBoundaryEpsilon) / VoxelSize);
+            int maxZ = Mathf.FloorToInt((max.z - CollisionBoundaryEpsilon) / VoxelSize);
 
             IVoxelSurfaceQuery surface = world.SurfaceQuery;
             for (int y = minY; y <= maxY; y++)
