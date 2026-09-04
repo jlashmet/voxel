@@ -120,6 +120,36 @@ namespace VoxelEngine.Tests.EditMode
                 "Completed asynchronous bookkeeping may be inspected without blocking the frame.");
         }
 
+        [Test]
+        public void PagedChunkBecomesReadyOnlyAfterGpuAllocationReportsReady()
+        {
+            string coordinator = ReadRenderingFile(
+                "Runtime", "GpuVoxel", "GpuSurfaceMirrorCoordinator.cs");
+            string arena = ReadRenderingFile("Resources", "GpuSurfacePageArena.compute");
+            string seal = MethodBody(coordinator, "private static void SealCountBatch",
+                                     "private static void ResetCountBatches");
+            string completion = MethodBody(coordinator,
+                "private static void CompleteCountBatchReadback",
+                "private static void ResetCountBatchLane");
+
+            StringAssert.Contains("static const uint AllocationReady = 0u;", arena);
+            StringAssert.Contains("static const uint AllocationExhausted = 1u;", arena);
+            StringAssert.Contains("static const uint AllocationStale = 2u;", arena);
+            StringAssert.Contains("static const uint AllocationTooLarge = 3u;", arena);
+            StringAssert.Contains("lane.Readback = AsyncGPUReadback.Request(lane.Counters);", seal,
+                "Submission must retain asynchronous allocation status rather than declaring success.");
+            StringAssert.DoesNotContain("CompletePagedBatch(", seal,
+                "Dispatch alone must never mark a paged chunk ready.");
+            StringAssert.Contains("status == AllocationReady", completion,
+                "Only the page allocator's ready status may publish CPU-side readiness.");
+            StringAssert.Contains("CompletePagedBatch(", completion);
+            StringAssert.Contains("status == AllocationExhausted", completion);
+            StringAssert.Contains("status == AllocationStale", completion);
+            StringAssert.Contains("status == AllocationTooLarge", completion);
+            StringAssert.Contains("FailPagedBatch(", completion,
+                "Every non-ready status must remain failure/backpressure instead of false success.");
+        }
+
         private static void AssertNoBlockingGpuSync(string source, string path)
         {
             StringAssert.DoesNotContain(".GetData(", source,
