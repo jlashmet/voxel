@@ -12,18 +12,44 @@ namespace VoxelEngine.Showcase.Tests.EditMode
         private const int AuthoredClearanceWidthDm = 10;
 
         [Test]
-        public void AuthoredMountainUsesOneBroadCoreWithoutRejectedAspectShoulders()
+        public void AuthoredMountainUsesContinuousSharedMassifEnvelopeWithoutAspectShoulders()
         {
             MountainLandformSurface surface = ShowcaseMountainDragonLayout.CreateSurface(Seed);
 
-            Assert.That(surface.MassCount, Is.EqualTo(1),
-                "The Mountain Dragon policy must stay below the shared aspect-shoulder threshold so the landmark does not regress to the rejected three-lobe silhouette.");
-            MountainLandformMass mass = surface.GetMass(0);
-            int run = mass.BaseRadiusDm - mass.TopRadiusDm;
-            Assert.That(run, Is.GreaterThan(0), "the broad mountain core must taper instead of exposing a vertical side");
-            long slopePermille = ((long)mass.HeightDm * 1000L + run / 2L) / run;
-            Assert.That(slopePermille, Is.LessThanOrEqualTo(650),
-                "the Mountain Dragon core must remain gentle enough that the spiral ascent does not read as a road cut through giant faceted walls");
+            Assert.That(surface.MassCount, Is.GreaterThanOrEqualTo(3),
+                "the Mountain Dragon landmark must use the shared layered massif envelope instead of one giant full-height planar frustum");
+
+            MountainLandformMass previous = default;
+            int previousSlopePermille = -1;
+            for (int i = 0; i < surface.MassCount; i++)
+            {
+                MountainLandformMass mass = surface.GetMass(i);
+                Assert.That(mass.CentreXdm, Is.EqualTo(surface.Spec.OriginXdm),
+                    "the Mountain Dragon policy must stay below the shared aspect-shoulder threshold so the landmark does not regress to offset giant lobes");
+                Assert.That(mass.CentreZdm, Is.EqualTo(surface.Spec.OriginZdm));
+                Assert.That(mass.BaseRadiusDm, Is.GreaterThan(mass.TopRadiusDm));
+
+                int run = mass.BaseRadiusDm - mass.TopRadiusDm;
+                int rise = mass.HeightDm - 1;
+                int slopePermille = (rise * 1000 + run / 2) / run;
+                Assert.That(slopePermille, Is.GreaterThan(previousSlopePermille),
+                    "the shared massif profile must steepen inward instead of exposing one constant-slope faceted wall");
+
+                if (i > 0)
+                {
+                    Assert.That(mass.BaseYdm, Is.EqualTo(previous.TopYdm),
+                        "adjacent massif bands must share their vertical seam without a terrace or unsupported gap");
+                    Assert.That(mass.BaseRadiusDm, Is.EqualTo(previous.TopRadiusDm),
+                        "adjacent massif bands must share their radial seam without a terrace or unsupported gap");
+                }
+
+                previous = mass;
+                previousSlopePermille = slopePermille;
+            }
+
+            Assert.That(previous.TopYdm,
+                Is.EqualTo(surface.Spec.OriginYdm + surface.Spec.HeightDm - 1));
+            Assert.That(previous.TopRadiusDm, Is.EqualTo(ShowcaseMountainDragonLayout.SummitRadius));
         }
 
         [Test]
