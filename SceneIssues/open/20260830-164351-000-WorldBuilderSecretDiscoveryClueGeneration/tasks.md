@@ -39,7 +39,9 @@
 - [x] Exact request `700641da19d648ed7c85d148cf3bb272c6b39ffd` / run `33886411818` completed without replacement and passed plan derivation, automatic module validation, standalone SceneIssue replay, screenshot upload, and final status.
 - [x] Merge then-current master `d08612dfe2f4a99aff34897717569744565bc642` into `fixes/agent-5` through PR #273 before validating the new anomaly work.
 - [x] Update module-local validation scene to consume `SecretClueAnomalyPlanner`: natural approach uses dense-vegetation discontinuity/negative-space language while the breakable barrier uses structural-fracture language.
-- [ ] Run fresh exact-SHA targeted validation on the new anomaly feature head.
+- [x] Classify exact request `36d6a7d297ed0a8023993b9482b463e869b0ac14` / run `33898606330`: module planning succeeded, but Unity compilation failed because the local validation assembly imported `Game.WorldBuilder.Runtime` without referencing `Game.WorldBuilder.Runtime`; standalone replay failed for the same compile error. This is a deterministic validation-assembly dependency defect, not renderer/gameplay evidence and not retryable infrastructure.
+- [x] Fix the failed-run cause narrowly by adding `Game.WorldBuilder.Runtime` to `Game.WorldBuilder.SecretDiscovery.Validation.asmdef`; anomaly behavior/source remains otherwise unchanged.
+- [ ] Run fresh exact-SHA targeted validation on the fixed anomaly feature head.
 - [ ] Full-resolution module-local screenshot review proves the natural approach visibly communicates an intentional anomaly and plausible traversal/investigation hypothesis without glow/icon/signage.
 - [ ] Full-resolution module-local screenshot review proves the breakable barrier visibly communicates a plausible break/destruction hypothesis without becoming a universal marker.
 - [ ] Local built-scene visual review is `production-quality`: no stale terrain, placeholder signs, universal glow, floating/intersecting geometry, void/underside, or invalid framing.
