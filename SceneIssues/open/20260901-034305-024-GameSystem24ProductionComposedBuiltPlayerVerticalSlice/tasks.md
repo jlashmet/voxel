@@ -4,10 +4,12 @@
 **Ownership:** Kentridge production composition + shared standalone-player validation architecture. No new generic gameplay Api/Runtime module.
 **Execution rule:** this proves the real production graph; the scenario may drive public player/input seams and observe diagnostics, but it may not mutate authority or substitute simplified runtimes.
 
+**Current prerequisite:** System 23 Application is still open on current `origin/master`; its Application lifecycle and Input-System production path are required before the frontend/New Game/Continue and exact built-player route can be completed. Keep this feature open; do not implement #23 here.
+
 ## Baseline / composition cleanup
 
-- [ ] **T24-001 — Inventory Kentridge production/prototype bootstraps.** Find scene-local CombatService, CampaignRuntime construction, InputContextService, raw key polling, direct encounter/quest mutation, presentation substitutes and test-only startup seams.
-- [ ] **T24-002 — Define canonical Kentridge entry composition.** Kentridge retains world seed/content/sites/NPC/cutscene/placement policy while delegating application/session/runtime construction to systems 23/14.
+- [x] **T24-001 — Inventory Kentridge production/prototype bootstraps.** Audited current master: `KentridgePlayableSlice` directly creates `KentridgeSessionRuntimeGraphFactory`/`GameSessionOrchestrator`; `KentridgeForestBanditEncounter` creates `InputContextService`, `UnityPlayerInputReader`, `VitalityRegistry`, `CombatService` and `EncounterRegistry`; `KentridgeWellQuestInventoryPresentation` owns a second `InputContextService`, reflects private slice fields and polls raw input; `KentridgeUnityInputBridge` explicitly preserves legacy `UnityEngine.Input`. System 23 Application is not yet present on master.
+- [x] **T24-002 — Define canonical Kentridge entry composition.** Canonical ownership is recorded in `plan.md`: Application #23 owns app/input/navigation lifecycle and delegates run lifecycle to #14/#16; Kentridge supplies only world/content/site/NPC/cutscene/placement policy and a production session/content factory; Unity adapters receive public composed capabilities and never construct authority.
 - [ ] **T24-003 — Verify one production Input path.** Physical input uses Unity Input System -> `Game.Input.Runtime` -> `Game.Input.Api`; validation can inject semantic player actions only through the approved production/test seam.
 - [ ] **T24-004 — Verify one production session path.** Standalone starts at Application frontend and New Game/Continue, not direct scene bootstrap or CampaignRuntime constructors.
 - [ ] **T24-005 — Remove/fail alternate runtime fallbacks.** Missing production integration must fail validation rather than instantiate a local substitute.
