@@ -12,6 +12,7 @@
     "Game.Combat.Runtime",
     "Game.Vitality.Api",
     "Game.Vitality.Runtime",
+    "Game.Composition.Campaign",
     "Game.Composition.Campaign.Runtime",
     "Game.Cutscenes.Api",
     "Game.Progression.Api",
