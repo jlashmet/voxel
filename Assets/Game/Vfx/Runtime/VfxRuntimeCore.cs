@@ -97,11 +97,11 @@ namespace Game.Vfx.Runtime
                 for (int i = 0; i < currentTreatments.Count; i++)
                 {
                     VfxPersistentTreatmentDescriptor treatment = currentTreatments[i];
-                    desired.Add(treatment.TreatmentId);
                     if (!_catalog.TryResolve(treatment.Cue, out VfxEffectProfile profile))
                     { Report(VfxDiagnosticCode.MissingCueMapping, treatment.Cue, default, "No local mapping exists for persistent semantic treatment."); continue; }
                     if (!_bindings.TryResolve(treatment.Origin, out VfxWorldPoint point))
                     { Report(VfxDiagnosticCode.MissingOriginBinding, treatment.Cue, default, "Persistent semantic origin has no current presentation binding."); continue; }
+                    desired.Add(treatment.TreatmentId);
                     _backend.ApplyPersistent(treatment.TreatmentId, profile, point);
                     _activeTreatments.Add(treatment.TreatmentId);
                 }

@@ -90,6 +90,31 @@ namespace Game.Vfx.Tests
         }
 
         [Test]
+        public void PersistentReconcile_RemovesStaleVisualWhenBindingDisappears()
+        {
+            var character = new CharacterId("character:binding-loss");
+            var backend = new RecordingBackend();
+            var bindings = new ToggleBindings { Available = true };
+            var coordinator = new VfxCueCoordinator(VfxCueCatalog.CreateDefault(), bindings, backend);
+            var current = new[]
+            {
+                new VfxPersistentTreatmentDescriptor(
+                    new VfxTreatmentId("defeated:" + character.Value), GameplayVfxCues.DefeatedTreatment,
+                    VfxSemanticOrigin.Character(character))
+            };
+
+            coordinator.Reconcile(current);
+            Assert.That(backend.PersistentCount, Is.EqualTo(1));
+            Assert.That(coordinator.ActiveTreatmentCount, Is.EqualTo(1));
+
+            bindings.Available = false;
+            coordinator.Reconcile(current);
+
+            Assert.That(backend.PersistentCount, Is.Zero, "A missing visual binding must not leave a stale persistent effect at the old location.");
+            Assert.That(coordinator.ActiveTreatmentCount, Is.Zero);
+        }
+
+        [Test]
         public void VitalityAuthority_IsIdenticalWithVfxPresentOrAbsent()
         {
             var character = new CharacterId("character:authority");
