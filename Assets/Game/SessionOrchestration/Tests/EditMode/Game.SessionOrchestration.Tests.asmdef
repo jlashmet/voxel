@@ -11,7 +11,12 @@
     "Game.Combat.Api",
     "Game.Combat.Runtime",
     "Game.Vitality.Api",
-    "Game.Vitality.Runtime"
+    "Game.Vitality.Runtime",
+    "Game.Cutscenes.Api",
+    "Game.Quests.Api",
+    "Game.Story.Api",
+    "Game.Story.Runtime",
+    "Game.WorldBuilder.Api"
   ],
   "includePlatforms": ["Editor"],
   "excludePlatforms": [],
