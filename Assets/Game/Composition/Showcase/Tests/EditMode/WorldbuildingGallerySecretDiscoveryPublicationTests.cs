@@ -19,11 +19,18 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void PostBakeSecretAuthoringPublishesContentDirtyRegions()
         {
+            // The production Gallery serializes an 800k-brick request after sizing against its
+            // device-tier budget. The generic ShowcaseWorld constructor has a conservative 256 MiB
+            // fallback for callers that do not know their budget; letting that fallback re-clamp
+            // this fixture would no longer reproduce the production scene and cannot load its bake.
+            // A maximal allocation ceiling keeps the requested capacity exactly 800k without
+            // increasing any production budget or changing the checked-in bake.
             using var world = new ShowcaseWorld(
                 GallerySeed,
                 brickPoolCapacity: 800000,
                 loadRadiusRegions: 4,
-                unloadRadiusRegions: 6);
+                unloadRadiusRegions: 6,
+                maxMixedBrickAllocationBytes: long.MaxValue);
 
             world.StartWorldbuildingGalleryBlocking(null);
 
