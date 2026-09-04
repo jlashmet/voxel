@@ -5,6 +5,7 @@ using Game.Materials.Api;
 using Game.Structures.Api;
 using Game.Structures.Runtime;
 using Game.WorldBuilder.Api;
+using Game.WorldBuilder.Runtime;
 using Unity.Mathematics;
 using UnityEngine;
 using VoxelEngine.Composition;
@@ -21,7 +22,7 @@ namespace Game.WorldBuilder.Validation
     /// <summary>
     /// Focused built-player proof for generated secret discovery. The scene owns only validation
     /// orchestration and camera placement. Terrain/storage, cave generation, secret-pocket authoring,
-    /// clue coating, materials, voxel meshing, destruction, and tree rendering all execute through
+    /// clue realization, materials, voxel meshing, destruction, and tree rendering all execute through
     /// production paths.
     /// </summary>
     [DisallowMultipleComponent]
@@ -145,9 +146,33 @@ namespace Game.WorldBuilder.Validation
                     out CaveSecretPocketCompositionFailure failure))
                 throw new InvalidOperationException("Production cave secret authoring failed: " + failure);
 
+            var route = new SecretRouteId("generated-cave/breakable-boundary");
+            SecretClueAnchorSpec[] clueAnchors = CaveSecretPocketClueAnchors.ForAuthoredBreakable(
+                approach,
+                route);
+            if (clueAnchors.Length < 2)
+                throw new InvalidOperationException("Generated cave secret did not expose reusable clue anchors.");
+
+            var breakableContext = new SecretClueLocalContext(
+                vegetationDensityPercent: 5,
+                surfaceUniformityPercent: 92,
+                structuralRegularityPercent: 88,
+                occlusionPercent: 30,
+                recentDisturbancePercent: 5);
+            SecretClueAnomalyPlan breakableAnomaly = SecretClueAnomalyPlanner.Resolve(
+                unchecked((int)m_Seed),
+                route.Id + "/barrier-surface",
+                SecretRouteKind.BreakableBarrier,
+                SecretClueChannel.Visual,
+                in breakableContext);
+            if (breakableAnomaly.Motif != SecretClueMotifFamily.StructuralFracture)
+                throw new InvalidOperationException(
+                    "Local breakable-wall context no longer selects structural-fracture evidence; " +
+                    "update the realizer rather than silently presenting an incompatible motif.");
+
             var clueConfig = new CaveSecretPocketCluePresentationConfig(
                 Coatings.Soot,
-                64,
+                breakableAnomaly.StrengthPercent,
                 m_Seed ^ 0x434C5545u);
             if (!CaveSecretPocketCluePresentation.TryApplyBoundaryEvidence(
                     authoring,
@@ -156,12 +181,19 @@ namespace Game.WorldBuilder.Validation
                     out int coatedVoxels))
                 throw new InvalidOperationException("Production cave clue presentation failed.");
 
-            var route = new SecretRouteId("generated-cave/breakable-boundary");
-            SecretClueAnchorSpec[] clueAnchors = CaveSecretPocketClueAnchors.ForAuthoredBreakable(
-                approach,
-                route);
-            if (clueAnchors.Length < 2)
-                throw new InvalidOperationException("Generated cave secret did not expose reusable clue anchors.");
+            var naturalContext = new SecretClueLocalContext(
+                vegetationDensityPercent: 92,
+                surfaceUniformityPercent: 58,
+                structuralRegularityPercent: 10,
+                occlusionPercent: 72,
+                recentDisturbancePercent: 8);
+            SecretClueAnomalyPlan naturalAnomaly = SecretClueAnomalyPlanner.Resolve(
+                unchecked((int)m_Seed),
+                "generated-cave/natural-approach",
+                SecretRouteKind.NaturalTraversal,
+                SecretClueChannel.Environmental,
+                in naturalContext,
+                new[] { breakableAnomaly.Motif });
 
             var renderingWorld = new RenderingWorldBinding(
                 _world.ReadStorage,
@@ -176,7 +208,7 @@ namespace Game.WorldBuilder.Validation
                 farFieldEnabled: false);
             RenderingComposition.SetSurfaceBuildEnabled(true);
 
-            PublishProductionTrees(surfaceY);
+            PublishProductionTrees(surfaceY, in naturalAnomaly);
 
             _cave = cave;
             _projection = projection;
@@ -190,6 +222,8 @@ namespace Game.WorldBuilder.Validation
                 "WorldBuilder secret validation ready: " +
                 $"caveSegments={cave.SegmentsAuthored} branches={cave.BranchesAuthored} " +
                 $"terminals={cave.TraversalCandidates.Count} clueAnchors={clueAnchors.Length} " +
+                $"breakableMotif={breakableAnomaly.Motif} breakableIntent={breakableAnomaly.ActionIntent} " +
+                $"naturalMotif={naturalAnomaly.Motif} naturalIntent={naturalAnomaly.ActionIntent} " +
                 $"crackVoxels={coatedVoxels} trees={_trees.Count} " +
                 $"barrier={projection.Pocket.Barrier.Min}->{projection.Pocket.Barrier.MaxExclusive}");
         }
@@ -229,35 +263,79 @@ namespace Game.WorldBuilder.Validation
                 _world.GenerateRegionBlocking(centre + new int3(x, 0, z));
         }
 
-        private void PublishProductionTrees(int surfaceY)
+        private void PublishProductionTrees(int surfaceY, in SecretClueAnomalyPlan naturalAnomaly)
         {
             _trees.Clear();
+
+            // Baseline vegetation establishes local normality around the feature.
             for (int i = 0; i < 24; i++)
             {
                 float angle = i * (math.PI * 2f / 24f);
                 float radius = 18f + (i % 5) * 2.5f;
-                float xMetres = CaveAnchorX * VoxelMetres + math.cos(angle) * radius;
-                float zMetres = CaveAnchorZ * VoxelMetres + math.sin(angle) * radius;
-                int xVoxel = (int)math.round(xMetres / VoxelMetres);
-                int zVoxel = (int)math.round(zMetres / VoxelMetres);
-                int yVoxel = TerrainSampler.HeightAt(xVoxel, zVoxel, m_Seed);
-                uint treeSeed = m_Seed ^ (uint)(i * 0x9E3779B9u + 1u);
-                _trees.Add(new TreeInstance
-                {
-                    PositionMetres = new float3(xMetres, yVoxel * VoxelMetres, zMetres),
-                    Species = (i & 1) == 0 ? TreeSpecies.Pine : TreeSpecies.Oak,
-                    Seed = treeSeed == 0u ? 1u : treeSeed,
-                    Scale = 0.9f + (i % 4) * 0.08f,
-                });
+                AddTree(
+                    CaveAnchorX * VoxelMetres + math.cos(angle) * radius,
+                    CaveAnchorZ * VoxelMetres + math.sin(angle) * radius,
+                    i,
+                    0.9f + (i % 4) * 0.08f);
             }
+
+            // The chosen natural motif is a controlled local deviation, not a global secret marker.
+            // In dense vegetation, two irregular banks with a narrow negative-space corridor produce
+            // a readable "why is this path opening here?" anomaly toward the cave entrance.
+            if (naturalAnomaly.Motif == SecretClueMotifFamily.VegetationDiscontinuity ||
+                naturalAnomaly.Motif == SecretClueMotifFamily.SightlineGap)
+            {
+                int treeIndex = 100;
+                for (int row = 0; row < 7; row++)
+                {
+                    float zMetres = CaveAnchorZ * VoxelMetres - 1.6f - row * 0.9f;
+                    for (int side = -1; side <= 1; side += 2)
+                    {
+                        for (int lane = 0; lane < 2; lane++)
+                        {
+                            uint h = AnomalyHash(m_Seed, row * 11 + lane * 3 + (side > 0 ? 1 : 0));
+                            float jitter = ((h & 255u) / 255f - 0.5f) * 0.55f;
+                            float xMetres = CaveAnchorX * VoxelMetres +
+                                            side * (1.65f + lane * 1.35f + jitter);
+                            AddTree(xMetres, zMetres + jitter * 0.35f, treeIndex++, 0.82f + (h % 5u) * 0.045f);
+                        }
+                    }
+                }
+            }
+
             VegetationComposition.ReplaceTreeWorld(_trees);
+        }
+
+        private void AddTree(float xMetres, float zMetres, int index, float scale)
+        {
+            int xVoxel = (int)math.round(xMetres / VoxelMetres);
+            int zVoxel = (int)math.round(zMetres / VoxelMetres);
+            int yVoxel = TerrainSampler.HeightAt(xVoxel, zVoxel, m_Seed);
+            uint treeSeed = m_Seed ^ (uint)(index * 0x9E3779B9u + 1u);
+            _trees.Add(new TreeInstance
+            {
+                PositionMetres = new float3(xMetres, yVoxel * VoxelMetres, zMetres),
+                Species = (index & 1) == 0 ? TreeSpecies.Pine : TreeSpecies.Oak,
+                Seed = treeSeed == 0u ? 1u : treeSeed,
+                Scale = scale,
+            });
+        }
+
+        private static uint AnomalyHash(uint seed, int value)
+        {
+            uint h = seed ^ unchecked((uint)value * 0x9E3779B9u + 0x85EBCA6Bu);
+            h ^= h >> 16;
+            h *= 0x7FEB352Du;
+            h ^= h >> 15;
+            h *= 0x846CA68Bu;
+            return h ^ (h >> 16);
         }
 
         /// <summary>
         /// Drives a deterministic visual walkthrough of the production-authored cave. Each hold is
-        /// longer than the player harness capture interval so evidence includes the entrance, an
-        /// interior descent, the clue-bearing false wall at two gameplay distances, the breached
-        /// wall, and the hidden pocket beyond it.
+        /// longer than the player harness capture interval so evidence includes the natural approach,
+        /// entrance, interior descent, clue-bearing false wall at two gameplay distances, breached
+        /// wall, and hidden pocket beyond it.
         /// </summary>
         private void PlaceSequencePose(float elapsed)
         {
