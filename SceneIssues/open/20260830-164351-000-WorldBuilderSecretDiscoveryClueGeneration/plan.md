@@ -25,12 +25,14 @@ The clue system must communicate actionable abnormality, not merely prove that c
 - Exact request `698aa3347a3065d1e495ba260cc90913fde71907` on feature SHA `3e6cd24436fa0a5b3f8f23279697ada624734d16` completed as run `33852280392` with all automatic module validation and standalone SceneIssue replay green.
 - Full-resolution review of run `33852280392` still rejects visual acceptance: `02-authored-breakable-boundary.png` is below/through terrain with a large void region, and `01-natural-cave-approach.png` does not communicate an understandable cave clue at gameplay scale. This is `unacceptable`, not production-quality.
 - Authoritative GPU renderer restoration later landed on master through PR #230 and was merged into `fixes/agent-5` through sync PR #266, producing feature head `cf0e95237d1965c99d0f9522e302794ab8a13a4a`.
-- The post-sync exact request `5d5dea6ef467db18099e798a5cd07d62ee8f155b` (run `33863772871`) passed the standalone SecretDiscovery replay but failed earlier in `derive automatic module validation plan`; classify that failure before any replacement request.
+- The post-sync exact request `5d5dea6ef467db18099e798a5cd07d62ee8f155b` (run `33863772871`) passed the standalone SecretDiscovery replay but failed earlier in `derive automatic module validation plan` before producing `plan.json`.
+- That planner failure is now classified as a deterministic repository regression exposed by the required master sync, not Unity/runner infrastructure and not SecretDiscovery behavior. The sync introduced nested tested module roots at `Assets/Game/Composition/Kentridge/Playable` and `.../Playable/SceneRuntime`; planner discovery recursively attributed the inner runtime asmdef to both roots and tripped its own fail-closed duplicate runtime-owner guard.
+- Selected regression fix: preserve nested modules as distinct owners but assign each runtime asmdef only to its nearest discovered module root. Add a focused planner regression reproducing the Kentridge nested-module shape. Do not weaken duplicate-token fail-closed validation.
 
 ## Selected fix / remaining gates
 
 Keep the bounded post-bake publication and validation-fidelity fixes. Do not treat existence/count of clue voxels as visual acceptance. Continue the in-scope realization work by making clue presentation route-aware and locally contrastive, while reusing canonical interactable mechanisms and honoring bypass policy.
 
-Before another exact request, classify the current automatic-module-plan failure. If it is a product/configuration failure, fix the narrow cause; if it is proven infrastructure, retry without unrelated changes.
+The automatic-module-plan failure is classified and has a narrow repository fix plus regression test on the feature branch. The next exact request must validate that final planner change and the post-renderer SecretDiscovery production path together; no retry of the failed source is warranted.
 
 Closure requires both representative natural and mechanism-backed clues to be understandable at gameplay scale with no void/underside, floating/intersecting presentation, placeholder markers, universal glow, or invalid framing. Only after that may closure bookkeeping, final master integration, PR + auto-merge, and the required `affected`/Kentridge gate proceed.
