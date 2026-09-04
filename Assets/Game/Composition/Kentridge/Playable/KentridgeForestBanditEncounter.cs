@@ -3,10 +3,14 @@ using System.Collections.Generic;
 using Game.Characters.Api;
 using Game.Combat.Api;
 using Game.Combat.Runtime;
+using Game.Composition.Kentridge.Api;
+using Game.Composition.Kentridge.Runtime;
 using Game.Encounters.Api;
 using Game.Encounters.Runtime;
 using Game.Input.Api;
 using Game.Input.Runtime;
+using Game.SessionOrchestration.Api;
+using Game.SessionOrchestration.Runtime;
 using Game.Vitality.Api;
 using Game.Vitality.Runtime;
 using MountingForce.WorldGen;
@@ -18,13 +22,16 @@ using UnityEngine.SceneManagement;
 namespace Game.Composition.Kentridge.Playable
 {
     /// <summary>
-    /// Production composition seam for the first Combat/Input vertical slice in Kentridge.
-    /// Encounter lifecycle and membership are authoritative in Game.Encounters; this component owns authored
-    /// world realization, proximity reporting, Combat mapping, input context and presentation. Actor life truth
-    /// is authoritative in Game.Vitality and is consumed by Combat through Character-backed participants.
+    /// Kentridge-specific presentation/composition adapter for the forest Encounter/Combat slice.
+    /// Its authoritative Encounter/Input/Vitality/Combat runtimes are created only when the production
+    /// session graph composes this extension, and its work executes in the graph's Encounter/Combat phases.
+    /// Scene-specific placement, proximity and participant/team mapping remain here rather than leaking
+    /// into SessionOrchestration.
     /// </summary>
     [DefaultExecutionOrder(-10000)]
-    public sealed class KentridgeForestBanditEncounter : MonoBehaviour
+    public sealed class KentridgeForestBanditEncounter : MonoBehaviour,
+        IKentridgeSessionRuntimeExtensionFactory,
+        IKentridgeSessionRuntimeExtension
     {
         private const string KentridgeSceneName = "KentridgePlayableSlice";
         private const string PlayerCameraName = "Kentridge Player Camera";
@@ -53,9 +60,13 @@ namespace Game.Composition.Kentridge.Playable
         private CombatInputController _combatInput;
         private CombatAiBattleDriver _battleDriver;
         private IInputContextLease _combatContext;
+        private IReadOnlyList<ISessionUpdateStep> _steps;
         private Vector3 _ambushCenterWorld;
         private RegionThemeKind _ambushTheme;
-        private float _nextBattleActionTime;
+        private float _battleActionAccumulator;
+        private bool _composed;
+        private bool _commandsEnabled;
+        private bool _disposed;
 
         public int BanditCount => _bandits.Count;
         public IReadOnlyList<GameObject> Bandits => _bandits;
@@ -86,6 +97,20 @@ namespace Game.Composition.Kentridge.Playable
             _inputContexts == null ? InputContextId.Exploration : _inputContexts.ActiveContext;
         public ICombatService CombatService => _combat;
 
+        public bool GameplayBindingsReady =>
+            _composed
+            && !_disposed
+            && _characters != null
+            && _encounters != null
+            && _inputContexts != null
+            && _inputReader != null
+            && _vitality != null
+            && _combat != null
+            && _bandits.Count == 3;
+
+        public IReadOnlyList<ISessionUpdateStep> UpdateSteps =>
+            _steps ?? Array.Empty<ISessionUpdateStep>();
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void RegisterSceneInstaller()
         {
@@ -115,20 +140,29 @@ namespace Game.Composition.Kentridge.Playable
 
         private void Awake()
         {
+            BuildAuthoredAmbushPlan();
+        }
+
+        public IKentridgeSessionRuntimeExtension Compose(
+            GameSessionIdentity identity,
+            IKentridgeCampaignActorHost actors)
+        {
+            if (identity == null) throw new ArgumentNullException(nameof(identity));
+            if (_composed && !_disposed)
+                throw new InvalidOperationException(
+                    "Kentridge forest session extension is already composed for the active run.");
+            if (!(actors is KentridgeCharacterHost characterHost))
+                throw new InvalidOperationException(
+                    "Kentridge forest session extension requires the production KentridgeCharacterHost.");
+
+            _disposed = false;
+            _commandsEnabled = false;
+            _characters = characterHost.Characters
+                ?? throw new InvalidOperationException("Kentridge character authority is unavailable.");
             _inputContexts = new InputContextService();
             _inputReader = new UnityPlayerInputReader(_inputContexts);
             _vitality = new VitalityRegistry();
             _combat = new CombatService(_vitality);
-            BuildAuthoredAmbushPlan();
-        }
-
-        private void Start()
-        {
-            KentridgeCharacterRegistryAnchor anchor = GetComponent<KentridgeCharacterRegistryAnchor>();
-            if (anchor == null || anchor.Characters == null)
-                throw new InvalidOperationException(
-                    "Kentridge forest encounter requires the playable character registry anchor before actor realization.");
-            _characters = anchor.Characters;
             _encounters = new EncounterRegistry(_characters);
             RequireEncounterSuccess(
                 _encounters.Register(
@@ -136,39 +170,121 @@ namespace Game.Composition.Kentridge.Playable
                     out _),
                 "register Kentridge forest encounter");
             SpawnBandits();
+            _steps = Array.AsReadOnly<ISessionUpdateStep>(new ISessionUpdateStep[]
+            {
+                new ForestEncounterStep(this),
+                new ForestCombatStep(this)
+            });
+            _composed = true;
+            return this;
         }
 
-        private void Update()
+        public void StartCommands()
         {
-            if (_bandits.Count != 3 || _combat == null || _encounters == null) return;
+            RequireComposed();
+            _commandsEnabled = true;
+        }
+
+        public void StopCommands()
+        {
+            _commandsEnabled = false;
+            _combatInput = null;
+            ReleaseCombatContext();
+        }
+
+        public void SettleAuthoritativeState()
+        {
+            if (!_composed || _disposed || _combat == null || _combat.IsActive) return;
+            if (_combat.WinningTeam.HasValue && !CombatResolved)
+                SettleCompletedCombat();
+        }
+
+        public void DetachExternalAdapters()
+        {
+            _commandsEnabled = false;
+            _combatInput = null;
+            ReleaseCombatContext();
+        }
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _commandsEnabled = false;
+            _combatInput = null;
+            ReleaseCombatContext();
+
+            if (_characters != null)
+            {
+                for (int i = 0; i < _banditCharacterIds.Length; i++)
+                {
+                    CharacterId id = _banditCharacterIds[i];
+                    if (!id.IsValid) continue;
+                    _vitality?.Remove(id);
+                    CharacterRegistryFailure failure = _characters.Remove(id);
+                    if (failure != CharacterRegistryFailure.None &&
+                        failure != CharacterRegistryFailure.UnknownCharacterId)
+                        RequireSuccess(failure, "remove forest bandit during session teardown");
+                    _banditCharacterIds[i] = default;
+                }
+            }
+
+            for (int i = 0; i < _bandits.Count; i++)
+                if (_bandits[i] != null) Destroy(_bandits[i]);
+            _bandits.Clear();
+            Array.Clear(_grounded, 0, _grounded.Length);
+
+            _battleDriver = null;
+            _combat = null;
+            _vitality = null;
+            _inputReader = null;
+            _inputContexts = null;
+            _encounters = null;
+            _characters = null;
+            _steps = null;
+            _battleActionAccumulator = 0f;
+            _composed = false;
+            _disposed = true;
+        }
+
+        private void TickEncounterPhase(int elapsedMilliseconds)
+        {
+            if (!_commandsEnabled || !GameplayBindingsReady) return;
+
             ResolveBanditGroundNearPlayer();
             SyncBanditCharacters();
 
-            if (!_combat.IsActive)
+            if (_combat.IsActive)
             {
-                if (CombatResolved) return;
-                float triggerSquared = _triggerRadiusMetres * _triggerRadiusMetres;
-                Vector3 player = transform.position;
-                for (int i = 0; i < _bandits.Count; i++)
-                {
-                    GameObject bandit = _bandits[i];
-                    if (bandit == null) continue;
-                    FacePlayer(bandit.transform, player);
-                    if (PlanarDistanceSquared(player, bandit.transform.position) > triggerSquared) continue;
-                    ReportProximityActivation();
-                    _inputReader.SuppressLegacyReadersForCurrentFrame();
-                    break;
-                }
+                _inputReader.SuppressLegacyReadersForCurrentFrame();
                 return;
             }
+            if (CombatResolved) return;
 
-            if (_combatInput != null)
-                _combatInput.Tick(Time.deltaTime);
-
-            if (_battleDriver != null && Time.unscaledTime >= _nextBattleActionTime)
+            float triggerSquared = _triggerRadiusMetres * _triggerRadiusMetres;
+            Vector3 player = transform.position;
+            for (int i = 0; i < _bandits.Count; i++)
             {
+                GameObject bandit = _bandits[i];
+                if (bandit == null) continue;
+                FacePlayer(bandit.transform, player);
+                if (PlanarDistanceSquared(player, bandit.transform.position) > triggerSquared) continue;
+                ReportProximityActivation();
+                _inputReader.SuppressLegacyReadersForCurrentFrame();
+                break;
+            }
+        }
+
+        private void TickCombatPhase(int elapsedMilliseconds)
+        {
+            if (!_commandsEnabled || !GameplayBindingsReady || !_combat.IsActive) return;
+
+            float dt = Mathf.Max(0f, elapsedMilliseconds * 0.001f);
+            _combatInput?.Tick(dt);
+            _battleActionAccumulator += dt;
+            if (_battleDriver != null && _battleActionAccumulator >= BattleActionIntervalSeconds)
+            {
+                _battleActionAccumulator -= BattleActionIntervalSeconds;
                 _battleDriver.Step();
-                _nextBattleActionTime = Time.unscaledTime + BattleActionIntervalSeconds;
                 if (!_combat.IsActive)
                     SettleCompletedCombat();
             }
@@ -326,7 +442,7 @@ namespace Game.Composition.Kentridge.Playable
             _combatContext = _inputContexts.Push(InputContextId.Combat);
             _combatInput = new CombatInputController(_combat, _inputReader, LocalPlayer, playerCombatId);
             _battleDriver = new CombatAiBattleDriver(_combat, AutonomousBattleSeed);
-            _nextBattleActionTime = Time.unscaledTime + BattleActionIntervalSeconds;
+            _battleActionAccumulator = 0f;
         }
 
         private void EnsureVitalityRegistered(CharacterId characterId)
@@ -338,7 +454,7 @@ namespace Game.Composition.Kentridge.Playable
 
         private void SettleCompletedCombat()
         {
-            if (_combat == null || _combat.IsActive) return;
+            if (_combat == null || _combat.IsActive || CombatResolved) return;
             if (!_combat.WinningTeam.HasValue)
                 throw new InvalidOperationException("Kentridge combat completed without a terminal team outcome.");
             if (_battleDriver != null && _battleDriver.HasPendingAction)
@@ -391,6 +507,7 @@ namespace Game.Composition.Kentridge.Playable
                     if (_banditCharacterIds[banditIndex] != fact.CharacterId) continue;
                     if (banditIndex < _bandits.Count && _bandits[banditIndex] != null)
                         Destroy(_bandits[banditIndex]);
+                    _banditCharacterIds[banditIndex] = default;
                     break;
                 }
             }
@@ -408,6 +525,13 @@ namespace Game.Composition.Kentridge.Playable
             if (_combatContext == null) return;
             _combatContext.Dispose();
             _combatContext = null;
+        }
+
+        private void RequireComposed()
+        {
+            if (!_composed || _disposed)
+                throw new InvalidOperationException(
+                    "Kentridge forest session extension is not part of an active composed session.");
         }
 
         private static CharacterKinematicState ToKinematics(Transform actor)
@@ -519,7 +643,27 @@ namespace Game.Composition.Kentridge.Playable
 
         private void OnDestroy()
         {
-            ReleaseCombatContext();
+            Dispose();
+        }
+
+        private sealed class ForestEncounterStep : ISessionUpdateStep
+        {
+            private readonly KentridgeForestBanditEncounter _owner;
+            public ForestEncounterStep(KentridgeForestBanditEncounter owner) => _owner = owner;
+            public SessionUpdatePhase Phase => SessionUpdatePhase.Encounter;
+            public int Order => 0;
+            public string SemanticId => "kentridge.forest-encounter";
+            public void Tick(int elapsedMilliseconds) => _owner.TickEncounterPhase(elapsedMilliseconds);
+        }
+
+        private sealed class ForestCombatStep : ISessionUpdateStep
+        {
+            private readonly KentridgeForestBanditEncounter _owner;
+            public ForestCombatStep(KentridgeForestBanditEncounter owner) => _owner = owner;
+            public SessionUpdatePhase Phase => SessionUpdatePhase.Combat;
+            public int Order => 0;
+            public string SemanticId => "kentridge.forest-combat";
+            public void Tick(int elapsedMilliseconds) => _owner.TickCombatPhase(elapsedMilliseconds);
         }
     }
 }
