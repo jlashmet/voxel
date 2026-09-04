@@ -1,9 +1,9 @@
 {
-  "name": "Game.Progression.Runtime",
-  "rootNamespace": "Game.Progression.Runtime",
+  "name": "Game.Composition.EncounterRealization",
+  "rootNamespace": "Game.Composition.EncounterRealization",
   "references": [
-    "Game.Progression.Api",
-    "Game.WorldObjects.Api",
+    "Game.WorldBuilder.Api",
+    "Game.Encounters.Api",
     "Game.Characters.Api"
   ],
   "includePlatforms": [],

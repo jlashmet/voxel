@@ -1,0 +1,24 @@
+{
+  "name": "Game.WorldObjects.Tests",
+  "rootNamespace": "Game.WorldObjects.Tests",
+  "references": [
+    "Game.WorldObjects.Api",
+    "Game.WorldObjects.Runtime",
+    "Game.Characters.Api",
+    "Game.Inventory.Api",
+    "Game.Loot.Runtime",
+    "Game.Progression.Api",
+    "Game.Progression.Runtime"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
