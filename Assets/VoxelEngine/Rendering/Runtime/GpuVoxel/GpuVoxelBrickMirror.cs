@@ -236,7 +236,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             ThrowIfDisposed();
 
-            GpuBrickAdmission admission = _slots.TryAdmit(in delta, out int slot);
+            GpuBrickAdmission admission = _slots.TryAdmit(
+                in delta, out int slot, out bool evicted, out int3 evictedCoordinate);
+            if (evicted) RemoveLookup(evictedCoordinate);
             switch (admission)
             {
                 case GpuBrickAdmission.Stale:
@@ -301,7 +303,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             ThrowIfDisposed();
 
-            GpuBrickAdmission admission = _slots.TryAdmit(in delta, out int slot);
+            GpuBrickAdmission admission = _slots.TryAdmit(
+                in delta, out int slot, out bool evicted, out int3 evictedCoordinate);
+            if (evicted) RemoveLookup(evictedCoordinate);
             switch (admission)
             {
                 case GpuBrickAdmission.Stale:
