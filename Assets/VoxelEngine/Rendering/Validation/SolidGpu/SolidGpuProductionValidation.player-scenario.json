@@ -1,6 +1,7 @@
 {
   "schemaVersion": 1,
   "runSeconds": 48,
+  "gpuCutover": "required",
   "capture": {
     "width": 1600,
     "height": 900,
