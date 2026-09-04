@@ -6,25 +6,25 @@
 
 ## API / lifecycle
 
-- [x] **T14-001 — Inventory current bootstraps/composition roots.** `KentridgePlayableSlice` directly creates `ShowcaseWorld`, character/presentation hosts and `KentridgeCampaignSessionBootstrap.CreateSession`, ticks `CampaignRuntime`, and clears session/world state in scene teardown. `KentridgeCampaignSessionBootstrap` creates Campaign + Inventory runtime state. `CampaignRuntime` remains the domain owner for Story/Quest/Cutscene rules. Outcomes API is landed; Persistence #16 is not yet present.
-- [ ] **T14-002 — Establish asmdefs and dependency direction.** Runtime composes implementations through APIs/factories supplied by composition; API stays minimal and engine-neutral.
-- [ ] **T14-003 — Define run lifecycle states.** `Uninitialized -> Composing -> Ready -> Running -> ShuttingDown` plus failure/resolved handling as approved; enumerate legal commands per state.
-- [ ] **T14-004 — Define start/new/resume requests and results.** Inputs identify campaign/world/session/configuration/save source semantically; no scene names or concrete Runtime objects in API.
-- [ ] **T14-005 — Define composed-session handle/readiness contract.** Expose only lifecycle/control identity needed by frontend/tests, not a facade for every subsystem.
-- [ ] **T14-006 — Define semantic startup/shutdown failures.** Fail missing dependencies/invalid composition explicitly; no silent fallback runtimes.
+- [x] **T14-001 — Inventory current bootstraps/composition roots.** `KentridgePlayableSlice` directly created `ShowcaseWorld`, character/presentation hosts and `KentridgeCampaignSessionBootstrap.CreateSession`, ticked `CampaignRuntime`, and cleared session/world state in scene teardown. `KentridgeCampaignSessionBootstrap` creates Campaign + Inventory runtime state. `CampaignRuntime` remains the Story/Quest/Cutscene domain owner. Outcomes API is landed; Persistence #16 is not yet present.
+- [x] **T14-002 — Establish asmdefs and dependency direction.** Added engine-neutral `Game.SessionOrchestration.Api` and `.Runtime`; Runtime depends only on the semantic Session API and `Game.Outcomes.Api`. Kentridge composition supplies the concrete graph factory and continues to own concrete Campaign/Inventory construction.
+- [x] **T14-003 — Define run lifecycle states.** API defines `Uninitialized`, `Composing`, `Ready`, `Running`, `Resolved`, `ShuttingDown`, `Stopped`, and `Failed`; orchestrator enforces legal Prepare/Run/Tick/Capture/Shutdown states.
+- [x] **T14-004 — Define start/new/resume requests and results.** `GameSessionIdentity`, `GameSessionStartRequest`, semantic restore-source id, and operation results carry campaign/world/session/configuration identity without scene names or Runtime instances.
+- [x] **T14-005 — Define composed-session handle/readiness contract.** `ComposedSessionHandle` exposes only semantic identity/generation; `GameSessionSnapshot` exposes lifecycle/readiness/failure without subsystem query forwarding.
+- [x] **T14-006 — Define semantic startup/shutdown failures.** `GameSessionFailure` and `SessionCompositionException` distinguish invalid state, missing dependency, failed composition/restore/readiness/start/capture/shutdown with no fallback graph.
 
 ## Runtime graph
 
-- [ ] **T14-010 — Build one production graph factory/composer.** Instantiate/configure authoritative subsystem Runtime implementations from composition-provided dependencies.
-- [ ] **T14-011 — Make new game and resume share the same graph construction.** Only initialization/restore input differs; no separate “load game runtime.”
-- [ ] **T14-012 — Define deterministic update/event ordering.** Record cross-system ordering constraints and execute them consistently without moving domain decisions into orchestration.
-- [ ] **T14-013 — Add semantic fact routing/adapters.** Wire interactions, progression, story, encounters, combat, outcomes etc. through public APIs/events.
-- [ ] **T14-014 — Implement readiness barrier.** `GameplayReady` only after required world/session/replication/player bindings are established.
-- [ ] **T14-015 — Reject commands during partial composition/shutdown.** Prevent half-initialized graph use and reentrant starts/stops.
-- [ ] **T14-016 — Implement ordered teardown.** Stop input/commands, settle/publish required authoritative state, detach networking/presentation adapters, dispose graph once.
-- [ ] **T14-017 — Integrate Outcomes reaction.** Observe system 15 resolution and transition run lifecycle appropriately without deciding the outcome.
-- [ ] **T14-018 — Integrate Persistence restore/capture seam.** System 16 requests coherent capture/restore through the normal graph path; Orchestration does not serialize state.
-- [ ] **T14-019 — Replace Kentridge scene-local graph construction.** Kentridge supplies content/configuration and enters the production composer.
+- [x] **T14-010 — Build one production graph factory/composer.** `ISessionRuntimeGraphFactory` is composition-supplied; `KentridgeSessionRuntimeGraphFactory` reuses `KentridgeCampaignSessionBootstrap.CreateSession` for the real Campaign/Inventory graph.
+- [x] **T14-011 — Make new game and resume share the same graph construction.** Both use the same `Compose(identity)` path; new calls graph initialization only when entering Running, while resume restores through `ISessionPersistenceBridge` before readiness and never invokes new-game initialization.
+- [x] **T14-012 — Define deterministic update/event ordering.** `SessionUpdatePhase` plus phase/order/semantic-id sorting establishes CommandIntake -> Interaction -> Progression/Story -> Encounter -> Combat -> Replication -> Presentation ordering with duplicate-order rejection.
+- [x] **T14-013 — Add semantic fact routing/adapters.** Runtime orders composition-supplied public-API steps; Kentridge supplies a Campaign step and command adapter, while the headless integration fixture routes Encounter/Combat through `IEncounterRegistry` / `IEncounterCombatCoordinator` without SessionOrchestration depending on their Runtime assemblies.
+- [x] **T14-014 — Implement readiness barrier.** Prepare reaches `Ready` only when the composed graph reports `GameplayBindingsReady`; Kentridge reports ready only after its existing bootstrap validates/realizes campaign world and actor bindings.
+- [x] **T14-015 — Reject commands during partial composition/shutdown.** Orchestrator rejects invalid lifecycle commands and Kentridge graph gameplay commands stay disabled until `EnterRunning()` calls `StartCommands()`.
+- [x] **T14-016 — Implement ordered teardown.** Shutdown executes `StopCommands -> SettleAuthoritativeState -> DetachExternalAdapters -> Dispose` exactly once while continuing cleanup after the first failure; Kentridge invokes orchestration shutdown before actor/world disposal.
+- [x] **T14-017 — Integrate Outcomes reaction.** Running graph observes optional `IGameOutcomeQuery`; `Resolved` stops commands and transitions lifecycle without choosing disposition/outcome.
+- [x] **T14-018 — Integrate Persistence restore/capture seam.** `ISessionPersistenceBridge` receives the already-composed graph for restore/capture; SessionOrchestration owns no serializer or persistence storage.
+- [x] **T14-019 — Replace Kentridge scene-local graph construction.** `KentridgePlayableSlice` now supplies semantic content/configuration to the graph factory, prepares through `GameSessionOrchestrator`, enters Running after existing presentation readiness, ticks through ordered graph steps, routes NPC commands through the graph, and shuts it down before existing composition-owned resource disposal.
 
 ## Verification
 
