@@ -94,6 +94,9 @@ namespace Game.Composition.Kentridge.Playable
         public InputContextId ActiveInputContext =>
             _inputContexts == null ? InputContextId.Exploration : _inputContexts.ActiveContext;
         public ICombatService CombatService => _combat;
+        public IVitalityQuery VitalityQuery => _vitality;
+        public IEncounterQuery EncounterQuery => _encounters;
+        public IInputContextService InputContexts => _inputContexts;
 
         public bool GameplayBindingsReady =>
             _composed
@@ -158,6 +161,7 @@ namespace Game.Composition.Kentridge.Playable
             _vitality = new VitalityRegistry();
             _combat = new CombatService(_vitality);
             _encounters = new EncounterRegistry(_characters);
+            EnsureVitalityRegistered(characterHost.PlayerCharacterId);
 
             for (int i = 0; i < _banditCharacterIds.Length; i++)
             {
