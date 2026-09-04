@@ -5,27 +5,24 @@
 **Execution rule:** gameplay publishes semantic meaning/state; Audio maps it to local assets/playback. Audio absence/failure cannot alter gameplay authority.
 
 ## API / cue model
-
-- [ ] **T21-001 — Inventory current audio ownership.** Find cutscene AudioSources, scene-local playback, gameplay sound calls, clip ids in gameplay code, looping state and volume settings.
-- [ ] **T21-002 — Establish asmdefs.** Audio.Api contains no `AudioClip`, `AudioSource`, GameObject or gameplay Runtime dependency; Audio.Runtime owns Unity playback/assets.
-- [ ] **T21-003 — Define semantic `AudioCueRef`.** Stable cue identity meaningful to presentation mapping, not a clip/resource path.
-- [ ] **T21-004 — Define cue event/request origin.** CharacterId, WorldObjectId or semantic world point/context only when needed; preserve stable one-shot event identity for dedupe.
-- [ ] **T21-005 — Define sustained audio-state descriptor.** Current semantic state that can be reconstructed after reconnect/restore without replaying history.
-- [ ] **T21-006 — Define mapping/configuration failure behavior.** Unknown cue is diagnostic/presentation failure only and never blocks domain state changes.
+- [x] **T21-001 — Inventory current audio ownership.** Baseline has no Audio module/indexed `AudioSource`; Kentridge authored `door.open` is swallowed by its no-op `SlicePresentation.PlaySound`; system 23 preferences are not yet implemented.
+- [x] **T21-002 — Establish asmdefs.** `Game.Audio.Api` is engine-neutral; Unity assets/sources live in `Game.Audio.Runtime`.
+- [x] **T21-003 — Define semantic `AudioCueRef`.** Stable presentation cue identity is independent of clip/resource paths.
+- [x] **T21-004 — Define cue event/request origin.** Stable `AudioEventId` plus CharacterId/world-object/world-point/global semantic origins.
+- [x] **T21-005 — Define sustained audio-state descriptor.** `SustainedAudioState` + semantic key reconstruct current loop state without replay history.
+- [x] **T21-006 — Define mapping/configuration failure behavior.** Unknown cue/origin/backend failures are diagnostic presentation results only.
 
 ## Runtime / integration
-
-- [ ] **T21-010 — Implement cue-to-asset mapping service.** Configuration resolves semantic cue refs to Unity playback setup locally.
-- [ ] **T21-011 — Subscribe to confirmed gameplay semantic events.** Damage/interaction/encounter/etc. adapters live presentation-side; gameplay modules do not call Audio Runtime.
-- [ ] **T21-012 — Integrate cutscene cue playback.** Existing cutscene sound cues use the same playback service and do not double-play through legacy AudioSources.
-- [ ] **T21-013 — Resolve semantic origins to presentation transforms.** Use client presentation binding; missing transform degrades gracefully without changing authority.
-- [ ] **T21-014 — Implement one-shot dedupe.** Authoritative confirmation and optional local predicted anticipation cannot play the same cue twice.
-- [ ] **T21-015 — Reconstruct sustained audio from current state.** Reconnect/restore starts/stops loops based on current semantic descriptors and never replays old one-shots.
-- [ ] **T21-016 — Bind user volume/preferences.** Consume system 23 preference seam without making Application responsible for playback.
-- [ ] **T21-017 — Remove scene-local substitute playback where production semantic cue exists.** Preserve purely decorative ambient ownership where it is genuinely scene presentation.
+- [x] **T21-010 — Implement cue-to-asset mapping service.** Runtime-local catalog maps semantic cues to Unity clip/bus/spatial/loop configuration.
+- [x] **T21-011 — Subscribe to confirmed gameplay semantic events.** Presentation-side `VitalityDefeatAudioAdapter` consumes confirmed `IVitalityService.Defeated`; Kentridge sidecar consumes public character events without gameplay->Audio dependency.
+- [ ] **T21-012 — Integrate cutscene cue playback.** Shared `CutsceneAudioCueRuntime` exists and is covered by tests/validation; actual Kentridge `door.open` no-op presentation handoff still must be migrated before closure.
+- [x] **T21-013 — Resolve semantic origins to presentation transforms.** Runtime resolver handles global/world-point origins and degrades unavailable presentation bindings without affecting authority.
+- [x] **T21-014 — Implement one-shot dedupe.** Stable event ids suppress predicted+authoritative duplicate playback.
+- [x] **T21-015 — Reconstruct sustained audio from current state.** Idempotent reconciliation starts/stops only current sustained descriptors.
+- [ ] **T21-016 — Bind user volume/preferences.** BLOCKED: system 23 `IUserPreferencesStore`/audio preference seam is still absent on current master; do not invent settings authority in Audio.
+- [ ] **T21-017 — Remove scene-local substitute playback where production semantic cue exists.** No duplicate indexed AudioSources exist, but Kentridge's no-op cutscene sound handoff must be replaced by the shared service.
 
 ## Verification
-
 - [ ] **T21-020 — Cue mapping tests.** Known/unknown cue behavior, configuration validation and semantic origin mapping.
 - [ ] **T21-021 — Dedupe/prediction test.** Local anticipation + authoritative event results in one audible semantic effect.
 - [ ] **T21-022 — Reconnect test.** Sustained state reconstructs; historical damage/interaction/cutscene one-shots do not replay.
@@ -34,7 +31,6 @@
 - [ ] **T21-025 — Module-local built-player audible validation through shared harness.** Assert semantic cue diagnostics/milestones rather than fragile timing-only sleeps.
 
 ## Cleanup / close
-
 - [ ] **T21-030 — Search gameplay APIs for clip/playback identity.** Remove `AudioClip`/resource names/play commands from domain contracts.
 - [ ] **T21-031 — Search scene-local AudioSources for duplicate semantic playback.** Consolidate where they represent the same gameplay/cutscene cue.
 - [ ] **T21-032 — Close with isolation proof.** Disabling Audio changes presentation only; authoritative gameplay state/results are identical.

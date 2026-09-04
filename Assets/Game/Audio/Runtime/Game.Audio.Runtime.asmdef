@@ -1,0 +1,14 @@
+{
+  "name": "Game.Audio.Runtime",
+  "rootNamespace": "Game.Audio.Runtime",
+  "references": ["Game.Audio.Api", "Game.Cutscenes.Api", "Game.Vitality.Api", "Game.Characters.Api"],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

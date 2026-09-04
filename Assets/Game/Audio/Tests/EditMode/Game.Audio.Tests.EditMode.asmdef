@@ -1,0 +1,14 @@
+{
+  "name": "Game.Audio.Tests.EditMode",
+  "rootNamespace": "Game.Audio.Tests",
+  "references": ["Game.Audio.Api", "Game.Audio.Runtime", "Game.Cutscenes.Api", "Game.Vitality.Api", "Game.Vitality.Runtime", "Game.Characters.Api"],
+  "includePlatforms": ["Editor"],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

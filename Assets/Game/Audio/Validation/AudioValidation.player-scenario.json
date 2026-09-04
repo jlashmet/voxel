@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "runSeconds": 8,
+  "capture": { "width": 1280, "height": 720, "intervalSeconds": 2, "minimumFrames": 3, "evidenceAfterSeconds": 1 },
+  "timeline": {},
+  "assertions": {
+    "requiredLogPatterns": [
+      "AUDIO_VALIDATION ready: predicted=Played confirmed=DuplicateSuppressed playedEvents=1",
+      "AUDIO_VALIDATION cutscene-shared:",
+      "AUDIO_VALIDATION sustained-start: loops=1 semantic=1",
+      "AUDIO_VALIDATION reconnect-current-state: loops=1 semantic=1 historicalOneShotsReplayed=0",
+      "AUDIO_VALIDATION sustained-stop: loops=0 semantic=0"
+    ],
+    "forbiddenLogPatterns": ["NullReferenceException", "MissingReferenceException", "AUDIO_VALIDATION failure:"]
+  }
+}
