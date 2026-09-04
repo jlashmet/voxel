@@ -10,14 +10,14 @@ namespace VoxelEngine.Tests.EditMode
     /// <summary>
     /// Regression for the production Gallery's post-bake SecretDiscovery authoring boundary.
     /// The baked world is already visible to derived consumers before this feature is composed,
-    /// so finishing its bulk mutation must publish the new resident state to the world change feed.
+    /// so finishing its bulk mutation must publish content-dirty changes, not merely residency.
     /// </summary>
     public sealed class WorldbuildingGallerySecretDiscoveryPublicationTests
     {
         private const uint GallerySeed = 0x5EED1234u;
 
         [Test]
-        public void PostBakeSecretAuthoringPublishesFinishedResidentState()
+        public void PostBakeSecretAuthoringPublishesContentDirtyRegions()
         {
             using var world = new ShowcaseWorld(
                 GallerySeed,
@@ -29,7 +29,7 @@ namespace VoxelEngine.Tests.EditMode
 
             // Preload every region that EnsureWorldbuildingGallerySecretDiscoveryBlocking normally
             // prepares before it authors the secret. Sampling the cursor only after this step keeps
-            // region-generation publication from satisfying the regression accidentally.
+            // region-generation/residency publication from satisfying the regression accidentally.
             MethodInfo preloadGallery = typeof(ShowcaseWorld).GetMethod(
                 "PreloadGalleryRegions",
                 BindingFlags.Instance | BindingFlags.NonPublic);
@@ -57,6 +57,18 @@ namespace VoxelEngine.Tests.EditMode
             ulong cursor = before;
             var changes = new List<VoxelChangeRecord>();
             bool retained = world.Changes.ReadSince(ref cursor, changes);
+            const VoxelChangeKind contentKinds = VoxelChangeKind.Occupancy
+                                               | VoxelChangeKind.BaseMaterial
+                                               | VoxelChangeKind.SurfaceStyle
+                                               | VoxelChangeKind.Coating;
+            bool publishedContentDirty = false;
+            for (int i = 0; i < changes.Count; i++)
+            {
+                if ((changes[i].Kind & contentKinds) == 0)
+                    continue;
+                publishedContentDirty = true;
+                break;
+            }
 
             Assert.Multiple(() =>
             {
@@ -65,7 +77,9 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.That(world.Changes.CurrentVersion, Is.GreaterThan(before),
                     "Post-bake secret authoring changed authoritative voxels but did not advance the world change feed.");
                 Assert.That(changes, Is.Not.Empty,
-                    "Derived consumers must receive a post-authoring resident-state publication.");
+                    "Derived consumers must receive a post-authoring change publication.");
+                Assert.That(publishedContentDirty, Is.True,
+                    "Residency-only publication is insufficient: already-rendered Gallery regions must be marked content-dirty so rendering remeshes the authored cave and clues.");
                 Assert.That(cursor, Is.EqualTo(world.Changes.CurrentVersion));
             });
         }
