@@ -1,28 +1,28 @@
 # Plan
 
 ## Acceptance and ownership
-`issue.json` is the contract (`captures: []`). Preserve the source-backed Mounting Force macro graph while delivering physical settlements, contiguous terrain-aware hard routes, reusable regional geography, Rossdam Lake, Southern Ridge/pass, real CharacterMotor traversal, durable built-player evidence, and bounded CPU/GPU/memory/streaming cost.
+`issue.json` is the contract (`captures: []`). Preserve the source-backed Mounting Force macro graph while delivering physical settlements, contiguous terrain-aware hard routes, reusable regional geography, Rossdam Lake, Southern Ridge/pass, CharacterMotor traversal, durable built-player evidence, and bounded CPU/GPU/memory/streaming cost.
 
 Owned validation surfaces:
-- WorldBuilder: `Validation/MacroPhysicalWorld` through the production catalogue/rendering path.
-- Showcase composition: `Validation/FeatureResidency` through production residency/readiness.
+- WorldBuilder: `Validation/MacroPhysicalWorld` through production catalogue/rendering.
+- Showcase: `Validation/FeatureResidency` through production residency/readiness.
 - Kentridge Playable: `Validation/KentridgeMacroWorld` through the real slice/evidence driver.
-- VoxelEngine Rendering: `Validation/GpuSurfaceMirrorRelocation` through production GPU mirror/extraction/publication.
-Semantic/config adapters without independent scene lifecycle retain module-local behavioral coverage.
+- Rendering: `Validation/GpuSurfaceMirrorRelocation` through production GPU mirror/extraction/publication.
 
 ## Proven implementation
-The shared planner/catalogues cover 20 hard routes, 6 settlements, 16 generic buildings, deterministic geography, Rossdam Lake, Southern Ridge/pass, bounded slopes, storage, spatial reservations, and feature-aware residency. Independent non-Kentridge fixtures prove blocked-water routing/reuse. Generic fallback buildings use hollow shells/perimeter plinths, reducing combined foundation+timber synthetic work 79.7%. Horizontal residency remains radius 3 / 29 XZ columns; no device or renderer concurrency budget was increased.
+The shared planner/catalogues cover 20 hard routes, 6 settlements, 16 generic buildings, deterministic geography, Rossdam Lake, Southern Ridge/pass, bounded slopes, storage, reservations, and feature-aware residency. Independent non-Kentridge fixtures prove reuse. Hollow fallback shells/perimeter plinths reduce combined foundation+timber synthetic work 79.7%. Horizontal residency remains radius 3 / 29 XZ columns; renderer/device budgets were not increased.
 
 ## Current root cause and selected correction
-Run `33899824434` proved unrelated ready-block changes could globally restart every bounded mirror coverage scan. Production commit `7641f8d2c0b4088ed23f7ad29161965a6005a606` keeps the global epoch only for world/history replacement and gates changed-block recovery per registered demand footprint.
+Run `33899824434` proved unrelated ready-block edits could globally restart all bounded mirror coverage scans. Production commit `7641f8d2c0b4088ed23f7ad29161965a6005a606` keeps world/history invalidation global but gates changed-block recovery per demand footprint.
 
-Exact validation run `33905495634` on source `cafd0f934a3bf376dc10cf33196d90a821b40862` then failed the focused unrelated-change PlayMode assertion, but its own payload reported `gpuCompleted=461` during the alleged 20-second all-worker stall. That falsifies continued admission starvation: `active` is sampled only after each rendered frame and can be zero after same-frame admission/completion, while the intentionally held control demand keeps `pending=1` and `demand>=9`.
+Run `33905495634` then reported 461 GPU completions during the alleged 20s all-worker stall, falsifying the old `active==0` classifier. Experiment 045 / test commit `2fb10483fe3584dc73a2326a9cd806a7589d2ff0` requires both zero active extraction and zero GPU-completion progress.
 
-Experiment 045 records this discriminator. Test-only commit `2fb10483fe3584dc73a2326a9cd806a7589d2ff0` now defines a true saturated interval as backlog + saturated demand + `active==0` + no new GPU completion, and exits after four useful post-relocation completions. Current feature head is `ac5b4e387e3be0f75a8f2df41af82ebebe388b00`. No production behavior changed after `7641f8d2`.
+Run `33912155787` on exact source `b45f6e36738c051250747253df9d75f6ad40c1fb` passed all persistent repository-derived test phases. The requested discriminator failed only because its success exit occurred after four useful GPU completions but before its own `>=8` unrelated-change requirement (`injected=3`). Experiment 046 isolates this test contradiction. Test-only commit `77d5314a39857b55e87ddb299807b5e323af5e28` now requires the full eight-change workload before successful exit; production behavior is unchanged.
+
+The same 180s Kentridge replay remained closure-red despite zero harness assertions: `coverage=False`, `missingVisible=252`, eight GPU requests in flight, recovery backlog still draining. Treat this as an independent integration/convergence boundary if the focused discriminator turns green.
 
 ## Remaining gates
-1. Exact-SHA rerun the corrected unrelated-change regression through `ci-test/fixes/agent-6`; preserve queued/running requests.
-2. Inspect repository-derived validation for all four owned player scenarios and the 180-second Kentridge replay. Macro evidence must progress through Moordell, Rossdam/lake, Fairy, Orc, ridge/pass, network overview, and CharacterMotor traversal.
-3. Inspect full-resolution built-player evidence for production-quality settlement readability, road arrival/exit, substantial lake, ridge/pass, constrained route, differentiated countryside, and process cleanliness.
-4. Quantify multi-target convergence, vertical residency deltas, feature work, FPS/CPU/render/far-field telemetry, and process/managed/native/GPU memory against budgets.
-5. Merge current `origin/master` before final promotion, revalidate affected exact-SHA work, complete every `tasks.md` item, close only this issue, populate resolution metadata, then PR + auto-merge and monitor the required `affected` gate until merged.
+1. Exact-SHA rerun the corrected unrelated-change regression with automatic module validation and the required 180s replay.
+2. If focused GPU liveness is green, isolate Kentridge convergence without speculative renderer changes; prove all four module-local player scenes.
+3. Obtain production-quality Moordell/Rossdam/Fairy/Orc/ridge/network and CharacterMotor evidence plus final cost/memory measurements.
+4. Merge current `origin/master` (`0d70e2e7…`) before final promotion, revalidate the merged exact SHA, complete every task/acceptance item, close only this SceneIssue, then PR + auto-merge and monitor `affected` until merged.
