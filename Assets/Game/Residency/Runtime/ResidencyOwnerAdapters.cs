@@ -96,12 +96,12 @@ namespace Game.Residency.Runtime
     public sealed class WorldObjectResidencyAdapter : IResidencyTargetAdapter
     {
         private readonly IWorldObjectRegistry _registry;
-        private readonly IWorldObjectRealizationLifecycle _realization;
+        private readonly IResidencyTargetRealizationLifecycle _realization;
         private readonly Func<WorldObjectId, ResidencyRegion> _regionResolver;
 
         public WorldObjectResidencyAdapter(
             IWorldObjectRegistry registry,
-            IWorldObjectRealizationLifecycle realization,
+            IResidencyTargetRealizationLifecycle realization,
             Func<WorldObjectId, ResidencyRegion> regionResolver)
         {
             _registry = registry ?? throw new ArgumentNullException(nameof(registry));
@@ -123,7 +123,7 @@ namespace Game.Residency.Runtime
             WorldObjectId id = Id(target);
             if (!_registry.TryGet(id, out IWorldObjectBehavior _))
                 return ResidencyAdapterResult.Failed("unknown WorldObjectId " + id);
-            if (to == ResidencyFidelity.Detailed && !_realization.IsRealized(id) && !_realization.TryRealize(id))
+            if (to == ResidencyFidelity.Detailed && !_realization.IsRealized(target) && !_realization.TryRealize(target))
                 return ResidencyAdapterResult.Failed("WorldObject realization rejected for " + id);
             return ResidencyAdapterResult.Completed();
         }
@@ -133,7 +133,7 @@ namespace Game.Residency.Runtime
             WorldObjectId id = Id(target);
             if (!_registry.TryGet(id, out IWorldObjectBehavior _))
                 return ResidencyAdapterResult.Failed("unknown WorldObjectId " + id);
-            if (from == ResidencyFidelity.Detailed && _realization.IsRealized(id) && !_realization.TryUnrealize(id))
+            if (from == ResidencyFidelity.Detailed && _realization.IsRealized(target) && !_realization.TryUnrealize(target))
                 return ResidencyAdapterResult.Failed("WorldObject unrealization rejected for " + id);
             return ResidencyAdapterResult.Completed();
         }
