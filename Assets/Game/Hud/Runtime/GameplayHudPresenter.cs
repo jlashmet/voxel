@@ -35,6 +35,11 @@ namespace Game.Hud.Runtime
             _localPlayer = localPlayer;
         }
 
+        public void Clear()
+        {
+            _provider = null;
+        }
+
         private void OnGUI()
         {
             if (!Application.isPlaying || _provider == null) return;
