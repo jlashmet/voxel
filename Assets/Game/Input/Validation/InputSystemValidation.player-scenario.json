@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "runSeconds": 10,
+  "capture": {
+    "width": 1280,
+    "height": 720,
+    "intervalSeconds": 2,
+    "minimumFrames": 3,
+    "evidenceAfterSeconds": 1
+  },
+  "timeline": {},
+  "assertions": {
+    "requiredLogPatterns": [
+      "INPUT_VALIDATION backend=InputSystem context=Exploration",
+      "INPUT_VALIDATION context-unwind: active=Exploration uiSuppressed=True",
+      "INPUT_VALIDATION binding-override: action=Confirm index=0 path=<Keyboard>/f"
+    ],
+    "forbiddenLogPatterns": [
+      "NullReferenceException",
+      "MissingReferenceException",
+      "INPUT_VALIDATION failure:"
+    ]
+  }
+}

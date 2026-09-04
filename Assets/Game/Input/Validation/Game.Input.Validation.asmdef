@@ -1,9 +1,9 @@
 {
-  "name": "Game.Input.Runtime",
-  "rootNamespace": "Game.Input.Runtime",
+  "name": "Game.Input.Validation",
+  "rootNamespace": "Game.Input.Validation",
   "references": [
     "Game.Input.Api",
-    "Unity.InputSystem"
+    "Game.Input.Runtime"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
