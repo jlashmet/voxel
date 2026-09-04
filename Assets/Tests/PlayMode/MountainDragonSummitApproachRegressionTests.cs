@@ -1,4 +1,6 @@
+using System;
 using Game.WorldBuilder.Api;
+using Game.WorldBuilder.Voxel;
 using NUnit.Framework;
 using VoxelEngine.Showcase;
 
@@ -9,9 +11,9 @@ namespace VoxelEngine.Tests.PlayMode
         private const uint Seed = 0x5EED1234;
 
         [Test]
-        public void SummitApproachKeepsInwardSpiralControlBeforeCentre()
+        public void SummitApproachEndsBesidePlaceholderWithSupportedCrestClearance()
         {
-            var surface = ShowcaseMountainDragonLayout.CreateSurface(Seed);
+            MountainLandformSurface surface = ShowcaseMountainDragonLayout.CreateSurface(Seed);
             WorldRoadNetwork network = ShowcaseMountainDragonLayout.CreateAscentNetwork(Seed, surface);
             Assert.That(network.TryGetRoute(
                 ShowcaseMountainDragonLayout.AscentRouteId,
@@ -19,26 +21,45 @@ namespace VoxelEngine.Tests.PlayMode
 
             var controls = route.Road.Intent.ControlPoints;
             Assert.That(controls.Count, Is.EqualTo(27),
-                "The summit approach must retain one semantic inward-turn control before the centre leg.");
+                "The summit approach must retain the inward transition plus a distinct arrival control.");
 
+            MountainLandformMass summit = surface.GetMass(0);
             WorldRoadPlanPoint previous = controls[controls.Count - 3];
             WorldRoadPlanPoint transition = controls[controls.Count - 2];
-            WorldRoadPlanPoint centre = controls[controls.Count - 1];
+            WorldRoadPlanPoint arrival = controls[controls.Count - 1];
 
-            Assert.That(centre.Xdm, Is.EqualTo(ShowcaseMountainDragonLayout.CentreXdm));
-            Assert.That(centre.Zdm, Is.EqualTo(ShowcaseMountainDragonLayout.CentreZdm));
-
-            long previousDx = previous.Xdm - centre.Xdm;
-            long previousDz = previous.Zdm - centre.Zdm;
-            long transitionDx = transition.Xdm - centre.Xdm;
-            long transitionDz = transition.Zdm - centre.Zdm;
-            long previousRadiusSquared = previousDx * previousDx + previousDz * previousDz;
-            long transitionRadiusSquared = transitionDx * transitionDx + transitionDz * transitionDz;
-
+            long previousRadiusSquared = RadiusSquared(previous, summit);
+            long transitionRadiusSquared = RadiusSquared(transition, summit);
+            long arrivalRadiusSquared = RadiusSquared(arrival, summit);
             Assert.That(transitionRadiusSquared, Is.LessThan(previousRadiusSquared),
-                "The added semantic control must continue inward toward the summit.");
-            Assert.That(transitionDx * previousDz - transitionDz * previousDx, Is.Not.EqualTo(0),
-                "The summit transition must continue the spiral heading instead of jumping radially to centre.");
+                "The summit transition must continue inward from the spiral exit.");
+            Assert.That(arrivalRadiusSquared, Is.LessThan(transitionRadiusSquared),
+                "The arrival must continue onto the summit rather than stopping at the outer crest edge.");
+            Assert.That(arrivalRadiusSquared, Is.GreaterThan(0),
+                "The authored road must not terminate at the centre occupied by the dragon placeholder.");
+
+            int dx = Math.Abs(arrival.Xdm - summit.CentreXdm);
+            int dz = Math.Abs(arrival.Zdm - summit.CentreZdm);
+            int placeholderHalf = ShowcaseMountainDragonLayout.PlaceholderSize / 2;
+            int placeholderClearance = Math.Max(dx - placeholderHalf, dz - placeholderHalf);
+            Assert.That(
+                placeholderClearance,
+                Is.GreaterThanOrEqualTo(ShowcaseMountainDragonLayout.PathWidth / 2),
+                "The terminal authored control must leave player-scale clearance from the solid placeholder footprint.");
+
+            int supportedRadius = ShowcaseMountainDragonLayout.SummitRadius
+                - ShowcaseMountainDragonLayout.PathWidth / 2;
+            Assert.That(
+                arrivalRadiusSquared,
+                Is.LessThanOrEqualTo((long)supportedRadius * supportedRadius),
+                "The terminal road centreline plus half its width must remain on the broad summit crest.");
+        }
+
+        private static long RadiusSquared(WorldRoadPlanPoint point, MountainLandformMass summit)
+        {
+            long dx = point.Xdm - summit.CentreXdm;
+            long dz = point.Zdm - summit.CentreZdm;
+            return dx * dx + dz * dz;
         }
     }
 }
