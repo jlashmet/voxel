@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using Game.Composition.Campaign;
 using Game.Cutscenes.Api;
 using Game.Cutscenes.Runtime;
+using Game.Progression.Api;
+using Game.Progression.Runtime;
 using Game.Quests.Api;
 using Game.Quests.Runtime;
 using Game.Story.Api;
@@ -11,11 +13,6 @@ using Game.WorldBuilder.Api;
 
 namespace Game.Composition.Campaign.Runtime
 {
-    /// <summary>
-    /// Minimal persistent campaign progression owned by this runtime. The snapshot intentionally
-    /// contains only one-shot cutscene completion and source-backed player progression effects; it is
-    /// deterministic and engine-independent so a save layer can serialize it without scene objects.
-    /// </summary>
     public sealed class CampaignProgressSnapshot
     {
         private readonly CutsceneRef[] _completedCutscenes;
@@ -25,27 +22,27 @@ namespace Game.Composition.Campaign.Runtime
         public IReadOnlyList<CutsceneRef> CompletedCutscenes => _completedCutscenes;
         public IReadOnlyList<string> JoinedPartyMembers => _joinedPartyMembers;
         public IReadOnlyList<string> GrantedSpells => _grantedSpells;
+        public ProgressionSnapshot Progression { get; }
 
         public CampaignProgressSnapshot(
             IEnumerable<CutsceneRef> completedCutscenes,
             IEnumerable<string> joinedPartyMembers,
-            IEnumerable<string> grantedSpells)
+            IEnumerable<string> grantedSpells,
+            ProgressionSnapshot progression = null)
         {
             if (completedCutscenes == null) throw new ArgumentNullException(nameof(completedCutscenes));
             if (joinedPartyMembers == null) throw new ArgumentNullException(nameof(joinedPartyMembers));
             if (grantedSpells == null) throw new ArgumentNullException(nameof(grantedSpells));
-
             _completedCutscenes = new List<CutsceneRef>(completedCutscenes).ToArray();
             _joinedPartyMembers = new List<string>(joinedPartyMembers).ToArray();
             _grantedSpells = new List<string>(grantedSpells).ToArray();
+            Progression = progression;
         }
     }
 
     /// <summary>
-    /// Post-generation campaign host. WorldBuilder supplies immutable authored/runtime binding data;
-    /// Story decides semantic transitions; Cutscenes executes choreography. This composition root owns
-    /// the mutable session state that connects those systems without making either runtime depend on
-    /// the other.
+    /// Post-generation composition root. Quest and standalone-objective state are projections over one
+    /// ProgressionRuntime; CampaignRuntime deliberately owns no parallel objective-state collection.
     /// </summary>
     public sealed class CampaignRuntime : IStoryStateView, IStoryProgressEffectSink
     {
@@ -57,17 +54,17 @@ namespace Game.Composition.Campaign.Runtime
         private readonly Dictionary<CutsceneRef, CutsceneStageBinding> _stages =
             new Dictionary<CutsceneRef, CutsceneStageBinding>();
         private readonly HashSet<ObjectiveRef> _knownObjectives = new HashSet<ObjectiveRef>();
-        private readonly HashSet<ObjectiveRef> _activeObjectives = new HashSet<ObjectiveRef>();
-        private readonly HashSet<ObjectiveRef> _completedObjectives = new HashSet<ObjectiveRef>();
         private readonly HashSet<CutsceneRef> _completedCutscenes = new HashSet<CutsceneRef>();
         private readonly HashSet<string> _joinedPartyMembers = new HashSet<string>(StringComparer.Ordinal);
         private readonly HashSet<string> _grantedSpells = new HashSet<string>(StringComparer.Ordinal);
+        private readonly ProgressionRuntime _progression;
         private readonly QuestRuntime _quests;
 
         private CutsceneRunner _activeRunner;
         private CutsceneRef _activeCutscene;
 
         public bool HasActiveCutscene => _activeRunner != null;
+        public IProgressionQuery Progression => _progression;
 
         public CutsceneRef ActiveCutscene
         {
@@ -90,7 +87,10 @@ namespace Game.Composition.Campaign.Runtime
             if (stages == null) throw new ArgumentNullException(nameof(stages));
             _actorProvider = actorProvider ?? throw new ArgumentNullException(nameof(actorProvider));
             _presentation = presentation ?? throw new ArgumentNullException(nameof(presentation));
-            _quests = new QuestRuntime(questDefinitions ?? Array.Empty<QuestDefinition>());
+            _progression = new ProgressionRuntime();
+            _quests = new QuestRuntime(
+                questDefinitions ?? Array.Empty<QuestDefinition>(),
+                _progression);
 
             for (var i = 0; i < blueprint.Cutscenes.Count; i++)
             {
@@ -111,6 +111,7 @@ namespace Game.Composition.Campaign.Runtime
                 if (!_knownObjectives.Add(objective.Ref))
                     throw new InvalidOperationException(
                         "Campaign blueprint contains duplicate objective ref '" + objective.Ref + "'.");
+                _progression.RegisterStandaloneObjective(ToProgressionDefinition(objective));
             }
 
             for (var i = 0; i < stages.Count; i++)
@@ -118,9 +119,7 @@ namespace Game.Composition.Campaign.Runtime
                 CutsceneStageRealization stage = stages[i]
                     ?? throw new InvalidOperationException(
                         "Cutscene stage realization collection contains null at index " + i + ".");
-
-                CutsceneSpec cutscene;
-                if (!_cutscenes.TryGetValue(stage.Cutscene, out cutscene))
+                if (!_cutscenes.TryGetValue(stage.Cutscene, out CutsceneSpec cutscene))
                     throw new InvalidOperationException(
                         "Stage realization references unknown cutscene '" + stage.Cutscene + "'.");
                 if (!cutscene.Site.Equals(stage.Site))
@@ -131,25 +130,27 @@ namespace Game.Composition.Campaign.Runtime
                 if (_stages.ContainsKey(stage.Cutscene))
                     throw new InvalidOperationException(
                         "Cutscene '" + stage.Cutscene + "' has more than one realized stage binding.");
-
                 _stages.Add(stage.Cutscene, stage.Binding);
             }
         }
 
         public int StartNewGame() => Dispatch(StoryEvent.NewGame());
 
-        public int EnterSite(SiteRef site) => Dispatch(StoryEvent.SiteProximityEntered(site));
+        public int EnterSite(SiteRef site) =>
+            Dispatch(StoryEvent.SiteProximityEntered(site));
 
         public int InteractWithNpc(NpcRef npc)
         {
-            // Story gets first refusal so the same physical interaction can start a quest and then
-            // immediately be observed by the authoritative quest state machine.
+            // Story evaluates the interaction against the pre-completion snapshot. The same semantic
+            // fact then advances all active quest and standalone objectives in registration order.
             int matched = Dispatch(StoryEvent.NpcInteracted(npc));
-            ObserveQuest(QuestObservation.NpcInteracted(npc.ToString()));
-
-            // Objective-active conditions for this interaction observe the pre-completion state.
-            // Completion occurs only after every matching story rule has been evaluated/applied.
-            CompleteInteractionObjectives(npc);
+            ProgressionUpdateResult result = _progression.Observe(
+                new ProgressionUpdateSignal(
+                    string.Empty,
+                    ProgressionSignalKind.NpcInteracted,
+                    npc.ToString(),
+                    1));
+            matched += DispatchProgressionCompletions(result.Transitions);
             return matched;
         }
 
@@ -171,17 +172,18 @@ namespace Game.Composition.Campaign.Runtime
 
             CutsceneRef completed = _activeCutscene;
             _activeRunner = null;
-            _activeCutscene = default(CutsceneRef);
+            _activeCutscene = default;
             _completedCutscenes.Add(completed);
-
             Dispatch(StoryEvent.CutsceneCompleted(completed));
         }
 
         public bool IsObjectiveActive(ObjectiveRef objective) =>
-            _activeObjectives.Contains(objective);
+            _knownObjectives.Contains(objective) &&
+            _progression.GetSnapshot(objective.ToString()).Status == ProgressionLifecycleState.Active;
 
         public bool IsObjectiveCompleted(ObjectiveRef objective) =>
-            _completedObjectives.Contains(objective);
+            _knownObjectives.Contains(objective) &&
+            _progression.GetSnapshot(objective.ToString()).Status == ProgressionLifecycleState.Completed;
 
         public bool IsCutsceneCompleted(CutsceneRef cutscene) =>
             _completedCutscenes.Contains(cutscene);
@@ -198,31 +200,27 @@ namespace Game.Composition.Campaign.Runtime
 
         public QuestSnapshot GetQuestSnapshot(QuestRef quest) => _quests.GetSnapshot(quest);
 
-        public int CompleteQuest(QuestRef quest)
-        {
-            IReadOnlyList<QuestEvent> events = _quests.Complete(quest);
-            return DispatchQuestCompletions(events);
-        }
-
         public CampaignProgressSnapshot CaptureProgress()
         {
             var completed = new List<CutsceneRef>(_completedCutscenes);
             completed.Sort((left, right) => StringComparer.Ordinal.Compare(left.Id, right.Id));
-
             var members = new List<string>(_joinedPartyMembers);
             members.Sort(StringComparer.Ordinal);
-
             var spells = new List<string>(_grantedSpells);
             spells.Sort(StringComparer.Ordinal);
-
-            return new CampaignProgressSnapshot(completed, members, spells);
+            return new CampaignProgressSnapshot(
+                completed,
+                members,
+                spells,
+                _progression.Snapshot());
         }
 
         public void RestoreProgress(CampaignProgressSnapshot snapshot)
         {
             if (snapshot == null) throw new ArgumentNullException(nameof(snapshot));
             if (_activeRunner != null)
-                throw new InvalidOperationException("Cannot restore campaign progress while a cutscene is active.");
+                throw new InvalidOperationException(
+                    "Cannot restore campaign progress while a cutscene is active.");
 
             var completed = new HashSet<CutsceneRef>();
             for (var i = 0; i < snapshot.CompletedCutscenes.Count; i++)
@@ -236,23 +234,29 @@ namespace Game.Composition.Campaign.Runtime
 
             var members = new HashSet<string>(StringComparer.Ordinal);
             for (var i = 0; i < snapshot.JoinedPartyMembers.Count; i++)
-                members.Add(RequireProgressId(snapshot.JoinedPartyMembers[i], "joinedPartyMembers"));
+                members.Add(RequireProgressId(
+                    snapshot.JoinedPartyMembers[i],
+                    "joinedPartyMembers"));
 
             var spells = new HashSet<string>(StringComparer.Ordinal);
             for (var i = 0; i < snapshot.GrantedSpells.Count; i++)
-                spells.Add(RequireProgressId(snapshot.GrantedSpells[i], "grantedSpells"));
+                spells.Add(RequireProgressId(
+                    snapshot.GrantedSpells[i],
+                    "grantedSpells"));
+
+            // Older campaign snapshots predate unified progression. Restoring one starts progression
+            // from its registered inactive baseline rather than inventing missing quest/objective truth.
+            if (snapshot.Progression == null)
+                _progression.Reset();
+            else
+                _progression.RestoreState(snapshot.Progression);
 
             _completedCutscenes.Clear();
-            foreach (CutsceneRef cutscene in completed)
-                _completedCutscenes.Add(cutscene);
-
+            foreach (CutsceneRef cutscene in completed) _completedCutscenes.Add(cutscene);
             _joinedPartyMembers.Clear();
-            foreach (string member in members)
-                _joinedPartyMembers.Add(member);
-
+            foreach (string member in members) _joinedPartyMembers.Add(member);
             _grantedSpells.Clear();
-            foreach (string spell in spells)
-                _grantedSpells.Add(spell);
+            foreach (string spell in spells) _grantedSpells.Add(spell);
         }
 
         void IStoryEffectSink.StartObjective(ObjectiveRef objective) => StartObjective(objective);
@@ -275,17 +279,33 @@ namespace Game.Composition.Campaign.Runtime
             if (!_knownObjectives.Contains(objective))
                 throw new InvalidOperationException(
                     "Story attempted to start unknown objective '" + objective + "'.");
-            if (_completedObjectives.Contains(objective))
+
+            ProgressionEntrySnapshot snapshot = _progression.GetSnapshot(objective.ToString());
+            if (snapshot.Status == ProgressionLifecycleState.Completed)
                 throw new InvalidOperationException(
                     "Story attempted to restart completed objective '" + objective + "'.");
-
-            _activeObjectives.Add(objective);
+            if (snapshot.Status == ProgressionLifecycleState.Inactive)
+                _progression.Start(objective.ToString());
         }
 
         private void StartQuest(QuestRef quest)
         {
             if (_quests.IsCompleted(quest)) return;
             _quests.Start(quest);
+        }
+
+        private int DispatchProgressionCompletions(
+            IReadOnlyList<ProgressionTransition> transitions)
+        {
+            int matched = 0;
+            for (var i = 0; i < transitions.Count; i++)
+            {
+                ProgressionTransition transition = transitions[i];
+                if (transition.Kind != ProgressionTransitionKind.EntryCompleted) continue;
+                if (!_quests.TryGetQuestRef(transition.EntryId, out QuestRef quest)) continue;
+                matched += Dispatch(StoryEvent.QuestCompleted(quest));
+            }
+            return matched;
         }
 
         private int DispatchQuestCompletions(IReadOnlyList<QuestEvent> events)
@@ -304,8 +324,7 @@ namespace Game.Composition.Campaign.Runtime
                     "Cannot start cutscene '" + cutscene + "' while cutscene '" +
                     _activeCutscene + "' is still active.");
 
-            CutsceneSpec spec;
-            if (!_cutscenes.TryGetValue(cutscene, out spec))
+            if (!_cutscenes.TryGetValue(cutscene, out CutsceneSpec spec))
                 throw new InvalidOperationException(
                     "Story attempted to play unknown cutscene '" + cutscene + "'.");
 
@@ -323,39 +342,36 @@ namespace Game.Composition.Campaign.Runtime
 
         private CutsceneStageBinding ResolveStage(CutsceneSpec cutscene)
         {
-            CutsceneStageBinding stage;
-            if (_stages.TryGetValue(cutscene.Ref, out stage))
+            if (_stages.TryGetValue(cutscene.Ref, out CutsceneStageBinding stage))
                 return stage;
-
             if (cutscene.Definition.RequiredStagePoints.Count == 0)
                 return new CutsceneStageBinding();
-
             throw new InvalidOperationException(
                 "Cutscene '" + cutscene.Ref + "' requires " +
                 cutscene.Definition.RequiredStagePoints.Count +
                 " realized stage point(s), but no stage realization was supplied.");
         }
 
-        private void CompleteInteractionObjectives(NpcRef npc)
+        private static ObjectiveDefinition ToProgressionDefinition(ObjectiveSpec objective)
         {
-            for (var i = 0; i < _blueprint.Objectives.Count; i++)
-            {
-                ObjectiveSpec objective = _blueprint.Objectives[i];
-                if (!_activeObjectives.Contains(objective.Ref)) continue;
-
-                InteractWithNpcTriggerSpec interaction =
-                    objective.Completion as InteractWithNpcTriggerSpec;
-                if (interaction == null || !interaction.Npc.Equals(npc)) continue;
-
-                _activeObjectives.Remove(objective.Ref);
-                _completedObjectives.Add(objective.Ref);
-            }
+            InteractWithNpcTriggerSpec interaction =
+                objective.Completion as InteractWithNpcTriggerSpec;
+            if (interaction == null)
+                throw new InvalidOperationException(
+                    "Unsupported standalone objective completion type for '" + objective.Ref + "': " +
+                    (objective.Completion?.GetType().FullName ?? "<null>") + ".");
+            return new ObjectiveDefinition(
+                objective.Ref.ToString(),
+                ProgressionCondition.NpcInteraction(interaction.Npc.ToString()),
+                1);
         }
 
         private static string RequireProgressId(string value, string paramName)
         {
             if (string.IsNullOrWhiteSpace(value))
-                throw new ArgumentException("Campaign progression ids must be non-empty.", paramName);
+                throw new ArgumentException(
+                    "Campaign progression ids must be non-empty.",
+                    paramName);
             return value;
         }
     }
