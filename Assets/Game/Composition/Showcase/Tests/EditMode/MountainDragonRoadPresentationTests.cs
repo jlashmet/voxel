@@ -12,21 +12,18 @@ namespace VoxelEngine.Showcase.Tests.EditMode
         private const int AuthoredClearanceWidthDm = 10;
 
         [Test]
-        public void AuthoredMountainUsesBroadMassesInsteadOfCliffLikeRoadsideSpikes()
+        public void AuthoredMountainUsesOneBroadCoreWithoutRejectedAspectShoulders()
         {
             MountainLandformSurface surface = ShowcaseMountainDragonLayout.CreateSurface(Seed);
 
-            Assert.That(surface.MassCount, Is.GreaterThanOrEqualTo(3),
-                "The landmark must remain a composed natural massif rather than a single primitive cone.");
-            for (int i = 0; i < surface.MassCount; i++)
-            {
-                MountainLandformMass mass = surface.GetMass(i);
-                int run = mass.BaseRadiusDm - mass.TopRadiusDm;
-                Assert.That(run, Is.GreaterThan(0), $"mountain mass {i} has a vertical side");
-                long slopePermille = ((long)mass.HeightDm * 1000L + run / 2L) / run;
-                Assert.That(slopePermille, Is.LessThanOrEqualTo(900),
-                    $"mountain mass {i} is steep enough to recreate the rejected wall-like road views");
-            }
+            Assert.That(surface.MassCount, Is.EqualTo(1),
+                "The Mountain Dragon policy must stay below the shared aspect-shoulder threshold so the landmark does not regress to the rejected three-lobe silhouette.");
+            MountainLandformMass mass = surface.GetMass(0);
+            int run = mass.BaseRadiusDm - mass.TopRadiusDm;
+            Assert.That(run, Is.GreaterThan(0), "the broad mountain core must taper instead of exposing a vertical side");
+            long slopePermille = ((long)mass.HeightDm * 1000L + run / 2L) / run;
+            Assert.That(slopePermille, Is.LessThanOrEqualTo(650),
+                "the Mountain Dragon core must remain gentle enough that the spiral ascent does not read as a road cut through giant faceted walls");
         }
 
         [Test]
