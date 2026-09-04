@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Game.Application.Api;
 using Game.Audio.Api;
 using Game.Cutscenes.Api;
 using Game.Vitality.Api;
@@ -88,6 +89,7 @@ namespace Game.Audio.Runtime
         public event Action<AudioDispatchResult> Diagnostic;
         public int PlayedEventCount => _playedEvents.Count;
         public int SustainedCount => _sustained.Count;
+        public AudioMixPreferences CurrentMix => _mix;
 
         public AudioPresentationRuntime(AudioCueCatalog catalog, IAudioPlaybackBackend backend, IAudioOriginResolver origins = null)
         { _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog)); _backend = backend ?? throw new ArgumentNullException(nameof(backend)); _origins = origins ?? new DefaultAudioOriginResolver(); _backend.ApplyMix(_mix); }
@@ -142,6 +144,12 @@ namespace Game.Audio.Runtime
         public void ApplyMix(AudioMixPreferences preferences)
         { ThrowIfDisposed(); _mix = preferences; _backend.ApplyMix(preferences); }
 
+        public void ApplyMasterVolume(float masterVolume)
+        {
+            ThrowIfDisposed();
+            ApplyMix(new AudioMixPreferences(masterVolume, _mix.Sfx, _mix.Music, _mix.Ambience, _mix.Voice));
+        }
+
         public void Dispose()
         {
             if (_disposed) return;
@@ -158,6 +166,26 @@ namespace Game.Audio.Runtime
         private AudioDispatchResult Emit(AudioDispatchStatus status, string diagnostic)
         { var result = new AudioDispatchResult(status, diagnostic); Diagnostic?.Invoke(result); return result; }
         private void ThrowIfDisposed() { if (_disposed) throw new ObjectDisposedException(nameof(AudioPresentationRuntime)); }
+    }
+
+    /// <summary>
+    /// Application-facing preferences adapter. Application owns persistence and preference lifecycle;
+    /// Audio owns how the semantic master-volume preference maps onto the current playback mix.
+    /// </summary>
+    public sealed class AudioUserPreferencesSink : IAudioPreferencesSink
+    {
+        private readonly AudioPresentationRuntime _audio;
+
+        public AudioUserPreferencesSink(AudioPresentationRuntime audio)
+        {
+            _audio = audio ?? throw new ArgumentNullException(nameof(audio));
+        }
+
+        public void Apply(UserPreferences preferences)
+        {
+            if (preferences == null) throw new ArgumentNullException(nameof(preferences));
+            _audio.ApplyMasterVolume(preferences.MasterVolume);
+        }
     }
 
     public sealed class CutsceneAudioCueRuntime : ICutsceneSoundCueRuntime
