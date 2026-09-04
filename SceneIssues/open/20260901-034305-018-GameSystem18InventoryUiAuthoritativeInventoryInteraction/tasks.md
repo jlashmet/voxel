@@ -6,7 +6,7 @@
 
 ## API / model
 
-- [ ] **T18-001 — Inventory current inventory UI/prototypes.** Find character/container views, drag/drop handlers, local quantity caches, direct Inventory mutations and raw input handling.
+- [x] **T18-001 — Inventory current inventory UI/prototypes.** Repository-tree/code audit found no existing inventory screen/controller, drag/drop handler, UI-owned quantity cache, raw-input inventory UI, or `InventoryPresentation` module to migrate.
 - [ ] **T18-002 — Establish asmdefs.** Presentation API/model is independent of Inventory Runtime; Runtime consumes Inventory/Loot/Replication/Input APIs.
 - [ ] **T18-003 — Define inventory view model.** Stable inventory/item rows derived from authoritative snapshots with selection/filter metadata kept local.
 - [ ] **T18-004 — Define transfer/drop presentation intents.** Map UI gestures to existing Inventory/Loot semantic requests rather than duplicating transaction contracts.
@@ -22,7 +22,7 @@
 - [ ] **T18-014 — Implement selection/filter/sort locally.** These must not be replicated or persisted as gameplay state.
 - [ ] **T18-015 — Integrate `Ui` InputContext stack.** Opening inventory pushes Ui context; nested screens unwind correctly; opening inventory does not globally pause gameplay.
 - [ ] **T18-016 — Rebuild after reconnect/restore.** Drop stale pending operations according to request status and reconstruct all authoritative rows from snapshots.
-- [ ] **T18-017 — Replace prototype direct-mutation UI.** Remove old code once feature parity is proven.
+- [ ] **T18-017 — Replace prototype direct-mutation UI.** No prototype code was found; close after final parity/boundary audit confirms there is nothing to remove.
 
 ## Verification
 
@@ -36,6 +36,6 @@
 
 ## Cleanup / close
 
-- [ ] **T18-030 — Remove UI-owned quantities/direct collection edits.** Search all inventory views/controllers for local authoritative mutations.
+- [ ] **T18-030 — Remove UI-owned quantities/direct collection edits.** Final repository audit must confirm the new presenter also owns no authoritative collection/quantity mutation.
 - [ ] **T18-031 — Scope audit.** No equipment/crafting/use/capacity/slot semantics unless separately approved and no cross-module Runtime dependency.
 - [ ] **T18-032 — Close with authority proof.** Destroy/recreate UI while inventory remains correct, and all mutations still pass through Inventory/Loot authority.
