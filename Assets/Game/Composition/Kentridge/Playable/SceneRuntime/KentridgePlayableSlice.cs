@@ -209,7 +209,8 @@ namespace Game.Kentridge.PlayableSlice
                 var sessionFactory = new KentridgeSessionRuntimeGraphFactory(
                     content.Blueprint,
                     generation,
-                    new KentridgeVoxelSiteRealizationFacts(settlement, 1),
+                    new KentridgeCampaignRealizationFacts(
+                        new KentridgeVoxelSiteRealizationFacts(settlement, 1)),
                     _actors,
                     _presentation,
                     extensionFactory: forestSessionExtension);
