@@ -1,7 +1,7 @@
 {
   "name": "Game.Outcomes.Tests",
   "rootNamespace": "Game.Outcomes.Tests",
-  "references": ["Game.Outcomes.Api"],
+  "references": ["Game.Outcomes.Api", "Game.Outcomes.Runtime"],
   "includePlatforms": ["Editor"],
   "excludePlatforms": [],
   "allowUnsafeCode": false,

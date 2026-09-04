@@ -18,6 +18,8 @@ namespace Game.Outcomes.Tests
             Assert.That(snapshot.Lifecycle, Is.EqualTo(GameOutcomeLifecycle.Resolved));
             Assert.That(snapshot.Disposition, Is.EqualTo(GameOutcomeDisposition.Success));
             Assert.That(snapshot.Outcome.Value, Is.EqualTo("campaign:ridge-secured"));
+            Assert.That(snapshot.ResolutionId.IsValid, Is.True);
+            Assert.That(snapshot.Authority.IsValid, Is.True);
             Assert.That(snapshot.Revision, Is.EqualTo(11));
         }
 
@@ -29,6 +31,22 @@ namespace Game.Outcomes.Tests
                 GameOutcomeDisposition.Success,
                 new OutcomeRef("campaign:invalid"),
                 1));
+        }
+
+        [Test]
+        public void ResolutionRequestRequiresSemanticAuthorityAndTerminalDisposition()
+        {
+            Assert.Throws<ArgumentException>(() => new GameOutcomeResolutionRequest(
+                new OutcomeResolutionId("resolution:test"),
+                default,
+                GameOutcomeDisposition.Success,
+                new OutcomeRef("campaign:complete")));
+
+            Assert.Throws<ArgumentException>(() => new GameOutcomeResolutionRequest(
+                new OutcomeResolutionId("resolution:test"),
+                new OutcomeAuthorityRef("campaign-policy"),
+                GameOutcomeDisposition.None,
+                new OutcomeRef("campaign:complete")));
         }
     }
 }
