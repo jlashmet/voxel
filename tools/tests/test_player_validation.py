@@ -46,6 +46,31 @@ class PlayerValidationTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             self._load(self._scenario({"evidenceAfterSeconds": 30}))
 
+    def test_gpu_cutover_required_is_explicit_and_removes_inherited_emergency_disable(self):
+        scenario = self._scenario()
+        scenario["gpuCutover"] = "required"
+        self.assertEqual("required", self._load(scenario)["gpuCutover"])
+        self.assertNotIn(
+            "VOXEL_DISABLE_GPU_CUTOVER",
+            runner.player_environment(
+                "required",
+                {"VOXEL_DISABLE_GPU_CUTOVER": "1", "OTHER": "kept"},
+            ),
+        )
+        self.assertEqual(
+            "1",
+            runner.player_environment(
+                "inherit",
+                {"VOXEL_DISABLE_GPU_CUTOVER": "1"},
+            )["VOXEL_DISABLE_GPU_CUTOVER"],
+        )
+
+    def test_gpu_cutover_rejects_unknown_mode(self):
+        scenario = self._scenario()
+        scenario["gpuCutover"] = "scene-name-magic"
+        with self.assertRaises(SystemExit):
+            self._load(scenario)
+
 
 if __name__ == "__main__":
     unittest.main()
