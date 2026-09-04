@@ -29,6 +29,7 @@
 - [ ] **T11-025 — Build deterministic snapshot capture/restore.** Active/completed quest/objective state round-trips as one coherent revision.
 - [ ] **T11-026 — Provide replication projection seam.** System 06 consumes current progression truth through API/adapters.
 - [ ] **T11-027 — Remove compatibility facade once all callers migrate.** If no facade was needed, explicitly mark this task satisfied.
+- [ ] **T11-028 — Adopt current module-local validation ownership.** Current `master` requires every affected module to own focused validation. Because the touched Progression/Quests/Campaign production asmdefs are engine-neutral `noEngineReferences=true` headless/domain code, document the no-scene exception and ensure each affected module owns focused EditMode/unit coverage rather than relying on another module's tests.
 
 ## Verification
 
