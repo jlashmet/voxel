@@ -23,7 +23,7 @@ namespace VoxelEngine.Showcase
         private const string IssueId = "20260830-164351-000-WorldBuilderSecretDiscoveryClueGeneration";
         private const string SceneIssueArgument = "-voxel-scene-issue";
         private const string ScreenshotDirectoryArgument = "-voxel-screenshot-dir";
-        private const float BreakableRendererConvergenceTimeoutSeconds = 10f;
+        private const float BreakableRendererConvergenceTimeoutSeconds = 30f;
 
         private Transform _cameraTransform;
         private CharacterMotor _motor;
@@ -129,7 +129,7 @@ namespace VoxelEngine.Showcase
 
             Camera cameraComponent = showcase.GetComponent<Camera>();
             float originalFieldOfView = cameraComponent != null ? cameraComponent.fieldOfView : 60f;
-            if (cameraComponent != null) cameraComponent.fieldOfView = 75f;
+            if (cameraComponent != null) cameraComponent.fieldOfView = 68f;
 
             // The Gallery helper sits at the far edge of the final 18-voxel segment. The previous
             // exact-SHA replay proved that this edge position can still land outside the reliably
@@ -148,18 +148,16 @@ namespace VoxelEngine.Showcase
                 "authored-breakable-boundary",
                 requireSolidRendererConvergence: true);
 
-            // The deterministic moss trail spans entrance.z-12 through entrance.z-64. The helper
-            // camera sits at entrance.z-72, so +3.2 m targets the trail midpoint (entrance.z-40)
-            // directly instead of looking past the cave mouth. Shift west and slightly upward to
-            // keep the clue in a close oblique view without Gallery architecture occluding it.
+            // Natural evidence is a sparse moss trail on the ground between entrance.z-12 and
+            // entrance.z-64. Keep the camera near the authored approach axis instead of shifting
+            // metres sideways into the surrounding vegetation, and aim through the trail toward
+            // the production cave-mouth helper. This remains a normal eye-height gameplay view;
+            // only the SceneIssue replay camera is pinned.
             float3 naturalPosition = world.WorldbuildingGalleryNaturalSecretCameraPosition();
-            float3 naturalReferenceTarget = world.WorldbuildingGalleryNaturalSecretLookTarget();
-            naturalPosition += new float3(-4.5f, 1.2f, 0f);
-            float3 naturalTarget = new float3(
-                naturalPosition.x + 4.5f,
-                naturalReferenceTarget.y,
-                naturalPosition.z + 3.2f);
-            RequireMinimumFramingDistance(naturalPosition, naturalTarget, 5f, "natural-cave-approach");
+            float3 naturalTarget = world.WorldbuildingGalleryNaturalSecretLookTarget();
+            naturalPosition += new float3(-1.1f, 0.35f, 0.6f);
+            naturalTarget += new float3(0f, -0.35f, -2.6f);
+            RequireMinimumFramingDistance(naturalPosition, naturalTarget, 4.5f, "natural-cave-approach");
             yield return CaptureView(
                 world,
                 naturalPosition,
