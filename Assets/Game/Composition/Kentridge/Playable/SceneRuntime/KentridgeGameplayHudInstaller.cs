@@ -5,7 +5,6 @@ using Game.Composition.Kentridge.Playable;
 using Game.Hud.Api;
 using Game.Hud.Runtime;
 using Game.Input.Api;
-using Game.Input.Runtime;
 using Game.Sessions.Api;
 using UnityEngine;
 
@@ -13,8 +12,8 @@ namespace Game.Kentridge.PlayableSlice
 {
     /// <summary>
     /// Kentridge-only composition adapter for the reusable production HUD. All projected state comes
-    /// from the canonical character/session-extension services created by the System14 production graph.
-    /// This component owns no gameplay state and exposes only semantic input actions to the scene driver.
+    /// from canonical production services supplied by the composed application/session graph. This
+    /// component owns no gameplay or physical-input authority.
     /// </summary>
     [DefaultExecutionOrder(10000)]
     public sealed class KentridgeGameplayHudInstaller : MonoBehaviour
@@ -24,17 +23,25 @@ namespace Game.Kentridge.PlayableSlice
         private static readonly GameSessionId SessionId = new GameSessionId("local-player-session");
         private static readonly CharacterBinding PlayerSlotBinding = new CharacterBinding("player-slot", "0");
 
-        private UnityInputBindingService _bindings;
+        private IInputBindingPresentation _bindingPresentation;
+        private IInputActionStateReader _inputActions;
         private GameplayHudPresenter _presenter;
         private KentridgePlayableSlice _slice;
         private KentridgeTrackedObjectiveProjection _trackedObjectiveProjection;
         private bool _configured;
 
-        public IInputBindingPresentation BindingPresentation => _bindings;
+        public IInputBindingPresentation BindingPresentation => _bindingPresentation;
+        public bool InputBound => _bindingPresentation != null && _inputActions != null;
 
-        private void Awake()
+        public void BindInput(
+            IInputBindingPresentation bindingPresentation,
+            IInputActionStateReader inputActions)
         {
-            _bindings = new UnityInputBindingService();
+            _bindingPresentation = bindingPresentation
+                ?? throw new ArgumentNullException(nameof(bindingPresentation));
+            _inputActions = inputActions
+                ?? throw new ArgumentNullException(nameof(inputActions));
+            _configured = false;
         }
 
         private void OnEnable()
@@ -60,13 +67,14 @@ namespace Game.Kentridge.PlayableSlice
         }
 
         public bool WasPressed(InputActionId action) =>
-            _bindings != null && _bindings.WasPressed(LocalPlayer, action);
+            _inputActions != null && _inputActions.WasPressed(LocalPlayer, action);
 
         public bool IsHeld(InputActionId action) =>
-            _bindings != null && _bindings.IsHeld(LocalPlayer, action);
+            _inputActions != null && _inputActions.IsHeld(LocalPlayer, action);
 
         private void TryConfigure()
         {
+            if (!InputBound) return;
             KentridgePlayableSlice slice = GetComponent<KentridgePlayableSlice>();
             KentridgeForestBanditEncounter gameplay = GetComponent<KentridgeForestBanditEncounter>();
             KentridgeCharacterRegistryAnchor anchor = GetComponent<KentridgeCharacterRegistryAnchor>();
@@ -90,7 +98,7 @@ namespace Game.Kentridge.PlayableSlice
                 new KentridgeInteractionSource(slice, anchor.Characters),
                 trackedProgression,
                 null,
-                _bindings,
+                _bindingPresentation,
                 gameplay.InputContexts);
 
             _presenter = GetComponent<GameplayHudPresenter>() ?? gameObject.AddComponent<GameplayHudPresenter>();
