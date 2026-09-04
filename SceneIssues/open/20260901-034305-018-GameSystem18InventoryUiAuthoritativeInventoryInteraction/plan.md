@@ -5,7 +5,7 @@
 
 ## Observed behavior / acceptance
 
-Inventory is authoritative snapshot/query truth; Loot owns container transfer/drop; Input owns stackable `Ui` leases. Initial repository audit found no legacy inventory screen/controller or UI-owned quantity store to migrate. Presentation must therefore remain a projection plus semantic intent layer, never a second inventory authority.
+Inventory is authoritative snapshot/query truth; Loot owns container transfer/drop; Input owns stackable `Ui` leases. Initial repository audit found no legacy inventory screen/controller or UI-owned quantity store to migrate. Presentation therefore remains a projection plus semantic intent layer, never a second inventory authority.
 
 ## Hypotheses and result
 
@@ -16,8 +16,10 @@ Inventory is authoritative snapshot/query truth; Loot owns container transfer/dr
 
 `Game.InventoryPresentation.Api` defines row/panel/pending models and semantic intent wrappers. `InventoryPresenter` projects personal/container snapshots, tracks local UI state, delegates mutations to Loot, handles rejection/rebuild, and acquires `Ui` leases. `InventoryPresentationView` is the production player-visible inventory realization. Validation only composes real `InventoryRuntime` + `LootRuntime` + `InputContextService`, binds the production view, drives deterministic intents, and records assertions. No Inventory/Loot/Input production implementation changed; no slot/equipment/crafting/use/capacity semantics were added.
 
-## Material validation result / remaining gates
+## Validation result / closure
 
-Request `252b50dca70740366cc0508afa2efdb164cee3b7` validated exact product SHA `afbb0cf1c13b8cd4c27f9217e006f8aecbac49ab`; run `33879956141` passed the owned EditMode assembly, module player scenario, and integration player. Behavioral logs prove pending quantities remain stable, transfer/drop commit through authority, recreate preserves truth, and nested `Ui` unwinds.
+Initial exact-SHA validation request `252b50dca70740366cc0508afa2efdb164cee3b7` proved the authority/runtime seam but its captures were classified **acceptable but improvable** because they exposed revision/owner/item IDs and a debug-panel visual hierarchy. The selected production-view polish removed that technical copy and strengthened fantasy framing without changing authority contracts.
 
-Direct inspection of the module player captures rejected visual closure as **acceptable but improvable**, not `production-quality`: the production path is correct, but the screen still exposes developer-facing revision/owner/item-id copy, letter-like icon treatment, and flat debug-panel hierarchy. T18-018 remains open. Selected fix: keep the same production view/presenter seam, remove technical copy, render player-facing inventory/storage/activity language, strengthen textured fantasy framing and item medallions, and re-run exact-SHA built-player evidence. No authority or domain contract changes are required.
+Final request commit `6728771d06eb3dbf1eeafb30880c4f0e294eeda1` validated exact product SHA `b45c310b6127b4198eab5ea5265ca27341211609` in workflow `33882017353`. `Game.InventoryPresentation.Tests.EditMode` passed; the module-local standalone player passed all required view-binding/pending/transfer/drop/recreate/input-unwind assertions; canonical `KentridgePlayableSlice` integration passed. Five 1280x720 module captures were directly inspected and classified **production-quality**: parchment/wood/brass hierarchy is coherent, visible copy is player-facing, technical IDs/revisions are absent, and inventory/storage/activity states remain legible across the scenario.
+
+All feature acceptance is complete. Remaining work is closure bookkeeping, merge current `origin/master` if it advanced, then PR + auto-merge through the required `affected` gate.
