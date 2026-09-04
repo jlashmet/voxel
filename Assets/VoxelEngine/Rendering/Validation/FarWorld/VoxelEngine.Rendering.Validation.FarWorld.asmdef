@@ -1,0 +1,18 @@
+{
+  "name": "VoxelEngine.Rendering.Validation.FarWorld",
+  "rootNamespace": "VoxelEngine.Rendering.Validation",
+  "references": [
+    "VoxelEngine.Rendering.Api",
+    "VoxelEngine.Rendering.Runtime",
+    "Unity.Mathematics"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
