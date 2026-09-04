@@ -5,16 +5,16 @@
 
 ## A. Baseline / ownership inventory
 
-- [ ] **R01 — Refresh from current master.** Record exact baseline SHA and current state of Game Systems 03/04/06/13 plus VoxelEngine streaming and WorldObject modules.
-- [ ] **R02 — Inventory world streaming.** Identify public region/cell identity, acquire/release/pin semantics, residency notifications, readiness/failure semantics, and current consumers.
-- [ ] **R03 — Inventory character lifecycle.** Identify `CharacterId`, registry/lifecycle, pose/state ownership, current despawn/unload assumptions, and public seams suitable for fidelity changes.
-- [ ] **R04 — Inventory CharacterAI simulation LOD.** Separate durable/coarse semantic activity from detailed perception/navigation/planner scratch state.
-- [ ] **R05 — Inventory WorldObject streaming.** Identify stable identity, registry lifecycle, sparse retained-state persistence, generated identity, presentation rebuild, and any current streamed registration behavior.
-- [ ] **R06 — Inventory Encounter lifecycle.** Determine what must remain detailed while an encounter is active and what currently assumes participants/sites are continuously realized.
-- [ ] **R07 — Inventory replication interest.** Separate authoritative simulation relevance from per-client relevance/update frequency; document existing interest hooks to reuse.
-- [ ] **R08 — Inventory persistence.** Confirm character/WorldObject/encounter durable state does not depend on Unity presentation object lifetime.
-- [ ] **R09 — Inventory WorldBuilder scopes.** Identify stable region/settlement/site/entity identities usable for residency targeting without scene coordinates or Kentridge-specific roles.
-- [ ] **R10 — Resolve vocabulary/ownership.** List existing `loaded`, `active`, `resident`, `relevant`, `spawned`, or similar concepts; reuse or retire overlap rather than adding synonyms.
+- [x] **R01 — Refresh from current master.** Baseline `ed5c6f908361228819b3368bcd8427d4b44d89e3`; Characters, CharacterAI, WorldObjects, Encounters, Persistence/Application, GameplayReplication, WorldBuilder and VoxelEngine Streaming APIs are present.
+- [x] **R02 — Inventory world streaming.** `IRegionStreaming` owns queue/publish/read-resident/evict around stable `int3` region + seed/mip requests. It lacked ownership-safe pins, while runtime eviction can bypass service-level `Evict`; required Streaming-owned lease primitive is now the selected fix.
+- [x] **R03 — Inventory character lifecycle.** `CharacterId` is stable; `ICharacterRegistry` owns create/remove/bind/kinematics and exposes read-only `ICharacterQuery`. Residency must never replace/remove an identity merely to change fidelity.
+- [x] **R04 — Inventory CharacterAI simulation LOD.** Existing AI has enabled/Autonomous/Tactical modes and detailed Observe→Policy→Execute ticking, but no coarse semantic simulation seam. Residency will adapt a new narrow AI fidelity seam rather than retain detailed perception/navigation for Coarse.
+- [x] **R05 — Inventory WorldObject streaming.** `WorldObjectId`, behavior snapshots, registry Capture/Restore and existing persistence own semantic state. Residency may realize/unrealize presentation but cannot store door/chest/lever state.
+- [x] **R06 — Inventory Encounter lifecycle.** Stable `EncounterId`, participants, lifecycle and Capture/Restore are encounter-owned. Active encounter/site/participant policy can request residency but remains outside the coordinator.
+- [x] **R07 — Inventory replication interest.** GameplayReplication publishes/reconstructs current semantic snapshots/deltas and synchronization state; it exposes no simulation-residency lifetime ownership. Residency will not equate Detailed with per-client replicated/visible.
+- [x] **R08 — Inventory persistence.** Persistence contributors serialize authoritative semantic sections; schema guard explicitly excludes Unity/presentation/transport and AI scratch. Residency demand/transition state is transient policy and is rebuilt after restore rather than persisted as duplicate owner state.
+- [x] **R09 — Inventory WorldBuilder scopes.** WorldBuilder exposes stable Region/Settlement/Site/Npc refs behind authoring handles. Residency targeting can use their stable semantic IDs without Kentridge roles, scene coordinates or ordinals.
+- [x] **R10 — Resolve vocabulary/ownership.** `resident` remains VoxelEngine physical residency; `Active/Resolved` remains Encounter lifecycle; AI `Enabled/Autonomous/Tactical` remains controller state; replication `Synchronized/GameplayReady` remains client sync; gameplay fidelity uses only `Dormant/Coarse/Detailed` and does not alias loaded/visible/spawned/replicated.
 
 ## B. Residency API / deterministic coordinator
 
