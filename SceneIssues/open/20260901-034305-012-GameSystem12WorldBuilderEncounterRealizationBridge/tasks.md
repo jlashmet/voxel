@@ -34,6 +34,11 @@
 - [x] **T12-016 — Define failure behavior.** Missing/ambiguous realization returns semantic composition/startup failure; do not silently substitute primitives/coordinates.
   - Evidence: `MissingSiteRealization`, `MissingCharacterRealization`, `MissingSpawnRealization`, and `DuplicateCharacter` return deterministic semantic diagnostics; Kentridge fails startup if its required forest node was not realized.
 
+## Discovered required work
+
+- [ ] **T12-017 — Resolve WorldBuilder campaign factory symbol collision.** Exact-SHA revalidation must compile the Kentridge bridge by explicitly binding the existing `Game.WorldBuilder.Api.Campaign` factory instead of allowing the enclosing `Game.Composition.Campaign` namespace to win name resolution.
+  - Evidence: exact-SHA workflow `33815602358` failed at `KentridgeForestEncounterRealization.cs:89` with CS0234 before tests/player build; `CampaignBlueprint.cs` confirms the intended public factory is `Game.WorldBuilder.Api.Campaign.Create`.
+
 ## Verification
 
 - [ ] **T12-020 — Two independent authored fixtures.** Resolve two different encounter/site definitions through the same bridge.
