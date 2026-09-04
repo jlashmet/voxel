@@ -22,7 +22,6 @@ namespace Game.WorldObjects.Tests
             var characters = new FakeCharacters(ActorId, Origin, 42UL);
             var registry = new WorldObjectRegistry();
             var processor = new InteractionClickedProcessor(characters, registry);
-
             Assert.That(processor.Process(999UL).Failure, Is.EqualTo(WorldInteractionFailure.UnknownActor));
             Assert.That(processor.Process(42UL).Failure, Is.EqualTo(WorldInteractionFailure.NoTarget));
         }
@@ -37,9 +36,7 @@ namespace Game.WorldObjects.Tests
             var first = new DoorToggleObject(new WorldObjectId("door-a"), Origin);
             Assert.That(registry.TryRegister(later), Is.True);
             Assert.That(registry.TryRegister(first), Is.True);
-
             var result = new InteractionClickedProcessor(characters, registry, facts).Process(42UL);
-
             Assert.That(result.Succeeded, Is.True);
             Assert.That(first.IsOpen, Is.True);
             Assert.That(later.IsOpen, Is.False);
@@ -55,7 +52,6 @@ namespace Game.WorldObjects.Tests
             var processor = new InteractionClickedProcessor(characters, registry);
             var remote = new DoorToggleObject(new WorldObjectId("remote"), new CharacterVector3(9f, 9f, 9f));
             registry.TryRegister(remote);
-
             Assert.That(processor.Validate(ActorId, remote.Id).Failure, Is.EqualTo(WorldInteractionFailure.OutOfRange));
             Assert.That(processor.Validate(ActorId, new WorldObjectId("missing")).Failure, Is.EqualTo(WorldInteractionFailure.UnknownObject));
         }
@@ -66,41 +62,38 @@ namespace Game.WorldObjects.Tests
             var transfer = new StubPickupTransfer(WorldInteractionResult.Reject(WorldInteractionFailure.InventoryRejected));
             var pickup = new ItemPickupObject(new WorldObjectId("pickup"), Origin, new WorldItemPayload("ore", 2), transfer);
             var initial = pickup.CaptureState();
-
             Assert.That(pickup.Interact(new WorldInteractionContext(ActorId)).Failure, Is.EqualTo(WorldInteractionFailure.InventoryRejected));
             Assert.That(pickup.Enabled, Is.True);
-
             transfer.Result = WorldInteractionResult.Success();
             Assert.That(pickup.Interact(new WorldInteractionContext(ActorId)).Succeeded, Is.True);
             Assert.That(pickup.Enabled, Is.False);
             Assert.That(pickup.Interact(new WorldInteractionContext(ActorId)).Failure, Is.EqualTo(WorldInteractionFailure.InvalidState));
             Assert.That(pickup.RestoreState(initial).Succeeded, Is.True);
             Assert.That(pickup.Enabled, Is.True);
-
             var empty = new ItemPickupObject(new WorldObjectId("empty"), Origin, new WorldItemPayload("", 0), transfer);
             Assert.That(empty.Interact(new WorldInteractionContext(ActorId)).Failure, Is.EqualTo(WorldInteractionFailure.InvalidPayload));
         }
 
         [Test]
-        public void LootAdapterReportsMissingAndRejectedInventoryAndCommitsSuccess()
+        public void LootAdapterReportsMissingRejectedAndSuccessfulInventory()
         {
             var inventory = new FakeInventoryTransactions();
             var bindings = new CharacterInventoryBindings();
             var adapter = new WorldObjectLootAdapter(inventory, bindings);
             var payload = new WorldItemPayload("ore", 2);
-
             Assert.That(adapter.TryTransfer(ActorId, new WorldObjectId("p"), payload).Failure,
                 Is.EqualTo(WorldInteractionFailure.MissingInventory));
-
             var inventoryId = new InventoryId("inventory-1");
             Assert.That(bindings.TryBind(ActorId, inventoryId), Is.True);
             inventory.Failure = InventoryFailureReason.DestinationRejected;
             Assert.That(adapter.TryTransfer(ActorId, new WorldObjectId("p"), payload).Failure,
                 Is.EqualTo(WorldInteractionFailure.InventoryRejected));
-
+            inventory.Failure = InventoryFailureReason.UnknownInventory;
+            Assert.That(adapter.TryTransfer(ActorId, new WorldObjectId("p"), payload).Failure,
+                Is.EqualTo(WorldInteractionFailure.MissingInventory));
             inventory.Failure = InventoryFailureReason.None;
             Assert.That(adapter.TryTransfer(ActorId, new WorldObjectId("p"), payload).Succeeded, Is.True);
-            Assert.That(inventory.AddCalls, Is.EqualTo(2));
+            Assert.That(inventory.AddCalls, Is.EqualTo(3));
             Assert.That(inventory.LastInventoryId, Is.EqualTo(inventoryId));
         }
 
@@ -122,19 +115,15 @@ namespace Game.WorldObjects.Tests
         [Test]
         public void NestedSubsceneToggleRejectsInvalidStateAndRoundTrips()
         {
-            var nested = new NestedSubsceneToggleObject(
-                new WorldObjectId("nested"), Origin, "scene-a", NestedSubsceneActiveState.Inactive);
+            var nested = new NestedSubsceneToggleObject(new WorldObjectId("nested"), Origin, "scene-a");
             var inactive = nested.CaptureState();
             Assert.That(nested.Interact(new WorldInteractionContext(ActorId)).Succeeded, Is.True);
             Assert.That(nested.ActiveState, Is.EqualTo(NestedSubsceneActiveState.Active));
             Assert.That(nested.Interact(new WorldInteractionContext(ActorId)).Succeeded, Is.True);
             Assert.That(nested.ActiveState, Is.EqualTo(NestedSubsceneActiveState.Inactive));
             Assert.That(nested.RestoreState(inactive).Succeeded, Is.True);
-
-            var invalid = new NestedSubsceneToggleObject(
-                new WorldObjectId("invalid-nested"), Origin, "scene-b", (NestedSubsceneActiveState)99);
-            Assert.That(invalid.Interact(new WorldInteractionContext(ActorId)).Failure,
-                Is.EqualTo(WorldInteractionFailure.InvalidState));
+            var invalid = new NestedSubsceneToggleObject(new WorldObjectId("invalid-nested"), Origin, "scene-b", (NestedSubsceneActiveState)99);
+            Assert.That(invalid.Interact(new WorldInteractionContext(ActorId)).Failure, Is.EqualTo(WorldInteractionFailure.InvalidState));
             Assert.That(nested.RestoreState(new WorldObjectStateSnapshot(nested.Id, nested.Kind, true, 99, 2)).Failure,
                 Is.EqualTo(WorldInteractionFailure.InvalidState));
         }
@@ -152,7 +141,6 @@ namespace Game.WorldObjects.Tests
                 Assert.That(registry.TryRegister(new NestedSubsceneToggleObject(new WorldObjectId("nested-" + i), Origin,
                     "scene-" + i)), Is.True);
             }
-
             var captured = registry.CaptureState();
             Assert.That(captured.Count, Is.EqualTo(9));
             for (var i = 1; i < captured.Count; i++)
@@ -172,14 +160,12 @@ namespace Game.WorldObjects.Tests
             var registry = new WorldObjectRegistry();
             registry.TryRegister(pickup);
             var progressionFacts = new RecordingProgressionFacts();
-            var progression = new WorldObjectProgressionAdapter(progressionFacts);
-            var processor = new InteractionClickedProcessor(characters, registry, progression);
-
+            var processor = new InteractionClickedProcessor(characters, registry,
+                new WorldObjectProgressionAdapter(progressionFacts));
             Assert.That(processor.Process(42UL).Succeeded, Is.True);
             Assert.That(inventory.AddCalls, Is.EqualTo(1));
             Assert.That(progressionFacts.Facts.Count, Is.EqualTo(1));
             Assert.That(progressionFacts.Facts[0].SubjectId, Is.EqualTo("pickup"));
-
             Assert.That(processor.Process(42UL).Failure, Is.EqualTo(WorldInteractionFailure.InvalidState));
             Assert.That(inventory.AddCalls, Is.EqualTo(1));
             Assert.That(progressionFacts.Facts.Count, Is.EqualTo(1));
@@ -194,7 +180,6 @@ namespace Game.WorldObjects.Tests
                 new WorldItemPayload("ore", 1),
                 new StubPickupTransfer(WorldInteractionResult.Reject(WorldInteractionFailure.InventoryRejected))));
             var facts = new RecordingWorldFacts();
-
             Assert.That(new InteractionClickedProcessor(characters, registry, facts).Process(42UL).Failure,
                 Is.EqualTo(WorldInteractionFailure.InventoryRejected));
             Assert.That(facts.Facts, Is.Empty);
@@ -226,7 +211,7 @@ namespace Game.WorldObjects.Tests
             public bool TryResolve(CharacterBinding binding, out CharacterId id)
             {
                 id = _id;
-                return binding == _binding;
+                return binding.Equals(_binding);
             }
         }
 
@@ -254,31 +239,21 @@ namespace Game.WorldObjects.Tests
             public InventoryFailureReason Failure;
             public int AddCalls;
             public InventoryId LastInventoryId;
-
             public InventoryTransactionResult TryAdd(InventoryId inventoryId, ItemRef item, int quantity)
             {
                 AddCalls++;
                 LastInventoryId = inventoryId;
                 return Result(InventoryMutationKind.Add);
             }
-
-            public InventoryTransactionResult TryRemove(InventoryId inventoryId, ItemRef item, int quantity) =>
-                Result(InventoryMutationKind.Remove);
-
-            public InventoryTransactionResult TryTransfer(
-                InventoryId sourceInventoryId, InventoryId destinationInventoryId, ItemRef item, int quantity) =>
-                Result(InventoryMutationKind.Transfer);
-
+            public InventoryTransactionResult TryRemove(InventoryId inventoryId, ItemRef item, int quantity) => Result(InventoryMutationKind.Remove);
+            public InventoryTransactionResult TryTransfer(InventoryId sourceInventoryId, InventoryId destinationInventoryId, ItemRef item, int quantity) => Result(InventoryMutationKind.Transfer);
             public int Count(InventoryId inventoryId, ItemRef item) => 0;
             public IReadOnlyList<InventoryQuantitySnapshot> Capture() => Array.Empty<InventoryQuantitySnapshot>();
             public bool TryRestore(IReadOnlyList<InventoryQuantitySnapshot> snapshots) => true;
-
             private InventoryTransactionResult Result(InventoryMutationKind kind)
             {
-                if (Failure != InventoryFailureReason.None)
-                    return InventoryTransactionResult.Reject(kind, Failure);
-                return new InventoryTransactionResult(
-                    default, kind, InventoryFailureReason.None,
+                if (Failure != InventoryFailureReason.None) return InventoryTransactionResult.Reject(kind, Failure);
+                return new InventoryTransactionResult(default, kind, InventoryFailureReason.None,
                     false, default, false, default, Array.Empty<InventoryChangeEvent>());
             }
         }
