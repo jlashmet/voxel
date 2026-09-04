@@ -46,8 +46,9 @@ namespace Game.WorldBuilder.Voxel
     /// A compact ridged multi-octave value-noise field establishes macro ridge energy around the
     /// mountain. A bounded thermal-relaxation pass transfers excess angular relief toward adjacent
     /// sectors (the same qualitative effect as talus erosion), then the result is compiled into a
-    /// small union of grounded analytic frusta. This stays well below structure primitive budgets
-    /// while producing non-conical silhouettes, branching ridges and eroded shoulders.
+    /// small union of exact analytic frusta. Massif cores use vertically joined frustum bands whose
+    /// seam radii and heights are shared exactly; that preserves one terrain truth while avoiding a
+    /// single giant planar slope. Aspect shoulders, ridges and roughness remain bounded additions.
     /// </summary>
     public sealed class MountainLandformSurface : IWorldRoadTerrain
     {
@@ -131,9 +132,7 @@ namespace Game.WorldBuilder.Voxel
 
             int coreRadius = Math.Max(spec.SummitRadiusDm + 1, minRadius * macroBasePermille / 1000);
             int coreTop = Math.Max(1, spec.SummitRadiusDm * summitTopPermille / 1000);
-            masses.Add(new MountainLandformMass(
-                summitX, spec.OriginYdm, summitZ,
-                spec.HeightDm, coreRadius, coreTop));
+            AddCoreEnvelope(masses, in spec, summitX, summitZ, coreRadius, coreTop);
 
             AddAspectShoulders(masses, in spec, summitX, summitZ, minRadius, majorRadius, majorAlongX);
             AddRidges(masses, in spec, ridgeProfile, summitX, summitZ, minRadius);
@@ -141,6 +140,61 @@ namespace Game.WorldBuilder.Voxel
             AddSummitCharacter(masses, in spec, summitX, summitZ, minRadius);
 
             return masses.ToArray();
+        }
+
+        private static void AddCoreEnvelope(
+            List<MountainLandformMass> masses,
+            in MountainLandformSpec spec,
+            int summitX,
+            int summitZ,
+            int coreRadius,
+            int coreTop)
+        {
+            int radialRun = coreRadius - coreTop;
+            if (spec.MacroShape != MountainMacroShape.Massif
+                || radialRun < 8
+                || spec.HeightDm < 8)
+            {
+                masses.Add(new MountainLandformMass(
+                    summitX, spec.OriginYdm, summitZ,
+                    spec.HeightDm, coreRadius, coreTop));
+                return;
+            }
+
+            // A single full-height frustum produces one enormous constant-slope face at landmark
+            // scale. These four vertically joined bands describe the same semantic massif with a
+            // continuous radial profile: broad/gentle foothills transition through steeper upper
+            // mountain and finish at the authored summit radius. Adjacent bands overlap exactly on
+            // one seam layer (same Y and radius), so there is no floating support or horizontal
+            // terrace for roads, collision, or voxel realization to disagree about.
+            int totalRise = spec.HeightDm - 1;
+            int[] cumulativeRunPermille = { 390, 670, 860, 1000 };
+            int[] cumulativeRisePermille = { 230, 480, 755, 1000 };
+            int baseY = spec.OriginYdm;
+            int baseRadius = coreRadius;
+
+            for (int i = 0; i < cumulativeRunPermille.Length; i++)
+            {
+                int topRadius = i == cumulativeRunPermille.Length - 1
+                    ? coreTop
+                    : coreRadius - radialRun * cumulativeRunPermille[i] / 1000;
+                int topY = i == cumulativeRisePermille.Length - 1
+                    ? spec.OriginYdm + totalRise
+                    : spec.OriginYdm + totalRise * cumulativeRisePermille[i] / 1000;
+
+                topRadius = Math.Max(coreTop, Math.Min(baseRadius - 1, topRadius));
+                topY = Math.Max(baseY + 1, topY);
+                masses.Add(new MountainLandformMass(
+                    summitX,
+                    baseY,
+                    summitZ,
+                    topY - baseY + 1,
+                    baseRadius,
+                    topRadius));
+
+                baseY = topY;
+                baseRadius = topRadius;
+            }
         }
 
         private static void AddAspectShoulders(
