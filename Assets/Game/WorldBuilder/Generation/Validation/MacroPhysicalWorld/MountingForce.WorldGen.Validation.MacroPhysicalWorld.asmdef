@@ -1,0 +1,20 @@
+{
+  "name": "MountingForce.WorldGen.Validation.MacroPhysicalWorld",
+  "rootNamespace": "MountingForce.WorldGen.Validation",
+  "references": [
+    "MountingForce.WorldGen.Core",
+    "MountingForce.WorldGen.Voxel",
+    "Game.WorldBuilder.Api",
+    "VoxelEngine.Structures.Api",
+    "Unity.Collections"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
