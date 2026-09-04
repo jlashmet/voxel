@@ -11,10 +11,12 @@ namespace Game.Audio.Runtime
             if (compositionRoot == null) throw new ArgumentNullException(nameof(compositionRoot));
             UnityAudioPlaybackBackend backend = compositionRoot.GetComponent<UnityAudioPlaybackBackend>() ?? compositionRoot.AddComponent<UnityAudioPlaybackBackend>();
             AudioClip cue = CreateTone("Semantic Cue", 660f, 0.18f, 0.24f);
+            AudioClip door = CreateTone("Door Open Semantic Cue", 330f, 0.24f, 0.28f);
             AudioClip ambience = CreateAmbientLoop();
             var catalog = new AudioCueCatalog(new[]
             {
                 new AudioCueAssetBinding(AudioSemanticCues.CutsceneGeneric, cue, AudioBusKind.Sfx, false, false, 0.62f),
+                new AudioCueAssetBinding(AudioSemanticCues.DoorOpened, door, AudioBusKind.Sfx, false, false, 0.72f),
                 new AudioCueAssetBinding(AudioSemanticCues.CharacterDefeated, cue, AudioBusKind.Sfx, false, false, 0.72f),
                 new AudioCueAssetBinding(AudioSemanticCues.WorldAmbience, ambience, AudioBusKind.Ambience, false, true, 0.2f)
             });
