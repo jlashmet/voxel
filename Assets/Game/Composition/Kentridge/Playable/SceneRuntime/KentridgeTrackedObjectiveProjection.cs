@@ -14,8 +14,7 @@ namespace Game.Kentridge.PlayableSlice
     {
         private readonly JournalObjectiveKey _travelObjective;
         private readonly QuestJournalPresenter _presenter;
-        private bool _hasObservedActiveState;
-        private bool _lastTravelObjectiveActive;
+        private bool _hasTrackedTravelObjective;
 
         public KentridgeTrackedObjectiveProjection(IProgressionQuery progression, string travelObjectiveId)
         {
@@ -32,14 +31,11 @@ namespace Game.Kentridge.PlayableSlice
 
         public void Refresh(bool travelObjectiveActive)
         {
-            if (_hasObservedActiveState && _lastTravelObjectiveActive == travelObjectiveActive) return;
-
+            // Rebuild from current System11 state every presentation refresh. This keeps count/revision
+            // changes current without caching or recreating authoritative progression state in HUD.
             _presenter.Rebuild();
-            if (travelObjectiveActive)
-                _presenter.TrackObjective(_travelObjective);
-
-            _lastTravelObjectiveActive = travelObjectiveActive;
-            _hasObservedActiveState = true;
+            if (travelObjectiveActive && !_hasTrackedTravelObjective)
+                _hasTrackedTravelObjective = _presenter.TrackObjective(_travelObjective);
         }
 
         public bool TryGetTrackedObjective(out TrackedObjectiveSummary summary) =>
