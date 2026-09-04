@@ -5,7 +5,11 @@
     "Game.Progression.Api",
     "Game.Progression.Runtime",
     "Game.Quests.Api",
-    "Game.Quests.Runtime"
+    "Game.Quests.Runtime",
+    "Game.Composition.Campaign",
+    "Game.Composition.Campaign.Runtime",
+    "Game.WorldBuilder.Api",
+    "Game.Cutscenes.Api"
   ],
   "includePlatforms": ["Editor"],
   "excludePlatforms": [],
