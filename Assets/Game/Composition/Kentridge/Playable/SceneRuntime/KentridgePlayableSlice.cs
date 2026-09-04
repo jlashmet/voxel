@@ -211,7 +211,7 @@ namespace Game.Kentridge.PlayableSlice
 
                 RegionCorridorPlan corridorPlan = RegionCorridorCatalogue.Plan(
                     m_Seed, BuildSettings(kentridge: true),
-                    settlement.CentreDm.Y, hightown.CentreDm.Y);
+                    settlement.CentreDm, hightown.CentreDm);
                 _themes = RegionThemeMap.ForKentridgeHightown(
                     settlement.CentreDm.Y, hightown.CentreDm.Y, corridorPlan.CrossingZDm);
                 _corridorPlan = corridorPlan;
