@@ -10,7 +10,6 @@ using Game.Cutscenes.Content.Kentridge;
 using Game.Input.Api;
 using Game.Progression.Api;
 using Game.SessionOrchestration.Api;
-using Game.SessionOrchestration.Runtime;
 using Game.WorldBuilder.Api;
 using MountingForce.WorldGen;
 using MountingForce.WorldGen.Content.Hightown;
@@ -26,14 +25,16 @@ using VoxelEngine.Tiering.Api;
 namespace Game.Kentridge.PlayableSlice
 {
     /// <summary>
-    /// First player-facing integration of the generated Kentridge world and authored opening campaign.
-    /// The pub and town are one continuous voxel world: once the opening cutscene releases control,
-    /// the player walks through the generated pub doorway directly into generated Kentridge.
+    /// Player-facing Kentridge world/presentation realization. Application owns input and session
+    /// lifecycle; this component supplies Kentridge content/session-graph composition and consumes
+    /// those public production capabilities after the application starts a run.
     /// </summary>
     [AddComponentMenu("Game/Kentridge Playable Slice")]
+    [DefaultExecutionOrder(-15000)]
     public sealed class KentridgePlayableSlice : MonoBehaviour, IShowcaseMeasurementDriver
     {
         private const float DecimetresToMetres = 0.1f;
+        private static readonly LocalPlayerId LocalPlayer = new LocalPlayerId(0);
 
         [Header("World")]
         [SerializeField] private uint m_Seed = 0x4B454E54u;
@@ -68,8 +69,12 @@ namespace Game.Kentridge.PlayableSlice
         private KentridgeCharacterHost _actors;
         private SlicePresentation _presentation;
         private KentridgeCampaignSession _session;
-        private GameSessionOrchestrator _sessionOrchestration;
+        private IGameSessionControl _sessionControl;
+        private KentridgeSessionRuntimeGraphFactory _sessionFactory;
         private KentridgeSessionRuntimeGraph _sessionGraph;
+        private IPlayerInputReader _inputReader;
+        private IInputActionStateReader _inputActions;
+        private KentridgeGameplayHudInstaller _hudInstaller;
         private KentridgeGameplaySiteAccess _pubAccess;
         private RegionThemeMap _themes;
         private RegionCorridorPlan _corridorPlan;
@@ -101,9 +106,16 @@ namespace Game.Kentridge.PlayableSlice
         private float _surveyCycleStartedAt = -1f;
         private int _loggedSurveyRole = -1;
 
+        internal KentridgeSessionRuntimeGraphFactory SessionFactory => _sessionFactory;
+        internal KentridgeSessionRuntimeGraph SessionGraph => _sessionGraph;
+        internal KentridgeCampaignSession CampaignSession => _session;
+        public bool ProductionInputBound => _inputReader != null && _inputActions != null;
+        public bool SessionControlBound => _sessionControl != null;
+        public GameSessionLifecycle SessionLifecycle =>
+            _sessionControl == null ? GameSessionLifecycle.Uninitialized : _sessionControl.Snapshot.Lifecycle;
         public bool GameplayControlEnabled =>
-            _sessionOrchestration != null
-            && _sessionOrchestration.Snapshot.Lifecycle == GameSessionLifecycle.Running
+            _sessionControl != null
+            && _sessionControl.Snapshot.Lifecycle == GameSessionLifecycle.Running
             && _session != null
             && _openingStarted
             && !_session.Runtime.HasActiveCutscene;
@@ -124,9 +136,33 @@ namespace Game.Kentridge.PlayableSlice
             && _session.Runtime.HasActiveCutscene
             && _session.Runtime.ActiveCutscene.Equals(_destinationCutscene);
 
+        public void BindProductionInput(
+            IPlayerInputReader inputReader,
+            IInputActionStateReader inputActions)
+        {
+            if (_spawned)
+                throw new InvalidOperationException(
+                    "Kentridge production input must be bound before world/session composition.");
+            _inputReader = inputReader ?? throw new ArgumentNullException(nameof(inputReader));
+            _inputActions = inputActions ?? throw new ArgumentNullException(nameof(inputActions));
+        }
+
+        public void BindSessionControl(IGameSessionControl sessionControl)
+        {
+            if (!_spawned || _sessionFactory == null)
+                throw new InvalidOperationException(
+                    "Kentridge session control cannot bind before the world/content factory is ready.");
+            if (_sessionControl != null && !ReferenceEquals(_sessionControl, sessionControl))
+                throw new InvalidOperationException("Kentridge session control is already bound.");
+            _sessionControl = sessionControl ?? throw new ArgumentNullException(nameof(sessionControl));
+        }
+
         private void OnEnable()
         {
             if (!Application.isPlaying) return;
+            if (!ProductionInputBound)
+                throw new InvalidOperationException(
+                    "Kentridge playable slice requires Application-owned production input before OnEnable.");
 
             long tierBytes = DeviceTierBudget.GetForTier(DeviceTierBudget.Detect()).BrickPoolCapacity;
             int capacity = VoxelEngineBootstrap.ClampMixedBrickCapacityToBudget(
@@ -152,6 +188,10 @@ namespace Game.Kentridge.PlayableSlice
                 KentridgeCampaignGenerationPlan generation = KentridgeCampaignSessionBootstrap.Plan(
                     content.Blueprint,
                     settlement);
+                var realizationFacts = new KentridgeCampaignRealizationFacts(
+                    new KentridgeVoxelSiteRealizationFacts(settlement, 1));
+                KentridgeCampaignWorldRealization openingWorld =
+                    KentridgeCampaignWorldRealizationBoundary.Realize(generation, realizationFacts);
 
                 if (!KentridgeGameplaySiteAccessResolver.TryResolve(
                         settlement,
@@ -221,31 +261,27 @@ namespace Game.Kentridge.PlayableSlice
                 _presentation = new SlicePresentation(ApplyCutsceneCamera);
                 KentridgeForestBanditEncounter forestSessionExtension =
                     GetComponent<KentridgeForestBanditEncounter>()
-                    ?? gameObject.AddComponent<KentridgeForestBanditEncounter>();
-                if (GetComponent<KentridgeGameplayHudInstaller>() == null)
-                    gameObject.AddComponent<KentridgeGameplayHudInstaller>();
-                var sessionFactory = new KentridgeSessionRuntimeGraphFactory(
+                    ?? throw new InvalidOperationException(
+                        "Kentridge scene is missing its explicit forest session extension composition.");
+                if (!forestSessionExtension.ProductionInputBound)
+                    throw new InvalidOperationException(
+                        "Kentridge forest extension is missing Application-owned production input.");
+
+                _hudInstaller = GetComponent<KentridgeGameplayHudInstaller>();
+                if (_hudInstaller == null)
+                    throw new InvalidOperationException(
+                        "Kentridge scene is missing its explicit gameplay HUD composition.");
+                if (!_hudInstaller.InputBound)
+                    throw new InvalidOperationException(
+                        "Kentridge HUD is missing Application-owned production input.");
+
+                _sessionFactory = new KentridgeSessionRuntimeGraphFactory(
                     content.Blueprint,
                     generation,
-                    new KentridgeCampaignRealizationFacts(
-                        new KentridgeVoxelSiteRealizationFacts(settlement, 1)),
+                    realizationFacts,
                     _actors,
                     _presentation,
                     extensionFactory: forestSessionExtension);
-                _sessionOrchestration = new GameSessionOrchestrator(sessionFactory);
-                GameSessionOperationResult prepared = _sessionOrchestration.Prepare(
-                    GameSessionStartRequest.NewGame(
-                        new GameSessionIdentity(
-                            "kentridge-opening-campaign",
-                            KentridgeDefinition.Id,
-                            "local-player-session",
-                            "kentridge-generated-world")));
-                if (!prepared.Succeeded)
-                    throw new InvalidOperationException(
-                        "Kentridge session composition failed: " + prepared.Failure + " " + prepared.Diagnostic);
-                _sessionGraph = sessionFactory.Current
-                    ?? throw new InvalidOperationException("Kentridge session composition returned no graph.");
-                _session = _sessionGraph.Session;
 
                 RenderingComposition.ResetSurfacePassDiagnostics("kentridge-playable-slice-enabled");
                 RenderingComposition.SetSurfaceBuildEnabled(false);
@@ -269,7 +305,7 @@ namespace Game.Kentridge.PlayableSlice
                     _world.Seed,
                     farFieldEnabled: true);
 
-                CutsceneStageBinding openingStage = FindOpeningStage(content.IntroCutscene);
+                CutsceneStageBinding openingStage = FindOpeningStage(openingWorld, content.IntroCutscene);
                 PrepareOpeningCamera(openingStage);
                 GenerateAt(openingStage.Resolve(KentridgeOpeningCutscene.LeadStart).Position);
                 GenerateAt(openingStage.Resolve(KentridgeOpeningCutscene.LeadStage).Position);
@@ -296,7 +332,7 @@ namespace Game.Kentridge.PlayableSlice
                 ApplyOpeningCameraPose();
 
                 _spawned = true;
-                _cutsceneOwnedControl = true;
+                _cutsceneOwnedControl = false;
                 _openingGameplayReleased = false;
                 _openingStarted = false;
                 _openingPresentationReady = false;
@@ -318,15 +354,18 @@ namespace Game.Kentridge.PlayableSlice
 
         private void DisposeRuntime()
         {
-            if (_sessionOrchestration != null)
+            if (_sessionControl != null &&
+                _sessionControl.Snapshot.Lifecycle != GameSessionLifecycle.Uninitialized &&
+                _sessionControl.Snapshot.Lifecycle != GameSessionLifecycle.Stopped)
             {
-                GameSessionOperationResult shutdown = _sessionOrchestration.Shutdown();
-                if (!shutdown.Succeeded)
-                    Debug.LogError(
-                        "Kentridge session shutdown failed: " + shutdown.Failure + " " + shutdown.Diagnostic);
+                Debug.LogError(
+                    "Kentridge world is disposing before Application completed ordered session teardown.");
             }
+
             _sessionGraph = null;
-            _sessionOrchestration = null;
+            _session = null;
+            _sessionControl = null;
+            _sessionFactory = null;
 
             if (_lifeHost != null) Destroy(_lifeHost);
             _lifeHost = null;
@@ -348,7 +387,6 @@ namespace Game.Kentridge.PlayableSlice
 
             _actors?.Dispose();
             _actors = null;
-            _session = null;
             _presentation = null;
             _world?.Dispose();
             _world = null;
@@ -372,26 +410,44 @@ namespace Game.Kentridge.PlayableSlice
             _openingCameraFocus = default;
             _surveyCycleStartedAt = -1f;
             _loggedSurveyRole = -1;
+            _hudInstaller = null;
         }
 
         private void Update()
         {
-            if (!Application.isPlaying
-                || !_spawned
-                || _world == null
-                || _session == null
-                || _sessionOrchestration == null) return;
+            if (!Application.isPlaying || !_spawned || _world == null) return;
 
             float dt = Time.deltaTime;
             _actors.Tick(dt);
 
-            if (!_openingStarted)
+            if (!_openingPresentationReady)
             {
                 TickOpeningPreload();
                 return;
             }
 
-            GameSessionOperationResult tick = _sessionOrchestration.Tick(
+            SynchronizeSessionGraph();
+            if (_sessionControl == null || _session == null || _sessionGraph == null)
+            {
+                StreamWorld(m_LoadingGenerateBudgetMs);
+                return;
+            }
+
+            if (!_openingStarted)
+            {
+                if (_sessionControl.Snapshot.Lifecycle != GameSessionLifecycle.Running)
+                {
+                    StreamWorld(m_LoadingGenerateBudgetMs);
+                    return;
+                }
+                if (_sessionGraph.LastNewGameMatchedCount == 0 || !_session.Runtime.HasActiveCutscene)
+                    throw new InvalidOperationException(
+                        "Application started Kentridge without the authored New Game opening cutscene.");
+                _openingStarted = true;
+                _cutsceneOwnedControl = true;
+            }
+
+            GameSessionOperationResult tick = _sessionControl.Tick(
                 Mathf.Max(0, Mathf.RoundToInt(dt * 1000f)));
             if (!tick.Succeeded)
                 throw new InvalidOperationException(
@@ -448,11 +504,20 @@ namespace Game.Kentridge.PlayableSlice
             else
                 transform.position = _motor.EyePosition;
 
-            _farFeatures?.Update(_sceneCamera, transform.position);
+            StreamWorld(hasActiveCutscene ? m_LoadingGenerateBudgetMs : m_GenerateBudgetMs);
+        }
 
-            float budget = hasActiveCutscene
-                ? m_LoadingGenerateBudgetMs
-                : m_GenerateBudgetMs;
+        private void TickOpeningPreload()
+        {
+            ApplyOpeningCameraPose();
+            StreamWorld(m_LoadingGenerateBudgetMs);
+            if (RenderingComposition.HasCompletePublishedNearSurfaceCoverage())
+                _openingPresentationReady = true;
+        }
+
+        private void StreamWorld(float budget)
+        {
+            _farFeatures?.Update(_sceneCamera, transform.position);
             _world.StepStreaming(_motor.EyePosition, budget);
             if (_farTerrain != null)
             {
@@ -462,39 +527,22 @@ namespace Game.Kentridge.PlayableSlice
             }
         }
 
-        private void TickOpeningPreload()
+        private void SynchronizeSessionGraph()
         {
-            ApplyOpeningCameraPose();
-            _farFeatures?.Update(_sceneCamera, transform.position);
-            _world.StepStreaming(_motor.EyePosition, m_LoadingGenerateBudgetMs);
-            if (_farTerrain != null)
-            {
-                float streamed = m_LoadRadiusRegions * ShowcaseWorld.RegionMetres;
-                _farTerrain.HoleRadiusMetres = Mathf.Max(
-                    _world.ResidentGroundRadiusMetres(_motor.EyePosition), streamed);
-            }
-
-            if (!RenderingComposition.HasCompletePublishedNearSurfaceCoverage()) return;
-
-            _openingPresentationReady = true;
-            GameSessionOperationResult started = _sessionOrchestration.EnterRunning();
-            int matched = _sessionGraph.LastNewGameMatchedCount;
-            if (!started.Succeeded || matched == 0 || !_session.Runtime.HasActiveCutscene)
-                throw new InvalidOperationException(
-                    "New Game did not start the authored Kentridge opening cutscene after pub presentation became ready. "
-                    + (started.Succeeded ? string.Empty : started.Failure + " " + started.Diagnostic));
-
-            _openingStarted = true;
-            _cutsceneOwnedControl = true;
+            KentridgeSessionRuntimeGraph current = _sessionFactory?.Current;
+            if (ReferenceEquals(current, _sessionGraph)) return;
+            _sessionGraph = current;
+            _session = current?.Session;
+            _openingStarted = false;
+            _openingGameplayReleased = false;
+            _cutsceneOwnedControl = false;
         }
 
         private void HandleKeys()
         {
-            KentridgeGameplayHudInstaller semanticInput = GetComponent<KentridgeGameplayHudInstaller>();
-            if (semanticInput != null && semanticInput.WasPressed(StandardInputActions.Cancel))
+            if (_inputActions.WasPressed(LocalPlayer, StandardInputActions.Cancel))
                 SetCursorLocked(!_mouseLook);
-            if (Input.GetKeyDown(KeyCode.F10)) RescuePlayerToY100();
-            if (semanticInput != null && semanticInput.WasPressed(StandardInputActions.Interact))
+            if (_inputActions.WasPressed(LocalPlayer, StandardInputActions.Interact))
                 TryInteractWithNearbyNpc();
         }
 
@@ -620,13 +668,12 @@ namespace Game.Kentridge.PlayableSlice
             DialogueLine pending = _presentation?.Pending;
             if (pending == null) return false;
 
-            bool clicked = Input.GetMouseButtonDown(0)
-                        || Input.GetKeyDown(KeyCode.Space)
-                        || Input.GetKeyDown(KeyCode.Return);
+            PlayerInputSnapshot input = _inputReader.Read(LocalPlayer);
+            bool advanced = input.PrimaryPressed || input.ConfirmPressed;
             bool timedOut = s_AutoAdvanceSeconds > 0f
                          && Time.realtimeSinceStartup - pending.ShownAt >= s_AutoAdvanceSeconds;
 
-            if (!clicked && !timedOut) return false;
+            if (!advanced && !timedOut) return false;
 
             _presentation.DismissPending();
             return true;
@@ -865,7 +912,7 @@ namespace Game.Kentridge.PlayableSlice
         private void ReleaseForScriptedWalk()
         {
             _presentation?.DismissPending();
-            GameSessionOperationResult tick = _sessionOrchestration.Tick(0);
+            GameSessionOperationResult tick = _sessionControl.Tick(0);
             if (!tick.Succeeded)
                 throw new InvalidOperationException(
                     "Kentridge scripted-walk session update failed: " + tick.Failure + " " + tick.Diagnostic);
@@ -912,9 +959,10 @@ namespace Game.Kentridge.PlayableSlice
 
         private void HandleLook()
         {
-            _yaw += Input.GetAxisRaw("Mouse X") * m_LookSensitivity;
+            PlayerInputSnapshot input = _inputReader.Read(LocalPlayer);
+            _yaw += input.PointerX * m_LookSensitivity;
             _pitch = Mathf.Clamp(
-                _pitch - Input.GetAxisRaw("Mouse Y") * m_LookSensitivity,
+                _pitch - input.PointerY * m_LookSensitivity,
                 -89f,
                 89f);
             transform.rotation = Quaternion.Euler(_pitch, _yaw, 0f);
@@ -924,19 +972,15 @@ namespace Game.Kentridge.PlayableSlice
         {
             if (!_world.IsGenerated(ShowcaseWorld.RegionAt(_motor.Position))) return;
 
-            float forward = (Input.GetKey(KeyCode.W) ? 1f : 0f)
-                          - (Input.GetKey(KeyCode.S) ? 1f : 0f);
-            float strafe = (Input.GetKey(KeyCode.D) ? 1f : 0f)
-                         - (Input.GetKey(KeyCode.A) ? 1f : 0f);
-            KentridgeGameplayHudInstaller semanticInput = GetComponent<KentridgeGameplayHudInstaller>();
-            bool sprint = semanticInput != null && semanticInput.IsHeld(StandardInputActions.Sprint);
+            PlayerInputSnapshot input = _inputReader.Read(LocalPlayer);
+            bool sprint = _inputActions.IsHeld(LocalPlayer, StandardInputActions.Sprint);
 
             Vector3 flatForward = Vector3.ProjectOnPlane(transform.forward, Vector3.up).normalized;
             Vector3 flatRight = Vector3.ProjectOnPlane(transform.right, Vector3.up).normalized;
-            Vector3 wish = flatForward * forward + flatRight * strafe;
+            Vector3 wish = flatForward * input.MoveY + flatRight * input.MoveX;
             if (wish.sqrMagnitude > 1f) wish.Normalize();
 
-            bool jumpHeld = semanticInput != null && semanticInput.IsHeld(StandardInputActions.Jump);
+            bool jumpHeld = _inputActions.IsHeld(LocalPlayer, StandardInputActions.Jump);
             _motor.Step(_world, wish, sprint, jumpHeld, dt);
         }
 
@@ -1027,11 +1071,13 @@ namespace Game.Kentridge.PlayableSlice
             return Mathf.Sqrt(dx * dx + dz * dz);
         }
 
-        private CutsceneStageBinding FindOpeningStage(CutsceneRef intro)
+        private static CutsceneStageBinding FindOpeningStage(
+            KentridgeCampaignWorldRealization world,
+            CutsceneRef intro)
         {
-            for (int i = 0; i < _session.World.CutsceneStages.Count; i++)
+            for (int i = 0; i < world.CutsceneStages.Count; i++)
             {
-                CutsceneStageRealization stage = _session.World.CutsceneStages[i];
+                CutsceneStageRealization stage = world.CutsceneStages[i];
                 if (stage.Cutscene.Equals(intro)) return stage.Binding;
             }
             throw new InvalidOperationException("Kentridge opening cutscene has no realized stage.");
@@ -1052,16 +1098,15 @@ namespace Game.Kentridge.PlayableSlice
 
         private void OnGUI()
         {
-            if (!Application.isPlaying || !_spawned || _session == null) return;
+            if (!Application.isPlaying || !_spawned) return;
 
-            if (!_openingStarted)
+            if (!_openingPresentationReady)
             {
                 DrawOpeningLoadingCover();
                 return;
             }
 
-            if (AutoSurvey || AutoRecede) return;
-
+            if (_session == null || !_openingStarted || AutoSurvey || AutoRecede) return;
             DrawDialogue();
         }
 
