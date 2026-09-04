@@ -2,68 +2,47 @@
 
 ## Evidence and scope
 
-- [x] Read `AGENTS.md`, `SceneIssues/issue-readme.md`, and `SceneIssues/README.md`.
-- [x] Inspect captures/marked regions; none are present.
-- [x] Inspect design/source systems and discriminate competing hypotheses with repository evidence.
-- [x] Keep work scoped to the assigned SceneIssue; never use `pending` or push the feature head directly to `master`.
-- [x] Reassess against module-local ownership: WorldBuilder, CaveWorldBuilder, and Showcase each own focused EditMode coverage and production-path validation.
-- [x] Adopt current module-local validation convention: `Assets/Game/WorldBuilder/Validation/SecretDiscovery/WorldBuilderSecretDiscoveryValidation.unity` is the authoritative built-player visual gate; legacy Gallery captures remain historical regression evidence only.
-- [x] Update SceneIssue scene metadata so standalone replay targets `WorldBuilderSecretDiscoveryValidation` instead of `WorldbuildingGalleryShowcase`.
+- [x] Read `AGENTS.md`, `SceneIssues/issue-readme.md`, and `SceneIssues/README.md`; keep work scoped only to this assignment.
+- [x] Inspect captures/marked regions; none are present. Use the issue design contract and module-local built-player scene as acceptance evidence.
+- [x] Reassess module ownership: WorldBuilder, CaveWorldBuilder, and Showcase own focused tests/production-path validation; `WorldBuilderSecretDiscoveryValidation` is the authoritative visual gate.
+- [x] SceneIssue metadata targets `Assets/Game/WorldBuilder/Validation/SecretDiscovery/WorldBuilderSecretDiscoveryValidation.unity`; legacy Gallery evidence is historical only.
 
 ## Planning / behavior
 
 - [x] Stable secret/route/clue IDs and immutable plan metadata.
-- [x] Deterministic plan for same seed/inputs independent of candidate enumeration order.
-- [x] Standard/Major clue count/channel rules behaviorally tested.
-- [x] Pre-solve observability and circular dependency rejection behaviorally tested.
-- [x] Reusable semantic anchors avoid prefab names/capture coordinates.
-- [x] Interactable-backed and natural traversal routes both supported without duplicate interaction authority.
-- [x] Multiple legal routes resolve to one canonical discovery identity; revisit/reload/repeated activation is idempotent.
-- [x] `ProtectedShell`, `AuthoredBreakablesOnly`, and `SystemicBypassAllowed` represented and behaviorally tested.
-- [x] Make clue realization route/mechanism-aware: breakable, mechanism-backed, and natural/traversal route families choose only compatible anomaly motifs and expose distinct player action intents.
-- [x] Reuse canonical interactable mechanisms for levers/buttons/plates/pushables/etc.; WorldBuilder may place/connect them but must not own duplicate interaction state. `SecretRouteWorldObjectIntegrationTests` proves mechanism execution/state restoration through the canonical WorldObject runtime and one canonical SecretDiscovery identity.
-- [x] Introduce deterministic anomaly-composition selection across multiple motif families instead of a universal visual marker. Initial families: structural fracture, material seam, surface wear, mechanical trace, debris alignment, vegetation discontinuity, erosion trail, sightline gap, disturbed ground.
-- [x] Make anomaly realization context-relative: `SecretClueLocalContext` scores local vegetation density, surface uniformity, structural regularity, occlusion, and recent disturbance so the same route can choose a different compatible anomaly in another environment.
-- [x] Ensure mechanism-specific clue language supports player hypothesis formation through explicit `SecretClueActionIntent` (`BreakBarrier`, `OperateMechanism`, `TraverseTerrain`, `Investigate`).
-- [x] Add deterministic variety/repetition control: recently used nearby motif families receive a strong deterministic penalty while remaining route-compatible.
-- [x] Behaviorally validate route compatibility, identical-input determinism, local-context sensitivity, repetition variation, and mechanism-specific action intent in `SecretClueAnomalyPlannerTests`.
+- [x] Same seed/inputs produce the same plan independent of candidate enumeration order.
+- [x] Standard/Major clue-count and independent-channel policy is behaviorally tested.
+- [x] Required clues are pre-solve observable and circular dependencies fail validation.
+- [x] Reusable semantic clue anchors avoid prefab names and capture coordinates.
+- [x] Interactable-backed and natural traversal routes are both supported without duplicate interaction authority.
+- [x] Multiple legal routes resolve to one canonical discovery identity; revisit/reload/repeated activation remains idempotent.
+- [x] `ProtectedShell`, `AuthoredBreakablesOnly`, and `SystemicBypassAllowed` are represented and behaviorally tested, including accidental bypass prevention.
+- [x] Route/mechanism-aware anomaly planning selects compatible motif families and explicit action intent (`BreakBarrier`, `OperateMechanism`, `TraverseTerrain`, `Investigate`).
+- [x] Canonical WorldObject mechanisms own interaction/state restoration; WorldBuilder only plans/places/connects them.
+- [x] Local-context scoring plus deterministic repetition penalties produce controlled clue variety rather than a universal marker.
+- [x] `SecretClueAnomalyPlannerTests`, discovery/planner tests, generated-cave bypass tests, and WorldObject integration tests cover the semantic invariants.
 
-## Production-path regression / visual validation
+## Production-path / visual acceptance
 
-- [x] Generated cave secret composition and verified topology exercised through production authoring.
-- [x] Deterministic boundary fracture preserves the verified seal before destruction.
-- [x] WorldBuilder module-local validation uses production voxel generation, rendering, materials/coatings, vegetation, and destruction.
-- [x] Prior accepted exact run `33801222778` proves WorldBuilder EditMode + production SecretDiscovery built player + Kentridge + SceneIssue replay; full-res evidence shows 35 fracture voxels and a 607-voxel breach.
-- [x] Historical Gallery publication/rendering investigations retained as regression evidence; do not use Gallery as the current visual acceptance scene.
-- [x] Classify run `33863772871` planner failure as nested-module ownership regression rather than SecretDiscovery behavior or retryable infrastructure.
-- [x] Fix nested module ownership narrowly by assigning runtime asmdefs to the nearest discovered module root while retaining duplicate-token fail-closed checks; add a focused Python regression fixture.
-- [x] Exact request `700641da19d648ed7c85d148cf3bb272c6b39ffd` / run `33886411818` completed without replacement and passed plan derivation, automatic module validation, standalone SceneIssue replay, screenshot upload, and final status.
-- [x] Merge then-current master `d08612dfe2f4a99aff34897717569744565bc642` into `fixes/agent-5` through PR #273 before validating the new anomaly work.
-- [x] Update module-local validation scene to consume `SecretClueAnomalyPlanner`: natural approach uses dense-vegetation discontinuity/negative-space language while the breakable barrier uses structural-fracture language.
-- [x] Classify exact request `36d6a7d297ed0a8023993b9482b463e869b0ac14` / run `33898606330`: module planning succeeded, but Unity compilation failed because the local validation assembly imported `Game.WorldBuilder.Runtime` without referencing `Game.WorldBuilder.Runtime`; standalone replay failed for the same compile error. This is a deterministic validation-assembly dependency defect, not renderer/gameplay evidence and not retryable infrastructure.
-- [x] Fix the failed-run cause narrowly by adding `Game.WorldBuilder.Runtime` to `Game.WorldBuilder.SecretDiscovery.Validation.asmdef`; anomaly behavior/source remains otherwise unchanged.
-- [x] Exact request `c4adea52a154bba78d36741bd32bbbf560ea8f81` / run `33899750246` passed automatic module validation and standalone player replay after the assembly-reference fix.
-- [x] Confirm module player validation builds and launches a real standalone `.app` through `tools/player-validation.py` / `tools/showcase-player-capture.sh`.
-- [x] Identify remaining harness gap: `WorldBuilderSecretDiscoveryValidation` still manually constructs `ShowcaseWorld`, rendering, cave authoring, and vegetation, so standalone execution is not yet equivalent to the normal gameplay composition lifecycle.
-- [x] Identify canonical gameplay lifecycle boundary: production Kentridge uses `KentridgeSessionRuntimeGraphFactory` + `GameSessionOrchestrator` (`Prepare` / `EnterRunning` / `Tick` / `Shutdown`).
-- [x] Refactor local SecretDiscovery validation to enter through the canonical application/session composition lifecycle: `GameSessionOrchestrator` owns prepare/run/tick/shutdown, initialization is `ISessionRuntimeGraph.InitializeNewGame`, and per-frame work is an `ISessionUpdateStep`.
-- [x] Add fail-closed architecture regression proving the local validation implements `ISessionRuntimeGraphFactory` + `ISessionRuntimeGraph` and retains a canonical `GameSessionOrchestrator` owner; built-player scenario also requires a `...app session running:` log.
-- [x] Exact request `16e82a9e6912c2faa90be40df3a60242c919cc30` / run `33903218535` passed automatic module validation and standalone SceneIssue replay; build opened `WorldBuilderSecretDiscoveryValidation.unity`, runtime logged `lifecycle=Running`, and production destruction breached 607 voxels into the intended hidden pocket.
-- [x] Full-resolution review of run `33903218535` rejects visual closure: breakable-wall evidence is readable, but startup/exterior evidence exposes void/underside and a large cutaway/crater-like cave opening, so the natural approach does not meet production-quality/readability acceptance.
-- [ ] Fix only the rejected natural evidence path: extend vegetation-discontinuity banks farther back, hold the exterior stage through a normal capture interval, place the camera at believable gameplay eye height looking along the anomaly rather than down into the opening, and suppress pre-convergence startup captures with `evidenceAfterSeconds`.
-- [ ] Run fresh exact-SHA targeted validation after the natural-approach evidence fix.
-- [ ] Full-resolution module-local screenshot review proves the natural approach visibly communicates an intentional anomaly and plausible traversal/investigation hypothesis without glow/icon/signage or crater/void exposure.
-- [x] Full-resolution run `33903218535` proves the breakable barrier visibly communicates a plausible break/destruction hypothesis without becoming a universal marker.
-- [ ] Local built-scene visual review is `production-quality`: no stale terrain, placeholder signs, universal glow, floating/intersecting geometry, void/underside, or invalid framing.
+- [x] Generated cave composition, verified seal topology, clue presentation, canonical destruction, and hidden-pocket reveal run through production authoring/storage/rendering paths.
+- [x] Validation enters through canonical `GameSessionOrchestrator` / `ISessionRuntimeGraph` lifecycle rather than a parallel validation lifecycle.
+- [x] Natural approach uses production vegetation and `VegetationDiscontinuity/TraverseTerrain`; breakable route uses `StructuralFracture/BreakBarrier`.
+- [x] Rejected run `33903218535` was correctly kept open because its natural exterior framing exposed void/crater geometry.
+- [x] Fix only that evidence path: extend vegetation banks, hold exterior evidence, use gameplay-height approach framing, and suppress pre-convergence module captures with `evidenceAfterSeconds`.
+- [x] Run `33912025831` proved the corrected natural framing, but its longer standalone replay exposed post-evidence BrickPool exhaustion; validation was kept open rather than accepting the wrapper's green status.
+- [x] Bound the validation sequence after its final required capture and make `InvalidOperationException` fail closed in the module player scenario.
+- [x] Exact request `43f168d8311ed283589fd7e2d44e2ca551225712` / run `33913283670` completed without replacement and passed automatic module validation, module players, canonical Kentridge integration, standalone SceneIssue replay, screenshot upload, and final status.
+- [x] Final module-local run logs `lifecycle=Running`, `StructuralFracture/BreakBarrier`, `VegetationDiscontinuity/TraverseTerrain`, a 607-voxel production breach, and `evidence complete: commands stopped after final capture`; no `NullReferenceException`, `MissingReferenceException`, or `InvalidOperationException` occurs.
+- [x] Full-resolution WorldBuilder frames at 3/6 seconds show a grounded vegetation/negative-space approach without glow/icon/signage or crater/void exposure; 12/15/18-second frames show the structural fracture; 21 seconds shows the opened authored route/connector.
+- [x] Visual acceptance classification: `production-quality` for this clue-generation acceptance surface—intentional anomaly/action language is readable, production systems are used, and accepted evidence has no placeholder signs, universal glow, void/underside, stale terrain, or invalid framing.
+- [x] Generic standalone SceneIssue screenshots are timing diagnostics only (`issue.json` has no replayable camera snapshot); authoritative visual proof is the same standalone scene run through its module-local player scenario, while the SceneIssue replay independently proves startup/runtime stability.
 
-## Cost / integration / closure
+## Cost / closure acceptance
 
-- [x] Planner/discovery/anomaly work is one-shot/event-driven; no per-frame search/polling added.
-- [x] Cave composition is bounded by traversal candidates; presentation changes are bounded to selected clue realization and local validation vegetation.
-- [x] All named/created exact CI requests were left untouched while queued/running and diagnosed only after completion.
-- [ ] All acceptance criteria green from exact tests + full-app-harness module-local built-player evidence.
-- [ ] Move assigned SceneIssue `open -> closed`, set `status=fixed` and `resolvedUtc`, and complete supported resolution fields.
-- [ ] Recheck and integrate then-current `origin/master` into `fixes/agent-5` immediately before final promotion if master advances.
-- [ ] Open final `fixes/agent-5` -> `master` PR and enable auto-merge immediately.
-- [ ] Required PR `affected` gate plus canonical standalone Kentridge/full-app integration gate pass as required by current repo policy.
-- [ ] Confirm PR merged and closed SceneIssue visible on `origin/master`.
+- [x] Planner/discovery/anomaly work remains one-shot/event-driven; no per-frame secret search/polling was introduced.
+- [x] Cave composition and clue realization remain bounded to traversal candidates/local evidence.
+- [x] Every exact CI request was left untouched while queued/running; failures were classified and fixed rather than papered over.
+- [x] All issue acceptance criteria are green from exact behavioral tests, canonical full-app lifecycle evidence, module-local standalone visual evidence, production destruction, and exception-free standalone replay.
+- [x] Closure metadata is supported by exact feature head `acc3df2fb95d10db45ad31777a46868457282b84`, request `43f168d8311ed283589fd7e2d44e2ca551225712`, run `33913283670`, artifact `9953139403`.
+
+Final repository promotion (current-master reconciliation, PR + auto-merge, required `affected` gate, and merge confirmation) follows `SceneIssues/README.md` after the `open -> closed` bookkeeping commit; those are integration steps, not additional feature acceptance criteria.
