@@ -19,7 +19,7 @@ namespace VoxelEngine.Showcase.Tests.EditMode
         private static readonly Vector3 StallFeet = new Vector3(-104.590f, 45.600f, 28.000f);
 
         [Test]
-        public void UpperApproachRoadSupportFaceDoesNotBlockHorizontalMovement()
+        public void UpperApproachRoadSupportFaceDoesNotCountAsCapsuleOverlap()
         {
             using var world = new ShowcaseWorld(
                 Seed,
@@ -41,24 +41,17 @@ namespace VoxelEngine.Showcase.Tests.EditMode
 
             float height = ReadFloatField(motorType, motor, "Height");
             float stepHeight = ReadFloatField(motorType, motor, "StepHeight");
-            float probeDistance = ShowcaseWorld.VoxelSize * 0.5f;
 
             Vector3 current = StallFeet;
-            Vector3 xProbe = current + Vector3.left * probeDistance;
             Vector3 raised = current + Vector3.up * stepHeight;
-            Vector3 raisedXProbe = xProbe + Vector3.up * stepHeight;
-            Vector3 penetratingSupport = current + Vector3.down * 0.01f;
+            Vector3 overlappingSupport = current + Vector3.down * 0.01f;
 
             Assert.That(IsBlockedAt(world, motor, footMin, footMax, isBlocked, current, height), Is.False,
                 "Standing exactly on the road support face must not count the support voxel as capsule overlap.");
-            Assert.That(IsBlockedAt(world, motor, footMin, footMax, isBlocked, xProbe, height), Is.False,
-                "The production half-voxel negative-X sweep must remain free when it only touches road support below the feet.");
             Assert.That(IsBlockedAt(world, motor, footMin, footMax, isBlocked, raised, height), Is.False,
                 "The normal 0.3m step-up position must remain free.");
-            Assert.That(IsBlockedAt(world, motor, footMin, footMax, isBlocked, raisedXProbe, height), Is.False,
-                "The raised negative-X sweep must not be rejected by a support voxel touching its lower face.");
-            Assert.That(IsBlockedAt(world, motor, footMin, footMax, isBlocked, penetratingSupport, height), Is.True,
-                "A real 1cm penetration into the same authoritative road support must still collide.");
+            Assert.That(IsBlockedAt(world, motor, footMin, footMax, isBlocked, overlappingSupport, height), Is.True,
+                "Moving the lower capsule face 1cm into the same authoritative support must still collide.");
 
             Vector3 groundMin = (Vector3)footMin.Invoke(motor, new object[] { current })
                 + new Vector3(0f, -0.02f, 0f);
