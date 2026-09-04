@@ -36,7 +36,9 @@
 - [x] Preserve exact request `cb2b7919142402fccbcbe03f9fb8c5a3576fa086` until completion and classify its red result without replacement: the isolated PlayMode harness forced `VOXEL_DISABLE_GPU_CUTOVER=1`, so the requested relocation test failed at its GPU-enabled precondition before exercising liveness. This is harness incompatibility, not renderer evidence.
 - [x] Keep the repository CPU-baseline policy intact and isolate the GPU-only acceptance path: add `GpuSurfaceMirrorRelocationRequestedValidationTests.DistantRelocationExecutesProductionGpuLivenessRegression`, which clears/restores the flag only around the delegated requested test, plus a BeforeSceneLoad bootstrap that enables GPU cutover only for the dedicated GPU module-validation scene.
 - [x] Reconcile current master before final validation-surface construction via PR #258; merge `0d458e976d432b8a55ee02316bf6635afc3aecaa` contains master `56b28f3abdac8cbbd346a3cb29acef43da029806`.
-- [ ] Validate the GPU-enabled relocation adapter on the current exact feature SHA through `ci-test/fixes/agent-6`; if it reproduces, use slot/residency diagnostics to isolate the smallest renderer correction before changing production behavior.
+- [x] Run the unrelated-change discriminator on exact source `23a00f432cb97338dc7887eb852c5dd39fbd430a`: run `33899824434` fails after 20.0s all-worker admission stall with `active=0`, only `pending=1`, `mixedResident=1059/93312`, and 2,943 distant changes. This proves world-wide coverage-epoch invalidation can starve unrelated footprints; experiment 044 records the result.
+- [x] Implement the smallest demonstrated correction at `7641f8d2c0b4088ed23f7ad29161965a6005a606`: solid changes no longer advance the global coverage epoch; queued changed blocks are counted per registered demand footprint and only that footprint is held at extraction admission until recovery republishes them. Preserve world/history epoch invalidation, all budgets, strict coverage, and concurrency.
+- [ ] Validate `GpuSurfaceMirrorRelocationRequestedValidationTests.DistantUnrelatedChangeChurnExecutesProductionGpuLivenessRegression` on the current exact feature source through `ci-test/fixes/agent-6`, including repository-derived module validation and the required 180-second SceneIssue replay.
 - [ ] Require strict built-player coverage to advance beyond Moordell after the demonstrated mirror-admission defect is corrected; if the same symptom remains after two materially different fixes, isolate the new failure boundary before another fix.
 - [ ] Require real-player authored shell/roof storage and readable evidence for Fairy and Orc, not only Moordell.
 
@@ -68,7 +70,7 @@
 - [ ] Quantify final target convergence timing for Moordell, Rossdam/lake, Fairy, Orc, ridge/pass, and network.
 - [ ] Measure final feature work/time, CPU/FPS, streaming convergence, render/far-field telemetry, and process/managed/native/GPU memory footprint against budgets.
 - [x] No unrelated SceneIssue implementation, feature-branch `.github/test-request.json`, alternate CI transport/workflow, CharacterMotor/load-radius/device-budget change, weakened coverage gate, or increased renderer concurrency/budget.
-- [ ] Re-check the final feature diff after the required final current-master merge and revalidate affected work if master advanced. `origin/master` advanced to `e18efe82ce1b4aa069031165d40bac14a9269412` after the latest reconciliation; defer this unrelated GameSystem16 change to the final current-master gate unless it becomes an actual prerequisite.
+- [ ] Re-check the final feature diff after the required final current-master merge and revalidate affected work if master advanced.
 
 ## Acceptance / closure
 - [x] (1) Source-backed macro graph remains authoritative through shared WorldBuilder APIs.
@@ -79,7 +81,7 @@
 - [ ] (6) Built world visibly contains a substantial lake + ridge and at least one geography-altered hard route.
 - [ ] (7) Regional terrain visibly reads as differentiated countryside rather than a flat debug plane.
 - [x] (8) No second scene-local graph/direct voxel-writing/static destination hierarchy.
-- [ ] (9) Focused behavioral regressions cover determinism, reachability, roads, settlements, constraints, blocked-route failure, spatial reservations, bounded water cost, evidence sequencing, vertical residency/readiness, settlement framing, hollow-shell/plinth cost, runtime publication/storage discriminators, GPU count-batch liveness, distant-relocation mirror liveness, and required module-local player validation. The GPU-enabled relocation adapter and all four new owned scenes still require exact validation.
+- [ ] (9) Focused behavioral regressions cover determinism, reachability, roads, settlements, constraints, blocked-route failure, spatial reservations, bounded water cost, evidence sequencing, vertical residency/readiness, settlement framing, hollow-shell/plinth cost, runtime publication/storage discriminators, GPU count-batch liveness, distant-relocation mirror liveness, and required module-local player validation. The footprint-local correction and all four owned scenes still require exact validation.
 - [ ] (10) Exact built-player evidence covers settlements, roads entering/leaving settlements, network survey, geography, constrained route, CharacterMotor traversal, and required module-local scenes without runtime exceptions.
 - [ ] (11) Blast radius and world-build/route/CPU/GPU/memory/streaming cost are measured against budgets; memory footprint and final multi-target steady-state evidence remain missing.
 - [ ] Complete `resolutionSummary`, `regressionTest`, and `fixCommit` from the verified final result.
