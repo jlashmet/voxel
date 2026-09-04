@@ -7,22 +7,22 @@
 ## API / policy boundary
 
 - [x] **T15-001 — Inventory current win/loss/game-over logic.** `CombatService` owns battle-local `WinningTeam`/completion only; Campaign/Story own progression effects; existing Outcomes is query-only and replication projects it. No demonstrated global terminal/shutdown owner exists to migrate.
-- [ ] **T15-002 — Establish asmdefs.** Outcomes.Runtime may receive semantic requests/facts via composition; API is engine/transport/presentation-neutral.
-- [ ] **T15-003 — Define outcome lifecycle.** `Running` and immutable `Resolved`; specify behavior of all requests after resolution.
-- [ ] **T15-004 — Define disposition and semantic `OutcomeRef`.** Keep semantic reason/configuration extensible without encoding scene/boss identities into shared Runtime.
-- [ ] **T15-005 — Define resolution request/result.** Include deterministic acceptance/rejection/idempotency semantics and authority restrictions.
-- [ ] **T15-006 — Define current outcome snapshot.** One coherent state for replication/persistence/presentation.
-- [ ] **T15-007 — Define exactly-once `GameOutcomeResolved` event.** Stable event identity/revision sufficient for downstream reaction/dedupe.
-- [ ] **T15-008 — Own module validation surface.** Outcomes API/Runtime are pure `noEngineReferences` headless/domain assemblies; document the validation-scene exception and provide module-owned EditMode coverage instead of a Unity validation scene.
+- [x] **T15-002 — Establish asmdefs.** `Game.Outcomes.Runtime` is engine-neutral, references only `Game.Outcomes.Api`, and receives semantic requests/facts through API contracts.
+- [x] **T15-003 — Define outcome lifecycle.** `Running` may accept authorized terminal requests; the first accepted request commits immutable `Resolved`; all later requests are idempotent only when identical or otherwise rejected.
+- [x] **T15-004 — Define disposition and semantic `OutcomeRef`.** Shared contracts use semantic string refs and do not encode scene/boss identities.
+- [x] **T15-005 — Define resolution request/result.** `GameOutcomeResolutionRequest` carries stable resolution identity, authority, disposition, and semantic outcome; results distinguish accepted/idempotent/unauthorized/already-resolved/no-request.
+- [x] **T15-006 — Define current outcome snapshot.** `GameOutcomeSnapshot` coherently exposes lifecycle, disposition, outcome, resolution id, authority, and revision while preserving the prior constructor for existing query consumers.
+- [x] **T15-007 — Define exactly-once `GameOutcomeResolved` event.** API event carries stable resolution identity, authority, semantic outcome, disposition, and revision for downstream reaction/dedupe.
+- [x] **T15-008 — Own module validation surface.** Outcomes API/Runtime are pure headless/domain assemblies (`Game.Outcomes.Runtime` is `noEngineReferences=true`); the plan records the repository-authorized no-scene exception and module-owned tests live under `Assets/Game/Outcomes/Tests/EditMode`.
 
 ## Runtime
 
-- [ ] **T15-010 — Implement immutable terminal transition.** First accepted authoritative terminal request changes Running -> Resolved exactly once.
-- [ ] **T15-011 — Handle duplicate/late requests deterministically.** Same request is idempotent; competing later request cannot replace the committed outcome.
-- [ ] **T15-012 — Define authoritative request source/configuration seam.** Story/campaign/other approved policy can request resolution through composition; arbitrary domain events do not automatically terminate the game.
-- [ ] **T15-013 — Preserve ordinary defeat semantics.** Character defeat/combat resolution/encounter failure remain nonterminal unless authored policy explicitly maps them to an outcome request.
-- [ ] **T15-014 — Add Orchestration notification seam.** System 14 observes resolution and coordinates aftermath; Outcomes does not tear down the graph.
-- [ ] **T15-015 — Add persistence/replication projection seams.** Current resolved/running state is consumable through APIs without Runtime coupling.
+- [x] **T15-010 — Implement immutable terminal transition.** `GameOutcomeRuntime` commits the first authorized Running -> Resolved transition before publishing one notification.
+- [x] **T15-011 — Handle duplicate/late requests deterministically.** An identical winning request is idempotent; changed/competing requests cannot replace the committed outcome.
+- [x] **T15-012 — Define authoritative request source/configuration seam.** Runtime requires configured `OutcomeAuthorityRef` values; `OutcomePolicyRouter` maps authored semantic conditions to explicit requests and ignores unmapped facts.
+- [x] **T15-013 — Preserve ordinary defeat semantics.** Combat/party-defeat facts are inert unless an authored `OutcomePolicyRule` explicitly maps the semantic condition to a terminal request.
+- [x] **T15-014 — Add Orchestration notification seam.** `IGameOutcomeEvents.OutcomeResolved` exposes committed resolution for System 14/downstream composition; Outcomes itself performs no graph teardown.
+- [x] **T15-015 — Add persistence/replication projection seams.** `IGameOutcomeQuery` continues to expose the coherent snapshot consumed by existing replication, and the runtime constructor restores that snapshot without replaying events.
 
 ## Verification
 
@@ -32,10 +32,10 @@
 - [ ] **T15-023 — Competing/duplicate request tests.** Deterministic authoritative processing order, one immutable winner, one resolution event.
 - [ ] **T15-024 — Technical shutdown regression.** Server/application shutdown without gameplay terminal policy creates no GameOutcome.
 - [ ] **T15-025 — Snapshot/restore test.** Resolved state remains resolved and cannot re-emit historical resolution as a new outcome.
-- [ ] **T15-026 — Run automatic Outcomes/Orchestration/Story dependent tests.**
+- [ ] **T15-026 — Run automatic Outcomes/Orchestration/Story dependent tests.** Exact-SHA request `a4d6c80f3112b7a36612265545cda9d80a24d6a7` validates product SHA `e25ea88da78ab2fc45c9a2e111a4437dfca0d3c0`; workflow run 33834559402 is queued and must not be replaced.
 
 ## Cleanup / close
 
-- [ ] **T15-030 — Remove implicit game-over ownership.** Search combat/scenes/campaign scripts for direct victory/loss/shutdown decisions and route demonstrated terminal policy through Outcomes.
-- [ ] **T15-031 — Boundary audit.** No final-boss flags, score screens, save deletion, scene transitions or network shutdown in Outcomes.
+- [x] **T15-030 — Remove implicit game-over ownership.** Audited current Combat/Campaign/Story ownership plus repository searches for direct quit/scene-load/game-over paths; no demonstrated global terminal owner exists to migrate, so no unrelated production path was changed.
+- [x] **T15-031 — Boundary audit.** Outcomes production diff contains no final-boss flags, score UI, save deletion, scene transitions, engine shutdown, or network teardown; Runtime references only Outcomes API.
 - [ ] **T15-032 — Close with exactly-one proof.** A run can remain Running through ordinary losses and commits one immutable terminal result only via authored authority.
