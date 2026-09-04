@@ -91,11 +91,11 @@ namespace Game.Loot.Api
         public bool Succeeded { get; }
         public LootTransferFailure Failure { get; }
         public WorldInteractionFailure InteractionFailure { get; }
-        public InventoryTransactionFailure InventoryFailure { get; }
+        public InventoryFailureReason InventoryFailure { get; }
         public LootTransferFact Fact { get; }
 
         private LootTransferResult(bool succeeded, LootTransferFailure failure, WorldInteractionFailure interactionFailure,
-            InventoryTransactionFailure inventoryFailure, LootTransferFact fact)
+            InventoryFailureReason inventoryFailure, LootTransferFact fact)
         {
             Succeeded = succeeded;
             Failure = failure;
@@ -105,11 +105,11 @@ namespace Game.Loot.Api
         }
 
         public static LootTransferResult Success(LootTransferFact fact) =>
-            new LootTransferResult(true, LootTransferFailure.None, WorldInteractionFailure.None, InventoryTransactionFailure.None, fact);
+            new LootTransferResult(true, LootTransferFailure.None, WorldInteractionFailure.None, InventoryFailureReason.None, fact);
 
         public static LootTransferResult Reject(LootTransferFailure failure,
             WorldInteractionFailure interactionFailure = WorldInteractionFailure.None,
-            InventoryTransactionFailure inventoryFailure = InventoryTransactionFailure.None) =>
+            InventoryFailureReason inventoryFailure = InventoryFailureReason.None) =>
             new LootTransferResult(false, failure, interactionFailure, inventoryFailure, default);
     }
 
