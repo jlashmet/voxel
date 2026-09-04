@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.Profiling;
 using VoxelEngine.Composition;
 using VoxelEngine.Rendering.Runtime;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Rendering.Validation
