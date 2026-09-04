@@ -36,8 +36,8 @@
 
 ## Discovered required work
 
-- [ ] **T12-017 — Resolve WorldBuilder campaign factory symbol collision.** Exact-SHA revalidation must compile the Kentridge bridge by explicitly binding the existing `Game.WorldBuilder.Api.Campaign` factory instead of allowing the enclosing `Game.Composition.Campaign` namespace to win name resolution.
-  - Evidence: exact-SHA workflow `33815602358` failed at `KentridgeForestEncounterRealization.cs:89` with CS0234 before tests/player build; `CampaignBlueprint.cs` confirms the intended public factory is `Game.WorldBuilder.Api.Campaign.Create`.
+- [x] **T12-017 — Resolve WorldBuilder campaign factory symbol collision.** Exact-SHA revalidation must compile the Kentridge bridge by explicitly binding the existing `Game.WorldBuilder.Api.Campaign` factory instead of allowing the enclosing `Game.Composition.Campaign` namespace to win name resolution.
+  - Evidence: exact-SHA workflow `33815602358` failed at `KentridgeForestEncounterRealization.cs:89` with CS0234 before tests/player build; `CampaignBlueprint.cs` confirms the intended public factory is `Game.WorldBuilder.Api.Campaign.Create`. `KentridgeForestEncounterRealization` now aliases that factory as `WorldBuilderCampaign`, keeping the fix local and API-neutral.
 
 ## Verification
 
