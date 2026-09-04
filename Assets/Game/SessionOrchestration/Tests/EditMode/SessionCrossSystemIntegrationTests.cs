@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Game.Characters.Api;
 using Game.Combat.Api;
 using Game.Combat.Runtime;
+using Game.Composition.Campaign;
 using Game.Composition.Campaign.Runtime;
 using Game.Cutscenes.Api;
 using Game.Encounters.Api;
