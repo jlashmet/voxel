@@ -3,15 +3,15 @@ using System.Collections.Generic;
 using Game.Characters.Api;
 using Game.Combat.Api;
 using Game.Combat.Runtime;
+using Game.Composition.Campaign.Runtime;
 using Game.Cutscenes.Api;
 using Game.Encounters.Api;
 using Game.Encounters.Runtime;
 using Game.Outcomes.Api;
+using Game.Progression.Api;
 using Game.Quests.Api;
 using Game.SessionOrchestration.Api;
 using Game.SessionOrchestration.Runtime;
-using Game.Story.Api;
-using Game.Story.Runtime;
 using Game.Vitality.Api;
 using Game.Vitality.Runtime;
 using Game.WorldBuilder.Api;
@@ -51,9 +51,9 @@ namespace Game.SessionOrchestration.Tests
             CollectionAssert.AreEqual(new[] { "interaction", "encounter", "combat" }, trace,
                 "SessionOrchestration must execute semantic adapters in deterministic cross-system order.");
             Assert.That(graph.StoryAdvanced, Is.True,
-                "The semantic interaction must be evaluated by the real Story rule engine.");
+                "The semantic interaction must execute the authored Story rule in CampaignRuntime.");
             Assert.That(graph.ProgressionAdvanced, Is.True,
-                "The Story effect must cross the public progression adapter boundary.");
+                "The same semantic interaction must advance the canonical Progression runtime.");
             Assert.That(encounters.TryGet(graph.EncounterId, out EncounterSnapshot snapshot), Is.True);
             Assert.That(snapshot.Lifecycle, Is.EqualTo(EncounterLifecycleState.Resolved));
             Assert.That(combat.State, Is.EqualTo(CombatLifecycleState.Completed));
@@ -70,9 +70,9 @@ namespace Game.SessionOrchestration.Tests
             private readonly CharacterId _playerId;
             private readonly CharacterId _enemyId;
             private readonly IReadOnlyList<ISessionUpdateStep> _steps;
-            private readonly CampaignBlueprint _campaign;
+            private readonly CampaignRuntime _campaign;
+            private readonly ObjectiveRef _objective;
             private readonly NpcRef _storyNpc;
-            private readonly StoryProgressAdapter _storyProgress = new StoryProgressAdapter();
             private int _matchedStoryRules;
 
             public IntegrationGraph(
@@ -94,10 +94,23 @@ namespace Game.SessionOrchestration.Tests
                 RegionHandle region = campaign.World.Region("integration-region");
                 SiteHandle site = region.Site("interaction-site");
                 NpcHandle npc = site.Npc("progression-npc", builder => builder.RequireConversation());
+                ObjectiveHandle objective = site.Objective(
+                    "interaction-objective",
+                    authored => authored.CompleteWhen(ObjectiveCompletion.InteractWith(npc)));
+                campaign.Story.Rule("start-interaction-objective", rule => rule
+                    .When(StoryTrigger.NewGame())
+                    .Then(StoryEffect.StartObjective(objective)));
                 campaign.Story.Rule("interaction-progresses-story", rule => rule
                     .When(StoryTrigger.InteractWith(npc))
                     .Then(StoryEffect.JoinPartyMember(JoinedPartyMember)));
-                _campaign = campaign.Build();
+
+                _campaign = new CampaignRuntime(
+                    campaign.Build(),
+                    Array.Empty<CutsceneStageRealization>(),
+                    new NoActors(),
+                    new NoPresentation(),
+                    Array.Empty<QuestDefinition>());
+                _objective = objective.Ref;
                 _storyNpc = npc.Ref;
 
                 _steps = new ISessionUpdateStep[]
@@ -109,14 +122,26 @@ namespace Game.SessionOrchestration.Tests
             }
 
             public EncounterId EncounterId { get; }
-            public bool StoryAdvanced => _matchedStoryRules == 1;
-            public bool ProgressionAdvanced => _storyProgress.IsPartyMemberJoined(JoinedPartyMember);
+            public bool StoryAdvanced => _matchedStoryRules == 1 && _campaign.IsPartyMemberJoined(JoinedPartyMember);
+            public bool ProgressionAdvanced
+            {
+                get
+                {
+                    ProgressionSnapshot snapshot = _campaign.Progression.Snapshot();
+                    return _campaign.IsObjectiveCompleted(_objective) &&
+                           snapshot.StandaloneObjectives.Count == 1 &&
+                           snapshot.StandaloneObjectives[0].State == ProgressionLifecycleState.Completed;
+                }
+            }
             public bool GameplayBindingsReady => true;
             public IReadOnlyList<ISessionUpdateStep> UpdateSteps => _steps;
             public IGameOutcomeQuery OutcomeQuery => null;
 
             public void InitializeNewGame()
             {
+                Assert.That(_campaign.StartNewGame(), Is.EqualTo(1));
+                Assert.That(_campaign.IsObjectiveActive(_objective), Is.True,
+                    "New-game initialization must establish canonical progression state before commands run.");
                 Assert.That(_encounters.Register(
                     new EncounterDefinition(EncounterId, EncounterCombatPolicy.Required, "headless integration"),
                     out _), Is.EqualTo(EncounterMutationFailure.None));
@@ -138,13 +163,11 @@ namespace Game.SessionOrchestration.Tests
 
             private void ApplyInteraction()
             {
-                _matchedStoryRules = StoryRuleEngine.Dispatch(
-                    _campaign.StoryRules,
-                    StoryEvent.NpcInteracted(_storyNpc),
-                    _storyProgress,
-                    _storyProgress);
+                _matchedStoryRules = _campaign.InteractWithNpc(_storyNpc);
                 Assert.That(_matchedStoryRules, Is.EqualTo(1),
                     "Semantic interaction must match the authored Story rule exactly once.");
+                Assert.That(_campaign.IsObjectiveCompleted(_objective), Is.True,
+                    "CampaignRuntime must route the interaction into canonical Progression.");
                 Assert.That(_encounters.Activate(
                     new EncounterActivationRequest(EncounterId, "semantic-interaction"),
                     out _), Is.EqualTo(EncounterMutationFailure.None));
@@ -208,24 +231,26 @@ namespace Game.SessionOrchestration.Tests
             }
         }
 
-        private sealed class StoryProgressAdapter : IStoryStateView, IStoryProgressEffectSink
+        private sealed class NoActors : IWorldBoundCutsceneActorProvider
         {
-            private readonly HashSet<string> _joinedPartyMembers = new HashSet<string>(StringComparer.Ordinal);
+            public bool TryResolveNpc(NpcRef npc, out ICutsceneActorRuntime actor)
+            {
+                actor = null;
+                return false;
+            }
 
-            public bool IsPartyMemberJoined(string memberId) => _joinedPartyMembers.Contains(memberId);
-            public bool IsObjectiveActive(ObjectiveRef objective) => false;
-            public bool IsQuestActive(QuestRef quest) => false;
-            public bool IsQuestCompleted(QuestRef quest) => false;
-            public bool IsCutsceneCompleted(CutsceneRef cutscene) => false;
-            public void StartObjective(ObjectiveRef objective) =>
-                throw new AssertionException("This integration rule must not start an objective.");
-            public void StartQuest(QuestRef quest) =>
-                throw new AssertionException("This integration rule must not start a quest.");
-            public void PlayCutscene(CutsceneRef cutscene) =>
-                throw new AssertionException("This integration rule must not play a cutscene.");
-            public void JoinPartyMember(string memberId) => _joinedPartyMembers.Add(memberId);
-            public void GrantSpell(string spellId) =>
-                throw new AssertionException("This integration rule must not grant a spell.");
+            public bool TryResolvePlayer(int playerSlot, out ICutsceneActorRuntime actor)
+            {
+                actor = null;
+                return false;
+            }
+        }
+
+        private sealed class NoPresentation : ICutscenePresentation
+        {
+            public ICutsceneOperation SetCamera(CutsceneCueId cameraCue) => CompletedCutsceneOperation.Instance;
+            public ICutsceneOperation ShowDialogue(CutsceneActorId speaker, CutsceneCueId dialogueCue) => CompletedCutsceneOperation.Instance;
+            public ICutsceneOperation PlaySound(CutsceneCueId soundCue) => CompletedCutsceneOperation.Instance;
         }
 
         private sealed class SingleGraphFactory : ISessionRuntimeGraphFactory
