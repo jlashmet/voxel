@@ -3,6 +3,7 @@ using Stopwatch = System.Diagnostics.Stopwatch;
 using UnityEngine;
 using UnityEngine.Profiling;
 using VoxelEngine.Rendering.Runtime;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 
 namespace VoxelEngine.Rendering.Validation
 {
