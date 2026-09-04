@@ -1,6 +1,5 @@
 using System;
 using System.Reflection;
-using Game.Composition.Campaign;
 using Game.Composition.Campaign.Runtime;
 using Game.Cutscenes.Api;
 using Game.Progression.Api;
@@ -8,7 +7,7 @@ using Game.Quests.Api;
 using Game.WorldBuilder.Api;
 using NUnit.Framework;
 
-namespace Game.Progression.Tests
+namespace Game.Composition.Campaign.Tests
 {
     public sealed class ProgressionCampaignIntegrationTests
     {
@@ -60,8 +59,7 @@ namespace Game.Progression.Tests
         [Test]
         public void CampaignRuntimeDoesNotOwnParallelMutableQuestOrObjectiveCollections()
         {
-            FieldInfo[] fields = typeof(CampaignRuntime).GetFields(
-                BindingFlags.Instance | BindingFlags.NonPublic);
+            FieldInfo[] fields = typeof(CampaignRuntime).GetFields(BindingFlags.Instance | BindingFlags.NonPublic);
             for (var i = 0; i < fields.Length; i++)
             {
                 Assert.That(fields[i].Name, Is.Not.EqualTo("_activeObjectives"));
@@ -98,26 +96,18 @@ namespace Game.Progression.Tests
 
             var quest = new QuestDefinition(questRef, new[]
             {
-                new Game.Quests.Api.QuestStepDefinition(
+                new QuestStepDefinition(
                     new QuestStepRef("talk"),
                     guide.Id,
                     QuestCompletion.InteractWith(guide.Id))
             });
 
-            return new CampaignFixture(
-                game.Build(),
-                quest,
-                objective.Ref,
-                guide.Ref);
+            return new CampaignFixture(game.Build(), quest, objective.Ref, guide.Ref);
         }
 
         private sealed class CampaignFixture
         {
-            public CampaignFixture(
-                CampaignBlueprint blueprint,
-                QuestDefinition quest,
-                ObjectiveRef objective,
-                NpcRef guide)
+            public CampaignFixture(CampaignBlueprint blueprint, QuestDefinition quest, ObjectiveRef objective, NpcRef guide)
             {
                 Blueprint = blueprint;
                 Quest = quest;
@@ -148,14 +138,9 @@ namespace Game.Progression.Tests
 
         private sealed class NoPresentation : ICutscenePresentation
         {
-            public ICutsceneOperation SetCamera(CutsceneCueId cameraCue) =>
-                CompletedCutsceneOperation.Instance;
-
-            public ICutsceneOperation ShowDialogue(CutsceneActorId speaker, CutsceneCueId dialogueCue) =>
-                CompletedCutsceneOperation.Instance;
-
-            public ICutsceneOperation PlaySound(CutsceneCueId soundCue) =>
-                CompletedCutsceneOperation.Instance;
+            public ICutsceneOperation SetCamera(CutsceneCueId cameraCue) => CompletedCutsceneOperation.Instance;
+            public ICutsceneOperation ShowDialogue(CutsceneActorId speaker, CutsceneCueId dialogueCue) => CompletedCutsceneOperation.Instance;
+            public ICutsceneOperation PlaySound(CutsceneCueId soundCue) => CompletedCutsceneOperation.Instance;
         }
     }
 }
