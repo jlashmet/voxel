@@ -8,6 +8,7 @@
     "VoxelEngine.Composition",
     "VoxelEngine.Storage.Api",
     "VoxelEngine.Structures.Api",
+    "Unity.Collections",
     "Unity.Mathematics"
   ],
   "includePlatforms": [],
