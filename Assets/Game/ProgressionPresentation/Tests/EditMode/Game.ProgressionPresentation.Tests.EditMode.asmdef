@@ -1,0 +1,20 @@
+{
+  "name": "Game.ProgressionPresentation.Tests.EditMode",
+  "rootNamespace": "Game.ProgressionPresentation.Tests",
+  "references": [
+    "Game.ProgressionPresentation.Api",
+    "Game.ProgressionPresentation.Runtime",
+    "Game.Progression.Api",
+    "Game.GameplayReplication.Api",
+    "Game.Sessions.Api"
+  ],
+  "includePlatforms": ["Editor"],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
