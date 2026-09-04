@@ -10,6 +10,7 @@ namespace Game.Audio.Runtime
     public static class AudioSemanticCues
     {
         public static readonly AudioCueRef CutsceneGeneric = new AudioCueRef("cutscene.semantic");
+        public static readonly AudioCueRef DoorOpened = new AudioCueRef("world.door.opened");
         public static readonly AudioCueRef CharacterDefeated = new AudioCueRef("gameplay.character.defeated");
         public static readonly AudioCueRef WorldAmbience = new AudioCueRef("world.ambience.current");
     }
