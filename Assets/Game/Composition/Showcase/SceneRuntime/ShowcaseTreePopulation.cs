@@ -1,8 +1,11 @@
+using System.Collections.Generic;
 using MountingForce.WorldGen.Voxel;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using VoxelEngine.Composition;
+using VoxelEngine.Rendering.Api;
+using VoxelEngine.Vegetation.Api;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
 using VoxelEngine.Structures.Api;
 
@@ -12,18 +15,25 @@ namespace VoxelEngine.Showcase
     /// Scene lifecycle adapter only. Deterministic vegetation placement belongs to the worldgen
     /// package; this component waits for the Showcase world, realizes that plan against the resident
     /// terrain surface, then publishes one semantic tree snapshot through application composition.
+    /// Far visibility reads that same snapshot through TreeWorldReadRegistry; it never owns a second
+    /// tree list or requests voxel residency.
     /// </summary>
     [DefaultExecutionOrder(350)]
     public sealed class ShowcaseTreePopulation : MonoBehaviour
     {
+        internal const float VisibilitySectorSizeMetres = 64f;
+        internal const float NaturalLandmarkHeightMetres = 28f;
+
         private bool _done;
 
         public static bool Completed { get; private set; }
+        public static int PublishedTreeCount { get; private set; }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetStatic()
         {
             Completed = false;
+            PublishedTreeCount = 0;
             SceneManager.sceneLoaded -= OnSceneLoaded;
             SceneManager.sceneLoaded += OnSceneLoaded;
         }
@@ -41,6 +51,7 @@ namespace VoxelEngine.Showcase
         {
             if (mode != LoadSceneMode.Single) return;
             Completed = false;
+            PublishedTreeCount = 0;
             EnsureInstance();
         }
 
@@ -97,10 +108,46 @@ namespace VoxelEngine.Showcase
                 return;
 
             VegetationComposition.ReplaceTreeWorld(instances);
+            PublishedTreeCount = instances.Count;
             _done = true;
             Completed = true;
             enabled = false;
             Debug.Log($"Procedural vegetation: worldgen published {instances.Count} semantic Showcase trees.");
+        }
+
+        /// <summary>
+        /// Showcase far-presentation composition queries the authoritative tree registry by sectors.
+        /// This is deliberately a projection only: generation, damage and sever state stay in the
+        /// existing tree world and no distant voxel region is generated to answer the query.
+        /// </summary>
+        internal static void QueryPublishedTrees(
+            float3 cameraPosition,
+            float radiusMetres,
+            List<TreeVisibilityEntry> output)
+        {
+            VisibilitySectorBounds sectors = VisibilitySectorBounds.Around(
+                new float2(cameraPosition.x, cameraPosition.z),
+                radiusMetres,
+                VisibilitySectorSizeMetres);
+            VegetationVisibility.QueryTrees(
+                TreeWorldReadRegistry.Current,
+                VisibilitySectorSizeMetres,
+                in sectors,
+                output);
+        }
+
+        /// <summary>
+        /// Scene policy for exceptional natural features. The shared far-feature selector remains
+        /// producer-agnostic; Showcase only promotes a tree when its semantic species/scale implies
+        /// a genuinely landmark-sized silhouette.
+        /// </summary>
+        internal static FarFeatureImportance ImportanceFor(in TreeVisibilityEntry tree)
+        {
+            TreeSpeciesProfile profile = TreeSpeciesProfiles.Get(tree.Instance.Species);
+            float height = profile.MidHeight * math.max(0.05f, tree.Instance.Scale);
+            return height >= NaturalLandmarkHeightMetres
+                ? FarFeatureImportance.Horizon
+                : FarFeatureImportance.Default;
         }
     }
 }
