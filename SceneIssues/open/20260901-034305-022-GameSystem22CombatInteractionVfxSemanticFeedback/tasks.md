@@ -32,6 +32,7 @@
 - [ ] **T22-024 — Headless regression.** Gameplay/domain tests pass with Vfx module absent.
 - [ ] **T22-025 — Module-local built-player visual validation through shared harness.** Validate real production semantic event -> visible cue mapping.
 - [ ] **T22-026 — Production visual-finish defect found in built-player evidence.** Replace flat square/blockout particle presentation with production-readable soft/streaked semantic effects, then inspect new built-player captures directly. Added because the exact-SHA artifact from run `33879743540` was behaviorally green but visually only prototype/blockout quality.
+- [ ] **T22-027 — Isolate persistent-aura visual root cause before further production changes.** After two materially different visual passes, use representative collider-free host geometry in the module-local validation fixture to distinguish an incoherent production aura from an evidence scene that was previously binding effects to invisible empty transforms. Do not tune production particles again until this discriminating repro is captured.
 
 ## Cleanup / close
 
