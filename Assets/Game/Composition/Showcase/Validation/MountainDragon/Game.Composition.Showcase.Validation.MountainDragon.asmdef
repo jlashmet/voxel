@@ -1,0 +1,17 @@
+{
+  "name": "Game.Composition.Showcase.Validation.MountainDragon",
+  "rootNamespace": "VoxelEngine.Showcase.Validation",
+  "references": [
+    "Game.Composition.Showcase",
+    "VoxelEngine.Showcase"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
