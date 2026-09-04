@@ -6,6 +6,8 @@ using Game.CharacterAI.Runtime;
 using Game.Characters.Api;
 using Game.Combat.Api;
 using Game.Combat.Runtime;
+using Game.Vitality.Api;
+using Game.Vitality.Runtime;
 using NUnit.Framework;
 
 namespace Game.CharacterAI.Tests
@@ -15,21 +17,25 @@ namespace Game.CharacterAI.Tests
         [Test]
         public void TacticalEnemyUsesCommonIntentControllerAndExistingCombatDriver()
         {
-            var combat = new CombatService();
-            var enemyParticipant = new CombatParticipantId("enemy-1");
-            var playerParticipant = new CombatParticipantId("player-1");
-            combat.BeginCombat(new CombatEncounterRequest("fixture-combat", new[]
-            {
-                new CombatParticipant(enemyParticipant, CombatTeam.Enemy),
-                new CombatParticipant(playerParticipant, CombatTeam.Player)
-            }));
-
             CharacterId enemy = CharacterId.FromStableKey("enemy", "fixture-1");
             CharacterId player = CharacterId.FromStableKey("player", "fixture-1");
+            var vitality = new VitalityRegistry();
+            Assert.That(vitality.Register(VitalitySnapshot.Alive(enemy, 6)), Is.True);
+            Assert.That(vitality.Register(VitalitySnapshot.Alive(player, 6)), Is.True);
+
+            var enemyCombatant = CombatParticipant.FromCharacter(enemy, CombatTeam.Enemy);
+            var playerCombatant = CombatParticipant.FromCharacter(player, CombatTeam.Player);
+            var combat = new CombatService(vitality);
+            combat.BeginCombat(new CombatEncounterRequest("fixture-combat", new[]
+            {
+                enemyCombatant,
+                playerCombatant
+            }));
+
             var bindings = new Dictionary<CombatParticipantId, CharacterId>
             {
-                { enemyParticipant, enemy },
-                { playerParticipant, player }
+                { enemyCombatant.Id, enemy },
+                { playerCombatant.Id, player }
             };
             var driver = new CombatAiBattleDriver(combat, 17);
             var controller = new CharacterAiController(
