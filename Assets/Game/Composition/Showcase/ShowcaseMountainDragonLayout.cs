@@ -17,7 +17,7 @@ namespace VoxelEngine.Showcase
         public const int OriginZ = -400;
         public const int FootprintEdge = 1200;
         public const int MountainRadius = 500;
-        public const int MountainHeight = 280;
+        public const int MountainHeight = 240;
         public const int SummitRadius = 80;
         public const int PathWidth = 30;
         public const int PlaceholderSize = 60;
@@ -56,20 +56,24 @@ namespace VoxelEngine.Showcase
                 originYdm: baseY,
                 originZdm: CentreZdm,
                 radiusXdm: MountainRadius,
-                radiusZdm: MountainRadius - 35,
+                // A visibly elliptical massif gives the landmark a natural asymmetric silhouette
+                // while keeping every analytic mass broad enough that the spiral road does not run
+                // between narrow cone/ridge walls. The previous 465dm near-circle plus tall ridge and
+                // roughness frusta produced repeated 4m-class trench faces in built-player evidence.
+                radiusZdm: MountainRadius - 100,
                 heightDm: MountainHeight,
                 summitRadiusDm: SummitRadius,
-                macroShape: MountainMacroShape.Ridged,
+                macroShape: MountainMacroShape.Massif,
                 summitCharacter: MountainSummitCharacter.Broad,
                 seed: seed ^ 0xA4D14A6Fu,
-                ridgeCount: 6,
-                // Stronger radial relief repeatedly forced the winding road above its unchanged
-                // 42dm cut/fill contract. Keep the ridged family and all six ridge directions, but
-                // choose road-compatible relief as Showcase composition policy. See experiment 016.
-                ridgeStrengthPermille: 300,
+                // Keep showcase policy on broad overlapping mountain masses. The reusable landform
+                // still supports ridges/roughness for other consumers, but their narrow full-height
+                // frusta were the demonstrated source of this encounter's wall-like road views.
+                ridgeCount: 0,
+                ridgeStrengthPermille: 0,
                 asymmetryXPermille: 90,
                 asymmetryZPermille: -70,
-                roughnessAmplitudeDm: 24,
+                roughnessAmplitudeDm: 0,
                 roughnessScaleDm: 72,
                 erosionStrengthPermille: 720);
         }
@@ -82,9 +86,12 @@ namespace VoxelEngine.Showcase
 
         public static MountainClimateProfile CreateClimateProfile() =>
             new MountainClimateProfile(
-                groundCoverCeilingPermille: 310,
-                snowLinePermille: 745,
-                steepRockSlopePermille: 1050);
+                // Keep most of the approach in ground cover and restrict bright snow to the crest.
+                // The prior 31%/74.5% bands amplified the already-too-steep ridge masses into huge
+                // gray/white faces directly beside the road.
+                groundCoverCeilingPermille: 450,
+                snowLinePermille: 850,
+                steepRockSlopePermille: 1100);
 
         public static WorldRoadNetwork CreateAscentNetwork(
             uint seed,
