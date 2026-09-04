@@ -1,35 +1,30 @@
 using System;
 using System.Reflection;
+using System.Text;
 using Game.WorldBuilder.Api;
 using Game.WorldBuilder.Voxel;
 using NUnit.Framework;
 using Unity.Mathematics;
 using UnityEngine;
+using VoxelEngine.Storage.Api;
 
 namespace VoxelEngine.Showcase.Tests.EditMode
 {
     public sealed class MountainDragonCharacterMotorBlockerDiagnosticTests
     {
         private const uint Seed = 0x5EED1234;
+        private const float CollisionBoundaryEpsilon = 1e-4f;
 
-        // Exact current-source standalone run 33839531278 repeatedly hard-stopped here while
-        // grounded, targeting resolved-89 at (-108.0, 28.0) metres X/Z. Exact-SHA diagnostic
-        // 33859073259 proved every reported blocker voxel was road material 13 exactly 0.1m below
-        // these nominal feet, exposing lower-face voxel-boundary quantization in CharacterMotor.
+        // Exact current-source standalone runs repeatedly hard-stop here while grounded, targeting
+        // resolved-89 at (-108.0, 28.0) metres X/Z. Run 33859073259 proved the earlier nominal-feet
+        // overlap was road material 13; post-merge run 33868687506 still stops at the same place, so
+        // the next discriminator reproduces the actual raised negative-X step probe before any fix.
         private static readonly Vector3 StallFeet = new Vector3(-104.590f, 45.600f, 28.000f);
 
         [Test]
         public void UpperApproachRoadSupportFaceDoesNotCountAsCapsuleOverlap()
         {
-            using var world = new ShowcaseWorld(
-                Seed,
-                brickPoolCapacity: 65_536,
-                loadRadiusRegions: 1,
-                unloadRadiusRegions: 2);
-
-            var region = new int3(-3, 0, 0);
-            world.GenerateRegionBlocking(region);
-            Assert.That(world.IsGenerated(region), Is.True);
+            using var world = CreateRealizedWorld();
 
             Type motorType = Type.GetType(
                 "VoxelEngine.Showcase.CharacterMotor, VoxelEngine.Showcase",
@@ -62,6 +57,85 @@ namespace VoxelEngine.Showcase.Tests.EditMode
         }
 
         [Test]
+        public void UpperApproachRaisedNegativeXSweepSerializesProductionBlocker()
+        {
+            using var world = CreateRealizedWorld();
+
+            Type motorType = Type.GetType(
+                "VoxelEngine.Showcase.CharacterMotor, VoxelEngine.Showcase",
+                throwOnError: true);
+            MethodInfo footMin = RequirePrivateInstance(motorType, "FootMin");
+            MethodInfo footMax = RequirePrivateInstance(motorType, "FootMax");
+            MethodInfo isBlocked = RequirePrivateStatic(motorType, "IsBlocked");
+            object motor = Activator.CreateInstance(motorType);
+
+            float height = ReadFloatField(motorType, motor, "Height");
+            float radius = ReadFloatField(motorType, motor, "Radius");
+            float stepHeight = ReadFloatField(motorType, motor, "StepHeight");
+            float halfVoxel = ShowcaseWorld.VoxelSize * 0.5f;
+
+            Vector3 raisedX = StallFeet + Vector3.up * stepHeight + Vector3.left * halfVoxel;
+            Vector3 min = (Vector3)footMin.Invoke(motor, new object[] { raisedX });
+            Vector3 max = (Vector3)footMax.Invoke(motor, new object[] { raisedX, height });
+            bool productionBlocked = (bool)isBlocked.Invoke(null, new object[] { world, min, max });
+
+            int minX = Mathf.FloorToInt((min.x + CollisionBoundaryEpsilon) / ShowcaseWorld.VoxelSize);
+            int minY = Mathf.FloorToInt((min.y + CollisionBoundaryEpsilon) / ShowcaseWorld.VoxelSize);
+            int minZ = Mathf.FloorToInt((min.z + CollisionBoundaryEpsilon) / ShowcaseWorld.VoxelSize);
+            int maxX = Mathf.FloorToInt((max.x - CollisionBoundaryEpsilon) / ShowcaseWorld.VoxelSize);
+            int maxY = Mathf.FloorToInt((max.y - CollisionBoundaryEpsilon) / ShowcaseWorld.VoxelSize);
+            int maxZ = Mathf.FloorToInt((max.z - CollisionBoundaryEpsilon) / ShowcaseWorld.VoxelSize);
+
+            IVoxelSurfaceQuery surface = world.SurfaceQuery;
+            var occupied = new StringBuilder(1024);
+            int occupiedCount = 0;
+            int lowestOccupiedY = int.MaxValue;
+            int highestOccupiedY = int.MinValue;
+            for (int y = minY; y <= maxY; y++)
+            for (int z = minZ; z <= maxZ; z++)
+            for (int x = minX; x <= maxX; x++)
+            {
+                if (!surface.TryRead(new int3(x, y, z), out VoxelCell cell) ||
+                    cell.BaseMaterialId == VoxelGrid.MaterialEmpty)
+                    continue;
+
+                if (occupiedCount > 0) occupied.Append(';');
+                occupied.Append(x).Append(',').Append(y).Append(',').Append(z)
+                    .Append(":m").Append(cell.BaseMaterialId);
+                occupiedCount++;
+                lowestOccupiedY = Math.Min(lowestOccupiedY, y);
+                highestOccupiedY = Math.Max(highestOccupiedY, y);
+            }
+
+            var footprint = new StringBuilder(1024);
+            int footprintIndex = 0;
+            int minSurfaceY = int.MaxValue;
+            int maxSurfaceY = int.MinValue;
+            for (int z = minZ; z <= maxZ; z++)
+            for (int x = minX; x <= maxX; x++)
+            {
+                int top = world.OccupiedSurfaceHeight(x, z);
+                if (footprintIndex++ > 0) footprint.Append(';');
+                footprint.Append(x).Append(',').Append(z).Append(':').Append(top);
+                minSurfaceY = Math.Min(minSurfaceY, top);
+                maxSurfaceY = Math.Max(maxSurfaceY, top);
+            }
+
+            Debug.Log(
+                "MOUNTAIN_DRAGON_RAISED_X_BLOCKER="
+                + $"feet={raisedX.x:0.000000},{raisedX.y:0.000000},{raisedX.z:0.000000} "
+                + $"radius={radius:0.000} bounds=[{minX},{minY},{minZ}..{maxX},{maxY},{maxZ}] "
+                + $"blocked={productionBlocked} occupied={occupiedCount} "
+                + $"occupiedY={lowestOccupiedY}..{highestOccupiedY} cells=[{occupied}] "
+                + $"surfaceY={minSurfaceY}..{maxSurfaceY} footprint=[{footprint}]");
+
+            Assert.That(productionBlocked, Is.True,
+                "The diagnostic must reproduce the exact production raised negative-X blocker before another correction.");
+            Assert.That(occupiedCount, Is.GreaterThan(0),
+                "The production block must have at least one authoritative voxel inside the exact collision bounds.");
+        }
+
+        [Test]
         public void SummitArrivalStaysOutsideDragonPlaceholderWhileRemainingSupportedOnCrest()
         {
             MountainLandformSurface surface = ShowcaseMountainDragonLayout.CreateSurface(Seed);
@@ -90,6 +164,19 @@ namespace VoxelEngine.Showcase.Tests.EditMode
                 radialDistanceSquared,
                 Is.LessThanOrEqualTo((long)supportedRadius * supportedRadius),
                 "The terminal road centreline plus half its width must remain on the broad summit crest.");
+        }
+
+        private static ShowcaseWorld CreateRealizedWorld()
+        {
+            var world = new ShowcaseWorld(
+                Seed,
+                brickPoolCapacity: 65_536,
+                loadRadiusRegions: 1,
+                unloadRadiusRegions: 2);
+            var region = new int3(-3, 0, 0);
+            world.GenerateRegionBlocking(region);
+            Assert.That(world.IsGenerated(region), Is.True);
+            return world;
         }
 
         private static bool IsBlockedAt(
