@@ -23,6 +23,18 @@ namespace VoxelEngine.Showcase
         public const int PlaceholderSize = 60;
         public const string AscentRouteId = "showcase-mountain-dragon-ascent";
 
+        // The standalone character can step 3dm while grounded. Keep each 20dm resolver sample
+        // below that rise so the authored ascent cannot realize a directional terrace seam that
+        // traps the capsule between adjacent road samples (exact-SHA replay 33839531278 stalled
+        // at resolved-89 with X blocked while Z and the raised probe were clear).
+        public const int RoadSampleSpacingDm = 20;
+        public const int MaximumAscentGradePermille = 140;
+        public const int MaximumRoadSampleRiseDm = 3;
+        public const int RoadTransitionWidthDm = 48;
+        public const int RoadMaximumCutFillDm = 64;
+        public const int RoadShoulderWidthDm = 10;
+        public const int RoadClearanceWidthDm = 18;
+
         // Keep the same one-and-a-half-turn authored ascent as the earlier 13-point layout, but
         // sample it at half the angular/radial step. The shared road resolver grades between
         // semantic controls while retaining the same road grade and cut/fill contracts.
@@ -64,7 +76,7 @@ namespace VoxelEngine.Showcase
                 seed: seed ^ 0xA4D14A6Fu,
                 ridgeCount: 6,
                 // Stronger radial relief repeatedly forced the winding road above its unchanged
-                // 42dm cut/fill contract. Keep the ridged family and all six ridge directions, but
+                // cut/fill contract. Keep the ridged family and all six ridge directions, but
                 // choose road-compatible relief as Showcase composition policy. See experiment 016.
                 ridgeStrengthPermille: 300,
                 asymmetryXPermille: 90,
@@ -100,9 +112,9 @@ namespace VoxelEngine.Showcase
                 id: "showcase-mountain-trail",
                 surfaceId: "road-surface",
                 carriagewayWidthDm: PathWidth,
-                transitionWidthDm: 24,
-                maximumGradePermille: 280,
-                maximumCutFillDm: 42,
+                transitionWidthDm: RoadTransitionWidthDm,
+                maximumGradePermille: MaximumAscentGradePermille,
+                maximumCutFillDm: RoadMaximumCutFillDm,
                 edgeVariationDm: 2,
                 vegetationSuppressionPermille: 1000,
                 traversalCostPermille: 950,
@@ -119,7 +131,7 @@ namespace VoxelEngine.Showcase
             ResolvedWorldRoad resolved = WorldRoadResolver.Resolve(
                 intent,
                 terrain,
-                sampleSpacingDm: 20,
+                sampleSpacingDm: RoadSampleSpacingDm,
                 searchMarginCells: 4);
             if (!resolved.IsResolved)
             {
@@ -133,8 +145,8 @@ namespace VoxelEngine.Showcase
                 new WorldRoadNetworkRoute(
                     resolved,
                     WorldRoadSemanticClass.Pedestrian,
-                    shoulderWidthDm: 5,
-                    clearanceWidthDm: 10,
+                    shoulderWidthDm: RoadShoulderWidthDm,
+                    clearanceWidthDm: RoadClearanceWidthDm,
                     markingPolicy: WorldRoadMarkingPolicy.None,
                     crosswalkPolicy: WorldRoadCrosswalkPolicy.None),
             });
