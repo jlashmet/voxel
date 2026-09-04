@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "runSeconds": 50,
+  "runSeconds": 120,
   "capture": {
     "width": 960,
     "height": 540,
