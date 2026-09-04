@@ -1,3 +1,5 @@
+using System.Globalization;
+using Game.Application.Api;
 using Game.Audio.Api;
 using Game.Audio.Runtime;
 using Game.Cutscenes.Api;
@@ -21,6 +23,17 @@ namespace Game.Audio.Validation
             _started = Time.unscaledTime;
             _audio = AudioProductionBootstrap.Create(gameObject);
             _backend = GetComponent<UnityAudioPlaybackBackend>();
+
+            _audio.ApplyMix(new AudioMixPreferences(1f, 0.8f, 0.7f, 0.6f, 0.5f));
+            IAudioPreferencesSink preferences = new AudioUserPreferencesSink(_audio);
+            preferences.Apply(new UserPreferences(0.42f, 1f));
+            Debug.Log(string.Format(
+                CultureInfo.InvariantCulture,
+                "AUDIO_VALIDATION preferences-applied: master={0:0.00} sfx={1:0.00} ambience={2:0.00}",
+                _audio.CurrentMix.Master,
+                _audio.CurrentMix.Sfx,
+                _audio.CurrentMix.Ambience));
+
             var id = new AudioEventId("validation:anticipated-confirmed");
             AudioDispatchResult predicted = _audio.DispatchOneShot(new AudioOneShotRequest(id, AudioSemanticCues.CharacterDefeated, AudioSemanticOrigin.Global, true));
             AudioDispatchResult confirmed = _audio.DispatchOneShot(new AudioOneShotRequest(id, AudioSemanticCues.CharacterDefeated, AudioSemanticOrigin.Global, false));
@@ -72,12 +85,13 @@ namespace Game.Audio.Validation
 
         private void OnGUI()
         {
-            GUI.Box(new Rect(36, 32, 720, 220), string.Empty);
+            GUI.Box(new Rect(36, 32, 720, 250), string.Empty);
             GUI.Label(new Rect(60, 54, 650, 34), "GAME AUDIO • SEMANTIC PRESENTATION VALIDATION");
             GUI.Label(new Rect(60, 98, 650, 28), "One-shot semantic events: " + (_audio == null ? 0 : _audio.PlayedEventCount));
             GUI.Label(new Rect(60, 132, 650, 28), "Current sustained descriptors: " + (_audio == null ? 0 : _audio.SustainedCount));
             GUI.Label(new Rect(60, 166, 650, 28), "Audible loop sources: " + (_backend == null ? 0 : _backend.ActiveLoopCount));
-            GUI.Label(new Rect(60, 200, 650, 28), "Prediction/confirmation dedupe and reconnect use one production playback service.");
+            GUI.Label(new Rect(60, 200, 650, 28), "Application master volume: " + (_audio == null ? "n/a" : _audio.CurrentMix.Master.ToString("0.00", CultureInfo.InvariantCulture)));
+            GUI.Label(new Rect(60, 234, 650, 28), "Prediction/confirmation dedupe, preferences and reconnect use one production playback service.");
         }
 
         private void OnDestroy() => _audio?.Dispose();
