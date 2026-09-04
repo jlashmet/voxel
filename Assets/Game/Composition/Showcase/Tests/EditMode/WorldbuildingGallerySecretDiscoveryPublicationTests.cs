@@ -22,8 +22,8 @@ namespace VoxelEngine.Tests.EditMode
             using var world = new ShowcaseWorld(
                 GallerySeed,
                 brickPoolCapacity: 196608,
-                loadRadiusRegions: 2,
-                unloadRadiusRegions: 3);
+                loadRadiusRegions: 4,
+                unloadRadiusRegions: 6);
 
             world.StartWorldbuildingGalleryBlocking(null);
 
