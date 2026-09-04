@@ -52,3 +52,9 @@ No procedural quests, rewards framework, per-player divergence, arbitrary expres
 
 - Reused the upstream engine-neutral `Game.Progression.Api` instead of introducing a second API assembly. Added the missing `Game.Progression.Runtime` asmdef with `noEngineReferences=true` and exactly one dependency: `Game.Progression.Api`. It has no Story, Campaign, WorldBuilder, or Unity dependency.
 - Known callers can be migrated within this feature as one coherent change, so no stateful or runtime `Game.Quests` compatibility facade is planned. The legacy Quests assembly may remain temporarily only while source callers are being edited, but final ownership must be Progression-only and T11-027/T11-041 require removing parallel runtime ownership before closure.
+
+### 2026-09-03 — current-master module validation ownership
+
+- `origin/master` advanced to `13b3c6a752deb030effba0f6e430863d0c1fd115` (PR #246) while exact-SHA verification was running. The branch merged it as `f6f1d495abe6bb089c8bab93f8cb7941c8102de4`; the new rules require module-local validation ownership before closure.
+- The affected production assemblies `Game.Progression.Runtime`, `Game.Quests.Runtime`, and `Game.Composition.Campaign.Runtime` are all engine-neutral with `noEngineReferences=true`. Their changed behavior is deterministic domain/runtime state evaluation with no meaningful Unity scene realization, so the documented pure-headless/domain exception applies: no `<Module>/Validation/` Unity scene is appropriate for GameSystem11.
+- The exception does not waive owned regression coverage. Progression already owns focused tests under its module. Quests and Campaign must each own focused EditMode/unit assemblies so repository-selected validation can exercise their compatibility/integration seams without borrowing another module's test ownership. This is required T11-028 work, not an opportunistic enhancement.
