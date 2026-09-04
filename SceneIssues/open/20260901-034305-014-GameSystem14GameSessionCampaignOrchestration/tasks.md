@@ -6,25 +6,25 @@
 
 ## API / lifecycle
 
-- [x] **T14-001 — Inventory current bootstraps/composition roots.** `KentridgePlayableSlice` directly created `ShowcaseWorld`, character/presentation hosts and `KentridgeCampaignSessionBootstrap.CreateSession`, ticked `CampaignRuntime`, and cleared session/world state in scene teardown. `KentridgeCampaignSessionBootstrap` creates Campaign + Inventory runtime state. `CampaignRuntime` remains the Story/Quest/Cutscene domain owner. Outcomes API is landed; Persistence #16 is not yet present.
-- [x] **T14-002 — Establish asmdefs and dependency direction.** Added engine-neutral `Game.SessionOrchestration.Api` and `.Runtime`; Runtime depends only on the semantic Session API and `Game.Outcomes.Api`. Kentridge composition supplies the concrete graph factory and continues to own concrete Campaign/Inventory construction.
-- [x] **T14-003 — Define run lifecycle states.** API defines `Uninitialized`, `Composing`, `Ready`, `Running`, `Resolved`, `ShuttingDown`, `Stopped`, and `Failed`; orchestrator enforces legal Prepare/Run/Tick/Capture/Shutdown states.
-- [x] **T14-004 — Define start/new/resume requests and results.** `GameSessionIdentity`, `GameSessionStartRequest`, semantic restore-source id, and operation results carry campaign/world/session/configuration identity without scene names or Runtime instances.
-- [x] **T14-005 — Define composed-session handle/readiness contract.** `ComposedSessionHandle` exposes only semantic identity/generation; `GameSessionSnapshot` exposes lifecycle/readiness/failure without subsystem query forwarding.
-- [x] **T14-006 — Define semantic startup/shutdown failures.** `GameSessionFailure` and `SessionCompositionException` distinguish invalid state, missing dependency, failed composition/restore/readiness/start/capture/shutdown with no fallback graph.
+- [x] **T14-001 — Inventory current bootstraps/composition roots.** Kentridge owned direct campaign/session construction and local teardown; subsystem Runtime creation was split between Kentridge session and forest encounter composition.
+- [x] **T14-002 — Establish asmdefs and dependency direction.** Session API is semantic/engine-neutral; Runtime depends only on Session API + Outcomes API; composition supplies concrete graph factories.
+- [x] **T14-003 — Define run lifecycle states.** `Uninitialized -> Composing -> Ready -> Running -> Resolved/ShuttingDown -> Stopped`, with explicit `Failed` state and legal command checks.
+- [x] **T14-004 — Define start/new/resume requests and results.** Semantic campaign/world/session/configuration/save-source identity only; no scene or concrete Runtime references.
+- [x] **T14-005 — Define composed-session handle/readiness contract.** Exposes identity/generation/lifecycle/readiness/failure, not a subsystem facade.
+- [x] **T14-006 — Define semantic startup/shutdown failures.** Missing dependencies, composition/restore/binding/start/capture/shutdown failures are explicit; no fallback runtimes.
 
 ## Runtime graph
 
-- [x] **T14-010 — Build one production graph factory/composer.** `ISessionRuntimeGraphFactory` is composition-supplied; `KentridgeSessionRuntimeGraphFactory` reuses `KentridgeCampaignSessionBootstrap.CreateSession` for the real Campaign/Inventory graph.
-- [x] **T14-011 — Make new game and resume share the same graph construction.** Both use the same `Compose(identity)` path; new calls graph initialization only when entering Running, while resume restores through `ISessionPersistenceBridge` before readiness and never invokes new-game initialization.
-- [x] **T14-012 — Define deterministic update/event ordering.** `SessionUpdatePhase` plus phase/order/semantic-id sorting establishes CommandIntake -> Interaction -> Progression/Story -> Encounter -> Combat -> Replication -> Presentation ordering with duplicate-order rejection.
-- [x] **T14-013 — Add semantic fact routing/adapters.** Runtime orders composition-supplied public-API steps; Kentridge supplies a Campaign step and command adapter, while the headless integration fixture routes Encounter/Combat through `IEncounterRegistry` / `IEncounterCombatCoordinator` without SessionOrchestration depending on their Runtime assemblies.
-- [x] **T14-014 — Implement readiness barrier.** Prepare reaches `Ready` only when the composed graph reports `GameplayBindingsReady`; Kentridge reports ready only after its existing bootstrap validates/realizes campaign world and actor bindings.
-- [x] **T14-015 — Reject commands during partial composition/shutdown.** Orchestrator rejects invalid lifecycle commands and Kentridge graph gameplay commands stay disabled until `EnterRunning()` calls `StartCommands()`.
-- [x] **T14-016 — Implement ordered teardown.** Shutdown executes `StopCommands -> SettleAuthoritativeState -> DetachExternalAdapters -> Dispose` exactly once while continuing cleanup after the first failure; Kentridge invokes orchestration shutdown before actor/world disposal.
-- [x] **T14-017 — Integrate Outcomes reaction.** Running graph observes optional `IGameOutcomeQuery`; `Resolved` stops commands and transitions lifecycle without choosing disposition/outcome.
-- [x] **T14-018 — Integrate Persistence restore/capture seam.** `ISessionPersistenceBridge` receives the already-composed graph for restore/capture; SessionOrchestration owns no serializer or persistence storage.
-- [x] **T14-019 — Replace Kentridge scene-local graph construction.** `KentridgePlayableSlice` now supplies semantic content/configuration to the graph factory, prepares through `GameSessionOrchestrator`, enters Running after existing presentation readiness, ticks through ordered graph steps, routes NPC commands through the graph, and shuts it down before existing composition-owned resource disposal.
+- [x] **T14-010 — Build one production graph factory/composer.** `ISessionRuntimeGraphFactory` supplies an authoritative graph; Kentridge implements the production factory around existing campaign composition.
+- [x] **T14-011 — Make new game and resume share the same graph construction.** `Prepare` always composes the same graph; only initialize-vs-restore input differs.
+- [x] **T14-012 — Define deterministic update/event ordering.** Explicit semantic phases and stable `(phase, order, semanticId)` ordering reject ambiguous duplicates.
+- [x] **T14-013 — Add semantic fact routing/adapters.** Campaign commands and phase step route through public APIs; headless integration covers Story/progression/Encounter/Combat adapters without Runtime coupling.
+- [x] **T14-014 — Implement readiness barrier.** `Ready` is reached only after graph `GameplayBindingsReady` succeeds.
+- [x] **T14-015 — Reject commands during partial composition/shutdown.** Lifecycle guards reject premature/reentrant start/tick/capture/shutdown use.
+- [x] **T14-016 — Implement ordered teardown.** Stop commands -> settle authoritative state -> detach adapters -> dispose exactly once, continuing cleanup after failures.
+- [x] **T14-017 — Integrate Outcomes reaction.** Observe `IGameOutcomeQuery` resolution and move lifecycle to `Resolved` without deciding the outcome.
+- [x] **T14-018 — Integrate Persistence restore/capture seam.** Resume/capture use an external persistence bridge; orchestration contains no serializer.
+- [x] **T14-019 — Replace Kentridge scene-local graph construction.** `KentridgePlayableSlice` enters the production SessionOrchestration graph and its forest Encounter/Combat slice is a graph extension.
 
 ## Verification
 
@@ -35,6 +35,7 @@
 - [ ] **T14-024 — Teardown/recreate test.** Ordered shutdown releases graph resources and a second run can start cleanly.
 - [ ] **T14-025 — No-one-shot-replay resume regression.** Current state is restored without replaying historical presentation/gameplay events.
 - [ ] **T14-026 — Run automatic module and top-level integration tests.**
+- [x] **T14-027 — Record module-local validation ownership.** SessionOrchestration is a pure engine-neutral/headless module, so its owned EditMode assembly is the documented module-local validation exception; Kentridge composition is integration-only and remains covered by the SceneIssue built-player replay.
 
 ## Cleanup / close
 
