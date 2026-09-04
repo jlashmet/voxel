@@ -1,9 +1,8 @@
 {
-  "name": "Game.Input.Runtime",
-  "rootNamespace": "Game.Input.Runtime",
+  "name": "Game.Application.Api",
+  "rootNamespace": "Game.Application.Api",
   "references": [
-    "Game.Input.Api",
-    "Unity.InputSystem"
+    "Game.Input.Api"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
@@ -13,5 +12,5 @@
   "autoReferenced": false,
   "defineConstraints": [],
   "versionDefines": [],
-  "noEngineReferences": false
+  "noEngineReferences": true
 }
