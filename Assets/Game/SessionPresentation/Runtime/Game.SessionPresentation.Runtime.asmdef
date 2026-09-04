@@ -1,0 +1,20 @@
+{
+  "name": "Game.SessionPresentation.Runtime",
+  "rootNamespace": "Game.SessionPresentation.Runtime",
+  "references": [
+    "Game.SessionPresentation.Api",
+    "Game.Sessions.Api",
+    "Game.Continuity.Api",
+    "Game.GameplayReplication.Api",
+    "Game.Characters.Api"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}
