@@ -1,0 +1,25 @@
+{
+  "name": "Game.InventoryPresentation.Tests.EditMode",
+  "rootNamespace": "Game.InventoryPresentation.Tests",
+  "references": [
+    "Game.InventoryPresentation.Api",
+    "Game.InventoryPresentation.Runtime",
+    "Game.Inventory.Api",
+    "Game.Inventory.Runtime",
+    "Game.Loot.Api",
+    "Game.Loot.Runtime",
+    "Game.Input.Api",
+    "Game.Input.Runtime",
+    "Game.Characters.Api",
+    "Game.WorldObjects.Api"
+  ],
+  "includePlatforms": ["Editor"],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
