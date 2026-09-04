@@ -39,4 +39,13 @@ namespace Game.Input.Api
     {
         bool WasPressed(LocalPlayerId player, InputActionId action);
     }
+
+    /// <summary>
+    /// Semantic held-state companion for gameplay actions whose behavior depends on duration.
+    /// Physical device/key ownership remains in Input.Runtime.
+    /// </summary>
+    public interface IInputActionStateReader : IInputActionReader
+    {
+        bool IsHeld(LocalPlayerId player, InputActionId action);
+    }
 }
