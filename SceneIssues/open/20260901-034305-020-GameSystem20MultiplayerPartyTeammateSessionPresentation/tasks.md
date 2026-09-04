@@ -6,7 +6,7 @@
 
 ## API / model
 
-- [ ] **T20-001 — Inventory current lobby/teammate UI.** Find connection-indexed rows, host/client labels, ready indicators, controlled-character display and raw disconnect UI callbacks.
+- [x] **T20-001 — Inventory current lobby/teammate UI.** No existing connection-indexed lobby/HUD member-row path exists on the assigned baseline; Sessions already keeps transport handles runtime-private and Systems 17/23 can consume the new semantic seam.
 - [ ] **T20-002 — Establish asmdefs.** Runtime consumes Sessions.Api, Continuity.Api, GameplayReplication.Api and Characters.Api only; no transport Runtime dependency.
 - [ ] **T20-003 — Define stable member presentation snapshot.** Key by PartyMemberId and include PlayerSlot, CharacterId when bound, leader role, presence/recovery/readiness and display metadata.
 - [ ] **T20-004 — Define session-level presentation state.** Capacity/start readiness/current lifecycle needed by frontend/HUD without exposing network internals.
