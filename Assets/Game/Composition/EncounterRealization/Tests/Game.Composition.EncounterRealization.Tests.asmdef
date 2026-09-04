@@ -1,0 +1,21 @@
+{
+  "name": "Game.Composition.EncounterRealization.Tests",
+  "rootNamespace": "Game.Composition.EncounterRealization.Tests",
+  "references": [
+    "Game.Composition.EncounterRealization",
+    "Game.WorldBuilder.Api",
+    "Game.Encounters.Api",
+    "Game.Characters.Api"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

@@ -1,0 +1,17 @@
+{
+  "formatVersion": 3,
+  "id": "20260901-034305-016-GameSystem16AuthoritativeSessionPersistenceRestore",
+  "capturedUtc": "2026-09-01T03:43:05.0160000Z",
+  "note": "FEATURE / GAME SYSTEM #16: Authoritative session persistence & restore\n\nSOURCE: Approved design/implementation breakdown from docs commit `a70d8d006906ba528216c187ddb333040b6eb3c0` is copied here as `plan.md` and `tasks.md`. Those files are binding acceptance for this SceneIssue.\n\nBASELINE: Created from master `c73ab9d123ad29a1f1f1215552519a303c16d5fe`; fetch current origin/master before implementation.\n\nACCEPTANCE: Complete every required task; preserve plan ownership/API-runtime boundaries/non-goals; add required behavioral regressions, reuse proof, migration/cleanup and boundary audits; pass repository-selected module tests, module-local player validation where applicable, and affected top-level exact-SHA gates; use durable built-player evidence for player-visible acceptance; check blast radius/cost without weakening unrelated budgets or acceptance; close only after every required item is complete and SceneIssue closure fields are populated.\n\nWORKFLOW: Follow `AGENTS.md`, `SceneIssues/feature-readme.md`, and `SceneIssues/README.md`. Work the next unchecked non-blocked task; record blockers and continue independent work; no opportunistic enhancements. After two materially different fixes fail the same acceptance symptom/assertion, isolate a minimal repro/root cause before another fix.",
+  "status": "fixed",
+  "resolvedUtc": "2026-09-04T05:22:24Z",
+  "resolutionSummary": "Implemented headless authoritative session persistence with a versioned semantic snapshot envelope, coherent capture barrier, contributor validation/restore seams, atomic staged publication, fresh-graph restore, explicit compatibility/corruption failures, stable gameplay identity preservation, and one-shot replay prevention. No duplicate durable session/world store was found on the implementation baseline.",
+  "regressionTest": "Game.Persistence.Tests exact-SHA validation plus standalone KentridgePlayableSlice replay passed in workflow run 33838283811 for product SHA c04ac1aacb59dd30ae4e28ac8fe1f39a2c9560e4; focused tests cover fresh-graph mixed-state round trip, validate-before-apply, active encounter no-replay, resolved outcome immutability, corrupt/incomplete rejection, compatibility failures, atomic publication, listing, multiplayer identity, schema guard, and capture revision coherence.",
+  "fixCommit": "c04ac1aacb59dd30ae4e28ac8fe1f39a2c9560e4",
+  "unityVersion": "6000.5.6f1",
+  "platform": "Feature",
+  "sceneName": "KentridgePlayableSlice",
+  "scenePath": "Assets/Scenes/KentridgePlayableSlice.unity",
+  "sceneBuildIndex": 2,
+  "captures": []
+}

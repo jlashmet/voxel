@@ -1,0 +1,24 @@
+{
+  "name": "Game.Persistence.Tests",
+  "rootNamespace": "Game.Persistence.Tests",
+  "references": [
+    "Game.Persistence.Api",
+    "Game.Persistence.Runtime",
+    "Game.Characters.Api",
+    "Game.Vitality.Api",
+    "Game.Inventory.Api",
+    "Game.Progression.Api",
+    "Game.WorldObjects.Api"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
