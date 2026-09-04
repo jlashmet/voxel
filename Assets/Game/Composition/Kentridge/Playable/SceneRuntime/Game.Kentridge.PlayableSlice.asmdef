@@ -27,6 +27,8 @@
         "Game.Quests.Api",
         "Game.Input.Api",
         "Game.Input.Runtime",
+        "Game.SessionOrchestration.Api",
+        "Game.SessionOrchestration.Runtime",
         "MountingForce.WorldGen.Core",
         "MountingForce.WorldGen.Architecture",
         "MountingForce.WorldGen.Voxel",
