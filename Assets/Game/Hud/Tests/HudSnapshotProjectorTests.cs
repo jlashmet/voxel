@@ -5,9 +5,11 @@ using Game.Encounters.Api;
 using Game.Hud.Api;
 using Game.Hud.Runtime;
 using Game.Input.Api;
+using Game.Input.Runtime;
 using Game.Sessions.Api;
 using Game.Vitality.Api;
 using NUnit.Framework;
+using UnityEngine;
 
 namespace Game.Hud.Tests
 {
@@ -27,14 +29,18 @@ namespace Game.Hud.Tests
         }
 
         [Test]
-        public void BindingChange_UpdatesPromptWithoutChangingCandidate()
+        public void BindingChange_UpdatesPromptWithoutChangingGameplayCandidate()
         {
-            Fixture f = new Fixture();
+            var bindings = new UnityInputBindingService();
+            Fixture f = new Fixture(bindings);
             Assert.That(f.Projector.Project(f.Local0).Interaction.BindingLabel, Is.EqualTo("E"));
-            f.Bindings.Label = "F";
+
+            bindings.Rebind(StandardInputActions.Interact, KeyCode.F);
+
             HudSnapshot changed = f.Projector.Project(f.Local0);
             Assert.That(changed.Interaction.BindingLabel, Is.EqualTo("F"));
             Assert.That(changed.Interaction.TargetId, Is.EqualTo("npc:destination"));
+            Assert.That(changed.Interaction.ActionText, Is.EqualTo("Talk"));
         }
 
         [Test]
@@ -65,15 +71,41 @@ namespace Game.Hud.Tests
             Assert.That(f.Projector.Project(f.Local0).TransientEvents.Count, Is.EqualTo(1));
         }
 
-        [Test]
-        public void UiContext_HidesInteractionWithoutHidingPersistentHud()
+        [TestCase(PartyPresenceState.Disconnected, SessionReadinessState.Joined, HudReadinessState.Reconnecting)]
+        [TestCase(PartyPresenceState.Connected, SessionReadinessState.Connected, HudReadinessState.Resynchronizing)]
+        [TestCase(PartyPresenceState.Connected, SessionReadinessState.Synchronized, HudReadinessState.Resynchronizing)]
+        [TestCase(PartyPresenceState.Connected, SessionReadinessState.GameplayReady, HudReadinessState.GameplayReady)]
+        public void Readiness_ProjectsAuthoritativeSessionLifecycle(
+            PartyPresenceState presence,
+            SessionReadinessState readiness,
+            HudReadinessState expected)
         {
             Fixture f = new Fixture();
-            f.Context.Context = InputContextId.Ui;
+            f.Party.SetAState(presence, readiness);
+            Assert.That(f.Projector.Project(f.Local0).Readiness, Is.EqualTo(expected));
+        }
+
+        [TestCase(InputContextId.Ui)]
+        [TestCase(InputContextId.Disabled)]
+        public void NonGameplayContext_HidesInteractionWithoutHidingPersistentHud(InputContextId context)
+        {
+            Fixture f = new Fixture();
+            f.Context.Context = context;
             HudSnapshot hud = f.Projector.Project(f.Local0);
             Assert.That(hud.Vitality.Visible, Is.True);
             Assert.That(hud.Interaction.Visible, Is.False);
-            Assert.That(hud.InputContext, Is.EqualTo(InputContextId.Ui));
+            Assert.That(hud.InputContext, Is.EqualTo(context));
+        }
+
+        [Test]
+        public void CombatContext_KeepsSemanticInteractionAvailable()
+        {
+            Fixture f = new Fixture();
+            f.Context.Context = InputContextId.Combat;
+            HudSnapshot hud = f.Projector.Project(f.Local0);
+            Assert.That(hud.Interaction.Visible, Is.True);
+            Assert.That(hud.Interaction.BindingLabel, Is.EqualTo("E"));
+            Assert.That(hud.InputContext, Is.EqualTo(InputContextId.Combat));
         }
 
         private sealed class Fixture
@@ -87,13 +119,14 @@ namespace Game.Hud.Tests
             public readonly FakeBindings Bindings = new FakeBindings();
             public readonly FakeContext Context = new FakeContext();
             public readonly FakeTransientSource Transients = new FakeTransientSource();
+            public readonly FakeParty Party;
             public readonly FakeVitality Vitality;
             public readonly HudSnapshotProjector Projector;
 
-            public Fixture()
+            public Fixture(IInputBindingPresentation bindingPresentation = null)
             {
                 var resolver = new FakeResolver(Local0, MemberA, Local1, MemberB);
-                var party = new FakeParty(
+                Party = new FakeParty(
                     new PartyMemberSnapshot(MemberA, new PlayerSlot(0), PartyLeadershipRole.Leader, PartyPresenceState.Connected, SessionReadinessState.GameplayReady, CharacterA),
                     new PartyMemberSnapshot(MemberB, new PlayerSlot(1), PartyLeadershipRole.Member, PartyPresenceState.Connected, SessionReadinessState.GameplayReady, CharacterB));
                 Vitality = new FakeVitality(
@@ -102,7 +135,8 @@ namespace Game.Hud.Tests
                 var encounters = new FakeEncounters(CharacterA);
                 var interaction = new FakeInteraction(CharacterA, CharacterB);
                 Transients.Events.Add(new HudTransientEvent("old-1", "Old one"));
-                Projector = new HudSnapshotProjector(resolver, party, Vitality, encounters, interaction, null, Transients, Bindings, Context);
+                Projector = new HudSnapshotProjector(resolver, Party, Vitality, encounters, interaction, null, Transients,
+                    bindingPresentation ?? Bindings, Context);
             }
         }
 
@@ -114,10 +148,12 @@ namespace Game.Hud.Tests
         }
         private sealed class FakeParty : IPartySessionQuery
         {
-            private readonly PartyMemberSnapshot _a, _b;
+            private PartyMemberSnapshot _a, _b;
             public FakeParty(PartyMemberSnapshot a, PartyMemberSnapshot b) { _a = a; _b = b; }
             public PartyRosterSnapshot Snapshot() => new PartyRosterSnapshot(new GameSessionId("session"), new[] { _a, _b });
             public bool TryGetMember(PartyMemberId id, out PartyMemberSnapshot member) { if (id == _a.MemberId) { member = _a; return true; } if (id == _b.MemberId) { member = _b; return true; } member = default; return false; }
+            public void SetAState(PartyPresenceState presence, SessionReadinessState readiness) =>
+                _a = new PartyMemberSnapshot(_a.MemberId, _a.Slot, _a.LeadershipRole, presence, readiness, _a.CharacterId);
         }
         private sealed class FakeVitality : IVitalityQuery
         {
