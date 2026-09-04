@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run one declarative standalone-player validation through the shared capture harness."""
 from __future__ import annotations
-import argparse, json, subprocess
+import argparse, json, os, subprocess
 from pathlib import Path
 
 
@@ -40,6 +40,9 @@ def load_scenario(path: Path) -> dict:
     if not isinstance(data, dict) or data.get("schemaVersion") != 1:
         fail(f"{path}: schemaVersion must be 1")
     run_seconds = positive_int(data.get("runSeconds"), "runSeconds", 10, 300)
+    gpu_cutover = data.get("gpuCutover", "inherit")
+    if gpu_cutover not in ("inherit", "required"):
+        fail("gpuCutover must be 'inherit' or 'required'")
     capture = data.get("capture")
     if not isinstance(capture, dict):
         fail("capture must be an object")
@@ -70,7 +73,14 @@ def load_scenario(path: Path) -> dict:
             fail(f"assertions.{field} must be an array of non-empty strings")
     return {"runSeconds": run_seconds, "width": width, "height": height, "interval": interval,
             "minimum": minimum, "evidenceAfter": evidence_after, "timeline": timeline,
-            "required": required, "forbidden": forbidden}
+            "required": required, "forbidden": forbidden, "gpuCutover": gpu_cutover}
+
+
+def player_environment(gpu_cutover: str, environ=None) -> dict[str, str]:
+    env = dict(os.environ if environ is None else environ)
+    if gpu_cutover == "required":
+        env.pop("VOXEL_DISABLE_GPU_CUTOVER", None)
+    return env
 
 
 def main(argv=None) -> int:
@@ -101,8 +111,8 @@ def main(argv=None) -> int:
         cmd += ["--require-log-pattern", pattern]
     for pattern in cfg["forbidden"]:
         cmd += ["--forbid-log-pattern", pattern]
-    print("player-validation:", scene, "scenario=", scenario)
-    subprocess.run(cmd, check=True)
+    print("player-validation:", scene, "scenario=", scenario, "gpuCutover=", cfg["gpuCutover"])
+    subprocess.run(cmd, check=True, env=player_environment(cfg["gpuCutover"]))
     return 0
 
 if __name__ == "__main__":
