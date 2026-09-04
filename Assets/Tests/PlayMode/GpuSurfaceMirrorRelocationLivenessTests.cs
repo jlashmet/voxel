@@ -236,7 +236,9 @@ namespace VoxelEngine.Tests.PlayMode
                         saturatedAdmissionStarted = -1.0;
                     }
 
+                    bool sustainedRequestedChurn = !distantChangeChurn || injectedDistantChanges >= 8;
                     if (sawRecoveryBacklog
+                        && sustainedRequestedChurn
                         && metrics.GpuCompletedSolidBuilds >= baselineCompleted + 4
                         && metrics.VisibleSolidChunks > 0)
                         break;
