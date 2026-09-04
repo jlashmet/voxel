@@ -19,7 +19,7 @@ namespace VoxelEngine.Showcase.Validation
     [DisallowMultipleComponent]
     public sealed class FeatureResidencyValidationProbe : MonoBehaviour
     {
-        private const uint Seed = 0x46524553u;
+        private const uint Seed = 0x4B454E54u;
         private const double StreamingBudgetMs = 5000.0;
         private const int MaximumStreamingSteps = 64;
 
