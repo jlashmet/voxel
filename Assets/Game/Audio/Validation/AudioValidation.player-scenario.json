@@ -6,7 +6,7 @@
   "assertions": {
     "requiredLogPatterns": [
       "AUDIO_VALIDATION ready: predicted=Played confirmed=DuplicateSuppressed playedEvents=1",
-      "AUDIO_VALIDATION cutscene-shared:",
+      "AUDIO_VALIDATION cutscene-shared: door=Played",
       "AUDIO_VALIDATION sustained-start: loops=1 semantic=1",
       "AUDIO_VALIDATION reconnect-current-state: loops=1 semantic=1 historicalOneShotsReplayed=0",
       "AUDIO_VALIDATION sustained-stop: loops=0 semantic=0"
