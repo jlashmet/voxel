@@ -2,21 +2,25 @@
 
 **Target ownership:** Kentridge production composition plus shared standalone-player validation. No new generic gameplay API/Runtime module.
 
-## Observed baseline / acceptance
+## Observed behavior / acceptance
 
-Current `master` already has System 14 session orchestration, but Kentridge is not yet a production-composed application entry. `KentridgePlayableSlice` directly creates `KentridgeSessionRuntimeGraphFactory`/`GameSessionOrchestrator`; `KentridgeForestBanditEncounter` still creates `InputContextService`, `UnityPlayerInputReader`, `VitalityRegistry`, `CombatService` and `EncounterRegistry`; `KentridgeWellQuestInventoryPresentation` owns another `InputContextService`, reflects private slice fields, and polls legacy input; `KentridgeUnityInputBridge` intentionally preserves raw `UnityEngine.Input` polling. System 23 Application is still open on `master`, and `Assets/Game/Application` does not exist yet.
+System 23 Application is now closed on `origin/master` and current master `2749a5133319eb5cf5019d821bb00ee3e2fe1a4e` was merged into `fixes/agent-2` at `38f1725b25154fcf6403a970a0b719cf704a7d5a`. The prerequisite is therefore available. Kentridge still violates the target boundary: `KentridgePlayableSlice` constructs/prepares/starts/ticks/shuts down `GameSessionOrchestrator`, `KentridgeForestBanditEncounter` constructs its own Input context/reader, and Kentridge player/HUD paths still poll legacy `UnityEngine.Input` in several places.
 
 Acceptance remains: FrontEnd -> New Game -> `GameplayReady` -> real movement/interaction/progression/encounter/combat/loot/presentation -> save -> ordered teardown -> Continue -> restored live gameplay, all through production public boundaries and the shared built-player harness.
 
+The preserved exact-SHA request `30524f5adb8dc16675dc249ca12eabaef05a6e6a` completed as a product failure before tests because a top-level PlayMode test still called removed presentation-authority methods. Commit `936f127090d6fe203b7ec37ea212ee3559d6b5f9` repaired that compatibility test; do not retry the old product SHA.
+
 ## Hypotheses / discriminating result
 
-1. **System 14 already eliminated alternate Kentridge runtime ownership.** Falsified: the forest extension and well presentation still own private runtime/input services, and the playable slice still owns startup.
-2. **A thin Kentridge consumer can satisfy #24 once #23 lands, without another gameplay runtime.** Selected. Discriminating gate after #23 merges: Kentridge must compile with Application owning lifecycle/NewGame/Continue and #14 owning session graph construction, while repository search finds no scene-local authority or raw-input fallback.
+1. **System 23 landing alone makes Kentridge Application-owned.** Falsified: current Kentridge still owns session lifecycle and multiple input paths.
+2. **A thin Kentridge composition root can own Application/input lifetime while reusing #14 session graph and #16 persistence seams.** Selected. Discriminating gate: repository search must find no Kentridge session lifecycle construction or legacy physical-input polling outside the owning composition adapter, and built-player New Game/Continue must traverse `ApplicationFlowCoordinator` with the same composed graph.
 
-## Canonical composition
+## Selected composition
 
-Application (#23) owns Boot/FrontEnd/NewGame/Continue/Leave and the production local input/navigation lifetime. It delegates run creation/restore/teardown to SessionOrchestration (#14) and Persistence (#16). Kentridge supplies only world seed/content/sites/NPC/cutscene/placement policy and a Kentridge session-graph/content factory. Unity-bound Kentridge adapters receive public production capabilities from that composed graph; they do not construct authority. Forest encounter code retains authored realization/proximity/presentation only. Well/inventory presentation binds through explicit read-only composition capabilities, never reflection/private fields.
+A Kentridge-specific composition root owns one `InputContextService` + production Input-System reader, `ApplicationFlowCoordinator`, frontend view, persistence bridge and session plan. It supplies that one input capability to the playable slice, HUD and forest session extension. `KentridgePlayableSlice` remains world/presentation realization and session-graph supplier; it no longer prepares/starts/shuts down sessions. The forest extension keeps encounter/combat authority but receives shared input rather than constructing it. Well/inventory presentation remains read-only.
 
-## Blocker / next work
+Persistence uses existing `CampaignRuntime.CaptureProgress/RestoreProgress` and `IInventoryStatePort` through a Kentridge composition adapter; no duplicate gameplay state store is introduced. Save/Continue must restore a newly composed graph and must not replay completed one-shot progression/cutscenes.
 
-**External prerequisite:** SceneIssue 23 is still `open/` on current `origin/master`; its Application API/runtime and Input-System migration are binding dependencies for T24-003/004/010/020-024/035. Do not implement #23 inside #24. Continue independent Kentridge cleanup only where it cannot create a parallel lifecycle/input authority. After #23 lands, merge current master, wire the canonical consumer, add milestone-driven shared-harness proof, run exact-SHA CI, inspect built-player evidence, then close only after every task passes.
+## Remaining validation gates
+
+Complete T24-003 onward in `tasks.md`; update affected module tests/validation where behavior changes; then exact-SHA targeted CI with automatic module validation + standalone Kentridge proof. Inspect durable built-player evidence, close open -> closed only when every task passes, merge current master again, then PR + auto-merge and monitor required `affected` gate to merge.
