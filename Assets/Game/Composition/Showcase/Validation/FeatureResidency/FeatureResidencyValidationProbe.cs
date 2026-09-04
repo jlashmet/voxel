@@ -1,5 +1,5 @@
 using System;
-using System.Diagnostics;
+using Stopwatch = System.Diagnostics.Stopwatch;
 using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
