@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "runSeconds": 16,
+  "capture": {
+    "width": 1600,
+    "height": 900,
+    "intervalSeconds": 3,
+    "minimumFrames": 4,
+    "evidenceAfterSeconds": 5
+  },
+  "timeline": {},
+  "assertions": {
+    "requiredLogPatterns": [
+      "CHARACTER_MOTOR_MODULE_VALIDATION ready:"
+    ],
+    "forbiddenLogPatterns": [
+      "CHARACTER_MOTOR_MODULE_VALIDATION failure:",
+      "NullReferenceException",
+      "MissingReferenceException",
+      "Shader error"
+    ]
+  }
+}
