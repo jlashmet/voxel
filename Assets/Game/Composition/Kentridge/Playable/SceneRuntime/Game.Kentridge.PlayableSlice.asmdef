@@ -24,7 +24,6 @@
         "Game.WorldBuilder.Api",
         "Game.WorldBuilder.Runtime",
         "Game.Inventory.Api",
-        "Game.Inventory.Runtime",
         "Game.Quests.Api",
         "Game.Input.Api",
         "Game.Input.Runtime",
