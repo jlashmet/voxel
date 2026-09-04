@@ -8,6 +8,7 @@ using Game.Composition.WorldBuilderWorldGen.Runtime;
 using Game.Cutscenes.Api;
 using Game.Cutscenes.Content.Kentridge;
 using Game.Input.Api;
+using Game.Progression.Api;
 using Game.SessionOrchestration.Api;
 using Game.SessionOrchestration.Runtime;
 using Game.WorldBuilder.Api;
@@ -112,6 +113,8 @@ namespace Game.Kentridge.PlayableSlice
         public bool OpeningCutsceneCameraActive => _openingCutsceneCameraActive;
         public Vector3 OpeningCutsceneCameraFocus => _openingCameraFocus;
         public float InteractionRangeMetres => m_InteractionRangeMetres;
+        internal IProgressionQuery ProgressionQuery => _session?.Runtime.Progression;
+        internal string TravelObjectiveId => _travelObjective.ToString();
         public bool TravelObjectiveActive =>
             _session != null && _session.Runtime.IsObjectiveActive(_travelObjective);
         public bool TravelObjectiveCompleted =>
@@ -208,7 +211,7 @@ namespace Game.Kentridge.PlayableSlice
 
                 RegionCorridorPlan corridorPlan = RegionCorridorCatalogue.Plan(
                     m_Seed, BuildSettings(kentridge: true),
-                    settlement.CentreDm, hightown.CentreDm);
+                    settlement.CentreDm.Y, hightown.CentreDm.Y);
                 _themes = RegionThemeMap.ForKentridgeHightown(
                     settlement.CentreDm.Y, hightown.CentreDm.Y, corridorPlan.CrossingZDm);
                 _corridorPlan = corridorPlan;
