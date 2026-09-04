@@ -85,29 +85,32 @@ namespace VoxelEngine.Showcase
             internal double ScreenshotEvery;
             internal double RunSeconds;
 
-            private double _elapsed;
+            private double _startedAt = -1.0;
             private double _nextShot;
             private int _shotIndex;
 
             private void Update()
             {
-                _elapsed += Time.unscaledDeltaTime;
+                double now = Time.realtimeSinceStartupAsDouble;
+                if (_startedAt < 0.0)
+                    _startedAt = now;
+                double elapsed = now - _startedAt;
 
-                if (!string.IsNullOrEmpty(ScreenshotDirectory) && _elapsed >= _nextShot)
+                if (!string.IsNullOrEmpty(ScreenshotDirectory) && elapsed >= _nextShot)
                 {
-                    _nextShot = _elapsed + Math.Max(1.0, ScreenshotEvery);
+                    _nextShot = elapsed + Math.Max(1.0, ScreenshotEvery);
                     Directory.CreateDirectory(ScreenshotDirectory);
                     string path = Path.Combine(
                         ScreenshotDirectory,
-                        $"frame_{_shotIndex:D3}_t{_elapsed:000.0}.png");
+                        $"frame_{_shotIndex:D3}_t{elapsed:000.0}.png");
                     ScreenCapture.CaptureScreenshot(path);
                     Debug.Log($"HARNESS screenshot {path}");
                     _shotIndex++;
                 }
 
-                if (RunSeconds > 0.0 && _elapsed >= RunSeconds)
+                if (RunSeconds > 0.0 && elapsed >= RunSeconds)
                 {
-                    Debug.Log($"HARNESS quit after {_elapsed:0.0}s");
+                    Debug.Log($"HARNESS quit after {elapsed:0.0}s");
                     Application.Quit(0);
                 }
             }

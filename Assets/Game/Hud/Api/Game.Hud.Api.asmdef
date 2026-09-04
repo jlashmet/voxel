@@ -1,0 +1,14 @@
+{
+  "name": "Game.Hud.Api",
+  "rootNamespace": "Game.Hud.Api",
+  "references": ["Game.Characters.Api", "Game.Input.Api", "Game.Sessions.Api"],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}
