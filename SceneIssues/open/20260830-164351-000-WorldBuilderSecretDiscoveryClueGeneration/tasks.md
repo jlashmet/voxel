@@ -38,7 +38,9 @@
 - [x] Exact run `33842982484` selected CaveWorldBuilder, Showcase, and WorldBuilder EditMode assemblies plus their module-local players and Kentridge; automatic validation stopped only because the publication regression's BrickPool tier was smaller than the production Gallery scene.
 - [x] Match the publication regression to production Gallery `m_BrickPoolCapacity: 800000` so it can reach the content-dirty assertion.
 - [x] Falsify another notification-only fix with run `33842982484`: full-resolution authored-breakable evidence still shows underside/void while player diagnostics show the renderer is cold (`visible=48`, `missingMax=647`) immediately before capture and continues converging afterward.
-- [x] Replace the authored-breakable evidence's blind 1.25-second delay with production-renderer convergence gating: require post-pin render passes, nonzero visible solids, and zero missing visible solid chunks for two frames; fail capture on timeout and restore all temporary offline-capture budgets.
+- [x] Replace the authored-breakable evidence's blind 1.25-second delay with production-renderer convergence gating: require post-pin render diagnostics, nonzero visible solids, and zero missing visible solid chunks for two frames; fail capture on timeout.
+- [x] Exact run `33844103873` selected the correct module/player plan but failed compile before tests because Showcase directly imported `VoxelEngine.Rendering.Runtime`.
+- [x] Isolate the compile failure to an ownership-boundary mistake rather than a missing asmdef reference; route convergence evidence through existing `RenderingComposition` diagnostics and remove direct `VoxelRenderBridge` access.
 - [ ] Fresh exact-SHA Showcase content-dirty publication regression passes.
 - [ ] Representative SecretDiscovery examples are visibly understandable in `WorldbuildingGalleryShowcase` at gameplay scale.
 - [ ] Gallery visual review is `production-quality`: feature-specific natural + breakable clue language, no stale terrain, placeholder signs, universal glow, floating/intersecting geometry, or invalid framing.
@@ -48,6 +50,7 @@
 - [x] Planner/discovery work is one-shot/event-driven; no per-frame search/polling added.
 - [x] Cave composition is bounded by traversal candidates; post-bake content invalidation is bounded to the same nine preloaded secret-cave regions.
 - [x] User-named exact request `56af2443f352fa4ce6561c784143243ecfb0cecc` was monitored through completion without replacement.
+- [x] Exact request `d003d5ad69f23b47278a8a6157957b7471c716bb` / run `33844103873` was allowed to complete and was not replaced while queued/running; its product compile failure was inspected before another request.
 - [ ] Fresh exact-SHA targeted gate green against current feature head.
 - [ ] All acceptance criteria green from exact tests + built-player evidence.
 - [ ] Move assigned SceneIssue `open -> closed`, set `status=fixed` and `resolvedUtc`, and complete supported resolution fields.
