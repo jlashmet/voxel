@@ -6,7 +6,7 @@
 
 ## API / lifecycle
 
-- [ ] **T14-001 — Inventory current bootstraps/composition roots.** Find CampaignRuntime construction, Kentridge graph setup, combat/input/world/session bootstraps, teardown paths and duplicate service ownership.
+- [x] **T14-001 — Inventory current bootstraps/composition roots.** `KentridgePlayableSlice` directly creates `ShowcaseWorld`, character/presentation hosts and `KentridgeCampaignSessionBootstrap.CreateSession`, ticks `CampaignRuntime`, and clears session/world state in scene teardown. `KentridgeCampaignSessionBootstrap` creates Campaign + Inventory runtime state. `CampaignRuntime` remains the domain owner for Story/Quest/Cutscene rules. Outcomes API is landed; Persistence #16 is not yet present.
 - [ ] **T14-002 — Establish asmdefs and dependency direction.** Runtime composes implementations through APIs/factories supplied by composition; API stays minimal and engine-neutral.
 - [ ] **T14-003 — Define run lifecycle states.** `Uninitialized -> Composing -> Ready -> Running -> ShuttingDown` plus failure/resolved handling as approved; enumerate legal commands per state.
 - [ ] **T14-004 — Define start/new/resume requests and results.** Inputs identify campaign/world/session/configuration/save source semantically; no scene names or concrete Runtime objects in API.
