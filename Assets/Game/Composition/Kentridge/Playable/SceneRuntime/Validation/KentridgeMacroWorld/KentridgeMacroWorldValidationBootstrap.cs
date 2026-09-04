@@ -18,7 +18,7 @@ namespace Game.Kentridge.PlayableSlice
     internal static class KentridgeMacroWorldValidationBootstrap
     {
         private const string ScenePath =
-            "Assets/Game/Composition/Kentridge/Playable/SceneRuntime/Validation/" +
+            "Assets/Game/Composition/Kentridge/Playable/Validation/" +
             "KentridgeMacroWorld/KentridgeMacroWorldValidation.unity";
         private const uint Seed = 0x4B454E54u;
 
