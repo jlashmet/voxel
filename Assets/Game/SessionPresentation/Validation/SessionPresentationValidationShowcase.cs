@@ -20,9 +20,12 @@ namespace Game.SessionPresentation.Validation
         private SessionPresentationProjector _projector;
         private bool _reconnectLogged;
         private bool _readyLogged;
+        private float _startedAt;
 
         private void Start()
         {
+            EnsureValidationCamera();
+            _startedAt = Time.unscaledTime;
             _local = new PartyMemberId("party:alpha");
             _reconnecting = new PartyMemberId("party:bravo");
             _third = new PartyMemberId("party:charlie");
@@ -47,7 +50,8 @@ namespace Game.SessionPresentation.Validation
 
         private void Update()
         {
-            if (!_reconnectLogged && Time.unscaledTime >= 3f)
+            float elapsed = Time.unscaledTime - _startedAt;
+            if (!_reconnectLogged && elapsed >= 3f)
             {
                 _sessions.Replace(Member(_reconnecting, 1, PartyLeadershipRole.Member, PartyPresenceState.Connected, "character:bravo"));
                 _continuity.Set(_reconnecting, RecoveryState.Recovered);
@@ -57,7 +61,7 @@ namespace Game.SessionPresentation.Validation
                 _reconnectLogged = true;
             }
 
-            if (!_readyLogged && Time.unscaledTime >= 6f)
+            if (!_readyLogged && elapsed >= 6f)
             {
                 _replication.Set(_third, GameplaySynchronizationPhase.GameplayReady, 12);
                 PartyScreenPresentationSnapshot party = _projector.CapturePartyScreen(_local);
@@ -94,6 +98,16 @@ namespace Game.SessionPresentation.Validation
                 GUI.Label(new Rect(875, y + 30, 330, 24), row.Connection + "  •  " + row.Readiness);
                 GUI.Label(new Rect(875, y + 54, 330, 24), "Health ref: " + (row.HasCharacter ? row.CharacterId.Value : "unbound"));
             }
+        }
+
+        private static void EnsureValidationCamera()
+        {
+            if (Camera.main != null) return;
+            var cameraObject = new GameObject("Session Presentation Validation Camera");
+            cameraObject.tag = "MainCamera";
+            Camera camera = cameraObject.AddComponent<Camera>();
+            camera.clearFlags = CameraClearFlags.SolidColor;
+            camera.backgroundColor = new Color(0.035f, 0.045f, 0.07f, 1f);
         }
 
         private static PartyMemberSnapshot Member(PartyMemberId id, int slot, PartyLeadershipRole role, PartyPresenceState presence, string characterId) =>
