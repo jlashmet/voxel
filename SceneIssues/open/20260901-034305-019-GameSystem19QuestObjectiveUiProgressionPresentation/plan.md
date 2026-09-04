@@ -1,27 +1,26 @@
 # 19 Quest & objective UI / progression presentation — implementation plan
 
-**Target module:** `Assets/Game/ProgressionPresentation/Api` / `Runtime` (`Game.ProgressionPresentation.Api`, `Game.ProgressionPresentation.Runtime`).
+**Target module:** `Assets/Game/ProgressionPresentation/Api`, `Runtime`, `Tests/EditMode`, and module-local `Validation` (`Game.ProgressionPresentation.*`).
 
-## API
+## Observed behavior / acceptance
 
-Coherent journal/tracked-objective read models derived from Progression snapshots, local selection/tracking/grouping state, semantic target descriptors where content exposes them. Tracking is local presentation state.
+System 11 `Game.Progression` is the sole quest/objective authority and exposes one coherent `ProgressionSnapshot`. Legacy `Game.Quests.Runtime.QuestRuntime` is a compatibility facade over that authority; no production HUD module exists on current master, so System19 must publish a compact read-only HUD seam without inventing a parallel HUD implementation. Existing presentation draft initially projected quests only; System11 standalone objectives also represent unified campaign-objective truth and therefore must be presented from the same snapshot.
 
-## Runtime
+Repository inventory found no existing ProgressionPresentation store or production completion/debug UI to migrate. Presentation metadata is semantic content keyed by `QuestId`/`ObjectiveId`; local sort/filter/collapse/selection/tracking is not gameplay state.
 
-1. Consume one coherent Progression snapshot/revision rather than piecing together campaign collections.
-2. Render quest/objective states without exposing hidden/spoiler content before the authoritative definition says it is visible.
-3. Keep sorting, collapse, selection and tracking local/non-authoritative.
-4. Rebuild after reconnect/restore from current snapshot.
-5. Integrate with HUD only via small tracked-objective presentation API, not shared mutable state.
+## Ownership / selected approach
 
-## Dependencies
+- `Api`: journal/read-model contracts, semantic presentation catalog, local-tracking/HUD projection contracts, and typed replicated current-state payload.
+- `Runtime`: one-snapshot journal projector; local preferences; spoiler visibility from authoritative lifecycle plus authored `VisibleWhileInactive`; read-only `ReplicatedProgressionQuery` over GameplayReplication current-state APIs. No `Game.Progression.Runtime` reference.
+- Unified projection includes both quest objectives and `ProgressionSnapshot.StandaloneObjectives`; no synthetic quest IDs.
+- HUD consumers read only `ITrackedObjectiveProjection`; absence of System17 on master is handled by this stable API seam rather than an unmerged dependency.
+- Validation: `Assets/Game/ProgressionPresentation/Validation/ProgressionPresentationValidation.unity` + scenario exercises the production presenter and renders journal/tracked projection in a standalone player.
 
-11 Progression and 06 client replicated state; 17 HUD may consume compact projection.
+## Hypotheses / results
 
-## Tests / proof
+1. **H1:** System11 snapshot is sufficient for UI truth. Confirmed: quest and standalone objective state/count/revision are present; no legacy runtime read is required.
+2. **H2:** Presentation may need its own mutable progression copy. Falsified: local preferences can be reconciled against each fresh snapshot while authority remains untouched.
 
-Activation/completion transitions, journal rebuild, local tracking independent of authority, multiplayer shared progression, built-player validation.
+## Blast radius / remaining gates
 
-## Do not build
-
-No quest completion buttons, generic accept/decline, map/minimap system, or duplicate progression store.
+Changes are isolated to the new ProgressionPresentation module and this SceneIssue. No accept/decline, map/minimap, completion command, gameplay mutation, or authority changes. Remaining gates: exact-SHA repository-selected EditMode/module validation, module-local standalone-player evidence, canonical Kentridge integration gate, final checklist/closure, then current-master merge + PR auto-merge.
