@@ -2,12 +2,13 @@ using System;
 using System.Collections.Generic;
 using Game.Composition.Campaign;
 using Game.Composition.Kentridge.Api;
-using Game.Composition.WorldBuilderWorldGen;
+using Game.Composition.WorldBuilderWorldGen.Runtime;
 using Game.Cutscenes.Api;
 using Game.Outcomes.Api;
 using Game.Quests.Api;
 using Game.SessionOrchestration.Api;
 using Game.SessionOrchestration.Runtime;
+using Game.Story.Api;
 
 namespace Game.Composition.Kentridge.Runtime
 {
