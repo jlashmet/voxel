@@ -1,0 +1,18 @@
+{
+  "name": "Game.Input.Tests.EditMode",
+  "rootNamespace": "Game.Input.Tests",
+  "references": [
+    "Game.Input.Api",
+    "Game.Input.Runtime",
+    "Unity.InputSystem"
+  ],
+  "includePlatforms": ["Editor"],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
