@@ -12,10 +12,10 @@
     "Game.Combat.Runtime",
     "Game.Vitality.Api",
     "Game.Vitality.Runtime",
+    "Game.Composition.Campaign.Runtime",
     "Game.Cutscenes.Api",
+    "Game.Progression.Api",
     "Game.Quests.Api",
-    "Game.Story.Api",
-    "Game.Story.Runtime",
     "Game.WorldBuilder.Api"
   ],
   "includePlatforms": ["Editor"],
