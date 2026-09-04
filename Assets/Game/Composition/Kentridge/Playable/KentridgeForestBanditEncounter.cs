@@ -16,7 +16,6 @@ using Game.Vitality.Api;
 using Game.Vitality.Runtime;
 using MountingForce.WorldGen;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 namespace Game.Composition.Kentridge.Playable
 {
@@ -32,8 +31,6 @@ namespace Game.Composition.Kentridge.Playable
         IKentridgeSessionRuntimeExtensionFactory,
         IKentridgeSessionRuntimeExtension
     {
-        private const string KentridgeSceneName = "KentridgePlayableSlice";
-        private const string PlayerCameraName = "Kentridge Player Camera";
         private const string MaleCharacterResource = "Characters/placeholder_male";
         private const int AutonomousBattleSeed = 20260829;
         private const int InitialCombatVitality = 6;
@@ -109,33 +106,6 @@ namespace Game.Composition.Kentridge.Playable
 
         public IReadOnlyList<ISessionUpdateStep> UpdateSteps =>
             _steps ?? Array.Empty<ISessionUpdateStep>();
-
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-        private static void RegisterSceneInstaller()
-        {
-            SceneManager.sceneLoaded -= InstallIntoPlayableSlice;
-            SceneManager.sceneLoaded += InstallIntoPlayableSlice;
-        }
-
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        private static void InstallInitialScene()
-        {
-            InstallIntoPlayableSlice(SceneManager.GetActiveScene(), LoadSceneMode.Single);
-        }
-
-        private static void InstallIntoPlayableSlice(Scene scene, LoadSceneMode mode)
-        {
-            if (!scene.IsValid() || scene.name != KentridgeSceneName) return;
-            GameObject[] roots = scene.GetRootGameObjects();
-            for (int i = 0; i < roots.Length; i++)
-            {
-                GameObject root = roots[i];
-                if (!string.Equals(root.name, PlayerCameraName, StringComparison.Ordinal)) continue;
-                if (root.GetComponent<KentridgeForestBanditEncounter>() == null)
-                    root.AddComponent<KentridgeForestBanditEncounter>();
-                return;
-            }
-        }
 
         public IKentridgeSessionRuntimeExtension Compose(
             GameSessionIdentity identity,
@@ -598,27 +568,16 @@ namespace Game.Composition.Kentridge.Playable
         private static GameObject CreateBandit(int index, Vector3 groundPosition)
         {
             GameObject prefab = Resources.Load<GameObject>(MaleCharacterResource);
-            GameObject root;
-            if (prefab != null)
-            {
-                root = Instantiate(prefab);
-                root.name = "Forest Bandit " + (index + 1);
-                root.transform.position = groundPosition;
-                root.transform.rotation = Quaternion.identity;
-                root.SetActive(true);
-            }
-            else
-            {
-                root = new GameObject("Forest Bandit " + (index + 1));
-                root.transform.position = groundPosition;
-                AddPrimitive(
-                    root.transform,
-                    PrimitiveType.Capsule,
-                    "Emergency Body",
-                    new Vector3(0f, 0.95f, 0f),
-                    new Vector3(0.68f, 0.82f, 0.54f),
-                    new Color(0.20f, 0.15f, 0.12f));
-            }
+            if (prefab == null)
+                throw new InvalidOperationException(
+                    "Kentridge forest encounter requires production character prefab Resources/" +
+                    MaleCharacterResource + ". Missing presentation assets may not fall back to primitive stand-ins.");
+
+            GameObject root = Instantiate(prefab);
+            root.name = "Forest Bandit " + (index + 1);
+            root.transform.position = groundPosition;
+            root.transform.rotation = Quaternion.identity;
+            root.SetActive(true);
 
             CapsuleCollider rootCollider = root.GetComponent<CapsuleCollider>();
             if (rootCollider == null) rootCollider = root.AddComponent<CapsuleCollider>();
