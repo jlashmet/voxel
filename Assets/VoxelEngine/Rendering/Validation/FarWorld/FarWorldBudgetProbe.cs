@@ -19,10 +19,13 @@ namespace VoxelEngine.Rendering.Validation
         private readonly FrameTiming[] _timings = new FrameTiming[1];
         private double _cpuTotalMs;
         private double _gpuTotalMs;
+        private double _frameTotalMs;
         private double _cpuMaxMs;
         private double _gpuMaxMs;
+        private double _frameMaxMs;
         private int _cpuSamples;
         private int _gpuSamples;
+        private int _frameSamples;
         private bool _reported;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -40,6 +43,14 @@ namespace VoxelEngine.Rendering.Validation
         {
             FrameTimingManager.CaptureFrameTimings();
             if (Time.realtimeSinceStartup < WarmupSeconds) return;
+
+            double frame = Time.unscaledDeltaTime * 1000.0;
+            if (frame > 0.0)
+            {
+                _frameTotalMs += frame;
+                _frameMaxMs = System.Math.Max(_frameMaxMs, frame);
+                _frameSamples++;
+            }
 
             uint count = FrameTimingManager.GetLatestTimings(1, _timings);
             if (count > 0)
@@ -68,8 +79,7 @@ namespace VoxelEngine.Rendering.Validation
 
         private void Report()
         {
-            ProceduralFarFeatureRenderer renderer =
-                Object.FindFirstObjectByType<ProceduralFarFeatureRenderer>();
+            ProceduralFarFeatureRenderer renderer = FindValidationRenderer();
             int batches = PrivateCollectionCount(renderer, "_batches");
             int meshes = PrivateCollectionCount(renderer, "_meshCache");
             int materials = PrivateCollectionCount(renderer, "_materialCache");
@@ -80,13 +90,30 @@ namespace VoxelEngine.Rendering.Validation
             long graphics = Profiler.GetAllocatedMemoryForGraphicsDriver();
             double cpuAverage = _cpuSamples > 0 ? _cpuTotalMs / _cpuSamples : 0.0;
             double gpuAverage = _gpuSamples > 0 ? _gpuTotalMs / _gpuSamples : 0.0;
+            double frameAverage = _frameSamples > 0 ? _frameTotalMs / _frameSamples : 0.0;
 
             Debug.Log(
                 "FARWORLD_BUDGET "
+                + $"frameAvgMs={frameAverage:F3} frameMaxMs={_frameMaxMs:F3} frameSamples={_frameSamples} "
                 + $"cpuAvgMs={cpuAverage:F3} cpuMaxMs={_cpuMaxMs:F3} cpuSamples={_cpuSamples} "
                 + $"gpuAvgMs={gpuAverage:F3} gpuMaxMs={_gpuMaxMs:F3} gpuSamples={_gpuSamples} "
                 + $"allocatedBytes={allocated} reservedBytes={reserved} graphicsDriverBytes={graphics} "
-                + $"instances={instances} batches={batches} cachedMeshes={meshes} cachedMaterials={materials}.");
+                + $"rendererFound={(renderer != null ? 1 : 0)} instances={instances} batches={batches} "
+                + $"cachedMeshes={meshes} cachedMaterials={materials}.");
+        }
+
+        private static ProceduralFarFeatureRenderer FindValidationRenderer()
+        {
+            Scene activeScene = SceneManager.GetActiveScene();
+            ProceduralFarFeatureRenderer[] renderers =
+                Resources.FindObjectsOfTypeAll<ProceduralFarFeatureRenderer>();
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                ProceduralFarFeatureRenderer renderer = renderers[i];
+                if (renderer == null || renderer.gameObject.scene != activeScene) continue;
+                return renderer;
+            }
+            return null;
         }
 
         private static int PrivateCollectionCount(object target, string fieldName)
