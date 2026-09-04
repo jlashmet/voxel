@@ -7,6 +7,7 @@
     "Game.WorldBuilder.Api",
     "Game.Composition.Showcase",
     "VoxelEngine.Composition",
+    "VoxelEngine.Storage.Api",
     "VoxelEngine.Structures.Api",
     "Unity.Collections",
     "Unity.Mathematics"
