@@ -5,6 +5,7 @@
     "Game.Characters.Api",
     "Game.Characters.Composition",
     "Game.Composition.Campaign",
+    "Game.Composition.EncounterRealization",
     "Game.Composition.Kentridge.Api",
     "Game.Composition.Showcase",
     "Game.Composition.WorldBuilderWorldGen",
