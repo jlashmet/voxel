@@ -1,33 +1,26 @@
 # Gameplay residency / simulation streaming — implementation plan
 
-**Target ownership:** introduce one game-level residency coordination boundary, likely `Assets/Game/Residency/Api` / `Runtime` after baseline inventory confirms naming and existing equivalents. Domain state remains owned by Characters, CharacterAI, WorldObjects, Encounters, Inventory, Quests/Story, persistence, and VoxelEngine streaming.
+**Target ownership:** introduce one game-level residency coordination boundary at `Assets/Game/Residency/Api` / `Runtime`. Domain state remains owned by Characters, CharacterAI, WorldObjects, Encounters, Inventory, Story/Progression, Persistence, WorldBuilder, GameplayReplication, and VoxelEngine Streaming.
 
-## Acceptance
+## Observed baseline / acceptance
 
-- Gameplay identity/durable semantic state outlives simulation, physical-world, network-interest, and Unity-presentation residency.
-- Use a small semantic fidelity model (`Dormant`, `Coarse`, `Detailed`, unless equivalent existing vocabulary should be reused), not one generic loaded flag.
-- Multiple independent demanders combine safely; highest required fidelity wins and one requester cannot release another requester's demand.
-- `Detailed` spatial simulation waits for required VoxelEngine world residency; demotion releases residency pins only after detailed consumers have quiesced.
-- Characters retain the same `CharacterId`, vitality/inventory bindings, semantic activity, and other owner state across demote/promote cycles.
-- CharacterAI can represent distant autonomous life coarsely without detailed perception/navigation while preserving authoritative semantic outcomes.
-- WorldObjects retain stable `WorldObjectId` and sparse authoritative state while presentation/streamed registries unload and reload.
-- Active encounter/story/control requirements may pin needed fidelity; residency does not absorb encounter or story policy.
-- Server simulation residency is distinct from per-client network interest. Replication filters state; it does not define authoritative existence.
-- Procedural WorldBuilder content may exist as cheap semantic definitions without instantiating every NPC/object/encounter.
-- No duplicate character, WorldObject, encounter, persistence, replication, or voxel-streaming authority is introduced.
+Baseline is `origin/master` `ed5c6f908361228819b3368bcd8427d4b44d89e3`. Character, CharacterAI, WorldObject, Encounter, Application/Persistence, GameplayReplication, WorldBuilder and VoxelEngine Streaming APIs are present. Characters already own stable `CharacterId`, registry state and kinematics; WorldObjects own stable `WorldObjectId` and snapshots; Encounters own stable participants/lifecycle; replication publishes current semantic state independently of simulation residency; WorldBuilder exposes stable Region/Settlement/Site/Npc refs.
+
+Acceptance remains: stable gameplay identity/state must outlive `Dormant`/`Coarse`/`Detailed` simulation, physical-world residency, client interest and Unity presentation; independent demands compose by maximum fidelity and release independently; Detailed spatial realization waits for world readiness and quiesces before physical release; no duplicate domain/persistence/replication/streaming authority.
+
+## Hypotheses / discriminating results
+
+1. **Existing `IRegionStreaming` is already an ownership-safe physical-residency primitive.** Falsified. It exposes queue/publish/resident/evict only, while `Streaming.Runtime.ResidencyManager` can evict directly through Storage policy, so gameplay cannot safely emulate a pin by load-now/evict-later.
+2. **A narrow Streaming-owned lease plus one game-level demand coordinator is sufficient.** Selected. Streaming owns ref-counted physical pins and makes all existing eviction paths respect them. Gameplay Residency owns only semantic demand aggregation, deterministic transition ordering/readiness/diagnostics and adapter orchestration.
 
 ## Chosen architecture
 
-`world/semantic definitions + durable state + fidelity demands` → **Gameplay Residency coordinator** → owner-specific adapters that promote/demote simulation detail. The coordinator owns only demand aggregation, deterministic transition ordering, readiness/transition state, and diagnostics. Owner adapters perform domain-specific realization/suspension through public APIs.
+`semantic target + independent fidelity demands` → **Gameplay Residency coordinator** → owner adapters. Coordinator stores no Character/WorldObject/Encounter state. Shared fidelity is `Dormant < Coarse < Detailed`; highest request wins. Spatial Detailed promotion obtains an `IRegionResidencyLease` through `VoxelEngine.Streaming.Api`, waits for `IsReady`, then realizes the owning adapter. Demotion quiesces the adapter first and only then disposes its physical lease.
 
-Detailed spatial consumers acquire physical-world residency through `VoxelEngine.Streaming.Api`; gameplay code never reaches into streaming Runtime. Add hysteresis/minimum dwell or equivalent anti-thrash policy only as needed to prevent demonstrated boundary churn.
+Runtime may depend on foreign **Api** assemblies only. Stable target IDs are semantic values, never `GameObject`, `Transform`, renderer/collider, packet, runtime implementation, ordinal or captured-scene coordinate. Server simulation residency remains independent of client replication interest/presentation lifetime.
 
-## Dependencies / blockers
+Streaming already has distance hysteresis. Add gameplay dwell/hysteresis only if R90 demonstrates semantic transition churn.
 
-Gameplay systems 03/04/06/13 and their APIs may still be landing. Fetch master first. If a required contract is unavailable, record the blocker and continue with coordinator semantics, deterministic tests, WorldObject/streaming integration, or fixtures that do not invent substitute authorities.
+## Validation / remaining gates
 
-## Reuse / validation
-
-Primary proof: a town NPC transitions Dormant → Coarse → Detailed → Coarse/Dormant while preserving identity/state and using real world residency. Independent proof: a streamed WorldObject unloads/reloads presentation and preserves identity/state. Also prove one active encounter or explicit semantic pin can retain Detailed fidelity independently of player distance.
-
-Measure active detailed/coarse counts and transition churn under a representative generated settlement/world fixture; do not weaken existing budgets. Final closure requires repository-selected module tests, affected integration/player gates, boundary audit, exact-SHA CI, and all tasks complete.
+Streaming lease prerequisite commit: `71b31edefcc6d5511b158f7a9c5b66a4d1c355c5`; focused regression proves multiple pins release independently and engine distance eviction skips pinned regions. Next: deterministic Residency Api/Runtime + tests, then Character/AI, WorldObject, Encounter and composition reuse proofs, module-local runtime validation, persistence/cost/boundary audits, exact-SHA CI and built-player evidence. Close only when every `tasks.md` item and acceptance criterion is proven.
