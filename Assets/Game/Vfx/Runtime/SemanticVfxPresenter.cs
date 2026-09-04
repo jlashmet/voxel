@@ -28,6 +28,7 @@ namespace Game.Vfx.Runtime
         private readonly Dictionary<VfxTreatmentId, Persistent> _persistent = new Dictionary<VfxTreatmentId, Persistent>();
         private readonly List<VfxDiagnostic> _diagnostics = new List<VfxDiagnostic>();
         private Material _particleMaterial;
+        private Texture2D _particleTexture;
         private int _playCount;
 
         public int OneShotPlayCount => _playCount;
@@ -121,6 +122,7 @@ namespace Game.Vfx.Runtime
             main.startLifetime = persistent ? new ParticleSystem.MinMaxCurve(0.9f, 1.5f) : Lifetime(profile.Style, profile.LifetimeSeconds);
             main.startSpeed = Speed(profile.Style, profile.Scale);
             main.startSize = Size(profile.Style, profile.Scale);
+            main.startRotation = new ParticleSystem.MinMaxCurve(-Mathf.PI, Mathf.PI);
             main.startColor = ColorFor(profile.Style);
             main.gravityModifier = profile.Style == VfxEffectStyle.Debris ? 1.4f : 0f;
 
@@ -130,37 +132,64 @@ namespace Game.Vfx.Runtime
 
             var shape = system.shape;
             shape.enabled = true;
-            shape.shapeType = profile.Style == VfxEffectStyle.Impact || profile.Style == VfxEffectStyle.Debris
-                ? ParticleSystemShapeType.Cone
-                : ParticleSystemShapeType.Sphere;
-            shape.radius = profile.Style == VfxEffectStyle.DefeatedAura ? 0.85f * profile.Scale : 0.2f * profile.Scale;
-            shape.angle = profile.Style == VfxEffectStyle.Debris ? 55f : 25f;
+            switch (profile.Style)
+            {
+                case VfxEffectStyle.Impact:
+                    shape.shapeType = ParticleSystemShapeType.Cone;
+                    shape.radius = 0.09f * profile.Scale;
+                    shape.angle = 42f;
+                    break;
+                case VfxEffectStyle.Debris:
+                    shape.shapeType = ParticleSystemShapeType.Cone;
+                    shape.radius = 0.24f * profile.Scale;
+                    shape.angle = 62f;
+                    break;
+                case VfxEffectStyle.InteractionPulse:
+                    shape.shapeType = ParticleSystemShapeType.Circle;
+                    shape.radius = 0.48f * profile.Scale;
+                    break;
+                default:
+                    shape.shapeType = ParticleSystemShapeType.Sphere;
+                    shape.radius = profile.Style == VfxEffectStyle.DefeatedAura ? 0.78f * profile.Scale : 0.18f * profile.Scale;
+                    break;
+            }
 
             var color = system.colorOverLifetime;
             color.enabled = true;
             Gradient gradient = new Gradient();
             Color start = ColorFor(profile.Style);
-            Color end = new Color(start.r, start.g, start.b, 0f);
-            gradient.SetKeys(new[] { new GradientColorKey(start, 0f), new GradientColorKey(Color.white, 0.35f), new GradientColorKey(start, 1f) },
-                new[] { new GradientAlphaKey(start.a, 0f), new GradientAlphaKey(start.a, 0.55f), new GradientAlphaKey(0f, 1f) });
+            Color hot = Color.Lerp(start, Color.white, profile.Style == VfxEffectStyle.Debris ? 0.32f : 0.62f);
+            gradient.SetKeys(
+                new[] { new GradientColorKey(hot, 0f), new GradientColorKey(start, 0.45f), new GradientColorKey(start * 0.72f, 1f) },
+                new[] { new GradientAlphaKey(start.a, 0f), new GradientAlphaKey(start.a, 0.52f), new GradientAlphaKey(0f, 1f) });
             color.color = new ParticleSystem.MinMaxGradient(gradient);
 
             var size = system.sizeOverLifetime;
             size.enabled = true;
             AnimationCurve sizeCurve = new AnimationCurve(
-                new Keyframe(0f, profile.Style == VfxEffectStyle.DefeatBurst ? 0.2f : 0.65f),
-                new Keyframe(0.35f, 1f),
-                new Keyframe(1f, profile.Style == VfxEffectStyle.DefeatedAura ? 0.7f : 0f));
+                new Keyframe(0f, profile.Style == VfxEffectStyle.DefeatBurst ? 0.16f : 0.58f),
+                new Keyframe(0.28f, 1f),
+                new Keyframe(1f, profile.Style == VfxEffectStyle.DefeatedAura ? 0.55f : 0f));
             size.size = new ParticleSystem.MinMaxCurve(1f, sizeCurve);
 
             var noise = system.noise;
             noise.enabled = profile.Style == VfxEffectStyle.InteractionPulse || profile.Style == VfxEffectStyle.DefeatedAura;
-            noise.strength = profile.Style == VfxEffectStyle.DefeatedAura ? 0.45f : 0.25f;
-            noise.frequency = 0.55f;
-            noise.scrollSpeed = 0.25f;
+            noise.strength = profile.Style == VfxEffectStyle.DefeatedAura ? 0.34f : 0.18f;
+            noise.frequency = profile.Style == VfxEffectStyle.DefeatedAura ? 0.48f : 0.72f;
+            noise.scrollSpeed = 0.2f;
+
+            var rotation = system.rotationOverLifetime;
+            rotation.enabled = profile.Style == VfxEffectStyle.InteractionPulse || profile.Style == VfxEffectStyle.DefeatedAura;
+            rotation.z = new ParticleSystem.MinMaxCurve(-1.8f, 1.8f);
 
             ParticleSystemRenderer renderer = system.GetComponent<ParticleSystemRenderer>();
-            renderer.renderMode = ParticleSystemRenderMode.Billboard;
+            bool stretched = profile.Style == VfxEffectStyle.Impact || profile.Style == VfxEffectStyle.Debris;
+            renderer.renderMode = stretched ? ParticleSystemRenderMode.Stretch : ParticleSystemRenderMode.Billboard;
+            if (stretched)
+            {
+                renderer.velocityScale = profile.Style == VfxEffectStyle.Debris ? 0.18f : 0.28f;
+                renderer.lengthScale = profile.Style == VfxEffectStyle.Debris ? 1.45f : 2.2f;
+            }
             renderer.sortingOrder = 50;
             if (_particleMaterial != null) renderer.sharedMaterial = _particleMaterial;
         }
@@ -172,22 +201,54 @@ namespace Game.Vfx.Runtime
             if (shader == null) shader = Shader.Find("Particles/Standard Unlit");
             if (shader == null) shader = Shader.Find("Sprites/Default");
             if (shader == null) shader = Shader.Find("Unlit/Color");
-            if (shader != null)
+            if (shader == null) return;
+
+            _particleTexture = CreateSoftParticleTexture(64);
+            _particleMaterial = new Material(shader) { name = "SemanticVfxRuntimeMaterial" };
+            if (_particleMaterial.HasProperty("_BaseColor")) _particleMaterial.SetColor("_BaseColor", Color.white);
+            if (_particleMaterial.HasProperty("_Color")) _particleMaterial.SetColor("_Color", Color.white);
+            if (_particleTexture != null)
             {
-                _particleMaterial = new Material(shader) { name = "SemanticVfxRuntimeMaterial" };
-                if (_particleMaterial.HasProperty("_BaseColor")) _particleMaterial.SetColor("_BaseColor", Color.white);
-                if (_particleMaterial.HasProperty("_Color")) _particleMaterial.SetColor("_Color", Color.white);
+                if (_particleMaterial.HasProperty("_BaseMap")) _particleMaterial.SetTexture("_BaseMap", _particleTexture);
+                if (_particleMaterial.HasProperty("_MainTex")) _particleMaterial.SetTexture("_MainTex", _particleTexture);
+                _particleMaterial.mainTexture = _particleTexture;
             }
+        }
+
+        private static Texture2D CreateSoftParticleTexture(int size)
+        {
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false, true)
+            {
+                name = "SemanticVfxSoftParticle",
+                filterMode = FilterMode.Bilinear,
+                wrapMode = TextureWrapMode.Clamp
+            };
+            var pixels = new Color32[size * size];
+            float inv = 1f / size;
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float px = ((x + 0.5f) * inv) * 2f - 1f;
+                    float py = ((y + 0.5f) * inv) * 2f - 1f;
+                    float radial = Mathf.Clamp01(1f - Mathf.Sqrt(px * px + py * py));
+                    float alpha = radial * radial * (3f - 2f * radial);
+                    pixels[y * size + x] = new Color32(255, 255, 255, (byte)Mathf.RoundToInt(alpha * 255f));
+                }
+            }
+            texture.SetPixels32(pixels);
+            texture.Apply(false, true);
+            return texture;
         }
 
         private static ParticleSystem.MinMaxCurve Lifetime(VfxEffectStyle style, float fallback)
         {
             switch (style)
             {
-                case VfxEffectStyle.Impact: return new ParticleSystem.MinMaxCurve(0.25f, 0.7f);
+                case VfxEffectStyle.Impact: return new ParticleSystem.MinMaxCurve(0.22f, 0.62f);
                 case VfxEffectStyle.Debris: return new ParticleSystem.MinMaxCurve(0.7f, Mathf.Max(1.2f, fallback));
-                case VfxEffectStyle.DefeatBurst: return new ParticleSystem.MinMaxCurve(0.8f, 1.4f);
-                default: return new ParticleSystem.MinMaxCurve(0.55f, Mathf.Max(0.8f, fallback));
+                case VfxEffectStyle.DefeatBurst: return new ParticleSystem.MinMaxCurve(0.7f, 1.32f);
+                default: return new ParticleSystem.MinMaxCurve(0.5f, Mathf.Max(0.8f, fallback));
             }
         }
 
@@ -195,12 +256,12 @@ namespace Game.Vfx.Runtime
         {
             switch (style)
             {
-                case VfxEffectStyle.Impact: return new ParticleSystem.MinMaxCurve(2.5f * scale, 5.5f * scale);
-                case VfxEffectStyle.DefeatBurst: return new ParticleSystem.MinMaxCurve(1.8f * scale, 4.2f * scale);
-                case VfxEffectStyle.InteractionPulse: return new ParticleSystem.MinMaxCurve(0.4f * scale, 1.4f * scale);
-                case VfxEffectStyle.ResolutionBurst: return new ParticleSystem.MinMaxCurve(1.8f * scale, 4.8f * scale);
-                case VfxEffectStyle.Debris: return new ParticleSystem.MinMaxCurve(2f * scale, 6f * scale);
-                default: return new ParticleSystem.MinMaxCurve(0.1f, 0.45f * scale);
+                case VfxEffectStyle.Impact: return new ParticleSystem.MinMaxCurve(3.2f * scale, 7f * scale);
+                case VfxEffectStyle.DefeatBurst: return new ParticleSystem.MinMaxCurve(2.1f * scale, 5.1f * scale);
+                case VfxEffectStyle.InteractionPulse: return new ParticleSystem.MinMaxCurve(0.55f * scale, 1.65f * scale);
+                case VfxEffectStyle.ResolutionBurst: return new ParticleSystem.MinMaxCurve(2f * scale, 5f * scale);
+                case VfxEffectStyle.Debris: return new ParticleSystem.MinMaxCurve(2.2f * scale, 6.6f * scale);
+                default: return new ParticleSystem.MinMaxCurve(0.08f, 0.38f * scale);
             }
         }
 
@@ -208,10 +269,11 @@ namespace Game.Vfx.Runtime
         {
             switch (style)
             {
-                case VfxEffectStyle.Impact: return new ParticleSystem.MinMaxCurve(0.08f * scale, 0.24f * scale);
-                case VfxEffectStyle.DefeatBurst: return new ParticleSystem.MinMaxCurve(0.12f * scale, 0.38f * scale);
-                case VfxEffectStyle.Debris: return new ParticleSystem.MinMaxCurve(0.07f * scale, 0.22f * scale);
-                default: return new ParticleSystem.MinMaxCurve(0.09f * scale, 0.28f * scale);
+                case VfxEffectStyle.Impact: return new ParticleSystem.MinMaxCurve(0.045f * scale, 0.13f * scale);
+                case VfxEffectStyle.DefeatBurst: return new ParticleSystem.MinMaxCurve(0.08f * scale, 0.26f * scale);
+                case VfxEffectStyle.InteractionPulse: return new ParticleSystem.MinMaxCurve(0.055f * scale, 0.16f * scale);
+                case VfxEffectStyle.Debris: return new ParticleSystem.MinMaxCurve(0.05f * scale, 0.15f * scale);
+                default: return new ParticleSystem.MinMaxCurve(0.07f * scale, 0.2f * scale);
             }
         }
 
@@ -219,12 +281,12 @@ namespace Game.Vfx.Runtime
         {
             switch (style)
             {
-                case VfxEffectStyle.Impact: return new Color(1f, 0.78f, 0.22f, 0.95f);
-                case VfxEffectStyle.DefeatBurst: return new Color(0.9f, 0.2f, 0.28f, 0.92f);
-                case VfxEffectStyle.DefeatedAura: return new Color(0.6f, 0.12f, 0.2f, 0.55f);
-                case VfxEffectStyle.InteractionPulse: return new Color(0.25f, 0.9f, 1f, 0.9f);
-                case VfxEffectStyle.ResolutionBurst: return new Color(0.65f, 0.42f, 1f, 0.92f);
-                case VfxEffectStyle.Debris: return new Color(0.78f, 0.58f, 0.34f, 0.9f);
+                case VfxEffectStyle.Impact: return new Color(1f, 0.7f, 0.12f, 0.96f);
+                case VfxEffectStyle.DefeatBurst: return new Color(1f, 0.12f, 0.24f, 0.94f);
+                case VfxEffectStyle.DefeatedAura: return new Color(0.72f, 0.08f, 0.18f, 0.48f);
+                case VfxEffectStyle.InteractionPulse: return new Color(0.14f, 0.92f, 1f, 0.92f);
+                case VfxEffectStyle.ResolutionBurst: return new Color(0.68f, 0.34f, 1f, 0.94f);
+                case VfxEffectStyle.Debris: return new Color(0.88f, 0.52f, 0.2f, 0.9f);
                 default: return Color.white;
             }
         }
@@ -234,6 +296,7 @@ namespace Game.Vfx.Runtime
         private void OnDestroy()
         {
             if (_particleMaterial != null) Destroy(_particleMaterial);
+            if (_particleTexture != null) Destroy(_particleTexture);
         }
     }
 
