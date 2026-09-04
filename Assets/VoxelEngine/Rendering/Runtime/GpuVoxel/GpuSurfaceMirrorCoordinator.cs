@@ -34,6 +34,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             CountBatchCapacity * CountBatchLaneCount;
         private const int CountBatchMaxFillFrames = 2;
         internal const int DefaultUploadBudgetBytes = 256 * 1024;
+        private const uint AllocationReady = 0u;
+        private const uint AllocationExhausted = 1u;
+        private const uint AllocationStale = 2u;
+        private const uint AllocationTooLarge = 3u;
 
         private static readonly Queue<int3> s_RecoveryRegions = new(TrackedRegionCapacity);
         private static readonly HashSet<int3> s_QueuedRecoveryRegions = new(TrackedRegionCapacity);
@@ -92,6 +96,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private static ulong s_CountBatchReadbacks;
         private static ulong s_CountBatchRecords;
         private static ulong s_CountBatchArenaWaits;
+        private static ulong s_CountBatchReadbackFailures;
+        private static ulong s_CountBatchAllocationExhausted;
+        private static ulong s_CountBatchAllocationStale;
+        private static ulong s_CountBatchAllocationTooLarge;
         private static double s_MaxCountDispatchMsSinceReport;
         private static double s_MaxWriteDispatchMsSinceReport;
         private static double s_MaxCopyDispatchMsSinceReport;
@@ -110,6 +118,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             internal GpuSurfaceExtractor.CountBatchResources Resources;
             internal int Count;
             internal int FirstDispatchFrame = -1;
+            internal bool InFlight;
+            internal AsyncGPUReadbackRequest Readback;
         }
 
         private readonly struct ChunkHandleKey : IEquatable<ChunkHandleKey>
@@ -248,9 +258,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         /// <summary>
         /// Appends one immutable chunk descriptor to a cross-chunk lane. On seal, batch-wide GPU
-        /// count/prefix, page allocation, all-category generation, and publication execute without
-        /// transferring bookkeeping to the CPU. A lane seals at eight descriptors or after a
-        /// bounded delay, so sparse demand cannot wait forever.
+        /// count/prefix, page allocation, all-category generation, and publication execute. The
+        /// lane remains owned until a completed asynchronous bookkeeping readback reports whether
+        /// each record actually published; allocation pressure can therefore never masquerade as
+        /// a ready chunk. A lane seals at capacity or after a bounded delay.
         /// </summary>
         internal static bool TryDispatchCountBatch(GpuSurfaceExtractionContext context,
                                                    uint token,
@@ -267,7 +278,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             for (int i = 0; i < s_CountBatchLanes.Length; i++)
             {
                 CountBatchLane candidate = s_CountBatchLanes[i];
-                if (candidate.Count < CountBatchCapacity)
+                if (!candidate.InFlight && candidate.Count < CountBatchCapacity)
                 {
                     lane = candidate;
                     break;
@@ -314,9 +325,49 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             {
                 CountBatchLane lane = s_CountBatchLanes[laneIndex];
                 if (lane == null) continue;
+                if (lane.InFlight)
+                {
+                    CompleteCountBatchReadback(lane);
+                    continue;
+                }
                 if (lane.Count > 0 && frame - lane.FirstDispatchFrame >= CountBatchMaxFillFrames)
                     SealCountBatch(lane);
             }
+        }
+
+        private static void CompleteCountBatchReadback(CountBatchLane lane)
+        {
+            if (!lane.InFlight || !lane.Readback.done) return;
+            s_CountBatchReadbacks++;
+            if (lane.Readback.hasError)
+            {
+                s_CountBatchReadbackFailures++;
+                for (int record = 0; record < lane.Count; record++)
+                    lane.Contexts[record]?.FailPagedBatch(lane.Tokens[record]);
+                ResetCountBatchLane(lane);
+                return;
+            }
+
+            NativeArray<uint> words = lane.Readback.GetData<uint>();
+            for (int record = 0; record < lane.Count; record++)
+            {
+                int word = GpuSurfaceExtractor.BatchHeaderWords
+                         + record * GpuSurfaceExtractor.BatchRecordWords;
+                uint status = words[word + 10];
+                if (status == AllocationReady)
+                {
+                    lane.Contexts[record]?.CompletePagedBatch(
+                        lane.Tokens[record], lane.Requests[record].Handle);
+                    continue;
+                }
+
+                if (status == AllocationExhausted) s_CountBatchAllocationExhausted++;
+                else if (status == AllocationStale) s_CountBatchAllocationStale++;
+                else if (status == AllocationTooLarge) s_CountBatchAllocationTooLarge++;
+                else s_CountBatchReadbackFailures++;
+                lane.Contexts[record]?.FailPagedBatch(lane.Tokens[record]);
+            }
+            ResetCountBatchLane(lane);
         }
 
         private static void ResetCountBatchLane(CountBatchLane lane)
@@ -331,11 +382,13 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             lane.FirstDispatchFrame = -1;
             lane.PrefixExtractor = null;
             lane.Tables = null;
+            lane.InFlight = false;
+            lane.Readback = default;
         }
 
         private static void SealCountBatch(CountBatchLane lane)
         {
-            if (lane == null || lane.Count == 0) return;
+            if (lane == null || lane.Count == 0 || lane.InFlight) return;
             if (s_PageArena == null)
                 throw new InvalidOperationException(
                     "Production GPU extraction requires the GPU-owned page arena.");
@@ -372,10 +425,12 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 GraphicsFenceType.CPUSynchronisation,
                 SynchronisationStageFlags.ComputeProcessing);
             s_ExtractionFenceValid = true;
-            for (int record = 0; record < lane.Count; record++)
-                lane.Contexts[record]?.CompletePagedBatch(
-                    lane.Tokens[record], lane.Requests[record].Handle);
-            ResetCountBatchLane(lane);
+
+            // Read only the small bookkeeping buffer, asynchronously. The request is ordered after
+            // allocation/write/publication on the graphics queue. No frame waits for it; the lane
+            // simply remains unavailable until a later PrepareFrame observes request.done.
+            lane.Readback = AsyncGPUReadback.Request(lane.Counters);
+            lane.InFlight = true;
         }
 
         private static void ResetCountBatches()
@@ -395,6 +450,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             s_CountBatchReadbacks = 0;
             s_CountBatchRecords = 0;
             s_CountBatchArenaWaits = 0;
+            s_CountBatchReadbackFailures = 0;
+            s_CountBatchAllocationExhausted = 0;
+            s_CountBatchAllocationStale = 0;
+            s_CountBatchAllocationTooLarge = 0;
         }
 
         internal static void RequestCoverage(int3 brickCacheOrigin, int brickCacheEdge,
@@ -605,6 +664,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         internal static ulong CountBatchReadbacks => s_CountBatchReadbacks;
         internal static ulong CountBatchRecords => s_CountBatchRecords;
         internal static ulong CountBatchArenaWaits => s_CountBatchArenaWaits;
+        internal static ulong CountBatchReadbackFailures => s_CountBatchReadbackFailures;
+        internal static ulong CountBatchAllocationExhausted => s_CountBatchAllocationExhausted;
+        internal static ulong CountBatchAllocationStale => s_CountBatchAllocationStale;
+        internal static ulong CountBatchAllocationTooLarge => s_CountBatchAllocationTooLarge;
 
         private static void AttachWorld(IRegionReadSource storage, IVoxelChangeSource changes)
         {
