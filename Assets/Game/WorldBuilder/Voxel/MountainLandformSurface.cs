@@ -163,13 +163,14 @@ namespace Game.WorldBuilder.Voxel
 
             // A single full-height frustum produces one enormous constant-slope face at landmark
             // scale. These four vertically joined bands describe the same semantic massif with a
-            // continuous radial profile: broad/gentle foothills transition through steeper upper
-            // mountain and finish at the authored summit radius. Adjacent bands overlap exactly on
-            // one seam layer (same Y and radius), so there is no floating support or horizontal
-            // terrace for roads, collision, or voxel realization to disagree about.
+            // continuous radial profile. Equal radial quarters and a modest inward rise progression
+            // keep the upper band from becoming a cliff while still steepening naturally toward the
+            // summit. Adjacent bands overlap exactly on one seam layer (same Y and radius), so there
+            // is no floating support or horizontal terrace for roads, collision, or voxel realization
+            // to disagree about.
             int totalRise = spec.HeightDm - 1;
-            int[] cumulativeRunPermille = { 390, 670, 860, 1000 };
-            int[] cumulativeRisePermille = { 230, 480, 755, 1000 };
+            int[] cumulativeRunPermille = { 250, 500, 750, 1000 };
+            int[] cumulativeRisePermille = { 220, 460, 720, 1000 };
             int baseY = spec.OriginYdm;
             int baseRadius = coreRadius;
 
@@ -329,7 +330,7 @@ namespace Game.WorldBuilder.Voxel
                     Math.Max(3, minRadius / 3));
 
                 masses.Add(new MountainLandformMass(
-                    centreX, spec.OriginYdm, centreZ,
+                    centreX, spec.OriginYdm, summitZ + dz * distance / DirectionScale + tangentZ * tangentJitter / DirectionScale,
                     height, localRadius, Math.Max(1, localRadius / 5)));
             }
         }
