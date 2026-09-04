@@ -1,0 +1,17 @@
+{
+  "formatVersion": 3,
+  "id": "20260901-034305-020-GameSystem20MultiplayerPartyTeammateSessionPresentation",
+  "capturedUtc": "2026-09-01T03:43:05.0200000Z",
+  "note": "FEATURE / GAME SYSTEM #20: Multiplayer party, teammate & session presentation. Binding acceptance is retained in plan.md and tasks.md.",
+  "status": "fixed",
+  "resolvedUtc": "2026-09-04T11:41:03.842050Z",
+  "resolutionSummary": "Added Game.SessionPresentation semantic rich/compact projections keyed by durable PartyMemberId, merging Sessions roster, Continuity recovery, GameplayReplication synchronization/GameplayReady and CharacterId without transport or GameObject row identity. Added Sessions-owned semantic ready/start/leave application commands with explicit user-ready distinct from replication readiness. Exact built-player validation showed the same three durable members across rich party and compact HUD views, preserved party:bravo slot 1 / character:bravo through reconnect, and reached ReadyToStart with start available.",
+  "regressionTest": "Exact source 1312f423d4a92a3948404eaf415764eb425952a6 via CI transport 9e8cd8387e5447356cad2059070a88974949647f, workflow 33868484121: Game.SessionPresentation.Tests.SessionPresentationProjectorTests passed; repository-selected Game.Continuity.Tests, Game.GameplayReplication.Tests, Game.SessionPresentation.Tests.EditMode and Game.Sessions.Tests passed; SessionPresentationValidation standalone player passed with required reconnect-stable and ReadyToStart logs and four 1280x720 captures; canonical KentridgePlayableSlice standalone integration passed.",
+  "fixCommit": "1312f423d4a92a3948404eaf415764eb425952a6",
+  "unityVersion": "6000.5.6f1",
+  "platform": "Feature / SessionPresentation",
+  "sceneName": "SessionPresentationValidation",
+  "scenePath": "Assets/Game/SessionPresentation/Validation/SessionPresentationValidation.unity",
+  "sceneBuildIndex": 0,
+  "captures": []
+}
