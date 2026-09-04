@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 using Game.Composition.Campaign;
 using Game.Composition.Campaign.Runtime;
 using Game.Cutscenes.Api;
@@ -13,6 +14,68 @@ namespace Game.Progression.Tests
     {
         [Test]
         public void CampaignUsesOneProgressionSessionAndFeedsQuestCompletionBackToStory()
+        {
+            CampaignFixture fixture = BuildFixture();
+            var runtime = new CampaignRuntime(
+                fixture.Blueprint,
+                Array.Empty<CutsceneStageRealization>(),
+                new NoActors(),
+                new NoPresentation(),
+                new[] { fixture.Quest });
+
+            Assert.That(runtime.StartNewGame(), Is.EqualTo(2));
+            Assert.That(runtime.IsObjectiveActive(fixture.Objective), Is.True);
+            Assert.That(runtime.IsQuestActive(fixture.Quest.Ref), Is.True);
+
+            runtime.InteractWithNpc(fixture.Guide);
+
+            Assert.That(runtime.IsObjectiveCompleted(fixture.Objective), Is.True);
+            Assert.That(runtime.IsQuestCompleted(fixture.Quest.Ref), Is.True);
+            Assert.That(runtime.IsPartyMemberJoined("ally"), Is.True,
+                "Quest completion must flow back through Story rather than executing consequences in Progression.");
+
+            ProgressionSnapshot snapshot = runtime.Progression.Snapshot();
+            Assert.That(snapshot.Quests.Count, Is.EqualTo(1));
+            Assert.That(snapshot.StandaloneObjectives.Count, Is.EqualTo(1));
+            Assert.That(snapshot.Quests[0].State, Is.EqualTo(ProgressionLifecycleState.Completed));
+            Assert.That(snapshot.StandaloneObjectives[0].State, Is.EqualTo(ProgressionLifecycleState.Completed));
+
+            CampaignProgressSnapshot campaignSnapshot = runtime.CaptureProgress();
+            Assert.That(campaignSnapshot.Progression, Is.Not.Null);
+            Assert.That(campaignSnapshot.Progression.Quests.Count, Is.EqualTo(1));
+            Assert.That(campaignSnapshot.Progression.StandaloneObjectives.Count, Is.EqualTo(1));
+
+            var restored = new CampaignRuntime(
+                fixture.Blueprint,
+                Array.Empty<CutsceneStageRealization>(),
+                new NoActors(),
+                new NoPresentation(),
+                new[] { fixture.Quest });
+            restored.RestoreProgress(campaignSnapshot);
+            Assert.That(restored.IsObjectiveCompleted(fixture.Objective), Is.True);
+            Assert.That(restored.IsQuestCompleted(fixture.Quest.Ref), Is.True);
+            Assert.That(restored.IsPartyMemberJoined("ally"), Is.True);
+        }
+
+        [Test]
+        public void CampaignRuntimeDoesNotOwnParallelMutableQuestOrObjectiveCollections()
+        {
+            FieldInfo[] fields = typeof(CampaignRuntime).GetFields(
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            for (var i = 0; i < fields.Length; i++)
+            {
+                Assert.That(fields[i].Name, Is.Not.EqualTo("_activeObjectives"));
+                Assert.That(fields[i].Name, Is.Not.EqualTo("_completedObjectives"));
+                Assert.That(fields[i].Name, Is.Not.EqualTo("_activeQuests"));
+                Assert.That(fields[i].Name, Is.Not.EqualTo("_completedQuests"));
+            }
+
+            Assert.That(typeof(CampaignRuntime).GetField(
+                "_progression",
+                BindingFlags.Instance | BindingFlags.NonPublic), Is.Not.Null);
+        }
+
+        private static CampaignFixture BuildFixture()
         {
             var game = Game.WorldBuilder.Api.Campaign.Create("progression-integration");
             RegionHandle region = game.World.Region("region");
@@ -33,7 +96,6 @@ namespace Game.Progression.Tests
                 .When(StoryTrigger.QuestCompleted(questRef))
                 .Then(StoryEffect.JoinPartyMember("ally")));
 
-            CampaignBlueprint blueprint = game.Build();
             var quest = new QuestDefinition(questRef, new[]
             {
                 new Game.Quests.Api.QuestStepDefinition(
@@ -41,34 +103,32 @@ namespace Game.Progression.Tests
                     guide.Id,
                     QuestCompletion.InteractWith(guide.Id))
             });
-            var runtime = new CampaignRuntime(
-                blueprint,
-                Array.Empty<CutsceneStageRealization>(),
-                new NoActors(),
-                new NoPresentation(),
-                new[] { quest });
 
-            Assert.That(runtime.StartNewGame(), Is.EqualTo(2));
-            Assert.That(runtime.IsObjectiveActive(objective.Ref), Is.True);
-            Assert.That(runtime.IsQuestActive(questRef), Is.True);
+            return new CampaignFixture(
+                game.Build(),
+                quest,
+                objective.Ref,
+                guide.Ref);
+        }
 
-            runtime.InteractWithNpc(guide.Ref);
+        private sealed class CampaignFixture
+        {
+            public CampaignFixture(
+                CampaignBlueprint blueprint,
+                QuestDefinition quest,
+                ObjectiveRef objective,
+                NpcRef guide)
+            {
+                Blueprint = blueprint;
+                Quest = quest;
+                Objective = objective;
+                Guide = guide;
+            }
 
-            Assert.That(runtime.IsObjectiveCompleted(objective.Ref), Is.True);
-            Assert.That(runtime.IsQuestCompleted(questRef), Is.True);
-            Assert.That(runtime.IsPartyMemberJoined("ally"), Is.True,
-                "Quest completion must flow back through Story rather than executing consequences in Progression.");
-
-            ProgressionSnapshot snapshot = runtime.Progression.Snapshot();
-            Assert.That(snapshot.Quests.Count, Is.EqualTo(1));
-            Assert.That(snapshot.StandaloneObjectives.Count, Is.EqualTo(1));
-            Assert.That(snapshot.Quests[0].State, Is.EqualTo(ProgressionLifecycleState.Completed));
-            Assert.That(snapshot.StandaloneObjectives[0].State, Is.EqualTo(ProgressionLifecycleState.Completed));
-
-            CampaignProgressSnapshot campaignSnapshot = runtime.CaptureProgress();
-            Assert.That(ReferenceEquals(campaignSnapshot.Progression, null), Is.False);
-            Assert.That(campaignSnapshot.Progression.Quests.Count, Is.EqualTo(1));
-            Assert.That(campaignSnapshot.Progression.StandaloneObjectives.Count, Is.EqualTo(1));
+            public CampaignBlueprint Blueprint { get; }
+            public QuestDefinition Quest { get; }
+            public ObjectiveRef Objective { get; }
+            public NpcRef Guide { get; }
         }
 
         private sealed class NoActors : IWorldBoundCutsceneActorProvider
