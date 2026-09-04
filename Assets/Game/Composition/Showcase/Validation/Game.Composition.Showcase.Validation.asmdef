@@ -3,9 +3,10 @@
   "rootNamespace": "VoxelEngine.Showcase.Validation",
   "references": [
     "Game.Composition.Showcase",
+    "Game.Composition.WorldObjects.Runtime",
+    "VoxelEngine.Composition.Api",
+    "VoxelEngine.Composition",
     "VoxelEngine.Storage.Api",
-    "VoxelEngine.Structures.Api",
-    "Unity.Collections",
     "Unity.Mathematics"
   ],
   "includePlatforms": [],
