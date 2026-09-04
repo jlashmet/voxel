@@ -27,15 +27,15 @@
 
 ## Verification
 
-- [ ] **T19-020 — Activation/completion transition tests.** View model follows one coherent revision and never displays impossible mixed states.
-- [ ] **T19-021 — Visibility tests.** Hidden objectives/quests do not leak before authoritative reveal; reveal makes them available deterministically.
-- [ ] **T19-022 — Local-tracking independence test.** Changing tracked objective leaves authoritative Progression snapshot unchanged.
-- [ ] **T19-023 — Shared multiplayer progression test.** Different clients may track differently while viewing the same shared authoritative quest/objective completion state.
-- [ ] **T19-024 — Reconnect/restore rebuild test.** Current progression reconstructs journal without replaying prior completion notifications.
-- [ ] **T19-025 — Module-local built-player visual validation through shared harness.**
+- [x] **T19-020 — Activation/completion transition tests.** `ActivationAndCompletionComeFromOneCoherentProgressionRevision` proves one snapshot read per rebuild and revision-coherent objective state.
+- [x] **T19-021 — Visibility tests.** `HiddenObjectiveDoesNotLeakUntilAuthoritativeReveal` proves hidden objectives remain absent until authoritative reveal.
+- [x] **T19-022 — Local-tracking independence test.** `LocalTrackingDoesNotMutateAuthoritativeProgressionAndMayDifferPerClient` proves tracking does not mutate the shared snapshot.
+- [x] **T19-023 — Shared multiplayer progression test.** Two presenters over the same authoritative snapshot track different objectives while observing identical gameplay progression state.
+- [x] **T19-024 — Reconnect/restore rebuild test.** Recreated presenter rebuilds directly from the current revision and reconciles stale tracking without replay history.
+- [x] **T19-025 — Module-local built-player visual validation through shared harness.** Exact-SHA run `33881215529` executed `ProgressionPresentationValidation.unity`; required ready/reveal/rebuild-stable assertions all appeared and durable captures show the journal plus compact HUD projection at authoritative revision 2.
 
 ## Cleanup / close
 
-- [ ] **T19-030 — Remove duplicate progression stores/direct completion controls.** Repository search in UI/presentation code.
+- [x] **T19-030 — Remove duplicate progression stores/direct completion controls.** Inventory/repository audit found no production ProgressionPresentation store or direct completion control to migrate/remove; the new runtime contains projection/local preference state only and exposes no gameplay mutation command.
 - [x] **T19-031 — Scope audit.** No generic accept/decline semantics, map/minimap system or gameplay mutation added.
-- [ ] **T19-032 — Close with projection proof.** Journal/HUD tracking can be destroyed/recreated independently while system 11 remains the only progression authority.
+- [x] **T19-032 — Close with projection proof.** Presenter recreation with retained local preferences and reconnect tests prove journal/HUD projection lifecycle is independent while System11 remains the progression authority; exact-SHA module and canonical Kentridge built-player gates passed in run `33881215529`.
