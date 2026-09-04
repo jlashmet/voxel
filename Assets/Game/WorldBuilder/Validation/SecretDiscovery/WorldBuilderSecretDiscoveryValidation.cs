@@ -356,7 +356,7 @@ namespace Game.WorldBuilder.Validation
             if (!_commandsEnabled || !_ready || _world == null) return;
             _elapsedSeconds += Mathf.Max(0, elapsedMilliseconds) / 1000f;
 
-            if (!_wallDestroyed && _elapsedSeconds >= 16f)
+            if (!_wallDestroyed && _elapsedSeconds >= 18f)
                 DestroySecretWall();
 
             PlaceSequencePose(_elapsedSeconds);
@@ -391,7 +391,7 @@ namespace Game.WorldBuilder.Validation
                 naturalAnomaly.Motif == SecretClueMotifFamily.SightlineGap)
             {
                 int treeIndex = 100;
-                for (int row = 0; row < 7; row++)
+                for (int row = 0; row < 11; row++)
                 {
                     float zMetres = CaveAnchorZ * VoxelMetres - 1.6f - row * 0.9f;
                     for (int side = -1; side <= 1; side += 2)
@@ -442,13 +442,13 @@ namespace Game.WorldBuilder.Validation
             int3 forward = FacingVector(pocket.Terminal.ExitFacing);
             float3 barrierTarget = BoundsCentre(pocket.Barrier);
 
-            if (elapsed < 2.5f)
+            if (elapsed < 5.5f)
             {
                 PlaceExteriorEntrance();
                 return;
             }
 
-            if (elapsed < 5.5f)
+            if (elapsed < 8.5f)
             {
                 int3 eye = _caveEntrance + FacingVector(Facing.North) * 6 + new int3(0, 12, 0);
                 float3 target = (float3)(_caveEntrance + FacingVector(Facing.North) * 14 + new int3(0, 10, 0));
@@ -456,7 +456,7 @@ namespace Game.WorldBuilder.Validation
                 return;
             }
 
-            if (elapsed < 8.5f)
+            if (elapsed < 11.5f)
             {
                 float3 eye = (float3)_cave.MainPathEnd + new float3(0f, 12f, 0f);
                 float3 target = (float3)pocket.Terminal.Position + new float3(0f, 11f, 0f);
@@ -466,21 +466,21 @@ namespace Game.WorldBuilder.Validation
                 return;
             }
 
-            if (elapsed < 11.5f)
+            if (elapsed < 14.5f)
             {
                 int3 eye = pocket.Terminal.Position - forward * 12 + new int3(0, 12, 0);
                 PlaceVoxelPose((float3)eye, barrierTarget);
                 return;
             }
 
-            if (elapsed < 16f)
+            if (elapsed < 18f)
             {
                 int3 eye = pocket.Terminal.Position - forward * 6 + new int3(0, 12, 0);
                 PlaceVoxelPose((float3)eye, barrierTarget);
                 return;
             }
 
-            if (elapsed < 19.5f)
+            if (elapsed < 21.5f)
             {
                 int3 eye = pocket.Terminal.Position - forward * 6 + new int3(0, 12, 0);
                 PlaceVoxelPose((float3)eye, BoundsCentre(pocket.Pocket));
@@ -496,15 +496,17 @@ namespace Game.WorldBuilder.Validation
 
         private void PlaceExteriorEntrance()
         {
-            int eyeZ = _caveEntrance.z - 72;
-            int eyeY = TerrainSampler.HeightAt(_caveEntrance.x, eyeZ, m_Seed) + 18;
-            int surfaceY = TerrainSampler.HeightAt(_caveEntrance.x, _caveEntrance.z, m_Seed);
+            int eyeX = _caveEntrance.x + 4;
+            int eyeZ = _caveEntrance.z - 150;
+            int eyeY = TerrainSampler.HeightAt(eyeX, eyeZ, m_Seed) + 18;
+            int targetZ = _caveEntrance.z - 55;
+            int targetY = TerrainSampler.HeightAt(_caveEntrance.x, targetZ, m_Seed) + 13;
 
-            transform.position = (float3)new int3(_caveEntrance.x, eyeY, eyeZ) * VoxelMetres;
+            transform.position = (float3)new int3(eyeX, eyeY, eyeZ) * VoxelMetres;
             Vector3 target = (Vector3)(new float3(
                 _caveEntrance.x,
-                surfaceY + 2,
-                _caveEntrance.z + 8) * VoxelMetres);
+                targetY,
+                targetZ) * VoxelMetres);
             LookAt(target);
         }
 
