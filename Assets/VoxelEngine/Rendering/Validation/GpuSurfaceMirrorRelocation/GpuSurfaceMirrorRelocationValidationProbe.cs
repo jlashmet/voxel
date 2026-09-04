@@ -1,19 +1,17 @@
 using System.Collections;
-using System.Diagnostics;
+using Stopwatch = System.Diagnostics.Stopwatch;
 using UnityEngine;
 using UnityEngine.Profiling;
 using VoxelEngine.Rendering.Runtime;
-using VoxelEngine.Rendering.Runtime.GpuVoxel;
-using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 
 namespace VoxelEngine.Rendering.Validation
 {
     /// <summary>
-    /// Rendering-owned built-player acceptance probe for the shared GPU surface mirror. It uses
+    /// Rendering-owned built-player acceptance probe for production GPU surface extraction. It uses
     /// the production voxel showcase already serialized into the scene, primes real GPU work with
     /// bounded movement, then performs the same distant relocation as the focused regression.
-    /// Success requires useful GPU completion after recovery; merely keeping the player process
-    /// alive is not sufficient evidence.
+    /// Success requires useful GPU completion and complete visible coverage after recovery; merely
+    /// keeping the player process alive is not sufficient evidence.
     /// </summary>
     [AddComponentMenu("VoxelEngine/Validation/GPU Surface Mirror Relocation Probe")]
     [DisallowMultipleComponent]
@@ -25,7 +23,6 @@ namespace VoxelEngine.Rendering.Validation
         private const float CoverageWarmupSeconds = 30f;
         private const float GpuPrimingSeconds = 45f;
         private const float ObservationSeconds = 60f;
-        private const float MaximumSaturatedAdmissionSeconds = 20f;
 
         private Camera _camera;
         private RenderTexture _target;
@@ -38,12 +35,6 @@ namespace VoxelEngine.Rendering.Validation
             if (_camera == null)
             {
                 Fail("main camera is missing");
-                yield break;
-            }
-
-            if (CpuTransvoxelChunkCache.GpuCutoverDisabled)
-            {
-                Fail("production near-ring GPU cutover is disabled");
                 yield break;
             }
 
@@ -63,13 +54,13 @@ namespace VoxelEngine.Rendering.Validation
                 _camera.Render();
                 surface = VoxelRenderBridge.SurfaceMetrics;
                 PublishMetrics(surface);
-                if (surface.VisibleSolidChunks > 0)
+                if (surface.VisibleSolidChunks > 0 && surface.MissingVisibleSolidChunks == 0)
                     break;
             }
 
-            if (surface.VisibleSolidChunks <= 0)
+            if (surface.VisibleSolidChunks <= 0 || surface.MissingVisibleSolidChunks != 0)
             {
-                Fail($"initial visible coverage never converged; missing={surface.MissingVisibleSolidChunks}, jobs={surface.RunningSolidJobs}");
+                Fail($"initial visible coverage never converged; visible={surface.VisibleSolidChunks}, missing={surface.MissingVisibleSolidChunks}, jobs={surface.RunningSolidJobs}");
                 yield break;
             }
             if (!surface.GpuCutoverAvailable)
@@ -95,14 +86,13 @@ namespace VoxelEngine.Rendering.Validation
                 _camera.Render();
                 surface = VoxelRenderBridge.SurfaceMetrics;
                 PublishMetrics(surface);
-                if (GpuSurfaceMirrorCoordinator.ReadyBlockCount > 0
-                    && surface.GpuCompletedSolidBuilds > 0)
+                if (surface.GpuCompletedSolidBuilds > 0)
                     break;
             }
 
-            if (GpuSurfaceMirrorCoordinator.ReadyBlockCount <= 0 || surface.GpuCompletedSolidBuilds <= 0)
+            if (surface.GpuCompletedSolidBuilds <= 0)
             {
-                Fail($"GPU mirror never primed; ready={GpuSurfaceMirrorCoordinator.ReadyBlockCount}, completed={surface.GpuCompletedSolidBuilds}, fallback={surface.GpuFallbackSolidBuilds}");
+                Fail($"GPU extraction never primed; completed={surface.GpuCompletedSolidBuilds}, fallback={surface.GpuFallbackSolidBuilds}, visible={surface.VisibleSolidChunks}, missing={surface.MissingVisibleSolidChunks}");
                 yield break;
             }
 
@@ -113,8 +103,6 @@ namespace VoxelEngine.Rendering.Validation
             _status = $"recovering after {RelocationMetres:F0} m relocation";
 
             bool sawRecoveryBacklog = false;
-            bool sawSaturatedAdmission = false;
-            double saturatedAdmissionStarted = -1.0;
             var observation = Stopwatch.StartNew();
             while (observation.Elapsed.TotalSeconds < ObservationSeconds)
             {
@@ -123,48 +111,32 @@ namespace VoxelEngine.Rendering.Validation
                 surface = VoxelRenderBridge.SurfaceMetrics;
                 PublishMetrics(surface);
 
-                int pending = GpuSurfaceMirrorCoordinator.PendingBlockCount;
-                int demand = GpuSurfaceMirrorCoordinator.DemandFootprintCount;
-                int active = GpuSurfaceMirrorCoordinator.ActiveExtractions;
-                bool recoveryBacklog = pending > 0;
-                bool saturatedAdmission = recoveryBacklog
-                    && demand >= GpuSurfaceMirrorCoordinator.MaxConcurrentExtractionChains
-                    && active == 0;
-
+                bool recoveryBacklog = surface.MissingVisibleSolidChunks > 0
+                    || surface.SolidDirtyChunks > 0
+                    || surface.RunningSolidJobs > 0;
                 sawRecoveryBacklog |= recoveryBacklog;
-                sawSaturatedAdmission |= saturatedAdmission;
-                if (saturatedAdmission)
-                {
-                    if (saturatedAdmissionStarted < 0.0)
-                        saturatedAdmissionStarted = observation.Elapsed.TotalSeconds;
-                    double stalledSeconds = observation.Elapsed.TotalSeconds - saturatedAdmissionStarted;
-                    if (stalledSeconds >= MaximumSaturatedAdmissionSeconds)
-                    {
-                        Fail($"all GPU workers remained mirror-admission pending for {stalledSeconds:F1}s; ready={GpuSurfaceMirrorCoordinator.ReadyBlockCount}, pending={pending}, demand={demand}, active={active}");
-                        yield break;
-                    }
-                }
-                else
-                {
-                    saturatedAdmissionStarted = -1.0;
-                }
 
                 if (sawRecoveryBacklog
                     && surface.GpuCompletedSolidBuilds >= baselineCompleted + 4
                     && surface.VisibleSolidChunks > 0
-                    && demand < GpuSurfaceMirrorCoordinator.MaxConcurrentExtractionChains)
+                    && surface.MissingVisibleSolidChunks == 0)
                     break;
             }
 
             ulong recoveredBuilds = surface.GpuCompletedSolidBuilds - baselineCompleted;
             if (!sawRecoveryBacklog)
             {
-                Fail("distant relocation never exercised shared-mirror recovery");
+                Fail("distant relocation never exercised renderer recovery backlog");
                 yield break;
             }
             if (recoveredBuilds < 4)
             {
-                Fail($"GPU extraction did not recover useful throughput; completed={recoveredBuilds}, ready={GpuSurfaceMirrorCoordinator.ReadyBlockCount}, pending={GpuSurfaceMirrorCoordinator.PendingBlockCount}, demand={GpuSurfaceMirrorCoordinator.DemandFootprintCount}, active={GpuSurfaceMirrorCoordinator.ActiveExtractions}");
+                Fail($"GPU extraction did not recover useful throughput; completed={recoveredBuilds}, fallback={surface.GpuFallbackSolidBuilds}, visible={surface.VisibleSolidChunks}, missing={surface.MissingVisibleSolidChunks}, dirty={surface.SolidDirtyChunks}, jobs={surface.RunningSolidJobs}");
+                yield break;
+            }
+            if (surface.VisibleSolidChunks <= 0 || surface.MissingVisibleSolidChunks != 0)
+            {
+                Fail($"visible coverage did not recover after relocation; visible={surface.VisibleSolidChunks}, missing={surface.MissingVisibleSolidChunks}");
                 yield break;
             }
 
@@ -173,23 +145,21 @@ namespace VoxelEngine.Rendering.Validation
             Debug.Log(
                 "GPU_SURFACE_MIRROR_RELOCATION_COST " +
                 $"prime_seconds={priming.Elapsed.TotalSeconds:F2} recovery_seconds={observation.Elapsed.TotalSeconds:F2} " +
-                $"completed={recoveredBuilds} ready={GpuSurfaceMirrorCoordinator.ReadyBlockCount} " +
-                $"pending={GpuSurfaceMirrorCoordinator.PendingBlockCount} demand={GpuSurfaceMirrorCoordinator.DemandFootprintCount} " +
-                $"active={GpuSurfaceMirrorCoordinator.ActiveExtractions} mixed_resident={GpuSurfaceMirrorCoordinator.ResidentMixedBrickCount} " +
-                $"mirror_slots={GpuSurfaceMirrorCoordinator.MirrorSlotCapacity} managed_bytes={managed} reserved_bytes={reserved}");
+                $"completed={recoveredBuilds} fallback={surface.GpuFallbackSolidBuilds} " +
+                $"resident_chunks={surface.SolidResidentChunks} resident_geometry_bytes={surface.ResidentGeometryBytes} " +
+                $"managed_bytes={managed} reserved_bytes={reserved}");
             Debug.Log(
                 "GPU_SURFACE_MIRROR_RELOCATION_VALIDATION ready: " +
                 $"relocation_metres={RelocationMetres:F0} recovered_gpu_builds={recoveredBuilds} " +
-                $"visible={surface.VisibleSolidChunks} saturated_admission_observed={sawSaturatedAdmission}");
-            _status = "ready — recovery resumed useful GPU extraction";
+                $"visible={surface.VisibleSolidChunks} missing={surface.MissingVisibleSolidChunks} recovery_backlog_observed={sawRecoveryBacklog}");
+            _status = "ready — relocation resumed useful GPU extraction with complete coverage";
         }
 
         private void PublishMetrics(VoxelSurfaceMetrics surface)
         {
             _metrics =
                 $"visible {surface.VisibleSolidChunks}  missing {surface.MissingVisibleSolidChunks}  GPU completed {surface.GpuCompletedSolidBuilds}\n" +
-                $"mirror ready {GpuSurfaceMirrorCoordinator.ReadyBlockCount}  pending {GpuSurfaceMirrorCoordinator.PendingBlockCount}  " +
-                $"demand {GpuSurfaceMirrorCoordinator.DemandFootprintCount}  active {GpuSurfaceMirrorCoordinator.ActiveExtractions}";
+                $"dirty {surface.SolidDirtyChunks}  jobs {surface.RunningSolidJobs}  resident {surface.SolidResidentChunks}  fallback {surface.GpuFallbackSolidBuilds}";
         }
 
         private void Fail(string reason)
