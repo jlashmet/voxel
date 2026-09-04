@@ -55,7 +55,8 @@ namespace Game.ProgressionPresentation.Tests
         public void StandaloneCampaignObjectiveComesFromSameUnifiedSnapshotAndCanBeTrackedLocally()
         {
             var standalone = Objective(ReachTown, ProgressionLifecycleState.Active, 2, 5, 14);
-            var query = new CountingQuery(SnapshotWithStandalone(14, ProgressionLifecycleState.Active, new[] { Objective(ReachGate, ProgressionLifecycleState.Active, 0, 1, 14) }, standalone));
+            ProgressionSnapshot authoritative = SnapshotWithStandalone(14, ProgressionLifecycleState.Active, new[] { Objective(ReachGate, ProgressionLifecycleState.Active, 0, 1, 14) }, standalone);
+            var query = new CountingQuery(authoritative);
             var presenter = new QuestJournalPresenter(query, Catalog());
 
             QuestJournalSnapshot journal = presenter.Rebuild();
@@ -69,7 +70,7 @@ namespace Game.ProgressionPresentation.Tests
             Assert.That(presenter.TryGetTrackedObjective(out TrackedObjectiveSummary tracked), Is.True);
             Assert.That(tracked.Key.IsStandalone, Is.True);
             Assert.That(tracked.ObjectiveLabel, Is.EqualTo("Reach Kentridge"));
-            Assert.That(query.Current, Is.SameAs(query.Current));
+            Assert.That(query.Current, Is.SameAs(authoritative));
         }
 
         [Test]
@@ -196,9 +197,21 @@ namespace Game.ProgressionPresentation.Tests
                 for (var i = 0; i < standalone.Count; i++) _standalone[standalone[i].ObjectiveId] = standalone[i];
             }
 
-            public bool TryGetQuest(QuestId questId, out QuestPresentationContent content) { content = _quest; return questId == _quest.QuestId; }
-            public bool TryGetObjective(QuestId questId, ObjectiveId objectiveId, out ObjectivePresentationContent content) => questId == _quest.QuestId && _questObjectives.TryGetValue(objectiveId, out content);
-            public bool TryGetStandaloneObjective(ObjectiveId objectiveId, out ObjectivePresentationContent content) => _standalone.TryGetValue(objectiveId, out content);
+            public bool TryGetQuest(QuestId questId, out QuestPresentationContent content)
+            {
+                content = _quest;
+                return questId == _quest.QuestId;
+            }
+
+            public bool TryGetObjective(QuestId questId, ObjectiveId objectiveId, out ObjectivePresentationContent content)
+            {
+                if (questId == _quest.QuestId) return _questObjectives.TryGetValue(objectiveId, out content);
+                content = default;
+                return false;
+            }
+
+            public bool TryGetStandaloneObjective(ObjectiveId objectiveId, out ObjectivePresentationContent content) =>
+                _standalone.TryGetValue(objectiveId, out content);
         }
 
         private sealed class ReplicationStub : IGameplayReplicationClientState
