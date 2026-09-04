@@ -6,13 +6,14 @@
 
 ## API / policy boundary
 
-- [ ] **T15-001 — Inventory current win/loss/game-over logic.** Find final-boss flags, scene transitions, combat-loss shutdown, campaign completion flags and any implicit outcome state.
+- [x] **T15-001 — Inventory current win/loss/game-over logic.** `CombatService` owns battle-local `WinningTeam`/completion only; Campaign/Story own progression effects; existing Outcomes is query-only and replication projects it. No demonstrated global terminal/shutdown owner exists to migrate.
 - [ ] **T15-002 — Establish asmdefs.** Outcomes.Runtime may receive semantic requests/facts via composition; API is engine/transport/presentation-neutral.
 - [ ] **T15-003 — Define outcome lifecycle.** `Running` and immutable `Resolved`; specify behavior of all requests after resolution.
 - [ ] **T15-004 — Define disposition and semantic `OutcomeRef`.** Keep semantic reason/configuration extensible without encoding scene/boss identities into shared Runtime.
 - [ ] **T15-005 — Define resolution request/result.** Include deterministic acceptance/rejection/idempotency semantics and authority restrictions.
 - [ ] **T15-006 — Define current outcome snapshot.** One coherent state for replication/persistence/presentation.
 - [ ] **T15-007 — Define exactly-once `GameOutcomeResolved` event.** Stable event identity/revision sufficient for downstream reaction/dedupe.
+- [ ] **T15-008 — Own module validation surface.** Outcomes API/Runtime are pure `noEngineReferences` headless/domain assemblies; document the validation-scene exception and provide module-owned EditMode coverage instead of a Unity validation scene.
 
 ## Runtime
 
