@@ -57,6 +57,23 @@ namespace Game.WorldObjects.Tests
         }
 
         [Test]
+        public void UnsupportedCapabilityRejectsAndPublishesNoFact()
+        {
+            var characters = new FakeCharacters(ActorId, Origin, 42UL);
+            var registry = new WorldObjectRegistry();
+            Assert.That(registry.TryRegister(new RejectingBehavior(
+                new WorldObjectId("unsupported"),
+                Origin,
+                WorldInteractionFailure.UnsupportedCapability)), Is.True);
+            var facts = new RecordingWorldFacts();
+
+            var result = new InteractionClickedProcessor(characters, registry, facts).Process(42UL);
+
+            Assert.That(result.Failure, Is.EqualTo(WorldInteractionFailure.UnsupportedCapability));
+            Assert.That(facts.Facts, Is.Empty);
+        }
+
+        [Test]
         public void PickupRequiresPayloadAndOnlyDisablesAfterSuccessfulTransfer()
         {
             var transfer = new StubPickupTransfer(WorldInteractionResult.Reject(WorldInteractionFailure.InventoryRejected));
@@ -68,8 +85,10 @@ namespace Game.WorldObjects.Tests
             Assert.That(pickup.Interact(new WorldInteractionContext(ActorId)).Succeeded, Is.True);
             Assert.That(pickup.Enabled, Is.False);
             Assert.That(pickup.Interact(new WorldInteractionContext(ActorId)).Failure, Is.EqualTo(WorldInteractionFailure.InvalidState));
+            Assert.That(transfer.Calls, Is.EqualTo(2));
             Assert.That(pickup.RestoreState(initial).Succeeded, Is.True);
             Assert.That(pickup.Enabled, Is.True);
+            Assert.That(transfer.Calls, Is.EqualTo(2), "Restore must not replay pickup transfer side effects.");
             var empty = new ItemPickupObject(new WorldObjectId("empty"), Origin, new WorldItemPayload("", 0), transfer);
             Assert.That(empty.Interact(new WorldInteractionContext(ActorId)).Failure, Is.EqualTo(WorldInteractionFailure.InvalidPayload));
         }
@@ -218,8 +237,33 @@ namespace Game.WorldObjects.Tests
         private sealed class StubPickupTransfer : IWorldItemPickupTransfer
         {
             public WorldInteractionResult Result;
+            public int Calls { get; private set; }
             public StubPickupTransfer(WorldInteractionResult result) { Result = result; }
-            public WorldInteractionResult TryTransfer(CharacterId actorId, WorldObjectId objectId, WorldItemPayload payload) => Result;
+            public WorldInteractionResult TryTransfer(CharacterId actorId, WorldObjectId objectId, WorldItemPayload payload)
+            {
+                Calls++;
+                return Result;
+            }
+        }
+
+        private sealed class RejectingBehavior : IWorldObjectBehavior
+        {
+            private readonly WorldInteractionFailure _failure;
+
+            public WorldObjectId Id { get; }
+            public WorldObjectKind Kind => WorldObjectKind.DoorToggle;
+            public CharacterVector3 Position { get; }
+
+            public RejectingBehavior(WorldObjectId id, CharacterVector3 position, WorldInteractionFailure failure)
+            {
+                Id = id;
+                Position = position;
+                _failure = failure;
+            }
+
+            public WorldInteractionResult Interact(WorldInteractionContext context) => WorldInteractionResult.Reject(_failure);
+            public WorldObjectStateSnapshot CaptureState() => new WorldObjectStateSnapshot(Id, Kind, true, 0, 0);
+            public WorldInteractionResult RestoreState(WorldObjectStateSnapshot snapshot) => WorldInteractionResult.Success();
         }
 
         private sealed class RecordingWorldFacts : IWorldInteractionFactSink
