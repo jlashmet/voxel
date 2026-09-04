@@ -6,7 +6,7 @@
 - [x] Inspect captures/marked regions; none are present.
 - [x] Inspect design/source systems and discriminate competing hypotheses with repository evidence.
 - [x] Remove primitive/parallel visual proof approaches that failed production-quality review.
-- [ ] **BLOCKER:** `issue.json` requires representative generated SecretDiscovery examples in `WorldbuildingGalleryShowcase`, while prior explicit user direction prohibited this feature-specific Gallery integration. Do not weaken acceptance; keep open until explicitly resolved.
+- [x] Resolve prior Gallery-integration instruction conflict by following the current assignment directive and immutable repository acceptance.
 
 ## Planning / behavior
 
@@ -30,19 +30,20 @@
 - [x] Subsequent teardown failure isolated to renderer lifecycle cleanup (`experiment-015`) after WorldBuilder evidence completed.
 - [x] Exact run `33801222778` passed WorldBuilder EditMode, dedicated SecretDiscovery built player, Kentridge integration, and SceneIssue replay with clean teardown.
 - [x] Full-resolution 9/12/15s frames show sparse non-glowing fracture evidence; 18/21s frames show breached route/open hidden interior; logs show 35 clue voxels and 607 destroyed voxels.
-- [x] Exact built `WorldbuildingGalleryShowcase` replay reaches a usable rendered state without runtime exceptions.
-- [ ] Representative SecretDiscovery examples are visibly understandable in `WorldbuildingGalleryShowcase` at gameplay scale — blocked by instruction conflict.
-- [ ] Gallery visual review proves feature-specific geometry/material/environmental clue language rather than placeholder signs/universal glow — blocked by instruction conflict.
+- [x] Restore thin production `WorldbuildingGalleryShowcase` SecretDiscovery composition plus compatibility/physical/surface-route regressions.
+- [x] Isolate exact run `33821322632` failure to restored Gallery regressions being outside the current module-owned test asmdef; standalone replay failed from the same compile break (`experiment-016`).
+- [ ] Move restored Gallery regressions under `Assets/Game/WorldBuilder/Tests/EditMode` so they compile in the existing `VoxelEngine.Tests.EditMode` assembly.
+- [ ] Representative SecretDiscovery examples are visibly understandable in `WorldbuildingGalleryShowcase` at gameplay scale.
+- [ ] Gallery visual review proves feature-specific geometry/material/environmental clue language rather than placeholder signs/universal glow.
 
 ## Cost / integration / closure
 
 - [x] Planner/discovery work is one-shot/event-driven; no per-frame search/polling added.
 - [x] Cave composition is bounded by traversal candidates; clue fracture authors 35 coating voxels once.
 - [x] Blast-radius/cost rechecked against green run `33801222778`; no recurring runtime/search cost regression.
-- [x] Current master `c7774f8f3455481f003898bbe473789348cd4f66` is included through two-parent merge `6a48636f8134af2936c44912e73abd95151cc455`; compare reports `behind_by=0` and the exact master as merge base.
-- [x] Master-side GameSystem09 Inventory/Kentridge changes and `.github/test-request.json` removal are preserved; this feature overlays only its own WorldBuilder/CaveWorldBuilder/Showcase and assigned SceneIssue paths.
 - [x] Updated repository workflow reviewed: final SceneIssue promotion is PR-based; do not push a SceneIssue feature head directly to protected `master`.
-- [ ] All acceptance criteria green and fresh exact-SHA targeted gate green — pending Gallery conflict resolution and subsequent exact-SHA revalidation.
+- [ ] Fresh exact-SHA targeted gate green after Gallery test-assembly fix.
+- [ ] All acceptance criteria green.
 - [ ] Move assigned SceneIssue `open -> closed`, set `status=fixed` and `resolvedUtc`, and complete supported resolution fields.
 - [ ] Fetch/merge current master after closure bookkeeping.
 - [ ] Open/update `fixes/agent-5` -> `master` PR, enable auto-merge, and require the `affected` PR gate plus canonical standalone Kentridge full-app test to pass.
