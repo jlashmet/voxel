@@ -1,0 +1,23 @@
+{
+  "name": "Game.Vfx.Runtime",
+  "rootNamespace": "Game.Vfx.Runtime",
+  "references": [
+    "Game.Vfx.Api",
+    "Game.Characters.Api",
+    "Game.WorldObjects.Api",
+    "Game.Vitality.Api",
+    "Game.Combat.Api",
+    "Game.Outcomes.Api",
+    "VoxelEngine.Edits.Api",
+    "Unity.Mathematics"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
