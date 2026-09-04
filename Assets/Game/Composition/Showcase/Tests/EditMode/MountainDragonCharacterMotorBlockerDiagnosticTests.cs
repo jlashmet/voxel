@@ -10,6 +10,39 @@ namespace VoxelEngine.Showcase.Tests.EditMode
         private const uint Seed = 0x5EED1234;
 
         [Test]
+        public void ResolvedAscentNeverExceedsGroundedCharacterStepBetweenRoadSamples()
+        {
+            MountainLandformSurface surface = ShowcaseMountainDragonLayout.CreateSurface(Seed);
+            WorldRoadNetwork ascent = ShowcaseMountainDragonLayout.CreateAscentNetwork(Seed, surface);
+            Assert.That(ascent.TryGetRoute(
+                ShowcaseMountainDragonLayout.AscentRouteId,
+                out WorldRoadNetworkRoute route), Is.True);
+            Assert.That(route.Road.IsResolved, Is.True, route.Road.FailureReason);
+            Assert.That(route.Road.Points.Count, Is.GreaterThan(1));
+
+            int worstRiseDm = 0;
+            int worstSegment = -1;
+            for (int i = 1; i < route.Road.Points.Count; i++)
+            {
+                ResolvedWorldRoadPoint previous = route.Road.Points[i - 1];
+                ResolvedWorldRoadPoint current = route.Road.Points[i];
+                int riseDm = Math.Abs(current.Ydm - previous.Ydm);
+                if (riseDm > worstRiseDm)
+                {
+                    worstRiseDm = riseDm;
+                    worstSegment = i - 1;
+                }
+            }
+
+            Assert.That(
+                worstRiseDm,
+                Is.LessThanOrEqualTo(ShowcaseMountainDragonLayout.MaximumRoadSampleRiseDm),
+                "Every production road sample must stay within the grounded character's 3dm step. "
+                + "A taller terrace can block one horizontal sweep while leaving the orthogonal and raised probes clear; "
+                + $"worst segment={worstSegment}->{worstSegment + 1}, rise={worstRiseDm}dm.");
+        }
+
+        [Test]
         public void SummitArrivalStaysOutsideDragonPlaceholderWhileRemainingSupportedOnCrest()
         {
             MountainLandformSurface surface = ShowcaseMountainDragonLayout.CreateSurface(Seed);
