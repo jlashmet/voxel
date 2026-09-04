@@ -36,9 +36,27 @@ namespace Game.Vfx.Validation
             GameObject presenterRoot = new GameObject("Production Semantic VFX Presenter");
             _presenter = presenterRoot.AddComponent<SemanticVfxPresenter>();
 
-            Transform fallback = CreateAnchor("Encounter Result", new Vector3(0f, 1.2f, 5f));
-            Transform character = CreateAnchor("Character Target", new Vector3(-2.4f, 1f, 4.4f));
-            Transform worldObject = CreateAnchor("World Object", new Vector3(0f, 1f, 4.2f));
+            // The effects are presentation bound to semantic origins. Give those origins neutral,
+            // collider-free silhouettes so built-player visual review can judge the production VFX
+            // relative to a representative host instead of against an empty sky.
+            Transform fallback = CreateVisibleAnchor(
+                "Encounter Result",
+                new Vector3(0f, 1.2f, 5f),
+                PrimitiveType.Sphere,
+                new Vector3(0.45f, 0.45f, 0.45f),
+                new Color(0.22f, 0.18f, 0.34f, 1f));
+            Transform character = CreateVisibleAnchor(
+                "Character Target",
+                new Vector3(-2.4f, 1f, 4.4f),
+                PrimitiveType.Capsule,
+                new Vector3(0.8f, 1.45f, 0.8f),
+                new Color(0.16f, 0.19f, 0.24f, 1f));
+            Transform worldObject = CreateVisibleAnchor(
+                "World Object",
+                new Vector3(0f, 1f, 4.2f),
+                PrimitiveType.Cube,
+                new Vector3(0.9f, 1.35f, 0.9f),
+                new Color(0.13f, 0.24f, 0.27f, 1f));
             _bindings = new SceneVfxBindingResolver(fallback)
                 .BindCharacter("character:vfx-target", character)
                 .BindWorldObject("altar:crystal", worldObject);
@@ -122,10 +140,35 @@ namespace Game.Vfx.Validation
             GUI.Label(new Rect(50, 616, 1150, 24), "Reconnect restores only current semantic treatment; historical hit / interaction / destruction one-shots are not replayed.");
         }
 
-        private static Transform CreateAnchor(string name, Vector3 position)
+        private static Transform CreateVisibleAnchor(
+            string name,
+            Vector3 position,
+            PrimitiveType primitiveType,
+            Vector3 scale,
+            Color color)
         {
-            GameObject anchor = new GameObject(name);
+            GameObject anchor = GameObject.CreatePrimitive(primitiveType);
+            anchor.name = name;
             anchor.transform.position = position;
+            anchor.transform.localScale = scale;
+
+            Collider collider = anchor.GetComponent<Collider>();
+            if (collider != null) Destroy(collider);
+
+            Renderer renderer = anchor.GetComponent<Renderer>();
+            if (renderer != null)
+            {
+                Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
+                if (shader == null) shader = Shader.Find("Unlit/Color");
+                if (shader != null)
+                {
+                    Material material = new Material(shader) { name = name + " Validation Material" };
+                    if (material.HasProperty("_BaseColor")) material.SetColor("_BaseColor", color);
+                    if (material.HasProperty("_Color")) material.SetColor("_Color", color);
+                    renderer.material = material;
+                }
+            }
+
             return anchor.transform;
         }
 
