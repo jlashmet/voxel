@@ -29,9 +29,21 @@ namespace VoxelEngine.Showcase
 
         private FeaturePresentationManifest EnsureFarFeaturePresentation()
         {
-            if (_farFeaturePresentation != null) return _farFeaturePresentation;
-            _farFeaturePresentation = FeaturePresentationCatalogueBaker.Build(in _catalogue, Seed);
+            if (_farFeaturePresentation == null)
+                _farFeaturePresentation = FeaturePresentationCatalogueBaker.Build(in _catalogue, Seed);
+
+            // The same canonical manifest that owns semantic structure proxies also tells the old
+            // terrain-deviation fallback which positive columns it must not retain. This keeps
+            // known features single-authored without coupling the far terrain renderer to feature
+            // kinds, settlement names, or scene coordinates.
+            FarField.SemanticFeatures = _farFeaturePresentation;
             return _farFeaturePresentation;
+        }
+
+        private void ResetFarFeaturePresentation()
+        {
+            _farFeaturePresentation = null;
+            FarField.SemanticFeatures = null;
         }
     }
 }
