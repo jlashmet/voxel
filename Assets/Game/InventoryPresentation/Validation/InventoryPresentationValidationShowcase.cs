@@ -12,6 +12,11 @@ using UnityEngine;
 
 namespace Game.InventoryPresentation.Validation
 {
+    /// <summary>
+    /// Thin module-local validation composition. Runtime behavior and visible inventory realization come from
+    /// InventoryPresenter + InventoryPresentationView; this component only supplies deterministic authoritative
+    /// fixtures and timed interaction intents for the shared built-player harness.
+    /// </summary>
     public sealed class InventoryPresentationValidationShowcase : MonoBehaviour
     {
         private ItemRef _apple;
@@ -24,7 +29,7 @@ namespace Game.InventoryPresentation.Validation
         private LootRuntime _loot;
         private InputContextService _input;
         private InventoryPresenter _presenter;
-        private IInputContextLease _uiLease;
+        private InventoryPresentationView _view;
         private PendingOperationId _transfer;
         private PendingOperationId _drop;
         private float _startedAt;
@@ -65,9 +70,10 @@ namespace Game.InventoryPresentation.Validation
             var transactions = new InventoryTransactionsAdapter(_inventory, _inventory, _inventory);
             _loot = new LootRuntime(transactions, new AllowAllInteractions());
             _input = new InputContextService();
-            CreatePresenter();
+            CreatePresenterAndView();
             _transfer = _presenter.QueueTransfer(new InventoryTransferIntent(
                 new ContainerTransferRequest(_actor, _container, _personal, _chest, _apple, 2)));
+            Debug.Log("INVENTORY_PRESENTATION_VALIDATION production-view-bound: " + _view.IsBound);
             Debug.Log("INVENTORY_PRESENTATION_VALIDATION ready: personal=6 chest=3 input=" + _input.ActiveContext);
         }
 
@@ -104,8 +110,8 @@ namespace Game.InventoryPresentation.Validation
             }
             if (!_recreated && elapsed >= 7f)
             {
-                _uiLease.Dispose();
-                CreatePresenter();
+                DestroyPresentationView();
+                CreatePresenterAndView();
                 _presenter.RebuildFromAuthoritative();
                 Debug.Log("INVENTORY_PRESENTATION_VALIDATION recreate-stable: personal=" + Quantity(_personal, _apple) + " gems=" + Quantity(_personal, _gem));
                 _recreated = true;
@@ -121,46 +127,27 @@ namespace Game.InventoryPresentation.Validation
 
         private void OnDestroy()
         {
-            if (_uiLease != null) _uiLease.Dispose();
+            if (_view != null) _view.Unbind();
         }
 
-        private void OnGUI()
-        {
-            if (_presenter == null) return;
-            InventoryPresentationSnapshot snapshot = _presenter.Capture();
-            GUI.Box(new Rect(30, 24, 1220, 640), string.Empty);
-            GUI.Label(new Rect(55, 42, 1140, 36), "AUTHORITATIVE INVENTORY  •  Presentation-only UI");
-            GUI.Label(new Rect(55, 78, 1140, 28), "Ui context: " + _input.ActiveContext + "   Pending operations: " + snapshot.Operations.Count);
-
-            for (var p = 0; p < snapshot.Panels.Count; p++)
-            {
-                InventoryPanelPresentation panel = snapshot.Panels[p];
-                float x = 55 + p * 580;
-                GUI.Box(new Rect(x, 120, 540, 430), string.Empty);
-                GUI.Label(new Rect(x + 24, 140, 490, 32), panel.BindingKind.ToUpperInvariant() + "  •  " + panel.StableOwnerId);
-                GUI.Label(new Rect(x + 24, 174, 490, 24), "Revision " + panel.Revision + "   Inventory " + panel.InventoryId.Value);
-                for (var r = 0; r < panel.Rows.Count; r++)
-                {
-                    InventoryRowPresentation row = panel.Rows[r];
-                    float y = 220 + r * 58;
-                    GUI.Label(new Rect(x + 30, y, 450, 28), row.IconText + "   " + row.DisplayName);
-                    GUI.Label(new Rect(x + 350, y, 150, 28), "x " + row.Quantity);
-                }
-            }
-
-            float operationY = 570;
-            for (var i = 0; i < snapshot.Operations.Count; i++)
-            {
-                PendingOperationPresentation operation = snapshot.Operations[i];
-                GUI.Label(new Rect(55 + i * 380, operationY, 360, 28), operation.Kind + "  " + operation.Status + (string.IsNullOrEmpty(operation.Error) ? string.Empty : "  " + operation.Error));
-            }
-        }
-
-        private void CreatePresenter()
+        private void CreatePresenterAndView()
         {
             _presenter = new InventoryPresenter(_inventory, _loot, _input);
             _presenter.ShowInventories(new[] { _personal, _chest });
-            _uiLease = _presenter.OpenUi();
+
+            var viewObject = new GameObject("Inventory Presentation Production View");
+            viewObject.transform.SetParent(transform, false);
+            _view = viewObject.AddComponent<InventoryPresentationView>();
+            _view.Bind(_presenter);
+        }
+
+        private void DestroyPresentationView()
+        {
+            if (_view == null) return;
+            GameObject viewObject = _view.gameObject;
+            _view.Unbind();
+            _view = null;
+            Destroy(viewObject);
         }
 
         private void Seed(InventoryId inventoryId, ItemRef item, int quantity)
