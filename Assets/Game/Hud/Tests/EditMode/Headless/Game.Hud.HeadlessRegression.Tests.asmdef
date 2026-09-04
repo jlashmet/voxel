@@ -1,0 +1,14 @@
+{
+  "name": "Game.Hud.HeadlessRegression.Tests",
+  "rootNamespace": "Game.Hud.HeadlessRegression.Tests",
+  "references": ["Game.Characters.Api", "Game.Sessions.Api", "Game.Sessions.Runtime", "Game.Vitality.Api", "Game.Vitality.Runtime"],
+  "includePlatforms": ["Editor"],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
