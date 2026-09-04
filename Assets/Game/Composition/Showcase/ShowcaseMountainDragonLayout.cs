@@ -29,6 +29,7 @@ namespace VoxelEngine.Showcase
         private const int SpiralControlCount = 25;
         private const int EntryRadiusDm = MountainRadius + 50;
         private const int SummitApproachRadiusDm = SummitRadius + 25;
+        private const int SummitArrivalRadiusDm = PlaceholderSize / 2 + PathWidth;
 
         private static readonly int[] DirectionX =
         {
@@ -163,15 +164,17 @@ namespace VoxelEngine.Showcase
                     summit.CentreZdm + DirectionZ[direction] * radius / 1024));
             }
 
-            // Continue the same angular progression once more while moving onto the broad summit.
-            // Jumping directly from the 105 dm spiral exit to the centre created a rasterized
-            // terrain-corridor seam at that exact radius in the built player. Keeping this as a
-            // semantic scene control lets the shared resolver grade/carve the transition normally.
+            // Continue the same angular progression onto the broad summit. The temporary dragon
+            // marker is centred on the crest, so the authored route must finish beside that solid
+            // footprint rather than through it. One path width beyond the marker half-size keeps
+            // the arrival on the supported summit while leaving normal player clearance.
             int summitDirection = (12 + SpiralControlCount) & 15;
             controls.Add(new WorldRoadPlanPoint(
                 summit.CentreXdm + DirectionX[summitDirection] * SummitRadius / 1024,
                 summit.CentreZdm + DirectionZ[summitDirection] * SummitRadius / 1024));
-            controls.Add(new WorldRoadPlanPoint(summit.CentreXdm, summit.CentreZdm));
+            controls.Add(new WorldRoadPlanPoint(
+                summit.CentreXdm + DirectionX[summitDirection] * SummitArrivalRadiusDm / 1024,
+                summit.CentreZdm + DirectionZ[summitDirection] * SummitArrivalRadiusDm / 1024));
             return controls;
         }
 
