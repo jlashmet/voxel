@@ -84,14 +84,20 @@ Never call a failed, cancelled, or timed-out run successful because it produced 
 For production diffs, module validation is repository-driven and convention-based. A lower-level module
 owns its production code plus module-local `Tests/EditMode` and optional `Tests/PlayMode` assemblies;
 CI derives the affected module from repository paths and Unity `.asmdef` ownership and runs every owned
-module test assembly. Player-visible modules may additionally own paired scene/scenario targets under
-`<Module>/Validation/`; CI discovers those automatically and always attaches the built-player
-`KentridgePlayableSlice` integration gate to production changes. Do not create or maintain
-`*.module-validation.json`, per-test registration arrays, manually selected module scenes/scenarios,
-screenshot profiles, or player-build commands. `*.player-scenario.json` is executable scenario behavior
-only (timing, captures, actions, runtime assertions), not ownership or test-registration metadata.
-Visual acceptance comes only from standalone-player output; PlayMode screenshots/RenderTextures are
-diagnostics or behavioral regressions, not visual proof.
+module test assembly. Every module/assembly with meaningful player-visible or runtime scene behavior must
+also own one or more focused test/validation scenes physically under that module's `<Module>/Validation/`
+directory. If changed behavior has no suitable module-local scene, creating one is required work. A
+repository-level showcase, gallery, `VoxelShowcase`, `KentridgePlayableSlice`, or another module's scene
+does not satisfy module-local ownership; those are integration consumers only. Pure headless/domain
+modules with no meaningful scene behavior may rely on module-local EditMode/unit coverage instead, with
+the exception documented in the work plan. Pair module-local scenes with `*.player-scenario.json` when
+runtime actions, captures, timing, or assertions are needed. CI discovers those automatically and always
+attaches the built-player `KentridgePlayableSlice` integration gate to production changes. Do not create
+or maintain `*.module-validation.json`, per-test registration arrays, manually selected module
+scenes/scenarios, screenshot profiles, or player-build commands. `*.player-scenario.json` is executable
+scenario behavior only (timing, captures, actions, runtime assertions), not ownership or test-registration
+metadata. Visual acceptance comes only from standalone-player output; PlayMode screenshots/RenderTextures
+are diagnostics or behavioral regressions, not visual proof.
 
 ### Test and validation scene fidelity
 
