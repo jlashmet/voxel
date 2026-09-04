@@ -4,7 +4,7 @@
 
 WorldBuilder needs deterministic `Secret -> Route(s) -> Clue(s)` planning with stable identity, semantic pre-solve evidence, explicit bypass policy, reusable route/discovery integration, and production-quality built-player proof. There are no original captures/marked regions.
 
-The original SceneIssue predates the repository convention that module/assembly work owns a local validation scene. Per current direction, `Assets/Game/WorldBuilder/Validation/SecretDiscovery/WorldBuilderSecretDiscoveryValidation.unity` is now the authoritative built-player visual acceptance scene for this assignment. Historical `WorldbuildingGalleryShowcase` evidence remains useful regression history but is no longer the visual closure gate.
+The original SceneIssue predates the repository convention that module/assembly work owns a local validation scene. Per current direction, `Assets/Game/WorldBuilder/Validation/SecretDiscovery/WorldBuilderSecretDiscoveryValidation.unity` is now the authoritative built-player visual acceptance scene for this assignment. Historical `WorldbuildingGalleryShowcase` evidence remains useful regression history but is no longer the visual closure gate. The SceneIssue metadata itself is being moved to this local scene so the standalone replay no longer launches the Gallery.
 
 ## Updated design understanding
 
@@ -18,6 +18,7 @@ The clue system must communicate actionable abnormality, not merely prove that c
 - Nearby motif repetition is penalized deterministically so multiple secrets do not collapse into the same visual language.
 - Major secrets should normally communicate through more than one independent evidence channel. Variety comes from deterministic seeded motif choice plus repetition penalties/local-context compatibility, not unrelated randomness.
 - Visual acceptance means a player can notice an intentional anomaly, form a plausible hypothesis about where/how to investigate, act on it, and reach the secret without universal glow/signage.
+- A real standalone `.app` is necessary but not sufficient for production-path proof. The local validation scene must also enter through the same application/session composition lifecycle used by gameplay. `GameSessionOrchestrator` is the canonical lifecycle boundary, and Kentridge production composes through `KentridgeSessionRuntimeGraphFactory` / `KentridgeCampaignSessionBootstrap`. The validation scene may provide scenario/configuration and observation hooks, but it must not count manual subsystem construction as equivalent to full app wiring.
 
 ## Hypotheses / material results
 
@@ -28,18 +29,24 @@ The clue system must communicate actionable abnormality, not merely prove that c
 - Post-sync exact run `33863772871` exposed a deterministic CI planner regression from nested tested modules. The fix preserves nested modules but assigns runtime asmdefs only to the nearest module root, retaining duplicate-token fail-closed behavior.
 - Exact targeted run `33886411818` on request commit `700641da19d648ed7c85d148cf3bb272c6b39ffd` completed green: automatic module plan derivation passed, required module validation passed, standalone SceneIssue replay passed, screenshots uploaded, and final commit status passed.
 - New anomaly work adds `SecretClueAnomalyPlanner` plus behavior tests proving deterministic selection, route compatibility, local-context sensitivity, mechanism-specific action intent, and nearby repetition penalties.
-- The module-local built scene now consumes the anomaly planner: a dense natural approach realizes a vegetation/negative-space anomaly, while the breakable wall realizes structural-fracture evidence. These are intentionally different visual sentences for different player actions.
-- Current master `d08612dfe2f4a99aff34897717569744565bc642` was merged into Agent 5 through PR #273 before validating the new anomaly work.
+- The module-local built scene consumes the anomaly planner: a dense natural approach realizes a vegetation/negative-space anomaly, while the breakable wall realizes structural-fracture evidence. These are intentionally different visual sentences for different player actions.
+- Exact run `33898606330` failed deterministically because the validation assembly imported `Game.WorldBuilder.Runtime` without referencing it. The narrow assembly-reference fix then passed exact run `33899750246` end-to-end.
+- Inspection of the successful local validation shows it currently builds and launches a real `.app`, but its `WorldBuilderSecretDiscoveryValidation` component still directly constructs `ShowcaseWorld`, configures `RenderingComposition`, authors the cave, and publishes vegetation. That is production subsystem reuse, but not yet proof through the full gameplay composition lifecycle.
+- Current production Kentridge wiring demonstrates the intended app boundary: `KentridgePlayableSlice` creates `KentridgeSessionRuntimeGraphFactory`, wraps it in `GameSessionOrchestrator`, calls `Prepare`, then enters/ticks/shuts down through the session lifecycle.
 
 ## Selected fix / remaining gates
 
-Keep existing bounded physical-authoring, bypass, canonical discovery, and interaction integration. The selected completion path is the reusable anomaly planner plus feature-specific local realization in the WorldBuilder validation scene.
+Keep the local WorldBuilder validation scene and real-player capture harness, but strengthen its composition path. The validation fixture must use the canonical application/session lifecycle rather than treating direct construction of production subsystems as sufficient. Scene-owned code should be limited to deterministic scenario setup, camera/evidence sequencing, and assertions/observation.
 
-The next exact-SHA request must validate the new anomaly contracts/planner/tests and the updated module-local built-player scene. Full-resolution review must show:
+The next implementation/validation pass must prove:
 
-- a natural approach that is visibly unusual because local vegetation/negative space deliberately changes toward the cave without a glow/icon/sign;
-- a mechanism-backed breakable wall whose structural evidence plausibly suggests breaking it;
+- the SceneIssue replay targets `WorldBuilderSecretDiscoveryValidation`, not `WorldbuildingGalleryShowcase`;
+- the local scene builds and launches as a real standalone app;
+- session/app composition passes through `GameSessionOrchestrator` and an application-owned runtime graph/factory rather than a validation-only parallel lifecycle;
+- a natural approach is visibly unusual because local vegetation/negative space deliberately changes toward the cave without a glow/icon/sign;
+- a mechanism-backed breakable wall has structural evidence that plausibly suggests breaking it;
+- production interaction/discovery authority remains canonical and no validation-only state machine is introduced;
 - no void/underside, floating/intersecting geometry, stale terrain, placeholder marker, or invalid framing;
-- production destruction still breaches only the authored route and reveals the hidden pocket.
+- production destruction breaches only the authored route and reveals the hidden pocket.
 
-Only after exact tests and module-local visual evidence are green may closure bookkeeping, final current-master reconciliation, PR + auto-merge, required PR checks, and merge confirmation proceed.
+Only after exact tests, full-app-harness evidence, and module-local visual evidence are green may closure bookkeeping, final current-master reconciliation, PR + auto-merge, required PR checks, and merge confirmation proceed.
