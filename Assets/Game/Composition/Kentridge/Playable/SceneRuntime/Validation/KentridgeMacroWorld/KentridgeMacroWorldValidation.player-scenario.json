@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "runSeconds": 50,
+  "capture": {
+    "width": 960,
+    "height": 540,
+    "intervalSeconds": 10,
+    "minimumFrames": 3,
+    "evidenceAfterSeconds": 8
+  },
+  "timeline": {},
+  "assertions": {
+    "requiredLogPatterns": [
+      "KENTRIDGE_MACRO_MODULE_VALIDATION ready:",
+      "MACROEVIDENCE traversal=CharacterMotor-local",
+      "MACROEVIDENCE content-ready target=moordell",
+      "MACROEVIDENCE capture-ready target=moordell"
+    ],
+    "forbiddenLogPatterns": [
+      "KENTRIDGE_MACRO_MODULE_VALIDATION FAILED:",
+      "NullReferenceException",
+      "MissingReferenceException",
+      "InvalidOperationException",
+      "Shader error"
+    ]
+  }
+}
