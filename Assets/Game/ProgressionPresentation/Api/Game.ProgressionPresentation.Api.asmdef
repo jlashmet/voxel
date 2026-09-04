@@ -1,0 +1,16 @@
+{
+  "name": "Game.ProgressionPresentation.Api",
+  "rootNamespace": "Game.ProgressionPresentation.Api",
+  "references": [
+    "Game.Progression.Api"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}
