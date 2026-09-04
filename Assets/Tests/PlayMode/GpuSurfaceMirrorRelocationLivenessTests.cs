@@ -19,8 +19,11 @@ namespace VoxelEngine.Tests.PlayMode
     public sealed class GpuSurfaceMirrorRelocationLivenessTests
     {
         private const string ScenePath = "Assets/Scenes/VoxelShowcase.unity";
+        private const float PrimeTravelMetres = 32f;
+        private const float PrimeStepMetres = 0.5f;
         private const float RelocationMetres = 384f;
-        private const double MaxWarmupSeconds = 60.0;
+        private const double MaxCoverageWarmupSeconds = 30.0;
+        private const double MaxGpuPrimingSeconds = 45.0;
         private const double MaxObservationSeconds = 60.0;
         private const double MaxSaturatedAdmissionSeconds = 20.0;
 
@@ -35,6 +38,8 @@ namespace VoxelEngine.Tests.PlayMode
             Camera camera = Camera.main;
             Assert.NotNull(showcase);
             Assert.NotNull(camera);
+            Assert.False(CpuTransvoxelChunkCache.GpuCutoverDisabled,
+                "Relocation liveness requires the production near-ring GPU cutover.");
 
             var target = new RenderTexture(320, 180, 24, RenderTextureFormat.ARGB32)
             {
@@ -48,24 +53,64 @@ namespace VoxelEngine.Tests.PlayMode
             try
             {
                 VoxelSurfaceMetrics metrics = default;
-                var warmup = Stopwatch.StartNew();
-                while (warmup.Elapsed.TotalSeconds < MaxWarmupSeconds)
+                var coverageWarmup = Stopwatch.StartNew();
+                while (coverageWarmup.Elapsed.TotalSeconds < MaxCoverageWarmupSeconds)
                 {
                     yield return null;
                     camera.Render();
                     metrics = VoxelRenderBridge.SurfaceMetrics;
-                    if (metrics.VisibleSolidChunks > 0
-                        && GpuSurfaceMirrorCoordinator.ReadyBlockCount > 0
-                        && metrics.GpuCompletedSolidBuilds > 0)
+                    if (metrics.VisibleSolidChunks > 0)
                         break;
                 }
 
                 Assert.Greater(metrics.VisibleSolidChunks, 0,
-                    "Relocation liveness harness never reached initial visible coverage.");
+                    $"Relocation liveness harness never reached initial visible coverage; "
+                  + $"missing={metrics.MissingVisibleSolidChunks}, "
+                  + $"jobs={metrics.RunningSolidJobs}, "
+                  + $"gpuAvailable={metrics.GpuCutoverAvailable}, "
+                  + $"gpuCompleted={metrics.GpuCompletedSolidBuilds}.");
+                Assert.True(metrics.GpuCutoverAvailable,
+                    "Production workers do not advertise the near-ring GPU cutover.");
+
+                // GPU extraction is demand-driven. A stationary showcase can reach fallback-safe
+                // visible coverage before the exact near rings need replacement work, so first use
+                // the same bounded movement that the production migration regression uses. Only
+                // after the mirror has demonstrably admitted and completed GPU work do we perform
+                // the one-step relocation this regression is meant to discriminate.
+                Vector3 primeOrigin = showcase.transform.position;
+                Vector3 primedPosition = primeOrigin;
+                var gpuPriming = Stopwatch.StartNew();
+                while (gpuPriming.Elapsed.TotalSeconds < MaxGpuPrimingSeconds)
+                {
+                    if (primedPosition.x - primeOrigin.x < PrimeTravelMetres)
+                    {
+                        primedPosition.x += Mathf.Min(
+                            PrimeStepMetres,
+                            PrimeTravelMetres - (primedPosition.x - primeOrigin.x));
+                        showcase.transform.position = primedPosition;
+                    }
+
+                    yield return null;
+                    camera.Render();
+                    metrics = VoxelRenderBridge.SurfaceMetrics;
+                    if (GpuSurfaceMirrorCoordinator.ReadyBlockCount > 0
+                        && metrics.GpuCompletedSolidBuilds > 0)
+                        break;
+                }
+
                 Assert.Greater(GpuSurfaceMirrorCoordinator.ReadyBlockCount, 0,
-                    "Relocation liveness harness never initialized the shared GPU mirror.");
+                    $"Relocation liveness harness never initialized the shared GPU mirror after "
+                  + $"a bounded {primedPosition.x - primeOrigin.x:F1}m production-style priming "
+                  + $"traversal; gpuAvailable={metrics.GpuCutoverAvailable}, "
+                  + $"gpuCompleted={metrics.GpuCompletedSolidBuilds}, "
+                  + $"gpuFallback={metrics.GpuFallbackSolidBuilds}, "
+                  + $"jobs={metrics.RunningSolidJobs}, visible={metrics.VisibleSolidChunks}, "
+                  + $"missing={metrics.MissingVisibleSolidChunks}.");
                 Assert.Greater(metrics.GpuCompletedSolidBuilds, 0ul,
-                    "Relocation liveness harness never completed an initial GPU build.");
+                    $"Relocation liveness harness never completed an initial GPU build after "
+                  + $"{primedPosition.x - primeOrigin.x:F1}m of bounded priming movement; "
+                  + $"ready={GpuSurfaceMirrorCoordinator.ReadyBlockCount}, "
+                  + $"gpuFallback={metrics.GpuFallbackSolidBuilds}.");
 
                 ulong baselineCompleted = metrics.GpuCompletedSolidBuilds;
                 Vector3 relocated = showcase.transform.position;
