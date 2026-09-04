@@ -1,0 +1,28 @@
+{
+  "name": "Game.Composition.CaveWorldBuilder.Validation",
+  "rootNamespace": "Game.Composition.CaveWorldBuilder.Validation",
+  "references": [
+    "Game.Composition.CaveWorldBuilder",
+    "Game.Composition.Showcase",
+    "Game.Materials.Api",
+    "Game.Structures.Api",
+    "Game.Structures.Runtime",
+    "Game.WorldBuilder.Api",
+    "VoxelEngine.Composition.Api",
+    "VoxelEngine.Composition",
+    "VoxelEngine.Storage.Api",
+    "VoxelEngine.Structures.Api",
+    "VoxelEngine.Structures.Runtime",
+    "VoxelEngine.Terrain.Api",
+    "Unity.Mathematics"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

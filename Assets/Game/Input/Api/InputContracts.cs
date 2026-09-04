@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace Game.Input.Api
 {
@@ -58,6 +59,40 @@ namespace Game.Input.Api
         }
     }
 
+    public readonly struct InputBindingOverride : IEquatable<InputBindingOverride>
+    {
+        public string ActionId { get; }
+        public int BindingIndex { get; }
+        public string OverridePath { get; }
+
+        public InputBindingOverride(string actionId, int bindingIndex, string overridePath)
+        {
+            if (string.IsNullOrWhiteSpace(actionId)) throw new ArgumentException("Action id is required.", nameof(actionId));
+            if (bindingIndex < 0) throw new ArgumentOutOfRangeException(nameof(bindingIndex));
+            if (string.IsNullOrWhiteSpace(overridePath)) throw new ArgumentException("Override path is required.", nameof(overridePath));
+            ActionId = actionId.Trim();
+            BindingIndex = bindingIndex;
+            OverridePath = overridePath.Trim();
+        }
+
+        public bool Equals(InputBindingOverride other) =>
+            BindingIndex == other.BindingIndex &&
+            string.Equals(ActionId, other.ActionId, StringComparison.Ordinal) &&
+            string.Equals(OverridePath, other.OverridePath, StringComparison.Ordinal);
+
+        public override bool Equals(object obj) => obj is InputBindingOverride other && Equals(other);
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                int hash = StringComparer.Ordinal.GetHashCode(ActionId ?? string.Empty);
+                hash = (hash * 397) ^ BindingIndex;
+                hash = (hash * 397) ^ StringComparer.Ordinal.GetHashCode(OverridePath ?? string.Empty);
+                return hash;
+            }
+        }
+    }
+
     public interface IPlayerInputReader
     {
         PlayerInputSnapshot Read(LocalPlayerId player);
@@ -72,5 +107,12 @@ namespace Game.Input.Api
     {
         InputContextId ActiveContext { get; }
         IInputContextLease Push(InputContextId context);
+    }
+
+    public interface IInputBindingOverrideService
+    {
+        IReadOnlyList<InputBindingOverride> SnapshotOverrides();
+        bool TryApplyOverride(InputBindingOverride bindingOverride, out string error);
+        void ClearOverrides();
     }
 }

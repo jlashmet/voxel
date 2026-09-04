@@ -1,0 +1,16 @@
+{
+  "name": "Game.Application.Api",
+  "rootNamespace": "Game.Application.Api",
+  "references": [
+    "Game.Input.Api"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}

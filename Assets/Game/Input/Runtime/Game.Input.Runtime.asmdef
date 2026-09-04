@@ -2,7 +2,8 @@
   "name": "Game.Input.Runtime",
   "rootNamespace": "Game.Input.Runtime",
   "references": [
-    "Game.Input.Api"
+    "Game.Input.Api",
+    "Unity.InputSystem"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
