@@ -4,7 +4,9 @@
   "references": [
     "Game.ProgressionPresentation.Api",
     "Game.ProgressionPresentation.Runtime",
-    "Game.Progression.Api"
+    "Game.Progression.Api",
+    "Game.GameplayReplication.Api",
+    "Game.Sessions.Api"
   ],
   "includePlatforms": ["Editor"],
   "excludePlatforms": [],
