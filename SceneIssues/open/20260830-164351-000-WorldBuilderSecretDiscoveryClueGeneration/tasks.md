@@ -48,9 +48,12 @@
 - [x] Identify canonical gameplay lifecycle boundary: production Kentridge uses `KentridgeSessionRuntimeGraphFactory` + `GameSessionOrchestrator` (`Prepare` / `EnterRunning` / `Tick` / `Shutdown`).
 - [x] Refactor local SecretDiscovery validation to enter through the canonical application/session composition lifecycle: `GameSessionOrchestrator` owns prepare/run/tick/shutdown, initialization is `ISessionRuntimeGraph.InitializeNewGame`, and per-frame work is an `ISessionUpdateStep`.
 - [x] Add fail-closed architecture regression proving the local validation implements `ISessionRuntimeGraphFactory` + `ISessionRuntimeGraph` and retains a canonical `GameSessionOrchestrator` owner; built-player scenario also requires a `...app session running:` log.
-- [ ] Run fresh exact-SHA targeted validation after the SceneIssue scene/harness refactor and prove the standalone SceneIssue replay no longer launches Gallery.
-- [ ] Full-resolution module-local screenshot review proves the natural approach visibly communicates an intentional anomaly and plausible traversal/investigation hypothesis without glow/icon/signage.
-- [ ] Full-resolution module-local screenshot review proves the breakable barrier visibly communicates a plausible break/destruction hypothesis without becoming a universal marker.
+- [x] Exact request `16e82a9e6912c2faa90be40df3a60242c919cc30` / run `33903218535` passed automatic module validation and standalone SceneIssue replay; build opened `WorldBuilderSecretDiscoveryValidation.unity`, runtime logged `lifecycle=Running`, and production destruction breached 607 voxels into the intended hidden pocket.
+- [x] Full-resolution review of run `33903218535` rejects visual closure: breakable-wall evidence is readable, but startup/exterior evidence exposes void/underside and a large cutaway/crater-like cave opening, so the natural approach does not meet production-quality/readability acceptance.
+- [ ] Fix only the rejected natural evidence path: extend vegetation-discontinuity banks farther back, hold the exterior stage through a normal capture interval, place the camera at believable gameplay eye height looking along the anomaly rather than down into the opening, and suppress pre-convergence startup captures with `evidenceAfterSeconds`.
+- [ ] Run fresh exact-SHA targeted validation after the natural-approach evidence fix.
+- [ ] Full-resolution module-local screenshot review proves the natural approach visibly communicates an intentional anomaly and plausible traversal/investigation hypothesis without glow/icon/signage or crater/void exposure.
+- [x] Full-resolution run `33903218535` proves the breakable barrier visibly communicates a plausible break/destruction hypothesis without becoming a universal marker.
 - [ ] Local built-scene visual review is `production-quality`: no stale terrain, placeholder signs, universal glow, floating/intersecting geometry, void/underside, or invalid framing.
 
 ## Cost / integration / closure
