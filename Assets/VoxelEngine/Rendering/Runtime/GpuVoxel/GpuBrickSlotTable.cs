@@ -101,9 +101,21 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         /// geometry nobody can reach. Generation ordering is checked before that release so a stale
         /// empty/uniform delta cannot tear down a newer mixed payload.
         /// </summary>
-        public GpuBrickAdmission TryAdmit(in VoxelBrickDelta delta, out int slot)
+        public GpuBrickAdmission TryAdmit(in VoxelBrickDelta delta, out int slot) =>
+            TryAdmit(in delta, out slot, out _, out _);
+
+        /// <summary>
+        /// Mirror-facing admission also reports the logical coordinate displaced by LRU slot reuse.
+        /// The slot table owns residency policy, while the mirror owns GPU directory reachability;
+        /// exposing the displaced coordinate lets the mirror tombstone that old hash entry before the
+        /// physical slot is published for another brick.
+        /// </summary>
+        internal GpuBrickAdmission TryAdmit(in VoxelBrickDelta delta, out int slot,
+                                            out bool evicted, out int3 evictedCoordinate)
         {
             slot = -1;
+            evicted = false;
+            evictedCoordinate = default;
 
             if (_slotByCoordinate.TryGetValue(delta.Coordinate, out int existing))
             {
@@ -130,7 +142,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
             if (!delta.NeedsSlot) return GpuBrickAdmission.NoPayload;
 
-            if (!TryTakeSlot(out slot))
+            if (!TryTakeSlot(out slot, out evicted, out evictedCoordinate))
             {
                 RefusedCount++;
                 return GpuBrickAdmission.Full;
@@ -205,8 +217,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         private void Touch(int slot) => _slots[slot].LastTouched = ++_clock;
 
-        private bool TryTakeSlot(out int slot)
+        private bool TryTakeSlot(out int slot, out bool evicted, out int3 evictedCoordinate)
         {
+            evicted = false;
+            evictedCoordinate = default;
+
             if (_free.Count > 0)
             {
                 slot = _free.Pop();
@@ -225,8 +240,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
             if (slot < 0) return false;
 
-            _slotByCoordinate.Remove(_slots[slot].Coordinate);
+            evictedCoordinate = _slots[slot].Coordinate;
+            _slotByCoordinate.Remove(evictedCoordinate);
             _slots[slot] = default;
+            evicted = true;
             EvictionCount++;
             return true;
         }
