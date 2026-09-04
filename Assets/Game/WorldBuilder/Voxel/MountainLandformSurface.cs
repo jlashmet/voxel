@@ -330,7 +330,7 @@ namespace Game.WorldBuilder.Voxel
                     Math.Max(3, minRadius / 3));
 
                 masses.Add(new MountainLandformMass(
-                    centreX, spec.OriginYdm, summitZ + dz * distance / DirectionScale + tangentZ * tangentJitter / DirectionScale,
+                    centreX, spec.OriginYdm, centreZ,
                     height, localRadius, Math.Max(1, localRadius / 5)));
             }
         }
