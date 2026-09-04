@@ -38,7 +38,7 @@
 - [x] **T17-017 — Rebuild after reconnect/restore.** Clear stale transient state and reconstruct persistent HUD entirely from current semantic snapshots.
   - Evidence: `RebuildAfterReconnect` baselines already-present transient ids; the next `Project` re-resolves member/CharacterId and all persistent snapshots from sources.
 - [ ] **T17-018 — Replace prototype/Kentridge hardcoded GUI.** Production composition uses Hud module; remove duplicate labels/prompts after parity.
-  - Blocked on production composition, not Hud primitives: System14 is still open and explicitly owns T14-010 one production graph plus T14-019 replacement of Kentridge scene-local graph construction. Current Kentridge does not own the authoritative `PartySession`/Vitality/Encounter graph or stable local-player -> party-member binding needed to configure `HudSnapshotProjector`; System17 must not create a second production authority just to attach its view.
+  - System14 production graph is now present on current master (`75e2fae...`). Next: wire the canonical Kentridge production services into Hud via semantic query adapters, then remove the overlapping prototype `OnGUI` state/prompt presentation. Do not introduce another gameplay/session authority.
 
 ## Verification
 
@@ -54,13 +54,13 @@
   - Exact-SHA workflow `33864869873`: independent `Game.Hud.HeadlessRegression.Tests` passed 1/1. The assembly has no Hud reference, drives real `PartySession` through readiness/start and real `VitalityRegistry` through damage, and asserts Sessions/Vitality/test assemblies do not reference `Game.Hud`.
 - [x] **T17-025 — Module-local built-player visual validation.** Use shared validation harness and semantic milestones; no bespoke screenshot driver.
   - Exact-SHA workflow `33864869873`: `Assets/Game/Hud/Validation/HudSemanticPresentationValidation.unity` passed in 30.1s using the real `HudSnapshotProjector`, production `GameplayHudPresenter`, and real `UnityInputBindingService`; player log emitted `HUD_SEMANTIC_PRESENTATION_VALIDATION PASS vitality=73/100 prompt=E combat=true readiness=GameplayReady objective=Reach the gate`. Durable settled screenshot evidence is classified **production-quality**: crisp readable hierarchy, consistent panel alignment, semantic state accents, immediate vitality/prompt readability, and no placeholder or validation-only presentation path. Canonical Kentridge integration validation and the separate SceneIssue standalone replay also passed.
-- [x] **T17-026 — Repair exact-SHA planner blocker with a minimal ownership regression.** Nested module roots must assign a runtime asmdef only to its nearest/deepest module owner.
-  - Evidence: after two identical CI failures, a minimal repro was isolated. `tools/tests/test_module_validation_nested_roots.py` reproduces parent/child Kentridge-style test roots; `tools/module-validation-plan.py` now filters runtime asmdefs by nearest module root instead of recursively claiming nested assemblies. Workflow `33864869873` proves automatic module-plan derivation now succeeds and all derived validation completes green.
+- [x] **T17-026 — Isolate exact-SHA planner blocker and prove the cause.** Nested Kentridge module roots were assigning one runtime asmdef to multiple module owners.
+  - Evidence: after two identical CI failures, a minimal repro proved nearest/deepest ownership was required; the temporary agent-9 planner repair enabled green workflow `33864869873`. Current master subsequently removed the nested Kentridge test-root collision in System14, so the temporary tooling change was intentionally dropped while merging master and canonical repository tooling is retained.
 
 ## Cleanup / close
 
 - [ ] **T17-030 — Remove hardcoded physical prompt strings and duplicate HUD truth.** Repository search for `Press E`/key-name equivalents and HUD-owned gameplay values.
-  - Kentridge cleanup is coupled to blocked T17-018/T14-019; do not delete its current fallback controls before the production graph can supply Hud semantically.
+  - Kentridge cleanup is coupled to T17-018. With System14 now merged, remove the prototype prompt/state surface only after the production Hud composition consumes the same canonical gameplay sources.
 - [x] **T17-031 — Boundary audit.** No Inventory journal/party screen authority and no commands that mutate gameplay directly from Hud state.
   - Evidence: Hud.Api exposes read/presentation contracts only; Hud.Runtime references Query interfaces (`IPartySessionQuery`, `IVitalityQuery`, `IEncounterQuery`) plus Input presentation/context seams. Neither Hud assembly references Inventory, journal/party UI authority, or gameplay mutation services.
 - [x] **T17-032 — Close with rebuild proof.** HUD is a pure projection that can be destroyed/recreated from current semantic state at any time.
