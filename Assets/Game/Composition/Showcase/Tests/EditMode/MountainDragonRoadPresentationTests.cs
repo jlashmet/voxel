@@ -9,6 +9,7 @@ namespace VoxelEngine.Showcase.Tests.EditMode
     {
         private const uint Seed = 0x5EED1234u;
         private const int MaximumAdjacentWallDm = 30;
+        private const int AuthoredClearanceWidthDm = 10;
 
         [Test]
         public void AuthoredMountainUsesBroadMassesInsteadOfCliffLikeRoadsideSpikes()
@@ -38,7 +39,7 @@ namespace VoxelEngine.Showcase.Tests.EditMode
                 out WorldRoadNetworkRoute route), Is.True);
             Assert.That(route.Road.IsResolved, Is.True, route.Road.FailureReason);
 
-            int edgeOffsetDm = ShowcaseMountainDragonLayout.PathWidth / 2 + route.ClearanceWidthDm;
+            int edgeOffsetDm = ShowcaseMountainDragonLayout.PathWidth / 2 + AuthoredClearanceWidthDm;
             for (int i = 0; i < route.Road.Points.Count; i++)
             {
                 ResolvedWorldRoadPoint point = route.Road.Points[i];
