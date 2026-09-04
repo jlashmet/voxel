@@ -6,25 +6,25 @@
 
 ## API / schema
 
-- [ ] **T16-001 — Inventory existing save/world persistence.** Map voxel/world saves, campaign snapshots, PlayerPrefs/scene serialization, test save helpers and all subsystem snapshot shapes already present.
-- [ ] **T16-002 — Establish asmdefs/storage boundary.** Persistence.Runtime owns serialization/store coordination; physical save backend is behind API/internal seam and no domain Runtime is referenced.
-- [ ] **T16-003 — Define `GameSessionSnapshot` header.** Version/schema, stable session/content/world identifiers, authoritative revision, timestamp/metadata needed by frontend listing; no transport ids.
-- [ ] **T16-004 — Define subsystem snapshot contributor interface.** Each authoritative module captures/restores its semantic state through its public contracts/adapters.
-- [ ] **T16-005 — Define capture/restore request/results.** Semantic failure reasons for unavailable barrier, corrupt data, schema/content mismatch and storage failures.
-- [ ] **T16-006 — Define save metadata/listing contract.** Expose enough for system 23 Continue UI without loading gameplay Runtime objects.
-- [ ] **T16-007 — Define compatibility/version policy.** Explicitly classify supported migration, unsupported schema/content and deterministic rejection behavior.
+- [x] **T16-001 — Inventory existing save/world persistence.** Mapped Characters, Vitality, Inventory, Progression, WorldObjects and Encounters semantic snapshot seams. Repository searches found no PlayerPrefs/persistentDataPath session shortcut, duplicate durable session store, or existing durable voxel/world file mechanism on current master; System14 is not yet present on master.
+- [x] **T16-002 — Establish asmdefs/storage boundary.** Added pure headless `Game.Persistence.Api` and `Game.Persistence.Runtime`; Runtime references only Persistence.Api and storage is behind `ISessionSaveStore`.
+- [x] **T16-003 — Define `GameSessionSnapshot` header.** `GameSessionSnapshotHeader` carries format version plus stable save/session/content/world ids, authoritative revision, UTC capture ticks and display metadata; no transport identity.
+- [x] **T16-004 — Define subsystem snapshot contributor interface.** `ISessionSnapshotContributor` owns capture, non-mutating validation and restore for one semantic section; delegate adapters let composition use owner public contracts without Persistence importing domain Runtime assemblies.
+- [x] **T16-005 — Define capture/restore request/results.** `SessionCaptureRequest`, `SessionRestoreRequest`, `SessionPersistenceResult` and `SessionPersistenceFailure` explicitly represent barrier, corruption, compatibility, graph, contributor and storage failures.
+- [x] **T16-006 — Define save metadata/listing contract.** `SessionSaveMetadata` and `ListSaves()` expose frontend-safe header data without constructing gameplay graphs.
+- [x] **T16-007 — Define compatibility/version policy.** Envelope and contributor schema versions are explicit; unsupported format/section schema, content mismatch and world mismatch reject deterministically before apply.
 
 ## Runtime
 
-- [ ] **T16-010 — Implement coherent capture barrier.** Coordinate one authoritative revision across world and registered subsystems; reject/serialize concurrent mutation according to deterministic policy.
-- [ ] **T16-011 — Register subsystem contributors via API.** Characters, Vitality, Encounters, Inventory, Progression, Sessions/Outcomes etc. contribute without Persistence importing Runtime assemblies.
-- [ ] **T16-012 — Integrate existing voxel/world persistence.** Reuse existing mechanisms and stable world identifiers; do not create a second world snapshot system.
-- [ ] **T16-013 — Serialize semantic/stable data only.** Add validation that Unity objects, scene refs, transport ids, UI state, audio/VFX state and AI scratch data cannot enter persisted schema.
-- [ ] **T16-014 — Implement atomic publication.** Write staged save then publish/replace metadata atomically enough that interrupted writes cannot appear as valid complete saves.
-- [ ] **T16-015 — Implement normal-graph restore.** Ask system 14 to compose a fresh production graph, validate snapshot, apply subsystem/world state before Running/GameplayReady.
-- [ ] **T16-016 — Preserve stable gameplay identities.** CharacterId, PartyMemberId/PlayerSlot, InventoryId, WorldObjectId, progression/outcome identities round-trip; transport connection ids are regenerated.
-- [ ] **T16-017 — Prevent historical one-shot replay.** Restore current authoritative state and event dedupe/revision baselines, not an event-log reenactment.
-- [ ] **T16-018 — Keep save policy outside core.** Manual/autosave/checkpoint timing is application/content policy; Persistence only provides capability.
+- [x] **T16-010 — Implement coherent capture barrier.** `ISessionCaptureBarrier` supplies one authoritative revision and every captured section must match it; mixed-revision capture rejects before staging/publishing.
+- [x] **T16-011 — Register subsystem contributors via API.** Generic contributor seam and tests cover Characters, Vitality, Inventory, Progression, World, Encounters and Outcomes semantic sections without Persistence.Runtime referencing their Runtime assemblies.
+- [x] **T16-012 — Integrate existing voxel/world persistence.** No durable voxel/world save backend exists on current master to duplicate; System16 composes world truth as an externally owned semantic `world` contributor keyed by stable `SessionWorldId`, leaving voxel serialization with its owner when available.
+- [x] **T16-013 — Serialize semantic/stable data only.** The persisted envelope contains stable header values plus opaque owner-produced semantic payloads; `SessionSchemaGuard` rejects Unity/scene/transport/UI/audio/VFX/AI-scratch type declarations.
+- [x] **T16-014 — Implement atomic publication.** `FileSessionSaveStore` writes a flushed staged file and publishes/replaces only that complete file; stage/backup files are excluded from listing.
+- [x] **T16-015 — Implement normal-graph restore.** `ISessionRestoreGraphFactory` is the System14/application composition boundary. Restore creates a fresh graph, validates all sections before apply, applies deterministically, and marks the graph complete only after success; current master has no System14 Runtime to import.
+- [x] **T16-016 — Preserve stable gameplay identities.** Header/semantic section design preserves Character/Party-slot/Inventory/WorldObject/progression/outcome identities while transport connection identity is absent and regenerated by fresh composition.
+- [x] **T16-017 — Prevent historical one-shot replay.** Contributor contract restores current semantic state only; Progression applied-operation/revision baselines can be carried in owner snapshots and tests assert active encounter restore does not replay activation one-shots.
+- [x] **T16-018 — Keep save policy outside core.** Persistence exposes capture/save/list/restore capability only; no autosave/checkpoint cadence or content timing policy was added.
 
 ## Verification
 
