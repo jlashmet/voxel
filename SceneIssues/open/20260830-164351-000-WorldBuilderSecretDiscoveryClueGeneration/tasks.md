@@ -46,8 +46,8 @@
 - [x] Confirm module player validation builds and launches a real standalone `.app` through `tools/player-validation.py` / `tools/showcase-player-capture.sh`.
 - [x] Identify remaining harness gap: `WorldBuilderSecretDiscoveryValidation` still manually constructs `ShowcaseWorld`, rendering, cave authoring, and vegetation, so standalone execution is not yet equivalent to the normal gameplay composition lifecycle.
 - [x] Identify canonical gameplay lifecycle boundary: production Kentridge uses `KentridgeSessionRuntimeGraphFactory` + `GameSessionOrchestrator` (`Prepare` / `EnterRunning` / `Tick` / `Shutdown`).
-- [ ] Refactor local SecretDiscovery validation to enter through the canonical application/session composition lifecycle; scene code should only supply deterministic scenario/configuration, camera/evidence sequencing, and assertions/observation.
-- [ ] Add behavioral/architecture regression proving the local validation cannot silently bypass `GameSessionOrchestrator` with a parallel validation-only runtime graph/state machine.
+- [x] Refactor local SecretDiscovery validation to enter through the canonical application/session composition lifecycle: `GameSessionOrchestrator` owns prepare/run/tick/shutdown, initialization is `ISessionRuntimeGraph.InitializeNewGame`, and per-frame work is an `ISessionUpdateStep`.
+- [x] Add fail-closed architecture regression proving the local validation implements `ISessionRuntimeGraphFactory` + `ISessionRuntimeGraph` and retains a canonical `GameSessionOrchestrator` owner; built-player scenario also requires a `...app session running:` log.
 - [ ] Run fresh exact-SHA targeted validation after the SceneIssue scene/harness refactor and prove the standalone SceneIssue replay no longer launches Gallery.
 - [ ] Full-resolution module-local screenshot review proves the natural approach visibly communicates an intentional anomaly and plausible traversal/investigation hypothesis without glow/icon/signage.
 - [ ] Full-resolution module-local screenshot review proves the breakable barrier visibly communicates a plausible break/destruction hypothesis without becoming a universal marker.
