@@ -6,7 +6,11 @@
     "Game.Composition.EncounterRealization",
     "Game.Composition.Kentridge.Playable",
     "Game.Encounters.Api",
-    "Game.WorldBuilder.Api"
+    "Game.Kentridge.PlayableSlice",
+    "Game.WorldBuilder.Api",
+    "Game.WorldBuilder.Runtime",
+    "MountingForce.WorldGen.Core",
+    "MountingForce.WorldGen.Voxel"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
