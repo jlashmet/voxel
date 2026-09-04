@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace Game.Input.Runtime
 {
-    public sealed class UnityInputBindingService : IInputBindingPresentation, IInputActionReader
+    public sealed class UnityInputBindingService : IInputBindingPresentation, IInputActionStateReader
     {
         private readonly Dictionary<InputActionId, KeyCode> _bindings = new Dictionary<InputActionId, KeyCode>();
 
@@ -36,6 +36,9 @@ namespace Game.Input.Runtime
 
         public bool WasPressed(LocalPlayerId player, InputActionId action) =>
             _bindings.TryGetValue(action, out KeyCode key) && UnityEngine.Input.GetKeyDown(key);
+
+        public bool IsHeld(LocalPlayerId player, InputActionId action) =>
+            _bindings.TryGetValue(action, out KeyCode key) && UnityEngine.Input.GetKey(key);
 
         private static string Format(KeyCode key)
         {
