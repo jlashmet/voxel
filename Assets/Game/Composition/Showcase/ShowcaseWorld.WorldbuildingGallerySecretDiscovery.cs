@@ -108,6 +108,13 @@ namespace VoxelEngine.Showcase
             if (_galleryNaturalApproachClueVoxels <= 0)
                 throw new InvalidOperationException("Gallery cave approach produced no environmental clue evidence.");
 
+            // The production Gallery is restored from a bake before SecretDiscovery is composed.
+            // Bulk structure authoring mutates authoritative resident storage without publishing
+            // per-voxel journal entries, so derived rendering/collision consumers would otherwise
+            // keep the snapshots they observed before this cave, pocket and clue pass. Publish the
+            // finished bounded resident state once, matching the existing post-bake repair contract.
+            _storage.PublishAllResidentRegions();
+
             _gallerySecretDiscoveryReady = true;
         }
 
