@@ -14,12 +14,13 @@ namespace VoxelEngine.Showcase.Validation
     [RequireComponent(typeof(Camera))]
     public sealed class ShowcaseSecretDiscoveryValidation : MonoBehaviour
     {
-        // The production Gallery bake is authored for the Showcase scene's deterministic seed.
-        // Module validation must use that same composition contract rather than a mnemonic-only seed.
+        // These values intentionally match the production Gallery's serialized storage contract.
+        // The Gallery bake records startup radius 4 and cannot be meaningfully validated against a
+        // smaller module-local radius/pool that production never uses.
         [SerializeField] private uint m_Seed = 0x5EED1234u;
-        [SerializeField] private int m_BrickPoolCapacity = 196608;
-        [SerializeField] private int m_LoadRadiusRegions = 2;
-        [SerializeField] private int m_UnloadRadiusRegions = 3;
+        [SerializeField] private int m_BrickPoolCapacity = 800000;
+        [SerializeField] private int m_LoadRadiusRegions = 4;
+        [SerializeField] private int m_UnloadRadiusRegions = 6;
         [SerializeField] private float m_GenerateBudgetMs = 4f;
 
         private ShowcaseWorld _world;
@@ -34,9 +35,17 @@ namespace VoxelEngine.Showcase.Validation
             cameraComponent.clearFlags = CameraClearFlags.Skybox;
             cameraComponent.nearClipPlane = 0.05f;
             cameraComponent.farClipPlane = 2500f;
-            cameraComponent.fieldOfView = 75f;
+            cameraComponent.fieldOfView = 68f;
 
-            _world = new ShowcaseWorld(m_Seed, m_BrickPoolCapacity, m_LoadRadiusRegions, m_UnloadRadiusRegions);
+            // The requested 800k capacity is already the production scene's selected tier. Avoid the
+            // generic constructor's conservative 256 MiB fallback from re-clamping this validation
+            // fixture; this ceiling is validation-only and does not increase any production budget.
+            _world = new ShowcaseWorld(
+                m_Seed,
+                m_BrickPoolCapacity,
+                m_LoadRadiusRegions,
+                m_UnloadRadiusRegions,
+                maxMixedBrickAllocationBytes: long.MaxValue);
             RenderingComposition.ResetSurfacePassDiagnostics("showcase-secret-discovery-validation-enabled");
             RenderingComposition.SetSurfaceBuildEnabled(false);
             RenderingComposition.SetFarBaseHeight(ShowcaseWorld.BaseHeightVoxels);
@@ -99,9 +108,9 @@ namespace VoxelEngine.Showcase.Validation
         private void PlaceNaturalCluePose()
         {
             float3 position = _world.WorldbuildingGalleryNaturalSecretCameraPosition();
-            float3 referenceTarget = _world.WorldbuildingGalleryNaturalSecretLookTarget();
-            position += new float3(-4.5f, 1.2f, 0f);
-            float3 target = new float3(position.x + 4.5f, referenceTarget.y, position.z + 3.2f);
+            float3 target = _world.WorldbuildingGalleryNaturalSecretLookTarget();
+            position += new float3(-1.1f, 0.35f, 0.6f);
+            target += new float3(0f, -0.35f, -2.6f);
             PlaceMetrePose(position, target);
         }
 
