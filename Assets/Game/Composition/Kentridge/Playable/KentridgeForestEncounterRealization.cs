@@ -3,6 +3,7 @@ using Game.Characters.Api;
 using Game.Composition.EncounterRealization;
 using Game.Encounters.Api;
 using Game.WorldBuilder.Api;
+using WorldBuilderCampaign = Game.WorldBuilder.Api.Campaign;
 
 namespace Game.Composition.Kentridge.Playable
 {
@@ -86,7 +87,7 @@ namespace Game.Composition.Kentridge.Playable
 
         private static SiteRef CreateForestSiteRole()
         {
-            CampaignBuilder campaign = Campaign.Create("kentridge-forest-encounter-realization");
+            CampaignBuilder campaign = WorldBuilderCampaign.Create("kentridge-forest-encounter-realization");
             return campaign.World.Region("kentridge-macro-world").Site("forest-ambush-area").Ref;
         }
 
