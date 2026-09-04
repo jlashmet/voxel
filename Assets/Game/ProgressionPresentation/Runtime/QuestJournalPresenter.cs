@@ -62,10 +62,10 @@ namespace Game.ProgressionPresentation.Runtime
                     var key = new JournalObjectiveKey(quest.Id, objective.Id);
                     var visible = new VisibleObjective(key, questContent.Title, objectiveContent, objective, authoritative.Revision);
                     _visible[key] = visible;
-                    objectives.Add(new ObjectiveBuild(visible));
+                    objectives.Add(new ObjectiveBuild(visible, o));
                 }
 
-                quests.Add(new QuestBuild(quest, questContent, objectives));
+                quests.Add(new QuestBuild(quest, questContent, objectives, q));
             }
 
             ReconcileLocalSelection();
@@ -230,7 +230,7 @@ namespace Game.ProgressionPresentation.Runtime
             if (_preferences.SortMode == JournalSortMode.Title)
                 objectives.Sort((a, b) => StringComparer.Ordinal.Compare(a.Visible.Content.Label, b.Visible.Content.Label));
             else
-                objectives.Sort((a, b) => a.Visible.Content.Order.CompareTo(b.Visible.Content.Order));
+                objectives.Sort((a, b) => a.Visible.Content.Order != b.Visible.Content.Order ? a.Visible.Content.Order.CompareTo(b.Visible.Content.Order) : a.OriginalIndex.CompareTo(b.OriginalIndex));
         }
 
         private readonly struct VisibleObjective
@@ -253,25 +253,29 @@ namespace Game.ProgressionPresentation.Runtime
 
         private sealed class QuestBuild
         {
-            private static int _nextIndex;
             public QuestProgressSnapshot Progress { get; }
             public QuestPresentationContent Content { get; }
             public List<ObjectiveBuild> Objectives { get; }
             public int OriginalIndex { get; }
 
-            public QuestBuild(QuestProgressSnapshot progress, QuestPresentationContent content, List<ObjectiveBuild> objectives)
+            public QuestBuild(QuestProgressSnapshot progress, QuestPresentationContent content, List<ObjectiveBuild> objectives, int originalIndex)
             {
                 Progress = progress;
                 Content = content;
                 Objectives = objectives;
-                OriginalIndex = _nextIndex++;
+                OriginalIndex = originalIndex;
             }
         }
 
         private readonly struct ObjectiveBuild
         {
             public VisibleObjective Visible { get; }
-            public ObjectiveBuild(VisibleObjective visible) => Visible = visible;
+            public int OriginalIndex { get; }
+            public ObjectiveBuild(VisibleObjective visible, int originalIndex)
+            {
+                Visible = visible;
+                OriginalIndex = originalIndex;
+            }
         }
     }
 }
