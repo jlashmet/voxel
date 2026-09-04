@@ -5,6 +5,7 @@
   "timeline": {},
   "assertions": {
     "requiredLogPatterns": [
+      "AUDIO_VALIDATION preferences-applied: master=0.42 sfx=0.80 ambience=0.60",
       "AUDIO_VALIDATION ready: predicted=Played confirmed=DuplicateSuppressed playedEvents=1",
       "AUDIO_VALIDATION cutscene-shared: door=Played",
       "AUDIO_VALIDATION sustained-start: loops=1 semantic=1",
