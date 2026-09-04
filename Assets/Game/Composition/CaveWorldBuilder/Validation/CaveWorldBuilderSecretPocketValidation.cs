@@ -27,7 +27,11 @@ namespace Game.Composition.CaveWorldBuilder.Validation
         private const int AnchorZ = 512;
         private const float VoxelMetres = ShowcaseWorld.VoxelSize;
 
-        [SerializeField] private uint m_Seed = 0x43415645u;
+        // Keep the focused validation on the same deterministic world seed as the production
+        // Showcase driver. ShowcaseWorld constructs the production feature catalogue eagerly,
+        // so an arbitrary validation-only seed can fail unrelated Kentridge placement before the
+        // CaveWorldBuilder path under test starts.
+        [SerializeField] private uint m_Seed = 0x5EED1234u;
         [SerializeField] private int m_BrickPoolCapacity = 196608;
         [SerializeField] private int m_LoadRadiusRegions = 2;
         [SerializeField] private int m_UnloadRadiusRegions = 3;
