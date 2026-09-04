@@ -173,7 +173,7 @@
     },
     {
       "name": "resolved-24",
-      "x": -70.0,
+       "x": -70.0,
       "z": 36.0,
       "requireGrounded": true
     },
@@ -338,8 +338,8 @@
     },
     {
       "name": "mid-turn",
-      "x": -142.6,
-      "z": 26.6,
+      "x": -142.0,
+      "z": 28.0,
       "requireGrounded": true,
       "holdSeconds": 1.0,
       "capture": "04-mid-turn.png",
@@ -619,21 +619,9 @@
       "requireGrounded": true
     },
     {
-      "name": "resolved-93",
-      "x": -112.0,
-      "z": 22.0,
-      "requireGrounded": true
-    },
-    {
-      "name": "resolved-94",
-      "x": -112.0,
-      "z": 20.0,
-      "requireGrounded": true
-    },
-    {
       "name": "summit-proximity",
-      "x": -108.9,
-      "z": 18.3,
+      "x": -111.1,
+      "z": 23.8,
       "requireGrounded": true,
       "holdSeconds": 1.5,
       "capture": "07-dragon-dialogue.png",
@@ -641,7 +629,7 @@
       "lookX": -111.2,
       "lookZ": 20.0,
       "lookPitchDegrees": -1.0,
-      "expectedYOffset": 28.1,
+      "expectedYOffset": 27.4,
       "yTolerance": 1.0
     }
   ]
