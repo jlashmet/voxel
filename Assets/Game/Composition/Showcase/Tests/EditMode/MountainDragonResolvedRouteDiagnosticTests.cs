@@ -1,14 +1,8 @@
-using System;
 using System.Text;
 using Game.WorldBuilder.Api;
 using Game.WorldBuilder.Voxel;
 using NUnit.Framework;
-using Unity.Collections;
-using Unity.Mathematics;
 using UnityEngine;
-using VoxelEngine.Storage.Api;
-using VoxelEngine.Structures.Api;
-using VoxelEngine.Structures.Runtime;
 
 namespace VoxelEngine.Showcase.Tests.EditMode
 {
@@ -16,15 +10,9 @@ namespace VoxelEngine.Showcase.Tests.EditMode
     {
         private const uint Seed = 0x5EED1234;
         private const string RouteLogPrefix = "MOUNTAIN_DRAGON_RESOLVED_ROUTE_DM=";
-        private const string TerminalLogPrefix = "MOUNTAIN_DRAGON_TERMINAL_CORRIDOR=";
-        private const string TerminalWinnerLogPrefix = "MOUNTAIN_DRAGON_TERMINAL_WINNER=";
-        private const string RealizedFootprintLogPrefix = "MOUNTAIN_DRAGON_REALIZED_STALL_FOOTPRINT=";
-        private const byte RoadSurfaceMaterial = 13;
-        private const int StallXdm = -1085;
-        private const int StallZdm = 275;
 
         [Test]
-        public void CurrentProductionRouteSerializesForSummitRootCauseIsolation()
+        public void CurrentProductionRouteSerializesForEvidenceRefresh()
         {
             MountainLandformSurface surface = ShowcaseMountainDragonLayout.CreateSurface(Seed);
             WorldRoadNetwork ascent = ShowcaseMountainDragonLayout.CreateAscentNetwork(Seed, surface);
@@ -51,94 +39,7 @@ namespace VoxelEngine.Showcase.Tests.EditMode
         }
 
         [Test]
-        public void CurrentProductionTerminalCorridorSerializesForCollisionIsolation()
-        {
-            MountainLandformSurface surface = ShowcaseMountainDragonLayout.CreateSurface(Seed);
-            WorldRoadNetwork ascent = ShowcaseMountainDragonLayout.CreateAscentNetwork(Seed, surface);
-
-            Assert.That(ascent.TryGetRoute(
-                ShowcaseMountainDragonLayout.AscentRouteId,
-                out WorldRoadNetworkRoute route), Is.True);
-            Assert.That(route.Road.IsResolved, Is.True, route.Road.FailureReason);
-            Assert.That(route.Road.Points.Count, Is.GreaterThan(91));
-
-            var diagnostic = new StringBuilder(2048);
-            diagnostic.Append("points=");
-            for (int i = 88; i <= 91; i++)
-            {
-                if (i > 88) diagnostic.Append(';');
-                ResolvedWorldRoadPoint point = route.Road.Points[i];
-                diagnostic.Append(i)
-                    .Append(':')
-                    .Append(point.Xdm).Append(',')
-                    .Append(point.Ydm).Append(',')
-                    .Append(point.Zdm).Append(" terrainY=")
-                    .Append(surface.HeightAtDm(point.Xdm, point.Zdm));
-            }
-
-            ResolvedWorldRoadPoint from = route.Road.Points[90];
-            ResolvedWorldRoadPoint to = route.Road.Points[91];
-            diagnostic.Append(" samples90to91=");
-            for (int sample = 0; sample <= 8; sample++)
-            {
-                int xdm = LerpRounded(from.Xdm, to.Xdm, sample, 8);
-                int zdm = LerpRounded(from.Zdm, to.Zdm, sample, 8);
-                int roadYdm = LerpRounded(from.Ydm, to.Ydm, sample, 8);
-                int terrainYdm = surface.HeightAtDm(xdm, zdm);
-                if (sample > 0) diagnostic.Append(';');
-                diagnostic.Append(sample)
-                    .Append(':').Append(xdm).Append(',').Append(zdm)
-                    .Append(" roadY=").Append(roadYdm)
-                    .Append(" terrainY=").Append(terrainYdm)
-                    .Append(" delta=").Append(terrainYdm - roadYdm);
-            }
-
-            FeatureCatalogue catalogue = WorldBuilderRoadVoxelCatalogue.Build(
-                ascent,
-                RoadSurfaceMaterial,
-                Allocator.Temp);
-            try
-            {
-                int corridorCount = 0;
-                diagnostic.Append(" corridorPrograms=");
-                for (int definitionIndex = 0; definitionIndex < catalogue.Definitions.Length; definitionIndex++)
-                {
-                    FeatureDefinition definition = catalogue.Definitions[definitionIndex];
-                    int end = definition.ProgramOffset + definition.ProgramLength;
-                    for (int pc = definition.ProgramOffset; pc < end;)
-                    {
-                        ShapeOp op = (ShapeOp)catalogue.Program[pc];
-                        int length = ShapeOps.InstructionLength(op);
-                        Assert.That(length, Is.GreaterThan(0));
-                        if (op == ShapeOp.EmitTerrainCorridor)
-                        {
-                            if (corridorCount > 0) diagnostic.Append('|');
-                            diagnostic.Append("def").Append(definitionIndex)
-                                .Append("@pc").Append(pc).Append('[');
-                            for (int word = 0; word < length; word++)
-                            {
-                                if (word > 0) diagnostic.Append(',');
-                                diagnostic.Append(catalogue.Program[pc + word]);
-                            }
-                            diagnostic.Append(']');
-                            corridorCount++;
-                        }
-                        pc += length;
-                        if (op == ShapeOp.End) break;
-                    }
-                }
-                Assert.That(corridorCount, Is.GreaterThan(0));
-            }
-            finally
-            {
-                catalogue.Dispose();
-            }
-
-            Debug.Log(TerminalLogPrefix + diagnostic);
-        }
-
-        [Test]
-        public void CurrentProductionTerminalWinnerSerializesForCollisionIsolation()
+        public void CurrentProductionRouteEndpointsFollowSemanticMountainAnchors()
         {
             MountainLandformSurface surface = ShowcaseMountainDragonLayout.CreateSurface(Seed);
             WorldRoadNetwork ascent = ShowcaseMountainDragonLayout.CreateAscentNetwork(Seed, surface);
@@ -146,278 +47,29 @@ namespace VoxelEngine.Showcase.Tests.EditMode
                 ShowcaseMountainDragonLayout.AscentRouteId,
                 out WorldRoadNetworkRoute route), Is.True);
             Assert.That(route.Road.IsResolved, Is.True, route.Road.FailureReason);
-            Assert.That(route.Road.Points.Count, Is.GreaterThan(91));
+            Assert.That(route.Road.Points.Count, Is.GreaterThan(1));
 
-            FeatureCatalogue catalogue = WorldBuilderRoadVoxelCatalogue.Build(
-                ascent,
-                RoadSurfaceMaterial,
-                Allocator.Temp);
-            var corridors = new NativeArray<Primitive>(
-                catalogue.Definitions.Length,
-                Allocator.Temp,
-                NativeArrayOptions.ClearMemory);
-            var names = new string[catalogue.Definitions.Length];
-            try
-            {
-                for (int definitionIndex = 0; definitionIndex < catalogue.Definitions.Length; definitionIndex++)
-                {
-                    corridors[definitionIndex] = DecodeCorridor(catalogue, definitionIndex);
-                    names[definitionIndex] = catalogue.Definitions[definitionIndex].Name.ToString();
-                }
+            ResolvedWorldRoadPoint entry = route.Road.Points[0];
+            long entryDx = (long)entry.Xdm - ShowcaseMountainDragonLayout.EntryXdm;
+            long entryDz = (long)entry.Zdm - ShowcaseMountainDragonLayout.EntryZdm;
+            long entryTolerance = ShowcaseMountainDragonLayout.PathWidth;
+            Assert.That(
+                entryDx * entryDx + entryDz * entryDz,
+                Is.LessThanOrEqualTo(entryTolerance * entryTolerance),
+                "Resolved ascent must begin at the semantic mountain entry rather than a captured historical route index.");
 
-                ResolvedWorldRoadPoint from = route.Road.Points[90];
-                ResolvedWorldRoadPoint to = route.Road.Points[91];
-                var diagnostic = new StringBuilder(4096);
-                diagnostic.Append("p89=");
-                AppendPoint(diagnostic, route.Road.Points[89]);
-                diagnostic.Append(" p90=");
-                AppendPoint(diagnostic, from);
-                diagnostic.Append(" p91=");
-                AppendPoint(diagnostic, to);
-
-                // The built-player hard-stop is centred on p90. Sample the outgoing centreline plus
-                // approximately 4.5 dm to either side, matching the player capsule-scale footprint,
-                // using the production order-independent corridor winner instead of reimplementing it.
-                diagnostic.Append(" outgoing=");
-                for (int sample = 0; sample <= 8; sample++)
-                {
-                    int xdm = LerpRounded(from.Xdm, to.Xdm, sample, 8);
-                    int zdm = LerpRounded(from.Zdm, to.Zdm, sample, 8);
-                    if (sample > 0) diagnostic.Append(';');
-                    diagnostic.Append(sample).Append('{');
-                    AppendWinner(diagnostic, corridors, names, xdm, zdm, "C");
-                    diagnostic.Append(',');
-                    AppendWinner(diagnostic, corridors, names, xdm + 2, zdm - 4, "L");
-                    diagnostic.Append(',');
-                    AppendWinner(diagnostic, corridors, names, xdm - 2, zdm + 4, "R");
-                    diagnostic.Append('}');
-                }
-
-                Debug.Log(TerminalWinnerLogPrefix + diagnostic);
-            }
-            finally
-            {
-                corridors.Dispose();
-                catalogue.Dispose();
-            }
-        }
-
-        [Test]
-        public void CurrentProductionRealizedStallFootprintSerializesForCollisionIsolation()
-        {
-            MountainLandformSurface surface = ShowcaseMountainDragonLayout.CreateSurface(Seed);
-            WorldRoadNetwork ascent = ShowcaseMountainDragonLayout.CreateAscentNetwork(Seed, surface);
-            Assert.That(ascent.TryGetRoute(
-                ShowcaseMountainDragonLayout.AscentRouteId,
-                out WorldRoadNetworkRoute route), Is.True);
-            Assert.That(route.Road.IsResolved, Is.True, route.Road.FailureReason);
-            Assert.That(route.Road.Points.Count, Is.GreaterThan(91));
-
-            FeatureCatalogue catalogue = WorldBuilderRoadVoxelCatalogue.Build(
-                ascent,
-                RoadSurfaceMaterial,
-                Allocator.Temp);
-            var corridors = new NativeArray<Primitive>(
-                catalogue.Definitions.Length,
-                Allocator.Temp,
-                NativeArrayOptions.ClearMemory);
-            var names = new string[catalogue.Definitions.Length];
-            try
-            {
-                for (int definitionIndex = 0; definitionIndex < catalogue.Definitions.Length; definitionIndex++)
-                {
-                    corridors[definitionIndex] = DecodeCorridor(catalogue, definitionIndex);
-                    names[definitionIndex] = catalogue.Definitions[definitionIndex].Name.ToString();
-                }
-
-                // The replay's grounded hard-stop and p91 are both in horizontal region (-3,0).
-                // Their road/terrain surface is below y=512, so generating only (-3,0,0) exercises
-                // the exact production terrain + FeatureRegionBuild realization without streaming
-                // unrelated Showcase regions into this root-cause discriminator.
-                // GenerateRegionBlocking intentionally bypasses streaming eviction. Give this one-region
-                // discriminator test-only brick headroom to complete production feature realization;
-                // this does not change shipped streaming policy or the 14 GiB allocation guard.
-                using var world = new ShowcaseWorld(
-                    Seed,
-                    brickPoolCapacity: 65_536,
-                    loadRadiusRegions: 1,
-                    unloadRadiusRegions: 2);
-                var realizedRegion = new int3(-3, 0, 0);
-                world.GenerateRegionBlocking(realizedRegion);
-                Assert.That(world.IsGenerated(realizedRegion), Is.True);
-
-                IVoxelSurfaceQuery query = world.SurfaceQuery;
-                ResolvedWorldRoadPoint destination = route.Road.Points[91];
-                var diagnostic = new StringBuilder(4096);
-                diagnostic.Append("stall=")
-                    .Append(StallXdm).Append(',').Append(StallZdm)
-                    .Append(" p91=");
-                AppendPoint(diagnostic, destination);
-                diagnostic.Append(" region=-3,0,0 approach=");
-
-                // Follow the actual remaining player-to-p91 vector, not the p90 centreline. The
-                // +/- (2,-4) dm samples are the same ~4.5 dm capsule-scale lateral footprint used
-                // by the preceding winner diagnostic, now against realized production columns.
-                for (int sample = 0; sample <= 8; sample++)
-                {
-                    int xdm = LerpRounded(StallXdm, destination.Xdm, sample, 8);
-                    int zdm = LerpRounded(StallZdm, destination.Zdm, sample, 8);
-                    if (sample > 0) diagnostic.Append(';');
-                    diagnostic.Append(sample).Append('{');
-                    AppendRealizedColumn(diagnostic, query, corridors, names, xdm, zdm, "C");
-                    diagnostic.Append(',');
-                    AppendRealizedColumn(diagnostic, query, corridors, names, xdm + 2, zdm - 4, "L");
-                    diagnostic.Append(',');
-                    AppendRealizedColumn(diagnostic, query, corridors, names, xdm - 2, zdm + 4, "R");
-                    diagnostic.Append('}');
-                }
-
-                Debug.Log(RealizedFootprintLogPrefix + diagnostic);
-            }
-            finally
-            {
-                corridors.Dispose();
-                catalogue.Dispose();
-            }
-        }
-
-        private static Primitive DecodeCorridor(FeatureCatalogue catalogue, int definitionIndex)
-        {
-            FeatureDefinition definition = catalogue.Definitions[definitionIndex];
-            int pc = definition.ProgramOffset;
-            Assert.That((ShapeOp)catalogue.Program[pc], Is.EqualTo(ShapeOp.EmitTerrainCorridor),
-                definition.Name.ToString());
-            Assert.That(catalogue.Program[pc + 1], Is.Zero,
-                "Road corridor diagnostics require immediate operands only.");
-            int operand = pc + 2;
-            ExplicitPlacement placement = catalogue.ExplicitPlacements[definitionIndex];
-
-            Primitive primitive = default;
-            primitive.Shape = PrimitiveShape.TerrainCorridor;
-            primitive.Mode = PrimitiveMode.TerrainCorridor;
-            primitive.A = placement.Position;
-            primitive.A.x += catalogue.Program[operand + 0];
-            primitive.A.y += catalogue.Program[operand + 1];
-            primitive.A.z += catalogue.Program[operand + 2];
-            primitive.B = placement.Position;
-            primitive.B.x += catalogue.Program[operand + 3];
-            primitive.B.y += catalogue.Program[operand + 4];
-            primitive.B.z += catalogue.Program[operand + 5];
-            primitive.InnerRadius = catalogue.Program[operand + 6];
-            primitive.Radius = catalogue.Program[operand + 7];
-            primitive.C.x = catalogue.Program[operand + 8];
-            primitive.C.y = catalogue.Program[operand + 9];
-            primitive.C.z = catalogue.Program[operand + 10];
-            primitive.D.x = catalogue.Program[operand + 11];
-            primitive.Material = (byte)catalogue.Program[operand + 12];
-            primitive.D.y = catalogue.Program[operand + 13];
-            primitive.D.z = catalogue.Program[operand + 14];
-            return primitive;
-        }
-
-        private static void AppendWinner(
-            StringBuilder diagnostic,
-            NativeArray<Primitive> corridors,
-            string[] names,
-            int xdm,
-            int zdm,
-            string label)
-        {
-            diagnostic.Append(label).Append('@').Append(xdm).Append(',').Append(zdm).Append('=');
-            bool found = ContinuousTerrainCorridorRasteriser.TryChoose(
-                corridors,
-                xdm,
-                zdm,
-                out Primitive winner);
-            Assert.That(found, Is.True, "No corridor winner at terminal sample.");
-            bool sampled = TerrainCorridorRasteriser.TrySample(
-                in winner,
-                xdm,
-                zdm,
-                out TerrainCorridorSample corridorSample);
-            Assert.That(sampled, Is.True);
-
-            int winnerIndex = FindPrimitive(corridors, in winner);
-            Assert.That(winnerIndex, Is.GreaterThanOrEqualTo(0));
-            diagnostic.Append(names[winnerIndex])
-                .Append(" targetY=").Append(corridorSample.TargetHeightVoxels)
-                .Append(" dist=").Append(corridorSample.DistanceDm)
-                .Append(" surf=").Append(corridorSample.SurfaceCoverage31)
-                .Append(" grade=").Append(corridorSample.Coverage31);
-        }
-
-        private static void AppendRealizedColumn(
-            StringBuilder diagnostic,
-            IVoxelSurfaceQuery query,
-            NativeArray<Primitive> corridors,
-            string[] names,
-            int xdm,
-            int zdm,
-            string label)
-        {
-            diagnostic.Append(label).Append('@').Append(xdm).Append(',').Append(zdm).Append('=');
-            bool foundWinner = ContinuousTerrainCorridorRasteriser.TryChoose(
-                corridors,
-                xdm,
-                zdm,
-                out Primitive winner);
-            Assert.That(foundWinner, Is.True, "No corridor winner at realized stall sample.");
-            bool sampled = TerrainCorridorRasteriser.TrySample(
-                in winner,
-                xdm,
-                zdm,
-                out TerrainCorridorSample corridorSample);
-            Assert.That(sampled, Is.True);
-
-            int winnerIndex = FindPrimitive(corridors, in winner);
-            Assert.That(winnerIndex, Is.GreaterThanOrEqualTo(0));
-            bool foundTop = query.TryFindTopSolid(
-                xdm,
-                zdm,
-                0,
-                ShowcaseWorld.RegionVoxelEdge - 1,
-                out int topY,
-                out VoxelCell topCell);
-            Assert.That(foundTop, Is.True, "No realized top-solid voxel at stall footprint sample.");
-
-            diagnostic.Append(names[winnerIndex])
-                .Append(" targetY=").Append(corridorSample.TargetHeightVoxels)
-                .Append(" topY=").Append(topY)
-                .Append(" delta=").Append(topY - corridorSample.TargetHeightVoxels)
-                .Append(" mat=").Append(topCell.BaseMaterialId)
-                .Append(" surf=").Append(corridorSample.SurfaceCoverage31)
-                .Append(" grade=").Append(corridorSample.Coverage31);
-        }
-
-        private static int FindPrimitive(NativeArray<Primitive> corridors, in Primitive winner)
-        {
-            for (int i = 0; i < corridors.Length; i++)
-            {
-                Primitive candidate = corridors[i];
-                if (candidate.Shape == winner.Shape
-                    && candidate.Mode == winner.Mode
-                    && candidate.Material == winner.Material
-                    && candidate.A.Equals(winner.A)
-                    && candidate.B.Equals(winner.B)
-                    && candidate.Radius == winner.Radius
-                    && candidate.InnerRadius == winner.InnerRadius
-                    && candidate.C.Equals(winner.C)
-                    && candidate.D.Equals(winner.D))
-                    return i;
-            }
-            return -1;
-        }
-
-        private static void AppendPoint(StringBuilder diagnostic, ResolvedWorldRoadPoint point)
-        {
-            diagnostic.Append(point.Xdm).Append(',').Append(point.Ydm).Append(',').Append(point.Zdm);
-        }
-
-        private static int LerpRounded(int from, int to, int numerator, int denominator)
-        {
-            long scaled = (long)from * (denominator - numerator) + (long)to * numerator;
-            if (scaled >= 0) return (int)((scaled + denominator / 2) / denominator);
-            return (int)((scaled - denominator / 2) / denominator);
+            MountainLandformMass summit = surface.GetMass(0);
+            ResolvedWorldRoadPoint arrival = ShowcaseMountainDragonLayout.SummitApproach(ascent);
+            long summitDx = (long)arrival.Xdm - summit.CentreXdm;
+            long summitDz = (long)arrival.Zdm - summit.CentreZdm;
+            int supportedRadius = ShowcaseMountainDragonLayout.SummitRadius
+                - ShowcaseMountainDragonLayout.PathWidth / 2;
+            Assert.That(
+                summitDx * summitDx + summitDz * summitDz,
+                Is.LessThanOrEqualTo((long)supportedRadius * supportedRadius),
+                "Resolved ascent must finish on the supported semantic summit crest.");
+            Assert.That(arrival.Ydm, Is.GreaterThan(entry.Ydm),
+                "The semantic summit arrival must remain above the semantic mountain entry.");
         }
     }
 }

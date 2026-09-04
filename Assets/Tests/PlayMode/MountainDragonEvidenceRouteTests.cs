@@ -44,14 +44,51 @@ namespace VoxelEngine.Tests.PlayMode
         }
 
         [Test]
-        public void EvidenceCaptureWaypointsStayOnResolvedProductionRoad()
+        public void EvidenceCaptureWaypointsFollowResolvedProductionRoadInSemanticOrder()
         {
             MountainLandformSurface surface = ShowcaseMountainDragonLayout.CreateSurface(Seed);
             WorldRoadNetwork ascent = ShowcaseMountainDragonLayout.CreateAscentNetwork(Seed, surface);
             Assert.That(ascent.TryGetRoute(
                 ShowcaseMountainDragonLayout.AscentRouteId,
                 out WorldRoadNetworkRoute route), Is.True);
+            Assert.That(route.Road.IsResolved, Is.True, route.Road.FailureReason);
 
+            EvidenceRoute evidence = LoadEvidenceRoute();
+            string[] semanticCaptures =
+            {
+                "lower-turn",
+                "mid-turn",
+                "upper-turn",
+                "summit-supported",
+                "summit-proximity",
+            };
+
+            int previousIndex = -1;
+            int previousYdm = int.MinValue;
+            foreach (string waypointName in semanticCaptures)
+            {
+                EvidenceWaypoint waypoint = RequireWaypoint(evidence, waypointName);
+                int resolvedIndex = FindClosestResolvedPoint(route, waypoint);
+                ResolvedWorldRoadPoint resolved = route.Road.Points[resolvedIndex];
+
+                Assert.That(resolvedIndex, Is.GreaterThan(previousIndex),
+                    $"Evidence waypoint '{waypointName}' must follow the authoritative resolved road in semantic traversal order.");
+                Assert.That(resolved.Ydm, Is.GreaterThanOrEqualTo(previousYdm),
+                    $"Evidence waypoint '{waypointName}' must not regress below the preceding semantic ascent capture.");
+                AssertWaypointMatchesResolvedPoint(waypoint, resolved, waypointName);
+
+                previousIndex = resolvedIndex;
+                previousYdm = resolved.Ydm;
+            }
+
+            EvidenceWaypoint summitProximity = RequireWaypoint(evidence, "summit-proximity");
+            int summitIndex = FindClosestResolvedPoint(route, summitProximity);
+            Assert.That(summitIndex, Is.EqualTo(route.Road.Points.Count - 1),
+                "The summit-proximity capture must follow the semantic terminal road point, not a historical numeric index.");
+        }
+
+        private static EvidenceRoute LoadEvidenceRoute()
+        {
             string routePath = Path.GetFullPath(Path.Combine(
                 Application.dataPath,
                 "..",
@@ -60,31 +97,50 @@ namespace VoxelEngine.Tests.PlayMode
             EvidenceRoute evidence = JsonUtility.FromJson<EvidenceRoute>(File.ReadAllText(routePath));
             Assert.That(evidence, Is.Not.Null);
             Assert.That(evidence.waypoints, Is.Not.Null);
-
-            AssertCaptureMatchesResolvedPoint(evidence, route, "lower-turn", 31);
-            AssertCaptureMatchesResolvedPoint(evidence, route, "mid-turn", 50);
-            AssertCaptureMatchesResolvedPoint(evidence, route, "upper-turn", 74);
-            AssertCaptureMatchesResolvedPoint(evidence, route, "summit-supported", 90);
-            AssertCaptureMatchesResolvedPoint(evidence, route, "summit-proximity", 93);
+            return evidence;
         }
 
-        private static void AssertCaptureMatchesResolvedPoint(
-            EvidenceRoute evidence,
-            WorldRoadNetworkRoute route,
-            string waypointName,
-            int resolvedIndex)
+        private static EvidenceWaypoint RequireWaypoint(EvidenceRoute evidence, string waypointName)
         {
             EvidenceWaypoint waypoint = Array.Find(
                 evidence.waypoints,
                 candidate => candidate != null && candidate.name == waypointName);
             Assert.That(waypoint, Is.Not.Null, $"Missing evidence waypoint '{waypointName}'.");
-            Assert.That(route.Road.Points.Count, Is.GreaterThan(resolvedIndex));
+            return waypoint;
+        }
 
-            ResolvedWorldRoadPoint resolved = route.Road.Points[resolvedIndex];
+        private static int FindClosestResolvedPoint(WorldRoadNetworkRoute route, EvidenceWaypoint waypoint)
+        {
+            int targetXdm = Mathf.RoundToInt(waypoint.x * 10f);
+            int targetZdm = Mathf.RoundToInt(waypoint.z * 10f);
+            int bestIndex = -1;
+            long bestDistanceSquared = long.MaxValue;
+            for (int i = 0; i < route.Road.Points.Count; i++)
+            {
+                ResolvedWorldRoadPoint point = route.Road.Points[i];
+                long dx = (long)point.Xdm - targetXdm;
+                long dz = (long)point.Zdm - targetZdm;
+                long distanceSquared = dx * dx + dz * dz;
+                if (distanceSquared >= bestDistanceSquared) continue;
+                bestDistanceSquared = distanceSquared;
+                bestIndex = i;
+            }
+
+            Assert.That(bestIndex, Is.GreaterThanOrEqualTo(0));
+            Assert.That(bestDistanceSquared, Is.LessThanOrEqualTo(1L),
+                $"Evidence waypoint '{waypoint.name}' drifted off the authoritative resolved road.");
+            return bestIndex;
+        }
+
+        private static void AssertWaypointMatchesResolvedPoint(
+            EvidenceWaypoint waypoint,
+            ResolvedWorldRoadPoint resolved,
+            string waypointName)
+        {
             Assert.That(waypoint.x, Is.EqualTo(resolved.Xdm / 10f).Within(0.001f),
-                $"Evidence waypoint '{waypointName}' drifted off resolved road point {resolvedIndex} X.");
+                $"Evidence waypoint '{waypointName}' drifted off authoritative road X.");
             Assert.That(waypoint.z, Is.EqualTo(resolved.Zdm / 10f).Within(0.001f),
-                $"Evidence waypoint '{waypointName}' drifted off resolved road point {resolvedIndex} Z.");
+                $"Evidence waypoint '{waypointName}' drifted off authoritative road Z.");
         }
 
         [Serializable]
