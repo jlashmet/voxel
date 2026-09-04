@@ -1,0 +1,26 @@
+{
+  "formatVersion": 3, 
+  "id": "20260904-231343-000-NewHouseWorldBuilderReferenceReconstruction", 
+  "capturedUtc": "2026-09-04T23:13:43.0000000Z", 
+  "note": "FEATURE / WORLDBUILDER: Recreate the supplied new-house reference image as a production-quality voxel WorldBuilder composition using the existing material, texture, geometry, authoring, rendering, and scene systems.\n\nSOURCE: The implementation plan and task checklist were authored on `feature/new-house-worldbuilder` and are copied into this SceneIssue as `plan.md` and `tasks.md`. Those files are binding acceptance for this feature.\n\nBASELINE: SceneIssue created from master `ed5c6f908361228819b3368bcd8427d4b44d89e3`; fetch current origin/master before implementation.\n\nARCHITECTURE: Reuse the existing production WorldBuilder and material/texture registration paths. Do not create a parallel renderer, material registry, texture bootstrap, test-only geometry stack, or scene-local implementation of reusable architectural behavior. Repeated architectural elements should be reusable/config-driven; reference-specific site, camera, lighting, and composition policy may remain at the integration layer. For every affected player-visible/runtime module, create or update the required module-local validation scene under that module's own `Validation/` directory and exercise the real production path.\n\nACCEPTANCE: Complete every required task and acceptance checkbox in `tasks.md`; match the supplied reference's major proportions, roofline, openings, material identity, texture orientation/scale, and high-value architectural detail; eliminate major gaps, floating geometry, z-fighting, and obvious overlaps; prove reusable house geometry is independent of the reference-specific camera/lighting/site; validate through module-local built-player evidence and the normal repository integration gate; produce durable final reference-comparison render evidence and visually inspect it at the repository's production-quality bar.\n\nWORKFLOW: Follow `AGENTS.md`, `SceneIssues/feature-readme.md`, and `SceneIssues/README.md`. Keep the feature in `open/` until every required item is complete. Add discovered tasks only when required by acceptance, correctness/regression, reuse boundaries, or demonstrated visual-quality defects.", 
+  "status": "open", 
+  "resolvedUtc": "", 
+  "resolutionSummary": "", 
+  "regressionTest": "", 
+  "fixCommit": "", 
+  "unityVersion": "6000.5.6f1", 
+  "platform": "Feature", 
+  "sceneName": "VoxelShowcase", 
+  "scenePath": "Assets/Scenes/VoxelShowcase.unity", 
+  "sceneBuildIndex": 2, 
+  "screenWidth": 1600, 
+  "screenHeight": 900, 
+  "captures": [], 
+  "assignment": {
+    "owner": "agent-5", 
+    "branch": "fixes/agent-5", 
+    "ci_branch": "ci-test/fixes/agent-5", 
+    "claimed_at": 1788564829.76, 
+    "lease_history": []
+  }
+}
