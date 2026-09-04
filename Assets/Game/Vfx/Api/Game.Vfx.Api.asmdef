@@ -1,0 +1,17 @@
+{
+  "name": "Game.Vfx.Api",
+  "rootNamespace": "Game.Vfx.Api",
+  "references": [
+    "Game.Characters.Api",
+    "Game.WorldObjects.Api"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}
