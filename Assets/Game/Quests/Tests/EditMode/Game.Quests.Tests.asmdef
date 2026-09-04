@@ -1,11 +1,11 @@
 {
-  "name": "Game.Progression.Tests",
-  "rootNamespace": "Game.Progression.Tests",
+  "name": "Game.Quests.Tests",
+  "rootNamespace": "Game.Quests.Tests",
   "references": [
-    "Game.Progression.Api",
-    "Game.Progression.Runtime",
     "Game.Quests.Api",
-    "Game.Quests.Runtime"
+    "Game.Quests.Runtime",
+    "Game.Progression.Api",
+    "Game.Progression.Runtime"
   ],
   "includePlatforms": ["Editor"],
   "excludePlatforms": [],
