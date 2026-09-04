@@ -25,17 +25,17 @@
 
 ## Verification
 
-- [ ] **T22-020 — Cue mapping/unknown cue tests.** Deterministic config lookup and safe missing mapping.
-- [ ] **T22-021 — Dedupe test.** Predicted + confirmed semantic event yields one visible effect.
-- [ ] **T22-022 — Persistent reconstruction test.** Current state treatment recreates after reconnect while historical one-shots stay absent.
-- [ ] **T22-023 — Authoritative destruction separation test.** Removing VFX cannot change voxel/world mutation result; cosmetic debris cannot create gameplay collisions/damage.
-- [ ] **T22-024 — Headless regression.** Gameplay/domain tests pass with Vfx module absent.
-- [ ] **T22-025 — Module-local built-player visual validation through shared harness.** Validate real production semantic event -> visible cue mapping.
-- [ ] **T22-026 — Production visual-finish defect found in built-player evidence.** Replace flat square/blockout particle presentation with production-readable soft/streaked semantic effects, then inspect new built-player captures directly. Added because the exact-SHA artifact from run `33879743540` was behaviorally green but visually only prototype/blockout quality.
-- [ ] **T22-027 — Isolate persistent-aura visual root cause before further production changes.** After two materially different visual passes, use representative collider-free host geometry in the module-local validation fixture to distinguish an incoherent production aura from an evidence scene that was previously binding effects to invisible empty transforms. Do not tune production particles again until this discriminating repro is captured.
+- [x] **T22-020 — Cue mapping/unknown cue tests.** Exact-SHA run `33900280992` passed `ConfirmedWorldFacts_MapToStableSemanticCueIdentities` and `CueMapping_UnknownCueIsPresentationOnlyFailure` in `Game.Vfx.Tests.SemanticVfxTests`.
+- [x] **T22-021 — Dedupe test.** Exact-SHA run `33900280992` passed `PredictedThenConfirmed_SameSemanticEventPlaysOneEffect`; module player logged predicted=`Played`, confirmed=`Deduplicated`, plays=`1`.
+- [x] **T22-022 — Persistent reconstruction test.** Exact-SHA run `33900280992` passed `PersistentRebuild_UsesCurrentVitalityWithoutHistoricalOneShots` and `PersistentReconcile_RemovesStaleVisualWhenBindingDisappears`; player reconnect logged persistent=`1` with historical plays unchanged (`4` -> `4`).
+- [x] **T22-023 — Authoritative destruction separation test.** Exact-SHA run `33900280992` passed `CosmeticDebrisPresenter_HasNoGameplayPhysicsComponents` and `VitalityAuthority_IsIdenticalWithVfxPresentOrAbsent`; module player logged `gameplayPhysics=0` before and after cosmetic debris.
+- [x] **T22-024 — Headless regression.** Exact-SHA run `33900280992` passed `HeadlessVitality_RemainsUsableWithoutCreatingVfxRuntimeObjects` and the VFX-present/absent authority-equivalence regression.
+- [x] **T22-025 — Module-local built-player visual validation through shared harness.** Exact-SHA run `33900280992` passed repository-selected module validation and standalone SceneIssue replay. The real production presenter logged stable semantic hit, defeat, interaction, destruction and reconnect behavior; artifact `9948049312` contains the module-player captures inspected directly.
+- [x] **T22-026 — Production visual-finish defect found in built-player evidence.** The original flat square/blockout defect from run `33879743540` is resolved. Direct inspection of final run `33900280992` shows a deliberate gold impact starburst, streaked earth/debris burst and host-relative red defeated treatment; prior exact run `33898724727` directly captured the refined compact cyan interaction spark on the same production presenter path.
+- [x] **T22-027 — Isolate persistent-aura visual root cause before further production changes.** Final exact-SHA run `33900280992` uses representative collider-free host geometry. Direct reconnect captures show the red persistent treatment anchored to/following the visible character silhouette, proving the prior blank-sky point-cloud diagnosis was confounded by the invisible-host evidence fixture; no third speculative production tuning pass was warranted.
 
 ## Cleanup / close
 
 - [x] **T22-030 — Remove prefab/VFX identities from gameplay contracts.** Repository/API audit found no gameplay prefab/VFX identity to remove; VFX cue identity remains in `Game.Vfx.Api` only.
 - [x] **T22-031 — Remove VFX-owned gameplay mutation/duplicate effect paths.** Repository audit found no existing ParticleSystem path coupled to `ApplyDamage` or voxel authority; new runtime presenter owns no gameplay physics/world writes.
-- [ ] **T22-032 — Close with isolation proof.** Authoritative results are identical with VFX enabled or absent and reconnect produces no historical replay.
+- [x] **T22-032 — Close with isolation proof.** Exact-SHA run `33900280992` passed `VitalityAuthority_IsIdenticalWithVfxPresentOrAbsent`; built-player reconnect restored only one current persistent treatment and left historical one-shot play count unchanged.
