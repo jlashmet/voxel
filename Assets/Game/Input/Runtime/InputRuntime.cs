@@ -67,11 +67,16 @@ namespace Game.Input.Runtime
     }
 
     /// <summary>
-    /// Production physical-input adapter. Device state is owned here and exposed only through Game.Input.Api.
-    /// The public type name is retained for existing composition roots while the implementation uses the
-    /// Unity Input System exclusively.
+    /// Production physical-input adapter. One composition-owned instance can feed gameplay snapshots,
+    /// semantic action state, presentation labels and persisted binding overrides without any
+    /// UnityEngine.Input fallback.
     /// </summary>
-    public sealed class UnityPlayerInputReader : IPlayerInputReader, IInputBindingOverrideService, IDisposable
+    public sealed class UnityPlayerInputReader :
+        IPlayerInputReader,
+        IInputBindingOverrideService,
+        IInputBindingPresentation,
+        IInputActionStateReader,
+        IDisposable
     {
         private readonly IInputContextService _contexts;
         private readonly InputActionMap _actions;
@@ -81,6 +86,9 @@ namespace Game.Input.Runtime
         private readonly InputAction _secondary;
         private readonly InputAction _confirm;
         private readonly InputAction _cancel;
+        private readonly InputAction _interact;
+        private readonly InputAction _jump;
+        private readonly InputAction _sprint;
         private bool _disposed;
 
         public UnityPlayerInputReader(IInputContextService contexts)
@@ -96,7 +104,9 @@ namespace Game.Input.Runtime
                 .With("Right", "<Keyboard>/d");
             _move.AddBinding("<Gamepad>/leftStick");
 
-            _pointer = _actions.AddAction("Pointer", InputActionType.Value, "<Pointer>/position");
+            _pointer = _actions.AddAction("Pointer", InputActionType.Value);
+            _pointer.AddBinding("<Pointer>/delta");
+            _pointer.AddBinding("<Gamepad>/rightStick");
 
             _primary = _actions.AddAction("Primary", InputActionType.Button);
             _primary.AddBinding("<Mouse>/leftButton");
@@ -114,6 +124,18 @@ namespace Game.Input.Runtime
             _cancel = _actions.AddAction("Cancel", InputActionType.Button);
             _cancel.AddBinding("<Keyboard>/escape");
             _cancel.AddBinding("<Gamepad>/buttonEast");
+
+            _interact = _actions.AddAction("Interact", InputActionType.Button);
+            _interact.AddBinding("<Keyboard>/e");
+            _interact.AddBinding("<Gamepad>/buttonSouth");
+
+            _jump = _actions.AddAction("Jump", InputActionType.Button);
+            _jump.AddBinding("<Keyboard>/space");
+            _jump.AddBinding("<Gamepad>/buttonSouth");
+
+            _sprint = _actions.AddAction("Sprint", InputActionType.Button);
+            _sprint.AddBinding("<Keyboard>/leftShift");
+            _sprint.AddBinding("<Gamepad>/leftStickPress");
 
             _actions.Enable();
         }
@@ -136,6 +158,48 @@ namespace Game.Input.Runtime
                 _secondary.WasPressedThisFrame(),
                 _confirm.WasPressedThisFrame(),
                 _cancel.WasPressedThisFrame());
+        }
+
+        public bool WasPressed(LocalPlayerId player, InputActionId action)
+        {
+            ThrowIfDisposed();
+            if (!InputAllowed()) return false;
+            InputAction input = ResolveSemanticAction(action);
+            return input != null && input.WasPressedThisFrame();
+        }
+
+        public bool IsHeld(LocalPlayerId player, InputActionId action)
+        {
+            ThrowIfDisposed();
+            if (!InputAllowed()) return false;
+            InputAction input = ResolveSemanticAction(action);
+            return input != null && input.IsPressed();
+        }
+
+        public bool TryGetDisplayLabel(LocalPlayerId player, InputActionId action, out string displayLabel)
+        {
+            ThrowIfDisposed();
+            InputAction input = ResolveSemanticAction(action);
+            if (input == null || input.bindings.Count == 0)
+            {
+                displayLabel = string.Empty;
+                return false;
+            }
+
+            for (int i = 0; i < input.bindings.Count; i++)
+            {
+                InputBinding binding = input.bindings[i];
+                if (binding.isComposite || binding.isPartOfComposite) continue;
+                string path = binding.effectivePath;
+                if (string.IsNullOrWhiteSpace(path)) continue;
+                displayLabel = InputControlPath.ToHumanReadableString(
+                    path,
+                    InputControlPath.HumanReadableStringOptions.OmitDevice);
+                if (!string.IsNullOrWhiteSpace(displayLabel)) return true;
+            }
+
+            displayLabel = input.name;
+            return true;
         }
 
         public IReadOnlyList<InputBindingOverride> SnapshotOverrides()
@@ -183,7 +247,7 @@ namespace Game.Input.Runtime
         [Obsolete("Legacy UnityEngine.Input suppression is no longer required; device ownership is centralized in the Input System adapter.")]
         public void SuppressLegacyReadersForCurrentFrame()
         {
-            // Kept as a compatibility no-op for older composition code. No legacy input API is touched.
+            // Compatibility no-op. No legacy input API is touched.
         }
 
         public void Dispose()
@@ -192,6 +256,21 @@ namespace Game.Input.Runtime
             _disposed = true;
             _actions.Disable();
             _actions.Dispose();
+        }
+
+        private bool InputAllowed()
+        {
+            InputContextId context = _contexts.ActiveContext;
+            return context != InputContextId.Disabled && context != InputContextId.Ui;
+        }
+
+        private InputAction ResolveSemanticAction(InputActionId action)
+        {
+            if (action == StandardInputActions.Interact) return _interact;
+            if (action == StandardInputActions.Cancel) return _cancel;
+            if (action == StandardInputActions.Jump) return _jump;
+            if (action == StandardInputActions.Sprint) return _sprint;
+            return null;
         }
 
         private void ThrowIfDisposed()
