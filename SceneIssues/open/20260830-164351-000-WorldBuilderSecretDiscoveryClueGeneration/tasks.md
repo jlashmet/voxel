@@ -32,6 +32,7 @@
 - [x] Falsify Gallery camera/framing and missing-geometry hypotheses using authoritative occupancy + focused rendered evidence.
 - [x] Add Showcase-owned behavioral regression requiring post-bake SecretDiscovery authoring to advance the world change feed.
 - [x] Apply smallest proven production fix: publish completed resident state once after post-bake cave/pocket/clue bulk authoring.
+- [x] Exact run `33837600536` selected the required modules/players but stopped at compile; isolate the sole error to the new Showcase publication regression's missing `Game.Composition.WorldObjects.Runtime` test-asmdef reference and correct that module-owned dependency.
 - [ ] Fresh exact-SHA CI module-validation plan selects CaveWorldBuilder, Showcase, and WorldBuilder EditMode assemblies plus adjacent validation scenes and Kentridge integration.
 - [ ] Fresh exact-SHA Showcase publication regression passes.
 - [ ] Representative SecretDiscovery examples are visibly understandable in `WorldbuildingGalleryShowcase` at gameplay scale.
@@ -41,7 +42,7 @@
 
 - [x] Planner/discovery work is one-shot/event-driven; no per-frame search/polling added.
 - [x] Cave composition is bounded by traversal candidates; post-bake publication is one bounded startup publication over resident regions.
-- [x] Latest prior exact request `33835125556` completed; there is no queued/running agent-5 request to replace.
+- [x] Exact request `13183c5afa4da36d6f22c1f34df0b17aa6351896` / run `33837600536` completed failure and was not replaced while queued/running; its compile cause is isolated and fixed before retry.
 - [ ] Fresh exact-SHA targeted gate green against current feature head.
 - [ ] All acceptance criteria green from exact tests + built-player evidence.
 - [ ] Move assigned SceneIssue `open -> closed`, set `status=fixed` and `resolvedUtc`, and complete supported resolution fields.
