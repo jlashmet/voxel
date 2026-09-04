@@ -28,17 +28,17 @@
 
 ## Verification
 
-- [ ] **T14-020 — Headless new-run test.** Compose -> Ready -> Running with representative core modules through real APIs.
-- [ ] **T14-021 — Same-graph resume test.** Fresh graph + restored state follows the identical composition path and reaches Running.
-- [ ] **T14-022 — Cross-system integration test.** Semantic interaction advances Progression/Story and can activate Encounter/Combat through adapters without Runtime coupling.
-- [ ] **T14-023 — Readiness/failure tests.** Missing dependency, failed world/session binding and premature command all fail deterministically.
-- [ ] **T14-024 — Teardown/recreate test.** Ordered shutdown releases graph resources and a second run can start cleanly.
-- [ ] **T14-025 — No-one-shot-replay resume regression.** Current state is restored without replaying historical presentation/gameplay events.
-- [ ] **T14-026 — Run automatic module and top-level integration tests.**
+- [x] **T14-020 — Headless new-run test.** `NewRun_ComposesReadyRunningAndUsesDeterministicUpdateOrder` passed in exact-SHA CI.
+- [x] **T14-021 — Same-graph resume test.** `Resume_UsesSameFactoryPathRestoresBeforeRunningAndDoesNotReplayNewGame` passed in exact-SHA CI.
+- [x] **T14-022 — Cross-system integration test.** Focused exact-SHA regression `RunningGraph_OrdersSemanticInteractionStoryProgressionEncounterAndCombatThroughPublicApis` passed through real public APIs.
+- [x] **T14-023 — Readiness/failure tests.** Missing persistence, failed bindings and premature commands passed deterministic failure coverage in `Game.SessionOrchestration.Tests`.
+- [x] **T14-024 — Teardown/recreate test.** `Shutdown_IsOrderedDisposesOnceAndAllowsCleanRecreate` passed in exact-SHA CI.
+- [x] **T14-025 — No-one-shot-replay resume regression.** Resume test proved restore reaches Running with `InitializeNewGameCount == 0` before and after start.
+- [x] **T14-026 — Run automatic module and top-level integration tests.** Exact request `82ea4c60e319a966653f1efe8643d0fb83667093` / run `33858455961` passed all three affected EditMode assemblies, Kentridge Playable module validation, top-level Kentridge integration, and standalone SceneIssue replay.
 - [x] **T14-027 — Record module-local validation ownership.** SessionOrchestration is a pure engine-neutral/headless module, so its owned EditMode assembly is the documented module-local validation exception; Kentridge composition is integration-only and remains covered by the SceneIssue built-player replay.
 
 ## Cleanup / close
 
 - [x] **T14-030 — Remove alternate composition roots.** Feature-diff audit confirms the playable scene now enters `GameSessionOrchestrator`; authoritative Campaign construction lives in `KentridgeSessionRuntimeGraphFactory`, Encounter/Combat/Input construction lives in its session extension, and scene anchors only hand those factories/registries across composition boundaries. Direct construction remaining in tests is fixture-only.
 - [x] **T14-031 — God-object audit.** SessionOrchestration product assemblies own lifecycle/order and semantic ports only; Campaign/Story/Progression rules, serializers, network protocol, subsystem state stores and broad service/query access remain outside the orchestrator.
-- [ ] **T14-032 — Close with lifecycle proof.** New, resume, running, resolved reaction and teardown all use one production runtime graph.
+- [x] **T14-032 — Close with lifecycle proof.** Exact-SHA tests prove new, resume, running, resolved reaction and ordered teardown/recreate all use the same `ISessionRuntimeGraph` orchestration boundary.
