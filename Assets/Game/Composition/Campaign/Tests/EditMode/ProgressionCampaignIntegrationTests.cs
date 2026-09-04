@@ -6,6 +6,7 @@ using Game.Progression.Api;
 using Game.Quests.Api;
 using Game.WorldBuilder.Api;
 using NUnit.Framework;
+using LegacyQuestStepDefinition = Game.Quests.Api.QuestStepDefinition;
 
 namespace Game.Composition.Campaign.Tests
 {
@@ -96,7 +97,7 @@ namespace Game.Composition.Campaign.Tests
 
             var quest = new QuestDefinition(questRef, new[]
             {
-                new QuestStepDefinition(
+                new LegacyQuestStepDefinition(
                     new QuestStepRef("talk"),
                     guide.Id,
                     QuestCompletion.InteractWith(guide.Id))

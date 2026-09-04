@@ -4,6 +4,7 @@ using Game.Progression.Runtime;
 using Game.Quests.Api;
 using Game.Quests.Runtime;
 using NUnit.Framework;
+using LegacyQuestStepDefinition = Game.Quests.Api.QuestStepDefinition;
 
 namespace Game.Quests.Tests
 {
@@ -14,11 +15,11 @@ namespace Game.Quests.Tests
         {
             var quest = new QuestDefinition(new QuestRef("quest:legacy"), new[]
             {
-                new QuestStepDefinition(
+                new LegacyQuestStepDefinition(
                     new QuestStepRef("talk"),
                     "guide",
                     QuestCompletion.InteractWith("guide")),
-                new QuestStepDefinition(
+                new LegacyQuestStepDefinition(
                     new QuestStepRef("well"),
                     "well",
                     QuestCompletion.InteractWithSubject("well"))
@@ -45,7 +46,7 @@ namespace Game.Quests.Tests
             var shared = new ProgressionRuntime();
             var quest = new QuestDefinition(new QuestRef("quest:shared"), new[]
             {
-                new QuestStepDefinition(
+                new LegacyQuestStepDefinition(
                     new QuestStepRef("talk"),
                     "guide",
                     QuestCompletion.InteractWith("guide"))
