@@ -5,7 +5,8 @@
     "Game.Combat.Api",
     "Game.Input.Api",
     "Game.Vitality.Api",
-    "Game.Characters.Api"
+    "Game.Characters.Api",
+    "Game.Encounters.Api"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

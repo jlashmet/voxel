@@ -35,23 +35,33 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(quests.IsCompleted(KentridgeWellQuestDefinition.Ref), Is.True);
 
             ItemRef reward = new ItemRef(KentridgeWellQuestDefinition.RewardItemId);
-            var inventory = new InventoryRuntime(new[]
-            {
-                new ItemDefinition(reward, "Well Rescue Token", "W")
-            });
-            var rewardRuntime = new KentridgeWellQuestRewardRuntime(inventory);
+            var inventoryId = new InventoryId("inventory.test.player");
+            var inventory = new InventoryRuntime(
+                new[]
+                {
+                    new ItemDefinition(reward, "Well Rescue Token", "W")
+                },
+                new[]
+                {
+                    new InventoryDescriptor(
+                        inventoryId,
+                        new InventoryBindingMetadata("character", "character.test.player"))
+                });
+            var rewardRuntime = new KentridgeWellQuestRewardRuntime(inventory, inventory, inventoryId);
             Assert.That(rewardRuntime.Synchronize(quests.IsCompleted(KentridgeWellQuestDefinition.Ref)), Is.True);
             Assert.That(rewardRuntime.Synchronize(quests.IsCompleted(KentridgeWellQuestDefinition.Ref)), Is.False,
                 "Replaying completion/reward synchronization must not duplicate the quest item.");
-            Assert.That(inventory.Count(reward), Is.EqualTo(1));
-            Assert.That(inventory.Snapshot().Count, Is.EqualTo(1));
-            Assert.That(inventory.Snapshot()[0].Definition.Ref, Is.EqualTo(reward));
+            Assert.That(inventory.Count(inventoryId, reward), Is.EqualTo(1));
+            Assert.That(inventory.TryGetSnapshot(inventoryId, out InventorySnapshot snapshot), Is.True);
+            Assert.That(snapshot.Entries.Count, Is.EqualTo(1));
+            Assert.That(snapshot.Entries[0].Item, Is.EqualTo(reward));
+            Assert.That(snapshot.Entries[0].Quantity, Is.EqualTo(1));
 
             var host = new GameObject("inventory-view-test");
             try
             {
                 var presentation = host.AddComponent<KentridgeWellQuestInventoryPresentation>();
-                presentation.SetInventory(inventory);
+                presentation.SetInventory(inventory, inventoryId);
                 Assert.That(presentation.InventoryOpen, Is.False);
                 Assert.That(presentation.ActiveInputContext, Is.EqualTo(InputContextId.Exploration));
                 presentation.ToggleInventory();

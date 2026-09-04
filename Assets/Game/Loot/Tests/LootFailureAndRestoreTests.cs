@@ -16,7 +16,7 @@ namespace Game.Loot.Tests
         {
             var item = new ItemRef("fixture.full.item");
             var objectId = new WorldObjectId("fixture.full.loot");
-            var inventory = new RejectingInventoryTransactions(InventoryTransactionFailure.DestinationRejected);
+            var inventory = new RejectingInventoryTransactions(InventoryFailureReason.DestinationRejected);
             var runtime = new LootRuntime(inventory, new AcceptingInteractionValidator());
             Assert.That(runtime.TryBind(objectId, new LootPayload(item, 2)), Is.True);
 
@@ -24,7 +24,7 @@ namespace Game.Loot.Tests
                 new CharacterId("actor:full"), objectId, new InventoryId("inventory.full")));
 
             Assert.That(result.Succeeded, Is.False);
-            Assert.That(result.InventoryFailure, Is.EqualTo(InventoryTransactionFailure.DestinationRejected));
+            Assert.That(result.InventoryFailure, Is.EqualTo(InventoryFailureReason.DestinationRejected));
             var snapshot = runtime.Capture()[0];
             Assert.That(snapshot.Availability, Is.EqualTo(LootAvailability.Available));
             Assert.That(snapshot.Payload.Quantity, Is.EqualTo(2));
@@ -36,9 +36,18 @@ namespace Game.Loot.Tests
             var item = new ItemRef("fixture.restore.item");
             var actorInventory = new InventoryId("restore.actor");
             var containerInventory = new InventoryId("restore.container");
-            var inventory = new InventoryTransactionsRuntime(new[] { new ItemDefinition(item, "Restore Item") });
-            inventory.Register(actorInventory);
-            inventory.Register(containerInventory);
+            var authority = new InventoryRuntime(
+                new[] { new ItemDefinition(item, "Restore Item") },
+                new[]
+                {
+                    new InventoryDescriptor(
+                        actorInventory,
+                        new InventoryBindingMetadata("character", "restore.actor")),
+                    new InventoryDescriptor(
+                        containerInventory,
+                        new InventoryBindingMetadata("container", "restore.container"))
+                });
+            var inventory = new InventoryTransactionsAdapter(authority, authority, authority);
             Assert.That(inventory.TryAdd(actorInventory, item, 7).Succeeded, Is.True);
             Assert.That(inventory.TryTransfer(actorInventory, containerInventory, item, 3).Succeeded, Is.True);
 
@@ -68,21 +77,21 @@ namespace Game.Loot.Tests
 
         private sealed class RejectingInventoryTransactions : IInventoryTransactions
         {
-            private readonly InventoryTransactionFailure _failure;
+            private readonly InventoryFailureReason _failure;
 
-            public RejectingInventoryTransactions(InventoryTransactionFailure failure)
+            public RejectingInventoryTransactions(InventoryFailureReason failure)
             {
                 _failure = failure;
             }
 
             public InventoryTransactionResult TryAdd(InventoryId inventoryId, ItemRef item, int quantity) =>
-                InventoryTransactionResult.Reject(_failure);
+                InventoryTransactionResult.Reject(InventoryMutationKind.Add, _failure);
 
             public InventoryTransactionResult TryRemove(InventoryId inventoryId, ItemRef item, int quantity) =>
-                InventoryTransactionResult.Reject(_failure);
+                InventoryTransactionResult.Reject(InventoryMutationKind.Remove, _failure);
 
             public InventoryTransactionResult TryTransfer(InventoryId sourceInventoryId, InventoryId destinationInventoryId, ItemRef item, int quantity) =>
-                InventoryTransactionResult.Reject(_failure);
+                InventoryTransactionResult.Reject(InventoryMutationKind.Transfer, _failure);
 
             public int Count(InventoryId inventoryId, ItemRef item) => 0;
             public IReadOnlyList<InventoryQuantitySnapshot> Capture() => new InventoryQuantitySnapshot[0];

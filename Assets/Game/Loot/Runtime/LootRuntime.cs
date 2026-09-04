@@ -61,7 +61,7 @@ namespace Game.Loot.Runtime
                     _loot[request.ObjectId] = current;
                     return LootTransferResult.Reject(
                         LootTransferFailure.InventoryRejected,
-                        inventoryFailure: inventory.Failure);
+                        inventoryFailure: inventory.FailureReason);
                 }
 
                 var removed = new LootStateSnapshot(
@@ -92,7 +92,7 @@ namespace Game.Loot.Runtime
                 if (!inventory.Succeeded)
                     return LootTransferResult.Reject(
                         LootTransferFailure.InventoryRejected,
-                        inventoryFailure: inventory.Failure);
+                        inventoryFailure: inventory.FailureReason);
 
                 return LootTransferResult.Success(new LootTransferFact(
                     LootTransferKind.ContainerTransfer,
@@ -122,7 +122,7 @@ namespace Game.Loot.Runtime
                 if (!inventory.Succeeded)
                     return LootTransferResult.Reject(
                         LootTransferFailure.InventoryRejected,
-                        inventoryFailure: inventory.Failure);
+                        inventoryFailure: inventory.FailureReason);
 
                 _loot.Add(request.NewObjectId, new LootStateSnapshot(
                     request.NewObjectId,
