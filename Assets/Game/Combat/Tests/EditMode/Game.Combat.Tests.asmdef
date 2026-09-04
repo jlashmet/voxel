@@ -5,12 +5,12 @@
     "Game.Characters.Api",
     "Game.Combat.Api",
     "Game.Combat.Runtime",
+    "Game.Encounters.Api",
+    "Game.Encounters.Runtime",
     "Game.Vitality.Api",
     "Game.Vitality.Runtime"
   ],
-  "includePlatforms": [
-    "Editor"
-  ],
+  "includePlatforms": ["Editor"],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
   "overrideReferences": false,
