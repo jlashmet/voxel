@@ -1,6 +1,5 @@
 using Game.Composition.Kentridge.Api;
 using Game.Composition.Kentridge.Runtime;
-using Game.Input.Api;
 using Game.Inventory.Api;
 using Game.Inventory.Runtime;
 using Game.Kentridge.PlayableSlice;
@@ -61,17 +60,19 @@ namespace VoxelEngine.Tests.PlayMode
             try
             {
                 var presentation = host.AddComponent<KentridgeWellQuestInventoryPresentation>();
-                presentation.SetInventory(inventory, inventoryId);
+                presentation.BindReadModel(
+                    inventory,
+                    inventoryId,
+                    () => quests.GetSnapshot(KentridgeWellQuestDefinition.Ref),
+                    Vector3.zero);
+                Assert.That(presentation.IsBound, Is.True);
                 Assert.That(presentation.InventoryOpen, Is.False);
-                Assert.That(presentation.ActiveInputContext, Is.EqualTo(InputContextId.Exploration));
                 presentation.ToggleInventory();
                 Assert.That(presentation.InventoryOpen, Is.True);
-                Assert.That(presentation.ActiveInputContext, Is.EqualTo(InputContextId.Ui));
                 Assert.That(presentation.VisibleTileCount, Is.EqualTo(1));
                 Assert.That(KentridgeWellQuestInventoryPresentation.ItemTileSizePixels, Is.EqualTo(64f));
                 presentation.ToggleInventory();
                 Assert.That(presentation.InventoryOpen, Is.False);
-                Assert.That(presentation.ActiveInputContext, Is.EqualTo(InputContextId.Exploration));
             }
             finally
             {
