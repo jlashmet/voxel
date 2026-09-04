@@ -1,11 +1,12 @@
 {
-  "name": "Game.Input.Runtime",
-  "rootNamespace": "Game.Input.Runtime",
+  "name": "Game.Input.Tests.EditMode",
+  "rootNamespace": "Game.Input.Tests",
   "references": [
     "Game.Input.Api",
+    "Game.Input.Runtime",
     "Unity.InputSystem"
   ],
-  "includePlatforms": [],
+  "includePlatforms": ["Editor"],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
   "overrideReferences": false,
