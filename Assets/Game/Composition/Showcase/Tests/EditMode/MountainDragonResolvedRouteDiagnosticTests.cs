@@ -234,9 +234,12 @@ namespace VoxelEngine.Showcase.Tests.EditMode
                 // Their road/terrain surface is below y=512, so generating only (-3,0,0) exercises
                 // the exact production terrain + FeatureRegionBuild realization without streaming
                 // unrelated Showcase regions into this root-cause discriminator.
+                // GenerateRegionBlocking intentionally bypasses streaming eviction. Give this one-region
+                // discriminator test-only brick headroom to complete production feature realization;
+                // this does not change shipped streaming policy or the 14 GiB allocation guard.
                 using var world = new ShowcaseWorld(
                     Seed,
-                    brickPoolCapacity: 16_384,
+                    brickPoolCapacity: 65_536,
                     loadRadiusRegions: 1,
                     unloadRadiusRegions: 2);
                 var realizedRegion = new int3(-3, 0, 0);
