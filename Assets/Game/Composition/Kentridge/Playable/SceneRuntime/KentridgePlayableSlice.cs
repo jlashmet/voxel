@@ -7,6 +7,8 @@ using Game.Composition.WorldBuilderWorldGen;
 using Game.Composition.WorldBuilderWorldGen.Runtime;
 using Game.Cutscenes.Api;
 using Game.Cutscenes.Content.Kentridge;
+using Game.Input.Api;
+using Game.Progression.Api;
 using Game.SessionOrchestration.Api;
 using Game.SessionOrchestration.Runtime;
 using Game.WorldBuilder.Api;
@@ -110,9 +112,9 @@ namespace Game.Kentridge.PlayableSlice
         public bool OpeningPresentationReady => _openingPresentationReady;
         public bool OpeningCutsceneCameraActive => _openingCutsceneCameraActive;
         public Vector3 OpeningCutsceneCameraFocus => _openingCameraFocus;
-        public bool CurrentDemandContentSettled =>
-            _world != null && _motor != null
-            && _world.IsCurrentDemandContentSettled(_motor.EyePosition);
+        public float InteractionRangeMetres => m_InteractionRangeMetres;
+        internal IProgressionQuery ProgressionQuery => _session?.Runtime.Progression;
+        internal string TravelObjectiveId => _travelObjective.ToString();
         public bool TravelObjectiveActive =>
             _session != null && _session.Runtime.IsObjectiveActive(_travelObjective);
         public bool TravelObjectiveCompleted =>
@@ -159,6 +161,12 @@ namespace Game.Kentridge.PlayableSlice
                     throw new InvalidOperationException(
                         "Generated Kentridge pub did not expose a physical public entrance.");
 
+                _world = new ShowcaseWorld(
+                    m_Seed,
+                    capacity,
+                    m_LoadRadiusRegions,
+                    m_UnloadRadiusRegions,
+                    tierBytes);
                 FeatureCatalogue kentridgeCatalogue = KentridgeCombinedVoxelCatalogue.Build(
                     settlement,
                     BuildSettings(kentridge: true),
@@ -189,22 +197,9 @@ namespace Game.Kentridge.PlayableSlice
                     if (hightownCatalogue.IsCreated) hightownCatalogue.Dispose();
                     corridorCatalogue.Dispose();
                 }
-
-                // The top-down macro selection is a one-shot handoff. The playable catalogue must
-                // consume it before ShowcaseWorld constructs its temporary bootstrap catalogue;
-                // otherwise that throwaway catalogue steals the macro towns and routes.
-                _world = new ShowcaseWorld(
-                    m_Seed,
-                    capacity,
-                    m_LoadRadiusRegions,
-                    m_UnloadRadiusRegions,
-                    tierBytes);
                 _world.ConfigureGeneratedContentForGameplay(catalogue);
                 catalogue = default(FeatureCatalogue);
 
-                // Bind semantic far presentation immediately after deterministic planning/catalogue
-                // composition and before any GenerateAt call below. The same derived manifest used
-                // by Showcase is therefore queryable before a Kentridge voxel region is realized.
                 _sceneCamera = GetComponent<Camera>();
                 if (_sceneCamera == null) _sceneCamera = Camera.main;
                 _farFeatures = new KentridgeFarFeatureRuntime(
@@ -227,6 +222,8 @@ namespace Game.Kentridge.PlayableSlice
                 KentridgeForestBanditEncounter forestSessionExtension =
                     GetComponent<KentridgeForestBanditEncounter>()
                     ?? gameObject.AddComponent<KentridgeForestBanditEncounter>();
+                if (GetComponent<KentridgeGameplayHudInstaller>() == null)
+                    gameObject.AddComponent<KentridgeGameplayHudInstaller>();
                 var sessionFactory = new KentridgeSessionRuntimeGraphFactory(
                     content.Blueprint,
                     generation,
@@ -477,7 +474,6 @@ namespace Game.Kentridge.PlayableSlice
                     _world.ResidentGroundRadiusMetres(_motor.EyePosition), streamed);
             }
 
-            if (!_world.IsCurrentDemandContentSettled(_motor.EyePosition)) return;
             if (!RenderingComposition.HasCompletePublishedNearSurfaceCoverage()) return;
 
             _openingPresentationReady = true;
@@ -494,9 +490,12 @@ namespace Game.Kentridge.PlayableSlice
 
         private void HandleKeys()
         {
-            if (Input.GetKeyDown(KeyCode.Escape)) SetCursorLocked(!_mouseLook);
+            KentridgeGameplayHudInstaller semanticInput = GetComponent<KentridgeGameplayHudInstaller>();
+            if (semanticInput != null && semanticInput.WasPressed(StandardInputActions.Cancel))
+                SetCursorLocked(!_mouseLook);
             if (Input.GetKeyDown(KeyCode.F10)) RescuePlayerToY100();
-            if (Input.GetKeyDown(KeyCode.E)) TryInteractWithNearbyNpc();
+            if (semanticInput != null && semanticInput.WasPressed(StandardInputActions.Interact))
+                TryInteractWithNearbyNpc();
         }
 
         public bool TryInteractWithNearbyNpc()
@@ -929,14 +928,16 @@ namespace Game.Kentridge.PlayableSlice
                           - (Input.GetKey(KeyCode.S) ? 1f : 0f);
             float strafe = (Input.GetKey(KeyCode.D) ? 1f : 0f)
                          - (Input.GetKey(KeyCode.A) ? 1f : 0f);
-            bool sprint = Input.GetKey(KeyCode.LeftShift);
+            KentridgeGameplayHudInstaller semanticInput = GetComponent<KentridgeGameplayHudInstaller>();
+            bool sprint = semanticInput != null && semanticInput.IsHeld(StandardInputActions.Sprint);
 
             Vector3 flatForward = Vector3.ProjectOnPlane(transform.forward, Vector3.up).normalized;
             Vector3 flatRight = Vector3.ProjectOnPlane(transform.right, Vector3.up).normalized;
             Vector3 wish = flatForward * forward + flatRight * strafe;
             if (wish.sqrMagnitude > 1f) wish.Normalize();
 
-            _motor.Step(_world, wish, sprint, Input.GetKey(KeyCode.Space), dt);
+            bool jumpHeld = semanticInput != null && semanticInput.IsHeld(StandardInputActions.Jump);
+            _motor.Step(_world, wish, sprint, jumpHeld, dt);
         }
 
         private void UpdateExitedPub()
@@ -972,6 +973,7 @@ namespace Game.Kentridge.PlayableSlice
                 approach = new Vector3(_pubAccess.Inward.X, 0f, _pubAccess.Inward.Y);
             if (approach.sqrMagnitude < 1e-6f) approach = Vector3.forward;
             approach.Normalize();
+
             float groupRadius = Mathf.Max(
                 HorizontalDistance(floorFocus, leadStage),
                 Mathf.Max(
@@ -1061,30 +1063,6 @@ namespace Game.Kentridge.PlayableSlice
             if (AutoSurvey || AutoRecede) return;
 
             DrawDialogue();
-
-            string state = _session.Runtime.HasActiveCutscene
-                ? DestinationCutsceneActive ? "Destination conversation" : "Opening cutscene"
-                : _hasExitedPub
-                    ? "Kentridge town"
-                    : "Player control — walk out through the pub door";
-            GUI.Box(new Rect(16f, 16f, 420f, 82f), state);
-            GUI.Label(new Rect(30f, 44f, 390f, 24f),
-                _session.Runtime.HasActiveCutscene
-                    ? _presentation.LastCue
-                    : "WASD move • mouse look • E interact • Shift sprint • Space jump");
-
-            if (!_session.Runtime.HasActiveCutscene)
-            {
-                if (TryFindNearbyConversationNpc(out NpcRef nearbyNpc, out _))
-                    GUI.Label(new Rect(30f, 70f, 390f, 24f),
-                              "E talk to " + nearbyNpc.ToString());
-
-                if (GUI.Button(new Rect(16f, 106f, 235f, 34f),
-                               "Rescue: move to Y = 100 m"))
-                    RescuePlayerToY100();
-                GUI.Label(new Rect(264f, 112f, 360f, 24f),
-                          "F10 anytime • Esc releases the cursor");
-            }
         }
 
         private static void DrawOpeningLoadingCover()
