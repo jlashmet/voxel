@@ -4,29 +4,28 @@
 
 ## Observed behavior / acceptance
 
-Current baseline had no `Game.Vfx` module and repository inventory found no gameplay `ParticleSystem`/prefab-spawn VFX path to migrate. Public gameplay contracts already keep visual asset identity out of authority: Vitality exposes revisioned `DamageResult`/`DefeatEvent`, WorldObjects exposes sequenced `WorldInteractionFact`, Outcomes exposes stable resolution identity, and voxel Edits exposes confirmed `AlterationEvent` identity through tick/player/sequence. VFX must consume those semantic facts without becoming mutation authority.
+The baseline had no `Game.Vfx` module and no gameplay ParticleSystem/prefab-spawn VFX path to migrate. Public gameplay contracts already keep visual asset identity out of authority: Vitality exposes revisioned damage/defeat, WorldObjects exposes sequenced interaction facts, Outcomes exposes stable resolution identity, and voxel Edits exposes confirmed alteration identity. VFX must consume those semantic facts without becoming mutation authority.
 
-Exact-SHA run `33879743540` on feature SHA `9370f035d34328600b6bbacebc4cd41ec8575ae3` passed `Game.Vfx.Tests.EditMode`, the module-local standalone `SemanticVfxValidation` player, and the repository Kentridge integration player. Direct inspection of the module screenshots then found a required quality defect: effects were readable semantically but rendered as flat square/blockout billboards on an empty backdrop, so visual acceptance remains open.
+Exact-SHA run `33879743540` passed behavioral/module/player gates but its module captures were flat square/blockout billboards. Production polish at `414d91d97c6c68a1ac1f0b61b39fedfebdc0863e` then passed exact-SHA run `33886392325`; direct module-player inspection confirmed square billboards were removed and debris/hit became soft streaks, but interaction still read as a cyan dot ring and the defeated treatment as a sparse red point cloud. Per `AGENTS.md`, that is below production-quality, so visual acceptance remains open.
 
 ## Hypotheses / discriminating result
 
-1. **Selected:** existing semantic IDs/results are sufficient to derive stable cue identities and reconnect-safe treatment state. Inventory and passing tests confirmed durable IDs/revisions/sequences in the owning APIs.
-2. **Falsified:** existing scene-local hit/death/interaction particle spawners must be migrated. Repository/API searches found no such gameplay path or prefab/VFX identity contract on the assigned baseline.
+1. **Selected:** stable semantic IDs/results are sufficient for cue identity and reconnect-safe treatment state. Passing tests and player logs prove predicted/confirmed dedupe, current-state rebuild, and no historical replay.
+2. **Falsified:** scene-local gameplay effect spawners must be migrated. Repository/API audits found none on the assigned baseline.
 
 ## Selected design
 
-- `Game.Vfx.Api`: Unity-free `VfxCueRef`, `VfxEventId`, semantic character/world-object/world-point origin, one-shot request, persistent-treatment descriptor, diagnostics and presentation-binding contracts.
-- `Game.Vfx.Runtime`: cue catalog + pooled Unity realization, stable predicted/confirmed dedupe, persistent-treatment reconciliation, and adapters from confirmed Vitality/WorldObjects/Outcomes/voxel-alteration semantics.
-- Missing cue mappings or missing presentation bindings emit diagnostics and safely skip presentation; they never reject or roll back authoritative gameplay.
-- Defeated-character treatment is state-derived from current `IVitalityQuery`; reconnect rebuilds that treatment but never replays historical hit/interaction one-shots.
-- Cosmetic voxel debris is emitted only after an alteration is confirmed and has no colliders, damage callbacks, or world-write dependency.
-- Module-local EditMode regressions plus `Assets/Game/Vfx/Validation/` standalone scene exercise the real runtime presenter through real semantic results.
-- Visual-finish correction is limited to the production presenter: use a generated soft-alpha particle texture and style-specific stretched/trail/shape tuning so impact, defeat, interaction and debris read as deliberate effects rather than square debug particles. No parallel validation-only art path.
+- `Game.Vfx.Api`: Unity-free semantic cue/event/origin/treatment contracts.
+- `Game.Vfx.Runtime`: local catalog, pooled Unity realization, dedupe, persistent reconciliation, and adapters from confirmed gameplay/world semantics.
+- Missing mappings/bindings are presentation diagnostics only; no authoritative rollback.
+- Cosmetic debris has no colliders, damage callbacks, or world-write path.
+- Module-local EditMode tests plus `Assets/Game/Vfx/Validation/` standalone scene exercise the real presenter.
+- Visual refinement stays in `SemanticVfxPresenter`: retain soft-alpha material; use stretched silhouettes for interaction/defeat/resolution bursts and denser, larger, noisy trailed defeated-aura motes. No validation-only art path.
 
-## Remaining gates
+## Current commit / remaining gates
 
-Implement the production visual-finish correction; rerun exact-SHA targeted CI on `ci-test/fixes/agent-7`; inspect the new built-player module screenshots directly; confirm mapping failure, dedupe, persistent rebuild, destruction isolation, headless authority and boundary audits; complete all tasks; close open→closed; sync current master; PR + auto-merge; monitor required PR `affected` gate to merged master.
+Current feature head after second visual refinement: `02b18e10867478ec9deab44801d183f32d6412cf` (plan update follows). Create one exact-tree request on `ci-test/fixes/agent-7`, rerun repository-selected VFX/module/player validation, inspect new module captures directly, then complete all unchecked tasks. If green and production-quality: populate closure fields, move open→closed, merge current master, push, PR + auto-merge, and monitor the required PR `affected` gate through merge.
 
 ## Non-goals
 
-No collidable/damaging cosmetic debris, prefab/resource ids in gameplay contracts, VFX-owned damage/world destruction, chat/UI work, validation-only fake VFX, or opportunistic gameplay changes.
+No collidable/damaging cosmetic debris, prefab/resource ids in gameplay contracts, VFX-owned gameplay mutation, chat/UI work, or opportunistic gameplay changes.
