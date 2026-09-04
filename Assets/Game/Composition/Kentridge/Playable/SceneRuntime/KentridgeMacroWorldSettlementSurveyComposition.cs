@@ -129,7 +129,7 @@ namespace Game.Kentridge.PlayableSlice
             // The evidence driver's content-ready flag remains authoritative. Log only when its
             // production readiness gate has actually turned green at this close pose.
             if ((bool)s_TargetContentReadyLoggedField.GetValue(_driver))
-                Debug.LogOncePerFrame(
+                this.LogOncePerFrame(
                     $"MACROEVIDENCE close-survey-content-ready target={label} demand={Format(_motor.EyePosition)}");
         }
 
