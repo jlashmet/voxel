@@ -3,7 +3,9 @@
   "rootNamespace": "VoxelEngine.Showcase.Validation",
   "references": [
     "Game.Composition.Showcase",
-    "VoxelEngine.Showcase"
+    "VoxelEngine.Showcase",
+    "Game.WorldBuilder.Api",
+    "Game.WorldBuilder.Voxel"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
