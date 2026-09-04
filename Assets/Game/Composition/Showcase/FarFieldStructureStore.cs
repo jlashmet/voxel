@@ -199,7 +199,7 @@ namespace VoxelEngine.Showcase
             return SemanticFeatures.Query(new FeaturePresentationBounds(min, max));
         }
 
-        private static bool IsSemanticColumn(
+        internal static bool IsSemanticColumn(
             int worldVoxelX,
             int worldVoxelZ,
             IReadOnlyList<FeaturePresentationBake> semanticFeatures)
