@@ -1,0 +1,27 @@
+{
+  "name": "Game.Composition.CaveWorldBuilder.Tests.EditMode",
+  "rootNamespace": "Game.Composition.CaveWorldBuilder.Tests.EditMode",
+  "references": [
+    "VoxelEngine.Tests.Support",
+    "Game.Composition.CaveWorldBuilder",
+    "Game.Materials.Api",
+    "Game.Structures.Api",
+    "Game.Structures.Runtime",
+    "Game.WorldBuilder.Api",
+    "VoxelEngine.Storage.Api",
+    "VoxelEngine.Structures.Api",
+    "VoxelEngine.Structures.Runtime",
+    "VoxelEngine.Terrain.Api",
+    "Unity.Mathematics",
+    "UnityEngine.TestRunner",
+    "UnityEditor.TestRunner"
+  ],
+  "includePlatforms": ["Editor"],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": true,
+  "precompiledReferences": ["nunit.framework.dll"],
+  "autoReferenced": false,
+  "defineConstraints": ["UNITY_INCLUDE_TESTS"],
+  "versionDefines": []
+}
