@@ -4,7 +4,7 @@
   "capture": {
     "width": 1280,
     "height": 720,
-    "intervalSeconds": 1.25,
+    "intervalSeconds": 1,
     "minimumFrames": 8,
     "evidenceAfterSeconds": 1
   },
