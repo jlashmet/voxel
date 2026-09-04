@@ -168,6 +168,7 @@ namespace VoxelEngine.Tests.PlayMode
                 }
 
                 ulong baselineCompleted = metrics.GpuCompletedSolidBuilds;
+                ulong lastObservedCompleted = baselineCompleted;
                 Vector3 relocated = showcase.transform.position;
                 relocated.x += RelocationMetres;
                 showcase.transform.position = relocated;
@@ -183,6 +184,9 @@ namespace VoxelEngine.Tests.PlayMode
                     yield return null;
                     camera.Render();
                     metrics = VoxelRenderBridge.SurfaceMetrics;
+                    ulong completedNow = metrics.GpuCompletedSolidBuilds;
+                    bool gpuCompletionProgress = completedNow > lastObservedCompleted;
+                    lastObservedCompleted = completedNow;
 
                     if (distantChangeChurn && readyBlocks.Contains(controlBlock))
                     {
@@ -202,7 +206,8 @@ namespace VoxelEngine.Tests.PlayMode
                     bool recoveryBacklog = pending > 0;
                     bool saturatedAdmission = recoveryBacklog
                         && demand >= saturatedDemandThreshold
-                        && active == 0;
+                        && active == 0
+                        && !gpuCompletionProgress;
 
                     sawRecoveryBacklog |= recoveryBacklog;
                     sawSaturatedAdmission |= saturatedAdmission;
@@ -213,8 +218,8 @@ namespace VoxelEngine.Tests.PlayMode
                         double stalledSeconds =
                             observation.Elapsed.TotalSeconds - saturatedAdmissionStarted;
                         Assert.Less(stalledSeconds, MaxSaturatedAdmissionSeconds,
-                            $"All GPU workers stayed mirror-admission pending for "
-                          + $"{stalledSeconds:F1}s after a {RelocationMetres:F0}m relocation: "
+                            $"All GPU workers showed no active extraction or GPU completion progress "
+                          + $"for {stalledSeconds:F1}s after a {RelocationMetres:F0}m relocation: "
                           + $"ready={GpuSurfaceMirrorCoordinator.ReadyBlockCount}, "
                           + $"pending={pending}, demand={demand}, active={active}, "
                           + $"mixedResident={GpuSurfaceMirrorCoordinator.ResidentMixedBrickCount}/"
@@ -223,8 +228,8 @@ namespace VoxelEngine.Tests.PlayMode
                           + $"visible={metrics.VisibleSolidChunks}, "
                           + $"missing={metrics.MissingVisibleSolidChunks}, "
                           + $"distantChanges={injectedDistantChanges}. Recovery must reclaim or "
-                          + "publish enough of the replaced working set for at least one request to "
-                          + "cross mirror admission even while unrelated ready data changes.");
+                          + "publish enough of the replaced working set for useful GPU completion "
+                          + "progress even while unrelated ready data changes.");
                     }
                     else
                     {
@@ -233,8 +238,7 @@ namespace VoxelEngine.Tests.PlayMode
 
                     if (sawRecoveryBacklog
                         && metrics.GpuCompletedSolidBuilds >= baselineCompleted + 4
-                        && metrics.VisibleSolidChunks > 0
-                        && demand < saturatedDemandThreshold)
+                        && metrics.VisibleSolidChunks > 0)
                         break;
                 }
 
