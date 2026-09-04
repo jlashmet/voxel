@@ -1,10 +1,10 @@
 {
-  "name": "Game.Quests.Runtime",
-  "rootNamespace": "Game.Quests.Runtime",
+  "name": "Game.Progression.Runtime",
+  "rootNamespace": "Game.Progression.Runtime",
   "references": [
-    "Game.Quests.Api",
     "Game.Progression.Api",
-    "Game.Progression.Runtime"
+    "Game.WorldObjects.Api",
+    "Game.Characters.Api"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

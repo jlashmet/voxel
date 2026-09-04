@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Game.Characters.Api;
 using Game.Combat.Api;
 using Game.Combat.Runtime;
+using Game.Composition.EncounterRealization;
 using Game.Encounters.Api;
 using Game.Encounters.Runtime;
 using Game.Input.Api;
@@ -10,8 +11,6 @@ using Game.Input.Runtime;
 using Game.Vitality.Api;
 using Game.Vitality.Runtime;
 using MountingForce.WorldGen;
-using MountingForce.WorldGen.Content.Hightown;
-using MountingForce.WorldGen.Content.Kentridge;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -29,8 +28,6 @@ namespace Game.Composition.Kentridge.Playable
         private const string KentridgeSceneName = "KentridgePlayableSlice";
         private const string PlayerCameraName = "Kentridge Player Camera";
         private const string MaleCharacterResource = "Characters/placeholder_male";
-        private const float DecimetresToMetres = 0.1f;
-        private const int ForestEntryInsetDm = 240;
         private const int AutonomousBattleSeed = 20260829;
         private const int InitialCombatVitality = 6;
         private const float BattleActionIntervalSeconds = 0.10f;
@@ -53,6 +50,7 @@ namespace Game.Composition.Kentridge.Playable
         private CombatInputController _combatInput;
         private CombatAiBattleDriver _battleDriver;
         private IInputContextLease _combatContext;
+        private EncounterRealization _realization;
         private Vector3 _ambushCenterWorld;
         private RegionThemeKind _ambushTheme;
         private float _nextBattleActionTime;
@@ -119,7 +117,6 @@ namespace Game.Composition.Kentridge.Playable
             _inputReader = new UnityPlayerInputReader(_inputContexts);
             _vitality = new VitalityRegistry();
             _combat = new CombatService(_vitality);
-            BuildAuthoredAmbushPlan();
         }
 
         private void Start()
@@ -130,10 +127,33 @@ namespace Game.Composition.Kentridge.Playable
                     "Kentridge forest encounter requires the playable character registry anchor before actor realization.");
             _characters = anchor.Characters;
             _encounters = new EncounterRegistry(_characters);
+
+            for (int i = 0; i < _banditCharacterIds.Length; i++)
+            {
+                string participant = "forest-bandit-" + (i + 1);
+                _banditCharacterIds[i] = CharacterId.FromStableKey("enemy", "kentridge-" + participant);
+            }
+
+            var definition = new EncounterDefinition(
+                ForestBanditEncounterId,
+                EncounterCombatPolicy.Required,
+                "forest-ambush");
+            EncounterRealizationResult realization = KentridgeForestEncounterRealization.Compose(
+                definition,
+                _banditCharacterIds[0],
+                _banditCharacterIds[1],
+                _banditCharacterIds[2]);
+            if (!realization.IsSuccess)
+                throw new InvalidOperationException(
+                    "Kentridge forest encounter realization failed: " + realization.Diagnostic);
+            _realization = realization.Realization;
+            if (_realization.Characters.Count != _banditCharacterIds.Length)
+                throw new InvalidOperationException("Kentridge forest encounter realization did not provide all bandit spawn bindings.");
+            _ambushCenterWorld = ToUnityVector(_realization.Anchor);
+            _ambushTheme = RegionThemeKind.PineForest;
+
             RequireEncounterSuccess(
-                _encounters.Register(
-                    new EncounterDefinition(ForestBanditEncounterId, EncounterCombatPolicy.Required, "forest-ambush"),
-                    out _),
+                _encounters.Register(_realization.Definition, out _),
                 "register Kentridge forest encounter");
             SpawnBandits();
         }
@@ -175,54 +195,26 @@ namespace Game.Composition.Kentridge.Playable
             _inputReader.SuppressLegacyReadersForCurrentFrame();
         }
 
-        private void BuildAuthoredAmbushPlan()
-        {
-            Int2 kentridge = KentridgeDefinition.TownCentreDm;
-            Int2 hightown = HightownDefinition.TownCentreDm;
-            if (kentridge.X != hightown.X)
-                throw new InvalidOperationException("Kentridge forest ambush requires the authored inter-town road axis.");
-            int south = Math.Min(kentridge.Y, hightown.Y);
-            int north = Math.Max(kentridge.Y, hightown.Y);
-            int crossing = (south + north) / 2;
-            RegionThemeMap themes = RegionThemeMap.ForKentridgeHightown(kentridge.Y, hightown.Y, crossing);
-            int firstPineDm = int.MinValue;
-            for (int zDm = south; zDm < north; zDm += 10)
-            {
-                if (themes.ThemeAt(zDm) != RegionThemeKind.PineForest) continue;
-                firstPineDm = zDm;
-                break;
-            }
-            if (firstPineDm == int.MinValue)
-                throw new InvalidOperationException("Kentridge-Hightown corridor contains no authored PineForest band.");
-            int ambushZDm = firstPineDm + ForestEntryInsetDm;
-            _ambushTheme = themes.ThemeAt(ambushZDm);
-            if (_ambushTheme != RegionThemeKind.PineForest)
-                throw new InvalidOperationException("Forest ambush anchor escaped the authored PineForest band.");
-            _ambushCenterWorld = new Vector3(kentridge.X * DecimetresToMetres, 0f, ambushZDm * DecimetresToMetres);
-        }
-
         private void SpawnBandits()
         {
             if (_bandits.Count != 0) return;
-            Vector2[] offsets =
+            if (_realization == null)
+                throw new InvalidOperationException("Kentridge forest bandits cannot spawn before encounter realization.");
+
+            for (int i = 0; i < _realization.Characters.Count; i++)
             {
-                new Vector2(-5.4f, -0.8f),
-                new Vector2(0.8f, 1.2f),
-                new Vector2(5.8f, 0.1f)
-            };
-            for (int i = 0; i < offsets.Length; i++)
-            {
-                Vector3 position = new Vector3(
-                    _ambushCenterWorld.x + offsets[i].x,
-                    transform.position.y - 1.7f,
-                    _ambushCenterWorld.z + offsets[i].y);
+                EncounterCharacterBinding binding = _realization.Characters[i];
+                CharacterId id = binding.Participant.CharacterId;
+                if (id != _banditCharacterIds[i])
+                    throw new InvalidOperationException("Kentridge forest encounter realization changed authored bandit identity ordering.");
+
+                Vector3 position = ToUnityVector(binding.Position);
+                position.y = transform.position.y - 1.7f;
                 GameObject bandit = CreateBandit(i, position);
                 FacePlayer(bandit.transform, transform.position);
                 _bandits.Add(bandit);
 
                 string participant = "forest-bandit-" + (i + 1);
-                CharacterId id = CharacterId.FromStableKey("enemy", "kentridge-" + participant);
-                _banditCharacterIds[i] = id;
                 if (!_characters.TryGet(id, out _))
                     RequireSuccess(
                         _characters.Create(new CharacterDefinition(id, CharacterTraits.Combatant), ToKinematics(bandit.transform), out _),
@@ -234,7 +226,7 @@ namespace Game.Composition.Kentridge.Playable
                 RequireEncounterSuccess(
                     _encounters.Join(
                         ForestBanditEncounterId,
-                        new EncounterParticipant(id, EncounterParticipantOwnership.EncounterOwned, "enemy"),
+                        binding.Participant,
                         out _),
                     "join forest bandit encounter membership");
             }
@@ -290,7 +282,7 @@ namespace Game.Composition.Kentridge.Playable
                 "join Kentridge player encounter membership");
             RequireEncounterSuccess(
                 _encounters.Activate(
-                    new EncounterActivationRequest(ForestBanditEncounterId, "player-proximity", "kentridge-pine-forest-ambush"),
+                    new EncounterActivationRequest(ForestBanditEncounterId, "player-proximity", _realization.RealizationId),
                     out _),
                 "activate Kentridge forest encounter");
             if (!_encounters.TryTakeCombatRequest(out EncounterCombatRequest request))
@@ -421,6 +413,9 @@ namespace Game.Composition.Kentridge.Playable
 
         private static CharacterVector3 ToCharacterVector(Vector3 value) =>
             new CharacterVector3(value.x, value.y, value.z);
+
+        private static Vector3 ToUnityVector(CharacterVector3 value) =>
+            new Vector3(value.X, value.Y, value.Z);
 
         private static void RequireSuccess(CharacterRegistryFailure failure, string operation)
         {

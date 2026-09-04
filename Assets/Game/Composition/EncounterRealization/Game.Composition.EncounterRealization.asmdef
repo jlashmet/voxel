@@ -1,10 +1,10 @@
 {
-  "name": "Game.Quests.Runtime",
-  "rootNamespace": "Game.Quests.Runtime",
+  "name": "Game.Composition.EncounterRealization",
+  "rootNamespace": "Game.Composition.EncounterRealization",
   "references": [
-    "Game.Quests.Api",
-    "Game.Progression.Api",
-    "Game.Progression.Runtime"
+    "Game.WorldBuilder.Api",
+    "Game.Encounters.Api",
+    "Game.Characters.Api"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
