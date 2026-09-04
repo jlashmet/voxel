@@ -1,0 +1,14 @@
+{
+  "name": "Game.Hud.Runtime",
+  "rootNamespace": "Game.Hud.Runtime",
+  "references": ["Game.Hud.Api", "Game.Input.Api", "Game.Sessions.Api", "Game.Characters.Api", "Game.Vitality.Api", "Game.Encounters.Api"],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

@@ -1,27 +1,20 @@
 # 17 Production gameplay HUD & semantic presentation — implementation plan
 
-**Target module:** `Assets/Game/Hud/Api` / `Runtime` (`Game.Hud.Api`, `Game.Hud.Runtime`). API is engine-neutral read/presentation contracts; Runtime may contain Unity client presenters/views.
+**Ownership:** `Game.Hud.Api` / `Game.Hud.Runtime`. HUD is presentation only: authoritative state remains in Sessions/Vitality/Encounters/Progression and interaction composition; physical bindings remain Input-owned.
 
-## API
+## Observed behavior / acceptance
 
-Local-player HUD read model/presenter inputs: controlled CharacterId, vitality, interaction prompt semantics, encounter/combat state needed for display, tracked progression summaries, readiness/connection state references. Use semantic action ids, not physical bindings.
+Current `KentridgePlayableSlice` owns prototype `OnGUI` state text and recomputes a nearby conversation NPC, while production input directly polls `KeyCode.E` and the HUD strings hardcode `E`, `WASD`, `Shift`, `Space`, `F10`, and `Esc`. System17 must replace gameplay HUD truth with semantic snapshot projections, isolate local-player identity, survive reconnect/rebuild, and own a module-local built-player validation scene.
 
-## Runtime
+## Hypotheses / discrimination
 
-1. Build snapshot/event adapters from replicated/current semantic APIs.
-2. Create independent presenters for vitality, interaction, combat/encounter and other approved HUD concerns.
-3. Resolve local binding/glyph text through Input binding-presentation seam.
-4. Rebuild from current state after reconnect/restore; transient effects dedupe by semantic event identity.
-5. Replace prototype/Kentridge hardcoded GUI labels and prompts.
+1. **Core authoritative APIs are sufficient for HUD state.** Supported: `Sessions.Api` exposes member/readiness/CharacterId, `Vitality.Api` exposes immutable vitality queries, and `Encounters.Api` exposes current membership/lifecycle. The first implementation projects these without Runtime dependencies.
+2. **All presentation prerequisites already exist.** Falsified on master `e18efe82ce1b4aa069031165d40bac14a9269412`: Input has no semantic action-to-binding-label seam, and System19's compact tracked-objective HUD projection is still an open SceneIssue. Add only the minimal Input presentation seam required by System17; do not duplicate System19 journal/tracking state in Hud.
 
-## Dependencies
+## Selected approach
 
-06 replicated state, 02/03/05 APIs, 11 Progression API, Input API/binding presentation. No authority mutation.
+`Hud.Api` defines immutable local-player, vitality, interaction, encounter, readiness, tracked-progression, and transient-event presentation contracts. `HudSnapshotProjector` resolves the local party member and controlled CharacterId on every projection, reads current snapshots directly, derives active encounter state, resolves prompt labels through `IInputBindingPresentation`, and retains only transient event IDs for presentation dedupe. `RebuildAfterReconnect` baselines old transient events while persistent state is immediately rebuilt from current queries. `UnityInputBindingService` supplies the minimal semantic Input binding/label seam and keeps physical key ownership outside Hud.
 
-## Tests / proof
+## Remaining gates / blockers
 
-Presenter unit tests without Unity, reconnect rebuild, binding changes update prompts, two local players resolve their own state, built-player visual validation.
-
-## Do not build
-
-No inventory journal/party screen ownership, gameplay authority, or hardcoded key names.
+Build the production Unity HUD view and Kentridge adapter, remove prototype HUD labels/prompt duplication, add module-local Hud validation using the real presenter, and validate visual quality. System19 must provide its tracked-objective source before T17-014 can close; if production Kentridge still lacks authoritative Sessions local-player wiring, keep that integration blocked while completing independent Hud validation. Then run exact-SHA CI, reconcile current master, close directly open→closed, and promote only through PR + auto-merge with the required `affected` gate.

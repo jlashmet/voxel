@@ -1,0 +1,14 @@
+{
+  "name": "Game.Hud.Tests",
+  "rootNamespace": "Game.Hud.Tests",
+  "references": ["Game.Hud.Api", "Game.Hud.Runtime", "Game.Input.Api", "Game.Sessions.Api", "Game.Characters.Api", "Game.Vitality.Api", "Game.Encounters.Api"],
+  "includePlatforms": ["Editor"],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
