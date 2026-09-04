@@ -4,6 +4,7 @@
   "references": [
     "VoxelEngine.Tests.Support",
     "Game.Composition.Showcase",
+    "Game.Composition.WorldObjects.Runtime",
     "Game.Materials.Api",
     "VoxelEngine.Storage.Api",
     "VoxelEngine.Structures.Api",
