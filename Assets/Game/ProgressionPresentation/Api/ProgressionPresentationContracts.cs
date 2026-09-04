@@ -59,13 +59,29 @@ namespace Game.ProgressionPresentation.Api
     {
         bool TryGetQuest(QuestId questId, out QuestPresentationContent content);
         bool TryGetObjective(QuestId questId, ObjectiveId objectiveId, out ObjectivePresentationContent content);
+        bool TryGetStandaloneObjective(ObjectiveId objectiveId, out ObjectivePresentationContent content);
+    }
+
+    /// <summary>
+    /// Typed replicated current-state payload for System19. Transport and serialization remain owned by
+    /// GameplayReplication; this payload simply carries the canonical System11 snapshot.
+    /// </summary>
+    public readonly struct ProgressionPresentationCurrentState
+    {
+        public ProgressionSnapshot Snapshot { get; }
+
+        public ProgressionPresentationCurrentState(ProgressionSnapshot snapshot)
+        {
+            Snapshot = snapshot ?? throw new ArgumentNullException(nameof(snapshot));
+        }
     }
 
     public readonly struct JournalObjectiveKey : IEquatable<JournalObjectiveKey>
     {
         public QuestId QuestId { get; }
         public ObjectiveId ObjectiveId { get; }
-        public bool IsValid => QuestId.IsValid && ObjectiveId.IsValid;
+        public bool IsStandalone { get; }
+        public bool IsValid => ObjectiveId.IsValid && (IsStandalone || QuestId.IsValid);
 
         public JournalObjectiveKey(QuestId questId, ObjectiveId objectiveId)
         {
@@ -73,11 +89,23 @@ namespace Game.ProgressionPresentation.Api
             if (!objectiveId.IsValid) throw new ArgumentException("Objective id is required.", nameof(objectiveId));
             QuestId = questId;
             ObjectiveId = objectiveId;
+            IsStandalone = false;
         }
 
-        public bool Equals(JournalObjectiveKey other) => QuestId == other.QuestId && ObjectiveId == other.ObjectiveId;
+        private JournalObjectiveKey(ObjectiveId objectiveId)
+        {
+            if (!objectiveId.IsValid) throw new ArgumentException("Objective id is required.", nameof(objectiveId));
+            QuestId = default;
+            ObjectiveId = objectiveId;
+            IsStandalone = true;
+        }
+
+        public static JournalObjectiveKey Standalone(ObjectiveId objectiveId) => new JournalObjectiveKey(objectiveId);
+
+        public bool Equals(JournalObjectiveKey other) =>
+            IsStandalone == other.IsStandalone && QuestId == other.QuestId && ObjectiveId == other.ObjectiveId;
         public override bool Equals(object obj) => obj is JournalObjectiveKey other && Equals(other);
-        public override int GetHashCode() => (QuestId.GetHashCode() * 397) ^ ObjectiveId.GetHashCode();
+        public override int GetHashCode() => ((QuestId.GetHashCode() * 397) ^ ObjectiveId.GetHashCode()) * 397 ^ IsStandalone.GetHashCode();
         public static bool operator ==(JournalObjectiveKey left, JournalObjectiveKey right) => left.Equals(right);
         public static bool operator !=(JournalObjectiveKey left, JournalObjectiveKey right) => !left.Equals(right);
     }
@@ -145,20 +173,30 @@ namespace Game.ProgressionPresentation.Api
     public sealed class QuestJournalSnapshot
     {
         private readonly JournalQuestEntry[] _quests;
+        private readonly JournalObjectiveEntry[] _standaloneObjectives;
 
         public ulong ProgressionRevision { get; }
         public JournalSortMode SortMode { get; }
         public JournalFilterMode FilterMode { get; }
         public IReadOnlyList<JournalQuestEntry> Quests => _quests;
+        public IReadOnlyList<JournalObjectiveEntry> StandaloneObjectives => _standaloneObjectives;
 
-        public QuestJournalSnapshot(ulong progressionRevision, JournalSortMode sortMode, JournalFilterMode filterMode, IReadOnlyList<JournalQuestEntry> quests)
+        public QuestJournalSnapshot(
+            ulong progressionRevision,
+            JournalSortMode sortMode,
+            JournalFilterMode filterMode,
+            IReadOnlyList<JournalQuestEntry> quests,
+            IReadOnlyList<JournalObjectiveEntry> standaloneObjectives)
         {
             if (quests == null) throw new ArgumentNullException(nameof(quests));
+            if (standaloneObjectives == null) throw new ArgumentNullException(nameof(standaloneObjectives));
             ProgressionRevision = progressionRevision;
             SortMode = sortMode;
             FilterMode = filterMode;
             _quests = new JournalQuestEntry[quests.Count];
             for (var i = 0; i < quests.Count; i++) _quests[i] = quests[i];
+            _standaloneObjectives = new JournalObjectiveEntry[standaloneObjectives.Count];
+            for (var i = 0; i < standaloneObjectives.Count; i++) _standaloneObjectives[i] = standaloneObjectives[i];
         }
     }
 
