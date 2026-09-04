@@ -19,7 +19,7 @@
 - [x] **T21-013 — Resolve semantic origins to presentation transforms.** Runtime resolver handles global/world-point origins and degrades unavailable presentation bindings without affecting authority.
 - [x] **T21-014 — Implement one-shot dedupe.** Stable event ids suppress predicted+authoritative duplicate playback.
 - [x] **T21-015 — Reconstruct sustained audio from current state.** Idempotent reconciliation starts/stops only current sustained descriptors.
-- [ ] **T21-016 — Bind user volume/preferences.** BLOCKED after origin refresh: current master `283b512cf6dac4feba5f1cfd5b9d79ef0b3075e8` still has System23 open; T23-007 (`IUserPreferencesStore`) and T23-017 (persist/apply audio settings) are unchecked and repository search finds no `IUserPreferencesStore`. Do not invent settings authority in Audio.
+- [ ] **T21-016 — Bind user volume/preferences.** BLOCKED after origin refresh: current master `d08612dfe2f4a99aff34897717569744565bc642` still has System23 open; T23-007 (`IUserPreferencesStore`) and T23-017 (persist/apply audio settings) are unchecked and repository search finds no `IUserPreferencesStore`. Do not invent settings authority in Audio.
 - [x] **T21-017 — Remove scene-local substitute playback where production semantic cue exists.** Kentridge's previous no-op cutscene sound handoff now delegates to its single Audio presentation owner; no duplicate indexed legacy AudioSources were found.
 
 ## Verification
