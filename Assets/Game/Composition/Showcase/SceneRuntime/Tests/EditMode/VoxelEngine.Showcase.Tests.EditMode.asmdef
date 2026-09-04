@@ -2,6 +2,7 @@
   "name": "VoxelEngine.Showcase.Tests.EditMode",
   "rootNamespace": "VoxelEngine.Tests.EditMode",
   "references": [
+    "Game.Composition.Showcase",
     "VoxelEngine.Showcase",
     "VoxelEngine.Composition",
     "VoxelEngine.Rendering.Api",
