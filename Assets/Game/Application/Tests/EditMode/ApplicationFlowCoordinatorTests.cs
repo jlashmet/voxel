@@ -9,6 +9,7 @@ using Game.SessionOrchestration.Api;
 using Game.SessionPresentation.Api;
 using Game.Sessions.Api;
 using NUnit.Framework;
+using GameSessionSnapshot = Game.SessionOrchestration.Api.GameSessionSnapshot;
 
 namespace Game.Application.Tests
 {
