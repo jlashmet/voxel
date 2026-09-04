@@ -43,17 +43,19 @@
 ## Verification
 
 - [ ] **T17-020 — Presenter unit tests without Unity views.** Snapshot -> deterministic view model for vitality/prompt/combat/readiness.
-  - Tests cover controlled vitality, semantic prompt, encounter/combat, readiness lifecycle, and InputContext. Exact-SHA request `be9badbc0e2a1f4ea07e3c0ad56b9e1b9f8b5cdc` (target feature `809c7bde71360c1c602b489993e72054d4268ff7`) failed before Unity tests ran because the repository module planner rejects pre-existing overlapping Kentridge module owners: `runtime assembly token has multiple module owners: Game.Kentridge.PlayableSlice`. No product-test result exists yet.
+  - Tests cover controlled vitality, semantic prompt, encounter/combat, readiness lifecycle, and InputContext. Requests `be9badbc0e2a1f4ea07e3c0ad56b9e1b9f8b5cdc` and `1c7c70bb71010f7891c8fb2216755601391815a0` both failed before Unity module tests because the repository planner attributed nested `Game.Kentridge.PlayableSlice` to two module roots. No product-test result exists yet.
 - [ ] **T17-021 — Binding-change regression.** Change Input binding and prove prompt text/glyph updates without gameplay code changes.
-  - Regression now uses real `UnityInputBindingService.Rebind(Interact, KeyCode.F)` and proves the unchanged semantic candidate projects `F`; pending executable CI because of the same planner blocker.
+  - Regression uses real `UnityInputBindingService.Rebind(Interact, KeyCode.F)` and proves the unchanged semantic candidate projects `F`; pending executable exact-SHA CI.
 - [ ] **T17-022 — Local-player identity test.** Two local/represented players cannot display each other's controlled-character vitality/prompt state.
-  - Regression added with two independent local/member/CharacterId bindings; pending executable CI because of the same planner blocker.
+  - Regression added with two independent local/member/CharacterId bindings; pending executable exact-SHA CI.
 - [ ] **T17-023 — Reconnect rebuild test.** Current state reappears correctly and old transient events are not replayed.
-  - Regression added; pending executable CI because of the same planner blocker.
+  - Regression added; pending executable exact-SHA CI.
 - [ ] **T17-024 — Headless gameplay regression.** Authoritative gameplay runs with Hud assembly absent.
-  - `Game.Hud.HeadlessRegression.Tests` is a separate EditMode assembly with no Hud reference. It drives real `PartySession` through join/connect/character-bind/synchronize/GameplayReady/start and real `VitalityRegistry` through damage, then asserts the test/Sessions/Vitality assemblies reference no `Game.Hud` assembly. Pending executable CI because of the planner blocker.
+  - `Game.Hud.HeadlessRegression.Tests` is a separate EditMode assembly with no Hud reference. It drives real `PartySession` through join/connect/character-bind/synchronize/GameplayReady/start and real `VitalityRegistry` through damage, then asserts the test/Sessions/Vitality assemblies reference no `Game.Hud` assembly. Pending executable exact-SHA CI.
 - [ ] **T17-025 — Module-local built-player visual validation.** Use shared validation harness and semantic milestones; no bespoke screenshot driver.
-  - Validation assets are now at the planner-required module root `Assets/Game/Hud/Validation/`; the scene uses the real `HudSnapshotProjector`, polished real `GameplayHudPresenter`, and real `UnityInputBindingService`, with deterministic semantic providers. The first exact-SHA workflow reached and passed the standalone Kentridge replay, but automatic Hud module player validation never started because module-plan discovery failed on the unrelated pre-existing Kentridge nested-module ownership collision.
+  - Validation assets are at `Assets/Game/Hud/Validation/`; the scene uses the real `HudSnapshotProjector`, production `GameplayHudPresenter`, and real `UnityInputBindingService`, with deterministic semantic providers. Workflow `33852244050` passed the canonical standalone Kentridge replay with zero assertion failures but skipped Hud module validation because planner derivation failed first.
+- [x] **T17-026 — Repair exact-SHA planner blocker with a minimal ownership regression.** Nested module roots must assign a runtime asmdef only to its nearest/deepest module owner.
+  - Evidence: after two identical CI failures, a minimal repro was isolated. `tools/tests/test_module_validation_nested_roots.py` reproduces parent/child Kentridge-style test roots; `tools/module-validation-plan.py` now filters runtime asmdefs by nearest module root instead of recursively claiming nested assemblies. Local focused regression passes. This changes planner ownership only and does not rearrange unrelated Kentridge tests.
 
 ## Cleanup / close
 
