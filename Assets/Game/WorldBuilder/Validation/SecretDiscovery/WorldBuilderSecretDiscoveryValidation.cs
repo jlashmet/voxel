@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using Game.Composition.CaveWorldBuilder;
 using Game.Materials.Api;
+using Game.Outcomes.Api;
+using Game.SessionOrchestration.Api;
+using Game.SessionOrchestration.Runtime;
 using Game.Structures.Api;
 using Game.Structures.Runtime;
 using Game.WorldBuilder.Api;
@@ -20,15 +23,30 @@ using TreeInstance = VoxelEngine.Vegetation.Api.TreeInstance;
 namespace Game.WorldBuilder.Validation
 {
     /// <summary>
-    /// Focused built-player proof for generated secret discovery. The scene owns only validation
-    /// orchestration and camera placement. Terrain/storage, cave generation, secret-pocket authoring,
-    /// clue realization, materials, voxel meshing, destruction, and tree rendering all execute through
-    /// production paths.
+    /// Focused built-player proof for generated secret discovery. The scene owns only deterministic
+    /// scenario/camera evidence. Runtime initialization, updates, command lifecycle and teardown are
+    /// driven through the same GameSessionOrchestrator contract used by the playable application.
+    /// Terrain/storage, cave generation, clue realization, rendering and destruction use production paths.
     /// </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(Camera))]
-    public sealed class WorldBuilderSecretDiscoveryValidation : MonoBehaviour
+    public sealed class WorldBuilderSecretDiscoveryValidation : MonoBehaviour,
+        ISessionRuntimeGraphFactory,
+        ISessionRuntimeGraph
     {
+        private sealed class ValidationUpdateStep : ISessionUpdateStep
+        {
+            private readonly WorldBuilderSecretDiscoveryValidation _owner;
+
+            public ValidationUpdateStep(WorldBuilderSecretDiscoveryValidation owner) =>
+                _owner = owner ?? throw new ArgumentNullException(nameof(owner));
+
+            public SessionUpdatePhase Phase => SessionUpdatePhase.Presentation;
+            public int Order => 0;
+            public string SemanticId => "worldbuilder.secret-discovery.validation";
+            public void Tick(int elapsedMilliseconds) => _owner.TickScenario(elapsedMilliseconds);
+        }
+
         private const float VoxelMetres = 0.1f;
         private const int CaveAnchorX = -1024;
         private const int CaveAnchorZ = 512;
@@ -44,9 +62,19 @@ namespace Game.WorldBuilder.Validation
         private CaveAuthoringResult _cave;
         private CaveSecretPocketProjection _projection;
         private int3 _caveEntrance;
-        private float _sequenceStart;
+        private GameSessionOrchestrator _sessionOrchestrator;
+        private IReadOnlyList<ISessionUpdateStep> _updateSteps;
+        private float _elapsedSeconds;
         private bool _wallDestroyed;
         private bool _ready;
+        private bool _composed;
+        private bool _commandsEnabled;
+        private bool _disposed;
+
+        public bool GameplayBindingsReady => _composed && !_disposed && isActiveAndEnabled;
+        public IReadOnlyList<ISessionUpdateStep> UpdateSteps =>
+            _updateSteps ?? (_updateSteps = new ISessionUpdateStep[] { new ValidationUpdateStep(this) });
+        public IGameOutcomeQuery OutcomeQuery => null;
 
         private void OnEnable()
         {
@@ -56,6 +84,72 @@ namespace Game.WorldBuilder.Validation
             cameraComponent.clearFlags = CameraClearFlags.Skybox;
             cameraComponent.nearClipPlane = 0.05f;
             cameraComponent.farClipPlane = 2500f;
+
+            _disposed = false;
+            _sessionOrchestrator = new GameSessionOrchestrator(this);
+            var identity = new GameSessionIdentity(
+                "worldbuilder-secret-discovery-validation",
+                "generated-cave",
+                "local-validation-session",
+                "secret-anomaly-evidence");
+            GameSessionOperationResult prepared = _sessionOrchestrator.Prepare(
+                GameSessionStartRequest.NewGame(identity));
+            if (!prepared.Succeeded)
+                throw new InvalidOperationException(
+                    "WorldBuilder secret validation app composition failed: " +
+                    prepared.Failure + " " + prepared.Diagnostic);
+
+            GameSessionOperationResult running = _sessionOrchestrator.EnterRunning();
+            if (!running.Succeeded)
+                throw new InvalidOperationException(
+                    "WorldBuilder secret validation app session failed to enter Running: " +
+                    running.Failure + " " + running.Diagnostic);
+
+            Debug.Log(
+                "WorldBuilder secret validation app session running: " +
+                $"lifecycle={_sessionOrchestrator.Snapshot.Lifecycle} identity={identity}");
+        }
+
+        private void Update()
+        {
+            if (_sessionOrchestrator == null || !_commandsEnabled) return;
+            GameSessionOperationResult tick = _sessionOrchestrator.Tick(
+                Mathf.Max(0, Mathf.RoundToInt(Time.deltaTime * 1000f)));
+            if (!tick.Succeeded)
+                throw new InvalidOperationException(
+                    "WorldBuilder secret validation app session tick failed: " +
+                    tick.Failure + " " + tick.Diagnostic);
+        }
+
+        private void OnDisable()
+        {
+            if (_sessionOrchestrator != null)
+            {
+                GameSessionOperationResult shutdown = _sessionOrchestrator.Shutdown();
+                if (!shutdown.Succeeded)
+                    Debug.LogError(
+                        "WorldBuilder secret validation app session shutdown failed: " +
+                        shutdown.Failure + " " + shutdown.Diagnostic);
+            }
+            _sessionOrchestrator = null;
+        }
+
+        public ISessionRuntimeGraph Compose(GameSessionIdentity identity)
+        {
+            if (identity == null) throw new ArgumentNullException(nameof(identity));
+            if (_composed && !_disposed)
+                throw new SessionCompositionException(
+                    GameSessionFailure.CompositionFailed,
+                    "WorldBuilder SecretDiscovery validation already has a composed runtime graph.");
+            _composed = true;
+            _disposed = false;
+            return this;
+        }
+
+        public void InitializeNewGame()
+        {
+            if (!_composed || _disposed)
+                throw new InvalidOperationException("SecretDiscovery validation must be composed before initialization.");
 
             _world = new ShowcaseWorld(
                 m_Seed,
@@ -214,7 +308,7 @@ namespace Game.WorldBuilder.Validation
             _projection = projection;
             _caveEntrance = caveEntrance;
             _wallDestroyed = false;
-            _sequenceStart = Time.time;
+            _elapsedSeconds = 0f;
             PlaceSequencePose(0f);
 
             _ready = true;
@@ -228,20 +322,21 @@ namespace Game.WorldBuilder.Validation
                 $"barrier={projection.Pocket.Barrier.Min}->{projection.Pocket.Barrier.MaxExclusive}");
         }
 
-        private void Update()
+        public void StartCommands()
         {
-            if (!_ready || _world == null) return;
-
-            float elapsed = Time.time - _sequenceStart;
-            if (!_wallDestroyed && elapsed >= 16f)
-                DestroySecretWall();
-
-            PlaceSequencePose(elapsed);
-            _world.StepStreaming(transform.position, m_GenerateBudgetMs);
+            if (!_ready || _world == null)
+                throw new InvalidOperationException("SecretDiscovery validation cannot start before initialization.");
+            _commandsEnabled = true;
         }
 
-        private void OnDisable()
+        public void StopCommands() => _commandsEnabled = false;
+        public void SettleAuthoritativeState() { }
+        public void DetachExternalAdapters() { }
+
+        public void Dispose()
         {
+            if (_disposed) return;
+            _commandsEnabled = false;
             _ready = false;
             _wallDestroyed = false;
             VegetationComposition.ReplaceTreeWorld(Array.Empty<TreeInstance>());
@@ -252,6 +347,20 @@ namespace Game.WorldBuilder.Validation
             _world?.Dispose();
             _world = null;
             _trees.Clear();
+            _composed = false;
+            _disposed = true;
+        }
+
+        private void TickScenario(int elapsedMilliseconds)
+        {
+            if (!_commandsEnabled || !_ready || _world == null) return;
+            _elapsedSeconds += Mathf.Max(0, elapsedMilliseconds) / 1000f;
+
+            if (!_wallDestroyed && _elapsedSeconds >= 16f)
+                DestroySecretWall();
+
+            PlaceSequencePose(_elapsedSeconds);
+            _world.StepStreaming(transform.position, m_GenerateBudgetMs);
         }
 
         private void PreloadAround(int3 caveEntrance)
@@ -267,7 +376,6 @@ namespace Game.WorldBuilder.Validation
         {
             _trees.Clear();
 
-            // Baseline vegetation establishes local normality around the feature.
             for (int i = 0; i < 24; i++)
             {
                 float angle = i * (math.PI * 2f / 24f);
@@ -279,9 +387,6 @@ namespace Game.WorldBuilder.Validation
                     0.9f + (i % 4) * 0.08f);
             }
 
-            // The chosen natural motif is a controlled local deviation, not a global secret marker.
-            // In dense vegetation, two irregular banks with a narrow negative-space corridor produce
-            // a readable "why is this path opening here?" anomaly toward the cave entrance.
             if (naturalAnomaly.Motif == SecretClueMotifFamily.VegetationDiscontinuity ||
                 naturalAnomaly.Motif == SecretClueMotifFamily.SightlineGap)
             {
@@ -331,12 +436,6 @@ namespace Game.WorldBuilder.Validation
             return h ^ (h >> 16);
         }
 
-        /// <summary>
-        /// Drives a deterministic visual walkthrough of the production-authored cave. Each hold is
-        /// longer than the player harness capture interval so evidence includes the natural approach,
-        /// entrance, interior descent, clue-bearing false wall at two gameplay distances, breached
-        /// wall, and hidden pocket beyond it.
-        /// </summary>
         private void PlaceSequencePose(float elapsed)
         {
             CaveSecretPocket pocket = _projection.Pocket;
