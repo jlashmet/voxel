@@ -1,0 +1,17 @@
+{
+  "name": "Game.WorldObjects.Runtime",
+  "rootNamespace": "Game.WorldObjects.Runtime",
+  "references": [
+    "Game.WorldObjects.Api",
+    "Game.Characters.Api"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}

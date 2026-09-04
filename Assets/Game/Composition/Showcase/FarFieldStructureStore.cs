@@ -1,29 +1,33 @@
 using System.Collections.Generic;
 using Unity.Mathematics;
 using VoxelEngine.Storage.Api;
+using VoxelEngine.Structures.Api;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
 
 namespace VoxelEngine.Showcase
 {
     /// <summary>
-    /// A coarse, permanent record of authored world surfaces — the castle, Kentridge, terrain
-    /// sculpts, and other generated content — so they can be drawn at the same distance terrain is.
+    /// A coarse, permanent record of authored terrain deviations and anonymous voxel surfaces so
+    /// they can be drawn at the same distance as terrain. Known semantic features are deliberately
+    /// excluded when a <see cref="SemanticFeatures"/> source is bound: their renderer-neutral
+    /// presentation bakes own distant structure visibility instead of this sampled heightfield.
     ///
     /// <para><b>The problem this solves.</b> Terrain renders to the horizon because
     /// <see cref="TerrainSampler"/> is a pure function: any coordinate can be answered with no
-    /// storage. Authored content is not fully described by that function, and resident voxel
-    /// regions are too expensive to retain to the horizon.</para>
+    /// storage. Authored terrain deviations and arbitrary voxel forms are not fully described by
+    /// that function, and resident voxel regions are too expensive to retain to the horizon.</para>
     ///
-    /// <para><b>What this stores instead.</b> One coarse sample per 3.2 m column. Tall authored
-    /// surfaces retain the old positive silhouette record. Authored terrain that ends below the
+    /// <para><b>What this stores instead.</b> One coarse sample per 3.2 m column. Anonymous tall
+    /// authored surfaces retain a positive silhouette record. Authored terrain that ends below the
     /// analytic height field is recorded separately as a surface override, including the sampled
     /// material, so a gorge, cliff cut, moat, or water receiver is not filled back in or recolored
     /// by the fallback terrain proxy.</para>
     ///
-    /// <para>The trade is honest and deliberate: at range a structure becomes a silhouette with
+    /// <para>The trade is honest and deliberate: anonymous voxel content becomes a silhouette with
     /// no overhangs, no interior, and no destruction detail. Runtime destruction is intentionally
     /// not captured; this store is refreshed only at the world's existing authored-content capture
-    /// boundaries.</para>
+    /// boundaries. Known structures never need this fallback once semantic presentation metadata is
+    /// available, preventing double representation at near/far handoff.</para>
     /// </summary>
     public sealed class FarFieldStructureStore
     {
@@ -34,9 +38,9 @@ namespace VoxelEngine.Showcase
         public const int VoxelsPerColumn = ShowcaseWorld.RegionVoxelEdge / ColumnsPerRegion;
 
         /// <summary>
-        /// A column must rise this far above the analytic terrain before it counts as built
-        /// content. Terrain generation rounds and the coarse column takes a maximum, so a small
-        /// margin keeps ordinary ground from being recorded as structure everywhere.
+        /// A column must rise this far above the analytic terrain before it counts as anonymous
+        /// built content. Terrain generation rounds and the coarse column takes a maximum, so a
+        /// small margin keeps ordinary ground from being recorded as structure everywhere.
         /// </summary>
         public const int MinRiseVoxels = 24;
 
@@ -44,7 +48,14 @@ namespace VoxelEngine.Showcase
         private readonly Dictionary<int2, int[]> _authoredTerrain = new();
         private readonly Dictionary<int2, byte[]> _authoredTerrainMaterials = new();
 
-        /// <summary>Regions holding positive built-content silhouettes.</summary>
+        /// <summary>
+        /// Optional canonical semantic presentation source. Any column inside one of these known
+        /// feature footprints is excluded from the legacy positive silhouette cache. Lowered
+        /// authored terrain remains captured because terrain deviation is a separate responsibility.
+        /// </summary>
+        public IFeaturePresentationSource SemanticFeatures { get; set; }
+
+        /// <summary>Regions holding anonymous/non-semantic positive silhouettes.</summary>
         public int RecordedRegionCount => _columns.Count;
 
         /// <summary>Regions holding authored surfaces lower than the analytic terrain field.</summary>
@@ -52,14 +63,16 @@ namespace VoxelEngine.Showcase
 
         /// <summary>
         /// Bumped whenever recorded content changes. Consumers cache meshes built from this
-        /// data and would otherwise never show content that finished generating after their last
-        /// rebuild — the castle completes long after the rings first build.
+        /// data and would otherwise never show anonymous content that finished generating after
+        /// their last rebuild.
         /// </summary>
         public int Version { get; private set; }
 
         /// <summary>
-        /// Scans an authored region after its current generation stage and records both tall built
-        /// silhouettes and any surface that was deliberately sculpted below the analytic terrain.
+        /// Scans an authored region after its current generation stage and records both anonymous
+        /// tall surfaces and any surface that was deliberately sculpted below the analytic terrain.
+        /// Known semantic feature footprints are skipped for positive silhouettes because their
+        /// presentation bakes are renderer-neutral and independent of voxel residency.
         ///
         /// The caller already invokes this only at authored-content boundaries (terrain/features,
         /// then again when a landmark finishes). It is not a mutation listener, so ordinary player
@@ -71,6 +84,8 @@ namespace VoxelEngine.Showcase
                 return;
 
             int3 originVoxel = regionCoord * ShowcaseWorld.RegionVoxelEdge;
+            IReadOnlyList<FeaturePresentationBake> semanticFeatures =
+                QuerySemanticFeatures(regionCoord);
             int[] structureHeights = null;
             int[] loweredTerrain = null;
             byte[] loweredMaterials = null;
@@ -104,6 +119,11 @@ namespace VoxelEngine.Showcase
 
                 if (top - terrain < MinRiseVoxels) continue;
 
+                // A canonical feature already has deterministic, renderer-neutral far geometry.
+                // Retaining the same footprint here would make the terrain clipmap a second owner
+                // and produce double silhouettes or handoff pops when the semantic proxy is active.
+                if (IsSemanticColumn(voxelX, voxelZ, semanticFeatures)) continue;
+
                 structureHeights ??= NewColumnArray();
                 if (top > structureHeights[index]) structureHeights[index] = top;
             }
@@ -115,8 +135,9 @@ namespace VoxelEngine.Showcase
         }
 
         /// <summary>
-        /// Built-surface height in voxels at a world column, or <c>int.MinValue</c> where no
-        /// structure was recorded and the caller should use the terrain surface.
+        /// Anonymous built-surface height in voxels at a world column, or <c>int.MinValue</c> where
+        /// no fallback silhouette was recorded and the caller should use the terrain surface.
+        /// Known semantic structures are intentionally absent from this result.
         /// </summary>
         public int HeightAt(int worldVoxelX, int worldVoxelZ)
         {
@@ -168,6 +189,32 @@ namespace VoxelEngine.Showcase
             _authoredTerrain.Clear();
             _authoredTerrainMaterials.Clear();
             Version++;
+        }
+
+        private IReadOnlyList<FeaturePresentationBake> QuerySemanticFeatures(int3 regionCoord)
+        {
+            if (SemanticFeatures == null) return null;
+            int3 min = regionCoord * ShowcaseWorld.RegionVoxelEdge;
+            int3 max = min + new int3(ShowcaseWorld.RegionVoxelEdge);
+            return SemanticFeatures.Query(new FeaturePresentationBounds(min, max));
+        }
+
+        internal static bool IsSemanticColumn(
+            int worldVoxelX,
+            int worldVoxelZ,
+            IReadOnlyList<FeaturePresentationBake> semanticFeatures)
+        {
+            if (semanticFeatures == null) return false;
+            for (int i = 0; i < semanticFeatures.Count; i++)
+            {
+                FeaturePresentationBake feature = semanticFeatures[i];
+                if (worldVoxelX < feature.BoundsMin.x || worldVoxelX > feature.BoundsMax.x)
+                    continue;
+                if (worldVoxelZ < feature.BoundsMin.z || worldVoxelZ > feature.BoundsMax.z)
+                    continue;
+                return true;
+            }
+            return false;
         }
 
         private static int[] NewColumnArray() => new int[ColumnsPerRegion * ColumnsPerRegion];
