@@ -6,7 +6,7 @@
 
 ## API / cue model
 
-- [ ] **T22-001 — Inventory current gameplay VFX.** Find hit/death/interaction particles, scene-local prefab spawning, voxel debris, world-destruction effects and any gameplay code carrying prefab/VFX identities.
+- [x] **T22-001 — Inventory current gameplay VFX.** No gameplay ParticleSystem/prefab-spawn VFX module or gameplay contract carrying prefab/VFX identities exists on the assigned baseline. Canonical semantic sources are Vitality revision/defeat, sequenced WorldInteractionFact, Outcomes resolution identity and voxel AlterationEvent tick/player/sequence; no duplicate scene-local gameplay effect path requires migration.
 - [ ] **T22-002 — Establish asmdefs.** Vfx.Api contains no prefab/ParticleSystem/VFX Graph types; Runtime owns Unity asset mapping/pooling/spawn.
 - [ ] **T22-003 — Define semantic `VfxCueRef`.** Stable presentation cue identity independent of prefab/resource name.
 - [ ] **T22-004 — Define semantic origin/context.** CharacterId/WorldObjectId/world point/direction only where needed, plus stable one-shot identity for dedupe.
