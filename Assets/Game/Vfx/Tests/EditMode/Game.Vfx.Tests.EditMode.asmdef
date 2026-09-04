@@ -8,6 +8,7 @@
     "Game.WorldObjects.Api",
     "Game.Vitality.Api",
     "Game.Vitality.Runtime",
+    "Game.Outcomes.Api",
     "VoxelEngine.Edits.Api",
     "Unity.Mathematics"
   ],
