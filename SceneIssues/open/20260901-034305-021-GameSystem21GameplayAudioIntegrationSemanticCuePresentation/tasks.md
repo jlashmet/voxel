@@ -19,18 +19,18 @@
 - [x] **T21-013 — Resolve semantic origins to presentation transforms.** Runtime resolver handles global/world-point origins and degrades unavailable presentation bindings without affecting authority.
 - [x] **T21-014 — Implement one-shot dedupe.** Stable event ids suppress predicted+authoritative duplicate playback.
 - [x] **T21-015 — Reconstruct sustained audio from current state.** Idempotent reconciliation starts/stops only current sustained descriptors.
-- [ ] **T21-016 — Bind user volume/preferences.** BLOCKED: system 23 `IUserPreferencesStore`/audio preference seam is still absent on current master; do not invent settings authority in Audio.
+- [ ] **T21-016 — Bind user volume/preferences.** BLOCKED: system 23 `IUserPreferencesStore`/audio preference seam is still absent on current master `aa61895f28d70f35c67d07db6a4fa93beee635eb`; do not invent settings authority in Audio.
 - [x] **T21-017 — Remove scene-local substitute playback where production semantic cue exists.** Kentridge's previous no-op cutscene sound handoff now delegates to its single Audio presentation owner; no duplicate indexed legacy AudioSources were found.
 
 ## Verification
-- [ ] **T21-020 — Cue mapping tests.** Known/unknown cue behavior, configuration validation and semantic origin mapping.
-- [ ] **T21-021 — Dedupe/prediction test.** Local anticipation + authoritative event results in one audible semantic effect.
-- [ ] **T21-022 — Reconnect test.** Sustained state reconstructs; historical damage/interaction/cutscene one-shots do not replay.
-- [ ] **T21-023 — Cutscene/gameplay shared-service test.** Both paths map/play through one Audio runtime without duplicate ownership.
-- [ ] **T21-024 — Headless regression.** Gameplay/session tests pass with Audio absent/uninitialized.
-- [ ] **T21-025 — Module-local built-player audible validation through shared harness.** Assert semantic cue diagnostics/milestones rather than fragile timing-only sleeps.
+- [x] **T21-020 — Cue mapping tests.** Exact run `33882411311` passed all 6 `Game.Audio.Tests.EditMode` tests, including known/unknown configuration and semantic origin behavior.
+- [x] **T21-021 — Dedupe/prediction test.** Exact requested regression passed 1/1; Audio player logged `predicted=Played confirmed=DuplicateSuppressed playedEvents=1`.
+- [x] **T21-022 — Reconnect test.** Exact Audio player logged one current ambience loop after repeated reconciliation and `historicalOneShotsReplayed=0`, then cleanly stopped the loop.
+- [x] **T21-023 — Cutscene/gameplay shared-service test.** EditMode suite passed and module/production players exercised the shared runtime; production Kentridge logged `door.open semantic=world.door.opened status=Played`.
+- [x] **T21-024 — Headless regression.** Exact `Game.Audio.Tests.EditMode` passed 6/6 including authoritative Vitality behavior with Audio absent; Kentridge composition tests passed 3/3 and playable-slice EditMode passed 1/1.
+- [x] **T21-025 — Module-local built-player audible validation through shared harness.** Exact Audio player ran 10s and emitted every required semantic milestone with four durable captures; Kentridge module player and canonical Kentridge integration also passed.
 
 ## Cleanup / close
 - [x] **T21-030 — Search gameplay APIs for clip/playback identity.** Current-master audit found no pre-existing `AudioClip`/`AudioSource` gameplay API ownership; feature diff confines Unity clip/source types to `Game.Audio.Runtime`/validation.
 - [x] **T21-031 — Search scene-local AudioSources for duplicate semantic playback.** Current-master audit found no indexed legacy `AudioSource`; production Kentridge now has one shared Audio owner for cutscene/gameplay semantics.
-- [ ] **T21-032 — Close with isolation proof.** Disabling Audio changes presentation only; authoritative gameplay state/results are identical.
+- [ ] **T21-032 — Close with isolation proof.** Exact isolation evidence is green, but closure remains blocked until T21-016 can bind the real system 23 preference seam and the resulting head is revalidated.
