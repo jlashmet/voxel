@@ -15,10 +15,10 @@ namespace VoxelEngine.Showcase.Tests.EditMode
         private const uint Seed = 0x5EED1234;
         private const float CollisionBoundaryEpsilon = 1e-4f;
 
-        // Exact current-source standalone runs repeatedly hard-stop here while grounded, targeting
-        // resolved-89 at (-108.0, 28.0) metres X/Z. Run 33859073259 proved the earlier nominal-feet
-        // overlap was road material 13; post-merge run 33868687506 still stops at the same place, so
-        // the next discriminator reproduces the actual raised negative-X step probe before any fix.
+        // Exact current-source standalone runs repeatedly hard-stopped here while grounded, targeting
+        // resolved-89 at (-108.0, 28.0) metres X/Z. Run 33874459381 proved that the raised negative-X
+        // probe's enclosing square AABB contained two material-13 road cells in its far diagonal corner,
+        // even though that corner lies outside the intended 0.3m capsule footprint.
         private static readonly Vector3 StallFeet = new Vector3(-104.590f, 45.600f, 28.000f);
 
         [Test]
@@ -57,7 +57,7 @@ namespace VoxelEngine.Showcase.Tests.EditMode
         }
 
         [Test]
-        public void UpperApproachRaisedNegativeXSweepSerializesProductionBlocker()
+        public void UpperApproachRaisedNegativeXSweepIgnoresAabbCornerOutsideCapsule()
         {
             using var world = CreateRealizedWorld();
 
@@ -122,17 +122,15 @@ namespace VoxelEngine.Showcase.Tests.EditMode
             }
 
             Debug.Log(
-                "MOUNTAIN_DRAGON_RAISED_X_BLOCKER="
+                "MOUNTAIN_DRAGON_RAISED_X_CAPSULE="
                 + $"feet={raisedX.x:0.000000},{raisedX.y:0.000000},{raisedX.z:0.000000} "
                 + $"radius={radius:0.000} bounds=[{minX},{minY},{minZ}..{maxX},{maxY},{maxZ}] "
-                + $"blocked={productionBlocked} occupied={occupiedCount} "
+                + $"blocked={productionBlocked} rawAabbOccupied={occupiedCount} "
                 + $"occupiedY={lowestOccupiedY}..{highestOccupiedY} cells=[{occupied}] "
                 + $"surfaceY={minSurfaceY}..{maxSurfaceY} footprint=[{footprint}]");
 
-            Assert.That(productionBlocked, Is.True,
-                "The diagnostic must reproduce the exact production raised negative-X blocker before another correction.");
-            Assert.That(occupiedCount, Is.GreaterThan(0),
-                "The production block must have at least one authoritative voxel inside the exact collision bounds.");
+            Assert.That(productionBlocked, Is.False,
+                "The raised negative-X step probe must ignore solid voxels that exist only in the enclosing AABB corner outside the capsule footprint.");
         }
 
         [Test]
