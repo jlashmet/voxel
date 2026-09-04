@@ -7,6 +7,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using VoxelEngine.Collision.Api;
+using VoxelEngine.Rendering.Runtime;
 
 namespace VoxelEngine.Showcase
 {
@@ -22,10 +23,12 @@ namespace VoxelEngine.Showcase
         private const string IssueId = "20260830-164351-000-WorldBuilderSecretDiscoveryClueGeneration";
         private const string SceneIssueArgument = "-voxel-scene-issue";
         private const string ScreenshotDirectoryArgument = "-voxel-screenshot-dir";
+        private const float BreakableRendererConvergenceTimeoutSeconds = 10f;
 
         private Transform _cameraTransform;
         private CharacterMotor _motor;
         private bool _pinCamera;
+        private bool _rendererConvergenceFailed;
         private Vector3 _pinnedPosition;
         private Quaternion _pinnedRotation;
 
@@ -142,7 +145,8 @@ namespace VoxelEngine.Showcase
                 breakablePosition,
                 breakableTarget,
                 Path.Combine(directory, "02-authored-breakable-boundary.png"),
-                "authored-breakable-boundary");
+                "authored-breakable-boundary",
+                requireSolidRendererConvergence: true);
 
             // The deterministic moss trail spans entrance.z-12 through entrance.z-64. The helper
             // camera sits at entrance.z-72, so +3.2 m targets the trail midpoint (entrance.z-40)
@@ -161,7 +165,8 @@ namespace VoxelEngine.Showcase
                 naturalPosition,
                 naturalTarget,
                 Path.Combine(directory, "01-natural-cave-approach.png"),
-                "natural-cave-approach");
+                "natural-cave-approach",
+                requireSolidRendererConvergence: false);
 
             if (cameraComponent != null) cameraComponent.fieldOfView = originalFieldOfView;
             _pinCamera = false;
@@ -182,7 +187,8 @@ namespace VoxelEngine.Showcase
             float3 authoredPosition,
             float3 authoredTarget,
             string path,
-            string label)
+            string label,
+            bool requireSolidRendererConvergence)
         {
             _pinnedPosition = new Vector3(authoredPosition.x, authoredPosition.y, authoredPosition.z);
             Vector3 target = new Vector3(authoredTarget.x, authoredTarget.y, authoredTarget.z);
@@ -194,11 +200,91 @@ namespace VoxelEngine.Showcase
 
             world.GenerateRegionBlocking(ShowcaseWorld.RegionAt(authoredPosition));
             yield return null;
-            yield return new WaitForSecondsRealtime(1.25f);
+            if (requireSolidRendererConvergence)
+            {
+                yield return WaitForSolidRendererConvergence(label);
+                if (_rendererConvergenceFailed) yield break;
+            }
+            else
+            {
+                yield return new WaitForSecondsRealtime(1.25f);
+            }
+
             yield return new WaitForEndOfFrame();
             ScreenCapture.CaptureScreenshot(path);
             UnityEngine.Debug.Log($"SECRET_DISCOVERY_ACCEPTANCE frame={label} position={_pinnedPosition} target={target}");
             yield return new WaitForSecondsRealtime(0.45f);
+        }
+
+        /// <summary>
+        /// The Gallery player can finish its blocking bake/bootstrap before URP has built the
+        /// camera's visible solid chunks. Capturing an underground clue during that cold interval
+        /// photographs the world underside even though authoritative cave voxels are correct. For
+        /// SceneIssue/offline evidence only, spend a larger share of the existing renderer budgets
+        /// and wait for the production surface metrics to report no missing visible solid chunks.
+        /// No geometry, camera placement, storage state or renderer implementation is substituted.
+        /// </summary>
+        private IEnumerator WaitForSolidRendererConvergence(string label)
+        {
+            double originalBuildBudgetMs = VoxelRenderBridge.SolidBuildBudgetMs;
+            int originalUploadBudgetBytes = VoxelRenderBridge.SolidUploadBudgetBytes;
+            double originalUploadBudgetMs = VoxelRenderBridge.SolidUploadBudgetMs;
+            double originalDiscoveryBudgetMs = VoxelRenderBridge.SurfaceDiscoveryBudgetMs;
+            double originalConvergenceScale = VoxelRenderBridge.SurfaceConvergenceBudgetScale;
+            int initialPassCount = VoxelRenderBridge.SurfacePassRecordCount;
+            float waited = 0f;
+            int stableFrames = 0;
+            _rendererConvergenceFailed = false;
+
+            try
+            {
+                // VoxelRenderBridge explicitly reserves these knobs for loading/offline capture
+                // convergence. Raise only the validation replay's spend; production defaults are
+                // restored in finally even when convergence times out.
+                VoxelRenderBridge.SolidBuildBudgetMs = Math.Max(originalBuildBudgetMs, 2.0);
+                VoxelRenderBridge.SolidUploadBudgetBytes = Math.Max(originalUploadBudgetBytes, 8 * 1024 * 1024);
+                VoxelRenderBridge.SolidUploadBudgetMs = Math.Max(originalUploadBudgetMs, 1.0);
+                VoxelRenderBridge.SurfaceDiscoveryBudgetMs = Math.Max(originalDiscoveryBudgetMs, 0.75);
+                VoxelRenderBridge.SurfaceConvergenceBudgetScale = Math.Max(originalConvergenceScale, 16.0);
+
+                while (waited < BreakableRendererConvergenceTimeoutSeconds)
+                {
+                    yield return null;
+                    waited += Time.unscaledDeltaTime;
+
+                    var metrics = VoxelRenderBridge.SurfaceMetrics;
+                    bool renderedAfterPin = VoxelRenderBridge.SurfacePassRecordCount > initialPassCount;
+                    bool completeVisibleSurface = renderedAfterPin
+                        && metrics.VisibleSolidChunks > 0
+                        && metrics.MissingVisibleSolidChunks == 0;
+                    stableFrames = completeVisibleSurface ? stableFrames + 1 : 0;
+                    if (stableFrames < 2) continue;
+
+                    UnityEngine.Debug.Log(
+                        $"SECRET_DISCOVERY_RENDER_CONVERGENCE result=PASS frame={label} " +
+                        $"waited={waited:0.###} visible={metrics.VisibleSolidChunks} " +
+                        $"missing={metrics.MissingVisibleSolidChunks} dirty={metrics.SolidDirtyChunks} " +
+                        $"running={metrics.RunningGeometryJobs} pendingUploads={metrics.SolidMeshesAwaitingUpload}");
+                    yield break;
+                }
+
+                var finalMetrics = VoxelRenderBridge.SurfaceMetrics;
+                _rendererConvergenceFailed = true;
+                UnityEngine.Debug.LogError(
+                    $"SECRET_DISCOVERY_RENDER_CONVERGENCE result=FAIL frame={label} " +
+                    $"waited={waited:0.###} passes={VoxelRenderBridge.SurfacePassRecordCount - initialPassCount} " +
+                    $"visible={finalMetrics.VisibleSolidChunks} missing={finalMetrics.MissingVisibleSolidChunks} " +
+                    $"dirty={finalMetrics.SolidDirtyChunks} running={finalMetrics.RunningGeometryJobs} " +
+                    $"pendingUploads={finalMetrics.SolidMeshesAwaitingUpload}");
+            }
+            finally
+            {
+                VoxelRenderBridge.SolidBuildBudgetMs = originalBuildBudgetMs;
+                VoxelRenderBridge.SolidUploadBudgetBytes = originalUploadBudgetBytes;
+                VoxelRenderBridge.SolidUploadBudgetMs = originalUploadBudgetMs;
+                VoxelRenderBridge.SurfaceDiscoveryBudgetMs = originalDiscoveryBudgetMs;
+                VoxelRenderBridge.SurfaceConvergenceBudgetScale = originalConvergenceScale;
+            }
         }
 
         private static void RequireMinimumFramingDistance(
