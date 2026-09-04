@@ -11,8 +11,9 @@ namespace Game.Kentridge.PlayableSlice
     /// <summary>
     /// Validation-profile-only observation of GPU mirror coverage demand. It distinguishes pending
     /// blocks that still belong to a live requested footprint from stale recovery backlog left by a
-    /// released footprint. The diagnostic never mutates renderer state and samples at a low cadence
-    /// so the SceneIssue replay can discriminate capacity pressure from stale-work starvation.
+    /// released footprint, and reports mirror residency/capacity so a dense relocation can separate
+    /// true slot saturation from recovery-throughput or bookkeeping failures. The diagnostic never
+    /// mutates renderer state and samples at a low cadence.
     /// </summary>
     [DefaultExecutionOrder(21000)]
     internal sealed class KentridgeGpuMirrorDemandDiagnostic : MonoBehaviour
@@ -30,8 +31,10 @@ namespace Game.Kentridge.PlayableSlice
         private FieldInfo _demandFootprintsField;
         private FieldInfo _pendingBlocksField;
         private FieldInfo _readyBlocksField;
+        private FieldInfo _mixedReadyBlocksField;
         private FieldInfo _activeFootprintsField;
         private FieldInfo _activeExtractionCountField;
+        private FieldInfo _mirrorField;
         private float _nextSampleSeconds;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -59,13 +62,17 @@ namespace Game.Kentridge.PlayableSlice
             _demandFootprintsField = _coordinatorType.GetField("s_DemandFootprints", StaticPrivate);
             _pendingBlocksField = _coordinatorType.GetField("s_PendingBlocks", StaticPrivate);
             _readyBlocksField = _coordinatorType.GetField("s_ReadyBlocks", StaticPrivate);
+            _mixedReadyBlocksField = _coordinatorType.GetField("s_MixedReadyBlocks", StaticPrivate);
             _activeFootprintsField = _coordinatorType.GetField("s_ActiveFootprints", StaticPrivate);
             _activeExtractionCountField = _coordinatorType.GetField("s_ActiveExtractionCount", StaticPrivate);
+            _mirrorField = _coordinatorType.GetField("s_Mirror", StaticPrivate);
             if (_demandFootprintsField == null
                 || _pendingBlocksField == null
                 || _readyBlocksField == null
+                || _mixedReadyBlocksField == null
                 || _activeFootprintsField == null
-                || _activeExtractionCountField == null)
+                || _activeExtractionCountField == null
+                || _mirrorField == null)
             {
                 Debug.LogError("GPU_MIRROR_DEMAND_DIAG unavailable: coordinator-fields-missing");
                 enabled = false;
@@ -87,9 +94,12 @@ namespace Game.Kentridge.PlayableSlice
             object demands = _demandFootprintsField.GetValue(null);
             object pending = _pendingBlocksField.GetValue(null);
             object ready = _readyBlocksField.GetValue(null);
+            object mixedReady = _mixedReadyBlocksField.GetValue(null);
             object active = _activeFootprintsField.GetValue(null);
             if (!(demands is IEnumerable demandEnumerable)
-                || !(pending is IEnumerable pendingEnumerable))
+                || !(pending is IEnumerable pendingEnumerable)
+                || !(ready is IEnumerable readyEnumerable)
+                || !(mixedReady is IEnumerable mixedReadyEnumerable))
             {
                 Debug.LogError("GPU_MIRROR_DEMAND_DIAG unavailable: coordinator-collections-missing");
                 return;
@@ -131,15 +141,43 @@ namespace Game.Kentridge.PlayableSlice
                 if (liveDemand.Contains(block)) pendingLive++;
             }
 
+            int readyLive = 0;
+            foreach (object boxed in readyEnumerable)
+            {
+                if (boxed is int3 block && liveDemand.Contains(block)) readyLive++;
+            }
+
+            int mixedReadyCount = 0;
+            int mixedReadyLive = 0;
+            foreach (object boxed in mixedReadyEnumerable)
+            {
+                if (!(boxed is int3 block)) continue;
+                mixedReadyCount++;
+                if (liveDemand.Contains(block)) mixedReadyLive++;
+            }
+
             int pendingStale = pendingCount - pendingLive;
-            int readyCount = CollectionCount(ready);
             int activeFootprints = CollectionCount(active);
             int activeExtractions = (int)_activeExtractionCountField.GetValue(null);
+            object mirror = _mirrorField.GetValue(null);
+            int mirrorSlots = IntProperty(mirror, "SlotCapacity");
+            int mirrorMixedResident = IntProperty(mirror, "ResidentBricks");
+            int mirrorPinned = PinnedCount(mirror);
+            ulong mirrorRefused = UlongProperty(mirror, "RefusedNoSlot");
+            ulong mirrorEvictions = UlongProperty(mirror, "Evictions");
+            ulong directoryRefusals = UlongProperty(mirror, "DirectoryRefusals");
+
             Debug.Log(
                 "GPU_MIRROR_DEMAND_DIAG " +
                 $"demandFootprints={demandFootprints} demandRefs={demandReferences} " +
                 $"demandUnique={liveDemand.Count} pending={pendingCount} " +
-                $"pendingLive={pendingLive} pendingStale={pendingStale} ready={readyCount} " +
+                $"pendingLive={pendingLive} pendingStale={pendingStale} " +
+                $"ready={CollectionCount(ready)} readyLive={readyLive} " +
+                $"mixedReady={mixedReadyCount} mixedReadyLive={mixedReadyLive} " +
+                $"mixedReadyInactive={mixedReadyCount - mixedReadyLive} " +
+                $"mirrorSlots={mirrorSlots} mirrorMixedResident={mirrorMixedResident} " +
+                $"mirrorPinned={mirrorPinned} mirrorRefused={mirrorRefused} " +
+                $"mirrorEvictions={mirrorEvictions} directoryRefusals={directoryRefusals} " +
                 $"activeFootprints={activeFootprints} activeExtractions={activeExtractions}");
         }
 
@@ -148,6 +186,28 @@ namespace Game.Kentridge.PlayableSlice
             if (collection == null) return -1;
             PropertyInfo count = collection.GetType().GetProperty("Count", InstanceAny);
             return count != null && count.GetValue(collection) is int value ? value : -1;
+        }
+
+        private static int IntProperty(object target, string name)
+        {
+            if (target == null) return -1;
+            PropertyInfo property = target.GetType().GetProperty(name, InstanceAny);
+            return property != null && property.GetValue(target) is int value ? value : -1;
+        }
+
+        private static ulong UlongProperty(object target, string name)
+        {
+            if (target == null) return 0UL;
+            PropertyInfo property = target.GetType().GetProperty(name, InstanceAny);
+            return property != null && property.GetValue(target) is ulong value ? value : 0UL;
+        }
+
+        private static int PinnedCount(object mirror)
+        {
+            if (mirror == null) return -1;
+            FieldInfo slotsField = mirror.GetType().GetField("_slots", InstanceAny);
+            object slots = slotsField?.GetValue(mirror);
+            return IntProperty(slots, "PinnedCount");
         }
 
         private static Type FindCoordinatorType()
