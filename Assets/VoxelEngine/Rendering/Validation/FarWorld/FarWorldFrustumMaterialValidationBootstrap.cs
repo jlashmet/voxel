@@ -1,3 +1,4 @@
+using System;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -16,6 +17,8 @@ namespace VoxelEngine.Rendering.Validation
     {
         private const string ValidationSceneName = "FarWorldVisibilityDemo";
         private const byte StoneMaterialIndex = 2;
+        private const string FarFeatureShaderResource = "ProceduralFarFeature";
+        private const string FarFeatureShaderName = "Voxel/ProceduralFarFeature";
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Install()
@@ -23,6 +26,12 @@ namespace VoxelEngine.Rendering.Validation
             Scene scene = SceneManager.GetActiveScene();
             if (!scene.IsValid() || scene.name != ValidationSceneName)
                 return;
+
+            Shader shader = Resources.Load<Shader>(FarFeatureShaderResource);
+            if (shader == null || !shader.isSupported || shader.name != FarFeatureShaderName)
+                throw new InvalidOperationException(
+                    $"Far-world validation requires supported shader '{FarFeatureShaderName}', resolved '{shader?.name ?? "<missing>"}'.");
+            Debug.Log($"FARWORLD_FRUSTUM_SHADER ready: name={shader.name}, supported={shader.isSupported}.");
 
             VoxelMaterialPresentationInstaller.Apply(new[]
             {
