@@ -115,7 +115,7 @@ namespace Game.Structures.Validation
             uint before = _knightSeed;
             uint changedSeed = FindDifferentSeed(
                 knight.Kind,
-                knight.PreferredRooms,
+                knight.MinimumRooms,
                 before,
                 in baseline);
             _knightSeed = changedSeed;
@@ -150,7 +150,7 @@ namespace Game.Structures.Validation
                 new int3(0, 16, 0),
                 HouseWidth,
                 HouseDepth,
-                house.PreferredRooms);
+                house.MinimumRooms);
             if (!_prototype.IsWellFormed)
                 Fail($"production prototype failed for {house.Key}");
 
