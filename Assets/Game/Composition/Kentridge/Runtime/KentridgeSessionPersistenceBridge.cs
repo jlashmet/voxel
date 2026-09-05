@@ -42,7 +42,7 @@ namespace Game.Composition.Kentridge.Runtime
 
             KentridgeSessionRuntimeGraph kentridge = RequireGraph(graph);
             CampaignProgressContributor contributor =
-                new CampaignProgressContributor(kentridge.Session.Runtime);
+                new CampaignProgressContributor(kentridge.Session.Blueprint, kentridge.Session.Runtime);
             SessionPersistenceService service = CreateService(kentridge, contributor);
             SessionPersistenceResult result = service.Restore(new SessionRestoreRequest(
                 new SessionSaveId(restoreSourceId),
@@ -61,7 +61,7 @@ namespace Game.Composition.Kentridge.Runtime
             kentridge.SettleAuthoritativeState();
 
             CampaignProgressContributor contributor =
-                new CampaignProgressContributor(kentridge.Session.Runtime);
+                new CampaignProgressContributor(kentridge.Session.Blueprint, kentridge.Session.Runtime);
             SessionPersistenceService service = CreateService(kentridge, contributor);
             SessionPersistenceResult result = service.CaptureAndSave(new SessionCaptureRequest(
                 new SessionSaveId(identity.SessionId),
@@ -172,10 +172,14 @@ namespace Game.Composition.Kentridge.Runtime
         {
             private const string CampaignSectionId = "campaign.progress";
             private const string CampaignSemanticType = "CampaignProgress";
+            private readonly CampaignBlueprint _blueprint;
             private readonly CampaignRuntime _runtime;
 
-            public CampaignProgressContributor(CampaignRuntime runtime) =>
+            public CampaignProgressContributor(CampaignBlueprint blueprint, CampaignRuntime runtime)
+            {
+                _blueprint = blueprint ?? throw new ArgumentNullException(nameof(blueprint));
                 _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
+            }
 
             public string SectionId => CampaignSectionId;
             public int SchemaVersion => CampaignProgressCodec.SchemaVersion;
@@ -210,7 +214,7 @@ namespace Game.Composition.Kentridge.Runtime
                     return SessionContributorResult.Reject("Campaign progress schema is unsupported.");
                 try
                 {
-                    CampaignProgressCodec.Decode(section.CopyPayload());
+                    CampaignProgressCodec.Decode(section.CopyPayload(), ResolveCutscene);
                     return SessionContributorResult.Success();
                 }
                 catch (Exception exception)
@@ -223,13 +227,29 @@ namespace Game.Composition.Kentridge.Runtime
             {
                 try
                 {
-                    _runtime.RestoreProgress(CampaignProgressCodec.Decode(section.CopyPayload()));
+                    _runtime.RestoreProgress(
+                        CampaignProgressCodec.Decode(section.CopyPayload(), ResolveCutscene));
                     return SessionContributorResult.Success();
                 }
                 catch (Exception exception)
                 {
                     return SessionContributorResult.Reject(exception.Message);
                 }
+            }
+
+            private CutsceneRef ResolveCutscene(string id)
+            {
+                if (string.IsNullOrWhiteSpace(id))
+                    throw new InvalidDataException(
+                        "Campaign progress contains an empty completed cutscene id.");
+                for (int i = 0; i < _blueprint.Cutscenes.Count; i++)
+                {
+                    CutsceneSpec cutscene = _blueprint.Cutscenes[i];
+                    if (string.Equals(cutscene.Ref.Id, id, StringComparison.Ordinal))
+                        return cutscene.Ref;
+                }
+                throw new InvalidDataException(
+                    "Campaign progress references unknown authored cutscene '" + id + "'.");
             }
         }
     }
@@ -256,13 +276,16 @@ namespace Game.Composition.Kentridge.Runtime
             }
         }
 
-        public static CampaignProgressSnapshot Decode(byte[] payload)
+        public static CampaignProgressSnapshot Decode(
+            byte[] payload,
+            Func<string, CutsceneRef> cutsceneResolver)
         {
             if (payload == null) throw new ArgumentNullException(nameof(payload));
+            if (cutsceneResolver == null) throw new ArgumentNullException(nameof(cutsceneResolver));
             using (var stream = new MemoryStream(payload, false))
             using (var reader = new BinaryReader(stream, Encoding.UTF8, true))
             {
-                CutsceneRef[] cutscenes = ReadCutscenes(reader);
+                CutsceneRef[] cutscenes = ReadCutscenes(reader, cutsceneResolver);
                 string[] members = ReadStrings(reader, "joined party members");
                 string[] spells = ReadStrings(reader, "granted spells");
                 ProgressionSnapshot progression = reader.ReadBoolean()
@@ -282,11 +305,14 @@ namespace Game.Composition.Kentridge.Runtime
             for (int i = 0; i < values.Count; i++) writer.Write(values[i].Id);
         }
 
-        private static CutsceneRef[] ReadCutscenes(BinaryReader reader)
+        private static CutsceneRef[] ReadCutscenes(
+            BinaryReader reader,
+            Func<string, CutsceneRef> cutsceneResolver)
         {
             int count = ReadCount(reader, "completed cutscenes");
             var values = new CutsceneRef[count];
-            for (int i = 0; i < count; i++) values[i] = new CutsceneRef(reader.ReadString());
+            for (int i = 0; i < count; i++)
+                values[i] = cutsceneResolver(reader.ReadString());
             return values;
         }
 
