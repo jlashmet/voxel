@@ -25,6 +25,6 @@
 4. Prove contention/conservation, vitality, progression, interruption/reconnect, explicit leave, capacity/JIP/repeated reconnect, and persisted rehost on the exact built SHA.
 5. Run repository-selected final exact-SHA validation, inspect durable artifacts, complete closure fields/move, merge latest master, then PR + auto-merge and required `affected` gate.
 
-**Current branch:** exact candidate SHA is the commit containing this locked plan state plus T25-009. Create the CI transport request from this branch head now and make no further feature-branch commits until that request completes.
+**Current branch:** this commit freezes the pre-CI state. The CI request must use this exact branch head as its sole parent; do not modify the feature branch until that request completes.
 
 **Blast radius / cost:** validation tooling/workflows plus Kentridge validation composition only; production authority remains untouched. Smoke is authority + two clients; expensive cases stay in release targets.
