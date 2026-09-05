@@ -83,15 +83,66 @@ def choose_merge_flag(settings: dict[str, Any]) -> str:
     raise core.ManagerError("repository reports no supported pull-request merge method")
 
 
+def _repository_merge_flag(root: Path, repository: str) -> str:
+    settings_text = _run(root, ["gh", "api", f"repos/{repository}"])
+    try:
+        return choose_merge_flag(json.loads(settings_text))
+    except json.JSONDecodeError as exc:
+        raise core.ManagerError(f"could not parse repository merge settings: {exc}") from exc
+
+
+def _enable_auto_merge(root: Path, repository: str, pr_url: str, merge_flag: str) -> tuple[bool, str]:
+    p = subprocess.run(
+        ["gh", "pr", "merge", pr_url, "--repo", repository, "--auto", merge_flag],
+        cwd=root, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    )
+    return p.returncode == 0, p.stderr.strip()
+
+
 def _create_commit(root: Path, paths: list[Path], parent: str, message: str) -> str:
     with tempfile.TemporaryDirectory(prefix="astra-manager-index-") as tmp:
         index = str(Path(tmp) / "index")
-        env = {"GIT_INDEX_FILE": index}
+        env = {
+            "GIT_INDEX_FILE": index,
+            "GIT_AUTHOR_NAME": "Astra Manager",
+            "GIT_AUTHOR_EMAIL": "astra-manager@local",
+            "GIT_COMMITTER_NAME": "Astra Manager",
+            "GIT_COMMITTER_EMAIL": "astra-manager@local",
+        }
         _run(root, ["git", "read-tree", parent], env=env)
         rels = [str(path.relative_to(root)) for path in paths]
         _run(root, ["git", "add", "--", *rels], env=env)
         tree = _run(root, ["git", "write-tree"], env=env)
-        return _run(root, ["git", "commit-tree", tree, "-p", parent, "-m", message])
+        return _run(root, ["git", "commit-tree", tree, "-p", parent, "-m", message], env=env)
+
+
+def _retry_pending_auto_merge(
+    root: Path,
+    runtime: Path,
+    repository: str,
+    published: dict[str, Any],
+    live_ids: set[str],
+) -> None:
+    pending_by_pr: dict[str, dict[str, Any]] = {}
+    for issue_id, record in published.items():
+        if issue_id in live_ids and not record.get("autoMergeEnabled") and record.get("pr"):
+            pending_by_pr[str(record["pr"])] = record
+    if not pending_by_pr:
+        return
+
+    merge_flag = _repository_merge_flag(root, repository)
+    failures = []
+    for pr_url in pending_by_pr:
+        ok, error = _enable_auto_merge(root, repository, pr_url, merge_flag)
+        for issue_id, record in published.items():
+            if record.get("pr") == pr_url:
+                record["autoMergeEnabled"] = ok
+                record["autoMergeError"] = "" if ok else error
+        if not ok:
+            failures.append(f"{pr_url}: {error}")
+    save_published(root, runtime, published)
+    if failures:
+        raise core.ManagerError("could not enable auto-merge for existing manager follow-up PR(s): " + "; ".join(failures))
 
 
 def publish(root: Path, runtime: Path, repository: str) -> dict[str, Any]:
@@ -100,10 +151,13 @@ def publish(root: Path, runtime: Path, repository: str) -> dict[str, Any]:
 
     core.fetch(root)
     all_followups = untracked_followups(root)
+    live_ids = {path.name for path in all_followups}
     published = load_published(root, runtime)
+    _retry_pending_auto_merge(root, runtime, repository, published, live_ids)
+
     fresh = [path for path in all_followups if path.name not in published]
     if not fresh:
-        return {"published": [], "alreadyPublished": [path.name for path in all_followups]}
+        return {"published": [], "alreadyPublished": sorted(live_ids)}
 
     parent = core.git(root, "rev-parse", "origin/master")
     stamp = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
@@ -123,34 +177,30 @@ def publish(root: Path, runtime: Path, repository: str) -> dict[str, Any]:
         ["gh", "pr", "create", "--repo", repository, "--base", "master", "--head", branch, "--title", title, "--body", body],
     ).splitlines()[-1]
 
-    settings_text = _run(root, ["gh", "api", f"repos/{repository}"])
-    try:
-        merge_flag = choose_merge_flag(json.loads(settings_text))
-    except json.JSONDecodeError as exc:
-        raise core.ManagerError(f"could not parse repository merge settings: {exc}") from exc
-
-    auto = subprocess.run(
-        ["gh", "pr", "merge", pr_url, "--repo", repository, "--auto", merge_flag],
-        cwd=root, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-    )
-
+    # Record the PR before attempting auto-merge so a transient failure/crash is retry-safe
+    # and can never create a duplicate publication PR on the next invocation.
     record = {
         "branch": branch,
         "commit": commit,
         "parentMasterSha": parent,
         "pr": pr_url,
         "publishedUtc": core.iso(stamp),
-        "autoMergeEnabled": auto.returncode == 0,
-        "autoMergeError": auto.stderr.strip() if auto.returncode else "",
+        "autoMergeEnabled": False,
+        "autoMergeError": "not attempted",
     }
     for issue_id in issue_ids:
         published[issue_id] = dict(record)
     save_published(root, runtime, published)
 
-    if auto.returncode:
-        raise core.ManagerError(
-            f"follow-up PR was created at {pr_url}, but auto-merge could not be enabled: {auto.stderr.strip()}"
-        )
+    merge_flag = _repository_merge_flag(root, repository)
+    ok, error = _enable_auto_merge(root, repository, pr_url, merge_flag)
+    for issue_id in issue_ids:
+        published[issue_id]["autoMergeEnabled"] = ok
+        published[issue_id]["autoMergeError"] = "" if ok else error
+    save_published(root, runtime, published)
+
+    if not ok:
+        raise core.ManagerError(f"follow-up PR was created at {pr_url}, but auto-merge could not be enabled: {error}")
     return {"published": issue_ids, "pr": pr_url, "branch": branch, "commit": commit, "autoMergeEnabled": True}
 
 
