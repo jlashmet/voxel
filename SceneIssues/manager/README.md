@@ -35,36 +35,35 @@ No external Astra launcher is required. When `signal.json.wakeAstra` is true, th
 
 ```text
 codex exec
+  --strict-config
   --ephemeral
   --ignore-user-config
   --model gpt-6-astra
-  --sandbox workspace-write
+  --sandbox read-only
+  --output-schema SceneIssues/manager/decision.schema.json
+  --output-last-message SceneIssues/manager/runtime/decision.json
   --config model_reasoning_effort="low"
   --config approval_policy="never"
-  --config sandbox_workspace_write.network_access=false
   --config web_search="disabled"
+  -
 ```
 
-The prompt is supplied on stdin and points Codex only at `WAKEUP_PROMPT.md` and the mechanically bounded `runtime/review-window.md`. `--ephemeral` means the manager session is not persisted/resumed. User config is ignored for the manager pass so unrelated MCP/tools/settings do not expand the launch context; normal Codex authentication is still used.
+The prompt is supplied on stdin and points Codex only at `WAKEUP_PROMPT.md` and the mechanically bounded `runtime/review-window.md`. `--ephemeral` prevents the manager session from being persisted/resumed. `--ignore-user-config` keeps unrelated user MCP/tools/settings out of the manager run while normal Codex authentication is still used.
 
-`SceneIssues/manager/config.json` owns the Codex model, minimum CLI version, reasoning effort, sandbox, approval policy, network access, and web-search policy. The checked-in default is `gpt-6-astra` with low reasoning. Astra requires Codex CLI `0.153.0` or newer. Install/update Codex and sign in with ChatGPT once before scheduling the loop.
+The Astra process is deliberately **read-only**. It can inspect the synchronized local checkout and run read-only Git/file commands, but it cannot implement or create SceneIssue files. Its final response is constrained by `decision.schema.json`; the Codex exec harness writes that final response to ignored runtime `decision.json` via `--output-last-message`, outside the model sandbox.
 
-The explicit `--wake-command` argument and legacy `ASTRA_MANAGER_WAKE_COMMAND` environment variable remain available only as override seams for testing/emergency compatibility. Normal operation uses Codex CLI directly.
+`SceneIssues/manager/config.json` owns the Codex model, minimum CLI version, reasoning effort, sandbox, approval policy, and web-search policy. The checked-in default is `gpt-6-astra` with low reasoning and a `read-only` sandbox. Astra requires Codex CLI `0.153.0` or newer. Install/update Codex and sign in with ChatGPT once before scheduling the loop.
+
+The explicit `--wake-command` argument and legacy `ASTRA_MANAGER_WAKE_COMMAND` environment variable remain only as override seams for testing/emergency compatibility. Normal operation uses Codex CLI directly.
 
 ## Astra output and deterministic finish
 
-The Codex/Astra process is decision-only. It writes:
-
-`SceneIssues/manager/runtime/decision.json`
-
-and exits. It does **not** run finish/publish itself.
-
-After Codex exits successfully, the outer loop:
+Astra returns management judgment only. The schema-constrained result contains reviewed keys, outcomes, unresolved questions, and any proposed follow-up SceneIssues. After Codex exits successfully, the outer loop:
 - verifies Codex did not modify tracked or unexpected untracked repository files;
-- requires a fresh `decision.json`;
+- requires a fresh valid `runtime/decision.json`;
 - calls the deterministic `tools/astra_manager_finish.py` boundary;
 - rejects duplicate reviewed keys or keys outside `signal.json.selectedReviewKeys`;
-- creates only standard `issue.json + plan.md + tasks.md` follow-up metadata;
+- materializes approved follow-ups as standard `issue.json + plan.md + tasks.md` under `SceneIssues/open/`;
 - publishes new manager follow-ups through protected-master PRs with auto-merge;
 - exits immediately without waiting for CI, merge, assignment, or implementation.
 
@@ -82,7 +81,7 @@ While a follow-up PR is pending, its local untracked SceneIssue remains visible 
 - `review-window.md` — the bounded minimal packet Astra reads on wake-up;
 - `open-issue-index.md` — duplicate-prevention index, read only before proposing follow-up work;
 - `packets/*.md` — compact completion packets, read only for selected completions;
-- `decision.json` — one Astra pass's bounded output;
+- `decision.json` — schema-constrained output from one Astra pass;
 - `history/*.md` — compact local audit records;
 - `published-followups.json` — pending/published manager follow-up PR bookkeeping.
 
@@ -115,7 +114,7 @@ python3 tools/astra_manager_publish.py
 
 Keep scheduling outside Astra. Use cron, launchd, or another cheap local scheduler to execute `python3 tools/astra_manager_loop.py --fetch` periodically in the dedicated manager checkout. The scheduler can run hourly; Astra itself normally wakes no more often than the configured batching window unless you intentionally change the policy.
 
-No repository scheduler is checked in because the host path and desired cadence are machine-specific; Codex invocation itself is now built into the loop.
+No repository scheduler is checked in because the host path and desired cadence are machine-specific; Codex invocation itself is built into the loop.
 
 ## Tuning
 
