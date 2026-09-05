@@ -27,11 +27,12 @@
 - [x] Classify run `33938819767`: persistent tests and the requested GPU-liveness regression pass; the Kentridge macro player reaches startup/local CharacterMotor traversal with no forbidden exceptions but never emits Moordell content/capture readiness because its module-local bootstrap attached the evidence driver without the companion profile-installed content-demand driver.
 - [x] Correct the module-local validation composition by attaching both macro evidence helpers; keep the SceneIssue profile self-install path unchanged and do not weaken streaming/readiness assertions or budgets.
 - [x] Classify exact run `33943012273`: requested count-batch fairness and persistent tests pass; both Kentridge players exercise the production macro path, but strict visible coverage remains incomplete and durable evidence shows real checkerboard terrain holes.
-- [x] Falsify GPU-fence and frame-clock theories for the remaining stall: `batchArenaWait=0`, and production scheduler/sealer both use the same `Time.frameCount`.
-- [ ] Correct the demonstrated renderer liveness defect by prioritizing already-active worker builds before inactive admission under the unchanged renderer-wide budget, and add a behavioral regression against the production ordering policy.
+- [x] Falsify frame-clock mismatch and sustained fence-block theories for the remaining stall: production scheduler/sealer share `Time.frameCount`, and `batchArenaWait=0` while phase-2 owners age for seconds.
+- [x] Isolate the stronger lifecycle root cause before another renderer edit: paged completion is signaled at GPU submission, but the extraction slot/mirror-reader footprint is released later by CPU worker polling, so ownership can end either before or long after the graphics fence.
+- [ ] Correct GPU extraction ownership lifetime so the active-count and mirror-reader protection transfer to the in-flight graphics fence and retire exactly once at fence completion, independent of worker polling; add a behavioral regression against that production lifetime policy.
 
 ## Exact-SHA validation
-- [ ] Run the active-worker completion-liveness regression plus `GpuSurfaceMirrorRelocationRequestedValidationTests.DistantUnrelatedChangeChurnExecutesProductionGpuLivenessRegression` on the current exact feature source through `ci-test/fixes/agent-6`.
+- [ ] Run the fence-owned extraction-lifetime regression plus `GpuSurfaceMirrorRelocationRequestedValidationTests.DistantUnrelatedChangeChurnExecutesProductionGpuLivenessRegression` on the current exact feature source through `ci-test/fixes/agent-6`.
 - [ ] Require repository-derived module validation to pass every affected owned test assembly and all four required module-local player validations.
 - [ ] Require the 180-second SceneIssue replay to reach strict built-player coverage beyond Moordell and emit settlement/geography/network evidence without runtime exceptions.
 - [x] If the same acceptance symptom remains after two materially different fixes, isolate the new minimal repro/root cause before another production change.
