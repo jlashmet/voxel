@@ -20,6 +20,8 @@ Selected corrections:
 1. `VoxelEngine.Showcase` now owns a scene-local Input-System bridge and package assembly reference; production `VoxelShowcase` reaches the requested GPU path without changing global input settings or suppressing errors.
 2. Validation-only `KentridgeMacroWorldContentDemandDriver` supplies bounded deterministic CharacterMotor demand at the first unsettled authored building centre while an elevated acceptance settlement survey is active. It uses the same physical plan, normal `ShowcaseWorld` streaming budgets/queues, collision, rasterization and rendering; it never force-generates a region or widens residency.
 
+Exact requests `bd10ce4f594f1619e8bf48a866459c6ac0aa174f` (run `33937792014`) and `59ed8938f6ace32c89817f0c417f45fddfabb26e` (run `33938299650`) both stopped before runtime with the same sole `CS0246` for `TopDownWorldPhysicalPlan` in the new demand helper. After the required repeated-symptom isolation, the declaration was found in `MountingForce.WorldGen.Voxel`; the owning `Game.Kentridge.PlayableSlice` asmdef already referenced `MountingForce.WorldGen.Voxel`, so the root cause was the helper's missing namespace import rather than a missing assembly dependency. Source `52cb65457f1b8c7dd637895700a2856e0bd51511` adds only that import.
+
 ## Remaining gates
 1. Exact-SHA targeted CI: requested GPU liveness regression, repository-derived module validation/all four owned module players, and 180-second SceneIssue replay must all pass.
 2. Inspect full-resolution built-player evidence. Require readable Moordell/Rossdam/Fairy/Orc settlements, substantial Rossdam water + constrained route, Southern Ridge/pass, macro-network overview, and real CharacterMotor traversal with no runtime exceptions.
