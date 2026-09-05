@@ -5,7 +5,10 @@
     "Game.Characters.Api",
     "Game.Composition.EncounterRealization",
     "Game.Composition.Kentridge.Playable",
+    "Game.Continuity.Api",
     "Game.Encounters.Api",
+    "Game.GameplayReplication.Api",
+    "Game.Sessions.Api",
     "Game.WorldBuilder.Api"
   ],
   "includePlatforms": [],
