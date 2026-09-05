@@ -87,7 +87,7 @@ namespace Game.Composition.Campaign.Tests
 
         private static CampaignBlueprint BuildBlueprint()
         {
-            var game = Campaign.Create("outcome-integration");
+            var game = Game.WorldBuilder.Api.Campaign.Create("outcome-integration");
             game.Story.Rule("terminal-outcome", rule => rule
                 .When(StoryTrigger.EncounterResolved(TerminalEncounter, EncounterResolutionResult.Completed))
                 .Then(StoryEffect.ObserveOutcomeCondition(TerminalCondition)));
