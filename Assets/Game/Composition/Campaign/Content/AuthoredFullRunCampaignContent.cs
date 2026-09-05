@@ -111,7 +111,7 @@ namespace Game.Composition.Campaign.Content
             CutsceneDefinition destinationCutsceneDefinition,
             Action<CutsceneAuthoringBuilder, KnownOpeningCampaignRoles> configureDestinationCutscene = null)
         {
-            var game = Campaign.Create("main-campaign");
+            var game = Game.WorldBuilder.Api.Campaign.Create("main-campaign");
             KnownOpeningCampaignDraft opening = KnownOpeningCampaignSlice.Compose(
                 game,
                 destinationCutsceneDefinition,
