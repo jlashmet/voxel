@@ -190,7 +190,7 @@ class AstraManagerVisualEvidenceTests(unittest.TestCase):
 
 
 class CodexImageCommandTests(unittest.TestCase):
-    def test_build_command_passes_images_to_codex(self):
+    def test_build_command_passes_each_image_to_codex(self):
         core = types.ModuleType("astra_manager")
         class ManagerError(RuntimeError):
             pass
@@ -208,8 +208,10 @@ class CodexImageCommandTests(unittest.TestCase):
             {}, "/usr/local/bin/codex", Path("/repo/schema.json"),
             Path("/repo/decision.json"), images,
         )
-        image_index = command.index("--image")
-        self.assertEqual("/repo/a.png,/repo/b.jpg", command[image_index + 1])
+        pairs = [(command[index], command[index + 1]) for index in range(len(command) - 1)]
+        self.assertIn(("--image", "/repo/a.png"), pairs)
+        self.assertIn(("--image", "/repo/b.jpg"), pairs)
+        self.assertEqual(2, command.count("--image"))
         self.assertEqual("-", command[-1])
 
 
