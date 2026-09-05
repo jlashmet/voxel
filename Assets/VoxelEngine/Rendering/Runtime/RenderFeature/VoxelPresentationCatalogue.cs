@@ -18,9 +18,9 @@ namespace VoxelEngine.Rendering.Runtime
     public readonly struct VoxelMaterialPresentation
     {
         public readonly Vector4 Albedo;
-        public readonly Vector4 Sampling;  // albedo layer, normal layer, projection, texture blend
-        public readonly Vector4 Surface;   // UV scale, normal strength, roughness, luminance-only
-        public readonly Vector4 Variation; // luminance pivot, detail, chroma, macro variation
+        public readonly Vector4 Sampling;
+        public readonly Vector4 Surface;
+        public readonly Vector4 Variation;
 
         public VoxelMaterialPresentation(Color albedo, int albedoLayer = 0, int normalLayer = 0,
             VoxelTextureProjection projection = VoxelTextureProjection.Face,
@@ -39,8 +39,8 @@ namespace VoxelEngine.Rendering.Runtime
     public readonly struct VoxelCoatingPresentation
     {
         public readonly Vector4 Tint;
-        public readonly Vector4 Sampling; // texture layer, UV scale, texture weight, blend strength
-        public readonly Vector4 Response; // vertical floor, vertical ceiling, noise, roughness
+        public readonly Vector4 Sampling;
+        public readonly Vector4 Response;
 
         public VoxelCoatingPresentation(Color tint, int textureLayer = 0,
             float uvScale = 1f / 28f, float textureWeight = 0f, float blendStrength = 0f,
@@ -56,9 +56,9 @@ namespace VoxelEngine.Rendering.Runtime
     /// <summary>Optional shading pattern associated with a reconstruction style row.</summary>
     public readonly struct VoxelSurfacePresentation
     {
-        public readonly Vector4 Pattern; // enabled, course height, block width, strength
+        public readonly Vector4 Pattern;
         public readonly Vector4 JointColour;
-        public readonly Vector4 DetailResponse; // seam colour, roughness, piece variation, seam width
+        public readonly Vector4 DetailResponse;
 
         public VoxelSurfacePresentation(bool enabled, float courseHeight = 5f,
             float blockWidth = 9f, float strength = 0f, Color jointColour = default,
@@ -86,6 +86,10 @@ namespace VoxelEngine.Rendering.Runtime
         public const int MaxSurfaceStyles = 32;
 
         private const int MossCoatingTextureLayer = 5;
+        private const int BuiltInSurfaceTextureLayerCount = 8;
+
+        private static Texture2D[] s_AdditionalAlbedoLayers = Array.Empty<Texture2D>();
+        private static Texture2D[] s_AdditionalNormalLayers = Array.Empty<Texture2D>();
 
         public static readonly Vector4[] MaterialAlbedo = new Vector4[MaxMaterials];
         public static readonly Vector4[] MaterialSampling = new Vector4[MaxMaterials];
@@ -105,6 +109,9 @@ namespace VoxelEngine.Rendering.Runtime
         public static readonly Vector4[] SurfaceJointColour = new Vector4[MaxSurfaceStyles];
         public static readonly Vector4[] SurfaceDetailResponse = new Vector4[MaxSurfaceStyles];
 
+        /// <summary>Number of semantic-free extra texture slots configured by the active renderer asset.</summary>
+        public static int AdditionalTextureLayerCount => s_AdditionalAlbedoLayers.Length;
+
         static VoxelPresentationCatalogue()
         {
             for (int i = 0; i < MaxMaterials; i++)
@@ -123,11 +130,6 @@ namespace VoxelEngine.Rendering.Runtime
                 blendStrength: 0.94f, verticalFloor: 0.78f, verticalCeiling: 1f,
                 noiseStrength: 0.38f, roughness: 0.12f));
 
-            // Smooth terrain surfaces already persist the generic five-bit Detail channel. Give
-            // that existing channel a restrained material-neutral response so terrain authoring
-            // such as compacted/worn corridors can vary surface value/roughness without inventing
-            // a road-specific shader, material identity, vertex field, or per-instance material.
-            // Detail==0 remains completely neutral for ordinary smooth terrain.
             SetSurface(1, new VoxelSurfacePresentation(false, jointColour: new Color(0.18f, 0.16f, 0.14f),
                 detailColourBlend: 0.10f, detailRoughness: 0.92f,
                 detailVariation: 0.08f, detailWidth: 0.42f));
@@ -188,13 +190,43 @@ namespace VoxelEngine.Rendering.Runtime
             SurfaceDetailResponse[id] = value.DetailResponse;
         }
 
+        /// <summary>
+        /// Installs optional extra texture layers for the active renderer asset. Layer positions are
+        /// deliberately semantic-free; application material definitions own the opaque layer numbers.
+        /// </summary>
+        public static void ConfigureAdditionalTextureLayers(Texture2D[] albedo, Texture2D[] normals)
+        {
+            int count = albedo?.Length ?? 0;
+            if (BuiltInSurfaceTextureLayerCount + count > MaxMaterials)
+                throw new ArgumentOutOfRangeException(nameof(albedo),
+                    $"Surface texture layer count exceeds renderer capacity {MaxMaterials}.");
+
+            s_AdditionalAlbedoLayers = new Texture2D[count];
+            s_AdditionalNormalLayers = new Texture2D[count];
+            if (count > 0)
+                Array.Copy(albedo, s_AdditionalAlbedoLayers, count);
+            if (normals != null && count > 0)
+                Array.Copy(normals, s_AdditionalNormalLayers, Math.Min(count, normals.Length));
+        }
+
         public static Texture2DArray BuildTextureArray(Texture2D[] sources, bool linear)
         {
-            Texture2D first = Array.Find(sources, texture => texture != null);
+            Texture2D[] additional = linear ? s_AdditionalNormalLayers : s_AdditionalAlbedoLayers;
+            int baseCount = sources?.Length ?? 0;
+            int totalCount = baseCount + additional.Length;
+            if (totalCount == 0) return null;
+
+            var combined = new Texture2D[totalCount];
+            if (baseCount > 0)
+                Array.Copy(sources, combined, baseCount);
+            if (additional.Length > 0)
+                Array.Copy(additional, 0, combined, baseCount, additional.Length);
+
+            Texture2D first = Array.Find(combined, texture => texture != null);
             if (first == null) return null;
             int width = Mathf.Min(first.width, 1024);
             int height = Mathf.Min(first.height, 1024);
-            var array = new Texture2DArray(width, height, sources.Length,
+            var array = new Texture2DArray(width, height, combined.Length,
                 TextureFormat.RGBA32, false, linear)
             {
                 name = linear ? "Voxel normal texture array" : "Voxel albedo texture array",
@@ -207,9 +239,9 @@ namespace VoxelEngine.Rendering.Runtime
                                                   : RenderTextureReadWrite.sRGB);
             try
             {
-                for (int layer = 0; layer < sources.Length; layer++)
+                for (int layer = 0; layer < combined.Length; layer++)
                 {
-                    Texture source = sources[layer] != null ? sources[layer] : first;
+                    Texture source = combined[layer] != null ? combined[layer] : first;
                     Graphics.Blit(source, temporary);
                     Graphics.CopyTexture(temporary, 0, 0, array, layer, 0);
                 }
