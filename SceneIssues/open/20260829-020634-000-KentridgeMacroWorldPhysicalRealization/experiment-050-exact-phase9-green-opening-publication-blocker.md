@@ -18,6 +18,11 @@ The required Kentridge module player is product-red under its unchanged 120-seco
 
 The 180-second SceneIssue replay is process-clean but also acceptance-red. It reaches all four Moordell content columns and emits `content-ready target=moordell columns=4`, but never emits `capture-ready target=moordell` or advances to Rossdam/Fairy/Orc/ridge/network. At t=180 renderer diagnostics still report `jobs=8 missing=89`.
 
+## Direct visual review
+Full-resolution durable player frames were inspected directly. The SceneIssue capture remains on the black `Loading Kentridge...` presentation through the approximately 104-second frame. After gameplay finally opens, the Moordell survey at roughly 124/154/174 seconds and `verification-final.png` visibly contain large repeated checkerboard/unpublished near-surface gaps around the settlement. The four blockout masses are partially visible, but the surrounding physical world is not publication-complete and no later required target views exist.
+
+These images are rejected as closure evidence. They corroborate the strict coverage telemetry rather than providing a visual exception to it.
+
 ## Stronger discriminator
 The current failure is not 160 seconds of Moordell feature generation. In the module run, strict opening publication consumes roughly the first high-90 seconds before the validation sequence can restore ordinary time scale, traverse the real CharacterMotor, and begin Moordell demand. The standalone replay shows the same shape with startup variation: gameplay/Moordell demand begins only after roughly 108 seconds, and Moordell content then becomes ready around 161 seconds.
 
