@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "runSeconds": 18,
+  "capture": {
+    "width": 1600,
+    "height": 900,
+    "intervalSeconds": 3,
+    "minimumFrames": 5,
+    "evidenceAfterSeconds": 1
+  },
+  "timeline": {},
+  "assertions": {
+    "requiredLogPatterns": [
+      "HOUSE_SHOWCASE_VALIDATION start house=wizards",
+      "HOUSE_SHOWCASE_VALIDATION interior house=wizards",
+      "HOUSE_SHOWCASE_VALIDATION switched from=wizards to=knights",
+      "HOUSE_SHOWCASE_VALIDATION regenerated house=knights",
+      "HOUSE_SHOWCASE_VALIDATION complete house=knights"
+    ],
+    "forbiddenLogPatterns": [
+      "HOUSE_SHOWCASE_VALIDATION failure:",
+      "NullReferenceException",
+      "MissingReferenceException"
+    ]
+  }
+}
