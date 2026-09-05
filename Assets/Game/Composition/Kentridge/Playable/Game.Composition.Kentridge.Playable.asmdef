@@ -26,7 +26,6 @@
     "Game.Audio.Runtime",
     "MountingForce.WorldGen.Core",
     "MountingForce.WorldGen.Runtime",
-    "Unity.InputSystem",
     "VoxelEngine.Characters.Runtime",
     "VoxelEngine.Showcase"
   ],
