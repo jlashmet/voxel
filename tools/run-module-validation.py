@@ -38,7 +38,7 @@ def run_test(unity: str, item: dict, root: Path, test_filter: str | None = None)
         raise SystemExit(f"ERROR: required module test assembly executed zero tests: {module} {assembly}")
     failed = [c for c in cases if c.get("result") not in ("Passed", "Success")]
     if failed:
-        raise SystemExit(f"ERROR: required module test assembly failed: {module} {assembly} ({len(failed)} failures)")
+        raise SystemExit(f"ERROR: required module test assembly failed: {module} {assembly} ({len(failed)} failures")
     return time.monotonic() - started
 
 
@@ -160,11 +160,18 @@ def main(argv=None) -> int:
     ap.add_argument("--output", required=True)
     ap.add_argument("--requested-test", default="")
     ap.add_argument("--requested-platform", default="")
+    ap.add_argument("--source-sha", default="")
     ns = ap.parse_args(argv)
     plan = json.loads(Path(ns.plan).read_text(encoding="utf-8"))
     root = Path(ns.output)
     root.mkdir(parents=True, exist_ok=True)
-    summary = {"tests": [], "players": [], "editorBatches": [], "totalSeconds": 0.0}
+    summary = {
+        "tests": [],
+        "players": [],
+        "editorBatches": [],
+        "sourceSha": ns.source_sha,
+        "totalSeconds": 0.0,
+    }
     started_all = time.monotonic()
 
     tests = plan.get("tests", [])
@@ -220,10 +227,17 @@ def main(argv=None) -> int:
         out = root / "Players" / safe_module
         player_env = os.environ.copy()
         player_env["VOXEL_DISABLE_GPU_CUTOVER"] = "1"
+        player_args = [
+            "python3", "tools/player-validation.py",
+            "--unity", ns.unity,
+            "--scene", item["scene"],
+            "--scenario", item["scenario"],
+            "--output", str(out),
+        ]
+        if ns.source_sha:
+            player_args.extend(["--source-sha", ns.source_sha])
         started = time.monotonic()
-        subprocess.run(["python3", "tools/player-validation.py", "--unity", ns.unity,
-                        "--scene", item["scene"], "--scenario", item["scenario"],
-                        "--output", str(out)], check=True, env=player_env)
+        subprocess.run(player_args, check=True, env=player_env)
         summary["players"].append({**item, "seconds": round(time.monotonic() - started, 2)})
     summary["totalSeconds"] = round(time.monotonic() - started_all, 2)
     (root / "module-validation-summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
