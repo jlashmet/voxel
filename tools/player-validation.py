@@ -60,6 +60,12 @@ def load_scenario(path: Path) -> dict:
         fail("unsupported timeline key(s): " + ", ".join(sorted(unknown)))
     for key in timeline:
         optional_number(timeline[key], f"timeline.{key}")
+    player_arguments = data.get("playerArguments", [])
+    if not isinstance(player_arguments, list) or any(
+        not isinstance(value, str) or not value or "\x00" in value
+        for value in player_arguments
+    ):
+        fail("playerArguments must be an array of non-empty strings")
     assertions = data.get("assertions", {})
     if not isinstance(assertions, dict):
         fail("assertions must be an object")
@@ -70,7 +76,7 @@ def load_scenario(path: Path) -> dict:
             fail(f"assertions.{field} must be an array of non-empty strings")
     return {"runSeconds": run_seconds, "width": width, "height": height, "interval": interval,
             "minimum": minimum, "evidenceAfter": evidence_after, "timeline": timeline,
-            "required": required, "forbidden": forbidden}
+            "playerArguments": player_arguments, "required": required, "forbidden": forbidden}
 
 
 def main(argv=None) -> int:
@@ -97,6 +103,8 @@ def main(argv=None) -> int:
     for key, flag in flags.items():
         if key in cfg["timeline"]:
             cmd += [flag, str(cfg["timeline"][key])]
+    for value in cfg["playerArguments"]:
+        cmd += ["--player-arg", value]
     for pattern in cfg["required"]:
         cmd += ["--require-log-pattern", pattern]
     for pattern in cfg["forbidden"]:
