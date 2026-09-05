@@ -179,7 +179,7 @@ namespace VoxelEngine.Showcase
             _lastSwitchMs = (Time.realtimeSinceStartup - started) * 1000f;
             _peakOwnedPresenters = Mathf.Max(_peakOwnedPresenters, OwnedPresentationCount);
             UpdateSupportSurface(in realization);
-            Frame(in realization.Bounds);
+            Frame(in realization);
             _status = ok
                 ? $"READY · {entry.Source} · {realization.DecorationBackend} · {_lastSwitchMs:0.0} ms"
                 : "ERROR · production presentation failed";
@@ -424,14 +424,38 @@ namespace VoxelEngine.Showcase
             }
         }
 
-        private void Frame(in DecorationBounds bounds)
+        private void Frame(in DecorationShowcaseRealization realization)
         {
+            DecorationBounds bounds = realization.Bounds;
             Vector3 centre = BoundsCentre(bounds);
             Vector3 size = new Vector3(bounds.Size.x, bounds.Size.y, bounds.Size.z) * VoxelSize;
             float radius = Mathf.Max(0.45f, Mathf.Max(size.x, Mathf.Max(size.y, size.z)) * 0.65f);
             float distance = Mathf.Max(1.8f, radius / Mathf.Tan(_camera.fieldOfView * Mathf.Deg2Rad * 0.5f) * 1.5f);
-            Vector3 focus = centre + new Vector3(-radius * 0.18f, size.y * 0.05f, 0f);
-            _camera.transform.position = centre + new Vector3(radius * 1.15f, radius * 0.78f, -distance);
+
+            int3 semanticFacing = FacingOf(in realization);
+            Vector3 front = new Vector3(semanticFacing.x, semanticFacing.y, semanticFacing.z);
+            if (front.sqrMagnitude < 0.5f)
+                front = Vector3.forward;
+            front.Normalize();
+
+            Vector3 lateral;
+            Vector3 elevation;
+            if (Mathf.Abs(front.y) > 0.5f)
+            {
+                lateral = new Vector3(0.7f, 0f, -0.7f).normalized * radius;
+                elevation = Vector3.zero;
+            }
+            else
+            {
+                Vector3 tangent = Vector3.Cross(Vector3.up, front);
+                if (tangent.sqrMagnitude < 0.5f)
+                    tangent = Vector3.right;
+                lateral = tangent.normalized * radius * 0.55f;
+                elevation = Vector3.up * radius * 0.6f;
+            }
+
+            Vector3 focus = centre + Vector3.up * size.y * 0.05f;
+            _camera.transform.position = centre + front * distance + lateral + elevation;
             _camera.transform.LookAt(focus);
         }
 
