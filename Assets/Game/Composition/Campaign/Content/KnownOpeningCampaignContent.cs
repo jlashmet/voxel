@@ -8,6 +8,8 @@ namespace Game.Composition.Campaign.Content
 {
     public readonly struct KnownOpeningCampaignRoles
     {
+        public RegionHandle KentridgeOverworld { get; }
+        public SettlementHandle Kentridge { get; }
         public SiteHandle StartingPub { get; }
         public SiteHandle FirstDestination { get; }
         public SiteHandle AwonSite { get; }
@@ -21,6 +23,8 @@ namespace Game.Composition.Campaign.Content
         public NpcHandle Medrare { get; }
 
         internal KnownOpeningCampaignRoles(
+            RegionHandle kentridgeOverworld,
+            SettlementHandle kentridge,
             SiteHandle startingPub,
             SiteHandle firstDestination,
             SiteHandle awonSite,
@@ -33,6 +37,8 @@ namespace Game.Composition.Campaign.Content
             NpcHandle awon,
             NpcHandle medrare)
         {
+            KentridgeOverworld = kentridgeOverworld ?? throw new ArgumentNullException(nameof(kentridgeOverworld));
+            Kentridge = kentridge ?? throw new ArgumentNullException(nameof(kentridge));
             StartingPub = startingPub ?? throw new ArgumentNullException(nameof(startingPub));
             FirstDestination = firstDestination ?? throw new ArgumentNullException(nameof(firstDestination));
             AwonSite = awonSite ?? throw new ArgumentNullException(nameof(awonSite));
