@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using Game.Application.Api;
 using Game.Characters.Api;
@@ -41,6 +42,7 @@ namespace Game.Kentridge.PlayableSlice
         private WorldObjectRegistry _objects;
         private InteractionClickedProcessor _interaction;
         private ItemPickupObject _forestPickup;
+        private IWorldItemPickupTransfer _pickupTransfer;
         private WorldInteractionFact? _lastFact;
         private WorldInteractionFailure _lastFailure;
         private bool _wellInteractionObserved;
@@ -74,12 +76,11 @@ namespace Game.Kentridge.PlayableSlice
             if (!Application.isPlaying) return;
 
             KentridgeSessionRuntimeGraph current = _slice.SessionFactory?.Current;
-            if (!ReferenceEquals(current, _graph)) ComposeForGraph(current);
+            EnsureComposedForGraph(current);
             if (_graph == null || _graph.IsDisposed) return;
             if (_root.FlowSnapshot.Lifecycle != ApplicationLifecycle.InGame) return;
 
-            if (_forest.CombatResolved && _forestPickup == null)
-                SpawnForestPickup();
+            EnsureResolvedForestPickup();
 
             IInputActionStateReader input = _root.InputActions;
             if (input == null || !input.WasPressed(LocalPlayer, StandardInputActions.Interact)) return;
@@ -98,12 +99,79 @@ namespace Game.Kentridge.PlayableSlice
                 " revision=" + fact.ObjectRevision);
         }
 
+        internal IReadOnlyList<WorldObjectStateSnapshot> CaptureWorldObjectState(
+            KentridgeSessionRuntimeGraph graph)
+        {
+            EnsureComposedForGraph(graph);
+            if (_graph == null || _graph.IsDisposed)
+                throw new InvalidOperationException(
+                    "Kentridge WorldObject capture requires a live production session graph.");
+            EnsureResolvedForestPickup();
+            return _objects.CaptureState();
+        }
+
+        internal WorldInteractionResult RestoreWorldObjectState(
+            KentridgeSessionRuntimeGraph graph,
+            IReadOnlyList<WorldObjectStateSnapshot> snapshots)
+        {
+            if (snapshots == null)
+                return WorldInteractionResult.Reject(WorldInteractionFailure.InvalidState);
+
+            EnsureComposedForGraph(graph);
+            if (_graph == null || _graph.IsDisposed || _objects == null)
+                return WorldInteractionResult.Reject(WorldInteractionFailure.InvalidState);
+
+            bool hasForestPickup = false;
+            for (int i = 0; i < snapshots.Count; i++)
+            {
+                WorldObjectStateSnapshot snapshot = snapshots[i];
+                if (snapshot.ObjectId == ForestLootObjectId)
+                {
+                    hasForestPickup = true;
+                    break;
+                }
+            }
+
+            if (hasForestPickup)
+            {
+                if (!_forest.CombatResolved)
+                    return WorldInteractionResult.Reject(WorldInteractionFailure.InvalidState);
+                EnsureResolvedForestPickup();
+            }
+
+            WorldInteractionResult restored = _objects.RestoreState(snapshots);
+            if (restored.Succeeded)
+            {
+                Debug.Log(
+                    "SYSTEM24 world-objects-restored: count=" + snapshots.Count +
+                    " lootCollected=" + PickupCollected);
+            }
+            return restored;
+        }
+
+        internal bool TryGetForestLootState(out WorldObjectStateSnapshot state)
+        {
+            if (_forestPickup != null)
+            {
+                state = _forestPickup.CaptureState();
+                return true;
+            }
+            state = default;
+            return false;
+        }
+
+        private void EnsureComposedForGraph(KentridgeSessionRuntimeGraph graph)
+        {
+            if (!ReferenceEquals(graph, _graph)) ComposeForGraph(graph);
+        }
+
         private void ComposeForGraph(KentridgeSessionRuntimeGraph graph)
         {
             _graph = graph;
             _objects = null;
             _interaction = null;
             _forestPickup = null;
+            _pickupTransfer = null;
             _lastFact = null;
             _lastFailure = WorldInteractionFailure.None;
             _wellInteractionObserved = false;
@@ -135,7 +203,11 @@ namespace Game.Kentridge.PlayableSlice
             _pickupTransfer = new WorldObjectLootAdapter(inventoryTransactions, inventoryBindings);
         }
 
-        private IWorldItemPickupTransfer _pickupTransfer;
+        private void EnsureResolvedForestPickup()
+        {
+            if (_forest.CombatResolved && _forestPickup == null)
+                SpawnForestPickup();
+        }
 
         private void SpawnForestPickup()
         {
