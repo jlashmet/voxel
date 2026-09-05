@@ -1,33 +1,26 @@
 # GPU renderer production restoration — implementation plan
 
-**Acceptance scene:** `Assets/Scenes/VoxelShowcase.unity`. CPU-only VoxelShowcase must be production-quality before GPU-specific acceptance resumes.  
-**Starting SHA:** `b18d470f66221c7cb6091249f4683c2d994bffec`.
+**Acceptance scene:** `Assets/Scenes/VoxelShowcase.unity`. Establish production-quality CPU presentation before restoring GPU cutover. CPU-only captures never count as GPU acceptance.
 
-## Current state
+## Current evidence
 
-GPU density/semantic/topology parity and the minimal one-chunk GPU fixture are already proven. Full-scene acceptance remains red.
+Feature `fc767620a0fe5d0dfee204947d13e7eefaa2a3fa`, request `8e6aac9fe8845a04a0bdfca2640fc11988e50506`, run `33996360570` passed the derived module tests, module players and 45-second VoxelShowcase replay. The actual SceneIssue player log reports `gpu[req=0 ... pub=0]`. `SceneIssue/verification-final.png` and the 15/25/35-second stationary captures remain **prototype/blockout quality**, not visual acceptance: the castle is visible, but the giant left slab and right-hand blockout masses remain.
 
-CPU-only run `33978398855` showed large white/gray far-feature masses with GPU solid requests at zero. The first wrong boundary was material presentation: canonical material/style/coating survived the bake, but `ProceduralFarFeatureRenderer` used shader defaults. The selected generic repair resolves installed material/coating identity in Composition to semantic-free albedo/roughness values, preserves them through `ShowcaseFarFeatureStateAdapter`, and applies them in the shared far renderer.
+The shared far-material repair resolves installed material/coating values in Composition and preserves them into the production renderer. Current master owns the Input System prerequisite. The Composition NUnit regression now has a module-local EditMode assembly. Neither prerequisite work nor green automation closes the visual task.
 
-Run `33987770257` built/replayed VoxelShowcase after that repair. It is defect evidence, not a successful gate: material appearance improved, but a huge rectangular far proxy and other blockout-like masses remained. The geometry trace now shows the next wrong boundary: canonical `Primitive` carries direction/profile/radii/C/D/arc data, while `FarFeatureGeometryPrimitive` retains only shape + AABB + axis; Rendering then maps prism/ramp/rounded-box/ellipsoid/frustum/capsule to boxes and annulus/arc-wedge to full cylinders.
+## First geometry discriminator
 
-The historical agent-1 branch also contained unrelated prior-assignment deletions. It was rebuilt on current `master` and, after `SmallVoxelShowcaseSharedInputSystemRestoration` merged, rebased again to master `cd77b927...`. Master now owns and has exact-SHA proof for the shared Input System/runtime validation prerequisite (`7e6c609c...`, run `33988857330`); this feature no longer carries a competing input implementation.
+1. **Lost taper:** the production mountain catalogue emits a `Frustum` followed by supported switchback fills/ramps. Canonical frusta carry a base centre, signed axis direction, and two radii. The presentation adapter currently retains only shape/AABB/axis, and `ProceduralFarFeatureRenderer` renders frusta as boxes. This is a demonstrated lossy boundary and a strong explanation for the slab.
+2. **Another owner/source:** the captured slab could additionally belong to an authored box or another presentation path. A frustum correction alone must not be reported as eliminating the slab until the new built-player capture confirms it.
 
-Clean run `33991474823` exposed a separate Composition test-ownership defect: a new NUnit regression sat under production `VoxelEngine.Composition`, so player linking tried to resolve `nunit.framework`. Composition now owns a module-local EditMode asmdef for that regression.
+Add a focused behavioral regression through the real canonical emitter, presentation adapter, and production mesh resolver. Compare transverse ray intersections with the authoritative integer `PrimitiveRasteriser.Contains` oracle, across all three axes, both directions, negative coordinates, unequal bake dimensions and voxel scales. Require nondegenerate, outward, closed triangles. The existing AABB output must fail before the repair.
 
-## Hypotheses / next discriminator
+## Selected bounded repair
 
-1. **Geometry representation loss:** the giant slab is produced by AABB fallback for a non-box canonical primitive. This is the leading hypothesis from both capture and code trace.
-2. **Already-box-shaped source:** the slab could instead originate from a canonical box bake; this is falsified if a focused regression identifies a non-box source whose far payload/render mesh becomes a box.
+After the failing discriminator, transport resolved cap centres and radial extents as renderer-neutral normalized geometry values. Tessellate the frustum in the existing far renderer, caching under the existing bake revision. No scene names, coordinates, material IDs, extra renderer, voxel-authority changes, or whole-volume sampling. Keep other primitive mismatches explicit rather than claiming universal geometry parity.
 
-Next: exact-SHA validation on the rebased branch, then CPU VoxelShowcase replay. If the slab persists, fix the first proven primitive mismatch generically; no scene names, coordinates, or material IDs.
-
-## Module ownership
-
-- `VoxelEngine.Rendering`: player-visible; `Assets/VoxelEngine/Rendering/Validation/FarWorld/` owns focused player validation.
-- `Game/Composition/Showcase/SceneRuntime`: Input System/runtime validation is now current-master authority; this GPU feature only changes far-state presentation there.
-- `VoxelEngine.Composition`: headless selection/value projection; its module-local EditMode assembly is the appropriate focused validation surface.
+Extend Rendering-owned built-player coverage through the same production frustum path. Replay VoxelShowcase immediately after the correctness fix and inspect the exact artifact. Preserve separate tasks.md; TGPU-019CPU3/4 own this necessary geometry repair.
 
 ## Remaining gates
 
-Exact CPU proof -> generic far-geometry correction if required -> production-quality CPU traversal/stationary proof -> restore normal GPU cutover -> deterministic GPU parity/publication/lifetime/streaming/edit/performance/no-fallback acceptance -> final exact-SHA gates -> close -> current-master merge -> PR + auto-merge -> verify closed issue on `origin/master`.
+Finish every CPU-visible material/geometry/handoff defect and obtain production-quality stationary/traversal captures. Then reconcile the retained GPU implementation, restore normal cutover, and complete deterministic parity, paging/lifetime, streaming/edit, no-fallback, performance and independent-consumer evidence. Run final exact-SHA validation; only then close directly to `closed`, merge current master, and promote by PR plus auto-merge. GPU historical fixture success remains scoped evidence, not full-scene success.
