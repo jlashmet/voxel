@@ -1,27 +1,17 @@
 # SmallVoxelShowcase shared Input System restoration
 
 ## Defect and acceptance
-`SmallVoxelShowcase` uses `VoxelEngine.Showcase.VoxelShowcase`, whose per-frame interactive path read legacy `UnityEngine.Input` while Player Settings are Input-System-only. Restore the complete keyboard/mouse interaction path without enabling Legacy/Both or adding scene-local compatibility polling. Acceptance is the binding list in `issue.json`, including actual built-player input proof and focus/cursor recovery.
-
-A separate captured startup exception comes from `RenderDebugUiTestBootstrap.Disable()` reflecting into SRP `DebugManager.enableRuntimeUI` before the backing runtime UI exists. Keep this test-harness symptom independent and do not mask production exceptions.
+`SmallVoxelShowcase` uses `VoxelEngine.Showcase.VoxelShowcase`, whose interactive path read legacy `UnityEngine.Input` while Player Settings are Input-System-only. Restore movement, look, cursor recovery, sprint/jump/fly, interact/respawn, brush scroll, and edit actions without enabling legacy/both input. Independently, the Structures SRP debug-UI bootstrap must not throw during scene startup.
 
 ## Ownership / hypotheses
-`VoxelShowcase` is the shared production input owner for `SmallVoxelShowcase` and `VoxelShowcase`; `MultiplayerSceneBootstrap` attaches the same owner to `Multiplayer`. `HouseShowcase` is an independent already-Input-System consumer. The owning repository module is `Assets/Game/Composition/Showcase/SceneRuntime`, so it owns focused EditMode coverage plus a module-local standalone validation scene/scenario.
-
-1. **Supported:** `VoxelShowcase.Update -> HandleKeys/MovePlayer/HandleLook/HandleEdits` reached legacy `Input.*`; the captured `GetKeyDown` failure was only the first read.
-2. **Independent and supported:** the Structures SRP bootstrap runs `BeforeSceneLoad`; its reflected setter can dereference uninitialized SRP runtime-UI state before the fixture body. It has no production-input ownership.
-
-`experiment-001-input-owner-and-srp-bootstrap.md` records the initial discriminator. Legacy mouse-axis sensitivity is `0.1`, so Input System delta conversion preserves that scale while wheel behavior stays sign-based.
-
-## Material results
-The actual built `SmallVoxelShowcase` `showcase-input-smoke` replay has passed on exact runs `33984299208` and `33986010080`, proving real Input System events change production player/camera state. The latter run still failed only the three new EditMode tests, each on its first `wasPressedThisFrame` edge assertion. `MakeCurrent()` removed native-device ambiguity but did not make manual `InputSystem.Update()` a valid frame-edge test while the fixture remained in automatic update mode.
+1. **Production input owner — supported:** `VoxelShowcase.Update -> HandleKeys/MovePlayer/HandleLook/HandleEdits` was the legacy-input owner. `SmallVoxelShowcase` and `VoxelShowcase` serialize it; Multiplayer attaches it at runtime.
+2. **Structures startup — independent and supported:** the reflected SRP `DebugManager.enableRuntimeUI` setter can run before backing runtime UI exists; this is test-harness-owned and must not mask production exceptions.
+3. **Regression harness edge-state — resolved:** repeated exact-SHA runs proved the built SmallVoxel input path passes while only the new `wasPressedThisFrame` assertions fail. Making synthetic devices current and then forcing manual update mode both left the same assertions red. Unity's `InputTestFixture` explicitly isolates Input System runtime state and is designed for PlayMode; EditMode is generally unsupported. The edge regression therefore belongs in module-owned PlayMode, not EditMode. See `experiment-002-input-edge-test-mode.md`.
 
 ## Selected fix
-Use one semantic `Unity.InputSystem` snapshot in SceneRuntime and make `VoxelShowcase` consume it for movement, look, cursor toggle, sprint, jump/fly vertical, interact, respawn, brush scroll, and mouse edits. On focus/cursor reacquire, discard one Input System look-delta frame instead of calling `Input.ResetInputAxes`.
+Use one semantic `Unity.InputSystem` snapshot in SceneRuntime and make `VoxelShowcase` consume it. On cursor/focus reacquire, discard one look-delta frame instead of `Input.ResetInputAxes`. Keep the module-local production validation scene/scenario and actual SceneIssue replay that inject Input System events through the real `VoxelShowcase`. Harden only the known early SRP debug setter failure and require post-load suppression to succeed.
 
-Use the real production driver in module-local standalone validation and in the SceneIssue built-player smoke replay. Synthetic validation devices are explicitly current. Harden only the known too-early SRP debug setter failure, then require post-load suppression to succeed.
-
-For EditMode semantics, retain every existing edge/held/mouse assertion but put only `ShowcaseInputSystemTests` into `InputSettings.UpdateMode.ProcessEventsManually` while it explicitly queues events and calls `InputSystem.Update()`, restoring the prior update mode in teardown. Production behavior is unchanged.
+Move only `ShowcaseInputSystemTests` to `Tests/PlayMode/VoxelEngine.Showcase.Tests.PlayMode`, derive from `InputTestFixture`, and leave other Showcase EditMode coverage plus production input unchanged.
 
 ## Remaining gates
-Current feature head includes the manual-update fixture correction. Run repository-derived SceneRuntime EditMode validation, module-local standalone player validation, Kentridge integration, and actual `SmallVoxelShowcase` replay at one exact feature SHA. If green, complete `open/` -> `closed/` bookkeeping, merge current `origin/master` into the feature branch, open the final PR, enable auto-merge immediately, and monitor the required `affected` gate until the PR is merged and the closed issue is visible on master.
+Run one exact feature SHA with the explicit Structures PlayMode regression plus repository-derived Showcase EditMode + PlayMode tests, module-local standalone player validation, Kentridge integration, and actual built `SmallVoxelShowcase` replay. If green, complete `issue.json`, move `open/` directly to `closed/`, merge current `origin/master` into `fixes/agent-3`, open the final PR, enable auto-merge, and monitor required `affected` through merge.

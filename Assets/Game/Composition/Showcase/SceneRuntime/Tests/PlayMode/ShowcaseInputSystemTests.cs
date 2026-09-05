@@ -4,47 +4,25 @@ using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.LowLevel;
 using VoxelEngine.Showcase;
 
-namespace VoxelEngine.Tests.EditMode
+namespace VoxelEngine.Tests.PlayMode
 {
-    public sealed class ShowcaseInputSystemTests
+    public sealed class ShowcaseInputSystemTests : InputTestFixture
     {
-        private Keyboard _keyboard;
-        private Mouse _mouse;
-        private InputSettings.UpdateMode _previousUpdateMode;
-
-        [SetUp]
-        public void SetUp()
-        {
-            _previousUpdateMode = InputSystem.settings.updateMode;
-            InputSystem.settings.updateMode = InputSettings.UpdateMode.ProcessEventsManually;
-
-            _keyboard = InputSystem.AddDevice<Keyboard>("Showcase regression keyboard");
-            _mouse = InputSystem.AddDevice<Mouse>("Showcase regression mouse");
-
-            // The editor may already own native current devices. Production reads Keyboard.current
-            // and Mouse.current, so make the synthetic devices explicit before queuing state.
-            _keyboard.MakeCurrent();
-            _mouse.MakeCurrent();
-        }
-
-        [TearDown]
-        public void TearDown()
-        {
-            if (_mouse != null && _mouse.added) InputSystem.RemoveDevice(_mouse);
-            if (_keyboard != null && _keyboard.added) InputSystem.RemoveDevice(_keyboard);
-            InputSystem.settings.updateMode = _previousUpdateMode;
-        }
-
         [Test]
         public void ReadCurrent_MapsCompleteKeyboardAndMouseSemanticFrame()
         {
+            Keyboard keyboard = InputSystem.AddDevice<Keyboard>("Showcase regression keyboard");
+            Mouse mouse = InputSystem.AddDevice<Mouse>("Showcase regression mouse");
+            keyboard.MakeCurrent();
+            mouse.MakeCurrent();
+
             InputSystem.QueueStateEvent(
-                _keyboard,
+                keyboard,
                 new KeyboardState(
                     Key.Escape, Key.F, Key.R, Key.E,
                     Key.W, Key.D, Key.LeftShift, Key.Space, Key.LeftCtrl));
             InputSystem.QueueStateEvent(
-                _mouse,
+                mouse,
                 new MouseState
                 {
                     delta = new Vector2(25f, -10f),
@@ -75,7 +53,10 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void ReadCurrent_PressedActionsAreEdgeTriggered_HeldMovementPersists()
         {
-            InputSystem.QueueStateEvent(_keyboard, new KeyboardState(Key.E, Key.W));
+            Keyboard keyboard = InputSystem.AddDevice<Keyboard>("Showcase regression keyboard");
+            keyboard.MakeCurrent();
+
+            InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.E, Key.W));
             InputSystem.Update();
 
             ShowcaseInputFrame first = ShowcaseInputSystem.ReadCurrent();
@@ -91,8 +72,11 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void ReadCurrent_NormalizesWheelDirectionAndMapsSecondaryEdit()
         {
+            Mouse mouse = InputSystem.AddDevice<Mouse>("Showcase regression mouse");
+            mouse.MakeCurrent();
+
             InputSystem.QueueStateEvent(
-                _mouse,
+                mouse,
                 new MouseState { scroll = new Vector2(0f, -240f) }
                     .WithButton(MouseButton.Right));
             InputSystem.Update();
