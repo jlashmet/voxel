@@ -1,0 +1,7 @@
+{
+  "platform": "EditMode",
+  "test": "VoxelEngine.Showcase.Tests.EditMode.ShowcaseStartupBakeArtifactTests.CurrentSourceBakeExportsPayloadAndMatchingManifest",
+  "request_id": "agent-4-mountain-71b1f4da-final-exact",
+  "scene_issue": "SceneIssues/open/20260828-180417-000-VoxelShowcaseMountainDragonCutscene/issue.json",
+  "replay_seconds": 210
+}
