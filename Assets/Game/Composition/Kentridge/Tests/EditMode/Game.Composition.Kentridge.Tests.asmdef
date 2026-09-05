@@ -11,6 +11,7 @@
     "Game.Composition.WorldBuilderWorldGen.Runtime",
     "Game.Cutscenes.Api",
     "Game.Outcomes.Api",
+    "Game.Persistence.Api",
     "Game.Persistence.Runtime",
     "Game.Progression.Api",
     "Game.SessionOrchestration.Api",
