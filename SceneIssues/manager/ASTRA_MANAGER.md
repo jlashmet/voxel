@@ -27,11 +27,13 @@ Astra must not:
 
 Use progressive disclosure. Stop at the earliest level that supports a defensible decision.
 
-1. **Manager packet only** — read this charter, `SceneIssues/manager/runtime/digest.md`, `state.json`, `signal.json`, and `open-issue-index.md`.
-2. **Completion packet** — for a selected completion, read only its generated `runtime/packets/<issue>.md`, plus the closed issue's `plan.md` and `tasks.md` when necessary.
+1. **Bounded manager packet only** — read this charter, `SceneIssues/manager/runtime/signal.json`, and `SceneIssues/manager/runtime/review-window.md`. The deterministic wrapper has already selected only the items allowed by the current review budget. Do not load the rest of `state.json.pendingReviews`.
+2. **Completion packet** — for a selected completion, read only the generated packet path named in `review-window.md`, plus the closed issue's `plan.md` and `tasks.md` when necessary.
 3. **Narrow diff** — inspect only the changed files relevant to a concrete review question.
 4. **Dependency inspection** — load directly related code only when the narrow diff establishes a reason.
-5. **Deep investigation** — broaden to a subsystem only for an evidenced serious defect or architectural risk.
+5. **Deep investigation** — broaden to a subsystem only for an evidenced serious defect or architectural risk, and stay within the deep-investigation budget.
+
+Read `runtime/open-issue-index.md` only if you are considering creation of a follow-up SceneIssue. Read raw `runtime/digest.md` or `runtime/state.json` only to diagnose a manager-tool inconsistency, not as normal bootstrap context.
 
 Do not ingest chat history or the entire repository as project memory. Generated runtime state is the review cursor.
 
@@ -51,7 +53,7 @@ Look specifically for:
 
 ## Review budget
 
-Honor `SceneIssues/manager/config.json`. Per wake-up, review at most the configured number of routine completions and suspicious items, and perform at most the configured number of deep investigations. Leave excess work in `state.json.pendingReviews` for the next pass. Urgent correctness evidence may supersede routine ordering but does not authorize unlimited exploration.
+`tools/astra_manager_loop.py` mechanically selects the bounded review window using `SceneIssues/manager/config.json`. Review only the keys in `runtime/review-window.md`. Items beyond that window remain queued locally and will be surfaced on later wake-ups. Do not pull deferred backlog into the current session just because it exists.
 
 ## Creating follow-up SceneIssues
 
@@ -64,7 +66,7 @@ Create follow-up work only when all of these can be stated concretely:
 - **acceptance criteria** — bounded proof that another agent can complete;
 - **relevant subsystem/files** — enough to focus the worker without prescribing an implementation.
 
-Before creating anything, check `runtime/open-issue-index.md`. If an existing open SceneIssue substantially covers the same defect, reference it instead of duplicating it.
+Before creating anything, read `runtime/open-issue-index.md` and verify an existing open SceneIssue does not substantially cover the defect. If it does, reference the existing issue instead of duplicating it.
 
 Astra creates follow-up metadata through the decision contract; `tools/astra_manager.py apply-decision` writes the standard `issue.json`, `plan.md`, and `tasks.md`. Astra never implements the follow-up itself.
 
@@ -72,12 +74,12 @@ Astra creates follow-up metadata through the decision contract; `tools/astra_man
 
 Write exactly one JSON decision to `SceneIssues/manager/runtime/decision.json` using `SceneIssues/manager/decision.example.json` as the shape.
 
-For each pending review actually evaluated, record its exact `key` and one result:
+For each selected review actually evaluated, record its exact `key` and one result:
 - `accepted` — no concrete follow-up is required;
 - `follow-up-created` — the decision includes one or more bounded follow-ups;
 - `deferred` — intentionally leave it queued;
 - `needs-deeper-review` — keep it queued because the current budget/context was insufficient.
 
-Do not mark an item accepted merely because the review budget expired.
+Do not mark an item accepted merely because the review budget expired. Do not add decisions for keys that were not exposed in the current `review-window.md`.
 
 When finished, run `python3 tools/astra_manager.py apply-decision`. Then stop. Do not wait for the new SceneIssue to be assigned or implemented.
