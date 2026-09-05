@@ -37,7 +37,8 @@ namespace Game.Application.Api
         Join = 3,
         StartParty = 4,
         LeaveGame = 5,
-        QuitApplication = 6
+        QuitApplication = 6,
+        SaveGame = 7
     }
 
     public enum ApplicationFailure : byte
@@ -52,7 +53,8 @@ namespace Game.Application.Api
         SessionStartFailed = 7,
         SessionUpdateFailed = 8,
         TeardownFailed = 9,
-        InvalidPreferences = 10
+        InvalidPreferences = 10,
+        SaveCaptureFailed = 11
     }
 
     public readonly struct ApplicationSessionDescriptor
