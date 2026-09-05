@@ -9,15 +9,19 @@
 - [x] Add focused behavioral regressions for deterministic macro realization, reachability, route continuity/constraints, settlement placement, spatial reservations, bounded water cost, evidence sequencing, vertical residency/readiness, settlement framing, shell cost, GPU count-batch fairness, and distant mirror relocation/churn.
 - [x] Add required module-local production validation scenes for WorldBuilder, Showcase residency, Kentridge playable macro world, and GPU mirror relocation.
 
-## Demonstrated corrections from exact run 33930622766
-- [x] Preserve request `6d076011180388c8346b5338c0efa6946676c91b` until completion; do not replace it while queued/running.
-- [x] Classify exact source `3c839facd018eb8118811db1a7b81644375c419f`: 180-second standalone process completed, but closure evidence was red because the runtime catalogue had 434 definitions with no macro town/road/lake/ridge entries, evidence never advanced beyond Moordell, and ~35,981 legacy-input exceptions were logged.
-- [x] Classify repository-derived module validation red in `VoxelEngine.Structures` as a test-harness/render-frame boundary rather than a Structures production failure.
+## Demonstrated corrections
+- [x] Preserve request `6d076011180388c8346b5338c0efa6946676c91b` until completion and classify run `33930622766` from complete evidence.
 - [x] Isolate macro catalogue ownership root cause: the temporary generic `ShowcaseWorld` catalogue consumed the scene-selected one-shot macro layout before the concrete Kentridge playable catalogue.
 - [x] Correct ownership at the reusable boundary: generic `WorldBuilderVoxelCatalogue` uses `KentridgeCombinedVoxelCatalogue.BuildLocalOnly`, while the concrete playable catalogue remains the macro-selection owner.
 - [x] Strengthen `KentridgeMacroWorldBootstrapOwnershipTests` to reproduce production Showcase-first startup order.
 - [x] Migrate the Kentridge scene compatibility input bridge to Input System device reads and route HUD pressed/held state through that bridge; leave global input settings unchanged.
 - [x] Keep the Structures composition regression deterministic and module-scoped by invoking its public production validation synchronously instead of yielding an unrelated URP frame.
+- [x] Preserve exact request `3ebc24eb4bad34297c494592e3ca9b4a0dc2a7f6` through completed run `33932977686` and classify its full artifact before another request.
+- [x] Confirm run `33932977686` restored the macro catalogue: 480 definitions including Moordell/Rossdam/Fairy/Orc, 20 roads/824 route tiles, ridge and water; prior Kentridge legacy-input storm is absent.
+- [x] Isolate requested GPU-regression blocker to production `VoxelShowcase.HandleKeys()` legacy Input use before any intended GPU-liveness assertion.
+- [x] Add a scene-local Input-System compatibility boundary to `VoxelEngine.Showcase` without changing global input settings or suppressing runtime errors.
+- [x] Falsify stale FIFO as the Moordell convergence cause; production terrain and feature work are already nearest-first.
+- [x] Keep validation demand on the real streaming path: while an elevated settlement survey waits, move the real CharacterMotor demand to the first unsettled authored building centre without force-generation, radius widening, or extra streaming budget.
 
 ## Exact-SHA validation
 - [ ] Run `GpuSurfaceMirrorRelocationRequestedValidationTests.DistantUnrelatedChangeChurnExecutesProductionGpuLivenessRegression` on the current exact feature source through `ci-test/fixes/agent-6`.
