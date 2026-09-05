@@ -1,26 +1,24 @@
 # Gameplay residency / simulation streaming — implementation plan
 
-**Target ownership:** introduce one game-level residency coordination boundary at `Assets/Game/Residency/Api` / `Runtime`. Domain state remains owned by Characters, CharacterAI, WorldObjects, Encounters, Inventory, Story/Progression, Persistence, WorldBuilder, GameplayReplication, and VoxelEngine Streaming.
+**Target ownership:** one semantic coordination boundary at `Assets/Game/Residency/Api` / `Runtime`; Characters, CharacterAI, WorldObjects, Encounters, Persistence, WorldBuilder, GameplayReplication and VoxelEngine Streaming retain authoritative state/lifetime ownership.
 
-## Observed baseline / acceptance
+## Observed behavior / acceptance
 
-Baseline is `origin/master` `ed5c6f908361228819b3368bcd8427d4b44d89e3`. Character, CharacterAI, WorldObject, Encounter, Application/Persistence, GameplayReplication, WorldBuilder and VoxelEngine Streaming APIs are present. Characters already own stable `CharacterId`, registry state and kinematics; WorldObjects own stable `WorldObjectId` and snapshots; Encounters own stable participants/lifecycle; replication publishes current semantic state independently of simulation residency; WorldBuilder exposes stable Region/Settlement/Site/Npc refs.
+The original baseline (`ed5c6f908361228819b3368bcd8427d4b44d89e3`) already supplied stable Character/WorldObject/Encounter identities, persistence, replication, WorldBuilder semantic refs and physical Streaming. Acceptance requires one stable gameplay identity across `Dormant` / `Coarse` / `Detailed`; independent semantic demands; Detailed waiting for physical readiness and quiescing before release; server residency independent from client interest/presentation; owner-state persistence; generated-content scale; deterministic diagnostics/cost; no duplicate authority.
 
-Acceptance remains: stable gameplay identity/state must outlive `Dormant`/`Coarse`/`Detailed` simulation, physical-world residency, client interest and Unity presentation; independent demands compose by maximum fidelity and release independently; Detailed spatial realization waits for world readiness and quiesces before physical release; no duplicate domain/persistence/replication/streaming authority.
+## Hypotheses / results
 
-## Hypotheses / discriminating results
+1. **Existing `IRegionStreaming` is already an ownership-safe physical-residency primitive.** Falsified: engine eviction could bypass a gameplay load-now/evict-later convention.
+2. **A Streaming-owned pin plus a game-level semantic coordinator is sufficient.** Selected: Streaming owns ref-counted physical pins; Residency aggregates demands and orchestrates owner adapters only.
 
-1. **Existing `IRegionStreaming` is already an ownership-safe physical-residency primitive.** Falsified. It exposes queue/publish/resident/evict only, while `Streaming.Runtime.ResidencyManager` can evict directly through Storage policy, so gameplay cannot safely emulate a pin by load-now/evict-later.
-2. **A narrow Streaming-owned lease plus one game-level demand coordinator is sufficient.** Selected. Streaming owns ref-counted physical pins and makes all existing eviction paths respect them. Gameplay Residency owns only semantic demand aggregation, deterministic transition ordering/readiness/diagnostics and adapter orchestration.
+## Selected fix
 
-## Chosen architecture
+`semantic target + independent demands` → `GameplayResidencyCoordinator` → owner adapters. Highest fidelity wins deterministically. Detailed spatial promotion acquires `IRegionResidencyLease`, waits for readiness, then realizes; demotion quiesces the owner adapter before releasing the lease. CharacterAI has a narrow coarse semantic simulation seam. WorldObject/Encounter state stays owner-owned. Proximity hysteresis is semantic/configurable and explicit control/encounter pins bypass it.
 
-`semantic target + independent fidelity demands` → **Gameplay Residency coordinator** → owner adapters. Coordinator stores no Character/WorldObject/Encounter state. Shared fidelity is `Dormant < Coarse < Detailed`; highest request wins. Spatial Detailed promotion obtains an `IRegionResidencyLease` through `VoxelEngine.Streaming.Api`, waits for `IsReady`, then realizes the owning adapter. Demotion quiesces the adapter first and only then disposes its physical lease.
-
-Runtime may depend on foreign **Api** assemblies only. Stable target IDs are semantic values, never `GameObject`, `Transform`, renderer/collider, packet, runtime implementation, ordinal or captured-scene coordinate. Server simulation residency remains independent of client replication interest/presentation lifetime.
-
-Streaming already has distance hysteresis. Add gameplay dwell/hysteresis only if R90 demonstrates semantic transition churn.
+Independent proofs now cover Character/AI, WorldObject, Encounter, Streaming, a 64-NPC public WorldBuilder fixture with stable IDs and bounded Detailed work, current-state GameplayReplication for a later client without server-residency ownership, and a production `SessionPersistenceService` fresh-graph round trip after residency cycling. Applicable device budgets remain 30 Hz simulation and ≤0.5 ms streaming main-thread work; no weaker feature-local limit is introduced.
 
 ## Validation / remaining gates
 
-Streaming lease prerequisite commit: `71b31edefcc6d5511b158f7a9c5b66a4d1c355c5`; focused regression proves multiple pins release independently and engine distance eviction skips pinned regions. Next: deterministic Residency Api/Runtime + tests, then Character/AI, WorldObject, Encounter and composition reuse proofs, module-local runtime validation, persistence/cost/boundary audits, exact-SHA CI and built-player evidence. Close only when every `tasks.md` item and acceptance criterion is proven.
+Original exact request `a20a3282b05d8ed0986de69e4c48b45059416936` completed with module validation green but mandatory Kentridge standalone replay failed on baseline legacy `UnityEngine.Input` polling under Input-System-only Player Settings. This demonstrated acceptance blocker is fixed narrowly at composition commit `738a3b32c3a8f740ff367a91c9b4ca42a7d72ee4` using `Keyboard.current`; no new input authority was added.
+
+Intermediate exact request `1ca35bbb8f5d4a08cb69ad44488971e4937fc4aa` validates pre-input-fix feature SHA `7ab20c5404e5d502dcf2f18f4d8031b4c560951b` and must be left untouched while queued/running. After it completes, validate the final feature SHA including this plan/checklist and input repair; require affected-module and standalone-player gates green. Then close directly to `SceneIssues/closed/...`, merge current `origin/master` into `fixes/agent-3`, and promote only by PR + auto-merge.
