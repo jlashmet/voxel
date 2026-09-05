@@ -83,6 +83,8 @@ namespace VoxelEngine.Showcase
                     if (_showcase == null) return;
                     _keyboard = InputSystem.AddDevice<Keyboard>();
                     _mouse = InputSystem.AddDevice<Mouse>();
+                    _keyboard.MakeCurrent();
+                    _mouse.MakeCurrent();
                     _phase = 1;
                     _frames = 0;
                     return;
