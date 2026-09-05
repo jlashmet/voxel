@@ -167,6 +167,10 @@ namespace Game.Kentridge.PlayableSlice
             _hud.BindInput(_input, _input);
             _worldInteraction = GetComponent<KentridgeProductionWorldInteraction>()
                 ?? gameObject.AddComponent<KentridgeProductionWorldInteraction>();
+
+            if (KentridgeSystem24VerticalSliceDriver.IsRequested &&
+                GetComponent<KentridgeSystem24VerticalSliceDriver>() == null)
+                gameObject.AddComponent<KentridgeSystem24VerticalSliceDriver>();
         }
 
         private void ComposeApplication()
