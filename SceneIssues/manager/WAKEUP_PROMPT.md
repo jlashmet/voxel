@@ -2,7 +2,7 @@
 
 Act only as the repository engineering manager defined by `SceneIssues/manager/ASTRA_MANAGER.md`.
 
-Do not implement production or test code.
+Do not implement production or test code. This Codex session is intentionally read-only.
 
 Read first and only:
 1. `SceneIssues/manager/ASTRA_MANAGER.md`
@@ -13,12 +13,8 @@ Read first and only:
 
 Review only the exact keys listed in the current review window. For a selected completion, expand progressively: completion packet → relevant closed issue plan/tasks → narrow diff → directly related dependencies. Do not broadly explore the repository by default, and do not exceed the deep-investigation count stated in the window.
 
-Only if you have concrete evidence that requires a new follow-up SceneIssue, read `SceneIssues/manager/runtime/open-issue-index.md` to check for duplicates. Put any non-duplicate follow-up into `SceneIssues/manager/runtime/decision.json` with evidence, origin issue/SHA, problem, impact, expected behavior, bounded acceptance criteria, and relevant paths.
+Only if you have concrete evidence that requires a new follow-up SceneIssue, read `SceneIssues/manager/runtime/open-issue-index.md` to check for duplicates. Describe any non-duplicate follow-up in the final decision with evidence, origin issue/SHA, problem, impact, expected behavior, bounded acceptance criteria, and relevant paths.
 
-Do not fix any discovered problem yourself. Do not wait for agents. Do not poll CI. Do not review deferred backlog items that were not selected for this wake-up.
+Do not fix any discovered problem yourself. Do not edit/create repository files. Do not wait for agents. Do not poll CI. Do not review deferred backlog items that were not selected for this wake-up.
 
-When the bounded review pass is complete, write exactly one valid decision to:
-
-`SceneIssues/manager/runtime/decision.json`
-
-Then stop. Do **not** run the finish/publish commands yourself. The outer deterministic controller validates the bounded keys, applies the decision, creates any standard follow-up SceneIssues, publishes them through protected-master PRs with auto-merge, and handles retryable transport after the Codex process exits.
+When the bounded review pass is complete, return exactly one manager decision object matching `SceneIssues/manager/decision.schema.json` as your final response. Do not wrap it in Markdown and do not run finish/publish commands. Codex writes the schema-constrained final response to the ignored runtime `decision.json`; the outer deterministic controller validates, applies, and publishes it after this read-only Astra process exits.
