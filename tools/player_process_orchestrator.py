@@ -14,6 +14,8 @@ from pathlib import Path
 from typing import Callable, Iterable, Mapping, Sequence
 
 MILESTONE_PREFIX = "VOXEL_VALIDATION_MILESTONE "
+BUILD_IDENTITY_MILESTONE = "build-identity"
+BUILD_IDENTITY_TIMEOUT_SECONDS = 30.0
 _SHA_RE = re.compile(r"^[0-9a-fA-F]{40}$")
 _LIFECYCLE_OPS = {"launch", "wait", "terminate", "kill", "relaunch"}
 
@@ -79,6 +81,19 @@ def _milestone(raw: Mapping[str, object], names: set[str], label: str) -> Milest
     return MilestoneExpectation(str(role), name, timeout, dict(fields))
 
 
+def _has_gameplay_semantic_wait(
+    milestones: Sequence[MilestoneExpectation], operations: Sequence[LifecycleOperation]
+) -> bool:
+    if milestones:
+        return any(item.name != BUILD_IDENTITY_MILESTONE for item in milestones)
+    return any(
+        item.op == "wait"
+        and item.milestone is not None
+        and item.milestone.name != BUILD_IDENTITY_MILESTONE
+        for item in operations
+    )
+
+
 def normalize_config(data: Mapping[str, object]) -> dict:
     if data.get("mode") != "multiProcess":
         raise OrchestrationError("mode must be 'multiProcess'")
@@ -140,10 +155,13 @@ def normalize_config(data: Mapping[str, object]) -> dict:
 
     if milestones and operations:
         raise OrchestrationError("use either milestones or operations, not both")
-    if operations and not any(operation.op == "wait" for operation in operations):
-        raise OrchestrationError("operations must include at least one semantic wait")
     if not milestones and not operations:
         raise OrchestrationError("milestones or operations must contain at least one semantic wait")
+    if not _has_gameplay_semantic_wait(milestones, operations):
+        raise OrchestrationError(
+            "multi-process validation must include at least one gameplay semantic wait; "
+            "build identity is verified automatically for every process"
+        )
 
     assertions = data.get("assertions", {})
     if not isinstance(assertions, dict):
@@ -214,7 +232,10 @@ def build_player(unity: str, scene: Path, output_root: Path, source_sha: str) ->
     apps = sorted(build_dir.glob("*.app"))
     if len(apps) != 1:
         raise OrchestrationError(f"player build must produce exactly one .app, found {len(apps)}")
-    executables = [p for p in (apps[0] / "Contents" / "MacOS").iterdir() if p.is_file() and os.access(p, os.X_OK)]
+    executables = [
+        p for p in (apps[0] / "Contents" / "MacOS").iterdir()
+        if p.is_file() and os.access(p, os.X_OK)
+    ]
     if len(executables) != 1:
         raise OrchestrationError(f"player build must produce exactly one executable, found {len(executables)}")
     binary = executables[0].resolve()
@@ -327,7 +348,10 @@ def wait_for_milestone(
 ) -> dict:
     deadline = monotonic() + expected.timeout_seconds
     while True:
-        text = record.player_log.read_text(encoding="utf-8", errors="replace") if record.player_log.exists() else ""
+        text = (
+            record.player_log.read_text(encoding="utf-8", errors="replace")
+            if record.player_log.exists() else ""
+        )
         events = parse_milestones(text)
         for event in events:
             if _matches(event, expected):
@@ -338,13 +362,14 @@ def wait_for_milestone(
         status = record.process.poll()
         if status is not None:
             raise OrchestrationError(
-                f"role {record.role.name} attempt {record.attempt} exited with {status} before milestone {expected.name}; "
-                f"last milestones={events[-5:]}"
+                f"role {record.role.name} attempt {record.attempt} exited with {status} "
+                f"before milestone {expected.name}; last milestones={events[-5:]}"
             )
         if monotonic() >= deadline:
             raise OrchestrationError(
-                f"timed out waiting {expected.timeout_seconds:g}s for {record.role.name}:{expected.name}; "
-                f"attempt={record.attempt} last milestones={events[-5:]}"
+                f"timed out waiting {expected.timeout_seconds:g}s for "
+                f"{record.role.name}:{expected.name}; attempt={record.attempt} "
+                f"last milestones={events[-5:]}"
             )
         sleep(poll_interval)
 
@@ -394,20 +419,28 @@ def _terminate(records: Iterable[RoleProcess]) -> None:
         _stop_record(record, unexpected=False)
 
 
-def _record_attempt(summary: dict, record: RoleProcess) -> None:
+def _record_attempt(summary: dict, record: RoleProcess) -> dict:
     role_summary = summary["roles"].setdefault(record.role.name, {"attempts": []})
-    role_summary["attempts"].append({
+    attempt_summary = {
         "attempt": record.attempt,
         "pid": record.process.pid,
         "root": str(record.root),
         "playerLog": str(record.player_log),
         "stdoutLog": str(record.stdout_log),
         "stderrLog": str(record.stderr_log),
-    })
+        "identityVerified": False,
+    }
+    role_summary["attempts"].append(attempt_summary)
+    return attempt_summary
 
 
-def _validate_build_identity(event: Mapping[str, object], expected_role: str, identity: Mapping[str, str]) -> None:
-    if event.get("sourceSha") != identity["sourceSha"] or event.get("executableSha256") != identity["executableSha256"]:
+def _validate_build_identity(
+    event: Mapping[str, object], expected_role: str, identity: Mapping[str, str]
+) -> None:
+    if (
+        event.get("sourceSha") != identity["sourceSha"]
+        or event.get("executableSha256") != identity["executableSha256"]
+    ):
         raise OrchestrationError(f"role {expected_role} reported mismatched build identity: {event}")
 
 
@@ -436,11 +469,25 @@ def run(unity: str, scene: Path, output_root: Path, config: Mapping[str, object]
             raise OrchestrationError(f"role {role_name} is already running")
         attempts[role_name] += 1
         record = launch_role(
-            binary, output_root, role_specs[role_name], identity, config["runSeconds"], attempts[role_name]
+            binary,
+            output_root,
+            role_specs[role_name],
+            identity,
+            config["runSeconds"],
+            attempts[role_name],
         )
         current[role_name] = record
         all_records.append(record)
-        _record_attempt(summary, record)
+        attempt_summary = _record_attempt(summary, record)
+        identity_expected = MilestoneExpectation(
+            role_name,
+            BUILD_IDENTITY_MILESTONE,
+            BUILD_IDENTITY_TIMEOUT_SECONDS,
+            {},
+        )
+        identity_event = wait_for_milestone(record, identity_expected, history)
+        _validate_build_identity(identity_event, role_name, identity)
+        attempt_summary["identityVerified"] = True
         return record
 
     try:
@@ -451,12 +498,14 @@ def run(unity: str, scene: Path, output_root: Path, config: Mapping[str, object]
                 if operation.op == "launch":
                     record = start(operation.role)
                     op_summary["attempt"] = record.attempt
+                    op_summary["identityVerified"] = True
                 elif operation.op == "relaunch":
                     existing = current.get(operation.role)
                     if existing is not None and existing.process.poll() is None:
                         raise OrchestrationError(f"role {operation.role} must be stopped before relaunch")
                     record = start(operation.role)
                     op_summary["attempt"] = record.attempt
+                    op_summary["identityVerified"] = True
                 elif operation.op in ("terminate", "kill"):
                     record = current.get(operation.role)
                     if record is None or record.process.poll() is not None:
@@ -469,7 +518,7 @@ def run(unity: str, scene: Path, output_root: Path, config: Mapping[str, object]
                     if record is None or record.process.poll() is not None:
                         raise OrchestrationError(f"role {operation.role} is not running")
                     event = wait_for_milestone(record, operation.milestone, history)
-                    if operation.milestone.name == "build-identity":
+                    if operation.milestone.name == BUILD_IDENTITY_MILESTONE:
                         _validate_build_identity(event, operation.role, identity)
                     op_summary["attempt"] = record.attempt
                     op_summary["milestone"] = operation.milestone.name
@@ -479,7 +528,7 @@ def run(unity: str, scene: Path, output_root: Path, config: Mapping[str, object]
                 start(role.name)
             for expected in config["milestones"]:
                 event = wait_for_milestone(current[expected.role], expected, history)
-                if expected.name == "build-identity":
+                if expected.name == BUILD_IDENTITY_MILESTONE:
                     _validate_build_identity(event, expected.role, identity)
 
         _assert_logs(all_records, config["required"], config["forbidden"])
