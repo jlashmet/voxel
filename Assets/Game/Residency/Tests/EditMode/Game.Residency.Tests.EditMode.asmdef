@@ -1,0 +1,14 @@
+{
+  "name": "Game.Residency.Tests.EditMode",
+  "rootNamespace": "Game.Residency.Tests",
+  "references": ["Game.Residency.Api", "Game.Residency.Runtime", "Game.Characters.Api", "Game.Characters.Runtime", "Game.CharacterAI.Api", "Game.CharacterAI.Runtime", "Game.WorldObjects.Api", "Game.WorldObjects.Runtime", "Game.Encounters.Api", "Game.Encounters.Runtime", "Game.GameplayReplication.Api", "Game.GameplayReplication.Runtime", "Game.Persistence.Api", "Game.Persistence.Runtime", "Game.WorldBuilder.Api", "VoxelEngine.Streaming.Api", "Unity.Mathematics"],
+  "includePlatforms": ["Editor"],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

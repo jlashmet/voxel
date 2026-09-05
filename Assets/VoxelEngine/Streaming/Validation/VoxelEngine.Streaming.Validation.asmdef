@@ -1,0 +1,14 @@
+{
+  "name": "VoxelEngine.Streaming.Validation",
+  "rootNamespace": "VoxelEngine.Streaming.Validation",
+  "references": ["VoxelEngine.Streaming.Api", "VoxelEngine.Streaming.Runtime", "VoxelEngine.Storage.Api", "VoxelEngine.Storage.Runtime", "Unity.Collections", "Unity.Mathematics"],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
