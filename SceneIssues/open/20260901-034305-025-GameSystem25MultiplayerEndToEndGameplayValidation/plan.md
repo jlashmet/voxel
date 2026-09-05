@@ -13,7 +13,7 @@
 - Binding acceptance requires expensive capacity/JIP/reconnect/rehost coverage outside normal PR smoke. Tooling treats `<Module>/Validation/Release/` as a structural release tier: ordinary production diffs exclude it, edits to a release target include it in exact-SHA targeted CI, and generic `player-validation-release.yml` discovers all release targets on schedule/manual dispatch without registration lists.
 - **Independent tooling proof:** feature `496e3f9d7a88658029aa332b3596caf86e1cabb2` passed targeted request `bbb63019d00a93b44cff24c7a2b20d7ae12e461e` (run `33936350595`) for process orchestration, source-SHA propagation, release-tier selection, and per-scenario artifact isolation.
 - **Build-identity proof complete:** exact feature `73c3bafd0268fcc80c453d33900f6848e7571153` passed request `71b21322f8d3bb776553e5d915bc10d2c0664695` (run `33937957149`). The player self-computed executable SHA-256 `8129fbc54fb83c5ac219204df3c9fd2c7482d9c1225daa87c67447cec9db27ae`, reported the exact source SHA, the harness recorded `identityVerified: true`, and only then accepted `encounter-realization-ready` with three participants. Prior request `c8993bf9615705ccadf69a2904d871dd679f2fb7` failed because macOS `Application.dataPath` was resolved one bundle level incorrectly; artifact evidence identified that exact cause before the fix.
-- **External prerequisite:** blocker review against `origin/master` `51797c954490425964e602d6bb2252a0d7a7c5aa` found System24 still unmerged at `fixes/agent-2` `9bd075e77e83111053604d327395c5af13c27a53`, with no PR and T24-032 read-only diagnostics still unchecked. System24 has continued implementation work, but System25 must not copy or substitute that unmerged composition/diagnostic boundary.
+- **External prerequisite:** blocker review against `origin/master` `51797c954490425964e602d6bb2252a0d7a7c5aa` found System24 still unmerged at `fixes/agent-2` `79d4c272954146ef2b06a9ac01a94f112ac4718f`, with no PR and T24-032 read-only diagnostics still unchecked. System24 advanced by integrating residency changes while preserving its Kentridge composition, but System25 must not copy or substitute that unmerged composition/diagnostic boundary.
 
 ## Selected work
 
@@ -22,7 +22,7 @@
 3. Add smoke multiplayer validation under Kentridge playable composition (authority + two clients) and release coverage under `Validation/Release/`.
 4. Prove contention/conservation, vitality, progression, interruption/reconnect, explicit leave, capacity/JIP/repeated reconnect, and persisted rehost on exact built SHA.
 
-**Current verified implementation:** `73c3bafd0268fcc80c453d33900f6848e7571153` via request `71b21322f8d3bb776553e5d915bc10d2c0664695`, run `33937957149`; docs-only branch head before this blocker refresh was `3950b3331d8998f9d529018e6929aad5353c6966`.
+**Current verified implementation:** `73c3bafd0268fcc80c453d33900f6848e7571153` via request `71b21322f8d3bb776553e5d915bc10d2c0664695`, run `33937957149`; docs-only branch head before this blocker refresh was `9843ee809e96657d1e9cafededa3eb0e1052d307`.
 
 **Blast radius / cost:** validation tooling/workflows plus the owning Kentridge validation surface; production authority is untouched. Normal PR remains authority + two-client smoke; expensive release targets run only when changed for exact-SHA proof and in the scheduled release lane.
 
