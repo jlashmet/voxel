@@ -9,12 +9,12 @@
 - [x] Identify every affected module/assembly and its owned module-local validation scene/scenario before production edits.
 
 ## Canonical house + prop query surface
-- [ ] Expose a reusable production house enumeration/query boundary if none exists; do not make `HouseShowcase` the identity authority.
-- [ ] Provide semantic house metadata sufficient for UI display and composition without relying on enum ordinals, magic IDs, reflection, or incidental ordering.
-- [ ] Implement/query the applicable-prop set for a selected house from production room programs/context/traits plus canonical decoration identity and socket/mount compatibility.
-- [ ] Distinguish unavoidable production-required/integrated fixtures from user-selectable optional furnishing where applicable.
-- [ ] Add regression proving the house list has parity with all supported production house registrations.
-- [ ] Add regression proving applicable-prop results contain no unknown/unresolvable decoration identities and exclude demonstrably incompatible mount/socket choices.
+- [x] Expose a reusable production house enumeration/query boundary if none exists; do not make `HouseShowcase` the identity authority.
+- [x] Provide semantic house metadata sufficient for UI display and composition without relying on enum ordinals, magic IDs, reflection, or incidental ordering.
+- [x] Implement/query the applicable-prop set for a selected house from production room programs/context/traits plus canonical decoration identity and socket/mount compatibility.
+- [x] Distinguish unavoidable production-required/integrated fixtures from user-selectable optional furnishing where applicable.
+- [x] Add regression proving the house list has parity with all supported production house registrations.
+- [x] Add regression proving applicable-prop results contain no unknown/unresolvable decoration identities and exclude demonstrably incompatible mount/socket choices.
 
 ## Furnishing selection and socket-driven composition
 - [ ] Add the narrow shared production furnishing-policy/palette input needed to constrain optional prop choice, preserving existing consumer behavior when unspecified.
