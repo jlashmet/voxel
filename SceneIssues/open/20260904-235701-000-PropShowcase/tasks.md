@@ -1,0 +1,65 @@
+# PropShowcase tasks
+
+## Discovery and ownership
+
+- [ ] Fetch current `origin/master`, inspect the relevant production catalogues/presets/realization code, and update `plan.md` with the actual affected modules and current feature SHA.
+- [ ] Inventory every independently previewable production prop/decoration source, including base decoration content, registered decoration expansions, reusable room/furniture/lighting/storage/dining/martial/textile presets, and production world-object props that belong in this showcase.
+- [ ] Define the exact in-scope entry set and document intentional exclusions/aliases/variants so "all available props/decorations" has a deterministic meaning.
+- [ ] Verify whether the existing production APIs can enumerate the complete set without duplicated IDs or switch knowledge in the scene.
+- [ ] If enumeration is incomplete, add the narrowest read-only semantic enumeration/query boundary to the owning production module; do not create a showcase-only content registry.
+- [ ] Identify every affected module root and its existing module-local validation scene(s); add required validation-scene work below for any player-visible/runtime module that lacks a suitable focused surface.
+
+## Catalogue browser model
+
+- [ ] Implement a deterministic showcase-facing read model/adapter derived from canonical production sources, with stable identity, friendly display label, category/grouping metadata where available, and enough semantic information to invoke the real production realization.
+- [ ] Ensure every in-scope canonical entry appears exactly once unless an intentionally separate variant is documented.
+- [ ] Add focused regression coverage proving catalogue parity/completeness and detecting duplicate or orphaned showcase entries.
+- [ ] Prove that adding a representative canonical entry through the supported production registration path does not require adding a second duplicated identity constant/list to `PropShowcase`.
+
+## PropShowcase scene and UI
+
+- [ ] Create `Assets/Scenes/PropShowcase.unity` as a dedicated integration/showcase scene and register it through the repository's normal scene/build path.
+- [ ] Build a readable left-side panel that can handle hundreds of entries, supports scrolling, shows each friendly label, and clearly marks the current selection.
+- [ ] Keep the main right-side area dedicated to the selected prop/decoration preview rather than rendering the whole catalogue simultaneously.
+- [ ] Make clicking an entry replace the active preview immediately and deterministically.
+- [ ] Provide an explicit empty/loading/error state that is diagnostic without substituting placeholder geometry for a production prop.
+
+## Production-faithful preview
+
+- [ ] Instantiate/author the selected entry through the same production decoration/structure/world-object realization path used by shipped content; do not use `GameObject.CreatePrimitive`, bespoke preview meshes, ad-hoc materials/shaders, or fake substitute props where a production realization exists.
+- [ ] Preserve the selected content's production materials, coatings/presentation semantics, geometry backend, and applicable world-object presentation behavior.
+- [ ] Add a neutral but production-compatible preview environment with stable floor/contact reference and lighting that makes material and silhouette differences readable.
+- [ ] Compute preview bounds from the realized content and automatically frame/position the camera so representative tiny, medium, and large entries are visible without hand-authored per-prop coordinates.
+- [ ] Correctly handle representative floor-mounted, wall-mounted, ceiling/hanging, thin-surface, box-assembly, procedural-mesh, voxel-stamp, emissive/light-producing, container, movable, and other independently previewable production cases.
+- [ ] Ensure switching entries fully disposes/recycles the prior preview realization and leaves no stale geometry, colliders, lights, particle emitters, world-object state, subscriptions, or presentation resources.
+- [ ] Add a repeated-selection stress regression that cycles through a representative set and proves stable active-object/resource counts and no exceptions.
+
+## Module-local validation
+
+- [ ] For each affected player-visible/runtime module, create or update a focused scene under that module's own `<Module>/Validation/` directory; do not count top-level `PropShowcase` as the module-local validation surface.
+- [ ] Exercise the real production catalogue enumeration and realization path in those module-local validation scenes.
+- [ ] Add module-local `*.player-scenario.json` only where runtime selection/capture/assertion behavior is needed; do not add manual registration metadata.
+- [ ] Add focused EditMode/unit coverage for pure catalogue/enumeration invariants where appropriate.
+
+## Built-player acceptance
+
+- [ ] Build/run the exact feature SHA through the required targeted-CI transport and do not replace a queued/running request.
+- [ ] Capture durable built-player evidence of the initial `PropShowcase` view showing the left catalogue and right preview layout.
+- [ ] Capture representative selections spanning small/medium/large props and at least the major realization/mount categories used by the catalogue.
+- [ ] Visually inspect the built-player evidence for readable silhouettes, grounding/contact, material fidelity, framing, clipping, lighting, and absence of placeholder/blockout presentation; only production-quality evidence passes.
+- [ ] Exercise repeated navigation through many entries in the built player and verify there are no startup/runtime exceptions, stale previews, accumulating objects, or unusable UI states.
+- [ ] Measure relevant startup/switching/resource cost and confirm the showcase does not introduce an unreasonable runtime or memory-growth regression.
+
+## Acceptance checklist
+
+- [ ] `PropShowcase` is a dedicated built scene with a left catalogue panel and right live preview.
+- [ ] Every in-scope production prop/decoration is represented by the catalogue browser without a drifting duplicate identity list.
+- [ ] Clicking any listed entry renders the corresponding production realization in the right panel.
+- [ ] Switching selection removes the previous preview cleanly.
+- [ ] Preview framing, grounding, materials, and lighting are useful across representative content shapes/sizes/backends.
+- [ ] Automated catalogue-parity and switching regressions pass.
+- [ ] Required module-local validation scenes and scenarios pass through production paths.
+- [ ] Durable exact built-player evidence has been visually reviewed at the repository's production-quality bar.
+- [ ] All required exact-SHA targeted CI gates pass.
+- [ ] `issue.json` has final `resolutionSummary`, `regressionTest`, and `fixCommit`; every required checkbox is complete before moving `open/` to `closed/`.
+- [ ] Current `origin/master` is merged into the feature branch before final promotion; PR auto-merge is enabled and the required `affected` gate passes until the SceneIssue is visible closed on master.
