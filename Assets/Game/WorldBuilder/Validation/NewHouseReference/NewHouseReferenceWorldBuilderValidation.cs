@@ -142,6 +142,12 @@ namespace Game.WorldBuilder.Validation.NewHouseReference
                 throw new InvalidOperationException(
                     $"Expected authored house-stone foundation, found material {foundationMaterial}.");
 
+            // Structures.Api authoring mutates resident storage but deliberately does not own the
+            // world's change journal. Publish the completed bounded authoring phase before binding
+            // rendering so surface discovery receives every house/site region rather than only the
+            // pre-existing terrain publication.
+            _world.PublishStructureAuthoringChanges();
+
             var renderingWorld = new RenderingWorldBinding(
                 _world.ReadStorage,
                 _world.Palette,
