@@ -8,13 +8,13 @@ The manager runtime is intentionally untracked at `SceneIssues/manager/runtime/`
 
 ## One iteration
 
-Run:
+Use the budget-enforcing entrypoint:
 
 ```bash
-python3 tools/astra_manager.py run --fetch
+python3 tools/astra_manager_loop.py --fetch
 ```
 
-The deterministic collector:
+The underlying deterministic collector:
 1. fetches `origin`;
 2. compares current `origin/master` with the last collected SHA;
 3. summarizes active SceneIssues and `fixes/agent-N` branches;
@@ -24,17 +24,19 @@ The deterministic collector:
 7. appends those signals to a persistent pending-review queue;
 8. exits without Astra when there is nothing meaningful to review or the normal batching window has not elapsed.
 
-The first run bootstraps at current master and intentionally does **not** enqueue the historical backlog. To review from an older point, use `bootstrap --from-sha <sha>` before the next check.
+`astra_manager_loop.py` then mechanically applies `config.json.reviewBudget` and writes `runtime/review-window.md`. Astra sees only that bounded slice. The remaining backlog stays in local `state.json` and is not loaded into the model session.
+
+The first run bootstraps at current master and intentionally does **not** enqueue the historical backlog. To review from an older point, use `python3 tools/astra_manager.py bootstrap --from-sha <sha>` before the next loop check.
 
 ## Waking Astra
 
-When a review is due and no launcher is configured, `run` exits with code `10` and prints the paths Astra needs. That is the integration point for your existing Astra/Work launcher.
+When a review is due and no launcher is configured, the loop exits with code `10` and prints only the prompt, bounded review-window, and decision-output paths. That is the integration point for your existing Astra/Work launcher.
 
 To make the loop autonomous, set `ASTRA_MANAGER_WAKE_COMMAND` to your external launcher. The command runs only when `signal.json.wakeAstra` is true and receives:
 
 - `ASTRA_MANAGER_PROMPT`
-- `ASTRA_MANAGER_DIGEST`
-- `ASTRA_MANAGER_OPEN_ISSUE_INDEX`
+- `ASTRA_MANAGER_REVIEW_WINDOW`
+- `ASTRA_MANAGER_DIGEST` — compatibility alias pointing to the same bounded review-window
 - `ASTRA_MANAGER_DECISION_OUTPUT`
 - `ASTRA_MANAGER_MASTER_SHA`
 
@@ -44,7 +46,7 @@ Example scheduler shell behavior:
 
 ```bash
 cd /path/to/persistent/voxel-manager-checkout
-python3 tools/astra_manager.py run --fetch
+python3 tools/astra_manager_loop.py --fetch
 case $? in
   0)  ;; # no Astra needed
   10) ;; # wake required but no launcher configured
@@ -52,7 +54,7 @@ case $? in
 esac
 ```
 
-Running this cheap check hourly is reasonable; `config.json` defaults normal Astra batching to five hours. Event accumulation happens in runtime state, so several completions become one manager wake-up.
+Running this cheap check hourly is reasonable; `config.json` defaults normal Astra batching to five hours. Event accumulation happens in runtime state, so several completions become one manager wake-up while the mechanical review budget prevents a large backlog from becoming a large Astra prompt.
 
 ## Astra output and follow-ups
 
@@ -64,17 +66,18 @@ python3 tools/astra_manager.py apply-decision
 
 The apply step validates reviewed keys, advances local manager state, writes a compact untracked audit record, and creates any approved follow-up under `SceneIssues/open/<id>/` using the repository's normal `issue.json + plan.md + tasks.md` shape. It never edits production code.
 
-If follow-up SceneIssues were created, publish **only those SceneIssue files** through the repository's normal protected-master PR path. The normal agent allocator then owns implementation. Do not ask Astra to implement the work it created.
+If follow-up SceneIssues were created, publish **only those SceneIssue files** through the repository's normal protected-master PR path. The normal agent allocator then owns implementation. Do not ask Astra to implement the work it created. Publication can be handled by the same cheap outer controller because it does not require Astra reasoning.
 
 ## Runtime files
 
 `SceneIssues/manager/runtime/` contains:
 
-- `state.json` — collection/review cursor and pending queue;
-- `signal.json` — whether a manager wake is currently due;
-- `digest.md` — compact current/delta summary;
-- `open-issue-index.md` — duplicate-prevention index;
-- `packets/*.md` — compact completion packets generated only when needed;
+- `state.json` — collection/review cursor and the complete pending queue; not normal Astra input;
+- `signal.json` — whether a manager wake is currently due and which keys were selected;
+- `digest.md` — complete deterministic current/delta summary for diagnostics; not normal Astra input;
+- `review-window.md` — the bounded minimal packet Astra reads on wake-up;
+- `open-issue-index.md` — duplicate-prevention index, read only before creating follow-up work;
+- `packets/*.md` — compact completion packets, read only for selected completions;
 - `decision.json` — one Astra pass's bounded output;
 - `history/*.md` — compact local audit records.
 
@@ -83,11 +86,14 @@ No chain-of-thought or investigation diary is stored.
 ## Useful commands
 
 ```bash
-# cheap collection only; returns 10 when Astra should wake
-python3 tools/astra_manager.py check --fetch
+# canonical cheap loop; invokes Astra only when due
+python3 tools/astra_manager_loop.py --fetch
 
-# ignore optional CI queries when gh is unavailable/unwanted
-python3 tools/astra_manager.py check --fetch --no-ci
+# run without optional GitHub Actions queries
+python3 tools/astra_manager_loop.py --fetch --no-ci
+
+# raw collector only; useful for diagnostics/tests
+python3 tools/astra_manager.py check --fetch
 
 # reset/bootstrap the collection cursor
 python3 tools/astra_manager.py bootstrap --fetch
