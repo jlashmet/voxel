@@ -75,6 +75,9 @@ Server/secrets/
 .claude/settings.local.json
 .claude/.autonomous_loop_exit
 
+# Machine-local Astra manager cursor, packets, decisions, and audit history
+/SceneIssues/manager/runtime/
+
 # Unity test-runner output, regenerated per run
 TestResults/
 
