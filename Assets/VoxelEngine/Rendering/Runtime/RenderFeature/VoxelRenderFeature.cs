@@ -78,11 +78,26 @@ namespace VoxelEngine.Rendering.Runtime
             m_SkyPass = new VoxelSkyPass();
             m_SkyPass.Setup(m_SkyShader, m_SkyTexture);
 
-            // Keep the renderer extension semantic-free: application composition chooses which
-            // textures occupy these extra opaque layers, while the render pass still consumes one
-            // generic Texture2DArray contract.
+            // Renderer-owned fields remain an explicit override for engine-only consumers. When
+            // they are empty, an application can supply the same semantic-free ordered layer
+            // contract as a Resources asset without editing shared renderer settings. This keeps
+            // game material identity out of Rendering while avoiding project-global asset churn.
+            Texture2D[] additionalAlbedo = m_AdditionalSurfaceTextures;
+            Texture2D[] additionalNormals = m_AdditionalSurfaceNormals;
+            if (additionalAlbedo == null || additionalAlbedo.Length == 0)
+            {
+                VoxelAdditionalTextureLayersAsset resource =
+                    Resources.Load<VoxelAdditionalTextureLayersAsset>(
+                        VoxelAdditionalTextureLayersAsset.ResourceName);
+                if (resource != null)
+                {
+                    additionalAlbedo = resource.Albedo;
+                    additionalNormals = resource.Normals;
+                }
+            }
+
             VoxelPresentationCatalogue.ConfigureAdditionalTextureLayers(
-                m_AdditionalSurfaceTextures, m_AdditionalSurfaceNormals);
+                additionalAlbedo, additionalNormals);
 
             m_Pass = new VoxelRenderPass();
             m_Pass.Setup(m_SurfaceShader, m_WaterShader,
