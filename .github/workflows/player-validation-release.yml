@@ -1,0 +1,89 @@
+name: Player Validation (release)
+
+# Slow standalone-player scenarios live structurally under each owning module's
+# Validation/Release/ directory. This workflow discovers them from repository structure;
+# features do not register scenario names or maintain a manual target list here.
+on:
+  schedule:
+    - cron: '17 9 * * 1,4'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: player-validation-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: true
+          fetch-depth: 1
+
+      - name: Resolve Unity
+        id: unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(awk '/m_EditorVersion:/ {print $2}' ProjectSettings/ProjectVersion.txt)"
+          path="/Applications/Unity/Hub/Editor/${version}/Unity.app/Contents/MacOS/Unity"
+          test -x "$path"
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for Unity
+        shell: bash
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 900))
+          while pgrep -f '/Unity.app/Contents/MacOS/Unity' >/dev/null 2>&1; do
+            if (( SECONDS >= deadline )); then
+              pgrep -alf '/Unity.app/Contents/MacOS/Unity' || true
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: Discover release player validations
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$GITHUB_WORKSPACE/Artifacts/ReleasePlayerValidation"
+          mkdir -p "$root"
+          python3 tools/module-validation-plan.py \
+            --tier release \
+            --output "$root/plan.json"
+          python3 - "$root/plan.json" <<'PY'
+          import json, sys
+          plan=json.load(open(sys.argv[1], encoding='utf-8'))
+          players=plan.get('playerValidations') or []
+          if not players:
+              raise SystemExit('ERROR: release validation lane discovered zero player targets')
+          print('Release player targets:')
+          for item in players:
+              print(f"- {item['module']}: {item['scene']} :: {item['scenario']}")
+          PY
+
+      - name: Run release player validations
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$GITHUB_WORKSPACE/Artifacts/ReleasePlayerValidation"
+          python3 tools/run-module-validation.py \
+            --unity "${{ steps.unity.outputs.path }}" \
+            --plan "$root/plan.json" \
+            --output "$root/Results" \
+            --source-sha "$GITHUB_SHA"
+
+      - name: Upload release evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-player-validation-${{ github.run_id }}
+          path: Artifacts/ReleasePlayerValidation/**
+          if-no-files-found: error
+          retention-days: 14
