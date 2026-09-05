@@ -9,13 +9,23 @@ namespace MountingForce.WorldGen.Voxel
 {
     public static class KentridgeCombinedVoxelCatalogue
     {
+        /// <summary>
+        /// Builds only the local Kentridge catalogue and deliberately leaves any scene-selected
+        /// macro world untouched. Generic/temporary composition roots use this path so the
+        /// one-shot macro selection remains owned by the concrete playable Kentridge catalogue.
+        /// </summary>
+        public static FeatureCatalogue BuildLocalOnly(
+            uint seed,
+            VoxelWorldGenSettings settings,
+            Allocator allocator) =>
+            KentridgeCombinedVoxelCatalogueCanonical.Build(seed, settings, allocator);
+
         public static FeatureCatalogue Build(
             uint seed,
             VoxelWorldGenSettings settings,
             Allocator allocator)
         {
-            FeatureCatalogue local = KentridgeCombinedVoxelCatalogueCanonical.Build(
-                seed, settings, allocator);
+            FeatureCatalogue local = BuildLocalOnly(seed, settings, allocator);
             return AddSelectedMacroWorld(local, seed, settings, allocator);
         }
 
