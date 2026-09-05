@@ -32,6 +32,8 @@ namespace Game.WorldBuilder.Validation.NewHouseReference
         private ShowcaseWorld _world;
         private int3 _origin;
         private NewHouseReferenceResult _result;
+        private Vector3 _cameraTarget;
+        private Vector3 _frontalPosition;
         private bool _ready;
 
         private void Start()
@@ -44,7 +46,8 @@ namespace Game.WorldBuilder.Validation.NewHouseReference
                     "NEW_HOUSE_VALIDATION ready: " +
                     $"origin={_origin} bounds={_result.Min}->{_result.MaxExclusive} " +
                     $"doorX={_result.DoorCentreX} frontZ={_result.FrontZ} ridgeY={_result.RidgeY} " +
-                    "materials=plaster,timber,roof,stone,glass,door,foliage");
+                    "materials=plaster,timber,roof,stone,glass,door,foliage " +
+                    "referenceCamera=frontal portrait; audit=front-left,rear-right");
             }
             catch (Exception exception)
             {
@@ -57,6 +60,7 @@ namespace Game.WorldBuilder.Validation.NewHouseReference
         {
             if (!_ready || _world == null) return;
             _world.StepStreaming(transform.position, m_GenerateBudgetMs);
+            UpdateEvidenceCamera(Time.timeSinceLevelLoad);
         }
 
         private void OnDestroy()
@@ -153,17 +157,43 @@ namespace Game.WorldBuilder.Validation.NewHouseReference
             cameraComponent.clearFlags = CameraClearFlags.Skybox;
             cameraComponent.nearClipPlane = 0.05f;
             cameraComponent.farClipPlane = 800f;
-            cameraComponent.fieldOfView = 39f;
+            cameraComponent.fieldOfView = 36f;
 
-            Vector3 target = new(
-                (_origin.x + config.Width * 0.52f) * VoxelMetres,
-                (surfaceY + 52f) * VoxelMetres,
-                (_origin.z + 23f) * VoxelMetres);
-            transform.position = new Vector3(
-                target.x - 12.5f,
-                target.y + 2.6f,
-                target.z - 20.5f);
-            transform.rotation = Quaternion.LookRotation(target - transform.position, Vector3.up);
+            // The supplied source is a portrait, almost perfectly frontal architectural plate.
+            // Keep the primary proof on that axis; later fixed phases expose side/rear surfaces so
+            // holes, floating geometry and roof intersections cannot hide behind the hero view.
+            _cameraTarget = new Vector3(
+                (_origin.x + config.Width * 0.5f) * VoxelMetres,
+                (surfaceY + 70f) * VoxelMetres,
+                (_origin.z + 16f) * VoxelMetres);
+            _frontalPosition = new Vector3(
+                _cameraTarget.x,
+                _cameraTarget.y + 0.4f,
+                _cameraTarget.z - 24.5f);
+            ApplyCamera(_frontalPosition);
+        }
+
+        private void UpdateEvidenceCamera(float elapsedSeconds)
+        {
+            if (elapsedSeconds < 16f || elapsedSeconds >= 28f)
+            {
+                ApplyCamera(_frontalPosition);
+                return;
+            }
+
+            if (elapsedSeconds < 22f)
+            {
+                ApplyCamera(_cameraTarget + new Vector3(-17f, 2.2f, -18f));
+                return;
+            }
+
+            ApplyCamera(_cameraTarget + new Vector3(15f, 2.4f, 18f));
+        }
+
+        private void ApplyCamera(Vector3 position)
+        {
+            transform.position = position;
+            transform.rotation = Quaternion.LookRotation(_cameraTarget - position, Vector3.up);
         }
 
         private static void EnsureLighting()
