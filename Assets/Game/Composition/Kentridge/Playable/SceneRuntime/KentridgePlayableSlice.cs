@@ -1,4 +1,5 @@
 using System;
+using Game.Characters.Api;
 using Game.Composition.Campaign.Content;
 using Game.Composition.Kentridge.Api;
 using Game.Composition.Kentridge.Playable;
@@ -109,6 +110,7 @@ namespace Game.Kentridge.PlayableSlice
         internal KentridgeSessionRuntimeGraphFactory SessionFactory => _sessionFactory;
         internal KentridgeSessionRuntimeGraph SessionGraph => _sessionGraph;
         internal KentridgeCampaignSession CampaignSession => _session;
+        internal KentridgeCharacterHost CharacterHost => _actors;
         public bool ProductionInputBound => _inputReader != null && _inputActions != null;
         public bool SessionControlBound => _sessionControl != null;
         public GameSessionLifecycle SessionLifecycle =>
@@ -155,6 +157,13 @@ namespace Game.Kentridge.PlayableSlice
             if (_sessionControl != null && !ReferenceEquals(_sessionControl, sessionControl))
                 throw new InvalidOperationException("Kentridge session control is already bound.");
             _sessionControl = sessionControl ?? throw new ArgumentNullException(nameof(sessionControl));
+        }
+
+        private void Awake()
+        {
+            if (!Application.isPlaying) return;
+            if (GetComponent<KentridgeProductionCompositionRoot>() == null)
+                gameObject.AddComponent<KentridgeProductionCompositionRoot>();
         }
 
         private void OnEnable()
@@ -443,18 +452,27 @@ namespace Game.Kentridge.PlayableSlice
                     StreamWorld(m_LoadingGenerateBudgetMs);
                     return;
                 }
-                if (_sessionGraph.LastNewGameMatchedCount == 0 || !_session.Runtime.HasActiveCutscene)
-                    throw new InvalidOperationException(
-                        "Application started Kentridge without the authored New Game opening cutscene.");
-                _openingStarted = true;
-                _cutsceneOwnedControl = true;
-            }
 
-            GameSessionOperationResult tick = _sessionControl.Tick(
-                Mathf.Max(0, Mathf.RoundToInt(dt * 1000f)));
-            if (!tick.Succeeded)
-                throw new InvalidOperationException(
-                    "Kentridge session update failed: " + tick.Failure + " " + tick.Diagnostic);
+                if (_sessionGraph.RestoredFromPersistence)
+                {
+                    _openingStarted = true;
+                    _openingGameplayReleased = true;
+                    _cutsceneOwnedControl = _session.Runtime.HasActiveCutscene;
+                    _openingCutsceneCameraActive = false;
+                    _actors.Player.SetCutsceneBodyVisible(false);
+                    transform.position = _motor.EyePosition;
+                }
+                else
+                {
+                    if (!_sessionGraph.InitializedNewGame ||
+                        _sessionGraph.LastNewGameMatchedCount == 0 ||
+                        !_session.Runtime.HasActiveCutscene)
+                        throw new InvalidOperationException(
+                            "Application started Kentridge without the authored New Game opening cutscene.");
+                    _openingStarted = true;
+                    _cutsceneOwnedControl = true;
+                }
+            }
 
             bool hasActiveCutscene = _session.Runtime.HasActiveCutscene;
             if (_cutsceneOwnedControl
@@ -915,10 +933,6 @@ namespace Game.Kentridge.PlayableSlice
         private void ReleaseForScriptedWalk()
         {
             _presentation?.DismissPending();
-            GameSessionOperationResult tick = _sessionControl.Tick(0);
-            if (!tick.Succeeded)
-                throw new InvalidOperationException(
-                    "Kentridge scripted-walk session update failed: " + tick.Failure + " " + tick.Diagnostic);
             if (_session.Runtime.HasActiveCutscene) return;
 
             if (!_openingGameplayReleased)
