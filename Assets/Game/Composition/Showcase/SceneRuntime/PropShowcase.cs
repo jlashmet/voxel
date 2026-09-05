@@ -181,12 +181,13 @@ namespace VoxelEngine.Showcase
         private bool PresentDecoration(in DecorationShowcaseRealization realization)
         {
             DecorationPlacement placement = realization.Decoration;
+            bool isPreset = realization.Entry.Source == DecorationShowcaseEntrySource.Preset;
             switch (placement.Backend)
             {
                 case DecorationRenderBackend.ProceduralMesh:
                 {
                     DecorationProceduralMeshRequest[] requests =
-                        DecorationProceduralMeshPlanner.CollectRequests(new[] { placement });
+                        DecorationProceduralMeshHookPlanner.Collect(new[] { placement });
                     return requests.Length == 1 && _procedural.TryPresent(in requests[0], this);
                 }
                 case DecorationRenderBackend.ThinSurface:
@@ -195,7 +196,7 @@ namespace VoxelEngine.Showcase
                 case DecorationRenderBackend.VoxelStamp:
                     return PresentVoxel(authoring =>
                     {
-                        if (realization.Entry.Source == DecorationShowcaseEntrySource.Preset)
+                        if (isPreset)
                             return DecorationReusablePresetAuthoringEmitter.TryAuthor(
                                 authoring, in placement, in _context);
                         return DecorationCanonicalAuthoringEmitter.TryAuthorGeometry(
