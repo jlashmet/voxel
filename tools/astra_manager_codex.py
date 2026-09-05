@@ -16,9 +16,8 @@ DEFAULTS = {
     "minimumVersion": "0.153.0",
     "model": "gpt-6-astra",
     "reasoningEffort": "low",
-    "sandbox": "workspace-write",
+    "sandbox": "read-only",
     "approvalPolicy": "never",
-    "networkAccess": False,
     "webSearch": "disabled",
 }
 
@@ -37,7 +36,8 @@ def parse_version(text: str) -> tuple[int, int, int]:
     match = re.search(r"(?<!\d)(\d+)\.(\d+)\.(\d+)(?!\d)", text)
     if not match:
         raise core.ManagerError(f"could not parse Codex CLI version from: {text.strip() or '(empty)'}")
-    return tuple(int(part) for part in match.groups())  # type: ignore[return-value]
+    major, minor, patch = match.groups()
+    return int(major), int(minor), int(patch)
 
 
 def require_codex(cfg: dict[str, Any]) -> str:
@@ -66,9 +66,13 @@ def require_codex(cfg: dict[str, Any]) -> str:
     return executable
 
 
-def build_command(cfg: dict[str, Any], executable: str) -> list[str]:
+def build_command(
+    cfg: dict[str, Any],
+    executable: str,
+    output_schema: Path,
+    decision_output: Path,
+) -> list[str]:
     opts = settings(cfg)
-    network = "true" if bool(opts["networkAccess"]) else "false"
     return [
         executable,
         "exec",
@@ -81,12 +85,14 @@ def build_command(cfg: dict[str, Any], executable: str) -> list[str]:
         str(opts["model"]),
         "--sandbox",
         str(opts["sandbox"]),
+        "--output-schema",
+        str(output_schema),
+        "--output-last-message",
+        str(decision_output),
         "--config",
         f"model_reasoning_effort={json.dumps(str(opts['reasoningEffort']))}",
         "--config",
         f"approval_policy={json.dumps(str(opts['approvalPolicy']))}",
-        "--config",
-        f"sandbox_workspace_write.network_access={network}",
         "--config",
         f"web_search={json.dumps(str(opts['webSearch']))}",
         "-",
@@ -100,9 +106,10 @@ def invocation_prompt(root: Path, review_window: Path) -> str:
         "Read and follow `SceneIssues/manager/WAKEUP_PROMPT.md`.\n"
         f"The only initial review payload is `{relative}`.\n"
         "Do not resume or inspect prior Codex sessions or conversation history.\n"
-        "Do not implement production or test code.\n"
-        "Write the required `SceneIssues/manager/runtime/decision.json` and then stop. "
-        "The outer deterministic controller will validate/apply the decision after Codex exits.\n"
+        "Do not implement, edit, create, or publish repository files.\n"
+        "Return only the manager decision JSON as your final response. The Codex harness will "
+        "write that structured response to `SceneIssues/manager/runtime/decision.json`, and the "
+        "outer deterministic controller will validate/apply it after Codex exits.\n"
     )
 
 
@@ -112,9 +119,13 @@ def launch(root: Path, runtime: Path, cfg: dict[str, Any], review_window: Path) 
     if decision.exists():
         decision.unlink()
 
+    schema = root / "SceneIssues/manager/decision.schema.json"
+    if not schema.exists():
+        raise core.ManagerError(f"missing Astra manager decision schema: {schema.relative_to(root)}")
+
     before = core.git(root, "status", "--porcelain", "--untracked-files=all", check=False)
     executable = require_codex(cfg)
-    command = build_command(cfg, executable)
+    command = build_command(cfg, executable, schema, decision)
     result = subprocess.run(
         command,
         cwd=root,
@@ -127,9 +138,12 @@ def launch(root: Path, runtime: Path, cfg: dict[str, Any], review_window: Path) 
     after = core.git(root, "status", "--porcelain", "--untracked-files=all", check=False)
     if after != before:
         raise core.ManagerError(
-            "Codex Astra manager changed tracked/untracked repository files outside ignored runtime state; "
-            "manager implementation edits are forbidden"
+            "Codex Astra manager changed tracked/untracked repository files; the manager is required to run read-only"
         )
     if not decision.exists():
-        raise core.ManagerError("Codex Astra manager exited without writing runtime/decision.json")
+        raise core.ManagerError("Codex Astra manager exited without producing runtime/decision.json")
+    try:
+        json.loads(decision.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise core.ManagerError(f"Codex Astra manager produced invalid decision JSON: {exc}") from exc
     return decision
