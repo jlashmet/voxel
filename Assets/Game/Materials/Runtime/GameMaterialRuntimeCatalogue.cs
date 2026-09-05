@@ -42,6 +42,16 @@ namespace Game.Materials.Runtime
         private const int DirtTexture = 6;
         private const int DarkStoneTexture = 7;
 
+        // Extra renderer texture layers are configured generically by VoxelRenderFeature. The
+        // semantic role-to-layer mapping remains game-owned here rather than leaking house names
+        // into VoxelEngine.Rendering.
+        private const int HousePlasterTexture = 8;
+        private const int HouseTimberTexture = 9;
+        private const int HouseRoofTexture = 10;
+        private const int HouseStoneTexture = 11;
+        private const int HouseDoorTexture = 12;
+        private const int HouseFoliageTexture = 13;
+
         private const uint WeatherCoatings =
             (1u << Coatings.Moss) |
             (1u << Coatings.Snow) |
@@ -168,6 +178,42 @@ namespace Game.Materials.Runtime
                     new float4(0.010f, 0.15f, 0.32f, 1.15f),
                     new float2(1f, 0.22f), 0.92f, 0.42f, 0.23f, 0.015f, 0.54f,
                     0.34f, 0.84f, 1.55f, 0.82f)),
+
+            Row(GameMaterialIds.HousePlaster, true,
+                Sim(GameMaterialIds.HousePlaster, 45, DestructionClass.Crumble,
+                    SurfaceStyles.Smooth, WeatherCoatings),
+                ReferenceTextured(GameMaterialIds.HousePlaster, 0.83f, 0.78f, 0.66f,
+                    HousePlasterTexture, true, 1f / 15f, 0.86f)),
+
+            Row(GameMaterialIds.HouseTimber, true,
+                Sim(GameMaterialIds.HouseTimber, 95, DestructionClass.Splinter,
+                    SurfaceStyles.Planar, WeatherCoatings, true),
+                ReferenceTextured(GameMaterialIds.HouseTimber, 0.30f, 0.19f, 0.11f,
+                    HouseTimberTexture, false, 1f / 12f, 0.66f)),
+
+            Row(GameMaterialIds.HouseRoof, true,
+                Sim(GameMaterialIds.HouseRoof, 125, DestructionClass.Crumble,
+                    SurfaceStyles.Planar, WeatherCoatings),
+                ReferenceTextured(GameMaterialIds.HouseRoof, 0.25f, 0.34f, 0.43f,
+                    HouseRoofTexture, false, 1f / 10f, 0.54f)),
+
+            Row(GameMaterialIds.HouseStone, true,
+                Sim(GameMaterialIds.HouseStone, 215, DestructionClass.Crumble,
+                    SurfaceStyles.MasonryJoint, WeatherCoatings),
+                ReferenceTextured(GameMaterialIds.HouseStone, 0.47f, 0.45f, 0.39f,
+                    HouseStoneTexture, true, 1f / 13f, 0.90f)),
+
+            Row(GameMaterialIds.HouseDoor, true,
+                Sim(GameMaterialIds.HouseDoor, 95, DestructionClass.Splinter,
+                    SurfaceStyles.Planar, WeatherCoatings, true),
+                ReferenceTextured(GameMaterialIds.HouseDoor, 0.31f, 0.19f, 0.10f,
+                    HouseDoorTexture, false, 1f / 11f, 0.66f)),
+
+            Row(GameMaterialIds.HouseFoliage, true,
+                Sim(GameMaterialIds.HouseFoliage, 12, DestructionClass.Powder,
+                    SurfaceStyles.Smooth, 1u << Coatings.Wet),
+                ReferenceTextured(GameMaterialIds.HouseFoliage, 0.27f, 0.40f, 0.15f,
+                    HouseFoliageTexture, true, 1f / 8f, 0.92f)),
         };
 
         public const int Count = GameMaterialCatalogue.Count;
@@ -266,6 +312,27 @@ namespace Game.Materials.Runtime
                 detailStrength: detailStrength,
                 chromaStrength: chromaStrength,
                 macroVariation: macroVariation);
+
+        private static MaterialPresentationDefinition ReferenceTextured(
+            byte materialIndex,
+            float r,
+            float g,
+            float b,
+            int layer,
+            bool triplanar,
+            float uvScale,
+            float roughness) =>
+            new(materialIndex, new float4(r, g, b, 1f), layer, layer,
+                triplanar ? MaterialTextureProjection.Triplanar : MaterialTextureProjection.Face,
+                textureBlend: 1f,
+                uvScale: uvScale,
+                normalStrength: 0f,
+                roughness: roughness,
+                luminanceOnly: false,
+                luminancePivot: 0.68f,
+                detailStrength: 0f,
+                chromaStrength: 0f,
+                macroVariation: 0.035f);
 
         private static MaterialPresentationDefinition StylizedTerrain(
             byte materialIndex,
