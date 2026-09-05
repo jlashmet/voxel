@@ -17,6 +17,8 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
     {
         private const int MaxInstancesPerDraw = 1023;
         private const int CylinderSegments = 12;
+        private const string FarFeatureShaderResource = "ProceduralFarFeature";
+        internal const string FarFeatureShaderName = "Voxel/ProceduralFarFeature";
 
         private readonly Dictionary<BatchKey, List<Matrix4x4>> _batches = new();
         private readonly Dictionary<string, FarFeatureGeometry> _geometrySources = new(StringComparer.Ordinal);
@@ -150,7 +152,17 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
             string key = $"{style}|m{materialIndex:X2}";
             if (_materialCache.TryGetValue(key, out Material material)) return material;
 
-            Shader shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
+            Shader shader = Resources.Load<Shader>(FarFeatureShaderResource);
+            if (shader == null)
+                throw new InvalidOperationException(
+                    $"Required procedural far-feature shader resource '{FarFeatureShaderResource}' was not included in the player.");
+            if (!shader.isSupported)
+                throw new InvalidOperationException(
+                    $"Procedural far-feature shader '{shader.name}' is unsupported on the active graphics device.");
+            if (!string.Equals(shader.name, FarFeatureShaderName, StringComparison.Ordinal))
+                throw new InvalidOperationException(
+                    $"Procedural far-feature shader resource resolved unexpected shader '{shader.name}'.");
+
             material = new Material(shader)
             {
                 name = string.IsNullOrEmpty(style) ? "FarFeature-Default" : $"FarFeature-{style}",
