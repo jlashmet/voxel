@@ -79,6 +79,14 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private static int s_LastExtractionDispatchFrame = -1;
         private static GraphicsFence s_ExtractionFence;
         private static bool s_ExtractionFenceValid;
+        private static readonly GpuSurfaceExtractionContext[] s_FencedContexts =
+            new GpuSurfaceExtractionContext[CountBatchCapacity];
+        private static readonly uint[] s_FencedTokens = new uint[CountBatchCapacity];
+        private static readonly GpuChunkExtraction[] s_FencedRequests =
+            new GpuChunkExtraction[CountBatchCapacity];
+        private static readonly int[] s_FencedBrickCacheEdges = new int[CountBatchCapacity];
+        private static int s_FencedExtractionCount;
+        private static readonly GpuFenceRetiredExtractionLedger s_FenceRetiredExtractions = new();
         private static uint s_CoverageEpoch;
         private static ulong s_OptionalNonResidentHaloBlocksAccepted;
         private static ulong s_ConcurrentDemandRecoverySlices;
@@ -311,6 +319,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         private static void AdvanceCountBatches(int frame)
         {
+            RetirePassedExtractionFence();
             for (int offset = 0; offset < s_CountBatchLanes.Length; offset++)
             {
                 int laneIndex = (s_CountBatchSealCursor + offset) % s_CountBatchLanes.Length;
@@ -356,12 +365,15 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             // threads remain cheap, then presentation absorbs the accumulated queue as a 100+ ms
             // hitch. A graphics fence transfers no voxel/count/allocation data to the CPU. Its
             // nonblocking status is solely queue backpressure, matching an ordinary render graph.
-            if (s_ExtractionFenceValid && !s_ExtractionFence.passed)
+            if (s_ExtractionFenceValid)
             {
-                s_CountBatchArenaWaits++;
-                return false;
+                if (!s_ExtractionFence.passed)
+                {
+                    s_CountBatchArenaWaits++;
+                    return false;
+                }
+                RetirePassedExtractionFence();
             }
-            s_ExtractionFenceValid = false;
             if (!TryReserveExtractionDispatch(frame)) return false;
 
             s_PageArena.FlushHandleCommands(frame);
@@ -382,11 +394,61 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 GraphicsFenceType.CPUSynchronisation,
                 SynchronisationStageFlags.ComputeProcessing);
             s_ExtractionFenceValid = true;
-            for (int record = 0; record < lane.Count; record++)
-                lane.Contexts[record]?.CompletePagedBatch(
-                    lane.Tokens[record], lane.Requests[record].Handle);
+            CaptureFencedExtractionBatch(lane);
             ResetCountBatchLane(lane);
             return true;
+        }
+
+        private static void CaptureFencedExtractionBatch(CountBatchLane lane)
+        {
+            if (s_FencedExtractionCount != 0)
+                throw new InvalidOperationException(
+                    "A new GPU extraction batch cannot replace unfinished fence ownership.");
+            s_FencedExtractionCount = lane.Count;
+            for (int record = 0; record < lane.Count; record++)
+            {
+                s_FencedContexts[record] = lane.Contexts[record];
+                s_FencedTokens[record] = lane.Tokens[record];
+                s_FencedRequests[record] = lane.Requests[record];
+                s_FencedBrickCacheEdges[record] = lane.Contexts[record]?.BrickCacheEdge ?? 0;
+            }
+        }
+
+        private static bool RetirePassedExtractionFence()
+        {
+            if (!s_ExtractionFenceValid || !s_ExtractionFence.passed) return false;
+            s_ExtractionFenceValid = false;
+            for (int record = 0; record < s_FencedExtractionCount; record++)
+            {
+                GpuSurfaceExtractionContext context = s_FencedContexts[record];
+                uint token = s_FencedTokens[record];
+                GpuChunkExtraction request = s_FencedRequests[record];
+                int edge = s_FencedBrickCacheEdges[record];
+                if (context != null && edge > 0
+                    && context.CompletePagedBatch(token, request.Handle))
+                {
+                    ReleaseExtractionOwnership(request.BrickCacheOrigin, edge);
+                    s_FenceRetiredExtractions.Record(request.BrickCacheOrigin, edge);
+                }
+                s_FencedContexts[record] = null;
+                s_FencedTokens[record] = 0;
+                s_FencedRequests[record] = default;
+                s_FencedBrickCacheEdges[record] = 0;
+            }
+            s_FencedExtractionCount = 0;
+            return true;
+        }
+
+        private static void ClearFencedExtractionBatch()
+        {
+            for (int record = 0; record < s_FencedExtractionCount; record++)
+            {
+                s_FencedContexts[record] = null;
+                s_FencedTokens[record] = 0;
+                s_FencedRequests[record] = default;
+                s_FencedBrickCacheEdges[record] = 0;
+            }
+            s_FencedExtractionCount = 0;
         }
 
         private static void ResetCountBatches()
@@ -403,6 +465,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 lane.Resources = null;
                 ResetCountBatchLane(lane);
             }
+            ClearFencedExtractionBatch();
+            s_FenceRetiredExtractions.Clear();
             s_CountBatchSealCursor = 0;
             s_CountBatchReadbacks = 0;
             s_CountBatchRecords = 0;
@@ -550,6 +614,12 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         }
 
         internal static void EndExtraction(int3 brickCacheOrigin, int brickCacheEdge)
+        {
+            if (s_FenceRetiredExtractions.TryConsume(brickCacheOrigin, brickCacheEdge)) return;
+            ReleaseExtractionOwnership(brickCacheOrigin, brickCacheEdge);
+        }
+
+        private static void ReleaseExtractionOwnership(int3 brickCacheOrigin, int brickCacheEdge)
         {
             if (s_ActiveExtractionCount > 0) s_ActiveExtractionCount--;
             ChangeActiveFootprint(brickCacheOrigin, brickCacheEdge, -1);
