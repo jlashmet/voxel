@@ -1,0 +1,18 @@
+{
+  "name": "Game.Cutscenes.Validation",
+  "rootNamespace": "Game.Cutscenes.Validation",
+  "references": [
+    "Game.Cutscenes.Api",
+    "Game.Cutscenes.Runtime",
+    "Game.Cutscenes.Presentation"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

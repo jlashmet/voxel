@@ -205,6 +205,8 @@ def is_production(path: str) -> bool:
     path = path.replace("\\", "/")
     if not path.startswith("Assets/") or path.endswith(".meta"):
         return False
+    if path.startswith("Assets/Editor/CI/"):
+        return False
     if _is_test_path(path):
         return False
     if path.endswith(".module-validation.json"):
