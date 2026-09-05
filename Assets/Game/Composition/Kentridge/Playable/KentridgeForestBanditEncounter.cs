@@ -285,14 +285,36 @@ namespace Game.Composition.Kentridge.Playable
 
             float dt = Mathf.Max(0f, elapsedMilliseconds * 0.001f);
             _combatInput?.Tick(dt);
+            if (!_combat.IsActive)
+            {
+                SettleCompletedCombat();
+                return;
+            }
+
             _battleActionAccumulator += dt;
-            if (_battleDriver != null && _battleActionAccumulator >= BattleActionIntervalSeconds)
+            if (_battleDriver != null &&
+                _battleActionAccumulator >= BattleActionIntervalSeconds &&
+                IsEnemyTurn())
             {
                 _battleActionAccumulator -= BattleActionIntervalSeconds;
                 _battleDriver.Step();
                 if (!_combat.IsActive)
                     SettleCompletedCombat();
             }
+        }
+
+        private bool IsEnemyTurn()
+        {
+            if (_combat == null || !_combat.IsActive) return false;
+            for (int i = 0; i < _combat.ActiveParticipants.Count; i++)
+            {
+                CombatParticipant participant = _combat.ActiveParticipants[i];
+                if (!participant.Id.Equals(_combat.ActiveParticipant)) continue;
+                return participant.Team == CombatTeam.Enemy;
+            }
+
+            throw new InvalidOperationException(
+                "Kentridge combat active participant is absent from the authoritative Combat participant list.");
         }
 
         private void SpawnBandits()
