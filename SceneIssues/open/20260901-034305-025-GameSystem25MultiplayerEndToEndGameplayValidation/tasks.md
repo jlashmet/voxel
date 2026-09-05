@@ -16,7 +16,7 @@
 
 ## Production topology / entry
 
-> **External prerequisite:** on current `origin/master`, `20260901-034305-024-GameSystem24ProductionComposedBuiltPlayerVerticalSlice` is still open; agent-2's feature branch remains unmerged. System25 must not copy or substitute that unmerged production composition path. Continue independent validation-infrastructure work only.
+> **External prerequisite:** on `origin/master` `939e9a6f744313d93992b0479d5f6140d774ef42`, `20260901-034305-024-GameSystem24ProductionComposedBuiltPlayerVerticalSlice` is still open; agent-2's feature branch is `abdeb112c5f1c808ba9562304bb6f5e19d8c6b38`, and T24-032 remains unchecked. System25 must not copy or substitute that unmerged production composition/diagnostic path. Continue independent validation-infrastructure work only.
 
 - [ ] **T25-010 — Launch real authority topology.** Use production UTP/session configuration and system 23/07 startup path, not direct test socket attachment. System07 already exposes semantic `ISessionFormationService.Host`, and `SessionNetworkAdmissionAdapter` maps durable member/slot identity to transient network admission.
 - [ ] **T25-011 — Launch client A and client B as separate OS processes.** Both join through the real provider/session formation abstraction and wait for GameplayReady.
@@ -48,6 +48,6 @@
 
 ## Cleanup / close
 
-- [ ] **T25-050 — Prove no test-only networking/runtime path.** Repository search scenario/harness code for direct authority mutation, direct socket state injection or alternate transport implementation.
+- [x] **T25-050 — Prove no test-only networking/runtime path.** Audited the System25 branch-owned multi-process harness and current Kentridge scenario/validation consumer. `player_process_orchestrator.py` only builds/launches the production executable, isolates process state, controls OS-process lifecycle, verifies exact source/executable identity, waits for read-only semantic milestones, and inspects logs. The current scenario only supplies role/process policy and milestone/log assertions; the Kentridge validation consumer exercises production encounter realization and reports diagnostics. No direct socket state injection, alternate transport, direct gameplay authority mutation, or privileged mutation command exists in the System25 validation path.
 - [ ] **T25-051 — Verify automatic validation selection.** Module/dependency ownership selects relevant EditMode/PlayMode tests and smoke player targets; release targets are also structure-selected from `Validation/Release/`. Existing Kentridge playable validation ownership is `Assets/Game/Composition/Kentridge/Playable/Validation`; final multiplayer targets still await System24 production composition.
 - [ ] **T25-052 — Close with separate-process evidence.** Exact-SHA authority + clients converge through formation, contention, combat, interruption/reconnect and explicit leave with role-tagged artifacts.
