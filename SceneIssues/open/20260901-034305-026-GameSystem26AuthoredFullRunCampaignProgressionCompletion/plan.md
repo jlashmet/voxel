@@ -11,6 +11,7 @@ The semantic campaign now extends the recovered Kentridge opening through verifi
 1. **Selected:** existing Story + Progression need only owning Encounter-resolution input and an Outcome-condition effect. Implemented; semantic tests route terminal resolution through System15 exactly once.
 2. **Rejected:** add chapter/phase runtime. Repository/diff audit found no need or duplicate phase authority.
 3. **Rejected:** reconstruct persisted `CutsceneRef` from save IDs. Its constructor is intentionally non-public; restore now resolves IDs against the current authored `CampaignBlueprint` and fails closed for stale content.
+4. **Root cause isolated after repeated compile failures:** Unity asmdefs do not inherit transitive public-contract dependencies. The new Kentridge persistence fixture and affected consumers compile only when they directly reference every assembly exposed by signatures they consume (`Game.Composition.Campaign`, `Game.Persistence.Api`, `Game.Outcomes.Api`). CI logs reduced the failure to one missing `ISessionSaveStore` reference before the final fix.
 
 ## Selected implementation
 
@@ -18,9 +19,10 @@ The semantic campaign now extends the recovered Kentridge opening through verifi
 - `KentridgeSessionPersistenceBridge` delegates capture/validation/restore publication to System16 and restores CampaignRuntime semantic state into the fresh graph composed by System14.
 - Module-local Kentridge EditMode regression captures after an opening consequence, shuts the source graph down, composes a distinct graph, restores current progression/completed one-shots, and proves Resume never replays NewGame/history.
 - Story effect audit remains narrow: objective/quest start, cutscene request, party/spell progression, and outcome-condition observation only.
+- Assembly boundaries declare direct API dependencies instead of relying on transitive runtime references.
 
 ## Material validation / remaining gates
 
-Exact-SHA CI exposed and drove fixes for stale Encounter APIs, authored-cutscene reconstruction, and missing direct `Game.Outcomes.Api` assembly references. Latest feature state needs a new exact-SHA targeted run.
+Exact-SHA CI exposed and drove fixes for stale Encounter APIs, authored-cutscene reconstruction, and missing direct assembly references. Run `33941305955` on feature SHA `2f315fb4893f3febedbfda8490498a9ebe744ff4` reduced compilation to the single missing `Game.Persistence.Api` reference in the new Kentridge test assembly; that root cause is now fixed and needs a new exact-SHA targeted run.
 
 Two external prerequisites remain open on current master: System25 multiplayer E2E validation (T26-043) and Kentridge macro-world physical realization (T26-021/022/044-046). The current Kentridge planner deliberately rejects multi-region campaigns, so the authored Kentridge/Moordell/Rossdam/Logan route must not be forced through it. After green current-SHA CI, re-check those prerequisites; closure/PR promotion occurs only when every acceptance gate can be completed.
