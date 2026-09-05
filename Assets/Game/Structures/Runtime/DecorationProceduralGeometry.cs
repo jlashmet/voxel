@@ -32,10 +32,10 @@ namespace Game.Structures.Runtime
     }
 
     /// <summary>
-    /// Canonical production consumer for procedural decoration requests. It deliberately consumes
-    /// the semantic request types emitted by the owning catalogues instead of inferring shapes from
-    /// showcase ids. The output is data-only so runtime presentation and validation share exactly
-    /// the same geometry policy.
+    /// Canonical production consumer for procedural decoration requests. Registered decoration
+    /// requests retain their canonical stable-id encoding in Variant, so the consumer resolves the
+    /// owning catalogue recipe and renders its shared semantic shape grammar. Unsupported or
+    /// malformed requests fail explicitly; there is deliberately no generic substitute cube.
     /// </summary>
     public static class DecorationProceduralGeometryBuilder
     {
@@ -44,66 +44,13 @@ namespace Game.Structures.Runtime
             out DecorationProceduralGeometry geometry)
         {
             geometry = default;
-            if (!request.Id.IsWellFormed || !request.Bounds.IsWellFormed)
+            if (!request.Id.IsWellFormed || !request.Bounds.IsWellFormed ||
+                !TryResolveRegisteredShape(request.Variant, out DecorationContentShape shape))
                 return false;
 
             var mesh = new Builder(MaterialForFamily(request.Family));
-            DecorationBounds b = request.Bounds;
-            float3 min = b.Min;
-            float3 max = b.MaxExclusive;
-            float3 size = max - min;
-            float3 centre = (min + max) * 0.5f;
-            float thin = math.max(0.25f, math.min(size.x, size.z) * 0.12f);
-
-            switch (request.Family)
-            {
-                case DecorationPropFamily.Chandelier:
-                {
-                    float stemRadius = math.max(0.25f, math.min(size.x, size.z) * 0.06f);
-                    mesh.AddCylinder(new float3(centre.x, min.y, centre.z), stemRadius, math.max(1f, size.y * 0.72f), 8);
-                    float armY = min.y + size.y * 0.28f;
-                    float armLength = math.max(0.5f, math.min(size.x, size.z) * 0.34f);
-                    mesh.AddBox(new float3(centre.x - armLength, armY, centre.z - thin * 0.5f), new float3(armLength * 2f, thin, thin));
-                    mesh.AddBox(new float3(centre.x - thin * 0.5f, armY, centre.z - armLength), new float3(thin, thin, armLength * 2f));
-                    break;
-                }
-                case DecorationPropFamily.StandingLamp:
-                {
-                    float stemRadius = math.max(0.2f, math.min(size.x, size.z) * 0.08f);
-                    mesh.AddCylinder(new float3(centre.x, min.y, centre.z), stemRadius, math.max(1f, size.y * 0.72f), 8);
-                    float capY = min.y + size.y * 0.70f;
-                    mesh.AddFrustum(new float3(centre.x, capY, centre.z),
-                        math.max(stemRadius * 2f, math.min(size.x, size.z) * 0.18f),
-                        math.max(stemRadius * 3f, math.min(size.x, size.z) * 0.46f),
-                        math.max(0.5f, size.y * 0.26f), 10);
-                    break;
-                }
-                case DecorationPropFamily.Curtain:
-                case DecorationPropFamily.Tapestry:
-                {
-                    int folds = math.clamp((int)math.round(size.x / math.max(1f, size.z)), 3, 9);
-                    float step = size.x / folds;
-                    float depth = math.max(0.3f, size.z * 0.65f);
-                    for (int i = 0; i < folds; i++)
-                    {
-                        float x = min.x + step * i;
-                        float z = min.z + ((i & 1) == 0 ? 0f : math.max(0f, size.z - depth));
-                        mesh.AddBox(new float3(x, min.y, z), new float3(step * 0.9f, size.y, depth));
-                    }
-                    break;
-                }
-                default:
-                {
-                    // Generic semantic fallback is still presentation mesh geometry, never voxel
-                    // compatibility boxes. A framed body keeps unknown future procedural families
-                    // visible while preserving their canonical bounds/material identity.
-                    float insetX = math.min(size.x * 0.14f, math.max(0.25f, thin));
-                    float insetZ = math.min(size.z * 0.14f, math.max(0.25f, thin));
-                    mesh.AddBox(min + new float3(insetX, 0f, insetZ),
-                        new float3(math.max(0.25f, size.x - insetX * 2f), size.y, math.max(0.25f, size.z - insetZ * 2f)));
-                    break;
-                }
-            }
+            if (!TryAddShape(mesh, shape, in request.Bounds, request.Variant))
+                return false;
 
             geometry = mesh.ToGeometry();
             return geometry.IsWellFormed;
@@ -153,9 +100,10 @@ namespace Game.Structures.Runtime
                 case NaturalCaveDecorationKind.Root:
                 {
                     float r = math.max(0.2f, math.min(size.x, size.z) * 0.14f);
-                    float3 top = new float3(centre.x, max.y, centre.z);
-                    float3 bottom = new float3(centre.x, min.y, centre.z);
-                    mesh.AddRope(top, bottom, math.max(0.4f, size.x * 0.32f), r, 8);
+                    mesh.AddRope(
+                        new float3(centre.x, max.y, centre.z),
+                        new float3(centre.x, min.y, centre.z),
+                        math.max(0.4f, size.x * 0.32f), r, 8);
                     break;
                 }
                 case NaturalCaveDecorationKind.Mushroom:
@@ -187,21 +135,299 @@ namespace Game.Structures.Runtime
             return geometry.IsWellFormed;
         }
 
+        private static bool TryResolveRegisteredShape(uint variant, out DecorationContentShape shape)
+        {
+            shape = default;
+            if ((variant & 0xC0000000u) != 0xC0000000u)
+                return false;
+
+            ushort stableId = (ushort)((variant & 0x3FF00000u) >> 20);
+            if (stableId == 0 || stableId > DecorationShowcaseCatalog.RegisteredDecorationCount)
+                return false;
+
+            if (stableId <= 114)
+            {
+                DecorationContentRecipe recipe = DecorationContentCatalog.Recipe((DecorationContentKind)stableId);
+                if (!recipe.IsWellFormed) return false;
+                shape = recipe.Shape;
+                return true;
+            }
+            if (stableId <= 200)
+            {
+                DecorationExpandedContentRecipe recipe = DecorationExpansion200Catalog.Recipe((DecorationExpandedContentKind)stableId);
+                if (!recipe.IsWellFormed) return false;
+                shape = recipe.Shape;
+                return true;
+            }
+            if (stableId <= 260)
+            {
+                DecorationExpansion260Recipe recipe = DecorationExpansion260Catalog.Recipe((DecorationExpansion260Kind)stableId);
+                if (!recipe.IsWellFormed) return false;
+                shape = recipe.Shape;
+                return true;
+            }
+            if (stableId <= 300)
+            {
+                DecorationExpansion300Recipe recipe = DecorationExpansion300Catalog.Recipe((DecorationExpansion300Kind)stableId);
+                if (!recipe.IsWellFormed) return false;
+                shape = recipe.Shape;
+                return true;
+            }
+            if (stableId <= 320)
+            {
+                DecorationExpansion320Recipe recipe = DecorationExpansion320Catalog.Recipe((DecorationExpansion320Kind)stableId);
+                if (!recipe.IsWellFormed) return false;
+                shape = recipe.Shape;
+                return true;
+            }
+            if (stableId <= 340)
+            {
+                DecorationExpansion340Recipe recipe = DecorationExpansion340Catalog.Recipe((DecorationExpansion340Kind)stableId);
+                if (!recipe.IsWellFormed) return false;
+                shape = recipe.Shape;
+                return true;
+            }
+            if (stableId <= 360)
+            {
+                DecorationExpansion360Recipe recipe = DecorationExpansion360Catalog.Recipe((DecorationExpansion360Kind)stableId);
+                if (!recipe.IsWellFormed) return false;
+                shape = recipe.Shape;
+                return true;
+            }
+            if (stableId <= 380)
+            {
+                DecorationExpansion380Recipe recipe = DecorationExpansion380Catalog.Recipe((DecorationExpansion380Kind)stableId);
+                if (!recipe.IsWellFormed) return false;
+                shape = recipe.Shape;
+                return true;
+            }
+            if (stableId <= 400)
+            {
+                DecorationExpansion400Recipe recipe = DecorationExpansion400Catalog.Recipe((DecorationExpansion400Kind)stableId);
+                if (!recipe.IsWellFormed) return false;
+                shape = recipe.Shape;
+                return true;
+            }
+
+            GuildSignatureRecipe guildRecipe = GuildSignatureDecorationCatalog.Recipe((GuildSignatureKind)stableId);
+            if (!guildRecipe.IsWellFormed) return false;
+            shape = guildRecipe.Shape;
+            return true;
+        }
+
+        private static bool TryAddShape(
+            Builder mesh,
+            DecorationContentShape shape,
+            in DecorationBounds bounds,
+            uint variant)
+        {
+            float3 min = bounds.Min;
+            float3 max = bounds.MaxExclusive;
+            float3 size = max - min;
+            float3 centre = (min + max) * 0.5f;
+            float thin = math.max(0.2f, math.min(size.x, size.z) * 0.10f);
+            float post = math.max(0.2f, math.min(size.x, size.z) * 0.12f);
+
+            switch (shape)
+            {
+                case DecorationContentShape.WorkSurface:
+                case DecorationContentShape.Counter:
+                {
+                    float top = math.max(0.4f, size.y * 0.20f);
+                    mesh.AddBox(new float3(min.x, max.y - top, min.z), new float3(size.x, top, size.z));
+                    float legHeight = math.max(0.2f, size.y - top);
+                    float leg = math.max(0.2f, math.min(size.x, size.z) * 0.12f);
+                    mesh.AddBox(min, new float3(leg, legHeight, leg));
+                    mesh.AddBox(new float3(max.x - leg, min.y, min.z), new float3(leg, legHeight, leg));
+                    mesh.AddBox(new float3(min.x, min.y, max.z - leg), new float3(leg, legHeight, leg));
+                    mesh.AddBox(new float3(max.x - leg, min.y, max.z - leg), new float3(leg, legHeight, leg));
+                    return true;
+                }
+                case DecorationContentShape.Machine:
+                {
+                    float baseHeight = math.max(0.4f, size.y * 0.35f);
+                    mesh.AddBox(min, new float3(size.x, baseHeight, size.z));
+                    float radius = math.max(0.3f, math.min(size.x, size.z) * 0.24f);
+                    mesh.AddCylinder(new float3(centre.x, min.y + baseHeight, centre.z), radius,
+                        math.max(0.4f, size.y - baseHeight), 10);
+                    return true;
+                }
+                case DecorationContentShape.Hearth:
+                {
+                    float baseHeight = math.max(0.4f, size.y * 0.34f);
+                    mesh.AddBox(min, new float3(size.x, baseHeight, size.z));
+                    float radius = math.max(0.25f, math.min(size.x, size.z) * 0.18f);
+                    mesh.AddFrustum(new float3(centre.x, min.y + baseHeight, centre.z),
+                        radius * 0.55f, radius, math.max(0.4f, size.y - baseHeight), 10);
+                    return true;
+                }
+                case DecorationContentShape.WheelMachine:
+                {
+                    float standHeight = math.max(0.4f, size.y * 0.38f);
+                    mesh.AddBox(min, new float3(size.x, standHeight, size.z));
+                    float radius = math.max(0.3f, math.min(size.x, size.z) * 0.36f);
+                    mesh.AddCylinder(new float3(centre.x, min.y + standHeight, centre.z), radius,
+                        math.max(0.2f, size.y - standHeight), 12);
+                    return true;
+                }
+                case DecorationContentShape.Tub:
+                case DecorationContentShape.Trough:
+                case DecorationContentShape.Well:
+                case DecorationContentShape.Fountain:
+                {
+                    float radius = math.max(0.35f, math.min(size.x, size.z) * 0.46f);
+                    float wallHeight = math.max(0.4f, size.y * 0.55f);
+                    mesh.AddFrustum(new float3(centre.x, min.y, centre.z), radius * 0.88f, radius, wallHeight, 12);
+                    if (shape == DecorationContentShape.Fountain)
+                        mesh.AddCylinder(new float3(centre.x, min.y + wallHeight, centre.z),
+                            math.max(0.18f, radius * 0.18f), math.max(0.3f, size.y - wallHeight), 8);
+                    return true;
+                }
+                case DecorationContentShape.WallRack:
+                case DecorationContentShape.Rack:
+                {
+                    float rail = math.max(0.18f, thin);
+                    mesh.AddBox(min, new float3(rail, size.y, rail));
+                    mesh.AddBox(new float3(max.x - rail, min.y, min.z), new float3(rail, size.y, rail));
+                    int shelves = math.clamp((int)math.round(size.y / math.max(2f, size.y / 3f)), 2, 4);
+                    for (int i = 1; i <= shelves; i++)
+                    {
+                        float y = min.y + size.y * i / (shelves + 1f);
+                        mesh.AddBox(new float3(min.x, y, min.z), new float3(size.x, rail, size.z));
+                    }
+                    return true;
+                }
+                case DecorationContentShape.Stack:
+                {
+                    int layers = math.clamp((int)math.round(size.y / math.max(1f, math.min(size.x, size.z) * 0.35f)), 2, 5);
+                    float layerHeight = size.y / layers;
+                    for (int i = 0; i < layers; i++)
+                    {
+                        float inset = (((variant >> (i * 2)) & 1u) == 0u ? 0f : math.min(size.x, size.z) * 0.08f);
+                        mesh.AddBox(new float3(min.x + inset, min.y + layerHeight * i, min.z + inset),
+                            new float3(math.max(0.2f, size.x - inset * 2f), layerHeight,
+                                math.max(0.2f, size.z - inset * 2f)));
+                    }
+                    return true;
+                }
+                case DecorationContentShape.Coffin:
+                {
+                    float lower = math.max(0.3f, size.y * 0.60f);
+                    mesh.AddBox(min, new float3(size.x, lower, size.z));
+                    mesh.AddFrustum(new float3(centre.x, min.y + lower, centre.z),
+                        math.min(size.x, size.z) * 0.30f, math.min(size.x, size.z) * 0.46f,
+                        math.max(0.2f, size.y - lower), 8);
+                    return true;
+                }
+                case DecorationContentShape.Pedestal:
+                case DecorationContentShape.Monument:
+                {
+                    float baseHeight = math.max(0.3f, size.y * 0.20f);
+                    mesh.AddBox(min, new float3(size.x, baseHeight, size.z));
+                    float radius = math.max(0.25f, math.min(size.x, size.z) * 0.28f);
+                    mesh.AddCylinder(new float3(centre.x, min.y + baseHeight, centre.z), radius,
+                        math.max(0.3f, size.y - baseHeight), shape == DecorationContentShape.Monument ? 10 : 8);
+                    return true;
+                }
+                case DecorationContentShape.Stall:
+                {
+                    float postSize = math.max(0.2f, math.min(size.x, size.z) * 0.08f);
+                    mesh.AddBox(min, new float3(postSize, size.y, postSize));
+                    mesh.AddBox(new float3(max.x - postSize, min.y, min.z), new float3(postSize, size.y, postSize));
+                    mesh.AddBox(new float3(min.x, min.y, max.z - postSize), new float3(postSize, size.y, postSize));
+                    mesh.AddBox(new float3(max.x - postSize, min.y, max.z - postSize), new float3(postSize, size.y, postSize));
+                    mesh.AddBox(new float3(min.x, max.y - postSize, min.z), new float3(size.x, postSize, size.z));
+                    return true;
+                }
+                case DecorationContentShape.Hanging:
+                {
+                    float ropeLength = math.max(0.3f, size.y * 0.58f);
+                    mesh.AddRope(new float3(centre.x, max.y, centre.z),
+                        new float3(centre.x, max.y - ropeLength, centre.z),
+                        math.max(0.15f, size.x * 0.10f), post, 7);
+                    float bodyHeight = math.max(0.25f, size.y - ropeLength);
+                    mesh.AddFrustum(new float3(centre.x, min.y, centre.z),
+                        math.max(0.2f, math.min(size.x, size.z) * 0.22f),
+                        math.max(0.3f, math.min(size.x, size.z) * 0.42f), bodyHeight, 10);
+                    return true;
+                }
+                case DecorationContentShape.Sign:
+                case DecorationContentShape.Canopy:
+                {
+                    float thickness = math.max(0.16f, math.min(size.x, size.z) * 0.12f);
+                    mesh.AddBox(new float3(min.x, min.y, centre.z - thickness * 0.5f),
+                        new float3(size.x, size.y, thickness));
+                    return true;
+                }
+                case DecorationContentShape.Post:
+                case DecorationContentShape.LampPost:
+                {
+                    float radius = math.max(0.22f, math.min(size.x, size.z) * 0.18f);
+                    float stemHeight = shape == DecorationContentShape.LampPost ? math.max(0.4f, size.y * 0.76f) : size.y;
+                    mesh.AddCylinder(new float3(centre.x, min.y, centre.z), radius, stemHeight, 10);
+                    if (shape == DecorationContentShape.LampPost)
+                        mesh.AddFrustum(new float3(centre.x, min.y + stemHeight, centre.z), radius * 0.8f,
+                            math.max(radius * 1.6f, math.min(size.x, size.z) * 0.36f),
+                            math.max(0.25f, size.y - stemHeight), 10);
+                    return true;
+                }
+                case DecorationContentShape.Restraint:
+                {
+                    float beam = math.max(0.2f, math.min(size.y, math.min(size.x, size.z)) * 0.16f);
+                    float midY = min.y + size.y * 0.58f;
+                    mesh.AddBox(new float3(min.x, midY, min.z), new float3(size.x, beam, size.z));
+                    mesh.AddBox(min, new float3(beam, size.y, beam));
+                    mesh.AddBox(new float3(max.x - beam, min.y, max.z - beam), new float3(beam, size.y, beam));
+                    return true;
+                }
+                case DecorationContentShape.Cage:
+                {
+                    float bar = math.max(0.16f, math.min(size.x, size.z) * 0.06f);
+                    mesh.AddBox(min, new float3(size.x, bar, size.z));
+                    mesh.AddBox(new float3(min.x, max.y - bar, min.z), new float3(size.x, bar, size.z));
+                    int bars = 5;
+                    for (int i = 0; i < bars; i++)
+                    {
+                        float t = i / (bars - 1f);
+                        float x = math.lerp(min.x, max.x - bar, t);
+                        mesh.AddBox(new float3(x, min.y, min.z), new float3(bar, size.y, bar));
+                        mesh.AddBox(new float3(x, min.y, max.z - bar), new float3(bar, size.y, bar));
+                    }
+                    return true;
+                }
+                case DecorationContentShape.Cart:
+                {
+                    float bodyHeight = math.max(0.4f, size.y * 0.55f);
+                    mesh.AddBox(new float3(min.x, min.y + size.y * 0.25f, min.z),
+                        new float3(size.x, bodyHeight, size.z));
+                    float wheelRadius = math.max(0.25f, math.min(size.y, size.z) * 0.18f);
+                    mesh.AddCylinder(new float3(min.x + size.x * 0.22f, min.y, centre.z), wheelRadius,
+                        math.max(0.18f, thin), 10);
+                    mesh.AddCylinder(new float3(max.x - size.x * 0.22f, min.y, centre.z), wheelRadius,
+                        math.max(0.18f, thin), 10);
+                    return true;
+                }
+                default:
+                    return false;
+            }
+        }
+
         private static byte MaterialForFamily(DecorationPropFamily family)
         {
             switch (family)
             {
                 case DecorationPropFamily.Rug:
-                case DecorationPropFamily.Tapestry:
                 case DecorationPropFamily.Banner:
                 case DecorationPropFamily.Curtain:
                     return GameMaterialIds.Cloth;
-                case DecorationPropFamily.Shield:
                 case DecorationPropFamily.WeaponRack:
-                case DecorationPropFamily.ArmorStand:
+                case DecorationPropFamily.Chandelier:
+                case DecorationPropFamily.Lantern:
+                case DecorationPropFamily.Candle:
                     return GameMaterialIds.Gold;
                 case DecorationPropFamily.Fireplace:
                 case DecorationPropFamily.Campfire:
+                case DecorationPropFamily.Fountain:
                     return GameMaterialIds.DarkStone;
                 default:
                     return GameMaterialIds.Wood;
