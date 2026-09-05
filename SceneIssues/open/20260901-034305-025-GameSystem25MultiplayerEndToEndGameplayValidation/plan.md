@@ -11,19 +11,19 @@
 - Shared `mode: multiProcess` supports build-once role launch/wait/kill/relaunch, isolated per-role writable state, role/attempt logs, and automatic source-SHA + executable-SHA256 verification before gameplay waits. Harness-owned identity/state/log/run controls cannot be overridden by scenarios. `tests-single.yml` forwards authoritative `HEAD^` into module player validation.
 - Player artifacts are isolated per scene/scenario target; multiple smoke/release validations from the same owning module cannot overwrite one another, and each artifact root is recorded in the module-validation summary.
 - Binding acceptance requires expensive capacity/JIP/reconnect/rehost coverage outside normal PR smoke. Tooling treats `<Module>/Validation/Release/` as a structural release tier: ordinary production diffs exclude it, edits to a release target include it in exact-SHA targeted CI, and generic `player-validation-release.yml` discovers all release targets on schedule/manual dispatch without registration lists.
-- **Independent exact-SHA proof:** feature `496e3f9d7a88658029aa332b3596caf86e1cabb2` passed targeted request `bbb63019d00a93b44cff24c7a2b20d7ae12e461e` (run `33936350595`) for process orchestration, source-SHA propagation, release-tier selection, and per-scenario artifact isolation.
-- **Build-identity tranche:** behavior head `8241f75845a3136676b91c7e612c48d5b3ceab92` adds a Kentridge validation-process reporter that hashes the actual running macOS executable and emits `build-identity`; the focused encounter-realization scenario now exercises the multi-process harness and waits on a real production-computation milestone. Exact request `c8993bf9615705ccadf69a2904d871dd679f2fb7` is queued; do not replace it.
-- **External prerequisite:** System24 still exists only on `fixes/agent-2`, remains largely unchecked, and has no PR; current `origin/master` still contains its open baseline. System25 must not copy or substitute its unmerged production composition/diagnostic boundary.
+- **Independent tooling proof:** feature `496e3f9d7a88658029aa332b3596caf86e1cabb2` passed targeted request `bbb63019d00a93b44cff24c7a2b20d7ae12e461e` (run `33936350595`) for process orchestration, source-SHA propagation, release-tier selection, and per-scenario artifact isolation.
+- **Build-identity proof complete:** exact feature `73c3bafd0268fcc80c453d33900f6848e7571153` passed request `71b21322f8d3bb776553e5d915bc10d2c0664695` (run `33937957149`). The player self-computed executable SHA-256 `8129fbc54fb83c5ac219204df3c9fd2c7482d9c1225daa87c67447cec9db27ae`, reported the exact source SHA, the harness recorded `identityVerified: true`, and only then accepted `encounter-realization-ready` with three participants. Prior request `c8993bf9615705ccadf69a2904d871dd679f2fb7` failed because macOS `Application.dataPath` was resolved one bundle level incorrectly; artifact evidence identified that exact cause before the fix.
+- **External prerequisite:** System24 still exists only on `fixes/agent-2`; current `origin/master` has advanced for unrelated residency work but does not contain System24's composed-player/diagnostic boundary. System25 must not copy or substitute its unmerged production composition.
 
 ## Selected work
 
-1. Finish the queued build-identity exact-SHA proof; check T25-003 only after it passes.
+1. Independent harness, release-tier, artifact-isolation, and exact built-player identity work is complete and exact-SHA verified.
 2. After System24 lands, merge current master and reuse its production Kentridge entry/read-only diagnostic seam.
 3. Add smoke multiplayer validation under Kentridge playable composition (authority + two clients) and release coverage under `Validation/Release/`.
 4. Prove contention/conservation, vitality, progression, interruption/reconnect, explicit leave, capacity/JIP/repeated reconnect, and persisted rehost on exact built SHA.
 
-**Last exact-SHA-verified feature SHA:** `496e3f9d7a88658029aa332b3596caf86e1cabb2`; `8241f75845a3136676b91c7e612c48d5b3ceab92` is pending request `c8993bf9615705ccadf69a2904d871dd679f2fb7`.
+**Last exact-SHA-verified feature SHA:** `73c3bafd0268fcc80c453d33900f6848e7571153` via request `71b21322f8d3bb776553e5d915bc10d2c0664695`, run `33937957149`.
 
 **Blast radius / cost:** validation tooling/workflows plus the owning Kentridge validation surface; production authority is untouched. Normal PR remains authority + two-client smoke; expensive release targets run only when changed for exact-SHA proof and in the scheduled release lane.
 
-**Remaining gates:** queued build-identity proof; System24 prerequisite; smoke/release production scenarios; all semantic acceptance cases; durable built-player artifacts; final exact-SHA proof; closure fields/move; latest-master merge; PR `affected` gate + auto-merge.
+**Remaining gates:** System24 prerequisite; read-only composed multiplayer diagnostics; smoke/release production scenarios; all semantic acceptance cases; durable built-player artifacts; final exact-SHA proof; closure fields/move; latest-master merge; PR `affected` gate + auto-merge.
