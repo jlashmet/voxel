@@ -26,16 +26,28 @@ namespace VoxelEngine.Showcase
             _states = states ?? throw new ArgumentNullException(nameof(states));
         }
 
-        public IReadOnlyList<FarFeatureInstance> Query(float3 cameraPosition, float radiusMetres)
+        public IReadOnlyList<FarFeatureInstance> Query(
+            float3 cameraPosition,
+            float radiusMetres,
+            float nearSurfaceRadiusMetres = 0f)
         {
-            return Apply(_presentation.Query(cameraPosition, radiusMetres));
+            return Apply(
+                _presentation.Query(cameraPosition, radiusMetres),
+                cameraPosition,
+                nearSurfaceRadiusMetres);
         }
 
         /// <summary>
         /// Applies authoritative semantic state to already-selected render instances. Keeping this
         /// operation independent of voxel residency makes removal/ruin survive detailed-region unload.
+        /// The optional near-surface radius comes from the same published-coverage handoff used by
+        /// far terrain; a proxy is retired only once its entire horizontal bounds fit inside that
+        /// authoritative near representation.
         /// </summary>
-        public IReadOnlyList<FarFeatureInstance> Apply(IReadOnlyList<FarFeatureInstance> selected)
+        public IReadOnlyList<FarFeatureInstance> Apply(
+            IReadOnlyList<FarFeatureInstance> selected,
+            float3 nearSurfaceCentre = default,
+            float nearSurfaceRadiusMetres = 0f)
         {
             if (selected == null) throw new ArgumentNullException(nameof(selected));
 
@@ -52,6 +64,8 @@ namespace VoxelEngine.Showcase
                 FarFeatureVisualFlags flags = instance.Flags;
                 if (state == StructureVisualState.Ruined)
                     flags |= FarFeatureVisualFlags.Ruined;
+                if (IsFullyCoveredByNearSurface(instance, nearSurfaceCentre, nearSurfaceRadiusMetres))
+                    flags |= FarFeatureVisualFlags.NearSurfaceReady;
 
                 _instances.Add(new FarFeatureInstance(
                     instance.StableId,
@@ -64,10 +78,29 @@ namespace VoxelEngine.Showcase
                     instance.StyleKey,
                     instance.Tier,
                     flags,
-                    instance.Geometry));
+                    instance.Geometry,
+                    instance.MaterialIndex));
             }
 
             return _instances;
+        }
+
+        private static bool IsFullyCoveredByNearSurface(
+            FarFeatureInstance instance,
+            float3 nearSurfaceCentre,
+            float nearSurfaceRadiusMetres)
+        {
+            if (!(nearSurfaceRadiusMetres > 0f) || !math.isfinite(nearSurfaceRadiusMetres))
+                return false;
+
+            float2 offset = new float2(
+                instance.BoundsCenter.x - nearSurfaceCentre.x,
+                instance.BoundsCenter.z - nearSurfaceCentre.z);
+            float2 extents = math.max(
+                new float2(instance.BoundsExtents.x, instance.BoundsExtents.z),
+                float2.zero);
+            float farthestHorizontalDistance = math.length(offset) + math.length(extents);
+            return farthestHorizontalDistance <= nearSurfaceRadiusMetres;
         }
     }
 }
