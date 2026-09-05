@@ -1,38 +1,24 @@
 # PropShowcase plan
 
 ## Observed state
+Fetched `origin/master` at `6bd0992630ae27f2e30ebc32d65ba098cf987d25` and fast-forwarded `fixes/agent-9` before feature work. The production prop vocabulary is split across Structures runtime sources rather than one enumerable API, so hypothesis 2 is confirmed.
 
-The game already owns reusable production content through several structure/decoration/world-object catalogues and presets, but there is no single visual browser that lets a developer inspect those entries one at a time. The requested feature is a dedicated `PropShowcase` scene with a left-side catalogue and right-side live preview.
+The deterministic independently previewable set is **534 entries**:
+- 440 stable decoration identities: base 1–114, registered expansions through 400, guild-signature 401–440;
+- 30 named reusable preset variants across legacy room/furniture, dining, lighting, storage, martial, and textile presets;
+- 8 mine-cave decoration kinds;
+- 8 natural-cave decoration kinds;
+- 48 `WorldObjectKind` values.
 
-## Acceptance
+Intentional exclusions are building-scale structures, terrain, characters, VFX-only records, raw materials, and scene/program catalogues that only compose the same canonical primitives. Those are aliases/compositions, not additional independent prop identities.
 
-- `Assets/Scenes/PropShowcase.unity` opens in the built application and is registered for the repository's normal player-scene path.
-- A scrollable left panel exposes every in-scope production prop/decoration with a readable label and visible selected state.
-- Selection replaces the previous preview and renders the selected entry through its real production realization path.
-- The preview provides stable grounding, production-compatible lighting, and automatic framing suitable for representative small/large and floor/wall/thin-surface/voxel/procedural/interactive content.
-- The showcase list derives from canonical production sources; no duplicated showcase-only identity list may silently drift.
-- Repeated selection does not accumulate geometry, colliders, lights, world-object state, or other runtime resources.
-- Focused automated coverage plus exact built-player evidence proves enumeration, selection, switching, framing, and representative visual fidelity.
+## Selected architecture
+Add the narrowest production-owned read/realization boundary under `Game.Structures.Runtime`: a deterministic catalogue query that derives entries from the canonical catalogues/presets and a production authoring/presentation dispatcher that invokes existing emitters/backends. `PropShowcase` remains an `Assets/Scenes` integration consumer and owns no second identity list.
 
-## Ownership / architecture
+The scene will rebuild a bounded production `ShowcaseWorld` preview per selection using `ShowcaseWorld.CreateStructureAuthoringSession(...)` plus `RenderingComposition.ConfigureWorld(...)`, matching existing shipped/validation realization. This gives deterministic disposal, production voxel/material rendering, stable grounding, and semantic bounds for automatic camera framing. Thin/procedural/world-object presentation must use existing production presentation semantics; no primitive/fake fallback is acceptable.
 
-Primary ownership is expected under `Assets/Game/Structures` because the canonical decoration and prop realization pipeline lives there. Existing `WorldObjects` APIs may be consumed where independently previewable world-object props are part of the vocabulary. `PropShowcase` itself is an integration consumer under `Assets/Scenes`; it must not become content authority.
+## Affected modules / validation
+Production changes: `Assets/Game/Structures/Runtime`, module-local `Assets/Game/Structures/Tests`, and a new focused `Assets/Game/Structures/Validation/` scene because Structures currently lacks a suitable player-visible validation surface. Integration changes: `Assets/Scenes/PropShowcase.*` and `ProjectSettings/EditorBuildSettings.asset`. Existing Showcase/Rendering composition is consumed, not modified unless a demonstrated missing production seam requires it.
 
-If existing catalogues are not safely enumerable, add the narrowest read-only semantic enumeration/query API to the owning production module. Keep preview orchestration separate from content definitions. Any changed player-visible/runtime module must own a focused `<Module>/Validation/` scene using the same production realization path.
-
-## Competing hypotheses / first experiment
-
-1. Existing catalogues/presets already expose enough stable identities and descriptors to build the browser entirely as an integration adapter.
-2. Some content is reachable only through switch-based/specialized preset APIs, requiring a small canonical enumeration boundary before a complete showcase can exist.
-
-First discriminate by inventorying every canonical catalogue/preset and mapping each independently previewable entry to its existing production realization. Record gaps before adding APIs.
-
-## Blast radius / cost
-
-Avoid changing geometry or art generation except where a demonstrated missing production realization prevents an already-catalogued prop from being previewed. Check scene startup cost, selection latency, object cleanup, and memory/resource growth across repeated switching.
-
-## Baseline and remaining gates
-
-Baseline: `d46e24f05337553883636b4f5b35228830269530`.
-
-Remaining: catalogue inventory -> enumeration boundary if required -> scene/UI/preview composition -> module-local regression/validation -> built-player visual evidence -> exact-SHA targeted CI -> closure bookkeeping -> PR affected gate and merge.
+## Remaining gates
+Implement catalogue + realization boundary -> parity/switching tests -> Structures validation -> PropShowcase UI/selection/framing -> exact-SHA targeted CI -> inspect durable player screenshots at `production-quality` -> stress/resource evidence -> complete every task -> open→closed bookkeeping -> merge latest master -> PR + auto-merge -> required `affected` gate -> verify closed issue on master.
