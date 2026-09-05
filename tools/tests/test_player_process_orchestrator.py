@@ -104,19 +104,24 @@ class PlayerProcessOrchestratorTests(unittest.TestCase):
                 with self.assertRaises(runner.OrchestrationError):
                     runner.normalize_config(config)
 
-    def test_role_state_is_isolated_but_stable_across_attempts(self):
+    def test_role_state_is_isolated_and_only_durable_state_survives_attempts(self):
         identity = {"sourceSha": "a" * 40, "executableSha256": "b" * 64}
         authority = runner.RoleSpec("authority", (), {}, True)
         client = runner.RoleSpec("client-a", (), {}, True)
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            authority_root, authority_env = runner.role_environment(root, authority, identity, {})
-            client_root, client_env = runner.role_environment(root, client, identity, {})
-            _, client_env_again = runner.role_environment(root, client, identity, {})
+            authority_root, authority_env = runner.role_environment(root, authority, identity, {}, attempt=1)
+            client_root, client_env = runner.role_environment(root, client, identity, {}, attempt=1)
+            client_root_again, client_env_again = runner.role_environment(root, client, identity, {}, attempt=2)
             self.assertNotEqual(authority_root, client_root)
+            self.assertEqual(client_root, client_root_again)
             self.assertNotEqual(authority_env["HOME"], client_env["HOME"])
             self.assertEqual(client_env["VOXEL_VALIDATION_STATE_ROOT"],
                              client_env_again["VOXEL_VALIDATION_STATE_ROOT"])
+            for key in ("HOME", "TMPDIR", "XDG_CONFIG_HOME", "XDG_CACHE_HOME"):
+                self.assertNotEqual(client_env[key], client_env_again[key])
+            self.assertEqual(client_env["HOME"], str(client_root / "attempt-001" / "home"))
+            self.assertEqual(client_env_again["HOME"], str(client_root / "attempt-002" / "home"))
 
     def test_programmatic_role_cannot_bypass_reserved_environment_isolation(self):
         identity = {"sourceSha": "a" * 40, "executableSha256": "b" * 64}
@@ -129,7 +134,7 @@ class PlayerProcessOrchestratorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             role_root, env = runner.role_environment(Path(td), role, identity, {})
             self.assertEqual(env["CUSTOM"], "kept")
-            self.assertEqual(env["HOME"], str(role_root / "home"))
+            self.assertEqual(env["HOME"], str(role_root / "attempt-001" / "home"))
             self.assertEqual(env["VOXEL_VALIDATION_STATE_ROOT"], str(role_root / "state"))
             self.assertEqual(env["VOXEL_VALIDATION_SOURCE_SHA"], identity["sourceSha"])
 
