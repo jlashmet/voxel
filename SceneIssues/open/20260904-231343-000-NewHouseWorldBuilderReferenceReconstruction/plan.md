@@ -1,27 +1,25 @@
 # New House WorldBuilder Implementation Plan
 
 ## Acceptance
-Reconstruct the supplied medieval cottage through the production WorldBuilder/material/rendering path at 10 cm voxel scale. Final standalone-player evidence must preserve the tall near-frontal silhouette, dominant steep front gable, blue roof/shutters, stone lower storey/chimney, Tudor timber/plaster upper storeys, stacked arched openings, ridge finial, flower boxes/ivy, credible texture scale, grounding, and clean roof/wall/material transitions. Garage/driveway checklist items are `N/A — absent from supplied reference`.
+Reconstruct the supplied compact medieval cottage through the production WorldBuilder/material/rendering path at 10 cm voxel scale. Final built-player evidence must preserve the near-frontal silhouette, steep blue front gable, pale stone lower storey/chimney, brown Tudor timber with light plaster, compact central brown door, blue-framed lower windows and upper shutter bank, small high gable window/ridge ornaments, flower boxes/ivy, believable texture scale, grounding, and clean roof/wall/material transitions. Garage/driveway items are `N/A — absent from supplied reference`.
 
 ## Ownership / architecture
-- `Assets/Game/WorldBuilder` owns reusable `NewHouseReferenceAuthoring` over `IStructureAuthoringSession`; reference site/camera/light stay outside it.
-- `Assets/Game/Materials` owns stable material identity/projection; Rendering receives semantic-free texture slots from WorldBuilder `Resources/VoxelAdditionalTextureLayers.asset` without project-global renderer edits.
-- Module-local proof is WorldBuilder `NewHouseReferenceReconstruction` plus Rendering `TextureLayers`; bounded Structures authoring is published through the application composition root before renderer binding.
-- This feature's visual proof uses the repository's supported production CPU fallback (`VOXEL_DISABLE_GPU_CUTOVER=1`). It does not depend on the separate GPU-restoration SceneIssue.
+- `Assets/Game/WorldBuilder` owns reusable `NewHouseReferenceAuthoring` over `IStructureAuthoringSession`; site/camera/light remain separate.
+- `Assets/Game/Materials` owns stable material identity and presentation; Rendering receives semantic-free texture layers through the existing additional-layer resource.
+- Module-local proof is WorldBuilder `NewHouseReferenceReconstruction` plus Rendering `TextureLayers`; bounded Structures writes are published before renderer binding.
+- Visual proof uses the repository-supported production CPU fallback (`VOXEL_DISABLE_GPU_CUTOVER=1`), not a test renderer and not the unrelated GPU-restoration assignment.
 
-## Material results
-1. Direct reference comparison falsified the original broad/side-gabled massing; the current authored form uses the tall front gable, stacked arched openings, open shutters, chimney, finial, flower boxes, and right-heavy ivy from the supplied image.
-2. Runs `33948973165`/`33949596796` falsified putting extra textures in `Assets/Settings/VoxelUniversalRenderer.asset`; application-owned Resources slots avoid global validation blast radius.
-3. Runs `33951274739`, `33952976056`, `33953740353`, and `33954740928` isolated unrelated showcase streaming, incomplete game-material palette binding, and the missing bounded-authoring publication boundary.
-4. Run `33960811414` proved the house world was authored and published but the standalone SceneIssue replay was exercising the default GPU cutover. That made the GPU restoration look like a prerequisite even though repository-owned module-player validation already launches production scenes with `VOXEL_DISABLE_GPU_CUTOVER=1`.
-5. User clarification plus repository inspection falsified the GPU-prerequisite hypothesis: `GpuSurfaceProductionPolicy` explicitly defines the disable flag as the CPU emergency/A-B fallback, and `CpuTransvoxelChunkCache` uses it to keep the near rings on the CPU mesher. The focused house scene now sets that flag before its first rendered frame and logs `NEW_HOUSE_VALIDATION renderer=cpu-fallback`; its module scenario requires the marker.
+## Material results / discriminating evidence
+1. Earlier terrain-only captures were traced to showcase streaming, incomplete game-material palette binding, missing bounded-authoring publication, and then the default GPU cutover. Those causes are fixed/falsified; exact runs now show complete CPU-rendered house geometry.
+2. Direct comparison falsified the earlier oversized/arched interpretation. The current 88x60 footprint uses a compact rectangular entry/lower windows, a four-leaf upper blue bank, small high arched window, smaller chimney/finials, restrained flowers/ivy, and wider reference framing.
+3. Run `33994976147` exposed wrong supplied texture-role ordering; the additional layers were remapped by visual role and the unrelated TextureLayers water assertion was removed from that focused proof.
+4. Runs `33996415142` and `33998165969` passed all automatic/module/standalone gates. Direct inspection still found the blue-painted accent plate rendering charcoal. Hypothesis A (wrong texture slot) was falsified: `HouseDoor` samples the intended supplied blue/gold layer. Hypothesis B was confirmed: its brown Albedo multiplier crushed the authored blue chroma. The production `HouseDoor` presentation now uses neutral Albedo, with `PaintedHouseAccent_PreservesAuthoredBlueChroma` locking that invariant.
 
 ## Selected path
-Re-run the exact-SHA built-player proof on the CPU renderer now. Inspect the portrait hero and audit captures directly against the supplied reference, then make only demonstrated house visual corrections. Do not wait for or merge agent-1's GPU restoration merely to complete this feature.
-
-Current feature head before exact-SHA request: `7e3c31f437fd453a082728ad526ed6403ecf49cd`.
+Validate feature head `5bce84d3ed88c2eb08473463b243fecfe0b3b34f` exactly. Inspect frontal plus module-owned front-left/rear-right captures against the supplied reference; make no further changes unless a demonstrated acceptance defect remains.
 
 ## Remaining gates
-1. Re-run exact-SHA module + standalone validation with the CPU fallback active; inspect frontal, front-left, and rear-right captures directly against the supplied reference.
-2. Fix only demonstrated house visual defects and complete every remaining checklist/acceptance item.
-3. Run final exact-SHA validation, close `open/`→`closed/`, fetch/merge current master, open PR to `master`, enable auto-merge, and monitor the required `affected` gate until merged. Never push the feature head directly to `master`.
+1. Final exact-SHA module + standalone validation and direct visual inspection.
+2. Complete every remaining task/acceptance checkbox from that evidence.
+3. Move only this SceneIssue `open/`→`closed/` with fixed metadata.
+4. Merge current `origin/master` into `fixes/agent-5`, open PR, enable auto-merge, and monitor required `affected` gate until merged. Never push the feature head directly to `master`.
