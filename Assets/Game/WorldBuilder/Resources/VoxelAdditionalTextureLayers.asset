@@ -13,10 +13,10 @@ MonoBehaviour:
   m_Name: VoxelAdditionalTextureLayers
   m_EditorClassIdentifier: 
   m_Albedo:
-  - {fileID: 2800000, guid: 6660d55e2939b41c99cc0bc85e4e6179, type: 3}
   - {fileID: 2800000, guid: 2492cafb939464a64ad36725c854934f, type: 3}
   - {fileID: 2800000, guid: 66272fb196ba14168bf009bbd50c5137, type: 3}
-  - {fileID: 2800000, guid: a97aeb9888d884354858112c30304c3c, type: 3}
-  - {fileID: 2800000, guid: ca20217a58f584bd384d2c61166cd764, type: 3}
   - {fileID: 2800000, guid: b6dd898eff5834478982e0ee9f028289, type: 3}
+  - {fileID: 2800000, guid: ca20217a58f584bd384d2c61166cd764, type: 3}
+  - {fileID: 2800000, guid: a97aeb9888d884354858112c30304c3c, type: 3}
+  - {fileID: 2800000, guid: 6660d55e2939b41c99cc0bc85e4e6179, type: 3}
   m_Normals: []
