@@ -26,8 +26,8 @@
 ## Terminal outcome / lifecycle
 
 - [x] **T26-020 — Define authored terminal rule.** The Logan-hole completion rule emits the stable `campaign:logan-castle-lower-logan-hole-complete` outcome condition; no boss/scene flag directly resolves the run.
-- [ ] **T26-021 — Route terminal request through system 15.** CampaignRuntime and Kentridge session graph now expose the canonical system-15 observer/query seams, and focused integration proves exactly-once policy resolution. **Remaining:** production Unity composition must instantiate/map the full-run policy once the full campaign can be physically composed.
-- [ ] **T26-022 — Integrate frontend aftermath.** Systems 14/23 already consume `IGameOutcomeQuery` and present `ApplicationScreen.Outcome` without campaign-owned scene loads. **Remaining:** the production full-run composition must supply that real query rather than the current opening-only graph.
+- [ ] **T26-021 — Route terminal request through system 15.** CampaignRuntime and Kentridge session graph expose the canonical system-15 observer/query seams, and focused integration proves exactly-once policy resolution. **BLOCKED external prerequisite:** production Unity full-run composition requires the hierarchy-aware macro-world realization still open in `20260829-020634-000-KentridgeMacroWorldPhysicalRealization`; the current one-region Kentridge planner correctly rejects the multi-region authored campaign.
+- [ ] **T26-022 — Integrate frontend aftermath.** Systems 14/23 already consume `IGameOutcomeQuery` and present `ApplicationScreen.Outcome` without campaign-owned scene loads. **BLOCKED with T26-021:** the production full-run graph cannot supply the real System15 query until the multi-region campaign can be physically composed.
 - [x] **T26-023 — Verify ordinary losses remain nonterminal unless authored.** `CampaignOutcomeIntegrationTests` proves an unresolved/failed encounter does not resolve System15; only the mapped authored condition does.
 
 ## Fast semantic route proof
@@ -41,8 +41,8 @@
 ## Persistence / multiplayer / built-player proof
 
 - [x] **T26-040 — Choose a meaningful mid-run restore point.** The canonical route captures after multiple post-opening consequences with unified Progression/cutscene/party/spell truth present.
-- [ ] **T26-041 — Restore through systems 16/14.** `CampaignRuntime.RestoreProgress` proof exists, but current master has no production `ISessionPersistenceBridge` implementation connecting System16 `SessionPersistenceService` to System14. Implement the canonical adapter; do not substitute direct restore as final acceptance.
-- [ ] **T26-042 — Continue canonical route after restore.** Semantic direct-restore continuation passes; final acceptance remains tied to T26-041 fresh-graph System16/14 restore.
+- [ ] **T26-041 — Restore through systems 16/14.** `KentridgeSessionPersistenceBridge` now routes campaign semantic capture/restore through System16 `SessionPersistenceService`, and the Kentridge module owns a fresh-graph System14 restore regression. **Remaining:** exact-SHA CI validation of that regression.
+- [ ] **T26-042 — Continue canonical route after restore.** Fresh-graph regression verifies restored current progression and completed one-shot history without replaying `NewGame`/historical cutscenes. **Remaining:** exact-SHA CI validation together with T26-041.
 - [ ] **T26-043 — Verify shared multiplayer progression/outcome.** **BLOCKED external prerequisite:** System25 remains open on current master; reuse its infrastructure when it lands. Do not create an alternate transport/process harness.
 - [ ] **T26-044 — Add canonical built-player full-run scenario.** **BLOCKED external prerequisite:** current Kentridge physical planner intentionally accepts one Kentridge region, while `20260829-020634-000-KentridgeMacroWorldPhysicalRealization` is still open. Do not weaken the single-region invariant or fake later regions.
 - [ ] **T26-045 — Make full-run scenario milestone-driven.** Blocked with T26-044; when available, use bounded semantic waits only.
@@ -50,8 +50,8 @@
 
 ## Cleanup / close
 
-- [ ] **T26-050 — Search for parallel progression/game-loop state.** Remove `CurrentChapter`, generic phase counters, final-boss completion flags or campaign-local objective stores introduced/left by prior code where they duplicate approved owners.
-- [ ] **T26-051 — Search Story effects for domain-god operations.** Ensure Story only coordinates semantic actions/facts and does not directly mutate vitality/inventory/world/transport/presentation internals.
-- [ ] **T26-052 — Verify recovered-map ordering claims.** Every required route ordering decision has repository/source evidence or explicit authored design evidence; filenames alone are not accepted proof.
-- [ ] **T26-053 — Run automatic domain/campaign tests plus built-player full-run gate.** Include mid-run restore and shared outcome evidence.
-- [ ] **T26-054 — Close with end-to-end semantic proof.** There is at least one real, evidence-backed, testable production path from normal New Game to immutable `GameOutcomeResolved`, crossing beyond the opening and using no parallel game-loop runtime.
+- [x] **T26-050 — Search for parallel progression/game-loop state.** Repository and feature-diff audit found no `CurrentChapter`, `CurrentPhase`, generic campaign phase counter, final-boss completion authority, or campaign-local objective store; System11 Progression remains the objective authority.
+- [x] **T26-051 — Search Story effects for domain-god operations.** Story event/effect/runtime audit found only semantic objective/quest/cutscene/party/spell/outcome-condition coordination; no direct vitality, inventory, world, transport, scene-load, or presentation mutation path exists.
+- [x] **T26-052 — Verify recovered-map ordering claims.** Pinned MountingForce progression evidence directly verifies each claimed hard edge; church->Rorik and mayor-lead->Logan remain explicitly labeled authored bridges, and filenames/inferred quest labels are not treated as chronology.
+- [ ] **T26-053 — Run automatic domain/campaign tests plus built-player full-run gate.** Exact-SHA domain/module CI is pending for the latest branch; built-player full-run and shared multiplayer portions remain blocked by T26-043/T26-044.
+- [ ] **T26-054 — Close with end-to-end semantic proof.** Fast semantic proof exists, but closure requires the real production full-run path and all blocked acceptance gates above.
