@@ -26,10 +26,12 @@ Assets/AssetStoreTools*
 *.pdb
 *.mdb
 *.opendb
-*.VC.db
 .idea/
 .vs/
 .vscode/
+
+# Node dependencies
+node_modules/
 
 # Builds
 *.apk
