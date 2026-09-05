@@ -5,6 +5,7 @@
     "Game.Materials.Api",
     "Game.Materials.Runtime",
     "Game.Composition.Materials",
+    "Game.Composition.CaveWorldBuilder",
     "Game.Structures.Api",
     "Game.Structures.Runtime",
     "Game.Composition.WorldObjects.Runtime",
