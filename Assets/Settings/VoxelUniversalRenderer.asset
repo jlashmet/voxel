@@ -80,6 +80,14 @@ MonoBehaviour:
   m_GrassTexture: {fileID: 2800000, guid: 345515da94241410cbc57715fdb888d3, type: 3}
   m_DirtTexture: {fileID: 2800000, guid: a56e1d111424c42cf8f1b1af2e0d6225, type: 3}
   m_DarkStoneTexture: {fileID: 2800000, guid: 42e688fe641194e6da296eebe1a64527, type: 3}
+  m_AdditionalSurfaceTextures:
+  - {fileID: 2800000, guid: 6660d55e2939b41c99cc0bc85e4e6179, type: 3}
+  - {fileID: 2800000, guid: 2492cafb939464a64ad36725c854934f, type: 3}
+  - {fileID: 2800000, guid: 66272fb196ba14168bf009bbd50c5137, type: 3}
+  - {fileID: 2800000, guid: a97aeb9888d884354858112c30304c3c, type: 3}
+  - {fileID: 2800000, guid: ca20217a58f584bd384d2c61166cd764, type: 3}
+  - {fileID: 2800000, guid: b6dd898eff5834478982e0ee9f028289, type: 3}
+  m_AdditionalSurfaceNormals: []
   m_StoneNormal: {fileID: 2800000, guid: 040b9352cc772422eb301e36f7b60e42, type: 3}
   m_WoodNormal: {fileID: 2800000, guid: 908c7bd06b0614fde9131f87d14b1f03, type: 3}
   m_SandNormal: {fileID: 2800000, guid: 9bb0a69f57240440da0bf6c18d146730, type: 3}
