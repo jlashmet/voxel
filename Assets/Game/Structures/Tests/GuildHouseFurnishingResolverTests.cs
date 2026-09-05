@@ -51,8 +51,8 @@ namespace Game.Structures.Tests
                 0x12345678u,
                 77u,
                 new int3(0, 0, 0),
-                72,
-                72,
+                128,
+                128,
                 requestedRooms: 6);
             Assert.That(
                 GuildHouseFurnishingPalette.TryCreate(
@@ -78,7 +78,8 @@ namespace Game.Structures.Tests
                 for (int placementIndex = 0; placementIndex < resolved.Placements.Length; placementIndex++)
                 {
                     DecorationPlacement placement = resolved.Placements[placementIndex];
-                    ushort stableId = (ushort)placement.Variant;
+                    ushort stableId = DecorationCanonicalPlacementCatalog.StableIdOfVariant(placement.Variant);
+                    Assert.That(stableId, Is.Not.Zero);
                     Assert.That(
                         Contains(room.RequiredArchetypes, stableId) || palette.Contains(stableId),
                         Is.True,
@@ -96,7 +97,7 @@ namespace Game.Structures.Tests
                         Assert.That(
                             placement.Bounds.Expanded(canonical.Clearance).Overlaps(in other.Bounds),
                             Is.False,
-                            $"room={roomIndex} ids={stableId}/{other.Variant}");
+                            $"room={roomIndex} ids={stableId}/{DecorationCanonicalPlacementCatalog.StableIdOfVariant(other.Variant)}");
                     }
                 }
 
@@ -120,8 +121,8 @@ namespace Game.Structures.Tests
                 424242u,
                 91u,
                 new int3(12, 0, -8),
-                72,
-                72,
+                128,
+                128,
                 requestedRooms: 6);
             GuildHousePrototype second = GuildHousePrototypeComposition.Build(
                 GuildHouseKind.Wizards,
@@ -129,8 +130,8 @@ namespace Game.Structures.Tests
                 424242u,
                 91u,
                 new int3(12, 0, -8),
-                72,
-                72,
+                128,
+                128,
                 requestedRooms: 6);
             Assert.That(
                 GuildHouseFurnishingPalette.TryCreate(
@@ -210,8 +211,8 @@ namespace Game.Structures.Tests
                     seed,
                     201u,
                     int3.zero,
-                    72,
-                    72,
+                    128,
+                    128,
                     requestedRooms: 4);
                 Assert.That(GuildHouseFurnishingResolver.TryResolvePrototype(
                     in prototype,
@@ -312,7 +313,7 @@ namespace Game.Structures.Tests
         private static bool ContainsPlacement(DecorationPlacement[] placements, ushort stableId)
         {
             for (int i = 0; i < placements.Length; i++)
-                if ((ushort)placements[i].Variant == stableId)
+                if (DecorationCanonicalPlacementCatalog.StableIdOfVariant(placements[i].Variant) == stableId)
                     return true;
             return false;
         }
