@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Execute a convention-derived module validation plan."""
 from __future__ import annotations
-import argparse, json, os, subprocess, time, xml.etree.ElementTree as ET
+import argparse, hashlib, json, os, subprocess, time, xml.etree.ElementTree as ET
 from pathlib import Path
 
 # This suite intentionally remains process-isolated. The full master workflow
@@ -38,7 +38,7 @@ def run_test(unity: str, item: dict, root: Path, test_filter: str | None = None)
         raise SystemExit(f"ERROR: required module test assembly executed zero tests: {module} {assembly}")
     failed = [c for c in cases if c.get("result") not in ("Passed", "Success")]
     if failed:
-        raise SystemExit(f"ERROR: required module test assembly failed: {module} {assembly} ({len(failed)} failures")
+        raise SystemExit(f"ERROR: required module test assembly failed: {module} {assembly} ({len(failed)} failures)")
     return time.monotonic() - started
 
 
@@ -153,6 +153,16 @@ def _requested_is_process_isolated(test_name: str) -> bool:
     return any(test_name == assembly or test_name.startswith(assembly + ".") for assembly in PROCESS_ISOLATED_ASSEMBLIES)
 
 
+def _player_artifact_key(item: dict) -> str:
+    """Stable collision-resistant artifact directory for one scene/scenario target."""
+    raw = f"{item['module']}--{item['scene']}--{item['scenario']}"
+    safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in raw).strip("_")
+    if len(safe) <= 180:
+        return safe
+    digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:12]
+    return safe[:160].rstrip("_") + "--" + digest
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--unity", required=True)
@@ -222,9 +232,8 @@ def main(argv=None) -> int:
         }
 
     for item in plan.get("playerValidations", []):
-        module = item["module"]
-        safe_module = "".join(c if c.isalnum() or c in "-_" else "_" for c in module)
-        out = root / "Players" / safe_module
+        artifact_key = _player_artifact_key(item)
+        out = root / "Players" / artifact_key
         player_env = os.environ.copy()
         player_env["VOXEL_DISABLE_GPU_CUTOVER"] = "1"
         player_args = [
@@ -238,7 +247,11 @@ def main(argv=None) -> int:
             player_args.extend(["--source-sha", ns.source_sha])
         started = time.monotonic()
         subprocess.run(player_args, check=True, env=player_env)
-        summary["players"].append({**item, "seconds": round(time.monotonic() - started, 2)})
+        summary["players"].append({
+            **item,
+            "artifactRoot": str(out),
+            "seconds": round(time.monotonic() - started, 2),
+        })
     summary["totalSeconds"] = round(time.monotonic() - started_all, 2)
     (root / "module-validation-summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(summary, sort_keys=True))
