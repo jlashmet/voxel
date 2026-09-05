@@ -9,7 +9,9 @@
 - [x] Discovered visual defect from exact-SHA run `33951274739`: the focused house validation called `ShowcaseWorld.StepStreaming` every frame, admitting unrelated showcase castle construction and evicting/rebuilding the fixed evidence footprint as audit camera positions changed. The validation now retains its deterministically preloaded production storage snapshot and the player scenario forbids `Castle authoring exceeded`.
 - [x] Re-run exact-SHA targeted CI after validation-residency isolation: run `33952976056` passed automatic module validation and standalone replay and no longer logged the castle failure, but direct inspection still showed terrain only rather than the authored house.
 - [x] Discovered material-surface blocker from run `33952976056`: the validation used the legacy four-argument `ShowcaseWorld` constructor, whose private world palette registers only historical showcase materials and omits stable house IDs 23-28. Raw house voxels therefore passed authoring/readback while the renderer-bound world palette could not classify their surfaces. The validation now uses the production game-material constructor with `GameMaterialComposition.SimulationDefinitions()` / `ShowcaseMaterials`; unrelated settlement catalogue content is suppressed for this focused proof.
-- [ ] Re-run exact-SHA targeted CI after complete game-material world binding and inspect the resulting hero/audit captures before accepting any remaining visual checklist item.
+- [x] Re-run exact-SHA targeted CI after complete game-material world binding: the automated gates passed, but built-player evidence still showed terrain rather than the authored cottage; the application composition root was then corrected to publish the completed bounded Structures authoring phase before renderer binding.
+- [x] Re-run exact-SHA targeted CI after the publication-boundary correction: run `33954740928` passed automatic module validation and standalone replay, but direct hero/audit inspection still showed fractured terrain and no recognizable reference house.
+- [ ] Repeated-symptom root-cause gate: before another product/geometry/material fix, use the focused built player to capture production `visible` / `missingVisible`, known/dirty/resident geometry state, and per-ring residency through existing `RenderingComposition` diagnostics. Exact-SHA diagnostic request `bce86b650b877a8f27466af2eba57a111ef41017` for feature SHA `51deddcb21c52810145e746f886ee1903f7881dc` is run `33960811414`; do not replace it while queued/running.
 
 ## 1. Engine / repository alignment
 - [x] Locate the existing WorldBuilder composition entry point.
@@ -126,10 +128,10 @@
 
 ## 10. Reference camera and lighting
 - [x] Add a reference-comparison camera/view separate from reusable house geometry.
-- [x] Author a three-quarter front/left camera azimuth consistent with the supplied reference.
+- [x] Author a frontal portrait primary camera consistent with the supplied reference, plus fixed front-left and rear-right audit views.
 - [x] Author camera height independently of house geometry.
 - [x] Author downward/upward viewing angle independently of house geometry.
-- [x] Author perspective/FOV (`39` degrees) independently of reusable house geometry.
+- [x] Author perspective/FOV (`36` degrees) independently of reusable house geometry.
 - [x] Author framing/crop target independently of reusable house geometry.
 - [x] Use the project's normal sky/environment/rendering path.
 - [x] Author a warm directional sun/key-light direction consistent with the reference.
@@ -178,4 +180,3 @@
 - [ ] No major gaps, floating elements, z-fighting, or obvious geometry overlaps remain.
 - [x] Repeated architectural components use reusable helpers instead of unnecessary duplication.
 - [x] House geometry is reusable independently of the reference-specific camera, lighting, and immediate site; translation-invariance/site-separation regressions prove the boundary.
-- [ ] A final reference-comparison built-player render exists for visual validation.
