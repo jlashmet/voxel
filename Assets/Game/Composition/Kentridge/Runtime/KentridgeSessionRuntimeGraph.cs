@@ -71,6 +71,7 @@ namespace Game.Composition.Kentridge.Runtime
         private readonly IKentridgeSessionRuntimeExtensionFactory _extensionFactory;
 
         public KentridgeSessionRuntimeGraph Current { get; private set; }
+        public IKentridgeCampaignActorHost ActorHost => _actors;
 
         public KentridgeSessionRuntimeGraphFactory(
             CampaignBlueprint blueprint,
