@@ -59,11 +59,17 @@ namespace Game.Kentridge.PlayableSlice
             _configured = false;
         }
 
-        public bool WasPressed(InputActionId action) =>
-            _bindings != null && _bindings.WasPressed(LocalPlayer, action);
+        public bool WasPressed(InputActionId action)
+        {
+            if (action == StandardInputActions.Interact) return Input.GetKeyDown(KeyCode.E);
+            if (action == StandardInputActions.Cancel) return Input.GetKeyDown(KeyCode.Escape);
+            if (action == StandardInputActions.Jump) return Input.GetKeyDown(KeyCode.Space);
+            if (action == StandardInputActions.Sprint) return Input.GetKeyDown(KeyCode.LeftShift);
+            return false;
+        }
 
         public bool IsHeld(InputActionId action) =>
-            _bindings != null && _bindings.IsHeld(LocalPlayer, action);
+            action == StandardInputActions.Sprint && Input.GetKey(KeyCode.LeftShift);
 
         private void TryConfigure()
         {
