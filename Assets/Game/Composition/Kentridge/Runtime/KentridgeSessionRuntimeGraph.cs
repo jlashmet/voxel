@@ -37,6 +37,15 @@ namespace Game.Composition.Kentridge.Runtime
     }
 
     /// <summary>
+    /// Optional capability implemented by a long-lived scene actor host whose authoritative character
+    /// registry is scoped to one composed session. SessionOrchestration calls it before each graph is built.
+    /// </summary>
+    public interface IKentridgeSessionAuthorityReset
+    {
+        void BeginSessionAuthority(GameSessionIdentity identity);
+    }
+
+    /// <summary>
     /// Optional capability on a composition-supplied actor host. It exposes only the extension factory;
     /// concrete Input/Encounter/Combat/Vitality services remain private to the extension and are never
     /// published as a broad service locator.
@@ -88,6 +97,8 @@ namespace Game.Composition.Kentridge.Runtime
                 throw new SessionCompositionException(
                     GameSessionFailure.CompositionFailed,
                     "Kentridge already has a composed runtime graph. Shut it down before composing another run.");
+
+            (_actors as IKentridgeSessionAuthorityReset)?.BeginSessionAuthority(identity);
 
             KentridgeCampaignSession session = KentridgeCampaignSessionBootstrap.CreateSession(
                 _blueprint,
@@ -148,6 +159,8 @@ namespace Game.Composition.Kentridge.Runtime
         public IReadOnlyList<ISessionUpdateStep> UpdateSteps => _steps;
         public IGameOutcomeQuery OutcomeQuery => null;
         public int LastNewGameMatchedCount { get; private set; }
+        public bool InitializedNewGame { get; private set; }
+        public bool RestoredFromPersistence { get; private set; }
 
         internal KentridgeSessionRuntimeGraph(
             KentridgeCampaignSession session,
@@ -177,7 +190,20 @@ namespace Game.Composition.Kentridge.Runtime
         public void InitializeNewGame()
         {
             ThrowIfDisposed();
+            if (RestoredFromPersistence)
+                throw new InvalidOperationException(
+                    "A restored Kentridge graph cannot replay New Game initialization.");
             LastNewGameMatchedCount = Session.StartNewGame();
+            InitializedNewGame = true;
+        }
+
+        public void MarkRestoredFromPersistence()
+        {
+            ThrowIfDisposed();
+            if (InitializedNewGame)
+                throw new InvalidOperationException(
+                    "A New Game Kentridge graph cannot be reclassified as restored.");
+            RestoredFromPersistence = true;
         }
 
         public void StartCommands()
