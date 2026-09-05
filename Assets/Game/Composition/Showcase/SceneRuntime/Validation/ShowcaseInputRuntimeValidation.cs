@@ -34,6 +34,8 @@ namespace VoxelEngine.Showcase.Validation
 
             _keyboard = InputSystem.AddDevice<Keyboard>();
             _mouse = InputSystem.AddDevice<Mouse>();
+            _keyboard.MakeCurrent();
+            _mouse.MakeCurrent();
             Debug.Log("Showcase input validation ready: production VoxelShowcase + Input System devices.");
         }
 
