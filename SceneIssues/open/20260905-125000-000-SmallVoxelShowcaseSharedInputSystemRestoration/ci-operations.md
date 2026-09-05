@@ -25,3 +25,17 @@ The automatic plan owns the changed `SceneRuntime` module and its player validat
 ## Follow-up fix / next exact discriminator
 
 Keep production input unchanged. Make synthetic keyboard/mouse devices current explicitly in the EditMode fixture and both built-player input harnesses before queuing events. Re-run the same repository-driven SceneRuntime EditMode + module-local player + Kentridge integration gates and the actual `SmallVoxelShowcase` replay at the new exact feature SHA.
+
+## 2026-09-05 — current-device corrected request
+
+- Feature SHA: `53ef9d4de34bcc42c44405bb74bedddb5952e0eb`
+- Transport SHA: `19dc670b0c1cc580b15c77c9a090efb3d8481dd0` (verified parent exactly the feature SHA; only `.github/test-request.json` differs).
+- Workflow run: `33986010080`.
+- Built production-scene replay: **passed again**. `SmallVoxelShowcase` built and the 20-second `showcase-input-smoke` replay completed successfully with real-player captures.
+- Automatic module validation: **failed** after 77 seconds. The persistent `VoxelEngine.Showcase.Tests.EditMode` assembly ran 16 tests: 13 passed, 3 failed, all in `ShowcaseInputSystemTests`.
+- Exact assertions: `ReadCurrent_MapsCompleteKeyboardAndMouseSemanticFrame` failed first on `ToggleCursor`; `ReadCurrent_PressedActionsAreEdgeTriggered_HeldMovementPersists` failed first on `Interact`; `ReadCurrent_NormalizesWheelDirectionAndMapsSecondaryEdit` failed first on `SecondaryEdit`. These are all `wasPressedThisFrame` edge checks.
+- Root cause: `MakeCurrent()` corrected device ownership, but this fixture still manually calls `InputSystem.Update()` while the project remains in automatic update mode. Unity's Input System contract reserves manual updates for tests using its isolated fixture or for `ProcessEventsManually`; editor update state makes frame-edge properties nondeterministic otherwise.
+
+## Follow-up fix / next exact discriminator
+
+Keep production and built-player harness behavior unchanged. In `ShowcaseInputSystemTests` only, save the prior `InputSystem.settings.updateMode`, set `ProcessEventsManually` before driving queued synthetic events, and restore the prior mode during teardown. Keep every existing edge/held/mouse assertion intact. Re-run the full repository-derived SceneRuntime module tests, module-local standalone validation, Kentridge integration, and actual `SmallVoxelShowcase` replay at the resulting exact feature SHA.
