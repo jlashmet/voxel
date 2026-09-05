@@ -14,7 +14,7 @@ SPEC.loader.exec_module(loop)
 
 
 class ReviewWindowBudgetTests(unittest.TestCase):
-    def test_budget_selects_suspicious_first_and_bounds_backlog(self):
+    def test_budget_selects_suspicious_first_and_never_spills_suspicious_into_routine(self):
         pending = [
             {"key": "r1", "priority": "routine"},
             {"key": "s1", "priority": "suspicious"},
@@ -25,9 +25,10 @@ class ReviewWindowBudgetTests(unittest.TestCase):
         ]
         selected = loop.select_review_window(
             pending,
-            {"suspiciousItems": 2, "routineCompletions": 1, "deepInvestigations": 1},
+            {"suspiciousItems": 2, "routineCompletions": 4, "deepInvestigations": 1},
         )
-        self.assertEqual(["s1", "s2", "r1"], [item["key"] for item in selected])
+        self.assertEqual(["s1", "s2", "r1", "r2", "r3"], [item["key"] for item in selected])
+        self.assertNotIn("s3", [item["key"] for item in selected])
 
     def test_zero_budget_exposes_no_backlog_items(self):
         pending = [{"key": "s1", "priority": "suspicious"}, {"key": "r1", "priority": "routine"}]
