@@ -7,6 +7,8 @@ using Game.Composition.WorldBuilderWorldGen;
 using Game.Composition.WorldBuilderWorldGen.Runtime;
 using Game.Cutscenes.Api;
 using Game.Cutscenes.Content.Kentridge;
+using Game.Input.Api;
+using Game.Progression.Api;
 using Game.SessionOrchestration.Api;
 using Game.SessionOrchestration.Runtime;
 using Game.WorldBuilder.Api;
@@ -110,6 +112,9 @@ namespace Game.Kentridge.PlayableSlice
         public bool OpeningPresentationReady => _openingPresentationReady;
         public bool OpeningCutsceneCameraActive => _openingCutsceneCameraActive;
         public Vector3 OpeningCutsceneCameraFocus => _openingCameraFocus;
+        public float InteractionRangeMetres => m_InteractionRangeMetres;
+        internal IProgressionQuery ProgressionQuery => _session?.Runtime.Progression;
+        internal string TravelObjectiveId => _travelObjective.ToString();
         public bool TravelObjectiveActive =>
             _session != null && _session.Runtime.IsObjectiveActive(_travelObjective);
         public bool TravelObjectiveCompleted =>
@@ -195,9 +200,6 @@ namespace Game.Kentridge.PlayableSlice
                 _world.ConfigureGeneratedContentForGameplay(catalogue);
                 catalogue = default(FeatureCatalogue);
 
-                // Bind semantic far presentation immediately after deterministic planning/catalogue
-                // composition and before any GenerateAt call below. The same derived manifest used
-                // by Showcase is therefore queryable before a Kentridge voxel region is realized.
                 _sceneCamera = GetComponent<Camera>();
                 if (_sceneCamera == null) _sceneCamera = Camera.main;
                 _farFeatures = new KentridgeFarFeatureRuntime(
@@ -216,10 +218,15 @@ namespace Game.Kentridge.PlayableSlice
 
                 _motor = new KentridgeCharacterHost(m_WalkSpeed);
                 _actors = _motor;
-                _presentation = new SlicePresentation(ApplyCutsceneCamera);
+                KentridgeGameplayAudioIntegration audioPresentation =
+                    GetComponent<KentridgeGameplayAudioIntegration>()
+                    ?? gameObject.AddComponent<KentridgeGameplayAudioIntegration>();
+                _presentation = new SlicePresentation(ApplyCutsceneCamera, audioPresentation);
                 KentridgeForestBanditEncounter forestSessionExtension =
                     GetComponent<KentridgeForestBanditEncounter>()
                     ?? gameObject.AddComponent<KentridgeForestBanditEncounter>();
+                if (GetComponent<KentridgeGameplayHudInstaller>() == null)
+                    gameObject.AddComponent<KentridgeGameplayHudInstaller>();
                 var sessionFactory = new KentridgeSessionRuntimeGraphFactory(
                     content.Blueprint,
                     generation,
@@ -486,9 +493,12 @@ namespace Game.Kentridge.PlayableSlice
 
         private void HandleKeys()
         {
-            if (Input.GetKeyDown(KeyCode.Escape)) SetCursorLocked(!_mouseLook);
+            KentridgeGameplayHudInstaller semanticInput = GetComponent<KentridgeGameplayHudInstaller>();
+            if (semanticInput != null && semanticInput.WasPressed(StandardInputActions.Cancel))
+                SetCursorLocked(!_mouseLook);
             if (Input.GetKeyDown(KeyCode.F10)) RescuePlayerToY100();
-            if (Input.GetKeyDown(KeyCode.E)) TryInteractWithNearbyNpc();
+            if (semanticInput != null && semanticInput.WasPressed(StandardInputActions.Interact))
+                TryInteractWithNearbyNpc();
         }
 
         public bool TryInteractWithNearbyNpc()
@@ -921,14 +931,16 @@ namespace Game.Kentridge.PlayableSlice
                           - (Input.GetKey(KeyCode.S) ? 1f : 0f);
             float strafe = (Input.GetKey(KeyCode.D) ? 1f : 0f)
                          - (Input.GetKey(KeyCode.A) ? 1f : 0f);
-            bool sprint = Input.GetKey(KeyCode.LeftShift);
+            KentridgeGameplayHudInstaller semanticInput = GetComponent<KentridgeGameplayHudInstaller>();
+            bool sprint = semanticInput != null && semanticInput.IsHeld(StandardInputActions.Sprint);
 
             Vector3 flatForward = Vector3.ProjectOnPlane(transform.forward, Vector3.up).normalized;
             Vector3 flatRight = Vector3.ProjectOnPlane(transform.right, Vector3.up).normalized;
             Vector3 wish = flatForward * forward + flatRight * strafe;
             if (wish.sqrMagnitude > 1f) wish.Normalize();
 
-            _motor.Step(_world, wish, sprint, Input.GetKey(KeyCode.Space), dt);
+            bool jumpHeld = semanticInput != null && semanticInput.IsHeld(StandardInputActions.Jump);
+            _motor.Step(_world, wish, sprint, jumpHeld, dt);
         }
 
         private void UpdateExitedPub()
@@ -1054,30 +1066,6 @@ namespace Game.Kentridge.PlayableSlice
             if (AutoSurvey || AutoRecede) return;
 
             DrawDialogue();
-
-            string state = _session.Runtime.HasActiveCutscene
-                ? DestinationCutsceneActive ? "Destination conversation" : "Opening cutscene"
-                : _hasExitedPub
-                    ? "Kentridge town"
-                    : "Player control — walk out through the pub door";
-            GUI.Box(new Rect(16f, 16f, 420f, 82f), state);
-            GUI.Label(new Rect(30f, 44f, 390f, 24f),
-                _session.Runtime.HasActiveCutscene
-                    ? _presentation.LastCue
-                    : "WASD move • mouse look • E interact • Shift sprint • Space jump");
-
-            if (!_session.Runtime.HasActiveCutscene)
-            {
-                if (TryFindNearbyConversationNpc(out NpcRef nearbyNpc, out _))
-                    GUI.Label(new Rect(30f, 70f, 390f, 24f),
-                              "E talk to " + nearbyNpc.ToString());
-
-                if (GUI.Button(new Rect(16f, 106f, 235f, 34f),
-                               "Rescue: move to Y = 100 m"))
-                    RescuePlayerToY100();
-                GUI.Label(new Rect(264f, 112f, 360f, 24f),
-                          "F10 anytime • Esc releases the cursor");
-            }
         }
 
         private static void DrawOpeningLoadingCover()
@@ -1160,12 +1148,18 @@ namespace Game.Kentridge.PlayableSlice
         private sealed class SlicePresentation : ICutscenePresentation
         {
             private readonly Action<CutsceneCueId> _camera;
+            private readonly ICutsceneSoundCueRuntime _sound;
 
             public string LastCue { get; private set; } = string.Empty;
             public DialogueLine Pending { get; private set; }
 
-            public SlicePresentation(Action<CutsceneCueId> camera) =>
+            public SlicePresentation(
+                Action<CutsceneCueId> camera,
+                ICutsceneSoundCueRuntime sound)
+            {
                 _camera = camera ?? throw new ArgumentNullException(nameof(camera));
+                _sound = sound ?? throw new ArgumentNullException(nameof(sound));
+            }
 
             public ICutsceneOperation SetCamera(CutsceneCueId cameraCue)
             {
@@ -1201,7 +1195,9 @@ namespace Game.Kentridge.PlayableSlice
             public ICutsceneOperation PlaySound(CutsceneCueId soundCue)
             {
                 LastCue = soundCue.Value;
-                return CompletedCutsceneOperation.Instance;
+                return _sound.Execute(soundCue)
+                       ?? throw new InvalidOperationException(
+                           "Kentridge sound runtime returned no operation for cue '" + soundCue + "'.");
             }
         }
     }

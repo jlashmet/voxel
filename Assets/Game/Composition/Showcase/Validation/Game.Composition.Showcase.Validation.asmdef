@@ -1,0 +1,21 @@
+{
+  "name": "Game.Composition.Showcase.Validation",
+  "rootNamespace": "VoxelEngine.Showcase.Validation",
+  "references": [
+    "Game.Composition.Showcase",
+    "Game.Composition.WorldObjects.Runtime",
+    "VoxelEngine.Composition.Api",
+    "VoxelEngine.Composition",
+    "VoxelEngine.Storage.Api",
+    "Unity.Mathematics"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
