@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 import astra_manager as core
+import astra_manager_publish as publisher
 
 
 def select_review_window(pending: list[dict[str, Any]], budget: dict[str, Any]) -> list[dict[str, Any]]:
@@ -108,6 +109,20 @@ def sync_master_worktree(root: Path, runtime: Path) -> None:
         raise core.ManagerError("manager checkout contains unexpected local files: " + "; ".join(unexpected[:5]))
 
     core.git(root, "merge", "--ff-only", "origin/master")
+
+
+def retry_followup_transport(root: Path, runtime: Path, repository: str) -> None:
+    """Retry only unpublished/auto-merge-incomplete follow-ups; never spend Astra on transport."""
+    candidates = _untracked_issue_dirs(root)
+    if not candidates:
+        return
+    published = _load_published(root, runtime)
+    needs_transport = any(
+        path.name not in published or not published[path.name].get("autoMergeEnabled")
+        for path in candidates
+    )
+    if needs_transport:
+        publisher.publish(root, runtime, repository)
 
 
 def markdown_section(text: str, heading: str, max_lines: int = 40) -> list[str]:
@@ -215,6 +230,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.fetch:
             core.fetch(root)
             sync_master_worktree(root, runtime)
+            retry_followup_transport(root, runtime, args.github_repo)
         signal = core.collect(root, runtime, cfg, args.github_repo, not args.no_ci)
         window = build_review_window(root, runtime, cfg, signal)
 
