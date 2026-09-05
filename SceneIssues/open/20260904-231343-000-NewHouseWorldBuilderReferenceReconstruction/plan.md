@@ -14,11 +14,12 @@ Reconstruct the supplied medieval cottage through the production WorldBuilder/ma
 1. **Existing massing was close; only material/camera polish remained.** Falsified by direct comparison with checked-in reference blob `6d87b08d4c7c9bddc1705c0f34343aa79bc18423`: prior shape was broad/side-gabled with rectangular windows and wrong camera.
 2. **Extra textures belonged in `Assets/Settings/VoxelUniversalRenderer.asset`.** Falsified by runs `33948973165`/`33949596796`: the global asset broadened module validation and inherited an unrelated URP legacy-Input failure. Selected path is the application-owned Resources slot asset.
 3. **The first green built-player replay proved the focused validation was visually stable.** Falsified by run `33951274739`: captures showed fragmented terrain/house while logs repeatedly reported showcase castle authoring failures. `NewHouseReferenceWorldBuilderValidation.Update` was incorrectly calling `ShowcaseWorld.StepStreaming`, which admits unrelated landmarks and mutates residency as the audit camera moves.
+4. **Removing integration streaming was sufficient to make authored house surfaces render.** Falsified by exact-SHA run `33952976056`: automatic module validation and the standalone replay passed, the castle failure disappeared, but direct hero/audit inspection still showed terrain only. The validation was constructing the legacy four-argument `ShowcaseWorld`, whose private world simulation palette does not register stable house IDs 23-28 even though raw authored voxels can be written/read successfully.
 
 ## Selected fix
-Keep the already-built reference house on its deterministic 3x3 production storage footprint after synchronous preload/authoring. The focused validation no longer advances showcase integration streaming; only the evidence camera moves. The player scenario now forbids `Castle authoring exceeded`, so the demonstrated failure cannot silently recur. No alternate storage, renderer, mesh, or authoring path is introduced.
+Keep the deterministic preloaded production storage footprint and bind it through the production game-material constructor: `GameMaterialComposition.SimulationDefinitions()` plus `GameMaterialComposition.ShowcaseMaterials`. The focused proof does not advance showcase landmark streaming and suppresses ordinary settlement catalogue content, so evidence contains only the terrain/site/house it owns. The player scenario forbids the previously observed castle failure. No alternate storage, renderer, mesh, material registry, or authoring path is introduced.
 
-Current implementation basis: `c29d1aa43327b109ba7e70376e7bd5105dba3a41` plus task-record update.
+Current implementation basis: game-material world binding at `be1dc30c984815f704037916f539afe7635061cc` plus task-record update.
 
 ## Remaining gates
 1. Exact-SHA targeted CI on the final feature head; inspect the WorldBuilder hero/audit captures directly.
