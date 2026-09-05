@@ -148,11 +148,20 @@ namespace Game.Residency.Runtime
             if (state.Desired == desired) return;
             state.Desired = desired;
             state.Revision++;
-            if (state.Phase == ResidencyTransitionPhase.Failed) { state.Phase = ResidencyTransitionPhase.Stable; state.Diagnostic = string.Empty; }
+            if (state.Phase == ResidencyTransitionPhase.Failed)
+            {
+                state.Phase = ResidencyTransitionPhase.Stable;
+                state.Diagnostic = string.Empty;
+            }
         }
 
         private void Reconcile(ResidencyTarget target, TargetRuntime state)
         {
+            // A failed transition remains quiescent until the effective demand changes. Re-running the
+            // same failing adapter or physical prerequisite every frame creates retry storms and can
+            // repeatedly allocate/release realization resources without any new semantic instruction.
+            if (state.Phase == ResidencyTransitionPhase.Failed) return;
+
             if (state.WorldLease != null && state.Current < ResidencyFidelity.Detailed && state.Desired < ResidencyFidelity.Detailed)
             {
                 state.WorldLease.Dispose(); state.WorldLease = null;
@@ -165,7 +174,8 @@ namespace Game.Residency.Runtime
                     ResidencyFidelity next = (ResidencyFidelity)((byte)state.Current + 1);
                     if (next == ResidencyFidelity.Detailed && !EnsureWorldReady(target, state)) return;
                     if (!ApplyAdapter(target, state, true, state.Current, next)) return;
-                    ResidencyFidelity from = state.Current; state.Current = next; state.Phase = ResidencyTransitionPhase.Stable; state.Diagnostic = string.Empty; state.Revision++;
+                    ResidencyFidelity from = state.Current;
+                    state.Current = next; state.Phase = ResidencyTransitionPhase.Stable; state.Diagnostic = string.Empty; state.Revision++;
                     Record(target, from, next, ResidencyTransitionPhase.Stable, "promoted");
                 }
                 else
@@ -192,7 +202,9 @@ namespace Game.Residency.Runtime
                 state.Revision++;
             }
             if (state.WorldLease.IsReady) return true;
-            state.Phase = ResidencyTransitionPhase.WaitingForWorld; state.Diagnostic = "waiting for physical region " + region; state.Revision++;
+            state.Phase = ResidencyTransitionPhase.WaitingForWorld;
+            state.Diagnostic = "waiting for physical region " + region;
+            state.Revision++;
             return false;
         }
 
@@ -205,12 +217,15 @@ namespace Game.Residency.Runtime
             if (result.Status == ResidencyAdapterStatus.Completed) return true;
             if (result.Status == ResidencyAdapterStatus.Pending) { state.Diagnostic = result.Diagnostic; return false; }
             if (promotion && to == ResidencyFidelity.Detailed && state.WorldLease != null) { state.WorldLease.Dispose(); state.WorldLease = null; }
-            Fail(target, state, from, to, result.Diagnostic); return false;
+            Fail(target, state, from, to, result.Diagnostic);
+            return false;
         }
 
         private void Fail(ResidencyTarget target, TargetRuntime state, ResidencyFidelity from, ResidencyFidelity to, string diagnostic)
         {
-            state.Phase = ResidencyTransitionPhase.Failed; state.Diagnostic = string.IsNullOrWhiteSpace(diagnostic) ? "residency transition failed" : diagnostic; state.Revision++;
+            state.Phase = ResidencyTransitionPhase.Failed;
+            state.Diagnostic = string.IsNullOrWhiteSpace(diagnostic) ? "residency transition failed" : diagnostic;
+            state.Revision++;
             Record(target, from, to, ResidencyTransitionPhase.Failed, state.Diagnostic);
         }
 
