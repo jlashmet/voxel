@@ -1,92 +1,64 @@
 # Tasks — Kentridge macro-world physical realization
 
 ## Implemented foundation
-- [x] Inspect assignment; `captures: []`, so `issue.json` is the acceptance contract.
 - [x] Preserve source-backed `TopDownWorldLayout` / `MountingForceTopDownWorldDefinition` as topology authority through shared WorldBuilder APIs.
-- [x] Add reusable deterministic geography, terrain-aware hard-route solving, generic settlement blockouts/streets, continuous hard-route surfaces, Rossdam basin, Southern Ridge/pass, and real CharacterMotor traversal.
-- [x] Production regressions cover determinism, reachability, roads, settlements, blocking geography, explicit semantic route solutions, bounded slopes, storage, water realization, and evidence sequencing.
-- [x] Prove reuse with independent non-Kentridge blocked-water and spatial-reservation fixtures; keep Kentridge placement policy out of shared planner/catalogue APIs.
-- [x] Keep feature-aware vertical residency within the existing horizontal radius/device/scheduler policy.
-- [x] Replace demonstrated-cost solid fallback blockouts with bounded hollow wall shells and perimeter plinths while retaining grounding, footprint/material/envelope, wall support, collision silhouette, and bounds.
-- [x] Isolate and correct the playable one-shot macro catalogue ownership transition; runtime catalogue now contains 480 macro-aware definitions.
-- [x] Quantify synthetic generic-blockout work reduction: foundation 82,432 -> 29,440 voxels (64.3%), timber body 416,000 -> 71,552 (82.8%), combined foundation+timber 498,432 -> 100,992 (79.7%); roof unchanged.
-- [x] Merge the explicitly requested current master renderer restoration into `fixes/agent-6` at `5185b5acddd3d35ec29730ea73d30ae796a705bf`.
-- [x] Validate the perimeter-foundation throughput fix on the post-master exact feature state: run `33800775569` passed repository-derived module validation, `GenericBuildingBlockoutUsesBoundedFoundationAndWallShellsInsteadOfSolidVolumes`, and the standalone player process on exact source `5185b5acddd3d35ec29730ea73d30ae796a705bf`.
-- [x] Preserve strict publication acceptance after that green gate; the player still stalls after Moordell because `HasCompletePublishedNearSurfaceCoverage()` remains false under the elevated survey, so do not misclassify process success as visual success.
-- [x] Apply the two-material-fix rule and isolate the publication root cause before another fix. Experiment 037 proves the radius-3 discrete lattice (`dx²+dz² <= 9`, 29 columns) cannot guarantee the nominal 153.6m continuous renderer disk for every within-region demand point; the conservative guaranteed disk is 102.4m.
-- [x] Add independent `KentridgeStreamingCoveragePolicyTests`, which enumerate excluded lattice cells and measure point-to-square distance rather than restating the production formula.
-- [x] Keep the selected coverage repair scene-local and config-driven: a Kentridge-only post-scene-load installer narrows only the renderer near-surface completeness ring to the guaranteed radius. Streaming radius 3, far-field streamed radius, generation/device budgets, scheduler policy, and strict coverage semantics remain unchanged.
+- [x] Add reusable deterministic regional geography, terrain-aware hard-route solving, generic settlement blockouts/streets, continuous hard-route surfaces, Rossdam basin, Southern Ridge/pass, and CharacterMotor traversal.
+- [x] Prove reuse with independent non-Kentridge blocked-water/spatial-reservation fixtures; keep Kentridge placement policy out of shared planner/catalogue APIs.
+- [x] Preserve existing streaming/device/scheduler budgets and radius-3 horizontal residency (29 X/Z columns).
+- [x] Replace demonstrated-cost solid generic blockouts with grounded hollow shells/perimeter plinths; combined foundation+timber synthetic work reduced 79.7%.
+- [x] Add focused behavioral regressions for deterministic macro realization, reachability, route continuity/constraints, settlement placement, spatial reservations, bounded water cost, evidence sequencing, vertical residency/readiness, settlement framing, shell cost, GPU count-batch fairness, and distant mirror relocation/churn.
+- [x] Add required module-local production validation scenes for WorldBuilder, Showcase residency, Kentridge playable macro world, and GPU mirror relocation.
 
-## Current exact-SHA validation
-- [x] Validate the streaming-coverage radius regression through `ci-test/fixes/agent-6` with the required 180-second SceneIssue replay: run `33804821454` is green on exact feature source `50bc9533b811ac587d24503844d3d2c73d0c37bf`, including the requested regression, repository-derived module validation, and standalone player process.
-- [x] Because the same strict-coverage symptom remained after that fix, isolate the new boundary before another production change. Experiment 038 shows `missingVisible=0/coreAbsent=0` immediately before the first macro survey, then `coreAbsent=2178` and `2922` as the evidence camera moves ~70m above the ground-pinned CharacterMotor; GPU requests remain admission-bound while strict coverage never recovers.
-- [x] Correct only the macro evidence composition to match the existing shipped `StepAutoSurvey` contract: explicit pre-slice execution order, one resolved survey camera position, and `CharacterMotor.EyePosition == rendered survey camera`. No shared renderer/world policy, load radius, generation/device budget, or strict coverage semantic changed.
-- [x] Classify run `33811917743` on exact source `a0f9998b755ab9bd467c05a2b1c478598ec84734` as test-harness compile red only: the new focused regression omitted `using MountingForce.WorldGen;`, so `Int2` did not resolve in either module validation or player build. No NUnit/product/player signal exists; experiment 039 records the boundary and the namespace-only correction.
-- [x] Validate `KentridgeMacroWorldSurveyStreamingAlignmentTests.ElevatedSurveyPinsStreamingDemandToRenderedCameraBeforeSliceStreaming`: run `33812580159` is workflow-green on exact source `32b8972a9e6f3876b87b2c2885f806727da23d78`, including the requested regression, repository-derived module validation, and the full 180-second standalone SceneIssue replay.
-- [x] Reject artifact `9915578779` for closure despite that green run: Moordell content becomes ready and radius-3 residency is correct, but strict publication never advances to Rossdam/Fairy/Orc/ridge/network. Eight GPU requests remain admission-bound while some geometry continues publishing.
-- [x] Apply the required two-material-fix rule before a third remediation. Experiment 040 isolates a deterministic shared-renderer liveness defect: four two-record count-batch lanes share one dispatch-per-frame token, while fixed lane-0 sealing plus inline refill can starve the six records held by lanes 1-3 indefinitely.
-- [x] Implement the smallest renderer correctness correction: remove inline sealing, retain all existing capacities/budgets/fences/backpressure, and service eligible full/aged lanes through one round-robin seal cursor that advances only after successful GPU submission.
-- [x] Add `GpuCountBatchLaneFairnessTests.SaturatedCountBatchLanesUseRoundRobinSealAuthorityWithoutInlineBypass` as an independent source-contract/liveness regression for the demonstrated saturated-refill pattern.
-- [x] Validate the fairness regression itself on exact source `247477d9bf11c7902fdb75a632d5b5535905525a`: run `33816510783` is green and completes in about 3m45s, including the required 180-second SceneIssue replay. Reject the replay for closure because the macro evidence still does not advance beyond Moordell.
-- [x] Correct the continuing failure boundary from the replay telemetry: `phases=0x2` is a phase bitmask and therefore means active request phase 1 (`_stageAdmissionPending`), not phase 2. At the stall, `ready=65536`, `pending≈25k-30k`, `demand=8`, and admitted requests reconcile (`published + stale == mirrorReady`), so the remaining boundary is shared-mirror recovery/admission rather than count-batch sealing.
-- [x] Merge current `master` into the feature via PR #245 before further remediation; merge commit `a01e8bd3e2b8659225ebb7373516e7e0ebe57681` has parents `247477d9bf11c7902fdb75a632d5b5535905525a` and master `04c43482768548f96db6f18234f1709a25b0d983`.
-- [x] Classify the post-master exact baseline: run `33824047466` is workflow-green on source `a01e8bd3e2b8659225ebb7373516e7e0ebe57681` (transport `78ad9b4a6cadf4b7a4f77a5274fe3a531cdd55c0`), but artifact `9920411113` is closure-red. The 180-second player reaches `MACROEVIDENCE content-ready target=moordell` and never emits `capture-ready`, Rossdam/Fairy/Orc/ridge/network targets, or dedicated macro evidence files. Current master therefore did not remove the admission/liveness boundary.
-- [x] Add `GpuSurfaceMirrorRelocationLivenessTests.DistantRelocationCannotLeaveEveryGpuWorkerAdmissionPending` as the minimal independent repro for the Kentridge survey-relocation boundary. It performs a 384m relocation and fails if all eight demand chains remain mirror-admission pending with zero active extraction for 20 seconds, while reporting mixed-resident slots/capacity to distinguish capacity exhaustion from bookkeeping starvation.
-- [x] Merge repository module-validation guidance from master via PR #249; feature merge `d8476f7b3ef1c316e4c30fee8448ec86e8746dc1` includes master `13b3c6a752deb030effba0f6e430863d0c1fd115` and the mandatory module-local validation-scene rules.
-- [x] Preserve exact request `cb2b7919142402fccbcbe03f9fb8c5a3576fa086` until completion and classify its red result without replacement: the isolated PlayMode harness forced `VOXEL_DISABLE_GPU_CUTOVER=1`, so the requested relocation test failed at its GPU-enabled precondition before exercising liveness. This is harness incompatibility, not renderer evidence.
-- [x] Keep the repository CPU-baseline policy intact and isolate the GPU-only acceptance path: add `GpuSurfaceMirrorRelocationRequestedValidationTests.DistantRelocationExecutesProductionGpuLivenessRegression`, which clears/restores the flag only around the delegated requested test, plus a BeforeSceneLoad bootstrap that enables GPU cutover only for the dedicated GPU module-validation scene.
-- [x] Reconcile current master before final validation-surface construction via PR #258; merge `0d458e976d432b8a55ee02316bf6635afc3aecaa` contains master `56b28f3abdac8cbbd346a3cb29acef43da029806`.
-- [x] Run the unrelated-change discriminator on exact source `23a00f432cb97338dc7887eb852c5dd39fbd430a`: run `33899824434` fails after 20.0s all-worker admission stall with `active=0`, only `pending=1`, `mixedResident=1059/93312`, and 2,943 distant changes. This proves world-wide coverage-epoch invalidation can starve unrelated footprints; experiment 044 records the result.
-- [x] Implement the smallest demonstrated correction at `7641f8d2c0b4088ed23f7ad29161965a6005a606`: solid changes no longer advance the global coverage epoch; queued changed blocks are counted per registered demand footprint and only that footprint is held at extraction admission until recovery republishes them. Preserve world/history epoch invalidation, all budgets, strict coverage, and concurrency.
-- [x] Classify run `33905495634` after the footprint-local fix: the old assertion reported a 20s saturated-admission stall while its own payload showed 461 GPU completions. Experiment 045 proves `active==0` sampled after a rendered frame aliases same-frame work; test-only commit `2fb10483fe3584dc73a2326a9cd806a7589d2ff0` also requires zero GPU-completion progress before accumulating stall time.
-- [x] Classify exact run `33912155787` on source `b45f6e36738c051250747253df9d75f6ad40c1fb`: all persistent repository-derived module test phases passed; the requested PlayMode discriminator failed only because useful recovery reached four GPU completions after three injected changes, so the loop exited before its own `>=8` churn precondition. Experiment 046 records this test-orchestration contradiction. The 180s Kentridge replay had zero harness assertions but remained closure-red with `coverage=False`, `missingVisible=252`, eight GPU requests in flight, and recovery backlog still draining.
-- [x] Strengthen the unrelated-change discriminator at `77d5314a39857b55e87ddb299807b5e323af5e28`: successful early exit now requires the full eight unrelated change injections as well as recovery backlog, four useful post-relocation GPU completions, and visible geometry. Production behavior, failure threshold, budgets, strict coverage, and concurrency are unchanged.
-- [ ] Validate `GpuSurfaceMirrorRelocationRequestedValidationTests.DistantUnrelatedChangeChurnExecutesProductionGpuLivenessRegression` on the current exact feature source through `ci-test/fixes/agent-6`, including repository-derived module validation and the required 180-second SceneIssue replay.
-- [ ] Require strict built-player coverage to advance beyond Moordell after the demonstrated mirror-admission defect is corrected; if the same symptom remains after two materially different fixes, isolate the new failure boundary before another fix.
-- [ ] Require real-player authored shell/roof storage and readable evidence for Fairy and Orc, not only Moordell.
+## Demonstrated corrections from exact run 33930622766
+- [x] Preserve request `6d076011180388c8346b5338c0efa6946676c91b` until completion; do not replace it while queued/running.
+- [x] Classify exact source `3c839facd018eb8118811db1a7b81644375c419f`: 180-second standalone process completed, but closure evidence was red because the runtime catalogue had 434 definitions with no macro town/road/lake/ridge entries, evidence never advanced beyond Moordell, and ~35,981 legacy-input exceptions were logged.
+- [x] Classify repository-derived module validation red in `VoxelEngine.Structures` as a test-harness/render-frame boundary rather than a Structures production failure.
+- [x] Isolate macro catalogue ownership root cause: the temporary generic `ShowcaseWorld` catalogue consumed the scene-selected one-shot macro layout before the concrete Kentridge playable catalogue.
+- [x] Correct ownership at the reusable boundary: generic `WorldBuilderVoxelCatalogue` uses `KentridgeCombinedVoxelCatalogue.BuildLocalOnly`, while the concrete playable catalogue remains the macro-selection owner.
+- [x] Strengthen `KentridgeMacroWorldBootstrapOwnershipTests` to reproduce production Showcase-first startup order.
+- [x] Migrate the Kentridge scene compatibility input bridge to Input System device reads and route HUD pressed/held state through that bridge; leave global input settings unchanged.
+- [x] Keep the Structures composition regression deterministic and module-scoped by invoking its public production validation synchronously instead of yielding an unrelated URP frame.
 
-## Module-local validation surfaces
-- [x] Create all four required module-local validation paths and convention-discovered scenarios/probes on the feature branch before exact validation; do not treat existence as acceptance.
-- [x] Correct the discovered WorldBuilder validation fidelity defect before CI: remove `GameObject.CreatePrimitive`/custom `LineRenderer` tableau content and render the independent production physical catalogue through `ShowcaseWorld` + `RenderingComposition`, requiring real storage settlement and zero missing visible chunks for settlement/road, lake-detour, and ridge/pass views.
-- [ ] `Assets/Game/WorldBuilder/Generation/Validation/MacroPhysicalWorld/MacroPhysicalWorldValidation.unity`: exact built-player validation must pass and captures/logs must show the independently authored production voxel output for generic settlements, hard routes, water, ridge/pass, and blocked-route semantics.
-- [ ] `Assets/Game/Composition/Showcase/Validation/FeatureResidency/FeatureResidencyValidation.unity`: exact built-player validation must pass using production `ShowcaseWorld` feature-aware vertical residency/readiness, proving an authored upper layer becomes resident without horizontal-radius widening.
-- [ ] `Assets/Game/Composition/Kentridge/Playable/SceneRuntime/Validation/KentridgeMacroWorld/KentridgeMacroWorldValidation.unity`: exact built-player validation must pass through the real `KentridgePlayableSlice` and production evidence driver, including source-backed Moordell settlement/road and Rossdam geography relationship plus strict streaming/readiness.
-- [ ] `Assets/VoxelEngine/Rendering/Validation/GpuSurfaceMirrorRelocation/GpuSurfaceMirrorRelocationValidation.unity`: exact built-player validation must pass through the real GPU voxel mirror/extraction/publication path and demonstrate useful recovery after controlled distant relocation.
-- [x] `Game.WorldBuilder.Api`, `Game.WorldBuilder.Runtime`, and `Game.WorldBuilder.Voxel` changes are semantic/config/catalogue adapter code with no independent scene lifecycle; keep module-local unit/behavioral coverage and validate their player-visible composition through the WorldGen/Kentridge scenes above rather than create fake scene behavior.
-- [x] `VoxelEngine.Structures` changes (`FeatureGenerationTrace` / `FeatureRegionBuild` bookkeeping) are support instrumentation with no independent player-visible scene behavior; existing module-local behavioral/unit coverage is the correct validation surface.
-- [ ] Run repository-derived module validation on the exact feature source and inspect all four built-player evidence/diagnostics directly; scene existence alone is not acceptance.
+## Exact-SHA validation
+- [ ] Run `GpuSurfaceMirrorRelocationRequestedValidationTests.DistantUnrelatedChangeChurnExecutesProductionGpuLivenessRegression` on the current exact feature source through `ci-test/fixes/agent-6`.
+- [ ] Require repository-derived module validation to pass every affected owned test assembly and all four required module-local player validations.
+- [ ] Require the 180-second SceneIssue replay to reach strict built-player coverage beyond Moordell and emit settlement/geography/network evidence without runtime exceptions.
+- [ ] If the same acceptance symptom remains after two materially different fixes, isolate the new minimal repro/root cause before another production change.
 
-## Remaining visual acceptance
-- [ ] Full-resolution Moordell/Rossdam/Fairy/Orc surveys visibly show readable grounded authored blockouts, internal street/open space, and road arrival/exit.
-- [ ] Rossdam lake frame visibly shows substantial authored water plus the constrained route, not a thin distant strip.
-- [ ] Southern Ridge/pass frame visibly establishes the barrier/pass relationship.
-- [ ] Final `macro-network-overview` is closure-quality on the final exact SHA.
-- [ ] Representative built-player CharacterMotor road traversal is visible and process-clean on the final exact SHA.
+## Module-local visual/runtime acceptance
+- [ ] `MacroPhysicalWorldValidation`: production voxel output visibly proves generic settlements, hard routes, substantial water, ridge/pass, and blocked-route semantics.
+- [ ] `FeatureResidencyValidation`: production `ShowcaseWorld` proves authored upper-layer residency/readiness without horizontal-radius widening.
+- [ ] `KentridgeMacroWorldValidation`: real `KentridgePlayableSlice` proves source-backed settlement/road/geography relationships and strict streaming/readiness.
+- [ ] `GpuSurfaceMirrorRelocationValidation`: real GPU mirror/extraction/publication path demonstrates useful recovery after distant relocation.
+- [ ] Inspect full-resolution durable built-player evidence directly; classify all required views `production-quality` under repo visual rules.
+
+## SceneIssue visual acceptance
+- [ ] Moordell, Rossdam, Fairy Village, and Orc Village each visibly show readable grounded settlement presence, internal street/open space, and road arrival/exit.
+- [ ] Rossdam evidence visibly shows substantial authored lake water plus the constrained route relationship.
+- [ ] Southern Ridge/pass evidence visibly establishes the barrier/pass relationship.
+- [ ] `macro-network-overview` visibly demonstrates the physical road network corresponding to the source-backed macro graph.
+- [ ] Representative real CharacterMotor road traversal is visible, collision/streaming-active, and process-clean.
+- [ ] Regional terrain between towns reads as differentiated countryside rather than a flat debug plane.
 
 ## Runtime / cost
-- [x] Terrain-relief sampling remains bounded to 25 x 16 = 400 deterministic catalogue queries; shared feature scheduler unchanged.
-- [x] Existing exact physical baseline: 20 hard routes, 824 route tiles, 5 constrained routes, 1,090 solve steps, 16 generic buildings, max road rise 2 voxels, road step 30 dm, Rossdam water depth 24 voxels, water primitive bounding cells 9,281,584.
-- [x] Horizontal residency remains radius 3 = exactly 29 accepted X/Z columns (`dx²+dz² <= 9`); no horizontal interest-radius expansion or device-budget change.
-- [x] Latest aligned-survey replay reports Moordell radius-3 residency with `horizontalColumns=29`, `residentInRadius=58`, `baselineResident=58`, and `featureVerticalExtra=0`; the publication failure is not caused by added vertical residency.
-- [x] Partial runtime cost context captured: median FPS 103.9, median mean-frame 9.61 ms, worker-p95 median 3.018 ms, admission-total median 1.1605 ms, ~26.99 MiB cumulative render-arena uploads over 114 calls. These are not final steady-state/memory closure evidence.
-- [ ] Quantify final additional vertical resident/generated region count across the completed multi-target replay.
-- [ ] Quantify final target convergence timing for Moordell, Rossdam/lake, Fairy, Orc, ridge/pass, and network.
-- [ ] Measure final feature work/time, CPU/FPS, streaming convergence, render/far-field telemetry, and process/managed/native/GPU memory footprint against budgets.
-- [x] No unrelated SceneIssue implementation, feature-branch `.github/test-request.json`, alternate CI transport/workflow, CharacterMotor/load-radius/device-budget change, weakened coverage gate, or increased renderer concurrency/budget.
-- [ ] Re-check the final feature diff after the required final current-master merge and revalidate affected work if master advanced.
+- [x] Physical baseline recorded: 20 hard routes, 824 route tiles, 5 constrained routes, 1,090 solve steps, 16 generic buildings, max road rise 2 voxels, road step 30 dm, Rossdam water depth 24 voxels.
+- [x] Partial runtime baseline recorded: median FPS 103.9, median mean-frame 9.61 ms, worker-p95 median 3.018 ms, admission-total median 1.1605 ms, ~26.99 MiB cumulative render-arena uploads over 114 calls.
+- [ ] Quantify final per-target convergence timing and additional vertical resident/generated region count across the completed multi-target replay.
+- [ ] Record final FPS/CPU/GPU/streaming plus process/managed/native/GPU memory against existing budgets; do not weaken budgets to pass.
 
 ## Acceptance / closure
-- [x] (1) Source-backed macro graph remains authoritative through shared WorldBuilder APIs.
-- [ ] (2) Every settlement has readable physical presence, including >=4 grounded generic blockouts where no richer generator owns it.
+- [x] (1) Source-backed macro graph remains authoritative through reusable WorldBuilder/shared APIs.
+- [ ] (2) Every settlement has physical generated presence; unrealized destinations have >=4 grounded reusable blockouts plus circulation and road arrival/exit.
 - [x] (3) Every settlement is physically reachable from Kentridge over contiguous generated hard-route surfaces.
-- [x] (4) Roads are terrain-aware; blocked geography requires explicit semantic solutions and no silent lake/cliff/building crossing.
-- [x] (5) Reusable geographic authoring/query covers required region kinds, extents/elevation, relationships, deterministic variation, terrain output, and route/placement constraints.
-- [ ] (6) Built world visibly contains a substantial lake + ridge and at least one geography-altered hard route.
-- [ ] (7) Regional terrain visibly reads as differentiated countryside rather than a flat debug plane.
-- [x] (8) No second scene-local graph/direct voxel-writing/static destination hierarchy.
-- [ ] (9) Focused behavioral regressions cover determinism, reachability, roads, settlements, constraints, blocked-route failure, spatial reservations, bounded water cost, evidence sequencing, vertical residency/readiness, settlement framing, hollow-shell/plinth cost, runtime publication/storage discriminators, GPU count-batch liveness, distant-relocation mirror liveness, and required module-local player validation. The footprint-local correction and all four owned scenes still require exact validation.
-- [ ] (10) Exact built-player evidence covers settlements, roads entering/leaving settlements, network survey, geography, constrained route, CharacterMotor traversal, and required module-local scenes without runtime exceptions.
-- [ ] (11) Blast radius and world-build/route/CPU/GPU/memory/streaming cost are measured against budgets; memory footprint and final multi-target steady-state evidence remain missing.
-- [ ] Complete `resolutionSummary`, `regressionTest`, and `fixCommit` from the verified final result.
+- [x] (4) Roads are terrain-aware and require explicit semantic solutions for blocked geography.
+- [x] (5) Reusable geographic-region authoring/query covers required kinds, extents/elevation, deterministic variation, relationships, terrain output, and route/placement constraints.
+- [ ] (6) Exact built world visibly contains substantial lake + ridge and at least one geography-altered hard route.
+- [ ] (7) Regional terrain visibly reads as intentionally differentiated world space.
+- [x] (8) No second scene-local graph, direct voxel-writing authority, or giant hand-authored destination hierarchy was introduced.
+- [ ] (9) Focused behavioral regressions and required module-local players pass on the final exact SHA.
+- [ ] (10) Exact built application reaches usable rendered macro-world evidence with no startup/runtime exceptions and demonstrates settlements, roads, geography, constrained route, and CharacterMotor traversal.
+- [ ] (11) Blast radius and world-build/route/CPU/GPU/memory/streaming cost are measured against existing budgets.
+- [ ] Merge current `origin/master` before final promotion and revalidate the exact merged feature SHA if required by the repo workflow.
+- [ ] Complete `resolutionSummary`, `regressionTest`, `fixCommit`, set `status: fixed`/`resolvedUtc`, and move only this assignment `open -> closed` after all gates pass.
+- [ ] Open/update PR `fixes/agent-6 -> master`, enable auto-merge, monitor required PR checks until merged, and verify the closed SceneIssue is visible on `origin/master`.
 - [ ] Every checkbox above is complete before closure.
-- [ ] After green exact gates, move this assignment directly `open -> closed`, set `status=fixed` and `resolvedUtc`, merge current `origin/master` if it advanced, revalidate the exact merged feature SHA as required, then promote only by PR + auto-merge. Never push the exact `fixes/agent-6` head directly to `origin/master`.
