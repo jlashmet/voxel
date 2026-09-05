@@ -16,7 +16,7 @@ namespace VoxelEngine.Tests.PlayMode
         private const uint Seed = 0x4B454E54u;
 
         [Test]
-        public void PlayableCatalogueConsumesMacroGeometryBeforeShowcaseBootstrap()
+        public void ShowcaseBootstrapDoesNotStealMacroSelectionFromPlayableCatalogue()
         {
             TopDownWorldLayout layout = MountingForceTopDownWorldDefinition.Build(Seed);
             VoxelWorldGenSettings settings = Settings();
@@ -39,9 +39,17 @@ namespace VoxelEngine.Tests.PlayMode
             FeatureCatalogue bootstrap = default;
             try
             {
-                // The playable slice must consume the one-shot macro selection before ShowcaseWorld
-                // creates its temporary default catalogue. Otherwise the temporary catalogue owns the
-                // macro towns and is immediately discarded by ConfigureGeneratedContentForGameplay.
+                // Production startup constructs ShowcaseWorld before it builds the concrete playable
+                // catalogue. The temporary Showcase catalogue must remain local-only and leave the
+                // scene-selected macro world for the later playable owner.
+#pragma warning disable CS0618
+                bootstrap = ShowcaseCatalogue.Build(Seed, Allocator.Temp);
+#pragma warning restore CS0618
+                Assert.That(
+                    ContainsDefinitionStarting(bootstrap, "macro-town-"),
+                    Is.False,
+                    "The temporary Showcase bootstrap must remain local-only even while a macro selection is pending.");
+
                 playable = KentridgeCombinedVoxelCatalogue.Build(
                     Seed,
                     settings,
@@ -89,14 +97,6 @@ namespace VoxelEngine.Tests.PlayMode
                         Is.True,
                         $"Playable catalogue is missing macro route geometry for route {i}.");
                 }
-
-#pragma warning disable CS0618
-                bootstrap = ShowcaseCatalogue.Build(Seed, Allocator.Temp);
-#pragma warning restore CS0618
-                Assert.That(
-                    ContainsDefinitionStarting(bootstrap, "macro-town-"),
-                    Is.False,
-                    "After the playable catalogue owns the one-shot selection, the temporary Showcase bootstrap must remain local-only.");
 
                 TestContext.WriteLine(
                     "MACRO_PLAYABLE_OWNERSHIP " +
