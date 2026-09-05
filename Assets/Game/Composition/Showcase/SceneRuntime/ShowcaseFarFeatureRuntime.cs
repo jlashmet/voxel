@@ -71,13 +71,19 @@ namespace VoxelEngine.Showcase
         public int VisibleInstanceCount => _renderer != null ? _renderer.InstanceCount : 0;
         public int SourceCount => _sourceCount;
 
-        public void Update(Camera camera, float3 fallbackCameraPosition)
+        public void Update(
+            Camera camera,
+            float3 fallbackCameraPosition,
+            float nearSurfaceRadiusMetres = 0f)
         {
             if (_renderer == null) return;
             float3 cameraPosition = camera != null
                 ? (float3)camera.transform.position
                 : fallbackCameraPosition;
-            _renderer.SetInstances(_source.Query(cameraPosition, RadiusMetres));
+            _renderer.SetInstances(_source.Query(
+                cameraPosition,
+                RadiusMetres,
+                nearSurfaceRadiusMetres));
         }
 
         public string Describe() =>
