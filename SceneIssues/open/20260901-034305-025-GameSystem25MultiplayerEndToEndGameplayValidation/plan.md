@@ -19,12 +19,12 @@
 
 ## Selected work / remaining gates
 
-1. Prove the current independent harness head once more so T25-009 has exact-SHA evidence; do not treat this as production multiplayer acceptance.
+1. Prove the current independent harness/evidence head once more so T25-009 has exact-SHA evidence; do not treat this as production multiplayer acceptance.
 2. After System24 is corrected, closed, and merged, merge current master and reuse its production Kentridge entry/read-only diagnostic seam.
 3. Add authority + two-client smoke validation and release scenarios under the owning Kentridge validation surface.
 4. Prove contention/conservation, vitality, progression, interruption/reconnect, explicit leave, capacity/JIP/repeated reconnect, and persisted rehost on the exact built SHA.
 5. Run repository-selected final exact-SHA validation, inspect durable artifacts, complete closure fields/move, merge latest master, then PR + auto-merge and required `affected` gate.
 
-**Current branch:** current head is the Scene25 harness/evidence line culminating in this plan refresh; it includes T25-009 plus the recorded green proof for `b2d1847...`. The next exact request must use this exact branch head as its sole parent.
+**Current branch:** the exact request created after this bookkeeping commit must use this branch head as its sole parent; that head includes T25-009 and the recorded green proof for `b2d1847...`.
 
 **Blast radius / cost:** validation tooling/workflows plus Kentridge validation composition only; production authority remains untouched. Smoke is authority + two clients; expensive cases stay in release targets.
