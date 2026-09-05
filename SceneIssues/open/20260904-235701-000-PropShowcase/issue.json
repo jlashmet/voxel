@@ -1,0 +1,26 @@
+{
+  "formatVersion": 3, 
+  "id": "20260904-235701-000-PropShowcase", 
+  "capturedUtc": "2026-09-04T23:57:01.0000000Z", 
+  "note": "FEATURE / PROP SHOWCASE: Add a dedicated `PropShowcase` scene that acts as an interactive visual browser for every production-available prop and decoration in the voxel game. The scene must present a scrollable catalogue panel on the left and a large live preview area on the right. Selecting an entry in the left panel must instantiate/render that exact prop or decoration in the right-side preview using the same production authoring, geometry, material, rendering, and presentation path used by normal game/worldbuilding content.\n\nCATALOGUE AUTHORITY: Do not create a second hand-maintained list of prop identities for the showcase. Discover/aggregate entries from the canonical production decoration/prop/world-object catalogues and presets. The showcase may add display metadata/adapters where necessary, but stable content identity and realization remain owned by the existing production systems. New production catalogue entries should be able to become discoverable without requiring a parallel showcase-only registry of duplicated IDs.\n\nSCOPE: Include all production-supported decorative/prop archetypes that can be independently previewed, including the base decoration content catalogue, registered decoration expansions, reusable room/furniture/lighting/storage/dining/martial/textile presets, and independently renderable world-object prop kinds where they are part of the production prop vocabulary. Exclude buildings, terrain, characters, VFX-only effects, and raw materials as standalone catalogue entries; those belong to separate showcases.\n\nUI / INTERACTION: The left panel must remain usable with hundreds of entries: entries are readable, scrollable, have a stable friendly label, and clearly indicate the current selection. Clicking an entry replaces the previous preview rather than accumulating objects. The right preview must frame the selected object at a useful scale, provide a stable floor/contact reference and production-compatible lighting, and remain visually readable across very small and very large props.\n\nARCHITECTURE: `PropShowcase` is an integration consumer, not a new content authority. Do not implement bespoke preview geometry, fallback cubes, ad-hoc materials/shaders, or a parallel renderer for catalogue content that already has a production realization. If an existing catalogue cannot be enumerated cleanly, expose the narrowest read-only semantic enumeration/query boundary from the owning production module rather than duplicating catalogue constants in the scene. For every affected player-visible/runtime module, create or update the required focused module-local validation scene under that module's own `Validation/` directory; the top-level `PropShowcase` scene does not replace module-local ownership.\n\nACCEPTANCE: (1) a built `PropShowcase` scene opens successfully; (2) the left panel enumerates every in-scope production prop/decoration exactly once unless an explicitly documented variant intentionally appears separately; (3) selecting any listed entry renders the corresponding production object in the right preview; (4) switching repeatedly does not leave prior preview geometry, lights, colliders, world objects, or runtime state behind; (5) preview framing/grounding/materials are visually useful and production-faithful for representative tiny, medium, large, wall-mounted, floor-mounted, thin-surface, procedural-mesh, voxel-stamp, and interactive objects; (6) catalogue enumeration is regression-tested against the canonical production sources so the showcase cannot silently drift; (7) built-player evidence demonstrates catalogue navigation and representative selections; and (8) all module-local validation and normal repository integration gates pass.\n\nBASELINE: SceneIssue created from master `d46e24f05337553883636b4f5b35228830269530`; fetch current origin/master before implementation.\n\nWORKFLOW: Follow `AGENTS.md`, `SceneIssues/feature-readme.md`, and `SceneIssues/README.md`. Keep separate `plan.md` and `tasks.md`, keep this feature in `open/` until every required checkbox and acceptance criterion is complete, and add discovered work only when required by acceptance, correctness/regression, reuse boundaries, or demonstrated visual-quality defects.", 
+  "status": "open", 
+  "resolvedUtc": "", 
+  "resolutionSummary": "", 
+  "regressionTest": "", 
+  "fixCommit": "", 
+  "unityVersion": "6000.5.6f1", 
+  "platform": "Feature", 
+  "sceneName": "PropShowcase", 
+  "scenePath": "Assets/Scenes/PropShowcase.unity", 
+  "sceneBuildIndex": -1, 
+  "screenWidth": 1600, 
+  "screenHeight": 900, 
+  "captures": [], 
+  "assignment": {
+    "owner": "agent-9", 
+    "branch": "fixes/agent-9", 
+    "ci_branch": "ci-test/fixes/agent-9", 
+    "claimed_at": 1788567955.567, 
+    "lease_history": []
+  }
+}
