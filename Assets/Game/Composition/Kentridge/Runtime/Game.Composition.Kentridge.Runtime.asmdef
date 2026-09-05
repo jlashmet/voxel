@@ -15,6 +15,9 @@
     "Game.Inventory.Runtime",
     "Game.Characters.Api",
     "Game.Outcomes.Api",
+    "Game.Persistence.Api",
+    "Game.Persistence.Runtime",
+    "Game.Progression.Api",
     "Game.SessionOrchestration.Api",
     "Game.SessionOrchestration.Runtime",
     "Game.Story.Api"
