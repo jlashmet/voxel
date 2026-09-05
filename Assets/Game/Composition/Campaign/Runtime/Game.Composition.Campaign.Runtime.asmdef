@@ -5,6 +5,8 @@
     "Game.Composition.Campaign",
     "Game.Cutscenes.Api",
     "Game.Cutscenes.Runtime",
+    "Game.Encounters.Api",
+    "Game.Outcomes.Api",
     "Game.Story.Api",
     "Game.Story.Runtime",
     "Game.WorldBuilder.Api",
