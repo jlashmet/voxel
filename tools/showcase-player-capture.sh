@@ -28,6 +28,7 @@ Options:
   --survey-height N
   --survey-spin N
   --stationary-sample N
+  --player-arg TEXT
   --require-log-pattern TEXT
   --forbid-log-pattern TEXT
 EOF
@@ -53,6 +54,7 @@ MINIMUM_FRAMES=2
 EVIDENCE_AFTER=0
 REQUIRED_LOG_PATTERNS_FILE=""
 FORBIDDEN_LOG_PATTERNS_FILE=""
+EXTRA_PLAYER_ARGS=()
 
 append_pattern() {
   local kind="$1"
@@ -87,6 +89,7 @@ while (( $# > 0 )); do
     --survey-height) SURVEY_HEIGHT="$2"; shift 2 ;;
     --survey-spin) SURVEY_SPIN="$2"; shift 2 ;;
     --stationary-sample) STATIONARY_SAMPLE="$2"; shift 2 ;;
+    --player-arg) EXTRA_PLAYER_ARGS+=("$2"); shift 2 ;;
     --require-log-pattern) append_pattern required "$2"; shift 2 ;;
     --forbid-log-pattern) append_pattern forbidden "$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
@@ -228,6 +231,7 @@ else
   [[ -z "$SURVEY_HEIGHT" ]] || PLAYER_ARGS+=( -voxel-survey-height "$SURVEY_HEIGHT" )
   [[ -z "$SURVEY_SPIN" ]] || PLAYER_ARGS+=( -voxel-survey-spin "$SURVEY_SPIN" )
 fi
+if (( ${#EXTRA_PLAYER_ARGS[@]} > 0 )); then PLAYER_ARGS+=( "${EXTRA_PLAYER_ARGS[@]}" ); fi
 
 echo "Running real player for ${RUN_SECONDS}s"
 "$BIN" "${PLAYER_ARGS[@]}" &
