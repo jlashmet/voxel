@@ -49,7 +49,9 @@ namespace Game.Composition.Kentridge.Runtime
     /// <summary>
     /// Kentridge composition adapter for the production SessionOrchestration graph. It reuses the
     /// existing campaign/world bootstrap and composes optional Unity-bound gameplay extensions from a
-    /// factory supplied by the playable composition root.
+    /// factory supplied by the playable composition root. Outcome authority remains in system 15: this
+    /// graph only exposes its query and forwards authored Story outcome conditions to the supplied
+    /// observer.
     /// </summary>
     public sealed class KentridgeSessionRuntimeGraphFactory : ISessionRuntimeGraphFactory
     {
@@ -60,6 +62,8 @@ namespace Game.Composition.Kentridge.Runtime
         private readonly ICutscenePresentation _presentation;
         private readonly IKentridgeCampaignSecretHost _secretHost;
         private readonly IKentridgeSessionRuntimeExtensionFactory _extensionFactory;
+        private readonly IGameOutcomeQuery _outcomeQuery;
+        private readonly Action<OutcomeConditionRef> _outcomeConditionObserver;
 
         public KentridgeSessionRuntimeGraph Current { get; private set; }
 
@@ -70,15 +74,22 @@ namespace Game.Composition.Kentridge.Runtime
             IKentridgeCampaignActorHost actors,
             ICutscenePresentation presentation,
             IKentridgeCampaignSecretHost secretHost = null,
-            IKentridgeSessionRuntimeExtensionFactory extensionFactory = null)
+            IKentridgeSessionRuntimeExtensionFactory extensionFactory = null,
+            IGameOutcomeQuery outcomeQuery = null,
+            Action<OutcomeConditionRef> outcomeConditionObserver = null)
         {
             _blueprint = blueprint ?? throw new ArgumentNullException(nameof(blueprint));
             _generation = generation ?? throw new ArgumentNullException(nameof(generation));
             _realizationFacts = realizationFacts ?? throw new ArgumentNullException(nameof(realizationFacts));
             _actors = actors ?? throw new ArgumentNullException(nameof(actors));
             _presentation = presentation ?? throw new ArgumentNullException(nameof(presentation));
+            if ((outcomeQuery == null) != (outcomeConditionObserver == null))
+                throw new ArgumentException(
+                    "Kentridge outcome composition requires both the system 15 query and semantic condition observer, or neither.");
             _secretHost = secretHost;
             _extensionFactory = extensionFactory;
+            _outcomeQuery = outcomeQuery;
+            _outcomeConditionObserver = outcomeConditionObserver;
         }
 
         public ISessionRuntimeGraph Compose(GameSessionIdentity identity)
@@ -95,7 +106,8 @@ namespace Game.Composition.Kentridge.Runtime
                 _realizationFacts,
                 _actors,
                 _presentation,
-                _secretHost);
+                _secretHost,
+                _outcomeConditionObserver);
             IKentridgeSessionRuntimeExtension extension = null;
             try
             {
@@ -103,7 +115,11 @@ namespace Game.Composition.Kentridge.Runtime
                     _extensionFactory
                     ?? (_actors as IKentridgeSessionRuntimeExtensionSource)?.SessionRuntimeExtensionFactory;
                 extension = extensionFactory?.Compose(identity, _actors);
-                Current = new KentridgeSessionRuntimeGraph(session, extension, OnDisposed);
+                Current = new KentridgeSessionRuntimeGraph(
+                    session,
+                    extension,
+                    _outcomeQuery,
+                    OnDisposed);
                 return Current;
             }
             catch
@@ -137,6 +153,7 @@ namespace Game.Composition.Kentridge.Runtime
         private readonly Action<KentridgeSessionRuntimeGraph> _disposed;
         private readonly IKentridgeSessionRuntimeExtension _extension;
         private readonly IReadOnlyList<ISessionUpdateStep> _steps;
+        private readonly IGameOutcomeQuery _outcomeQuery;
         private bool _commandsEnabled;
 
         public KentridgeCampaignSession Session { get; }
@@ -146,16 +163,18 @@ namespace Game.Composition.Kentridge.Runtime
             && Session != null
             && (_extension == null || _extension.GameplayBindingsReady);
         public IReadOnlyList<ISessionUpdateStep> UpdateSteps => _steps;
-        public IGameOutcomeQuery OutcomeQuery => null;
+        public IGameOutcomeQuery OutcomeQuery => _outcomeQuery;
         public int LastNewGameMatchedCount { get; private set; }
 
         internal KentridgeSessionRuntimeGraph(
             KentridgeCampaignSession session,
             IKentridgeSessionRuntimeExtension extension,
+            IGameOutcomeQuery outcomeQuery,
             Action<KentridgeSessionRuntimeGraph> disposed)
         {
             Session = session ?? throw new ArgumentNullException(nameof(session));
             _extension = extension;
+            _outcomeQuery = outcomeQuery;
             _disposed = disposed;
 
             var steps = new List<ISessionUpdateStep> { new CampaignUpdateStep(Session) };
