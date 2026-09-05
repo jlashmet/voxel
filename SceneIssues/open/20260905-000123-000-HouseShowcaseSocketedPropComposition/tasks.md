@@ -1,12 +1,12 @@
 # Tasks — HouseShowcase socketed prop composition
 
 ## Discovery and production boundaries
-- [ ] Fetch current `origin/master`; read `AGENTS.md`, `SceneIssues/README.md`, and `SceneIssues/feature-readme.md`; record implementation base SHA in `plan.md`.
-- [ ] Trace production house generation from house/program identity through prototype planning, seed ownership, room layout, furnishing resolution, socket placement, and final authoring/rendering.
-- [ ] Inventory every production-generatable house archetype with semantic room/socket data. At minimum include all ten `GuildHouseKind` values.
-- [ ] Identify the canonical decoration/archetype identity and recipe sources used by those houses, including expansion catalogs referenced by room programs.
-- [ ] Determine whether existing production APIs can accept an allowed prop/archetype palette before placement. Record the result of the two plan hypotheses.
-- [ ] Identify every affected module/assembly and its owned module-local validation scene/scenario before production edits.
+- [x] Fetch current `origin/master`; read `AGENTS.md`, `SceneIssues/README.md`, and `SceneIssues/feature-readme.md`; record implementation base SHA in `plan.md`.
+- [x] Trace production house generation from house/program identity through prototype planning, seed ownership, room layout, furnishing resolution, socket placement, and final authoring/rendering.
+- [x] Inventory every production-generatable house archetype with semantic room/socket data. At minimum include all ten `GuildHouseKind` values.
+- [x] Identify the canonical decoration/archetype identity and recipe sources used by those houses, including expansion catalogs referenced by room programs.
+- [x] Determine whether existing production APIs can accept an allowed prop/archetype palette before placement. Record the result of the two plan hypotheses.
+- [x] Identify every affected module/assembly and its owned module-local validation scene/scenario before production edits.
 
 ## Canonical house + prop query surface
 - [ ] Expose a reusable production house enumeration/query boundary if none exists; do not make `HouseShowcase` the identity authority.
