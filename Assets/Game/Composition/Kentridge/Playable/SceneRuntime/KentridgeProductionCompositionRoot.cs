@@ -3,6 +3,7 @@ using System.IO;
 using Game.Application.Api;
 using Game.Application.Runtime;
 using Game.Composition.Kentridge.Playable;
+using Game.Input.Api;
 using Game.Input.Runtime;
 using Game.Outcomes.Api;
 using Game.Persistence.Api;
@@ -33,6 +34,7 @@ namespace Game.Kentridge.PlayableSlice
         private KentridgePlayableSlice _slice;
         private KentridgeForestBanditEncounter _forest;
         private KentridgeGameplayHudInstaller _hud;
+        private KentridgeProductionWorldInteraction _worldInteraction;
         private InputContextService _inputContexts;
         private UnityPlayerInputReader _input;
         private KentridgeProductionPersistenceBridge _persistence;
@@ -44,6 +46,7 @@ namespace Game.Kentridge.PlayableSlice
         private bool _loggedUpdateFailure;
 
         public bool IsComposed => _flow != null && _session != null;
+        internal IInputActionStateReader InputActions => _input;
         public ApplicationFlowSnapshot FlowSnapshot =>
             _flow == null
                 ? new ApplicationFlowSnapshot(
@@ -162,6 +165,8 @@ namespace Game.Kentridge.PlayableSlice
             _slice.BindProductionInput(_input, _input);
             _forest.BindProductionInput(_inputContexts, _input);
             _hud.BindInput(_input, _input);
+            _worldInteraction = GetComponent<KentridgeProductionWorldInteraction>()
+                ?? gameObject.AddComponent<KentridgeProductionWorldInteraction>();
         }
 
         private void ComposeApplication()
@@ -236,6 +241,7 @@ namespace Game.Kentridge.PlayableSlice
             _session = null;
             _persistence = null;
             _frontend = null;
+            _worldInteraction = null;
             _pendingComposition = false;
         }
 
