@@ -17,6 +17,8 @@ from pathlib import Path
 from typing import Any
 
 import astra_manager as core
+import astra_manager_codex as codex_launcher
+import astra_manager_finish as finisher
 import astra_manager_publish as publisher
 
 
@@ -220,7 +222,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--github-repo", default="jlashmet/voxel")
     parser.add_argument("--fetch", action="store_true")
     parser.add_argument("--no-ci", action="store_true")
-    parser.add_argument("--wake-command")
+    parser.add_argument("--wake-command", help="legacy/custom wake launcher override; default is direct Codex CLI + GPT-6 Astra")
     args = parser.parse_args(argv)
 
     try:
@@ -238,25 +240,25 @@ def main(argv: list[str] | None = None) -> int:
             print("Astra not required: " + "; ".join(signal.get("reasons", [])))
             return 0
 
+        # Explicit override remains available for testing/emergency compatibility. Normal
+        # operation launches a fresh ephemeral Codex CLI session using GPT-6 Astra directly.
         wake = args.wake_command or os.environ.get("ASTRA_MANAGER_WAKE_COMMAND", "")
-        prompt = root / "SceneIssues/manager/WAKEUP_PROMPT.md"
-        if not wake:
-            print("ASTRA_MANAGER_WAKE_REQUIRED")
-            print(f"prompt={prompt}")
-            print(f"review_window={window}")
-            print(f"decision_output={root / runtime / 'decision.json'}")
-            return 10
+        if wake:
+            prompt = root / "SceneIssues/manager/WAKEUP_PROMPT.md"
+            env = os.environ.copy()
+            env.update({
+                "ASTRA_MANAGER_PROMPT": str(prompt),
+                "ASTRA_MANAGER_REVIEW_WINDOW": str(window),
+                "ASTRA_MANAGER_DIGEST": str(window),
+                "ASTRA_MANAGER_DECISION_OUTPUT": str(root / runtime / "decision.json"),
+                "ASTRA_MANAGER_MASTER_SHA": str(signal.get("masterSha", "")),
+            })
+            return subprocess.run(shlex.split(wake), cwd=root, env=env).returncode
 
-        env = os.environ.copy()
-        env.update({
-            "ASTRA_MANAGER_PROMPT": str(prompt),
-            "ASTRA_MANAGER_REVIEW_WINDOW": str(window),
-            # Keep the older name for simple launchers, but point it at the bounded file.
-            "ASTRA_MANAGER_DIGEST": str(window),
-            "ASTRA_MANAGER_DECISION_OUTPUT": str(root / runtime / "decision.json"),
-            "ASTRA_MANAGER_MASTER_SHA": str(signal.get("masterSha", "")),
-        })
-        return subprocess.run(shlex.split(wake), cwd=root, env=env).returncode
+        decision = codex_launcher.launch(root, runtime, cfg, window)
+        result = finisher.finish(root, runtime, decision, args.github_repo)
+        print(json.dumps(result, indent=2))
+        return 0
     except core.ManagerError as exc:
         print(f"astra-manager-loop: {exc}", file=__import__("sys").stderr)
         return 2

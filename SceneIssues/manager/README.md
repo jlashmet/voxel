@@ -29,47 +29,41 @@ The loop mechanically applies `config.json.reviewBudget` and writes `runtime/rev
 
 The first run bootstraps at current master and intentionally does **not** enqueue the historical backlog. To review from an older point, use `python3 tools/astra_manager.py bootstrap --from-sha <sha>` before the next loop check.
 
-## Waking Astra
+## Direct Codex CLI wake-up
 
-When a review is due and no launcher is configured, the loop exits with code `10` and prints only the prompt, bounded review-window, and decision-output paths. That is the integration point for your existing Astra/Work launcher.
+No external Astra launcher is required. When `signal.json.wakeAstra` is true, the canonical loop launches a fresh non-interactive Codex session directly:
 
-To make the loop autonomous, set `ASTRA_MANAGER_WAKE_COMMAND` to your external launcher. The command runs only when `signal.json.wakeAstra` is true and receives:
-
-- `ASTRA_MANAGER_PROMPT`
-- `ASTRA_MANAGER_REVIEW_WINDOW`
-- `ASTRA_MANAGER_DIGEST` — compatibility alias pointing to the same bounded review-window
-- `ASTRA_MANAGER_DECISION_OUTPUT`
-- `ASTRA_MANAGER_MASTER_SHA`
-
-The launcher should start a **fresh** Astra session using `WAKEUP_PROMPT.md`; do not resume a long manager conversation.
-
-Example scheduler shell behavior:
-
-```bash
-cd /path/to/persistent/voxel-manager-checkout
-python3 tools/astra_manager_loop.py --fetch
-case $? in
-  0)  ;; # no Astra needed
-  10) ;; # wake required but no launcher configured
-  *)  ;; # operational error
-esac
+```text
+codex exec
+  --strict-config
+  --ephemeral
+  --ignore-user-config
+  --model gpt-6-astra
+  --sandbox read-only
+  --output-schema SceneIssues/manager/decision.schema.json
+  --output-last-message SceneIssues/manager/runtime/decision.json
+  --config model_reasoning_effort="low"
+  --config approval_policy="never"
+  --config web_search="disabled"
+  -
 ```
 
-Running this cheap check hourly is reasonable; `config.json` defaults normal Astra batching to five hours. Event accumulation happens in runtime state, so several completions become one manager wake-up while the mechanical review budget prevents a large backlog from becoming a large Astra prompt.
+The prompt is supplied on stdin and points Codex only at `WAKEUP_PROMPT.md` and the mechanically bounded `runtime/review-window.md`. `--ephemeral` prevents the manager session from being persisted/resumed. `--ignore-user-config` keeps unrelated user MCP/tools/settings out of the manager run while normal Codex authentication is still used.
 
-## Astra output and follow-up publication
+The Astra process is deliberately **read-only**. It can inspect the synchronized local checkout and run read-only Git/file commands, but it cannot implement or create SceneIssue files. Its final response is constrained by `decision.schema.json`; the Codex exec harness writes that final response to ignored runtime `decision.json` via `--output-last-message`, outside the model sandbox.
 
-Astra writes `runtime/decision.json`, then runs exactly:
+`SceneIssues/manager/config.json` owns the Codex model, minimum CLI version, reasoning effort, sandbox, approval policy, and web-search policy. The checked-in default is `gpt-6-astra` with low reasoning and a `read-only` sandbox. Astra requires Codex CLI `0.153.0` or newer. Install/update Codex and sign in with ChatGPT once before scheduling the loop.
 
-```bash
-python3 tools/astra_manager_finish.py
-```
+The explicit `--wake-command` argument and legacy `ASTRA_MANAGER_WAKE_COMMAND` environment variable remain only as override seams for testing/emergency compatibility. Normal operation uses Codex CLI directly.
 
-The finish boundary:
-- rejects duplicate reviewed keys or keys outside the current `signal.json.selectedReviewKeys`;
-- requires `follow-up-created` and `followups[]` to agree;
-- applies the valid decision and advances the local cursor;
-- creates only standard `issue.json + plan.md + tasks.md` follow-up metadata;
+## Astra output and deterministic finish
+
+Astra returns management judgment only. The schema-constrained result contains reviewed keys, outcomes, unresolved questions, and any proposed follow-up SceneIssues. After Codex exits successfully, the outer loop:
+- verifies Codex did not modify tracked or unexpected untracked repository files;
+- requires a fresh valid `runtime/decision.json`;
+- calls the deterministic `tools/astra_manager_finish.py` boundary;
+- rejects duplicate reviewed keys or keys outside `signal.json.selectedReviewKeys`;
+- materializes approved follow-ups as standard `issue.json + plan.md + tasks.md` under `SceneIssues/open/`;
 - publishes new manager follow-ups through protected-master PRs with auto-merge;
 - exits immediately without waiting for CI, merge, assignment, or implementation.
 
@@ -85,9 +79,9 @@ While a follow-up PR is pending, its local untracked SceneIssue remains visible 
 - `signal.json` — whether a manager wake is currently due and which keys were selected;
 - `digest.md` — complete deterministic current/delta summary for diagnostics; not normal Astra input;
 - `review-window.md` — the bounded minimal packet Astra reads on wake-up;
-- `open-issue-index.md` — duplicate-prevention index, read only before creating follow-up work;
+- `open-issue-index.md` — duplicate-prevention index, read only before proposing follow-up work;
 - `packets/*.md` — compact completion packets, read only for selected completions;
-- `decision.json` — one Astra pass's bounded output;
+- `decision.json` — schema-constrained output from one Astra pass;
 - `history/*.md` — compact local audit records;
 - `published-followups.json` — pending/published manager follow-up PR bookkeeping.
 
@@ -96,7 +90,7 @@ No chain-of-thought or investigation diary is stored.
 ## Useful commands
 
 ```bash
-# canonical cheap loop; invokes Astra only when due
+# canonical cheap loop; launches Codex + GPT-6 Astra only when due
 python3 tools/astra_manager_loop.py --fetch
 
 # run without optional GitHub Actions queries
@@ -109,7 +103,7 @@ python3 tools/astra_manager.py check --fetch
 python3 tools/astra_manager.py bootstrap --fetch
 python3 tools/astra_manager.py bootstrap --from-sha <sha>
 
-# normally run by Astra after writing decision.json
+# deterministic decision finish (normally called automatically by the loop)
 python3 tools/astra_manager_finish.py
 
 # deterministic publication/retry only
@@ -120,8 +114,8 @@ python3 tools/astra_manager_publish.py
 
 Keep scheduling outside Astra. Use cron, launchd, or another cheap local scheduler to execute `python3 tools/astra_manager_loop.py --fetch` periodically in the dedicated manager checkout. The scheduler can run hourly; Astra itself normally wakes no more often than the configured batching window unless you intentionally change the policy.
 
-No repository scheduler is checked in because the actual Astra launcher is environment-specific. `ASTRA_MANAGER_WAKE_COMMAND` is the single deployment seam.
+No repository scheduler is checked in because the host path and desired cadence are machine-specific; Codex invocation itself is built into the loop.
 
 ## Tuning
 
-Start with the checked-in defaults. After several days, tune `batchHours`, stale-agent threshold, review budgets, large-diff threshold, and core path patterns based on observed wake frequency. Prefer improving deterministic filtering over giving Astra a larger bootstrap context.
+Start with the checked-in defaults. After several days, tune `batchHours`, stale-agent threshold, review budgets, large-diff threshold, core path patterns, and `codex.reasoningEffort` based on observed wake frequency and usage. Prefer improving deterministic filtering over giving Astra a larger bootstrap context.
