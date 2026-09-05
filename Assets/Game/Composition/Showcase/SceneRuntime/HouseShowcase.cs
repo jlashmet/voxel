@@ -25,6 +25,7 @@ namespace VoxelEngine.Showcase
         private const int HouseWidth = 128;
         private const int HouseDepth = 128;
         private const uint StructureId = 0x48534F57u;
+        private const int RegenerationSearchLimit = 64;
 
         private IVoxelStorageRuntime _storage;
         private Camera _camera;
@@ -41,6 +42,9 @@ namespace VoxelEngine.Showcase
         private float _moveSpeed = 9f;
         private bool _pointerLocked;
         private bool _built;
+        private bool _captureAutomation;
+        private float _captureStartedAt;
+        private int _capturePhase;
 
         public bool IsBuilt => _built;
         public uint Seed => _seed;
@@ -57,7 +61,17 @@ namespace VoxelEngine.Showcase
             if (_houses.Length == 0)
                 throw new InvalidOperationException("HouseShowcase found no production guild houses.");
             ConfigurePresentation();
-            SelectHouse(0, resetSelection: true);
+
+            _captureAutomation = IsPlayerCaptureHarness();
+            int initial = _captureAutomation ? FindHouseIndex(GuildHouseKind.Wizards) : 0;
+            SelectHouse(initial >= 0 ? initial : 0, resetSelection: true);
+            if (_captureAutomation)
+            {
+                _captureStartedAt = Time.unscaledTime;
+                Debug.Log(
+                    $"HOUSE_SHOWCASE_VALIDATION start house={CurrentHouse.Key} seed={_seed} " +
+                    $"houses={_houses.Length} options={_options.Length} selected={_selected.Count}");
+            }
         }
 
         private void OnDisable()
@@ -108,12 +122,16 @@ namespace VoxelEngine.Showcase
                     ? $"READY  {bytes / (1024f * 1024f):0.0} MB"
                     : $"MESHING  {resident}/{known}";
             }
+
+            UpdateCaptureAutomation();
         }
+
+        private GuildHouseDescriptor CurrentHouse => _houses[_houseIndex];
 
         private void SelectHouse(int index, bool resetSelection)
         {
             _houseIndex = Mathf.Clamp(index, 0, _houses.Length - 1);
-            GuildHouseDescriptor house = _houses[_houseIndex];
+            GuildHouseDescriptor house = CurrentHouse;
             if (!GuildHouseCatalogQuery.TryGetFurnishings(house.Kind, out _options))
                 throw new InvalidOperationException($"Could not query furnishings for {house.DisplayName}.");
 
@@ -133,14 +151,41 @@ namespace VoxelEngine.Showcase
 
         private void Regenerate()
         {
-            unchecked { _seed = _seed * 1664525u + 1013904223u; }
-            Rebuild();
+            if (!_prototype.IsWellFormed)
+                throw new InvalidOperationException("Cannot regenerate before a valid production house exists.");
+
+            GuildHousePrototype baseline = _prototype;
+            GuildHouseDescriptor house = CurrentHouse;
+            uint candidate = _seed;
+            for (int attempt = 0; attempt < RegenerationSearchLimit; attempt++)
+            {
+                candidate = NextSeed(candidate);
+                GuildHousePrototype probe = GuildHousePrototypeComposition.Build(
+                    house.Kind,
+                    DecorationRegionTheme.Kentridge,
+                    candidate,
+                    StructureId + (uint)_houseIndex,
+                    new int3(0, 16, 0),
+                    HouseWidth,
+                    HouseDepth,
+                    house.PreferredRooms);
+                if (!probe.IsWellFormed || SameSpatialSignature(in baseline, in probe))
+                    continue;
+
+                _seed = candidate;
+                Rebuild();
+                return;
+            }
+
+            throw new InvalidOperationException(
+                $"Could not find a materially different production {house.DisplayName} seed " +
+                $"within {RegenerationSearchLimit} deterministic candidates.");
         }
 
         private void Rebuild()
         {
             ShutdownWorld();
-            GuildHouseDescriptor house = _houses[_houseIndex];
+            GuildHouseDescriptor house = CurrentHouse;
             ushort[] selected = SelectedInProductionOrder();
             if (!GuildHouseFurnishingPalette.TryCreate(house.Kind, selected, out GuildHouseFurnishingPalette palette))
                 throw new InvalidOperationException("Production furnishing policy rejected the showcase selection.");
@@ -239,21 +284,42 @@ namespace VoxelEngine.Showcase
 
         private void FrameExterior()
         {
-            if (_camera == null) return;
-            Vector3 focus = new Vector3(HouseWidth * VoxelSize * 0.5f, 5.4f,
-                HouseDepth * VoxelSize * 0.5f);
-            _camera.transform.position = focus + new Vector3(-16f, 9f, -16f);
+            if (_camera == null || !_prototype.IsWellFormed || _prototype.Rooms.Length == 0) return;
+            VoxelBounds bounds = PrototypeBounds(in _prototype);
+            float3 centre = ((float3)bounds.Min + (float3)bounds.MaxExclusive) * 0.5f;
+            float3 size = (float3)(bounds.MaxExclusive - bounds.Min);
+            Vector3 focus = ToWorld(centre);
+            float distance = Mathf.Max(14f, math.max(size.x, size.z) * VoxelSize * 1.25f);
+            float height = Mathf.Max(7f, size.y * VoxelSize * 0.75f + 3f);
+            _camera.transform.position = focus + new Vector3(-distance * 0.72f, height, -distance * 0.72f);
             _camera.transform.LookAt(focus);
         }
 
         private void FrameInterior()
         {
             if (_camera == null || !_prototype.IsWellFormed || _prototype.Rooms.Length == 0) return;
-            GuildHouseSpatialRoom room = _prototype.Rooms[0].SpatialRoom;
+            int roomIndex = FindBestInteriorRoom();
+            GuildHouseSpatialRoom room = _prototype.Rooms[roomIndex].SpatialRoom;
             float3 centre = ((float3)room.Min + (float3)room.MaxExclusive) * (0.5f * VoxelSize);
             _camera.transform.position = new Vector3(centre.x, room.Min.y * VoxelSize + 1.55f, centre.z);
             Vector3 target = _camera.transform.position + new Vector3(1f, 0f, 1f);
             _camera.transform.LookAt(target);
+        }
+
+        private int FindBestInteriorRoom()
+        {
+            int fallback = 0;
+            for (int i = 0; i < _prototype.Rooms.Length; i++)
+            {
+                GuildHouseRoomComposition room = _prototype.Rooms[i];
+                if ((room.Context.Environment & DecorationEnvironmentTags.Interior) != DecorationEnvironmentTags.Interior)
+                    continue;
+                fallback = i;
+                for (int optionIndex = 0; optionIndex < room.OptionalArchetypes.Length; optionIndex++)
+                    if (_selected.Contains(room.OptionalArchetypes[optionIndex]))
+                        return i;
+            }
+            return fallback;
         }
 
         private void ShutdownWorld()
@@ -270,6 +336,121 @@ namespace VoxelEngine.Showcase
             Cursor.lockState = locked ? CursorLockMode.Locked : CursorLockMode.None;
             Cursor.visible = !locked;
         }
+
+        private void UpdateCaptureAutomation()
+        {
+            if (!_captureAutomation) return;
+            float elapsed = Time.unscaledTime - _captureStartedAt;
+
+            if (_capturePhase == 0 && elapsed >= 3f)
+            {
+                FrameInterior();
+                Debug.Log(
+                    $"HOUSE_SHOWCASE_VALIDATION interior house={CurrentHouse.Key} seed={_seed} " +
+                    $"selected={_selected.Count} unplaced={_unplaced.Count}");
+                _capturePhase = 1;
+            }
+            else if (_capturePhase == 1 && elapsed >= 6f)
+            {
+                string previous = CurrentHouse.Key;
+                int previousOptions = _options.Length;
+                int knight = FindHouseIndex(GuildHouseKind.Knights);
+                if (knight < 0)
+                    throw new InvalidOperationException("HouseShowcase capture could not find Knights production house.");
+                SelectHouse(knight, resetSelection: true);
+                Debug.Log(
+                    $"HOUSE_SHOWCASE_VALIDATION switched from={previous} to={CurrentHouse.Key} " +
+                    $"previousOptions={previousOptions} options={_options.Length} selected={_selected.Count}");
+                _capturePhase = 2;
+            }
+            else if (_capturePhase == 2 && elapsed >= 10f)
+            {
+                uint before = _seed;
+                Regenerate();
+                Debug.Log(
+                    $"HOUSE_SHOWCASE_VALIDATION regenerated house={CurrentHouse.Key} fromSeed={before} " +
+                    $"toSeed={_seed} spatialChanged=true selected={_selected.Count}");
+                _capturePhase = 3;
+            }
+            else if (_capturePhase == 3 && elapsed >= 13f)
+            {
+                FrameInterior();
+                Debug.Log(
+                    $"HOUSE_SHOWCASE_VALIDATION complete house={CurrentHouse.Key} seed={_seed} " +
+                    $"houses={_houses.Length} selected={_selected.Count} unplaced={_unplaced.Count}");
+                _capturePhase = 4;
+            }
+        }
+
+        private int FindHouseIndex(GuildHouseKind kind)
+        {
+            for (int i = 0; i < _houses.Length; i++)
+                if (_houses[i].Kind == kind)
+                    return i;
+            return -1;
+        }
+
+        private static bool IsPlayerCaptureHarness()
+        {
+            string[] args = Environment.GetCommandLineArgs();
+            for (int i = 0; i < args.Length; i++)
+                if (string.Equals(args[i], "-voxel-screenshot-dir", StringComparison.Ordinal) ||
+                    string.Equals(args[i], "-voxel-scene-issue", StringComparison.Ordinal))
+                    return true;
+            return false;
+        }
+
+        private static uint NextSeed(uint seed)
+        {
+            unchecked { return seed * 1664525u + 1013904223u; }
+        }
+
+        private static bool SameSpatialSignature(in GuildHousePrototype first, in GuildHousePrototype second)
+        {
+            if (first.SpatialPlan.ShellStyle != second.SpatialPlan.ShellStyle ||
+                first.SpatialPlan.Rooms.Length != second.SpatialPlan.Rooms.Length)
+                return false;
+            for (int i = 0; i < first.SpatialPlan.Rooms.Length; i++)
+            {
+                GuildHouseSpatialRoom a = first.SpatialPlan.Rooms[i];
+                GuildHouseSpatialRoom b = second.SpatialPlan.Rooms[i];
+                if (a.Node.Room.Role != b.Node.Room.Role ||
+                    a.FloorIndex != b.FloorIndex ||
+                    a.CellIndex != b.CellIndex ||
+                    !math.all(a.Min == b.Min) ||
+                    !math.all(a.Size == b.Size))
+                    return false;
+            }
+            return true;
+        }
+
+        private readonly struct VoxelBounds
+        {
+            public readonly int3 Min;
+            public readonly int3 MaxExclusive;
+
+            public VoxelBounds(int3 min, int3 maxExclusive)
+            {
+                Min = min;
+                MaxExclusive = maxExclusive;
+            }
+        }
+
+        private static VoxelBounds PrototypeBounds(in GuildHousePrototype prototype)
+        {
+            int3 min = prototype.Rooms[0].SpatialRoom.Min;
+            int3 max = prototype.Rooms[0].SpatialRoom.MaxExclusive;
+            for (int i = 1; i < prototype.Rooms.Length; i++)
+            {
+                GuildHouseSpatialRoom room = prototype.Rooms[i].SpatialRoom;
+                min = math.min(min, room.Min);
+                max = math.max(max, room.MaxExclusive);
+            }
+            return new VoxelBounds(min, max);
+        }
+
+        private static Vector3 ToWorld(float3 voxels) =>
+            new Vector3(voxels.x * VoxelSize, voxels.y * VoxelSize, voxels.z * VoxelSize);
 
         private static float NormalizePitch(float degrees) => degrees > 180f ? degrees - 360f : degrees;
 
