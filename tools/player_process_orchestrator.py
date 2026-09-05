@@ -18,6 +18,27 @@ BUILD_IDENTITY_MILESTONE = "build-identity"
 BUILD_IDENTITY_TIMEOUT_SECONDS = 30.0
 _SHA_RE = re.compile(r"^[0-9a-fA-F]{40}$")
 _LIFECYCLE_OPS = {"launch", "wait", "terminate", "kill", "relaunch"}
+_RESERVED_ARGUMENTS = {
+    "-logFile",
+    "-voxel-run-seconds",
+    "-voxel-validation-role",
+    "-voxel-validation-attempt",
+    "-voxel-validation-source-sha",
+    "-voxel-validation-executable-sha256",
+    "-voxel-validation-state-root",
+}
+_RESERVED_ENVIRONMENT_KEYS = {
+    "HOME",
+    "TMPDIR",
+    "TMP",
+    "TEMP",
+    "XDG_CONFIG_HOME",
+    "XDG_CACHE_HOME",
+    "VOXEL_VALIDATION_STATE_ROOT",
+    "VOXEL_VALIDATION_ROLE",
+    "VOXEL_VALIDATION_SOURCE_SHA",
+    "VOXEL_VALIDATION_EXECUTABLE_SHA256",
+}
 
 
 class OrchestrationError(RuntimeError):
@@ -65,6 +86,10 @@ def _positive_number(value, name: str, minimum: float = 0.001, maximum: float = 
     if result < minimum or result > maximum:
         raise OrchestrationError(f"{name} must be from {minimum:g} to {maximum:g}")
     return result
+
+
+def _is_reserved_argument(value: str) -> bool:
+    return any(value == flag or value.startswith(flag + "=") for flag in _RESERVED_ARGUMENTS)
 
 
 def _milestone(raw: Mapping[str, object], names: set[str], label: str) -> MilestoneExpectation:
@@ -116,11 +141,23 @@ def normalize_config(data: Mapping[str, object]) -> dict:
         args = raw.get("arguments", [])
         if not isinstance(args, list) or any(not isinstance(v, str) for v in args):
             raise OrchestrationError(f"processes[{index}].arguments must be an array of strings")
+        reserved_args = sorted({value for value in args if _is_reserved_argument(value)})
+        if reserved_args:
+            raise OrchestrationError(
+                f"processes[{index}].arguments may not override harness-owned option(s): "
+                + ", ".join(reserved_args)
+            )
         env = raw.get("environment", {})
         if not isinstance(env, dict) or any(
             not isinstance(k, str) or not k or not isinstance(v, str) for k, v in env.items()
         ):
             raise OrchestrationError(f"processes[{index}].environment must be a string map")
+        reserved_env = sorted(set(env).intersection(_RESERVED_ENVIRONMENT_KEYS))
+        if reserved_env:
+            raise OrchestrationError(
+                f"processes[{index}].environment may not override harness-owned key(s): "
+                + ", ".join(reserved_env)
+            )
         headless = raw.get("headless", True)
         if not isinstance(headless, bool):
             raise OrchestrationError(f"processes[{index}].headless must be boolean")
@@ -266,6 +303,9 @@ def role_environment(
         path.mkdir(parents=True, exist_ok=True)
 
     env = dict(base_environment or os.environ)
+    env.update(role.environment)
+    # Isolation and identity are harness invariants, not scenario policy. Apply them last even
+    # when RoleSpec is constructed programmatically instead of through normalize_config().
     env.update({
         "HOME": str(home),
         "TMPDIR": str(temp),
@@ -278,7 +318,6 @@ def role_environment(
         "VOXEL_VALIDATION_SOURCE_SHA": identity["sourceSha"],
         "VOXEL_VALIDATION_EXECUTABLE_SHA256": identity["executableSha256"],
     })
-    env.update(role.environment)
     return role_root, env
 
 
