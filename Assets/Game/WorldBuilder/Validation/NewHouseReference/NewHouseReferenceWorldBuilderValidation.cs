@@ -27,7 +27,6 @@ namespace Game.WorldBuilder.Validation.NewHouseReference
         [SerializeField] private int m_BrickPoolCapacity = 196608;
         [SerializeField] private int m_LoadRadiusRegions = 2;
         [SerializeField] private int m_UnloadRadiusRegions = 3;
-        [SerializeField] private float m_GenerateBudgetMs = 5f;
 
         private ShowcaseWorld _world;
         private int3 _origin;
@@ -59,7 +58,13 @@ namespace Game.WorldBuilder.Validation.NewHouseReference
         private void Update()
         {
             if (!_ready || _world == null) return;
-            _world.StepStreaming(transform.position, m_GenerateBudgetMs);
+
+            // This proof preloads the complete deterministic footprint needed by the house before
+            // authoring it. Running ShowcaseWorld.StepStreaming here is incorrect: that integration
+            // loop also admits showcase landmarks (including the castle) and may evict/rebuild the
+            // very regions being used as visual evidence as the audit camera moves. Keep the focused
+            // WorldBuilder validation on its fixed production storage snapshot; only the evidence
+            // camera changes after construction.
             UpdateEvidenceCamera(Time.timeSinceLevelLoad);
         }
 
