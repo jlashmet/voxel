@@ -1,25 +1,26 @@
 # 26 Authored full-run campaign progression & completion — implementation plan
 
-**Ownership:** production campaign Story/Progression content under composition/content assemblies; reuse Story, System11 Progression, System15 Outcomes, System16 persistence, and Systems14/23. **No generic GameLoop/Chapter runtime.**
+**Ownership:** campaign Story/Progression composition; reuse System11 Progression, System15 Outcomes, System16 persistence, and Systems14/23. **No generic GameLoop/Chapter runtime.**
 
 ## Observed behavior / acceptance
 
-`KnownOpeningCampaignContent` enters through `NewGame` and reaches the Kentridge/Medrare opening only. It already uses unified Progression and persistent cutscene/party/spell state, but has no later campaign route or terminal outcome. Recovered Mounting Force evidence contains verified positive scene-dependency chains beyond the opening and a final Logan-castle chain; inferred quest labels/filenames are not chronology. Detailed provenance and authored bridges are recorded in `route-evidence.md`.
+The semantic campaign now extends the recovered Kentridge opening through verified Rorik/Moordell/Rossdam/Logan dependencies to one authored System15 terminal condition. Optional content is non-gating. Acceptance still requires a normal production New Game path, meaningful fresh-graph restore, shared multiplayer observation, and built-player full-run proof. Evidence and authored bridges are in `route-evidence.md`.
 
-Acceptance is one normal New Game route crossing multiple recovered consequences to immutable `GameOutcomeResolved`, with optional content non-gating, mid-run restore, built-player proof, and shared multiplayer observation when System25 is available.
+## Hypotheses / results
 
-## Hypotheses / discriminating result
-
-1. **Preferred:** existing Story + Progression can own the route with only two narrow missing semantics: encounter-resolution input and an Outcome-condition effect routed to System15. Inspecting current APIs supports this: System15 already has `OutcomePolicyRouter`, Encounters already emits semantic resolution facts, and Progression already owns objective truth.
-2. **Rejected:** a campaign chapter/phase runtime is needed. No acceptance gap requires phase state; adding it would duplicate Story/Progression and violate the feature non-goal.
+1. **Selected:** existing Story + Progression need only owning Encounter-resolution input and an Outcome-condition effect. Implemented; semantic tests route terminal resolution through System15 exactly once.
+2. **Rejected:** add chapter/phase runtime. Repository/diff audit found no need or duplicate phase authority.
+3. **Rejected:** reconstruct persisted `CutsceneRef` from save IDs. Its constructor is intentionally non-public; restore now resolves IDs against the current authored `CampaignBlueprint` and fails closed for stale content.
 
 ## Selected implementation
 
-- Refactor opening composition into reusable plain slice helpers while preserving existing `Build` behavior; no chapter interface unless repeated concrete slices prove one is necessary.
-- Add later authored slices following the canonical evidence spine: opening/church -> authored Rorik bridge -> verified Rorik/Moordell/Rossdam edges -> authored Logan bridge -> verified castle terminal chain.
-- Source battle completion only from Encounters; Story may observe it but never mutate combat. Terminal Story effect observes a configured `OutcomeConditionRef`; System15 performs the exactly-once resolution.
-- Fast engine-independent route test drives real public domain/Story/Progression actions and a mid-run restore. Full built-player route uses Systems23/14/16 and milestone waits.
+- Opening and continuation remain plain content helpers; Story observes semantic gameplay facts and System11 owns objective truth.
+- `KentridgeSessionPersistenceBridge` delegates capture/validation/restore publication to System16 and restores CampaignRuntime semantic state into the fresh graph composed by System14.
+- Module-local Kentridge EditMode regression captures after an opening consequence, shuts the source graph down, composes a distinct graph, restores current progression/completed one-shots, and proves Resume never replays NewGame/history.
+- Story effect audit remains narrow: objective/quest start, cutscene request, party/spell progression, and outcome-condition observation only.
 
-## Current state / gates
+## Material validation / remaining gates
 
-Baseline was synced to master `6bd0992630ae27f2e30ebc32d65ba098cf987d25`; evidence commit begins at `1c1fe510143fd8e8c266fc2421c6cac1709145f6`. System25 multi-process harness is not yet on master, so T26-043 is an external prerequisite; do not substitute a parallel transport. Remaining gates: implementation, module-owned tests/validation, exact-SHA targeted CI, current-master resync, closure bookkeeping, PR `affected` gate, auto-merge.
+Exact-SHA CI exposed and drove fixes for stale Encounter APIs, authored-cutscene reconstruction, and missing direct `Game.Outcomes.Api` assembly references. Latest feature state needs a new exact-SHA targeted run.
+
+Two external prerequisites remain open on current master: System25 multiplayer E2E validation (T26-043) and Kentridge macro-world physical realization (T26-021/022/044-046). The current Kentridge planner deliberately rejects multi-region campaigns, so the authored Kentridge/Moordell/Rossdam/Logan route must not be forced through it. After green current-SHA CI, re-check those prerequisites; closure/PR promotion occurs only when every acceptance gate can be completed.
