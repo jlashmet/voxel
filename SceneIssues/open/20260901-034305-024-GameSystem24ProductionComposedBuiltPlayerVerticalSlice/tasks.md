@@ -4,7 +4,7 @@
 **Ownership:** Kentridge production composition + shared standalone-player validation architecture. No new generic gameplay Api/Runtime module.
 **Execution rule:** this proves the real production graph; the scenario may drive public player/input seams and observe diagnostics, but it may not mutate authority or substitute simplified runtimes.
 
-**Prerequisite resolved:** System 23 Application is closed on current `origin/master` and was merged into this branch. Exact-SHA request `64296df9f805d2690942d5f302e07a32f3a8b823` for product SHA `f6b3ace316f7122b48135ea04c0f04078049d9a5` reached Unity in run `33984774287` attempt 2 and failed product compilation before runtime validation. The three reported compile blockers have been corrected; T24-036 remains open until the replacement exact-SHA run proves compilation and repository-selected module validation.
+**Prerequisite resolved:** System 23 Application is closed on current `origin/master` and was merged into this branch. Exact-SHA request `64296df9f805d2690942d5f302e07a32f3a8b823` for product SHA `f6b3ace316f7122b48135ea04c0f04078049d9a5` reached Unity in run `33984774287` attempt 2 and failed product compilation before runtime validation. Replacement exact-SHA run `33988814815` for product SHA `d0971511dee5affc0064adcc83f6c2e9d7b7b050` resolved the first three blockers but exposed additional compile errors: Kentridge scene-runtime files must qualify `UnityEngine.Application`, and the WorldObject loot adapter must bind the intended Kentridge runtime loot item id unambiguously. T24-036 remains open until a replacement exact-SHA run proves compilation and repository-selected module validation.
 
 ## Baseline / composition cleanup
 
@@ -41,7 +41,8 @@
 - [ ] **T24-033 — Capture failure artifacts.** Role/process log, semantic milestone history and relevant screenshot/render artifact on failure through shared harness conventions.
 - [ ] **T24-034 — Run editor/module-local tests before built-player proof.** Automatic affected-module discovery plus top-level Kentridge integration tests.
 - [ ] **T24-035 — Run canonical standalone built-player scenario on exact built SHA.** Record build/commit identity and require no unhandled exceptions/assertions.
-- [ ] **T24-036 — Prove corrected product compilation on exact SHA.** Run `33984774287` attempt 2 failed with missing `Game.Combat.Api` assembly reference, missing Kentridge runtime namespace import, and ambiguous `GameSessionSnapshot`; replacement exact-SHA CI must compile and advance through repository-owned module validation before this is complete.
+- [ ] **T24-036 — Prove corrected product compilation on exact SHA.** Run `33984774287` attempt 2 exposed the first three compile blockers; run `33988814815` exposed the remaining `UnityEngine.Application` namespace collision and ambiguous loot-id binding before any player scenario could run. Replacement exact-SHA CI must compile and advance through repository-owned module validation before this is complete.
+- [ ] **T24-037 — Make representative combat player-input-driven.** Map production `PrimaryPressed` input to a legal local-player attack, ensure deterministic combat AI advances only enemy turns, drive the player attack through the normal Input System in the built-player scenario, and add focused Combat regression coverage proving player input causes authoritative Combat/Vitality turn progress.
 
 ## Cleanup / close
 
