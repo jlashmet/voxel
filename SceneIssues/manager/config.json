@@ -8,6 +8,16 @@
     "suspiciousItems": 2,
     "deepInvestigations": 1
   },
+  "codex": {
+    "binary": "codex",
+    "minimumVersion": "0.153.0",
+    "model": "gpt-6-astra",
+    "reasoningEffort": "low",
+    "sandbox": "workspace-write",
+    "approvalPolicy": "never",
+    "networkAccess": false,
+    "webSearch": "disabled"
+  },
   "corePathPatterns": [
     "^Assets/.*(?:Renderer|Rendering|Gpu|GPU)",
     "^Assets/.*WorldBuilder",
