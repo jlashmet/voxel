@@ -35,8 +35,9 @@
 - [x] Trace the rejected slabs to generic far-feature presentation: canonical `Primitive` retained Frustum taper/material, the adapter discarded taper/material, and `ProceduralFarFeatureRenderer` fell back to an unstyled box.
 - [x] Preserve producer-agnostic frustum profile through `FarFeatureGeometryPrimitive` and `FarFeaturePresentationAdapter`, and render an actual tapered radial primitive rather than a Frustum AABB fallback.
 - [x] Resolve far-feature albedo from the already-installed opaque voxel material presentation catalogue; do not add game material vocabulary or Mountain Dragon recipes to Rendering.
-- [x] Add focused regressions for canonical bake -> far-feature frustum profile/material, frustum mesh taper, and installed material albedo.
-- [ ] Prove the far-feature contract/renderer regressions and exact built-player visual correction on the final exact feature SHA; acceptance requires the white slab/AABB artifact to be absent, not merely green unit tests.
+- [x] Add focused regressions for canonical bake -> far-feature frustum profile/material, frustum mesh taper, and installed material albedo; run `33957676303` exposed and the branch fixes their missing direct `VoxelEngine.Rendering.Api` test-assembly reference.
+- [x] Update the existing module-owned `Rendering/Validation/FarWorld` built-player surface to exercise a tapered Frustum with a non-default installed material through `VoxelMaterialPresentationInstaller` + production `ProceduralFarFeatureRenderer`, with a required runtime log assertion; do not create a parallel renderer.
+- [ ] Prove the far-feature contract/renderer regressions, module-local FarWorld player, and exact VoxelShowcase visual correction on the final exact feature SHA; acceptance requires the white slab/AABB artifact to be absent, not merely green unit tests.
 
 ## Persistent CI module-validation blocker
 - [x] Classify run `33951141430` module failure separately from gameplay input: `VoxelEngine.Structures.Tests.PlayMode.TypedStructuralSocketCompositionSceneTests...` is interrupted by CoreRP `DebugUpdater` polling legacy `UnityEngine.Input` under Input-System-only settings.
@@ -48,11 +49,12 @@
 - [x] Run `33900019648` baked a matching candidate but is rejected: stale route evidence stopped replay at `upper-turn` and captures showed giant faceted masses.
 - [x] Run `33947319899` passed the open-sky discriminator but is rejected: game-side legacy input prevented waypoint progress.
 - [x] Run `33951141430` requested current-source bake passed and production input compatibility progressed normally through waypoint 15/95 with no game-side legacy-input exception; the 30 s replay budget was too short, the exact captures were visually rejected, and required Structures PlayMode validation failed in CoreRP DebugUpdater.
+- [x] Run `33957676303` selected exact source `eb804d6f...` and failed deterministically before tests/player execution because `FarFeatureShapePresentationTests` lacked a direct Rendering.Api asmdef reference (`CS0234`/`CS0246`). Both module validation and player build correctly aborted on the same compile error; no acceptance conclusion is drawn from this run.
 - [ ] Run the exact current feature head through only `ci-test/fixes/agent-4`, requesting `VoxelEngine.Showcase.Tests.EditMode.ShowcaseStartupBakeArtifactTests.CurrentSourceBakeExportsPayloadAndMatchingManifest` with this SceneIssue and an explicit ~210 s replay budget. Never replace queued/running work.
 - [ ] Require that same exact checkout to pass current-source bake + manifest, repository-derived module validation, all new focused regressions, exception-free production startup/runtime, `WAYPOINT_REPLAY` completion through all 95 waypoints, summit proximity/cutscene, and exact dialogue.
 
 ## Production visual / built-player acceptance
-- [x] Branch is currently synchronized with `origin/master` `51797c954490425964e602d6bb2252a0d7a7c5aa` (`behind_by: 0` before this task update). Final promotion still requires a fresh master fetch/merge.
+- [x] Branch was synchronized with `origin/master` `51797c954490425964e602d6bb2252a0d7a7c5aa` (`behind_by: 0`) before the current fixes. Final promotion still requires a fresh master fetch/merge.
 - [ ] Independently validate the final route on a fresh current-source startup payload: require setup/arm/reached/vertical/complete telemetry, no exceptions, and normal grounded movement without jumps/teleports.
 - [ ] Capture and human-review exact production VoxelShowcase approach as one substantial coherent grounded natural mountain and readable ascent.
 - [ ] Human-review path base and representative lower/mid/upper ascent as continuous supported road carved/graded into the landform, with no slab, trench, tunnel, causeway, floating, or impassable artifacts.
