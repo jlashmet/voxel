@@ -1,0 +1,14 @@
+{
+  "name": "Game.Residency.Runtime",
+  "rootNamespace": "Game.Residency.Runtime",
+  "references": ["Game.Residency.Api", "Game.Characters.Api", "Game.CharacterAI.Api", "Game.WorldObjects.Api", "Game.Encounters.Api", "VoxelEngine.Streaming.Api", "Unity.Mathematics"],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

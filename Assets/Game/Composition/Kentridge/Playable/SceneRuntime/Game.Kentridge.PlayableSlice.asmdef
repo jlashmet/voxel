@@ -46,6 +46,7 @@
         "VoxelEngine.Vegetation.Api",
         "VoxelEngine.AmbientLife.Api",
         "VoxelEngine.Terrain.Api",
+        "Unity.InputSystem",
         "Unity.Mathematics"
     ],
     "includePlatforms": [],
