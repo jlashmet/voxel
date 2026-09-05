@@ -11,6 +11,7 @@
   "timeline": {},
   "assertions": {
     "requiredLogPatterns": [
+      "NEW_HOUSE_VALIDATION renderer=cpu-fallback",
       "NEW_HOUSE_VALIDATION ready:"
     ],
     "forbiddenLogPatterns": [
