@@ -63,7 +63,7 @@ namespace Game.WorldBuilder.Validation.NewHouseReference
                     "NEW_HOUSE_VALIDATION ready: " +
                     $"origin={_origin} bounds={_result.Min}->{_result.MaxExclusive} " +
                     $"doorX={_result.DoorCentreX} frontZ={_result.FrontZ} ridgeY={_result.RidgeY} " +
-                    "materials=plaster,timber,roof,stone,glass,door,foliage " +
+                    "materials=plaster,timber,roof,stone,glass,painted-blue,ground-foliage " +
                     "referenceCamera=frontal portrait; audit=front-left,rear-right");
             }
             catch (Exception exception)
@@ -138,17 +138,23 @@ namespace Game.WorldBuilder.Validation.NewHouseReference
             PreloadAround(_origin + new int3(config.Width / 2, 0, config.Depth / 2));
 
             IStructureAuthoringSession authoring = _world.CreateStructureAuthoringSession(8_000_000);
+
+            // The supplied texture set includes a combined timber/plaster facade plate that is not
+            // appropriate for the separately authored geometry, and it has no isolated alpha-ready
+            // foliage plate. Use the house timber texture for the plain brown entry and the normal
+            // game foliage material for ivy/planting rather than stamping that combined plate onto
+            // tiny foliage voxels. Slate remains the existing blue-painted architectural accent.
             NewHouseReferencePalette palette = new(
                 GameMaterialIds.HousePlaster,
                 GameMaterialIds.HouseTimber,
                 GameMaterialIds.HouseRoof,
                 GameMaterialIds.HouseStone,
                 GameMaterialIds.Glass,
-                GameMaterialIds.HouseDoor,
+                GameMaterialIds.HouseTimber,
                 GameMaterialIds.Slate,
                 GameMaterialIds.Grass,
                 GameMaterialIds.FlowerWhite,
-                GameMaterialIds.HouseFoliage);
+                GameMaterialIds.Grass);
 
             _result = NewHouseReferenceAuthoring.AuthorHouse(
                 authoring, _origin, in config, in palette);
@@ -206,17 +212,16 @@ namespace Game.WorldBuilder.Validation.NewHouseReference
             cameraComponent.farClipPlane = 800f;
             cameraComponent.fieldOfView = 36f;
 
-            // The supplied source is a portrait, almost perfectly frontal architectural plate.
-            // Keep the primary proof on that axis; later fixed phases expose side/rear surfaces so
-            // holes, floating geometry and roof intersections cannot hide behind the hero view.
+            // The supplied architectural plate leaves breathing room around the compact cottage.
+            // Frame the corrected ~10 m silhouette rather than cropping it edge-to-edge.
             _cameraTarget = new Vector3(
                 (_origin.x + config.Width * 0.5f) * VoxelMetres,
-                (surfaceY + 70f) * VoxelMetres,
-                (_origin.z + 16f) * VoxelMetres);
+                (surfaceY + 50f) * VoxelMetres,
+                (_origin.z + 14f) * VoxelMetres);
             _frontalPosition = new Vector3(
                 _cameraTarget.x,
-                _cameraTarget.y + 0.4f,
-                _cameraTarget.z - 24.5f);
+                _cameraTarget.y + 0.25f,
+                _cameraTarget.z - 29.5f);
             ApplyCamera(_frontalPosition);
         }
 
@@ -230,11 +235,11 @@ namespace Game.WorldBuilder.Validation.NewHouseReference
 
             if (elapsedSeconds < 22f)
             {
-                ApplyCamera(_cameraTarget + new Vector3(-17f, 2.2f, -18f));
+                ApplyCamera(_cameraTarget + new Vector3(-14f, 1.8f, -17f));
                 return;
             }
 
-            ApplyCamera(_cameraTarget + new Vector3(15f, 2.4f, 18f));
+            ApplyCamera(_cameraTarget + new Vector3(13f, 2.0f, 16f));
         }
 
         private void LogSurfaceDiagnostics(float elapsedSeconds)
@@ -273,8 +278,8 @@ namespace Game.WorldBuilder.Validation.NewHouseReference
                 light.type = LightType.Directional;
             }
 
-            light.intensity = 1.25f;
-            light.color = new Color(1f, 0.94f, 0.82f, 1f);
+            light.intensity = 1.15f;
+            light.color = new Color(1f, 0.95f, 0.86f, 1f);
             light.transform.rotation = Quaternion.Euler(48f, -32f, 0f);
 
             RenderSettings.ambientMode = AmbientMode.Trilight;
