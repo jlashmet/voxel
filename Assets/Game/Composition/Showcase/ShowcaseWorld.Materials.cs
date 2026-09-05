@@ -113,5 +113,16 @@ namespace VoxelEngine.Showcase
                 _palette,
                 writeBudget);
         }
+
+        /// <summary>
+        /// Publishes a completed bounded structure-authoring phase to rendering and other derived
+        /// consumers. Generic Structures authoring intentionally mutates storage without owning the
+        /// world's change journal; the application composition root is therefore responsible for
+        /// this one publication boundary after all related writes are complete.
+        /// </summary>
+        public void PublishStructureAuthoringChanges()
+        {
+            _storage.PublishAllResidentRegions();
+        }
     }
 }
