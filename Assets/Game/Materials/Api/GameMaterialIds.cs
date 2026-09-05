@@ -31,6 +31,15 @@ namespace Game.Materials.Api
         public const byte FlowerWhite = 21;
         public const byte RiverWater = 22;
 
+        // Stable game-owned architectural materials backed by the supplied stylized house texture
+        // set. Their identity lives here; Rendering sees only opaque indices and texture layers.
+        public const byte HousePlaster = 23;
+        public const byte HouseTimber = 24;
+        public const byte HouseRoof = 25;
+        public const byte HouseStone = 26;
+        public const byte HouseDoor = 27;
+        public const byte HouseFoliage = 28;
+
         public const byte TerrainTurf = Grass;
         public const byte TerrainLimestone = MasonryMedium;
         public const byte TerrainEarth = Dirt;
