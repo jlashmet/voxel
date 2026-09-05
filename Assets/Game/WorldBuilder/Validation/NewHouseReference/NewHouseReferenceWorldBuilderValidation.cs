@@ -22,6 +22,7 @@ namespace Game.WorldBuilder.Validation.NewHouseReference
     public sealed class NewHouseReferenceWorldBuilderValidation : MonoBehaviour
     {
         private const float VoxelMetres = 0.1f;
+        private const float SurfaceDiagnosticIntervalSeconds = 5f;
 
         [SerializeField] private uint m_Seed = 0x484F5553u;
         [SerializeField] private int m_BrickPoolCapacity = 196608;
@@ -34,6 +35,7 @@ namespace Game.WorldBuilder.Validation.NewHouseReference
         private Vector3 _cameraTarget;
         private Vector3 _frontalPosition;
         private bool _ready;
+        private float _nextSurfaceDiagnosticAt = SurfaceDiagnosticIntervalSeconds;
 
         private void Start()
         {
@@ -65,7 +67,14 @@ namespace Game.WorldBuilder.Validation.NewHouseReference
             // very regions being used as visual evidence as the audit camera moves. Keep the focused
             // WorldBuilder validation on its fixed production storage snapshot; only the evidence
             // camera changes after construction.
-            UpdateEvidenceCamera(Time.timeSinceLevelLoad);
+            float elapsedSeconds = Time.timeSinceLevelLoad;
+            UpdateEvidenceCamera(elapsedSeconds);
+
+            if (elapsedSeconds >= _nextSurfaceDiagnosticAt)
+            {
+                LogSurfaceDiagnostics(elapsedSeconds);
+                _nextSurfaceDiagnosticAt += SurfaceDiagnosticIntervalSeconds;
+            }
         }
 
         private void OnDestroy()
@@ -210,6 +219,26 @@ namespace Game.WorldBuilder.Validation.NewHouseReference
             }
 
             ApplyCamera(_cameraTarget + new Vector3(15f, 2.4f, 18f));
+        }
+
+        private void LogSurfaceDiagnostics(float elapsedSeconds)
+        {
+            RenderingComposition.GetVoxelSurfaceCounts(out int visible, out int missingVisible);
+            bool hasBuildStatus = RenderingComposition.TryGetSurfaceBuildStatus(
+                out int known,
+                out int dirty,
+                out int resident,
+                out long residentGeometryBytes);
+            bool completeCoverage = RenderingComposition.HasCompletePublishedNearSurfaceCoverage();
+            string rings = RenderingComposition.DescribeVoxelRings() ?? "unavailable";
+            rings = rings.Replace('\n', '|').Replace('\r', ' ');
+
+            Debug.Log(
+                "NEW_HOUSE_SURFACE " +
+                $"t={elapsedSeconds:F1} visible={visible} missingVisible={missingVisible} " +
+                $"known={known} dirty={dirty} resident={resident} bytes={residentGeometryBytes} " +
+                $"hasStatus={hasBuildStatus} completeCoverage={completeCoverage} " +
+                $"camera={transform.position} rings={rings}");
         }
 
         private void ApplyCamera(Vector3 position)
