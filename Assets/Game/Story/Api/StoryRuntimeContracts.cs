@@ -1,4 +1,6 @@
 using System;
+using Game.Encounters.Api;
+using Game.Outcomes.Api;
 using Game.Quests.Api;
 using Game.WorldBuilder.Api;
 
@@ -10,7 +12,8 @@ namespace Game.Story.Api
         NpcInteracted = 1,
         CutsceneCompleted = 2,
         QuestCompleted = 3,
-        SiteProximityEntered = 4
+        SiteProximityEntered = 4,
+        EncounterResolved = 5
     }
 
     /// <summary>
@@ -24,35 +27,57 @@ namespace Game.Story.Api
         public CutsceneRef Cutscene { get; }
         public QuestRef Quest { get; }
         public SiteRef Site { get; }
+        public EncounterId Encounter { get; }
+        public EncounterResolutionResult EncounterResult { get; }
 
         private StoryEvent(
             StoryEventKind kind,
             NpcRef npc,
             CutsceneRef cutscene,
             QuestRef quest,
-            SiteRef site)
+            SiteRef site,
+            EncounterId encounter,
+            EncounterResolutionResult encounterResult)
         {
             Kind = kind;
             Npc = npc;
             Cutscene = cutscene;
             Quest = quest;
             Site = site;
+            Encounter = encounter;
+            EncounterResult = encounterResult;
         }
 
         public static StoryEvent NewGame() =>
-            new StoryEvent(StoryEventKind.NewGame, default, default, default, default);
+            new StoryEvent(StoryEventKind.NewGame, default, default, default, default, default, default);
 
         public static StoryEvent NpcInteracted(NpcRef npc) =>
-            new StoryEvent(StoryEventKind.NpcInteracted, npc, default, default, default);
+            new StoryEvent(StoryEventKind.NpcInteracted, npc, default, default, default, default, default);
 
         public static StoryEvent CutsceneCompleted(CutsceneRef cutscene) =>
-            new StoryEvent(StoryEventKind.CutsceneCompleted, default, cutscene, default, default);
+            new StoryEvent(StoryEventKind.CutsceneCompleted, default, cutscene, default, default, default, default);
 
         public static StoryEvent QuestCompleted(QuestRef quest) =>
-            new StoryEvent(StoryEventKind.QuestCompleted, default, default, quest, default);
+            new StoryEvent(StoryEventKind.QuestCompleted, default, default, quest, default, default, default);
 
         public static StoryEvent SiteProximityEntered(SiteRef site) =>
-            new StoryEvent(StoryEventKind.SiteProximityEntered, default, default, default, site);
+            new StoryEvent(StoryEventKind.SiteProximityEntered, default, default, default, site, default, default);
+
+        public static StoryEvent EncounterResolved(
+            EncounterId encounter,
+            EncounterResolutionResult result)
+        {
+            if (!encounter.IsValid)
+                throw new ArgumentException("Encounter id is required.", nameof(encounter));
+            return new StoryEvent(
+                StoryEventKind.EncounterResolved,
+                default,
+                default,
+                default,
+                default,
+                encounter,
+                result);
+        }
     }
 
     /// <summary>
@@ -86,5 +111,14 @@ namespace Game.Story.Api
     {
         void JoinPartyMember(string memberId);
         void GrantSpell(string spellId);
+    }
+
+    /// <summary>
+    /// Additive terminal-policy seam. Story may publish an authored semantic outcome condition, but
+    /// cannot resolve or mutate GameOutcome directly; System 15 remains the terminal authority.
+    /// </summary>
+    public interface IStoryOutcomeEffectSink : IStoryProgressEffectSink
+    {
+        void ObserveOutcomeCondition(OutcomeConditionRef condition);
     }
 }
