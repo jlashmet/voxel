@@ -206,7 +206,9 @@ namespace Game.Materials.Runtime
             Row(GameMaterialIds.HouseDoor, true,
                 Sim(GameMaterialIds.HouseDoor, 95, DestructionClass.Splinter,
                     SurfaceStyles.Planar, WeatherCoatings, true),
-                ReferenceTextured(GameMaterialIds.HouseDoor, 0.31f, 0.19f, 0.10f,
+                // This supplied plate already carries the reference's saturated blue paint and gold/brown ornament.
+                // Keep the multiplier neutral so authored chroma survives instead of being crushed by a brown tint.
+                ReferenceTextured(GameMaterialIds.HouseDoor, 1.00f, 1.00f, 1.00f,
                     HouseDoorTexture, false, 1f / 11f, 0.66f)),
 
             Row(GameMaterialIds.HouseFoliage, true,
