@@ -8,11 +8,11 @@
 
 - [x] **T25-001 — Inventory current standalone/multiplayer test runners.** `module-validation-plan.py` discovers paired module-local player scenes/scenarios; `run-module-validation.py` delegates player targets to the canonical `player-validation.py`; production multiplayer semantics live in SessionOrchestration/Sessions/GameplayReplication/Continuity rather than `Assets/Scripts/Networking`.
 - [x] **T25-002 — Extend shared runner with generic process roles.** `player-validation.py` now dispatches `mode: multiProcess` to the generic build-once orchestrator; configured roles support deterministic launch/wait/terminate/kill/relaunch without scenario-specific gameplay code.
-- [x] **T25-003 — Add exact-SHA/build identity assertion.** Every process receives source SHA + executable SHA-256 and `build-identity` milestones are checked against the one built binary.
+- [x] **T25-003 — Add exact-SHA/build identity assertion.** Every launch/relaunch automatically waits for and validates the process-reported source SHA + executable SHA-256 before any gameplay milestone; scenario authors cannot omit this proof, and identity-only scenarios do not count as gameplay validation.
 - [x] **T25-004 — Isolate writable process state.** HOME/temp/config/cache/state roots are role-specific; relaunch attempts retain only that role's durable state root and use attempt-specific logs.
 - [x] **T25-005 — Add bounded semantic milestone waiting.** Shared waits consume `VOXEL_VALIDATION_MILESTONE` JSON with field matching, explicit deadlines, process-exit diagnostics, and no correctness sleeps.
-- [x] **T25-006 — Standardize failure artifacts.** Multi-process summary records build identity, ordered lifecycle operations, milestone history, per-role/per-attempt logs/PIDs/exit status; screenshots remain the responsibility of player-visible scenarios where relevant.
-- [ ] **T25-007 — Define read-only multiplayer diagnostic snapshot.** Stable GameSessionId/PartyMemberId/PlayerSlot/CharacterId plus selected current domain truth/revisions; explicitly no mutation methods.
+- [x] **T25-006 — Standardize failure artifacts.** Multi-process summary records build identity, ordered lifecycle operations, milestone history, per-role/per-attempt logs/PIDs/exit status and identity-verification state; screenshots remain the responsibility of player-visible scenarios where relevant.
+- [ ] **T25-007 — Define read-only multiplayer diagnostic snapshot.** Stable GameSessionId/PartyMemberId/PlayerSlot/CharacterId plus selected current domain truth/revisions; explicitly no mutation methods. Existing pure read components are `IPartySessionQuery`, `IGameplayReplicationReadState`, `GameplaySynchronizationStatus` and typed projection snapshots; final composed player diagnostic must reuse System24 T24-032 rather than introduce a second privileged seam.
 
 ## Production topology / entry
 
@@ -44,7 +44,7 @@
 - [ ] **T25-041 — Add join-in-progress scenario.** Mutate game state before a new client joins and verify current-state convergence/identity allocation. Harness delayed launch is implemented; production proof remains.
 - [ ] **T25-042 — Add repeated reconnect scenario.** Multiple transport replacements preserve one durable member/character and create no duplicates. Harness relaunch attempts are implemented; production proof remains.
 - [ ] **T25-043 — Add persisted rehost scenario.** Save authoritative run, terminate processes, start fresh authority, restore through systems 16/14 and rejoin with preserved gameplay identities/new transport identities.
-- [ ] **T25-044 — Classify smoke vs scheduled/release coverage.** Keep normal PR case minimal (authority + two clients); expensive full-capacity/rehost variants run through the repository's existing slower validation tier, not manual registration.
+- [ ] **T25-044 — Classify smoke vs scheduled/release coverage.** Keep normal PR case minimal (authority + two clients); expensive full-capacity/rehost variants run through the repository's existing slower validation tier, not manual registration. Current workflow inventory has targeted, PR and post-merge master gates but no scheduled multiplayer player-validation lane; do not misclassify the post-merge all-EditMode master suite. Resolve the repository-owned slower lane when the production scenario is available.
 
 ## Cleanup / close
 
