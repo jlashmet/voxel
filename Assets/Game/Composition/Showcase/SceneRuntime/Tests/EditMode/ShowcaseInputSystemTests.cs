@@ -10,10 +10,14 @@ namespace VoxelEngine.Tests.EditMode
     {
         private Keyboard _keyboard;
         private Mouse _mouse;
+        private InputSettings.UpdateMode _previousUpdateMode;
 
         [SetUp]
         public void SetUp()
         {
+            _previousUpdateMode = InputSystem.settings.updateMode;
+            InputSystem.settings.updateMode = InputSettings.UpdateMode.ProcessEventsManually;
+
             _keyboard = InputSystem.AddDevice<Keyboard>("Showcase regression keyboard");
             _mouse = InputSystem.AddDevice<Mouse>("Showcase regression mouse");
 
@@ -28,6 +32,7 @@ namespace VoxelEngine.Tests.EditMode
         {
             if (_mouse != null && _mouse.added) InputSystem.RemoveDevice(_mouse);
             if (_keyboard != null && _keyboard.added) InputSystem.RemoveDevice(_keyboard);
+            InputSystem.settings.updateMode = _previousUpdateMode;
         }
 
         [Test]
