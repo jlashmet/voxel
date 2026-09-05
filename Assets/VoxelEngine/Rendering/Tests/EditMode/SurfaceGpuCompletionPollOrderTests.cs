@@ -24,6 +24,31 @@ namespace VoxelEngine.Rendering.Tests.EditMode
         }
 
         [Test]
+        public void PagedGpuCompletionRemainsVisitableAfterOrdinaryBudgetExpires()
+        {
+            Assert.That(
+                SurfaceGpuCompletionPollOrder.CanVisit(
+                    SurfaceGpuCompletionPollOrder.PagedGpuCompletionPhase,
+                    remainingBudgetMs: 0.0),
+                Is.True,
+                "A fence-complete paged owner must still get its non-blocking retirement poll when ordinary admission spent the shared deadline.");
+            Assert.That(
+                SurfaceGpuCompletionPollOrder.CanVisit(
+                    SurfaceGpuCompletionPollOrder.PagedGpuCompletionPhase,
+                    remainingBudgetMs: -0.25),
+                Is.True,
+                "Completion retirement must not depend on positive ordinary admission budget.");
+        }
+
+        [Test]
+        public void OrdinaryWorkersStopWhenAdmissionBudgetExpires()
+        {
+            Assert.That(SurfaceGpuCompletionPollOrder.CanVisit(0, remainingBudgetMs: 0.0), Is.False);
+            Assert.That(SurfaceGpuCompletionPollOrder.CanVisit(4, remainingBudgetMs: -0.25), Is.False);
+            Assert.That(SurfaceGpuCompletionPollOrder.CanVisit(-1, remainingBudgetMs: 0.25), Is.True);
+        }
+
+        [Test]
         public void NoPagedGpuCompletionPreservesOriginalRoundRobinOrder()
         {
             int[] phases = { 0, 2, -1, 4, 3 };
