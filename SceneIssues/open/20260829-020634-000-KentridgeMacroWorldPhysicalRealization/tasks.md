@@ -22,12 +22,14 @@
 - [x] Add a scene-local Input-System compatibility boundary to `VoxelEngine.Showcase` without changing global input settings or suppressing runtime errors.
 - [x] Falsify stale FIFO as the Moordell convergence cause; production terrain and feature work are already nearest-first.
 - [x] Keep validation demand on the real streaming path: while an elevated settlement survey waits, move the real CharacterMotor demand to the first unsettled authored building centre without force-generation, radius widening, or extra streaming budget.
+- [x] Preserve exact requests `bd10ce4f594f1619e8bf48a866459c6ac0aa174f` and `59ed8938f6ace32c89817f0c417f45fddfabb26e` through runs `33937792014` and `33938299650`; both stop before runtime on the same sole `CS0246` in the new content-demand helper.
+- [x] After the repeated compiler symptom, isolate the root cause before another production change: `TopDownWorldPhysicalPlan` is declared in `MountingForce.WorldGen.Voxel`, and `Game.Kentridge.PlayableSlice` already references `MountingForce.WorldGen.Voxel`; the helper was missing that namespace import.
 
 ## Exact-SHA validation
 - [ ] Run `GpuSurfaceMirrorRelocationRequestedValidationTests.DistantUnrelatedChangeChurnExecutesProductionGpuLivenessRegression` on the current exact feature source through `ci-test/fixes/agent-6`.
 - [ ] Require repository-derived module validation to pass every affected owned test assembly and all four required module-local player validations.
 - [ ] Require the 180-second SceneIssue replay to reach strict built-player coverage beyond Moordell and emit settlement/geography/network evidence without runtime exceptions.
-- [ ] If the same acceptance symptom remains after two materially different fixes, isolate the new minimal repro/root cause before another production change.
+- [x] If the same acceptance symptom remains after two materially different fixes, isolate the new minimal repro/root cause before another production change.
 
 ## Module-local visual/runtime acceptance
 - [ ] `MacroPhysicalWorldValidation`: production voxel output visibly proves generic settlements, hard routes, substantial water, ridge/pass, and blocked-route semantics.
