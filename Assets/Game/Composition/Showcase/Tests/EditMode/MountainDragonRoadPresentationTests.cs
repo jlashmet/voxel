@@ -10,6 +10,7 @@ namespace VoxelEngine.Showcase.Tests.EditMode
         private const uint Seed = 0x5EED1234u;
         private const int MaximumAdjacentWallDm = 30;
         private const int AuthoredClearanceWidthDm = 10;
+        private const int CorridorClearAboveDm = 24;
 
         [Test]
         public void AuthoredMountainUsesContinuousSharedMassifEnvelopeWithoutAspectShoulders()
@@ -77,6 +78,26 @@ namespace VoxelEngine.Showcase.Tests.EditMode
                 int sideZ = (int)Math.Round(tangentX * edgeOffsetDm / length);
                 AssertWallBound(surface, point, point.Xdm + sideX, point.Zdm + sideZ, i, "left");
                 AssertWallBound(surface, point, point.Xdm - sideX, point.Zdm - sideZ, i, "right");
+            }
+        }
+
+        [Test]
+        public void ResolvedSpiralNeverCutsDeeperThanItsOpenSkyClearance()
+        {
+            MountainLandformSurface surface = ShowcaseMountainDragonLayout.CreateSurface(Seed);
+            WorldRoadNetwork network = ShowcaseMountainDragonLayout.CreateAscentNetwork(Seed, surface);
+            Assert.That(network.TryGetRoute(
+                ShowcaseMountainDragonLayout.AscentRouteId,
+                out WorldRoadNetworkRoute route), Is.True);
+            Assert.That(route.Road.IsResolved, Is.True, route.Road.FailureReason);
+
+            for (int i = 0; i < route.Road.Points.Count; i++)
+            {
+                ResolvedWorldRoadPoint point = route.Road.Points[i];
+                int authoredSurface = surface.HeightAtDm(point.Xdm, point.Zdm);
+                int cutDm = authoredSurface - point.Ydm;
+                Assert.That(cutDm, Is.LessThanOrEqualTo(CorridorClearAboveDm),
+                    $"resolved point {i} cuts {cutDm}dm below the authored mountain surface, deeper than the {CorridorClearAboveDm}dm clear-above volume; this leaves mountain voxels overhead and turns the open ascent into a tunnel");
             }
         }
 
