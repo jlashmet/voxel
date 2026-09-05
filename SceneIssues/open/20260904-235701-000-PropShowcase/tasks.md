@@ -7,6 +7,7 @@
 - [x] Verify whether the existing production APIs can enumerate the complete set without duplicated IDs or switch knowledge in the scene.
 - [ ] If enumeration is incomplete, add the narrowest read-only semantic enumeration/query boundary to the owning production module; do not create a showcase-only content registry.
 - [x] Identify every affected module root and its existing module-local validation scene(s); add required validation-scene work below for any player-visible/runtime module that lacks a suitable focused surface.
+- [ ] Add the missing reusable production consumer for `DecorationProceduralMeshRequest`; it must live in Structures, preserve canonical request/material semantics, and be usable by validation/shipped consumers rather than existing only for `PropShowcase`.
 
 ## Catalogue browser model
 - [ ] Implement a deterministic showcase-facing read model/adapter derived from canonical production sources, with stable identity, friendly display label, category/grouping metadata where available, and enough semantic information to invoke the real production realization.
