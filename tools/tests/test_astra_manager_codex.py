@@ -1,6 +1,4 @@
 import importlib.util
-import json
-import os
 import stat
 import subprocess
 import sys
@@ -46,11 +44,7 @@ class CodexLauncherTests(unittest.TestCase):
             subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=root, check=True)
             subprocess.run(["git", "config", "user.name", "Test"], cwd=root, check=True)
             (root / "tracked.txt").write_text("clean\n")
-            subprocess.run(["git", "add", "."], cwd=root, check=True)
-            subprocess.run(["git", "commit", "-m", "base"], cwd=root, check=True, stdout=subprocess.DEVNULL)
 
-            window = root / "SceneIssues/manager/runtime/review-window.md"
-            window.write_text("# window\n")
             fake = root / "fake-codex"
             fake.write_text(
                 "#!/bin/sh\n"
@@ -60,6 +54,11 @@ class CodexLauncherTests(unittest.TestCase):
                 "printf '%s\\n' '{\"reviewedItems\": [], \"followups\": []}' > SceneIssues/manager/runtime/decision.json\n"
             )
             fake.chmod(fake.stat().st_mode | stat.S_IXUSR)
+            subprocess.run(["git", "add", "."], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-m", "base"], cwd=root, check=True, stdout=subprocess.DEVNULL)
+
+            window = root / "SceneIssues/manager/runtime/review-window.md"
+            window.write_text("# window\n")
             cfg = {"codex": {"binary": str(fake)}}
             decision = codex.launch(root, Path("SceneIssues/manager/runtime"), cfg, window)
             self.assertTrue(decision.exists())
