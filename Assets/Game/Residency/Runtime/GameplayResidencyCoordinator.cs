@@ -119,9 +119,45 @@ namespace Game.Residency.Runtime
         public void Dispose()
         {
             if (_disposed) return;
+
+            // Teardown is a real residency transition, not permission to drop the physical substrate
+            // out from under Detailed consumers. Clear policy demands, drive every target toward
+            // Dormant through its owner adapter, and only let normal demotion release the world pin.
+            _demands.Clear();
+            var keys = new List<ResidencyTarget>(_targets.Keys);
+            keys.Sort();
+            for (int i = 0; i < keys.Count; i++)
+            {
+                TargetRuntime state = _targets[keys[i]];
+                if (state.Desired != ResidencyFidelity.Dormant)
+                {
+                    state.Desired = ResidencyFidelity.Dormant;
+                    state.Revision++;
+                }
+                if (state.Phase == ResidencyTransitionPhase.Failed)
+                {
+                    state.Phase = ResidencyTransitionPhase.Stable;
+                    state.Diagnostic = string.Empty;
+                    state.Revision++;
+                }
+            }
+
+            for (int i = 0; i < keys.Count; i++)
+                Reconcile(keys[i], _targets[keys[i]]);
+
+            for (int i = 0; i < keys.Count; i++)
+            {
+                TargetRuntime state = _targets[keys[i]];
+                if (state.Current != ResidencyFidelity.Dormant || state.WorldLease != null)
+                    throw new InvalidOperationException(
+                        "Cannot dispose residency coordinator before target quiesces: " + keys[i] +
+                        " current=" + state.Current + " phase=" + state.Phase +
+                        " diagnostic=" + state.Diagnostic);
+            }
+
             _disposed = true;
-            foreach (TargetRuntime state in _targets.Values) { state.WorldLease?.Dispose(); state.WorldLease = null; }
-            _demands.Clear(); _targets.Clear(); _adapters.Clear();
+            _targets.Clear();
+            _adapters.Clear();
         }
 
         private void Release(ulong leaseId)
