@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "runSeconds": 44,
+  "capture": {
+    "width": 1600,
+    "height": 900,
+    "intervalSeconds": 3,
+    "minimumFrames": 12,
+    "evidenceAfterSeconds": 1
+  },
+  "timeline": {},
+  "assertions": {
+    "requiredLogPatterns": [
+      "PROP_SHOWCASE_VALIDATION start count=529",
+      "PROP_SHOWCASE_VALIDATION medium selected=",
+      "PROP_SHOWCASE_VALIDATION thin selected=",
+      "PROP_SHOWCASE_VALIDATION procedural selected=",
+      "PROP_SHOWCASE_VALIDATION world-object selected=",
+      "PROP_SHOWCASE_VALIDATION stress switches=",
+      "PROP_SHOWCASE_VALIDATION complete selected="
+    ],
+    "forbiddenLogPatterns": [
+      "PROP_SHOWCASE_VALIDATION failure:",
+      "InvalidOperationException",
+      "NullReferenceException",
+      "MissingReferenceException",
+      "ArgumentException"
+    ]
+  }
+}
