@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Game.Structures.Api;
 using Game.Structures.Runtime;
 using NUnit.Framework;
+using Unity.Mathematics;
 
 namespace Game.Structures.Tests
 {
@@ -48,6 +49,51 @@ namespace Game.Structures.Tests
                     $"Registered decoration {id} did not resolve through its owning catalogue.");
                 Assert.IsTrue(descriptor.IsWellFormed, $"Registered decoration {id} returned a malformed descriptor.");
             }
+        }
+
+        [Test]
+        public void EveryRegisteredProceduralDecorationUsesTheProductionGeometryConsumer()
+        {
+            DecorationContext context = Context();
+            int proceduralCount = 0;
+
+            for (ushort id = 1; id <= DecorationShowcaseCatalog.RegisteredDecorationCount; id++)
+            {
+                Assert.IsTrue(
+                    DecorationShowcaseCatalog.TryDescribeDecoration(in context, id, out DecorationPropDescriptor descriptor),
+                    $"Registered decoration {id} did not resolve.");
+                if (descriptor.Backend != DecorationRenderBackend.ProceduralMesh)
+                    continue;
+
+                proceduralCount++;
+                var placement = new DecorationPlacement
+                {
+                    Id = GeneratedPropIds.Create(in context, DecorationShowcaseCatalog.PreviewSceneId, id),
+                    SceneId = DecorationShowcaseCatalog.PreviewSceneId,
+                    SlotId = id,
+                    Family = descriptor.Family,
+                    Backend = descriptor.Backend,
+                    Interaction = descriptor.Interaction,
+                    Bounds = new DecorationBounds
+                    {
+                        Min = int3.zero,
+                        MaxExclusive = descriptor.Size,
+                    },
+                    Facing = new int3(0, 0, 1),
+                    Variant = descriptor.Variant,
+                };
+
+                DecorationProceduralMeshRequest[] requests =
+                    DecorationProceduralMeshHookPlanner.Collect(new[] { placement });
+                Assert.AreEqual(1, requests.Length, $"Registered procedural decoration {id} emitted no request.");
+                Assert.IsTrue(requests[0].Id.IsWellFormed, $"Registered procedural decoration {id} lost canonical identity.");
+                Assert.IsTrue(
+                    DecorationProceduralGeometryBuilder.TryBuild(in requests[0], out DecorationProceduralGeometry geometry),
+                    $"Registered procedural decoration {id} has no production geometry realization.");
+                Assert.IsTrue(geometry.IsWellFormed, $"Registered procedural decoration {id} produced malformed geometry.");
+            }
+
+            Assert.Greater(proceduralCount, 0, "The canonical catalogue unexpectedly contained no procedural decorations.");
         }
 
         [Test]
