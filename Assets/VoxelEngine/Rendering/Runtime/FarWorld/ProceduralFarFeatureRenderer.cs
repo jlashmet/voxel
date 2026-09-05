@@ -4,6 +4,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
 using VoxelEngine.Rendering.Api;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 
 namespace VoxelEngine.Rendering.Runtime.FarWorld
 {
@@ -38,7 +39,11 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
                 if (instance.Tier == FarFeatureTier.Culled) continue;
 
                 RegisterGeometry(instance);
-                var key = new BatchKey(instance.GeometryKey, instance.StyleKey, instance.Tier);
+                var key = new BatchKey(
+                    instance.GeometryKey,
+                    instance.StyleKey,
+                    instance.MaterialIndex,
+                    instance.Tier);
                 if (!_batches.TryGetValue(key, out List<Matrix4x4> matrices))
                 {
                     matrices = new List<Matrix4x4>();
@@ -63,7 +68,7 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
             foreach (KeyValuePair<BatchKey, List<Matrix4x4>> batch in _batches)
             {
                 Mesh mesh = GetMesh(batch.Key.GeometryKey);
-                Material material = GetMaterial(batch.Key.StyleKey);
+                Material material = GetMaterial(batch.Key.StyleKey, batch.Key.MaterialIndex);
                 List<Matrix4x4> matrices = batch.Value;
                 for (int offset = 0; offset < matrices.Count; offset += MaxInstancesPerDraw)
                 {
@@ -84,13 +89,20 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
         }
 
         public string BatchKeyFor(FarFeatureInstance instance) =>
-            new BatchKey(instance.GeometryKey, instance.StyleKey, instance.Tier).ToString();
+            new BatchKey(
+                instance.GeometryKey,
+                instance.StyleKey,
+                instance.MaterialIndex,
+                instance.Tier).ToString();
 
         internal Mesh ResolveMesh(FarFeatureInstance instance)
         {
             RegisterGeometry(instance);
             return GetMesh(instance.GeometryKey);
         }
+
+        internal Material ResolveMaterial(FarFeatureInstance instance) =>
+            GetMaterial(instance.StyleKey, instance.MaterialIndex);
 
         private void LateUpdate()
         {
@@ -132,26 +144,36 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
             return mesh;
         }
 
-        private Material GetMaterial(string styleKey)
+        private Material GetMaterial(string styleKey, byte materialIndex)
         {
-            string key = styleKey ?? string.Empty;
+            string style = styleKey ?? string.Empty;
+            string key = $"{style}|m{materialIndex:X2}";
             if (_materialCache.TryGetValue(key, out Material material)) return material;
 
             Shader shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
             material = new Material(shader)
             {
-                name = string.IsNullOrEmpty(key) ? "FarFeature-Default" : $"FarFeature-{key}",
+                name = string.IsNullOrEmpty(style) ? "FarFeature-Default" : $"FarFeature-{style}",
                 hideFlags = HideFlags.DontSave,
             };
             material.enableInstancing = true;
+
+            int resolvedIndex = materialIndex < VoxelPresentationCatalogue.MaxMaterials
+                ? materialIndex
+                : 0;
+            Vector4 albedo = VoxelPresentationCatalogue.MaterialAlbedo[resolvedIndex];
+            var color = new Color(albedo.x, albedo.y, albedo.z, albedo.w);
+            if (material.HasProperty("_BaseColor")) material.SetColor("_BaseColor", color);
+            if (material.HasProperty("_Color")) material.SetColor("_Color", color);
+
             _materialCache.Add(key, material);
             return material;
         }
 
         private static Mesh BuildGeometryMesh(FarFeatureGeometry geometry)
         {
-            var vertices = new List<Vector3>(geometry.PrimitiveCount * 16);
-            var triangles = new List<int>(geometry.PrimitiveCount * 36);
+            var vertices = new List<Vector3>(geometry.PrimitiveCount * 28);
+            var triangles = new List<int>(geometry.PrimitiveCount * 72);
             for (int i = 0; i < geometry.PrimitiveCount; i++)
             {
                 FarFeatureGeometryPrimitive primitive = geometry.GetPrimitive(i);
@@ -160,7 +182,24 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
                     case FarFeatureGeometryShape.Cylinder:
                     case FarFeatureGeometryShape.Annulus:
                     case FarFeatureGeometryShape.ArcWedge:
-                        AppendCylinder(vertices, triangles, primitive.Min, primitive.Max, primitive.Axis);
+                        AppendRadialPrimitive(
+                            vertices,
+                            triangles,
+                            primitive.Min,
+                            primitive.Max,
+                            primitive.Axis,
+                            1f,
+                            1f);
+                        break;
+                    case FarFeatureGeometryShape.Frustum:
+                        AppendRadialPrimitive(
+                            vertices,
+                            triangles,
+                            primitive.Min,
+                            primitive.Max,
+                            primitive.Axis,
+                            primitive.StartRadiusScale,
+                            primitive.EndRadiusScale);
                         break;
                     default:
                         // Conservative generic massing for the remaining vocabulary. This deliberately
@@ -206,23 +245,28 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
             for (int i = 0; i < local.Length; i++) triangles.Add(start + local[i]);
         }
 
-        private static void AppendCylinder(
+        private static void AppendRadialPrimitive(
             List<Vector3> vertices,
             List<int> triangles,
             float3 min,
             float3 max,
-            byte axis)
+            byte axis,
+            float startRadiusScale,
+            float endRadiusScale)
         {
             float3 center = (min + max) * 0.5f;
             float3 half = math.max((max - min) * 0.5f, new float3(0.0001f));
+            float lowerScale = math.max(0f, startRadiusScale);
+            float upperScale = math.max(0f, endRadiusScale);
             int start = vertices.Count;
             for (int end = -1; end <= 1; end += 2)
             {
+                float radiusScale = end < 0 ? lowerScale : upperScale;
                 for (int segment = 0; segment < CylinderSegments; segment++)
                 {
                     float angle = (2f * math.PI * segment) / CylinderSegments;
-                    float c = math.cos(angle);
-                    float s = math.sin(angle);
+                    float c = math.cos(angle) * radiusScale;
+                    float s = math.sin(angle) * radiusScale;
                     vertices.Add(ToVector3(CylinderPoint(center, half, axis, end, c, s)));
                 }
             }
@@ -298,19 +342,22 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
 
         private readonly struct BatchKey : IEquatable<BatchKey>
         {
-            public BatchKey(string geometryKey, string styleKey, FarFeatureTier tier)
+            public BatchKey(string geometryKey, string styleKey, byte materialIndex, FarFeatureTier tier)
             {
                 GeometryKey = geometryKey ?? string.Empty;
                 StyleKey = styleKey ?? string.Empty;
+                MaterialIndex = materialIndex;
                 Tier = tier;
             }
 
             public string GeometryKey { get; }
             public string StyleKey { get; }
+            public byte MaterialIndex { get; }
             public FarFeatureTier Tier { get; }
 
             public bool Equals(BatchKey other) =>
                 Tier == other.Tier
+                && MaterialIndex == other.MaterialIndex
                 && string.Equals(GeometryKey, other.GeometryKey, StringComparison.Ordinal)
                 && string.Equals(StyleKey, other.StyleKey, StringComparison.Ordinal);
 
@@ -321,13 +368,15 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
                 unchecked
                 {
                     int hash = (int)Tier;
+                    hash = (hash * 397) ^ MaterialIndex;
                     hash = (hash * 397) ^ StringComparer.Ordinal.GetHashCode(GeometryKey);
                     hash = (hash * 397) ^ StringComparer.Ordinal.GetHashCode(StyleKey);
                     return hash;
                 }
             }
 
-            public override string ToString() => $"{GeometryKey}|{StyleKey}|{(byte)Tier}";
+            public override string ToString() =>
+                $"{GeometryKey}|{StyleKey}|m{MaterialIndex:X2}|{(byte)Tier}";
         }
     }
 }
