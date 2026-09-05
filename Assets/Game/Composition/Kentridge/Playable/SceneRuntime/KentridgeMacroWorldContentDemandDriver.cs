@@ -7,6 +7,7 @@ using Game.WorldBuilder.Api;
 using Game.WorldBuilder.Runtime;
 using MountingForce.WorldGen;
 using MountingForce.WorldGen.Content.Kentridge;
+using MountingForce.WorldGen.Voxel;
 using UnityEngine;
 using VoxelEngine.Showcase;
 using TerrainSampler = VoxelEngine.Terrain.Api.TerrainQuery;
