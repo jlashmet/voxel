@@ -1450,11 +1450,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 _workerActiveBuildPhases, _workerAdmissionCursor, _workerPollOrder);
             for (int visit = 0; visit < workerPollCount; visit++)
             {
+                int index = _workerPollOrder[visit];
                 double now = Time.realtimeSinceStartupAsDouble;
                 double remainingMs = (solidDeadline - now) * 1000.0;
-                if (remainingMs <= 0.0) break;
+                if (!SurfaceGpuCompletionPollOrder.CanVisit(
+                        _workerActiveBuildPhases[index], remainingMs))
+                    break;
 
-                int index = _workerPollOrder[visit];
                 CpuTransvoxelChunkCache worker = _allWorkers[index];
 
                 bool wasBuilding = worker.HasActiveBuild;
