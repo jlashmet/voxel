@@ -9,7 +9,7 @@ Read first and only:
 2. `SceneIssues/manager/runtime/signal.json`
 3. `SceneIssues/manager/runtime/review-window.md`
 
-`review-window.md` is a deterministic, mechanically budgeted slice of the local pending-review backlog. Do not read `state.json`, the raw full `digest.md`, other pending packets, or conversation history during normal bootstrap.
+`review-window.md` is a deterministic, mechanically budgeted slice of the local pending-review backlog. Do not read `state.json`, the raw full `digest.md`, other pending packets, prior Codex sessions, or conversation history during normal bootstrap.
 
 Review only the exact keys listed in the current review window. For a selected completion, expand progressively: completion packet → relevant closed issue plan/tasks → narrow diff → directly related dependencies. Do not broadly explore the repository by default, and do not exceed the deep-investigation count stated in the window.
 
@@ -17,12 +17,8 @@ Only if you have concrete evidence that requires a new follow-up SceneIssue, rea
 
 Do not fix any discovered problem yourself. Do not wait for agents. Do not poll CI. Do not review deferred backlog items that were not selected for this wake-up.
 
-When the bounded review pass is complete, write the decision JSON and run exactly:
+When the bounded review pass is complete, write exactly one valid decision to:
 
-```bash
-python3 tools/astra_manager_finish.py
-```
+`SceneIssues/manager/runtime/decision.json`
 
-The finish command mechanically rejects decisions about keys outside the current review window, applies the valid decision, publishes any newly created follow-up SceneIssues through a protected-master PR with auto-merge, and exits without waiting. If publication hits a transient failure, the cheap outer loop retries transport on a later check without waking Astra.
-
-Then stop. Do not wait for the follow-up PR, CI, assignment, or implementation.
+Then stop. Do **not** run the finish/publish commands yourself. The outer deterministic controller validates the bounded keys, applies the decision, creates any standard follow-up SceneIssues, publishes them through protected-master PRs with auto-merge, and handles retryable transport after the Codex process exits.
