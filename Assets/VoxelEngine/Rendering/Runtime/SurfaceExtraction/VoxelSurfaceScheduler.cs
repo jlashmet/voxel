@@ -728,6 +728,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly TransvoxelLookupTables _lookupTables;
         private readonly SurfaceRing[] _rings;
         private readonly CpuTransvoxelChunkCache[] _allWorkers;
+        private readonly int[] _workerActiveBuildPhases;
+        private readonly int[] _workerPollOrder;
         private readonly List<CpuTransvoxelChunkCache.Entry> _visibleSolids = new(256);
         private readonly List<int> _visibleGpuHandles = new(256);
         private readonly SurfaceLodVisibilitySelector _lodVisibilitySelector = new();
@@ -1239,6 +1241,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             for (int i = 0; i < s_RingLayout.Length; i++)
                 totalWorkers += WorkerCountForSourceStep(s_RingLayout[i].SourceStep);
             _allWorkers = new CpuTransvoxelChunkCache[totalWorkers];
+            _workerActiveBuildPhases = new int[totalWorkers];
+            _workerPollOrder = new int[totalWorkers];
             int workerIndex = 0;
             for (int i = 0; i < s_RingLayout.Length; i++)
             {
@@ -1436,15 +1440,21 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 _lastMissingVisibleCount, buildCeiling);
             int activeBuilds = 0;
             for (int i = 0; i < workerCount; i++)
-                if (_allWorkers[i].HasActiveBuild) activeBuilds++;
+            {
+                CpuTransvoxelChunkCache worker = _allWorkers[i];
+                if (worker.HasActiveBuild) activeBuilds++;
+                _workerActiveBuildPhases[i] = worker.ActiveBuildPhase;
+            }
 
-            for (int offset = 0; offset < workerCount; offset++)
+            int workerPollCount = SurfaceGpuCompletionPollOrder.Build(
+                _workerActiveBuildPhases, _workerAdmissionCursor, _workerPollOrder);
+            for (int visit = 0; visit < workerPollCount; visit++)
             {
                 double now = Time.realtimeSinceStartupAsDouble;
                 double remainingMs = (solidDeadline - now) * 1000.0;
                 if (remainingMs <= 0.0) break;
 
-                int index = (_workerAdmissionCursor + offset) % workerCount;
+                int index = _workerPollOrder[visit];
                 CpuTransvoxelChunkCache worker = _allWorkers[index];
 
                 bool wasBuilding = worker.HasActiveBuild;
