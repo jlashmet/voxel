@@ -155,9 +155,9 @@ namespace Game.Kentridge.PlayableSlice
             _slice = GetComponent<KentridgePlayableSlice>()
                 ?? throw new InvalidOperationException("Kentridge production root requires KentridgePlayableSlice on the same object.");
             _forest = GetComponent<KentridgeForestBanditEncounter>()
-                ?? throw new InvalidOperationException("Kentridge production root requires KentridgeForestBanditEncounter on the same object.");
+                ?? gameObject.AddComponent<KentridgeForestBanditEncounter>();
             _hud = GetComponent<KentridgeGameplayHudInstaller>()
-                ?? throw new InvalidOperationException("Kentridge production root requires KentridgeGameplayHudInstaller on the same object.");
+                ?? gameObject.AddComponent<KentridgeGameplayHudInstaller>();
 
             _inputContexts = new InputContextService();
             _input = new UnityPlayerInputReader(_inputContexts);
