@@ -60,12 +60,12 @@ namespace VoxelEngine.Showcase
                 StructureVisualState state = _states.Get(instance.StableId);
                 if (state == StructureVisualState.Removed)
                     continue;
+                if (IsFullyCoveredByNearSurface(instance, nearSurfaceCentre, nearSurfaceRadiusMetres))
+                    continue;
 
                 FarFeatureVisualFlags flags = instance.Flags;
                 if (state == StructureVisualState.Ruined)
                     flags |= FarFeatureVisualFlags.Ruined;
-                if (IsFullyCoveredByNearSurface(instance, nearSurfaceCentre, nearSurfaceRadiusMetres))
-                    flags |= FarFeatureVisualFlags.NearSurfaceReady;
 
                 _instances.Add(new FarFeatureInstance(
                     instance.StableId,
