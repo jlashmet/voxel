@@ -12,6 +12,7 @@
   "assertions": {
     "requiredLogPatterns": [
       "FARWORLD_VALIDATION ready:",
+      "FARWORLD_FRUSTUM_VALIDATION ready:",
       "FARWORLD_VALIDATION view=12km"
     ],
     "forbiddenLogPatterns": [
