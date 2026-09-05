@@ -20,6 +20,11 @@ Agent 1 still owns the overlapping GPU mirror/page-arena/publication boundary. I
 
 `fixes/agent-6` already contains published renderer restoration `f5593cc1236ba3963fc5713a11df35292628e97d`. Current `master` movement, including `513ae04ca89b6d3448246349f1ed040e4b48a7ef`, is unrelated to the pending renderer correction. Preserve the Kentridge implementation and phase-9 fix until `master-sync-required.md` is satisfied.
 
+### 2026-09-05 publication recheck
+Fresh remote refs still do not satisfy the publication prerequisite. `origin/master` is `939e9a6f744313d93992b0479d5f6140d774ef42`; renderer-owner `fixes/agent-1` is `8ae5d743dc9ecef8f0634f2144a877b0efef010f`. Its latest observed targeted transport workflow, run `33978398855` on `ci-test/fixes/agent-1` head `8505b63c4a1a199ff8ed416151f98801956dd5c0`, is `completed` with conclusion `failure`. No validated renderer correction has therefore reached `master`.
+
+Per the ownership and integration-order rules, do not merge current `master` into `fixes/agent-6`, do not make an overlapping renderer change, do not spend a new agent-6 exact-SHA CI request on the unchanged blocked acceptance state, and do not close this SceneIssue. Resume synchronization and native built-player acceptance only after the renderer owner publishes its validated correction to `master`.
+
 ## Remaining gates
 1. When Agent 1's current GPU renderer correction is validated and merged to `master`, merge then-current `origin/master` into `fixes/agent-6` as required by `master-sync-required.md`; re-evaluate strict opening/publication convergence before any further agent-6 renderer change.
 2. Re-run exact-SHA targeted CI through the sole `ci-test/fixes/agent-6` transport. Require repository-derived tests, all required module-local players, the production GPU liveness regression, and the 180-second SceneIssue replay to pass on the exact synchronized source.
