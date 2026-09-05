@@ -47,6 +47,7 @@
 - [ ] Add regression for house switching, prop-selection changes, and repeated regeneration that proves old geometry/props/lights/colliders/runtime handles are released and no stale realization remains visible.
 - [ ] Exercise a bounded stress sequence across multiple houses and regenerations and record rebuild cost/resource counts; fix any demonstrated leak or unacceptable accumulation.
 - [ ] Confirm no showcase-only primitive geometry, fake materials, parallel renderer, scene-local socket solver, or hard-coded furnishing coordinates were introduced.
+- [ ] Resolve the final built-player visual rejection in shared production house authoring/camera framing: exterior must read as one grounded, articulated house rather than disconnected blockout slabs, and interior reset must not clip into walls/props.
 
 ## Built-player acceptance
 - [ ] Add a `HouseShowcase` player scenario that selects one house, selects multiple applicable props, renders it, and captures a readable exterior view.
