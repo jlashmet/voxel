@@ -1,4 +1,6 @@
 using System;
+using System.IO;
+using System.Security.Cryptography;
 using Game.Characters.Api;
 using Game.Encounters.Api;
 using Game.WorldBuilder.Api;
@@ -104,6 +106,97 @@ namespace Game.Composition.Kentridge.Playable.Validation
         private void OnGUI()
         {
             GUI.Box(new Rect(24f, 24f, Mathf.Max(320f, Screen.width - 48f), 82f), _status);
+        }
+    }
+
+    /// <summary>
+    /// Process-side identity proof used by multi-process built-player validation.
+    /// The harness supplies the authoritative feature SHA, while the player hashes the executable
+    /// it is actually running so the proof cannot be satisfied by echoing the harness hash.
+    /// </summary>
+    internal static class ValidationBuildIdentityReporter
+    {
+        private const string MilestonePrefix = "VOXEL_VALIDATION_MILESTONE ";
+        private const string SourceShaArgument = "-voxel-validation-source-sha";
+
+        [Serializable]
+        private sealed class BuildIdentityMilestone
+        {
+            public string name;
+            public string sourceSha;
+            public string executableSha256;
+        }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        private static void ReportBuildIdentity()
+        {
+#if UNITY_STANDALONE_OSX && !UNITY_EDITOR
+            string sourceSha = CommandLineValue(Environment.GetCommandLineArgs(), SourceShaArgument);
+            if (string.IsNullOrEmpty(sourceSha))
+                return;
+
+            try
+            {
+                string executablePath = ResolveMacPlayerExecutable(Application.dataPath);
+                string executableSha256 = ComputeSha256(executablePath);
+                var milestone = new BuildIdentityMilestone
+                {
+                    name = "build-identity",
+                    sourceSha = sourceSha.ToLowerInvariant(),
+                    executableSha256 = executableSha256
+                };
+                Debug.Log(MilestonePrefix + JsonUtility.ToJson(milestone));
+            }
+            catch (Exception exception)
+            {
+                Debug.LogError("Built-player validation could not report executable identity: " + exception);
+            }
+#endif
+        }
+
+        internal static string CommandLineValue(string[] arguments, string flag)
+        {
+            if (arguments == null || string.IsNullOrEmpty(flag))
+                return null;
+
+            string assignmentPrefix = flag + "=";
+            for (int index = 0; index < arguments.Length; index++)
+            {
+                string argument = arguments[index];
+                if (string.Equals(argument, flag, StringComparison.Ordinal))
+                    return index + 1 < arguments.Length ? arguments[index + 1] : null;
+                if (argument != null && argument.StartsWith(assignmentPrefix, StringComparison.Ordinal))
+                    return argument.Substring(assignmentPrefix.Length);
+            }
+
+            return null;
+        }
+
+        internal static string ResolveMacPlayerExecutable(string applicationDataPath)
+        {
+            if (string.IsNullOrEmpty(applicationDataPath))
+                throw new InvalidOperationException("Application.dataPath is unavailable.");
+
+            string contentsPath = Path.GetFullPath(Path.Combine(applicationDataPath, "..", ".."));
+            string macOsPath = Path.Combine(contentsPath, "MacOS");
+            if (!Directory.Exists(macOsPath))
+                throw new InvalidOperationException("Built player MacOS directory does not exist: " + macOsPath);
+
+            string[] candidates = Directory.GetFiles(macOsPath);
+            if (candidates.Length != 1)
+                throw new InvalidOperationException(
+                    "Expected exactly one built-player executable in " + macOsPath + ", found " + candidates.Length + ".");
+            return Path.GetFullPath(candidates[0]);
+        }
+
+        internal static string ComputeSha256(string path)
+        {
+            using (SHA256 sha256 = SHA256.Create())
+            using (FileStream stream = File.OpenRead(path))
+            {
+                byte[] hash = sha256.ComputeHash(stream);
+                return BitConverter.ToString(hash).Replace("-", string.Empty).ToLowerInvariant();
+            }
         }
     }
 }
