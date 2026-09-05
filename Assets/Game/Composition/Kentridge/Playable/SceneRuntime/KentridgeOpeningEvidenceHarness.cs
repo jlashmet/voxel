@@ -42,7 +42,7 @@ namespace Game.Kentridge.PlayableSlice
             {
                 Debug.LogError("KENTRIDGE_OPENING result=FAIL reason=no-playable-slice");
                 Environment.ExitCode = ValidationFailureExitCode;
-                Application.Quit(ValidationFailureExitCode);
+                UnityEngine.Application.Quit(ValidationFailureExitCode);
                 return;
             }
 
@@ -83,7 +83,7 @@ namespace Game.Kentridge.PlayableSlice
             {
                 Debug.LogError("KENTRIDGE_OPENING result=FAIL reason=" + Sanitize(ex.Message));
                 Environment.ExitCode = ValidationFailureExitCode;
-                Application.Quit(ValidationFailureExitCode);
+                UnityEngine.Application.Quit(ValidationFailureExitCode);
             }
         }
 
