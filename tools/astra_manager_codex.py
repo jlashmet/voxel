@@ -98,8 +98,8 @@ def build_command(
         "--config",
         f"web_search={json.dumps(str(opts['webSearch']))}",
     ]
-    if images:
-        command.extend(["--image", ",".join(str(path) for path in images)])
+    for image in images or []:
+        command.extend(["--image", str(image)])
     command.append("-")
     return command
 
