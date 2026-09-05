@@ -12,6 +12,7 @@ from typing import Any
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
 PACKET_RE = re.compile(r"Completion packet:\s*`([^`]+)`")
 RUN_RE = re.compile(r"\bworkflow(?:\s+run)?\s*(?:#|:)?\s*(\d{8,})\b", re.IGNORECASE)
+EVIDENCE_WORDS = ("capture", "screenshot", "evidence", "verification", "final")
 
 DEFAULTS = {
     "enabled": True,
@@ -32,11 +33,8 @@ def settings(cfg: dict[str, Any]) -> dict[str, Any]:
             raise ValueError("manager config visualEvidence must be an object")
         value.update(raw)
     for key in (
-        "maxImagesPerReview",
-        "maxImagesPerCompletion",
-        "maxImageBytes",
-        "maxArtifactDownloadBytes",
-        "maxWorkflowRunsPerCompletion",
+        "maxImagesPerReview", "maxImagesPerCompletion", "maxImageBytes",
+        "maxArtifactDownloadBytes", "maxWorkflowRunsPerCompletion",
     ):
         value[key] = max(0, int(value[key]))
     value["enabled"] = bool(value["enabled"])
@@ -46,8 +44,8 @@ def settings(cfg: dict[str, Any]) -> dict[str, Any]:
 def _completion_issue_ids(review_window: Path) -> list[str]:
     if not review_window.exists():
         return []
-    text = review_window.read_text(encoding="utf-8", errors="replace")
     result: list[str] = []
+    text = review_window.read_text(encoding="utf-8", errors="replace")
     for match in PACKET_RE.finditer(text):
         issue_id = Path(match.group(1)).stem
         if issue_id and issue_id not in result:
@@ -58,12 +56,10 @@ def _completion_issue_ids(review_window: Path) -> list[str]:
 def _capture_refs(value: Any):
     if isinstance(value, str):
         yield value
-        return
-    if isinstance(value, list):
+    elif isinstance(value, list):
         for item in value:
             yield from _capture_refs(item)
-        return
-    if isinstance(value, dict):
+    elif isinstance(value, dict):
         wanted = {"path", "file", "filename", "image", "screenshot", "capture"}
         for key, item in value.items():
             if str(key).lower() in wanted:
@@ -76,58 +72,56 @@ def _safe_image(root: Path, issue_dir: Path, raw: str, max_bytes: int) -> Path |
         return None
     if text.startswith("file://"):
         text = text[7:]
-
-    candidates: list[Path] = []
     path = Path(text)
-    if path.is_absolute():
-        candidates.append(path)
-    else:
-        candidates.append(root / path)
-        candidates.append(issue_dir / path)
-
+    candidates = [path] if path.is_absolute() else [root / path, issue_dir / path]
     root_resolved = root.resolve()
     for candidate in candidates:
         try:
             resolved = candidate.resolve()
-        except OSError:
-            continue
-        if resolved != root_resolved and root_resolved not in resolved.parents:
-            continue
-        try:
-            if (
-                resolved.is_file()
-                and resolved.suffix.lower() in IMAGE_SUFFIXES
-                and resolved.stat().st_size <= max_bytes
-            ):
+            if resolved != root_resolved and root_resolved not in resolved.parents:
+                continue
+            if (resolved.is_file() and resolved.suffix.lower() in IMAGE_SUFFIXES
+                    and resolved.stat().st_size <= max_bytes):
                 return resolved
         except OSError:
             continue
     return None
 
 
-def _image_rank(path: Path) -> tuple[int, int, int, str]:
+def _implicit_local_evidence(path: Path, issue_dir: Path) -> bool:
+    try:
+        relative = str(path.relative_to(issue_dir)).replace("\\", "/").lower()
+    except ValueError:
+        relative = path.name.lower()
+    return any(word in relative for word in EVIDENCE_WORDS)
+
+
+def _image_rank(path: Path) -> tuple[int, int, int, int, str]:
     normalized = str(path).replace("\\", "/").lower()
-    scene_issue = 0 if "/sceneissue/" in normalized or "verification-final" in normalized else 1
+    final = 0 if "verification-final" in normalized or "/final" in normalized or "final." in normalized else 1
+    scene_issue = 0 if "/sceneissue/" in normalized else 1
     preview = 1 if ".preview." in normalized else 0
     png = 0 if path.suffix.lower() == ".png" else 1
-    return scene_issue, preview, png, normalized
+    return final, scene_issue, preview, png, normalized
 
 
 def _local_candidates(root: Path, issue_dir: Path, issue: dict[str, Any], opts: dict[str, Any]) -> list[Path]:
     found: list[Path] = []
     seen: set[Path] = set()
-
+    # Explicit captures are authoritative even if their filenames are not evidence-like.
     for raw in _capture_refs(issue.get("captures", [])):
         candidate = _safe_image(root, issue_dir, raw, opts["maxImageBytes"])
         if candidate is not None and candidate not in seen:
             seen.add(candidate)
             found.append(candidate)
 
+    # Implicit discovery is conservative so before/reference art is not mistaken for acceptance proof.
     if issue_dir.exists():
-        for candidate in sorted(
-            (p for p in issue_dir.rglob("*") if p.is_file() and p.suffix.lower() in IMAGE_SUFFIXES),
-            key=_image_rank,
-        ):
+        candidates = (
+            p for p in issue_dir.rglob("*")
+            if p.is_file() and p.suffix.lower() in IMAGE_SUFFIXES and _implicit_local_evidence(p, issue_dir)
+        )
+        for candidate in sorted(candidates, key=_image_rank):
             try:
                 resolved = candidate.resolve()
                 if resolved.stat().st_size > opts["maxImageBytes"]:
@@ -142,7 +136,6 @@ def _local_candidates(root: Path, issue_dir: Path, issue: dict[str, Any], opts: 
 
 def _workflow_run_ids(issue_dir: Path, issue: dict[str, Any]) -> list[str]:
     result: list[str] = []
-
     def add_from(text: str, *, newest_first: bool = False) -> None:
         matches = RUN_RE.findall(text or "")
         if newest_first:
@@ -150,7 +143,6 @@ def _workflow_run_ids(issue_dir: Path, issue: dict[str, Any]) -> list[str]:
         for run_id in matches:
             if run_id not in result:
                 result.append(run_id)
-
     add_from(str(issue.get("regressionTest", "")))
     add_from(str(issue.get("resolutionSummary", "")))
     for name in ("ci-operations.md", "plan.md", "tasks.md"):
@@ -162,27 +154,20 @@ def _workflow_run_ids(issue_dir: Path, issue: dict[str, Any]) -> list[str]:
 
 def _repository_slug(root: Path) -> str | None:
     result = subprocess.run(
-        ["git", "-C", str(root), "remote", "get-url", "origin"],
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        ["git", "-C", str(root), "remote", "get-url", "origin"], text=True,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
     )
     if result.returncode:
         return None
-    value = result.stdout.strip()
-    match = re.search(r"github\.com(?::|/)([^/\s]+/[^/\s]+?)(?:\.git)?$", value)
+    match = re.search(r"github\.com(?::|/)([^/\s]+/[^/\s]+?)(?:\.git)?$", result.stdout.strip())
     return match.group(1) if match else None
 
 
 def _artifact_total_bytes(gh: str, root: Path, repo: str, run_id: str) -> tuple[int | None, str]:
     try:
         result = subprocess.run(
-            [gh, "api", f"repos/{repo}/actions/runs/{run_id}/artifacts"],
-            cwd=root,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            timeout=30,
+            [gh, "api", f"repos/{repo}/actions/runs/{run_id}/artifacts"], cwd=root,
+            text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30,
         )
     except subprocess.TimeoutExpired:
         return None, "artifact metadata query timed out"
@@ -198,20 +183,14 @@ def _artifact_total_bytes(gh: str, root: Path, repo: str, run_id: str) -> tuple[
     return sum(int(a.get("size_in_bytes", 0) or 0) for a in artifacts), ""
 
 
-def _download_run_images(
-    root: Path,
-    output_root: Path,
-    issue_id: str,
-    run_id: str,
-    opts: dict[str, Any],
-) -> tuple[list[Path], str]:
+def _download_run_images(root: Path, output_root: Path, issue_id: str, run_id: str,
+                         opts: dict[str, Any]) -> tuple[list[Path], str]:
     repo = _repository_slug(root)
     if not repo:
         return [], "origin is not a GitHub repository"
     gh = shutil.which(str(opts["ghBinary"]))
     if not gh:
         return [], f"{opts['ghBinary']} is not available"
-
     total, error = _artifact_total_bytes(gh, root, repo, run_id)
     if total is None:
         return [], error
@@ -225,11 +204,7 @@ def _download_run_images(
     try:
         result = subprocess.run(
             [gh, "run", "download", run_id, "--repo", repo, "--dir", str(destination)],
-            cwd=root,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            timeout=180,
+            cwd=root, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=180,
         )
     except subprocess.TimeoutExpired:
         return [], "artifact download timed out"
@@ -241,11 +216,10 @@ def _download_run_images(
         if not candidate.is_file() or candidate.suffix.lower() not in IMAGE_SUFFIXES:
             continue
         try:
-            if candidate.stat().st_size > opts["maxImageBytes"]:
-                continue
+            if candidate.stat().st_size <= opts["maxImageBytes"]:
+                images.append(candidate.resolve())
         except OSError:
             continue
-        images.append(candidate.resolve())
     images.sort(key=_image_rank)
     return images, ""
 
@@ -260,12 +234,8 @@ def _dedupe(paths: list[Path]) -> list[Path]:
     return result
 
 
-def prepare(
-    root: Path,
-    runtime: Path,
-    cfg: dict[str, Any],
-    review_window: Path,
-) -> tuple[Path, list[Path]]:
+def prepare(root: Path, runtime: Path, cfg: dict[str, Any],
+            review_window: Path) -> tuple[Path, list[Path]]:
     """Build a visual-evidence manifest and return images to attach to Codex."""
     opts = settings(cfg)
     runtime_root = root / runtime
@@ -277,7 +247,6 @@ def prepare(
     issue_ids = _completion_issue_ids(review_window)
     candidates: dict[str, list[Path]] = {}
     notes: dict[str, list[str]] = {}
-
     if opts["enabled"]:
         for issue_id in issue_ids:
             issue_dir = root / "SceneIssues/closed" / issue_id
@@ -288,26 +257,19 @@ def prepare(
                     issue = json.loads(issue_file.read_text(encoding="utf-8"))
                 except json.JSONDecodeError as exc:
                     notes.setdefault(issue_id, []).append(f"issue.json invalid: {exc}")
-
-            local = _local_candidates(root, issue_dir, issue, opts)
-            all_candidates = list(local)
+            all_candidates = _local_candidates(root, issue_dir, issue, opts)
             if len(all_candidates) < opts["maxImagesPerCompletion"]:
                 attempts = 0
                 for run_id in _workflow_run_ids(issue_dir, issue):
                     if attempts >= opts["maxWorkflowRunsPerCompletion"]:
                         break
                     attempts += 1
-                    downloaded, error = _download_run_images(
-                        root, artifact_root, issue_id, run_id, opts
-                    )
+                    downloaded, error = _download_run_images(root, artifact_root, issue_id, run_id, opts)
                     if error:
-                        notes.setdefault(issue_id, []).append(
-                            f"workflow {run_id}: {error}"
-                        )
+                        notes.setdefault(issue_id, []).append(f"workflow {run_id}: {error}")
                     all_candidates.extend(downloaded)
                     if len(_dedupe(all_candidates)) >= opts["maxImagesPerCompletion"]:
                         break
-
             candidates[issue_id] = _dedupe(all_candidates)[: opts["maxImagesPerCompletion"]]
 
     selected: list[Path] = []
@@ -327,8 +289,7 @@ def prepare(
             depth += 1
 
     lines = [
-        "# Astra visual evidence manifest",
-        "",
+        "# Astra visual evidence manifest", "",
         f"- Enabled: `{'yes' if opts['enabled'] else 'no'}`",
         f"- Selected completion(s): `{len(issue_ids)}`",
         f"- Attached image(s): `{len(selected)}`",
@@ -352,7 +313,6 @@ def prepare(
         for note in notes.get(issue_id, []):
             lines.append(f"- Visual-evidence note: {note}")
         lines.append("")
-
     manifest.parent.mkdir(parents=True, exist_ok=True)
     manifest.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return manifest, selected
