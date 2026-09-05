@@ -17,8 +17,13 @@ Only if you have concrete evidence that requires a new follow-up SceneIssue, rea
 
 Do not fix any discovered problem yourself. Do not wait for agents. Do not poll CI. Do not review deferred backlog items that were not selected for this wake-up.
 
-When the bounded review pass is complete, write the decision JSON, run:
+When the bounded review pass is complete, write the decision JSON and run these deterministic manager commands:
 
-`python3 tools/astra_manager.py apply-decision`
+```bash
+python3 tools/astra_manager.py apply-decision
+python3 tools/astra_manager_publish.py
+```
 
-Then stop.
+The publisher creates a protected-master PR containing only newly created manager follow-up SceneIssues, enables auto-merge, records that publication locally, and exits without waiting for CI or merge. It is a transport step, not implementation work. If there are no new follow-ups it is a no-op.
+
+Then stop. Do not wait for the new SceneIssue PR to merge, do not wait for assignment, and do not implement it.
