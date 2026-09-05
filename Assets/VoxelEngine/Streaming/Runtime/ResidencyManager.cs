@@ -42,7 +42,7 @@ namespace VoxelEngine.Streaming.Runtime
                 _accessTicks.Add(regionCoord, tick);
         }
 
-        /// <summary>Evicts the least-recently-accessed tracked region.</summary>
+        /// <summary>Evicts the least-recently-accessed tracked unpinned region.</summary>
         public static bool EvictLRU(IRegionResidencyStore storage)
         {
             if (storage == null) throw new ArgumentNullException(nameof(storage));
@@ -53,10 +53,13 @@ namespace VoxelEngine.Streaming.Runtime
             using NativeArray<int3> keys = _accessTicks.GetKeyArray(Allocator.Temp);
             for (int i = 0; i < keys.Length; i++)
             {
-                if (!_accessTicks.TryGetValue(keys[i], out uint tick) || tick >= oldestTick)
+                int3 candidate = keys[i];
+                if (RegionPinRegistry.IsPinned(candidate))
+                    continue;
+                if (!_accessTicks.TryGetValue(candidate, out uint tick) || tick >= oldestTick)
                     continue;
                 oldestTick = tick;
-                victim = keys[i];
+                victim = candidate;
             }
 
             if (oldestTick == uint.MaxValue) return false;
@@ -167,7 +170,7 @@ namespace VoxelEngine.Streaming.Runtime
         /// Examines at most <paramref name="maxRegionsToScan"/> actual resident regions and
         /// evicts those outside the unload sphere. Unlike the legacy geometric shell query this
         /// eventually reaches regions left far behind the player, while keeping per-frame work
-        /// strictly bounded and allocation-free.
+        /// strictly bounded and allocation-free. Active residency leases are never evicted.
         /// </summary>
         public static int EvictFarResidents(float3 playerPosition, int unloadRadiusBlocks,
                                             IRegionResidencyStore storage, ref int scanCursor,
@@ -190,6 +193,8 @@ namespace VoxelEngine.Streaming.Runtime
                 }
 
                 examined++;
+                if (RegionPinRegistry.IsPinned(regionCoord))
+                    continue;
                 if (math.distancesq(RegionWorldPos(regionCoord), playerPosition)
                     <= distanceSquaredLimit)
                     continue;
@@ -233,6 +238,7 @@ namespace VoxelEngine.Streaming.Runtime
                                                  IRegionResidencyStore storage)
         {
             if (storage == null) throw new ArgumentNullException(nameof(storage));
+            if (RegionPinRegistry.IsPinned(regionCoord)) return;
             if (!storage.IsRegionResident(regionCoord)) return;
 
             storage.EvictRegion(regionCoord);

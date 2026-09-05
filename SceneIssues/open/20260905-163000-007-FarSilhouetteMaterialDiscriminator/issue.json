@@ -1,0 +1,17 @@
+{
+  "formatVersion": 3,
+  "id": "20260905-163000-007-FarSilhouetteMaterialDiscriminator",
+  "capturedUtc": "2026-09-05T16:30:00Z",
+  "note": "INVESTIGATION ONLY / R07: Far proxy silhouette, openings and materials. 45\u201360 minutes active work. Read plan.md, tasks.md and SceneIssues/rendering-review/protocol.md. No implementation changes; return evidence before dependent repairs are scheduled. Independent first-wave assignment; write only this issue. Baseline origin/master 513ae04ca.",
+  "status": "open",
+  "resolvedUtc": "",
+  "resolutionSummary": "",
+  "regressionTest": "",
+  "fixCommit": "",
+  "unityVersion": "6000.5.6f1",
+  "platform": "Rendering investigation",
+  "sceneName": "VoxelShowcase",
+  "scenePath": "Assets/Scenes/VoxelShowcase.unity",
+  "sceneBuildIndex": -1,
+  "captures": []
+}

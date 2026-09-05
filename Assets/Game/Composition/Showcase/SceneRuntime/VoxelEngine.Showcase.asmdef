@@ -21,6 +21,7 @@
         "Unity.Burst",
         "Unity.Collections",
         "Unity.Mathematics",
+        "Unity.InputSystem",
         "VoxelEngine.Edits.Api",
         "VoxelEngine.Vegetation.Api",
         "VoxelEngine.AmbientLife.Api",

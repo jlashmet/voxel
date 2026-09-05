@@ -90,6 +90,63 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void ResidencyLeasesReleaseOnlyTheirOwnPins()
+        {
+            int3 region = new int3(3, 0, -2);
+            var store = new RecordingResidencyStore();
+            store.EnsureRegionResident(region);
+            var service = new RegionStreamingService(store);
+            IRegionResidencyPins pins = service;
+
+            IRegionResidencyLease first = pins.AcquireResidency(new RegionLoadRequest(region, 17u));
+            IRegionResidencyLease second = pins.AcquireResidency(new RegionLoadRequest(region, 17u));
+            try
+            {
+                Assert.IsTrue(first.IsReady);
+                Assert.IsFalse(service.Evict(region), "An active residency pin must block direct eviction.");
+
+                first.Dispose();
+                Assert.IsFalse(service.Evict(region), "Releasing one requester must not release another requester's pin.");
+
+                second.Dispose();
+                Assert.IsTrue(service.Evict(region), "The region becomes evictable after the final independent lease releases.");
+            }
+            finally
+            {
+                first.Dispose();
+                second.Dispose();
+            }
+        }
+
+        [Test]
+        public void DistanceEvictionSkipsPinnedRegionsUntilLeaseReleases()
+        {
+            int3 region = new int3(12, 0, 12);
+            var store = new RecordingResidencyStore();
+            store.EnsureRegionResident(region);
+            var service = new RegionStreamingService(store);
+            IRegionResidencyLease lease = ((IRegionResidencyPins)service)
+                .AcquireResidency(new RegionLoadRequest(region, 23u));
+            try
+            {
+                int cursor = 0;
+                int evicted = ResidencyManager.EvictFarResidents(float3.zero, 1, store, ref cursor, 8);
+                Assert.AreEqual(0, evicted);
+                Assert.IsTrue(store.IsRegionResident(region));
+
+                lease.Dispose();
+                cursor = 0;
+                evicted = ResidencyManager.EvictFarResidents(float3.zero, 1, store, ref cursor, 8);
+                Assert.AreEqual(1, evicted);
+                Assert.IsFalse(store.IsRegionResident(region));
+            }
+            finally
+            {
+                lease.Dispose();
+            }
+        }
+
+        [Test]
         public void FirstCompletedRegionPublishesThroughResidencyStore()
         {
             Type loader = typeof(RegionLoader);
@@ -153,8 +210,13 @@ namespace VoxelEngine.Tests.EditMode
 
             public StoragePressure Pressure => default;
             public bool IsRegionResident(int3 regionCoord) => Ensured.Contains(regionCoord);
-            public void EnsureRegionResident(int3 regionCoord) => Ensured.Add(regionCoord);
-            public bool EvictRegion(int3 regionCoord) => false;
+            public void EnsureRegionResident(int3 regionCoord)
+            {
+                if (!Ensured.Contains(regionCoord))
+                    Ensured.Add(regionCoord);
+            }
+
+            public bool EvictRegion(int3 regionCoord) => Ensured.Remove(regionCoord);
 
             public bool TryGetNextResidentCoord(ref int cursor, out int3 regionCoord)
             {

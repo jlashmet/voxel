@@ -10,6 +10,7 @@ using Game.Quests.Api;
 using MountingForce.WorldGen;
 using MountingForce.WorldGen.Content.Kentridge;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 
 namespace Game.Kentridge.PlayableSlice
@@ -82,25 +83,20 @@ namespace Game.Kentridge.PlayableSlice
             BindLiveSessionIfReady();
             if (_inventory == null) return;
 
-            if (Input.GetKeyDown(KeyCode.I))
+            Keyboard keyboard = Keyboard.current;
+            if (keyboard?.iKey.wasPressedThisFrame == true)
                 ToggleInventory();
-            if (_inventoryOpen && Input.GetKeyDown(KeyCode.Escape))
+            if (_inventoryOpen && keyboard?.escapeKey.wasPressedThisFrame == true)
                 CloseInventory();
 
             if (_session != null && _session.SynchronizeRewards())
                 _statusMessage = "Madeline: Thank you. Keep this Well Rescue Token.";
 
             if (_inventoryOpen)
-            {
-                // Kentridge still has a legacy direct UnityEngine.Input exploration reader. The
-                // canonical Ui lease is authoritative for new readers; clearing axes bridges that
-                // legacy reader until the slice is fully migrated to Game.Input.Runtime.
-                Input.ResetInputAxes();
                 return;
-            }
             if (_session == null || _session.Runtime.HasActiveCutscene) return;
 
-            if (Input.GetKeyDown(KeyCode.E) && IsPlayerNearWell())
+            if (keyboard?.eKey.wasPressedThisFrame == true && IsPlayerNearWell())
                 TryInteractWithWell();
         }
 
