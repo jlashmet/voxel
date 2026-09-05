@@ -1,65 +1,101 @@
 # GPU renderer production restoration — tasks
 
 **Plan:** [plan.md](plan.md)  
-**Owning area:** `Assets/VoxelEngine/Rendering`  
-**Execution rule:** restore one trustworthy production GPU backend; do not hide GPU defects behind scene policy, broad CPU fallback, weakened parity assertions, or test-only rendering paths.
+**Acceptance scene:** `Assets/Scenes/VoxelShowcase.unity` only. Kentridge and the mountain are acceptance content because they are rendered inside this scene; do not widen into separate scene assignments.  
+**Execution rule:** first establish a production-quality CPU-rendered VoxelShowcase baseline. CPU forcing is a temporary diagnostic gate, not final success. Do not resume GPU diagnosis while any white/blob/missing/material artifact remains in CPU VoxelShowcase. After CPU is clean, restore/re-enable the production GPU path and complete GPU parity without broad fallback or weakened acceptance.
 
-## Establish the failure and ownership boundary
+## Current execution priority — CPU VoxelShowcase first
 
-- [x] **TGPU-001 — Rebase the investigation on current master.** Starting SHA `b18d470f66221c7cb6091249f4683c2d994bffec`; exact-SHA run `33665456593` reproduced `GpuDensityMatchesTheCpuJobSampleForSample(1)` with 1300/2197 mismatches, worst sample 0 CPU 0.50000 vs GPU -0.14000.
-- [x] **TGPU-002 — Inventory production GPU selection and fallback.** `VoxelSurfaceScheduler` creates sharded `CpuTransvoxelChunkCache` workers for each ring. GPU support is claimed only for exact source steps 1/2, non-mip workers with a slot grid and enabled cutover. `GpuSurfaceExtractionContext` is created lazily from the shared `GpuSurfaceMirrorCoordinator`; successful builds publish a GPU page handle through the normal `Entry.PublishGpuPaged` draw authority and increment `GpuCompletedBuildCount`. Current policy defaults cutover off unless `VOXEL_ENABLE_EXPERIMENTAL_GPU_CUTOVER=1`. Two demonstrated eligible-work failure paths (context creation failure and stage/context failure) set `GpuCpuSnapshotRequired`, increment `GpuContextFailureBuildCount` + `GpuFallbackBuildCount`, then resume CPU density extraction. Scheduler metrics expose GPU completed/fallback/unsupported/context/arena/count/write counters, so later cutover work can enforce zero silent eligible fallback.
-- [x] **TGPU-003 — Inventory supported semantic surface features.** Claimed GPU near-ring contract is source step 1/2 and implements shared `Smooth`, `Planar`, `Rounded`, `Sharp`, and `Cubic` reconstruction IDs; material-default resolution; generic material-blend marker semantics; presentation-mask water classification including IDs >=32; coating displacement (suppressed for material blends); authored boundary Q3/extrusion-axis behavior; regular Transvoxel cells; faceted faces; negative-shell ownership; transition-face sampling/geometry; and profile/decorative suppression. Count results carry explicit unsupported-mask categories for reconstruction and decoration; later eligibility must use those semantic categories rather than scene names or material IDs.
-- [x] **TGPU-004 — Preserve the current minimal density repro.** `GpuDensityDiagnosticOracleTests.FirstDensityDivergenceReportsWorldSampleAndSemanticValues` uses the production GPU extractor and real `TransvoxelDensityJob` oracle. Exact-SHA run `33666261165` reported first divergence at world `(-2,-2,-2)`: density CPU 0.50000/GPU -0.14000, material 1/1, surface `0x04000001`/`0x00000001`, boundary 0/0.
-- [x] **TGPU-005 — Discriminate centre-read vs smooth-field failure.** `GpuDensityPathDiscriminationTests` ran the same full mesher/cache binding under Planar and Smooth material defaults. Exact-SHA run `33666796147` showed both identically wrong at world `(-2,-2,-2)`: CPU +0.50 vs GPU -0.14 with correct material/style but missing authoritative-solid bit. Because Planar should early-return on `centreSolid` before `AddTap`, weighted smooth taps are falsified as the sole cause; the defect is in/above centre occupancy. Public `VoxelReadBlockKind` encoding is `Empty=0, Uniform=1, Mixed=2`, matching the shader's wire convention; `PackBrickCacheEntry` writes the kind directly.
-- [x] **TGPU-006 — Stop speculative fixes after repeated failure and isolate the root-cause boundary.** Water-mask synchronization, compute-local mask binding, SRV/UAV aliasing, coordinate/cache addressing, and direct helper classification were falsified by runs `33667605313`, `33668767375`, `33670311041`, and `33671055825`. Run `33671401799` established that current Metal code generation can differ when `SampleField` is written directly to a UAV versus first materialized locally, but later evidence disproved that expression as the introducing defect: history run `33677903232` passed both density oracle source steps on commit `5716e56a0f72fadedda54c8a5727f5dd61ca60ee`, whose sampling kernel uses the same direct assignment, while wrapper run `33677993597` retained the current density include, materialized locally, and still reproduced GPU `-0.14`. Historical run `33678983799` then pinned the introducing commit to `b4de1b576d` (the first persistent-directory lookup change): step 1 failed 1300/2197 and step 2 failed 645/2197, both CPU +0.50 vs GPU +0.26. Exact-SHA run `33679450700` removed only the nested persistent lookup `out uint entry`; the dense-mode failure changed again to GPU +0.10 for both Planar and Smooth while still losing authoritative occupancy. Run `33680452567` added `[branch]` to the persistent-vs-dense selection and remained exactly GPU +0.10; run `33681093762` remapped the persistent probe's explicit `[loop]` optimization attribute to `[fastopt]` and again remained exactly GPU +0.10. Therefore direct UAV assignment, nested `out`, branch flattening, and the explicit loop optimization attribute are all falsified as the sole defect. The exact historical introducing boundary remains the persistent-directory helper body/compiler context added to `VoxelBrickDensity.hlsl`, whose presence perturbs Metal generation even when dense mode never executes that branch.
+- [ ] **TGPU-019CPU0A — Clear the imported VoxelShowcase Input System build prerequisite.** Exact validation must prove the package is present and both `VoxelEngine.Showcase` and its validation assembly compile with the production `Unity.InputSystem` dependency; do not treat package resolution alone as success.
+- [ ] **TGPU-019CPU0B — Restore the required module-owned player-validation pair.** `ShowcaseInputRuntimeValidation.unity` must have a same-directory `.player-scenario.json` that drives no test-only rendering path, requires the production validation `ready`/`PASS` logs, forbids `FAIL`/runtime errors, and passes repository-derived module validation on exact SHA.
+- [ ] **TGPU-019CPU1 — Capture the current CPU-only VoxelShowcase defect on exact SHA.** Run the real built player with GPU cutover disabled and capture representative stationary views that include the visibly bad Kentridge and mountain content. Record the exact artifact locations and classify visual quality; white blobs are a hard failure.
+- [ ] **TGPU-019CPU2 — Identify the production draw owner of every white/blob region.** Correlate each bad region to CPU voxel surface, far terrain, semantic far-feature rendering, or another existing production VoxelShowcase presentation path. Add only bounded diagnostics needed to distinguish these owners; do not build a parallel renderer.
+- [ ] **TGPU-019CPU3 — Find the first shared CPU-visible rendering divergence.** For the first bad region, trace authoritative material/style/coating/geometry through CPU meshing and shared publication/material/draw state. If the CPU mesh is correct, move downstream; if the far representation owns the defect, inspect its canonical bake/geometry/material handoff. Stop at the first wrong boundary.
+- [ ] **TGPU-019CPU4 — Fix the demonstrated shared/CPU presentation defect generically.** No Kentridge-name, mountain-name, captured-coordinate, or magic-material special case. Preserve canonical world truth and reuse the production rendering/material/far-world path.
+- [ ] **TGPU-019CPU5 — Prove CPU VoxelShowcase is production-quality.** Exact-SHA built-player captures must show clean castle/terrain plus Kentridge and mountain content with correct materials/silhouettes, no white blobs, no malformed far geometry, no large holes, and no near/far handoff artifact from representative stationary and traversal views.
+- [ ] **TGPU-019CPU6 — Restore the production GPU implementation only after CPU passes.** Reconcile the pre-CPU-gate agent-1 GPU implementation from merge parent `a0ac0f5e...` with the shared CPU fix, restore normal GPU cutover policy, then resume the GPU-specific tasks below. The proven CPU capture becomes the visual oracle.
 
-## Restore CPU/GPU semantic parity
+## GPU visual parity and first deterministic divergence
 
-- [x] **TGPU-010 — Fix the proven density/sample root cause.** Persistent directory resolution now stays in the dedicated `VoxelBrickCacheResolver.compute`; production batch lanes reuse one `GpuBrickCachePreparation`, resolve every request origin in one dispatch, and feed only dense prepared slices to batch count/write kernels compiled with `VOXEL_BATCH_DENSE_LOOKUP`. Production no longer uploads `_brickCacheStaging`, performs CPU voxel reconstruction, or reads prepared voxel data back. Exact-SHA run `33699482967` passed source-step-1 CPU/GPU density parity. The corresponding source-step-2 run also passed with only the same two unrelated automatic architecture assertions failing. Run `33700484569` then exercised `GpuProductionPreparedBatchRuntimeTests.ProductionBatchCountAndWriteUsePreparedDenseWindowsForTwoOrigins` after the fixture compile fix and passed the real two-origin production count/write path on Metal; its persistent rendering summary again contained only `GeometryPipelineArchitectureTests.SolidArenaPressureIsBackpressureNotBufferGrowth` and `GpuLod2CutoverPolicyTests.ProductionGpuCutoverDefaultsOnWithExplicitDisableFallback`. The repaired production path therefore consumes persistent GPU-resident voxel data through reusable prepared dense windows without CPU staging/readback and preserves count/write behavior for independent batch origins.
-- [x] **TGPU-011 — Prove source-step parity.** Both production-supported density-oracle source steps 1 and 2 pass on Metal through the repaired production-prepared density implementation. Step 1 is recorded by run `33699482967`; the subsequent step-2 request likewise passed while the workflow remained red only for the same two unrelated automatic architecture assertions.
-- [ ] **TGPU-012 — Prove material classification parity.** Cover opaque solids, configured water/non-solid materials, material IDs >= 32, material-default styles, and generic material-blend presentation without hard-coded scene material IDs. Test coverage is implemented on the current feature branch: the shared classifier probe covers ordinary low material, configured water, and material 40 above the 32-bit water mask range; the attributed CPU/GPU oracle covers material 40 through `MaterialDefault` and generic `VoxelSurfaceSemantics.MaterialBlend(...)`. **Pending:** exact-SHA CI validation.
-- [ ] **TGPU-013 — Prove surface-style parity.** Cover Smooth, Rounded, Planar, Sharp, Cubic, and repository-supported authored styles/join behavior; unsupported reconstruction must be rejected explicitly before extraction. Existing real-kernel tests cover Planar/Sharp/Cubic and attributed parity covers Smooth/Rounded; `GpuSurfaceEligibilityTests` now adds an explicit behavioral guard that unsupported reconstruction is rejected before extraction. **Pending:** exact-SHA CI validation.
-- [ ] **TGPU-014 — Prove boundary/coating parity.** Cover authored boundary samples, extrusion-axis semantics, coating displacement, and decoration eligibility without changing geometry for presentation-only metadata that should not move it.
-- [ ] **TGPU-015 — Restore regular topology parity.** GPU regular-cell case selection, interpolation, winding, counts, and attributed vertices must match CPU oracle geometry for supported continuous surfaces.
-- [ ] **TGPU-016 — Restore faceted topology parity.** Planar/Sharp/Cubic exposed-face ownership and attributes must match authoritative occupancy and CPU expectations.
-- [ ] **TGPU-017 — Restore negative-shell ownership parity.** Minimum-face cells outside the core chunk must emit exactly the CPU-owned crossing geometry without holes or duplicates.
-- [ ] **TGPU-018 — Restore transition-face parity.** LOD transition density/material/surface sampling and transition geometry must stitch supported ring boundaries without cracks or duplicate faces.
+- [ ] **TGPU-019 — Restore stationary GPU VoxelShowcase to the proven CPU visual baseline.** The same scene content visible in the CPU proof—castle, terrain, Kentridge, mountain, nearby structures/far content—must render without large missing/white regions, absent surfaces, stale chunks, or fallback-hidden success.
+- [x] **TGPU-019C — Minimal production-faithful GPU solid validation scene exists and passed.** Exact feature `6451cf98...`, run `33929485980`.
+- [x] **TGPU-019D — Exact CPU expectations exist for the minimal fixture.** 41 authored solids -> 114 exposed faces, 456 vertices, 684 indices.
+- [x] **TGPU-019E — Minimal fixture passed the production GPU path.** Same exact run reported `pub=1`, `fallback=0`, `visible=1`, `missing=0`; this falsifies a universal one-chunk defect.
+- [ ] **TGPU-019G — Keep the reusable production-batch CPU/GPU oracle harness.** Compare prepared inputs, density, count/prefix, canonical pre-page geometry, allocation/pending state, CPU Commit/Abort outcome, and final live draw visibility. Readback remains test-only.
+- [ ] **TGPU-019H — Re-run deterministic static multi-chunk CPU/GPU parity after CPU acceptance.** Stop at the earliest GPU-only mismatch and require fail-before/pass-after exact evidence.
+- [ ] **TGPU-019A — Correlate the first broken full-scene GPU chunk only after deterministic parity is classified.** Use the same VoxelShowcase world locations proven clean on CPU; trace admission -> mirror -> extraction -> pending/live pages -> draw visibility without scene-specific renderer logic.
+- [ ] **TGPU-019F — Reject false paged-GPU completion.** `Ready/Exhausted/Stale/TooLarge` must be observed by the CPU state machine; only successful pending geometry may complete. Failure preserves old live geometry, reclaims pending state exactly once, and cannot create a permanent hole.
+- [ ] **TGPU-019B — Built-player VoxelShowcase replay is the immediate visual gate after each GPU correctness fix.** Compare directly with the exact CPU baseline.
 
-## Persistent GPU mirror correctness
+## Proven work retained from the investigation
 
-- [ ] **TGPU-020 — Verify dense test cache and persistent directory agree.** The same world bricks sampled through explicit dense-cache mode and production persistent lookup must produce identical material/surface/boundary inputs.
-- [ ] **TGPU-021 — Verify publication semantics.** Mixed, uniform, and empty brick deltas; slot metadata; payload staging; directory entries; and generation handling must not expose stale or wrong-brick data.
-- [ ] **TGPU-022 — Verify negative-coordinate and boundary lookup.** Exercise world bricks around zero, negative coordinates, directory collisions, cache/region boundaries, and padded density taps.
-- [ ] **TGPU-023 — Verify edit propagation.** Runtime voxel/material/surface/boundary edits must invalidate/rebuild the affected GPU geometry and visibly converge without stale geometry.
-- [ ] **TGPU-024 — Verify eviction/recovery/liveness.** Slot pressure, coverage recovery, generation advancement, and re-admission must converge without permanent holes, deadlock, or silent CPU takeover.
-- [ ] **TGPU-025 — Verify no frame-path blocking.** GPU extraction/count/write/copy/publication remains asynchronous on the production frame path except explicitly permitted bounded bookkeeping.
+- [x] **TGPU-001 — Reproduced the original GPU density failure on current production path.**
+- [x] **TGPU-002 — Inventoried production GPU selection, fallback, page-handle publication, and metrics.**
+- [x] **TGPU-003 — Inventoried supported semantic surface features and unsupported categories.**
+- [x] **TGPU-004 — Preserved the minimal CPU/GPU density repro.**
+- [x] **TGPU-005 — Proved the original defect was at/above centre occupancy rather than smooth taps alone.**
+- [x] **TGPU-006 — Isolated the historical Metal compiler/context introducing boundary instead of continuing speculative fixes.**
+- [x] **TGPU-010 — Moved persistent resolution into the dedicated resolver and restored dense production sampling.**
+- [x] **TGPU-011 — Proved source-step 1/2 density parity.**
+- [x] **TGPU-012 — Proved material classification parity.**
+- [x] **TGPU-013 — Proved Smooth/Rounded/Planar/Sharp/Cubic surface-style parity.**
+- [x] **TGPU-014 — Proved authored boundary/coating parity and unsupported decoration handling.**
+- [x] **TGPU-015 — Proved regular topology parity.**
+- [x] **TGPU-016 — Proved faceted topology parity.**
+- [x] **TGPU-017 — Proved negative-shell ownership parity.**
+- [x] **TGPU-018 — Proved transition-face parity.**
+- [x] **TGPU-020 — Proved persistent and dense semantic inputs agree.**
+- [x] **TGPU-021 — Proved mixed/uniform/empty publication semantics and eviction tombstoning.**
+- [x] **TGPU-022 — Proved negative-coordinate/boundary lookup and directory collision handling.**
+- [x] **TGPU-023 — Proved runtime edit propagation rejects stale generation and recovers current coverage.**
 
-## Production cutover and reuse
+## GPU mirror, allocation, publication, and lifetime correctness
 
-- [ ] **TGPU-030 — Make GPU eligibility semantic and explicit.** Eligibility must describe implemented reconstruction requirements, not named scenes, magic material IDs, or incidental data layout.
-- [ ] **TGPU-031 — Eliminate silent eligible CPU fallback.** Once a solid chunk is classified GPU-eligible, failure/retry/backpressure is observable and bounded; it must not quietly render via CPU and make acceptance look green.
-- [ ] **TGPU-032 — Preserve explicit fallback only for unsupported work.** CPU rendering may remain for declared unsupported geometry/features/devices, with metrics/tests proving why it was ineligible.
-- [ ] **TGPU-033 — Prove VoxelShowcase production cutover.** `Assets/Scenes/VoxelShowcase.unity` must complete representative streaming/traversal with GPU builds, visible coverage, zero eligible fallback, and no frame-path blocking violations.
-- [ ] **TGPU-034 — Prove an independent production consumer.** Exercise the same GPU renderer in at least one non-VoxelShowcase production scene/fixture through normal composition; no duplicate renderer or scene-specific enabling code.
-- [ ] **TGPU-035 — Verify renderer restart/lifecycle.** Recreate/disable/enable the production rendering context without leaked buffers, stale static mirror state, duplicate ownership, or permanently disabled cutover.
+- [ ] **TGPU-024 — Verify eviction/recovery/liveness under pressure.** No permanent holes, deadlock, or silent CPU takeover.
+- [ ] **TGPU-025 — Verify no production frame-path blocking.** Diagnostic readback is test-only.
+- [ ] **TGPU-025A — Stress visible-handle upload-ring reuse under actual GPU lag.** Change only if a stall is demonstrated.
+- [ ] **TGPU-026 — Make extraction completion lane-local and GPU-backed with bounded in-flight lanes.**
+- [ ] **TGPU-026A — Hold source mirror/residency leases until the GPU actually finishes consuming them.**
+- [ ] **TGPU-026B — Prove the exact Metal fence capability/`passed` contract; do not equate graphics-queue ordering with CPU reuse safety.**
+- [ ] **TGPU-026C — Make teardown safe with submitted GPU work still in flight.**
+- [ ] **TGPU-027 — Retire draw pages on draw-completion evidence, not CPU-frame delay.**
+- [ ] **TGPU-027A — Make paged publication two-phase and CPU-authoritative: pending Allocate/Write -> explicit Commit or Abort.**
+- [x] **TGPU-027B — Coalesce duplicate handle commands deterministically per handle.** Focused evidence run `33916627573`.
+- [ ] **TGPU-027C — Separate renderer build generation from Storage/mirror source generation.**
+- [ ] **TGPU-027D — Reclaim pending pages on release/cancel/reacquire exactly once.**
+- [ ] **TGPU-028 — Prove lifetime safety under rapid handle/page/mirror reuse pressure.**
+- [ ] **TGPU-028A — Prove rejected stale generations never become live and preserve prior live geometry.**
+- [ ] **TGPU-029 — Prove cross-LOD batch scratch compatibility for source steps 1 and 2.**
+- [ ] **TGPU-029A — Separate physical prepared-cache stride from logical per-request resolver extent.** Optimization remains parked until correctness proves need.
+- [ ] **TGPU-029B — Execute a real mixed-LOD production batch and enforce explicit lane compatibility.**
 
-## Built-player visual and performance acceptance
+## Production GPU cutover and reuse
 
-- [ ] **TGPU-040 — Add/maintain production player validation.** Use repository-convention validation/scenario coverage that invokes the real renderer, storage, materials, terrain, lighting, and production camera path; do not build a parallel visual fixture.
-- [ ] **TGPU-041 — Capture exact-SHA VoxelShowcase traversal evidence.** Inspect built-player captures during/after movement and streaming for holes, cracks, stale chunks, popping caused by missing coverage, wrong materials, malformed faceted surfaces, and LOD seams.
-- [ ] **TGPU-042 — Capture edit evidence.** In built player, perform representative voxel/surface edits and verify old geometry is replaced correctly and GPU-rendered output converges without stale remnants.
-- [ ] **TGPU-043 — Verify visual success is actually GPU-rendered.** Correlate captures with renderer metrics proving visible GPU-eligible chunks completed on GPU and were not hidden by CPU fallback.
-- [ ] **TGPU-044 — Check moving-frame performance.** Preserve the repository's VoxelShowcase moving p95/p99 gates or stricter current budgets; do not relax them to pass.
-- [ ] **TGPU-045 — Check settled performance.** Preserve the repository's stationary frame-time gate and demonstrate no continuing pathological rebuild/readback churn once settled.
-- [ ] **TGPU-046 — Check memory/upload cost.** Measure mirror, density/sample buffers, geometry arena/pages, directory, and upload traffic against authoritative device/repository budgets; no unbounded growth or per-chunk duplicate world mirrors.
+- [ ] **TGPU-030 — Make GPU eligibility semantic and explicit.**
+- [ ] **TGPU-031 — Eliminate silent eligible CPU fallback once GPU acceptance resumes.**
+- [ ] **TGPU-032 — Preserve explicit CPU fallback only for declared unsupported work/devices with observable reason.**
+- [ ] **TGPU-033 — Prove VoxelShowcase production GPU cutover.** Representative streaming/traversal must show visible GPU builds, zero eligible fallback, and no blocking violation.
+- [ ] **TGPU-034 — Prove an independent production consumer uses the same GPU renderer without duplicate enabling/render logic.** This is renderer reuse proof, not additional visual-scene scope for CPU diagnosis.
+- [ ] **TGPU-035 — Verify renderer restart/lifecycle without leaks, stale statics, duplicate ownership, or disabled cutover.**
+
+## Built-player visual, traversal, edit, and performance acceptance
+
+- [ ] **TGPU-040 — Maintain Rendering-owned focused production validation scene/scenario using the real stack.**
+- [ ] **TGPU-041 — Capture exact-SHA VoxelShowcase traversal evidence against the CPU baseline.** Inspect holes, cracks, stale chunks, materials, faceted surfaces, far representation, and LOD seams.
+- [ ] **TGPU-041A — Validate optional nonresident halo behavior while traversing VoxelShowcase frontiers.** Preserve liveness; fix continuity only if artifacts are demonstrated.
+- [ ] **TGPU-042 — Capture representative VoxelShowcase edit evidence.** Old geometry must be replaced and converge without stale remnants.
+- [ ] **TGPU-043 — Prove final visual success is genuinely GPU-rendered rather than hidden by fallback.**
+- [ ] **TGPU-044 — Preserve moving-frame p95/p99 performance budgets; do not relax them.**
+- [ ] **TGPU-045 — Preserve settled/stationary performance and eliminate pathological continuing churn.**
+- [ ] **TGPU-046 — Measure mirror/scratch/page/upload memory and traffic against authoritative budgets.**
 
 ## Regression, cleanup, and close
 
-- [ ] **TGPU-050 — Run rendering module EditMode regressions.** CPU/GPU density, semantic, topology, negative-shell, transition, mirror, lifecycle, and resource tests pass on the exact feature SHA.
-- [ ] **TGPU-051 — Run rendering module PlayMode regressions.** Production cutover/recovery/streaming tests pass on the exact feature SHA.
-- [ ] **TGPU-052 — Run repository-selected automatic module validation.** Do not replace or weaken automatically discovered module/player gates.
-- [ ] **TGPU-053 — Run required top-level built-player integration.** Required canonical player validation passes with durable artifacts on the exact feature SHA.
-- [ ] **TGPU-054 — Audit diagnostic/test-only code.** Remove temporary probes that are no longer useful; retain only focused regressions that protect proven invariants. No test-only production behavior switches.
-- [ ] **TGPU-055 — Audit fallback and duplicated renderer paths.** Search production code for obsolete GPU-disable switches, stale experimental branches, duplicate surface realization, and fallback paths that violate the explicit eligibility contract; remove only demonstrated obsolete paths.
-- [ ] **TGPU-056 — Review final diff and blast radius.** Confirm CPU authoritative storage/collision/world truth is unchanged except where a proven shared semantic defect requires correction.
-- [ ] **TGPU-057 — Close with exact evidence.** Populate `resolutionSummary`, `regressionTest`, and `fixCommit`; record exact-SHA CI/player artifacts, GPU no-fallback proof, visual classification, and performance/memory results before moving the SceneIssue to `closed/`.
+- [ ] **TGPU-050 — Run Rendering module EditMode regressions on the exact final feature SHA.**
+- [ ] **TGPU-051 — Run any specifically required Rendering PlayMode regressions on the exact final feature SHA.**
+- [ ] **TGPU-052 — Run repository-derived affected module validation including owned validation scene(s).**
+- [ ] **TGPU-053 — Pass the canonical standalone full-application integration gate required by the repository.** This is CI integration evidence; CPU visual diagnosis remains scoped to VoxelShowcase.
+- [ ] **TGPU-054 — Remove/bound investigation-only probes, readbacks, operand echoes, test controls, and verbose logging.**
+- [ ] **TGPU-055 — Audit fallback and duplicate renderers; no scene-local replacement or broad eligible fallback remains.**
+- [ ] **TGPU-056 — Review final diff/blast radius.** Keep only demonstrated Rendering/VoxelShowcase integration, validation, shared-fix, and required SceneIssue metadata changes.
+- [ ] **TGPU-057 — Close only with exact evidence for every required checkbox/acceptance criterion.** Move directly `open` -> `closed`, set fixed metadata, merge current master, then final PR + auto-merge and verify closed issue on `origin/master`.

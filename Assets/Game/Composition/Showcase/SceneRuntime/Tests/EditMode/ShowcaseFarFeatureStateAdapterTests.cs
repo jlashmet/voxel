@@ -29,7 +29,7 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void RuinedStateUsesSameStableIdAndFlowsAsRenderFlag()
+        public void RuinedStateUsesSameStableIdAndPreservesResolvedPresentation()
         {
             const ulong structureId = 0xB017DUL;
             var states = new StructureVisualStateStore();
@@ -41,6 +41,10 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(result, Has.Count.EqualTo(1));
             Assert.That(result[0].StableId, Is.EqualTo(structureId));
             Assert.That((result[0].Flags & FarFeatureVisualFlags.Ruined) != 0, Is.True);
+            Assert.That(result[0].Presentation.Albedo.x, Is.EqualTo(0.22f).Within(0.0001f));
+            Assert.That(result[0].Presentation.Albedo.y, Is.EqualTo(0.41f).Within(0.0001f));
+            Assert.That(result[0].Presentation.Albedo.z, Is.EqualTo(0.63f).Within(0.0001f));
+            Assert.That(result[0].Presentation.Roughness, Is.EqualTo(0.79f).Within(0.0001f));
         }
 
         private static ShowcaseFarFeatureStateAdapter CreateAdapter(StructureVisualStateStore states)
@@ -66,7 +70,9 @@ namespace VoxelEngine.Tests.EditMode
                 "landmark-geometry",
                 "stone",
                 FarFeatureTier.Far,
-                FarFeatureVisualFlags.Landmark);
+                FarFeatureVisualFlags.Landmark,
+                null,
+                new FarFeaturePresentation(new float4(0.22f, 0.41f, 0.63f, 1f), 0.79f));
         }
 
         private sealed class EmptyPresentationSource : IFeaturePresentationSource

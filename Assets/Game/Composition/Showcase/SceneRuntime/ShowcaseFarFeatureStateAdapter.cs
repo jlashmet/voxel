@@ -64,7 +64,8 @@ namespace VoxelEngine.Showcase
                     instance.StyleKey,
                     instance.Tier,
                     flags,
-                    instance.Geometry));
+                    instance.Geometry,
+                    instance.Presentation));
             }
 
             return _instances;
