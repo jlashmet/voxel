@@ -406,7 +406,7 @@ def wait_for_milestone(
             event = events[index]
             if _matches(event, expected):
                 record.milestone_cursor = index + 1
-                tagged = {"role": record.role.name, "attempt": record.attempt, **event}
+                tagged = {**event, "role": record.role.name, "attempt": record.attempt}
                 history.append(tagged)
                 return tagged
         record.milestone_cursor = len(events)
