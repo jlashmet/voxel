@@ -293,14 +293,18 @@ def role_environment(
     role: RoleSpec,
     identity: Mapping[str, str],
     base_environment: Mapping[str, str] | None = None,
+    attempt: int = 1,
 ) -> tuple[Path, dict[str, str]]:
+    if attempt <= 0:
+        raise OrchestrationError("role environment attempt must be positive")
     role_root = output_root / "roles" / role.name
-    home = role_root / "home"
-    temp = role_root / "tmp"
+    attempt_root = role_root / f"attempt-{attempt:03d}"
+    home = attempt_root / "home"
+    temp = attempt_root / "tmp"
     state = role_root / "state"
-    config = role_root / "config"
-    cache = role_root / "cache"
-    for path in (role_root, home, temp, state, config, cache):
+    config = attempt_root / "config"
+    cache = attempt_root / "cache"
+    for path in (role_root, attempt_root, home, temp, state, config, cache):
         path.mkdir(parents=True, exist_ok=True)
 
     env = dict(base_environment or os.environ)
@@ -330,7 +334,7 @@ def launch_role(
     run_seconds: int,
     attempt: int = 1,
 ) -> RoleProcess:
-    role_root, env = role_environment(output_root, role, identity)
+    role_root, env = role_environment(output_root, role, identity, attempt=attempt)
     attempt_root = role_root / f"attempt-{attempt:03d}"
     attempt_root.mkdir(parents=True, exist_ok=True)
     player_log = attempt_root / "player.log"
