@@ -22,6 +22,8 @@
     "Game.Vitality.Api",
     "Game.Vitality.Runtime",
     "Game.WorldBuilder.Api",
+    "Game.Audio.Api",
+    "Game.Audio.Runtime",
     "MountingForce.WorldGen.Core",
     "MountingForce.WorldGen.Runtime",
     "VoxelEngine.Characters.Runtime",
