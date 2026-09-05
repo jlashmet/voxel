@@ -17,12 +17,14 @@ namespace Game.WorldBuilder.Validation.NewHouseReference
     /// supplies only deterministic site/camera/light policy; geometry, storage, game materials and
     /// voxel rendering all run through their production contracts.
     /// </summary>
+    [DefaultExecutionOrder(-10000)]
     [DisallowMultipleComponent]
     [RequireComponent(typeof(Camera))]
     public sealed class NewHouseReferenceWorldBuilderValidation : MonoBehaviour
     {
         private const float VoxelMetres = 0.1f;
         private const float SurfaceDiagnosticIntervalSeconds = 5f;
+        private const string CpuFallbackVariable = "VOXEL_DISABLE_GPU_CUTOVER";
 
         [SerializeField] private uint m_Seed = 0x484F5553u;
         [SerializeField] private int m_BrickPoolCapacity = 196608;
@@ -36,6 +38,20 @@ namespace Game.WorldBuilder.Validation.NewHouseReference
         private Vector3 _frontalPosition;
         private bool _ready;
         private float _nextSurfaceDiagnosticAt = SurfaceDiagnosticIntervalSeconds;
+
+        private void Awake()
+        {
+            // This feature's visual acceptance is intentionally CPU-rendered. The production
+            // renderer keeps VOXEL_DISABLE_GPU_CUTOVER=1 as its supported emergency/A-B fallback,
+            // and repository-owned module-player validation already launches scenes with that
+            // setting. Set it before the first rendered frame so the standalone SceneIssue replay
+            // exercises the same CPU surface path instead of depending on the unrelated GPU
+            // restoration assignment.
+            if (!Application.isEditor)
+                Environment.SetEnvironmentVariable(CpuFallbackVariable, "1");
+
+            Debug.Log("NEW_HOUSE_VALIDATION renderer=cpu-fallback");
+        }
 
         private void Start()
         {
