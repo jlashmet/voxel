@@ -1,0 +1,17 @@
+{
+  "formatVersion": 3,
+  "id": "20260905-163000-010-FarValidationEvidenceAudit",
+  "capturedUtc": "2026-09-05T16:30:00Z",
+  "note": "INVESTIGATION ONLY / R10: Far-world validation fidelity and closure review. 30–45 minutes active work. Read plan.md, tasks.md and SceneIssues/rendering-review/protocol.md. No implementation changes; return evidence before dependent repairs are scheduled. Independent first-wave assignment; write only this issue. Baseline origin/master 513ae04ca.",
+  "status": "fixed",
+  "resolvedUtc": "2026-09-05T21:53:48Z",
+  "resolutionSummary": "Administrative closure: this investigation-only rendering review item was added by mistake and is intentionally retired without investigation or product changes.",
+  "regressionTest": "Not applicable; administrative closure only. No production/test code changed.",
+  "fixCommit": "",
+  "unityVersion": "6000.5.6f1",
+  "platform": "Rendering investigation",
+  "sceneName": "VoxelShowcase",
+  "scenePath": "Assets/Scenes/VoxelShowcase.unity",
+  "sceneBuildIndex": -1,
+  "captures": []
+}
