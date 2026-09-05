@@ -214,7 +214,8 @@ namespace Game.Structures.Runtime
             out DecorationPropDescriptor descriptor)
         {
             descriptor = default;
-            if (!context.IsWellFormed || kind < DecorationShowcasePresetKind.RoomBed || kind > DecorationShowcasePresetKind.TextileCurtain)
+            ushort raw = (ushort)kind;
+            if (!context.IsWellFormed || raw == 0 || raw > PresetCount)
                 return false;
 
             uint slotId = (uint)kind + 1000u;
@@ -316,11 +317,12 @@ namespace Game.Structures.Runtime
 
         private static string PresetCategory(DecorationShowcasePresetKind kind)
         {
-            if (kind <= DecorationShowcasePresetKind.RoomThrone) return "Presets / Room";
-            if (kind <= DecorationShowcasePresetKind.DiningChair) return "Presets / Dining";
-            if (kind <= DecorationShowcasePresetKind.LightingStandingLamp) return "Presets / Lighting";
-            if (kind <= DecorationShowcasePresetKind.StorageBookcase) return "Presets / Storage";
-            if (kind <= DecorationShowcasePresetKind.MartialArmorDisplay) return "Presets / Martial";
+            ushort raw = (ushort)kind;
+            if (raw <= (ushort)DecorationShowcasePresetKind.RoomThrone) return "Presets / Room";
+            if (raw <= (ushort)DecorationShowcasePresetKind.DiningChair) return "Presets / Dining";
+            if (raw <= (ushort)DecorationShowcasePresetKind.LightingStandingLamp) return "Presets / Lighting";
+            if (raw <= (ushort)DecorationShowcasePresetKind.StorageBookcase) return "Presets / Storage";
+            if (raw <= (ushort)DecorationShowcasePresetKind.MartialArmorDisplay) return "Presets / Martial";
             return "Presets / Textile";
         }
 
