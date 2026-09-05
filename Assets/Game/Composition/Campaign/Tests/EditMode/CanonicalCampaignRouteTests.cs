@@ -212,11 +212,23 @@ namespace Game.Composition.Campaign.Tests
             EncounterId encounter)
         {
             Assert.That(
-                encounters.Register(new EncounterDefinition(encounter, EncounterCombatPolicy.Required, "campaign")),
-                Is.EqualTo(EncounterFailure.None));
-            Assert.That(encounters.Activate(encounter, "player-entered"), Is.EqualTo(EncounterFailure.None));
-            Assert.That(encounters.ApplyCombatResolved(encounter, victory: true), Is.EqualTo(EncounterFailure.None));
-            Assert.That(encounters.TryGet(encounter, out EncounterSnapshot snapshot), Is.True);
+                encounters.Register(
+                    new EncounterDefinition(encounter, EncounterCombatPolicy.Required, "campaign"),
+                    out _),
+                Is.EqualTo(EncounterMutationFailure.None));
+            Assert.That(
+                encounters.Activate(
+                    new EncounterActivationRequest(encounter, "player-entered"),
+                    out _),
+                Is.EqualTo(EncounterMutationFailure.None));
+            Assert.That(
+                encounters.ApplyCombatResolved(
+                    encounter,
+                    new EncounterResolution(
+                        EncounterResolutionResult.Completed,
+                        "canonical campaign route"),
+                    out EncounterSnapshot snapshot),
+                Is.EqualTo(EncounterMutationFailure.None));
             Assert.That(runtime.ObserveEncounter(snapshot), Is.GreaterThan(0),
                 "Canonical route dead-end after encounter '" + encounter + "'.");
         }
