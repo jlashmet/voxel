@@ -41,6 +41,7 @@
         "Game.Inventory.Runtime",
         "Game.Quests.Api",
         "Game.Quests.Runtime",
+        "Game.Outcomes.Api",
         "Game.Kentridge.PlayableSlice",
         "Unity.Burst",
         "Unity.Collections",
