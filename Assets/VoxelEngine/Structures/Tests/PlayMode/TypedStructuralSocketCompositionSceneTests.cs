@@ -34,7 +34,7 @@ namespace VoxelEngine.Structures.Tests.PlayMode
             }
             finally
             {
-                Object.Destroy(host);
+                UnityEngine.Object.Destroy(host);
                 if (previousRuntimeUi.HasValue && debugManager != null && runtimeUiProperty != null)
                     runtimeUiProperty.SetValue(debugManager, previousRuntimeUi.Value);
             }
