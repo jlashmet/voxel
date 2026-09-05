@@ -1,0 +1,25 @@
+{
+  "name": "Game.WorldBuilder.NewHouseReference.Validation",
+  "rootNamespace": "Game.WorldBuilder.Validation.NewHouseReference",
+  "references": [
+    "Game.Composition.Materials",
+    "Game.Composition.Showcase",
+    "Game.Materials.Api",
+    "Game.WorldBuilder.Voxel",
+    "VoxelEngine.Composition.Api",
+    "VoxelEngine.Composition",
+    "VoxelEngine.Storage.Api",
+    "VoxelEngine.Structures.Api",
+    "VoxelEngine.Terrain.Api",
+    "Unity.Mathematics"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
