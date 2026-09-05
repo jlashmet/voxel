@@ -413,6 +413,17 @@ namespace VoxelEngine.Showcase
             }
         }
 
+        private static DecorationInteractionFlags InteractionOf(in DecorationShowcaseRealization realization)
+        {
+            switch (realization.Kind)
+            {
+                case DecorationShowcaseRealizationKind.Decoration: return realization.Decoration.Interaction;
+                case DecorationShowcaseRealizationKind.MineCave: return realization.MineCave.Interaction;
+                case DecorationShowcaseRealizationKind.NaturalCave: return realization.NaturalCave.Interaction;
+                default: return DecorationInteractionFlags.None;
+            }
+        }
+
         private void Frame(in DecorationBounds bounds)
         {
             Vector3 centre = BoundsCentre(bounds);
@@ -464,41 +475,101 @@ namespace VoxelEngine.Showcase
         {
             if (!_captureAutomation || _entries.Length == 0) return;
             float elapsed = Time.unscaledTime - _captureStartedAt;
-            if (_capturePhase == 0 && elapsed >= 5f)
+            if (_capturePhase == 0 && elapsed >= 4f)
+            {
+                int target = FindFirstRealization(r =>
+                    r.Kind == DecorationShowcaseRealizationKind.Decoration &&
+                    r.Bounds.Size.x <= 6 && r.Bounds.Size.y <= 8 && r.Bounds.Size.z <= 6);
+                Select(target >= 0 ? target : 0);
+                Debug.Log($"PROP_SHOWCASE_VALIDATION tiny selected={SelectedStableId} owned={OwnedPresentationCount}");
+                _capturePhase = 1;
+            }
+            else if (_capturePhase == 1 && elapsed >= 9f)
             {
                 int target = FindFirst(e => e.Source == DecorationShowcaseEntrySource.RegisteredDecoration &&
                                             e.DisplayName.IndexOf("Table", StringComparison.OrdinalIgnoreCase) >= 0);
                 if (target < 0) target = _entries.Length / 4;
                 Select(target);
                 Debug.Log($"PROP_SHOWCASE_VALIDATION medium selected={SelectedStableId} owned={OwnedPresentationCount}");
-                _capturePhase = 1;
-            }
-            else if (_capturePhase == 1 && elapsed >= 11f)
-            {
-                int target = FindFirst(e => e.Source == DecorationShowcaseEntrySource.RegisteredDecoration &&
-                                            e.DisplayName.IndexOf("Banner", StringComparison.OrdinalIgnoreCase) >= 0);
-                if (target < 0) target = FindFirst(e => e.Source == DecorationShowcaseEntrySource.NaturalCave);
-                Select(target >= 0 ? target : 0);
-                Debug.Log($"PROP_SHOWCASE_VALIDATION thin selected={SelectedStableId} owned={OwnedPresentationCount}");
                 _capturePhase = 2;
             }
-            else if (_capturePhase == 2 && elapsed >= 17f)
+            else if (_capturePhase == 2 && elapsed >= 14f)
             {
-                int target = FindFirst(e => e.Source == DecorationShowcaseEntrySource.MineCave &&
-                                            e.DisplayName.IndexOf("Rope", StringComparison.OrdinalIgnoreCase) >= 0);
-                Select(target >= 0 ? target : _entries.Length / 2);
-                Debug.Log($"PROP_SHOWCASE_VALIDATION procedural selected={SelectedStableId} owned={OwnedPresentationCount}");
+                int target = FindLargestRealization();
+                Select(target >= 0 ? target : _entries.Length - 1);
+                Debug.Log($"PROP_SHOWCASE_VALIDATION large selected={SelectedStableId} owned={OwnedPresentationCount}");
                 _capturePhase = 3;
             }
-            else if (_capturePhase == 3 && elapsed >= 23f)
+            else if (_capturePhase == 3 && elapsed >= 19f)
             {
-                int target = FindFirst(e => e.Source == DecorationShowcaseEntrySource.WorldObject &&
-                                            e.DisplayName.IndexOf("Elevator", StringComparison.OrdinalIgnoreCase) >= 0);
-                Select(target >= 0 ? target : _entries.Length - 1);
-                Debug.Log($"PROP_SHOWCASE_VALIDATION world-object selected={SelectedStableId} owned={OwnedPresentationCount}");
+                int target = FindFirstRealization(r =>
+                    r.Kind == DecorationShowcaseRealizationKind.Decoration &&
+                    r.Decoration.Backend == DecorationRenderBackend.ThinSurface &&
+                    math.abs(r.Decoration.Facing.y) == 0);
+                Select(target >= 0 ? target : 0);
+                Debug.Log($"PROP_SHOWCASE_VALIDATION thin-wall selected={SelectedStableId} owned={OwnedPresentationCount}");
                 _capturePhase = 4;
             }
-            else if (_capturePhase == 4 && elapsed >= 29f)
+            else if (_capturePhase == 4 && elapsed >= 24f)
+            {
+                int target = FindFirstRealization(r =>
+                    r.Kind == DecorationShowcaseRealizationKind.Decoration &&
+                    r.Decoration.Facing.y < 0);
+                Select(target >= 0 ? target : 0);
+                Debug.Log($"PROP_SHOWCASE_VALIDATION ceiling selected={SelectedStableId} owned={OwnedPresentationCount}");
+                _capturePhase = 5;
+            }
+            else if (_capturePhase == 5 && elapsed >= 29f)
+            {
+                int target = FindFirstRealization(r =>
+                    r.Kind != DecorationShowcaseRealizationKind.WorldObject &&
+                    r.DecorationBackend == DecorationRenderBackend.VoxelStamp);
+                Select(target >= 0 ? target : 0);
+                Debug.Log($"PROP_SHOWCASE_VALIDATION voxel-stamp selected={SelectedStableId} owned={OwnedPresentationCount}");
+                _capturePhase = 6;
+            }
+            else if (_capturePhase == 6 && elapsed >= 34f)
+            {
+                int target = FindFirstRealization(r =>
+                    r.Kind != DecorationShowcaseRealizationKind.WorldObject &&
+                    r.DecorationBackend == DecorationRenderBackend.ProceduralMesh);
+                Select(target >= 0 ? target : 0);
+                Debug.Log($"PROP_SHOWCASE_VALIDATION procedural selected={SelectedStableId} owned={OwnedPresentationCount}");
+                _capturePhase = 7;
+            }
+            else if (_capturePhase == 7 && elapsed >= 39f)
+            {
+                int target = FindFirstRealization(r =>
+                    (InteractionOf(in r) & DecorationInteractionFlags.EmitsLight) != 0);
+                Select(target >= 0 ? target : 0);
+                Debug.Log($"PROP_SHOWCASE_VALIDATION emissive selected={SelectedStableId} owned={OwnedPresentationCount}");
+                _capturePhase = 8;
+            }
+            else if (_capturePhase == 8 && elapsed >= 44f)
+            {
+                int target = FindFirstRealization(r =>
+                {
+                    DecorationInteractionFlags flags = InteractionOf(in r);
+                    return (flags & DecorationInteractionFlags.Container) != 0 &&
+                           (flags & DecorationInteractionFlags.Movable) != 0;
+                });
+                Select(target >= 0 ? target : 0);
+                Debug.Log($"PROP_SHOWCASE_VALIDATION container-movable selected={SelectedStableId} owned={OwnedPresentationCount}");
+                _capturePhase = 9;
+            }
+            else if (_capturePhase == 9 && elapsed >= 49f)
+            {
+                int target = FindFirstRealization(r =>
+                {
+                    if (r.Kind != DecorationShowcaseRealizationKind.WorldObject) return false;
+                    WorldObjectPresentationPlan plan = WorldObjectPresentationPlanner.Plan(in r.WorldObject);
+                    return plan.InteractionEnabled;
+                });
+                Select(target >= 0 ? target : _entries.Length - 1);
+                Debug.Log($"PROP_SHOWCASE_VALIDATION interactive-world-object selected={SelectedStableId} owned={OwnedPresentationCount}");
+                _capturePhase = 10;
+            }
+            else if (_capturePhase == 10 && elapsed >= 54f)
             {
                 // Deterministic lifecycle stress: many replacements in one frame sequence, then leave
                 // one valid representative selected for capture/evidence.
@@ -511,14 +582,14 @@ namespace VoxelEngine.Showcase
                 Debug.Log(
                     $"PROP_SHOWCASE_VALIDATION stress switches={_switchCount} owned={OwnedPresentationCount} " +
                     $"peakOwned={_peakOwnedPresenters} lastSwitchMs={_lastSwitchMs:0.0}");
-                _capturePhase = 5;
+                _capturePhase = 11;
             }
-            else if (_capturePhase == 5 && elapsed >= 36f)
+            else if (_capturePhase == 11 && elapsed >= 61f)
             {
                 Debug.Log(
                     $"PROP_SHOWCASE_VALIDATION complete selected={SelectedStableId} switches={_switchCount} " +
                     $"owned={OwnedPresentationCount} peakOwned={_peakOwnedPresenters}");
-                _capturePhase = 6;
+                _capturePhase = 12;
             }
         }
 
@@ -527,6 +598,36 @@ namespace VoxelEngine.Showcase
             for (int i = 0; i < _entries.Length; i++)
                 if (predicate(_entries[i])) return i;
             return -1;
+        }
+
+        private int FindFirstRealization(Predicate<DecorationShowcaseRealization> predicate)
+        {
+            for (int i = 0; i < _entries.Length; i++)
+            {
+                DecorationShowcaseEntry entry = _entries[i];
+                if (!DecorationShowcaseRealizer.TryCreate(in entry, in _context, out DecorationShowcaseRealization realization))
+                    continue;
+                if (predicate(realization)) return i;
+            }
+            return -1;
+        }
+
+        private int FindLargestRealization()
+        {
+            int largestIndex = -1;
+            long largestVolume = -1;
+            for (int i = 0; i < _entries.Length; i++)
+            {
+                DecorationShowcaseEntry entry = _entries[i];
+                if (!DecorationShowcaseRealizer.TryCreate(in entry, in _context, out DecorationShowcaseRealization realization))
+                    continue;
+                int3 size = realization.Bounds.Size;
+                long volume = (long)size.x * size.y * size.z;
+                if (volume <= largestVolume) continue;
+                largestVolume = volume;
+                largestIndex = i;
+            }
+            return largestIndex;
         }
 
         private static bool IsPlayerCaptureHarness()
