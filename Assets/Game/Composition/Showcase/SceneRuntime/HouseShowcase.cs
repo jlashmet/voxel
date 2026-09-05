@@ -27,11 +27,13 @@ namespace VoxelEngine.Showcase
         private const int HouseDepth = 128;
         private const uint StructureId = 0x48534F57u;
         private const int RegenerationSearchLimit = 64;
+        private const uint RegenerationStep = 0x9E3779B9u;
 
         private IVoxelStorageRuntime _storage;
         private Camera _camera;
         private GuildHouseDescriptor[] _houses = Array.Empty<GuildHouseDescriptor>();
         private GuildHouseFurnishingOption[] _options = Array.Empty<GuildHouseFurnishingOption>();
+        private GuildHouseResolvedRoom[] _resolvedRooms = Array.Empty<GuildHouseResolvedRoom>();
         private readonly HashSet<ushort> _selected = new HashSet<ushort>();
         private readonly Dictionary<ushort, GuildHouseUnplacedReason> _unplaced =
             new Dictionary<ushort, GuildHouseUnplacedReason>();
@@ -94,9 +96,9 @@ namespace VoxelEngine.Showcase
             if (RenderingComposition.TryGetSurfaceBuildStatus(
                     out int known, out int dirty, out int resident, out long bytes))
             {
-                _status = dirty == 0 && resident >= known
-                    ? $"READY  {bytes / (1024f * 1024f):0.0} MB"
-                    : $"MESHING  {resident}/{known}";
+                _status = dirty == 0
+                    ? $"READY  {resident}/{known}  {bytes / (1024f * 1024f):0.0} MB"
+                    : $"MESHING  {resident}/{known}  dirty={dirty}";
             }
 
             UpdateCaptureAutomation();
@@ -191,10 +193,10 @@ namespace VoxelEngine.Showcase
 
             GuildHousePrototype baseline = _prototype;
             GuildHouseDescriptor house = CurrentHouse;
-            uint candidate = _seed;
-            for (int attempt = 0; attempt < RegenerationSearchLimit; attempt++)
+            uint baselineSeed = _seed;
+            for (uint delta = 1; delta <= RegenerationSearchLimit; delta++)
             {
-                candidate = NextSeed(candidate);
+                uint candidate = unchecked(baselineSeed + delta * RegenerationStep);
                 GuildHousePrototype probe = GuildHousePrototypeComposition.Build(
                     house.Kind,
                     DecorationRegionTheme.Kentridge,
@@ -237,6 +239,12 @@ namespace VoxelEngine.Showcase
                 house.PreferredRooms);
             if (!_prototype.IsWellFormed)
                 throw new InvalidOperationException($"Production house composition failed for {house.DisplayName}.");
+            if (!GuildHouseFurnishingResolver.TryResolvePrototype(
+                    in _prototype,
+                    in palette,
+                    out _resolvedRooms,
+                    out GuildHouseUnplacedFurnishing[] resolvedUnplaced))
+                throw new InvalidOperationException("Production furnishing resolution failed.");
 
             _storage = VoxelEngineBootstrap.CreateStorage(16, 64_000);
             MaterialDefinition[] materials = GameMaterialComposition.SimulationDefinitions();
@@ -258,6 +266,8 @@ namespace VoxelEngine.Showcase
                 throw new InvalidOperationException("Production furnished-house authoring failed.");
             if (authoring.BudgetExceeded)
                 throw new InvalidOperationException("HouseShowcase exceeded its production authoring budget.");
+            if (!SameUnplaced(resolvedUnplaced, unplaced))
+                throw new InvalidOperationException("Production furnishing diagnostics changed between resolution and authoring.");
 
             _unplaced.Clear();
             for (int i = 0; i < unplaced.Length; i++)
@@ -311,7 +321,7 @@ namespace VoxelEngine.Showcase
                 new Color(0.45f, 0.53f, 0.60f, 1f));
             _camera.clearFlags = CameraClearFlags.SolidColor;
             _camera.backgroundColor = new Color(0.60f, 0.69f, 0.75f, 1f);
-            _camera.fieldOfView = 48f;
+            _camera.fieldOfView = 42f;
             _camera.nearClipPlane = 0.05f;
             _camera.farClipPlane = 220f;
             _camera.allowHDR = false;
@@ -319,14 +329,21 @@ namespace VoxelEngine.Showcase
 
         private void FrameExterior()
         {
-            if (_camera == null || !_prototype.IsWellFormed || _prototype.Rooms.Length == 0) return;
-            VoxelBounds bounds = PrototypeBounds(in _prototype);
-            float3 centre = ((float3)bounds.Min + (float3)bounds.MaxExclusive) * 0.5f;
-            float3 size = (float3)(bounds.MaxExclusive - bounds.Min);
-            Vector3 focus = ToWorld(centre);
-            float distance = Mathf.Max(14f, math.max(size.x, size.z) * VoxelSize * 1.25f);
-            float height = Mathf.Max(7f, size.y * VoxelSize * 0.75f + 3f);
-            _camera.transform.position = focus + new Vector3(-distance * 0.72f, height, -distance * 0.72f);
+            if (_camera == null || !_prototype.IsWellFormed) return;
+            GuildHouseSpatialPlan plan = _prototype.SpatialPlan;
+            float width = plan.Width * VoxelSize;
+            float depth = plan.Depth * VoxelSize;
+            float structuralHeight = Mathf.Max(3f, plan.FloorCount * plan.FloorHeight * VoxelSize);
+            float baseY = plan.Origin.y * VoxelSize;
+            Vector3 focus = new Vector3(
+                (plan.Origin.x + plan.Width * 0.5f) * VoxelSize,
+                baseY + structuralHeight * 0.46f,
+                (plan.Origin.z + plan.Depth * 0.28f) * VoxelSize);
+            float distance = Mathf.Max(14f, Mathf.Max(width, depth) * 1.35f);
+            _camera.transform.position = focus + new Vector3(
+                width * 0.38f,
+                Mathf.Max(1.4f, structuralHeight * 0.10f),
+                -distance);
             _camera.transform.LookAt(focus);
         }
 
@@ -335,26 +352,73 @@ namespace VoxelEngine.Showcase
             if (_camera == null || !_prototype.IsWellFormed || _prototype.Rooms.Length == 0) return;
             int roomIndex = FindBestInteriorRoom();
             GuildHouseSpatialRoom room = _prototype.Rooms[roomIndex].SpatialRoom;
-            float3 centre = ((float3)room.Min + (float3)room.MaxExclusive) * (0.5f * VoxelSize);
-            _camera.transform.position = new Vector3(centre.x, room.Min.y * VoxelSize + 1.55f, centre.z);
-            Vector3 target = _camera.transform.position + new Vector3(1f, 0f, 1f);
+            float3 roomCentreVoxels = ((float3)room.Min + (float3)room.MaxExclusive) * 0.5f;
+            Vector3 roomCentre = ToWorld(roomCentreVoxels);
+            Vector3 target = roomCentre + new Vector3(1f, 0f, 1f);
+
+            if (_resolvedRooms.Length == _prototype.Rooms.Length)
+            {
+                DecorationPlacement[] placements = _resolvedRooms[roomIndex].Placements;
+                DecorationPlacement chosen = default;
+                bool found = false;
+                for (int i = 0; i < placements.Length; i++)
+                {
+                    ushort stableId = DecorationCanonicalPlacementCatalog.StableIdOfVariant(placements[i].Variant);
+                    if (!_selected.Contains(stableId)) continue;
+                    chosen = placements[i];
+                    found = true;
+                    break;
+                }
+                if (!found && placements.Length > 0)
+                {
+                    chosen = placements[0];
+                    found = true;
+                }
+                if (found)
+                {
+                    float3 placementCentre =
+                        ((float3)chosen.Bounds.Min + (float3)chosen.Bounds.MaxExclusive) * (0.5f * VoxelSize);
+                    target = new Vector3(placementCentre.x, placementCentre.y, placementCentre.z);
+                }
+            }
+
+            float minX = room.Min.x * VoxelSize + 0.65f;
+            float maxX = room.MaxExclusive.x * VoxelSize - 0.65f;
+            float minZ = room.Min.z * VoxelSize + 0.65f;
+            float maxZ = room.MaxExclusive.z * VoxelSize - 0.65f;
+            Vector3 position = target + new Vector3(-2.2f, 0f, -2.2f);
+            position.x = minX <= maxX ? Mathf.Clamp(position.x, minX, maxX) : roomCentre.x;
+            position.z = minZ <= maxZ ? Mathf.Clamp(position.z, minZ, maxZ) : roomCentre.z;
+            position.y = room.Min.y * VoxelSize + 1.55f;
+            target.y = Mathf.Clamp(target.y, position.y - 0.65f, position.y + 0.55f);
+            if ((new Vector2(target.x - position.x, target.z - position.z)).sqrMagnitude < 0.7f)
+                target += new Vector3(1.2f, 0f, 1.2f);
+
+            _camera.transform.position = position;
             _camera.transform.LookAt(target);
         }
 
         private int FindBestInteriorRoom()
         {
             int fallback = 0;
+            int placementFallback = -1;
             for (int i = 0; i < _prototype.Rooms.Length; i++)
             {
                 GuildHouseRoomComposition room = _prototype.Rooms[i];
                 if ((room.Context.Environment & DecorationEnvironmentTags.Interior) != DecorationEnvironmentTags.Interior)
                     continue;
                 fallback = i;
-                for (int optionIndex = 0; optionIndex < room.OptionalArchetypes.Length; optionIndex++)
-                    if (_selected.Contains(room.OptionalArchetypes[optionIndex]))
-                        return i;
+                if (_resolvedRooms.Length != _prototype.Rooms.Length) continue;
+                DecorationPlacement[] placements = _resolvedRooms[i].Placements;
+                if (placements.Length > 0 && placementFallback < 0) placementFallback = i;
+                for (int placementIndex = 0; placementIndex < placements.Length; placementIndex++)
+                {
+                    ushort stableId = DecorationCanonicalPlacementCatalog.StableIdOfVariant(
+                        placements[placementIndex].Variant);
+                    if (_selected.Contains(stableId)) return i;
+                }
             }
-            return fallback;
+            return placementFallback >= 0 ? placementFallback : fallback;
         }
 
         private void ShutdownWorld()
@@ -362,6 +426,7 @@ namespace VoxelEngine.Showcase
             RenderingComposition.ClearWorld();
             _storage?.Dispose();
             _storage = null;
+            _resolvedRooms = Array.Empty<GuildHouseResolvedRoom>();
             _built = false;
         }
 
@@ -377,43 +442,52 @@ namespace VoxelEngine.Showcase
             if (!_captureAutomation) return;
             float elapsed = Time.unscaledTime - _captureStartedAt;
 
-            if (_capturePhase == 0 && elapsed >= 6f)
+            try
             {
-                FrameInterior();
-                Debug.Log(
-                    $"HOUSE_SHOWCASE_VALIDATION interior house={CurrentHouse.Key} seed={_seed} " +
-                    $"selected={_selected.Count} unplaced={_unplaced.Count}");
-                _capturePhase = 1;
+                if (_capturePhase == 0 && elapsed >= 6f)
+                {
+                    FrameInterior();
+                    Debug.Log(
+                        $"HOUSE_SHOWCASE_VALIDATION interior house={CurrentHouse.Key} seed={_seed} " +
+                        $"selected={_selected.Count} unplaced={_unplaced.Count}");
+                    _capturePhase = 1;
+                }
+                else if (_capturePhase == 1 && elapsed >= 16f)
+                {
+                    string previous = CurrentHouse.Key;
+                    int previousOptions = _options.Length;
+                    int knight = FindHouseIndex(GuildHouseKind.Knights);
+                    if (knight < 0)
+                        throw new InvalidOperationException("HouseShowcase capture could not find Knights production house.");
+                    SelectHouse(knight, resetSelection: true);
+                    Debug.Log(
+                        $"HOUSE_SHOWCASE_VALIDATION switched from={previous} to={CurrentHouse.Key} " +
+                        $"previousOptions={previousOptions} options={_options.Length} selected={_selected.Count}");
+                    _capturePhase = 2;
+                }
+                else if (_capturePhase == 2 && elapsed >= 26f)
+                {
+                    uint before = _seed;
+                    Regenerate();
+                    Debug.Log(
+                        $"HOUSE_SHOWCASE_VALIDATION regenerated house={CurrentHouse.Key} fromSeed={before} " +
+                        $"toSeed={_seed} spatialChanged=true selected={_selected.Count}");
+                    _capturePhase = 3;
+                }
+                else if (_capturePhase == 3 && elapsed >= 36f)
+                {
+                    FrameInterior();
+                    Debug.Log(
+                        $"HOUSE_SHOWCASE_VALIDATION complete house={CurrentHouse.Key} seed={_seed} " +
+                        $"houses={_houses.Length} selected={_selected.Count} unplaced={_unplaced.Count}");
+                    _capturePhase = 4;
+                }
             }
-            else if (_capturePhase == 1 && elapsed >= 12f)
+            catch (Exception ex)
             {
-                string previous = CurrentHouse.Key;
-                int previousOptions = _options.Length;
-                int knight = FindHouseIndex(GuildHouseKind.Knights);
-                if (knight < 0)
-                    throw new InvalidOperationException("HouseShowcase capture could not find Knights production house.");
-                SelectHouse(knight, resetSelection: true);
-                Debug.Log(
-                    $"HOUSE_SHOWCASE_VALIDATION switched from={previous} to={CurrentHouse.Key} " +
-                    $"previousOptions={previousOptions} options={_options.Length} selected={_selected.Count}");
-                _capturePhase = 2;
-            }
-            else if (_capturePhase == 2 && elapsed >= 18f)
-            {
-                uint before = _seed;
-                Regenerate();
-                Debug.Log(
-                    $"HOUSE_SHOWCASE_VALIDATION regenerated house={CurrentHouse.Key} fromSeed={before} " +
-                    $"toSeed={_seed} spatialChanged=true selected={_selected.Count}");
-                _capturePhase = 3;
-            }
-            else if (_capturePhase == 3 && elapsed >= 24f)
-            {
-                FrameInterior();
-                Debug.Log(
-                    $"HOUSE_SHOWCASE_VALIDATION complete house={CurrentHouse.Key} seed={_seed} " +
-                    $"houses={_houses.Length} selected={_selected.Count} unplaced={_unplaced.Count}");
-                _capturePhase = 4;
+                _capturePhase = int.MaxValue;
+                Debug.LogError("HOUSE_SHOWCASE_VALIDATION failure: " + ex.Message);
+                throw;
             }
         }
 
@@ -435,11 +509,6 @@ namespace VoxelEngine.Showcase
             return false;
         }
 
-        private static uint NextSeed(uint seed)
-        {
-            unchecked { return seed * 1664525u + 1013904223u; }
-        }
-
         private static bool SameSpatialSignature(in GuildHousePrototype first, in GuildHousePrototype second)
         {
             if (first.SpatialPlan.ShellStyle != second.SpatialPlan.ShellStyle ||
@@ -459,29 +528,15 @@ namespace VoxelEngine.Showcase
             return true;
         }
 
-        private readonly struct VoxelBounds
+        private static bool SameUnplaced(
+            GuildHouseUnplacedFurnishing[] first,
+            GuildHouseUnplacedFurnishing[] second)
         {
-            public readonly int3 Min;
-            public readonly int3 MaxExclusive;
-
-            public VoxelBounds(int3 min, int3 maxExclusive)
-            {
-                Min = min;
-                MaxExclusive = maxExclusive;
-            }
-        }
-
-        private static VoxelBounds PrototypeBounds(in GuildHousePrototype prototype)
-        {
-            int3 min = prototype.Rooms[0].SpatialRoom.Min;
-            int3 max = prototype.Rooms[0].SpatialRoom.MaxExclusive;
-            for (int i = 1; i < prototype.Rooms.Length; i++)
-            {
-                GuildHouseSpatialRoom room = prototype.Rooms[i].SpatialRoom;
-                min = math.min(min, room.Min);
-                max = math.max(max, room.MaxExclusive);
-            }
-            return new VoxelBounds(min, max);
+            if (first.Length != second.Length) return false;
+            for (int i = 0; i < first.Length; i++)
+                if (first[i].StableId != second[i].StableId || first[i].Reason != second[i].Reason)
+                    return false;
+            return true;
         }
 
         private static Vector3 ToWorld(float3 voxels) =>
