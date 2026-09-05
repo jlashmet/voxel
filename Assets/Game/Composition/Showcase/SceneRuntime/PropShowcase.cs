@@ -34,6 +34,7 @@ namespace VoxelEngine.Showcase
         private IVoxelStorageRuntime _storage;
         private DecorationShowcaseEntry[] _entries = Array.Empty<DecorationShowcaseEntry>();
         private DecorationContext _context;
+        private GameObject _presentationRoot;
         private DecorationProceduralMeshPresenter _procedural;
         private DecorationThinSurfacePresenter _thin;
         private UnityWorldObjectPresentationSink _worldObjects;
@@ -105,6 +106,15 @@ namespace VoxelEngine.Showcase
             if (!Application.isPlaying) return;
             ClearSelectionPresentation();
             RenderingComposition.ClearWorld();
+            if (_presentationRoot != null)
+                Destroy(_presentationRoot);
+            _presentationRoot = null;
+            _procedural = null;
+            _thin = null;
+            _worldObjects = null;
+            _floor = null;
+            _support = null;
+            _keyLight = null;
         }
 
         private void Update()
@@ -323,31 +333,34 @@ namespace VoxelEngine.Showcase
 
         private void CreateOwnedPresenters()
         {
-            _procedural = gameObject.GetComponent<DecorationProceduralMeshPresenter>();
-            if (_procedural == null) _procedural = gameObject.AddComponent<DecorationProceduralMeshPresenter>();
-            _thin = gameObject.GetComponent<DecorationThinSurfacePresenter>();
-            if (_thin == null) _thin = gameObject.AddComponent<DecorationThinSurfacePresenter>();
-            _worldObjects = gameObject.GetComponent<UnityWorldObjectPresentationSink>();
-            if (_worldObjects == null) _worldObjects = gameObject.AddComponent<UnityWorldObjectPresentationSink>();
+            _presentationRoot = new GameObject("PropShowcase Presentation Root");
+            _presentationRoot.transform.position = Vector3.zero;
+            _presentationRoot.transform.rotation = Quaternion.identity;
+            _presentationRoot.transform.localScale = Vector3.one;
+            _procedural = _presentationRoot.AddComponent<DecorationProceduralMeshPresenter>();
+            _thin = _presentationRoot.AddComponent<DecorationThinSurfacePresenter>();
+            _worldObjects = _presentationRoot.AddComponent<UnityWorldObjectPresentationSink>();
         }
 
         private void CreateNeutralEnvironment()
         {
+            Transform presentationTransform = _presentationRoot.transform;
+
             _floor = GameObject.CreatePrimitive(PrimitiveType.Plane);
             _floor.name = "PropShowcase Neutral Floor";
-            _floor.transform.SetParent(transform, false);
+            _floor.transform.SetParent(presentationTransform, false);
             if (TryResolve(GameMaterialIds.Stone, out Material floorMaterial))
                 _floor.GetComponent<MeshRenderer>().sharedMaterial = floorMaterial;
 
             _support = GameObject.CreatePrimitive(PrimitiveType.Plane);
             _support.name = "PropShowcase Neutral Support";
-            _support.transform.SetParent(transform, false);
+            _support.transform.SetParent(presentationTransform, false);
             if (TryResolve(GameMaterialIds.MasonrySmall, out Material supportMaterial))
                 _support.GetComponent<MeshRenderer>().sharedMaterial = supportMaterial;
             _support.SetActive(false);
 
             var lightObject = new GameObject("PropShowcase Key Light");
-            lightObject.transform.SetParent(transform, false);
+            lightObject.transform.SetParent(presentationTransform, false);
             lightObject.transform.rotation = Quaternion.Euler(48f, -35f, 0f);
             _keyLight = lightObject.AddComponent<Light>();
             _keyLight.type = LightType.Directional;
