@@ -9,7 +9,8 @@ Built `VoxelShowcase` must show one substantial grounded natural mountain with a
 - `ShowcaseMountainDragonLayout`: scene-only mountain/road/dragon policy.
 - `CharacterMotor`: shared collision/movement; fix only reusable demonstrated defects.
 - `Game.Input.Runtime`: physical input ownership; production Showcase must not require legacy Input Manager.
-- `FeaturePresentationBake` -> `FarFeaturePresentationAdapter` -> `ProceduralFarFeatureRenderer`: generic far-feature presentation; preserve canonical shape/material semantics without producer-specific recipes.
+- `Game.Cutscenes`: shared cue runtime and dialogue presentation; module-local EditMode + standalone player own this feature-added behavior.
+- `FeaturePresentationBake` -> `FarFeaturePresentationAdapter` -> `ProceduralFarFeatureRenderer`: generic far-feature presentation; preserve canonical shape/material semantics without producer-specific recipes. VoxelEngine Composition owns headless contract/provenance tests; Rendering owns the player-visible FarWorld validation.
 - startup-bake provenance: exact source-to-payload binding.
 
 ## Proven state
@@ -34,24 +35,30 @@ The SceneIssue player reached waypoint 32/95 grounded, then physically reached t
 
 The refreshed fixture now maps path-base to authoritative road point 0, traverses every subsequent road point in order, and maps lower/mid/upper/summit captures to current resolved points. Expected vertical offsets come directly from resolved Y relative to path-base. The evidence regression checks full route coverage and semantic Y derivation so this class of stale fixture fails before another long player timeout.
 
+## Exact run 33985235532 infrastructure discriminator
+Run `33985235532` attempt 2 selected exact feature source `1213743e568a04d6dc4c43e53e33b37198ce89f5`. Its persistent Unity test phase exited 0 after 409 seconds, and real-player validations including MountainDragon, CharacterMotor, Input, and FarWorld completed successfully. The 20-minute workflow budget was then exhausted while the broad automatic plan was still running Water. The `always()` SceneIssue step inherited the cancelled Unity process and correctly refused a second editor; artifact ZIP creation raced that cleanup. The run is therefore infrastructure/non-accepting, not a Mountain Dragon product failure.
+
+The planner had broad-fallbacked because feature-added `Assets/Game/Cutscenes/**`, `Assets/VoxelEngine/Composition/**`, and the CI-only `Assets/Editor/CI/VoxelCiRenderingDebuggerGuard.cs` lacked repository-owned classification. The corrective boundary is structural rather than a timeout increase: Cutscenes now owns focused EditMode tests plus a module-local standalone production dialogue scene, Composition owns focused headless provenance tests while its player-visible consumer remains Rendering/FarWorld, and `Assets/Editor/CI/**` is explicitly non-production with a planner regression. Experiment 035 records the discriminator. The next exact run must have no fallback paths and must reach the SceneIssue replay without weakening the 20-minute workflow, 240-second bake, or 14-GiB limits.
+
 ## Current visual root cause and correction
 Human review of exact `b6f9b259...` captures from run `33957939661` rejects both approach and path base: bright magenta/purple slab-like semantic proxies dominate the mountain and bury the readable road entrance. That source predates six later generic far-feature/near-surface commits ending at `79ac79900143524cb9006c09078f493f6fe8c82c`, including semantic-proxy retirement inside published near coverage. Those later changes remain unproven until a fresh exact built-player run.
 
 The reusable far-feature correction also preserves canonical frustum taper/material through the generic contract, renders tapered radial massing instead of conservative AABB fallback, and resolves albedo from the installed voxel presentation catalogue. Rendering-local regressions and the module-owned FarWorld player exercise that path. No producer name, scene id, or game material vocabulary is added to Rendering.
 
 ## Master synchronization
-Per `master-sync-required.md`, then-current `origin/master` `af61066de669431a6555e737887bd5d4031525b8` was merged—not rebased/cherry-picked—into `fixes/agent-4` as merge commit `d7b265749831613d4d057d99d8066181d3dfcb08` before these corrections. The overlapping Showcase asmdef correctly retains Mountain Dragon cutscene/input references plus master's `Unity.InputSystem` reference. A fresh master merge is still required before final promotion if master advances.
+Per `master-sync-required.md`, then-current `origin/master` `af61066de669431a6555e737887bd5d4031525b8` was merged—not rebased/cherry-picked—into `fixes/agent-4` as merge commit `d7b265749831613d4d057d99d8066181d3dfcb08` before these corrections. Current `origin/master` has since advanced, so a fresh master merge remains required before final promotion.
 
 ## Next exact-SHA gate
-After committing the regenerated evidence fixture, regression, module-player correction, and durable experiment record, run the exact current feature head through only `ci-test/fixes/agent-4`, requesting `VoxelEngine.Showcase.Tests.EditMode.ShowcaseStartupBakeArtifactTests.CurrentSourceBakeExportsPayloadAndMatchingManifest` with this SceneIssue replay and explicit ~210 s replay budget. In that one checkout require:
-1. current-source bake + matching manifest under unchanged 240 s / 14 GiB contracts;
-2. repository-derived module validation for every affected module, including corrected CharacterMotor and FarWorld players;
-3. production `VoxelShowcase` log with no game-side legacy-input or other startup/runtime exception;
-4. `WAYPOINT_REPLAY` setup/arm/reached/vertical/complete through all 92 evidence waypoints: one normal approach plus every point of the authoritative 91-point road;
-5. summit collision/proximity cutscene and exact `Hello, I'm Mr. Dragon.` dialogue; and
-6. fresh approach/path-base/lower-mid-upper/summit screenshots suitable for human review and free of rejected white/magenta slab/AABB presentation.
+Run the exact current feature head through only `ci-test/fixes/agent-4`, requesting `VoxelEngine.Showcase.Tests.EditMode.ShowcaseStartupBakeArtifactTests.CurrentSourceBakeExportsPayloadAndMatchingManifest` with this SceneIssue replay and explicit ~210 s replay budget. In that one checkout require:
+1. the automatic planner reports no fallback paths and repository-derived validation completes within the unchanged workflow budget;
+2. current-source bake + matching manifest under unchanged 240 s / 14 GiB contracts;
+3. affected module validation, including Cutscenes, CharacterMotor, Input, Composition regressions, and FarWorld;
+4. production `VoxelShowcase` log with no game-side legacy-input or other startup/runtime exception;
+5. `WAYPOINT_REPLAY` setup/arm/reached/vertical/complete through all 92 evidence waypoints: one normal approach plus every point of the authoritative 91-point road;
+6. summit collision/proximity cutscene and exact `Hello, I'm Mr. Dragon.` dialogue; and
+7. fresh approach/path-base/lower-mid-upper/summit screenshots suitable for human review and free of rejected white/magenta slab/AABB presentation.
 
-If the far-feature, route-regression, or module-player correction fails compilation or focused validation, fix only that demonstrated seam before changing mountain/road policy. If the full replay becomes valid but fresh screenshots still fail visual acceptance, diagnose the exact new built-player artifact before another geometry change; retain open-sky, grade/cut-fill, route, and CharacterMotor regressions rather than re-litigating falsified hypotheses.
+If the ownership correction, far-feature, route-regression, or module-player correction fails compilation or focused validation, fix only that demonstrated seam before changing mountain/road policy. If the full replay becomes valid but fresh screenshots still fail visual acceptance, diagnose the exact new built-player artifact before another geometry change; retain open-sky, grade/cut-fill, route, and CharacterMotor regressions rather than re-litigating falsified hypotheses.
 
 ## Remaining gates
 After a valid exception-free current-source replay, human-review the exact production approach, path base, representative lower/mid/upper ascent, and summit. Require one coherent natural mountain, an open continuous carved/graded road with no trench/tunnel/causeway/floating artifacts, supported dragon, and exact proximity dialogue. Only after visual acceptance may the candidate payload/manifest become the checked-in startup payload. Then make normal editor bake emit matching manifest, prove clean-checkout consumption, complete every checkbox and `issue.json` criterion, move only this task `open -> closed`, fetch/merge then-current master as required, revalidate the exact final feature SHA, and promote only through PR + auto-merge.
