@@ -8,6 +8,7 @@
         "Game.Composition.WorldObjects.Runtime",
         "Game.Cutscenes.Api",
         "Game.Cutscenes.Presentation",
+        "Game.Input.Runtime",
         "VoxelEngine.Storage.Api",
         "VoxelEngine.Composition.Api",
         "VoxelEngine.Composition",
