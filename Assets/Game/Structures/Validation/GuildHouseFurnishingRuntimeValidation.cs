@@ -36,6 +36,7 @@ namespace Game.Structures.Validation
         private int _phase;
         private int _rebuilds;
         private int _activeWorlds;
+        private int _selectionLimit = 6;
         private uint _knightSeed = 0x22002200u;
 
         private void OnEnable()
@@ -74,31 +75,57 @@ namespace Game.Structures.Validation
             }
             else if (_phase == 1 && elapsed >= 6f)
             {
+                _selectionLimit = 6;
                 Build(FindHouse(GuildHouseKind.Knights), _knightSeed, "knight-exterior");
                 _phase = 2;
             }
-            else if (_phase == 2 && elapsed >= 10f)
+            else if (_phase == 2 && elapsed >= 9f)
             {
-                GuildHouseDescriptor knight = FindHouse(GuildHouseKind.Knights);
-                GuildHousePrototype baseline = _prototype;
-                uint changedSeed = FindDifferentSeed(
-                    knight.Kind,
-                    knight.PreferredRooms,
-                    _knightSeed,
-                    in baseline);
-                _knightSeed = changedSeed;
-                Build(knight, changedSeed, "knight-regenerated");
-                bool changed = !SameSpatialSignature(in baseline, in _prototype);
-                if (!changed) Fail("regeneration did not change the production spatial signature");
-                Debug.Log($"HOUSE_FURNISHING_VALIDATION regenerated house=knights seed={changedSeed} changed=true activeWorlds={_activeWorlds}");
+                _selectionLimit = 3;
+                Build(FindHouse(GuildHouseKind.Knights), _knightSeed, "knight-prop-change");
+                Debug.Log(
+                    $"HOUSE_FURNISHING_VALIDATION selection-changed house=knights seed={_knightSeed} " +
+                    $"selected={_selectionLimit} rebuilds={_rebuilds} activeWorlds={_activeWorlds} cleanup=true");
                 _phase = 3;
             }
-            else if (_phase == 3 && elapsed >= 13f)
+            else if (_phase == 3 && elapsed >= 12f)
             {
-                FrameInterior();
-                Debug.Log($"HOUSE_FURNISHING_VALIDATION complete rebuilds={_rebuilds} activeWorlds={_activeWorlds} cleanup=true");
+                RegenerateKnight(1);
                 _phase = 4;
             }
+            else if (_phase == 4 && elapsed >= 15f)
+            {
+                RegenerateKnight(2);
+                _phase = 5;
+            }
+            else if (_phase == 5 && elapsed >= 18f)
+            {
+                FrameInterior();
+                Debug.Log(
+                    $"HOUSE_FURNISHING_VALIDATION complete rebuilds={_rebuilds} activeWorlds={_activeWorlds} " +
+                    "cleanup=true selectionChanges=1 regenerations=2");
+                _phase = 6;
+            }
+        }
+
+        private void RegenerateKnight(int iteration)
+        {
+            GuildHouseDescriptor knight = FindHouse(GuildHouseKind.Knights);
+            GuildHousePrototype baseline = _prototype;
+            uint before = _knightSeed;
+            uint changedSeed = FindDifferentSeed(
+                knight.Kind,
+                knight.PreferredRooms,
+                before,
+                in baseline);
+            _knightSeed = changedSeed;
+            Build(knight, changedSeed, $"knight-regenerated-{iteration}");
+            bool changed = !SameSpatialSignature(in baseline, in _prototype);
+            if (!changed) Fail($"regeneration {iteration} did not change the production spatial signature");
+            Debug.Log(
+                $"HOUSE_FURNISHING_VALIDATION regenerated house=knights iteration={iteration} " +
+                $"fromSeed={before} seed={changedSeed} changed=true selected={_selectionLimit} " +
+                $"rebuilds={_rebuilds} activeWorlds={_activeWorlds} cleanup=true");
         }
 
         private void Build(GuildHouseDescriptor house, uint seed, string phase)
@@ -109,9 +136,9 @@ namespace Game.Structures.Validation
 
             if (!GuildHouseCatalogQuery.TryGetFurnishings(house.Kind, out GuildHouseFurnishingOption[] options))
                 Fail($"furnishing query failed for {house.Key}");
-            ushort[] selected = SelectFirstOptional(options, 6);
-            if (selected.Length < 2)
-                Fail($"{house.Key} exposes too few optional furnishings for multi-select validation");
+            ushort[] selected = SelectFirstOptional(options, _selectionLimit);
+            if (selected.Length != _selectionLimit)
+                Fail($"{house.Key} exposes only {selected.Length} optional furnishings; expected {_selectionLimit}");
             if (!GuildHouseFurnishingPalette.TryCreate(house.Kind, selected, out GuildHouseFurnishingPalette palette))
                 Fail($"production palette rejected {house.Key} validation selection");
 
@@ -255,9 +282,10 @@ namespace Game.Structures.Validation
 
         private static void AssertDifferentApplicableLists(GuildHouseKind first, GuildHouseKind second)
         {
-            if (!GuildHouseCatalogQuery.TryGetFurnishings(first, out GuildHouseFurnishingOption[] a) ||
-                !GuildHouseCatalogQuery.TryGetFurnishings(second, out GuildHouseFurnishingOption[] b))
-                Fail("could not query production applicability lists");
+            if (!GuildHouseCatalogQuery.TryGetFurnishings(first, out GuildHouseFurnishingOption[] a))
+                Fail($"could not query production applicability list for {first}");
+            if (!GuildHouseCatalogQuery.TryGetFurnishings(second, out GuildHouseFurnishingOption[] b))
+                Fail($"could not query production applicability list for {second}");
 
             var aIds = new HashSet<ushort>();
             var bIds = new HashSet<ushort>();
