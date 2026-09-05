@@ -16,6 +16,11 @@ namespace VoxelEngine.Tests.EditMode
         {
             _keyboard = InputSystem.AddDevice<Keyboard>("Showcase regression keyboard");
             _mouse = InputSystem.AddDevice<Mouse>("Showcase regression mouse");
+
+            // The editor may already own native current devices. Production reads Keyboard.current
+            // and Mouse.current, so make the synthetic devices explicit before queuing state.
+            _keyboard.MakeCurrent();
+            _mouse.MakeCurrent();
         }
 
         [TearDown]
