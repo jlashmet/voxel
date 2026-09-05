@@ -6,6 +6,7 @@ using Game.Structures.Api;
 using Game.Structures.Runtime;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using VoxelEngine.Composition;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Structures.Api;
@@ -67,6 +68,8 @@ namespace VoxelEngine.Showcase
             SelectHouse(initial >= 0 ? initial : 0, resetSelection: true);
             if (_captureAutomation)
             {
+                SetPointerLock(false);
+                _capturePhase = 0;
                 _captureStartedAt = Time.unscaledTime;
                 Debug.Log(
                     $"HOUSE_SHOWCASE_VALIDATION start house={CurrentHouse.Key} seed={_seed} " +
@@ -85,35 +88,8 @@ namespace VoxelEngine.Showcase
         {
             if (!_built || _camera == null) return;
 
-            if (Input.GetKeyDown(KeyCode.LeftBracket))
-                SelectHouse((_houseIndex + _houses.Length - 1) % _houses.Length, true);
-            if (Input.GetKeyDown(KeyCode.RightBracket))
-                SelectHouse((_houseIndex + 1) % _houses.Length, true);
-            if (Input.GetKeyDown(KeyCode.R)) Regenerate();
-            if (Input.GetKeyDown(KeyCode.Alpha1)) FrameExterior();
-            if (Input.GetKeyDown(KeyCode.Alpha2)) FrameInterior();
-            if (Input.GetKeyDown(KeyCode.Escape)) SetPointerLock(false);
-
-            if (Input.GetMouseButtonDown(1)) SetPointerLock(true);
-            if (Input.GetMouseButtonUp(1)) SetPointerLock(false);
-            if (_pointerLocked)
-            {
-                Vector3 euler = _camera.transform.eulerAngles;
-                float yaw = euler.y + Input.GetAxis("Mouse X") * 2.6f;
-                float pitch = NormalizePitch(euler.x) - Input.GetAxis("Mouse Y") * 2.6f;
-                pitch = Mathf.Clamp(pitch, -85f, 85f);
-                _camera.transform.rotation = Quaternion.Euler(pitch, yaw, 0f);
-            }
-
-            float boost = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift) ? 3f : 1f;
-            Vector3 local = new Vector3(
-                Input.GetAxisRaw("Horizontal"),
-                (Input.GetKey(KeyCode.E) ? 1f : 0f) - (Input.GetKey(KeyCode.Q) ? 1f : 0f),
-                Input.GetAxisRaw("Vertical"));
-            if (local.sqrMagnitude > 1f) local.Normalize();
-            _camera.transform.position += _camera.transform.TransformDirection(local) *
-                                          (_moveSpeed * boost * Time.unscaledDeltaTime);
-            _moveSpeed = Mathf.Clamp(_moveSpeed * Mathf.Exp(Input.mouseScrollDelta.y * 0.12f), 2f, 40f);
+            if (!_captureAutomation)
+                UpdateManualInput();
 
             if (RenderingComposition.TryGetSurfaceBuildStatus(
                     out int known, out int dirty, out int resident, out long bytes))
@@ -124,6 +100,65 @@ namespace VoxelEngine.Showcase
             }
 
             UpdateCaptureAutomation();
+        }
+
+        private void UpdateManualInput()
+        {
+            Keyboard keyboard = Keyboard.current;
+            Mouse mouse = Mouse.current;
+
+            if (keyboard != null)
+            {
+                if (keyboard.leftBracketKey.wasPressedThisFrame)
+                    SelectHouse((_houseIndex + _houses.Length - 1) % _houses.Length, true);
+                if (keyboard.rightBracketKey.wasPressedThisFrame)
+                    SelectHouse((_houseIndex + 1) % _houses.Length, true);
+                if (keyboard.rKey.wasPressedThisFrame) Regenerate();
+                if (keyboard.digit1Key.wasPressedThisFrame) FrameExterior();
+                if (keyboard.digit2Key.wasPressedThisFrame) FrameInterior();
+                if (keyboard.escapeKey.wasPressedThisFrame) SetPointerLock(false);
+            }
+
+            if (mouse != null)
+            {
+                if (mouse.rightButton.wasPressedThisFrame) SetPointerLock(true);
+                if (mouse.rightButton.wasReleasedThisFrame) SetPointerLock(false);
+                if (_pointerLocked)
+                {
+                    Vector2 delta = mouse.delta.ReadValue();
+                    Vector3 euler = _camera.transform.eulerAngles;
+                    float yaw = euler.y + delta.x * 0.08f;
+                    float pitch = NormalizePitch(euler.x) - delta.y * 0.08f;
+                    pitch = Mathf.Clamp(pitch, -85f, 85f);
+                    _camera.transform.rotation = Quaternion.Euler(pitch, yaw, 0f);
+                }
+            }
+
+            float horizontal = 0f;
+            float vertical = 0f;
+            float elevation = 0f;
+            float boost = 1f;
+            if (keyboard != null)
+            {
+                horizontal = (keyboard.dKey.isPressed ? 1f : 0f) -
+                             (keyboard.aKey.isPressed ? 1f : 0f);
+                vertical = (keyboard.wKey.isPressed ? 1f : 0f) -
+                           (keyboard.sKey.isPressed ? 1f : 0f);
+                elevation = (keyboard.eKey.isPressed ? 1f : 0f) -
+                            (keyboard.qKey.isPressed ? 1f : 0f);
+                boost = keyboard.leftShiftKey.isPressed || keyboard.rightShiftKey.isPressed ? 3f : 1f;
+            }
+
+            Vector3 local = new Vector3(horizontal, elevation, vertical);
+            if (local.sqrMagnitude > 1f) local.Normalize();
+            _camera.transform.position += _camera.transform.TransformDirection(local) *
+                                          (_moveSpeed * boost * Time.unscaledDeltaTime);
+
+            if (mouse != null)
+            {
+                float scroll = mouse.scroll.ReadValue().y;
+                _moveSpeed = Mathf.Clamp(_moveSpeed * Mathf.Exp(scroll * 0.001f), 2f, 40f);
+            }
         }
 
         private GuildHouseDescriptor CurrentHouse => _houses[_houseIndex];
@@ -342,7 +377,7 @@ namespace VoxelEngine.Showcase
             if (!_captureAutomation) return;
             float elapsed = Time.unscaledTime - _captureStartedAt;
 
-            if (_capturePhase == 0 && elapsed >= 3f)
+            if (_capturePhase == 0 && elapsed >= 6f)
             {
                 FrameInterior();
                 Debug.Log(
@@ -350,7 +385,7 @@ namespace VoxelEngine.Showcase
                     $"selected={_selected.Count} unplaced={_unplaced.Count}");
                 _capturePhase = 1;
             }
-            else if (_capturePhase == 1 && elapsed >= 6f)
+            else if (_capturePhase == 1 && elapsed >= 12f)
             {
                 string previous = CurrentHouse.Key;
                 int previousOptions = _options.Length;
@@ -363,7 +398,7 @@ namespace VoxelEngine.Showcase
                     $"previousOptions={previousOptions} options={_options.Length} selected={_selected.Count}");
                 _capturePhase = 2;
             }
-            else if (_capturePhase == 2 && elapsed >= 10f)
+            else if (_capturePhase == 2 && elapsed >= 18f)
             {
                 uint before = _seed;
                 Regenerate();
@@ -372,7 +407,7 @@ namespace VoxelEngine.Showcase
                     $"toSeed={_seed} spatialChanged=true selected={_selected.Count}");
                 _capturePhase = 3;
             }
-            else if (_capturePhase == 3 && elapsed >= 13f)
+            else if (_capturePhase == 3 && elapsed >= 24f)
             {
                 FrameInterior();
                 Debug.Log(
