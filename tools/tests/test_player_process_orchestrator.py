@@ -52,12 +52,19 @@ class PlayerProcessOrchestratorTests(unittest.TestCase):
         self.assertEqual(config["operations"][3].milestone.fields, {"session": "ABC123"})
         self.assertEqual(config["operations"][6].milestone.fields, {"reconnected": True})
 
-    def test_operations_allow_delayed_launch_without_legacy_milestones(self):
+    def test_operations_require_at_least_one_semantic_wait(self):
         config = self._config()
         config["operations"] = [{"op": "launch", "role": "authority"}]
-        normalized = runner.normalize_config(config)
-        self.assertEqual(normalized["milestones"], [])
-        self.assertEqual(normalized["operations"][0].role, "authority")
+        with self.assertRaises(runner.OrchestrationError):
+            runner.normalize_config(config)
+
+    def test_legacy_milestones_and_lifecycle_operations_are_not_mixed(self):
+        config = self._config()
+        config["milestones"] = [
+            {"role": "authority", "name": "build-identity", "timeoutSeconds": 10}
+        ]
+        with self.assertRaises(runner.OrchestrationError):
+            runner.normalize_config(config)
 
     def test_unknown_lifecycle_operation_fails_closed(self):
         config = self._config()
