@@ -18,6 +18,7 @@ using MountingForce.WorldGen.Content.Kentridge;
 using MountingForce.WorldGen.Voxel;
 using Unity.Collections;
 using UnityEngine;
+using Application = UnityEngine.Application;
 using VoxelEngine.Composition;
 using VoxelEngine.Showcase;
 using VoxelEngine.Structures.Api;
