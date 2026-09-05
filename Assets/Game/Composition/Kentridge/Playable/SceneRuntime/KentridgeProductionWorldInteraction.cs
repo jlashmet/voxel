@@ -74,7 +74,7 @@ namespace Game.Kentridge.PlayableSlice
 
         private void Update()
         {
-            if (!Application.isPlaying) return;
+            if (!UnityEngine.Application.isPlaying) return;
 
             KentridgeSessionRuntimeGraph current = _slice.SessionFactory?.Current;
             EnsureComposedForGraph(current);
