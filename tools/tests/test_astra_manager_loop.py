@@ -68,7 +68,7 @@ class ReviewWindowBudgetTests(unittest.TestCase):
 
             issue_id = "20260905-120000-000-ManagerFollowup"
             local_issue = manager / "SceneIssues/open" / issue_id
-            local_issue.mkdir()
+            local_issue.mkdir(parents=True)
             issue_json = {"status": "open", "note": "MANAGER FOLLOW-UP / Followup"}
             (local_issue / "issue.json").write_text(json.dumps(issue_json))
             (local_issue / "plan.md").write_text("# plan\n")
@@ -85,7 +85,7 @@ class ReviewWindowBudgetTests(unittest.TestCase):
             self.assertTrue(local_issue.exists())
 
             remote_issue = seed / "SceneIssues/open" / issue_id
-            remote_issue.mkdir()
+            remote_issue.mkdir(parents=True)
             (remote_issue / "issue.json").write_text(json.dumps(issue_json))
             (remote_issue / "plan.md").write_text("# plan\n")
             (remote_issue / "tasks.md").write_text("- [ ] task\n")
