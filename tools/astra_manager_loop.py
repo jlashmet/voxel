@@ -2,14 +2,16 @@
 """Budgeted entrypoint for the Astra SceneIssue manager.
 
 The underlying collector may retain an arbitrarily large pending backlog locally. This
-entrypoint exposes only a bounded review window to Astra so backlog growth cannot grow
-the model's bootstrap context.
+entrypoint keeps a dedicated manager checkout synchronized with origin/master and exposes
+only a bounded review window to Astra.
 """
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shlex
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -24,6 +26,88 @@ def select_review_window(pending: list[dict[str, Any]], budget: dict[str, Any]) 
     suspicious = [item for item in pending if item.get("priority") == "suspicious"][:suspicious_limit]
     routine = [item for item in pending if item.get("priority") != "suspicious"][:routine_limit]
     return suspicious + routine
+
+
+def _git_ok(root: Path, *args: str) -> bool:
+    return subprocess.run(
+        ["git", "-C", str(root), *args],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    ).returncode == 0
+
+
+def _manager_followup(path: Path) -> bool:
+    issue = path / "issue.json"
+    if not issue.exists():
+        return False
+    try:
+        data = json.loads(issue.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    return str(data.get("note", "")).startswith("MANAGER FOLLOW-UP /") and data.get("status") == "open"
+
+
+def _untracked_issue_dirs(root: Path) -> list[Path]:
+    out = core.git(root, "status", "--porcelain", "--untracked-files=all", "--", "SceneIssues/open", check=False)
+    issue_ids: set[str] = set()
+    for line in out.splitlines():
+        if not line.startswith("?? "):
+            continue
+        rel = line[3:].strip()
+        parts = Path(rel).parts
+        if len(parts) >= 3 and parts[0:2] == ("SceneIssues", "open") and core.ISSUE_ID_RE.match(parts[2]):
+            issue_ids.add(parts[2])
+    return [root / "SceneIssues/open" / issue_id for issue_id in sorted(issue_ids)]
+
+
+def _load_published(root: Path, runtime: Path) -> dict[str, Any]:
+    path = root / runtime / "published-followups.json"
+    return core.load_json(path, {}) if path.exists() else {}
+
+
+def _save_published(root: Path, runtime: Path, value: dict[str, Any]) -> None:
+    core.save_json(root / runtime / "published-followups.json", value)
+
+
+def sync_master_worktree(root: Path, runtime: Path) -> None:
+    """Make file reads match origin/master without losing manager follow-ups awaiting merge."""
+    branch = core.git(root, "branch", "--show-current", check=False)
+    if branch != "master":
+        raise core.ManagerError(
+            f"dedicated Astra manager checkout must remain on local master; current branch is {branch or '(detached)'}"
+        )
+
+    tracked = core.git(root, "status", "--porcelain", "--untracked-files=no", check=False)
+    if tracked:
+        raise core.ManagerError("manager checkout has tracked local changes; refuse to overwrite them")
+
+    candidates = _untracked_issue_dirs(root)
+    for path in candidates:
+        if not _manager_followup(path):
+            raise core.ManagerError(f"unexpected untracked SceneIssue in manager checkout: {path.relative_to(root)}")
+
+    # A published follow-up remains untracked locally so duplicate prevention can see it while
+    # its PR is pending. Once the same issue arrives on origin/master, remove the local copy
+    # before fast-forwarding so Git is not blocked by an untracked-file collision.
+    published = _load_published(root, runtime)
+    for path in candidates:
+        rel_issue = f"SceneIssues/open/{path.name}/issue.json"
+        if _git_ok(root, "cat-file", "-e", f"origin/master:{rel_issue}"):
+            shutil.rmtree(path)
+            published.pop(path.name, None)
+    _save_published(root, runtime, published)
+
+    remaining = core.git(root, "status", "--porcelain", "--untracked-files=all", check=False)
+    allowed_prefixes = {f"?? SceneIssues/open/{p.name}/" for p in _untracked_issue_dirs(root)}
+    unexpected = []
+    for line in remaining.splitlines():
+        if line.startswith("?? ") and any(line.startswith(prefix) for prefix in allowed_prefixes):
+            continue
+        unexpected.append(line)
+    if unexpected:
+        raise core.ManagerError("manager checkout contains unexpected local files: " + "; ".join(unexpected[:5]))
+
+    core.git(root, "merge", "--ff-only", "origin/master")
 
 
 def markdown_section(text: str, heading: str, max_lines: int = 40) -> list[str]:
@@ -130,6 +214,7 @@ def main(argv: list[str] | None = None) -> int:
         cfg = core.config(root, args.config)
         if args.fetch:
             core.fetch(root)
+            sync_master_worktree(root, runtime)
         signal = core.collect(root, runtime, cfg, args.github_repo, not args.no_ci)
         window = build_review_window(root, runtime, cfg, signal)
 
