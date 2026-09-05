@@ -9,21 +9,17 @@ Owned validation surfaces:
 - Kentridge Playable: `Validation/KentridgeMacroWorld` through the real slice/evidence driver.
 - Rendering: `Validation/GpuSurfaceMirrorRelocation` through production GPU mirror/extraction/publication.
 
-## Latest evidence and hypotheses
-Exact run `33932977686` validated source `a37da26d7b35505507ac1271eb5866f568d4c414`. Persistent repository-derived tests passed. The 180-second Kentridge replay proved the macro ownership fix: runtime catalogue had 480 definitions including all acceptance towns, 20 roads/824 route tiles, ridge and water, and the prior legacy-input exception storm was gone. It remained closure-red because Moordell survey content did not fully converge and the requested GPU-liveness regression was blocked before its assertions by `VoxelShowcase.HandleKeys()` calling legacy `UnityEngine.Input` under Input-System-only settings.
+## Latest evidence and root cause
+Exact run `33943012273` validated source `a90fd76933b2269fc3aea660d137c196a9882987` against master `51797c954490425964e602d6bb2252a0d7a7c5aa`. Persistent tests and the requested count-batch fairness regression passed. Both Kentridge players reached real macro content without forbidden exceptions; the 180-second replay reached `content-ready target=moordell columns=4`, but strict capture readiness never completed. Durable evidence still showed large checkerboard terrain holes, so coverage assertions must not be weakened.
 
-Hypothesis A: macro definitions are still absent. Falsified by the exact replay catalogue/evidence logs.
+The replay ended near `missingVisible=102`, `flight=8`, `phases=0x2`, with phase-2 requests occasionally 6.5–8.5 seconds old. `batchArenaWait=0` falsifies GPU-fence backpressure. A suspected scheduler/Unity frame-clock mismatch is also falsified: production `VoxelRenderPass` passes `Time.frameCount` into `VoxelSurfaceScheduler`, which passes that same frame to mirror preparation/sealing.
 
-Hypothesis B: stale FIFO terrain/feature queues starve Moordell. Falsified: both wanted terrain and pending features are rebuilt/selected nearest-first. The actual validation mismatch is a fixed elevated survey camera spanning four settlement columns; one diagonal building column remained behind nearer normal streaming demand.
+The demonstrated liveness defect is worker service ordering. Paged GPU completion is produced by the coordinator, but phase 9 consumes `TryTakePagedBatch` and releases the shared extraction slot only when that owning `CpuTransvoxelChunkCache.Prepare` runs. The renderer-wide convergence budget is about 4 ms while the scheduler round-robins all 22 workers without prioritizing already-active builds. It can therefore spend the frame on inactive shards while eight completed/ready GPU owners keep all extraction slots occupied, throttling publication to worker-poll cadence rather than GPU batch cadence.
 
-Selected corrections:
-1. `VoxelEngine.Showcase` now owns a scene-local Input-System bridge and package assembly reference; production `VoxelShowcase` reaches the requested GPU path without changing global input settings or suppressing errors.
-2. Validation-only `KentridgeMacroWorldContentDemandDriver` supplies bounded deterministic CharacterMotor demand at the first unsettled authored building centre while an elevated acceptance settlement survey is active. It uses the same physical plan, normal `ShowcaseWorld` streaming budgets/queues, collision, rasterization and rendering; it never force-generates a region or widens residency.
-
-Exact requests `bd10ce4f594f1619e8bf48a866459c6ac0aa174f` (run `33937792014`) and `59ed8938f6ace32c89817f0c417f45fddfabb26e` (run `33938299650`) both stopped before runtime with the same sole `CS0246` for `TopDownWorldPhysicalPlan` in the new demand helper. After the required repeated-symptom isolation, the declaration was found in `MountingForce.WorldGen.Voxel`; the owning `Game.Kentridge.PlayableSlice` asmdef already referenced `MountingForce.WorldGen.Voxel`, so the root cause was the helper's missing namespace import rather than a missing assembly dependency. Source `52cb65457f1b8c7dd637895700a2856e0bd51511` adds only that import.
+Selected correction: preserve all existing budgets and GPU limits, but build a zero-allocation admission order that services already-active workers first, with existing round-robin fairness inside active and inactive groups. Add a behavioral EditMode regression against this production ordering helper.
 
 ## Remaining gates
-1. Exact-SHA targeted CI: requested GPU liveness regression, repository-derived module validation/all four owned module players, and 180-second SceneIssue replay must all pass.
-2. Inspect full-resolution built-player evidence. Require readable Moordell/Rossdam/Fairy/Orc settlements, substantial Rossdam water + constrained route, Southern Ridge/pass, macro-network overview, and real CharacterMotor traversal with no runtime exceptions.
-3. Record final per-target convergence, vertical residency, FPS/CPU/GPU/streaming and process/managed/native/GPU memory against existing budgets.
-4. Merge then-current `origin/master`, revalidate the exact merged feature SHA, complete every task/acceptance item, move only this issue `open -> closed`, then promote through PR + auto-merge and monitor required PR checks until merged.
+1. Exact-SHA targeted CI: new active-worker liveness regression, existing GPU relocation/fairness coverage, repository-derived module validation, and 180-second SceneIssue replay.
+2. Inspect full-resolution built-player evidence; require all settlements, Rossdam water/constrained route, Southern Ridge/pass, network overview, differentiated terrain, and real CharacterMotor traversal.
+3. Record per-target convergence plus FPS/CPU/GPU/streaming and process/managed/native/GPU memory against existing budgets.
+4. Merge then-current `origin/master`, revalidate the exact merged feature SHA as required, complete every task/acceptance item, move only this issue `open -> closed`, then promote through PR + auto-merge and monitor the required PR gate until merged.
