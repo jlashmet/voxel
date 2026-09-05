@@ -27,4 +27,6 @@ Request `219c6c85e71c05a97a0dda6724811c53b0897e1c` from feature SHA `15d1c74297a
 
 Final blast review also found an R32 teardown defect: coordinator disposal released physical leases without first quiescing Detailed adapters. The scoped fix drives targets to Dormant through normal demotion, refuses disposal while Detailed demotion is pending/failed, and adds ordering/pending regressions.
 
-Remaining gates: run exact-SHA validation again from the current teardown/input/scenario-fixed head; require repository module/player validation and standalone Kentridge green with no legacy Input exception; finish blast review, close directly to `SceneIssues/closed/...`, merge current `origin/master`, then PR + auto-merge.
+Request `634b62103b7e02452ad8383f9e0f3538b5522563` from feature SHA `4a5cf549d3a3fd00a1a51879ca8d467ce717bcd3` confirmed the Input-System assembly compile failure was resolved, then failed on a naming collision inside the newly added teardown regression fixture (`RecordingPins.Lease` property versus nested `Lease` type). Commit `9c278061d58b2797c605cf7eeefafcfab78ed012` renames the fixture members only; production behavior is unchanged.
+
+Remaining gates: run exact-SHA validation again from the current teardown/input/scenario/test-fixture-fixed head; require repository module/player validation and standalone Kentridge green with no legacy Input exception; finish blast review, close directly to `SceneIssues/closed/...`, merge current `origin/master`, then PR + auto-merge.
