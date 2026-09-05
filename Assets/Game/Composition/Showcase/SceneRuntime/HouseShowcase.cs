@@ -321,7 +321,7 @@ namespace VoxelEngine.Showcase
                 new Color(0.45f, 0.53f, 0.60f, 1f));
             _camera.clearFlags = CameraClearFlags.SolidColor;
             _camera.backgroundColor = new Color(0.60f, 0.69f, 0.75f, 1f);
-            _camera.fieldOfView = 42f;
+            _camera.fieldOfView = 48f;
             _camera.nearClipPlane = 0.05f;
             _camera.farClipPlane = 220f;
             _camera.allowHDR = false;
@@ -335,15 +335,22 @@ namespace VoxelEngine.Showcase
             float depth = plan.Depth * VoxelSize;
             float structuralHeight = Mathf.Max(3f, plan.FloorCount * plan.FloorHeight * VoxelSize);
             float baseY = plan.Origin.y * VoxelSize;
+            float centreX = (plan.Origin.x + plan.Width * 0.5f) * VoxelSize;
+            float centreZ = (plan.Origin.z + plan.Depth * 0.5f) * VoxelSize;
+
+            // Bias the look target left so the production house occupies the unobscured right-hand
+            // preview beside the catalog panel. A modest elevated 3/4 view keeps facade, roof and
+            // exterior semantic dressing visually connected in the same frame.
             Vector3 focus = new Vector3(
-                (plan.Origin.x + plan.Width * 0.5f) * VoxelSize,
-                baseY + structuralHeight * 0.46f,
-                (plan.Origin.z + plan.Depth * 0.28f) * VoxelSize);
-            float distance = Mathf.Max(14f, Mathf.Max(width, depth) * 1.35f);
-            _camera.transform.position = focus + new Vector3(
-                width * 0.38f,
-                Mathf.Max(1.4f, structuralHeight * 0.10f),
-                -distance);
+                centreX - width * 0.18f,
+                baseY + structuralHeight * 0.48f,
+                (plan.Origin.z + plan.Depth * 0.34f) * VoxelSize);
+            float distance = Mathf.Max(18f, Mathf.Max(width, depth) * 1.72f);
+            _camera.transform.position = new Vector3(
+                centreX + width * 0.52f,
+                baseY + structuralHeight * 0.83f,
+                centreZ - distance - depth * 0.42f);
+            _camera.fieldOfView = 48f;
             _camera.transform.LookAt(focus);
         }
 
@@ -354,7 +361,7 @@ namespace VoxelEngine.Showcase
             GuildHouseSpatialRoom room = _prototype.Rooms[roomIndex].SpatialRoom;
             float3 roomCentreVoxels = ((float3)room.Min + (float3)room.MaxExclusive) * 0.5f;
             Vector3 roomCentre = ToWorld(roomCentreVoxels);
-            Vector3 target = roomCentre + new Vector3(1f, 0f, 1f);
+            Vector3 target = roomCentre + new Vector3(0.6f, 0f, 0.6f);
 
             if (_resolvedRooms.Length == _prototype.Rooms.Length)
             {
@@ -382,19 +389,49 @@ namespace VoxelEngine.Showcase
                 }
             }
 
-            float minX = room.Min.x * VoxelSize + 0.65f;
-            float maxX = room.MaxExclusive.x * VoxelSize - 0.65f;
-            float minZ = room.Min.z * VoxelSize + 0.65f;
-            float maxZ = room.MaxExclusive.z * VoxelSize - 0.65f;
-            Vector3 position = target + new Vector3(-2.2f, 0f, -2.2f);
-            position.x = minX <= maxX ? Mathf.Clamp(position.x, minX, maxX) : roomCentre.x;
-            position.z = minZ <= maxZ ? Mathf.Clamp(position.z, minZ, maxZ) : roomCentre.z;
-            position.y = room.Min.y * VoxelSize + 1.55f;
-            target.y = Mathf.Clamp(target.y, position.y - 0.65f, position.y + 0.55f);
-            if ((new Vector2(target.x - position.x, target.z - position.z)).sqrMagnitude < 0.7f)
-                target += new Vector3(1.2f, 0f, 1.2f);
+            float inset = 1.15f;
+            float minX = room.Min.x * VoxelSize + inset;
+            float maxX = room.MaxExclusive.x * VoxelSize - inset;
+            float minZ = room.Min.z * VoxelSize + inset;
+            float maxZ = room.MaxExclusive.z * VoxelSize - inset;
+            Vector2[] corners =
+            {
+                new Vector2(minX, minZ),
+                new Vector2(maxX, minZ),
+                new Vector2(minX, maxZ),
+                new Vector2(maxX, maxZ),
+            };
+            Vector2 targetXZ = new Vector2(target.x, target.z);
+            Vector2 best = corners[0];
+            float bestDistance = -1f;
+            for (int i = 0; i < corners.Length; i++)
+            {
+                float distance = (corners[i] - targetXZ).sqrMagnitude;
+                if (distance <= bestDistance) continue;
+                bestDistance = distance;
+                best = corners[i];
+            }
 
+            Vector3 position = new Vector3(best.x, room.Min.y * VoxelSize + 1.55f, best.y);
+            if (bestDistance < 4f)
+            {
+                target = roomCentre;
+                targetXZ = new Vector2(target.x, target.z);
+                bestDistance = -1f;
+                for (int i = 0; i < corners.Length; i++)
+                {
+                    float distance = (corners[i] - targetXZ).sqrMagnitude;
+                    if (distance <= bestDistance) continue;
+                    bestDistance = distance;
+                    best = corners[i];
+                }
+                position.x = best.x;
+                position.z = best.y;
+            }
+
+            target.y = Mathf.Clamp(target.y, position.y - 0.45f, position.y + 0.45f);
             _camera.transform.position = position;
+            _camera.fieldOfView = 58f;
             _camera.transform.LookAt(target);
         }
 
