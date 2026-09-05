@@ -44,6 +44,34 @@ namespace VoxelEngine.Tests.PlayMode
         }
 
         [Test]
+        public void EvidenceTraversalWaypointsCoverResolvedProductionRoadInOrder()
+        {
+            MountainLandformSurface surface = ShowcaseMountainDragonLayout.CreateSurface(Seed);
+            WorldRoadNetwork ascent = ShowcaseMountainDragonLayout.CreateAscentNetwork(Seed, surface);
+            Assert.That(ascent.TryGetRoute(
+                ShowcaseMountainDragonLayout.AscentRouteId,
+                out WorldRoadNetworkRoute route), Is.True);
+            Assert.That(route.Road.IsResolved, Is.True, route.Road.FailureReason);
+
+            EvidenceRoute evidence = LoadEvidenceRoute();
+            int pathBaseIndex = Array.FindIndex(
+                evidence.waypoints,
+                waypoint => waypoint != null && waypoint.name == "path-base");
+            Assert.That(pathBaseIndex, Is.GreaterThanOrEqualTo(0), "Evidence route must anchor at path-base.");
+            Assert.That(
+                evidence.waypoints.Length - pathBaseIndex,
+                Is.EqualTo(route.Road.Points.Count),
+                "Every production road point must be traversed exactly once after the normal approach.");
+
+            for (int i = 0; i < route.Road.Points.Count; i++)
+            {
+                EvidenceWaypoint waypoint = evidence.waypoints[pathBaseIndex + i];
+                Assert.That(waypoint, Is.Not.Null, $"Evidence route point {i} is missing.");
+                AssertWaypointMatchesResolvedPoint(waypoint, route.Road.Points[i], waypoint.name ?? $"road-{i}");
+            }
+        }
+
+        [Test]
         public void EvidenceCaptureWaypointsFollowResolvedProductionRoadInSemanticOrder()
         {
             MountainLandformSurface surface = ShowcaseMountainDragonLayout.CreateSurface(Seed);
@@ -54,6 +82,10 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.That(route.Road.IsResolved, Is.True, route.Road.FailureReason);
 
             EvidenceRoute evidence = LoadEvidenceRoute();
+            EvidenceWaypoint pathBase = RequireWaypoint(evidence, "path-base");
+            AssertWaypointMatchesResolvedPoint(pathBase, route.Road.Points[0], "path-base");
+            int anchorYdm = route.Road.Points[0].Ydm;
+
             string[] semanticCaptures =
             {
                 "lower-turn",
@@ -76,6 +108,12 @@ namespace VoxelEngine.Tests.PlayMode
                 Assert.That(resolved.Ydm, Is.GreaterThanOrEqualTo(previousYdm),
                     $"Evidence waypoint '{waypointName}' must not regress below the preceding semantic ascent capture.");
                 AssertWaypointMatchesResolvedPoint(waypoint, resolved, waypointName);
+                Assert.That(waypoint.yTolerance, Is.GreaterThanOrEqualTo(0f),
+                    $"Evidence waypoint '{waypointName}' must enforce an anchored vertical band.");
+                Assert.That(
+                    waypoint.expectedYOffset,
+                    Is.EqualTo((resolved.Ydm - anchorYdm) / 10f).Within(0.001f),
+                    $"Evidence waypoint '{waypointName}' must derive its expected rise from the current resolved road.");
 
                 previousIndex = resolvedIndex;
                 previousYdm = resolved.Ydm;
@@ -155,6 +193,8 @@ namespace VoxelEngine.Tests.PlayMode
             public string name;
             public float x;
             public float z;
+            public float expectedYOffset;
+            public float yTolerance = -1f;
         }
     }
 }
