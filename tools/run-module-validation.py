@@ -57,6 +57,65 @@ def _phase_assemblies(items: list[dict], platform: str) -> list[str]:
     return list(dict.fromkeys(item["assembly"] for item in items if item["platform"] == platform))
 
 
+def _nearest_asmdef_name(source: Path, project_root: Path) -> str | None:
+    project_root = project_root.resolve()
+    parent = source.parent.resolve()
+    while parent == project_root or project_root in parent.parents:
+        asmdefs = sorted(parent.glob("*.asmdef"))
+        if asmdefs:
+            if len(asmdefs) != 1:
+                return None
+            try:
+                value = json.loads(asmdefs[0].read_text(encoding="utf-8")).get("name")
+            except (OSError, json.JSONDecodeError):
+                return None
+            return value if isinstance(value, str) and value else None
+        if parent == project_root:
+            break
+        parent = parent.parent
+    return None
+
+
+def _requested_test_covered_by_selected_assembly(
+    test_name: str,
+    platform: str,
+    items: list[dict],
+    project_root: Path | None = None,
+) -> bool:
+    """Return true only when an exact requested leaf is owned by an already-selected assembly.
+
+    The exact test request still gates the run: its source must resolve unambiguously to a
+    selected assembly, and that assembly must pass every discovered test. This avoids
+    re-running stateful/expensive tests a second time in the same persistent Unity editor.
+    """
+    if not test_name or platform not in ("EditMode", "PlayMode"):
+        return False
+    parts = test_name.rsplit(".", 2)
+    if len(parts) < 3:
+        return False
+    class_name, method_name = parts[-2], parts[-1]
+    root = (project_root or Path.cwd()).resolve()
+    assets = root / "Assets"
+    if not assets.is_dir():
+        return False
+    selected = {item["assembly"] for item in items if item.get("platform") == platform}
+    if not selected:
+        return False
+
+    owners = set()
+    for source in assets.rglob("*.cs"):
+        try:
+            text = source.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        if f"class {class_name}" not in text or method_name not in text:
+            continue
+        owner = _nearest_asmdef_name(source, root)
+        if owner:
+            owners.add(owner)
+    return len(owners) == 1 and next(iter(owners)) in selected
+
+
 def _validate_phase_summary(path: Path, expected: str) -> None:
     phase = _parse_summary(path)
     if phase.get("assembly") != expected:
@@ -171,8 +230,15 @@ def main(argv=None) -> int:
     persistent = [item for item in tests if item["assembly"] not in PROCESS_ISOLATED_ASSEMBLIES]
     isolated = [item for item in tests if item["assembly"] in PROCESS_ISOLATED_ASSEMBLIES]
     requested_isolated = bool(ns.requested_test and _requested_is_process_isolated(ns.requested_test))
-    persistent_requested = "" if requested_isolated else ns.requested_test
-    persistent_requested_platform = "" if requested_isolated else ns.requested_platform
+    requested_covered = bool(
+        ns.requested_test
+        and not requested_isolated
+        and _requested_test_covered_by_selected_assembly(
+            ns.requested_test, ns.requested_platform, persistent
+        )
+    )
+    persistent_requested = "" if requested_isolated or requested_covered else ns.requested_test
+    persistent_requested_platform = "" if requested_isolated or requested_covered else ns.requested_platform
 
     if persistent or persistent_requested:
         seconds = run_persistent_tests(
@@ -187,6 +253,7 @@ def main(argv=None) -> int:
             "editModeAssemblies": _phase_assemblies(persistent, "EditMode"),
             "playModeAssemblies": _phase_assemblies(persistent, "PlayMode"),
             "requestedTest": persistent_requested,
+            "requestedTestCoveredByAssembly": ns.requested_test if requested_covered else "",
             "seconds": round(seconds, 2),
         })
         amortized = round(seconds / max(1, len(persistent) + (1 if persistent_requested else 0)), 2)
@@ -198,6 +265,13 @@ def main(argv=None) -> int:
                 "platform": persistent_requested_platform,
                 "seconds": amortized,
                 "execution": "persistent-editor",
+            }
+        elif requested_covered:
+            summary["requestedTest"] = {
+                "test": ns.requested_test,
+                "platform": ns.requested_platform,
+                "seconds": amortized,
+                "execution": "covered-by-module-assembly",
             }
 
     for item in isolated:
