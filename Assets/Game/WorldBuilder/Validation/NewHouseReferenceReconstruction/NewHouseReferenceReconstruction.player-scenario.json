@@ -15,6 +15,7 @@
     ],
     "forbiddenLogPatterns": [
       "NEW_HOUSE_VALIDATION failure:",
+      "Castle authoring exceeded",
       "NullReferenceException",
       "MissingReferenceException",
       "Shader error"
