@@ -159,6 +159,34 @@ class PlayerProcessOrchestratorTests(unittest.TestCase):
             self.assertEqual(history, [event])
             self.assertEqual(record.milestone_cursor, 1)
 
+    def test_player_milestone_cannot_spoof_harness_role_or_attempt(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            log = root / "player.log"
+            log.write_text(
+                runner.MILESTONE_PREFIX
+                + json.dumps({
+                    "name": "gameplay-ready",
+                    "role": "authority",
+                    "attempt": 999,
+                    "session": "ABC123",
+                })
+                + "\n",
+                encoding="utf-8",
+            )
+            record = runner.RoleProcess(
+                runner.RoleSpec("client-a", (), {}, True),
+                _RunningProcess(), root, log, root / "stdout.log", root / "stderr.log", 2,
+            )
+            expected = runner.MilestoneExpectation("client-a", "gameplay-ready", 1, {"session": "ABC123"})
+            history = []
+
+            event = runner.wait_for_milestone(record, expected, history, sleep=lambda _: None)
+
+            self.assertEqual(event["role"], "client-a")
+            self.assertEqual(event["attempt"], 2)
+            self.assertEqual(history, [event])
+
     def test_repeated_milestone_waits_consume_distinct_events_in_order(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
