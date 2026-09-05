@@ -204,14 +204,20 @@ namespace Game.Application.Runtime
             ThrowIfDisposed();
             if (elapsedMilliseconds < 0) throw new ArgumentOutOfRangeException(nameof(elapsedMilliseconds));
 
-            if (_lifecycle == ApplicationLifecycle.StartingSession)
+            if (_lifecycle == ApplicationLifecycle.StartingSession ||
+                _lifecycle == ApplicationLifecycle.InGame)
             {
                 GameSessionOperationResult tick = _session.Tick(elapsedMilliseconds);
                 if (!tick.Succeeded)
-                    return FailStartup(ApplicationFailure.SessionUpdateFailed, tick.Diagnostic);
+                {
+                    if (_lifecycle == ApplicationLifecycle.StartingSession)
+                        return FailStartup(ApplicationFailure.SessionUpdateFailed, tick.Diagnostic);
+                    return Reject(ApplicationFailure.SessionUpdateFailed, tick.Diagnostic);
+                }
                 PromoteWhenReady();
             }
-            else if (_lifecycle == ApplicationLifecycle.InGame)
+
+            if (_lifecycle == ApplicationLifecycle.InGame)
             {
                 GameOutcomeSnapshot outcome = _outcomes.Snapshot();
                 if (outcome.Lifecycle == GameOutcomeLifecycle.Resolved)
