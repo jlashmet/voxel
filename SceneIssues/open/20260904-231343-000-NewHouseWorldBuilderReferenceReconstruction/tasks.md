@@ -11,8 +11,11 @@
 - [x] Discovered material-surface blocker from run `33952976056`: the validation used the legacy four-argument `ShowcaseWorld` constructor, whose private world palette registers only historical showcase materials and omits stable house IDs 23-28. Raw house voxels therefore passed authoring/readback while the renderer-bound world palette could not classify their surfaces. The validation now uses the production game-material constructor with `GameMaterialComposition.SimulationDefinitions()` / `ShowcaseMaterials`; unrelated settlement catalogue content is suppressed for this focused proof.
 - [x] Re-run exact-SHA targeted CI after complete game-material world binding: the automated gates passed, but built-player evidence still showed terrain rather than the authored cottage; the application composition root was then corrected to publish the completed bounded Structures authoring phase before renderer binding.
 - [x] Re-run exact-SHA targeted CI after the publication-boundary correction: run `33954740928` passed automatic module validation and standalone replay, but direct hero/audit inspection still showed fractured terrain and no recognizable reference house.
-- [x] Repeated-symptom root-cause gate: exact-SHA diagnostic run `33960811414` on feature SHA `51deddcb21c52810145e746f886ee1903f7881dc` passed all derived module/player gates and the focused replay, but production renderer telemetry at t=5-30 s reported `visible=116..172`, `missingVisible=0`, `gpu pub=330..1305`, while `count=0 write=0 copy=0`, CPU arena usage remained `v=0 i=0`, and per-ring diagnostics reported `drawn=0`. Captures therefore still contained the same fractured terrain/no-house result even though the focused world reports complete coverage. This classifies the acceptance blocker downstream of WorldBuilder authoring/storage/material publication and inside the production GPU surface realization/draw path.
-- [ ] External production-renderer prerequisite: default GPU surface rendering on current `origin/master` cannot yet provide trustworthy player-visible proof for this feature. The same missing-surface class is tracked by `SceneIssues/open/20260902-171853-000-GpuRendererProductionRestoration`; its current acceptance is still red. Per `feature-readme.md`, keep this feature open, do not substitute a CPU/test-only renderer for acceptance, and resume the remaining visual checklist immediately after the production renderer restoration reaches `origin/master`.
+- [x] Repeated-symptom root-cause gate: exact-SHA diagnostic run `33960811414` isolated the missing house to the default GPU surface path even though the focused world reported complete published coverage.
+- [x] GPU-prerequisite hypothesis resolved: repository inspection proved `VOXEL_DISABLE_GPU_CUTOVER=1` is the production CPU emergency/A-B path already used by module-player validation, not a test-only substitute. The focused scene sets it before rendering and exact runs now produce stable house geometry; this feature does not depend on the separate GPU-restoration SceneIssue.
+- [x] Direct built-player comparison after geometry recovery falsified the earlier oversized/arched interpretation; the house was reduced to the compact reference proportions with rectangular entry/lower windows, four-leaf upper bank, smaller high gable window, chimney/finials, flowers/ivy, and wider portrait framing.
+- [x] Exact run `33994976147` exposed wrong supplied texture-role ordering; the additional layers were remapped by visual role, and Rendering `TextureLayers` proof was scoped to its own readiness assertion rather than unrelated water readiness.
+- [x] Exact runs `33996415142` and `33998165969` passed all automated gates but direct inspection showed the intended blue-painted shutter/window plate as charcoal. `HouseDoor` was confirmed to sample the correct supplied layer; its brown Albedo multiplier was the demonstrated cause. The production row now uses neutral Albedo and `PaintedHouseAccent_PreservesAuthoredBlueChroma` locks the invariant.
 
 ## 1. Engine / repository alignment
 - [x] Locate the existing WorldBuilder composition entry point.
@@ -26,16 +29,16 @@
 
 ## 2. Supplied material and texture setup
 - [x] Inventory all supplied house texture assets.
-- [x] Map supplied textures to plaster, timber, roof, stone, door, foliage/site roles visible in the reference.
-- [x] Reuse existing material IDs where appropriate (`Glass`, `Slate` accent, `Grass`, `FlowerWhite`).
+- [x] Map supplied textures to plaster, timber, roof, stone, painted accent, and foliage/site roles visible in the reference.
+- [x] Reuse existing material IDs where appropriate (`Glass`, `Grass`, `FlowerWhite`); use the supplied `HouseDoor` layer for the blue-painted architectural accent while the plain central entry uses `HouseTimber`.
 - [x] Register missing siding/stucco material (`HousePlaster`).
 - [x] Register missing trim/fascia/soffit material (`HouseTimber`).
 - [x] Register missing roofing material (`HouseRoof`).
 - [x] Register missing glass/window material(s), if required — reused canonical `Glass`; no extra glass identity required.
-- [x] Register missing door/garage-door material(s), if required — `HouseDoor`; garage-door role is N/A because no garage exists in the supplied reference.
+- [x] Register missing supplied painted-detail material (`HouseDoor`); garage-door role is N/A because no garage exists in the supplied reference.
 - [x] Register missing masonry/concrete/site material(s), if required — `HouseStone` plus canonical grass/path roles.
 - [x] Set explicit texture repeat scales and default face/triplanar projection by game-owned material row.
-- [ ] Verify every required material renders successfully in the built-player minimal/module validation view.
+- [ ] Verify every required material renders successfully in the final built-player minimal/module validation view.
 
 ## 3. House composition scaffold
 - [x] Add a dedicated reusable WorldBuilder house authoring composition.
@@ -55,20 +58,20 @@
 - [x] Build the garage mass — N/A, absent from supplied reference.
 - [x] Add major projections and recesses visible in the reference.
 - [x] Add porch/entry mass where it affects silhouette.
-- [ ] Produce an early/final target-camera built-player render through the owned validation scene.
-- [ ] Correct overall width/depth from direct built-player/reference comparison.
-- [ ] Correct story heights and setbacks from direct built-player/reference comparison.
+- [ ] Produce a final target-camera built-player render through the owned validation scene.
+- [ ] Correct/accept overall width/depth from direct built-player/reference comparison.
+- [ ] Correct/accept story heights and setbacks from direct built-player/reference comparison.
 - [ ] Confirm the primary silhouette matches the reference closely enough to accept.
 
 ## 5. Roof system
 - [x] Build the primary roof volume(s).
-- [x] Add secondary front gables/dormer roof forms.
+- [x] Add secondary front/cross-roof forms visible in the reference.
 - [x] Add garage roof volume(s) — N/A, absent from supplied reference.
 - [x] Add porch/entry roof volume(s) visible in the reference.
 - [x] Author ridge directions from the reference composition.
 - [x] Author steep roof pitches/rises from centralized datums.
 - [x] Author eave heights and overhangs.
-- [x] Resolve authored intersections between primary/front/dormer roof volumes without a parallel mesh path.
+- [x] Resolve authored intersections between primary/front/cross-roof volumes without a parallel mesh path.
 - [x] Add visible fascia/edge timber.
 - [x] Add visible soffit/eave depth.
 - [ ] Check roof/wall intersections for visible gaps in built-player evidence.
@@ -77,29 +80,29 @@
 
 ## 6. Doors and windows
 - [x] Add garage-door opening(s) — N/A, absent from supplied reference.
-- [x] Add the main arched entry opening and door.
+- [x] Add the compact central entry opening and plain timber door shown by the reference.
 - [x] Add the largest/front-facing windows.
-- [x] Add secondary/dormer windows visible from the target camera.
+- [x] Add the upper blue shutter/window bank and small high gable window visible from the target camera.
 - [x] Author window sill heights from shared floor datums.
 - [x] Author window head heights from shared floor datums.
 - [x] Author horizontal spacing/alignment from shared house dimensions.
 - [x] Add visible recess depth for openings using production carve + inset geometry.
 - [x] Add window frames/sills/headers where visible.
 - [x] Add door and window trim where visible.
-- [x] Use a parameterized `FrontWindow` helper for repeated window units.
-- [x] Use a parameterized arched entry authoring helper for the repeated door/trim geometry role.
+- [x] Use parameterized rectangular window/door helpers for repeated front opening roles.
+- [x] Use a parameterized small arched-window helper for the high gable opening.
 - [ ] Render and compare opening placement against the reference.
 
 ## 7. Architectural detail
 - [x] Add exterior timber trim/corner boards.
-- [x] Add porch/entry posts and heavy timber supports.
+- [x] Add porch/entry posts and heavy timber supports where they contribute to the composition.
 - [x] Add entry steps.
 - [x] Add railings/fence-like site accents where visible in the reference composition.
 - [x] Add prominent window/door surrounds.
 - [x] Add masonry/stone foundation and chimney accents.
 - [x] Add gutters/downspouts if they materially affect the target render — intentionally deferred; they do not define the supplied voxel reference at target scale.
-- [x] Add vents or other high-contrast façade/roof details visible in the reference — no additional vent is required at target scale; chimney/dormer/timber breaks carry the high-contrast roof detail.
-- [x] Add other silhouette/depth-critical details: chimney, dormer, flower boxes, shutters, ivy/foliage.
+- [x] Add vents or other high-contrast façade/roof details visible in the reference — no additional vent is required at target scale; chimney/timber breaks carry the high-contrast roof detail.
+- [x] Add other silhouette/depth-critical details: chimney, ridge ornaments, flower boxes, shutters, ivy/foliage.
 - [x] Defer detail that does not survive the intended render scale.
 
 ## 8. Immediate site composition
@@ -115,12 +118,12 @@
 ## 9. Final material assignment
 - [x] Assign plaster/exterior wall material to the intended house elements.
 - [x] Assign roofing material to authored roof volumes.
-- [x] Assign timber material to trim/fascia/soffit/support elements.
-- [x] Assign `HouseDoor`; garage-door material is N/A because the reference has no garage.
+- [x] Assign timber material to trim/fascia/soffit/support elements and the plain central entry.
+- [x] Assign `HouseDoor` supplied layer to the blue-painted shutter/window accent; garage-door material is N/A because the reference has no garage.
 - [x] Assign canonical glass material to windows.
 - [x] Assign `HouseStone` to foundation/chimney/masonry elements.
 - [x] Assign canonical path/ground/foliage roles to the immediate site.
-- [x] Configure plaster/stone/foliage as triplanar and directional timber/roof/door as face projection.
+- [x] Configure plaster/stone/foliage as triplanar and directional timber/roof/painted detail as face projection.
 - [ ] Verify roof texture orientation reads correctly along visible slopes in built-player evidence.
 - [ ] Verify wood/masonry direction reads correctly in built-player evidence.
 - [ ] Tune/accept texture repeat and texel density from built-player evidence.
@@ -138,7 +141,7 @@
 - [x] Author a warm directional sun/key-light direction consistent with the reference.
 - [x] Author trilight ambient/fill so façade depth remains readable.
 - [x] Keep camera and light configuration outside the reusable house builder.
-- [ ] Accept/tune camera and lighting only after direct built-player/reference comparison.
+- [ ] Accept/tune camera and lighting only after final direct built-player/reference comparison.
 
 ## 11. Visual validation and iteration
 - [ ] Compare overall silhouette to the supplied reference.
