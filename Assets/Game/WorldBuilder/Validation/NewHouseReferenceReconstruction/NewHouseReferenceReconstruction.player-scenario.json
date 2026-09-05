@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "runSeconds": 32,
   "capture": {
-    "width": 1600,
-    "height": 900,
+    "width": 1200,
+    "height": 1600,
     "intervalSeconds": 4,
     "minimumFrames": 7,
     "evidenceAfterSeconds": 4
