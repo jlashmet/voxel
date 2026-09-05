@@ -6,7 +6,7 @@
 - [x] Keep generic Box/Frustum raster fast paths reusable/output-equivalent; independent proof passed run `33357975697`.
 - [x] Keep startup bake guards at 240 s / 14 GiB and preserve binary-safe accepted-payload handoff.
 - [x] Keep focused module-local Mountain Dragon validation and player-safe shader evidence; top-level VoxelShowcase remains integration/visual acceptance only.
-- [x] Record and retain the earlier path/core, cut-fill, route-identity, realized-corridor, CharacterMotor, and Input-System root-cause discriminators in experiments 010, 016-033; do not re-litigate falsified hypotheses without new evidence.
+- [x] Record and retain the earlier path/core, cut-fill, route-identity, realized-corridor, CharacterMotor, and Input-System root-cause discriminators in experiments 010, 016-034; do not re-litigate falsified hypotheses without new evidence.
 
 ## Reusable mountain / road architecture
 - [x] Replace path-coupled mountain ownership with semantic parameterized `MountainLandformSpec` / `MountainLandformSurface` authority.
@@ -23,12 +23,13 @@
 - [x] Focused behavioral validation uses the production landform/network and checks grade/cut-fill/summit approach.
 - [x] Use convention/asmdef-derived module validation; obsolete issue-owned module registration is removed.
 - [x] Keep current production acceptance tests aligned to landform/road/placeholder/composition/dialogue contracts rather than legacy landmark assumptions.
-- [x] Keep the current authoritative route fixture aligned through the summit-supported tail and retain only the constrained `resolved-49` arrival-radius exception.
+- [x] Regenerate the stale issue-owned evidence route from the current 91-point production resolver output; path-base maps to route point 0, every subsequent resolved point is traversed in order, and semantic base/turn/summit Y expectations are derived from current resolved-road elevations.
+- [x] Strengthen the evidence regression so a stale intermediate coordinate or stale semantic Y offset fails against the authoritative current route rather than waiting for built-player timeout.
 - [x] Restore startup-bake source-signature/SHA provenance so stale or missing sidecars cannot silently suppress current source.
 - [x] Fix the demonstrated CharacterMotor square-AABB/circular-capsule corner false-positive without weakening route, terrain, vegetation, tolerance, grade, or summit policy.
 - [x] Fix the demonstrated VoxelShowcase Input-System-only blocker through reusable `Game.Input.Runtime` compatibility rather than re-enabling legacy/both input globally.
-- [ ] Prove the Input-System correction on the final exact feature SHA: no game-side legacy-input exception, grounded replay progresses through the complete route, and affected module validation passes.
-- [ ] Refresh route diagnostics/evidence only if final authoritative geometry/road resolution changes; derive semantic base/turn/summit expectations from the resolved route and do not restore obsolete hard-coded rise/index assumptions.
+- [x] Correct the module-local CharacterMotor player proof so it compensates the production AutoWalk benchmark's 24 deg/s circular turn every frame instead of steering off the authored road after a one-time heading.
+- [ ] Prove the Input-System correction and CharacterMotor module proof on the final exact feature SHA: no game-side legacy-input exception, grounded replay completes the authoritative route, and affected module validation passes.
 
 ## Far-feature visual root cause / reusable correction
 - [x] Reject run `33951141430` approach/path-base captures: giant flat white slab/AABB masses are not production-quality Mountain Dragon evidence.
@@ -37,24 +38,29 @@
 - [x] Resolve far-feature albedo from the already-installed opaque voxel material presentation catalogue; do not add game material vocabulary or Mountain Dragon recipes to Rendering.
 - [x] Add focused regressions for canonical bake -> far-feature frustum profile/material, frustum mesh taper, and installed material albedo; run `33957676303` exposed and the branch fixes their missing direct `VoxelEngine.Rendering.Api` test-assembly reference.
 - [x] Update the existing module-owned `Rendering/Validation/FarWorld` built-player surface to exercise a tapered Frustum with a non-default installed material through `VoxelMaterialPresentationInstaller` + production `ProceduralFarFeatureRenderer`, with a required runtime log assertion; do not create a parallel renderer.
-- [ ] Prove the far-feature contract/renderer regressions, module-local FarWorld player, and exact VoxelShowcase visual correction on the final exact feature SHA; acceptance requires the white slab/AABB artifact to be absent, not merely green unit tests.
+- [x] Reject run `33957939661` visual captures from source `b6f9b259...`: magenta/purple slab-like semantic proxies still dominate approach/path-base; that source predates the later near-surface semantic-proxy retirement commits ending at `79ac799...`.
+- [ ] Prove the far-feature contract/renderer regressions, module-local FarWorld player, and exact VoxelShowcase visual correction on the final exact feature SHA; acceptance requires white/magenta slab/AABB artifacts to be absent, not merely green unit tests.
 
-## Persistent CI module-validation blocker
-- [x] Classify run `33951141430` module failure separately from gameplay input: `VoxelEngine.Structures.Tests.PlayMode.TypedStructuralSocketCompositionSceneTests...` is interrupted by CoreRP `DebugUpdater` polling legacy `UnityEngine.Input` under Input-System-only settings.
+## Persistent CI module-validation blockers
+- [x] Classify run `33951141430` Structures PlayMode failure separately from gameplay input: CoreRP `DebugUpdater` polled legacy `UnityEngine.Input` under Input-System-only settings.
 - [x] Add a narrow Editor/CI-only guard that disables CoreRP runtime Rendering Debugger UI/updater only while the persistent CI process is active; do not change Player Settings, production player input, or quarantine the required Structures test.
-- [ ] Prove the required Structures PlayMode module validation executes without the CoreRP legacy-input exception on the final exact feature SHA.
+- [x] Run `33957939661` proves the required `VoxelEngine.Structures.Tests.PlayMode` phase passes with one test / zero failures and no CoreRP legacy-input exception.
+- [x] Classify that run's remaining module-player failure as `CharacterMotorProductionValidation` control logic: a one-time heading plus circular AutoWalk advanced only 0.71 m while the main production replay progressed normally.
+- [ ] Prove all repository-derived module validation, including corrected CharacterMotor and FarWorld players, passes on the final exact feature SHA.
 
 ## Exact-source CI evidence
 - [x] Earlier exact-source runs established reusable architecture, road bounds, route diagnostics, realized-corridor correctness, and CharacterMotor root cause; retained evidence includes `33472689582`, `33473157863`, `33653746253`, `33754305666`, `33806764602`, and `33821583052`.
 - [x] Run `33900019648` baked a matching candidate but is rejected: stale route evidence stopped replay at `upper-turn` and captures showed giant faceted masses.
 - [x] Run `33947319899` passed the open-sky discriminator but is rejected: game-side legacy input prevented waypoint progress.
-- [x] Run `33951141430` requested current-source bake passed and production input compatibility progressed normally through waypoint 15/95 with no game-side legacy-input exception; the 30 s replay budget was too short, the exact captures were visually rejected, and required Structures PlayMode validation failed in CoreRP DebugUpdater.
+- [x] Run `33951141430` requested current-source bake passed and production input compatibility progressed normally through waypoint 15/95 with no game-side legacy-input exception; the 30 s replay budget was too short, exact captures were visually rejected, and required Structures PlayMode validation failed in CoreRP DebugUpdater.
 - [x] Run `33957676303` selected exact source `eb804d6f...` and failed deterministically before tests/player execution because `FarFeatureShapePresentationTests` lacked a direct Rendering.Api asmdef reference (`CS0234`/`CS0246`). Both module validation and player build correctly aborted on the same compile error; no acceptance conclusion is drawn from this run.
-- [ ] Run the exact current feature head through only `ci-test/fixes/agent-4`, requesting `VoxelEngine.Showcase.Tests.EditMode.ShowcaseStartupBakeArtifactTests.CurrentSourceBakeExportsPayloadAndMatchingManifest` with this SceneIssue and an explicit ~210 s replay budget. Never replace queued/running work.
-- [ ] Require that same exact checkout to pass current-source bake + manifest, repository-derived module validation, all new focused regressions, exception-free production startup/runtime, `WAYPOINT_REPLAY` completion through all 95 waypoints, summit proximity/cutscene, and exact dialogue.
+- [x] Run `33957939661` selected exact source `b6f9b259...`: requested bake passed and exported a matching 13,310,800-byte candidate (`BE8FDFF3`, SHA-256 `c0f6f5bb...`), persistent tests including Structures PlayMode passed, but CharacterMotor module-player steering failed and the SceneIssue replay exposed the stale off-road 95-waypoint fixture at `lower-turn`; visual captures are rejected. See experiment 034.
+- [x] Merge required then-current `origin/master` `af61066de669431a6555e737887bd5d4031525b8` into `fixes/agent-4` as merge commit `d7b265749831613d4d057d99d8066181d3dfcb08` before continuing substantive work.
+- [ ] Run the exact current feature head through only `ci-test/fixes/agent-4`, requesting `VoxelEngine.Showcase.Tests.EditMode.ShowcaseStartupBakeArtifactTests.CurrentSourceBakeExportsPayloadAndMatchingManifest` with this SceneIssue and explicit ~210 s replay budget. Never replace queued/running work.
+- [ ] Require that same exact checkout to pass current-source bake + manifest, repository-derived module validation, all new focused regressions, exception-free production startup/runtime, `WAYPOINT_REPLAY` completion through all 92 evidence waypoints (normal approach plus every point of the 91-point authoritative road), summit proximity/cutscene, and exact dialogue.
 
 ## Production visual / built-player acceptance
-- [x] Branch was synchronized with `origin/master` `51797c954490425964e602d6bb2252a0d7a7c5aa` (`behind_by: 0`) before the current fixes. Final promotion still requires a fresh master fetch/merge.
+- [x] Branch synchronized with `origin/master` `af61066de669431a6555e737887bd5d4031525b8` in merge `d7b265749831613d4d057d99d8066181d3dfcb08` before this correction. Final promotion still requires a fresh master fetch/merge.
 - [ ] Independently validate the final route on a fresh current-source startup payload: require setup/arm/reached/vertical/complete telemetry, no exceptions, and normal grounded movement without jumps/teleports.
 - [ ] Capture and human-review exact production VoxelShowcase approach as one substantial coherent grounded natural mountain and readable ascent.
 - [ ] Human-review path base and representative lower/mid/upper ascent as continuous supported road carved/graded into the landform, with no slab, trench, tunnel, causeway, floating, or impassable artifacts.
