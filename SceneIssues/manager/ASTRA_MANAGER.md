@@ -68,7 +68,7 @@ Create follow-up work only when all of these can be stated concretely:
 
 Before creating anything, read `runtime/open-issue-index.md` and verify an existing open SceneIssue does not substantially cover the defect. If it does, reference the existing issue instead of duplicating it.
 
-Astra creates follow-up metadata through the decision contract; `tools/astra_manager.py apply-decision` writes the standard `issue.json`, `plan.md`, and `tasks.md`. Astra never implements the follow-up itself.
+Astra creates follow-up metadata through the decision contract. The deterministic finish boundary writes the standard `issue.json`, `plan.md`, and `tasks.md`, validates the review budget, and transports follow-ups through protected master. Astra never implements the follow-up itself.
 
 ## Decision contract
 
@@ -82,13 +82,12 @@ For each selected review actually evaluated, record its exact `key` and one resu
 
 Do not mark an item accepted merely because the review budget expired. Do not add decisions for keys that were not exposed in the current `review-window.md`.
 
-When finished, run:
+When finished, run exactly:
 
 ```bash
-python3 tools/astra_manager.py apply-decision
-python3 tools/astra_manager_publish.py
+python3 tools/astra_manager_finish.py
 ```
 
-The first command applies the bounded management decision. The second is deterministic transport: it publishes only new manager-generated SceneIssue metadata through a normal protected-master PR, enables auto-merge, and exits. If no follow-up was created, it does nothing.
+The finish command rejects any reviewed key outside the current bounded window, applies the decision, publishes only newly created manager SceneIssues through a normal protected-master PR, enables auto-merge, and exits. The cheap outer loop retries incomplete publication later if necessary.
 
 Then stop. Do not wait for the follow-up PR, CI, assignment, or implementation.
