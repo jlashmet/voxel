@@ -311,6 +311,7 @@ namespace Game.Kentridge.PlayableSlice
         private void TickWaitCombatResolved()
         {
             QueueMove(Vector2.zero);
+            if (_forest.CombatActive) QueuePrimary();
             if (!_forest.CombatResolved) return;
             if (!_forest.WinningTeam.HasValue || _forest.WinningTeam.Value != CombatTeam.Player)
             {
@@ -559,6 +560,13 @@ namespace Game.Kentridge.PlayableSlice
         {
             if (_gamepad == null || !_gamepad.added) return;
             InputSystem.QueueStateEvent(_gamepad, new GamepadState { leftStick = leftStick });
+        }
+
+        private void QueuePrimary()
+        {
+            if (_gamepad == null || !_gamepad.added) return;
+            InputSystem.QueueStateEvent(_gamepad, new GamepadState().WithButton(GamepadButton.South));
+            InputSystem.QueueStateEvent(_gamepad, new GamepadState());
         }
 
         private void QueueInteract()
