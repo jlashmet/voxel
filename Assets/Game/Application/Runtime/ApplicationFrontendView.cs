@@ -27,7 +27,9 @@ namespace Game.Application.Runtime
 
     /// <summary>
     /// Thin production frontend. It renders local navigation and sends semantic intents to
-    /// ApplicationFlowCoordinator only; it never loads scenes, pauses Time.timeScale or touches transport.
+    /// ApplicationFlowCoordinator only; it never loads scenes, advances simulation, pauses Time.timeScale
+    /// or touches transport. The owning application composition root advances the coordinator exactly once
+    /// per frame.
     /// </summary>
     public sealed class ApplicationFrontendView : MonoBehaviour
     {
@@ -43,14 +45,6 @@ namespace Game.Application.Runtime
         {
             _flow = flow ?? throw new ArgumentNullException(nameof(flow));
             _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
-        }
-
-        private void Update()
-        {
-            if (_flow == null) return;
-            ApplicationLifecycle lifecycle = _flow.Snapshot.Lifecycle;
-            if (lifecycle == ApplicationLifecycle.StartingSession || lifecycle == ApplicationLifecycle.InGame)
-                _flow.Update(Mathf.Max(0, Mathf.RoundToInt(Time.unscaledDeltaTime * 1000f)));
         }
 
         private void OnGUI()
