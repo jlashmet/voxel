@@ -3,6 +3,7 @@ using Game.Application.Api;
 using Game.Characters.Api;
 using Game.Combat.Api;
 using Game.Composition.Kentridge.Playable;
+using Game.Composition.Kentridge.Runtime;
 using Game.SessionOrchestration.Api;
 using Game.WorldObjects.Api;
 using UnityEngine;
