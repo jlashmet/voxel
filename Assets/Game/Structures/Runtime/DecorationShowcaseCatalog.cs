@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Game.Structures.Api;
 
 namespace Game.Structures.Runtime
@@ -84,94 +85,109 @@ namespace Game.Structures.Runtime
     /// <summary>
     /// Deterministic production-owned enumeration/query boundary for independently previewable
     /// decoration and world-object content. Scene/UI consumers iterate this API rather than owning a
-    /// second catalogue. Stable registered decoration IDs remain the persistence IDs owned by their
-    /// existing catalogues.
+    /// second catalogue. Canonical enum values remain the identity authority; this class only joins
+    /// the owning production catalogues and reusable factories into one read surface.
     /// </summary>
     public static class DecorationShowcaseCatalog
     {
-        public const int PresetCount = 25;
-        public const int MineCaveCount = 8;
-        public const int NaturalCaveCount = 8;
-        public const int WorldObjectCount = 48;
         public const uint PreviewSceneId = 0x50525031u; // PRP1
 
+        public static int PresetCount => Enum.GetValues(typeof(DecorationShowcasePresetKind)).Length;
+        public static int MineCaveCount => Enum.GetValues(typeof(MineCaveDecorationKind)).Length;
+        public static int NaturalCaveCount => Enum.GetValues(typeof(NaturalCaveDecorationKind)).Length;
+        public static int WorldObjectCount => CountWorldObjects();
+
         public static int RegisteredDecorationCount =>
-            DecorationContentCatalog.KindCount +
-            DecorationExpansion200Catalog.Count +
-            DecorationExpansion260Catalog.Count +
-            DecorationExpansion300Catalog.Count +
-            DecorationExpansion320Catalog.Count +
-            DecorationExpansion340Catalog.Count +
-            DecorationExpansion360Catalog.Count +
-            DecorationExpansion380Catalog.Count +
-            DecorationExpansion400Catalog.Count +
-            GuildSignatureDecorationCatalog.Count;
+            CountNonZero(typeof(DecorationContentKind)) +
+            CountNonZero(typeof(DecorationExpandedContentKind)) +
+            CountNonZero(typeof(DecorationExpansion260Kind)) +
+            CountNonZero(typeof(DecorationExpansion300Kind)) +
+            CountNonZero(typeof(DecorationExpansion320Kind)) +
+            CountNonZero(typeof(DecorationExpansion340Kind)) +
+            CountNonZero(typeof(DecorationExpansion360Kind)) +
+            CountNonZero(typeof(DecorationExpansion380Kind)) +
+            CountNonZero(typeof(DecorationExpansion400Kind)) +
+            CountNonZero(typeof(GuildSignatureKind));
 
         public static int Count =>
             RegisteredDecorationCount + PresetCount + MineCaveCount + NaturalCaveCount + WorldObjectCount;
 
         public static DecorationShowcaseEntry[] CreateEntries()
         {
-            var entries = new DecorationShowcaseEntry[Count];
-            int output = 0;
+            var entries = new List<DecorationShowcaseEntry>(Count);
+            var identities = new HashSet<string>(StringComparer.Ordinal);
 
-            for (ushort id = 1; id <= RegisteredDecorationCount; id++)
-            {
-                entries[output++] = new DecorationShowcaseEntry(
-                    "decoration:" + id,
-                    FriendlyName(RegisteredDecorationName(id)),
-                    RegisteredDecorationCategory(id),
-                    DecorationShowcaseEntrySource.RegisteredDecoration,
-                    id);
-            }
+            AppendRegistered(entries, identities, typeof(DecorationContentKind), "Decorations / Core");
+            AppendRegistered(entries, identities, typeof(DecorationExpandedContentKind), "Decorations / Expansion 200");
+            AppendRegistered(entries, identities, typeof(DecorationExpansion260Kind), "Decorations / Expansion 260");
+            AppendRegistered(entries, identities, typeof(DecorationExpansion300Kind), "Decorations / Expansion 300");
+            AppendRegistered(entries, identities, typeof(DecorationExpansion320Kind), "Decorations / Expansion 320");
+            AppendRegistered(entries, identities, typeof(DecorationExpansion340Kind), "Decorations / Expansion 340");
+            AppendRegistered(entries, identities, typeof(DecorationExpansion360Kind), "Decorations / Expansion 360");
+            AppendRegistered(entries, identities, typeof(DecorationExpansion380Kind), "Decorations / Expansion 380");
+            AppendRegistered(entries, identities, typeof(DecorationExpansion400Kind), "Decorations / Expansion 400");
+            AppendRegistered(entries, identities, typeof(GuildSignatureKind), "Decorations / Guild Signature");
 
-            for (ushort id = 1; id <= PresetCount; id++)
+            Array presetValues = Enum.GetValues(typeof(DecorationShowcasePresetKind));
+            for (int i = 0; i < presetValues.Length; i++)
             {
-                var kind = (DecorationShowcasePresetKind)id;
-                entries[output++] = new DecorationShowcaseEntry(
-                    "preset:" + id,
+                var kind = (DecorationShowcasePresetKind)presetValues.GetValue(i);
+                ushort raw = (ushort)kind;
+                AddUnique(entries, identities, new DecorationShowcaseEntry(
+                    "preset:" + raw,
                     FriendlyName(kind.ToString()),
                     PresetCategory(kind),
                     DecorationShowcaseEntrySource.Preset,
-                    id);
+                    raw));
             }
 
-            for (ushort id = 1; id <= MineCaveCount; id++)
+            Array mineValues = Enum.GetValues(typeof(MineCaveDecorationKind));
+            for (int i = 0; i < mineValues.Length; i++)
             {
-                var kind = (MineCaveDecorationKind)(id - 1);
-                entries[output++] = new DecorationShowcaseEntry(
-                    "mine-cave:" + id,
+                var kind = (MineCaveDecorationKind)mineValues.GetValue(i);
+                ushort sourceId = (ushort)((byte)kind + 1);
+                AddUnique(entries, identities, new DecorationShowcaseEntry(
+                    "mine-cave:" + sourceId,
                     FriendlyName(kind.ToString()),
                     "Cave / Mine",
                     DecorationShowcaseEntrySource.MineCave,
-                    id);
+                    sourceId));
             }
 
-            for (ushort id = 1; id <= NaturalCaveCount; id++)
+            Array naturalValues = Enum.GetValues(typeof(NaturalCaveDecorationKind));
+            for (int i = 0; i < naturalValues.Length; i++)
             {
-                var kind = (NaturalCaveDecorationKind)(id - 1);
-                entries[output++] = new DecorationShowcaseEntry(
-                    "natural-cave:" + id,
+                var kind = (NaturalCaveDecorationKind)naturalValues.GetValue(i);
+                ushort sourceId = (ushort)((byte)kind + 1);
+                AddUnique(entries, identities, new DecorationShowcaseEntry(
+                    "natural-cave:" + sourceId,
                     FriendlyName(kind.ToString()),
                     "Cave / Natural",
                     DecorationShowcaseEntrySource.NaturalCave,
-                    id);
+                    sourceId));
             }
 
-            for (ushort id = 1; id <= WorldObjectCount; id++)
+            Array worldObjectValues = Enum.GetValues(typeof(WorldObjectKind));
+            for (int i = 0; i < worldObjectValues.Length; i++)
             {
-                var kind = (WorldObjectKind)id;
-                entries[output++] = new DecorationShowcaseEntry(
-                    "world-object:" + id,
+                var kind = (WorldObjectKind)worldObjectValues.GetValue(i);
+                if (kind == WorldObjectKind.Unknown)
+                    continue;
+                WorldObjectPreset preset = WorldObjectContentCatalog.Get(kind);
+                if (preset.Kind == WorldObjectKind.Unknown)
+                    continue;
+                ushort raw = Convert.ToUInt16(kind);
+                AddUnique(entries, identities, new DecorationShowcaseEntry(
+                    "world-object:" + raw,
                     FriendlyName(kind.ToString()),
                     "World Objects",
                     DecorationShowcaseEntrySource.WorldObject,
-                    id);
+                    raw));
             }
 
-            if (output != entries.Length)
+            if (entries.Count != Count)
                 throw new InvalidOperationException("Decoration showcase catalogue count drifted from its canonical sources.");
-            return entries;
+            return entries.ToArray();
         }
 
         public static bool TryDescribeDecoration(
@@ -180,30 +196,31 @@ namespace Game.Structures.Runtime
             out DecorationPropDescriptor descriptor)
         {
             descriptor = default;
-            if (!context.IsWellFormed || stableId == 0 || stableId > RegisteredDecorationCount)
+            if (!context.IsWellFormed || stableId == 0)
                 return false;
 
-            uint slotId = stableId;
-            if (stableId <= 114)
-                descriptor = DecorationContentCatalog.Describe(in context, PreviewSceneId, slotId, (DecorationContentKind)stableId);
-            else if (stableId <= 200)
-                descriptor = DecorationExpansion200Catalog.Describe(in context, PreviewSceneId, slotId, (DecorationExpandedContentKind)stableId);
-            else if (stableId <= 260)
-                descriptor = DecorationExpansion260Catalog.Describe(in context, PreviewSceneId, slotId, (DecorationExpansion260Kind)stableId);
-            else if (stableId <= 300)
-                descriptor = DecorationExpansion300Catalog.Describe(in context, PreviewSceneId, slotId, (DecorationExpansion300Kind)stableId);
-            else if (stableId <= 320)
-                descriptor = DecorationExpansion320Catalog.Describe(in context, PreviewSceneId, slotId, (DecorationExpansion320Kind)stableId);
-            else if (stableId <= 340)
-                descriptor = DecorationExpansion340Catalog.Describe(in context, PreviewSceneId, slotId, (DecorationExpansion340Kind)stableId);
-            else if (stableId <= 360)
-                descriptor = DecorationExpansion360Catalog.Describe(in context, PreviewSceneId, slotId, (DecorationExpansion360Kind)stableId);
-            else if (stableId <= 380)
-                descriptor = DecorationExpansion380Catalog.Describe(in context, PreviewSceneId, slotId, (DecorationExpansion380Kind)stableId);
-            else if (stableId <= 400)
-                descriptor = DecorationExpansion400Catalog.Describe(in context, PreviewSceneId, slotId, (DecorationExpansion400Kind)stableId);
+            if (IsDefined(typeof(DecorationContentKind), stableId))
+                descriptor = DecorationContentCatalog.Describe(in context, PreviewSceneId, stableId, (DecorationContentKind)stableId);
+            else if (IsDefined(typeof(DecorationExpandedContentKind), stableId))
+                descriptor = DecorationExpansion200Catalog.Describe(in context, PreviewSceneId, stableId, (DecorationExpandedContentKind)stableId);
+            else if (IsDefined(typeof(DecorationExpansion260Kind), stableId))
+                descriptor = DecorationExpansion260Catalog.Describe(in context, PreviewSceneId, stableId, (DecorationExpansion260Kind)stableId);
+            else if (IsDefined(typeof(DecorationExpansion300Kind), stableId))
+                descriptor = DecorationExpansion300Catalog.Describe(in context, PreviewSceneId, stableId, (DecorationExpansion300Kind)stableId);
+            else if (IsDefined(typeof(DecorationExpansion320Kind), stableId))
+                descriptor = DecorationExpansion320Catalog.Describe(in context, PreviewSceneId, stableId, (DecorationExpansion320Kind)stableId);
+            else if (IsDefined(typeof(DecorationExpansion340Kind), stableId))
+                descriptor = DecorationExpansion340Catalog.Describe(in context, PreviewSceneId, stableId, (DecorationExpansion340Kind)stableId);
+            else if (IsDefined(typeof(DecorationExpansion360Kind), stableId))
+                descriptor = DecorationExpansion360Catalog.Describe(in context, PreviewSceneId, stableId, (DecorationExpansion360Kind)stableId);
+            else if (IsDefined(typeof(DecorationExpansion380Kind), stableId))
+                descriptor = DecorationExpansion380Catalog.Describe(in context, PreviewSceneId, stableId, (DecorationExpansion380Kind)stableId);
+            else if (IsDefined(typeof(DecorationExpansion400Kind), stableId))
+                descriptor = DecorationExpansion400Catalog.Describe(in context, PreviewSceneId, stableId, (DecorationExpansion400Kind)stableId);
+            else if (IsDefined(typeof(GuildSignatureKind), stableId))
+                descriptor = GuildSignatureDecorationCatalog.Describe(in context, PreviewSceneId, stableId, (GuildSignatureKind)stableId);
             else
-                descriptor = GuildSignatureDecorationCatalog.Describe(in context, PreviewSceneId, slotId, (GuildSignatureKind)stableId);
+                return false;
 
             return descriptor.IsWellFormed;
         }
@@ -214,8 +231,7 @@ namespace Game.Structures.Runtime
             out DecorationPropDescriptor descriptor)
         {
             descriptor = default;
-            ushort raw = (ushort)kind;
-            if (!context.IsWellFormed || raw == 0 || raw > PresetCount)
+            if (!context.IsWellFormed || !Enum.IsDefined(typeof(DecorationShowcasePresetKind), kind))
                 return false;
 
             uint slotId = (uint)kind + 1000u;
@@ -278,42 +294,106 @@ namespace Game.Structures.Runtime
             return descriptor.IsWellFormed;
         }
 
+        public static bool TryDescribeMineCave(
+            in DecorationContext context,
+            ushort sourceId,
+            out MineCaveDecorationDescriptor descriptor)
+        {
+            descriptor = default;
+            if (!context.IsWellFormed || sourceId == 0)
+                return false;
+            int raw = sourceId - 1;
+            if (!Enum.IsDefined(typeof(MineCaveDecorationKind), (byte)raw))
+                return false;
+            descriptor = MineCaveDecorationCatalog.Describe(in context, (MineCaveDecorationKind)raw, sourceId);
+            return descriptor.IsWellFormed;
+        }
+
+        public static bool TryDescribeNaturalCave(
+            in DecorationContext context,
+            ushort sourceId,
+            out NaturalCaveDecorationDescriptor descriptor)
+        {
+            descriptor = default;
+            if (!context.IsWellFormed || sourceId == 0)
+                return false;
+            int raw = sourceId - 1;
+            if (!Enum.IsDefined(typeof(NaturalCaveDecorationKind), (byte)raw))
+                return false;
+            descriptor = NaturalCaveDecorationCatalog.Describe(in context, (NaturalCaveDecorationKind)raw, sourceId);
+            return descriptor.IsWellFormed;
+        }
+
         public static bool TryGetWorldObjectPreset(ushort stableId, out WorldObjectPreset preset)
         {
             preset = default;
-            if (stableId == 0 || stableId > WorldObjectCount)
+            var kind = (WorldObjectKind)stableId;
+            if (stableId == 0 || !Enum.IsDefined(typeof(WorldObjectKind), kind))
                 return false;
-            preset = WorldObjectContentCatalog.Get((WorldObjectKind)stableId);
+            preset = WorldObjectContentCatalog.Get(kind);
             return preset.Kind != WorldObjectKind.Unknown;
         }
 
-        private static string RegisteredDecorationName(ushort id)
+        private static void AppendRegistered(
+            List<DecorationShowcaseEntry> entries,
+            HashSet<string> identities,
+            Type enumType,
+            string category)
         {
-            if (id <= 114) return ((DecorationContentKind)id).ToString();
-            if (id <= 200) return ((DecorationExpandedContentKind)id).ToString();
-            if (id <= 260) return ((DecorationExpansion260Kind)id).ToString();
-            if (id <= 300) return ((DecorationExpansion300Kind)id).ToString();
-            if (id <= 320) return ((DecorationExpansion320Kind)id).ToString();
-            if (id <= 340) return ((DecorationExpansion340Kind)id).ToString();
-            if (id <= 360) return ((DecorationExpansion360Kind)id).ToString();
-            if (id <= 380) return ((DecorationExpansion380Kind)id).ToString();
-            if (id <= 400) return ((DecorationExpansion400Kind)id).ToString();
-            return ((GuildSignatureKind)id).ToString();
+            Array values = Enum.GetValues(enumType);
+            for (int i = 0; i < values.Length; i++)
+            {
+                object value = values.GetValue(i);
+                ushort raw = Convert.ToUInt16(value);
+                if (raw == 0)
+                    continue;
+                string name = Enum.GetName(enumType, value) ?? value.ToString();
+                AddUnique(entries, identities, new DecorationShowcaseEntry(
+                    "decoration:" + raw,
+                    FriendlyName(name),
+                    category,
+                    DecorationShowcaseEntrySource.RegisteredDecoration,
+                    raw));
+            }
         }
 
-        private static string RegisteredDecorationCategory(ushort id)
+        private static void AddUnique(
+            List<DecorationShowcaseEntry> entries,
+            HashSet<string> identities,
+            in DecorationShowcaseEntry entry)
         {
-            if (id <= 114) return "Decorations / Core";
-            if (id <= 200) return "Decorations / Expansion 200";
-            if (id <= 260) return "Decorations / Expansion 260";
-            if (id <= 300) return "Decorations / Expansion 300";
-            if (id <= 320) return "Decorations / Expansion 320";
-            if (id <= 340) return "Decorations / Expansion 340";
-            if (id <= 360) return "Decorations / Expansion 360";
-            if (id <= 380) return "Decorations / Expansion 380";
-            if (id <= 400) return "Decorations / Expansion 400";
-            return "Decorations / Guild Signature";
+            if (!entry.IsWellFormed)
+                throw new InvalidOperationException("Canonical showcase entry was malformed: " + entry.StableId);
+            if (!identities.Add(entry.StableId))
+                throw new InvalidOperationException("Duplicate canonical showcase identity: " + entry.StableId);
+            entries.Add(entry);
         }
+
+        private static int CountNonZero(Type enumType)
+        {
+            Array values = Enum.GetValues(enumType);
+            int count = 0;
+            for (int i = 0; i < values.Length; i++)
+                if (Convert.ToUInt64(values.GetValue(i)) != 0UL)
+                    count++;
+            return count;
+        }
+
+        private static int CountWorldObjects()
+        {
+            Array values = Enum.GetValues(typeof(WorldObjectKind));
+            int count = 0;
+            for (int i = 0; i < values.Length; i++)
+            {
+                var kind = (WorldObjectKind)values.GetValue(i);
+                if (kind != WorldObjectKind.Unknown && WorldObjectContentCatalog.Get(kind).Kind != WorldObjectKind.Unknown)
+                    count++;
+            }
+            return count;
+        }
+
+        private static bool IsDefined(Type enumType, ushort value) =>
+            Enum.IsDefined(enumType, Enum.ToObject(enumType, value));
 
         private static string PresetCategory(DecorationShowcasePresetKind kind)
         {
