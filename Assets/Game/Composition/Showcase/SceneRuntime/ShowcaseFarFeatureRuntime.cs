@@ -74,16 +74,19 @@ namespace VoxelEngine.Showcase
         public void Update(
             Camera camera,
             float3 fallbackCameraPosition,
-            float nearSurfaceRadiusMetres = 0f)
+            float nearSurfaceRadiusMetres = -1f)
         {
             if (_renderer == null) return;
             float3 cameraPosition = camera != null
                 ? (float3)camera.transform.position
                 : fallbackCameraPosition;
+            float handoffRadius = nearSurfaceRadiusMetres >= 0f
+                ? nearSurfaceRadiusMetres
+                : PublishedNearSurfaceCoverage.RadiusMetres;
             _renderer.SetInstances(_source.Query(
                 cameraPosition,
                 RadiusMetres,
-                nearSurfaceRadiusMetres));
+                handoffRadius));
         }
 
         public string Describe() =>
