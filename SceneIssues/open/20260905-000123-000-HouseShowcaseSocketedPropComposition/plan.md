@@ -17,10 +17,15 @@ A second production finding changed the palette implementation detail: the legac
 
 Selected optional identities are attempted deterministically across generated compatible rooms. If no generated room contains the identity, report `RoomUnavailable`; if compatible generated rooms exist but valid placement cannot be found, report `NoValidPlacement`. Never force overlap or fallback coordinates.
 
+## Final visual-quality finding
+Exact-SHA request `18c0c4da8d229401c0ce312725634fe9dab14304` (feature source `cc50644a1e1c1cb8d6c7e513de82bacc5087c1dc`) passed automatic module validation and the standalone HouseShowcase replay, but direct screenshot review rejected closure. The Knight exterior reads as a flat/disconnected blockout and the first Wizard interior reset is clipped against nearby geometry. This is acceptance-relevant visual evidence, so green automation alone is insufficient.
+
+The defect is not incomplete meshing: the rejected Knight exterior is captured in `READY` state. Production `GuildHousePrototypeAuthoring` currently gives hall-like guild houses a full flat roof plate with little facade articulation, while `GuildHouseExteriorAuthoring` explicitly provides only baseline simple dressing. The correction therefore belongs in shared production shell/facade authoring plus HouseShowcase camera framing—not in showcase-only primitive geometry. Add reusable front-door/facade articulation, readable production roof silhouette/material contrast, and a collision-safe interior reset; validate with Structures regressions and a fresh built-player replay.
+
 ## Blast radius / validation gates
 Keep changes within Structures semantic/runtime/tests/validation plus the HouseShowcase integration consumer and only the minimum reusable voxel-composition hook if required. Measure repeated rebuild/resource counts; do not weaken budgets. Current durable checklist commit after the green query slice is `bc26fb22fa385d7b38c0d558a1e4e7b1d40dd5b8`.
 
-- Structures regressions: catalog parity/applicability, palette correctness, same-seed determinism, new-seed structural variation, socket/clearance/non-overlap, cleanup.
+- Structures regressions: catalog parity/applicability, palette correctness, same-seed determinism, new-seed structural variation, socket/clearance/non-overlap, cleanup, and final shell/facade visual-authoring bounds.
 - New `Assets/Game/Structures/Validation/` built-player scene/scenario using production authoring/rendering.
 - `HouseShowcase` built-player evidence: two materially different house kinds, differing prop lists, multi-select, exterior/interior inspection, regeneration before/after.
 - Final exact-SHA targeted CI, direct `open/`→`closed/`, current-master merge, PR + auto-merge `affected` gate.
