@@ -8,7 +8,6 @@ the model's bootstrap context.
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import shlex
 import subprocess
@@ -23,8 +22,7 @@ def select_review_window(pending: list[dict[str, Any]], budget: dict[str, Any]) 
     routine_limit = max(0, int(budget.get("routineCompletions", 5)))
 
     suspicious = [item for item in pending if item.get("priority") == "suspicious"][:suspicious_limit]
-    selected_keys = {item.get("key") for item in suspicious}
-    routine = [item for item in pending if item.get("key") not in selected_keys][:routine_limit]
+    routine = [item for item in pending if item.get("priority") != "suspicious"][:routine_limit]
     return suspicious + routine
 
 
