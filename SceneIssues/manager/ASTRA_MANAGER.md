@@ -82,4 +82,13 @@ For each selected review actually evaluated, record its exact `key` and one resu
 
 Do not mark an item accepted merely because the review budget expired. Do not add decisions for keys that were not exposed in the current `review-window.md`.
 
-When finished, run `python3 tools/astra_manager.py apply-decision`. Then stop. Do not wait for the new SceneIssue to be assigned or implemented.
+When finished, run:
+
+```bash
+python3 tools/astra_manager.py apply-decision
+python3 tools/astra_manager_publish.py
+```
+
+The first command applies the bounded management decision. The second is deterministic transport: it publishes only new manager-generated SceneIssue metadata through a normal protected-master PR, enables auto-merge, and exits. If no follow-up was created, it does nothing.
+
+Then stop. Do not wait for the follow-up PR, CI, assignment, or implementation.
