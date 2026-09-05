@@ -1,0 +1,22 @@
+{
+  "batchHours": 5,
+  "staleAgentHours": 12,
+  "repeatedCiFailureCount": 3,
+  "largeDiffFileCount": 40,
+  "reviewBudget": {
+    "routineCompletions": 5,
+    "suspiciousItems": 2,
+    "deepInvestigations": 1
+  },
+  "corePathPatterns": [
+    "^Assets/.*(?:Renderer|Rendering|Gpu|GPU)",
+    "^Assets/.*WorldBuilder",
+    "^Assets/.*Streaming",
+    "^Assets/.*Runtime/",
+    "^Assets/.*Public/",
+    "^Packages/",
+    "^ProjectSettings/",
+    "^tools/(?:module-validation|run-module-validation|select-tests)",
+    "^\\.github/workflows/"
+  ]
+}
