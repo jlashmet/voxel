@@ -1,26 +1,26 @@
 # 24 Production-composed built-player vertical slice — implementation plan
 
-**Target ownership:** Kentridge production composition plus shared standalone-player validation. No new generic gameplay API/Runtime module.
+**Target ownership:** Kentridge production composition plus shared standalone-player validation. No new generic gameplay module.
 
 ## Observed behavior / acceptance
 
-System 23 Application is now closed on `origin/master` and current master `2749a5133319eb5cf5019d821bb00ee3e2fe1a4e` was merged into `fixes/agent-2` at `38f1725b25154fcf6403a970a0b719cf704a7d5a`. The prerequisite is therefore available. Kentridge still violates the target boundary: `KentridgePlayableSlice` constructs/prepares/starts/ticks/shuts down `GameSessionOrchestrator`, `KentridgeForestBanditEncounter` constructs its own Input context/reader, and Kentridge player/HUD paths still poll legacy `UnityEngine.Input` in several places.
+The branch has completed the initial consumer cleanup: one production `UnityPlayerInputReader` can now be injected into the playable slice, HUD and forest encounter; the well/inventory presenter is read-only; and the slice supplies a `KentridgeSessionRuntimeGraphFactory` instead of constructing its own orchestrator. Current `origin/master` is `d46e24f05337553883636b4f5b35228830269530`; it is two commits ahead and will be merged before final promotion as required.
 
-Acceptance remains: FrontEnd -> New Game -> `GameplayReady` -> real movement/interaction/progression/encounter/combat/loot/presentation -> save -> ordered teardown -> Continue -> restored live gameplay, all through production public boundaries and the shared built-player harness.
+The production vertical slice is still incomplete. No scene composition root yet owns Application, persistence or the single run-update loop. The slice still calls `IGameSessionControl.Tick`, so adding a root as-is would double-advance gameplay. Continue also needs fresh per-run character authority: encounter cleanup retires stable bandit `CharacterId`s, so reusing the same registry across a newly composed run can reject those IDs.
 
-The preserved exact-SHA request `30524f5adb8dc16675dc249ca12eabaef05a6e6a` completed as a product failure before tests because a top-level PlayMode test still called removed presentation-authority methods. Commit `936f127090d6fe203b7ec37ea212ee3559d6b5f9` repaired that compatibility test; do not retry the old product SHA.
+Acceptance remains FrontEnd -> New Game -> `GameplayReady` -> real movement/interaction/progression/encounter/combat/loot/presentation -> save -> ordered teardown -> Continue -> restored live gameplay, through public production boundaries and the shared built-player harness.
 
-## Hypotheses / discriminating result
+## Hypotheses / result
 
-1. **System 23 landing alone makes Kentridge Application-owned.** Falsified: current Kentridge still owns session lifecycle and multiple input paths.
-2. **A thin Kentridge composition root can own Application/input lifetime while reusing #14 session graph and #16 persistence seams.** Selected. Discriminating gate: repository search must find no Kentridge session lifecycle construction or legacy physical-input polling outside the owning composition adapter, and built-player New Game/Continue must traverse `ApplicationFlowCoordinator` with the same composed graph.
+1. **The consumer cleanup alone establishes Application ownership.** Falsified: lifecycle/tick/persistence ownership is still absent.
+2. **A thin Kentridge root can own Application/input/session/persistence while each run composes fresh gameplay authority.** Selected. Repository inspection confirms #14 orchestration already supports ordered graph lifetime and #16 persistence already supports section contributors/restore graphs/file storage.
 
 ## Selected composition
 
-A Kentridge-specific composition root owns one `InputContextService` + production Input-System reader, `ApplicationFlowCoordinator`, frontend view, persistence bridge and session plan. It supplies that one input capability to the playable slice, HUD and forest session extension. `KentridgePlayableSlice` remains world/presentation realization and session-graph supplier; it no longer prepares/starts/shuts down sessions. The forest extension keeps encounter/combat authority but receives shared input rather than constructing it. Well/inventory presentation remains read-only.
+Add a Kentridge-specific root with earlier execution order than the slice. It owns one input context/reader, `ApplicationFlowCoordinator`, production frontend/preferences, one `GameSessionOrchestrator`, and a persistence bridge over `SessionPersistenceService`. It injects input before slice enable, binds session control after world/session-factory readiness, and is the only in-game session tick owner.
 
-Persistence uses existing `CampaignRuntime.CaptureProgress/RestoreProgress` and `IInventoryStatePort` through a Kentridge composition adapter; no duplicate gameplay state store is introduced. Save/Continue must restore a newly composed graph and must not replay completed one-shot progression/cutscenes.
+Each `Compose` starts a fresh Kentridge character authority before building the graph. Persistence contributors capture/restore campaign progression, inventory, character semantic state and encounter outcome. Resume is explicitly marked on the graph so the opening one-shot cutscene is not replayed.
 
-## Remaining validation gates
+## Validation gates
 
-Complete T24-003 onward in `tasks.md`; update affected module tests/validation where behavior changes; then exact-SHA targeted CI with automatic module validation + standalone Kentridge proof. Inspect durable built-player evidence, close open -> closed only when every task passes, merge current master again, then PR + auto-merge and monitor required `affected` gate to merge.
+Affected roots: `Assets/Game/Composition/Kentridge/{Runtime,Playable}`, `Assets/Game/Application`, `Assets/Game/Input`, `Assets/Game/Persistence`, plus standalone `Assets/Scenes/KentridgePlayableSlice`. Preserve distinct module-local Validation coverage. Complete T24-003 onward, run affected editor/module validation, then exact-SHA targeted CI with standalone Kentridge built-player evidence. Only after every task/criterion passes: close open -> closed, merge latest master, open/update the feature PR, enable auto-merge, and monitor required PR checks until merged.
