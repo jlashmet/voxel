@@ -30,8 +30,6 @@ namespace Game.Kentridge.PlayableSlice
         internal const string ContentId = "kentridge-opening-campaign-v1";
         public const string DefaultSaveId = "kentridge-production-latest";
 
-        [SerializeField] private bool m_AutoStartNewGame;
-
         private KentridgePlayableSlice _slice;
         private KentridgeForestBanditEncounter _forest;
         private KentridgeGameplayHudInstaller _hud;
@@ -209,15 +207,6 @@ namespace Game.Kentridge.PlayableSlice
 
             Debug.Log("SYSTEM24 frontend: lifecycle=" + _flow.Snapshot.Lifecycle + " screen=" + _flow.Snapshot.Screen);
             _loggedUpdateFailure = false;
-
-            if (!m_AutoStartNewGame) return;
-            ApplicationOperationResult start = RequestNewGame();
-            if (!start.Succeeded)
-                throw new InvalidOperationException("Kentridge New Game failed: " + start.Failure + " " + start.Detail);
-            Debug.Log(
-                "SYSTEM24 new-game: lifecycle=" + _flow.Snapshot.Lifecycle +
-                " session=" + _session.Snapshot.Lifecycle +
-                " ready=" + _session.Snapshot.GameplayReady);
         }
 
         private void TeardownApplication()
