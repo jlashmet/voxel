@@ -55,6 +55,7 @@ namespace VoxelEngine.Showcase
         public int HouseCount => _houses.Length;
         public string SelectedHouseName =>
             _houses.Length == 0 ? string.Empty : _houses[_houseIndex].DisplayName;
+        internal static Color ProductionSurfaceDebugTint => Color.white;
 
         private void OnEnable()
         {
@@ -315,7 +316,7 @@ namespace VoxelEngine.Showcase
                 new Color(0.66f, 0.76f, 0.84f, 1f),
                 new Color(0.30f, 0.48f, 0.66f, 1f));
             RenderingComposition.ConfigureEnvironment(
-                new Color(0.78f, 0.81f, 0.84f, 1f),
+                ProductionSurfaceDebugTint,
                 new Vector3(-0.48f, 0.80f, -0.35f).normalized,
                 new Color(1.0f, 0.91f, 0.74f, 1f),
                 new Color(0.45f, 0.53f, 0.60f, 1f));
