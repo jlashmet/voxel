@@ -126,6 +126,7 @@ namespace VoxelEngine.Showcase
         private bool _mouseLook = true;
         private bool _hadFocus = true;
         private int _relockFrames;
+        private int _discardLookFrames;
         private bool _flashlightEnabled;
         private float _yaw, _pitch;
         private double _lastEditMs;
@@ -187,15 +188,10 @@ namespace VoxelEngine.Showcase
         {
             if (!Application.isPlaying) return;
 
-            // Clamp by bytes, not an obsolete slot count. Sidecars change per-slot cost; tier
-            // budgets remain the authority and cannot silently be exceeded by an inspector value.
             long tierBytes = DeviceTierBudget.GetForTier(DeviceTierBudget.Detect()).BrickPoolCapacity;
             int capacity = VoxelEngineBootstrap.ClampMixedBrickCapacityToBudget(
                 m_BrickPoolCapacity, tierBytes);
 
-            // Pass the tier budget down as well as the capacity it produced. Storage applies its
-            // own ceiling before the eager BrickPool allocation; without the tier budget it would
-            // fall back to the conservative backstop and halve a pool this scene already sized.
             _world = new ShowcaseWorld(
                 m_Seed, capacity, m_LoadRadiusRegions, m_UnloadRadiusRegions,
                 GameMaterialComposition.SimulationDefinitions(), tierBytes, m_Features, m_Startup);
@@ -203,40 +199,18 @@ namespace VoxelEngine.Showcase
             _motor = new CharacterMotor { WalkSpeed = m_WalkSpeed };
             _explosionWorld = new ShowcaseWorldExplosionAdapter(_world);
 
-            // Keep the production surface scheduler live from the first rendered frame. The
-            // castle is published incrementally, and ready chunk geometry already remains visible
-            // until replacements upload. Disabling this pass used to accumulate all terrain and
-            // castle work, then dump the entire backlog into the renderer when the landmark
-            // finished — producing the exact castle-arrival cliff this showcase is meant to avoid.
             RenderingComposition.ResetSurfacePassDiagnostics("showcase-enabled");
             RenderingComposition.SetSurfaceBuildEnabled(true);
             RenderingComposition.SetFarBaseHeight(ShowcaseWorld.BaseHeightVoxels);
 
-            // Terrain past the streaming radius. The voxel world only makes a few hundred
-            // metres resident, so without this the mountains simply are not in the scene to be
-            // seen. Inner radius sits just inside the loaded region ring so the two overlap
-            // rather than leaving a gap at the handover.
             float streamedMetres = m_LoadRadiusRegions * ShowcaseWorld.RegionMetres;
-
-            // Voxel rings may not claim further than the world actually streams. Left at the
-            // default they cover 410 m regardless, so a scene with a smaller load radius meshed
-            // bands with no resident regions and the far field broke into floating slabs.
             RenderingComposition.SetVoxelRingRadiusMetres(streamedMetres);
             RenderingComposition.SetVoxelLodEnabled(!m_DisableLod);
-            // Explicit, because the scheduler holds this statically: without it this scene would
-            // inherit whatever band scale the previously loaded scene happened to set.
             RenderingComposition.SetVoxelDetailBandScale(m_DetailBandScale);
 
-            // The far field begins where the voxel rings end. It used to start inside them, so
-            // the two overlapped by design — which is only harmless if one of them is not drawn,
-            // and both are.
             _farTerrain = VoxelFarTerrain.Create(transform, m_Seed, streamedMetres, 12000f);
             _farTerrain.Structures = _world.FarField;
 
-            // Semantic structures are a separate derived representation from the terrain clipmap.
-            // Their source is baked from the canonical feature catalogue and is queryable before
-            // detailed voxel regions become resident. Scene-specific thresholds live in this
-            // Showcase composition layer; the shared renderer remains producer-agnostic.
             _sceneCamera = GetComponent<Camera>();
             if (_sceneCamera == null) _sceneCamera = Camera.main;
             _farFeatures = new ShowcaseFarFeatureRuntime(
@@ -265,9 +239,6 @@ namespace VoxelEngine.Showcase
 
         private void OnDisable()
         {
-            // The castle worker borrows this world's read-only material catalogue even though its
-            // heavy mutation target is private. Cancel/join it while this world is still alive;
-            // a global render clear must never be responsible for another world's task lifetime.
             _world?.StopBackgroundWork();
 
             RenderingComposition.ResetTransientPresentation();
@@ -290,11 +261,6 @@ namespace VoxelEngine.Showcase
             _farFeatures = null;
             _sceneCamera = null;
 
-            // The far field is dynamically created by OnEnable and owns Persistent NativeArrays,
-            // meshes, and a reference to this world's FarFieldStructureStore. Leaving the child
-            // alive across a component disable lets it draw against a disposed world and creates
-            // a second clipmap on the next enable. Sever the world reference before deferred
-            // GameObject destruction, then let VoxelFarTerrain.OnDestroy retire its job/caches.
             if (_farTerrain != null)
             {
                 _farTerrain.Structures = null;
@@ -306,28 +272,12 @@ namespace VoxelEngine.Showcase
             _world = null;
         }
 
-        /// <summary>
-        /// Enables a presentation-only section box. Intended for fixed showcase cameras; it
-        /// never writes to the voxel world and is reset automatically when this driver disables.
-        /// </summary>
         public void SetCutawayPresentation(bool enabled, Vector3 minVoxel = default,
                                            Vector3 maxVoxel = default)
         {
             RenderingComposition.SetCutaway(enabled, minVoxel, maxVoxel);
         }
 
-        /// <summary>
-        /// Puts the character on the ground with the region beneath it fully built. This one
-        /// generation is deliberately blocking: a non-resident region reads as empty, so
-        /// spawning before it exists drops the character through the world.
-        /// </summary>
-        /// <summary>
-        /// Moves the player, and therefore streaming, to a new place in the world.
-        ///
-        /// Streaming and residency follow this component's transform, not the camera's, so a
-        /// caller that only moves the camera views a world that is still streamed around the
-        /// spawn — every distant chunk reads as missing because it was never requested.
-        /// </summary>
         public void TeleportTo(Vector3 metres)
         {
             _motor.SnapToGround(_world, metres);
@@ -336,9 +286,6 @@ namespace VoxelEngine.Showcase
 
         private void Spawn()
         {
-            // The landmark is owned by the origin region. Build it first even though the safe
-            // approach spawn is just south of that region; landmark construction also preloads
-            // every neighbouring region its terrain sculpt can touch.
             _world.GenerateCastleOriginBlocking();
 
             var spawn = _world.SpawnPosition();
@@ -361,14 +308,6 @@ namespace VoxelEngine.Showcase
             _spawned = true;
         }
 
-        /// <summary>
-        /// Reports castle authoring as it happens.
-        ///
-        /// The world tracks stage and timing but never said anything, which is invisible in the
-        /// baked scene — the castle is already finished on frame one — and leaves a generated
-        /// world looking hung while it authors tens of millions of voxels. Logged on transitions
-        /// only, so a multi-minute build costs a handful of lines.
-        /// </summary>
         private void ReportCastleProgress()
         {
             int stage = _world.CastleBuildStage;
@@ -384,12 +323,6 @@ namespace VoxelEngine.Showcase
                             + $"terrain {_world.GenerationProgress * 100f:0}%");
             }
 
-            // A house-only showcase never builds a castle, so without this the scene would report
-            // nothing at all while its landmark went up — the same blind spot the castle logging
-            // above exists to close.
-            // Streaming state, periodically, while the world is still filling in. Region
-            // generation is the slowest stage and reported nothing at all, so an unfinished world
-            // was indistinguishable from a broken one.
             if (_world.PendingRegionLoads > 0 || _world.RegionsGenerated != _loggedRegions)
             {
                 if (Time.frameCount - _lastStreamingLogFrame >= 120)
@@ -429,8 +362,6 @@ namespace VoxelEngine.Showcase
             {
                 if (!_spawned) Spawn();
 
-                // Spawn publishes the castle's lights, but a generated world has no castle yet at
-                // that point. Publish once more when the landmark actually lands.
                 if (!_castleLightsPublished && _world.CastleVoxels > 0)
                 {
                     RenderingComposition.SetLocalLights(
@@ -440,50 +371,29 @@ namespace VoxelEngine.Showcase
 
                 ReportCastleProgress();
 
-                HandleKeys();
-                if (_mouseLook && _relockFrames == 0) HandleLook();
-                MovePlayer();
+                ShowcaseInputFrame input = ShowcaseInputSystem.ReadCurrent();
+                HandleKeys(in input);
+                if (_mouseLook && _relockFrames == 0) HandleLook(in input);
+                MovePlayer(in input);
                 UpdateFlashlight();
-                HandleEdits();
+                HandleEdits(in input);
                 StepTornadoes(Time.deltaTime);
                 _gpuDebris?.Step(_world, Time.deltaTime);
 
-                // This is an interactive showcase even while the landmark worker is active.
-                // Never switch into the old 12 ms "loading" slice: castle authoring, voxel
-                // streaming and surface extraction must share the frame without a startup cliff.
                 if (StreamingEnabled)
                     _world.StepStreaming(transform.position, m_GenerateBudgetMs);
 
-                // Semantic proxies follow the actual scene camera and query only the derived
-                // feature manifest. No distant region generation/residency is requested here.
                 _farFeatures?.Update(_sceneCamera, transform.position);
 
-                // The far field's hole has to follow what streaming has actually finished, not
-                // the radius it was configured with. Set after StepStreaming so a region that
-                // completed this frame closes the gap on this frame rather than the next.
                 if (_farTerrain != null)
                 {
-                    // Open the hole to where voxel terrain actually reaches, not to the last
-                    // fully-generated region shell. That shell collapses to the camera's own
-                    // region whenever any column in the next one is still filling, which left the
-                    // clipmap drawing from a few metres out — over the near ground and through
-                    // whatever was standing on it. The hole setter refuses to open at all until
-                    // near coverage is complete, so this cannot uncover a genuine hole.
                     float streamed = m_LoadRadiusRegions * ShowcaseWorld.RegionMetres;
                     _farTerrain.HoleRadiusMetres = Mathf.Max(
                         _world.ResidentGroundRadiusMetres(transform.position), streamed);
                 }
             }
-
         }
 
-        // -- movement ------------------------------------------------------------
-
-        /// <summary>
-        /// Far-field state, for diagnostics. The far mesh lifts its vertices over built content,
-        /// so a hole that fails to open draws a smooth structure proxy on top of the voxel
-        /// building it is supposed to stand in for — which looks like a LOD bug and is not one.
-        /// </summary>
         public string DescribeFarTerrain()
         {
             if (_farTerrain == null) return "FAR none";
@@ -508,33 +418,12 @@ namespace VoxelEngine.Showcase
                  + $"structures={(_farTerrain.Structures != null)} {semantic}";
         }
 
-        /// <summary>
-        /// Walks the player on a scripted loop instead of from the keyboard.
-        ///
-        /// Frame cost while moving is the number that matters and it was previously produced by a
-        /// human driving a window, which is neither repeatable nor separable from the stationary
-        /// measurement in the same log. This substitutes synthetic input at the top of the
-        /// existing movement path — the same wish vector, the same motor step, the same streaming
-        /// — rather than teleporting the transform, because a teleport helper skips exactly the
-        /// per-frame work being measured.
-        /// </summary>
         public bool AutoWalk { get; set; }
-
-        /// <summary>
-        /// Flies straight back from the landmark while keeping it centred, so every LOD ring
-        /// boundary is crossed in view.
-        ///
-        /// Popping is a transition between rings, and a ring boundary is only crossed by changing
-        /// distance to a fixed object. The circular walk keeps distance roughly constant and so
-        /// cannot show it at all; only receding can. Distance is logged with the frame line so a
-        /// visible pop can be matched to the ring cut that produced it.
-        /// </summary>
         public bool AutoRecede { get; set; }
 
         public float RecedeSpeedMetresPerSecond { get; set; } = 8f;
         public float RecedeMaxDistanceMetres { get; set; } = 360f;
 
-        /// <summary>Metres from the player to the landmark this world was built around.</summary>
         public float DistanceToLandmarkMetres
         {
             get
@@ -555,32 +444,10 @@ namespace VoxelEngine.Showcase
                                ShowcaseWorld.LandmarkCentreZ * 0.1f);
         }
 
-        /// <summary>
-        /// Backs away from the landmark at a fixed rate, aimed at it throughout.
-        ///
-        /// This flies rather than walks. Walking backwards over hundreds of metres of unsculpted
-        /// terrain ends up climbing hillsides and looking at the ground, which is a test of the
-        /// character motor rather than of the renderer.
-        /// </summary>
-        /// <summary>
-        /// Stands on top of the landmark and turns slowly, looking down at the surrounding
-        /// ground.
-        ///
-        /// Holes in terrain are reported from up here and are invisible from the ground, because
-        /// at eye level the near ground occludes everything a missing chunk would expose. The
-        /// vantage has to be high, aimed down, and turning, or the defect cannot be captured.
-        /// </summary>
         public bool AutoSurvey { get; set; }
 
         public float SurveyHeightMetres { get; set; } = 55f;
         public float SurveyPitchDegrees { get; set; } = 28f;
-
-        /// <summary>
-        /// Degrees a second the survey turns. Zero holds a heading, which separates "this chunk
-        /// has not been built yet" from "this chunk cannot be built": a turning camera
-        /// continuously brings unbuilt ground into view, so a standing backlog under rotation is
-        /// not the same defect as one that persists while still.
-        /// </summary>
         public float SurveySpinDegreesPerSecond { get; set; } = 30f;
 
         private void StepAutoSurvey()
@@ -608,8 +475,6 @@ namespace VoxelEngine.Showcase
             {
                 Vector3 direction = away / distance;
                 float travelled = RecedeSpeedMetresPerSecond * Time.deltaTime;
-                // Rise with distance so the castle stays in frame rather than sinking behind the
-                // terrain between here and it.
                 float height = landmark.y + 12f + distance * 0.16f;
                 Vector3 next = landmark + direction * (distance + travelled);
                 transform.position = new Vector3(next.x, height, next.z);
@@ -631,18 +496,19 @@ namespace VoxelEngine.Showcase
 
         private float _autoWalkElapsed;
 
-        private void HandleLook()
+        private void HandleLook(in ShowcaseInputFrame input)
         {
-            _yaw += Input.GetAxisRaw("Mouse X") * m_LookSensitivity;
-            _pitch = Mathf.Clamp(_pitch - Input.GetAxisRaw("Mouse Y") * m_LookSensitivity, -89f, 89f);
+            if (_discardLookFrames > 0)
+            {
+                _discardLookFrames--;
+                return;
+            }
+
+            _yaw += input.LookDelta.x * m_LookSensitivity;
+            _pitch = Mathf.Clamp(_pitch - input.LookDelta.y * m_LookSensitivity, -89f, 89f);
             transform.rotation = Quaternion.Euler(_pitch, _yaw, 0f);
         }
 
-        /// <summary>
-        /// Turns steadily while walking forward, so the path is a wide circle. Straight-line
-        /// travel leaves the small map; a circle keeps streaming and surface extraction working
-        /// continuously without the run degenerating into a teleport back to the middle.
-        /// </summary>
         private void StepAutoWalk()
         {
             const float DegreesPerSecond = 24f;
@@ -651,11 +517,11 @@ namespace VoxelEngine.Showcase
             transform.rotation = Quaternion.Euler(_pitch, _yaw, 0f);
         }
 
-        private void MovePlayer()
+        private void MovePlayer(in ShowcaseInputFrame input)
         {
-            float forward = (Input.GetKey(KeyCode.W) ? 1f : 0f) - (Input.GetKey(KeyCode.S) ? 1f : 0f);
-            float strafe = (Input.GetKey(KeyCode.D) ? 1f : 0f) - (Input.GetKey(KeyCode.A) ? 1f : 0f);
-            bool sprint = Input.GetKey(KeyCode.LeftShift);
+            float forward = (input.Forward ? 1f : 0f) - (input.Backward ? 1f : 0f);
+            float strafe = (input.Right ? 1f : 0f) - (input.Left ? 1f : 0f);
+            bool sprint = input.Sprint;
 
             if (_multiplayer?.IsActive == true)
             {
@@ -664,7 +530,7 @@ namespace VoxelEngine.Showcase
                     Time.deltaTime,
                     new float2(strafe, forward),
                     sprint,
-                    Input.GetKey(KeyCode.Space),
+                    input.Jump,
                     (float3)transform.forward);
                 transform.position = _motor.EyePosition;
                 return;
@@ -692,8 +558,8 @@ namespace VoxelEngine.Showcase
             if (m_FlyMode)
             {
                 var move = transform.forward * forward + transform.right * strafe;
-                if (Input.GetKey(KeyCode.Space)) move += Vector3.up;
-                if (Input.GetKey(KeyCode.LeftControl)) move -= Vector3.up;
+                if (input.Jump) move += Vector3.up;
+                if (input.Descend) move -= Vector3.up;
 
                 if (move.sqrMagnitude > 1e-6f)
                 {
@@ -706,9 +572,6 @@ namespace VoxelEngine.Showcase
                 return;
             }
 
-            // Walking. Movement is flattened to the ground plane so looking up does not slow
-            // you down, and held while the region under the character is still generating —
-            // an ungenerated region reads as empty and would drop the player through it.
             if (!_world.IsGenerated(ShowcaseWorld.RegionAt(_motor.Position)))
             {
                 transform.position = _motor.EyePosition;
@@ -720,7 +583,7 @@ namespace VoxelEngine.Showcase
             var wish = flatForward * forward + flatRight * strafe;
             if (wish.sqrMagnitude > 1f) wish.Normalize();
 
-            _motor.Step(_world, wish, sprint, Input.GetKey(KeyCode.Space), Time.deltaTime);
+            _motor.Step(_world, wish, sprint, input.Jump, Time.deltaTime);
             transform.position = _motor.EyePosition;
         }
 
@@ -728,34 +591,17 @@ namespace VoxelEngine.Showcase
         {
             _mouseLook = locked;
             _relockFrames = 0;
+            _discardLookFrames = locked ? 1 : 0;
             Cursor.lockState = locked ? CursorLockMode.Locked : CursorLockMode.None;
             Cursor.visible = !locked;
         }
 
-        /// <summary>
-        /// Reacquires mouse capture after focus comes back, which the editor otherwise never does.
-        ///
-        /// Losing focus releases the mouse — alt-tab, a click into the Inspector, any dialog —
-        /// but leaves <see cref="Cursor.lockState"/> reading <c>Locked</c>. So the state this
-        /// component believes in and the state the editor is actually enforcing disagree, and
-        /// because assigning a property its current value does nothing, no amount of setting
-        /// <c>Locked</c> on the way back re-captures anything. The result is a live pointer over
-        /// a character that will not turn.
-        ///
-        /// The transition is what the editor acts on, so this drives one: release on the frame
-        /// focus returns, capture on the next. Both halves have to be real assignments, and they
-        /// have to land in different frames — collapsed into one frame the editor coalesces them
-        /// back into the no-op this exists to avoid.
-        /// </summary>
         private void SyncCursorLock()
         {
             bool focused = Application.isFocused;
             bool regained = focused && !_hadFocus;
             _hadFocus = focused;
 
-            // `_mouseLook` is the intent, so a cursor deliberately released with Escape stays
-            // released, and an unfocused editor never has the mouse snatched back out from under
-            // whatever window the developer is actually working in.
             if (regained && _mouseLook) _relockFrames = 2;
             if (_relockFrames == 0 || !focused || !_mouseLook) return;
 
@@ -767,22 +613,17 @@ namespace VoxelEngine.Showcase
 
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
-
-            // The pointer was free for a frame and travelled. Left in the axes, that distance
-            // arrives as one enormous delta and snaps the view the instant capture resumes.
-            Input.ResetInputAxes();
+            _discardLookFrames = 1;
         }
 
-        // -- input ---------------------------------------------------------------
-
-        private void HandleKeys()
+        private void HandleKeys(in ShowcaseInputFrame input)
         {
             SyncCursorLock();
 
-            if (Input.GetKeyDown(KeyCode.Escape)) SetCursorLocked(!_mouseLook);
+            if (input.ToggleCursor) SetCursorLocked(!_mouseLook);
 
             bool networked = _multiplayer?.IsActive == true;
-            if (!networked && Input.GetKeyDown(KeyCode.F))
+            if (!networked && input.ToggleFly)
             {
                 m_FlyMode = !m_FlyMode;
                 if (!m_FlyMode)
@@ -792,27 +633,19 @@ namespace VoxelEngine.Showcase
                 }
             }
 
-            if (!networked && Input.GetKeyDown(KeyCode.R)) Spawn();
+            if (!networked && input.Respawn) Spawn();
+            if (!networked && input.Interact) TryInteract();
 
-            if (!networked && Input.GetKeyDown(KeyCode.E)) TryInteract();
-
-            float scroll = Input.GetAxisRaw("Mouse ScrollWheel");
-            if (Mathf.Abs(scroll) > 0.01f)
-                m_BrushRadius = Mathf.Clamp(m_BrushRadius + (scroll > 0f ? 2 : -2),
+            if (input.ScrollDirection != 0)
+                m_BrushRadius = Mathf.Clamp(m_BrushRadius + input.ScrollDirection * 2,
                                             m_MinBrushRadius, m_MaxBrushRadius);
         }
 
-        /// <summary>Whether the player-facing E prompt should currently be visible.</summary>
         public bool InteractionPromptVisible => _multiplayer?.IsActive != true
             && _world != null && _motor != null
             && (_world.CanOpenCastleFrontGate(_motor.Position)
                 || _world.CanOpenCastleTrapdoor(_motor.Position));
 
-        /// <summary>
-        /// Performs the interaction bound to E. Keeping this as a callable driver operation lets
-        /// tests exercise the same motor-position gate and feedback path as keyboard input rather
-        /// than bypassing the showcase and calling the world mutation directly.
-        /// </summary>
         public bool TryInteract()
         {
             if (_world == null || _motor == null || _multiplayer?.IsActive == true) return false;
@@ -831,9 +664,9 @@ namespace VoxelEngine.Showcase
             return false;
         }
 
-        private void HandleEdits()
+        private void HandleEdits(in ShowcaseInputFrame input)
         {
-            if (Input.GetMouseButtonDown(0))
+            if (input.PrimaryEdit)
             {
                 Vector3 hand = transform.position + transform.forward * 0.65f
                              + transform.right * 0.34f - transform.up * 0.24f;
@@ -841,7 +674,7 @@ namespace VoxelEngine.Showcase
                 _lastEditMs = 0.0;
                 _lastEditLabel = $"tornado launched r{m_BrushRadius}";
             }
-            else if (Input.GetMouseButtonDown(1)) ToggleFlashlight();
+            else if (input.SecondaryEdit) ToggleFlashlight();
         }
 
         public void ToggleFlashlight()
@@ -856,7 +689,6 @@ namespace VoxelEngine.Showcase
                 _flashlightEnabled, transform.position, transform.forward);
         }
 
-        /// <summary>Launches a visible corkscrew projectile; impact remains world-authoritative.</summary>
         public void LaunchTornado(Vector3 origin, Vector3 direction, int impactRadius)
         {
             if (_tornadoes.Count >= MaxActiveTornadoes)
@@ -926,8 +758,6 @@ namespace VoxelEngine.Showcase
 
                 if (TryTornadoImpact(previous, shot.Position, out int3 hit, out bool semanticTreeHit))
                 {
-                    // Structural classification is CPU-authoritative. Serialize impacts so a
-                    // shotgun burst cannot schedule several large connectivity walks in one frame.
                     if (impactsThisFrame > 0)
                     {
                         shot.Position = previous;
@@ -1151,9 +981,6 @@ namespace VoxelEngine.Showcase
         private void EnsureTornadoMaterial()
         {
             if (_tornadoMaterial != null) return;
-            // UI/Default is a late transparent vertex-colour shader. The custom voxel pass
-            // fills the opaque target immediately before transparents, so the effect stays in the
-            // late transparent queue and composes over extracted voxel geometry.
             Shader shader = Shader.Find("UI/Default");
             if (shader == null) shader = Shader.Find("Sprites/Default");
             if (shader == null) shader = Shader.Find("Universal Render Pipeline/Particles/Unlit");
@@ -1169,8 +996,6 @@ namespace VoxelEngine.Showcase
             var root = new GameObject("Tornado impact");
             root.transform.position = position;
             var particles = root.AddComponent<ParticleSystem>();
-            // A newly-added ParticleSystem starts immediately. Stop it before configuring
-            // duration and bursts; Unity rejects those mutations while it is playing.
             particles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
             var main = particles.main;
             main.duration = 0.18f;
@@ -1195,15 +1020,12 @@ namespace VoxelEngine.Showcase
             Destroy(root, 1.2f);
         }
 
-        // -- interaction prompt --------------------------------------------------
-
         private void OnGUI()
         {
             if (!Application.isPlaying || _world == null) return;
 
             DrawNetworkPanel();
 
-            // Keep only contextual gameplay guidance; the persistent diagnostics overlay is gone.
             if (InteractionPromptVisible)
             {
                 var prompt = new GUIStyle(GUI.skin.box)
