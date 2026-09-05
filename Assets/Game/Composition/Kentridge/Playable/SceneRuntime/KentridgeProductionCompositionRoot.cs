@@ -30,7 +30,7 @@ namespace Game.Kentridge.PlayableSlice
         internal const string ContentId = "kentridge-opening-campaign-v1";
         public const string DefaultSaveId = "kentridge-production-latest";
 
-        [SerializeField] private bool m_AutoStartNewGame = true;
+        [SerializeField] private bool m_AutoStartNewGame;
 
         private KentridgePlayableSlice _slice;
         private KentridgeForestBanditEncounter _forest;
@@ -303,7 +303,7 @@ namespace Game.Kentridge.PlayableSlice
         private sealed class UnavailablePartyIntents : ISessionPresentationIntentRouter
         {
             public PartySessionCommandResult Request(SessionPresentationIntent intent) =>
-                PartySessionCommandResult.Reject(PartySessionCommandFailure.InvalidRequest);
+                PartySessionCommandResult.Reject(SessionPresentationCommandFailure.InvalidRequest);
         }
 
         private sealed class RunningOutcomeQuery : IGameOutcomeQuery
