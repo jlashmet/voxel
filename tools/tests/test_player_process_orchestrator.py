@@ -83,6 +83,27 @@ class PlayerProcessOrchestratorTests(unittest.TestCase):
         with self.assertRaises(runner.OrchestrationError):
             runner.normalize_config(config)
 
+    def test_reserved_process_arguments_cannot_override_harness_controls(self):
+        for arguments in (
+            ["-voxel-validation-state-root", "/tmp/shared"],
+            ["-voxel-validation-source-sha=not-the-build"],
+            ["-logFile", "/tmp/shared-player.log"],
+            ["-voxel-run-seconds", "1"],
+        ):
+            with self.subTest(arguments=arguments):
+                config = self._config()
+                config["processes"][0]["arguments"] = arguments
+                with self.assertRaises(runner.OrchestrationError):
+                    runner.normalize_config(config)
+
+    def test_reserved_environment_cannot_override_harness_controls(self):
+        for key in ("HOME", "TMPDIR", "VOXEL_VALIDATION_STATE_ROOT", "VOXEL_VALIDATION_SOURCE_SHA"):
+            with self.subTest(key=key):
+                config = self._config()
+                config["processes"][0]["environment"] = {key: "/tmp/shared"}
+                with self.assertRaises(runner.OrchestrationError):
+                    runner.normalize_config(config)
+
     def test_role_state_is_isolated_but_stable_across_attempts(self):
         identity = {"sourceSha": "a" * 40, "executableSha256": "b" * 64}
         authority = runner.RoleSpec("authority", (), {}, True)
@@ -96,6 +117,21 @@ class PlayerProcessOrchestratorTests(unittest.TestCase):
             self.assertNotEqual(authority_env["HOME"], client_env["HOME"])
             self.assertEqual(client_env["VOXEL_VALIDATION_STATE_ROOT"],
                              client_env_again["VOXEL_VALIDATION_STATE_ROOT"])
+
+    def test_programmatic_role_cannot_bypass_reserved_environment_isolation(self):
+        identity = {"sourceSha": "a" * 40, "executableSha256": "b" * 64}
+        role = runner.RoleSpec(
+            "client-a",
+            (),
+            {"HOME": "/bad-home", "VOXEL_VALIDATION_STATE_ROOT": "/bad-state", "CUSTOM": "kept"},
+            True,
+        )
+        with tempfile.TemporaryDirectory() as td:
+            role_root, env = runner.role_environment(Path(td), role, identity, {})
+            self.assertEqual(env["CUSTOM"], "kept")
+            self.assertEqual(env["HOME"], str(role_root / "home"))
+            self.assertEqual(env["VOXEL_VALIDATION_STATE_ROOT"], str(role_root / "state"))
+            self.assertEqual(env["VOXEL_VALIDATION_SOURCE_SHA"], identity["sourceSha"])
 
     def test_wait_for_milestone_records_role_and_attempt(self):
         with tempfile.TemporaryDirectory() as td:
