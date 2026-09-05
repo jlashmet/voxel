@@ -33,6 +33,12 @@ namespace VoxelEngine.Rendering.Runtime
         [SerializeField] private Texture2D m_DirtTexture;
         [SerializeField] private Texture2D m_DarkStoneTexture;
 
+        [Header("Additional opaque surface texture layers")]
+        [Tooltip("Optional extra albedo layers. Their semantic meaning is application-owned; the renderer sees only layer order.")]
+        [SerializeField] private Texture2D[] m_AdditionalSurfaceTextures;
+        [Tooltip("Optional normals aligned to additional albedo layers. Missing entries are neutral when normal strength is zero.")]
+        [SerializeField] private Texture2D[] m_AdditionalSurfaceNormals;
+
         [Header("Stylized surface normals")]
         [SerializeField] private Texture2D m_StoneNormal;
         [SerializeField] private Texture2D m_WoodNormal;
@@ -71,6 +77,12 @@ namespace VoxelEngine.Rendering.Runtime
 
             m_SkyPass = new VoxelSkyPass();
             m_SkyPass.Setup(m_SkyShader, m_SkyTexture);
+
+            // Keep the renderer extension semantic-free: application composition chooses which
+            // textures occupy these extra opaque layers, while the render pass still consumes one
+            // generic Texture2DArray contract.
+            VoxelPresentationCatalogue.ConfigureAdditionalTextureLayers(
+                m_AdditionalSurfaceTextures, m_AdditionalSurfaceNormals);
 
             m_Pass = new VoxelRenderPass();
             m_Pass.Setup(m_SurfaceShader, m_WaterShader,
