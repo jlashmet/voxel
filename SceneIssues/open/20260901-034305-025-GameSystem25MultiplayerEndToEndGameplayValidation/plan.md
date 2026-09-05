@@ -1,26 +1,24 @@
 # 25 Multiplayer end-to-end gameplay validation — implementation plan
 
-**Target ownership:** shared built-player validation infrastructure plus multiplayer scenarios. **No new gameplay API/Runtime module and no test-only networking runtime.**
+**Acceptance:** prove the production packaged-player multiplayer loop with separate processes: formation/entry, shared authoritative gameplay, rejection diagnostics, interruption/reconnect identity continuity, explicit leave, configured-capacity/join-in-progress/repeated reconnect, persistence/rehost policy, and durable exact-SHA evidence.
 
-## Implementation
+**Ownership / architecture:** shared built-player validation infrastructure plus a module-owned multiplayer scenario. No new gameplay authority, transport, or test-only networking runtime. The production seams are split across `Assets/Game/SessionOrchestration`, `Sessions`, `GameplayReplication`, and `Continuity`; the original `Assets/Scripts/Networking` ownership guess was false. Scenario orchestration may launch/stop processes and wait on read-only semantic milestones, but gameplay mutations must enter through production public input/session APIs.
 
-1. Extend the shared standalone-player runner with generic multiple-process roles, isolated writable directories, logs and exact-SHA verification.
-2. Launch the real production authority/host topology plus at least two separate built client processes.
-3. Enter through #23/#07 production session flows and wait on semantic readiness rather than arbitrary sleeps.
-4. Add a two-client authoritative contention scenario (for example one loot claim) and verify authority plus both clients converge.
-5. Add combat/vitality cross-client convergence.
-6. Kill/disconnect one client unexpectedly, mutate authoritative state while absent, reconnect on a new transport connection, and verify same PartyMemberId/PlayerSlot/CharacterId plus current state.
-7. Verify explicit Leave Game differs from interruption.
-8. Put full-capacity, join-in-progress, repeated reconnect and persisted rehost in slower scheduled/release scenarios.
+## Observed state and hypotheses
 
-## Dependencies
+- Shared module validation discovers paired `<Module>/Validation/*.unity` + `*.player-scenario.json` automatically and executes them through `tools/player-validation.py`.
+- `tools/player_process_orchestrator.py` already built once, isolated per-role writable state, captured role logs, verified source/binary identity, and waited on semantic milestones, but was not connected to `player-validation.py` and could not sequence reconnect/join-in-progress lifecycles.
+- **H1:** System25 mainly needs integration validation over existing production systems. **Supported** for process orchestration and semantic contracts.
+- **H2:** a parallel test networking/runtime layer is needed. **Rejected** by repo architecture and existing Sessions/GameplayReplication/Continuity APIs.
+- Discriminating prerequisite: the production composed built-player entry from System24 must exist before the multiplayer scene can honestly drive the full gameplay loop. On current master, `20260901-034305-024-GameSystem24ProductionComposedBuiltPlayerVerticalSlice` remains open, so full end-to-end acceptance is externally blocked.
 
-06-08 networking/session continuity, 14 application graph, representative authoritative domains, shared validation architecture.
+## Selected work
 
-## Proof
+1. Route `mode: multiProcess` through the canonical player-validation entrypoint.
+2. Keep role/process lifecycle generic and deterministic: launch, bounded wait, terminate/kill, relaunch; preserve isolated durable role state across transport attempts.
+3. Prove harness behavior with Python regressions and exact-SHA CI.
+4. When System24 lands on master, merge it, create/update the correct module-owned production validation scene/scenario, and complete gameplay/reconnect/rehost evidence without duplicating composition.
 
-Separate OS processes, same build SHA, real UTP/session code, semantic diagnostic oracle, role-tagged artifacts.
+**Current feature SHA:** `86446087feed82ed775a03349e7fe362833eab40`.
 
-## Do not build
-
-No WAN simulator, second transport, direct state mutation helpers, or four-client visual matrix on every PR.
+**Remaining gates:** tool regressions; System24 production entry prerequisite; module-local standalone multiplayer scenario; all gameplay/continuity/rejection/capacity/rehost checks; exact-SHA built-player evidence; closure bookkeeping; latest-master merge; PR `affected` gate + auto-merge.
