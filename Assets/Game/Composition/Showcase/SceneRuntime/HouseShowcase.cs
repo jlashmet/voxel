@@ -481,7 +481,7 @@ namespace VoxelEngine.Showcase
 
             try
             {
-                if (_capturePhase == 0 && elapsed >= 6f)
+                if (_capturePhase == 0 && elapsed >= 12f)
                 {
                     FrameInterior();
                     Debug.Log(
@@ -489,7 +489,7 @@ namespace VoxelEngine.Showcase
                         $"selected={_selected.Count} unplaced={_unplaced.Count}");
                     _capturePhase = 1;
                 }
-                else if (_capturePhase == 1 && elapsed >= 16f)
+                else if (_capturePhase == 1 && elapsed >= 22f)
                 {
                     string previous = CurrentHouse.Key;
                     int previousOptions = _options.Length;
@@ -502,7 +502,7 @@ namespace VoxelEngine.Showcase
                         $"previousOptions={previousOptions} options={_options.Length} selected={_selected.Count}");
                     _capturePhase = 2;
                 }
-                else if (_capturePhase == 2 && elapsed >= 26f)
+                else if (_capturePhase == 2 && elapsed >= 32f)
                 {
                     uint before = _seed;
                     Regenerate();
@@ -511,7 +511,7 @@ namespace VoxelEngine.Showcase
                         $"toSeed={_seed} spatialChanged=true selected={_selected.Count}");
                     _capturePhase = 3;
                 }
-                else if (_capturePhase == 3 && elapsed >= 36f)
+                else if (_capturePhase == 3 && elapsed >= 42f)
                 {
                     FrameInterior();
                     Debug.Log(
