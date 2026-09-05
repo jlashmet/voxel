@@ -4,23 +4,24 @@
 
 ## Observed behavior / acceptance
 
-The branch has completed the initial consumer cleanup: one production `UnityPlayerInputReader` can now be injected into the playable slice, HUD and forest encounter; the well/inventory presenter is read-only; and the slice supplies a `KentridgeSessionRuntimeGraphFactory` instead of constructing its own orchestrator. Current `origin/master` is `d46e24f05337553883636b4f5b35228830269530`; it is two commits ahead and will be merged before final promotion as required.
+Current branch head before this plan refresh was `0b27b59391e8779610b1fab80a19ee9d5f33ae98`; current `origin/master` is `51797c954490425964e602d6bb2252a0d7a7c5aa`, and the branch is ahead with no missing master commits.
 
-The production vertical slice is still incomplete. No scene composition root yet owns Application, persistence or the single run-update loop. The slice still calls `IGameSessionControl.Tick`, so adding a root as-is would double-advance gameplay. Continue also needs fresh per-run character authority: encounter cleanup retires stable bandit `CharacterId`s, so reusing the same registry across a newly composed run can reject those IDs.
+The production root now owns one `UnityPlayerInputReader`/input context, `ApplicationFlowCoordinator`, `GameSessionOrchestrator`, frontend, persistence bridge, and the single Application/session update loop. The raw `KentridgeUnityInputBridge` is removed and the production scene serializes frontend-first boot. The slice consumes the composed graph and no longer ticks `IGameSessionControl` itself.
 
-Acceptance remains FrontEnd -> New Game -> `GameplayReady` -> real movement/interaction/progression/encounter/combat/loot/presentation -> save -> ordered teardown -> Continue -> restored live gameplay, through public production boundaries and the shared built-player harness.
+Remaining acceptance is real built-player proof of FrontEnd -> New Game -> `GameplayReady` -> movement -> authored NPC/story progression -> WorldBuilder encounter -> Character/Vitality/Combat resolution -> WorldObject/Loot/Inventory pickup -> save -> ordered teardown -> Continue -> restored live gameplay.
 
-## Hypotheses / result
+## Hypotheses / material results
 
-1. **The consumer cleanup alone establishes Application ownership.** Falsified: lifecycle/tick/persistence ownership is still absent.
-2. **A thin Kentridge root can own Application/input/session/persistence while each run composes fresh gameplay authority.** Selected. Repository inspection confirms #14 orchestration already supports ordered graph lifetime and #16 persistence already supports section contributors/restore graphs/file storage.
+1. **Existing combat reward/well quest can stand in for the loot leg.** Falsified: T24-016 requires a real Systems 13/10/09 world pickup/container/drop/transfer action. The canonical `WorldObjectRegistry` + `ItemPickupObject` + `WorldObjectLootAdapter` path exists and must be composed instead.
+2. **The current persistence contributors are sufficient for Continue.** Falsified for the representative pickup: campaign, inventory, player and encounter state are persisted, but T24-023 also requires relevant WorldObject state. The pickup state must round-trip with the same save.
+3. **A thin session-scoped Kentridge interaction adapter plus generic local-character interaction entry point is sufficient.** Selected. Reuse the canonical WorldObject/Loot/Inventory services; keep named item/drop policy in Kentridge composition. The authored destination NPC already satisfies the interaction/story leg, so no new well-command path is required for System24.
 
-## Selected composition
+## Validation / ownership
 
-Add a Kentridge-specific root with earlier execution order than the slice. It owns one input context/reader, `ApplicationFlowCoordinator`, production frontend/preferences, one `GameSessionOrchestrator`, and a persistence bridge over `SessionPersistenceService`. It injects input before slice enable, binds session control after world/session-factory readiness, and is the only in-game session tick owner.
+Affected roots are Kentridge Playable/Runtime, Application/Input/Persistence, and (only if required for semantic local interaction) WorldObjects. Application/Input/Kentridge Playable retain their focused module-local validation scenes. Kentridge Runtime and Persistence are headless/domain composition and use module-local EditMode coverage; no synthetic scene is appropriate. Any WorldObjects change must add module-local behavioral regression coverage.
 
-Each `Compose` starts a fresh Kentridge character authority before building the graph. Persistence contributors capture/restore campaign progression, inventory, character semantic state and encounter outcome. Resume is explicitly marked on the graph so the opening one-shot cutscene is not replayed.
+The feature-specific assembled-player scenario must reuse `tools/player-validation.py` / `showcase-player-capture.sh`. In-player orchestration may observe read-only semantic snapshots and inject through the Input System, but may not mutate gameplay authority, teleport characters, or call completion setters. Synchronization must be semantic milestones with bounded timeouts and durable milestone/log/screenshot evidence.
 
-## Validation gates
+## Remaining gates
 
-Affected roots: `Assets/Game/Composition/Kentridge/{Runtime,Playable}`, `Assets/Game/Application`, `Assets/Game/Input`, `Assets/Game/Persistence`, plus standalone `Assets/Scenes/KentridgePlayableSlice`. Preserve distinct module-local Validation coverage. Complete T24-003 onward, run affected editor/module validation, then exact-SHA targeted CI with standalone Kentridge built-player evidence. Only after every task/criterion passes: close open -> closed, merge latest master, open/update the feature PR, enable auto-merge, and monitor required PR checks until merged.
+Complete T24-003 onward, run repository-selected module tests/validation, then exact-SHA targeted CI on `ci-test/fixes/agent-2` without replacing queued/running work. After green exact-SHA proof, close open -> closed with resolution metadata, fetch/merge latest master, open/update the PR, enable auto-merge, and monitor required `affected` until merged and the closed SceneIssue is visible on master.
