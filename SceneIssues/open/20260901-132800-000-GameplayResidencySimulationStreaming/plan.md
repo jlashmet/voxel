@@ -1,32 +1,23 @@
 # Gameplay residency / simulation streaming — implementation plan
 
-**Target ownership:** one semantic coordination boundary at `Assets/Game/Residency/Api` / `Runtime`; Characters, CharacterAI, WorldObjects, Encounters, Persistence, WorldBuilder, GameplayReplication and VoxelEngine Streaming retain authoritative state/lifetime ownership.
+**Ownership:** `Game.Residency.Api` / `Runtime` coordinates semantic fidelity only. Characters, CharacterAI, WorldObjects, Encounters, Persistence, WorldBuilder, GameplayReplication and VoxelEngine Streaming retain authoritative state/lifetime ownership.
 
-## Observed behavior / acceptance
+## Acceptance and result
 
-Acceptance requires one stable gameplay identity across `Dormant` / `Coarse` / `Detailed`; independent semantic demands; Detailed waiting for physical readiness and quiescing before release; server residency independent from client interest/presentation; owner-state persistence; generated-content scale; deterministic diagnostics/cost; no duplicate authority.
+One stable gameplay identity must survive `Dormant` / `Coarse` / `Detailed`; independent demand leases aggregate deterministically; Detailed waits for physical readiness and quiesces before physical release; client interest/presentation remain separate; persistence restores owner state rather than residency state; generated content scales without global loaded-town switches.
 
-## Hypotheses / results
+Two hypotheses were tested. Existing `IRegionStreaming` alone was insufficient because engine eviction could bypass load-now/evict-later ownership. The selected design adds a Streaming-owned ref-counted physical residency lease and a game-level semantic coordinator over existing owner adapters.
 
-1. **Existing `IRegionStreaming` is already ownership-safe.** Falsified: engine eviction could bypass a gameplay load-now/evict-later convention.
-2. **A Streaming-owned pin plus a game-level semantic coordinator is sufficient.** Selected: Streaming owns ref-counted physical pins; Residency aggregates demands and orchestrates owner adapters only.
+## Implemented boundary
 
-## Selected fix
+`semantic target + independent demands` → `GameplayResidencyCoordinator` → owner adapters. Highest fidelity wins deterministically. Detailed spatial promotion acquires `IRegionResidencyLease`, waits for readiness, then realizes. Demotion—including coordinator teardown—quiesces Detailed consumers before releasing the lease. Failed/pending transitions remain safe and quiescent. CharacterAI Coarse fidelity advances semantic life state without detailed perception/navigation. WorldObject and Encounter state remain owner-owned. Semantic proximity hysteresis composes with explicit encounter/control pins.
 
-`semantic target + independent demands` → `GameplayResidencyCoordinator` → owner adapters. Highest fidelity wins deterministically. Detailed spatial promotion acquires `IRegionResidencyLease`, waits for readiness, then realizes; demotion quiesces the owner adapter before releasing the lease. CharacterAI has a narrow coarse semantic simulation seam. WorldObject/Encounter state stays owner-owned. Proximity hysteresis is semantic/configurable and explicit control/encounter pins bypass it.
+Independent proofs cover Character/AI, WorldObject, Encounter, real Streaming pins, a 64-NPC WorldBuilder fixture (48 Dormant / 12 Coarse / 4 Detailed), late-client current-state GameplayReplication, and a production `SessionPersistenceService` fresh-graph restore. Repository 30 Hz simulation and ≤0.5 ms Streaming main-thread budgets were not weakened.
 
-Independent proofs cover Character/AI, WorldObject, Encounter, Streaming, a 64-NPC WorldBuilder fixture with stable IDs and bounded Detailed work, late-client current-state GameplayReplication, and a production `SessionPersistenceService` fresh-graph round trip. Device authority remains 30 Hz simulation and ≤0.5 ms streaming main-thread work; no weaker feature-local budget is introduced.
+## Final validation
 
-## Validation / remaining gates
+Earlier failures isolated and fixed invalid short module scenarios, a Kentridge legacy-input blocker, the Input-System dependency on the wrong asmdef, and unsafe Detailed teardown ordering. The first teardown fixture naming collision was test-only and corrected.
 
-Exact request `a20a3282b05d8ed0986de69e4c48b45059416936` exposed legacy `UnityEngine.Input`. The reader is migrated to `Keyboard.current` at `738a3b32c3a8f740ff367a91c9b4ca42a7d72ee4`.
+Final exact request `951785fa43f947c214b681634f19e37ae75f825e` is parented directly to feature SHA `e20eeb2cc4796d64c0360bd971298a806e187dcf`; run `33937054327` succeeded. All 18 affected EditMode assemblies passed, Residency and Streaming standalone module validations passed, canonical Kentridge integration passed, and the mandatory SceneIssue replay completed with zero assertion failures and no legacy-input exception. The request-path-only replay metadata defect was corrected without changing the validated feature SHA.
 
-Request `1ca35bbb8f5d4a08cb69ad44488971e4937fc4aa` proved all 18 affected EditMode assemblies plus the focused Residency regression green, then module-player validation stopped before Residency because new Residency/Streaming scenarios requested 6s/5s while the shared harness requires ≥10s. Both scenarios are now 10s.
-
-Request `219c6c85e71c05a97a0dda6724811c53b0897e1c` from feature SHA `15d1c74297aff86a18cd372743e1baf6bd1c5d76` completed failure during script compilation: `KentridgeWellQuestInventoryPresentation.cs` belongs to nested `Game.Kentridge.PlayableSlice`, so the earlier `Unity.InputSystem` reference on parent `Game.Composition.Kentridge.Playable` did not reach it. The dependency now lives on the owning nested asmdef and the unused parent reference is removed.
-
-Final blast review also found an R32 teardown defect: coordinator disposal released physical leases without first quiescing Detailed adapters. The scoped fix drives targets to Dormant through normal demotion, refuses disposal while Detailed demotion is pending/failed, and adds ordering/pending regressions.
-
-Request `634b62103b7e02452ad8383f9e0f3538b5522563` from feature SHA `4a5cf549d3a3fd00a1a51879ca8d467ce717bcd3` confirmed the Input-System assembly compile failure was resolved, then failed on a naming collision inside the newly added teardown regression fixture (`RecordingPins.Lease` property versus nested `Lease` type). Commit `9c278061d58b2797c605cf7eeefafcfab78ed012` renames the fixture members only; production behavior is unchanged.
-
-Remaining gates: run exact-SHA validation again from the current teardown/input/scenario/test-fixture-fixed head; require repository module/player validation and standalone Kentridge green with no legacy Input exception; finish blast review, close directly to `SceneIssues/closed/...`, merge current `origin/master`, then PR + auto-merge.
+All acceptance and checklist work is complete. Closure is direct `open/` → `closed/`; then merge current `origin/master`, open/update the PR, enable auto-merge, and monitor the required `affected` gate through merge.
