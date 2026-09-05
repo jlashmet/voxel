@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using Game.Composition.Campaign;
 using Game.Cutscenes.Api;
 using Game.Cutscenes.Runtime;
+using Game.Encounters.Api;
+using Game.Outcomes.Api;
 using Game.Progression.Api;
 using Game.Progression.Runtime;
 using Game.Quests.Api;
@@ -44,11 +46,12 @@ namespace Game.Composition.Campaign.Runtime
     /// Post-generation composition root. Quest and standalone-objective state are projections over one
     /// ProgressionRuntime; CampaignRuntime deliberately owns no parallel objective-state collection.
     /// </summary>
-    public sealed class CampaignRuntime : IStoryStateView, IStoryProgressEffectSink
+    public sealed class CampaignRuntime : IStoryStateView, IStoryOutcomeEffectSink
     {
         private readonly CampaignBlueprint _blueprint;
         private readonly IWorldBoundCutsceneActorProvider _actorProvider;
         private readonly ICutscenePresentation _presentation;
+        private readonly Action<OutcomeConditionRef> _outcomeConditionObserver;
         private readonly Dictionary<CutsceneRef, CutsceneSpec> _cutscenes =
             new Dictionary<CutsceneRef, CutsceneSpec>();
         private readonly Dictionary<CutsceneRef, CutsceneStageBinding> _stages =
@@ -81,12 +84,14 @@ namespace Game.Composition.Campaign.Runtime
             IReadOnlyList<CutsceneStageRealization> stages,
             IWorldBoundCutsceneActorProvider actorProvider,
             ICutscenePresentation presentation,
-            IReadOnlyList<QuestDefinition> questDefinitions = null)
+            IReadOnlyList<QuestDefinition> questDefinitions = null,
+            Action<OutcomeConditionRef> outcomeConditionObserver = null)
         {
             _blueprint = blueprint ?? throw new ArgumentNullException(nameof(blueprint));
             if (stages == null) throw new ArgumentNullException(nameof(stages));
             _actorProvider = actorProvider ?? throw new ArgumentNullException(nameof(actorProvider));
             _presentation = presentation ?? throw new ArgumentNullException(nameof(presentation));
+            _outcomeConditionObserver = outcomeConditionObserver;
             _progression = new ProgressionRuntime();
             _quests = new QuestRuntime(
                 questDefinitions ?? Array.Empty<QuestDefinition>(),
@@ -152,6 +157,21 @@ namespace Game.Composition.Campaign.Runtime
                     1));
             matched += DispatchProgressionCompletions(result.Transitions);
             return matched;
+        }
+
+        /// <summary>
+        /// Observes read-only owning-domain encounter truth. Campaign never resolves combat or changes
+        /// encounter state; it only translates a completed Encounter snapshot into a semantic Story fact.
+        /// </summary>
+        public int ObserveEncounter(EncounterSnapshot encounter)
+        {
+            if (encounter == null) throw new ArgumentNullException(nameof(encounter));
+            if (encounter.Lifecycle != EncounterLifecycleState.Resolved || !encounter.Resolution.HasValue)
+                throw new InvalidOperationException(
+                    "Campaign can observe an encounter only after the owning Encounter runtime resolves it.");
+            return Dispatch(StoryEvent.EncounterResolved(
+                encounter.Id,
+                encounter.Resolution.Value.Result));
         }
 
         public IReadOnlyList<QuestEvent> ObserveQuest(QuestObservation observation)
@@ -266,6 +286,14 @@ namespace Game.Composition.Campaign.Runtime
             _joinedPartyMembers.Add(RequireProgressId(memberId, nameof(memberId)));
         void IStoryProgressEffectSink.GrantSpell(string spellId) =>
             _grantedSpells.Add(RequireProgressId(spellId, nameof(spellId)));
+        void IStoryOutcomeEffectSink.ObserveOutcomeCondition(OutcomeConditionRef condition)
+        {
+            if (_outcomeConditionObserver == null)
+                throw new InvalidOperationException(
+                    "Campaign Story emitted terminal outcome condition '" + condition +
+                    "' without a configured System15 outcome policy observer.");
+            _outcomeConditionObserver(condition);
+        }
 
         private int Dispatch(StoryEvent storyEvent) =>
             StoryRuleEngine.Dispatch(
