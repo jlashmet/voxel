@@ -13,6 +13,7 @@ using Game.Progression.Api;
 using Game.SessionOrchestration.Api;
 using Game.SessionOrchestration.Runtime;
 using Game.WorldBuilder.Api;
+using Game.WorldObjects.Api;
 
 namespace Game.Kentridge.PlayableSlice
 {
@@ -28,6 +29,7 @@ namespace Game.Kentridge.PlayableSlice
     {
         private readonly KentridgePlayableSlice _slice;
         private readonly KentridgeForestBanditEncounter _forest;
+        private readonly KentridgeProductionWorldInteraction _worldInteraction;
         private readonly ISessionSnapshotContributor[] _contributors;
         private KentridgeSessionRuntimeGraph _operationGraph;
         private SessionSaveId _armedSaveId;
@@ -40,10 +42,12 @@ namespace Game.Kentridge.PlayableSlice
         public KentridgeProductionPersistenceBridge(
             KentridgePlayableSlice slice,
             KentridgeForestBanditEncounter forest,
+            KentridgeProductionWorldInteraction worldInteraction,
             ISessionSaveStore store)
         {
             _slice = slice ?? throw new ArgumentNullException(nameof(slice));
             _forest = forest ?? throw new ArgumentNullException(nameof(forest));
+            _worldInteraction = worldInteraction ?? throw new ArgumentNullException(nameof(worldInteraction));
             if (store == null) throw new ArgumentNullException(nameof(store));
 
             _contributors = new ISessionSnapshotContributor[]
@@ -91,7 +95,18 @@ namespace Game.Kentridge.PlayableSlice
                     KentridgeProductionSnapshotCodec.EncodeEncounter,
                     KentridgeProductionSnapshotCodec.DecodeEncounter,
                     ValidateEncounter,
-                    RestoreEncounter)
+                    RestoreEncounter),
+                new DelegateSessionSnapshotContributor<WorldObjectStateSnapshot[]>(
+                    "world-objects",
+                    "WorldObjectState",
+                    1,
+                    500,
+                    true,
+                    CaptureWorldObjects,
+                    KentridgeProductionSnapshotCodec.EncodeWorldObjects,
+                    KentridgeProductionSnapshotCodec.DecodeWorldObjects,
+                    ValidateWorldObjects,
+                    RestoreWorldObjects)
             };
 
             Service = new SessionPersistenceService(this, _contributors, store, this);
@@ -306,6 +321,36 @@ namespace Game.Kentridge.PlayableSlice
                 : SessionContributorResult.Reject("Forest encounter restore failed: " + failure + ".");
         }
 
+        private WorldObjectStateSnapshot[] CaptureWorldObjects()
+        {
+            IReadOnlyList<WorldObjectStateSnapshot> state =
+                _worldInteraction.CaptureWorldObjectState(RequireGraph());
+            var copy = new WorldObjectStateSnapshot[state.Count];
+            for (int i = 0; i < copy.Length; i++) copy[i] = state[i];
+            return copy;
+        }
+
+        private static SessionContributorResult ValidateWorldObjects(WorldObjectStateSnapshot[] state)
+        {
+            if (state == null) return SessionContributorResult.Reject("WorldObject snapshot is required.");
+            var ids = new HashSet<WorldObjectId>();
+            for (int i = 0; i < state.Length; i++)
+            {
+                if (!state[i].ObjectId.IsValid || !ids.Add(state[i].ObjectId))
+                    return SessionContributorResult.Reject("WorldObject snapshot contains an invalid or duplicate id.");
+            }
+            return SessionContributorResult.Success();
+        }
+
+        private SessionContributorResult RestoreWorldObjects(WorldObjectStateSnapshot[] state)
+        {
+            WorldInteractionResult result =
+                _worldInteraction.RestoreWorldObjectState(RequireGraph(), state);
+            return result.Succeeded
+                ? SessionContributorResult.Success()
+                : SessionContributorResult.Reject("WorldObject restore failed: " + result.Failure + ".");
+        }
+
         private sealed class CaptureLease : ISessionCaptureLease
         {
             public ulong AuthoritativeRevision { get; }
@@ -508,6 +553,36 @@ namespace Game.Kentridge.PlayableSlice
                         revision);
                 }
                 return new EncounterRegistrySnapshot(encounters, sequence);
+            });
+
+        public static byte[] EncodeWorldObjects(WorldObjectStateSnapshot[] state) =>
+            Write(writer =>
+            {
+                writer.Write(state.Length);
+                for (int i = 0; i < state.Length; i++)
+                {
+                    WorldObjectStateSnapshot snapshot = state[i];
+                    writer.Write(snapshot.ObjectId.Value);
+                    writer.Write((int)snapshot.Kind);
+                    writer.Write(snapshot.Enabled);
+                    writer.Write(snapshot.StateCode);
+                    writer.Write(snapshot.Revision);
+                }
+            });
+
+        public static WorldObjectStateSnapshot[] DecodeWorldObjects(byte[] payload) =>
+            Read(payload, reader =>
+            {
+                int count = ReadCount(reader);
+                var state = new WorldObjectStateSnapshot[count];
+                for (int i = 0; i < state.Length; i++)
+                    state[i] = new WorldObjectStateSnapshot(
+                        new WorldObjectId(reader.ReadString()),
+                        (WorldObjectKind)reader.ReadInt32(),
+                        reader.ReadBoolean(),
+                        reader.ReadInt32(),
+                        reader.ReadUInt64());
+                return state;
             });
 
         private static void WriteProgression(BinaryWriter writer, ProgressionSnapshot state)
