@@ -4,7 +4,7 @@
 **Ownership:** Kentridge production composition + shared standalone-player validation architecture. No new generic gameplay Api/Runtime module.
 **Execution rule:** this proves the real production graph; the scenario may drive public player/input seams and observe diagnostics, but it may not mutate authority or substitute simplified runtimes.
 
-**Prerequisite resolved:** System 23 Application is closed on current `origin/master` and was merged into this branch. The previous exact-SHA request `30524f5adb8dc16675dc249ca12eabaef05a6e6a` exposed a stale top-level PlayMode compile dependency; the compatibility test was corrected before the current master merge. A new exact-SHA request is required only after the current product work is complete.
+**Prerequisite resolved:** System 23 Application is closed on current `origin/master` and was merged into this branch. Exact-SHA request `64296df9f805d2690942d5f302e07a32f3a8b823` for product SHA `f6b3ace316f7122b48135ea04c0f04078049d9a5` reached Unity in run `33984774287` attempt 2 and failed product compilation before runtime validation. The three reported compile blockers have been corrected; T24-036 remains open until the replacement exact-SHA run proves compilation and repository-selected module validation.
 
 ## Baseline / composition cleanup
 
@@ -41,6 +41,7 @@
 - [ ] **T24-033 — Capture failure artifacts.** Role/process log, semantic milestone history and relevant screenshot/render artifact on failure through shared harness conventions.
 - [ ] **T24-034 — Run editor/module-local tests before built-player proof.** Automatic affected-module discovery plus top-level Kentridge integration tests.
 - [ ] **T24-035 — Run canonical standalone built-player scenario on exact built SHA.** Record build/commit identity and require no unhandled exceptions/assertions.
+- [ ] **T24-036 — Prove corrected product compilation on exact SHA.** Run `33984774287` attempt 2 failed with missing `Game.Combat.Api` assembly reference, missing Kentridge runtime namespace import, and ambiguous `GameSessionSnapshot`; replacement exact-SHA CI must compile and advance through repository-owned module validation before this is complete.
 
 ## Cleanup / close
 
