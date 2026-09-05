@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -7,6 +8,7 @@ from pathlib import Path
 SCRIPT = Path(__file__).resolve().parents[1] / "player_process_orchestrator.py"
 spec = importlib.util.spec_from_file_location("player_process_orchestrator_test_target", SCRIPT)
 runner = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = runner
 spec.loader.exec_module(runner)
 
 
