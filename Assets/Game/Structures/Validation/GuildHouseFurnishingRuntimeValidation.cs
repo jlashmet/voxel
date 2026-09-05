@@ -79,10 +79,15 @@ namespace Game.Structures.Validation
             }
             else if (_phase == 2 && elapsed >= 10f)
             {
+                GuildHouseDescriptor knight = FindHouse(GuildHouseKind.Knights);
                 GuildHousePrototype baseline = _prototype;
-                uint changedSeed = FindDifferentSeed(GuildHouseKind.Knights, _knightSeed, in baseline);
+                uint changedSeed = FindDifferentSeed(
+                    knight.Kind,
+                    knight.PreferredRooms,
+                    _knightSeed,
+                    in baseline);
                 _knightSeed = changedSeed;
-                Build(FindHouse(GuildHouseKind.Knights), changedSeed, "knight-regenerated");
+                Build(knight, changedSeed, "knight-regenerated");
                 bool changed = !SameSpatialSignature(in baseline, in _prototype);
                 if (!changed) Fail("regeneration did not change the production spatial signature");
                 Debug.Log($"HOUSE_FURNISHING_VALIDATION regenerated house=knights seed={changedSeed} changed=true activeWorlds={_activeWorlds}");
@@ -114,7 +119,7 @@ namespace Game.Structures.Validation
                 house.Kind,
                 DecorationRegionTheme.Kentridge,
                 seed,
-                StructureId + (uint)_rebuilds,
+                StructureId,
                 new int3(0, 16, 0),
                 HouseWidth,
                 HouseDepth,
@@ -265,6 +270,7 @@ namespace Game.Structures.Validation
 
         private static uint FindDifferentSeed(
             GuildHouseKind kind,
+            int requestedRooms,
             uint baselineSeed,
             in GuildHousePrototype baseline)
         {
@@ -275,11 +281,11 @@ namespace Game.Structures.Validation
                     kind,
                     DecorationRegionTheme.Kentridge,
                     candidateSeed,
-                    StructureId + 99u,
+                    StructureId,
                     new int3(0, 16, 0),
                     HouseWidth,
                     HouseDepth,
-                    baseline.SpatialPlan.Rooms.Length);
+                    requestedRooms);
                 if (candidate.IsWellFormed && !SameSpatialSignature(in baseline, in candidate))
                     return candidateSeed;
             }
