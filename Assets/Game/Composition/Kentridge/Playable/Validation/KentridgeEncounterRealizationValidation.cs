@@ -18,6 +18,7 @@ namespace Game.Composition.Kentridge.Playable.Validation
     public sealed class KentridgeEncounterRealizationValidation : MonoBehaviour
     {
         private const string SuccessMarker = "KENTRIDGE_ENCOUNTER_REALIZATION_VALIDATION PASS";
+        private const string MilestonePrefix = "VOXEL_VALIDATION_MILESTONE ";
         private string _status = "Kentridge encounter realization validation: starting";
 
         private void Awake()
@@ -32,6 +33,7 @@ namespace Game.Composition.Kentridge.Playable.Validation
                 RunValidation();
                 _status = "PASS  WorldBuilder macro placement -> encounter anchor + 3 bandit formation bindings";
                 Debug.Log(SuccessMarker + " anchor=(180,0,-170) participants=3");
+                Debug.Log(MilestonePrefix + "{\"name\":\"encounter-realization-ready\",\"participants\":3}");
             }
             catch (Exception exception)
             {
