@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using Game.Cutscenes.Api;
+using Game.Encounters.Api;
+using Game.Outcomes.Api;
 using Game.Quests.Api;
 
 namespace Game.WorldBuilder.Api
@@ -37,6 +39,22 @@ namespace Game.WorldBuilder.Api
     {
         public QuestRef Quest { get; }
         internal QuestCompletedTriggerSpec(QuestRef quest) => Quest = quest;
+    }
+
+    public sealed class EncounterResolvedTriggerSpec : IStoryTriggerSpec
+    {
+        public EncounterId Encounter { get; }
+        public EncounterResolutionResult Result { get; }
+
+        internal EncounterResolvedTriggerSpec(
+            EncounterId encounter,
+            EncounterResolutionResult result)
+        {
+            if (!encounter.IsValid)
+                throw new ArgumentException("Encounter id is required.", nameof(encounter));
+            Encounter = encounter;
+            Result = result;
+        }
     }
 
     public sealed class ObjectiveActiveConditionSpec : IStoryConditionSpec
@@ -109,6 +127,18 @@ namespace Game.WorldBuilder.Api
         }
     }
 
+    public sealed class ObserveOutcomeConditionEffectSpec : IStoryEffectSpec
+    {
+        public OutcomeConditionRef Condition { get; }
+
+        internal ObserveOutcomeConditionEffectSpec(OutcomeConditionRef condition)
+        {
+            if (!condition.IsValid)
+                throw new ArgumentException("Outcome condition is required.", nameof(condition));
+            Condition = condition;
+        }
+    }
+
     public static class StoryTrigger
     {
         public static IStoryTriggerSpec NewGame() => new NewGameTriggerSpec();
@@ -119,6 +149,10 @@ namespace Game.WorldBuilder.Api
             new CutsceneCompletedTriggerSpec(cutscene);
         public static QuestCompletedTriggerSpec QuestCompleted(QuestRef quest) =>
             new QuestCompletedTriggerSpec(quest);
+        public static EncounterResolvedTriggerSpec EncounterResolved(
+            EncounterId encounter,
+            EncounterResolutionResult result = EncounterResolutionResult.Completed) =>
+            new EncounterResolvedTriggerSpec(encounter, result);
     }
 
     public static class StoryCondition
@@ -137,6 +171,8 @@ namespace Game.WorldBuilder.Api
         public static IStoryEffectSpec PlayCutscene(CutsceneRef cutscene) => new PlayCutsceneEffectSpec(cutscene);
         public static IStoryEffectSpec JoinPartyMember(string memberId) => new JoinPartyMemberEffectSpec(memberId);
         public static IStoryEffectSpec GrantSpell(string spellId) => new GrantSpellEffectSpec(spellId);
+        public static IStoryEffectSpec ObserveOutcomeCondition(OutcomeConditionRef condition) =>
+            new ObserveOutcomeConditionEffectSpec(condition);
     }
 
     public static class ObjectiveCompletion
