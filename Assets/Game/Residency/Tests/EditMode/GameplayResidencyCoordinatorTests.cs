@@ -44,7 +44,7 @@ namespace Game.Residency.Tests
             AssertState(coordinator, a, ResidencyFidelity.Coarse, ResidencyFidelity.Coarse);
             AssertState(coordinator, b, ResidencyFidelity.Dormant, ResidencyFidelity.Dormant);
             IReadOnlyList<ResidencyTargetSnapshot> states = coordinator.GetStates();
-            Assert.AreEqual(a, states[0].Target, "Diagnostics ordering must be stable rather than dictionary iteration order.");
+            Assert.AreEqual(a, states[0].Target);
             Assert.AreEqual(b, states[1].Target);
         }
 
@@ -69,7 +69,7 @@ namespace Game.Residency.Tests
             demand.Dispose();
             coordinator.Reconcile();
             CollectionAssert.AreEqual(new[] { "promote:Dormant->Coarse", "promote:Coarse->Detailed", "demote:Detailed->Coarse", "demote:Coarse->Dormant" }, adapter.Calls);
-            Assert.IsTrue(pins.Acquired[0].Disposed, "Detailed owner must quiesce before its physical-world lease is released.");
+            Assert.IsTrue(pins.Acquired[0].Disposed);
             AssertState(coordinator, target, ResidencyFidelity.Dormant, ResidencyFidelity.Dormant);
         }
 
@@ -87,10 +87,36 @@ namespace Game.Residency.Tests
         }
 
         [Test]
+        public void FailedTransitionDoesNotRetryUntilEffectiveDemandChanges()
+        {
+            ResidencyTarget target = Character("npc-sticky-failure");
+            var pins = new RecordingPins { ReadyOnAcquire = true };
+            var adapter = new RecordingAdapter(ResidencyTargetKind.Character, new ResidencyRegion(2, 0, 2, 5u)) { FailDetailed = true };
+            using var coordinator = new GameplayResidencyCoordinator(pins, new[] { adapter });
+            IResidencyDemandLease detailed = coordinator.Acquire(Demand(target, ResidencyFidelity.Detailed, "encounter"));
+
+            coordinator.Reconcile();
+            int callsAfterFailure = adapter.Calls.Count;
+            int pinsAfterFailure = pins.Acquired.Count;
+            coordinator.Reconcile();
+            coordinator.Reconcile();
+            Assert.AreEqual(callsAfterFailure, adapter.Calls.Count, "Failed transition must not retry every frame.");
+            Assert.AreEqual(pinsAfterFailure, pins.Acquired.Count, "Failed transition must not reacquire physical residency every frame.");
+
+            detailed.Dispose();
+            coordinator.Reconcile();
+            AssertState(coordinator, target, ResidencyFidelity.Dormant, ResidencyFidelity.Dormant);
+
+            adapter.FailDetailed = false;
+            using IResidencyDemandLease retry = coordinator.Acquire(Demand(target, ResidencyFidelity.Detailed, "control"));
+            coordinator.Reconcile();
+            AssertState(coordinator, target, ResidencyFidelity.Detailed, ResidencyFidelity.Detailed);
+        }
+
+        [Test]
         public void SameDemandSequenceProducesSameTransitionOrder()
         {
-            string[] first = Replay(); string[] second = Replay();
-            CollectionAssert.AreEqual(first, second);
+            CollectionAssert.AreEqual(Replay(), Replay());
         }
 
         private static string[] Replay()
