@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
 """Run one declarative standalone-player validation through the shared capture harness."""
 from __future__ import annotations
-import argparse, json, subprocess
+import argparse, json, subprocess, sys
 from pathlib import Path
+
+TOOLS_DIR = Path(__file__).resolve().parent
+if str(TOOLS_DIR) not in sys.path:
+    sys.path.insert(0, str(TOOLS_DIR))
+import player_process_orchestrator as multi_process
 
 
 def fail(msg: str) -> None:
@@ -32,13 +37,28 @@ def nonnegative_number(value, name: str):
     return value
 
 
-def load_scenario(path: Path) -> dict:
+def _read_scenario(path: Path) -> dict:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         fail(f"{path}: {exc}")
     if not isinstance(data, dict) or data.get("schemaVersion") != 1:
         fail(f"{path}: schemaVersion must be 1")
+    return data
+
+
+def load_scenario(path: Path) -> dict:
+    data = _read_scenario(path)
+    if data.get("mode") == "multiProcess":
+        try:
+            config = multi_process.normalize_config(data)
+        except multi_process.OrchestrationError as exc:
+            fail(f"{path}: {exc}")
+        return {"mode": "multiProcess", "config": config}
+
+    mode = data.get("mode", "singleProcess")
+    if mode != "singleProcess":
+        fail(f"{path}: mode must be 'singleProcess' or 'multiProcess'")
     run_seconds = positive_int(data.get("runSeconds"), "runSeconds", 10, 300)
     capture = data.get("capture")
     if not isinstance(capture, dict):
@@ -68,8 +88,8 @@ def load_scenario(path: Path) -> dict:
     for field, values in (("requiredLogPatterns", required), ("forbiddenLogPatterns", forbidden)):
         if not isinstance(values, list) or any(not isinstance(v, str) or not v for v in values):
             fail(f"assertions.{field} must be an array of non-empty strings")
-    return {"runSeconds": run_seconds, "width": width, "height": height, "interval": interval,
-            "minimum": minimum, "evidenceAfter": evidence_after, "timeline": timeline,
+    return {"mode": "singleProcess", "runSeconds": run_seconds, "width": width, "height": height,
+            "interval": interval, "minimum": minimum, "evidenceAfter": evidence_after, "timeline": timeline,
             "required": required, "forbidden": forbidden}
 
 
@@ -79,6 +99,7 @@ def main(argv=None) -> int:
     ap.add_argument("--scene", required=True)
     ap.add_argument("--scenario", required=True)
     ap.add_argument("--output", required=True)
+    ap.add_argument("--source-sha", default="")
     ns = ap.parse_args(argv)
     scene, scenario = Path(ns.scene), Path(ns.scenario)
     if not scene.is_file() or scene.suffix != ".unity":
@@ -86,6 +107,14 @@ def main(argv=None) -> int:
     if not scenario.is_file() or not scenario.name.endswith(".player-scenario.json"):
         fail(f"scenario does not exist: {scenario}")
     cfg = load_scenario(scenario)
+
+    if cfg["mode"] == "multiProcess":
+        source_sha = multi_process.resolve_source_sha(ns.source_sha or None)
+        print("player-validation:", scene, "scenario=", scenario, "mode=multiProcess", "sourceSha=", source_sha)
+        result = multi_process.run(ns.unity, scene, Path(ns.output), cfg["config"], source_sha)
+        print(json.dumps(result, sort_keys=True))
+        return 0
+
     cmd = ["bash", "tools/showcase-player-capture.sh", "--unity", ns.unity, "--output", ns.output,
            "--scene", scene.as_posix(), "--run-seconds", str(cfg["runSeconds"]),
            "--width", str(cfg["width"]), "--height", str(cfg["height"]),
@@ -101,7 +130,7 @@ def main(argv=None) -> int:
         cmd += ["--require-log-pattern", pattern]
     for pattern in cfg["forbidden"]:
         cmd += ["--forbid-log-pattern", pattern]
-    print("player-validation:", scene, "scenario=", scenario)
+    print("player-validation:", scene, "scenario=", scenario, "mode=singleProcess")
     subprocess.run(cmd, check=True)
     return 0
 
