@@ -11,3 +11,17 @@
 ## Discriminator after completed failure
 
 The automatic plan owns the changed `SceneRuntime` module and its player validation, while the Structures test is an independent explicitly requested regression. Do not change production input from this incomplete signal. Re-run the same feature content with **no explicit extra test** so automatic `SceneRuntime` EditMode/player validation plus Kentridge integration are isolated from the Structures bootstrap regression. If that automatic gate is green, diagnose/fix the independent Structures bootstrap; if it still fails, inspect the shared-input module path first.
+
+## 2026-09-05 — isolated automatic-module request
+
+- Feature SHA: `9e7a4374def320b9919ba6221eab5aee526a41c7`
+- Transport SHA: `4f01fb4d3c265cd4ed2c5b6bf1a9e689f91321cc`
+- Workflow run: `33984299208`, successful execution on attempt 3 after two pre-step infrastructure cancellations.
+- Request: automatic affected-module validation only, plus SceneIssue `showcase-input-smoke` replay; no explicit Structures test.
+- Built production-scene replay: **passed**. `SmallVoxelShowcase` built successfully and ran for 20 seconds; the replay step completed successfully and produced two real-player screenshots.
+- Automatic module validation: **failed**. The selected module was only `Assets/Game/Composition/Showcase/SceneRuntime`; its persistent EditMode assembly ran 16 tests, with 13 passed and 3 failed. All failures were the newly added `ShowcaseInputSystemTests` and occurred on expected pressed/held state being false.
+- Discriminator result: the independent Structures bootstrap is not the cause of this gate. The editor already owns native `Keyboard.current`/`Mouse.current`; the tests queued state into added synthetic devices without making those devices current. Production `ShowcaseInputSystem` correctly reads the current devices, as independently demonstrated by the successful built-player replay.
+
+## Follow-up fix / next exact discriminator
+
+Keep production input unchanged. Make synthetic keyboard/mouse devices current explicitly in the EditMode fixture and both built-player input harnesses before queuing events. Re-run the same repository-driven SceneRuntime EditMode + module-local player + Kentridge integration gates and the actual `SmallVoxelShowcase` replay at the new exact feature SHA.
