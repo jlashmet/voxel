@@ -24,6 +24,8 @@
 - [x] Keep validation demand on the real streaming path: while an elevated settlement survey waits, move the real CharacterMotor demand to the first unsettled authored building centre without force-generation, radius widening, or extra streaming budget.
 - [x] Preserve exact requests `bd10ce4f594f1619e8bf48a866459c6ac0aa174f` and `59ed8938f6ace32c89817f0c417f45fddfabb26e` through runs `33937792014` and `33938299650`; both stop before runtime on the same sole `CS0246` in the new content-demand helper.
 - [x] After the repeated compiler symptom, isolate the root cause before another production change: `TopDownWorldPhysicalPlan` is declared in `MountingForce.WorldGen.Voxel`, and `Game.Kentridge.PlayableSlice` already references `MountingForce.WorldGen.Voxel`; the helper was missing that namespace import.
+- [x] Classify run `33938819767`: persistent tests and the requested GPU-liveness regression pass; the Kentridge macro player reaches startup/local CharacterMotor traversal with no forbidden exceptions but never emits Moordell content/capture readiness because its module-local bootstrap attached the evidence driver without the companion profile-installed content-demand driver.
+- [x] Correct the module-local validation composition by attaching both macro evidence helpers; keep the SceneIssue profile self-install path unchanged and do not weaken streaming/readiness assertions or budgets.
 
 ## Exact-SHA validation
 - [ ] Run `GpuSurfaceMirrorRelocationRequestedValidationTests.DistantUnrelatedChangeChurnExecutesProductionGpuLivenessRegression` on the current exact feature source through `ci-test/fixes/agent-6`.
