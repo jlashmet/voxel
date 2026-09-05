@@ -1,0 +1,7 @@
+{
+  "platform": "EditMode",
+  "test": "Game.Structures.Tests.GuildHouseFurnishingResolverTests",
+  "request_id": "agent3-house-showcase-material-presentation-fix",
+  "scene_issue": "SceneIssues/open/20260905-130409-199-HouseShowcase/issue.json",
+  "replay_seconds": "52"
+}
