@@ -143,7 +143,8 @@ namespace Game.WorldBuilder.Validation.NewHouseReference
             // appropriate for the separately authored geometry, and it has no isolated alpha-ready
             // foliage plate. Use the house timber texture for the plain brown entry and the normal
             // game foliage material for ivy/planting rather than stamping that combined plate onto
-            // tiny foliage voxels. Slate remains the existing blue-painted architectural accent.
+            // tiny foliage voxels. The supplied blue/gold painted house layer is reserved for the
+            // blue frames and shutter leaves visible in the reference.
             NewHouseReferencePalette palette = new(
                 GameMaterialIds.HousePlaster,
                 GameMaterialIds.HouseTimber,
@@ -151,7 +152,7 @@ namespace Game.WorldBuilder.Validation.NewHouseReference
                 GameMaterialIds.HouseStone,
                 GameMaterialIds.Glass,
                 GameMaterialIds.HouseTimber,
-                GameMaterialIds.Slate,
+                GameMaterialIds.HouseDoor,
                 GameMaterialIds.Grass,
                 GameMaterialIds.FlowerWhite,
                 GameMaterialIds.Grass);
