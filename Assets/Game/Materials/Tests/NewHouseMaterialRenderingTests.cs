@@ -69,5 +69,20 @@ namespace Game.Materials.Tests
                     "House motifs must resolve at the 10 cm voxel scale rather than stretching across the facade.");
             }
         }
+
+        [Test]
+        public void PaintedHouseAccent_PreservesAuthoredBlueChroma()
+        {
+            MaterialPresentationDefinition row =
+                GameMaterialRenderingDefinitions.Create()[GameMaterialIds.HouseDoor];
+
+            Assert.That(row.Sampling.x, Is.EqualTo(12f),
+                "The painted architectural role must continue to sample the supplied blue-and-gold plate.");
+            Assert.That(row.Sampling.w, Is.EqualTo(1f));
+            Assert.That(row.Albedo.x, Is.EqualTo(1f));
+            Assert.That(row.Albedo.y, Is.EqualTo(1f));
+            Assert.That(row.Albedo.z, Is.EqualTo(1f),
+                "A coloured multiplier crushes the authored blue paint to charcoal; preserve the plate chroma.");
+        }
     }
 }
