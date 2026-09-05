@@ -1,5 +1,10 @@
 # New House WorldBuilder Tasks
 
+## 0. Required ownership and validation path (discovered)
+- [x] Runtime/player-visible ownership is `Assets/Game/WorldBuilder`; reuse the existing Structures/Voxel APIs without modifying those runtime modules unless a demonstrated acceptance blocker requires it.
+- [x] Module-local validation path is `Assets/Game/WorldBuilder/Validation/NewHouseReferenceReconstruction/NewHouseReferenceReconstruction.unity`, exercising the real production WorldBuilder composition/catalogue path and producing built-player/reference-render evidence.
+- [x] Preserve every imported generic checklist item while reconciling it to the supplied reference: garage/driveway-specific items that are absent from the supplied house reference will be completed explicitly as `N/A — absent from supplied reference`, rather than by adding non-reference geometry.
+
 ## 1. Engine / repository alignment
 - [ ] Locate the existing WorldBuilder composition entry point.
 - [ ] Confirm the normal world/scene registration and loading path.
