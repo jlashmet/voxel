@@ -1,32 +1,25 @@
 # SmallVoxelShowcase shared Input System restoration
 
 ## Defect and acceptance
+`SmallVoxelShowcase` uses `VoxelEngine.Showcase.VoxelShowcase`, whose per-frame interactive path reads legacy `UnityEngine.Input` while Player Settings are Input-System-only. Restore the complete keyboard/mouse interaction path without changing Player Settings to Legacy/Both or adding scene-local compatibility polling. Acceptance is the binding list in `issue.json`, including actual built-player input proof and focus/cursor recovery.
 
-`SmallVoxelShowcase` uses `VoxelEngine.Showcase.VoxelShowcase`, whose per-frame interactive path still reads legacy `UnityEngine.Input` while project Player Settings are Input-System-only. The first observed crash is `Input.GetKeyDown` from `VoxelShowcase.HandleKeys`, but the same runtime also uses legacy key, axis, mouse-scroll, look, jump/movement, and reset-axis calls. Restore the complete production interaction path without changing Player Settings to Legacy/Both and without scene-local compatibility shims.
-
-A separate captured startup exception currently comes from `RenderDebugUiTestBootstrap.Disable()` reflecting into SRP `DebugManager.enableRuntimeUI`, which reaches a null reference in SRP Core. Keep this symptom independent until a discriminator proves otherwise; the test harness must become exception-safe without concealing the production input failure.
-
-Acceptance is the binding list in `issue.json`, including real built-player input proof for `SmallVoxelShowcase`, focus/cursor behavior, shared-consumer migration, and safe test bootstrap behavior.
+A separate captured startup exception comes from `RenderDebugUiTestBootstrap.Disable()` reflecting into SRP `DebugManager.enableRuntimeUI` before the SRP backing runtime UI exists. Keep this test-harness symptom independent and do not mask production exceptions.
 
 ## Ownership / architecture
+Implementation base is current master `513ae04ca89b6d3448246349f1ed040e4b48a7ef`. `VoxelShowcase` is the shared production input owner for `SmallVoxelShowcase` and `VoxelShowcase`; `MultiplayerSceneBootstrap` attaches the same owner to `Multiplayer`. `HouseShowcase` is an independent already-Input-System consumer.
 
-Primary suspected production owner: `Assets/Game/Composition/Showcase/SceneRuntime/VoxelShowcase.cs` and whichever shared input abstraction should own player/showcase input under the current Input System configuration. `HouseShowcase` already uses `UnityEngine.InputSystem` directly and is a useful current-master compatibility reference. Prefer a reusable semantic/shared input boundary if multiple scenes share the same controls; do not duplicate key maps across each scene unless repository architecture proves those scenes genuinely own independent controls.
+The nearest repository module root is `Assets/Game/Composition/Showcase/SceneRuntime` because it owns `Tests/EditMode/VoxelEngine.Showcase.Tests.EditMode.asmdef`. It lacks a module-local `Validation/`, so this player-visible change requires one using the real production driver and Input System events.
 
-The SRP debug bootstrap lives in Structures PlayMode tests and is test-harness ownership, not a reason to alter production rendering/input policy.
+## Hypotheses / discriminator result
+1. **Supported:** `VoxelShowcase.Update -> HandleKeys/MovePlayer/HandleLook/HandleEdits` reaches legacy `Input.*`; the captured `GetKeyDown` failure is only the first such read. `SmallVoxelShowcase` and `VoxelShowcase` serialize the same script; Multiplayer attaches it at runtime.
+2. **Independent and supported:** the Structures SRP bootstrap runs `BeforeSceneLoad`; its reflected setter can dereference uninitialized SRP runtime-UI state before the fixture body. It has no production-input ownership.
 
-## Hypotheses and discriminator
-
-1. **Leading hypothesis:** `SmallVoxelShowcase` fails because `VoxelShowcase.Update -> HandleKeys/MovePlayer/HandleLook/HandleEdits` executes legacy `UnityEngine.Input` calls under Input-System-only settings. **Falsified if:** the production scene can exercise these methods under the current settings without the reported exception, or the captured stack is from a different runtime assembly than current master.
-2. **Independent harness hypothesis:** the SRP debug suppression added to `TypedStructuralSocketCompositionSceneTests` runs before `DebugManager` has a valid persistent-runtime-UI backing object; setting `enableRuntimeUI=false` through reflection therefore throws before the fixture body. **Falsified if:** reproducing the same bootstrap against current master never reaches the captured NRE or inspection shows a different test initializer owns the call.
-
-**Next discriminator:** run the smallest repository-supported `SmallVoxelShowcase` player/validation repro with current Input-System-only settings and capture the first exception before modifying code. Separately invoke/isolate the Structures debug bootstrap without `SmallVoxelShowcase`. Then enumerate direct `UnityEngine.Input` reads in the responsible player-visible modules and classify consumers by shared owner before implementing the fix.
+`experiment-001-input-owner-and-srp-bootstrap.md` records the discriminator. Legacy `Mouse X/Y/ScrollWheel` sensitivity is `0.1`, so Input System delta conversion must preserve look scaling while wheel behavior remains sign-based.
 
 ## Selected fix
+Add one semantic `Unity.InputSystem` snapshot in SceneRuntime and make `VoxelShowcase` consume it for movement, look, cursor toggle, sprint, jump/fly vertical, interact, respawn, scroll brush sizing, and mouse edits. On focus/cursor reacquire, discard one Input System look-delta frame instead of calling `Input.ResetInputAxes`.
 
-Not selected until the discriminator is recorded in `experiment-001-*.md`. Expected direction is migration to the supported Input System/shared semantic input boundary plus an exception-safe or unnecessary-bootstrap removal for the SRP test harness. Do not switch project input handling to Both/Legacy.
+Add focused EditMode input semantics coverage and a new `SceneRuntime/Validation` standalone scene/scenario that injects keyboard/mouse events through Input System into the real `VoxelShowcase`. Add an explicit SceneIssue input-smoke replay action so the actual built `SmallVoxelShowcase` proves input changes player/camera state. Harden only the known too-early SRP debug setter failure, then require post-load suppression to succeed.
 
-## Current commit / remaining gates
-
-Baseline master at capture: `af61066de669431a6555e737887bd5d4031525b8`.
-
-Remaining gates: reproduce both captured symptoms independently; identify all same-owner consumers; implement focused fix; add/update module-local validation scene/scenario for player-visible input behavior; validate keyboard/mouse state changes in built `SmallVoxelShowcase`; regression-check same-owner scenes; prove focus/cursor recovery; prove Structures PlayMode bootstrap is exception-free; exact-SHA targeted CI; close only after all assigned symptoms are resolved.
+## Remaining gates
+Implement and review the shared fix; prove no forbidden legacy input remains in the responsible runtime; run the Structures bootstrap regression plus automatically owned SceneRuntime validation; run exact-SHA standalone `SmallVoxelShowcase` replay with actual Input System events; verify same-owner scenes by shared-owner coverage; close `open/` directly to `closed/`; merge current master if needed; PR + auto-merge; monitor required `affected` gate through merge.
