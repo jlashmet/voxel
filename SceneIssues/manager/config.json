@@ -13,9 +13,8 @@
     "minimumVersion": "0.153.0",
     "model": "gpt-6-astra",
     "reasoningEffort": "low",
-    "sandbox": "workspace-write",
+    "sandbox": "read-only",
     "approvalPolicy": "never",
-    "networkAccess": false,
     "webSearch": "disabled"
   },
   "corePathPatterns": [
