@@ -56,9 +56,9 @@ namespace Game.Kentridge.PlayableSlice
                     ApplicationFailure.None,
                     string.Empty)
                 : _flow.Snapshot;
-        public GameSessionSnapshot SessionSnapshot =>
+        public Game.SessionOrchestration.Api.GameSessionSnapshot SessionSnapshot =>
             _session == null
-                ? new GameSessionSnapshot(
+                ? new Game.SessionOrchestration.Api.GameSessionSnapshot(
                     GameSessionLifecycle.Uninitialized,
                     false,
                     null,
@@ -177,7 +177,6 @@ namespace Game.Kentridge.PlayableSlice
         {
             if (_flow != null || _session != null)
                 throw new InvalidOperationException("Kentridge Application composition is already active.");
-
             string saveRoot = Path.Combine(UnityEngine.Application.persistentDataPath, "KentridgeProductionSaves");
             _persistence = new KentridgeProductionPersistenceBridge(
                 _slice,
