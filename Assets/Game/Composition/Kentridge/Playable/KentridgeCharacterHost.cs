@@ -4,8 +4,10 @@ using Game.Characters.Api;
 using Game.Characters.Composition;
 using Game.Composition.Campaign;
 using Game.Composition.Kentridge.Api;
+using Game.Composition.Kentridge.Runtime;
 using Game.Composition.WorldBuilderWorldGen;
 using Game.Cutscenes.Api;
+using Game.SessionOrchestration.Api;
 using Game.WorldBuilder.Api;
 using MountingForce.WorldGen;
 using UnityEngine;
@@ -20,7 +22,7 @@ namespace Game.Composition.Kentridge.Playable
     /// animation and visual-root policy and implements the campaign actor boundary. Persistent
     /// gameplay identity/lifecycle/kinematics are mirrored into the shared Characters registry.
     /// </summary>
-    public sealed class KentridgeCharacterHost : IKentridgeCampaignActorHost, IDisposable
+    public sealed class KentridgeCharacterHost : IKentridgeCampaignActorHost, IKentridgeSessionAuthorityReset, IDisposable
     {
         private const float DecimetresToMetres = 0.1f;
         public const string MadelineResourcePath = "Characters/Madeline/Madeline";
@@ -30,7 +32,7 @@ namespace Game.Composition.Kentridge.Playable
         private readonly Dictionary<NpcRef, NpcActor> _npcs = new Dictionary<NpcRef, NpcActor>();
         private readonly Dictionary<NpcRef, CharacterId> _npcCharacterIds = new Dictionary<NpcRef, CharacterId>();
         private readonly PlayerActor _player;
-        private readonly ICharacterRegistry _characters;
+        private ICharacterRegistry _characters;
         private readonly CharacterId _playerCharacterId;
 
         public KentridgeCharacterHost(float walkSpeed)
@@ -51,6 +53,27 @@ namespace Game.Composition.Kentridge.Playable
 
         public ICharacterRegistry Characters => _characters;
         public CharacterId PlayerCharacterId => _playerCharacterId;
+
+        public void BeginSessionAuthority(GameSessionIdentity identity)
+        {
+            if (identity == null) throw new ArgumentNullException(nameof(identity));
+
+            ICharacterRegistry previous = _characters;
+            ICharacterRegistry replacement = CharacterRuntimeFactory.CreateRegistry();
+            KentridgeCharacterRegistryAnchor.ReplacePlayerSessionRegistry(previous, replacement);
+            _characters = replacement;
+            _npcCharacterIds.Clear();
+            EnsurePlayerCharacter();
+            SyncPlayerCharacter();
+        }
+
+        public void RestorePlayerKinematics(CharacterKinematicState state)
+        {
+            _motor.Position = ToUnity(state.Position);
+            _motor.Velocity = ToUnity(state.Velocity);
+            _player.RestoreFacing(ToUnity(state.Facing));
+            SyncPlayerCharacter();
+        }
 
         // Compatibility-facing surface for scene composition. The scene can still choose spawn,
         // input and camera values, but persistent identity/state is authoritative through Characters.
@@ -280,6 +303,9 @@ namespace Game.Composition.Kentridge.Playable
         private static CharacterVector3 ToCharacterVector(Vector3 value) =>
             new CharacterVector3(value.x, value.y, value.z);
 
+        private static Vector3 ToUnity(CharacterVector3 value) =>
+            new Vector3(value.X, value.Y, value.Z);
+
         private static void RequireSuccess(CharacterRegistryFailure failure, string operation)
         {
             if (failure != CharacterRegistryFailure.None)
@@ -330,6 +356,14 @@ namespace Game.Composition.Kentridge.Playable
                     ApplyBodyFacing();
                 }
                 return CompletedCutsceneOperation.Instance;
+            }
+
+            public void RestoreFacing(Vector3 facing)
+            {
+                facing.y = 0f;
+                if (facing.sqrMagnitude <= 1e-6f) return;
+                Facing = facing.normalized;
+                ApplyBodyFacing();
             }
 
             public void Tick(float dt)
