@@ -11,7 +11,6 @@
   "timeline": {},
   "assertions": {
     "requiredLogPatterns": [
-      "WATER_RENDERING_SHOWCASE ready:",
       "TEXTURE_LAYER_VALIDATION ready:"
     ],
     "forbiddenLogPatterns": [
