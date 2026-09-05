@@ -28,7 +28,7 @@ namespace VoxelEngine.Structures.Tests.PlayMode
             Assert.That(driver.Complete, Is.True, "Focused structural validation did not complete.");
             Assert.That(driver.Passed, Is.True, driver.Detail);
 
-            Object.Destroy(host);
+            UnityEngine.Object.Destroy(host);
         }
 
         private static void DisableRenderPipelineRuntimeDebugUi()
