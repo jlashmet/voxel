@@ -258,7 +258,8 @@ namespace VoxelEngine.Composition
                     StyleKeyFor(bake),
                     tier,
                     FlagsFor(importance),
-                    GeometryFor(bake)));
+                    GeometryFor(bake),
+                    MaterialFor(bake)));
             }
 
             return _instances;
@@ -324,14 +325,35 @@ namespace VoxelEngine.Composition
                     primitiveMaxExclusiveVoxel.z);
                 float3 normalizedMin = (primitiveMin - bakeMin) / bakeSize - originOffset;
                 float3 normalizedMax = (primitiveMaxExclusive - bakeMin) / bakeSize - originOffset;
+                ProfileFor(in primitive, out float startRadiusScale, out float endRadiusScale);
                 primitives.Add(new FarFeatureGeometryPrimitive(
                     (FarFeatureGeometryShape)(byte)primitive.Shape,
                     normalizedMin,
                     normalizedMax,
-                    primitive.Axis));
+                    primitive.Axis,
+                    startRadiusScale,
+                    endRadiusScale));
             }
 
             return primitives.Count == 0 ? null : new FarFeatureGeometry(primitives.ToArray());
+        }
+
+        private static void ProfileFor(
+            in Primitive primitive,
+            out float startRadiusScale,
+            out float endRadiusScale)
+        {
+            startRadiusScale = 1f;
+            endRadiusScale = 1f;
+            if (primitive.Shape != PrimitiveShape.Frustum) return;
+
+            int maxRadius = math.max(primitive.Radius, primitive.InnerRadius);
+            if (maxRadius <= 0) return;
+
+            int startRadius = primitive.Direction < 0 ? primitive.InnerRadius : primitive.Radius;
+            int endRadius = primitive.Direction < 0 ? primitive.Radius : primitive.InnerRadius;
+            startRadiusScale = math.max(0f, startRadius / (float)maxRadius);
+            endRadiusScale = math.max(0f, endRadius / (float)maxRadius);
         }
 
         private static string GeometryKeyFor(FeaturePresentationBake bake) =>
@@ -346,6 +368,17 @@ namespace VoxelEngine.Composition
                 return $"m{primitive.Material:X2}-s{primitive.SurfaceStyle:X4}-c{primitive.Coating:X2}";
             }
             return "empty";
+        }
+
+        private static byte MaterialFor(FeaturePresentationBake bake)
+        {
+            for (int i = 0; i < bake.PrimitiveCount; i++)
+            {
+                Primitive primitive = bake.GetPrimitive(i);
+                if (primitive.Mode == PrimitiveMode.Fill || primitive.Mode == PrimitiveMode.FillIfEmpty)
+                    return primitive.Material;
+            }
+            return 0;
         }
 
         private static FarFeatureVisualFlags FlagsFor(FarFeatureImportance importance)
