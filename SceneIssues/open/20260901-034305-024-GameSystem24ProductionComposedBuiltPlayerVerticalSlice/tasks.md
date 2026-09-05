@@ -10,9 +10,9 @@
 
 - [x] **T24-001 — Inventory Kentridge production/prototype bootstraps.** Audited baseline: playable slice directly owned session startup; forest extension created local input/runtime services; well presentation owned local input/reflection fallbacks; legacy raw input remained.
 - [x] **T24-002 — Define canonical Kentridge entry composition.** Application owns app/input/navigation lifecycle and delegates run lifecycle to #14/#16; Kentridge supplies world/content/site/NPC/cutscene/placement policy and a production session/content factory; Unity adapters receive public composed capabilities and never construct competing authority.
-- [ ] **T24-003 — Verify one production Input path.** Physical input uses Unity Input System -> `Game.Input.Runtime` -> `Game.Input.Api`; one composition-owned input/context instance is supplied to Kentridge slice/HUD/forest extension; validation can inject semantic player actions only through the approved production/test seam. Remove Kentridge `UnityEngine.Input` polling required to satisfy this invariant.
-- [ ] **T24-004 — Verify one production session path.** Standalone starts at Application frontend and New Game/Continue, not direct scene bootstrap or CampaignRuntime constructors.
-- [ ] **T24-005 — Remove/fail alternate runtime fallbacks.** Missing production integration must fail validation rather than instantiate a local substitute.
+- [x] **T24-003 — Verify one production Input path.** One composition-owned `InputContextService` + `UnityPlayerInputReader` is injected into the playable slice, HUD and forest extension. Kentridge gameplay consumers use `Game.Input.Api`; the legacy `KentridgeUnityInputBridge` raw `UnityEngine.Input` owner was removed.
+- [x] **T24-004 — Verify one production session path.** `KentridgeProductionCompositionRoot` owns Application + `GameSessionOrchestrator`; the slice consumes the current graph and does not tick session control. The production scene serializes `m_AutoStartNewGame: 0`, so standalone boot remains at Application FrontEnd until New Game/Continue is requested.
+- [x] **T24-005 — Remove/fail alternate runtime fallbacks.** Slice/HUD/forest composition requires injected production capabilities and throws on missing bindings; no local substitute input/session authority is created. Multiplayer-unavailable adapters explicitly reject unsupported requests rather than simulating a formed session.
 
 ## Representative gameplay route
 
