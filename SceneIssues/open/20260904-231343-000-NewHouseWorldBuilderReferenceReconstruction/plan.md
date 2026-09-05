@@ -1,35 +1,26 @@
 # New House WorldBuilder Implementation Plan
 
 ## Acceptance
-Reconstruct the supplied medieval cottage reference through the production WorldBuilder/material/rendering path. The final built-player target view must preserve the reference's major silhouette, steep multi-gable roof, chimney, Tudor timber/plaster façade, recessed openings, entry, flower boxes/ivy, stepping-stone approach, and material contrast. Garage/driveway requirements from the imported generic checklist are `N/A — absent from supplied reference`.
+Reconstruct the supplied medieval cottage reference through the production WorldBuilder/material/rendering path at the project 10 cm voxel scale. Final standalone-player evidence must preserve the tall near-frontal silhouette, dominant steep front gable, blue roof/shutters, stone lower storey/chimney, Tudor timber/plaster upper storeys, stacked arched openings, ridge finial, flower boxes/ivy, credible texture scale, grounding, and clean roof/wall/material transitions. Garage/driveway items from the imported generic checklist are `N/A — absent from supplied reference`.
 
 ## Ownership / architecture
-- Runtime owner: `Assets/Game/WorldBuilder`.
-- Reusable house geometry: `Assets/Game/WorldBuilder/Voxel/NewHouseReferenceAuthoring.cs` using `IStructureAuthoringSession`; reference-specific site is a separate authoring method.
-- Game material identity/projection remains in `Assets/Game/Materials`; Rendering receives only opaque material/texture-layer data.
-- Renderer extension is generic optional additional surface texture layers, with its own module-local validation surface.
-- Reference camera/light/site policy stays in the WorldBuilder validation scene, not in reusable house geometry.
+- Runtime house owner: `Assets/Game/WorldBuilder`; reusable geometry is `NewHouseReferenceAuthoring` over `IStructureAuthoringSession`.
+- Reference-specific site/camera/light remain outside reusable geometry.
+- Game material identity/projection stays in `Assets/Game/Materials`; Rendering receives semantic-free ordered texture slots only.
+- WorldBuilder supplies the six reference textures through `Resources/VoxelAdditionalTextureLayers.asset`; the generic renderer loads that optional slot resource without editing project-global renderer settings.
+- Module-local player proof remains WorldBuilder `NewHouseReferenceReconstruction` plus Rendering `TextureLayers` validation.
 
-## Chosen approach
-Centralize house dimensions in `NewHouseReferenceConfig`, author primary massing/roof/openings/detail with existing structure primitives, map supplied textures to stable game-owned house materials, and bind those textures through the existing renderer asset. Repeated windows, roof runs, timber lines, flower boxes, and landscape forms use helpers rather than duplicated scene geometry.
+## Hypotheses / discriminating result
+1. **Existing house massing was already close; remaining work was material/camera polish.** Falsified by direct comparison with the exact checked-in reference blob (`6d87b08d4c7c9bddc1705c0f34343aa79bc18423`): prior code was broad/side-gabled, split rectangular facade windows, flat shutters, and a three-quarter camera while the source is tall/front-gabled with stacked arched openings and open shutters.
+2. **The six extra textures had to live in `Assets/Settings/VoxelUniversalRenderer.asset`.** Falsified by CI runs `33948973165`/`33949596796`: that unrelated global asset path forced repository-wide module fallback and inherited the known URP legacy-Input PlayMode failure. The selected fix is an application-owned Resources texture-slot asset consumed by generic Rendering; the global renderer asset is restored to `master`.
 
-Focused validation surfaces:
-- `Assets/Game/WorldBuilder/Validation/NewHouseReferenceReconstruction/NewHouseReferenceReconstruction.unity`
-- `Assets/VoxelEngine/Rendering/Validation/TextureLayers/SurfaceTextureLayersDemo.unity`
+## Selected fix
+Rebuild the cottage around centralized integer datums: stone lower storey, projected plaster/Tudor upper storey, dominant depth-ridged front gable, lower cross-roof shoulders, real arched carve/panel geometry, depth-bearing open shutters, chimney/finial, flower boxes/ivy, and grounded stone steps. The validation camera is portrait and frontal for direct reference comparison, then visits front-left and rear-right audit angles before returning to the hero view.
 
-Supplemental EditMode tests cover translation-independent reuse, site separation, material registration/projection, and generic renderer-layer behavior.
-
-## Blast radius / cost
-Touched modules are `Game.Materials`, `Game.WorldBuilder`, and `VoxelEngine.Rendering`. No alternate renderer, storage authority, or structure API was introduced. Runtime cost is the existing authored voxel writes plus six optional opaque texture-array layers; renderer capacity remains bounded by the existing material limit.
-
-## Current commit / evidence
-Current feature branch commit before final documentation/visual iteration: `bd25d2e8c189d9c22f57a6e46f01efdfbcb92314`.
-
-Exact-SHA run `33945621865` passed all feature-specific EditMode coverage and 1784/1785 module tests after the stable material-ID regression was fixed. Its sole PlayMode failure is being baseline-isolated because it originates from URP `DebugManager` calling legacy `UnityEngine.Input`, outside this feature's changed paths.
+Supplemental EditMode tests retain translation invariance/site separation, material registration/projection, and renderer extra-slot bounds. No alternate storage, mesh, renderer, or structure-authoring path is introduced.
 
 ## Remaining gates
-1. Finish baseline classification of that unrelated PlayMode failure without changing acceptance.
-2. Obtain durable built-player captures from both owned validation scenes.
-3. Compare the house capture directly with the supplied reference; fix demonstrated structural/material defects only.
-4. Complete every imported checklist/acceptance item, record exact-SHA evidence, and close open→closed.
-5. Refresh from `origin/master`, open the final PR, and enable auto-merge; never push the feature head directly to `master`.
+1. Run exact-SHA targeted CI after the structural/resource changes; confirm the module plan no longer falls back through global renderer settings.
+2. Inspect standalone-player WorldBuilder and Rendering captures directly; classify the hero render and fix only demonstrated acceptance defects.
+3. Use audit-angle frames for holes, floating pieces, overlaps, material mistakes, roof gaps, and z-fighting; complete every checklist box.
+4. Close open→closed with final exact SHA/evidence, merge current `origin/master` into the feature if needed, then PR to `master` + auto-merge. Never push the feature head directly to `master`.
