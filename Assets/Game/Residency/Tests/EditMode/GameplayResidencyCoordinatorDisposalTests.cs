@@ -44,11 +44,11 @@ namespace Game.Residency.Tests
             events.Clear();
 
             Assert.Throws<InvalidOperationException>(() => coordinator.Dispose());
-            Assert.IsFalse(pins.Lease.Disposed, "Detailed substrate must remain pinned until the adapter quiesces.");
+            Assert.IsFalse(pins.AcquiredLease.Disposed, "Detailed substrate must remain pinned until the adapter quiesces.");
 
             adapter.PendingDetailedDemotion = false;
             coordinator.Dispose();
-            Assert.IsTrue(pins.Lease.Disposed);
+            Assert.IsTrue(pins.AcquiredLease.Disposed);
         }
 
         private sealed class RecordingAdapter : IResidencyTargetAdapter
@@ -93,19 +93,19 @@ namespace Game.Residency.Tests
                 _events = events;
             }
 
-            public Lease Lease { get; private set; }
+            public RecordingLease AcquiredLease { get; private set; }
 
             public IRegionResidencyLease AcquireResidency(in RegionLoadRequest request)
             {
-                Lease = new Lease(request.RegionCoord, _events);
-                return Lease;
+                AcquiredLease = new RecordingLease(request.RegionCoord, _events);
+                return AcquiredLease;
             }
 
-            public sealed class Lease : IRegionResidencyLease
+            public sealed class RecordingLease : IRegionResidencyLease
             {
                 private readonly List<string> _events;
 
-                public Lease(int3 regionCoord, List<string> events)
+                public RecordingLease(int3 regionCoord, List<string> events)
                 {
                     RegionCoord = regionCoord;
                     _events = events;
