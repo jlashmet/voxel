@@ -83,11 +83,22 @@ namespace Game.WorldBuilder.Validation.NewHouseReference
         {
             GameMaterialComposition.Install();
 
+            // The legacy four-argument ShowcaseWorld constructor registers only the historical
+            // showcase palette. That is insufficient for a WorldBuilder proof that authors stable
+            // game material IDs 23-28: raw voxels can be written and read back while the bound world
+            // palette still cannot classify those surfaces. Use the production game-material
+            // constructor so storage/surface rules and renderer presentation share the same complete
+            // catalogue. CastleOnly deliberately leaves the ordinary settlement catalogue empty;
+            // this focused validation never advances landmark streaming, so no unrelated castle is
+            // authored either.
             _world = new ShowcaseWorld(
                 m_Seed,
                 m_BrickPoolCapacity,
                 m_LoadRadiusRegions,
-                m_UnloadRadiusRegions);
+                m_UnloadRadiusRegions,
+                GameMaterialComposition.SimulationDefinitions(),
+                GameMaterialComposition.ShowcaseMaterials,
+                features: ShowcaseFeatureContent.CastleOnly);
 
             RenderingComposition.ResetSurfacePassDiagnostics("new-house-worldbuilder-validation");
             RenderingComposition.SetSurfaceBuildEnabled(false);
