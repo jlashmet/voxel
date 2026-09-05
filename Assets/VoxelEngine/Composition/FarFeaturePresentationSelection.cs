@@ -209,6 +209,27 @@ namespace VoxelEngine.Composition
         private readonly float _voxelSizeMetres;
         private readonly Func<FeaturePresentationBake, FarFeatureImportance> _importance;
         private readonly List<FarFeatureInstance> _instances = new();
+        private readonly Dictionary<ulong, CachedPresentation> _cache = new();
+        private readonly HashSet<ulong> _queriedIds = new();
+        private readonly List<ulong> _retiredIds = new();
+
+        private readonly struct CachedPresentation
+        {
+            public readonly ulong Revision;
+            public readonly FarFeatureGeometry Geometry;
+            public readonly string GeometryKey;
+            public readonly string StyleKey;
+
+            public CachedPresentation(FeaturePresentationBake bake)
+            {
+                Revision = bake.Revision;
+                Geometry = GeometryFor(bake);
+                GeometryKey = GeometryKeyFor(bake);
+                StyleKey = StyleKeyFor(bake);
+            }
+        }
+
+        public int CachedGeometryCount => _cache.Count;
 
         public FarFeaturePresentationAdapter(
             IFeaturePresentationSource source,
@@ -232,11 +253,13 @@ namespace VoxelEngine.Composition
             FeaturePresentationBounds queryBounds = BuildQueryBounds(cameraPosition, radiusMetres);
             IReadOnlyList<FeaturePresentationBake> bakes = _source.Query(queryBounds);
             _instances.Clear();
+            _queriedIds.Clear();
             if (_instances.Capacity < bakes.Count) _instances.Capacity = bakes.Count;
 
             for (int i = 0; i < bakes.Count; i++)
             {
                 FeaturePresentationBake bake = bakes[i];
+                _queriedIds.Add(bake.SourceId);
                 BoundsFor(bake, out float3 position, out float3 center, out float3 extents, out float3 scale);
                 FarFeatureImportance importance = _importance?.Invoke(bake) ?? FarFeatureImportance.Default;
                 FarFeatureTier tier = _selection.Select(
@@ -247,6 +270,15 @@ namespace VoxelEngine.Composition
                     importance);
                 if (tier == FarFeatureTier.Culled) continue;
 
+                // The renderer caches immutable geometry by identity. Recreating its payload on
+                // each camera query used to destroy/rebuild every selected mesh every frame.
+                if (!_cache.TryGetValue(bake.SourceId, out CachedPresentation cached)
+                    || cached.Revision != bake.Revision)
+                {
+                    cached = new CachedPresentation(bake);
+                    _cache[bake.SourceId] = cached;
+                }
+
                 _instances.Add(new FarFeatureInstance(
                     bake.SourceId,
                     position,
@@ -254,12 +286,18 @@ namespace VoxelEngine.Composition
                     scale,
                     center,
                     extents,
-                    GeometryKeyFor(bake),
-                    StyleKeyFor(bake),
+                    cached.GeometryKey,
+                    cached.StyleKey,
                     tier,
                     FlagsFor(importance),
-                    GeometryFor(bake)));
+                    cached.Geometry));
             }
+
+            // Retain only the current spatial query's working set, not the traversal history.
+            _retiredIds.Clear();
+            foreach (ulong id in _cache.Keys)
+                if (!_queriedIds.Contains(id)) _retiredIds.Add(id);
+            for (int i = 0; i < _retiredIds.Count; i++) _cache.Remove(_retiredIds[i]);
 
             return _instances;
         }

@@ -1,0 +1,9 @@
+{
+  "name": "VoxelEngine.Composition.Tests.EditMode",
+  "references": ["VoxelEngine.Composition", "VoxelEngine.Structures.Api", "VoxelEngine.Rendering.Api", "Unity.Mathematics"],
+  "includePlatforms": ["Editor"],
+  "overrideReferences": true,
+  "precompiledReferences": ["nunit.framework.dll"],
+  "autoReferenced": false,
+  "defineConstraints": ["UNITY_INCLUDE_TESTS"]
+}

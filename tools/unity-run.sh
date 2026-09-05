@@ -115,17 +115,19 @@ tree_rss_mb() {
   local root=$1
   local pids=("$root")
   local total=0 found=1
+  local children
 
   while (( found )); do
     found=0
     for pid in "${pids[@]}"; do
+      children=$(pgrep -P "$pid" 2>/dev/null || true)
       while read -r child; do
         [[ -z "$child" ]] && continue
         if [[ ! " ${pids[*]} " =~ " ${child} " ]]; then
           pids+=("$child")
           found=1
         fi
-      done < <(pgrep -P "$pid" 2>/dev/null || true)
+      done <<< "$children"
     done
   done
 
@@ -146,17 +148,19 @@ kill_tree() {
   local root=$1
   local pids=("$root")
   local found=1
+  local children
 
   while (( found )); do
     found=0
     for pid in "${pids[@]}"; do
+      children=$(pgrep -P "$pid" 2>/dev/null || true)
       while read -r child; do
         [[ -z "$child" ]] && continue
         if [[ ! " ${pids[*]} " =~ " ${child} " ]]; then
           pids+=("$child")
           found=1
         fi
-      done < <(pgrep -P "$pid" 2>/dev/null || true)
+      done <<< "$children"
     done
   done
 
