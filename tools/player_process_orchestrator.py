@@ -77,6 +77,7 @@ class RoleProcess:
     stdout_log: Path
     stderr_log: Path
     attempt: int = 1
+    milestone_cursor: int = 0
 
 
 def _positive_number(value, name: str, minimum: float = 0.001, maximum: float = 3600.0) -> float:
@@ -392,12 +393,19 @@ def wait_for_milestone(
             if record.player_log.exists() else ""
         )
         events = parse_milestones(text)
-        for event in events:
+        if record.milestone_cursor > len(events):
+            raise OrchestrationError(
+                f"role {record.role.name} attempt {record.attempt} milestone log shrank from "
+                f"{record.milestone_cursor} consumed events to {len(events)}"
+            )
+        for index in range(record.milestone_cursor, len(events)):
+            event = events[index]
             if _matches(event, expected):
+                record.milestone_cursor = index + 1
                 tagged = {"role": record.role.name, "attempt": record.attempt, **event}
-                if tagged not in history:
-                    history.append(tagged)
+                history.append(tagged)
                 return tagged
+        record.milestone_cursor = len(events)
         status = record.process.poll()
         if status is not None:
             raise OrchestrationError(
