@@ -19,6 +19,7 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
 
         private readonly Dictionary<BatchKey, List<Matrix4x4>> _batches = new();
         private readonly Dictionary<string, FarFeatureGeometry> _geometrySources = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, FarFeaturePresentation> _styleSources = new(StringComparer.Ordinal);
         private readonly Dictionary<string, Mesh> _meshCache = new(StringComparer.Ordinal);
         private readonly Dictionary<string, Material> _materialCache = new(StringComparer.Ordinal);
         private readonly Matrix4x4[] _drawMatrices = new Matrix4x4[MaxInstancesPerDraw];
@@ -38,6 +39,7 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
                 if (instance.Tier == FarFeatureTier.Culled) continue;
 
                 RegisterGeometry(instance);
+                RegisterStyle(instance);
                 var key = new BatchKey(instance.GeometryKey, instance.StyleKey, instance.Tier);
                 if (!_batches.TryGetValue(key, out List<Matrix4x4> matrices))
                 {
@@ -92,6 +94,12 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
             return GetMesh(instance.GeometryKey);
         }
 
+        internal Material ResolveMaterial(FarFeatureInstance instance)
+        {
+            RegisterStyle(instance);
+            return GetMaterial(instance.StyleKey);
+        }
+
         private void LateUpdate()
         {
             if (enabled) DrawNow();
@@ -115,6 +123,23 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
             if (_meshCache.TryGetValue(key, out Mesh stale))
             {
                 _meshCache.Remove(key);
+                if (stale != null) DestroyImmediate(stale);
+            }
+        }
+
+        private void RegisterStyle(FarFeatureInstance instance)
+        {
+            string key = instance.StyleKey ?? string.Empty;
+            FarFeaturePresentation presentation = instance.Presentation;
+            if (_styleSources.TryGetValue(key, out FarFeaturePresentation existing)
+                && existing.Albedo.Equals(presentation.Albedo)
+                && existing.Roughness.Equals(presentation.Roughness))
+                return;
+
+            _styleSources[key] = presentation;
+            if (_materialCache.TryGetValue(key, out Material stale))
+            {
+                _materialCache.Remove(key);
                 if (stale != null) DestroyImmediate(stale);
             }
         }
@@ -144,8 +169,35 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
                 hideFlags = HideFlags.DontSave,
             };
             material.enableInstancing = true;
+
+            FarFeaturePresentation presentation = _styleSources.TryGetValue(key, out FarFeaturePresentation value)
+                ? value
+                : default;
+            ApplySharedPresentation(material, presentation);
+
             _materialCache.Add(key, material);
             return material;
+        }
+
+        private static void ApplySharedPresentation(Material material, FarFeaturePresentation presentation)
+        {
+            float4 albedo = presentation.Albedo;
+            float roughness = presentation.Roughness;
+            // Older render-ready fixtures intentionally omit resolved presentation. Preserve the
+            // historical neutral material for those callers while production composition supplies
+            // an alpha-one resolved value from the installed catalogue.
+            if (!(albedo.w > 0f))
+            {
+                albedo = new float4(1f, 1f, 1f, 1f);
+                roughness = 0.76f;
+            }
+
+            Color baseColour = new(albedo.x, albedo.y, albedo.z, albedo.w);
+            if (material.HasProperty("_BaseColor")) material.SetColor("_BaseColor", baseColour);
+            if (material.HasProperty("_Color")) material.SetColor("_Color", baseColour);
+
+            if (material.HasProperty("_Smoothness"))
+                material.SetFloat("_Smoothness", 1f - Mathf.Clamp01(roughness));
         }
 
         private static Mesh BuildGeometryMesh(FarFeatureGeometry geometry)
@@ -289,6 +341,7 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
                 if (material != null) DestroyImmediate(material);
             _meshCache.Clear();
             _geometrySources.Clear();
+            _styleSources.Clear();
             _materialCache.Clear();
         }
 

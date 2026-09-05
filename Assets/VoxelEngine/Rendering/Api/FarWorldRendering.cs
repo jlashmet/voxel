@@ -93,6 +93,23 @@ namespace VoxelEngine.Rendering.Api
     }
 
     /// <summary>
+    /// Semantic-free coarse presentation resolved by composition from the application's installed
+    /// material/coating catalogue. Rendering receives values rather than game material IDs, keeping
+    /// the far-feature API independent of palette indices and application material vocabulary.
+    /// </summary>
+    public readonly struct FarFeaturePresentation
+    {
+        public FarFeaturePresentation(float4 albedo, float roughness)
+        {
+            Albedo = albedo;
+            Roughness = math.saturate(roughness);
+        }
+
+        public float4 Albedo { get; }
+        public float Roughness { get; }
+    }
+
+    /// <summary>
     /// Engine-facing, render-ready description of one far feature. It deliberately contains
     /// no planning, voxel-storage, region-residency, renderer, or GameObject state.
     /// </summary>
@@ -110,6 +127,35 @@ namespace VoxelEngine.Rendering.Api
             FarFeatureTier tier,
             FarFeatureVisualFlags flags = FarFeatureVisualFlags.None,
             FarFeatureGeometry geometry = null)
+            : this(
+                stableId,
+                position,
+                rotation,
+                scale,
+                boundsCenter,
+                boundsExtents,
+                geometryKey,
+                styleKey,
+                tier,
+                flags,
+                geometry,
+                default)
+        {
+        }
+
+        public FarFeatureInstance(
+            ulong stableId,
+            float3 position,
+            quaternion rotation,
+            float3 scale,
+            float3 boundsCenter,
+            float3 boundsExtents,
+            string geometryKey,
+            string styleKey,
+            FarFeatureTier tier,
+            FarFeatureVisualFlags flags,
+            FarFeatureGeometry geometry,
+            FarFeaturePresentation presentation)
         {
             StableId = stableId;
             Position = position;
@@ -122,6 +168,7 @@ namespace VoxelEngine.Rendering.Api
             Tier = tier;
             Flags = flags;
             Geometry = geometry;
+            Presentation = presentation;
         }
 
         public ulong StableId { get; }
@@ -135,6 +182,7 @@ namespace VoxelEngine.Rendering.Api
         public FarFeatureTier Tier { get; }
         public FarFeatureVisualFlags Flags { get; }
         public FarFeatureGeometry Geometry { get; }
+        public FarFeaturePresentation Presentation { get; }
     }
 
     /// <summary>

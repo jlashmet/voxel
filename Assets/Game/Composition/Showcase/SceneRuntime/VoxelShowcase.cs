@@ -126,6 +126,7 @@ namespace VoxelEngine.Showcase
         private bool _mouseLook = true;
         private bool _hadFocus = true;
         private int _relockFrames;
+        private int _discardLookFrames;
         private bool _flashlightEnabled;
         private float _yaw, _pitch;
         private double _lastEditMs;
@@ -440,11 +441,12 @@ namespace VoxelEngine.Showcase
 
                 ReportCastleProgress();
 
-                HandleKeys();
-                if (_mouseLook && _relockFrames == 0) HandleLook();
-                MovePlayer();
+                ShowcaseInputFrame input = ShowcaseInputSystem.ReadCurrent();
+                HandleKeys(in input);
+                if (_mouseLook && _relockFrames == 0) HandleLook(in input);
+                MovePlayer(in input);
                 UpdateFlashlight();
-                HandleEdits();
+                HandleEdits(in input);
                 StepTornadoes(Time.deltaTime);
                 _gpuDebris?.Step(_world, Time.deltaTime);
 
@@ -573,7 +575,7 @@ namespace VoxelEngine.Showcase
         public bool AutoSurvey { get; set; }
 
         public float SurveyHeightMetres { get; set; } = 55f;
-        public float SurveyPitchDegrees { get; set; } = 28f;
+        public float SurveyPitchDegrees { get; set; } = 12f;
 
         /// <summary>
         /// Degrees a second the survey turns. Zero holds a heading, which separates "this chunk
@@ -631,10 +633,16 @@ namespace VoxelEngine.Showcase
 
         private float _autoWalkElapsed;
 
-        private void HandleLook()
+        private void HandleLook(in ShowcaseInputFrame input)
         {
-            _yaw += Input.GetAxisRaw("Mouse X") * m_LookSensitivity;
-            _pitch = Mathf.Clamp(_pitch - Input.GetAxisRaw("Mouse Y") * m_LookSensitivity, -89f, 89f);
+            if (_discardLookFrames > 0)
+            {
+                _discardLookFrames--;
+                return;
+            }
+
+            _yaw += input.LookDelta.x * m_LookSensitivity;
+            _pitch = Mathf.Clamp(_pitch - input.LookDelta.y * m_LookSensitivity, -89f, 89f);
             transform.rotation = Quaternion.Euler(_pitch, _yaw, 0f);
         }
 
@@ -651,11 +659,11 @@ namespace VoxelEngine.Showcase
             transform.rotation = Quaternion.Euler(_pitch, _yaw, 0f);
         }
 
-        private void MovePlayer()
+        private void MovePlayer(in ShowcaseInputFrame input)
         {
-            float forward = (Input.GetKey(KeyCode.W) ? 1f : 0f) - (Input.GetKey(KeyCode.S) ? 1f : 0f);
-            float strafe = (Input.GetKey(KeyCode.D) ? 1f : 0f) - (Input.GetKey(KeyCode.A) ? 1f : 0f);
-            bool sprint = Input.GetKey(KeyCode.LeftShift);
+            float forward = (input.Forward ? 1f : 0f) - (input.Backward ? 1f : 0f);
+            float strafe = (input.Right ? 1f : 0f) - (input.Left ? 1f : 0f);
+            bool sprint = input.Sprint;
 
             if (_multiplayer?.IsActive == true)
             {
@@ -664,7 +672,7 @@ namespace VoxelEngine.Showcase
                     Time.deltaTime,
                     new float2(strafe, forward),
                     sprint,
-                    Input.GetKey(KeyCode.Space),
+                    input.Jump,
                     (float3)transform.forward);
                 transform.position = _motor.EyePosition;
                 return;
@@ -692,8 +700,8 @@ namespace VoxelEngine.Showcase
             if (m_FlyMode)
             {
                 var move = transform.forward * forward + transform.right * strafe;
-                if (Input.GetKey(KeyCode.Space)) move += Vector3.up;
-                if (Input.GetKey(KeyCode.LeftControl)) move -= Vector3.up;
+                if (input.Jump) move += Vector3.up;
+                if (input.Descend) move -= Vector3.up;
 
                 if (move.sqrMagnitude > 1e-6f)
                 {
@@ -720,7 +728,7 @@ namespace VoxelEngine.Showcase
             var wish = flatForward * forward + flatRight * strafe;
             if (wish.sqrMagnitude > 1f) wish.Normalize();
 
-            _motor.Step(_world, wish, sprint, Input.GetKey(KeyCode.Space), Time.deltaTime);
+            _motor.Step(_world, wish, sprint, input.Jump, Time.deltaTime);
             transform.position = _motor.EyePosition;
         }
 
@@ -728,6 +736,7 @@ namespace VoxelEngine.Showcase
         {
             _mouseLook = locked;
             _relockFrames = 0;
+            _discardLookFrames = locked ? 1 : 0;
             Cursor.lockState = locked ? CursorLockMode.Locked : CursorLockMode.None;
             Cursor.visible = !locked;
         }
@@ -768,21 +777,21 @@ namespace VoxelEngine.Showcase
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
 
-            // The pointer was free for a frame and travelled. Left in the axes, that distance
-            // arrives as one enormous delta and snaps the view the instant capture resumes.
-            Input.ResetInputAxes();
+            // Input System mouse delta is frame-local rather than a legacy named axis. Ignore the
+            // first frame after recapture so pointer travel while unlocked cannot snap the view.
+            _discardLookFrames = 1;
         }
 
         // -- input ---------------------------------------------------------------
 
-        private void HandleKeys()
+        private void HandleKeys(in ShowcaseInputFrame input)
         {
             SyncCursorLock();
 
-            if (Input.GetKeyDown(KeyCode.Escape)) SetCursorLocked(!_mouseLook);
+            if (input.ToggleCursor) SetCursorLocked(!_mouseLook);
 
             bool networked = _multiplayer?.IsActive == true;
-            if (!networked && Input.GetKeyDown(KeyCode.F))
+            if (!networked && input.ToggleFly)
             {
                 m_FlyMode = !m_FlyMode;
                 if (!m_FlyMode)
@@ -792,13 +801,12 @@ namespace VoxelEngine.Showcase
                 }
             }
 
-            if (!networked && Input.GetKeyDown(KeyCode.R)) Spawn();
+            if (!networked && input.Respawn) Spawn();
 
-            if (!networked && Input.GetKeyDown(KeyCode.E)) TryInteract();
+            if (!networked && input.Interact) TryInteract();
 
-            float scroll = Input.GetAxisRaw("Mouse ScrollWheel");
-            if (Mathf.Abs(scroll) > 0.01f)
-                m_BrushRadius = Mathf.Clamp(m_BrushRadius + (scroll > 0f ? 2 : -2),
+            if (input.ScrollDirection != 0)
+                m_BrushRadius = Mathf.Clamp(m_BrushRadius + input.ScrollDirection * 2,
                                             m_MinBrushRadius, m_MaxBrushRadius);
         }
 
@@ -831,9 +839,9 @@ namespace VoxelEngine.Showcase
             return false;
         }
 
-        private void HandleEdits()
+        private void HandleEdits(in ShowcaseInputFrame input)
         {
-            if (Input.GetMouseButtonDown(0))
+            if (input.PrimaryEdit)
             {
                 Vector3 hand = transform.position + transform.forward * 0.65f
                              + transform.right * 0.34f - transform.up * 0.24f;
@@ -841,7 +849,7 @@ namespace VoxelEngine.Showcase
                 _lastEditMs = 0.0;
                 _lastEditLabel = $"tornado launched r{m_BrushRadius}";
             }
-            else if (Input.GetMouseButtonDown(1)) ToggleFlashlight();
+            else if (input.SecondaryEdit) ToggleFlashlight();
         }
 
         public void ToggleFlashlight()
