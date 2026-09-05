@@ -49,6 +49,7 @@ namespace VoxelEngine.Rendering.Api
     /// <summary>
     /// One normalized conservative mass in a far-feature geometry resource. X/Z are centered around
     /// the instance origin while Y is measured upward from it, matching the renderer transform.
+    /// Radial scales preserve shape profile for tapered primitives without exposing producer types.
     /// </summary>
     public readonly struct FarFeatureGeometryPrimitive
     {
@@ -56,19 +57,29 @@ namespace VoxelEngine.Rendering.Api
             FarFeatureGeometryShape shape,
             float3 min,
             float3 max,
-            byte axis = 1)
+            byte axis = 1,
+            float startRadiusScale = 1f,
+            float endRadiusScale = 1f)
         {
             if (math.any(max < min)) throw new ArgumentException("Far geometry primitive bounds must be ordered.");
+            if (!math.isfinite(startRadiusScale) || startRadiusScale < 0f)
+                throw new ArgumentOutOfRangeException(nameof(startRadiusScale));
+            if (!math.isfinite(endRadiusScale) || endRadiusScale < 0f)
+                throw new ArgumentOutOfRangeException(nameof(endRadiusScale));
             Shape = shape;
             Min = min;
             Max = max;
             Axis = axis <= 2 ? axis : (byte)1;
+            StartRadiusScale = startRadiusScale;
+            EndRadiusScale = endRadiusScale;
         }
 
         public FarFeatureGeometryShape Shape { get; }
         public float3 Min { get; }
         public float3 Max { get; }
         public byte Axis { get; }
+        public float StartRadiusScale { get; }
+        public float EndRadiusScale { get; }
     }
 
     /// <summary>
@@ -109,7 +120,8 @@ namespace VoxelEngine.Rendering.Api
             string styleKey,
             FarFeatureTier tier,
             FarFeatureVisualFlags flags = FarFeatureVisualFlags.None,
-            FarFeatureGeometry geometry = null)
+            FarFeatureGeometry geometry = null,
+            byte materialIndex = 0)
         {
             StableId = stableId;
             Position = position;
@@ -122,6 +134,7 @@ namespace VoxelEngine.Rendering.Api
             Tier = tier;
             Flags = flags;
             Geometry = geometry;
+            MaterialIndex = materialIndex;
         }
 
         public ulong StableId { get; }
@@ -135,6 +148,7 @@ namespace VoxelEngine.Rendering.Api
         public FarFeatureTier Tier { get; }
         public FarFeatureVisualFlags Flags { get; }
         public FarFeatureGeometry Geometry { get; }
+        public byte MaterialIndex { get; }
     }
 
     /// <summary>
