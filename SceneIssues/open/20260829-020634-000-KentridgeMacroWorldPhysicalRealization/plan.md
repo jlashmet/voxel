@@ -9,22 +9,19 @@ Owned validation surfaces:
 - Kentridge Playable: `Validation/KentridgeMacroWorld` through the real slice/evidence driver.
 - Rendering: `Validation/GpuSurfaceMirrorRelocation` through production GPU mirror/extraction/publication.
 
-## Current evidence and hypotheses
-Run `33930622766` on exact source `3c839facd018eb8118811db1a7b81644375c419f` completed the 180-second standalone replay but is closure-red: the runtime catalogue had 434 definitions with no macro town/road/lake/ridge definitions, evidence never advanced beyond Moordell, ~35,981 Input-System-only legacy-input exceptions were logged, and repository module validation failed in the Structures PlayMode surface.
+## Latest evidence and hypotheses
+Exact run `33932977686` validated source `a37da26d7b35505507ac1271eb5866f568d4c414`. Persistent repository-derived tests passed. The 180-second Kentridge replay proved the macro ownership fix: runtime catalogue had 480 definitions including all acceptance towns, 20 roads/824 route tiles, ridge and water, and the prior legacy-input exception storm was gone. It remained closure-red because Moordell survey content did not fully converge and the requested GPU-liveness regression was blocked before its assertions by `VoxelShowcase.HandleKeys()` calling legacy `UnityEngine.Input` under Input-System-only settings.
 
-Hypothesis A: renderer publication still prevents macro evidence. Falsified for the missing catalogue: startup logs prove macro definitions never reached the playable catalogue.
+Hypothesis A: macro definitions are still absent. Falsified by the exact replay catalogue/evidence logs.
 
-Hypothesis B: the scene-selected one-shot macro layout is consumed before the playable catalogue builds. Proven: `KentridgeDefinition.Build()` publishes the selection, then temporary `ShowcaseWorld` generic town realization calls the macro-consuming catalogue path before `KentridgePlayableSlice` builds its concrete catalogue.
+Hypothesis B: stale FIFO terrain/feature queues starve Moordell. Falsified: both wanted terrain and pending features are rebuilt/selected nearest-first. The actual validation mismatch is a fixed elevated survey camera spanning four settlement columns; one diagonal building column remained behind nearer normal streaming demand.
 
 Selected corrections:
-1. Generic `WorldBuilderVoxelCatalogue` now uses an explicit local-only Kentridge catalogue path; the concrete playable catalogue remains the one-shot macro owner. `KentridgeMacroWorldBootstrapOwnershipTests` now reproduces production Showcase-first startup order.
-2. Kentridge's scene compatibility bridge now reads Input System devices; HUD semantic pressed/held state routes through that bridge. Global input settings remain unchanged.
-3. The selected Structures behavioral test now invokes its public deterministic production validation synchronously instead of yielding an unrelated rendered frame whose URP debug updater polls legacy Input.
-
-Current source after these corrections: `6b1ce62cdf85a1be0beb83f25b8fbdc1118bc1de`.
+1. `VoxelEngine.Showcase` now owns a scene-local Input-System bridge and package assembly reference; production `VoxelShowcase` reaches the requested GPU path without changing global input settings or suppressing errors.
+2. Validation-only `KentridgeMacroWorldContentDemandDriver` supplies bounded deterministic CharacterMotor demand at the first unsettled authored building centre while an elevated acceptance settlement survey is active. It uses the same physical plan, normal `ShowcaseWorld` streaming budgets/queues, collision, rasterization and rendering; it never force-generates a region or widens residency.
 
 ## Remaining gates
-1. Exact-SHA targeted CI for the current source: requested GPU relocation/churn regression, repository-derived module validation, and required 180-second SceneIssue replay must all pass.
-2. Inspect full-resolution evidence from all four owned module players plus the SceneIssue replay. Require readable Moordell/Rossdam/Fairy/Orc settlements, substantial Rossdam water + constrained route, Southern Ridge/pass, macro-network overview, and representative CharacterMotor traversal with no runtime exceptions.
-3. Record final convergence, vertical residency, FPS/CPU/GPU/streaming and process/managed/native/GPU memory against existing budgets.
+1. Exact-SHA targeted CI: requested GPU liveness regression, repository-derived module validation/all four owned module players, and 180-second SceneIssue replay must all pass.
+2. Inspect full-resolution built-player evidence. Require readable Moordell/Rossdam/Fairy/Orc settlements, substantial Rossdam water + constrained route, Southern Ridge/pass, macro-network overview, and real CharacterMotor traversal with no runtime exceptions.
+3. Record final per-target convergence, vertical residency, FPS/CPU/GPU/streaming and process/managed/native/GPU memory against existing budgets.
 4. Merge then-current `origin/master`, revalidate the exact merged feature SHA, complete every task/acceptance item, move only this issue `open -> closed`, then promote through PR + auto-merge and monitor required PR checks until merged.
