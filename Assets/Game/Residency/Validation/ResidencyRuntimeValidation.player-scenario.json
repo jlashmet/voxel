@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "runSeconds": 6,
+  "runSeconds": 10,
   "capture": { "width": 1280, "height": 720, "intervalSeconds": 2, "minimumFrames": 2, "evidenceAfterSeconds": 1 },
   "timeline": {},
   "assertions": {
