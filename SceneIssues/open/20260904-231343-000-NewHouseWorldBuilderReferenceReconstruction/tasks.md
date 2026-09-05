@@ -5,7 +5,9 @@
 - [x] Module-local validation path is `Assets/Game/WorldBuilder/Validation/NewHouseReferenceReconstruction/NewHouseReferenceReconstruction.unity`, exercising the real production WorldBuilder composition/catalogue path and producing built-player/reference-render evidence.
 - [x] Preserve every imported generic checklist item while reconciling it to the supplied reference: garage/driveway-specific items that are absent from the supplied house reference are completed explicitly as `N/A — absent from supplied reference`, rather than by adding non-reference geometry.
 - [x] Discovered regression: adding stable house material IDs requires extending `GameMaterialOwnershipTests` frozen-ID/count assertions; exact-SHA run `33944812062` exposed this and the feature branch now covers IDs 23-28 / count 29.
-- [ ] Discovered validation blocker: classify the sole PlayMode failure from exact-SHA run `33945621865` against current `master`; it is currently URP `DebugManager` calling legacy `UnityEngine.Input` in `TypedStructuralSocketCompositionSceneTests`, outside this feature's touched paths.
+- [x] Discovered validation blocker from exact-SHA run `33945621865` was the unrelated URP `DebugManager` legacy-Input PlayMode path in `TypedStructuralSocketCompositionSceneTests`; later exact-SHA run `33951274739` passed the repository-derived automatic module validation, so this is not an outstanding feature-product failure.
+- [x] Discovered visual defect from exact-SHA run `33951274739`: the focused house validation called `ShowcaseWorld.StepStreaming` every frame, admitting unrelated showcase castle construction and evicting/rebuilding the fixed evidence footprint as audit camera positions changed. The validation now retains its deterministically preloaded production storage snapshot and the player scenario forbids `Castle authoring exceeded`.
+- [ ] Re-run exact-SHA targeted CI after the validation-residency isolation and inspect the resulting stable hero/audit captures before accepting any remaining visual checklist item.
 
 ## 1. Engine / repository alignment
 - [x] Locate the existing WorldBuilder composition entry point.
@@ -125,7 +127,7 @@
 - [x] Author a three-quarter front/left camera azimuth consistent with the supplied reference.
 - [x] Author camera height independently of house geometry.
 - [x] Author downward/upward viewing angle independently of house geometry.
-- [x] Author perspective/FOV (`39` degrees) independently of house geometry.
+- [x] Author perspective/FOV (`39` degrees) independently of reusable house geometry.
 - [x] Author framing/crop target independently of reusable house geometry.
 - [x] Use the project's normal sky/environment/rendering path.
 - [x] Author a warm directional sun/key-light direction consistent with the reference.
