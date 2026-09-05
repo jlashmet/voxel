@@ -1,0 +1,7 @@
+{
+  "platform": "EditMode",
+  "test": "Game.Structures.Tests.DecorationShowcaseCatalogTests",
+  "request_id": "agent9-propshowcase-final-8f2e56aa",
+  "scene_issue": "SceneIssues/open/20260904-235701-000-PropShowcase/issue.json",
+  "replay_seconds": 66
+}
