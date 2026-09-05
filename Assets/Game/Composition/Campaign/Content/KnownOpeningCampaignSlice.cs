@@ -132,6 +132,8 @@ namespace Game.Composition.Campaign.Content
             NpcHandle medrare = medrareSite.Npc("medrare", npc => npc.RequireConversation());
 
             return new KnownOpeningCampaignRoles(
+                kentridgeOverworld,
+                kentridge,
                 startingPub,
                 firstDestination,
                 awonSite,
