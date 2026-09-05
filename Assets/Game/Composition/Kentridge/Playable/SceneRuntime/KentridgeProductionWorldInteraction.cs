@@ -14,6 +14,7 @@ using Game.Quests.Api;
 using Game.WorldObjects.Api;
 using Game.WorldObjects.Runtime;
 using UnityEngine;
+using Application = UnityEngine.Application;
 
 namespace Game.Kentridge.PlayableSlice
 {
@@ -32,7 +33,7 @@ namespace Game.Kentridge.PlayableSlice
         private static readonly WorldObjectId ForestLootObjectId =
             new WorldObjectId("kentridge-forest-bandit-loot");
         private static readonly ItemRef ForestLootItem =
-            new ItemRef(KentridgeCampaignSessionBootstrap.ForestBanditLootItemId);
+            new ItemRef(Game.Composition.Kentridge.Runtime.KentridgeCampaignSessionBootstrap.ForestBanditLootItemId);
 
         private KentridgeProductionCompositionRoot _root;
         private KentridgePlayableSlice _slice;
@@ -220,7 +221,9 @@ namespace Game.Kentridge.PlayableSlice
             _forestPickup = new ItemPickupObject(
                 ForestLootObjectId,
                 player.Kinematics.Position,
-                new WorldItemPayload(KentridgeCampaignSessionBootstrap.ForestBanditLootItemId, 1),
+                new WorldItemPayload(
+                    Game.Composition.Kentridge.Runtime.KentridgeCampaignSessionBootstrap.ForestBanditLootItemId,
+                    1),
                 _pickupTransfer);
             if (!_objects.TryRegister(_forestPickup))
                 throw new InvalidOperationException(
@@ -228,7 +231,8 @@ namespace Game.Kentridge.PlayableSlice
 
             Debug.Log(
                 "SYSTEM24 loot-spawned: object=" + ForestLootObjectId +
-                " item=" + KentridgeCampaignSessionBootstrap.ForestBanditLootItemId);
+                " item=" +
+                Game.Composition.Kentridge.Runtime.KentridgeCampaignSessionBootstrap.ForestBanditLootItemId);
         }
 
         private bool TryCollectForestPickup()
