@@ -5,38 +5,38 @@
 - [x] Inventory every independently previewable production prop/decoration source, including base decoration content, registered decoration expansions, reusable room/furniture/lighting/storage/dining/martial/textile presets, and production world-object props that belong in this showcase.
 - [x] Define the exact in-scope entry set and document intentional exclusions/aliases/variants so "all available props/decorations" has a deterministic meaning.
 - [x] Verify whether the existing production APIs can enumerate the complete set without duplicated IDs or switch knowledge in the scene.
-- [ ] If enumeration is incomplete, add the narrowest read-only semantic enumeration/query boundary to the owning production module; do not create a showcase-only content registry.
+- [x] If enumeration is incomplete, add the narrowest read-only semantic enumeration/query boundary to the owning production module; do not create a showcase-only content registry.
 - [x] Identify every affected module root and its existing module-local validation scene(s); add required validation-scene work below for any player-visible/runtime module that lacks a suitable focused surface.
-- [ ] Add the missing reusable production consumer for `DecorationProceduralMeshRequest`; it must live in Structures, preserve canonical request/material semantics, and be usable by validation/shipped consumers rather than existing only for `PropShowcase`.
+- [x] Add the missing reusable production consumer for `DecorationProceduralMeshRequest`; it must live in Structures, preserve canonical request/material semantics, and be usable by validation/shipped consumers rather than existing only for `PropShowcase`.
 
 ## Catalogue browser model
-- [ ] Implement a deterministic showcase-facing read model/adapter derived from canonical production sources, with stable identity, friendly display label, category/grouping metadata where available, and enough semantic information to invoke the real production realization.
-- [ ] Ensure every in-scope canonical entry appears exactly once unless an intentionally separate variant is documented.
-- [ ] Add focused regression coverage proving catalogue parity/completeness and detecting duplicate or orphaned showcase entries.
-- [ ] Prove that adding a representative canonical entry through the supported production registration path does not require adding a second duplicated identity constant/list to `PropShowcase`.
+- [x] Implement a deterministic showcase-facing read model/adapter derived from canonical production sources, with stable identity, friendly display label, category/grouping metadata where available, and enough semantic information to invoke the real production realization.
+- [x] Ensure every in-scope canonical entry appears exactly once unless an intentionally separate variant is documented.
+- [x] Add focused regression coverage proving catalogue parity/completeness and detecting duplicate or orphaned showcase entries.
+- [x] Prove that adding a representative canonical entry through the supported production registration path does not require adding a second duplicated identity constant/list to `PropShowcase`.
 
 ## PropShowcase scene and UI
-- [ ] Create `Assets/Scenes/PropShowcase.unity` as a dedicated integration/showcase scene and register it through the repository's normal scene/build path.
-- [ ] Build a readable left-side panel that can handle hundreds of entries, supports scrolling, shows each friendly label, and clearly marks the current selection.
-- [ ] Keep the main right-side area dedicated to the selected prop/decoration preview rather than rendering the whole catalogue simultaneously.
-- [ ] Make clicking an entry replace the active preview immediately and deterministically.
-- [ ] Provide an explicit empty/loading/error state that is diagnostic without substituting placeholder geometry for a production prop.
+- [x] Create `Assets/Scenes/PropShowcase.unity` as a dedicated integration/showcase scene and register it through the repository's normal scene/build path.
+- [x] Build a readable left-side panel that can handle hundreds of entries, supports scrolling, shows each friendly label, and clearly marks the current selection.
+- [x] Keep the main right-side area dedicated to the selected prop/decoration preview rather than rendering the whole catalogue simultaneously.
+- [x] Make clicking an entry replace the active preview immediately and deterministically.
+- [x] Provide an explicit empty/loading/error state that is diagnostic without substituting placeholder geometry for a production prop.
 
 ## Production-faithful preview
-- [ ] Instantiate/author the selected entry through the same production decoration/structure/world-object realization path used by shipped content; do not use `GameObject.CreatePrimitive`, bespoke preview meshes, ad-hoc materials/shaders, or fake substitute props where a production realization exists.
-- [ ] Preserve the selected content's production materials, coatings/presentation semantics, geometry backend, and applicable world-object presentation behavior.
-- [ ] Add a neutral but production-compatible preview environment with stable floor/contact reference and lighting that makes material and silhouette differences readable.
-- [ ] Compute preview bounds from the realized content and automatically frame/position the camera so representative tiny, medium, and large entries are visible without hand-authored per-prop coordinates.
+- [x] Instantiate/author the selected entry through the same production decoration/structure/world-object realization path used by shipped content; do not use `GameObject.CreatePrimitive`, bespoke preview meshes, ad-hoc materials/shaders, or fake substitute props where a production realization exists.
+- [x] Preserve the selected content's production materials, coatings/presentation semantics, geometry backend, and applicable world-object presentation behavior.
+- [x] Add a neutral but production-compatible preview environment with stable floor/contact reference and lighting that makes material and silhouette differences readable.
+- [x] Compute preview bounds from the realized content and automatically frame/position the camera so representative tiny, medium, and large entries are visible without hand-authored per-prop coordinates.
 - [ ] Keep presenter-owned geometry, floor/support references, and preview lighting on a world-space presentation root independent of the framing camera transform; prove the final framing/grounding relationship in built-player evidence.
 - [ ] Correctly handle representative floor-mounted, wall-mounted, ceiling/hanging, thin-surface, box-assembly, procedural-mesh, voxel-stamp, emissive/light-producing, container, movable, and other independently previewable production cases.
 - [ ] Ensure switching entries fully disposes/recycles the prior preview realization and leaves no stale geometry, colliders, lights, particle emitters, world-object state, subscriptions, or presentation resources.
-- [ ] Add a repeated-selection stress regression that cycles through a representative set and proves stable active-object/resource counts and no exceptions.
+- [x] Add a repeated-selection stress regression that cycles through a representative set and proves stable active-object/resource counts and no exceptions.
 
 ## Module-local validation
-- [ ] For each affected player-visible/runtime module, create or update a focused scene under that module's own `<Module>/Validation/` directory; do not count top-level `PropShowcase` as the module-local validation surface.
-- [ ] Exercise the real production catalogue enumeration and realization path in those module-local validation scenes.
-- [ ] Add module-local `*.player-scenario.json` only where runtime selection/capture/assertion behavior is needed; do not add manual registration metadata.
-- [ ] Add focused EditMode/unit coverage for pure catalogue/enumeration invariants where appropriate.
+- [x] For each affected player-visible/runtime module, create or update a focused scene under that module's own `<Module>/Validation/` directory; do not count top-level `PropShowcase` as the module-local validation surface.
+- [x] Exercise the real production catalogue enumeration and realization path in those module-local validation scenes.
+- [x] Add module-local `*.player-scenario.json` only where runtime selection/capture/assertion behavior is needed; do not add manual registration metadata.
+- [x] Add focused EditMode/unit coverage for pure catalogue/enumeration invariants where appropriate.
 
 ## Built-player acceptance
 - [ ] Build/run the exact feature SHA through the required targeted-CI transport and do not replace a queued/running request.
