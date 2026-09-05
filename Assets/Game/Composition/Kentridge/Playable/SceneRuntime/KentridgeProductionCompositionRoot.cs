@@ -178,6 +178,7 @@ namespace Game.Kentridge.PlayableSlice
             _persistence = new KentridgeProductionPersistenceBridge(
                 _slice,
                 _forest,
+                _worldInteraction,
                 new FileSessionSaveStore(saveRoot));
             _session = new GameSessionOrchestrator(_slice.SessionFactory, _persistence);
             _slice.BindSessionControl(_session);
