@@ -127,10 +127,14 @@ namespace Game.Structures.Runtime
             out DecorationPlacement placement)
         {
             placement = default;
-            if (!DecorationCanonicalCatalog.TryGet(stableId, out DecorationCanonicalDescriptor canonical))
+            if (!DecorationCanonicalPlacementCatalog.TryDescribe(
+                    in room.Context,
+                    sceneId,
+                    slotId,
+                    stableId,
+                    out DecorationPropDescriptor descriptor))
                 return false;
 
-            DecorationPropDescriptor descriptor = canonical.ToPropDescriptor();
             if (descriptor.MountMode == DecorationMountMode.AnchorRelative)
             {
                 // The rectangular guild-room analyzer owns structural floor/wall/ceiling sockets.
