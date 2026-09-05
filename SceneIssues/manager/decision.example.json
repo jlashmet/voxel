@@ -1,0 +1,29 @@
+{
+  "reviewedMasterSha": "<signal.json masterSha>",
+  "reviewedItems": [
+    {
+      "key": "completion:<scene-issue-id>:<merge-sha>",
+      "result": "accepted",
+      "note": "Acceptance and architecture are supported by the review packet; no concrete follow-up."
+    }
+  ],
+  "followups": [
+    {
+      "title": "Concrete Followup Title",
+      "originIssue": "<scene-issue-id>",
+      "originSha": "<reviewed sha>",
+      "evidence": "Specific observed evidence.",
+      "problem": "Concrete demonstrated defect or gap.",
+      "impact": "Why the gap matters.",
+      "expectedBehavior": "What must be true instead.",
+      "acceptanceCriteria": [
+        "First bounded proof",
+        "Second bounded proof"
+      ],
+      "relevantPaths": [
+        "Assets/Relevant/Subsystem"
+      ]
+    }
+  ],
+  "unresolvedQuestions": []
+}
