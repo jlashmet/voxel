@@ -152,6 +152,31 @@ class PlayerProcessOrchestratorTests(unittest.TestCase):
             self.assertEqual(event["role"], "client-a")
             self.assertEqual(event["attempt"], 2)
             self.assertEqual(history, [event])
+            self.assertEqual(record.milestone_cursor, 1)
+
+    def test_repeated_milestone_waits_consume_distinct_events_in_order(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            log = root / "player.log"
+            log.write_text(
+                runner.MILESTONE_PREFIX + json.dumps({"name": "state-converged", "revision": 10}) + "\n"
+                + runner.MILESTONE_PREFIX + json.dumps({"name": "state-converged", "revision": 11}) + "\n",
+                encoding="utf-8",
+            )
+            record = runner.RoleProcess(
+                runner.RoleSpec("client-a", (), {}, True),
+                _RunningProcess(), root, log, root / "stdout.log", root / "stderr.log", 1,
+            )
+            expected = runner.MilestoneExpectation("client-a", "state-converged", 1, {})
+            history = []
+
+            first = runner.wait_for_milestone(record, expected, history, sleep=lambda _: None)
+            second = runner.wait_for_milestone(record, expected, history, sleep=lambda _: None)
+
+            self.assertEqual(first["revision"], 10)
+            self.assertEqual(second["revision"], 11)
+            self.assertEqual([event["revision"] for event in history], [10, 11])
+            self.assertEqual(record.milestone_cursor, 2)
 
     def test_run_verifies_exact_build_identity_before_each_role_gameplay_wait(self):
         raw = self._config()
