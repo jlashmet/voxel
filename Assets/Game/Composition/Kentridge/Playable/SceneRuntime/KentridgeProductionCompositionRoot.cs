@@ -303,7 +303,7 @@ namespace Game.Kentridge.PlayableSlice
         private sealed class UnavailablePartyIntents : ISessionPresentationIntentRouter
         {
             public PartySessionCommandResult Request(SessionPresentationIntent intent) =>
-                PartySessionCommandResult.Reject(SessionPresentationCommandFailure.InvalidRequest);
+                PartySessionCommandResult.Reject(PartySessionCommandFailure.InvalidRequest);
         }
 
         private sealed class RunningOutcomeQuery : IGameOutcomeQuery
