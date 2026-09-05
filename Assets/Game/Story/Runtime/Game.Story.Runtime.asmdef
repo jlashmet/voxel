@@ -4,7 +4,9 @@
   "references": [
     "Game.Story.Api",
     "Game.WorldBuilder.Api",
-    "Game.Quests.Api"
+    "Game.Quests.Api",
+    "Game.Encounters.Api",
+    "Game.Outcomes.Api"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
