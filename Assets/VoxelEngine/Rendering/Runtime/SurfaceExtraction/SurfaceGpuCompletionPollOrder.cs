@@ -6,13 +6,17 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
     /// Produces the scheduler's per-frame worker visit order without allocating.
     ///
     /// Phase-9 workers own paged GPU results that may already be fence-complete. Poll those
-    /// bounded completion consumers before ordinary admission so a shared frame deadline cannot
-    /// leave ready GPU publication stranded behind unrelated CPU work. Round-robin order is
-    /// preserved independently inside the completion and ordinary groups.
+    /// bounded completion consumers before ordinary admission and keep them visitable after the
+    /// ordinary admission deadline has expired, so a ready GPU publication cannot be stranded
+    /// behind unrelated CPU work. Round-robin order is preserved independently inside the
+    /// completion and ordinary groups.
     /// </summary>
     internal static class SurfaceGpuCompletionPollOrder
     {
         internal const int PagedGpuCompletionPhase = 9;
+
+        internal static bool CanVisit(int activeBuildPhase, double remainingBudgetMs) =>
+            activeBuildPhase == PagedGpuCompletionPhase || remainingBudgetMs > 0.0;
 
         internal static int Build(int[] activeBuildPhases, int cursor, int[] destination)
         {
