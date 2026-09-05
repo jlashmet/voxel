@@ -6,11 +6,11 @@
 
 ## Evidence and route definition
 
-- [ ] **T26-001 — Inventory current production campaign content.** Map `KnownOpeningCampaignContent`, Story rules/events/effects, quests/objectives, cutscenes, NPC/site bindings and current opening-only termination point.
-- [ ] **T26-002 — Inventory recovered source evidence beyond opening.** Record normalized regions/sites/NPCs/encounters/cutscenes and supporting recovered traversal/story evidence; explicitly separate evidence from assumptions based on filenames.
-- [ ] **T26-003 — Define one evidence-backed completion route.** Write the ordered semantic prerequisites/consequences from normal NewGame to a configured terminal condition; route must extend materially beyond the existing opening.
-- [ ] **T26-004 — Mark optional content.** Identify branches/quests/secrets/sites not required by the canonical completion route; do not introduce generic `IsMainQuest` unless actual content semantics require it.
-- [ ] **T26-005 — Identify missing semantic vocabulary.** For each required route transition, name the existing owning-domain fact; create a gap list only for facts truly absent from Story/Progression APIs.
+- [x] **T26-001 — Inventory current production campaign content.** Mapped `KnownOpeningCampaignContent`, Story rules/events/effects, unified objectives/quests, cutscenes, NPC/site bindings, persistence snapshot, and the opening-only endpoint in `route-evidence.md`.
+- [x] **T26-002 — Inventory recovered source evidence beyond opening.** Recorded normalized regions/sites and verified upstream positive dependency chains separately from inferred filename/quest-label guidance in `route-evidence.md`.
+- [x] **T26-003 — Define one evidence-backed completion route.** Canonical opening -> church -> Rorik/Moordell/Rossdam -> Logan-castle terminal spine is documented, with disconnected-component bridges explicitly labeled authored design rather than recovered chronology.
+- [x] **T26-004 — Mark optional content.** Optional recovered branches are listed in `route-evidence.md` and are explicitly non-gating.
+- [x] **T26-005 — Identify missing semantic vocabulary.** Gap list is limited to owning-domain encounter-resolution input and Outcome-condition effect; existing site/NPC/cutscene/Progression semantics cover the rest.
 
 ## Campaign content decomposition
 
@@ -43,7 +43,7 @@
 - [ ] **T26-040 — Choose a meaningful mid-run restore point.** Save after multiple authored consequences beyond opening, including unified Progression state.
 - [ ] **T26-041 — Restore through systems 16/14.** Fresh graph resumes current campaign state with completed one-shots/cutscenes/progression represented correctly and no historical replay.
 - [ ] **T26-042 — Continue canonical route after restore.** Real semantic player/gameplay facts advance to terminal outcome from restored state.
-- [ ] **T26-043 — Verify shared multiplayer progression/outcome.** Authority and clients observe the same shared Progression and terminal GameOutcome; transport/process proof reuses system 25 infrastructure.
+- [ ] **T26-043 — Verify shared multiplayer progression/outcome.** **BLOCKED external prerequisite:** current master still has the single-process `tools/player-validation.py`; reuse system 25 infrastructure when it lands. Do not create an alternate transport/process harness.
 - [ ] **T26-044 — Add canonical built-player full-run scenario.** Start through system 23/14 production path, drive only real player/semantic actions through the shared harness and reach the terminal outcome.
 - [ ] **T26-045 — Make full-run scenario milestone-driven.** Bounded waits on semantic current state; no long blind sleeps or direct authority setters.
 - [ ] **T26-046 — Classify full-run validation appropriately.** Keep fast semantic route tests in normal affected-module coverage; expensive complete built-player route uses scheduled/release tier while still automatically selected by repository conventions.
