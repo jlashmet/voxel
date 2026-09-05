@@ -33,12 +33,18 @@ namespace Game.Materials.Tests
             Assert.That(GameMaterialIds.MasonryLarge, Is.EqualTo(20));
             Assert.That(GameMaterialIds.FlowerWhite, Is.EqualTo(21));
             Assert.That(GameMaterialIds.RiverWater, Is.EqualTo(22));
+            Assert.That(GameMaterialIds.HousePlaster, Is.EqualTo(23));
+            Assert.That(GameMaterialIds.HouseTimber, Is.EqualTo(24));
+            Assert.That(GameMaterialIds.HouseRoof, Is.EqualTo(25));
+            Assert.That(GameMaterialIds.HouseStone, Is.EqualTo(26));
+            Assert.That(GameMaterialIds.HouseDoor, Is.EqualTo(27));
+            Assert.That(GameMaterialIds.HouseFoliage, Is.EqualTo(28));
         }
 
         [Test]
         public void CanonicalCatalogue_CoversEveryStableMaterialId()
         {
-            Assert.That(GameMaterialCatalogue.Count, Is.EqualTo(23));
+            Assert.That(GameMaterialCatalogue.Count, Is.EqualTo(29));
             for (byte materialId = 0; materialId < GameMaterialCatalogue.Count; materialId++)
             {
                 Assert.That(GameMaterialCatalogue.IsCanonicalId(materialId), Is.True);
