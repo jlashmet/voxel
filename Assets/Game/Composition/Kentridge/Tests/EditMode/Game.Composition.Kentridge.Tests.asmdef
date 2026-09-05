@@ -2,6 +2,7 @@
   "name": "Game.Composition.Kentridge.Tests",
   "rootNamespace": "Game.Composition.Kentridge.Tests",
   "references": [
+    "Game.Composition.Campaign",
     "Game.Composition.Campaign.Content",
     "Game.Composition.Campaign.Runtime",
     "Game.Composition.Kentridge.Api",
