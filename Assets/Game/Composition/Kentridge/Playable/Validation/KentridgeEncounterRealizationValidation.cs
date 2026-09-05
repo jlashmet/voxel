@@ -179,11 +179,24 @@ namespace Game.Composition.Kentridge.Playable.Validation
             if (string.IsNullOrEmpty(applicationDataPath))
                 throw new InvalidOperationException("Application.dataPath is unavailable.");
 
-            string contentsPath = Path.GetFullPath(Path.Combine(applicationDataPath, "..", ".."));
-            string macOsPath = Path.Combine(contentsPath, "MacOS");
-            if (!Directory.Exists(macOsPath))
-                throw new InvalidOperationException("Built player MacOS directory does not exist: " + macOsPath);
+            DirectoryInfo current = new DirectoryInfo(Path.GetFullPath(applicationDataPath));
+            for (int depth = 0; current != null && depth < 5; depth++, current = current.Parent)
+            {
+                string directMacOsPath = Path.Combine(current.FullName, "MacOS");
+                if (Directory.Exists(directMacOsPath))
+                    return RequireSinglePlayerExecutable(directMacOsPath);
 
+                string bundledMacOsPath = Path.Combine(current.FullName, "Contents", "MacOS");
+                if (Directory.Exists(bundledMacOsPath))
+                    return RequireSinglePlayerExecutable(bundledMacOsPath);
+            }
+
+            throw new InvalidOperationException(
+                "Built player MacOS directory could not be resolved from Application.dataPath: " + applicationDataPath);
+        }
+
+        private static string RequireSinglePlayerExecutable(string macOsPath)
+        {
             string[] candidates = Directory.GetFiles(macOsPath);
             if (candidates.Length != 1)
                 throw new InvalidOperationException(
