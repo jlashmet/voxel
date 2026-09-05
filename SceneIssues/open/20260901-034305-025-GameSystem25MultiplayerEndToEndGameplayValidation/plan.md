@@ -10,15 +10,15 @@
 - **H2 rejected:** System24 is related integration work, not a binding dependency. Earlier plan text that blocked System25 on System24 was too strict and is removed.
 - Current Kentridge playable composition directly creates `GameSessionOrchestrator` and a local session identity, bypassing Application/formation. T25-010 must replace that multiplayer entry behavior with the production Application + Sessions/provider path while preserving domain authority.
 - Multi-process harness work is complete: build-once roles, kill/relaunch, attempt-scoped ephemeral state with durable role state, source/executable identity verification, monotonic semantic waits, harness-owned attribution, and durable artifacts.
+- T25-007 read-only multiplayer diagnostics are exact-SHA green: feature `5c1256867bcc07278049595d171abf22e2bd1a33`, request `4fdb3400ef72c2095adcba6353f09c70724dd81a`, run `33995470352`.
 - Exact harness correctness is green in runs `33986100313` and `33987833161`. Prior-master compatibility feature `94ab660260d9b066f030f702500aba092b321a98` passed exact request `4625c82ab1710411723aa4afdecc646826f8fe51` in run `33992072202`.
-- Current `origin/master` is `cd77b927dbe463171f6cef86bb268a31ae8df4e4`; its changes since the last merged master are unrelated to System25 surfaces, so another compatibility merge is not required yet.
+- Current `origin/master` is `da2617e12c392f86c4bfe1ed3af24c8f8e754056`; its latest change is unrelated SceneIssue bookkeeping. Final promotion still requires merging whatever master is current after exact validation.
 
 ## Selected work / remaining gates
 
-1. Implement T25-007 as a System25 read-only semantic diagnostic aggregate over roster identity, replication revision/readiness/current projections, and Continuity recovery. Copy immutable values only; expose no transport handles or mutation methods.
-2. Implement T25-010/011 through production Application + `ISessionFormationService` and real provider/UTP/session admission, then run authority + two clients as separate processes from one exact build.
-3. Prove identity/baseline convergence, contention/conservation, combat/vitality, progression, interruption/reconnect/current-state recovery, and explicit leave.
-4. Add structural `Validation/Release/` coverage for configured capacity, join-in-progress, repeated reconnect, and persisted rehost.
-5. Run final exact-SHA built-player validation, complete every task/acceptance item, move `open -> closed`, merge latest master, then promote only by PR + auto-merge and required `affected` gate.
+1. Implement T25-010/011 through production Application + `ISessionFormationService` and real provider/UTP/session admission, then run authority + two clients as separate processes from one exact build.
+2. Prove identity/baseline convergence, contention/conservation, combat/vitality, progression, interruption/reconnect/current-state recovery, and explicit leave.
+3. Add structural `Validation/Release/` coverage for configured capacity, join-in-progress, repeated reconnect, and persisted rehost.
+4. Run final exact-SHA built-player validation, complete every task/acceptance item, move `open -> closed`, merge latest master, then promote only by PR + auto-merge and required `affected` gate.
 
 **Blast radius / cost:** validation tooling plus the narrow production Kentridge multiplayer composition boundary. Smoke is authority + two clients; expensive cases stay release-tier.
