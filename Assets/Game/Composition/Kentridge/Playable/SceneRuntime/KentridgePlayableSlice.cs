@@ -162,14 +162,14 @@ namespace Game.Kentridge.PlayableSlice
 
         private void Awake()
         {
-            if (!Application.isPlaying) return;
+            if (!UnityEngine.Application.isPlaying) return;
             if (GetComponent<KentridgeProductionCompositionRoot>() == null)
                 gameObject.AddComponent<KentridgeProductionCompositionRoot>();
         }
 
         private void OnEnable()
         {
-            if (!Application.isPlaying) return;
+            if (!UnityEngine.Application.isPlaying) return;
             if (!ProductionInputBound)
                 throw new InvalidOperationException(
                     "Kentridge playable slice requires Application-owned production input before OnEnable.");
@@ -362,7 +362,7 @@ namespace Game.Kentridge.PlayableSlice
         private void OnDisable()
         {
             DisposeRuntime();
-            if (Application.isPlaying) SetCursorLocked(false);
+            if (UnityEngine.Application.isPlaying) SetCursorLocked(false);
         }
 
         private void DisposeRuntime()
@@ -428,7 +428,7 @@ namespace Game.Kentridge.PlayableSlice
 
         private void Update()
         {
-            if (!Application.isPlaying || !_spawned || _world == null) return;
+            if (!UnityEngine.Application.isPlaying || !_spawned || _world == null) return;
 
             float dt = Time.deltaTime;
             _actors.Tick(dt);
@@ -1116,7 +1116,7 @@ namespace Game.Kentridge.PlayableSlice
 
         private void OnGUI()
         {
-            if (!Application.isPlaying || !_spawned) return;
+            if (!UnityEngine.Application.isPlaying || !_spawned) return;
 
             if (!_openingPresentationReady)
             {
