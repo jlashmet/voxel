@@ -2,26 +2,25 @@
 
 **Acceptance:** prove the production packaged-player multiplayer loop with separate processes: formation/entry, shared authoritative gameplay, rejection diagnostics, interruption/reconnect identity continuity, explicit leave, configured capacity/join-in-progress/repeated reconnect, persistence/rehost policy, and durable exact-SHA evidence.
 
-**Ownership / architecture:** shared built-player validation infrastructure plus a module-owned multiplayer scenario. No new gameplay authority, transport, or test-only networking runtime. Production semantics are split across `SessionOrchestration`, `Sessions`, `GameplayReplication`, and `Continuity`. Orchestration may launch/stop processes and observe read-only semantic milestones; gameplay mutations must enter through production public player/session inputs.
+**Ownership / architecture:** shared built-player validation infrastructure plus Kentridge playable-composition validation. No gameplay authority, alternate transport, or test-only networking runtime. Production semantics remain in `SessionOrchestration`, `Sessions`, `GameplayReplication`, and `Continuity`; validation drives public player/session inputs and observes read-only semantic truth.
 
-## Observed state and hypotheses
+## Observed state / hypotheses
 
-- Module validation auto-discovers paired `<Module>/Validation/*.unity` + `*.player-scenario.json` and routes them through `tools/player-validation.py`; no registration layer is needed.
-- **H1:** System25 is mainly integration validation over existing production systems. **Supported** for process lifecycle, durable identity contracts, and replication revision/readiness seams.
-- **H2:** a parallel test networking/runtime layer is required. **Rejected** by the existing production APIs and repo architecture.
-- The first exact-SHA tool run failed only because the Python 3.14 dynamic-import test did not register its module in `sys.modules`; the targeted import fix is committed. A subsequent review found build identity was scenario-optional; the harness now verifies `sourceSha` + executable SHA-256 automatically on every launch/relaunch before any gameplay wait and rejects identity-only scenarios as zero gameplay proof.
-- Discriminating prerequisite: System24 must land the production-composed built-player entry and read-only diagnostic boundary before System25 can honestly drive the full gameplay loop. It remains open on current `origin/master`; do not substitute test composition.
-- Repository workflows contain targeted/PR/master gates but no existing scheduled multiplayer player-validation lane. Do not call the post-merge all-EditMode master suite a release scenario tier; resolve T25-044 only when the production scenario exists and an appropriate repository-owned slower lane is identified or acceptance requires adding one.
+- **H1:** System25 is integration validation over existing production systems. **Supported.** `ISessionFormationService` owns semantic Host/Join; `IPartySessionQuery` exposes durable `GameSessionId`/`PartyMemberId`/`PlayerSlot`/`CharacterId`; `SessionNetworkAdmissionAdapter` binds transient connections from stable slots; `ContinuityCoordinator` rebinds a new runtime connection to the same member and gates recovery on replicated `GameplayReady` revision.
+- **H2:** a parallel test networking/runtime layer is needed. **Rejected.** Existing public seams already represent formation, identity, reconnect, readiness, and explicit leave.
+- Shared `mode: multiProcess` now supports build-once role launch/wait/kill/relaunch, isolated per-role writable state, role/attempt logs, and automatic source-SHA + executable-SHA256 verification before gameplay waits. Harness-owned identity/state/log/run controls cannot be overridden by scenarios. `tests-single.yml` forwards authoritative `HEAD^` into module player validation.
+- Binding acceptance requires expensive capacity/JIP/reconnect/rehost coverage outside normal PR smoke. The repository had no slower player lane, so tooling now treats `<Module>/Validation/Release/` as a structural release tier: ordinary production diffs exclude it, edits to a release target include it in exact-SHA targeted CI, and generic `player-validation-release.yml` discovers all release targets on schedule/manual dispatch without registration lists.
+- **External prerequisite:** System24 still exists only on `fixes/agent-2` and has no PR; current `origin/master` still contains its open baseline. System25 must not copy or substitute its unmerged production composition/diagnostic boundary.
 
 ## Selected work
 
-1. Keep `mode: multiProcess` inside the canonical player-validation entrypoint and generic build-once orchestrator.
-2. Keep lifecycle role-driven: launch, bounded semantic wait, terminate/kill, relaunch; preserve isolated durable role state across attempts and exact build identity per process.
-3. Validate independent harness work with Python regressions and exact-SHA CI while System24 is unavailable.
-4. After System24 lands, merge current master, reuse its production entry/diagnostic seam, add the correct module-owned multiplayer scene/scenario, and complete formation, gameplay convergence, reconnect/leave, capacity/JIP/reconnect, and persisted rehost evidence.
+1. Finish/validate generic harness + release-tier infrastructure while System24 is unavailable.
+2. After System24 lands, merge current master and reuse its production Kentridge entry/read-only diagnostic seam.
+3. Add smoke multiplayer validation under Kentridge playable composition (authority + two clients) and release coverage under its `Validation/Release/` subtree.
+4. Prove contention/conservation, vitality, progression, interruption/reconnect, explicit leave, capacity/JIP/repeated reconnect, persisted rehost, and rejection diagnostics on exact built SHA.
 
-**Current feature SHA before this plan-only commit:** `0b162344ddeb9f05093029a9e441cbd6e029d715`.
+**Current feature SHA before this plan commit:** `776a0de7cfe3c0eee7e16df467b370ff95f00072`.
 
-**Blast radius / cost:** current changes are validation tooling only; no production authority/runtime module is changed. The PR smoke target remains authority + two clients; expensive capacity/rehost cases must not inflate the normal targeted gate.
+**Blast radius / cost:** independent changes are validation tooling/workflows only; production authority is untouched. Normal PR remains authority + two-client smoke; expensive release targets run only when changed for exact-SHA proof and in the scheduled release lane.
 
-**Remaining gates:** current-head tool exact-SHA CI; System24 prerequisite; module-local standalone multiplayer scenario; all gameplay/continuity/rejection/capacity/rehost checks; final exact-SHA built-player evidence; closure bookkeeping; latest-master merge; PR `affected` gate + auto-merge.
+**Remaining gates:** current-head exact-SHA tool CI; System24 prerequisite; smoke/release production scenarios; all semantic acceptance cases; durable built-player artifacts; closure fields/move; latest-master merge; PR `affected` gate + auto-merge.
