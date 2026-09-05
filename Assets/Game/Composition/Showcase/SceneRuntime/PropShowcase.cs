@@ -438,24 +438,27 @@ namespace VoxelEngine.Showcase
                 front = Vector3.forward;
             front.Normalize();
 
-            Vector3 lateral;
-            Vector3 elevation;
+            Vector3 viewDirection;
             if (Mathf.Abs(front.y) > 0.5f)
             {
-                lateral = new Vector3(0.7f, 0f, -0.7f).normalized * radius;
-                elevation = Vector3.zero;
+                // Vertical facing is a mount normal, not an authored visual front. Preserve whether the
+                // prop is floor- or ceiling-mounted, but frame it from a three-quarter angle so its
+                // silhouette and construction remain readable instead of looking straight down/up.
+                float vertical = front.y > 0f ? 0.55f : -0.55f;
+                viewDirection = new Vector3(0.72f, vertical, -0.72f).normalized;
             }
             else
             {
+                // Wall-mounted/thin surfaces do have a meaningful semantic front; stay close to it
+                // while adding a small side/elevation bias so depth and support context remain visible.
                 Vector3 tangent = Vector3.Cross(Vector3.up, front);
                 if (tangent.sqrMagnitude < 0.5f)
                     tangent = Vector3.right;
-                lateral = tangent.normalized * radius * 0.55f;
-                elevation = Vector3.up * radius * 0.6f;
+                viewDirection = (front + tangent.normalized * 0.22f + Vector3.up * 0.18f).normalized;
             }
 
             Vector3 focus = centre + Vector3.up * size.y * 0.05f;
-            _camera.transform.position = centre + front * distance + lateral + elevation;
+            _camera.transform.position = centre + viewDirection * distance;
             _camera.transform.LookAt(focus);
         }
 
