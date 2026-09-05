@@ -19,10 +19,12 @@ Independent proofs cover Character/AI, WorldObject, Encounter, Streaming, a 64-N
 
 ## Validation / remaining gates
 
-Exact request `a20a3282b05d8ed0986de69e4c48b45059416936` exposed legacy `UnityEngine.Input`; scoped composition repairs are `738a3b32c3a8f740ff367a91c9b4ca42a7d72ee4` (`Keyboard.current`) and `66b9b0f089da00158cf475d5dc55c5c27a115817` (`Unity.InputSystem` assembly reference).
+Exact request `a20a3282b05d8ed0986de69e4c48b45059416936` exposed legacy `UnityEngine.Input`. The reader is migrated to `Keyboard.current` at `738a3b32c3a8f740ff367a91c9b4ca42a7d72ee4`.
 
 Request `1ca35bbb8f5d4a08cb69ad44488971e4937fc4aa` proved all 18 affected EditMode assemblies plus the focused Residency regression green, then module-player validation stopped before Residency because new Residency/Streaming scenarios requested 6s/5s while the shared harness requires ≥10s. Both scenarios are now 10s.
 
-Request `219c6c85e71c05a97a0dda6724811c53b0897e1c` was submitted from exact feature SHA `15d1c74297aff86a18cd372743e1baf6bd1c5d76` and must remain untouched while queued/running. Final blast review then found a separate R32 teardown defect: coordinator disposal released physical leases without first quiescing Detailed adapters. The scoped fix drives targets to Dormant through normal demotion, refuses disposal while Detailed demotion is pending/failed, and adds ordering/pending regressions. Therefore `219c6c85...` is diagnostic only; after it completes, exact-SHA validation must run again from the teardown-fixed head.
+Request `219c6c85e71c05a97a0dda6724811c53b0897e1c` from feature SHA `15d1c74297aff86a18cd372743e1baf6bd1c5d76` completed failure during script compilation: `KentridgeWellQuestInventoryPresentation.cs` belongs to nested `Game.Kentridge.PlayableSlice`, so the earlier `Unity.InputSystem` reference on parent `Game.Composition.Kentridge.Playable` did not reach it. The dependency now lives on the owning nested asmdef and the unused parent reference is removed.
 
-Remaining gates: final exact head must pass repository-driven module/player validation and standalone Kentridge with no legacy Input exception; finish blast review, close directly to `SceneIssues/closed/...`, merge current `origin/master`, then PR + auto-merge.
+Final blast review also found an R32 teardown defect: coordinator disposal released physical leases without first quiescing Detailed adapters. The scoped fix drives targets to Dormant through normal demotion, refuses disposal while Detailed demotion is pending/failed, and adds ordering/pending regressions.
+
+Remaining gates: run exact-SHA validation again from the current teardown/input/scenario-fixed head; require repository module/player validation and standalone Kentridge green with no legacy Input exception; finish blast review, close directly to `SceneIssues/closed/...`, merge current `origin/master`, then PR + auto-merge.
