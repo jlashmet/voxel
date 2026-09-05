@@ -205,7 +205,7 @@ namespace VoxelEngine.Showcase
                     new int3(0, 16, 0),
                     HouseWidth,
                     HouseDepth,
-                    house.PreferredRooms);
+                    house.MinimumRooms);
                 if (!probe.IsWellFormed || SameSpatialSignature(in baseline, in probe))
                     continue;
 
@@ -236,7 +236,7 @@ namespace VoxelEngine.Showcase
                 origin,
                 HouseWidth,
                 HouseDepth,
-                house.PreferredRooms);
+                house.MinimumRooms);
             if (!_prototype.IsWellFormed)
                 throw new InvalidOperationException($"Production house composition failed for {house.DisplayName}.");
             if (!GuildHouseFurnishingResolver.TryResolvePrototype(
