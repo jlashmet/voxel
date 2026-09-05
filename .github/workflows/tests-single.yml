@@ -182,7 +182,8 @@ jobs:
             --plan Artifacts/SingleTest/ModuleValidation/plan.json \
             --output Artifacts/SingleTest/ModuleValidation/Results \
             --requested-test "${{ steps.request.outputs.test }}" \
-            --requested-platform "${{ steps.request.outputs.platform }}"
+            --requested-platform "${{ steps.request.outputs.platform }}" \
+            --source-sha "${{ steps.request.outputs.source_sha }}"
 
       - name: Replay SceneIssue through standalone player
         if: always() && steps.request.outputs.scene_issue != ''
