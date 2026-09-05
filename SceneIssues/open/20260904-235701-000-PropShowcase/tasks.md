@@ -27,6 +27,7 @@
 - [ ] Preserve the selected content's production materials, coatings/presentation semantics, geometry backend, and applicable world-object presentation behavior.
 - [ ] Add a neutral but production-compatible preview environment with stable floor/contact reference and lighting that makes material and silhouette differences readable.
 - [ ] Compute preview bounds from the realized content and automatically frame/position the camera so representative tiny, medium, and large entries are visible without hand-authored per-prop coordinates.
+- [ ] Keep presenter-owned geometry, floor/support references, and preview lighting on a world-space presentation root independent of the framing camera transform; prove the final framing/grounding relationship in built-player evidence.
 - [ ] Correctly handle representative floor-mounted, wall-mounted, ceiling/hanging, thin-surface, box-assembly, procedural-mesh, voxel-stamp, emissive/light-producing, container, movable, and other independently previewable production cases.
 - [ ] Ensure switching entries fully disposes/recycles the prior preview realization and leaves no stale geometry, colliders, lights, particle emitters, world-object state, subscriptions, or presentation resources.
 - [ ] Add a repeated-selection stress regression that cycles through a representative set and proves stable active-object/resource counts and no exceptions.
