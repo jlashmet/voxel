@@ -138,8 +138,12 @@ def normalize_config(data: Mapping[str, object]) -> dict:
         expectation = _milestone(raw, names, f"operations[{index}]") if op == "wait" else None
         operations.append(LifecycleOperation(str(op), str(role), expectation))
 
+    if milestones and operations:
+        raise OrchestrationError("use either milestones or operations, not both")
+    if operations and not any(operation.op == "wait" for operation in operations):
+        raise OrchestrationError("operations must include at least one semantic wait")
     if not milestones and not operations:
-        raise OrchestrationError("milestones or operations must contain at least one validation step")
+        raise OrchestrationError("milestones or operations must contain at least one semantic wait")
 
     assertions = data.get("assertions", {})
     if not isinstance(assertions, dict):
@@ -487,13 +491,9 @@ def run(unity: str, scene: Path, output_root: Path, config: Mapping[str, object]
         raise
     finally:
         _terminate(all_records)
-        for role_summary in summary["roles"].values():
+        records_by_attempt = {(record.role.name, record.attempt): record for record in all_records}
+        for role_name, role_summary in summary["roles"].items():
             for attempt_summary in role_summary["attempts"]:
-                record = next(
-                    r for r in all_records
-                    if r.role.name in summary["roles"]
-                    and r.role.name == next(name for name, value in summary["roles"].items() if value is role_summary)
-                    and r.attempt == attempt_summary["attempt"]
-                )
+                record = records_by_attempt[(role_name, attempt_summary["attempt"])]
                 attempt_summary["exitCode"] = record.process.poll()
         summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
