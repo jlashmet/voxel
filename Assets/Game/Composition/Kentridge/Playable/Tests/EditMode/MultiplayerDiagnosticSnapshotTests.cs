@@ -116,7 +116,7 @@ namespace Game.Composition.Kentridge.Playable.Tests.EditMode
                 {
                     PropertyInfo property = properties[propertyIndex];
                     Assert.That(property.SetMethod, Is.Null, type.Name + "." + property.Name + " must be read-only.");
-                    string surface = (property.Name + " " + property.PropertyType.FullName).ToLowerInvariant();
+                    string surface = PublicTypeSurface(property).ToLowerInvariant();
                     for (int termIndex = 0; termIndex < forbiddenTerms.Length; termIndex++)
                         Assert.That(surface, Does.Not.Contain(forbiddenTerms[termIndex]), type.Name + "." + property.Name);
                 }
@@ -128,6 +128,15 @@ namespace Game.Composition.Kentridge.Playable.Tests.EditMode
                     Assert.That(method.IsSpecialName, Is.True, type.Name + " exposes unexpected public method " + method.Name);
                 }
             }
+        }
+
+        private static string PublicTypeSurface(PropertyInfo property)
+        {
+            var names = new List<string> { property.Name, property.PropertyType.Name };
+            Type[] genericArguments = property.PropertyType.GetGenericArguments();
+            for (int i = 0; i < genericArguments.Length; i++)
+                names.Add(genericArguments[i].Name);
+            return string.Join(" ", names);
         }
 
         private sealed class FakePartySessionQuery : IPartySessionQuery
