@@ -7,17 +7,15 @@ Do not implement production or test code.
 Read first and only:
 1. `SceneIssues/manager/ASTRA_MANAGER.md`
 2. `SceneIssues/manager/runtime/signal.json`
-3. `SceneIssues/manager/runtime/digest.md`
-4. `SceneIssues/manager/runtime/state.json`
-5. `SceneIssues/manager/runtime/open-issue-index.md`
+3. `SceneIssues/manager/runtime/review-window.md`
 
-The runtime digest is a deterministic delta collected since the previous check. Do not reconstruct project state from conversation history.
+`review-window.md` is a deterministic, mechanically budgeted slice of the local pending-review backlog. Do not read `state.json`, the raw full `digest.md`, other pending packets, or conversation history during normal bootstrap.
 
-Review pending items within the configured budget. Expand context progressively: manager packet → selected completion packet → relevant closed issue plan/tasks → narrow diff → directly related dependencies. Do not broadly explore the repository by default.
+Review only the exact keys listed in the current review window. For a selected completion, expand progressively: completion packet → relevant closed issue plan/tasks → narrow diff → directly related dependencies. Do not broadly explore the repository by default, and do not exceed the deep-investigation count stated in the window.
 
-For a concrete required follow-up, first verify the open-issue index does not already cover it. Put the follow-up into `SceneIssues/manager/runtime/decision.json` with evidence, origin issue/SHA, problem, impact, expected behavior, bounded acceptance criteria, and relevant paths.
+Only if you have concrete evidence that requires a new follow-up SceneIssue, read `SceneIssues/manager/runtime/open-issue-index.md` to check for duplicates. Put any non-duplicate follow-up into `SceneIssues/manager/runtime/decision.json` with evidence, origin issue/SHA, problem, impact, expected behavior, bounded acceptance criteria, and relevant paths.
 
-Do not fix any discovered problem yourself. Do not wait for agents. Do not poll CI.
+Do not fix any discovered problem yourself. Do not wait for agents. Do not poll CI. Do not review deferred backlog items that were not selected for this wake-up.
 
 When the bounded review pass is complete, write the decision JSON, run:
 
