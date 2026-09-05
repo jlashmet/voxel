@@ -10,6 +10,7 @@ from pathlib import Path
 
 KENTRIDGE_SCENE = "Assets/Scenes/KentridgePlayableSlice.unity"
 KENTRIDGE_SCENARIO = "Assets/Scenes/Validation/kentridge.player-scenario.json"
+RELEASE_VALIDATION_DIR = "Release"
 
 
 class ConventionError(ValueError):
@@ -84,6 +85,11 @@ def _is_module_validation_path(path: str) -> bool:
     )
 
 
+def _is_release_validation_path(path: str) -> bool:
+    path = path.replace("\\", "/")
+    return f"/Validation/{RELEASE_VALIDATION_DIR}/" in path
+
+
 def _is_integration_only_path(path: str) -> bool:
     return path.replace("\\", "/").startswith("Assets/Game/Composition/")
 
@@ -93,8 +99,7 @@ def _is_dependency_contract_path(path: str) -> bool:
     return "/Api/" in path or path.endswith(".asmdef")
 
 
-def _discover_player_targets(module_root: Path, root: Path, module_name: str) -> list[dict]:
-    validation_root = module_root / "Validation"
+def _discover_paired_player_targets(validation_root: Path, root: Path, module_name: str) -> list[dict]:
     if not validation_root.is_dir():
         return []
     scenes = sorted(validation_root.rglob("*.unity"))
@@ -111,6 +116,37 @@ def _discover_player_targets(module_root: Path, root: Path, module_name: str) ->
     if orphaned:
         raise ConventionError(f"validation scenario is missing paired scene: {_rel(orphaned[0], root)}")
     return targets
+
+
+def _discover_player_targets(module_root: Path, root: Path, module_name: str) -> list[dict]:
+    validation_root = module_root / "Validation"
+    if not validation_root.is_dir():
+        return []
+    release_root = validation_root / RELEASE_VALIDATION_DIR
+    scenes = sorted(
+        path for path in validation_root.rglob("*.unity")
+        if release_root not in path.parents
+    )
+    scenarios = sorted(
+        path for path in validation_root.rglob("*.player-scenario.json")
+        if release_root not in path.parents
+    )
+    targets = []
+    expected_scenarios = set()
+    for scene in scenes:
+        scenario = scene.with_suffix(".player-scenario.json")
+        expected_scenarios.add(scenario)
+        if not scenario.is_file():
+            raise ConventionError(f"validation scene is missing paired scenario: {_rel(scene, root)}")
+        targets.append({"module": module_name, "scene": _rel(scene, root), "scenario": _rel(scenario, root)})
+    orphaned = [p for p in scenarios if p not in expected_scenarios]
+    if orphaned:
+        raise ConventionError(f"validation scenario is missing paired scene: {_rel(orphaned[0], root)}")
+    return targets
+
+
+def _discover_release_player_targets(module_root: Path, root: Path, module_name: str) -> list[dict]:
+    return _discover_paired_player_targets(module_root / "Validation" / RELEASE_VALIDATION_DIR, root, module_name)
 
 
 def discover(root: Path, allow_existing_obsolete: bool = False) -> dict:
@@ -163,6 +199,7 @@ def discover(root: Path, allow_existing_obsolete: bool = False) -> dict:
             "root": module_name,
             "tests": tests,
             "players": _discover_player_targets(module_root, root, module_name),
+            "releasePlayers": _discover_release_player_targets(module_root, root, module_name),
             "runtimeAssemblies": runtime_assemblies,
         })
 
@@ -238,6 +275,7 @@ def plan(changed_paths: list[str], discovered: dict) -> dict:
     modules = discovered["modules"]
     by_name = {m["name"]: m for m in modules}
     selected: set[str] = set()
+    release_selected: set[str] = set()
     dependency_contract_modules: set[str] = set()
     fallback_paths = []
     production = [p for p in changed if is_production(p)]
@@ -248,6 +286,8 @@ def plan(changed_paths: list[str], discovered: dict) -> dict:
         validation_path = _is_module_validation_path(path)
         if owner and (production_path or validation_path):
             selected.add(owner["name"])
+            if validation_path and _is_release_validation_path(path):
+                release_selected.add(owner["name"])
             if production_path and _is_dependency_contract_path(path):
                 dependency_contract_modules.add(owner["name"])
         elif production_path and not _is_integration_only_path(path):
@@ -263,6 +303,8 @@ def plan(changed_paths: list[str], discovered: dict) -> dict:
         module = by_name[module_name]
         tests.extend(module["tests"])
         players.extend(module["players"])
+        if module_name in release_selected:
+            players.extend(module["releasePlayers"])
     if production:
         players.append({"module": "game-integration", "scene": KENTRIDGE_SCENE, "scenario": KENTRIDGE_SCENARIO})
 
@@ -277,18 +319,36 @@ def plan(changed_paths: list[str], discovered: dict) -> dict:
     }
 
 
+def release_plan(discovered: dict) -> dict:
+    modules = [module for module in discovered["modules"] if module["releasePlayers"]]
+    players = []
+    for module in modules:
+        players.extend(module["releasePlayers"])
+    return {
+        "changedPaths": [],
+        "modules": [module["name"] for module in modules],
+        "tests": [],
+        "playerValidations": players,
+        "hasProductionChanges": False,
+        "hasValidationWork": bool(players),
+        "fallbackPaths": [],
+    }
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", default=".")
     ap.add_argument("--changed-file", action="append", default=[])
     ap.add_argument("--changed-file-list", action="append", default=[])
+    ap.add_argument("--tier", choices=("diff", "release"), default="diff")
     ap.add_argument("--output")
     ns = ap.parse_args(argv)
     changed = list(ns.changed_file)
     for name in ns.changed_file_list:
         changed.extend(Path(name).read_text(encoding="utf-8").splitlines())
     try:
-        result = plan(changed, discover(Path(ns.root), allow_existing_obsolete=True))
+        discovered = discover(Path(ns.root), allow_existing_obsolete=True)
+        result = release_plan(discovered) if ns.tier == "release" else plan(changed, discovered)
     except ConventionError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
