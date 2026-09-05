@@ -12,8 +12,9 @@ namespace Game.Kentridge.PlayableSlice
     /// Module-local validation bootstrap for the shipped Kentridge SceneRuntime composition. The
     /// scene owns no alternate world graph or renderer: it hosts the real KentridgePlayableSlice,
     /// checks a few source-backed macro relationships, then attaches the same production evidence
-    /// driver used by the assignment's full built-player replay so streaming, readiness, rendering,
-    /// and CharacterMotor traversal all execute through the shipped composition path.
+    /// and content-demand drivers used by the assignment's full built-player replay so streaming,
+    /// readiness, rendering, and CharacterMotor traversal all execute through the shipped
+    /// composition path.
     /// </summary>
     internal static class KentridgeMacroWorldValidationBootstrap
     {
@@ -66,8 +67,14 @@ namespace Game.Kentridge.PlayableSlice
             Require(lakeRoute.GeographyConstrained,
                 "Rossdam hard route is no longer solved against authored geography");
 
+            // The full SceneIssue replay installs both helpers from its validation profile. The
+            // module-local player has no SceneIssue profile, so it must attach both explicitly;
+            // attaching only the evidence driver leaves its elevated settlement survey waiting on
+            // content whose CharacterMotor demand point is never advanced through the settlement.
             if (UnityEngine.Object.FindFirstObjectByType<KentridgeMacroWorldEvidenceDriver>() == null)
                 slice.gameObject.AddComponent<KentridgeMacroWorldEvidenceDriver>();
+            if (UnityEngine.Object.FindFirstObjectByType<KentridgeMacroWorldContentDemandDriver>() == null)
+                slice.gameObject.AddComponent<KentridgeMacroWorldContentDemandDriver>();
 
             Debug.Log(
                 "KENTRIDGE_MACRO_MODULE_VALIDATION ready: " +
