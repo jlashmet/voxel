@@ -15,6 +15,7 @@ from typing import Callable, Iterable, Mapping, Sequence
 
 MILESTONE_PREFIX = "VOXEL_VALIDATION_MILESTONE "
 _SHA_RE = re.compile(r"^[0-9a-fA-F]{40}$")
+_LIFECYCLE_OPS = {"launch", "wait", "terminate", "kill", "relaunch"}
 
 
 class OrchestrationError(RuntimeError):
@@ -37,6 +38,13 @@ class MilestoneExpectation:
     fields: Mapping[str, object]
 
 
+@dataclass(frozen=True)
+class LifecycleOperation:
+    op: str
+    role: str
+    milestone: MilestoneExpectation | None = None
+
+
 @dataclass
 class RoleProcess:
     role: RoleSpec
@@ -45,6 +53,7 @@ class RoleProcess:
     player_log: Path
     stdout_log: Path
     stderr_log: Path
+    attempt: int = 1
 
 
 def _positive_number(value, name: str, minimum: float = 0.001, maximum: float = 3600.0) -> float:
@@ -54,6 +63,20 @@ def _positive_number(value, name: str, minimum: float = 0.001, maximum: float = 
     if result < minimum or result > maximum:
         raise OrchestrationError(f"{name} must be from {minimum:g} to {maximum:g}")
     return result
+
+
+def _milestone(raw: Mapping[str, object], names: set[str], label: str) -> MilestoneExpectation:
+    role = raw.get("role")
+    name = raw.get("name")
+    if role not in names:
+        raise OrchestrationError(f"{label}.role must name a configured process")
+    if not isinstance(name, str) or not name:
+        raise OrchestrationError(f"{label}.name must be non-empty")
+    timeout = _positive_number(raw.get("timeoutSeconds", 30), f"{label}.timeoutSeconds", 0.1, 600)
+    fields = raw.get("fields", {})
+    if not isinstance(fields, dict):
+        raise OrchestrationError(f"{label}.fields must be an object")
+    return MilestoneExpectation(str(role), name, timeout, dict(fields))
 
 
 def normalize_config(data: Mapping[str, object]) -> dict:
@@ -89,23 +112,34 @@ def normalize_config(data: Mapping[str, object]) -> dict:
         roles.append(RoleSpec(name, tuple(args), dict(env), headless))
 
     raw_milestones = data.get("milestones", [])
-    if not isinstance(raw_milestones, list) or not raw_milestones:
-        raise OrchestrationError("milestones must be a non-empty array")
+    if not isinstance(raw_milestones, list):
+        raise OrchestrationError("milestones must be an array")
     milestones: list[MilestoneExpectation] = []
     for index, raw in enumerate(raw_milestones):
         if not isinstance(raw, dict):
             raise OrchestrationError(f"milestones[{index}] must be an object")
+        milestones.append(_milestone(raw, names, f"milestones[{index}]"))
+
+    raw_operations = data.get("operations", [])
+    if not isinstance(raw_operations, list):
+        raise OrchestrationError("operations must be an array")
+    operations: list[LifecycleOperation] = []
+    for index, raw in enumerate(raw_operations):
+        if not isinstance(raw, dict):
+            raise OrchestrationError(f"operations[{index}] must be an object")
+        op = raw.get("op")
         role = raw.get("role")
-        name = raw.get("name")
+        if op not in _LIFECYCLE_OPS:
+            raise OrchestrationError(
+                f"operations[{index}].op must be one of {', '.join(sorted(_LIFECYCLE_OPS))}"
+            )
         if role not in names:
-            raise OrchestrationError(f"milestones[{index}].role must name a configured process")
-        if not isinstance(name, str) or not name:
-            raise OrchestrationError(f"milestones[{index}].name must be non-empty")
-        timeout = _positive_number(raw.get("timeoutSeconds", 30), f"milestones[{index}].timeoutSeconds", 0.1, 600)
-        fields = raw.get("fields", {})
-        if not isinstance(fields, dict):
-            raise OrchestrationError(f"milestones[{index}].fields must be an object")
-        milestones.append(MilestoneExpectation(role, name, timeout, dict(fields)))
+            raise OrchestrationError(f"operations[{index}].role must name a configured process")
+        expectation = _milestone(raw, names, f"operations[{index}]") if op == "wait" else None
+        operations.append(LifecycleOperation(str(op), str(role), expectation))
+
+    if not milestones and not operations:
+        raise OrchestrationError("milestones or operations must contain at least one validation step")
 
     assertions = data.get("assertions", {})
     if not isinstance(assertions, dict):
@@ -121,6 +155,7 @@ def normalize_config(data: Mapping[str, object]) -> dict:
         "runSeconds": run_seconds,
         "roles": roles,
         "milestones": milestones,
+        "operations": operations,
         "required": list(required),
         "forbidden": list(forbidden),
     }
@@ -228,17 +263,21 @@ def launch_role(
     role: RoleSpec,
     identity: Mapping[str, str],
     run_seconds: int,
+    attempt: int = 1,
 ) -> RoleProcess:
     role_root, env = role_environment(output_root, role, identity)
-    player_log = role_root / "player.log"
-    stdout_log = role_root / "stdout.log"
-    stderr_log = role_root / "stderr.log"
+    attempt_root = role_root / f"attempt-{attempt:03d}"
+    attempt_root.mkdir(parents=True, exist_ok=True)
+    player_log = attempt_root / "player.log"
+    stdout_log = attempt_root / "stdout.log"
+    stderr_log = attempt_root / "stderr.log"
     args = [
         str(binary),
         "-logFile", str(player_log),
         "-screen-width", "1280", "-screen-height", "720", "-screen-fullscreen", "0",
         "-voxel-run-seconds", str(run_seconds),
         "-voxel-validation-role", role.name,
+        "-voxel-validation-attempt", str(attempt),
         "-voxel-validation-source-sha", identity["sourceSha"],
         "-voxel-validation-executable-sha256", identity["executableSha256"],
         "-voxel-validation-state-root", env["VOXEL_VALIDATION_STATE_ROOT"],
@@ -248,7 +287,7 @@ def launch_role(
     args.extend(role.arguments)
     with stdout_log.open("wb") as stdout, stderr_log.open("wb") as stderr:
         process = subprocess.Popen(args, stdout=stdout, stderr=stderr, env=env)
-    return RoleProcess(role, process, role_root, player_log, stdout_log, stderr_log)
+    return RoleProcess(role, process, attempt_root, player_log, stdout_log, stderr_log, attempt)
 
 
 def parse_milestones(text: str) -> list[dict]:
@@ -288,18 +327,20 @@ def wait_for_milestone(
         events = parse_milestones(text)
         for event in events:
             if _matches(event, expected):
-                tagged = {"role": record.role.name, **event}
+                tagged = {"role": record.role.name, "attempt": record.attempt, **event}
                 if tagged not in history:
                     history.append(tagged)
                 return tagged
         status = record.process.poll()
         if status is not None:
             raise OrchestrationError(
-                f"role {record.role.name} exited with {status} before milestone {expected.name}; last milestones={events[-5:]}"
+                f"role {record.role.name} attempt {record.attempt} exited with {status} before milestone {expected.name}; "
+                f"last milestones={events[-5:]}"
             )
         if monotonic() >= deadline:
             raise OrchestrationError(
-                f"timed out waiting {expected.timeout_seconds:g}s for {record.role.name}:{expected.name}; last milestones={events[-5:]}"
+                f"timed out waiting {expected.timeout_seconds:g}s for {record.role.name}:{expected.name}; "
+                f"attempt={record.attempt} last milestones={events[-5:]}"
             )
         sleep(poll_interval)
 
@@ -311,7 +352,9 @@ def _assert_logs(records: Iterable[RoleProcess], required: Sequence[str], forbid
         for path in (record.player_log, record.stdout_log, record.stderr_log):
             if path.exists():
                 chunks.append(path.read_text(encoding="utf-8", errors="replace"))
-        combined.append(f"\n===== ROLE {record.role.name} =====\n" + "\n".join(chunks))
+        combined.append(
+            f"\n===== ROLE {record.role.name} ATTEMPT {record.attempt} =====\n" + "\n".join(chunks)
+        )
     text = "\n".join(combined)
     for pattern in required:
         if pattern not in text:
@@ -321,58 +364,121 @@ def _assert_logs(records: Iterable[RoleProcess], required: Sequence[str], forbid
             raise OrchestrationError(f"forbidden multi-process log pattern found: {pattern}")
 
 
-def _terminate(records: Iterable[RoleProcess]) -> None:
-    records = list(records)
-    for record in records:
-        if record.process.poll() is None:
-            record.process.terminate()
-    deadline = time.monotonic() + 5
-    for record in records:
-        while record.process.poll() is None and time.monotonic() < deadline:
-            time.sleep(0.05)
-        if record.process.poll() is None:
-            record.process.kill()
-    for record in records:
+def _stop_record(record: RoleProcess, *, unexpected: bool) -> None:
+    if record.process.poll() is not None:
+        return
+    if unexpected:
+        record.process.kill()
+        try:
+            record.process.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            return
+        return
+    record.process.terminate()
+    try:
+        record.process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        record.process.kill()
         try:
             record.process.wait(timeout=2)
         except subprocess.TimeoutExpired:
             pass
 
 
+def _terminate(records: Iterable[RoleProcess]) -> None:
+    for record in records:
+        _stop_record(record, unexpected=False)
+
+
+def _record_attempt(summary: dict, record: RoleProcess) -> None:
+    role_summary = summary["roles"].setdefault(record.role.name, {"attempts": []})
+    role_summary["attempts"].append({
+        "attempt": record.attempt,
+        "pid": record.process.pid,
+        "root": str(record.root),
+        "playerLog": str(record.player_log),
+        "stdoutLog": str(record.stdout_log),
+        "stderrLog": str(record.stderr_log),
+    })
+
+
+def _validate_build_identity(event: Mapping[str, object], expected_role: str, identity: Mapping[str, str]) -> None:
+    if event.get("sourceSha") != identity["sourceSha"] or event.get("executableSha256") != identity["executableSha256"]:
+        raise OrchestrationError(f"role {expected_role} reported mismatched build identity: {event}")
+
+
 def run(unity: str, scene: Path, output_root: Path, config: Mapping[str, object], source_sha: str) -> dict:
     output_root = output_root.resolve()
     output_root.mkdir(parents=True, exist_ok=True)
     binary, identity = build_player(unity, scene, output_root, source_sha)
-    records: dict[str, RoleProcess] = {}
+    role_specs = {role.name: role for role in config["roles"]}
+    current: dict[str, RoleProcess] = {}
+    all_records: list[RoleProcess] = []
+    attempts = {name: 0 for name in role_specs}
     history: list[dict] = []
     summary = {
         "sourceSha": identity["sourceSha"],
         "executableSha256": identity["executableSha256"],
         "roles": {},
         "milestones": history,
+        "operations": [],
         "result": "running",
     }
     summary_path = output_root / "multi-process-summary.json"
 
+    def start(role_name: str) -> RoleProcess:
+        existing = current.get(role_name)
+        if existing is not None and existing.process.poll() is None:
+            raise OrchestrationError(f"role {role_name} is already running")
+        attempts[role_name] += 1
+        record = launch_role(
+            binary, output_root, role_specs[role_name], identity, config["runSeconds"], attempts[role_name]
+        )
+        current[role_name] = record
+        all_records.append(record)
+        _record_attempt(summary, record)
+        return record
+
     try:
-        for role in config["roles"]:
-            record = launch_role(binary, output_root, role, identity, config["runSeconds"])
-            records[role.name] = record
-            summary["roles"][role.name] = {
-                "pid": record.process.pid,
-                "root": str(record.root),
-                "playerLog": str(record.player_log),
-                "stdoutLog": str(record.stdout_log),
-                "stderrLog": str(record.stderr_log),
-            }
+        operations = config.get("operations", [])
+        if operations:
+            for operation in operations:
+                op_summary = {"op": operation.op, "role": operation.role}
+                if operation.op == "launch":
+                    record = start(operation.role)
+                    op_summary["attempt"] = record.attempt
+                elif operation.op == "relaunch":
+                    existing = current.get(operation.role)
+                    if existing is not None and existing.process.poll() is None:
+                        raise OrchestrationError(f"role {operation.role} must be stopped before relaunch")
+                    record = start(operation.role)
+                    op_summary["attempt"] = record.attempt
+                elif operation.op in ("terminate", "kill"):
+                    record = current.get(operation.role)
+                    if record is None or record.process.poll() is not None:
+                        raise OrchestrationError(f"role {operation.role} is not running")
+                    _stop_record(record, unexpected=operation.op == "kill")
+                    op_summary["attempt"] = record.attempt
+                    op_summary["exitCode"] = record.process.poll()
+                elif operation.op == "wait":
+                    record = current.get(operation.role)
+                    if record is None or record.process.poll() is not None:
+                        raise OrchestrationError(f"role {operation.role} is not running")
+                    event = wait_for_milestone(record, operation.milestone, history)
+                    if operation.milestone.name == "build-identity":
+                        _validate_build_identity(event, operation.role, identity)
+                    op_summary["attempt"] = record.attempt
+                    op_summary["milestone"] = operation.milestone.name
+                summary["operations"].append(op_summary)
+        else:
+            for role in config["roles"]:
+                start(role.name)
+            for expected in config["milestones"]:
+                event = wait_for_milestone(current[expected.role], expected, history)
+                if expected.name == "build-identity":
+                    _validate_build_identity(event, expected.role, identity)
 
-        for expected in config["milestones"]:
-            event = wait_for_milestone(records[expected.role], expected, history)
-            if expected.name == "build-identity":
-                if event.get("sourceSha") != identity["sourceSha"] or event.get("executableSha256") != identity["executableSha256"]:
-                    raise OrchestrationError(f"role {expected.role} reported mismatched build identity: {event}")
-
-        _assert_logs(records.values(), config["required"], config["forbidden"])
+        _assert_logs(all_records, config["required"], config["forbidden"])
         summary["result"] = "passed"
         return summary
     except Exception as exc:
@@ -380,7 +486,14 @@ def run(unity: str, scene: Path, output_root: Path, config: Mapping[str, object]
         summary["error"] = str(exc)
         raise
     finally:
-        _terminate(records.values())
-        for name, record in records.items():
-            summary["roles"][name]["exitCode"] = record.process.poll()
+        _terminate(all_records)
+        for role_summary in summary["roles"].values():
+            for attempt_summary in role_summary["attempts"]:
+                record = next(
+                    r for r in all_records
+                    if r.role.name in summary["roles"]
+                    and r.role.name == next(name for name, value in summary["roles"].items() if value is role_summary)
+                    and r.attempt == attempt_summary["attempt"]
+                )
+                attempt_summary["exitCode"] = record.process.poll()
         summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
