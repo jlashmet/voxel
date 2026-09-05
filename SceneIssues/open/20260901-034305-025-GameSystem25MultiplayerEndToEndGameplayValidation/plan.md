@@ -25,6 +25,6 @@
 4. Prove contention/conservation, vitality, progression, interruption/reconnect, explicit leave, capacity/JIP/repeated reconnect, and persisted rehost on the exact built SHA.
 5. Run repository-selected final exact-SHA validation, inspect durable artifacts, complete closure fields/move, merge latest master, then PR + auto-merge and required `affected` gate.
 
-**Current branch:** this is the final pre-request bookkeeping commit. Do not add further feature-branch commits before creating the T25-009 exact-SHA request; the CI request must have this exact commit as its sole parent.
+**Current branch:** this commit is the exact T25-009 candidate. The CI request must use this commit as its sole parent; no additional feature-branch commits are permitted before that request is created.
 
 **Blast radius / cost:** validation tooling/workflows plus Kentridge validation composition only; production authority remains untouched. Smoke is authority + two clients; expensive cases stay in release targets.
