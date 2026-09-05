@@ -4,28 +4,23 @@
 Reconstruct the supplied medieval cottage through the production WorldBuilder/material/rendering path at 10 cm voxel scale. Final standalone-player evidence must preserve the tall near-frontal silhouette, dominant steep front gable, blue roof/shutters, stone lower storey/chimney, Tudor timber/plaster upper storeys, stacked arched openings, ridge finial, flower boxes/ivy, credible texture scale, grounding, and clean roof/wall/material transitions. Garage/driveway checklist items are `N/A — absent from supplied reference`.
 
 ## Ownership / architecture
-- Runtime owner is `Assets/Game/WorldBuilder`; reusable geometry is `NewHouseReferenceAuthoring` over `IStructureAuthoringSession`.
-- Reference site/camera/light policy stays outside reusable geometry.
-- Game material identity/projection stays in `Assets/Game/Materials`; Rendering receives semantic-free texture slots.
-- WorldBuilder supplies the six reference textures through `Resources/VoxelAdditionalTextureLayers.asset`; the generic renderer consumes them without project-global renderer edits.
-- Module-local player proof is WorldBuilder `NewHouseReferenceReconstruction` plus Rendering `TextureLayers` validation.
-- Bulk Structures authoring mutates resident storage but does not own the world's change journal; the application composition root publishes the completed bounded authoring phase before renderer binding.
+- `Assets/Game/WorldBuilder` owns reusable `NewHouseReferenceAuthoring` over `IStructureAuthoringSession`; reference site/camera/light stay outside it.
+- `Assets/Game/Materials` owns stable material identity/projection; Rendering receives semantic-free texture slots from WorldBuilder `Resources/VoxelAdditionalTextureLayers.asset` without project-global renderer edits.
+- Module-local proof is WorldBuilder `NewHouseReferenceReconstruction` plus Rendering `TextureLayers`; bounded Structures authoring is published through the application composition root before renderer binding.
 
-## Hypotheses / discriminating results
-1. **Existing massing was close; only material/camera polish remained.** Falsified by direct comparison with checked-in reference blob `6d87b08d4c7c9bddc1705c0f34343aa79bc18423`: prior shape was broad/side-gabled with rectangular windows and wrong camera.
-2. **Extra textures belonged in `Assets/Settings/VoxelUniversalRenderer.asset`.** Falsified by runs `33948973165`/`33949596796`: the global asset broadened module validation and inherited an unrelated URP legacy-Input failure. Selected path is the application-owned Resources slot asset.
-3. **The first green built-player replay proved the focused validation was visually stable.** Falsified by run `33951274739`: captures showed fragmented terrain/house while logs repeatedly reported showcase castle authoring failures. `NewHouseReferenceWorldBuilderValidation.Update` was incorrectly calling `ShowcaseWorld.StepStreaming`, which admits unrelated landmarks and mutates residency as the audit camera moves.
-4. **Removing integration streaming was sufficient to make authored house surfaces render.** Falsified by exact-SHA run `33952976056`: automatic module validation and the standalone replay passed, the castle failure disappeared, but direct hero/audit inspection still showed terrain only. The validation was constructing the legacy four-argument `ShowcaseWorld`, whose private world simulation palette does not register stable house IDs 23-28 even though raw authored voxels can be written/read successfully.
-5. **Complete game-material binding alone was sufficient.** Falsified by exact-SHA run `33953740353`: the complete palette passed all automated validation, yet hero/audit captures still showed terrain only. Inspection of `StructuresComposition` and `IVoxelStorageRuntime` identified the missing publication boundary: `CreateAuthoringSession` intentionally returns a raw mutation capability, while bounded production helpers explicitly call `PublishAllResidentRegions()` after authoring. The house proof never published its completed writes, so rendering continued from the pre-authoring terrain journal state.
-6. **Publishing the completed house/site authoring phase was sufficient.** Falsified by exact-SHA run `33954740928`: automatic module validation and standalone replay passed, but direct capture inspection still showed fractured terrain and no recognizable cottage. Because multiple materially different fixes now preserve the same terrain-only symptom, the feature guide requires root-cause isolation before another speculative product/art change.
+## Material results
+1. Direct reference comparison falsified the original broad/side-gabled massing; the current authored form uses the tall front gable, stacked arched openings, open shutters, chimney, finial, flower boxes, and right-heavy ivy from the supplied image.
+2. Runs `33948973165`/`33949596796` falsified putting extra textures in `Assets/Settings/VoxelUniversalRenderer.asset`; application-owned Resources slots avoid global validation blast radius.
+3. Runs `33951274739`, `33952976056`, `33953740353`, and `33954740928` successively isolated unrelated showcase streaming, incomplete game-material palette binding, and the missing bounded-authoring publication boundary. Each correction was required, but the final captures still showed fractured terrain/no recognizable house.
+4. Exact-SHA diagnostic run `33960811414` on feature `51deddcb21c52810145e746f886ee1903f7881dc` passed all derived module/player gates and the focused replay. At t=5-30 s the focused world reported `visible=116..172`, `missingVisible=0`, complete coverage, and GPU publications rising `330..1305`, while GPU `count/write/copy` stayed zero, CPU arena usage stayed `v=0 i=0`, and per-ring diagnostics reported `drawn=0`. The screenshots remained fractured terrain/no-house. This classifies the remaining acceptance failure downstream of WorldBuilder authoring/storage/material publication, in the production GPU surface realization/draw path.
 
-## Current discriminator
-Do not select another geometry/material/publication fix until the focused production player reports what the renderer believes is present. Validation-only instrumentation at feature SHA `51deddcb21c52810145e746f886ee1903f7881dc` samples existing `RenderingComposition` diagnostics: visible and missing-visible chunks, known/dirty/resident surface state, resident geometry bytes, complete-published-near-coverage, and per-ring residency. Exact-SHA request `bce86b650b877a8f27466af2eba57a111ef41017` is workflow run `33960811414`; leave it untouched while queued/running. Use that evidence to distinguish insufficient residency/visibility coverage from a deeper extraction/publication problem before making the next fix.
+## Current blocker / selected path
+Current `origin/master` (`af61066de669431a6555e737887bd5d4031525b8`) still has the same production GPU missing-surface class tracked by `SceneIssues/open/20260902-171853-000-GpuRendererProductionRestoration`. Per `feature-readme.md`, do not substitute CPU/test-only rendering or another house-scoped speculative fix. Keep this feature open and resume visual acceptance as soon as the production renderer restoration reaches master.
 
-The publication boundary remains in the implementation because it is independently required by the Structures/Storage ownership contract; the discriminator is deciding what defect remains after that correct boundary.
+Current feature head before this plan refresh: `248365c2ed72e798d475c7433ea0c3baab2db932`.
 
 ## Remaining gates
-1. Complete the exact-SHA renderer-convergence discriminator and record the root cause.
-2. Make the smallest evidence-backed correction, then run exact-SHA automatic/module and standalone-player validation and inspect hero/audit captures directly.
-3. Fix only demonstrated remaining silhouette/material/roof/opening/grounding defects and complete every visual checklist item.
-4. Record final exact-SHA evidence, close `open/`→`closed/`, reconcile current `origin/master`, then PR to `master` + auto-merge. Never push the feature head directly to `master`.
+1. Merge the renderer prerequisite from current `origin/master` when available and reconcile only in-scope conflicts.
+2. Re-run exact-SHA module + standalone validation; inspect frontal, front-left, and rear-right captures directly against the supplied reference.
+3. Fix only demonstrated house visual defects and complete every remaining checklist/acceptance item.
+4. Run final exact-SHA validation, close `open/`→`closed/`, merge current master, open PR to `master`, enable auto-merge, and monitor the required `affected` gate until merged. Never push the feature head directly to `master`.
