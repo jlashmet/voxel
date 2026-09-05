@@ -1,0 +1,7 @@
+{
+  "platform": "PlayMode",
+  "test": "VoxelEngine.Structures.Tests.PlayMode.TypedStructuralSocketCompositionSceneTests",
+  "request_id": "agent3-small-voxel-input-playmode-root-cause",
+  "scene_issue": "SceneIssues/open/20260905-125000-000-SmallVoxelShowcaseSharedInputSystemRestoration/issue.json",
+  "replay_seconds": "20"
+}
