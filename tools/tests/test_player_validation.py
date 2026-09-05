@@ -46,6 +46,22 @@ class PlayerValidationTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             self._load(self._scenario({"evidenceAfterSeconds": 30}))
 
+    def test_player_arguments_are_generic_optional_metadata(self):
+        scenario = self._scenario()
+        self.assertEqual(self._load(scenario)["playerArguments"], [])
+        scenario["playerArguments"] = ["-validation-mode", "fixture"]
+        self.assertEqual(
+            self._load(scenario)["playerArguments"],
+            ["-validation-mode", "fixture"],
+        )
+
+    def test_player_arguments_reject_invalid_values(self):
+        for value in ("-single-string", [""], [None], ["bad\x00arg"]):
+            scenario = self._scenario()
+            scenario["playerArguments"] = value
+            with self.assertRaises(SystemExit):
+                self._load(scenario)
+
 
 if __name__ == "__main__":
     unittest.main()
