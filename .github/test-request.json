@@ -1,0 +1,7 @@
+{
+  "test": "VoxelEngine.Tests.EditMode.FarFeaturePresentationParityTests.PresentationAdapter_ResolvesInstalledMaterialAndCoatingToValueContract",
+  "platform": "EditMode",
+  "request_id": "tgpu-019cpu-clean-presentation-r1",
+  "scene_issue": "SceneIssues/open/20260902-171853-000-GpuRendererProductionRestoration/issue.json",
+  "replay_seconds": "45"
+}
