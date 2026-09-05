@@ -11,9 +11,11 @@ namespace VoxelEngine.Showcase.Validation
     /// the production VoxelShowcase and then observes the real CharacterMotor; collision, gravity,
     /// streaming and voxel authority are never substituted by validation geometry or colliders.
     /// </summary>
+    [DefaultExecutionOrder(-8000)]
     public sealed class CharacterMotorProductionValidationProbe : MonoBehaviour
     {
         private const uint Seed = 0x5EED1234u;
+        private const float ExistingAutoWalkDegreesPerSecond = 24f;
         private const string ReadyPrefix = "CHARACTER_MOTOR_MODULE_VALIDATION ready:";
         private const string FailurePrefix = "CHARACTER_MOTOR_MODULE_VALIDATION failure:";
 
@@ -74,21 +76,37 @@ namespace VoxelEngine.Showcase.Validation
                 yield return null;
             }
 
+            // AutoWalk is intentionally a circular benchmark input: VoxelShowcase rotates it by
+            // 24 degrees/second. A one-time heading therefore leaves the authored road immediately
+            // and can collide with the mountain even when ordinary player movement is correct.
+            // Compensate that same production turn every frame, exactly as the SceneIssue replay
+            // does, so this module-local proof measures grounded CharacterMotor movement along the
+            // resolved road rather than the benchmark's off-road circle.
             ResolvedWorldRoadPoint targetPoint = route.Road.Points[2];
-            Vector3 target = new Vector3(
+            Vector2 target = new Vector2(
                 targetPoint.Xdm * ShowcaseWorld.VoxelSize,
-                motor.EyePosition.y,
                 targetPoint.Zdm * ShowcaseWorld.VoxelSize);
-            Vector3 delta = target - motor.EyePosition;
-            float yaw = Mathf.Atan2(delta.x, delta.z) * Mathf.Rad2Deg;
-            YawField.SetValue(showcase, yaw);
-            PitchField.SetValue(showcase, 0f);
-            MouseLookField.SetValue(showcase, false);
-            transform.rotation = Quaternion.Euler(0f, yaw, 0f);
-
             Vector3 start = motor.Position;
-            showcase.AutoWalk = true;
-            yield return new WaitForSecondsRealtime(1.5f);
+            float movementDeadline = Time.realtimeSinceStartup + 2.5f;
+            const float arrivalRadius = 0.75f;
+
+            MouseLookField.SetValue(showcase, false);
+            while (Time.realtimeSinceStartup < movementDeadline)
+            {
+                Vector2 current = new Vector2(motor.Position.x, motor.Position.z);
+                Vector2 delta = target - current;
+                if (delta.sqrMagnitude <= arrivalRadius * arrivalRadius)
+                    break;
+
+                float desiredYaw = Mathf.Atan2(delta.x, delta.y) * Mathf.Rad2Deg;
+                YawField.SetValue(
+                    showcase,
+                    desiredYaw - ExistingAutoWalkDegreesPerSecond * Time.deltaTime);
+                PitchField.SetValue(showcase, 0f);
+                showcase.AutoWalk = true;
+                yield return null;
+            }
+
             showcase.AutoWalk = false;
             yield return null;
 
@@ -96,9 +114,15 @@ namespace VoxelEngine.Showcase.Validation
             float horizontal = Vector2.Distance(
                 new Vector2(start.x, start.z),
                 new Vector2(end.x, end.z));
-            if (horizontal < 1f)
+            float remaining = Vector2.Distance(new Vector2(end.x, end.z), target);
+            if (horizontal < 2f)
             {
                 Fail($"production grounded movement advanced only {horizontal:0.00}m");
+                yield break;
+            }
+            if (remaining > 1.25f)
+            {
+                Fail($"production grounded movement stayed {remaining:0.00}m from the resolved road target");
                 yield break;
             }
             if (!motor.Grounded)
@@ -108,7 +132,7 @@ namespace VoxelEngine.Showcase.Validation
             }
 
             Debug.Log(
-                $"{ReadyPrefix} moved={horizontal:0.00}m grounded={motor.Grounded} "
+                $"{ReadyPrefix} moved={horizontal:0.00}m remaining={remaining:0.00}m grounded={motor.Grounded} "
                 + $"start=({start.x:0.00},{start.y:0.00},{start.z:0.00}) "
                 + $"end=({end.x:0.00},{end.y:0.00},{end.z:0.00})");
         }
