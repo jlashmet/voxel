@@ -53,6 +53,10 @@ namespace Game.Story.Runtime
                 return storyEvent.Kind == StoryEventKind.CutsceneCompleted && completed.Cutscene.Equals(storyEvent.Cutscene);
             if (trigger is QuestCompletedTriggerSpec questCompleted)
                 return storyEvent.Kind == StoryEventKind.QuestCompleted && questCompleted.Quest.Equals(storyEvent.Quest);
+            if (trigger is EncounterResolvedTriggerSpec encounterResolved)
+                return storyEvent.Kind == StoryEventKind.EncounterResolved &&
+                       encounterResolved.Encounter.Equals(storyEvent.Encounter) &&
+                       encounterResolved.Result == storyEvent.EncounterResult;
             throw new InvalidOperationException("Unsupported story trigger type: " + (trigger?.GetType().FullName ?? "<null>") + ".");
         }
 
@@ -118,6 +122,15 @@ namespace Game.Story.Runtime
                 if (progress == null)
                     throw new InvalidOperationException("Story sink does not support persistent spell progression effects.");
                 progress.GrantSpell(grant.SpellId);
+                return;
+            }
+
+            IStoryOutcomeEffectSink outcome = sink as IStoryOutcomeEffectSink;
+            if (effect is ObserveOutcomeConditionEffectSpec observeOutcome)
+            {
+                if (outcome == null)
+                    throw new InvalidOperationException("Story sink does not support terminal outcome policy effects.");
+                outcome.ObserveOutcomeCondition(observeOutcome.Condition);
                 return;
             }
 
