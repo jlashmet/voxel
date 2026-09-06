@@ -2,26 +2,24 @@
 
 ## Acceptance / ownership
 
-Complete the authored Kentridge -> Rorik/Moordell/Rossdam/Logan route, exactly-once System15 terminal/frontend aftermath, mid-run restore, shared multiplayer progression, and real milestone-driven built-player full-run evidence. Optional content is non-gating. Story consumes semantic facts; System11 owns objectives, System15 outcomes, and Systems16/14 persistence/restore. No parallel chapter authority, fake regions, alternate transport, or privileged progression shortcuts.
+Complete the authored Kentridge -> Rorik/Moordell/Rossdam/Logan route, exactly-once System15 terminal/frontend aftermath, mid-run restore, shared multiplayer progression, and real milestone-driven built-player full-run evidence. Story consumes semantic facts; System11 owns objectives, System15 outcomes, Systems16/14 persistence/restore. No fake regions, parallel chapter authority, alternate transport, or privileged progression shortcuts.
 
-## Current exact evidence
+## Current evidence
 
-Current accepted product source for the discovery correction is `e31528947add430f39588a7d3fda98db40589974`. Direct-child request `0498efba7629b09f93cfc00a4c12fcdd8ecfa1ed`, run `34008635270`, job `101420353446` completed success. Artifact `9983132267` digest `sha256:16913cd29470dc40fa8765f93317f44358ace2dccde39f5f169b958dcc2fb34f` proves the repository-derived plan selected both previously omitted owned suites: `Game.Composition.Kentridge.Tests` executed 1/1 passing test and `Game.Story.Tests` executed 2/2 passing tests, with zero failures/skips/inconclusive results. T26-057 is complete.
+T26-057 is green at product source `e31528947add430f39588a7d3fda98db40589974`, direct-child request `0498efba7629b09f93cfc00a4c12fcdd8ecfa1ed`, run `34008635270`: `Game.Composition.Kentridge.Tests` 1/1 and `Game.Story.Tests` 2/2 passed. The same 80-second Kentridge integration consumer reaches `GAMEPLAY READY` but is only layout/autowalk/survey proof; it has no authored terminal milestones and still ends with `coverage=False`, so it is not System26 full-run acceptance.
 
-The same exact run also completed repository-derived player validations, including the 80-second `Assets/Scenes/Validation/kentridge.player-scenario.json` integration consumer. That scenario requires only `KENTRIDGE_WORLD_LAYOUT`, then uses auto-dialogue/autowalk/survey; it has no authored campaign milestone, System15 terminal, frontend aftermath, or multiplayer assertions. The first capture is still **Loading Kentridge...**; later captures reach `GAMEPLAY READY` but show severe missing/black geometry and near-end runtime diagnostics again report `coverage=False`. For System26 full-run visual acceptance this remains **unacceptable**. A successful generic integration run is not the required authored milestone-driven full run.
+Eight tasks remain: T26-021/022/043/044/045/046/053/054.
 
-Historical semantic/module proof remains source `86911d9dec109c588310754f28c7a5644aed687a`, request `57a0b1f00615d0901e2d25ee0d2216296b13f163`, run `33944532957`, plus restore/Story runs `33941421358` and `33942377377`. PR run `34007038175` remains useful negative player evidence: its synthetic-merge smoke never left Loading Kentridge and originally exposed the test-discovery defect.
+## Selected physical-world recovery
 
-## Remaining gates / dependencies
+The prior macro-world SceneIssue was administratively deferred, but its preserved checkpoint `62533f5c0b1716c70414eb82d0e2b0def9e99f39` contains acceptance-required reusable production work that master intentionally omitted: semantic physical regions/route constraints, deterministic terrain-aware macro planning, generic settlement realization, water/ridge/pass catalogues, and Kentridge macro-selection integration. This System26 assignment will recover only those production pieces required by T26-021/022/044–046; the closed agent-6 SceneIssue and its bookkeeping remain untouched.
 
-Eight original acceptance tasks remain unchecked: T26-021, T26-022, T26-043, T26-044, T26-045, T26-046, T26-053, T26-054.
+**H1:** the archived core compiles against current System26/master APIs and replaces the marker-only macro catalogue with the real multi-region production realization. **H2:** later API drift or the old strict publication-convergence defect still blocks readiness. **Next discriminator:** restore the narrow core plus its stable Unity metadata, run repository-derived exact-SHA validation, then inspect compile/runtime/player evidence before importing any archived diagnostics or validation extras.
 
-T26-021/022/044–046 remain blocked by the missing production multi-region physical realization. Current master `356b2e0e4d2818901c73bbc6b1788f8d6850356d` contains only the user-directed documentation deferral for `20260829-020634-000-KentridgeMacroWorldPhysicalRealization`, explicitly `acceptanceComplete: false`; do not treat that closure as the implementation landing, weaken the one-region invariant, or fake later regions.
+The first recovery slice is limited to `TopDownWorldPhysicalIntent`, `TopDownWorldPhysicalPlanner`, reservation adapter, physical/water voxel catalogues, `KentridgeTopDownWorldPhysicalIntent`, and the two existing integration points (`KentridgeCombinedVoxelCatalogue`, `WorldBuilderVoxelCatalogue`). No renderer-owner files or old agent-6 SceneIssue files are imported.
 
-T26-043 remains blocked by System25. Current `fixes/agent-7` head `365405bcdcb8dbcdd5162a5d17dcd2149545b015` still requires exact proof of newer formation/admission work and then real authority/client topology, gameplay convergence, reconnect/current-state recovery, leave and release scenarios. Do not duplicate that authority or transport in System26.
+T26-043 remains independently owned by production Sessions/System25. Current agent-7 work is not yet accepted; System26 will recheck it after independent physical/full-run work and will not duplicate multiplayer authority or transport.
 
-No independent runtime implementation remains that can truthfully satisfy the eight blocked tasks without changing acceptance. Keep this assignment in `SceneIssues/open`; PR #312 stays draft. Once the real prerequisites land, resume with the canonical milestone-driven full-run scenario and shared multiplayer outcome proof, then run the required exact-SHA gate, close, merge current master into `fixes/agent-8`, and promote only through PR + auto-merge.
+## Cost / validation
 
-## Cost
-
-The T26-057 metadata correction changes test discovery only and has no gameplay/runtime cost. No budgets, readiness conditions, capture thresholds, transport semantics, or authoritative state were weakened.
+Preserve existing residency, streaming, scheduler, renderer and memory budgets. Do not force readiness, widen radius, raise budgets, or substitute storage-only evidence. If the core compiles, add/update only the owning module-local validation surface needed by the recovered runtime behavior, then build the milestone-driven production full-run scenario. PR #312 remains draft until every checkbox is genuinely complete.
