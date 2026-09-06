@@ -1,13 +1,14 @@
 # Tasks
 
-## Current priority — rejected green-run visuals (experiment 038)
+## Current priority — exact green run rejected by voxel-surface visuals
 - [x] Reject run `34001756898` as visual acceptance: actual approach/base/route screenshots still contain major magenta regions and flat gray masses despite green automation.
 - [x] Inspect that exact build log: `Voxel/ProceduralFarFeature` is packaged with both Metal stage variants; resource inclusion alone did not fix the observed output.
 - [x] Add bounded assignment-only identical-camera draw-path exclusion captures plus live material/shader inventory; restore every presentation/replay setting and never use exclusion frames as acceptance.
-- [ ] Run the render-owner discriminator through the exact feature SHA and existing CI transport; read all-before, no-semantic-far, no-component-renderers, no-voxel-surface and all-restored evidence before another product fix.
-- [ ] Identify and correct the demonstrated material/shader/draw owner, retaining a focused production-path regression; remove temporary draw-exclusion instrumentation after recording the result.
+- [x] Run the render-owner discriminator on exact source `f10ce63f128931173947d44b5a7d925a8cec1f15` via request `981f9f36683aad2b3e0d5e73cd100ec21da7fa9c` / run `34024289067`; inspect all-before, no-semantic-far, no-component-renderers, no-voxel-surface and all-restored evidence.
+- [x] Identify the remaining draw owner: same-camera corruption survives semantic-far/component exclusion, disappears with voxel-surface exclusion, and returns after restore. Record the result in experiment 042 and remove temporary draw-exclusion instrumentation.
+- [ ] Shared renderer prerequisite: near-surface publication/convergence must stop producing torn/floating black strips/holes before Mountain Dragon visual acceptance; do not modify the shared renderer from agent-4. After the prerequisite lands on master, merge it and revalidate exact built-player output.
 - [ ] Ensure an unmodified production capture with substantial error-magenta pixels fails the visual gate rather than silently passing; this does not replace human visual review.
-- [ ] Preserve distinct per-scenario module-player output directories: the previous module-only paths overwrote FarWorld with Water and earlier Showcase validations with later ones. Retain behavioral regression coverage for path uniqueness.
+- [x] Preserve distinct per-scenario module-player output directories: exact run `34024289067` retains unique module/scenario output paths and no longer overwrites FarWorld/Water or Showcase validation evidence.
 
 ## Proven acceptance infrastructure / retained regressions
 - [x] Compose cube dragon, reusable proximity trigger, reusable cutscene/dialogue, and exact `Hello, I'm Mr. Dragon.` through shared modules rather than scene-local polling/UI.
@@ -39,7 +40,7 @@
 - [x] Prove the original Input-System blocker was not a reason to re-enable legacy/both input globally; later master input restoration supersedes the temporary compatibility facade.
 - [x] Reconcile current master’s canonical `ShowcaseInputSystem` into this feature and remove the duplicate legacy-shaped `Game.Input.Runtime` / `SceneRuntime/Input.cs` authority.
 - [x] Correct the module-local CharacterMotor player proof so it compensates the production AutoWalk benchmark's 24 deg/s circular turn every frame instead of steering off the authored road after a one-time heading.
-- [ ] Prove canonical Input-System integration and CharacterMotor module proof on the final exact feature SHA: no game-side legacy-input exception, grounded replay completes the authoritative route, and affected module validation passes.
+- [x] Prove canonical Input-System integration and CharacterMotor module proof on exact source `f10ce63f...`: no game-side legacy-input exception, affected module validation passes, and grounded replay completes all 92 authoritative evidence waypoints.
 
 ## Far-feature visual root cause / reusable correction
 - [x] Reject run `33951141430` approach/path-base captures: giant flat white slab/AABB masses are not production-quality Mountain Dragon evidence.
@@ -51,7 +52,7 @@
 - [x] Reject run `33957939661` visual captures from source `b6f9b259...`: magenta/purple slab-like semantic proxies still dominate approach/path-base; that source predates the later near-surface semantic-proxy retirement commits ending at `79ac799...`.
 - [x] Reject exact run `33991882237` fresh production captures even though replay completed 92/92: large regions are Unity error magenta (approximately RGB 255/5/255), so behavioral replay success does not satisfy visual acceptance.
 - [x] Replace the far-feature renderer's implicit runtime shader lookup with renderer-owned `Resources/ProceduralFarFeature.shader`; fail closed on missing/unsupported/wrong shader and cover it in EditMode plus the existing FarWorld built-player validation.
-- [ ] Prove the far-feature contract/renderer regressions, module-local FarWorld player, and exact VoxelShowcase visual correction on the final exact feature SHA; acceptance requires white/magenta slab/AABB/error-shader artifacts to be absent, not merely green unit tests.
+- [x] Prove the far-feature contract/renderer regressions and module-local FarWorld player on exact run `34024289067`; the prior white/magenta slab/AABB/error-shader failure is absent. Remaining rejected geometry is separately attributed to the shared voxel near-surface renderer.
 
 ## Persistent CI module-validation blockers
 - [x] Classify run `33951141430` Structures PlayMode failure separately from gameplay input: CoreRP `DebugUpdater` polled legacy `UnityEngine.Input` under Input-System-only settings.
@@ -62,8 +63,8 @@
 - [x] Restore repository-owned validation for the changed Cutscenes module (EditMode plus module-local production dialogue player), add Composition provenance EditMode ownership, and classify `Assets/Editor/CI/**` as CI-only/nonproduction so the issue-owned debugger guard cannot trigger repository-wide fallback.
 - [x] Classify exact run `33991882237` module failure: all 17 persisted EditMode assemblies passed, but `CutsceneDialogueValidation.player-scenario.json` requested invalid `runSeconds: 6` against the shared 10–300 second validator contract.
 - [x] Correct Cutscenes validation to 10 seconds and assert its actual production `CUTSCENE_VALIDATION dialogue-active=Hello, I'm Mr. Dragon.` readiness signal.
-- [ ] Prove the corrected automatic plan has no fallback paths and finishes all required repository-derived module validation on the final exact feature SHA.
-- [ ] Prove all repository-derived module validation, including corrected Cutscenes, CharacterMotor and FarWorld players, passes on the final exact feature SHA.
+- [x] Prove the corrected automatic plan has no fallback paths and finishes all required repository-derived module validation on exact run `34024289067`.
+- [x] Prove all repository-derived module validation, including corrected Cutscenes, CharacterMotor and FarWorld players, passes on exact run `34024289067`.
 
 ## Exact-source CI evidence
 - [x] Earlier exact-source runs established reusable architecture, road bounds, route diagnostics, realized-corridor correctness, and CharacterMotor root cause; retained evidence includes `33472689582`, `33473157863`, `33653746253`, `33754305666`, `33806764602`, and `33821583052`.
@@ -75,14 +76,14 @@
 - [x] Run `33985235532` attempt 2 selected exact source `1213743e...`: persistent tests exited 0 and multiple relevant module players passed, but unowned production fallback selected nearly the entire repository and exhausted the job timeout before SceneIssue replay. This is rejected infrastructure evidence; see experiment 035.
 - [x] Run `33991882237` selected exact source `71b1f4da...`: requested bake test and all 17 persisted EditMode assemblies passed; standalone production replay completed 92/92 and emitted captures; required module validation failed on invalid Cutscenes scenario timing and fresh captures are visually rejected as Unity-error magenta. See experiment 037.
 - [x] Merge then-current `origin/master` `ef475182b866eabfe8e1d1a39c82bf7810a03f49` into the feature with two-parent merge `b7c2671700704c252d2ecc1040f0e820fc97411a`, preserving canonical master input/HouseShowcase/Structures work plus this assignment's changes.
-- [ ] Run the exact current feature head through only `ci-test/fixes/agent-4`, requesting `VoxelEngine.Showcase.Tests.EditMode.ShowcaseStartupBakeArtifactTests.CurrentSourceBakeExportsPayloadAndMatchingManifest` with this SceneIssue and explicit ~210 s replay budget. Never replace queued/running work.
-- [ ] Require that same exact checkout to pass current-source bake + manifest, repository-derived module validation, all new focused regressions, exception-free production startup/runtime, `WAYPOINT_REPLAY` completion through all 92 evidence waypoints, summit proximity/cutscene, and exact dialogue.
+- [x] Run exact source `f10ce63f128931173947d44b5a7d925a8cec1f15` through only `ci-test/fixes/agent-4` with request `981f9f36683aad2b3e0d5e73cd100ec21da7fa9c`, requesting `VoxelEngine.Showcase.Tests.EditMode.ShowcaseStartupBakeArtifactTests.CurrentSourceBakeExportsPayloadAndMatchingManifest`, this SceneIssue, and 210 s replay budget. Do not replace queued/running work.
+- [x] Require that exact checkout to pass current-source bake + manifest, repository-derived module validation, all focused regressions, exception-free production startup/runtime, `WAYPOINT_REPLAY` completion through all 92 evidence waypoints, summit proximity/cutscene, and exact dialogue; run `34024289067` satisfies these behavioral/CI gates but is visually rejected.
 
 ## Production visual / built-player acceptance
-- [x] Feature contains a real merge of `origin/master` `ef475182...` before this exact-gate attempt; final promotion still requires a fresh master fetch/merge if master advances.
-- [ ] Independently validate the final route on a fresh current-source startup payload: require setup/arm/reached/vertical/complete telemetry, no exceptions, and normal grounded movement without jumps/teleports.
-- [ ] Capture and human-review exact production VoxelShowcase approach as one substantial coherent grounded natural mountain and readable ascent.
-- [ ] Human-review path base and representative lower/mid/upper ascent as continuous supported road carved/graded into the landform, with no slab, trench, tunnel, causeway, floating, or impassable artifacts.
+- [x] Feature contains a real merge of `origin/master` `ef475182...` before exact run `34024289067`; current master has advanced again, so final promotion requires a fresh master merge after the renderer prerequisite is available.
+- [x] Independently validate the exact `f10ce63f...` route on a fresh current-source startup payload: setup/arm/reached telemetry completes 92/92 with grounded normal movement and no jumps/teleports.
+- [ ] Capture and human-review final exact production VoxelShowcase approach as one substantial coherent grounded natural mountain and readable ascent.
+- [ ] Human-review path base and representative lower/mid/upper ascent as continuous supported road carved/graded into the landform, with no slab, trench, tunnel, causeway, floating, tearing, holes, or impassable artifacts. Run `34024289067` fails this criterion on torn/floating near-surface geometry.
 - [ ] Human-review summit: usable natural summit, cube dragon visibly/stably supported, normal approach triggers proximity cutscene and exact `Hello, I'm Mr. Dragon.` dialogue.
 - [ ] Re-check final accepted bake/runtime cost under unchanged 240 s / 14 GiB contracts.
 
