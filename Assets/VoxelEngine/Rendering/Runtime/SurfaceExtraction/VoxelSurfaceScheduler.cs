@@ -1088,6 +1088,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public double LastDiscoveryMs { get; private set; }
         public double LastAdmissionMs { get; private set; }
         public double LastVisibilityMainThreadMs { get; private set; }
+        private double _lastVisibilityTraversalMs;
+        private double _lastVisibilitySelectionMs;
+        private double _lastVisibilityWaterMs;
+        private double _lastVisibilityDispatchMs;
 
         public string DescribeRingResidency()
         {
@@ -1104,6 +1108,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         + $" visible={LastVisibilityMainThreadMs:0.00}"
                         + $" cand={_lastVisibilityCandidateChecks}"
                         + $" drawn={_visibleSolids.Count}]");
+            text.Append($" visibility[traverse={_lastVisibilityTraversalMs:0.000}"
+                        + $" select={_lastVisibilitySelectionMs:0.000}"
+                        + $" water={_lastVisibilityWaterMs:0.000}"
+                        + $" dispatch={_lastVisibilityDispatchMs:0.000}]");
             int knownExits = 0, inBand = 0, inFrustum = 0;
             for (int i = 0; i < _allWorkers.Length; i++)
             {
@@ -1805,7 +1813,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             double reuseStart = Time.realtimeSinceStartupAsDouble;
             _water.CollectVisible(camera, voxelSize);
+            _lastVisibilityWaterMs = ElapsedMs(reuseStart);
+            double dispatchStart = Time.realtimeSinceStartupAsDouble;
             _gpuDrawDispatcher?.Prepare(_visibleGpuHandles, frame);
+            _lastVisibilityDispatchMs = ElapsedMs(dispatchStart);
             TrackReappearances(frame);
             LastVisibilityMainThreadMs = ElapsedMs(reuseStart);
             _visibilityTiming.Add(LastVisibilityMainThreadMs);
@@ -1814,6 +1825,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         private void CollectVisibility(Camera camera, float voxelSize, int frame)
         {
+            _lastVisibilityTraversalMs = 0;
+            _lastVisibilitySelectionMs = 0;
             if (TryReuseVisibility(camera, voxelSize, frame)) return;
 
             _visibleSolids.Clear();
@@ -1871,6 +1884,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         }
                     }
 
+                    _lastVisibilityTraversalMs = ElapsedMs(visibilityStart);
+                    double selectionStart = Time.realtimeSinceStartupAsDouble;
                     _lodVisibilitySelector.Rebuild(
                         _lodDrawableNodes, _lodCurrentCompleteNodes);
                     for (int r = 0; r < _rings.Length; r++)
@@ -1895,6 +1910,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                             }
                         }
                     }
+                    _lastVisibilitySelectionMs = ElapsedMs(selectionStart);
                 }
                 else
                 {
@@ -1902,8 +1918,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         _allWorkers[i].BeginVisibilityCollection();
                 }
 
+                double waterStart = Time.realtimeSinceStartupAsDouble;
                 _water.CollectVisible(camera, voxelSize);
+                _lastVisibilityWaterMs = ElapsedMs(waterStart);
+                double dispatchStart = Time.realtimeSinceStartupAsDouble;
                 _gpuDrawDispatcher?.Prepare(_visibleGpuHandles, frame);
+                _lastVisibilityDispatchMs = ElapsedMs(dispatchStart);
             }
 
             int missingVisible = 0;

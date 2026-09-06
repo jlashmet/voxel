@@ -775,3 +775,13 @@ This replaces the old checklist, not its unfulfilled correctness obligations. Hi
 | 050–057 final tests, cleanup, audit, close/merge | G16/G18/G24–G27 |
 
 **This rewrite does not mark GPU restoration, CPU deletion, visual acceptance or 1,000 FPS complete.**
+
+### Performance focus after water retirement
+
+- User explicitly accepts imperfect water appearance for now; prioritize CPU performance.
+- Local retirement commit `d66763890`; no push. Added visibility substage timing only, with no rendering behavior change.
+- `Artifacts/LocalGpuShowcase/gpu-visibility-perf-breakdown`: standalone Showcase build passed (33s), player completed 180s/12 captures/exit 0. Exact scheduler source/hash/diff and `frame-window-summary.json` saved.
+- Stationary 60–90s: 29 samples, approximately 133 FPS, median CPU p50 7.59ms; walking 120–180s: 60 samples, approximately 135 FPS, CPU 7.51ms. These are incomplete-coverage diagnostics, not performance acceptance or an improvement claim.
+- Stationary median traversal/selection/water/draw preparation: 1.842/0.405/0.001/0.013ms. Walking: 1.722/0.066/0.001/0.010ms. CPU coordinate traversal dominates visibility; GPU submission does not explain that aggregate.
+- Reviewed exact 75.0s stationary and 150.0s walking screenshots: castle present, existing terrain gaps/procedural hills/sparse surroundings remain unacceptable. Water art is deferred per user steering; coverage defects remain open.
+- Reuse correctness audit: missing-visible guard currently prevents reuse during convergence; do not simply remove it. GPU publication must invalidate cached selection, GPU entries need lifetime refresh, and projection/voxel-scale changes need correct invalidation.
