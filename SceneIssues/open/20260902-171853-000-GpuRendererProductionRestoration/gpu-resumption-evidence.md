@@ -2,42 +2,36 @@
 
 ## Scope
 
-G01–G04 / G19 continuation from `a551c225d4797abd8b74aaf3889d5736d99e7fed`. This records restoration, not completion of GPU correctness, CPU deletion or 1,000 FPS.
+G01–G04 / G19 continuation. This records restoration and first full-scene GPU evidence, not completion of GPU correctness, CPU-backend deletion, visual acceptance, or the 1,000 FPS objective.
 
-## Proven launch divergence
+## Proven launch divergence and repair
 
-The only `CpuTransvoxelChunkCache.cs` difference from fetched master `ef475182...` was an unconditional `GpuCutoverDisabled = true` in place of the environment read. Restoring master blob `cf2abdb4624cf49c86fdf47de908cd79a19c1d83` removes that diagnostic gate while preserving current master behavior.
+The previous feature forced `CpuTransvoxelChunkCache.GpuCutoverDisabled = true`; restoring the environment-based production policy removed that diagnostic CPU gate. The scenario runner also ignored `gpuCutover: required` while module validation inherited `VOXEL_DISABLE_GPU_CUTOVER=1`; the restored declarative child policy clears that override only for GPU-required scenarios.
 
-The scenario runner blob `188c7b02fd42d7add4077deee3f22736a2a70b5c` silently ignored `gpuCutover: required`. The module launcher supplies `VOXEL_DISABLE_GPU_CUTOVER=1`, so simply restoring GPU-required scenes would still run CPU. Restore the previously implemented declarative policy in blob `aff1b26f98663edc681a435fca89e2e78c93afc8`; required scenarios clear the child override without modifying the parent environment. Ordinary inherit-mode diagnostics remain temporary migration consumers, not GPU proof.
+Local tooling regressions: the GPU player-policy suite has five passes after four intended before-fix failures; the frame-timing capture suite has five passes after three intended missing-build-flag failures. These are launch/tooling proofs only, not Unity rendering evidence.
 
-## Local launch regression
+## First exact GPU-enabled production baseline
 
-`python3 -m unittest discover -s tools/tests -p test_gpu_player_validation_policy.py -v`
+Feature source **`9684ff509d65ab7a1caca6245d0f0093f28e249d`**; request **`fb4a7a92de3420c0affa2a5463287d0252f67797`**; run **`34007154618`**; job `101416373122`: **completed success** without replacement. Artifact **`9982119472`**, SHA-256 **`f4fd1e71e4cd76676f4cb88ef39801f55c73c42006543e4b086a4ace4f9eb78c`**. Repository-derived module validation and the 65-second standalone VoxelShowcase replay both passed.
 
-Local copies were verified byte-for-byte by Git blob SHA. Against the old runner: five tests executed, four assertion failures, one pass, zero errors. Against restored runner: five pass, no failures/skips. Tests invoke the real loader/main and inspect the subprocess's effective environment; they also retain capture assertions and reject malformed policies. Subprocess creation is mocked; no Unity execution is claimed.
+Rendering-owned GPU fixtures are real successes:
+- `SolidGpuMinimalValidation`: `gpuAvailable=True backends=1 pub=1 fallback=0 unsupported=0 contextFail=0 arenaFull=0 countFail=0 writeFail=0 blocking=0 visible=1 missing=0`, with the expected 41 solids / 114 exposed faces / 456 vertices / 684 indices visibly rendered.
+- `SolidGpuProductionValidation`: initial/traversal/edit/restart all converge with `fallback=0`, no unsupported/context/count/write/blocking failures. Settled evidence reported `frameP95Ms=5.983`, `frameP99Ms=7.023`, prepare p95 `0.083 ms`, submission p95 `0.008 ms`. Its exact scene is a bounded correctness fixture, not the 1,000 FPS target workload.
 
-`GpuCutoverRuntimePolicyTests.CacheUsesConfiguredBackendInsteadOfHardCodedCpuGate` observes the actual cache policy, not source text. It awaits exact-SHA Unity CI. Restored minimal and multi-chunk players exercise production storage, semantic authoring, rendering, traversal/edit/restart and reject fallback. Their historical successes do not certify this restored revision. Candidate-publication metrics require independent outcome and visible-image scrutiny.
+The **full VoxelShowcase is genuinely exercising GPU extraction but fails visual acceptance badly**. At the end of the replay it reports approximately `gpu[req=731 ... pub=730 ... unsupported=0 stale=0 retry=0]`, `missingVisible=0`, `visible=600`, no fallback/error counters, yet the rendered image contains large missing/flat regions and fragmented floating structural surfaces. Because the defect remains after visible coverage converges to zero missing chunks, it is not acceptable as a startup-only hole. This falsifies “GPU is universally broken” while demonstrating that simple-fixture success does not predict full-scene correctness.
 
-## Previous request, now terminal
+The late 1600x900 windows reached roughly **194–199 rendered FPS**, p50 about **5.0–5.1 ms**, p95 about **5.3–5.5 ms**, with full-scene coverage converged. This is an initial diagnostic baseline only: the locked benchmark is 1920x1080 and repeated workloads, and this exact source still logs zero `FRAMEPIPE` CPU/main/render/present/GPU samples because it predates the descendant frame-timing build fix. Do not interpret unavailable GPU timing as zero cost.
 
-Request `560b0c08f022c42faa9c6877e63d109083eb2dc9`; source `95d4d30467463b47beb57a731b137da01c56d7d4`; run `34005604349`; job `101412081392`: completed success. Artifact `9981080134`, SHA-256 `082cb6cf6fb47f706103b9fccb0d127f51d1366bc6dfb86c997c8d8917c08405`.
+Steps 1/2 are the GPU-enabled near rings in this source. Step 4 and step 8 still have CPU rendering dependencies, and water still has a CPU surface cache; their migration/deletion remains required.
 
-Retained separate player directories:
-- `ModuleValidation/Results/Players/Assets_VoxelEngine_Rendering/FarWorldVisibilityDemo-b6d5cf9b30a2b12f/`
-- `ModuleValidation/Results/Players/Assets_VoxelEngine_Rendering/WaterDemo-ea6924c728356059/`
+## P0 publication transaction discriminator
 
-Both contain their own logs and screenshots; the prior output collision is no longer present in this artifact. SceneIssue GPU request/publication counts remain zero. The 35.2-second far-feature-disabled screenshot is diagnostic only; final restored images and subsequent GPU views still require inspection. FRAMEPIPE has zero samples and is not performance evidence.
+External review findings 1–4 match current production contracts closely enough to require direct proof. Immutable fail-before feature **`51a9f344ec62f583f66a6c1acb3a801efdbf0bae`** adds a real compute page-arena test requiring a successful GPU candidate to stay pending after write/finalization until explicit CPU approval. Companion cases distinguish `Ready`, `Exhausted`, `Stale`, and `TooLarge` without generated-geometry readback.
 
-## Active GPU-enabled request — not a runtime pass yet
+Exact fail-before request **`c1f72490ea9434a1a9069d4afc23b688a885e5e8`**, run **`34010085590`**, is queued at the latest observation. Preserve it until terminal. The expected defect is the old `PublishBatch` swapping pending geometry live before `FinishPagedGpuBuild` performs its renderer slot/version validation.
 
-Feature source `9684ff509d65ab7a1caca6245d0f0093f28e249d`; direct-child request `fb4a7a92de3420c0affa2a5463287d0252f67797`; run `34007154618`; job `101416373122`; created `2026-09-06T02:42:08Z`. Latest observation: queued, no self-hosted macOS runner assigned. Request kept intact. It requests the cache-policy regression, derives module tests/players by repository convention, and includes a 65-second full-scene VoxelShowcase replay. The current default 1600x900 capture is initial diagnosis, not the locked primary 1920x1080 repeated benchmark. Near steps 1/2 may use GPU; coarse/water CPU dependencies still require migration and deletion.
+Descendant work introduces an allocation-free typed outcome parser, retains submitted lanes until a tiny asynchronous status/identity readback completes, and adds explicit pending `Commit` / `Abort` page-arena kernels. This descendant is not pass-after evidence until the CPU approval hook is wired and exact-SHA CI passes.
 
-## G19 frame-timing build discriminator
+## Frame timing follow-up
 
-`tools/showcase-player-capture.sh` at exact source above, blob `d15a964c88f17cd103171076c74e4d46ef852d3c`, only requested `-voxelFrameTimingStats` for stationary sampling. Ordinary FPSLOG runs invoke `CaptureUnityFrameTiming()` but lacked the player's build setting. `ShowcasePlayerBuild.cs` already supports this flag and restores `PlayerSettings.enableFrameTimingStats` in finally; reuse it instead of changing global project settings or adding another build path.
-
-`python3 -m unittest discover -s tools/tests -p test_player_capture_frame_timing.py -v`
-
-The regression executes the actual shell script against temporary scene/issue inputs and a recording substitute for the Unity wrapper, which immediately exits with a sentinel. A local pgrep substitute avoids inspecting/waiting for the developer's editor. No Unity, player or fake visual proof is produced. Tests preserve the actual builder/scene arguments, non-development build, failure propagation, cleanup and rejection of incompatible movement.
-
-Verified original blob byte-for-byte. Before: five cases, three intended missing-flag failures (ordinary, traversal, SceneIssue), two passes, zero errors. After requesting the flag unconditionally for diagnostic captures: all five pass. `bash -n` passes. Combined new launch-policy and timing suites: ten tests pass. These local results do not prove Metal timing availability or overhead. The timing patch is a descendant of the queued source and must receive its own exact-source validation after that request terminates. Never replace a queued/running request to include it.
+Descendant `tools/showcase-player-capture.sh` requests the existing `-voxelFrameTimingStats` builder flag for ordinary, traversal, and SceneIssue captures. `ShowcasePlayerBuild` restores `PlayerSettings.enableFrameTimingStats` in `finally`; no persistent project setting is changed. Exact runtime proof of available Metal frame timing is still required on a post-baseline source.
