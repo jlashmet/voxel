@@ -210,12 +210,50 @@ namespace Game.Structures.Runtime
         private static void AuthorHearth(
             IStructureAuthoringSession a, in DecorationBounds b, in DecorationPresentationProfile p)
         {
-            int wall = math.max(2, math.min(b.Size.x, b.Size.z) / 5);
-            a.Box(b.Min, new int3(b.Size.x, math.max(3, b.Size.y / 4), b.Size.z), p.PrimaryMaterial);
-            int3 fireMin = new int3(b.Min.x + wall, b.Min.y + 2, b.Min.z + wall);
-            int3 fireSize = new int3(math.max(2, b.Size.x - wall * 2), math.max(2, b.Size.y / 3), math.max(2, b.Size.z - wall * 2));
-            a.Box(fireMin, fireSize, p.EmitsLight ? p.EmissiveMaterial : GameMaterialIds.DarkStone);
-            a.Box(new int3(b.Min.x, b.MaxExclusive.y - wall, b.Min.z), new int3(b.Size.x, wall, b.Size.z), p.AccentMaterial);
+            int masonry = math.max(2, math.min(b.Size.x, b.Size.z) / 6);
+            int baseH = math.max(3, b.Size.y / 6);
+            int lintelH = math.max(2, b.Size.y / 8);
+            int rear = math.max(2, math.min(masonry, math.max(2, b.Size.z / 3)));
+            int openingBottom = b.Min.y + baseH;
+            int openingTop = math.min(b.MaxExclusive.y - lintelH - 1, b.Min.y + math.max(baseH + 4, b.Size.y * 3 / 5));
+            int openingH = math.max(2, openingTop - openingBottom);
+            int innerMinZ = b.Min.z + masonry;
+            int innerMaxZ = b.MaxExclusive.z - rear;
+            int innerDepth = math.max(1, innerMaxZ - innerMinZ);
+            int innerWidth = math.max(1, b.Size.x - masonry * 2);
+
+            // Grounded stone plinth/apron. Everything above keys into this base instead of floating.
+            a.Box(b.Min, new int3(b.Size.x, baseH, b.Size.z), p.PrimaryMaterial);
+
+            // Open firebox: rear masonry and two side jambs leave the front/centre visibly hollow.
+            a.Box(new int3(b.Min.x, openingBottom, b.MaxExclusive.z - rear),
+                new int3(b.Size.x, openingH, rear), p.PrimaryMaterial);
+            a.Box(new int3(b.Min.x, openingBottom, b.Min.z),
+                new int3(masonry, openingH, b.Size.z), p.PrimaryMaterial);
+            a.Box(new int3(b.MaxExclusive.x - masonry, openingBottom, b.Min.z),
+                new int3(masonry, openingH, b.Size.z), p.PrimaryMaterial);
+
+            // Attached lintel/hood closes the masonry frame without filling the firebox volume.
+            a.Box(new int3(b.Min.x, openingTop, b.Min.z),
+                new int3(b.Size.x, lintelH, b.Size.z), p.AccentMaterial);
+
+            // Low coal/fire bed sits directly on the plinth inside the open firebox.
+            int fireBedH = math.max(2, math.min(3, openingH / 3));
+            a.Box(new int3(b.Min.x + masonry, openingBottom, innerMinZ),
+                new int3(innerWidth, fireBedH, innerDepth),
+                p.EmitsLight ? p.EmissiveMaterial : GameMaterialIds.DarkStone);
+
+            // Chimney remains physically attached to the lintel and steps inward to read as constructed masonry.
+            int chimneyY = openingTop + lintelH;
+            int remaining = b.MaxExclusive.y - chimneyY;
+            if (remaining > 0)
+            {
+                int insetX = math.min(math.max(1, masonry / 2), math.max(1, (b.Size.x - 2) / 2));
+                int insetZ = math.min(math.max(1, rear / 2), math.max(1, b.Size.z - 2));
+                a.Box(new int3(b.Min.x + insetX, chimneyY, b.Min.z + insetZ),
+                    new int3(math.max(2, b.Size.x - insetX * 2), remaining, math.max(2, b.Size.z - insetZ)),
+                    p.PrimaryMaterial);
+            }
         }
 
         private static void AuthorWheelMachine(
