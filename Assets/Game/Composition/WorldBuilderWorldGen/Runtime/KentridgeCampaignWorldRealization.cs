@@ -10,6 +10,23 @@ using MountingForce.WorldGen.Architecture;
 namespace Game.Composition.WorldBuilderWorldGen.Runtime
 {
     /// <summary>
+    /// Read-only public-circulation facts for the concrete generated site selected for an NPC.
+    /// WorldGen role identity remains opaque to callers; they receive only the semantic network
+    /// approach and real public entrance needed to exercise traversal through production movement.
+    /// </summary>
+    public readonly struct KentridgeCampaignNpcPublicRoute
+    {
+        public Int2 NetworkApproachDm { get; }
+        public Int2 PublicEntranceDm { get; }
+
+        public KentridgeCampaignNpcPublicRoute(Int2 networkApproachDm, Int2 publicEntranceDm)
+        {
+            NetworkApproachDm = networkApproachDm;
+            PublicEntranceDm = publicEntranceDm;
+        }
+    }
+
+    /// <summary>
     /// Pre-voxel campaign realization. This is the complete semantic/architecture result needed by a
     /// backend before it emits world geometry: site roles are selected, NPCs are assigned to concrete
     /// sites, hidden spaces are physically planned, and every gameplay secret owns a distinct candidate.
@@ -45,6 +62,49 @@ namespace Game.Composition.WorldBuilderWorldGen.Runtime
             NpcAssignments = npcAssignments ?? throw new ArgumentNullException(nameof(npcAssignments));
             HiddenSpaces = hiddenSpaces ?? throw new ArgumentNullException(nameof(hiddenSpaces));
             Secrets = secrets ?? throw new ArgumentNullException(nameof(secrets));
+        }
+
+        public bool TryResolveNpcPublicRoute(
+            NpcRef npc,
+            out KentridgeCampaignNpcPublicRoute route)
+        {
+            NpcSiteAssignment assignment = null;
+            for (int i = 0; i < NpcAssignments.Count; i++)
+            {
+                NpcSiteAssignment candidate = NpcAssignments[i];
+                if (candidate != null && candidate.Npc.Equals(npc))
+                {
+                    assignment = candidate;
+                    break;
+                }
+            }
+
+            if (assignment == null)
+            {
+                route = default(KentridgeCampaignNpcPublicRoute);
+                return false;
+            }
+
+            var projections = new KentridgeArchitectureSiteProjectionProvider(Settlement);
+            for (int i = 0; i < Settlement.Sites.Count; i++)
+            {
+                PlannedSite site = Settlement.Sites[i];
+                if (!SettlementPlanSiteCandidateFacts.CandidateId(Settlement.Id, site.RoleId)
+                        .Equals(assignment.Site))
+                    continue;
+                if (!site.Access.IsSpecified)
+                    break;
+                if (!projections.TryProject(site, out SettlementSiteProjection projection))
+                    break;
+
+                route = new KentridgeCampaignNpcPublicRoute(
+                    site.Access.NetworkPointDm,
+                    projection.PublicEntranceDm);
+                return true;
+            }
+
+            route = default(KentridgeCampaignNpcPublicRoute);
+            return false;
         }
     }
 
