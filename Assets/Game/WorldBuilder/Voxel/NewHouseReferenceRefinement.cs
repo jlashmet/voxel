@@ -36,9 +36,6 @@ namespace Game.WorldBuilder.Voxel
             int eave = o.y + c.MainEaveY;
             int ridge = o.y + c.MainRidgeY;
 
-            // Root-cause correction after iterations 2/3: the old full-width/front-to-back roof and
-            // low side-wing helpers remained underneath additive fixes. Remove that entire conflicting
-            // upper roof volume before rebuilding the reference silhouette.
             a.Carve(new int3(o.x - 22, upper + 13, o.z - 18),
                 new int3(c.Width + 44, ridge - upper + 32, c.Depth + 42));
             a.Carve(new int3(o.x - 20, upper - 8, o.z - 12),
@@ -46,7 +43,6 @@ namespace Game.WorldBuilder.Voxel
             a.Carve(new int3(o.x + c.Width, upper - 8, o.z - 12),
                 new int3(20, 22, 42));
 
-            // Lower transverse roof shoulders: broad, low and clearly behind the portrait gable.
             int shoulderEave = upper + 22;
             GableAlongX(a,
                 o.x - c.RoofOverhang - 5,
@@ -58,8 +54,6 @@ namespace Game.WorldBuilder.Voxel
                 3,
                 p.Roof);
 
-            // Narrow steep portrait gable. The reference gable occupies about two thirds of the body
-            // width and is shallow in depth, so the lower roof shoulders remain visible on both sides.
             const int halfGable = 27;
             int gableMinX = centre - halfGable;
             int gableMaxX = centre + halfGable + 1;
@@ -77,7 +71,6 @@ namespace Game.WorldBuilder.Voxel
             Line(a, gableMaxX - 3, portraitEave - 1, centre, portraitEave + portraitRise - 2,
                 o.z - 6, p.Timber);
 
-            // Swept eave tips visible in the reference, without the old deep blue slabs.
             for (int i = 0; i < 7; i++)
             {
                 int y = portraitEave - 2 - i / 2;
@@ -85,7 +78,6 @@ namespace Game.WorldBuilder.Voxel
                 a.Box(new int3(gableMaxX + 2 + i, y, gableMinZ), new int3(1, 2, 18), p.Roof);
             }
 
-            // Rebuild the left capped chimney after clearing the conflicting roof system.
             int chimneyX = o.x + 3;
             int chimneyZ = o.z + 22;
             int chimneyTop = shoulderEave + 24;
@@ -107,9 +99,6 @@ namespace Game.WorldBuilder.Voxel
             int eave = o.y + c.MainEaveY;
             int front = o.z - 2;
 
-            // Iteration 4 proved the roof-clear pass removes the previously authored upper facade.
-            // Re-author only the two reference-visible upper openings after that destructive pass so
-            // the ordering is explicit and future roof changes cannot silently erase them.
             ArchedPanel(a, centre, upper + 7, front, 17, 24,
                 p.Glass, p.Timber, p.Timber, true);
             AddShutters(a, centre, upper + 8, front, 17, 22, p.Accent, p.Timber);
@@ -189,7 +178,6 @@ namespace Game.WorldBuilder.Voxel
             int portraitEave = upper + 31;
             int front = o.z - 7;
 
-            // Strong three-dimensional portal surround and corbelled register break.
             a.Box(new int3(centre - 14, first, front), new int3(4, 26, 3), p.Stone);
             a.Box(new int3(centre + 10, first, front), new int3(4, 26, 3), p.Stone);
             a.Box(new int3(centre - 17, first + 24, front), new int3(7, 4, 3), p.Stone);
@@ -204,11 +192,8 @@ namespace Game.WorldBuilder.Voxel
                 a.Box(new int3(x - 2, upper - 3, front - 2), new int3(7, 2, 3), p.Timber);
             }
 
-            // Dense flower boxes at the two reference-visible upper openings.
             AddDenseFlowerBox(a, centre - 15, upper + 2, front - 2, 30, in p);
             AddDenseFlowerBox(a, centre - 12, portraitEave + 7, front - 2, 24, in p);
-
-            // Connected climbing masses rather than isolated green columns.
             AddIvyMass(a, o.x + c.Width - 8, first + 2, front - 1, 35, -1, in p);
             AddIvyMass(a, o.x + 2, first + 5, front - 1, 18, 1, in p);
         }
@@ -223,13 +208,11 @@ namespace Game.WorldBuilder.Voxel
             int crestBase = portraitEave + portraitRise;
             int front = o.z - 10;
 
-            // Compact stepped crest and pointed finial.
             a.Box(new int3(centre - 4, crestBase, o.z + 3), new int3(8, 2, 6), p.Timber);
             a.Box(new int3(centre - 3, crestBase + 2, o.z + 4), new int3(6, 3, 4), p.Ornament);
             a.Box(new int3(centre - 2, crestBase + 5, o.z + 5), new int3(4, 3, 2), p.Ornament);
             a.Cone(centre, crestBase + 8, o.z + 6, 2, 7, p.Ornament);
 
-            // Slim left banner with border and restrained heraldic mark.
             int bannerX = o.x - 3;
             a.Carve(new int3(o.x - 12, upper + 2, front - 2), new int3(24, 34, 8));
             a.Box(new int3(bannerX - 2, upper + 27, front), new int3(17, 2, 2), p.Timber);
@@ -245,7 +228,6 @@ namespace Game.WorldBuilder.Voxel
             Diagonal(a, bx - 2, by - 2, bx + 2, by + 2, front, p.Ornament);
             Diagonal(a, bx - 2, by + 2, bx + 2, by - 2, front, p.Ornament);
 
-            // Compact right hanging sign, separated from the wall by a bracket.
             int bracketX = o.x + c.Width + 1;
             a.Carve(new int3(bracketX - 1, upper + 5, front - 2), new int3(22, 30, 8));
             a.Box(new int3(bracketX, upper + 26, front), new int3(14, 2, 2), p.Timber);
@@ -258,7 +240,21 @@ namespace Game.WorldBuilder.Voxel
         {
             int first = o.y + c.FirstFloorY;
             int upper = o.y + c.UpperFloorY;
+            int ridge = o.y + c.MainRidgeY;
             int rear = o.z + c.Depth + 1;
+            int wallHeight = 25;
+
+            // Iteration 5 exposed that the roof-clear pass leaves the upper audit shell open. Restore
+            // opaque plaster infill first, then place timber framing and carve intentional openings.
+            a.Box(new int3(o.x + 1, upper, o.z + 8),
+                new int3(3, wallHeight, c.Depth - 7), p.Plaster);
+            a.Box(new int3(o.x + c.Width - 4, upper, o.z + 8),
+                new int3(3, wallHeight, c.Depth - 7), p.Plaster);
+            a.Box(new int3(o.x + 1, upper, rear - 2),
+                new int3(c.Width - 2, wallHeight, 3), p.Plaster);
+
+            FillRearGable(a, o.x + c.Width / 2, rear - 2, upper + wallHeight,
+                c.Width - 16, math.max(18, ridge - upper - wallHeight), p.Plaster);
 
             a.Box(new int3(o.x + 5, upper - 2, rear), new int3(c.Width - 10, 2, 2), p.Timber);
             a.Box(new int3(o.x + 5, upper + 25, rear), new int3(c.Width - 10, 2, 2), p.Timber);
@@ -269,7 +265,6 @@ namespace Game.WorldBuilder.Voxel
             AddRearWindow(a, o.x + c.Width - 22, first + 8, rear, 11, 18, in p);
             AddRearWindow(a, o.x + c.Width / 2, upper + 7, rear, 13, 20, in p);
 
-            // Side-elevation timber belts stop the audit views reading as plain boxes.
             int left = o.x - 1;
             int right = o.x + c.Width + 1;
             a.Box(new int3(left, upper - 2, o.z + 8), new int3(2, 2, c.Depth - 14), p.Timber);
@@ -278,6 +273,18 @@ namespace Game.WorldBuilder.Voxel
             {
                 a.Box(new int3(left, upper, z), new int3(2, 22, 2), p.Timber);
                 a.Box(new int3(right, upper, z), new int3(2, 22, 2), p.Timber);
+            }
+        }
+
+        private static void FillRearGable(IStructureAuthoringSession a,
+            int centreX, int z, int baseY, int width, int rise, byte material)
+        {
+            int half = math.max(2, width / 2);
+            for (int row = 0; row < rise; row++)
+            {
+                int rowHalf = math.max(1, half * (rise - row) / rise);
+                a.Box(new int3(centreX - rowHalf, baseY + row, z),
+                    new int3(rowHalf * 2 + 1, 1, 3), material);
             }
         }
 
