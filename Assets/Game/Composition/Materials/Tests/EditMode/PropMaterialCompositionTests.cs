@@ -9,7 +9,6 @@ namespace Game.Composition.Materials.Tests
     /// Exercises the real shared adapter, not a second material registry or fake renderer.
     /// The module-owned standalone scene supplies the corresponding pixel evidence.
     /// </summary>
-    [NonParallelizable]
     public sealed class PropMaterialCompositionTests
     {
         [Test]
