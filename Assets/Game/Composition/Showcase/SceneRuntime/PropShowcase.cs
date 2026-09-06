@@ -319,7 +319,8 @@ namespace VoxelEngine.Showcase
                 new Color(0.56f, 0.64f, 0.71f, 1f),
                 new Color(0.20f, 0.27f, 0.34f, 1f));
             RenderingComposition.ConfigureEnvironment(
-                new Color(0.72f, 0.74f, 0.76f, 1f),
+                // Non-white selects diagnostic normal coverage, bypassing production materials.
+                Color.white,
                 new Vector3(-0.45f, 0.82f, -0.35f).normalized,
                 new Color(1.0f, 0.93f, 0.82f, 1f),
                 new Color(0.42f, 0.46f, 0.50f, 1f));
