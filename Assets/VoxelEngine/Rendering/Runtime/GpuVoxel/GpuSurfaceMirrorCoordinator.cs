@@ -305,8 +305,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             {
                 long budget = Math.Max(MinimumSharedMirrorBudgetBytes,
                                        Math.Max(1L, requestedBudgetBytes) * 16L);
-                s_Mirror = new GpuVoxelBrickMirror(
-                    GpuBrickBufferLayout.SlotsForBudget(budget));
+                var layout = GpuVoxelBrickMirror.SharedLayout(GpuBrickBufferLayout.SlotsForBudget(budget));
+                s_Mirror = new GpuVoxelBrickMirror(layout.Slots, layout.DirectoryEntries);
             }
             s_ReferenceCount++;
             return s_Mirror;
@@ -354,7 +354,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 SynchronizeChanges(storage.Version);
             if (s_Mirror.IsClearPending) return;
             if (Time.realtimeSinceStartupAsDouble < deadline)
+            {
+                s_RecoveryCalls++;
                 ProcessRecovery(deadline, Math.Max(0, uploadBudgetBytes));
+            }
+            else s_RecoveryDeadlineSkips++;
             s_Mirror.FlushPendingUploads();
             AdvanceCountBatches(frame);
         }
@@ -778,12 +782,13 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         }
 
         internal static string RecoveryState => $"regions={s_RecoveryRegions.Count}/{s_QueuedRecoveryRegions.Count}"
-            + $" mixed={ResidentMixedBrickCount}/{MirrorSlotCapacity} noSlot={s_Mirror?.RefusedNoSlot ?? 0}"
+            + $" mixed={ResidentMixedBrickCount}/{MirrorSlotCapacity} noSlot={s_Mirror?.RefusedNoSlot ?? 0} directory={s_Mirror?.DirectoryCapacity ?? 0} dirRefused={s_Mirror?.DirectoryRefusals ?? 0} dirProbes={s_Mirror?.DirectoryProbeChecks ?? 0}"
             + $" stale={s_Mirror?.RejectedStale ?? 0} lastFailure={s_LastRecoveryFailure}"
-            + $" recovery[active={s_RecoveryActiveSkips} borrow={s_RecoveryBorrowMisses} block={s_RecoveryBlockMisses} published={s_RecoveryPublished} lastRegion={s_LastRecoveryBlockedRegion}]";
+            + $" recovery[active={s_RecoveryActiveSkips} borrow={s_RecoveryBorrowMisses} block={s_RecoveryBlockMisses} published={s_RecoveryPublished} lastRegion={s_LastRecoveryBlockedRegion} calls={s_RecoveryCalls} deadlineSkips={s_RecoveryDeadlineSkips}]";
         private static GpuBrickPublish s_LastRecoveryFailure;
         private static ulong s_RecoveryActiveSkips, s_RecoveryBorrowMisses, s_RecoveryBlockMisses, s_RecoveryPublished;
         private static int3 s_LastRecoveryBlockedRegion;
+        private static ulong s_RecoveryCalls, s_RecoveryDeadlineSkips;
         internal static int ReadyRegionCount => s_ReadyBlocksByRegion.Count;
         internal static int ReadyBlockCount => s_ReadyBlocks.Count;
         internal static int PendingBlockCount => s_PendingBlocks.Count;
@@ -1159,7 +1164,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             if (s_ReadyBlocks.Contains(block)) return;
             if (s_ReadyBlocks.Count >= TrackedBlockCapacity)
-                TryEvictInactiveReadyBlock();
+                TryEvictInactiveReadyBlock(Time.frameCount);
             if (!s_ReadyBlocks.Add(block)) return;
             s_ReadyResidencyOrder.Enqueue(block);
             int3 region = block >> VoxelReadGrid.BlocksPerRegionEdgeLog2;
@@ -1174,9 +1179,13 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         }
 
         internal static ulong ReadyEvictionChecks { get; private set; }
+        private static int s_LastReadyEvictionMissFrame = -1;
 
-        private static bool TryEvictInactiveReadyBlock()
+        private static bool TryEvictInactiveReadyBlock(int frame)
         {
+            // Once a bounded slice finds only protected records, retry next frame. Repeating
+            // the same failed walk for every incoming brick consumes recovery's entire budget.
+            if (s_LastReadyEvictionMissFrame == frame) return false;
             // Coarse footprints legitimately pin more entries than the cleanup target. Walk
             // the queue incrementally: a full scan for every added brick becomes quadratic
             // and prevents those footprints from ever reaching dispatch. The queue retains
@@ -1198,6 +1207,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 s_Mirror.Remove(block);
                 return true;
             }
+            s_LastReadyEvictionMissFrame = frame;
             return false;
         }
 
@@ -1270,6 +1280,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         private static void ClearReadyBlocks()
         {
+            s_LastReadyEvictionMissFrame = -1;
             s_ReadyBlocks.Clear();
             foreach (HashSet<int3> blocks in s_ReadyBlocksByRegion.Values)
             {

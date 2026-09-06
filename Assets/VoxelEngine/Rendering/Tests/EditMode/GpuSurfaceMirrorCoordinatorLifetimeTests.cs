@@ -9,7 +9,7 @@ namespace VoxelEngine.Rendering.Tests.EditMode
     public sealed class GpuSurfaceMirrorCoordinatorLifetimeTests
     {
         [Test]
-        public void CoarseDemandDoesNotRescanEveryPinnedReadyBrickOnEachAdmission()
+        public void CoarseDemandDoesNotRepeatFailedEvictionWithinSameFrame()
         {
             var type = typeof(GpuSurfaceMirrorCoordinator);
             var add = (Action<int3>)type.GetMethod("AddReadyBlock", BindingFlags.Static | BindingFlags.NonPublic)
@@ -25,8 +25,13 @@ namespace VoxelEngine.Rendering.Tests.EditMode
                 for (int i = 65536; i < 65552; i++) add(new int3(i % 66, (i / 66) % 66, i / (66 * 66)));
                 Assert.That(GpuSurfaceMirrorCoordinator.ReadyBlockCount, Is.EqualTo(65552),
                     "A demanded source must remain ready; cleanup cannot evict it to meet its target.");
-                Assert.That(GpuSurfaceMirrorCoordinator.ReadyEvictionChecks - before, Is.LessThanOrEqualTo(16UL * 64),
-                    "Cleanup must be bounded per admitted brick even when all old records are demanded.");
+                Assert.That(GpuSurfaceMirrorCoordinator.ReadyEvictionChecks - before, Is.LessThanOrEqualTo(64UL),
+                    "A failed pinned-only cleanup slice must not repeat for every brick admitted in the same frame.");
+                ulong after = GpuSurfaceMirrorCoordinator.ReadyEvictionChecks;
+                type.GetMethod("TryEvictInactiveReadyBlock", BindingFlags.Static | BindingFlags.NonPublic)
+                    .Invoke(null, new object[] { UnityEngine.Time.frameCount + 1 });
+                Assert.That(GpuSurfaceMirrorCoordinator.ReadyEvictionChecks - after, Is.EqualTo(64UL),
+                    "The next frame must resume the cleanup cursor rather than permanently suppressing reclamation.");
             }
             finally
             {

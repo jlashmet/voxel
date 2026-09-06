@@ -65,6 +65,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private int _coverageScanCursor;
         private bool _coverageRoundIncomplete;
         private bool _coverageReady;
+        private uint _requestCoveragePolls, _requestCoverageRestarts;
         private int _lastCoveragePollFrame = -1;
         private ComputeBuffer _writeVertices;
         private ComputeBuffer _writeIndices;
@@ -108,6 +109,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         public ulong ChunksOverflowed { get; private set; }
         public ulong CountReadbackRetryCount { get; private set; }
         public long MirrorCommittedBytes => _mirror.CommittedBytes;
+        internal string CoverageProgress => $"step={_staged.SourceStep} origin={_staged.BrickCacheOrigin} edge={_brickCacheEdge} cursor={_coverageScanCursor} polls={_requestCoveragePolls} restarts={_requestCoverageRestarts} ready={_coverageReady}";
         public bool HasActiveRequest => _stageRequestStartedSeconds > 0.0;
         public double ActiveRequestAgeMs => !HasActiveRequest ? 0.0
             : Math.Max(0.0, (Time.realtimeSinceStartupAsDouble
@@ -304,6 +306,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             ThrowIfDisposed();
             Release();
             ChunksRequested++;
+            _requestCoveragePolls = _requestCoverageRestarts = 0;
             _stageRequestStartedSeconds = Time.realtimeSinceStartupAsDouble;
             if (!TryCaptureStorageGeneration(out _stageStorageGeneration))
             {
@@ -379,7 +382,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (!_coverageRequested || _coverageEpoch != epoch)
             {
                 if (_coverageRequested)
+                {
+                    _requestCoverageRestarts++;
                     ReleasePersistentCoverage(_staged);
+                }
                 _coverageWorldEpoch = GpuSurfaceMirrorCoordinator.RequestCoverage(
                     request.BrickCacheOrigin, _brickCacheEdge,
                     request.ChunkOriginVoxel, coreMaxVoxelExclusive);
@@ -393,6 +399,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _lastCoveragePollFrame = Time.frameCount;
             if (!_coverageReady)
             {
+                _requestCoveragePolls++;
                 if (!GpuSurfaceMirrorCoordinator.Covers(
                         request.BrickCacheOrigin, _brickCacheEdge,
                         request.ChunkOriginVoxel, coreMaxVoxelExclusive, generation,

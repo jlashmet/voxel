@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
@@ -41,6 +42,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             GpuBrickBufferLayout.MaterialWordsPerBrick
           + GpuBrickBufferLayout.SurfaceWordsPerBrick
           + GpuBrickBufferLayout.BoundaryWordsPerBrick + 1;
+        // Host orchestration indexes the same GPU entries. This is not voxel authority: it
+        // avoids probing a tombstone-filled GPU hash layout to prove a CPU lookup is absent.
+        private readonly Dictionary<int3, int> _directoryIndexByCoordinate = new();
         private const uint DirectoryOccupied = 1u;
         private const uint DirectoryTombstone = 2u;
         private const string DirectoryUpdaterResourcePath = "VoxelBrickDirectoryUpdater";
@@ -113,6 +117,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         public ulong RejectedStale => _slots.StaleCount;
         public ulong Evictions => _slots.EvictionCount;
         public ulong DirectoryRefusals { get; private set; }
+        internal ulong DirectoryProbeChecks { get; private set; }
         public ulong DirectoryUploadBytes { get; private set; }
         public ulong DirectoryUploadBatches { get; private set; }
         public ulong PayloadUploadBytes { get; private set; }
@@ -124,20 +129,39 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         public ComputeBuffer Occupancy => FlushAndGet(_occupancy);
         public ComputeBuffer Metadata => FlushAndGet(_metadata);
 
-        public GpuVoxelBrickMirror(int slotCapacity)
+        internal static long BytesForLayout(int slots, int directoryEntries) =>
+            (long)slots * (GpuBrickBufferLayout.BytesPerMixedBrick + BrickMetadata.Stride)
+            + (long)directoryEntries * DirectoryWordsPerEntry * sizeof(uint)
+            + (long)DirectoryDeltaCapacity * DirectoryDeltaWords * sizeof(uint)
+            + (long)PayloadDeltaCapacity * PayloadDeltaWords * sizeof(uint);
+
+        internal static (int Slots, int DirectoryEntries) SharedLayout(int previousSlots)
+        {
+            // Two coarse 66^3 source footprints plus near-ring demands need more directory
+            // keys than mixed payload slots. Reserve key capacity within the old GPU allocation,
+            // exchanging payload slots for directory entries rather than raising its byte ceiling.
+            const int directory = 1 << 20;
+            long previousBytes = BytesForLayout(previousSlots,
+                NextPowerOfTwo(Math.Max(1024, previousSlots * 4)));
+            long available = previousBytes - BytesForLayout(0, directory);
+            int slots = (int)(available / (GpuBrickBufferLayout.BytesPerMixedBrick + BrickMetadata.Stride));
+            if (slots < 1) throw new ArgumentOutOfRangeException(nameof(previousSlots));
+            return (Math.Min(slots, GpuBrickBufferLayout.MaximumAddressableSlots), directory);
+        }
+
+        public GpuVoxelBrickMirror(int slotCapacity, int directoryCapacity = 0)
         {
             if (slotCapacity <= 0 || slotCapacity > GpuBrickBufferLayout.MaximumAddressableSlots)
                 throw new ArgumentOutOfRangeException(nameof(slotCapacity));
 
             SlotCapacity = slotCapacity;
-            DirectoryCapacity = NextPowerOfTwo(Math.Max(1024, slotCapacity * 4));
+            DirectoryCapacity = directoryCapacity == 0
+                ? NextPowerOfTwo(Math.Max(1024, slotCapacity * 4)) : directoryCapacity;
+            if (DirectoryCapacity < 1024 || (DirectoryCapacity & (DirectoryCapacity - 1)) != 0
+                || DirectoryCapacity > int.MaxValue / DirectoryWordsPerEntry)
+                throw new ArgumentOutOfRangeException(nameof(directoryCapacity));
             DirectoryWordOffset = slotCapacity * GpuBrickBufferLayout.MaterialWordsPerBrick;
-            long directoryBytes = (long)DirectoryCapacity * DirectoryWordsPerEntry * sizeof(uint);
-            long payloadDeltaBytes =
-                (long)PayloadDeltaCapacity * PayloadDeltaWords * sizeof(uint);
-            CommittedBytes = GpuBrickBufferLayout.CommittedBytes(slotCapacity) + directoryBytes
-                           + (long)DirectoryDeltaCapacity * DirectoryDeltaWords * sizeof(uint)
-                           + payloadDeltaBytes;
+            CommittedBytes = BytesForLayout(slotCapacity, DirectoryCapacity);
             _slots = new GpuBrickSlotTable(slotCapacity);
 
             _directoryUpdater = Resources.Load<ComputeShader>(DirectoryUpdaterResourcePath);
@@ -216,6 +240,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             }
             _clearPending = false;
             _slots.Clear();
+            _directoryIndexByCoordinate.Clear();
             Array.Clear(_dirtySlots, 0, _dirtySlots.Length);
             Array.Clear(_dirtyDirectoryEntries, 0, _dirtyDirectoryEntries.Length);
             _dirtyMin = int.MaxValue;
@@ -374,13 +399,15 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         private bool PublishLookup(in VoxelBrickDelta delta, int slot)
         {
-            int index = FindDirectoryIndex(delta.Coordinate, forInsert: true);
+            int index = _directoryIndexByCoordinate.TryGetValue(delta.Coordinate, out int existing)
+                ? existing : FindFreeDirectoryIndex(delta.Coordinate);
             if (index < 0)
             {
                 DirectoryRefusals++;
                 return false;
             }
 
+            _directoryIndexByCoordinate[delta.Coordinate] = index;
             int word = index * DirectoryWordsPerEntry;
             _directoryStaging[word + 0] = unchecked((uint)delta.Coordinate.x);
             _directoryStaging[word + 1] = unchecked((uint)delta.Coordinate.y);
@@ -394,8 +421,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         private void RemoveLookup(int3 coordinate)
         {
-            int index = FindDirectoryIndex(coordinate, forInsert: false);
-            if (index < 0) return;
+            if (!_directoryIndexByCoordinate.TryGetValue(coordinate, out int index)) return;
+            _directoryIndexByCoordinate.Remove(coordinate);
             _directoryStaging[index * DirectoryWordsPerEntry + 4] = DirectoryTombstone;
             MarkDirectoryDirty(index);
         }
@@ -407,28 +434,19 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (index > _directoryDirtyMax) _directoryDirtyMax = index;
         }
 
-        private int FindDirectoryIndex(int3 coordinate, bool forInsert)
+        private int FindFreeDirectoryIndex(int3 coordinate)
         {
-            int firstTombstone = -1;
+            // The host index already proves this key absent, so the first tombstone is safe
+            // to reuse without scanning the rest of the table for a duplicate.
             int index = (int)(HashCoordinate(coordinate) & (uint)DirectoryMask);
             for (int probe = 0; probe < DirectoryCapacity; probe++)
             {
+                DirectoryProbeChecks++;
                 int candidate = (index + probe) & DirectoryMask;
-                int word = candidate * DirectoryWordsPerEntry;
-                uint state = _directoryStaging[word + 4];
-                if (state == 0u)
-                    return forInsert ? (firstTombstone >= 0 ? firstTombstone : candidate) : -1;
-                if (state == DirectoryTombstone)
-                {
-                    if (forInsert && firstTombstone < 0) firstTombstone = candidate;
-                    continue;
-                }
-                if (unchecked((int)_directoryStaging[word + 0]) == coordinate.x
-                    && unchecked((int)_directoryStaging[word + 1]) == coordinate.y
-                    && unchecked((int)_directoryStaging[word + 2]) == coordinate.z)
-                    return candidate;
+                uint state = _directoryStaging[candidate * DirectoryWordsPerEntry + 4];
+                if (state != DirectoryOccupied) return candidate;
             }
-            return forInsert ? firstTombstone : -1;
+            return -1;
         }
 
         public static uint HashCoordinate(int3 coordinate)
@@ -682,6 +700,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (_directoryDeltaStaging.IsCreated) _directoryDeltaStaging.Dispose();
             if (_payloadDeltaStaging.IsCreated) _payloadDeltaStaging.Dispose();
             _slots.Clear();
+            _directoryIndexByCoordinate.Clear();
         }
     }
 }

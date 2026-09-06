@@ -24,6 +24,38 @@ Each completed item needs exact feature SHA, request/run IDs, relevant executed 
 
 ## Current local evidence (2026-09-06)
 
+Latest coarse-source checkpoint (still incomplete): request-progress/recovery diagnostics falsify
+source borrowing, active-reader stalls, scan starvation and change-replay deadline starvation as
+sole causes. `gpu-coarse-progress-trace/`: 90s/six captures/terminal exit 0; oldest coarse request
+6,732 polls, zero restarts; 9,566 recovery calls, zero deadline skips.
+
+Bounded failed cleanup now retries next frame rather than per incoming brick. Before regression
+failed at 1,024 checks versus 64 allowed; after suite 27 passed. A host index of the existing GPU
+directory removes exhaustive absent-key CPU scans and permits immediate tombstone reuse.
+Before churn regression failed at 16,384 probes for 16 absent keys; GPU collision/reuse/clear
+regressions pass. Cleanup-only and index-only 180s Showcase runs completed (12/11 captures)
+but remained coverage failures. Index-only traversal exposed directory exhaustion with only
+1,949 mixed payload slots occupied out of 65,536.
+
+Shared mirror allocation now reserves 1,048,576 directory entries and 58,144 mixed slots in the
+previous 64k-slot GPU-byte ceiling, with metadata included in byte accounting. The old directory
+failed at 262,144 uniform keys; the new layout publishes 524,288 keys for two full 64³ coarse cores
+and verifies material via the real GPU summary lookup. `gpu-directory-capacity-fixed.xml`:
+49 passed, terminal exit 0 in 20s. Smaller shared-budget layout also stays within its old ceiling.
+
+`gpu-directory-capacity-showcase/`: 180s, 11 captures, terminal exit 0, no exceptions or transaction
+rejections. Reviewed 75.1s/150.2s is **unacceptable**: terrain gaps/coarse artifacts and a black
+obstruction filling most of the walking view. Step8 publications reach 4, but traversal accumulates
+11,981 directory refusals with only 39,070/58,144 mixed slots used. Current `PublishBlock` only
+reclaims mixed entries on `NoSlot`; cold uniform directory entries need their own safe pressure
+recovery. Long GPU directory probes are another unresolved risk (diagnostic GPU windows near 750ms).
+Do not accept these timings as a benchmark or this harness completion as coverage/visual success.
+Source copies/hashes/diffs are retained with final and intermediate capture directories.
+`gpu-directory-capacity-module/`: 48s, eight captures, terminal exit 0; required GPU publication,
+edit restoration and far-handoff markers pass. Reviewed 42s retains prototype fixture quality,
+with no missing fixture surfaces observed. This does not satisfy Showcase visual acceptance.
+
+
 Latest source-validity checkpoint: footprint-scoped invalidation replaces global cancellation
 for ordinary solid edits. Mirror/history resets still invalidate all demanded footprints; new
 occupancy/residency in an absent halo invalidates that footprint even without ready mirror data.
@@ -145,14 +177,14 @@ after completion, and guards count/write against mismatches. Boundary regression
 edges4/6 and failed before (expected256 vertices, got0); all13 focused tests pass after in17s,
 zero skipped (`layout-boundary-before.xml`, `layout-after.xml`). The earlier all-solid fixture
 passed before and did not expose this failure. Diagnostic binaries/patch retained; readbacks removed.
-`layout-fixed/` completed180 seconds, player exit0,11 screenshots. Castle upper walls no longer
+`layout-fixed/` completed180 seconds, player exit 0,11 screenshots. Castle upper walls no longer
 fragment into floating strips. Traversal still has missing ground, terrain bands, cyan water and
 grey blockout far structures: **unacceptable**. Its `diagnostic-summary.json` retains rounded
 per-window timings and caveats; no full-coverage or performance acceptance. Reassess GPU capacity
 and live publication with corrected layouts before implementing compression/recovery changes.
 
 
-Corrected-layout replay `layout-coverage-trace/` completed180s, exit0,11 screenshots. At60s,
+Corrected-layout replay `layout-coverage-trace/` completed180s, exit 0,11 screenshots. At60s,
 538/538 visible handles were live-ready (491 nonempty draws),7454 vertex pages remained and
 zero failures occurred. At120s, only45/69 visible handles were live-ready,2 pages remained,
 and138 failures had accumulated. At165s,171/172 were ready,1 page remained,273 failures.
@@ -175,7 +207,7 @@ permanent-error handling and final last-consumer retirement still require G10/G1
 `outcome-recovery/final-tests.xml`:22 passed,zero skipped/failed,in15 seconds. Includes real GPU
 exhaustion -> async16-byte feedback -> page reclamation -> successful retry, compact independent
 record identity and the updated no-blocking/no-count-transfer architecture assertion.
-`outcome-recovery/` completed180 seconds,exit0,11 screenshots,no transaction rejection errors.
+`outcome-recovery/` completed180 seconds,exit 0,11 screenshots,no transaction rejection errors.
 Visual classification remains **unacceptable**: terrain gaps/bands, grey far masses, cyan water.
 Diagnostic window timings/source delta are archived; no benchmark or full coverage acceptance.
 
@@ -184,23 +216,23 @@ Diagnostic window timings/source delta are archived; no benchmark or full covera
 Current local publication replacement deletes the automatic pump/kernel, assigns a unique renderer
 attempt generation, and requires host source/configuration approval before commit. Cancellation
 aborts exact identities, including results arriving after their context was released.
-`approval-identity-tests.xml`:25 passed. `approval-module/`:48s,exit0,8 captures, production
+`approval-identity-tests.xml`:25 passed. `approval-module/`:48s,exit 0,8 captures, production
 initial/traversal/edit/settled/restart passed with zero fallback/rejections. `approval-showcase/`:
-180s,exit0,11 captures; reviewed60s/165s. **Unacceptable**: terrain banding/seams, coarse grey
+180s,exit 0,11 captures; reviewed60s/165s. **Unacceptable**: terrain banding/seams, coarse grey
 far geometry, cyan water and poor terrain integration. These remain G07–G09 defects.
 
 Finalization previously ignored actual write totals. `write-finalization-before.xml`:all5 real-GPU
 missing/short/overflow transaction cases failed. GPU-side count comparison now rejects incomplete
 candidates, retires their pending pages and preserves prior live geometry; only failure status
 crosses to the CPU. `write-finalization-after.xml`:30 passed,zero skipped/failed,18s guarded run.
-`write-finalization-module/`:48s,exit0,8 captures, all module stages passed; final42s screenshot
-reviewed. `write-finalization-showcase/`:180s,exit0,11 captures;165s reviewed, still unacceptable.
+`write-finalization-module/`:48s,exit 0,8 captures, all module stages passed; final42s screenshot
+reviewed. `write-finalization-showcase/`:180s,exit 0,11 captures;165s reviewed, still unacceptable.
 This first strict run mapped write mismatches to generic retryable Failed, so quiet logs do not
 prove zero write-count failures. Dedicated `WriteFailed` status now remains distinct/nonretryable
 and logs rejection. `write-finalization-distinct-tests.xml`:31 passed in18s.
-`write-status-module/`:48s,exit0,8 captures; initial/traversal/edit/settled/restart passed with
+`write-status-module/`:48s,exit 0,8 captures; initial/traversal/edit/settled/restart passed with
 zero fallback/missing/transaction rejections,42s screenshot reviewed. `write-status-showcase/`:
-180s,exit0,11 captures,zero transaction rejections/exceptions;60s/150s/165s reviewed.
+180s,exit 0,11 captures,zero transaction rejections/exceptions;60s/150s/165s reviewed.
 **Unacceptable**: terrain banding/seams, coarse grey masses, cyan water, and a large featureless
 foreground surface during traversal. No observed write-count failure in this run; payload/coverage
 correctness remains unproven. Diagnostic CPU window p50 median:4.885ms stationary,8.65ms walking;
@@ -270,7 +302,7 @@ Unknown/partial discovery, invalidation and eviction retain/restore proxies. Reg
 rescan through the existing bounded job pipeline; no GPU output affects authoritative state.
 All14 final domain/presentation/lifecycle tests pass (`replacement-final-lifecycle-tests.xml`,16s). The final48s module (`replacement-module-final/`) completed
 with8 captures and full two-instance replacement, edit restoration, restart and zero GPU error
-counters. Reviewed42s shows the real WorldBuilder landmark. Normal180s Showcase completed12
+counters. Reviewed 42s shows the real WorldBuilder landmark. Normal180s Showcase completed12
 captures/no transaction errors;60s mountain replacement improves, but side blocks/150s traversal
 obstructions remain **unacceptable**. Diagnostic CPU window p50 medians6.6/10.2ms are not acceptance.
 The65s owner probe completed11 captures; original visibility/issue metadata restored. At60s the
@@ -309,7 +341,7 @@ evidence; `decode` passed12 cases. Temporary per-lane diagnostics are removed. T
 preparation only: step4/8 CPU summary/mesh jobs remain active and G07 is not complete. Integration
 must hold source/version leases through ordered completion, reject unknown coverage, produce
 GPU geometry and exercise Rendering-owned player scenes before deleting the old path.
-Normal180s Showcase regression passed11 captures, exit0, no exceptions or transaction rejections
+Normal180s Showcase regression passed11 captures, exit 0, no exceptions or transaction rejections
 (`gpu-hlod-summary-showcase/`). Reviewed75s/150s: detailed castle intact and phantom wall absent;
 terrain banding/seams/gaps and coarse side geometry remain **unacceptable**. This unchanged scene
 consumer is regression evidence only; it does not exercise the new summary kernel.
@@ -346,7 +378,7 @@ reviewed150s retains the near-identical dark/green obstruction. This falsifies f
 direct source. `obstruction-no-farfeatures-diagnostic/` also completed180s/12 captures, exit0.
 Reviewed120s/150s no longer show the flat obstruction with terrain active, attributing it to semantic
 far rendering. Terrain aliasing and near gaps remain. `obstruction-full-handoff-trace/` restores all
-content, completed180s/12 captures/exit0, and reviewed150s reproduces the obstruction. Existing
+content, completed180s/12 captures/exit 0, and reviewed150s reproduces the obstruction. Existing
 trace identifies mountain CC9F50C170E9C507 at90–110s but truncates the larger150s retained set
 to four entries. Exact obstructing primitive remains unproven. Next diagnostic must report nearest
 camera-ray/proxy intersections, distinguishing geometry, transform/submission and handoff causes.
@@ -425,7 +457,7 @@ epochs, so old cleanup cannot remove new-world ownership. Coverage-invalid queue
 requests wake the worker for retry. All24 focused checks pass, including real submission
 followed by production PrepareFrame world replacement, history invalidation and old-context
 cleanup (`mirror-clear-world-replacement.xml`). The48s production module passed8 captures,
-edit/handoff/restart and zero fallback/failure counters (`mirror-clear-module/`). Reviewed42s
+edit/handoff/restart and zero fallback/failure counters (`mirror-clear-module/`). Reviewed 42s
 has intact production geometry but prototype/blockout composition; no visual acceptance.
 Full180s Showcase passed12 captures/no exceptions or transaction rejections (`mirror-clear-showcase/`).
 Reviewed75s retains castle detail;150s is nearly fully obscured by huge flat surfaces: **unacceptable**.

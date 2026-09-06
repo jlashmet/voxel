@@ -1027,6 +1027,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public ulong GpuCounterRetryCount => _gpuExtraction?.CountReadbackRetryCount ?? 0UL;
         public bool HasActiveGpuStage => _gpuExtraction?.HasActiveRequest ?? false;
         public int ActiveGpuStagePhase => _gpuExtraction?.ActiveRequestPhase ?? 0;
+        internal string GpuCoverageProgress => _gpuExtraction?.CoverageProgress;
         public double ActiveGpuStageAgeMs => _gpuExtraction?.ActiveRequestAgeMs ?? 0.0;
         /// <summary>
         /// Legacy telemetry retained for capture-schema compatibility. The final paged path never

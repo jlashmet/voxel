@@ -1114,6 +1114,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             ulong gpuUnsupportedDecoration = 0, gpuStale = 0, gpuRetries = 0;
             int gpuInFlight = 0, gpuPhaseMask = 0;
             double gpuOldestMs = 0.0;
+            string oldestCoverage = "";
             for (int i = 0; i < _allWorkers.Length; i++)
             {
                 CpuTransvoxelChunkCache worker = _allWorkers[i];
@@ -1132,7 +1133,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 if (!worker.HasActiveGpuStage) continue;
                 gpuInFlight++;
                 gpuPhaseMask |= 1 << worker.ActiveGpuStagePhase;
-                gpuOldestMs = Math.Max(gpuOldestMs, worker.ActiveGpuStageAgeMs);
+                if (worker.ActiveGpuStageAgeMs >= gpuOldestMs)
+                {
+                    gpuOldestMs = worker.ActiveGpuStageAgeMs;
+                    oldestCoverage = worker.GpuCoverageProgress;
+                }
             }
             text.Append($" gpu[req={gpuRequested} mirror={gpuMirrorReady}"
                         + $" count={gpuCountReady} write={gpuWriteReady}"
@@ -1155,7 +1160,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         + $" polls={GpuSurfaceMirrorCoordinator.CoveragePolls} {GpuSurfaceMirrorCoordinator.RecoveryState}]"
                         + $" dispatchMs[{GpuSurfaceMirrorCoordinator.ConsumeExtractionDispatchTimings()}]"
                         + $" flight={gpuInFlight}"
-                        + $" phases=0x{gpuPhaseMask:X} oldestMs={gpuOldestMs:0.0}]");
+                        + $" phases=0x{gpuPhaseMask:X} oldestMs={gpuOldestMs:0.0} oldest[{oldestCoverage}]]");
             for (int r = 0; r < _rings.Length; r++)
             {
                 SurfaceRing ring = _rings[r];
