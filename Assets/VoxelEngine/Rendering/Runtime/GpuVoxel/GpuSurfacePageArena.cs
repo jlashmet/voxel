@@ -23,6 +23,13 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private const int HandleCommandCapacity = 1024;
         private const int ThreadGroupSize = 64;
 
+        private enum HandleState : byte
+        {
+            Free,
+            Acquired,
+            ReleaseQueued,
+        }
+
         [StructLayout(LayoutKind.Sequential)]
         private struct HandleCommand
         {
@@ -78,7 +85,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private readonly int _publishKernel;
         private readonly int _handleKernel;
         private readonly Stack<int> _freeHandles;
+        private readonly HandleState[] _handleStates;
         private readonly List<int> _releasedHandles = new(HandleCommandCapacity);
+        private readonly Dictionary<int, int> _commandIndexByHandle = new(HandleCommandCapacity);
         private readonly HandleCommand[] _commandStaging = new HandleCommand[HandleCommandCapacity];
         private int _commandCount;
         private bool _disposed;
@@ -149,6 +158,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             DesiredGenerations.SetData(new uint[handleCapacity * 2]);
 
             _freeHandles = new Stack<int>(handleCapacity);
+            _handleStates = new HandleState[handleCapacity];
             for (int handle = handleCapacity - 1; handle >= 0; handle--) _freeHandles.Push(handle);
             BindAllKernels();
         }
@@ -158,19 +168,29 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             ThrowIfDisposed();
             if (_freeHandles.Count == 0) { handle = -1; return false; }
             handle = _freeHandles.Pop();
+            _handleStates[handle] = HandleState.Acquired;
             return true;
         }
 
         internal void QueueGeneration(int handle, ulong generation)
         {
             ValidateHandle(handle);
+            if (_handleStates[handle] != HandleState.Acquired)
+                throw new InvalidOperationException(
+                    "A GPU generation command requires an acquired handle without a queued release.");
             QueueCommand(handle, generation, release: false);
         }
 
         internal void QueueRelease(int handle, ulong generation)
         {
             ValidateHandle(handle);
+            // Release is terminal for this host acquisition. Duplicate calls before or after
+            // its flush must not enqueue duplicate GPU writers or return the handle twice.
+            // Reincarnation/late-GPU-command safety still requires the request identity contract;
+            // this state tracks host ownership, not completion of submitted GPU work.
+            if (_handleStates[handle] != HandleState.Acquired) return;
             QueueCommand(handle, generation, release: true);
+            _handleStates[handle] = HandleState.ReleaseQueued;
             _releasedHandles.Add(handle);
         }
 
@@ -183,8 +203,13 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _shader.SetInt(IdHandleCommandCount, _commandCount);
             _shader.Dispatch(_handleKernel, (_commandCount + ThreadGroupSize - 1) / ThreadGroupSize, 1, 1);
             _commandCount = 0;
+            _commandIndexByHandle.Clear();
             for (int i = 0; i < _releasedHandles.Count; i++)
-                _freeHandles.Push(_releasedHandles[i]);
+            {
+                int handle = _releasedHandles[i];
+                _handleStates[handle] = HandleState.Free;
+                _freeHandles.Push(handle);
+            }
             _releasedHandles.Clear();
         }
 
@@ -249,15 +274,26 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         private void QueueCommand(int handle, ulong generation, bool release)
         {
-            if (_commandCount == HandleCommandCapacity)
-                FlushHandleCommands(Time.frameCount);
-            _commandStaging[_commandCount++] = new HandleCommand
+            var command = new HandleCommand
             {
                 Handle = (uint)handle,
                 GenerationLow = (uint)generation,
                 GenerationHigh = (uint)(generation >> 32),
                 Release = release ? 1u : 0u,
             };
+            if (_commandIndexByHandle.TryGetValue(handle, out int existingIndex))
+            {
+                // One GPU thread owns each handle per flush. A newer generation may replace
+                // an earlier generation; a release may replace those updates. QueueGeneration
+                // rejects further writes once release is queued, so cleanup cannot be erased.
+                _commandStaging[existingIndex] = command;
+                return;
+            }
+
+            if (_commandCount == HandleCommandCapacity)
+                FlushHandleCommands(Time.frameCount);
+            _commandIndexByHandle.Add(handle, _commandCount);
+            _commandStaging[_commandCount++] = command;
         }
 
         private void SetEpoch(int frame) =>
@@ -289,6 +325,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             if (_disposed) return;
             _disposed = true;
+            _commandIndexByHandle.Clear();
+            _releasedHandles.Clear();
+            _freeHandles.Clear();
             Vertices?.Release(); Indices?.Release(); ArenaState?.Release();
             FreeVertexPages?.Release(); FreeIndexPages?.Release();
             RetiredVertexPages?.Release(); RetiredIndexPages?.Release();
