@@ -27,6 +27,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         internal const uint AllocationExhausted = 1u;
         internal const uint AllocationStale = 2u;
         internal const uint AllocationTooLarge = 3u;
+        internal const uint AllocationUnsupported = 4u;
 
         private const int UnsupportedWord = 0;
         private const int StatusWord = 10;
@@ -99,12 +100,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                     GpuPagedBatchOutcomeKind.IdentityMismatch, handle, generation,
                     unsupportedMask);
 
-            // Word zero is the semantic support contract. It is independent of page-allocation
-            // status: prefix/allocation may still report Ready for a record whose count pass
-            // deliberately rejected one or more semantics. Treating such a record as a ready
-            // candidate is a false-success hole, because the worker can retire its old geometry
-            // while the GPU intentionally emitted no complete replacement.
-            if (unsupportedMask != 0u)
+            // Word zero is the semantic support contract. Allocation also has an explicit
+            // Unsupported status so even a future producer that clears/moves the detailed mask
+            // cannot turn unsupported work into an apparently successful empty candidate.
+            if (unsupportedMask != 0u || status == AllocationUnsupported)
                 return new GpuPagedBatchOutcome(
                     GpuPagedBatchOutcomeKind.Unsupported, handle, generation,
                     unsupportedMask);
