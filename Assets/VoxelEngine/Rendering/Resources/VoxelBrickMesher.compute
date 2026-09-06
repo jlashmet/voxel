@@ -593,6 +593,14 @@ bool ClassifyFacetedCellAt(int cellIndex, int3 chunkOrigin, int sourceStep,
     uint material = ReadMaterial(voxel, surface, boundary);
     if (!IsSolidSample(material)) return false;
     surface = ResolveSurface(material, surface);
+    if (sourceStep > 1)
+    {
+        // Coarse density can expose a different material/style between lattice points (for
+        // example a planar roof above smooth masonry). The continuous path consumes that
+        // presentation already; classifying the buried style here leaves neither path owning
+        // the roof. Keep exact centre occupancy, but share the sampled presentation identity.
+        SampleField(voxel, sourceStep, material, surface, boundary);
+    }
     StyleDefinition style = LoadStyle(surface & 0xFFFFu);
     bool materialBlend = IsMaterialBlendSurface(surface);
     displaced = !materialBlend && CoatingDisplacement(surface) != 0.0;

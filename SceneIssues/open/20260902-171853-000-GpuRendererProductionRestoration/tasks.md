@@ -24,6 +24,23 @@ Each completed item needs exact feature SHA, request/run IDs, relevant executed 
 
 ## Current local evidence (2026-09-06)
 
+Coarse roof follow-up after `daa779e70`: mixed smooth-masonry/planar-roof fixture resolves roof
+material in GPU density but initially emits no upward faces (`gpu-step4-roof-mixed-before.xml`,
+one failed, exit 2). All-planar preliminary fixture falsified the broader sampling assumption;
+that case deliberately returns its centre material. Coarse faceted classification now consumes
+the same sampled presentation as continuous extraction, retaining exact centre/neighbor occupancy.
+`gpu-step4-roof-fixed.xml`: 23 passed, exit 0 (24s harness). Roof fixture verifies actual paged
+vertices/materials. `gpu-step4-roof-semantics.xml`: 12 semantic/coating/negative-shell tests passed,
+exit 0 (16s harness). `gpu-roof-coarse-module/`: 60s/six captures/exit 0, both distance-band markers
+passed. Reviewed 10s/50s retains prototype terrain quality; geometry is present. Exact-source
+`gpu-roof-showcase/` completed 180s/11 captures/exit 0. Reviewed 75.2s/150.2s is still
+**unacceptable**: grey distant houses remain; the left mass is grey at 75.2s and frontier is incomplete.
+Final 53 step4/three step8 publications, 607 missing-visible and 3,393,137 directory refusals.
+The independent GPU roof defect is repaired, but the Showcase symptom is not resolved. Determine
+whether missing coverage retains simplified proxies or proxy presentation loses material identity.
+Do not mark G09 or full GPU coverage accepted; no performance acceptance claimed.
+
+
 Step4 migration in progress after `8e5c4ba95`: the existing GPU pipeline now captures a per-descriptor
 false-empty decision after ordinary counts and conditionally counts/writes feature-preserving HLOD
 into the same paged arena. No CPU count/geometry readback. Real prepared-cache regression verifies a

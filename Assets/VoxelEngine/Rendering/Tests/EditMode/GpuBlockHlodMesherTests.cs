@@ -5,6 +5,7 @@ using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
 using VoxelEngine.Rendering.Runtime.GpuVoxel;
+using VoxelEngine.Storage.Api;
 using Object = UnityEngine.Object;
 
 namespace VoxelEngine.Rendering.Tests.EditMode
@@ -166,6 +167,56 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             Assert.That(words[4], Is.EqualTo(unsupported));
             Assert.That(words[6], Is.EqualTo(selected ? 24u : vertices));
             Assert.That(words[7], Is.EqualTo(selected ? 36u : indices));
+        }
+
+        [Test]
+        public void CoarseFacetedRoofUsesExposedMaterialInsteadOfBuriedLatticeMaterial()
+        {
+            Setup();
+            using var owned = new NativeArray<byte>(512, Allocator.Temp);
+            using var semantics = new NativeArray<ushort>(512, Allocator.Temp);
+            using var boundaries = new NativeArray<byte>(512, Allocator.Temp);
+            var voxels = owned;
+            for (int z = 0; z < 8; z++)
+            for (int y = 0; y < 4; y++)
+            for (int x = 0; x < 8; x++) voxels[x + 8 * (y + 8 * z)] = (byte)(y == 3 ? 2 : 1);
+            _mirror.Publish(VoxelBrickDelta.MixedAt(OriginBrick, 1, 0), voxels, semantics, boundaries, 0, true);
+            ComputeShader shader = Object.Instantiate(Resources.Load<ComputeShader>("VoxelBrickMesher"));
+            try
+            {
+                using var extractor = new GpuSurfaceExtractor(shader, 2, 1, 3);
+                var styles = new uint[256]; Array.Fill(styles, (uint)SurfaceStyles.Planar);
+                styles[1] = SurfaceStyles.Smooth;
+                extractor.SetCatalogues(SurfaceCatalogueView.CreateBuiltIns(), default, styles);
+                using var tables = GpuTransvoxelTables.CreateDefault();
+                using var resources = extractor.CreateCountBatchResources(1);
+                var requests = new[] { new GpuChunkExtraction(OriginBrick * 8, OriginBrick - 1,
+                    4, 0.1f, handle: _handle, generation: Generation) };
+                extractor.DispatchCountBatch(_mirror, tables, requests, 1, _counters, resources);
+                var sampled = new uint[resources.SampleMaterial.count]; resources.SampleMaterial.GetData(sampled);
+                int sample = 1 + extractor.GridSize * (1 + extractor.GridSize);
+                Assert.That(sampled[sample], Is.EqualTo(2), "Density must resolve the thin exposed roof first.");
+                extractor.PrefixCountBatch(_counters, 1, 1, 1);
+                _arena.AllocateBatch(resources.Chunks, _counters, 1, 17, 1);
+                extractor.DispatchBaseWriteBatch(_mirror, tables, 1, _counters, resources,
+                    _arena.Vertices, _arena.Indices, pageArena: _arena, frame: 1);
+                var words = new uint[21]; _counters.GetData(words);
+                Assert.That(words[14], Is.Zero);
+                var vertices = new Vertex[_arena.Vertices.count]; _arena.Vertices.GetData(vertices);
+                var pages = new uint[_arena.VertexPageTable.count]; _arena.VertexPageTable.GetData(pages);
+                int table = (_handle * 2 + (int)words[18]) * GpuSurfacePageArena.MaxVertexPagesPerChunk;
+                int top = 0;
+                for (uint i = 0; i < words[6]; i++)
+                {
+                    Vertex v = vertices[pages[table + i / GpuSurfacePageArena.VertexPageSize]
+                        * GpuSurfacePageArena.VertexPageSize + i % GpuSurfacePageArena.VertexPageSize];
+                    if (v.Normal.y < 0.99f) continue;
+                    top++;
+                    Assert.That(v.Material & 255u, Is.EqualTo(2), "Coarse roof was shaded with buried wall material.");
+                }
+                Assert.That(top, Is.GreaterThan(0));
+            }
+            finally { Object.DestroyImmediate(shader); }
         }
 
         [Test]
