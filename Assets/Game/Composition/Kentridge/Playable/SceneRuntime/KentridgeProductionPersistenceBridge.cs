@@ -85,6 +85,9 @@ namespace Game.Kentridge.PlayableSlice
                     KentridgeProductionSnapshotCodec.DecodePlayer,
                     ValidatePlayer,
                     RestorePlayer),
+                KentridgeVitalityPersistence.CreateContributor(
+                    () => _forest.VitalityQuery,
+                    () => _slice.CharacterHost.PlayerCharacterId),
                 new DelegateSessionSnapshotContributor<EncounterRegistrySnapshot>(
                     "forest-encounter",
                     "EncounterRegistryState",

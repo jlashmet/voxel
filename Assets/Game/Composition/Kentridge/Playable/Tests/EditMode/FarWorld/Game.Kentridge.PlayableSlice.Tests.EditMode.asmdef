@@ -3,12 +3,16 @@
   "rootNamespace": "VoxelEngine.Tests.EditMode",
   "references": [
     "Game.Kentridge.PlayableSlice",
+    "Game.Characters.Api",
     "Game.Hud.Api",
     "Game.Hud.Runtime",
     "Game.Input.Api",
+    "Game.Persistence.Api",
     "Game.Progression.Api",
     "Game.ProgressionPresentation.Api",
     "Game.Sessions.Api",
+    "Game.Vitality.Api",
+    "Game.Vitality.Runtime",
     "VoxelEngine.Structures.Api",
     "Unity.Mathematics"
   ],

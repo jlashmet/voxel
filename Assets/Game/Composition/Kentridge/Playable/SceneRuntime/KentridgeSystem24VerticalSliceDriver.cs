@@ -5,6 +5,7 @@ using Game.Combat.Api;
 using Game.Composition.Kentridge.Playable;
 using Game.Composition.Kentridge.Runtime;
 using Game.SessionOrchestration.Api;
+using Game.Vitality.Api;
 using Game.WorldObjects.Api;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -64,6 +65,7 @@ namespace Game.Kentridge.PlayableSlice
         private Vector3 _movementOrigin;
         private Vector3 _savedPosition;
         private CharacterId _savedCharacterId;
+        private VitalitySnapshot _savedVitality;
         private int _savedLootCount;
         private bool _savedTravelObjectiveCompleted;
         private bool _savedEncounterResolved;
@@ -136,6 +138,9 @@ namespace Game.Kentridge.PlayableSlice
                     " ready=" + _root.FlowSnapshot.GameplayReady +
                     " session=" + _root.SessionSnapshot.Lifecycle +
                     " combat=" + _forest.CombatActive + "/" + _forest.CombatResolved +
+                    " exitedPub=" + _slice.HasExitedPub +
+                    " position=" + Format(_slice.CharacterHost == null ? Vector3.zero : _slice.CharacterHost.Position) +
+                    " destination=" + DestinationDiagnostic() +
                     " loot=" + _worldInteraction.ForestLootCount);
             }
 
@@ -383,6 +388,12 @@ namespace Game.Kentridge.PlayableSlice
 
             KentridgeCharacterHost host = _slice.CharacterHost;
             _savedCharacterId = host.PlayerCharacterId;
+            if (_forest.VitalityQuery == null ||
+                !_forest.VitalityQuery.TryGet(_savedCharacterId, out _savedVitality))
+            {
+                Fail("player vitality is unavailable for save verification");
+                return;
+            }
             _savedPosition = host.Position;
             _savedLootCount = _worldInteraction.ForestLootCount;
             _savedTravelObjectiveCompleted = _slice.TravelObjectiveCompleted;
@@ -408,6 +419,8 @@ namespace Game.Kentridge.PlayableSlice
                 "save-complete",
                 "id=" + _root.LastPublishedSaveId +
                 " position=" + Format(_savedPosition) +
+                " vitality=" + _savedVitality.Current + "/" + _savedVitality.Maximum +
+                " vitalityRevision=" + _savedVitality.Revision +
                 " lootRevision=" + _savedLootState.Revision);
             ApplicationOperationResult leave = _root.RequestLeaveGame();
             if (!leave.Succeeded)
@@ -467,6 +480,13 @@ namespace Game.Kentridge.PlayableSlice
                 Fail("restored character identity changed");
                 return;
             }
+            if (_forest.VitalityQuery == null ||
+                !_forest.VitalityQuery.TryGet(_savedCharacterId, out VitalitySnapshot restoredVitality) ||
+                restoredVitality != _savedVitality)
+            {
+                Fail("restored player vitality, maximum, defeat state or revision changed");
+                return;
+            }
             if ((host.Position - _savedPosition).sqrMagnitude > 0.05f * 0.05f)
             {
                 Fail("restored player position changed: saved=" + Format(_savedPosition) +
@@ -505,6 +525,8 @@ namespace Game.Kentridge.PlayableSlice
                 "loot=" + _worldInteraction.ForestLootCount +
                 " worldObjectState=" + restoredLoot.StateCode +
                 " revision=" + restoredLoot.Revision +
+                " vitality=" + restoredVitality.Current + "/" + restoredVitality.Maximum +
+                " vitalityRevision=" + restoredVitality.Revision +
                 " objective=" + _slice.TravelObjectiveCompleted +
                 " encounter=" + _forest.CombatResolved);
             Enter(Stage.PostRestoreMovement, 15f);
@@ -610,10 +632,15 @@ namespace Game.Kentridge.PlayableSlice
                 " flow=" + _root.FlowSnapshot.Lifecycle + "/" + _root.FlowSnapshot.Screen +
                 " session=" + _root.SessionSnapshot.Lifecycle +
                 " position=" + Format(_slice.CharacterHost == null ? Vector3.zero : _slice.CharacterHost.Position) +
+                " exitedPub=" + _slice.HasExitedPub +
+                " destination=" + DestinationDiagnostic() +
                 " combat=" + _forest.CombatActive + "/" + _forest.CombatResolved +
                 " loot=" + _worldInteraction.ForestLootCount);
             _stage = Stage.Failed;
         }
+
+        private string DestinationDiagnostic() =>
+            _slice.TryGetDestinationNpcWorldPosition(out Vector3 destination) ? Format(destination) : "unavailable";
 
         private static string Format(Vector3 value) =>
             value.x.ToString("0.0") + "," + value.y.ToString("0.0") + "," + value.z.ToString("0.0");
