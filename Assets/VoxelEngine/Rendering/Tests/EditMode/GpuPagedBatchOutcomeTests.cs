@@ -34,23 +34,23 @@ namespace VoxelEngine.Rendering.Tests.EditMode
         }
 
         [TestCase(GpuPagedBatchOutcome.AllocationReady,
-                  GpuPagedBatchOutcomeKind.ReadyCandidate, false)]
+                  (int)GpuPagedBatchOutcomeKind.ReadyCandidate, false)]
         [TestCase(GpuPagedBatchOutcome.AllocationExhausted,
-                  GpuPagedBatchOutcomeKind.Exhausted, true)]
+                  (int)GpuPagedBatchOutcomeKind.Exhausted, true)]
         [TestCase(GpuPagedBatchOutcome.AllocationStale,
-                  GpuPagedBatchOutcomeKind.Stale, true)]
+                  (int)GpuPagedBatchOutcomeKind.Stale, true)]
         [TestCase(GpuPagedBatchOutcome.AllocationTooLarge,
-                  GpuPagedBatchOutcomeKind.TooLarge, false)]
+                  (int)GpuPagedBatchOutcomeKind.TooLarge, false)]
         [TestCase(GpuPagedBatchOutcome.AllocationUnsupported,
-                  GpuPagedBatchOutcomeKind.Unsupported, false)]
+                  (int)GpuPagedBatchOutcomeKind.Unsupported, false)]
         public void KnownAllocationStatusesRemainDistinct(
-            uint status, GpuPagedBatchOutcomeKind expectedKind, bool retryable)
+            uint status, int expectedKind, bool retryable)
         {
             GpuChunkExtraction request = Request();
             GpuPagedBatchOutcome outcome =
                 GpuPagedBatchOutcome.Parse(Words(status, in request), Record, in request);
 
-            Assert.That(outcome.Kind, Is.EqualTo(expectedKind));
+            Assert.That(outcome.Kind, Is.EqualTo((GpuPagedBatchOutcomeKind)expectedKind));
             Assert.That(outcome.Handle, Is.EqualTo(request.Handle));
             Assert.That(outcome.Generation, Is.EqualTo(request.Generation));
             Assert.That(outcome.IsRetryable, Is.EqualTo(retryable));
