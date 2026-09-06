@@ -1,0 +1,17 @@
+{
+  "name": "VoxelEngine.Showcase.Validation",
+  "rootNamespace": "VoxelEngine.Showcase.Validation",
+  "references": [
+    "VoxelEngine.Showcase",
+    "Unity.InputSystem"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

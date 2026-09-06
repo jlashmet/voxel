@@ -6,9 +6,6 @@
         "Game.Composition.Materials",
         "Game.Composition.Showcase",
         "Game.Composition.WorldObjects.Runtime",
-        "Game.Cutscenes.Api",
-        "Game.Cutscenes.Presentation",
-        "Game.Input.Runtime",
         "VoxelEngine.Storage.Api",
         "VoxelEngine.Composition.Api",
         "VoxelEngine.Composition",
@@ -32,7 +29,9 @@
         "Game.Structures.Api",
         "Game.Structures.Runtime",
         "Game.WorldBuilder.Api",
-        "Game.WorldBuilder.Runtime"
+        "Game.WorldBuilder.Runtime",
+        "Game.Cutscenes.Api",
+        "Game.Cutscenes.Presentation"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
