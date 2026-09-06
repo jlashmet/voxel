@@ -1,28 +1,30 @@
 # GPU renderer production restoration — implementation plan
 
-**Acceptance:** `Assets/Scenes/VoxelShowcase.unity` only. Production-quality CPU stationary/traversal presentation precedes GPU cutover; CPU images never count as GPU proof. Tested source `e4e2f9975dc2d3f3d437b5bfe3f853b6f2cf468b`; fetched master `ef475182b866eabfe8e1d1a39c82bf7810a03f49`.
+**Acceptance:** `Assets/Scenes/VoxelShowcase.unity` only. Production-quality CPU stationary/traversal presentation precedes GPU cutover. CPU images and diagnostic ablations never count as GPU or final visual proof.
 
-## Exact result
+## Verified result
 
-Before source `da3f5be...`, request `6ddc727...`, run `33999899224` failed exactly eight canonical taper cases; 649 other EditMode tests passed. See [frustum-geometry-evidence.md](frustum-geometry-evidence.md).
+Before source `da3f5be...`, request `6ddc727...`, run `33999899224` failed eight canonical taper cases; 649 other EditMode tests passed.
 
-Pass-after request `fc6c3320d9b986b8d2401fcae0a17de80d286691`, run `34003412217`, completed **success** without replacement. Artifact `9980566933`, ZIP SHA-256 `b902646131564cfb16367d0e05e329951a3232c583aa56691b1a998f8e0f03fa`: 657 module EditMode tests, three PlayMode tests, and eight repeated focused taper cases pass with no skips/failures. The canonical emitter -> adapter -> renderer repair is proven, including topology and cache assertions.
+Pass-after request `fc6c3320d9b986b8d2401fcae0a17de80d286691`, run `34003412217`, completed **success** without replacement. Artifact `9980566933`: 657 module EditMode passes, three PlayMode passes, and eight repeated focused taper passes. The real emitter -> adapter -> renderer repair, topology and cache assertions passed on exact source `e4e2f997...`. See [frustum-geometry-evidence.md](frustum-geometry-evidence.md) for identities, digests and limits.
 
-Inspected `SceneIssue/verification-final.png`: the left AABB is now tapered, but its white flat surface and the right-hand malformed masses still fail CPU acceptance (**prototype/blockout quality**). GPU requests/publications remain zero. Default-view replay logs no replayable camera snapshot; zero-sample frame timings are not performance proof.
+Inspected `SceneIssue/verification-final.png`: the left AABB became a taper, but its flat white surface and the malformed right-hand masses remain **prototype/blockout quality**. GPU requests/publications remain zero. Capture-less metadata used the default scene view; zero-sample frame timings are not performance proof.
 
-The module summary reports nine player runs, but FarWorld and Water share `Players/Assets_VoxelEngine_Rendering`; the retained log/captures belong to Water. Required FarWorld evidence was overwritten. Preserve separate per-scene/scenario outputs before accepting module-player proof. This is a demonstrated validation defect, not permission to remove a target or weaken assertions.
+FarWorld and Water executed into the same Rendering output directory; the retained log/images belong to Water. Required FarWorld evidence was overwritten despite the successful workflow. CPU4E isolates outputs by module/scene/scenario. Filesystem tests reproduce four old-path failures and pass all five cases after repair; actual standalone evidence retention still requires CI.
 
-## Hypotheses / next discriminator
+## Hypotheses and discriminator
 
-1. **Semantic far-feature overlap/approximation:** `ShowcaseFarFeatureRuntime.Update` submits all selected proxies without per-feature detailed publication readiness. Other shapes still use AABBs and carves are omitted.
-2. **Another presentation owner/source:** remaining masses could instead be CPU voxel geometry or far terrain; source shapes may already be boxes.
+1. **Far-feature overlap/approximation:** `ShowcaseFarFeatureRuntime.Update` submits selected proxies without per-feature detailed publication readiness; other shapes still use AABBs and omit carves.
+2. **Another owner/source:** remaining masses might instead be voxel surfaces or far terrain, or canonical source boxes.
 
-Next exact VoxelShowcase replay will use an explicitly opted-in, bounded normal/disabled/restored comparison of the existing far-feature renderer, at the same scene-authored camera. The disabled interval is diagnostic only, never visual success or a production fallback policy. Do not hide proxies by distance or global convergence. The comparison must restore original enable states and retain normal final output.
+Probe `c684d27...` opts in only through this issue's `renderProbe` metadata. It holds the actual authored camera, keeps normal presentation at 25 s, suppresses only existing far-feature renderers during 30–40 s, restores original states for the 45 s capture, and ends at 50 s. A 55 s replay retains a normal final image. No world/geometry/material mutation or production fallback policy. Fourteen behavioral cases cover opt-in, timing, instance/state preservation and teardown.
 
-## Ownership and scope
+## Active exact CI
 
-Rendering owns canonical regressions and `Rendering/Validation/FarWorld/`. Headless Composition uses module-local EditMode tests. Showcase SceneRuntime owns replay orchestration and its existing validation scene; bounded instrumentation may toggle the existing renderer but must not create geometry/materials or mutate world state. Add behavioral restoration/opt-in regressions. `tools/run-module-validation.py` owns artifact isolation; prove the collision and preservation with filesystem-based tests.
+Source **`95d4d30467463b47beb57a731b137da01c56d7d4`**; direct-child request **`560b0c08f022c42faa9c6877e63d109083eb2dc9`**; run **`34005604349`**, job **`101412081392`**, currently **queued**. Leave it untouched until terminal. This documentation update does not change its production/test source. Then inspect all probe phases, restored final output, actual GPU counters, and independently retained FarWorld/Water proof before selecting a fix.
 
-## Remaining gates
+## Ownership and remaining gates
 
-Resolve required artifact isolation and CPU draw ownership, then correct proven geometry/material/handoff defects. Obtain clean CPU stationary/traversal proof before GPU reconciliation, parity, publication/lifetime, edits/streaming, no-fallback, performance and independent-consumer validation. Keep all unmet checkboxes open. Only full acceptance permits `open` -> `closed`, current-master integration and PR + auto-merge.
+Rendering owns its regressions and `Rendering/Validation/FarWorld/`. Headless Composition uses local EditMode tests. Showcase SceneRuntime owns existing runtime validation plus bounded replay instrumentation; its disabled interval is diagnostic, not rendered acceptance. Python tooling owns artifact-path preservation.
+
+Continue CPU2A/CPU4E/CPU4F and remaining geometry/material/handoff work; do not replace coverage proof with distance/global-convergence hiding. Obtain clean CPU stationary/traversal evidence, then complete GPU reconciliation, parity, lifetime, streaming/edits, no-fallback, performance and independent-consumer gates. Every required checkbox precedes closure, current-master integration and PR + auto-merge.
