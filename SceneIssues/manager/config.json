@@ -8,6 +8,15 @@
     "suspiciousItems": 2,
     "deepInvestigations": 1
   },
+  "visualEvidence": {
+    "enabled": true,
+    "maxImagesPerReview": 6,
+    "maxImagesPerCompletion": 3,
+    "maxImageBytes": 8388608,
+    "maxArtifactDownloadBytes": 67108864,
+    "maxWorkflowRunsPerCompletion": 2,
+    "ghBinary": "gh"
+  },
   "codex": {
     "binary": "codex",
     "minimumVersion": "0.153.0",
