@@ -5,8 +5,10 @@ using VoxelEngine.Structures.Api;
 namespace Game.WorldBuilder.Voxel
 {
     /// <summary>
-    /// Reference-driven refinement layered on the reusable base house. This remains production
-    /// WorldBuilder geometry: no camera, lighting, evidence, or scene policy is owned here.
+    /// Reference-driven production refinement for the pinned ornate house. The base authoring owns
+    /// reusable walls/openings/material roles; this layer deliberately replaces the conflicting roof
+    /// and facade silhouette after direct built-player comparison. Camera, lighting and site policy
+    /// remain outside this composition.
     /// </summary>
     public static class NewHouseReferenceRefinement
     {
@@ -18,45 +20,74 @@ namespace Game.WorldBuilder.Voxel
             if (a == null) throw new ArgumentNullException(nameof(a));
 
             NewHouseReferenceResult result = NewHouseReferenceAuthoring.AuthorHouse(a, o, in c, in p);
-            NarrowPortraitGableAndRestoreShoulders(a, o, in c, in p);
-            RefineFrontFacade(a, o, in c, in p);
+            ReplaceConflictingRoofComposition(a, o, in c, in p);
+            RefineFacadeDepth(a, o, in c, in p);
             RebuildReferenceOrnaments(a, o, in c, in p);
-            FinishSideAndRearAudits(a, o, in c, in p);
+            FinishAuditElevations(a, o, in c, in p);
             return result;
         }
 
-        private static void NarrowPortraitGableAndRestoreShoulders(IStructureAuthoringSession a, int3 o,
+        private static void ReplaceConflictingRoofComposition(IStructureAuthoringSession a, int3 o,
             in NewHouseReferenceConfig c, in NewHouseReferencePalette p)
         {
             int centre = o.x + c.Width / 2;
+            int upper = o.y + c.UpperFloorY;
             int eave = o.y + c.MainEaveY;
             int ridge = o.y + c.MainRidgeY;
-            int frontMinZ = o.z - c.RoofOverhang - 2;
-            const int frontDepth = 34;
-            const int halfGable = 29;
-            int keepMin = centre - halfGable;
-            int keepMax = centre + halfGable;
 
-            // Iteration 2 still read as an almost full-width A-frame. Remove only the high outer
-            // portrait roof/fill and replace it with the lower transverse shoulders seen in the pin.
-            int leftWidth = math.max(1, keepMin - (o.x - c.RoofOverhang - 10));
-            int rightStart = keepMax + 1;
-            int rightWidth = math.max(1, o.x + c.Width + c.RoofOverhang + 10 - rightStart);
-            a.Carve(new int3(o.x - c.RoofOverhang - 10, eave - 2, frontMinZ),
-                new int3(leftWidth, ridge - eave + 20, frontDepth));
-            a.Carve(new int3(rightStart, eave - 2, frontMinZ),
-                new int3(rightWidth, ridge - eave + 20, frontDepth));
+            // Root-cause correction after iterations 2/3: the old full-width/front-to-back roof and
+            // low side-wing helpers remained underneath additive fixes. Remove that entire conflicting
+            // upper roof volume before rebuilding the reference silhouette.
+            a.Carve(new int3(o.x - 22, upper + 13, o.z - 18),
+                new int3(c.Width + 44, ridge - upper + 32, c.Depth + 42));
+            a.Carve(new int3(o.x - 20, upper - 8, o.z - 12),
+                new int3(20, 22, 42));
+            a.Carve(new int3(o.x + c.Width, upper - 8, o.z - 12),
+                new int3(20, 22, 42));
 
-            AddShoulderRoof(a, o.x - 12, keepMin + 3, frontMinZ, o.z + 24,
-                eave - 11, true, p.Roof, p.Timber);
-            AddShoulderRoof(a, keepMax - 2, o.x + c.Width + 12, frontMinZ, o.z + 24,
-                eave - 11, false, p.Roof, p.Timber);
+            // Lower transverse roof shoulders: broad, low and clearly behind the portrait gable.
+            int shoulderEave = upper + 22;
+            GableAlongX(a,
+                o.x - c.RoofOverhang - 5,
+                o.x + c.Width + c.RoofOverhang + 5,
+                o.z + 8,
+                o.z + c.Depth + 4,
+                shoulderEave,
+                12,
+                3,
+                p.Roof);
 
-            // Restore the left chimney after the outer-gable carve and give it the capped masonry
-            // silhouette visible beside the lower blue shoulder.
+            // Narrow steep portrait gable. The reference gable occupies about two thirds of the body
+            // width and is shallow in depth, so the lower roof shoulders remain visible on both sides.
+            const int halfGable = 27;
+            int gableMinX = centre - halfGable;
+            int gableMaxX = centre + halfGable + 1;
+            int gableMinZ = o.z - c.RoofOverhang - 2;
+            int gableMaxZ = o.z + 15;
+            int portraitEave = upper + 31;
+            int portraitRise = math.max(38, ridge - portraitEave);
+
+            GableAlongZ(a, gableMinX, gableMaxX, gableMinZ, gableMaxZ,
+                portraitEave, portraitRise, 3, p.Roof);
+            FillFrontTriangle(a, centre, o.z - 2, portraitEave + 1,
+                halfGable * 2 - 8, portraitRise - 3, p.Plaster);
+            Line(a, gableMinX + 2, portraitEave - 1, centre, portraitEave + portraitRise - 2,
+                o.z - 6, p.Timber);
+            Line(a, gableMaxX - 3, portraitEave - 1, centre, portraitEave + portraitRise - 2,
+                o.z - 6, p.Timber);
+
+            // Swept eave tips visible in the reference, without the old deep blue slabs.
+            for (int i = 0; i < 7; i++)
+            {
+                int y = portraitEave - 2 - i / 2;
+                a.Box(new int3(gableMinX - 3 - i, y, gableMinZ), new int3(1, 2, 18), p.Roof);
+                a.Box(new int3(gableMaxX + 2 + i, y, gableMinZ), new int3(1, 2, 18), p.Roof);
+            }
+
+            // Rebuild the left capped chimney after clearing the conflicting roof system.
             int chimneyX = o.x + 3;
-            int chimneyZ = o.z + 20;
-            int chimneyTop = eave + 24;
+            int chimneyZ = o.z + 22;
+            int chimneyTop = shoulderEave + 24;
             a.Box(new int3(chimneyX, o.y, chimneyZ),
                 new int3(10, chimneyTop - o.y, 10), p.Stone);
             a.Box(new int3(chimneyX - 2, chimneyTop - 8, chimneyZ - 2),
@@ -67,42 +98,22 @@ namespace Game.WorldBuilder.Voxel
                 new int3(6, 4, 6), p.Stone);
         }
 
-        private static void AddShoulderRoof(IStructureAuthoringSession a,
-            int minX, int maxX, int minZ, int maxZ, int baseY, bool risesRight,
-            byte roof, byte timber)
-        {
-            int span = math.max(1, maxX - minX);
-            for (int x = minX; x < maxX; x++)
-            {
-                int along = risesRight ? x - minX : maxX - 1 - x;
-                int y = baseY + (along * 8) / span;
-                a.Box(new int3(x, y, minZ), new int3(1, 3, maxZ - minZ), roof);
-            }
-
-            int trimX = risesRight ? minX : maxX - 1;
-            a.Box(new int3(trimX, baseY - 1, minZ - 1),
-                new int3(2, 2, maxZ - minZ + 1), timber);
-        }
-
-        private static void RefineFrontFacade(IStructureAuthoringSession a, int3 o,
+        private static void RefineFacadeDepth(IStructureAuthoringSession a, int3 o,
             in NewHouseReferenceConfig c, in NewHouseReferencePalette p)
         {
             int centre = o.x + c.Width / 2;
             int first = o.y + c.FirstFloorY;
             int upper = o.y + c.UpperFloorY;
-            int eave = o.y + c.MainEaveY;
+            int portraitEave = upper + 31;
             int front = o.z - 7;
 
-            // Strong masonry portal surround: paired pilasters, spring blocks and a stepped keystone.
+            // Strong three-dimensional portal surround and corbelled register break.
             a.Box(new int3(centre - 14, first, front), new int3(4, 26, 3), p.Stone);
             a.Box(new int3(centre + 10, first, front), new int3(4, 26, 3), p.Stone);
             a.Box(new int3(centre - 17, first + 24, front), new int3(7, 4, 3), p.Stone);
             a.Box(new int3(centre + 10, first + 24, front), new int3(7, 4, 3), p.Stone);
             a.Box(new int3(centre - 3, first + 29, front), new int3(7, 5, 3), p.Ornament);
-            a.Box(new int3(centre - 1, first + 33, front), new int3(3, 3, 3), p.Stone);
 
-            // Timber belts and corbels around the second register are deliberately broken into
-            // smaller components instead of the iteration-2 slab-like horizontal strips.
             a.Box(new int3(o.x + 8, upper - 3, front - 1),
                 new int3(c.Width - 16, 2, 2), p.Timber);
             for (int x = o.x + 10; x <= o.x + c.Width - 12; x += 12)
@@ -111,18 +122,13 @@ namespace Game.WorldBuilder.Voxel
                 a.Box(new int3(x - 2, upper - 3, front - 2), new int3(7, 2, 3), p.Timber);
             }
 
-            // Compact carved accents beside the tall upper window and below the gable window.
-            a.Box(new int3(centre - 24, upper + 14, front - 1), new int3(5, 7, 2), p.Timber);
-            a.Box(new int3(centre + 19, upper + 14, front - 1), new int3(5, 7, 2), p.Timber);
-            a.Box(new int3(centre - 3, eave + 3, front - 1), new int3(7, 5, 2), p.Ornament);
-
+            // Dense flower boxes at the two reference-visible upper openings.
             AddDenseFlowerBox(a, centre - 15, upper + 2, front - 2, 30, in p);
-            AddDenseFlowerBox(a, centre - 12, eave + 6, front - 2, 24, in p);
+            AddDenseFlowerBox(a, centre - 12, portraitEave + 7, front - 2, 24, in p);
 
-            // Reference vegetation forms connected masses wrapping the right facade rather than
-            // isolated vertical blobs.
-            AddIvyMass(a, o.x + c.Width - 9, first + 3, front - 1, 34, -1, in p);
-            AddIvyMass(a, o.x + 1, first + 5, front - 1, 20, 1, in p);
+            // Connected climbing masses rather than isolated green columns.
+            AddIvyMass(a, o.x + c.Width - 8, first + 2, front - 1, 35, -1, in p);
+            AddIvyMass(a, o.x + 2, first + 5, front - 1, 18, 1, in p);
         }
 
         private static void RebuildReferenceOrnaments(IStructureAuthoringSession a, int3 o,
@@ -130,51 +136,48 @@ namespace Game.WorldBuilder.Voxel
         {
             int centre = o.x + c.Width / 2;
             int upper = o.y + c.UpperFloorY;
-            int ridge = o.y + c.MainRidgeY;
+            int portraitEave = upper + 31;
+            int portraitRise = math.max(38, o.y + c.MainRidgeY - portraitEave);
+            int crestBase = portraitEave + portraitRise;
             int front = o.z - 10;
 
-            // Remove the cross-like iteration-2 crest and replace it with a compact stepped gold
-            // pedestal and pointed finial.
-            a.Carve(new int3(centre - 7, ridge, o.z + 1), new int3(15, 18, 18));
-            a.Box(new int3(centre - 5, ridge + 1, o.z + 5), new int3(10, 2, 7), p.Timber);
-            a.Box(new int3(centre - 4, ridge + 3, o.z + 6), new int3(8, 3, 5), p.Ornament);
-            a.Box(new int3(centre - 3, ridge + 6, o.z + 7), new int3(6, 3, 3), p.Ornament);
-            a.Cone(centre, ridge + 9, o.z + 8, 3, 8, p.Ornament);
+            // Compact stepped crest and pointed finial.
+            a.Box(new int3(centre - 4, crestBase, o.z + 3), new int3(8, 2, 6), p.Timber);
+            a.Box(new int3(centre - 3, crestBase + 2, o.z + 4), new int3(6, 3, 4), p.Ornament);
+            a.Box(new int3(centre - 2, crestBase + 5, o.z + 5), new int3(4, 3, 2), p.Ornament);
+            a.Cone(centre, crestBase + 8, o.z + 6, 2, 7, p.Ornament);
 
-            // Rebuild the left banner at a slimmer portrait scale with a gold border and central
-            // heraldic motif instead of one oversized flat asterisk.
-            int bannerX = o.x - 4;
-            a.Carve(new int3(o.x - 12, upper, front - 2), new int3(24, 38, 8));
-            a.Box(new int3(bannerX - 2, upper + 28, front), new int3(18, 2, 2), p.Timber);
-            a.Box(new int3(bannerX, upper + 5, front + 1), new int3(13, 24, 1), p.Accent);
-            a.Box(new int3(bannerX, upper + 5, front), new int3(13, 1, 1), p.Ornament);
-            a.Box(new int3(bannerX, upper + 28, front), new int3(13, 1, 1), p.Ornament);
-            a.Box(new int3(bannerX, upper + 5, front), new int3(1, 24, 1), p.Ornament);
-            a.Box(new int3(bannerX + 12, upper + 5, front), new int3(1, 24, 1), p.Ornament);
+            // Slim left banner with border and restrained heraldic mark.
+            int bannerX = o.x - 3;
+            a.Carve(new int3(o.x - 12, upper + 2, front - 2), new int3(24, 34, 8));
+            a.Box(new int3(bannerX - 2, upper + 27, front), new int3(17, 2, 2), p.Timber);
+            a.Box(new int3(bannerX, upper + 7, front + 1), new int3(12, 20, 1), p.Accent);
+            a.Box(new int3(bannerX, upper + 7, front), new int3(12, 1, 1), p.Ornament);
+            a.Box(new int3(bannerX, upper + 26, front), new int3(12, 1, 1), p.Ornament);
+            a.Box(new int3(bannerX, upper + 7, front), new int3(1, 20, 1), p.Ornament);
+            a.Box(new int3(bannerX + 11, upper + 7, front), new int3(1, 20, 1), p.Ornament);
             int bx = bannerX + 6;
             int by = upper + 17;
-            a.Box(new int3(bx, by - 5, front), new int3(1, 11, 1), p.Ornament);
-            a.Box(new int3(bx - 4, by, front), new int3(9, 1, 1), p.Ornament);
-            Diagonal(a, bx - 3, by - 3, bx + 3, by + 3, front, p.Ornament);
-            Diagonal(a, bx - 3, by + 3, bx + 3, by - 3, front, p.Ornament);
+            a.Box(new int3(bx, by - 4, front), new int3(1, 9, 1), p.Ornament);
+            a.Box(new int3(bx - 3, by, front), new int3(7, 1, 1), p.Ornament);
+            Diagonal(a, bx - 2, by - 2, bx + 2, by + 2, front, p.Ornament);
+            Diagonal(a, bx - 2, by + 2, bx + 2, by - 2, front, p.Ornament);
 
-            // Smaller bracketed shield on the right, with a readable hanging gap.
+            // Compact right hanging sign, separated from the wall by a bracket.
             int bracketX = o.x + c.Width + 1;
-            a.Carve(new int3(bracketX - 1, upper + 4, front - 2), new int3(25, 34, 8));
-            a.Box(new int3(bracketX, upper + 27, front), new int3(15, 2, 2), p.Timber);
-            a.Box(new int3(bracketX + 11, upper + 17, front), new int3(2, 11, 2), p.Timber);
-            AddShield(a, bracketX + 7, upper + 6, front + 1, 10, 13, p.Timber, p.Ornament);
+            a.Carve(new int3(bracketX - 1, upper + 5, front - 2), new int3(22, 30, 8));
+            a.Box(new int3(bracketX, upper + 26, front), new int3(14, 2, 2), p.Timber);
+            a.Box(new int3(bracketX + 10, upper + 17, front), new int3(2, 10, 2), p.Timber);
+            AddShield(a, bracketX + 6, upper + 7, front + 1, 9, 12, p.Timber, p.Ornament);
         }
 
-        private static void FinishSideAndRearAudits(IStructureAuthoringSession a, int3 o,
+        private static void FinishAuditElevations(IStructureAuthoringSession a, int3 o,
             in NewHouseReferenceConfig c, in NewHouseReferencePalette p)
         {
             int first = o.y + c.FirstFloorY;
             int upper = o.y + c.UpperFloorY;
             int rear = o.z + c.Depth + 1;
 
-            // The reference does not specify the hidden rear, but audit views must still show a
-            // believable finished house rather than an un-authored plaster box.
             a.Box(new int3(o.x + 5, upper - 2, rear), new int3(c.Width - 10, 2, 2), p.Timber);
             a.Box(new int3(o.x + 5, upper + 25, rear), new int3(c.Width - 10, 2, 2), p.Timber);
             for (int x = o.x + 8; x < o.x + c.Width - 7; x += 16)
@@ -183,6 +186,17 @@ namespace Game.WorldBuilder.Voxel
             AddRearWindow(a, o.x + 22, first + 8, rear, 11, 18, in p);
             AddRearWindow(a, o.x + c.Width - 22, first + 8, rear, 11, 18, in p);
             AddRearWindow(a, o.x + c.Width / 2, upper + 7, rear, 13, 20, in p);
+
+            // Side-elevation timber belts stop the audit views reading as plain boxes.
+            int left = o.x - 1;
+            int right = o.x + c.Width + 1;
+            a.Box(new int3(left, upper - 2, o.z + 8), new int3(2, 2, c.Depth - 14), p.Timber);
+            a.Box(new int3(right, upper - 2, o.z + 8), new int3(2, 2, c.Depth - 14), p.Timber);
+            for (int z = o.z + 12; z < o.z + c.Depth - 6; z += 16)
+            {
+                a.Box(new int3(left, upper, z), new int3(2, 22, 2), p.Timber);
+                a.Box(new int3(right, upper, z), new int3(2, 22, 2), p.Timber);
+            }
         }
 
         private static void AddRearWindow(IStructureAuthoringSession a, int centreX, int y, int z,
@@ -242,12 +256,69 @@ namespace Game.WorldBuilder.Voxel
             Diagonal(a, cx - 2, cy + 2, cx + 2, cy - 2, z - 1, ornament);
         }
 
+        private static void GableAlongX(IStructureAuthoringSession a,
+            int minX, int maxX, int minZ, int maxZ, int eave, int rise, int thickness, byte material)
+        {
+            int span = math.max(2, maxZ - minZ - 1);
+            for (int z = minZ; z < maxZ; z++)
+            {
+                int edge = math.min(z - minZ, maxZ - 1 - z);
+                int y = eave + (rise * edge * 2 + span / 2) / span;
+                a.Box(new int3(minX, y, z), new int3(maxX - minX, thickness, 1), material);
+            }
+        }
+
+        private static void GableAlongZ(IStructureAuthoringSession a,
+            int minX, int maxX, int minZ, int maxZ, int eave, int rise, int thickness, byte material)
+        {
+            int span = math.max(2, maxX - minX - 1);
+            for (int x = minX; x < maxX; x++)
+            {
+                int edge = math.min(x - minX, maxX - 1 - x);
+                int y = eave + (rise * edge * 2 + span / 2) / span;
+                a.Box(new int3(x, y, minZ), new int3(1, thickness, maxZ - minZ), material);
+            }
+        }
+
+        private static void FillFrontTriangle(IStructureAuthoringSession a,
+            int centreX, int frontZ, int eaveY, int width, int rise, byte material)
+        {
+            int half = width / 2;
+            for (int row = 0; row < rise; row++)
+            {
+                int rowHalf = math.max(1, half * (rise - row) / rise);
+                a.Box(new int3(centreX - rowHalf, eaveY + row, frontZ),
+                    new int3(rowHalf * 2 + 1, 1, 3), material);
+            }
+        }
+
+        private static void Line(IStructureAuthoringSession a,
+            int x0, int y0, int x1, int y1, int z, byte material)
+        {
+            int dx = x1 - x0;
+            int dy = y1 - y0;
+            int steps = math.max(math.abs(dx), math.abs(dy));
+            if (steps == 0)
+            {
+                a.Box(new int3(x0, y0, z), new int3(1, 2, TimberDepth), material);
+                return;
+            }
+            for (int i = 0; i <= steps; i++)
+                a.Box(new int3(x0 + dx * i / steps, y0 + dy * i / steps, z),
+                    new int3(1, 2, TimberDepth), material);
+        }
+
         private static void Diagonal(IStructureAuthoringSession a,
             int x0, int y0, int x1, int y1, int z, byte material)
         {
             int dx = x1 - x0;
             int dy = y1 - y0;
             int steps = math.max(math.abs(dx), math.abs(dy));
+            if (steps == 0)
+            {
+                a.Box(new int3(x0, y0, z), new int3(1, 1, TimberDepth), material);
+                return;
+            }
             for (int i = 0; i <= steps; i++)
                 a.Box(new int3(x0 + dx * i / steps, y0 + dy * i / steps, z),
                     new int3(1, 1, TimberDepth), material);
