@@ -337,10 +337,10 @@ namespace VoxelEngine.Tests.EditMode
             string scheduler = ReadRenderingSource(
                 Path.Combine("SurfaceExtraction", "VoxelSurfaceScheduler.cs"));
             string water = ReadRenderingSource(
-                Path.Combine("SurfaceExtraction", "CpuWaterSurfaceChunkCache.cs"));
+                Path.Combine("SurfaceExtraction", "GpuWaterSurfaceChunkCache.cs"));
 
             StringAssert.Contains("VoxelSurfaceScheduler.SurfaceArenaDrawCapacity", renderPass);
-            StringAssert.Contains("CpuWaterSurfaceChunkCache.ArenaDrawCapacity", renderPass);
+            StringAssert.Contains("GpuWaterSurfaceChunkCache.ArenaDrawCapacity", renderPass);
             StringAssert.Contains("public const int SurfaceArenaDrawCapacity", scheduler);
             StringAssert.Contains("public const int ArenaDrawCapacity", water);
             StringAssert.DoesNotContain("Array.Resize", renderPass);

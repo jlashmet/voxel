@@ -111,7 +111,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         internal readonly ComputeBuffer HandleCommands;
 
         internal GpuSurfacePageArena(ComputeShader shader, int vertexCapacity,
-                                     int indexCapacity, int handleCapacity)
+                                     int indexCapacity, int handleCapacity, bool primaryArena = true)
         {
             _shader = shader != null ? shader : throw new ArgumentNullException(nameof(shader));
             if (vertexCapacity <= 0) throw new ArgumentOutOfRangeException(nameof(vertexCapacity));
@@ -158,9 +158,12 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _handleStates = new HandleState[handleCapacity];
             for (int handle = handleCapacity - 1; handle >= 0; handle--) _freeHandles.Push(handle);
             BindAllKernels();
-            if (s_activeArena != null && !s_activeArena._disposed)
-                throw new InvalidOperationException("Only one production GPU surface page arena may be active.");
-            s_activeArena = this;
+            if (primaryArena)
+            {
+                if (s_activeArena != null && !s_activeArena._disposed)
+                    throw new InvalidOperationException("Only one primary GPU surface page arena may be active.");
+                s_activeArena = this;
+            }
         }
 
         internal bool TryAcquireHandle(out int handle)

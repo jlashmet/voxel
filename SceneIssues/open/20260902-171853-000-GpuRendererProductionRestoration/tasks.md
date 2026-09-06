@@ -24,6 +24,43 @@ Each completed item needs exact feature SHA, request/run IDs, relevant executed 
 
 ## Current local evidence (2026-09-06)
 
+Runtime GPU water migration after `54902c4b8`: scheduler/discovery/render pass now use
+`GpuWaterSurfaceChunkCache`; the retired CPU cache remains for unmigrated tests but is not selected
+by production orchestration. Snapshots remain authoritative CPU inputs; eight-brick GPU count/write
+slices, GPU allocation, status/identity-only feedback, version-checked commit and GPU indirect arguments
+replace CPU geometry extraction/upload. Water owns a separate page arena under unchanged geometry
+capacities. Completion callbacks retain resources through submitted build work and final water draws;
+this does not close the shared G11 page-retirement/error obligations. Same-chunk water/occluder changes
+now invalidate the derived surface. Spray culling includes the canonical six-voxel plume extent.
+
+`gpu-water-runtime-compile.xml`: 11 passed/exit 0/20s; initial cache behavioral suite
+`gpu-water-runtime-cache.xml`: four passed/exit 0/17s (publication/indirect arguments, stale completion
+rejection, same-chunk occluder edit, actual deferred GPU resource disposal). The first standalone
+`gpu-water-runtime-module` completed 30s/five captures/exit 0 and emitted liquid-ready. Reviewed 8.3s
+and 26.3s show GPU lake/cascade but a dry river; classified unacceptable, with missing surroundings,
+floating vegetation and slab-like water/cascade composition also open. Inspection proved inherited
+hardcoded 11/16 classification omitted authored RiverWater 22. The GPU cache now uses the installed
+presentation catalogue's water mask, captured per transaction. Added material-22 publication regression.
+`gpu-water-runtime-catalogue.xml`: 16 passed/exit 0/17s: five cache, five mesher, six draw/compaction cases.
+Final `gpu-water-runtime-final.xml`: 17 passed/exit 0/16s, adding the existing fixed draw-staging architecture check updated to the new owner. These test runs overlap; they are not cumulative unique test counts.
+
+The corrected `gpu-water-runtime-catalogue-module` completed 42s/seven captures/exit 0. Exact source
+copies and SHA256 records retained. Reviewed 26.3s confirms restored river and waterfall feeder/receiver
+water; 32.3s confirms GPU waterfall sheets. H1 (classification omission) is proven and fixed; H2 (river
+lost by paged addressing) is not supported. Rendered quality remains unacceptable: waterfall layers
+read as planar sheets with harsh horizontal bands, and background terrain/vegetation is incomplete.
+No visual gate is closed by the harness exit. `gpu-water-runtime-showcase` completed 180s/11 captures/exit 0 with no forbidden log patterns.
+Reviewed 75.1s against prior 75.3s: comparable castle view, flat cyan moat remains, no new full-view
+obstruction. Reviewed 150.1s: unfinished green terrain/far hills and sparse vegetation, unacceptable.
+Final missing-visible=642, requests=1981, mirror=1970, published=1175, batchArenaWait=124,
+step1/2/4/8 publications=553/549/69/4, directory refusals=0, slot refusals=0. This is not full coverage.
+`frame-window-summary.json` records approximate frames per one-second diagnostic sample:
+60–90s stationary: 30 samples, mean 137.9 FPS, CPU p50 median 7.21ms, GPU 4.70ms;
+120–180s walking: 59 samples, mean 135.7 FPS, CPU 7.31ms, GPU 1.35ms, sample range 103–160.
+These are instrumented/incomplete-coverage diagnostics, not the repeated acceptance benchmark;
+no performance improvement is established by comparison with the earlier run.
+CPU deletion, full production-quality coverage, G11 and performance acceptance remain open.
+
 GPU water paged draw preparation after `08236d15e`: both production WaterSurface passes now share
 paged vertex/index lookup with GPU compacted bucket metadata, per-instance counts and bank selection.
 Padding instances avoid page reads. A dedicated water selector avoids inheriting the solid draw mode.

@@ -130,7 +130,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public readonly VoxelTimingSummary BuildSelectionTiming;
 
         internal VoxelSurfaceMetrics(CpuTransvoxelChunkCache solids,
-                                     CpuWaterSurfaceChunkCache water,
+                                     GpuWaterSurfaceChunkCache water,
                                      int changeRecords, int discoveredSurfaceBricks)
         {
             ChangeRecords = changeRecords;
@@ -246,7 +246,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         }
 
         internal VoxelSurfaceMetrics(CpuTransvoxelChunkCache[] workers,
-                                     CpuWaterSurfaceChunkCache water,
+                                     GpuWaterSurfaceChunkCache water,
                                      int changeRecords, int discoveredSurfaceBricks,
                                      int visibleSolidChunks,
                                      int solidUploadBudgetBytes,
@@ -743,7 +743,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly List<SurfaceLodNodeKey> _lodCurrentCompleteNodes = new(256);
         private readonly Plane[] _visibilityFrustumPlanes = new Plane[6];
         private int _lastVisibilityCandidateChecks;
-        private readonly CpuWaterSurfaceChunkCache _water = new();
+        private readonly GpuWaterSurfaceChunkCache _water = new();
         private readonly WaterSurfaceDiscoveryAdmission _waterDiscoveryAdmission = new();
         private const int ChangeReadRecordsPerFrame = 64;
         private const int ChangeBrickExpansionsPerFrame = 256;
@@ -1226,7 +1226,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         /// </summary>
         internal ComputeBuffer SolidGeometryVertices => _geometryArena.Vertices;
         internal ComputeBuffer SolidGeometryIndices => _geometryArena.Indices;
-        public IReadOnlyList<CpuWaterSurfaceChunkCache.Entry> VisibleWater => _water.Visible;
+        internal GpuWaterSurfaceChunkCache WaterCache => _water;
+        public IReadOnlyList<GpuWaterSurfaceChunkCache.Entry> VisibleWater => _water.Visible;
         public VoxelSurfaceMetrics Metrics => new(
             _allWorkers, _water, _lastChangeRecords, _discoveredSurfaceBricks.Count,
             _visibleSolids.Count + _visibleGpuHandles.Count,

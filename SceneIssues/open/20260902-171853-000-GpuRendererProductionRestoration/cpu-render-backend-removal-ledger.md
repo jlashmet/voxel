@@ -19,7 +19,7 @@ This is a removal ledger, not permission to delete everything whose name contain
 
 | Path / family | Why it is a deletion target | Migration prerequisite |
 | --- | --- | --- |
-| `Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuWaterSurfaceChunkCache.cs` (+ `.meta`) | CPU-authored water surface geometry/cache. | Provide the required production GPU water-surface extraction/publication behavior and preserve the existing stylized water presentation; then migrate callers/tests and delete. |
+| `Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuWaterSurfaceChunkCache.cs` (+ `.meta`) | Retired CPU-authored water geometry/cache; production scheduler/discovery/render pass now use `GpuWaterSurfaceChunkCache`. | GPU runtime/cache tests and WaterDemo player are available. Migrate remaining CPU-specific test fixtures/oracles and physically delete; rendered water quality still needs work. |
 | `Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/SurfaceBlockHlodMeshJob.cs` (+ `.meta`) | CPU coarse step-8 block HLOD mesh generation. | G07 GPU coarse-LOD equivalent with real mixed-LOD/frontier proof. |
 | `Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelDensityJob.cs` | CPU density reconstruction for surface meshing. | GPU semantic/density coverage plus independent canonical expectations. |
 | `.../Transvoxel/TransvoxelTopologyJob.cs` | CPU regular topology emission. | GPU regular/faceted topology proof and independent expected geometry. |

@@ -23,6 +23,13 @@ struct WaterPagedDrawMetadata
     uint bank;
     uint padding;
 };
+struct WaterGeometryRecord
+{
+    uint generationLow, generationHigh, bank, vertexCount;
+    uint indexCount, vertexPageCount, indexPageCount, ready;
+};
+StructuredBuffer<WaterGeometryRecord> _WaterLiveGeometry;
+uint _WaterDrawHandle;
 StructuredBuffer<WaterPagedDrawMetadata> _PagedDrawMetadata;
 StructuredBuffer<uint> _PagedDrawBucketState;
 uint _PagedDrawBucket;
@@ -43,8 +50,20 @@ bool LoadWaterSurfaceVertex(uint vertexID, uint instanceID, out SurfaceVertex ve
             _SurfaceVertexBase + _SurfaceIndices[_SurfaceIndexBase + vertexID]];
         return true;
     }
-    uint start = _PagedDrawBucketState[_PagedDrawBucket * 4u + 2u];
-    WaterPagedDrawMetadata draw = _PagedDrawMetadata[start + instanceID];
+    WaterPagedDrawMetadata draw;
+    if (_WaterPagedDraw == 2u)
+    {
+        WaterGeometryRecord live = _WaterLiveGeometry[_WaterDrawHandle];
+        draw.handle = _WaterDrawHandle;
+        draw.bank = live.bank;
+        draw.indexCount = live.ready != 0u ? live.indexCount : 0u;
+        draw.padding = 0u;
+    }
+    else
+    {
+        uint start = _PagedDrawBucketState[_PagedDrawBucket * 4u + 2u];
+        draw = _PagedDrawMetadata[start + instanceID];
+    }
     // Each bucket draws its maximum count; shorter instances must not fetch padding.
     if (vertexID >= draw.indexCount)
     {

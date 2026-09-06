@@ -2,28 +2,26 @@
 
 ## Objective and acceptance
 
-Deliver production-quality `Assets/Scenes/VoxelShowcase.unity` through GPU rendering, delete retired CPU-only rendering, and pursue **1,000 FPS / 1.00 ms whole frame**, or the closest repeatable measured result under [tasks.md](tasks.md). Preserve CPU authority and GPU host orchestration. No hidden content, weaker budgets, reduced distance or permanent CPU fallback. User wants the full GPU path before additional optimization work.
+Deliver production-quality `Assets/Scenes/VoxelShowcase.unity` through GPU rendering, physically delete retired CPU-only rendering, and pursue **1,000 FPS / 1.00 ms whole frame**, or the closest repeatable result under [tasks.md](tasks.md). Preserve authoritative CPU storage/generation/collision/simulation and GPU host orchestration. No hidden content, weaker budgets or reduced distance. Full GPU functionality precedes optimization.
 
-## Retained evidence
+Worktree `/private/tmp/voxel-gpu-restoration`, branch `gpu-rendering-agent-1-resume`, base `54902c4b8`. Local harness/tests/screenshots authorized. Last requested push: `origin/fixes/agent-1` at `64b2921a3`; current work stays local.
 
-Worktree `/private/tmp/voxel-gpu-restoration`, branch `gpu-rendering-agent-1-resume`, water-kernel base `08236d15e`. Local harness/tests/screenshots authorized; last requested push reached `origin/fixes/agent-1` at `64b2921a3`. Current work stays local.
+## Retained results
 
-All solid LOD steps have GPU implementations. Step8 source streaming is bounded; full-scene coverage remains incomplete. Water migration and legacy CPU renderer removal remain open.
+All solid LODs have GPU implementations. Step8 streaming handles 4,096 mixed source bricks through a 1,024-slot mirror and rejects edited candidates. The 180s Showcase run completed with zero directory refusals but 567 missing-visible chunks. Reviewed output remains unacceptable. Two step8 workers cannot monopolize all four count lanes; no evidence justifies speculative scheduling changes. CPU overhead remains elevated; optimization follows functionality.
 
-## Current GPU water migration
+GPU water kernels and paged shader passes passed actual Metal meshing/raster tests. Temporary CPU comparison oracles remain pending deletion.
 
-Step8 bounded summary streaming landed in `71d70c388`. A real 4,096-mixed-brick request converges through a 1,024-slot mirror; edits to completed portions reject candidates and retired worlds defer disposal. Showcase completed 180s/11 captures/exit 0 with zero directory refusals, but 567 missing-visible and only three step8 publications. Reviewed 75.3s/150.3s remains unacceptable. Detailed evidence is in tasks.md.
+## Current migration and experiment
 
-H1: coarse preparation monopolizes all count lanes. H2: remaining whole-source pressure prevents finer progress. Inspection limits step8 to two workers versus four lanes, falsifying H1 as a complete-lane monopoly. The last run has no slot/directory refusals, so H2 is not demonstrated for that run. Avoid speculative scheduling changes; user wants GPU completion before optimization.
+Scheduler/discovery/render pass now select `GpuWaterSurfaceChunkCache`. It retains immutable voxel snapshots, counts and writes eight-brick slices, uses a separately owned GPU page arena within the existing geometry capacities, and receives only status/identity feedback. Version-checked publication commits GPU candidates; GPU-generated indirect arguments address live geometry. Teardown retains buffers through completion, including final water draws. The retired CPU cache still exists only for unmigrated tests; physical deletion remains required.
 
-Water still extracts CPU geometry and uploads it through CpuWaterSurfaceChunkCache. Selected migration keeps authoritative material snapshots and host orchestration but moves greedy extraction, topology flags, spray geometry, counts and paged writes onto the GPU. Existing water snapshots contain 512 cells plus six 64-cell face halos. They can feed GPU extraction without changing Storage truth or relying on the solid mirror's water-excluding invalidation policy.
+Initial runtime tests: four passed, covering canonical publication/arguments, stale rejection, same-chunk occluder edits and disposal. WaterDemo completed 30s/five captures/exit 0. Reviewed 8.3s/26.3s show lake and cascade but a dry river, missing surroundings and floating vegetation: unacceptable.
 
-GPU count/write kernels now consume eight-brick snapshot slices and emit greedy surfaces, topology and spray into the paged arena without CPU geometry/count readback. Five actual-GPU parity fixtures use a temporary CPU oracle, which must disappear with the CPU backend.
+H1: inherited hardcoded water IDs omit river material 22. H2: paged shader addressing loses river geometry. Scene authoring uses 22; inherited cache classified only 11/16, proving H1. Selected fix: discover and mesh the installed presentation catalogue's water mask, captured immutably per transaction. Full geometry/indirect publication of additional material 22 now passes. Expanded spray bounds cover the canonical six-voxel extension.
 
-Initial Metal compilation rejected a dynamic vector component assignment; explicit axis vectors fixed it. All five parity fixtures passed (16s harness). Next integrate snapshot ownership/count/allocation/write/publication into the water cache, then run the module's real WaterDemo plus full Showcase. Neither runtime GPU water nor CPU renderer deletion is complete.
-
-Water drawing now supports paged indirect geometry in both production shader passes through a shared fetch helper. Real Metal raster tests exercise bucket offsets, alternating banks, body/spray rejection and exact pixel parity with the temporary contiguous path. Final `gpu-water-paged-raster-parity.xml`: 11 passed, exit 0, 13s (five mesher fixtures plus six draw/compaction cases). These are narrow addressing regressions, not standalone visual acceptance. Runtime cache still uses CPU extraction; next wire GPU transaction ownership and publication, select paged water drawing, then delete contiguous support. Existing module-local WaterDemo owns subsequent standalone validation.
+`gpu-water-runtime-catalogue.xml`: 16 passed/exit 0/17s (five cache, five mesher, six draw/compaction cases). The 42s WaterDemo rerun passed with seven captures; reviewed 26.3s restores river/feeder/receiver water, while 32.3s waterfall sheets remain visually unacceptable. Showcase completed 180s/11 captures/exit 0; reviewed 75.1s/150.1s remains unacceptable, with 642 missing-visible chunks. Approximate stationary/walking rates are 138/136 FPS, not an accepted benchmark. Exact source copies/hashes accompany captures. Next migrate/delete the retired CPU water tests/cache, then address remaining GPU coverage and visual defects.
 
 ## Remaining gates
 
-Finish coverage and visual fidelity, migrate water, delete CPU-only rendering/oracles, and complete G11 retirement/error policy. Validate edits, pressure, lifecycle, module/integration players and repeated frame/memory workloads. G01–G27 remain incomplete. Full GPU completion precedes broader optimization.
+Finish GPU coverage/visual quality, delete CPU-only rendering and temporary oracles, complete G11 retirement/error policy, and validate lifecycle, pressure, edits, module/integration players and repeated frame/memory workloads. G01–G27 remain incomplete; no completion claim.

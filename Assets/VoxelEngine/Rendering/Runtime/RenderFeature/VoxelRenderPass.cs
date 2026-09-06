@@ -87,8 +87,8 @@ namespace VoxelEngine.Rendering.Runtime
         // render pass; camera motion may change counts but can never resize managed arrays.
         private readonly CpuTransvoxelChunkCache.Entry[] _transvoxelDrawEntries =
             new CpuTransvoxelChunkCache.Entry[VoxelSurfaceScheduler.SurfaceArenaDrawCapacity];
-        private readonly CpuWaterSurfaceChunkCache.Entry[] _waterDrawEntries =
-            new CpuWaterSurfaceChunkCache.Entry[CpuWaterSurfaceChunkCache.ArenaDrawCapacity];
+        private readonly GpuWaterSurfaceChunkCache.Entry[] _waterDrawEntries =
+            new GpuWaterSurfaceChunkCache.Entry[GpuWaterSurfaceChunkCache.ArenaDrawCapacity];
         private readonly int[] _solidDrawBucketCounts = new int[SolidDrawBucketCount];
         private readonly int[] _solidDrawBucketStarts = new int[SolidDrawBucketCount];
         private readonly int[] _solidDrawBucketCursors = new int[SolidDrawBucketCount];
@@ -205,8 +205,9 @@ namespace VoxelEngine.Rendering.Runtime
             public ComputeBuffer PagedDrawBucketState;
             public ComputeBuffer PagedIndirectArgs;
             public int VisiblePagedCount;
-            public CpuWaterSurfaceChunkCache.Entry[] WaterEntries;
+            public GpuWaterSurfaceChunkCache.Entry[] WaterEntries;
             public int WaterEntryCount;
+            public GpuWaterSurfaceChunkCache WaterCache;
         }
 
         public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
@@ -259,8 +260,8 @@ namespace VoxelEngine.Rendering.Runtime
                 ? $"preparing-{camera.cameraType}" : "preparing";
             IReadOnlyList<CpuTransvoxelChunkCache.Entry> transvoxelVisible =
                 Array.Empty<CpuTransvoxelChunkCache.Entry>();
-            IReadOnlyList<CpuWaterSurfaceChunkCache.Entry> waterVisible =
-                Array.Empty<CpuWaterSurfaceChunkCache.Entry>();
+            IReadOnlyList<GpuWaterSurfaceChunkCache.Entry> waterVisible =
+                Array.Empty<GpuWaterSurfaceChunkCache.Entry>();
             _scheduler.SolidBuildBudgetMs = Math.Max(0.0, VoxelRenderBridge.SolidBuildBudgetMs);
             _scheduler.SolidUploadBudgetBytes = Math.Max(0, VoxelRenderBridge.SolidUploadBudgetBytes);
             _scheduler.SolidUploadSliceBytes = Math.Max(0, VoxelRenderBridge.SolidUploadSliceBytes);
@@ -394,6 +395,7 @@ namespace VoxelEngine.Rendering.Runtime
             data.FarSurfaceConsumers = _farSurfaceConsumers;
             data.WaterEntries = _waterDrawEntries;
             data.WaterEntryCount = waterVisible.Count;
+            data.WaterCache = _scheduler.WaterCache;
 
             builder.UseTexture(data.CameraColor, AccessFlags.ReadWrite);
             builder.UseTexture(data.CameraDepth, AccessFlags.ReadWrite);
@@ -529,6 +531,7 @@ namespace VoxelEngine.Rendering.Runtime
                     for (int i = 0; i < passData.WaterEntryCount; i++)
                         passData.WaterEntries[i].Draw(cmd, passData.WaterMaterial,
                                                       passData.WaterProperties);
+                    passData.WaterCache.RecordDrawCompletion(cmd);
                 }
             });
         }
