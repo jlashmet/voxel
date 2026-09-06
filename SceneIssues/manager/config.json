@@ -1,0 +1,40 @@
+{
+  "batchHours": 5,
+  "staleAgentHours": 12,
+  "repeatedCiFailureCount": 3,
+  "largeDiffFileCount": 40,
+  "reviewBudget": {
+    "routineCompletions": 5,
+    "suspiciousItems": 2,
+    "deepInvestigations": 1
+  },
+  "visualEvidence": {
+    "enabled": true,
+    "maxImagesPerReview": 6,
+    "maxImagesPerCompletion": 3,
+    "maxImageBytes": 8388608,
+    "maxArtifactDownloadBytes": 67108864,
+    "maxWorkflowRunsPerCompletion": 2,
+    "ghBinary": "gh"
+  },
+  "codex": {
+    "binary": "codex",
+    "minimumVersion": "0.153.0",
+    "model": "gpt-6-astra",
+    "reasoningEffort": "low",
+    "sandbox": "read-only",
+    "approvalPolicy": "never",
+    "webSearch": "disabled"
+  },
+  "corePathPatterns": [
+    "^Assets/.*(?:Renderer|Rendering|Gpu|GPU)",
+    "^Assets/.*WorldBuilder",
+    "^Assets/.*Streaming",
+    "^Assets/.*Runtime/",
+    "^Assets/.*Public/",
+    "^Packages/",
+    "^ProjectSettings/",
+    "^tools/(?:module-validation|run-module-validation|select-tests)",
+    "^\\.github/workflows/"
+  ]
+}

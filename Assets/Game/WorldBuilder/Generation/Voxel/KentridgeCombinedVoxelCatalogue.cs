@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using Game.WorldBuilder.Api;
 using Game.WorldBuilder.Runtime;
 using MountingForce.WorldGen.Architecture;
 using Unity.Collections;
@@ -9,23 +8,13 @@ namespace MountingForce.WorldGen.Voxel
 {
     public static class KentridgeCombinedVoxelCatalogue
     {
-        /// <summary>
-        /// Builds only the local Kentridge catalogue and deliberately leaves any scene-selected
-        /// macro world untouched. Generic/temporary composition roots use this path so the
-        /// one-shot macro selection remains owned by the concrete playable Kentridge catalogue.
-        /// </summary>
-        public static FeatureCatalogue BuildLocalOnly(
-            uint seed,
-            VoxelWorldGenSettings settings,
-            Allocator allocator) =>
-            KentridgeCombinedVoxelCatalogueCanonical.Build(seed, settings, allocator);
-
         public static FeatureCatalogue Build(
             uint seed,
             VoxelWorldGenSettings settings,
             Allocator allocator)
         {
-            FeatureCatalogue local = BuildLocalOnly(seed, settings, allocator);
+            FeatureCatalogue local = KentridgeCombinedVoxelCatalogueCanonical.Build(
+                seed, settings, allocator);
             return AddSelectedMacroWorld(local, seed, settings, allocator);
         }
 
@@ -78,40 +67,20 @@ namespace MountingForce.WorldGen.Voxel
                 return local;
 
             FeatureCatalogue macro = default;
-            FeatureCatalogue waterBodies = default;
             try
             {
-                TopDownWorldPhysicalIntentSpec intent = KentridgeTopDownWorldPhysicalIntent.Build();
-                var root = new Int2(selection.RootXdm, selection.RootZdm);
-                TopDownWorldPhysicalPlan physical = TopDownWorldPhysicalVoxelCatalogue.Plan(
+                macro = TopDownWorldVoxelCatalogue.Build(
                     selection.Layout,
-                    intent,
-                    root,
+                    new Int2(selection.RootXdm, selection.RootZdm),
                     selection.CellSizeDm,
-                    settings);
-                TopDownWorldPhysicalReservationAdapter.Validate(physical);
-                macro = TopDownWorldPhysicalVoxelCatalogue.Build(
-                    selection.Layout,
-                    intent,
-                    root,
-                    selection.CellSizeDm,
-                    settings,
-                    allocator,
-                    includeWaterBodies: false);
-                waterBodies = TopDownWorldWaterBodyVoxelCatalogue.Build(
-                    physical,
-                    seed,
                     settings,
                     allocator);
-                return waterBodies.IsCreated
-                    ? SettlementCatalogueCombiner.Combine(allocator, local, macro, waterBodies)
-                    : SettlementCatalogueCombiner.Combine(allocator, local, macro);
+                return SettlementCatalogueCombiner.Combine(allocator, local, macro);
             }
             finally
             {
                 if (local.IsCreated) local.Dispose();
                 if (macro.IsCreated) macro.Dispose();
-                if (waterBodies.IsCreated) waterBodies.Dispose();
             }
         }
     }

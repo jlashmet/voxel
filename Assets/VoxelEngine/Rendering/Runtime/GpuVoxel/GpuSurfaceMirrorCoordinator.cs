@@ -42,8 +42,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             new(TrackedRegionCapacity);
         private static readonly Dictionary<ActiveFootprint, int> s_DemandFootprints =
             new(32);
-        private static readonly Dictionary<ActiveFootprint, int> s_PendingBlocksByDemandFootprint =
-            new(32);
         private static readonly HashSet<int3> s_PendingBlocks = new(TrackedBlockCapacity);
         private static readonly HashSet<int3> s_ReadyBlocks = new(TrackedBlockCapacity);
         private static readonly Dictionary<int3, HashSet<int3>> s_ReadyBlocksByRegion =
@@ -79,14 +77,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private static int s_LastExtractionDispatchFrame = -1;
         private static GraphicsFence s_ExtractionFence;
         private static bool s_ExtractionFenceValid;
-        private static readonly GpuSurfaceExtractionContext[] s_FencedContexts =
-            new GpuSurfaceExtractionContext[CountBatchCapacity];
-        private static readonly uint[] s_FencedTokens = new uint[CountBatchCapacity];
-        private static readonly GpuChunkExtraction[] s_FencedRequests =
-            new GpuChunkExtraction[CountBatchCapacity];
-        private static readonly int[] s_FencedBrickCacheEdges = new int[CountBatchCapacity];
-        private static int s_FencedExtractionCount;
-        private static readonly GpuFenceRetiredExtractionLedger s_FenceRetiredExtractions = new();
         private static uint s_CoverageEpoch;
         private static ulong s_OptionalNonResidentHaloBlocksAccepted;
         private static ulong s_ConcurrentDemandRecoverySlices;
@@ -98,7 +88,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private static ulong s_CoverageReadyRounds;
         private static readonly CountBatchLane[] s_CountBatchLanes =
             new CountBatchLane[CountBatchLaneCount];
-        private static int s_CountBatchSealCursor;
         private static ulong s_CountBatchReadbacks;
         private static ulong s_CountBatchRecords;
         private static ulong s_CountBatchArenaWaits;
@@ -134,26 +123,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 SourceStep == other.SourceStep && math.all(Origin == other.Origin);
             public override bool Equals(object obj) => obj is ChunkHandleKey other && Equals(other);
             public override int GetHashCode() => HashCode.Combine(Origin.GetHashCode(), SourceStep);
-        }
-
-        private readonly struct ActiveFootprint : IEquatable<ActiveFootprint>
-        {
-            internal readonly int3 Origin;
-            internal readonly int Edge;
-
-            internal ActiveFootprint(int3 origin, int edge)
-            {
-                Origin = origin;
-                Edge = edge;
-            }
-
-            public bool Equals(ActiveFootprint other) =>
-                Edge == other.Edge && math.all(Origin == other.Origin);
-
-            public override bool Equals(object obj) =>
-                obj is ActiveFootprint other && Equals(other);
-
-            public override int GetHashCode() => HashCode.Combine(Origin.GetHashCode(), Edge);
         }
 
         internal static void ConfigurePageArena(GpuSurfacePageArena arena)
@@ -195,6 +164,26 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             var key = new ChunkHandleKey(origin, sourceStep);
             if (!s_ChunkHandles.Remove(key, out int handle)) return;
             s_PageArena.QueueRelease(handle, generation);
+        }
+
+        private readonly struct ActiveFootprint : IEquatable<ActiveFootprint>
+        {
+            internal readonly int3 Origin;
+            internal readonly int Edge;
+
+            internal ActiveFootprint(int3 origin, int edge)
+            {
+                Origin = origin;
+                Edge = edge;
+            }
+
+            public bool Equals(ActiveFootprint other) =>
+                Edge == other.Edge && math.all(Origin == other.Origin);
+
+            public override bool Equals(object obj) =>
+                obj is ActiveFootprint other && Equals(other);
+
+            public override int GetHashCode() => HashCode.Combine(Origin.GetHashCode(), Edge);
         }
 
         internal static GpuVoxelBrickMirror Acquire(long requestedBudgetBytes)
@@ -259,8 +248,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         /// <summary>
         /// Appends one immutable chunk descriptor to a cross-chunk lane. On seal, batch-wide GPU
         /// count/prefix, page allocation, all-category generation, and publication execute without
-        /// transferring bookkeeping to the CPU. Full lanes are serviced by the next frame's fair
-        /// seal pass; sparse demand also seals after a bounded delay.
+        /// transferring bookkeeping to the CPU. A lane seals at eight descriptors or after a
+        /// bounded delay, so sparse demand cannot wait forever.
         /// </summary>
         internal static bool TryDispatchCountBatch(GpuSurfaceExtractionContext context,
                                                    uint token,
@@ -301,6 +290,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 s_MaxCountDispatchMsSinceReport,
                 (Time.realtimeSinceStartupAsDouble - dispatchStarted) * 1000.0);
             s_CountBatchRecords++;
+            if (lane.Count == CountBatchCapacity) SealCountBatch(lane);
             return true;
         }
 
@@ -319,22 +309,12 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         private static void AdvanceCountBatches(int frame)
         {
-            RetirePassedExtractionFence();
-            for (int offset = 0; offset < s_CountBatchLanes.Length; offset++)
+            for (int laneIndex = 0; laneIndex < s_CountBatchLanes.Length; laneIndex++)
             {
-                int laneIndex = (s_CountBatchSealCursor + offset) % s_CountBatchLanes.Length;
                 CountBatchLane lane = s_CountBatchLanes[laneIndex];
-                if (lane == null || lane.Count == 0) continue;
-                bool full = lane.Count >= CountBatchCapacity;
-                bool aged = frame - lane.FirstDispatchFrame >= CountBatchMaxFillFrames;
-                if (!full && !aged) continue;
-
-                // Preserve the current cursor when the Metal fence/backpressure blocks this lane;
-                // it remains the oldest eligible authority next frame instead of being skipped by
-                // newer demand. Only a successful submission rotates service to the next lane.
-                if (!SealCountBatch(lane)) return;
-                s_CountBatchSealCursor = (laneIndex + 1) % s_CountBatchLanes.Length;
-                return;
+                if (lane == null) continue;
+                if (lane.Count > 0 && frame - lane.FirstDispatchFrame >= CountBatchMaxFillFrames)
+                    SealCountBatch(lane);
             }
         }
 
@@ -352,9 +332,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             lane.Tables = null;
         }
 
-        private static bool SealCountBatch(CountBatchLane lane)
+        private static void SealCountBatch(CountBatchLane lane)
         {
-            if (lane == null || lane.Count == 0) return false;
+            if (lane == null || lane.Count == 0) return;
             if (s_PageArena == null)
                 throw new InvalidOperationException(
                     "Production GPU extraction requires the GPU-owned page arena.");
@@ -365,16 +345,13 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             // threads remain cheap, then presentation absorbs the accumulated queue as a 100+ ms
             // hitch. A graphics fence transfers no voxel/count/allocation data to the CPU. Its
             // nonblocking status is solely queue backpressure, matching an ordinary render graph.
-            if (s_ExtractionFenceValid)
+            if (s_ExtractionFenceValid && !s_ExtractionFence.passed)
             {
-                if (!s_ExtractionFence.passed)
-                {
-                    s_CountBatchArenaWaits++;
-                    return false;
-                }
-                RetirePassedExtractionFence();
+                s_CountBatchArenaWaits++;
+                return;
             }
-            if (!TryReserveExtractionDispatch(frame)) return false;
+            s_ExtractionFenceValid = false;
+            if (!TryReserveExtractionDispatch(frame)) return;
 
             s_PageArena.FlushHandleCommands(frame);
             lane.PrefixExtractor.DispatchCountBatch(
@@ -394,61 +371,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 GraphicsFenceType.CPUSynchronisation,
                 SynchronisationStageFlags.ComputeProcessing);
             s_ExtractionFenceValid = true;
-            CaptureFencedExtractionBatch(lane);
-            ResetCountBatchLane(lane);
-            return true;
-        }
-
-        private static void CaptureFencedExtractionBatch(CountBatchLane lane)
-        {
-            if (s_FencedExtractionCount != 0)
-                throw new InvalidOperationException(
-                    "A new GPU extraction batch cannot replace unfinished fence ownership.");
-            s_FencedExtractionCount = lane.Count;
             for (int record = 0; record < lane.Count; record++)
-            {
-                s_FencedContexts[record] = lane.Contexts[record];
-                s_FencedTokens[record] = lane.Tokens[record];
-                s_FencedRequests[record] = lane.Requests[record];
-                s_FencedBrickCacheEdges[record] = lane.Contexts[record]?.BrickCacheEdge ?? 0;
-            }
-        }
-
-        private static bool RetirePassedExtractionFence()
-        {
-            if (!s_ExtractionFenceValid || !s_ExtractionFence.passed) return false;
-            s_ExtractionFenceValid = false;
-            for (int record = 0; record < s_FencedExtractionCount; record++)
-            {
-                GpuSurfaceExtractionContext context = s_FencedContexts[record];
-                uint token = s_FencedTokens[record];
-                GpuChunkExtraction request = s_FencedRequests[record];
-                int edge = s_FencedBrickCacheEdges[record];
-                if (context != null && edge > 0
-                    && context.CompletePagedBatch(token, request.Handle))
-                {
-                    ReleaseExtractionOwnership(request.BrickCacheOrigin, edge);
-                    s_FenceRetiredExtractions.Record(request.BrickCacheOrigin, edge);
-                }
-                s_FencedContexts[record] = null;
-                s_FencedTokens[record] = 0;
-                s_FencedRequests[record] = default;
-                s_FencedBrickCacheEdges[record] = 0;
-            }
-            s_FencedExtractionCount = 0;
-            return true;
-        }
-
-        private static void ClearFencedExtractionBatch()
-        {
-            for (int record = 0; record < s_FencedExtractionCount; record++)
-            {
-                s_FencedContexts[record] = null;
-                s_FencedTokens[record] = 0;
-                s_FencedRequests[record] = default;
-                s_FencedBrickCacheEdges[record] = 0;
-            }
-            s_FencedExtractionCount = 0;
+                lane.Contexts[record]?.CompletePagedBatch(
+                    lane.Tokens[record], lane.Requests[record].Handle);
+            ResetCountBatchLane(lane);
         }
 
         private static void ResetCountBatches()
@@ -465,9 +391,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 lane.Resources = null;
                 ResetCountBatchLane(lane);
             }
-            ClearFencedExtractionBatch();
-            s_FenceRetiredExtractions.Clear();
-            s_CountBatchSealCursor = 0;
             s_CountBatchReadbacks = 0;
             s_CountBatchRecords = 0;
             s_CountBatchArenaWaits = 0;
@@ -558,16 +481,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         internal static bool TryBeginExtraction(int3 brickCacheOrigin, int brickCacheEdge)
         {
-            // A change that lands inside a demand footprint after its bounded coverage cursor has
-            // already passed that block must invalidate only that footprint. Keep the global epoch
-            // for world replacement/history loss, and hold this request until its own queued
-            // recovery has published the changed blocks. Unrelated edits therefore cannot restart
-            // every 18^3 scan, while an in-footprint edit still cannot admit stale mirror data.
-            var footprint = new ActiveFootprint(brickCacheOrigin, brickCacheEdge);
-            if (s_PendingBlocksByDemandFootprint.TryGetValue(footprint, out int pending)
-                && pending > 0)
-                return false;
-
             // A direct ComputeShader dispatch shares Metal's graphics queue with rendering. Do not
             // admit more complete count/write/copy chains than one count lane can service; deeper
             // queues increase presentation latency without increasing useful parallelism.
@@ -614,12 +527,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         }
 
         internal static void EndExtraction(int3 brickCacheOrigin, int brickCacheEdge)
-        {
-            if (s_FenceRetiredExtractions.TryConsume(brickCacheOrigin, brickCacheEdge)) return;
-            ReleaseExtractionOwnership(brickCacheOrigin, brickCacheEdge);
-        }
-
-        private static void ReleaseExtractionOwnership(int3 brickCacheOrigin, int brickCacheEdge)
         {
             if (s_ActiveExtractionCount > 0) s_ActiveExtractionCount--;
             ChangeActiveFootprint(brickCacheOrigin, brickCacheEdge, -1);
@@ -739,6 +646,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                         s_ChangedReadyScratch.Add(block);
                 }
             }
+            if (s_ChangedReadyScratch.Count > 0)
+                unchecked { s_CoverageEpoch++; }
             for (int i = 0; i < s_ChangedReadyScratch.Count; i++)
             {
                 int3 block = s_ChangedReadyScratch[i];
@@ -758,7 +667,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             if (!IsBlockDemanded(block)) return;
             if (!s_PendingBlocks.Add(block)) return;
-            ChangePendingFootprintCounts(block, 1);
             int3 region = block >> VoxelReadGrid.BlocksPerRegionEdgeLog2;
             if (!s_PendingBlocksByRegion.TryGetValue(region, out Queue<int3> blocks))
             {
@@ -805,8 +713,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                     if (!s_PendingBlocks.Contains(worldBlock)
                         || !IsBlockDemanded(worldBlock))
                     {
-                        if (s_PendingBlocks.Remove(worldBlock))
-                            ChangePendingFootprintCounts(worldBlock, -1);
+                        s_PendingBlocks.Remove(worldBlock);
                         madeProgress = true;
                         RecordConcurrentRecoveryProgress(ref concurrentProgressRecorded);
                         continue;
@@ -818,8 +725,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                     }
 
                     madeProgress = true;
-                    if (s_PendingBlocks.Remove(worldBlock))
-                        ChangePendingFootprintCounts(worldBlock, -1);
+                    s_PendingBlocks.Remove(worldBlock);
                     int3 localBlock = worldBlock
                         - (region << VoxelReadGrid.BlocksPerRegionEdgeLog2);
                     if (!resident)
@@ -955,43 +861,14 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             var footprint = new ActiveFootprint(origin, edge);
             s_DemandFootprints.TryGetValue(footprint, out int readers);
-            int previousReaders = readers;
             readers += delta;
             if (readers > 0)
             {
                 s_DemandFootprints[footprint] = readers;
-                if (previousReaders <= 0)
-                    s_PendingBlocksByDemandFootprint[footprint] =
-                        CountPendingBlocksInFootprint(footprint);
                 return;
             }
 
             s_DemandFootprints.Remove(footprint);
-            s_PendingBlocksByDemandFootprint.Remove(footprint);
-        }
-
-        private static int CountPendingBlocksInFootprint(in ActiveFootprint footprint)
-        {
-            int count = 0;
-            int3 end = footprint.Origin + new int3(footprint.Edge);
-            foreach (int3 block in s_PendingBlocks)
-            {
-                if (math.all(block >= footprint.Origin & block < end)) count++;
-            }
-            return count;
-        }
-
-        private static void ChangePendingFootprintCounts(int3 block, int delta)
-        {
-            if (delta == 0) return;
-            foreach (ActiveFootprint footprint in s_DemandFootprints.Keys)
-            {
-                int3 end = footprint.Origin + new int3(footprint.Edge);
-                if (!math.all(block >= footprint.Origin & block < end)) continue;
-                s_PendingBlocksByDemandFootprint.TryGetValue(footprint, out int pending);
-                pending += delta;
-                s_PendingBlocksByDemandFootprint[footprint] = Math.Max(0, pending);
-            }
         }
 
         private static bool IsBlockDemanded(int3 block)
@@ -1108,8 +985,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             }
             s_PendingBlocksByRegion.Clear();
             s_PendingBlocks.Clear();
-            foreach (ActiveFootprint footprint in s_DemandFootprints.Keys)
-                s_PendingBlocksByDemandFootprint[footprint] = 0;
         }
 
         private static void ClearReadyBlocks()
@@ -1163,7 +1038,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             s_ActiveRegionReaders.Clear();
             s_ActiveFootprints.Clear();
             s_DemandFootprints.Clear();
-            s_PendingBlocksByDemandFootprint.Clear();
             s_Changes.Clear();
 
             if (!disposeMirror || s_Mirror == null) return;
