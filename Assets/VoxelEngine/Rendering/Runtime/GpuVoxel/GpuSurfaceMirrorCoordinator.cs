@@ -42,7 +42,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             new(TrackedRegionCapacity);
         private static readonly Dictionary<ActiveFootprint, int> s_DemandFootprints =
             new(32);
-        private static readonly Dictionary<ActiveFootprint, uint> s_DemandCoverageEpochs = new(32);
+        private static readonly Dictionary<ActiveFootprint, uint> s_EditWatchEpochs = new(32);
+        private static readonly Dictionary<ActiveFootprint, int> s_EditWatchReaders = new(32);
         private static readonly HashSet<int3> s_PendingBlocks = new(TrackedBlockCapacity);
         private static readonly HashSet<int3> s_ReadyBlocks = new(TrackedBlockCapacity);
         private static readonly Dictionary<int3, HashSet<int3>> s_ReadyBlocksByRegion =
@@ -281,21 +282,23 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private readonly struct ActiveFootprint : IEquatable<ActiveFootprint>
         {
             internal readonly int3 Origin;
-            internal readonly int Edge;
+            internal readonly int3 Extent;
 
-            internal ActiveFootprint(int3 origin, int edge)
+            internal ActiveFootprint(int3 origin, int edge) : this(origin, new int3(edge)) { }
+
+            internal ActiveFootprint(int3 origin, int3 extent)
             {
                 Origin = origin;
-                Edge = edge;
+                Extent = extent;
             }
 
             public bool Equals(ActiveFootprint other) =>
-                Edge == other.Edge && math.all(Origin == other.Origin);
+                math.all(Extent == other.Extent & Origin == other.Origin);
 
             public override bool Equals(object obj) =>
                 obj is ActiveFootprint other && Equals(other);
 
-            public override int GetHashCode() => HashCode.Combine(Origin.GetHashCode(), Edge);
+            public override int GetHashCode() => HashCode.Combine(Origin.GetHashCode(), Extent.GetHashCode());
         }
 
         internal static GpuVoxelBrickMirror Acquire(long requestedBudgetBytes)
@@ -646,7 +649,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                                              int3 coreMaxVoxelExclusive)
         {
             if (brickCacheEdge > 0) ChangeDemandFootprint(brickCacheOrigin, brickCacheEdge, 1);
-            return s_ResourceWorldEpoch;
+            return RequestEditWatch(brickCacheOrigin, brickCacheEdge);
         }
 
         internal static void ReleaseCoverage(int3 brickCacheOrigin, int brickCacheEdge,
@@ -655,17 +658,83 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             if (worldEpoch != s_ResourceWorldEpoch || brickCacheEdge <= 0) return;
             ChangeDemandFootprint(brickCacheOrigin, brickCacheEdge, -1);
+            ReleaseEditWatch(brickCacheOrigin, brickCacheEdge, worldEpoch);
 
             if (s_DemandFootprints.Count == 0) ClearRecoveryQueues();
+        }
+
+        // Summary accumulation watches the whole request for edits without keeping every source
+        // resident. Source portions separately own demand/active leases through GPU completion.
+        internal static ulong RequestEditWatch(int3 origin, int edge)
+        {
+            if (edge > 0)
+            {
+                var footprint = new ActiveFootprint(origin, edge);
+                s_EditWatchReaders.TryGetValue(footprint, out int readers);
+                if (readers == 0) s_EditWatchEpochs[footprint] = s_CoverageEpoch;
+                s_EditWatchReaders[footprint] = readers + 1;
+            }
+            return s_ResourceWorldEpoch;
+        }
+
+        internal static void ReleaseEditWatch(int3 origin, int edge, ulong worldEpoch)
+        {
+            if (worldEpoch != s_ResourceWorldEpoch || edge <= 0) return;
+            var footprint = new ActiveFootprint(origin, edge);
+            if (!s_EditWatchReaders.TryGetValue(footprint, out int readers)) return;
+            if (readers > 1) s_EditWatchReaders[footprint] = readers - 1;
+            else
+            {
+                s_EditWatchReaders.Remove(footprint);
+                s_EditWatchEpochs.Remove(footprint);
+            }
+        }
+
+        internal static ulong RequestSourceRange(int3 origin, int3 extent)
+        {
+            ValidateSourceRange(extent);
+            ChangeDemandFootprint(origin, extent, 1);
+            return s_ResourceWorldEpoch;
+        }
+
+        internal static void ReleaseSourceRange(int3 origin, int3 extent, ulong worldEpoch)
+        {
+            if (worldEpoch != s_ResourceWorldEpoch) return;
+            ValidateSourceRange(extent);
+            ChangeDemandFootprint(origin, extent, -1);
+            if (s_DemandFootprints.Count == 0) ClearRecoveryQueues();
+        }
+
+        private static void ValidateSourceRange(int3 extent)
+        {
+            const int maximum = GpuBlockHlodSummary.MaximumBlocksPerDispatch;
+            if (math.any(extent < 1 | extent > maximum)
+                || (long)extent.x * extent.y * extent.z > maximum)
+                throw new ArgumentOutOfRangeException(nameof(extent));
+        }
+
+        internal static bool CoversSourceRange(int3 origin, int3 extent,
+            int3 coreMinVoxel, int3 coreMaxVoxelExclusive, ulong requiredGeneration,
+            ref int scanCursor, ref bool roundIncomplete)
+        {
+            ValidateSourceRange(extent);
+            return Covers(origin, extent, coreMinVoxel, coreMaxVoxelExclusive, requiredGeneration,
+                ref scanCursor, ref roundIncomplete);
         }
 
         internal static bool Covers(int3 brickCacheOrigin, int brickCacheEdge,
                                     int3 coreMinVoxel, int3 coreMaxVoxelExclusive,
                                     ulong requiredGeneration, ref int scanCursor,
-                                    ref bool roundIncomplete)
+                                    ref bool roundIncomplete) =>
+            Covers(brickCacheOrigin, new int3(brickCacheEdge), coreMinVoxel, coreMaxVoxelExclusive,
+                requiredGeneration, ref scanCursor, ref roundIncomplete);
+
+        private static bool Covers(int3 brickCacheOrigin, int3 extent,
+            int3 coreMinVoxel, int3 coreMaxVoxelExclusive, ulong requiredGeneration,
+            ref int scanCursor, ref bool roundIncomplete)
         {
             s_CoveragePolls++;
-            if (s_Storage == null || s_Mirror == null || s_Mirror.IsClearPending || brickCacheEdge <= 0)
+            if (s_Storage == null || s_Mirror == null || s_Mirror.IsClearPending || math.any(extent <= 0))
                 return false;
             if (requiredGeneration < s_KnownRegionHistoryFromVersion)
             {
@@ -675,14 +744,14 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
             int regionShift = VoxelReadGrid.BlocksPerRegionEdgeLog2;
             int blockShift = VoxelReadGrid.BlockEdgeLog2;
-            int blockCount = brickCacheEdge * brickCacheEdge * brickCacheEdge;
+            int blockCount = extent.x * extent.y * extent.z;
             int stop = Math.Min(blockCount, scanCursor + CoverageChecksPerPoll);
             for (; scanCursor < stop; scanCursor++)
             {
-                int x = scanCursor % brickCacheEdge;
-                int yz = scanCursor / brickCacheEdge;
-                int y = yz % brickCacheEdge;
-                int z = yz / brickCacheEdge;
+                int x = scanCursor % extent.x;
+                int yz = scanCursor / extent.x;
+                int y = yz % extent.y;
+                int z = yz / extent.y;
                 int3 block = new(x, y, z);
                 block += brickCacheOrigin;
                 int3 region = block >> regionShift;
@@ -799,16 +868,16 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         internal static ulong MirroredVersion => s_MirroredVersion;
         internal static uint CoverageEpoch => s_CoverageEpoch;
         internal static uint CoverageEpochFor(int3 origin, int edge) =>
-            s_DemandCoverageEpochs.TryGetValue(new ActiveFootprint(origin, edge), out uint epoch)
+            s_EditWatchEpochs.TryGetValue(new ActiveFootprint(origin, edge), out uint epoch)
                 ? epoch : s_CoverageEpoch;
 
         private static void InvalidateCoverage(int3 minBlock, int3 maxBlockExclusive, bool all = false)
         {
             unchecked { s_CoverageEpoch++; }
-            foreach (ActiveFootprint footprint in s_DemandFootprints.Keys)
+            foreach (ActiveFootprint footprint in s_EditWatchReaders.Keys)
                 if (all || math.all(footprint.Origin < maxBlockExclusive
-                    & footprint.Origin + footprint.Edge > minBlock))
-                    s_DemandCoverageEpochs[footprint] = s_CoverageEpoch;
+                    & footprint.Origin + footprint.Extent > minBlock))
+                    s_EditWatchEpochs[footprint] = s_CoverageEpoch;
         }
         internal static bool RecoveryComplete => s_PendingBlocks.Count == 0;
         internal static ulong OptionalNonResidentHaloBlocksAccepted =>
@@ -1157,28 +1226,28 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (s_QueuedRecoveryRegions.Add(region)) s_RecoveryRegions.Enqueue(region);
         }
 
-        private static void ChangeDemandFootprint(int3 origin, int edge, int delta)
+        private static void ChangeDemandFootprint(int3 origin, int edge, int delta) =>
+            ChangeDemandFootprint(origin, new int3(edge), delta);
+
+        private static void ChangeDemandFootprint(int3 origin, int3 extent, int delta)
         {
-            var footprint = new ActiveFootprint(origin, edge);
+            var footprint = new ActiveFootprint(origin, extent);
             s_DemandFootprints.TryGetValue(footprint, out int readers);
             readers += delta;
             if (readers > 0)
             {
-                if (!s_DemandFootprints.ContainsKey(footprint))
-                    s_DemandCoverageEpochs[footprint] = s_CoverageEpoch;
                 s_DemandFootprints[footprint] = readers;
                 return;
             }
 
             s_DemandFootprints.Remove(footprint);
-            s_DemandCoverageEpochs.Remove(footprint);
         }
 
         private static bool IsBlockDemanded(int3 block)
         {
             foreach (ActiveFootprint footprint in s_DemandFootprints.Keys)
             {
-                int3 end = footprint.Origin + new int3(footprint.Edge);
+                int3 end = footprint.Origin + footprint.Extent;
                 if (math.all(block >= footprint.Origin & block < end)) return true;
             }
             return false;
@@ -1283,7 +1352,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             foreach (ActiveFootprint footprint in s_ActiveFootprints.Keys)
             {
-                int3 end = footprint.Origin + new int3(footprint.Edge);
+                int3 end = footprint.Origin + footprint.Extent;
                 if (math.all(block >= footprint.Origin & block < end)) return true;
             }
             return false;
@@ -1359,7 +1428,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             s_ActiveFootprints.Clear();
             s_DirectoryEvictionCursor = 0;
             s_DemandFootprints.Clear();
-            s_DemandCoverageEpochs.Clear();
+            s_EditWatchEpochs.Clear();
+            s_EditWatchReaders.Clear();
             s_Changes.Clear();
 
             if (!disposeMirror || s_Mirror == null) return;

@@ -9,6 +9,31 @@ namespace VoxelEngine.Rendering.Tests.EditMode
     public sealed class GpuSurfaceMirrorCoordinatorLifetimeTests
     {
         [Test]
+        public void CompletedPortionCanBeEvictedWhileWholeRequestStillWatchesEdits()
+        {
+            var type = typeof(GpuSurfaceMirrorCoordinator);
+            var reset = type.GetMethod("ResetWorld", BindingFlags.Static | BindingFlags.NonPublic);
+            reset.Invoke(null, new object[] { false });
+            var add = (Action<int3>)type.GetMethod("AddReadyBlock", BindingFlags.Static | BindingFlags.NonPublic)
+                .CreateDelegate(typeof(Action<int3>));
+            var evict = (Func<int, bool>)type.GetMethod("TryEvictInactiveReadyBlock", BindingFlags.Static | BindingFlags.NonPublic)
+                .CreateDelegate(typeof(Func<int, bool>));
+            var mirror = GpuSurfaceMirrorCoordinator.Acquire(1);
+            mirror.Publish(VoxelBrickDelta.UniformAt(int3.zero, 1, 3), default, default, default, 0, false);
+            ulong world = GpuSurfaceMirrorCoordinator.RequestEditWatch(int3.zero, 66);
+            GpuSurfaceMirrorCoordinator.RequestSourceRange(int3.zero, new int3(64, 16, 1));
+            try
+            {
+                add(int3.zero);
+                Assert.That(evict(1), Is.False, "Unfinished summary sources remain protected.");
+                GpuSurfaceMirrorCoordinator.ReleaseSourceRange(int3.zero, new int3(64, 16, 1), world);
+                Assert.That(evict(2), Is.True, "The edit watch must not retain completed source data.");
+                Assert.That(GpuSurfaceMirrorCoordinator.ReadyBlockCount, Is.Zero);
+            }
+            finally { GpuSurfaceMirrorCoordinator.ReleaseReference(); }
+        }
+
+        [Test]
         public void CoarseDemandDoesNotRepeatFailedEvictionWithinSameFrame()
         {
             var type = typeof(GpuSurfaceMirrorCoordinator);

@@ -6,9 +6,9 @@ Deliver production-quality `Assets/Scenes/VoxelShowcase.unity` through GPU rende
 
 ## Retained evidence
 
-Worktree `/private/tmp/voxel-gpu-restoration`, branch `gpu-rendering-agent-1-resume`, HEAD `7bf5b0f09`. Local harness/tests/screenshots authorized; last requested push reached `origin/fixes/agent-1` at `64b2921a3`. Current work stays local.
+Worktree `/private/tmp/voxel-gpu-restoration`, branch `gpu-rendering-agent-1-resume`, HEAD `512a5f746`. Local harness/tests/screenshots authorized; last requested push reached `origin/fixes/agent-1` at `64b2921a3`. Current work stays local.
 
-All solid LOD steps have GPU implementations, including conditional step4 thin-feature preservation. A separate coarse classification mismatch is repaired and verified by 35 tests. Directory reclamation/collision fixes preserve the previous GPU-byte ceiling, but large coarse requests still lack bounded source streaming. Latest Showcase completed 180s/11 captures: reviewed 75.2s/150.2s **unacceptable**, grey distant houses and incomplete frontier. Full results in [tasks.md](tasks.md). Water and legacy CPU renderer removal remain open.
+All solid LOD steps have GPU implementations. Large coarse requests still lack bounded source streaming. Water migration and legacy CPU renderer removal remain open.
 
 ## Current coverage repair
 
@@ -18,9 +18,11 @@ H1: whole-footprint source retention prevents coverage from converging under cap
 
 Selected direction: accumulate GPU summaries from bounded source portions, retain summary/generation validity, and release each source lease only after ordered GPU completion. No CPU-derived geometry or production blocking readback, larger budgets, shorter distance or hidden sources.
 
-Implemented prerequisite: bounded summary dispatch accepts a destination block offset, preserving other portions and unknown-source flags. Dense dispatch explicitly resets the offset. Actual GPU tests preserve seven portions using one repeatedly reused mixed slot; adjacent portions still mesh into the correct closed paged geometry after source release. Thirty-five summary/mesher tests passed. Module player completed 60s/six captures/exit 0 with both distance-band markers. Reviewed 10s/50s remains prototype/blockout quality. It exercises the existing dense path, not scheduler streaming.
+Summary accumulation landed in `512a5f746`: 35 GPU tests preserve summaries through slot reuse and mesh released adjacent sources. Coarse module passed 60s/six captures; 10s/50s remains prototype quality.
 
-Next discriminating experiment: integrate portion-level demand/admission and asynchronous completion into step8 extraction, then run a production-faithful request larger than mirror capacity. Separate whole-request edit watches (currently keyed by demand footprints) from portion source protection; test edits between portions, cancellation/world teardown and unknown halo rejection. Step4 ordinary density still needs a separate bounded preparation solution. Do not claim the scheduler capacity defect fixed by the offset primitive alone.
+Current change separates whole-request edit-watch readers/epochs from source-demand readers. Existing full-coverage callers acquire/release both. New rectangular source portions are limited to one 1,024-brick summary dispatch and use the existing recovery scan. Tests cover edits after portion release, unrelated edits, shared watches, retired-world releases, negative-coordinate range boundaries and overlap. Existing queued cancellation/lifetime tests remain required. All 25 focused tests passed, including actual ready-record eviction after source release. Coarse player passed 60s/six captures; reviewed 10s/50s remains prototype/blockout quality.
+
+Next integrate step8 accumulation into existing count lanes, reusing their HlodSummaries allocation. Admit whole-request watches before preparation; fill bounded source ranges under ordered GPU leases before count/write. Preserve cancellation/world teardown and unknown-halo rejection. Prove a production request larger than mirror capacity converges, including edits between portions. Step4 ordinary density still needs a separate bounded preparation solution. Do not claim the scheduler capacity defect fixed by the offset primitive alone.
 
 ## Remaining gates
 

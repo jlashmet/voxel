@@ -24,6 +24,22 @@ Each completed item needs exact feature SHA, request/run IDs, relevant executed 
 
 ## Current local evidence (2026-09-06)
 
+Source lifetime preparation after `512a5f746`: separated whole-request edit-watch reference counts
+and epochs from source-demand reference counts. Existing full-coverage callers retain both;
+summary streaming can watch released source portions without protecting them from eviction.
+Rectangular source demands/scans are bounded to 1,024 bricks (one summary dispatch).
+`gpu-summary-edit-watches.xml`: 17 passed/exit 0/21s. `gpu-summary-source-ranges.xml`:
+24 passed/exit 0/21s. Added actual ready-record eviction proof; initial fixture lacked its mirror
+and failed with NullReferenceException. Corrected to acquire the real shared mirror.
+`gpu-summary-source-eviction-fixed.xml`: 25 passed/exit 0/17s, including range boundaries/overlap,
+released-portion edits, unrelated edits, shared readers, retired-world release, queued cancellation
+and coordinator lifetime. `gpu-summary-ranges-module/`: 60s/six captures/terminal exit 0,
+step4-ready and step8 success markers passed. Reviewed exact 10s/50s: geometry present,
+lumpy/stepped terrain remains **prototype/blockout quality**. Source copies/hashes retained.
+These APIs still await asynchronous
+count-lane integration; no complete source-streaming or visual acceptance claim.
+
+
 Bounded HLOD preparation after `7bf5b0f09`: whole-request admission protects 66³ = 287,496
 source bricks, exceeding 58,144 mixed mirror slots for sufficiently dense requests. More polling
 cannot solve that configuration. Added destination-offset summary dispatch without changing existing
