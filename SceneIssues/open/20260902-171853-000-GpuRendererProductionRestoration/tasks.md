@@ -24,6 +24,27 @@ Each completed item needs exact feature SHA, request/run IDs, relevant executed 
 
 ## Current local evidence (2026-09-06)
 
+GPU water kernel preparation after `71d70c388`: scheduling inspection found only two step8 workers
+versus four count lanes; a complete lane monopoly is not supported. Latest run had no source slot/
+directory refusals, so no speculative scheduling change was made. GPU completion remains the priority.
+Added count/write kernels and bounded eight-brick dispatches over immutable packed water snapshots.
+Preserves greedy faces exposed to air, opaque water masks, signed positions, vertical lip/impact/edge
+flags, three impact spray sheets, spray UV flags, winding and paged-arena count/write/finalization.
+`gpu-water-mesher.xml`: five failures, including Metal's dynamic-vector-component l-value rejection.
+Replaced axis assignment with explicit vectors. `gpu-water-mesher-fixed.xml`: five passed/exit 0/16s,
+comparing actual GPU vertex multisets, flags, counts and triangle winding to the existing CPU mesher
+across isolated voxels, cascades, full bricks, blocking halos and mixed material patterns, in two
+separate source slices. CPU comparison is a temporary migration oracle and must be removed with the
+CPU backend. Runtime water still uses CpuWaterSurfaceChunkCache; no GPU-water scene acceptance yet.
+Existing module-local WaterDemo will validate the real integration, not a parallel visual fixture.
+
+User reports the earlier CPU renderer reached 400 FPS (2.5 ms/frame). Latest GPU Showcase instrumented
+samples average approximately 129 FPS stationary (60–90s), 128 FPS walking (120–180s), with median
+one-second CPU p50 around 7.8 ms. Final scheduler prepare is 4.13 ms, visibility 2.11 ms. These are
+incomplete-coverage diagnostics, not a comparable accepted benchmark or a proven bottleneck; keep the
+CPU regression open and investigate after full GPU migration as requested.
+
+
 Asynchronous step8 integration after `4df95a68d`: whole-request edit watch replaces full-footprint
 source admission. Existing count lanes prepare contiguous bounded row portions directly into their
 existing summary buffers. Each portion owns source demand, active brick/region protection and mirror

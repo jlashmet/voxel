@@ -6,25 +6,21 @@ Deliver production-quality `Assets/Scenes/VoxelShowcase.unity` through GPU rende
 
 ## Retained evidence
 
-Worktree `/private/tmp/voxel-gpu-restoration`, branch `gpu-rendering-agent-1-resume`, HEAD `4df95a68d`. Local harness/tests/screenshots authorized; last requested push reached `origin/fixes/agent-1` at `64b2921a3`. Current work stays local.
+Worktree `/private/tmp/voxel-gpu-restoration`, branch `gpu-rendering-agent-1-resume`, HEAD `71d70c388`. Local harness/tests/screenshots authorized; last requested push reached `origin/fixes/agent-1` at `64b2921a3`. Current work stays local.
 
-All solid LOD steps have GPU implementations. Large coarse requests still lack bounded source streaming. Water migration and legacy CPU renderer removal remain open.
+All solid LOD steps have GPU implementations. Step8 source streaming is bounded; full-scene coverage remains incomplete. Water migration and legacy CPU renderer removal remain open.
 
-## Current coverage repair
+## Current GPU water migration
 
-Far material separation is repaired in `7bf5b0f09`. Previous Showcase remained unacceptable with incomplete castle/frontier coverage and 4,659,051 directory refusals. See tasks.md for exact evidence.
+Step8 bounded summary streaming landed in `71d70c388`. A real 4,096-mixed-brick request converges through a 1,024-slot mirror; edits to completed portions reject candidates and retired worlds defer disposal. Showcase completed 180s/11 captures/exit 0 with zero directory refusals, but 567 missing-visible and only three step8 publications. Reviewed 75.3s/150.3s remains unacceptable. Detailed evidence is in tasks.md.
 
-H1: whole-footprint source retention prevents coverage from converging under capacity pressure. H2: recovery merely needs more polls. Admission inspection confirms a 66³ padded request protects 287,496 bricks until complete coverage; the mirror has 58,144 mixed slots. Thus H2 cannot explain all configurations: an all-mixed footprint cannot fit, regardless of polling. This does not prove every stalled Showcase footprint is all mixed.
+H1: coarse preparation monopolizes all count lanes. H2: remaining whole-source pressure prevents finer progress. Inspection limits step8 to two workers versus four lanes, falsifying H1 as a complete-lane monopoly. The last run has no slot/directory refusals, so H2 is not demonstrated for that run. Avoid speculative scheduling changes; user wants GPU completion before optimization.
 
-Selected direction: accumulate GPU summaries from bounded source portions, retain summary/generation validity, and release each source lease only after ordered GPU completion. No CPU-derived geometry or production blocking readback, larger budgets, shorter distance or hidden sources.
+Water still extracts CPU geometry and uploads it through CpuWaterSurfaceChunkCache. Selected migration keeps authoritative material snapshots and host orchestration but moves greedy extraction, topology flags, spray geometry, counts and paged writes onto the GPU. Existing water snapshots contain 512 cells plus six 64-cell face halos. They can feed GPU extraction without changing Storage truth or relying on the solid mirror's water-excluding invalidation policy.
 
-Summary accumulation landed in `512a5f746`: 35 GPU tests and the coarse module passed; visual quality remains prototype.
+First implementation: GPU count/write kernels consume packed snapshots in bounded eight-brick slices, preserving material-mask semantics, exposed-to-air faces, greedy merging, negative coordinates, lip/impact/edge flags, three spray sheets and spray UV bits. Uses the existing paged arena transaction; no geometry/count readback in production helpers. Five test fixtures compare actual GPU vertex multisets, material/active flags, counts and winding with the current CPU mesher. This oracle is temporary and must be removed with the CPU backend.
 
-Edit-watch/source-range separation landed in `4df95a68d`; 25 focused tests and the coarse module passed.
-
-Current integration admits step8 with a whole-request edit watch and no full source retention. Existing count lanes accumulate contiguous bounded rows into their existing HlodSummaries buffer. Each portion holds demand, active region/brick readers and the mirror allocation until an asynchronous callback on CPU-written request metadata. No summary payload readback. Lanes stay immutable during preparation; stale/cancelled lanes are discarded after completion, and retired worlds defer buffer disposal to the callback. Prepared step8 count/write skips dense source lookup/re-summarization. Other LOD steps retain their existing paths.
-
-Verification: 42 existing regressions passed. Two new actual asynchronous lane tests initially stalled because EditMode did not advance player frame-budget guards; explicit test slices corrected the fixture. All 16 queue/lifetime tests now pass, including portion-to-publication, retired in-flight disposal, rejection after editing a completed portion, and real geometry from 4,096 mixed bricks through a 1,024-slot mirror. Coarse player passed 60s/six captures; reviewed 10s/50s remains prototype/blockout quality. Showcase completed 180s/11 captures/exit 0: reviewed 75.3s/150.3s remains unacceptable, though upper castle gaps are filled. Final directory refusals zero, 567 missing-visible, 84 step4/three step8 publications. Step4 still retains whole footprints. Next discriminate count-lane contention from remaining source-demand pressure before further coverage changes. Water/CPU-only removal remain required; no performance acceptance.
+Initial Metal compilation rejected a dynamic vector component assignment; explicit axis vectors fixed it. All five parity fixtures passed (16s harness). Next integrate snapshot ownership/count/allocation/write/publication into the water cache, then run the module's real WaterDemo plus full Showcase. Neither runtime GPU water nor CPU renderer deletion is complete.
 
 ## Remaining gates
 
