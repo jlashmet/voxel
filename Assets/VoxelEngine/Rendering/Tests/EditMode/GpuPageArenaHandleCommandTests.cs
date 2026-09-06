@@ -10,7 +10,6 @@ namespace VoxelEngine.Rendering.Tests.EditMode
     /// Exercises the production arena and its real command transport. Readback is test-only.
     /// These bounded host-ownership tests do not certify pending-page or in-flight draw lifetime.
     /// </summary>
-    [NonParallelizable]
     public sealed class GpuPageArenaHandleCommandTests
     {
         [StructLayout(LayoutKind.Sequential)]
