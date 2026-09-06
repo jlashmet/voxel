@@ -46,6 +46,9 @@
 - [x] Implement per-PlayMode-process isolation (`79b6a2f4`) and pass 20 focused Python orchestration tests; baseline fails the new isolation assertions.
 - [x] Run `34003328146`: inspect completed failure; 4 Showcase PlayMode cases passed, required overall run failed teardown, standalone replay passed but visual quality rejected.
 - [x] Run `34007356710`: isolate compile-only failures (`NonParallelizable` unavailable; production SceneRuntime referenced validation-only stress helper). Repair at `2154840b`; no test/player evidence from that run is accepted.
+- [x] Run `34011392051`: inspect timeout artifact. `Assets/Scenes/PropShowcase.unity` incorrectly triggered broad unknown-path fallback, selecting 48 modules / 52 tests / 23 players; persistent tests passed before the 20-minute limit.
+- [x] Treat top-level `Assets/Scenes/*.unity` as integration-only for module ownership while retaining one canonical Kentridge gate for production diffs; preserve broad fallback for genuinely unknown production paths. Add focused planner regressions.
+- [x] Prevent same-module validation scenes from overwriting one another's exact artifact logs/screenshots by keying player output to module plus scene; add focused runner regressions.
 - [ ] Obtain successful exact-SHA targeted CI for the current implementation and inspect its artifact rather than inferring success from individual phases.
 
 ## Resource/cost evidence
@@ -74,4 +77,4 @@
 - [ ] Merge current `origin/master` into `fixes/agent-9`, open/update final PR, enable auto-merge, pass required `affected`, and verify closed assignment on master.
 
 ## Current state
-Current implementation is `2b7e30e1efb3dc8d63a82923ca42101f7ab36a9f`; latest observed master is `356b2e0e4d2818901c73bbc6b1788f8d6850356d`. The two latest exact runs both failed and are fully inspected; no failed/partial result is counted as a pass. Fresh exact-source CI is required before any closure or PR promotion.
+Run `34011392051` is a failed timeout, not a product pass. Its artifact proved persistent tests passed but broad planner fallback exhausted the job on unrelated players. The planner and artifact-isolation repairs plus focused Python regressions are committed. Fresh exact-source CI is required before any visual/resource acceptance, closure or PR promotion.
