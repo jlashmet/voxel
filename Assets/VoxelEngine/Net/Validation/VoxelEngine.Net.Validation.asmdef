@@ -1,0 +1,20 @@
+{
+  "name": "VoxelEngine.Net.Validation",
+  "rootNamespace": "VoxelEngine.Net.Validation",
+  "references": [
+    "VoxelEngine.Net.Runtime",
+    "VoxelEngine.Edits.Api",
+    "VoxelEngine.Edits.Runtime",
+    "Unity.Mathematics",
+    "Unity.Networking.Transport"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

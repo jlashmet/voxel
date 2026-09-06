@@ -44,6 +44,12 @@ namespace VoxelEngine.Net.Runtime.Server
 
             switch (kind)
             {
+                case ProtocolMessageKind.C_SessionAdmission:
+                    return connectionId != 0 &&
+                        eventHandler is IClientSessionAdmissionHandler admission &&
+                        SessionAdmissionPacket.TryDecodeRequest(packet, out ReadOnlySpan<byte> payload) &&
+                        admission.TryEnqueueSessionAdmission(connectionId, payload);
+
                 case ProtocolMessageKind.C_AlterationRequest:
                     if (!AlterationRequestPacket.TryDecode(packet, out C_AlterationRequest request))
                         return false;

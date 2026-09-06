@@ -28,6 +28,7 @@ namespace VoxelEngine.Net.Runtime.Client
             new Dictionary<ushort, S_PlayerState>(16);
         private readonly IClientEventNotificationSink _notifications;
         private readonly IGameplayStatePacketHandler _gameplayStateHandler;
+        private readonly IServerSessionAdmissionHandler _sessionAdmissionHandler;
         private IClientPredictionAdapter _predictionAdapter;
         private ushort _localPlayerId;
         private bool _disposed;
@@ -54,10 +55,12 @@ namespace VoxelEngine.Net.Runtime.Client
             IClientEventNotificationSink notifications = null,
             int maxPendingAuthoritativeEvents = ClientAuthoritativeEventQueue.DefaultMaxPendingEvents,
             int predictionHistoryCapacity = ClientPredictionReconciler.DefaultHistoryCapacity,
-            IGameplayStatePacketHandler gameplayStateHandler = null)
+            IGameplayStatePacketHandler gameplayStateHandler = null,
+            IServerSessionAdmissionHandler sessionAdmissionHandler = null)
         {
             _notifications = notifications;
             _gameplayStateHandler = gameplayStateHandler;
+            _sessionAdmissionHandler = sessionAdmissionHandler;
             _events = new ClientAuthoritativeEventQueue(alterationApplier, maxPendingAuthoritativeEvents);
             _repair = new ClientRegionRepairAssembler();
             _fullState = new ClientRegionStateAssembler();
@@ -263,6 +266,19 @@ namespace VoxelEngine.Net.Runtime.Client
             return _host.TrySendAlterationRequest(in request);
         }
 
+        /// <summary>
+        /// Send a Sessions-owned admission request through the existing reliable EVENT pipeline.
+        /// Sending/queueing bytes is not an admission decision and does not bind a player identity.
+        /// </summary>
+        public bool TrySendSessionAdmission(ReadOnlySpan<byte> payload)
+        {
+            ThrowIfDisposed();
+            if (!_host.IsConnected) return false;
+            Span<byte> packet = stackalloc byte[SessionAdmissionPacket.MaxPacketBytes];
+            return SessionAdmissionPacket.TryEncodeRequest(packet, payload, out int written) &&
+                _host.TrySend(UtpChannel.Event, packet.Slice(0, written));
+        }
+
         public bool TryRequestGameplayStateRepair(in C_GameplayStateRepairRequest request)
         {
             ThrowIfDisposed();
@@ -351,6 +367,11 @@ namespace VoxelEngine.Net.Runtime.Client
         {
             if (!ProtocolEnvelope.TryReadHeader(packet, out ProtocolMessageKind kind, out _))
                 return false;
+
+            if (kind == ProtocolMessageKind.S_SessionAdmission)
+                return _sessionAdmissionHandler != null &&
+                    SessionAdmissionPacket.TryDecodeReply(packet, out ReadOnlySpan<byte> payload) &&
+                    _sessionAdmissionHandler.TryEnqueueSessionAdmissionReply(payload);
 
             if (kind == ProtocolMessageKind.S_GameplayState)
                 return _gameplayStateHandler != null && _gameplayStateHandler.HandleGameplayStatePacket(packet);

@@ -14,6 +14,7 @@ namespace VoxelEngine.Net.Runtime.Protocol
         C_PlayerInputBundle = 4,
         C_RegionHashMismatch = 5,
         C_GameplayStateRepairRequest = 6,
+        C_SessionAdmission = 7,
 
         // Server -> client.
         S_AlterationEvent = 32,
@@ -26,6 +27,7 @@ namespace VoxelEngine.Net.Runtime.Protocol
         S_RegionResyncRequired = 39,
         S_RegionStateFence = 40,
         S_GameplayState = 41,
+        S_SessionAdmission = 42,
     }
 
     public static class ProtocolEnvelope
@@ -73,6 +75,7 @@ namespace VoxelEngine.Net.Runtime.Protocol
                 case ProtocolMessageKind.C_PlayerInputBundle:
                 case ProtocolMessageKind.C_RegionHashMismatch:
                 case ProtocolMessageKind.C_GameplayStateRepairRequest:
+                case ProtocolMessageKind.C_SessionAdmission:
                 case ProtocolMessageKind.S_AlterationEvent:
                 case ProtocolMessageKind.S_AlterationEventBatch:
                 case ProtocolMessageKind.S_AlterationRejected:
@@ -83,6 +86,7 @@ namespace VoxelEngine.Net.Runtime.Protocol
                 case ProtocolMessageKind.S_RegionResyncRequired:
                 case ProtocolMessageKind.S_RegionStateFence:
                 case ProtocolMessageKind.S_GameplayState:
+                case ProtocolMessageKind.S_SessionAdmission:
                     return true;
                 default:
                     return false;
