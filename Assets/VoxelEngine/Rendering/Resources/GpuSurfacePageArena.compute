@@ -172,6 +172,22 @@ void RetirePending(uint handle, ChunkGeometryRecord pending)
     _PendingChunkGeometry[handle] = pending;
 }
 
+// Pending candidates have never been exposed to draw consumers. Once queue ordering reaches the
+// next allocator, their writer is complete, so a superseded pending candidate can return its pages
+// directly to the free stacks. Live pages still use delayed retirement everywhere else.
+void RecyclePending(uint handle, ChunkGeometryRecord pending)
+{
+    if (pending.ready == 0u) return;
+    for (uint page = 0u; page < pending.vertexPageCount; page++)
+        _FreeVertexPages[_ArenaState[0]++] =
+            _VertexPageTableRead[VertexTableWord(handle,pending.bank,page)];
+    for (uint page = 0u; page < pending.indexPageCount; page++)
+        _FreeIndexPages[_ArenaState[1]++] =
+            _IndexPageTableRead[IndexTableWord(handle,pending.bank,page)];
+    pending.ready = 0u;
+    _PendingChunkGeometry[handle] = pending;
+}
+
 [numthreads(64, 1, 1)]
 void CSApplyHandleCommands(uint3 id : SV_DispatchThreadID)
 {
@@ -233,14 +249,6 @@ void CSAllocateBatchPages(uint3 id : SV_DispatchThreadID)
             continue;
         }
 
-        // Only one pending allocation may own a handle. A later renderer generation is allowed to
-        // replace a completed-but-uncommitted candidate; queue ordering guarantees its writer has
-        // finished before this allocator executes. This prevents silent page loss from overwriting
-        // the sole record that identifies an older pending allocation.
-        ChunkGeometryRecord oldPending = _PendingChunkGeometryRead[chunk.handle];
-        if (oldPending.ready != 0u)
-            RetirePending(chunk.handle, oldPending);
-
         uint vertexCount = _BatchCounters[word + 2];
         uint indexCount = _BatchCounters[word + 3];
         uint vertexPages = (vertexCount + (uint)_VertexPageSize - 1u) / (uint)_VertexPageSize;
@@ -252,12 +260,23 @@ void CSAllocateBatchPages(uint3 id : SV_DispatchThreadID)
             _ArenaState[6]++;
             continue;
         }
-        if (vertexPages > _ArenaState[0] || indexPages > _ArenaState[1])
+
+        // Only one pending allocation may own a handle. A later renderer generation may replace a
+        // completed-but-uncommitted candidate, but a failed replacement must leave that candidate
+        // intact. Count its pages as immediately reusable only after the replacement is known to fit.
+        ChunkGeometryRecord oldPending = _PendingChunkGeometryRead[chunk.handle];
+        uint availableVertexPages = _ArenaState[0]
+            + (oldPending.ready != 0u ? oldPending.vertexPageCount : 0u);
+        uint availableIndexPages = _ArenaState[1]
+            + (oldPending.ready != 0u ? oldPending.indexPageCount : 0u);
+        if (vertexPages > availableVertexPages || indexPages > availableIndexPages)
         {
             _BatchCounters[word + 10] = AllocationExhausted;
             _ArenaState[6]++;
             continue;
         }
+        if (oldPending.ready != 0u)
+            RecyclePending(chunk.handle, oldPending);
 
         ChunkGeometryRecord live = _LiveChunkGeometryRead[chunk.handle];
         uint bank = live.ready != 0u ? 1u - live.bank : 0u;
