@@ -237,8 +237,7 @@ namespace VoxelEngine.Composition
             for (int i = 0; i < bakes.Count; i++)
             {
                 FeaturePresentationBake bake = bakes[i];
-                FarFeatureGeometry geometry = GeometryFor(bake);
-                if (geometry == null)
+                if (!TryGetPositiveBounds(bake, out int3 geometryMinVoxel, out int3 geometryMaxVoxel))
                 {
                     // Bounds on carve/paint/corridor operations describe where an operation acts;
                     // they are not positive geometry. Publishing them with null geometry asks the
@@ -249,7 +248,9 @@ namespace VoxelEngine.Composition
                     continue;
                 }
 
-                BoundsFor(bake, out float3 position, out float3 center, out float3 extents, out float3 scale);
+                FarFeatureGeometry geometry = GeometryFor(bake, geometryMinVoxel, geometryMaxVoxel);
+                BoundsFor(geometryMinVoxel, geometryMaxVoxel,
+                    out float3 position, out float3 center, out float3 extents, out float3 scale);
                 FarFeatureImportance importance = _importance?.Invoke(bake) ?? FarFeatureImportance.Default;
                 FarFeatureTier tier = _selection.Select(
                     bake.SourceId,
@@ -287,14 +288,14 @@ namespace VoxelEngine.Composition
         }
 
         private void BoundsFor(
-            FeaturePresentationBake bake,
+            int3 minVoxel,
+            int3 maxVoxel,
             out float3 position,
             out float3 center,
             out float3 extents,
             out float3 scale)
         {
-            int3 minVoxel = bake.BoundsMin;
-            int3 maxVoxelExclusive = bake.BoundsMax + new int3(1);
+            int3 maxVoxelExclusive = maxVoxel + new int3(1);
             float3 min = new float3(minVoxel.x, minVoxel.y, minVoxel.z) * _voxelSizeMetres;
             float3 maxExclusive = new float3(
                 maxVoxelExclusive.x,
@@ -306,16 +307,22 @@ namespace VoxelEngine.Composition
             position = new float3(center.x, min.y, center.z);
         }
 
-        private static FarFeatureGeometry GeometryFor(FeaturePresentationBake bake)
+        private static FarFeatureGeometry GeometryFor(
+            FeaturePresentationBake bake,
+            int3 geometryMinVoxel,
+            int3 geometryMaxVoxel)
         {
             var primitives = new List<FarFeatureGeometryPrimitive>(bake.PrimitiveCount);
-            float3 bakeMin = new float3(bake.BoundsMin.x, bake.BoundsMin.y, bake.BoundsMin.z);
-            int3 maxExclusiveVoxel = bake.BoundsMax + new int3(1);
-            float3 bakeSize = math.max(
+            float3 geometryMin = new float3(
+                geometryMinVoxel.x,
+                geometryMinVoxel.y,
+                geometryMinVoxel.z);
+            int3 maxExclusiveVoxel = geometryMaxVoxel + new int3(1);
+            float3 geometrySize = math.max(
                 new float3(
-                    maxExclusiveVoxel.x - bake.BoundsMin.x,
-                    maxExclusiveVoxel.y - bake.BoundsMin.y,
-                    maxExclusiveVoxel.z - bake.BoundsMin.z),
+                    maxExclusiveVoxel.x - geometryMinVoxel.x,
+                    maxExclusiveVoxel.y - geometryMinVoxel.y,
+                    maxExclusiveVoxel.z - geometryMinVoxel.z),
                 new float3(1f));
             var originOffset = new float3(0.5f, 0f, 0.5f);
 
@@ -335,8 +342,8 @@ namespace VoxelEngine.Composition
                     primitiveMaxExclusiveVoxel.x,
                     primitiveMaxExclusiveVoxel.y,
                     primitiveMaxExclusiveVoxel.z);
-                float3 normalizedMin = (primitiveMin - bakeMin) / bakeSize - originOffset;
-                float3 normalizedMax = (primitiveMaxExclusive - bakeMin) / bakeSize - originOffset;
+                float3 normalizedMin = (primitiveMin - geometryMin) / geometrySize - originOffset;
+                float3 normalizedMax = (primitiveMaxExclusive - geometryMin) / geometrySize - originOffset;
                 ProfileFor(in primitive, out float startRadiusScale, out float endRadiusScale);
                 primitives.Add(new FarFeatureGeometryPrimitive(
                     (FarFeatureGeometryShape)(byte)primitive.Shape,
@@ -347,7 +354,36 @@ namespace VoxelEngine.Composition
                     endRadiusScale));
             }
 
-            return primitives.Count == 0 ? null : new FarFeatureGeometry(primitives.ToArray());
+            return new FarFeatureGeometry(primitives.ToArray());
+        }
+
+        private static bool TryGetPositiveBounds(
+            FeaturePresentationBake bake,
+            out int3 minVoxel,
+            out int3 maxVoxel)
+        {
+            minVoxel = default;
+            maxVoxel = default;
+            bool found = false;
+            for (int i = 0; i < bake.PrimitiveCount; i++)
+            {
+                Primitive primitive = bake.GetPrimitive(i);
+                if (!ProjectsPositiveGeometry(primitive.Mode)) continue;
+
+                primitive.Bounds(out int3 primitiveMinVoxel, out int3 primitiveMaxVoxel);
+                if (!found)
+                {
+                    minVoxel = primitiveMinVoxel;
+                    maxVoxel = primitiveMaxVoxel;
+                    found = true;
+                }
+                else
+                {
+                    minVoxel = math.min(minVoxel, primitiveMinVoxel);
+                    maxVoxel = math.max(maxVoxel, primitiveMaxVoxel);
+                }
+            }
+            return found;
         }
 
         private static void ProfileFor(
