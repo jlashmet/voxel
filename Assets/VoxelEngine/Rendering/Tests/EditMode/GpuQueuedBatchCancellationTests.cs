@@ -139,6 +139,26 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             }
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void QueuedRequestInvalidationIsLimitedToItsSourceFootprint(bool intersects)
+        {
+            int edge = _first.BrickCacheEdge;
+            ulong world = GpuSurfaceMirrorCoordinator.RequestCoverage(int3.zero, edge, int3.zero, new int3(8));
+            typeof(GpuSurfaceExtractionContext).GetField("_coverageRequested", Fields).SetValue(_first, true);
+            typeof(GpuSurfaceExtractionContext).GetField("_coverageWorldEpoch", Fields).SetValue(_first, world);
+            typeof(GpuSurfaceExtractionContext).GetField("_coverageEpoch", Fields)
+                .SetValue(_first, GpuSurfaceMirrorCoordinator.CoverageEpochFor(int3.zero, edge));
+            Queue(_first, 1);
+            int3 min = intersects ? int3.zero : new int3(8192);
+            var change = new VoxelEngine.Storage.Api.VoxelChangeRecord(1,
+                min >> VoxelEngine.Storage.Api.VoxelGrid.RegionVoxelEdgeLog2, min, min + 1,
+                VoxelEngine.Storage.Api.VoxelChangeKind.Occupancy);
+            Coordinator.GetMethod("ApplyChange", BindingFlags.Static | BindingFlags.NonPublic)
+                .Invoke(null, new object[] { change });
+            Assert.That(_first.IsCurrentBatchRequest(0), Is.EqualTo(!intersects));
+        }
+
         [Test]
         public void HistoryInvalidationRejectsQueuedWorkAndSignalsRetry()
         {

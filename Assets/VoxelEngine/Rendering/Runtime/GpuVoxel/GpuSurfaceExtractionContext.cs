@@ -375,7 +375,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             int coreExtentVoxels = _extractor.CellsPerAxis * request.SourceStep;
             int3 coreMaxVoxelExclusive =
                 request.ChunkOriginVoxel + new int3(coreExtentVoxels);
-            uint epoch = GpuSurfaceMirrorCoordinator.CoverageEpoch;
+            uint epoch = GpuSurfaceMirrorCoordinator.CoverageEpochFor(request.BrickCacheOrigin, _brickCacheEdge);
             if (!_coverageRequested || _coverageEpoch != epoch)
             {
                 if (_coverageRequested)
@@ -543,7 +543,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         internal bool IsCurrentBatchRequest(uint token) =>
             !_disposed && _hasStaged && token == _countBatchToken
             && (!_sharedExtractionActive || _extractionWorldEpoch == GpuSurfaceMirrorCoordinator.ResourceWorldEpoch)
-            && (!_coverageRequested || _coverageEpoch == GpuSurfaceMirrorCoordinator.CoverageEpoch);
+            && (!_coverageRequested || _coverageEpoch == GpuSurfaceMirrorCoordinator.CoverageEpochFor(_staged.BrickCacheOrigin, _brickCacheEdge));
 
         internal bool CompleteBatchedCount(uint token, in GpuExtractionCounts counts, bool failed,
                                            in SurfaceGeometryLease lease = default,

@@ -42,6 +42,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             new(TrackedRegionCapacity);
         private static readonly Dictionary<ActiveFootprint, int> s_DemandFootprints =
             new(32);
+        private static readonly Dictionary<ActiveFootprint, uint> s_DemandCoverageEpochs = new(32);
         private static readonly HashSet<int3> s_PendingBlocks = new(TrackedBlockCapacity);
         private static readonly HashSet<int3> s_ReadyBlocks = new(TrackedBlockCapacity);
         private static readonly Dictionary<int3, HashSet<int3>> s_ReadyBlocksByRegion =
@@ -778,8 +779,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         internal static string RecoveryState => $"regions={s_RecoveryRegions.Count}/{s_QueuedRecoveryRegions.Count}"
             + $" mixed={ResidentMixedBrickCount}/{MirrorSlotCapacity} noSlot={s_Mirror?.RefusedNoSlot ?? 0}"
-            + $" stale={s_Mirror?.RejectedStale ?? 0} lastFailure={s_LastRecoveryFailure}";
+            + $" stale={s_Mirror?.RejectedStale ?? 0} lastFailure={s_LastRecoveryFailure}"
+            + $" recovery[active={s_RecoveryActiveSkips} borrow={s_RecoveryBorrowMisses} block={s_RecoveryBlockMisses} published={s_RecoveryPublished} lastRegion={s_LastRecoveryBlockedRegion}]";
         private static GpuBrickPublish s_LastRecoveryFailure;
+        private static ulong s_RecoveryActiveSkips, s_RecoveryBorrowMisses, s_RecoveryBlockMisses, s_RecoveryPublished;
+        private static int3 s_LastRecoveryBlockedRegion;
         internal static int ReadyRegionCount => s_ReadyBlocksByRegion.Count;
         internal static int ReadyBlockCount => s_ReadyBlocks.Count;
         internal static int PendingBlockCount => s_PendingBlocks.Count;
@@ -789,6 +793,18 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         internal static int ActiveExtractions => s_ActiveExtractionCount;
         internal static ulong MirroredVersion => s_MirroredVersion;
         internal static uint CoverageEpoch => s_CoverageEpoch;
+        internal static uint CoverageEpochFor(int3 origin, int edge) =>
+            s_DemandCoverageEpochs.TryGetValue(new ActiveFootprint(origin, edge), out uint epoch)
+                ? epoch : s_CoverageEpoch;
+
+        private static void InvalidateCoverage(int3 minBlock, int3 maxBlockExclusive, bool all = false)
+        {
+            unchecked { s_CoverageEpoch++; }
+            foreach (ActiveFootprint footprint in s_DemandFootprints.Keys)
+                if (all || math.all(footprint.Origin < maxBlockExclusive
+                    & footprint.Origin + footprint.Edge > minBlock))
+                    s_DemandCoverageEpochs[footprint] = s_CoverageEpoch;
+        }
         internal static bool RecoveryComplete => s_PendingBlocks.Count == 0;
         internal static ulong OptionalNonResidentHaloBlocksAccepted =>
             s_OptionalNonResidentHaloBlocksAccepted;
@@ -844,7 +860,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         private static void InvalidateAll(ulong targetGeneration)
         {
-            unchecked { s_CoverageEpoch++; }
+            InvalidateCoverage(default, default, all: true);
             s_Mirror.Clear();
             ClearReadyBlocks();
             s_ReadyResidencyOrder.Clear();
@@ -863,14 +879,16 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 || change.Version > previous)
                 s_RegionLastSolidChangeVersion[change.Region] = change.Version;
 
-            if (!s_ReadyBlocksByRegion.TryGetValue(
-                    change.Region, out HashSet<int3> readyInRegion))
-                return;
             bool wholeRegion = math.any(change.MaxVoxelExclusive <= change.MinVoxel);
             int3 min = change.MinVoxel >> VoxelReadGrid.BlockEdgeLog2;
             int3 max = wholeRegion
                 ? default
                 : (change.MaxVoxelExclusive - 1) >> VoxelReadGrid.BlockEdgeLog2;
+            int3 regionMin = change.Region << VoxelReadGrid.BlocksPerRegionEdgeLog2;
+            InvalidateCoverage(wholeRegion ? regionMin : min,
+                wholeRegion ? regionMin + VoxelReadGrid.BlocksPerRegionEdge : max + 1);
+            if (!s_ReadyBlocksByRegion.TryGetValue(change.Region, out HashSet<int3> readyInRegion))
+                return;
             s_ChangedReadyScratch.Clear();
             int3 size = wholeRegion ? default : max - min + 1;
             long changedVolume = wholeRegion
@@ -893,8 +911,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                         s_ChangedReadyScratch.Add(block);
                 }
             }
-            if (s_ChangedReadyScratch.Count > 0)
-                unchecked { s_CoverageEpoch++; }
             for (int i = 0; i < s_ChangedReadyScratch.Count; i++)
             {
                 int3 block = s_ChangedReadyScratch[i];
@@ -967,6 +983,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                     }
                     if (IsBlockActive(worldBlock))
                     {
+                        s_RecoveryActiveSkips++;
+                        s_LastRecoveryBlockedRegion = region;
                         blocks.Enqueue(worldBlock);
                         continue;
                     }
@@ -977,6 +995,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                         - (region << VoxelReadGrid.BlocksPerRegionEdgeLog2);
                     if (!resident)
                     {
+                        s_RecoveryBorrowMisses++;
+                        s_LastRecoveryBlockedRegion = region;
                         s_Mirror.Remove(worldBlock);
                         RemoveReadyBlock(worldBlock);
                         RecordConcurrentRecoveryProgress(ref concurrentProgressRecorded);
@@ -984,6 +1004,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                     }
                     if (!view.TryGetBlock(localBlock, out VoxelReadBlock block))
                     {
+                        s_RecoveryBlockMisses++;
+                        s_LastRecoveryBlockedRegion = region;
                         QueueRecoveryBlock(worldBlock);
                         continue;
                     }
@@ -1008,6 +1030,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                         return;
                     }
 
+                    s_RecoveryPublished++;
                     AddReadyBlock(worldBlock);
                     RecordConcurrentRecoveryProgress(ref concurrentProgressRecorded);
                     if (block.Kind == VoxelReadBlockKind.Mixed)
@@ -1112,11 +1135,14 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             readers += delta;
             if (readers > 0)
             {
+                if (!s_DemandFootprints.ContainsKey(footprint))
+                    s_DemandCoverageEpochs[footprint] = s_CoverageEpoch;
                 s_DemandFootprints[footprint] = readers;
                 return;
             }
 
             s_DemandFootprints.Remove(footprint);
+            s_DemandCoverageEpochs.Remove(footprint);
         }
 
         private static bool IsBlockDemanded(int3 block)
@@ -1297,6 +1323,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             s_ActiveRegionReaders.Clear();
             s_ActiveFootprints.Clear();
             s_DemandFootprints.Clear();
+            s_DemandCoverageEpochs.Clear();
             s_Changes.Clear();
 
             if (!disposeMirror || s_Mirror == null) return;

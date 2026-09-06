@@ -24,6 +24,25 @@ Each completed item needs exact feature SHA, request/run IDs, relevant executed 
 
 ## Current local evidence (2026-09-06)
 
+Latest source-validity checkpoint: footprint-scoped invalidation replaces global cancellation
+for ordinary solid edits. Mirror/history resets still invalidate all demanded footprints; new
+occupancy/residency in an absent halo invalidates that footprint even without ready mirror data.
+Admission and queued-batch validity use the same stamp. `gpu-coverage-local.xml`: 40 passed,
+24s terminal exit 0. `gpu-coverage-queued.xml`: 37 passed, 16s terminal exit 0, including two
+new real queued-request validity cases and existing world/history cancellation/lifetime tests.
+
+`gpu-hlod-recovery-reasons/`: 90s, six captures, terminal exit 0. Borrow, block-read and active
+skip counters remain zero; these are not the observed recovery blocker. `gpu-hlod-scoped-coverage/`:
+180s, 12 captures, terminal exit 0, no exceptions/transaction rejections. Reviewed 74.9s/149.9s
+is **unacceptable** with flat coarse terrain and missing traversal coverage. Only one step8
+publication: global invalidation is not the sole backlog cause. Source copies/hashes/diff and
+validation notes are retained with this run. G07 remains open; investigate coarse scan progress
+and recovery scheduling, without weakening budgets or restoring CPU rendering.
+`gpu-scoped-coverage-module/`: 48s, eight captures, terminal exit 0, required publication/edit
+restoration/far-handoff markers passed. Reviewed 42s: prototype fixture quality, no new missing
+fixture surfaces observed. This does not pass Showcase visual acceptance.
+
+
 Latest local GPU-path checkpoint: step8 now uses GPU dense-cache summaries, bounded greedy
 count/write dispatches, the existing paged arena, and versioned asynchronous publication.
 Step4 and water remain CPU-backed; G07 is **not complete**. The user explicitly deferred
