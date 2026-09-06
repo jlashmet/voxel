@@ -95,6 +95,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private int _directoryDirtyMin = int.MaxValue;
         private int _directoryDirtyMax = -1;
         private bool _disposed;
+        internal bool IsDisposed => _disposed;
         private bool _clearPending;
         internal bool IsClearPending => _clearPending;
 

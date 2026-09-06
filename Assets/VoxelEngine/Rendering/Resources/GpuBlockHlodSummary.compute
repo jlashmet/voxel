@@ -1,0 +1,98 @@
+#pragma kernel CSSummarizeBlocks
+#define VOXEL_FORCE_PERSISTENT_LOOKUP 1
+#include "VoxelBrickDensity.hlsl"
+
+StructuredBuffer<int4> _HlodBlocks;
+RWStructuredBuffer<uint> _HlodSummaries;
+uint _HlodBlockCount;
+uint _HlodDirectoryOffset;
+uint _HlodDirectoryMask;
+groupshared uint s_Entry;
+groupshared uint s_Known;
+groupshared uint s_Material[64];
+
+uint MaterialAt(uint voxel)
+{
+    uint kind = s_Entry & 3u;
+    if (kind == 0u) return 0u;
+    if (kind == 1u) return (s_Entry >> 8u) & 255u;
+    uint word = _BrickMaterials[(s_Entry >> 16u) * 128u + (voxel >> 2u)];
+    // Explicit byte selection keeps all four packed positions correct on Metal.
+    uint byteIndex = voxel & 3u;
+    if (byteIndex == 0u) return word & 255u;
+    if (byteIndex == 1u) return (word >> 8u) & 255u;
+    if (byteIndex == 2u) return (word >> 16u) & 255u;
+    return (word >> 24u) & 255u;
+}
+
+uint ExposedColumn(uint bottomVoxel)
+{
+    uint upper = MaterialAt(bottomVoxel + 8u);
+    if (IsSolidSample(upper)) return upper;
+    uint lower = MaterialAt(bottomVoxel);
+    return IsSolidSample(lower) ? lower : 0u;
+}
+
+uint VoteCount(uint material, uint4 columns)
+{
+    if (material == 0u) return 0u;
+    return (columns.x == material ? 1u : 0u) + (columns.y == material ? 1u : 0u)
+        + (columns.z == material ? 1u : 0u) + (columns.w == material ? 1u : 0u);
+}
+
+[numthreads(64, 1, 1)]
+void CSSummarizeBlocks(uint3 group : SV_GroupID, uint lane : SV_GroupIndex)
+{
+    if (group.x >= _HlodBlockCount) return;
+    if (lane == 0u)
+    {
+        s_Entry = 0u;
+        // w = 1 proves complete mirrored region coverage; absent bricks are air.
+        s_Known = _HlodBlocks[group.x].w == 1 ? 1u : 0u;
+        int3 coordinate = _HlodBlocks[group.x].xyz;
+        uint start = HashBrickCoordinate(coordinate) & _HlodDirectoryMask;
+        [loop] for (uint probe = 0u; probe <= _HlodDirectoryMask; probe++)
+        {
+            uint word = _HlodDirectoryOffset + ((start + probe) & _HlodDirectoryMask) * 5u;
+            uint state = _BrickMaterials[word + 4u];
+            if (state == 0u) break;
+            if (state != DIRECTORY_OCCUPIED) continue;
+            if (asint(_BrickMaterials[word]) != coordinate.x
+                || asint(_BrickMaterials[word + 1u]) != coordinate.y
+                || asint(_BrickMaterials[word + 2u]) != coordinate.z) continue;
+            s_Entry = _BrickMaterials[word + 3u];
+            s_Known = 1u;
+            break;
+        }
+    }
+    GroupMemoryBarrierWithGroupSync();
+    uint3 minimum = uint3(lane & 3u, (lane >> 2u) & 3u, lane >> 4u) * 2u;
+    // Four independent columns each vote once.
+    // Each column contributes only its topmost solid, in Z-then-X tie order.
+    uint baseVoxel = minimum.x + 8u * (minimum.y + 8u * minimum.z);
+    uint4 materials = uint4(ExposedColumn(baseVoxel), ExposedColumn(baseVoxel + 1u),
+        ExposedColumn(baseVoxel + 64u), ExposedColumn(baseVoxel + 65u));
+    uint4 votes = uint4(VoteCount(materials.x, materials), VoteCount(materials.y, materials),
+        VoteCount(materials.z, materials), VoteCount(materials.w, materials));
+    uint representative = materials.x, best = votes.x;
+    if (votes.y > best) { representative = materials.y; best = votes.y; }
+    if (votes.z > best) { representative = materials.z; best = votes.z; }
+    if (votes.w > best) { representative = materials.w; }
+    s_Material[lane] = representative;
+    GroupMemoryBarrierWithGroupSync();
+    uint output = group.x * 19u;
+    if (lane < 16u)
+    {
+        uint first = lane * 4u;
+        _HlodSummaries[output + 2u + lane] = s_Material[first] | (s_Material[first + 1u] << 8u)
+            | (s_Material[first + 2u] << 16u) | (s_Material[first + 3u] << 24u);
+    }
+    if (lane < 2u)
+    {
+        uint mask = 0u;
+        [unroll] for (uint bit = 0u; bit < 32u; bit++)
+            if (s_Material[lane * 32u + bit] != 0u) mask |= 1u << bit;
+        _HlodSummaries[output + lane] = mask;
+    }
+    if (lane == 0u) _HlodSummaries[output + 18u] = s_Known == 0u ? 1u : 0u;
+}

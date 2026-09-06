@@ -245,6 +245,24 @@ remain: production near/far realization is tested through the SolidGpu module's 
 
 - [ ] **G05 — Preserve an independent semantic oracle without retaining a second renderer.** Before deleting the CPU backend, record bounded canonical input/output fixtures, semantic expectations and provenance for supported surfaces. During transition compare the same prepared inputs, density, count/prefix and pre-page geometry. Convert essential regressions to frozen reference data and independent canonical/property checks; final tests must not require the retired CPU mesher or embed a copy of it. Generated geometry and extraction-count readback are test-only. G10–G13 permit only a bounded asynchronous status/handle/generation channel for render control; never block or derive authoritative state from it. **In progress:** the existing real-kernel Planar/Sharp/Cubic half-brick regression now checks analytic boundary positions, indexed winding, complementary unit-face coverage and duplicate triangles without invoking CPU meshing. Local Metal execution passed all three styles in `Artifacts/LocalGpuShowcase/753a21241-local-harness/gpu-regressions.xml` on 2026-09-06; this does not complete the remaining smooth/coating/transition oracle migration.
 - [ ] **G06 — Restore all supported reconstruction/material semantics.** Validate smooth, rounded, planar, sharp and cubic/faceted surfaces; material classification, coatings, authored boundaries, decoration/profile handling and mixed/uniform/empty inputs. First identify the earliest divergence, then add fail-before/pass-after behavioral proof. GPU parity does not bless defects already present in shared authored data or presentation.
+Coarse GPU preparation follow-up: `GpuBlockHlodSummary` dispatches at most1024 actual mirrored
+bricks and retains64 subcell materials/occupancy plus explicit unknown-source status perbrick.
+The initial12-test run failed3 cases: empty bricks have no directory entry and two isolated voxels
+were decoded incorrectly. A held complete mirrored-region proof now permits absent-as-air;
+CPU region readiness alone is insufficient. Raw GPU payload checks proved source bytes correct.
+Simplified column voting did not fix the decode failure. Explicit packed-byte selection passes
+all13 cases, including every one of512 voxel positions without phantom neighbours, water masks,
+material voting/ties and reset/disposal admission (`gpu-hlod-summary-exhaustive.xml`,14s wrapper,
+exit0). Earlier `runtime`, `ready`, `payload`, `columns`, `index` and `byte` attempts remain failed
+evidence; `decode` passed12 cases. Temporary per-lane diagnostics are removed. This is GPU data
+preparation only: step4/8 CPU summary/mesh jobs remain active and G07 is not complete. Integration
+must hold source/version leases through ordered completion, reject unknown coverage, produce
+GPU geometry and exercise Rendering-owned player scenes before deleting the old path.
+Normal180s Showcase regression passed11 captures, exit0, no exceptions or transaction rejections
+(`gpu-hlod-summary-showcase/`). Reviewed75s/150s: detailed castle intact and phantom wall absent;
+terrain banding/seams/gaps and coarse side geometry remain **unacceptable**. This unchanged scene
+consumer is regression evidence only; it does not exercise the new summary kernel.
+
 - [ ] **G07 — Eliminate CPU-dependent LOD coverage.** Current `CpuTransvoxelChunkCache.SupportsGpuSurfaceStep` admits only steps 1/2; step 4 uses feature-preserving CPU fallback and step 8 block HLOD. Inventory every ring/representation actually used by VoxelShowcase and affected consumers, including coarser mip work. Implement the required GPU equivalents before deleting those paths. Test real mixed-LOD batches, logical extent versus physical stride, transition faces, negative-shell ownership and nonresident frontier halos. Do not disable coarse rings or reduce draw distance to claim GPU-only coverage.
 Summit residency follow-up: production Storage regression reproduced missing upper region
 before the fix (2 passed/1 failed). Shared terrain-column residency now includes finite explicit
