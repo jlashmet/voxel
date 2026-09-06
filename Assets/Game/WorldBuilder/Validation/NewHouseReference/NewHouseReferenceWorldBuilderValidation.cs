@@ -13,8 +13,8 @@ using TerrainQuery = VoxelEngine.Terrain.Api.TerrainQuery;
 namespace Game.WorldBuilder.Validation.NewHouseReference
 {
     /// <summary>
-    /// Module-owned built-player proof for the reference-house WorldBuilder composition. The scene
-    /// supplies only deterministic site/camera/light policy; geometry, storage, game materials and
+    /// Module-owned built-player proof for the pinned reference-house WorldBuilder composition. The
+    /// scene supplies deterministic site/camera/light policy; geometry, storage, game materials and
     /// voxel rendering all run through their production contracts.
     /// </summary>
     [DefaultExecutionOrder(-10000)]
@@ -41,12 +41,9 @@ namespace Game.WorldBuilder.Validation.NewHouseReference
 
         private void Awake()
         {
-            // This feature's visual acceptance is intentionally CPU-rendered. The production
-            // renderer keeps VOXEL_DISABLE_GPU_CUTOVER=1 as its supported emergency/A-B fallback,
-            // and repository-owned module-player validation already launches scenes with that
-            // setting. Set it before the first rendered frame so the standalone SceneIssue replay
-            // exercises the same CPU surface path instead of depending on the unrelated GPU
-            // restoration assignment.
+            // This feature's visual acceptance remains CPU-rendered until the separate production
+            // GPU restoration assignment lands. VOXEL_DISABLE_GPU_CUTOVER is an existing production
+            // emergency/A-B path, not a test renderer.
             if (!Application.isEditor)
                 Environment.SetEnvironmentVariable(CpuFallbackVariable, "1");
 
@@ -63,7 +60,7 @@ namespace Game.WorldBuilder.Validation.NewHouseReference
                     "NEW_HOUSE_VALIDATION ready: " +
                     $"origin={_origin} bounds={_result.Min}->{_result.MaxExclusive} " +
                     $"doorX={_result.DoorCentreX} frontZ={_result.FrontZ} ridgeY={_result.RidgeY} " +
-                    "materials=plaster,timber,roof,stone,glass,painted-blue,ground-foliage " +
+                    "materials=plaster,timber,roof,stone,glass,painted-blue,dirt-ground,foliage " +
                     "referenceCamera=frontal portrait; audit=front-left,rear-right");
             }
             catch (Exception exception)
@@ -77,12 +74,8 @@ namespace Game.WorldBuilder.Validation.NewHouseReference
         {
             if (!_ready || _world == null) return;
 
-            // This proof preloads the complete deterministic footprint needed by the house before
-            // authoring it. Running ShowcaseWorld.StepStreaming here is incorrect: that integration
-            // loop also admits showcase landmarks (including the castle) and may evict/rebuild the
-            // very regions being used as visual evidence as the audit camera moves. Keep the focused
-            // WorldBuilder validation on its fixed production storage snapshot; only the evidence
-            // camera changes after construction.
+            // This focused proof preloads the deterministic footprint once. Advancing showcase
+            // landmark streaming here would admit unrelated content and mutate the evidence world.
             float elapsedSeconds = Time.timeSinceLevelLoad;
             UpdateEvidenceCamera(elapsedSeconds);
 
@@ -108,14 +101,6 @@ namespace Game.WorldBuilder.Validation.NewHouseReference
         {
             GameMaterialComposition.Install();
 
-            // The legacy four-argument ShowcaseWorld constructor registers only the historical
-            // showcase palette. That is insufficient for a WorldBuilder proof that authors stable
-            // game material IDs 23-28: raw voxels can be written and read back while the bound world
-            // palette still cannot classify those surfaces. Use the production game-material
-            // constructor so storage/surface rules and renderer presentation share the same complete
-            // catalogue. CastleOnly deliberately leaves the ordinary settlement catalogue empty;
-            // this focused validation never advances landmark streaming, so no unrelated castle is
-            // authored either.
             _world = new ShowcaseWorld(
                 m_Seed,
                 m_BrickPoolCapacity,
@@ -139,12 +124,9 @@ namespace Game.WorldBuilder.Validation.NewHouseReference
 
             IStructureAuthoringSession authoring = _world.CreateStructureAuthoringSession(8_000_000);
 
-            // The supplied texture set includes a combined timber/plaster facade plate that is not
-            // appropriate for the separately authored geometry, and it has no isolated alpha-ready
-            // foliage plate. Use the house timber texture for the plain brown entry and the normal
-            // game foliage material for ivy/planting rather than stamping that combined plate onto
-            // tiny foliage voxels. The supplied blue/gold painted house layer is reserved for the
-            // blue frames and shutter leaves visible in the reference.
+            // The pinned reference uses warm plaster/timber, pale masonry, deep blue roof and blue
+            // painted detail. Site ground is deliberately muted dirt so the isolated architectural
+            // plate is not presented as a bright lawn showcase.
             NewHouseReferencePalette palette = new(
                 GameMaterialIds.HousePlaster,
                 GameMaterialIds.HouseTimber,
@@ -153,7 +135,7 @@ namespace Game.WorldBuilder.Validation.NewHouseReference
                 GameMaterialIds.Glass,
                 GameMaterialIds.HouseTimber,
                 GameMaterialIds.HouseDoor,
-                GameMaterialIds.Grass,
+                GameMaterialIds.Dirt,
                 GameMaterialIds.FlowerWhite,
                 GameMaterialIds.Grass);
 
@@ -174,10 +156,6 @@ namespace Game.WorldBuilder.Validation.NewHouseReference
                 throw new InvalidOperationException(
                     $"Expected authored house-stone foundation, found material {foundationMaterial}.");
 
-            // Structures.Api authoring mutates resident storage but deliberately does not own the
-            // world's change journal. Publish the completed bounded authoring phase before binding
-            // rendering so surface discovery receives every house/site region rather than only the
-            // pre-existing terrain publication.
             _world.PublishStructureAuthoringChanges();
 
             var renderingWorld = new RenderingWorldBinding(
@@ -211,36 +189,39 @@ namespace Game.WorldBuilder.Validation.NewHouseReference
             cameraComponent.clearFlags = CameraClearFlags.Skybox;
             cameraComponent.nearClipPlane = 0.05f;
             cameraComponent.farClipPlane = 800f;
-            cameraComponent.fieldOfView = 36f;
+            cameraComponent.fieldOfView = 42f;
 
-            // The supplied architectural plate leaves breathing room around the compact cottage.
-            // Frame the corrected ~10 m silhouette rather than cropping it edge-to-edge.
+            // The pinned portrait is tall and tightly framed. Aim near the vertical centre of the
+            // stone/middle/gable stack while leaving room for the crest finial and entry steps.
             _cameraTarget = new Vector3(
                 (_origin.x + config.Width * 0.5f) * VoxelMetres,
-                (surfaceY + 50f) * VoxelMetres,
-                (_origin.z + 14f) * VoxelMetres);
+                (surfaceY + 72f) * VoxelMetres,
+                (_origin.z + 12f) * VoxelMetres);
             _frontalPosition = new Vector3(
                 _cameraTarget.x,
-                _cameraTarget.y + 0.25f,
-                _cameraTarget.z - 29.5f);
+                _cameraTarget.y + 0.2f,
+                _cameraTarget.z - 24.5f);
             ApplyCamera(_frontalPosition);
         }
 
         private void UpdateEvidenceCamera(float elapsedSeconds)
         {
-            if (elapsedSeconds < 16f || elapsedSeconds >= 28f)
+            // Standalone SceneIssue replay captures at ~10/20/30 seconds. Keep those times on the
+            // target, front-left audit and rear-right audit respectively so every required view is
+            // durable evidence rather than an uncaptured transient.
+            if (elapsedSeconds < 16f)
             {
                 ApplyCamera(_frontalPosition);
                 return;
             }
 
-            if (elapsedSeconds < 22f)
+            if (elapsedSeconds < 26f)
             {
-                ApplyCamera(_cameraTarget + new Vector3(-14f, 1.8f, -17f));
+                ApplyCamera(_cameraTarget + new Vector3(-13f, 2.0f, -16f));
                 return;
             }
 
-            ApplyCamera(_cameraTarget + new Vector3(13f, 2.0f, 16f));
+            ApplyCamera(_cameraTarget + new Vector3(12f, 2.2f, 15f));
         }
 
         private void LogSurfaceDiagnostics(float elapsedSeconds)
@@ -279,14 +260,14 @@ namespace Game.WorldBuilder.Validation.NewHouseReference
                 light.type = LightType.Directional;
             }
 
-            light.intensity = 1.15f;
-            light.color = new Color(1f, 0.95f, 0.86f, 1f);
-            light.transform.rotation = Quaternion.Euler(48f, -32f, 0f);
+            light.intensity = 1.12f;
+            light.color = new Color(1f, 0.91f, 0.76f, 1f);
+            light.transform.rotation = Quaternion.Euler(42f, -38f, 0f);
 
             RenderSettings.ambientMode = AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = new Color(0.54f, 0.66f, 0.78f, 1f);
-            RenderSettings.ambientEquatorColor = new Color(0.38f, 0.39f, 0.38f, 1f);
-            RenderSettings.ambientGroundColor = new Color(0.18f, 0.16f, 0.13f, 1f);
+            RenderSettings.ambientSkyColor = new Color(0.42f, 0.50f, 0.58f, 1f);
+            RenderSettings.ambientEquatorColor = new Color(0.30f, 0.29f, 0.27f, 1f);
+            RenderSettings.ambientGroundColor = new Color(0.13f, 0.11f, 0.09f, 1f);
         }
     }
 }
