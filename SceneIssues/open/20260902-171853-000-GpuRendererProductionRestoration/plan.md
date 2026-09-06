@@ -8,24 +8,26 @@ Deliver production-quality `Assets/Scenes/VoxelShowcase.unity` through the GPU b
 
 User directs local harness/tests and screenshot review; latest instruction authorizes pushing existing work to `origin/fixes/agent-1`, then continuing. Worktree `/private/tmp/voxel-gpu-restoration`, branch `gpu-rendering-agent-1-resume`.
 
-Proven repairs: bounded watchdog accounting, shared44-byte GPU descriptor, common allocator status store, explicit indirect bucket prefix, compatible batch layouts. Malformed step2 caches invalidated earlier geometry-demand estimates. Corrected tracing proved full stationary coverage but real traversal exhaustion (290/1635 requests through175s). Async status recovery now reports rejection and triggers bounded offscreen GPU eviction.
+Proven repairs: bounded watchdog,44-byte descriptor, allocator status, indirect bucket prefix, compatible batch layouts, async rejection/retry and bounded offscreen eviction.
 
 Render-control contract: only asynchronous16-byte status/handle/generation feedback per chunk; no generated geometry/count readback, blocking wait or authoritative-state derivation. Lane scratch remains owned through callback completion.
 
-Automatic publication pump and its compute kernel are deleted locally. Renderer attempts now have unique generations independent of storage versions. Host approval checks slot ownership, source/material/surface/coating versions; cancelled candidates abort by exact identity. Approval-focused tests passed25/25. The48s production module passed initial/traversal/edit/settled/restart with zero fallback or rejection. The180s approval showcase exited0 with11 captures; reviewed60s/165s show terrain bands, grey far geometry and cyan water: **unacceptable**, no performance acceptance.
-
-Next discovered invariant: finalization ignored write counters. Five real-GPU bookkeeping cases (missing/short/overflow writes) all failed before the repair. Finalization now compares written vertex/index totals against the allocated candidate entirely on-device, retires mismatches and returns failed status, preserving old live geometry. All31 focused tests pass, plus4 PlayMode arena regressions (fixtures now acquire handles, explicitly commit, and publish production lookup input). A48s module and180s showcase completed; showcase remains unacceptable. The first strict run shared a generic retry status, so quiet logs did not prove zero write mismatches. The distinct `WriteFailed` diagnostic then passed48s module and180s showcase: zero transaction rejections/exceptions,8/11 captures. Reviewed60s/150s/165s showcase remains unacceptable, including a large featureless foreground surface during traversal. This verifies completion totals, not arbitrary payload correctness.
+Automatic publication is deleted. Unique renderer generations and explicit source/configuration approval gate candidates. GPU finalization rejects mismatched write totals without transferring counts. Five regression cases failed before,31 focused tests plus4 arena PlayMode tests pass after. Production module48s and showcase180s completed with zero transaction rejections; reviewed showcase remains **unacceptable**. These checks do not prove payload correctness, complete coverage or performance.
 
 ## Hypotheses and discriminating experiments
 
-The recent far-world system is active:6 terrain rings and1480/1481 semantic instances. Existing reversible owner probe completed65s/10 captures (earlier55s run failed minimum9 captures). Grey mountain and coarse side structures disappear only while semantic far features are suppressed, then return. Terrain persists. Production visibility and issue metadata restored; diagnostic-only, no acceptance.
+Far-world is active:6 terrain rings and1481 semantic source instances. Reversible owner probes locate the grey mountain and coarse side structures in semantic far presentation, inside the streaming radius. Initial startup-bake decoding found air in the current mountain interior. Production Storage restoration verified the region semantic hash and reproduced missing occupancy at(-600,358,200).
 
-A second65s probe places candidate bounds about60.79m and102.10m down sampled screen rays, inside409.6m streaming radius. The left bounds match the current mountain landmark. Crucially, offline decoding of the startup bake finds air at mountain-center heights250–480 voxels, although the current generator emits a solid frustum there. Region(-2,0,0) is baked, so missing residency is not sufficient explanation. Samples and source deltas are archived in `far-owner-distance/`.
+The baker regenerated199 regions in144s, peak10.6GB and zero swap growth with harness-standard12GB guard. Initial6GB attempt was killed before writing; free-memory/swap guards and production budgets are unchanged. Both mountain production tests now pass, including the previously failing occupancy assertion.
 
-1. Startup bake predates current catalogue content, leaving far proxies without detailed replacements.
-2. Near geometry exists but presentation/publication fails; runtime occupancy must distinguish this from stale bake data.
+Normal180s player completed with12 captures and no transaction rejection/exception. Reviewed15s/60s/150s remains **unacceptable**: coarse side blocks, terrain bands and huge flat foreground surfaces during traversal. Stationary coverage reached zero missing visible chunks; traversal reclosed the global terrain hole. Diagnostic CPU window p50 medians6.35ms stationary/8.59ms walking are not benchmark acceptance.
 
-Next verify through production Storage/catalogue tests, then regenerate the startup bake and add a durable content-compatibility gate if mismatch is confirmed. Do not hide proxies over missing near content. Global terrain-cutout collapse and missing semantic near-handoff remain separate candidates. Resume G11 cancellation/last-consumer lifetime afterward.
+The rebaked65s owner probe completed with11 captures. At35s, suppressing only semantic proxies reveals a dark detailed mountain and roofed houses; restoring40s covers them again with the grey mountain and coarse blocks. Original visibility and exact issue metadata restored. Diagnostic-only, no visual acceptance.
+
+1. **Confirmed:** stale startup content prevented detailed mountain replacement; regeneration fixes occupancy.
+2. **Confirmed overlap:** semantic far proxies obscure existing near geometry. Terrain-cutout collapse remains a separate candidate for terrain defects.
+
+Next implement a bounded, per-object publication-based near/far handoff through existing renderer/composition contracts. Prove replacement coverage and restoration after invalidation/eviction; never use distance alone or global convergence to hide proxies. Validate a module-local production consumer and normal showcase screenshots. Resume G11 cancellation/last-consumer lifetime afterward.
 
 ## Remaining gates
 

@@ -196,6 +196,22 @@ next verify with production Storage and catalogue evaluation before rebuilding. 
 suppress the proxy and thereby hide a missing mountain. Diagnostic JSON, snapshots and patches
 are under `Artifacts/LocalGpuShowcase/`; all these runs remain excluded from visual/performance acceptance.
 
+Startup bake repair on4a80ddb57: production Storage regression restores region(-2,0,0),
+verifies its semantic hash, and fails at current mountain center(-600,358,200). Existing
+`ShowcaseWorldBaker.BakeShowcaseWorld` regenerates199 regions in144s, peak10598MB, no swap
+growth; initial6GB-guard attempt was killed before writing. Harness-standard12GB process
+ceiling retained8GB free floor and512MB swap-growth guard; production budgets unchanged.
+`mountain-rebake/acceptance-after.xml`: both mountain production tests pass after regeneration,
+including the previously failing occupancy assertion. `mountain-rebake-showcase/` normal180s
+completed with12 captures, no transaction rejections/exceptions. Reviewed15s/60s/150s remains
+**unacceptable**: terrain bands, coarse side structures, huge flat traversal foreground.
+Stationary missingVisible reached0; traversal reopened missing coverage and closed terrain hole.
+`mountain-rebake-probe/`65s completed11 captures. Reviewed25s/35s/45s confirms detailed dark
+mountain and roofed houses appear while semantic proxies are suppressed, then grey mountain and
+coarse blocks cover them again after restoration. Original visibility and issue metadata restored.
+Next G08 work: bounded per-object publication handoff, retaining proxies until their detailed
+replacement is ready and restoring on eviction/invalidation. Diagnostic suppression is not acceptance.
+
 ## 1. Get the actual GPU path running now
 
 - [ ] **G01 — Reconcile the retained production GPU implementation.** Inspect current code and historical merge parent `a0ac0f5e...`; retain compatible proven changes rather than blindly restoring old files. Trace the real scheduler -> mirror -> extraction -> page publication -> URP draw route. Record concrete compile/runtime blockers and fix only prerequisites to this route. Do not begin another CPU visual-polish cycle.

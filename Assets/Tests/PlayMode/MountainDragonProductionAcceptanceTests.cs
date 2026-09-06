@@ -3,6 +3,9 @@ using Game.WorldBuilder.Voxel;
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
+using UnityEngine;
+using VoxelEngine.Composition;
+using VoxelEngine.Storage.Runtime;
 using VoxelEngine.Showcase;
 using VoxelEngine.Structures.Api;
 using VoxelEngine.Structures.Runtime;
@@ -15,6 +18,31 @@ namespace VoxelEngine.Tests.PlayMode
         private const byte MountainMaterial = 1;
         private const byte PathMaterial = 13;
         private const byte DragonMaterial = 9;
+
+        [Test]
+        public void StartupBakeContainsCurrentMountainInterior()
+        {
+            TextAsset asset = Resources.Load<TextAsset>(ShowcaseWorldBakeCodec.ResourcePath);
+            Assert.NotNull(asset);
+            ShowcaseWorldBake bake = ShowcaseWorldBakeCodec.Deserialize(asset.bytes);
+            MountainLandmarkSpec spec = ShowcaseMountainDragonLayout.CreateLandmark(bake.Seed);
+            int3 sample = spec.Origin + new int3(spec.CentreLocal, spec.MountainHeight / 2, spec.CentreLocal);
+            int3 regionCoordinate = sample >> 9;
+            ShowcaseWorldBakedRegion? record = null;
+            foreach (ShowcaseWorldBakedRegion region in bake.Regions)
+                if (region.Coord.Equals(regionCoordinate)) { record = region; break; }
+            Assert.IsTrue(record.HasValue, "The landmark center must be inside the baked startup region set.");
+            byte[] payload = ShowcaseWorldBakeCodec.DecodeRegionPayload(record.Value);
+            Assert.IsTrue(SemanticRegionSnapshotCodec.TryGetMixedBrickCount(payload, out int mixed));
+            using var storage = VoxelEngineBootstrap.CreateStorage(1, System.Math.Max(1, mixed));
+            Assert.IsTrue(storage.SnapshotMutations.TryApplySemanticSnapshot(
+                regionCoordinate, payload, record.Value.SemanticHash, createIfMissing: true));
+            storage.PublishAllResidentRegions();
+            Assert.IsTrue(storage.Reads.TryAcquireRegion(regionCoordinate, out var view));
+            Assert.IsTrue(view.TryReadCell(sample & 511, out var cell));
+            Assert.IsTrue(cell.IsSolid,
+                $"Current mountain center {sample} is air in the startup bake. Far catalogue and detailed world disagree.");
+        }
 
         [Test]
         public void MountainPathDragonAndProximityFlowUseProductionWorldBuilder()
