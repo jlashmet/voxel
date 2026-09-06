@@ -56,6 +56,49 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(secondResult.MaxExclusive, Is.EqualTo(firstResult.MaxExclusive + delta));
         }
 
+        [NUnit.Framework.Test]
+        public void AuthorHouse_AuditShellInfillOccursAfterRoofClear_AndRearWindowsCarveAfterInfill()
+        {
+            NewHouseReferenceConfig config = NewHouseReferenceConfig.Default;
+            NewHouseReferencePalette palette = Palette();
+            int3 origin = new(17, 9, -23);
+            var session = new RecordingSession();
+
+            NewHouseReferenceRefinement.AuthorHouse(session, origin, in config, in palette);
+
+            int upper = origin.y + config.UpperFloorY;
+            int ridge = origin.y + config.MainRidgeY;
+            int rear = origin.z + config.Depth + 1;
+
+            int roofClear = session.Operations.FindIndex(op =>
+                op.Kind == OperationKind.Carve &&
+                op.Position.Equals(new int3(origin.x - 22, upper + 13, origin.z - 18)) &&
+                op.Size.Equals(new int3(config.Width + 44, ridge - upper + 32, config.Depth + 42)));
+            int leftShell = session.Operations.FindIndex(op =>
+                op.Kind == OperationKind.Box && op.Material == palette.Plaster &&
+                op.Position.Equals(new int3(origin.x + 1, upper, origin.z + 8)) &&
+                op.Size.Equals(new int3(3, 25, config.Depth - 7)));
+            int rightShell = session.Operations.FindIndex(op =>
+                op.Kind == OperationKind.Box && op.Material == palette.Plaster &&
+                op.Position.Equals(new int3(origin.x + config.Width - 4, upper, origin.z + 8)) &&
+                op.Size.Equals(new int3(3, 25, config.Depth - 7)));
+            int rearShell = session.Operations.FindIndex(op =>
+                op.Kind == OperationKind.Box && op.Material == palette.Plaster &&
+                op.Position.Equals(new int3(origin.x + 1, upper, rear - 2)) &&
+                op.Size.Equals(new int3(config.Width - 2, 25, 3)));
+            int centreRearWindowCarve = session.Operations.FindIndex(op =>
+                op.Kind == OperationKind.Carve &&
+                op.Position.Equals(new int3(origin.x + config.Width / 2 - 6, upper + 7, rear - 4)) &&
+                op.Size.Equals(new int3(13, 20, 8)));
+
+            Assert.That(roofClear, Is.GreaterThanOrEqualTo(0), "Expected destructive roof-clear operation.");
+            Assert.That(leftShell, Is.GreaterThan(roofClear), "Left upper shell must be restored after roof clear.");
+            Assert.That(rightShell, Is.GreaterThan(roofClear), "Right upper shell must be restored after roof clear.");
+            Assert.That(rearShell, Is.GreaterThan(roofClear), "Rear upper shell must be restored after roof clear.");
+            Assert.That(centreRearWindowCarve, Is.GreaterThan(rearShell),
+                "Intentional rear openings must be carved after opaque shell infill, not leave wall-sized holes.");
+        }
+
         private static NewHouseReferencePalette Palette() =>
             new(plaster: 41, timber: 42, roof: 43, stone: 44, glass: 45,
                 door: 46, accent: 47, ground: 48, flowers: 49, foliage: 50, ornament: 51);
