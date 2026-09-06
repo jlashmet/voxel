@@ -109,7 +109,7 @@ namespace Game.Composition.Kentridge.Playable
             ThrowIfDisposed();
             if (_server != null) throw new InvalidOperationException("Kentridge multiplayer authority is already prepared.");
             _party = new PartySession(request.SessionId, request.Configuration);
-            _partyApplication = new PartySessionApplication(_party);
+            _partyApplication = new PartySessionApplication(_party, request.Configuration.Capacity);
             _admission = new KentridgeAuthoritativeSessionAdmission(_party);
             var ready = new KentridgeReadySessionAdmissionConsumer(_admission, _party, _partyApplication);
             _sessionControl = new KentridgeAuthoritativeSessionControl(ready, _party, _partyApplication);
