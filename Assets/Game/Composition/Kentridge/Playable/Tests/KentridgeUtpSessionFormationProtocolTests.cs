@@ -14,7 +14,7 @@ namespace Game.Composition.Kentridge.Playable.Tests
             var buffer = new byte[SessionAdmissionPacket.MaxPayloadBytes];
             Assert.That(KentridgeSessionAdmissionCodec.TryEncodeJoin(in request, buffer, out int written), Is.True);
             Assert.That(written, Is.GreaterThan(0).And.LessThanOrEqualTo(SessionAdmissionPacket.MaxPayloadBytes));
-            Assert.That(KentridgeSessionAdmissionCodec.TryDecodeJoin(buffer.AsSpan(0, written), out JoinRequest decoded), Is.True);
+            Assert.That(KentridgeSessionAdmissionCodec.TryDecodeJoin(new System.ReadOnlySpan<byte>(buffer, 0, written), out JoinRequest decoded), Is.True);
             Assert.That(decoded.SessionId, Is.EqualTo(request.SessionId));
             Assert.That(decoded.ApplicantKey, Is.EqualTo(request.ApplicantKey));
             Assert.That(decoded.ProtocolVersion, Is.EqualTo(request.ProtocolVersion));
@@ -29,7 +29,7 @@ namespace Game.Composition.Kentridge.Playable.Tests
                 new GameSessionId("kentridge-live"), new PartyMemberId("kentridge-live:member:2"));
             var buffer = new byte[SessionAdmissionPacket.MaxPayloadBytes];
             Assert.That(KentridgeSessionAdmissionCodec.TryEncodeReply(success, 2, buffer, out int written), Is.True);
-            Assert.That(KentridgeSessionAdmissionCodec.TryDecodeReply(buffer.AsSpan(0, written), out SessionFormationResult decoded, out ushort playerId), Is.True);
+            Assert.That(KentridgeSessionAdmissionCodec.TryDecodeReply(new System.ReadOnlySpan<byte>(buffer, 0, written), out SessionFormationResult decoded, out ushort playerId), Is.True);
             Assert.That(decoded.Succeeded, Is.True);
             Assert.That(decoded.SessionId, Is.EqualTo(success.SessionId));
             Assert.That(decoded.LocalMemberId, Is.EqualTo(success.LocalMemberId));
@@ -53,7 +53,7 @@ namespace Game.Composition.Kentridge.Playable.Tests
             SessionFormationResult failure = SessionFormationResult.Reject(SessionFormationFailure.SessionFull, "SessionFull");
             var buffer = new byte[SessionAdmissionPacket.MaxPayloadBytes];
             Assert.That(KentridgeSessionAdmissionCodec.TryEncodeReply(failure, 0, buffer, out int written), Is.True);
-            Assert.That(KentridgeSessionAdmissionCodec.TryDecodeReply(buffer.AsSpan(0, written), out SessionFormationResult decoded, out ushort playerId), Is.True);
+            Assert.That(KentridgeSessionAdmissionCodec.TryDecodeReply(new System.ReadOnlySpan<byte>(buffer, 0, written), out SessionFormationResult decoded, out ushort playerId), Is.True);
             Assert.That(decoded.Succeeded, Is.False);
             Assert.That(decoded.Failure, Is.EqualTo(SessionFormationFailure.SessionFull));
             Assert.That(decoded.LocalMemberId.IsValid, Is.False);
