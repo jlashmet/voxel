@@ -1,4 +1,6 @@
 using System;
+using System.Collections;
+using UnityEngine.TestTools;
 using System.Reflection;
 using NUnit.Framework;
 using Unity.Mathematics;
@@ -106,6 +108,89 @@ namespace VoxelEngine.Rendering.Tests.EditMode
                 .Invoke(null, new[] { lane });
             Assert.That(QueuedCount(), Is.Zero);
             Assert.That(Get(lane, "Submitted"), Is.False);
+        }
+
+        [UnityTest]
+        public IEnumerator SubmittedResourcesSurviveContextAndWorldDisposalUntilGpuCompletion() =>
+            ValidateSubmittedDisposal(false);
+
+        [UnityTest]
+        public IEnumerator SubmissionExceptionStillReleasesRetiredResourcesThroughCompletion() =>
+            ValidateSubmittedDisposal(true);
+
+        private IEnumerator ValidateSubmittedDisposal(bool failSubmission)
+        {
+            // Keep the world attached until both submitting contexts have released their own
+            // readers, so the remaining protection must belong to the submitted batch itself.
+            using var keeper = GpuSurfaceExtractionContext.TryCreate(8, 2, 1024);
+            Assert.NotNull(keeper);
+            foreach (var context in new[] { _first, _second })
+            {
+                Assert.That(GpuSurfaceMirrorCoordinator.TryBeginExtraction(int3.zero, context.BrickCacheEdge), Is.True);
+                typeof(GpuSurfaceExtractionContext).GetField("_sharedExtractionActive", Fields).SetValue(context, true);
+            }
+            // UnityTest may advance a frame after SetUp; establish the queue budget here.
+            Coordinator.GetField("s_LastExtractionDispatchFrame", BindingFlags.Static | BindingFlags.NonPublic)
+                .SetValue(null, Time.frameCount);
+            Queue(_first, 1);
+            Queue(_second, 2);
+            object lane = FirstLane();
+            ComputeBuffer mirror = _first.Mirror.Materials;
+            ComputeBuffer tables = _first.Tables.CellClass;
+            ComputeBuffer extractor = (ComputeBuffer)typeof(GpuSurfaceExtractor)
+                .GetField("_density", Fields).GetValue(_first.Extractor);
+            ComputeBuffer arena = _arena.Vertices;
+            Coordinator.GetField("s_LastExtractionDispatchFrame", BindingFlags.Static | BindingFlags.NonPublic)
+                .SetValue(null, -1);
+            MethodInfo submit = Coordinator.GetMethod("SealCountBatch", BindingFlags.Static | BindingFlags.NonPublic);
+            object resources = Get(lane, "Resources");
+            if (failSubmission)
+            {
+                // Inject a bounded submission precondition failure after resource ownership is
+                // acquired. Production must schedule its completion-only cleanup on this path.
+                lane.GetType().GetField("Resources", Fields).SetValue(lane, null);
+                try
+                {
+                    var failure = Assert.Throws<TargetInvocationException>(() => submit.Invoke(null, new[] { lane }));
+                    Assert.That(failure.InnerException, Is.TypeOf<ArgumentNullException>());
+                }
+                finally { lane.GetType().GetField("Resources", Fields).SetValue(lane, resources); }
+            }
+            else submit.Invoke(null, new[] { lane });
+            Assert.That(Get(lane, "Submitted"), Is.True, "The real GPU completion request must actually be submitted.");
+            Assert.That(GpuSurfaceMirrorCoordinator.ActiveRegionCount, Is.GreaterThan(0));
+            _first.Dispose();
+            Assert.That(GpuSurfaceMirrorCoordinator.ActiveRegionCount, Is.GreaterThan(0),
+                "The batch must retain mirror readers after its prefix owner is disposed.");
+            _second.Dispose();
+            Assert.That(GpuSurfaceMirrorCoordinator.ActiveExtractions, Is.Zero);
+            Assert.That(GpuSurfaceMirrorCoordinator.ActiveRegionCount, Is.GreaterThan(0),
+                "Only the submitted batch can protect the mirror after both contexts release their readers.");
+            keeper.Dispose();
+            GpuSurfaceMirrorCoordinator.DetachPageArena(_arena, Time.frameCount);
+            _arena.Dispose();
+            Assert.That(mirror.IsValid(), Is.True);
+            Assert.That(tables.IsValid(), Is.True);
+            Assert.That(extractor.IsValid(), Is.True);
+            Assert.That(arena.IsValid(), Is.True,
+                "Logical teardown must leave submitted GPU allocations owned by completion.");
+            // Reuse the same footprint in the new ownership epoch before the old callback.
+            int edge = _first.BrickCacheEdge;
+            Assert.That(GpuSurfaceMirrorCoordinator.TryBeginExtraction(int3.zero, edge), Is.True);
+            int currentReaders = GpuSurfaceMirrorCoordinator.ActiveRegionCount;
+            try
+            {
+                double deadline = Time.realtimeSinceStartupAsDouble + 5.0;
+                while ((mirror.IsValid() || tables.IsValid() || extractor.IsValid() || arena.IsValid())
+                       && Time.realtimeSinceStartupAsDouble < deadline)
+                    yield return null;
+                Assert.That(mirror.IsValid() || tables.IsValid() || extractor.IsValid() || arena.IsValid(), Is.False,
+                    "The real completion callback must release every retired allocation without a leak.");
+                Assert.That(GpuSurfaceMirrorCoordinator.ActiveRegionCount, Is.EqualTo(currentReaders),
+                    "A retired batch callback must not decrement a new world's identical footprint.");
+            }
+            finally { GpuSurfaceMirrorCoordinator.EndExtraction(int3.zero, edge); }
+
         }
 
         private static void Queue(GpuSurfaceExtractionContext context, int x)

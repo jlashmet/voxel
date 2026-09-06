@@ -625,10 +625,26 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (_disposed) throw new ObjectDisposedException(nameof(GpuVoxelBrickMirror));
         }
 
+        private GpuSubmissionLifetime _submissionLifetime;
+
+        internal void RetainSubmission()
+        {
+            if (_disposed) throw new ObjectDisposedException(nameof(GpuVoxelBrickMirror));
+            (_submissionLifetime ??= new GpuSubmissionLifetime(ReleaseResources)).Retain();
+        }
+
+        internal void ReleaseSubmission() => _submissionLifetime.Release();
+
         public void Dispose()
         {
             if (_disposed) return;
             _disposed = true;
+            if (_submissionLifetime == null) ReleaseResources();
+            else _submissionLifetime.Dispose();
+        }
+
+        private void ReleaseResources()
+        {
             _materials?.Release();
             _surfaceSemantics?.Release();
             _boundarySamples?.Release();

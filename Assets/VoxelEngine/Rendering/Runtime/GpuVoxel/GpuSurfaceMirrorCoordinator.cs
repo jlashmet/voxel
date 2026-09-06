@@ -109,11 +109,82 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             internal readonly uint[] OutcomeWords = new uint[CountBatchCapacity * 4];
             internal bool OutcomeReady, OutcomeFailed, Retired;
             internal readonly Action<AsyncGPUReadbackRequest> OutcomeCallback;
+            internal readonly Action<AsyncGPUReadbackRequest> FailedSubmissionCallback;
 
-            internal CountBatchLane() { OutcomeCallback = ReceiveOutcome; }
+            private GpuVoxelBrickMirror _submittedMirror;
+            private GpuSurfacePageArena _submittedArena;
+            private GpuSurfaceExtractor _submittedExtractor;
+            private GpuTransvoxelTables _submittedTables;
+            private byte _resourceOwners;
+            private int _retainedReaderRecords;
+            private int _submittedCacheEdge;
+            private ulong _submittedWorldEpoch;
+
+            internal void RetainSubmissionResources(GpuVoxelBrickMirror mirror, GpuSurfacePageArena arena)
+            {
+                _submittedMirror = mirror;
+                _submittedArena = arena;
+                _submittedExtractor = PrefixExtractor;
+                _submittedTables = Tables;
+                _submittedWorldEpoch = s_ResourceWorldEpoch;
+                _submittedCacheEdge = PrefixExtractor.BrickCacheEdge;
+                try
+                {
+                    mirror.RetainSubmission(); _resourceOwners |= 1;
+                    arena.RetainSubmission(); _resourceOwners |= 2;
+                    PrefixExtractor.RetainSubmission(); _resourceOwners |= 4;
+                    Tables.RetainSubmission(); _resourceOwners |= 8;
+                    for (int record = 0; record < Count; record++)
+                    {
+                        ChangeActiveFootprint(Requests[record].BrickCacheOrigin, _submittedCacheEdge, 1);
+                        ChangeActiveRegionReaders(Requests[record].BrickCacheOrigin, _submittedCacheEdge, 1);
+                        _retainedReaderRecords++;
+                    }
+                }
+                catch { ReleaseSubmissionResources(); throw; }
+            }
+
+            private void ReleaseSubmissionResources()
+            {
+                // A retired world's callback must never decrement the new world's readers.
+                if (_submittedWorldEpoch == s_ResourceWorldEpoch)
+                    for (int record = 0; record < _retainedReaderRecords; record++)
+                    {
+                        ChangeActiveFootprint(Requests[record].BrickCacheOrigin, _submittedCacheEdge, -1);
+                        ChangeActiveRegionReaders(Requests[record].BrickCacheOrigin, _submittedCacheEdge, -1);
+                    }
+                _retainedReaderRecords = 0;
+                byte owners = _resourceOwners;
+                _resourceOwners = 0;
+                if ((owners & 8) != 0) _submittedTables.ReleaseSubmission();
+                if ((owners & 4) != 0) _submittedExtractor.ReleaseSubmission();
+                if ((owners & 2) != 0) _submittedArena.ReleaseSubmission();
+                if ((owners & 1) != 0) _submittedMirror.ReleaseSubmission();
+                _submittedTables = null;
+                _submittedExtractor = null;
+                _submittedArena = null;
+                _submittedMirror = null;
+            }
+
+            internal CountBatchLane()
+            {
+                OutcomeCallback = ReceiveOutcome;
+                FailedSubmissionCallback = ReceiveFailedSubmission;
+            }
+
+            private void ReceiveFailedSubmission(AsyncGPUReadbackRequest request)
+            {
+                ReleaseSubmissionResources();
+                if (Retired) { ReleaseBuffers(); return; }
+                OutcomeFailed = true;
+                OutcomeReady = true;
+            }
 
             private void ReceiveOutcome(AsyncGPUReadbackRequest request)
             {
+                // The readback is ordered after every extraction command that references these
+                // resources. Completion owns release even if the world/context has retired.
+                ReleaseSubmissionResources();
                 if (Retired) { ReleaseBuffers(); return; }
                 OutcomeFailed = request.hasError;
                 if (!OutcomeFailed) request.GetData<uint>().CopyTo(OutcomeWords);
@@ -122,6 +193,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
             internal void ReleaseBuffers()
             {
+                ReleaseSubmissionResources();
                 Outcomes?.Release(); Outcomes = null;
                 Counters?.Release(); Counters = null;
                 Resources?.Dispose(); Resources = null;
@@ -452,42 +524,59 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             s_ExtractionFenceValid = false;
             if (!TryReserveExtractionDispatch(frame)) return;
 
-            s_PageArena.FlushHandleCommands(frame);
-            lane.PrefixExtractor.DispatchCountBatch(
-                s_Mirror, lane.Tables, lane.Requests, lane.Count,
-                lane.Counters, lane.Resources);
-            lane.PrefixExtractor.PrefixCountBatch(
-                lane.Counters, lane.Count,
-                SurfaceGeometryArena.VertexAlignment,
-                SurfaceGeometryArena.IndexAlignment);
-            s_PageArena.AllocateBatch(lane.Resources.Chunks, lane.Counters, lane.Count,
-                                      GpuSurfaceExtractor.BatchRecordWords, frame);
-            lane.PrefixExtractor.DispatchBaseWriteBatch(
-                s_Mirror, lane.Tables, lane.Count, lane.Counters, lane.Resources,
-                s_PageArena.Vertices, s_PageArena.Indices,
-                pageArena: s_PageArena, frame: frame);
-            s_ExtractionFence = Graphics.CreateGraphicsFence(
-                GraphicsFenceType.CPUSynchronisation,
-                SynchronisationStageFlags.ComputeProcessing);
-            s_ExtractionFenceValid = true;
-            lane.CompletionFence = s_ExtractionFence;
-            lane.CompletionFenceValid = true;
-
             if (!SystemInfo.supportsAsyncGPUReadback)
                 throw new InvalidOperationException("GPU surface publication requires asynchronous render-control feedback.");
-            s_PageArena.CopyBatchOutcomes(lane.Counters, lane.Outcomes, lane.Count,
-                GpuSurfaceExtractor.BatchRecordWords);
-            lane.OutcomeReady = false;
-            lane.OutcomeFailed = false;
-            lane.Submitted = true;
-            AsyncGPUReadback.Request(lane.Outcomes, lane.OutcomeCallback);
-            s_CountBatchReadbacks++;
+            lane.RetainSubmissionResources(s_Mirror, s_PageArena);
+            bool outcomeCopied = false;
+            try
+            {
+                s_PageArena.FlushHandleCommands(frame);
+                lane.PrefixExtractor.DispatchCountBatch(
+                    s_Mirror, lane.Tables, lane.Requests, lane.Count,
+                    lane.Counters, lane.Resources);
+                lane.PrefixExtractor.PrefixCountBatch(
+                    lane.Counters, lane.Count,
+                    SurfaceGeometryArena.VertexAlignment,
+                    SurfaceGeometryArena.IndexAlignment);
+                s_PageArena.AllocateBatch(lane.Resources.Chunks, lane.Counters, lane.Count,
+                                          GpuSurfaceExtractor.BatchRecordWords, frame);
+                lane.PrefixExtractor.DispatchBaseWriteBatch(
+                    s_Mirror, lane.Tables, lane.Count, lane.Counters, lane.Resources,
+                    s_PageArena.Vertices, s_PageArena.Indices,
+                    pageArena: s_PageArena, frame: frame);
+                s_ExtractionFence = Graphics.CreateGraphicsFence(
+                    GraphicsFenceType.CPUSynchronisation,
+                    SynchronisationStageFlags.ComputeProcessing);
+                s_ExtractionFenceValid = true;
+                lane.CompletionFence = s_ExtractionFence;
+                lane.CompletionFenceValid = true;
+
+                s_PageArena.CopyBatchOutcomes(lane.Counters, lane.Outcomes, lane.Count,
+                    GpuSurfaceExtractor.BatchRecordWords);
+                outcomeCopied = true;
+            }
+            finally
+            {
+                // Even a partially issued chain owns its resources until an ordered callback.
+                // Failed submission observes completion only, never incomplete outcome contents.
+                lane.OutcomeReady = false;
+                lane.OutcomeFailed = !outcomeCopied;
+                lane.Submitted = true;
+                if (outcomeCopied) AsyncGPUReadback.Request(lane.Outcomes, lane.OutcomeCallback);
+                else
+                    // Completion-only failure path: transfer one control-status word, never
+                    // geometry counts or allocation totals from the counter buffer.
+                    AsyncGPUReadback.Request(lane.Counters, sizeof(uint),
+                        (GpuSurfaceExtractor.BatchHeaderWords + 10) * sizeof(uint),
+                        lane.FailedSubmissionCallback);
+                s_CountBatchReadbacks++;
+            }
         }
 
         private static void CompleteSubmittedCountBatch(CountBatchLane lane)
         {
-            if (lane == null || !lane.Submitted || !lane.CompletionFenceValid
-                || !lane.CompletionFence.passed || !lane.OutcomeReady)
+            if (lane == null || !lane.Submitted || !lane.OutcomeReady
+                || (!lane.OutcomeFailed && (!lane.CompletionFenceValid || !lane.CompletionFence.passed)))
                 return;
 
             for (int record = 0; record < lane.Count; record++)
@@ -1151,8 +1240,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                     new HashSet<int3>(BlocksPerTrackedRegionCapacity));
         }
 
+        private static ulong s_ResourceWorldEpoch;
+
         private static void ResetWorld(bool disposeMirror)
         {
+            s_ResourceWorldEpoch = checked(s_ResourceWorldEpoch + 1);
             s_Storage = null;
             s_ChangeSource = null;
             s_ChangeCursor = 0;

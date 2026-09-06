@@ -341,6 +341,16 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (_disposed) throw new ObjectDisposedException(nameof(GpuSurfacePageArena));
         }
 
+        private GpuSubmissionLifetime _submissionLifetime;
+
+        internal void RetainSubmission()
+        {
+            if (_disposed) throw new ObjectDisposedException(nameof(GpuSurfacePageArena));
+            (_submissionLifetime ??= new GpuSubmissionLifetime(ReleaseResources)).Retain();
+        }
+
+        internal void ReleaseSubmission() => _submissionLifetime.Release();
+
         public void Dispose()
         {
             if (_disposed) return;
@@ -349,6 +359,12 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _commandIndexByHandle.Clear();
             _releasedHandles.Clear();
             _freeHandles.Clear();
+            if (_submissionLifetime == null) ReleaseResources();
+            else _submissionLifetime.Dispose();
+        }
+
+        private void ReleaseResources()
+        {
             Vertices?.Release(); Indices?.Release(); ArenaState?.Release();
             FreeVertexPages?.Release(); FreeIndexPages?.Release();
             RetiredVertexPages?.Release(); RetiredIndexPages?.Release();

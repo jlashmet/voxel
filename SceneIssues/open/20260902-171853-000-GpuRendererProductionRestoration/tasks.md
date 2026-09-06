@@ -283,6 +283,21 @@ submitted resource/mirror leases, world-reset isolation and last-draw retirement
 Normal180s Showcase passed12 captures/no transaction errors; reviewed150s still has the large
 flat traversal obstruction. No visual or final performance acceptance.
 
+Submitted-resource ownership follow-up: a per-resource reference count now separates
+logical disposal from physical release for mirror, extractor, lookup tables and page arena.
+Each submitted lane retains those exact owners and independent footprint/region readers until
+its ordered callback, including retired worlds and exceptional submission. Callback world epochs
+prevent old reader decrements from changing new-world ownership. All19 focused tests pass
+(`submitted-lifetime-reader-ownership.xml`), including real GPU teardown, batch-only readers after both contexts release, and eventual allocation release.
+`submitted-lifetime-readers.log` records a native Burst compiler crash/no XML, not a pass; the
+exception fixture timing correction is retained in the intermediate failed XML. The first module build also crashed in native Burst compilation; its retry passed normal
+edit/handoff/restart. Final submission-exception feedback transfers one control-status word
+only; it never transfers geometry/counts. Full source-reset isolation, bounded retired-world
+pressure and last-draw retirement remain G11 gates. Final48s module passed8 captures and
+edit/handoff/restart; final180s Showcase passed12 captures/no transaction errors but still has
+large flat traversal obstructions. Evidence is in `submitted-lifetime-module-verified/` and
+`submitted-lifetime-showcase/`; no visual or final performance acceptance.
+
 - [ ] **G11 — Prove GPU-completion-based lifetime.** Keep source mirror/residency leases and lane-local scratch alive until actual consumption completes. Verify the target Metal fence/capability/`passed` behavior and safe handling when that capability is unavailable. Retire geometry only after draw completion, not a CPU-frame delay. Exercise upload-ring reuse under actual GPU lag, teardown with in-flight work, and repeated renderer/world restart without stale statics, leaks or double ownership.
 - [ ] **G12 — Prove bounded pressure and recovery.** Stress page/handle/mirror reuse, directory collisions, negative coordinates, eviction, mixed/uniform/empty publication and tombstones. Force stale generations, full arenas and oversized work; prove reclamation, retry and recovery without deadlock, corruption, permanent holes or CPU takeover. Splitting/backpressure must preserve coverage and budgets rather than silently discarding unsupported work.
 - [ ] **G13 — Prove edits and streaming end to end.** Use deterministic real VoxelShowcase traversal and repeated authoritative edits across region/LOD boundaries. Verify current versions converge, stale results never become live, old geometry disappears correctly, and new geometry replaces it without cracks/remnants. Preserve authoritative gameplay and tick behavior; no blocking GPU readback/wait introduced into the frame path.
