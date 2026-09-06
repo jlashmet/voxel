@@ -23,6 +23,7 @@ namespace VoxelEngine.Showcase
         private const string SceneIssueArgument = "-voxel-scene-issue";
         private const string ScreenshotDirectoryArgument = "-voxel-screenshot-dir";
         private const float ExistingAutoWalkDegreesPerSecond = 24f;
+        private const int ErrorMagentaMinimumPixels = 64;
 
         private static readonly FieldInfo YawField = typeof(VoxelShowcase).GetField(
             "_yaw", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -201,7 +202,12 @@ namespace VoxelEngine.Showcase
                     }
 
                     string path = Path.Combine(_screenshotDirectory, fileName);
-                    ScreenCapture.CaptureScreenshot(path);
+                    if (!CaptureAcceptanceScreenshot(path, fileName))
+                    {
+                        Application.Quit(25);
+                        enabled = false;
+                        return;
+                    }
                     _captured = true;
                     Debug.Log($"WAYPOINT_REPLAY capture '{fileName}'");
                 }
@@ -227,6 +233,51 @@ namespace VoxelEngine.Showcase
             PitchField.SetValue(_showcase, 0f);
             ApplyReplaySprint();
             _showcase.AutoWalk = true;
+        }
+
+        private bool CaptureAcceptanceScreenshot(string path, string fileName)
+        {
+            Texture2D capture = ScreenCapture.CaptureScreenshotAsTexture();
+            if (capture == null)
+            {
+                Debug.LogError($"WAYPOINT_REPLAY capture '{fileName}' returned no image.");
+                return false;
+            }
+
+            try
+            {
+                Color32[] pixels = capture.GetPixels32();
+                int magentaPixels = CountErrorMagentaPixels(pixels);
+                File.WriteAllBytes(path, capture.EncodeToPNG());
+                if (!IsSubstantialErrorMagenta(magentaPixels, pixels.Length)) return true;
+
+                Debug.LogError(
+                    $"WAYPOINT_REPLAY visual gate failed capture='{fileName}' "
+                    + $"errorMagentaPixels={magentaPixels} totalPixels={pixels.Length}");
+                return false;
+            }
+            finally
+            {
+                UnityEngine.Object.Destroy(capture);
+            }
+        }
+
+        private static int CountErrorMagentaPixels(Color32[] pixels)
+        {
+            if (pixels == null) return 0;
+            int count = 0;
+            for (int i = 0; i < pixels.Length; i++)
+            {
+                Color32 pixel = pixels[i];
+                if (pixel.r >= 240 && pixel.g <= 16 && pixel.b >= 240) count++;
+            }
+            return count;
+        }
+
+        private static bool IsSubstantialErrorMagenta(int magentaPixels, int totalPixels)
+        {
+            if (totalPixels <= 0) return false;
+            return magentaPixels >= Math.Max(ErrorMagentaMinimumPixels, totalPixels / 1000);
         }
 
         private void ApplyReplaySprint()
