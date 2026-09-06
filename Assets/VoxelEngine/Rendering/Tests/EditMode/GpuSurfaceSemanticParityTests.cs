@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
@@ -69,12 +70,83 @@ namespace VoxelEngine.Tests.EditMode
                     Assert.AreEqual(1f, Mathf.Abs(vertex.Normal.y), 1e-6f);
                     Assert.AreEqual(0f, vertex.Normal.z, 1e-6f);
                 }
+
+                var indexReadback = new uint[result.IndexCount];
+                indices.GetData(indexReadback);
+                AssertCanonicalHalfBrickFaces(readback, indexReadback);
             }
             finally
             {
                 voxels.Dispose(); semantics.Dispose(); boundaries.Dispose();
                 vertices.Release(); indices.Release();
             }
+        }
+
+        // Independent analytic oracle: occupied y=[0,4), repeated in neighbouring bricks,
+        // exposes exactly two 8x8 planes. This checks geometry without executing a CPU mesher
+        // or depending on GPU append order / choice of quad diagonal.
+        private static void AssertCanonicalHalfBrickFaces(
+            GpuSurfaceExtractor.ReadbackVertex[] vertices, uint[] indices)
+        {
+            var faceAreas = new float[2, Cells, Cells];
+            var firstTriangleMasks = new int[2, Cells, Cells];
+            var triangles = new HashSet<(int, int, int)>();
+            for (int i = 0; i < indices.Length; i += 3)
+            {
+                var corners = new Vector3[3];
+                var keys = new int[3];
+                int plane = -1;
+                for (int corner = 0; corner < 3; corner++)
+                {
+                    uint index = indices[i + corner];
+                    Assert.Less(index, (uint)vertices.Length, "Index points outside written geometry.");
+                    var vertex = vertices[index];
+                    Vector3 p = vertex.Position;
+                    Assert.That(p.y, Is.EqualTo(0f).Or.EqualTo(4f), "Face moved off its occupied boundary.");
+                    int cornerPlane = p.y == 0f ? 0 : 1;
+                    if (plane < 0) plane = cornerPlane;
+                    Assert.AreEqual(plane, cornerPlane, "Triangle bridges separate boundary planes.");
+                    Assert.That(p.x, Is.InRange(0f, (float)Cells));
+                    Assert.That(p.z, Is.InRange(0f, (float)Cells));
+                    Assert.AreEqual(Mathf.Round(p.x), p.x, "Exact face corner must lie on the voxel lattice.");
+                    Assert.AreEqual(Mathf.Round(p.z), p.z, "Exact face corner must lie on the voxel lattice.");
+                    Assert.AreEqual(plane == 0 ? Vector3.down : Vector3.up, vertex.Normal);
+                    corners[corner] = p;
+                    keys[corner] = (int)p.x + (Cells + 1) * ((int)p.z + (Cells + 1) * plane);
+                }
+
+                Vector3 cross = Vector3.Cross(corners[1] - corners[0], corners[2] - corners[0]);
+                Vector3 outward = plane == 0 ? Vector3.down : Vector3.up;
+                Assert.AreEqual(1f, Vector3.Dot(cross, outward), 1e-6f,
+                    "Each triangle must have area 0.5 and outward winding.");
+                float minX = Mathf.Min(corners[0].x, Mathf.Min(corners[1].x, corners[2].x));
+                float minZ = Mathf.Min(corners[0].z, Mathf.Min(corners[1].z, corners[2].z));
+                float maxX = Mathf.Max(corners[0].x, Mathf.Max(corners[1].x, corners[2].x));
+                float maxZ = Mathf.Max(corners[0].z, Mathf.Max(corners[1].z, corners[2].z));
+                Assert.AreEqual(1f, maxX - minX, "Triangle spans more than one voxel face.");
+                Assert.AreEqual(1f, maxZ - minZ, "Triangle spans more than one voxel face.");
+                System.Array.Sort(keys);
+                Assert.IsTrue(triangles.Add((keys[0], keys[1], keys[2])), "Duplicate boundary triangle.");
+                int cornerMask = 0;
+                foreach (Vector3 p in corners)
+                    cornerMask |= 1 << ((int)(p.x - minX) + 2 * (int)(p.z - minZ));
+                int previousMask = firstTriangleMasks[plane, (int)minX, (int)minZ];
+                if (previousMask == 0)
+                    firstTriangleMasks[plane, (int)minX, (int)minZ] = cornerMask;
+                else
+                {
+                    int sharedCorners = previousMask & cornerMask;
+                    Assert.That(sharedCorners, Is.EqualTo(0b1001).Or.EqualTo(0b0110),
+                        "The two face triangles must share a diagonal, not overlap across an edge.");
+                }
+                faceAreas[plane, (int)minX, (int)minZ] += 0.5f;
+            }
+
+            for (int plane = 0; plane < 2; plane++)
+            for (int z = 0; z < Cells; z++)
+            for (int x = 0; x < Cells; x++)
+                Assert.AreEqual(1f, faceAreas[plane, x, z],
+                    $"Boundary plane {plane}, face ({x},{z}) has missing or overlapping geometry.");
         }
 
         [Test]

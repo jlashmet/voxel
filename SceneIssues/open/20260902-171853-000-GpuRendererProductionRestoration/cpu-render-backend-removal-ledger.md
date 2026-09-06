@@ -50,6 +50,14 @@ The GPU subtree currently contains `CpuDensityOracle.cs`, `CpuTopologyOracle.cs`
 2. prove the GPU path against those independent expectations;
 3. delete any oracle implementation that reproduces the retired CPU mesher algorithm rather than representing compact canonical data.
 
+G05 migration progress: `GpuSurfaceSemanticParityTests.ExactReconstructionEmitsEveryOccupiedBoundaryFace`
+uses the existing repeated half-brick input (8-cell extent, source step 1, occupied local y=0..3,
+Planar/Sharp/Cubic). Its independent analytic expectation is exactly the y=0/down and y=4/up
+8x8 planes, with two complementary outward triangles per unit face, correct material/style,
+no duplicate triangles and no off-lattice positions. This expectation comes from discrete occupancy,
+not captured GPU output or the CPU mesher. The strengthened assertions await Unity/Metal execution;
+they cover faceted geometry only and do not authorize deleting the other semantic oracles yet.
+
 Likewise, CPU-specific tests such as `CpuWaterSurfaceChunkCacheConfigurationTests.cs` and `CpuWaterSurfaceChunkCacheLifetimeTests.cs` are deletion/migration candidates once the replacement GPU behavior has equivalent module-local coverage. Tests whose value is renderer-independent (semantic expectations, LOD ownership, table validity) should be rewritten, not discarded.
 
 ## E. Explicitly retained GPU/shared files
