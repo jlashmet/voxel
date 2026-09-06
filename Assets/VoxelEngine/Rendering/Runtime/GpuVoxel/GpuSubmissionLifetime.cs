@@ -12,6 +12,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private bool _released;
 
         internal GpuSubmissionLifetime(Action release) => _release = release;
+        internal bool HasUsers => _users != 0;
+
         internal void Retain()
         {
             if (_disposalRequested) throw new ObjectDisposedException(nameof(GpuSubmissionLifetime));

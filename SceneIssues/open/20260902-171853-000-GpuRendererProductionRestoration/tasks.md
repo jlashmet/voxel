@@ -298,6 +298,21 @@ edit/handoff/restart; final180s Showcase passed12 captures/no transaction errors
 large flat traversal obstructions. Evidence is in `submitted-lifetime-module-verified/` and
 `submitted-lifetime-showcase/`; no visual or final performance acceptance.
 
+Mirror-reset isolation follow-up: the before-fix test proved that Clear overwrote the real
+GPU directory while submitted readers retained it (`mirror-clear-before.xml`, failed).
+Clear now waits for all submitted owners, rejects new admission/mutation while pending,
+and resumes recovery after the last callback. Context demand/reader leases carry world
+epochs, so old cleanup cannot remove new-world ownership. Coverage-invalid queued/completed
+requests wake the worker for retry. All24 focused checks pass, including real submission
+followed by production PrepareFrame world replacement, history invalidation and old-context
+cleanup (`mirror-clear-world-replacement.xml`). The48s production module passed8 captures,
+edit/handoff/restart and zero fallback/failure counters (`mirror-clear-module/`). Reviewed42s
+has intact production geometry but prototype/blockout composition; no visual acceptance.
+Full180s Showcase passed12 captures/no exceptions or transaction rejections (`mirror-clear-showcase/`).
+Reviewed75s retains castle detail;150s is nearly fully obscured by huge flat surfaces: **unacceptable**.
+Exact source hashes/diff and diagnostic summaries accompany both runs. Retired-world pressure
+and last-draw retirement remain open; no final performance acceptance.
+
 - [ ] **G11 — Prove GPU-completion-based lifetime.** Keep source mirror/residency leases and lane-local scratch alive until actual consumption completes. Verify the target Metal fence/capability/`passed` behavior and safe handling when that capability is unavailable. Retire geometry only after draw completion, not a CPU-frame delay. Exercise upload-ring reuse under actual GPU lag, teardown with in-flight work, and repeated renderer/world restart without stale statics, leaks or double ownership.
 - [ ] **G12 — Prove bounded pressure and recovery.** Stress page/handle/mirror reuse, directory collisions, negative coordinates, eviction, mixed/uniform/empty publication and tombstones. Force stale generations, full arenas and oversized work; prove reclamation, retry and recovery without deadlock, corruption, permanent holes or CPU takeover. Splitting/backpressure must preserve coverage and budgets rather than silently discarding unsupported work.
 - [ ] **G13 — Prove edits and streaming end to end.** Use deterministic real VoxelShowcase traversal and repeated authoritative edits across region/LOD boundaries. Verify current versions converge, stale results never become live, old geometry disappears correctly, and new geometry replaces it without cracks/remnants. Preserve authoritative gameplay and tick behavior; no blocking GPU readback/wait introduced into the frame path.

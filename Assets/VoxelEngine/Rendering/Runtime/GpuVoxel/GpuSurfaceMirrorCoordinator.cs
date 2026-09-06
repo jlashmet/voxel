@@ -329,7 +329,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (!ReferenceEquals(s_Storage, world.Storage)
                 || !ReferenceEquals(s_ChangeSource, VoxelRenderBridge.Changes))
                 AttachWorld(world.Storage, VoxelRenderBridge.Changes);
-            return requiredGeneration <= world.Storage.Version;
+            return !s_Mirror.IsClearPending && requiredGeneration <= world.Storage.Version;
         }
 
         /// <summary>
@@ -346,10 +346,12 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (s_LastPrepareFrame == frame) return;
             s_LastPrepareFrame = frame;
 
+            if (s_Mirror.IsClearPending) return;
             double deadline = Time.realtimeSinceStartupAsDouble + budgetMs * 0.001;
             if (s_MirroredVersion != storage.Version
                 && Time.realtimeSinceStartupAsDouble < deadline)
                 SynchronizeChanges(storage.Version);
+            if (s_Mirror.IsClearPending) return;
             if (Time.realtimeSinceStartupAsDouble < deadline)
                 ProcessRecovery(deadline, Math.Max(0, uploadBudgetBytes));
             s_Mirror.FlushPendingUploads();
@@ -369,7 +371,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                                                    int frame)
         {
             if (context == null || extractor == null || tables == null || s_Mirror == null
-                || !context.IsCurrentBatchRequest(token))
+                || s_Mirror.IsClearPending || !context.IsCurrentBatchRequest(token))
                 return false;
             EnsureCountBatchLanes();
 
@@ -504,8 +506,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             for (int record = lane.Count - 1; record >= 0; record--)
                 if (lane.Contexts[record] == null
                     || !lane.Contexts[record].IsCurrentBatchRequest(lane.Tokens[record]))
+                {
+                    lane.Contexts[record]?.FailPagedBatch(lane.Tokens[record]);
                     RemoveQueuedRecord(lane, record);
-            if (lane.Count == 0) return;
+                }
+            if (lane.Count == 0 || s_Mirror == null || s_Mirror.IsClearPending) return;
             if (s_PageArena == null)
                 throw new InvalidOperationException(
                     "Production GPU extraction requires the GPU-owned page arena.");
@@ -593,7 +598,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 if (outcome.IsReadyCandidate)
                 {
                     if (!context.CompletePagedBatch(lane.Tokens[record], outcome.Handle))
+                    {
+                        context.FailPagedBatch(lane.Tokens[record]);
                         ResolveCandidate(outcome.Handle, outcome.Generation, false, Time.frameCount);
+                    }
                 }
                 else
                 {
@@ -628,19 +636,19 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             s_CountBatchArenaWaits = 0;
         }
 
-        internal static void RequestCoverage(int3 brickCacheOrigin, int brickCacheEdge,
+        internal static ulong RequestCoverage(int3 brickCacheOrigin, int brickCacheEdge,
                                              int3 coreMinVoxel,
                                              int3 coreMaxVoxelExclusive)
         {
-            if (brickCacheEdge <= 0) return;
-            ChangeDemandFootprint(brickCacheOrigin, brickCacheEdge, 1);
+            if (brickCacheEdge > 0) ChangeDemandFootprint(brickCacheOrigin, brickCacheEdge, 1);
+            return s_ResourceWorldEpoch;
         }
 
         internal static void ReleaseCoverage(int3 brickCacheOrigin, int brickCacheEdge,
                                              int3 coreMinVoxel,
-                                             int3 coreMaxVoxelExclusive)
+                                             int3 coreMaxVoxelExclusive, ulong worldEpoch)
         {
-            if (brickCacheEdge <= 0) return;
+            if (worldEpoch != s_ResourceWorldEpoch || brickCacheEdge <= 0) return;
             ChangeDemandFootprint(brickCacheOrigin, brickCacheEdge, -1);
 
             if (s_DemandFootprints.Count == 0) ClearRecoveryQueues();
@@ -652,7 +660,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                                     ref bool roundIncomplete)
         {
             s_CoveragePolls++;
-            if (s_Storage == null || brickCacheEdge <= 0)
+            if (s_Storage == null || s_Mirror == null || s_Mirror.IsClearPending || brickCacheEdge <= 0)
                 return false;
             if (requiredGeneration < s_KnownRegionHistoryFromVersion)
             {
@@ -711,8 +719,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             return covered;
         }
 
-        internal static bool TryBeginExtraction(int3 brickCacheOrigin, int brickCacheEdge)
+        internal static bool TryBeginExtraction(int3 brickCacheOrigin, int brickCacheEdge, out ulong worldEpoch)
         {
+            worldEpoch = s_ResourceWorldEpoch;
+            if (s_Mirror != null && s_Mirror.IsClearPending) return false;
             // A direct ComputeShader dispatch shares Metal's graphics queue with rendering. Do not
             // admit more complete count/write/copy chains than one count lane can service; deeper
             // queues increase presentation latency without increasing useful parallelism.
@@ -758,8 +768,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             return result;
         }
 
-        internal static void EndExtraction(int3 brickCacheOrigin, int brickCacheEdge)
+        internal static void EndExtraction(int3 brickCacheOrigin, int brickCacheEdge, ulong worldEpoch)
         {
+            if (worldEpoch != s_ResourceWorldEpoch) return;
             if (s_ActiveExtractionCount > 0) s_ActiveExtractionCount--;
             ChangeActiveFootprint(brickCacheOrigin, brickCacheEdge, -1);
             ChangeActiveRegionReaders(brickCacheOrigin, brickCacheEdge, -1);
@@ -1241,6 +1252,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         }
 
         private static ulong s_ResourceWorldEpoch;
+        internal static ulong ResourceWorldEpoch => s_ResourceWorldEpoch;
 
         private static void ResetWorld(bool disposeMirror)
         {

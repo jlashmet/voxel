@@ -95,6 +95,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private int _directoryDirtyMin = int.MaxValue;
         private int _directoryDirtyMax = -1;
         private bool _disposed;
+        private bool _clearPending;
+        internal bool IsClearPending => _clearPending;
 
         public int SlotCapacity { get; }
         public int DirectoryCapacity { get; }
@@ -205,6 +207,12 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         public void Clear()
         {
             ThrowIfDisposed();
+            if (_submissionLifetime != null && _submissionLifetime.HasUsers)
+            {
+                _clearPending = true;
+                return;
+            }
+            _clearPending = false;
             _slots.Clear();
             Array.Clear(_dirtySlots, 0, _dirtySlots.Length);
             Array.Clear(_dirtyDirectoryEntries, 0, _dirtyDirectoryEntries.Length);
@@ -236,6 +244,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             ThrowIfDisposed();
 
+            if (_clearPending)
+                throw new InvalidOperationException("Mirror clear is waiting for submitted readers.");
             GpuBrickAdmission admission = _slots.TryAdmit(in delta, out int slot);
             switch (admission)
             {
@@ -301,6 +311,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             ThrowIfDisposed();
 
+            if (_clearPending)
+                throw new InvalidOperationException("Mirror clear is waiting for submitted readers.");
             GpuBrickAdmission admission = _slots.TryAdmit(in delta, out int slot);
             switch (admission)
             {
@@ -352,6 +364,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         public void Remove(int3 coordinate)
         {
             ThrowIfDisposed();
+            if (_clearPending)
+                throw new InvalidOperationException("Mirror clear is waiting for submitted readers.");
             _slots.Release(coordinate);
             RemoveLookup(coordinate);
         }
@@ -470,6 +484,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         internal void FlushPendingUploads()
         {
+            if (_clearPending) return;
             FlushPayloadSlots();
             FlushDirectoryDeltas();
         }
@@ -630,10 +645,15 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         internal void RetainSubmission()
         {
             if (_disposed) throw new ObjectDisposedException(nameof(GpuVoxelBrickMirror));
+            if (_clearPending) throw new InvalidOperationException("Cannot submit from a mirror awaiting clear.");
             (_submissionLifetime ??= new GpuSubmissionLifetime(ReleaseResources)).Retain();
         }
 
-        internal void ReleaseSubmission() => _submissionLifetime.Release();
+        internal void ReleaseSubmission()
+        {
+            _submissionLifetime.Release();
+            if (!_disposed && _clearPending && !_submissionLifetime.HasUsers) Clear();
+        }
 
         public void Dispose()
         {

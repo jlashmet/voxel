@@ -60,6 +60,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private ulong _stageStorageGeneration;
         private bool _coverageRequested;
         private uint _coverageEpoch;
+        private ulong _coverageWorldEpoch;
+        private ulong _extractionWorldEpoch;
         private int _coverageScanCursor;
         private bool _coverageRoundIncomplete;
         private bool _coverageReady;
@@ -378,7 +380,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             {
                 if (_coverageRequested)
                     ReleasePersistentCoverage(_staged);
-                GpuSurfaceMirrorCoordinator.RequestCoverage(
+                _coverageWorldEpoch = GpuSurfaceMirrorCoordinator.RequestCoverage(
                     request.BrickCacheOrigin, _brickCacheEdge,
                     request.ChunkOriginVoxel, coreMaxVoxelExclusive);
                 _coverageRequested = true;
@@ -399,7 +401,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 _coverageReady = true;
             }
             if (!GpuSurfaceMirrorCoordinator.TryBeginExtraction(
-                    request.BrickCacheOrigin, _brickCacheEdge))
+                    request.BrickCacheOrigin, _brickCacheEdge, out _extractionWorldEpoch))
                 return false;
             ConfigurePersistentLookupHeader();
             int handle = GpuSurfaceMirrorCoordinator.PrepareChunkHandle(
@@ -407,7 +409,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (handle < 0)
             {
                 GpuSurfaceMirrorCoordinator.EndExtraction(
-                    request.BrickCacheOrigin, _brickCacheEdge);
+                    request.BrickCacheOrigin, _brickCacheEdge, _extractionWorldEpoch);
                 return false;
             }
             _staged = new GpuChunkExtraction(
@@ -525,6 +527,12 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private bool TryDispatchPendingCount()
         {
             if (!_countDispatchPending) return true;
+            if (!IsCurrentBatchRequest(_countBatchToken))
+            {
+                FailPagedBatch(_countBatchToken);
+                _countDispatchPending = false;
+                return true;
+            }
             if (!GpuSurfaceMirrorCoordinator.TryDispatchCountBatch(
                     this, _countBatchToken, _extractor, _tables, _staged, Time.frameCount))
                 return false;
@@ -533,7 +541,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         }
 
         internal bool IsCurrentBatchRequest(uint token) =>
-            !_disposed && _hasStaged && token == _countBatchToken;
+            !_disposed && _hasStaged && token == _countBatchToken
+            && (!_sharedExtractionActive || _extractionWorldEpoch == GpuSurfaceMirrorCoordinator.ResourceWorldEpoch)
+            && (!_coverageRequested || _coverageEpoch == GpuSurfaceMirrorCoordinator.CoverageEpoch);
 
         internal bool CompleteBatchedCount(uint token, in GpuExtractionCounts counts, bool failed,
                                            in SurfaceGeometryLease lease = default,
@@ -557,7 +567,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         internal bool CompletePagedBatch(uint token, int handle)
         {
-            if (_disposed || !_hasStaged || token != _countBatchToken || handle < 0) return false;
+            if (!IsCurrentBatchRequest(token) || handle < 0) return false;
             _pagedHandle = handle;
             _candidatePending = true;
             _pagedBatchReady = true;
@@ -842,7 +852,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             {
                 _sharedExtractionActive = false;
                 GpuSurfaceMirrorCoordinator.EndExtraction(
-                    _staged.BrickCacheOrigin, _brickCacheEdge);
+                    _staged.BrickCacheOrigin, _brickCacheEdge, _extractionWorldEpoch);
             }
         }
 
@@ -853,7 +863,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 request.ChunkOriginVoxel + new int3(coreExtentVoxels);
             GpuSurfaceMirrorCoordinator.ReleaseCoverage(
                 request.BrickCacheOrigin, _brickCacheEdge,
-                request.ChunkOriginVoxel, coreMaxVoxelExclusive);
+                request.ChunkOriginVoxel, coreMaxVoxelExclusive, _coverageWorldEpoch);
             _coverageRequested = false;
             _coverageScanCursor = 0;
             _coverageRoundIncomplete = false;

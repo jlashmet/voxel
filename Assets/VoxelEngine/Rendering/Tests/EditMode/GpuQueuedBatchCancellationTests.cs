@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using UnityEngine.TestTools;
+using VoxelEngine.Composition;
 using System.Reflection;
 using NUnit.Framework;
 using Unity.Mathematics;
@@ -110,6 +111,82 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             Assert.That(Get(lane, "Submitted"), Is.False);
         }
 
+        [Test]
+        public void OldContextCleanupCannotRemoveNewWorldCoverageOrReaders()
+        {
+            int edge = _first.BrickCacheEdge;
+            Assert.That(GpuSurfaceMirrorCoordinator.TryBeginExtraction(int3.zero, edge, out ulong oldEpoch), Is.True);
+            ulong demandEpoch = GpuSurfaceMirrorCoordinator.RequestCoverage(int3.zero, edge, int3.zero, new int3(8));
+            typeof(GpuSurfaceExtractionContext).GetField("_sharedExtractionActive", Fields).SetValue(_first, true);
+            typeof(GpuSurfaceExtractionContext).GetField("_extractionWorldEpoch", Fields).SetValue(_first, oldEpoch);
+            typeof(GpuSurfaceExtractionContext).GetField("_coverageRequested", Fields).SetValue(_first, true);
+            typeof(GpuSurfaceExtractionContext).GetField("_coverageWorldEpoch", Fields).SetValue(_first, demandEpoch);
+            Coordinator.GetMethod("ResetWorld", BindingFlags.Static | BindingFlags.NonPublic).Invoke(null, new object[] { false });
+            Assert.That(GpuSurfaceMirrorCoordinator.TryBeginExtraction(int3.zero, edge, out ulong newEpoch), Is.True);
+            ulong newDemand = GpuSurfaceMirrorCoordinator.RequestCoverage(int3.zero, edge, int3.zero, new int3(8));
+            try
+            {
+                Assert.That(_first.IsCurrentBatchRequest(0), Is.False);
+                _first.Release();
+                Assert.That(GpuSurfaceMirrorCoordinator.ActiveExtractions, Is.EqualTo(1));
+                Assert.That(GpuSurfaceMirrorCoordinator.ActiveRegionCount, Is.GreaterThan(0));
+                Assert.That(GpuSurfaceMirrorCoordinator.DemandFootprintCount, Is.EqualTo(1));
+            }
+            finally
+            {
+                GpuSurfaceMirrorCoordinator.EndExtraction(int3.zero, edge, newEpoch);
+                GpuSurfaceMirrorCoordinator.ReleaseCoverage(int3.zero, edge, int3.zero, new int3(8), newDemand);
+            }
+        }
+
+        [Test]
+        public void HistoryInvalidationRejectsQueuedWorkAndSignalsRetry()
+        {
+            ulong epoch = GpuSurfaceMirrorCoordinator.RequestCoverage(int3.zero, _first.BrickCacheEdge, int3.zero, new int3(8));
+            typeof(GpuSurfaceExtractionContext).GetField("_coverageRequested", Fields).SetValue(_first, true);
+            typeof(GpuSurfaceExtractionContext).GetField("_coverageWorldEpoch", Fields).SetValue(_first, epoch);
+            typeof(GpuSurfaceExtractionContext).GetField("_coverageEpoch", Fields)
+                .SetValue(_first, GpuSurfaceMirrorCoordinator.CoverageEpoch);
+            Queue(_first, 1);
+            object lane = FirstLane();
+            Coordinator.GetMethod("InvalidateAll", BindingFlags.Static | BindingFlags.NonPublic).Invoke(null, new object[] { 1UL });
+            Coordinator.GetMethod("SealCountBatch", BindingFlags.Static | BindingFlags.NonPublic).Invoke(null, new[] { lane });
+            Assert.That(QueuedCount(), Is.Zero);
+            Assert.That(_first.TryTakePagedBatch(out _, out bool failed), Is.True,
+                "Invalidation must wake the worker rather than leave it waiting for an impossible callback.");
+            Assert.That(failed, Is.True);
+        }
+
+        [UnityTest]
+        public IEnumerator WorldReplacementDuringARealSubmissionWaitsForTheCompletionCallback()
+        {
+            var mirror = _first.Mirror;
+            uint[] empty = GpuMirrorClearLifetimeTests.ReadDirectory(mirror);
+            Assert.That(mirror.Publish(VoxelBrickDelta.UniformAt(int3.zero, 1, 1),
+                default, default, default, 0, false), Is.EqualTo(GpuBrickPublish.MetadataOnly));
+            uint[] occupied = GpuMirrorClearLifetimeTests.ReadDirectory(mirror);
+            Coordinator.GetField("s_LastExtractionDispatchFrame", BindingFlags.Static | BindingFlags.NonPublic)
+                .SetValue(null, Time.frameCount);
+            Queue(_first, 1); Queue(_second, 2);
+            object lane = FirstLane();
+            Coordinator.GetField("s_LastExtractionDispatchFrame", BindingFlags.Static | BindingFlags.NonPublic)
+                .SetValue(null, -1);
+            Coordinator.GetMethod("SealCountBatch", BindingFlags.Static | BindingFlags.NonPublic).Invoke(null, new[] { lane });
+            Assert.That(Get(lane, "Submitted"), Is.True);
+            using var replacement = VoxelEngineBootstrap.CreateStorage(1, 1);
+            GpuSurfaceMirrorCoordinator.PrepareFrame(replacement.Reads, replacement.Changes, Time.frameCount, 1.0);
+            Assert.That(mirror.IsClearPending, Is.True);
+            Assert.That(GpuSurfaceMirrorCoordinator.TryBeginExtraction(int3.zero, _first.BrickCacheEdge, out _), Is.False);
+            CollectionAssert.AreEqual(occupied, GpuMirrorClearLifetimeTests.ReadDirectory(mirror));
+            double deadline = Time.realtimeSinceStartupAsDouble + 5.0;
+            while (mirror.IsClearPending && Time.realtimeSinceStartupAsDouble < deadline) yield return null;
+            Assert.That(mirror.IsClearPending, Is.False);
+            CollectionAssert.AreEqual(empty, GpuMirrorClearLifetimeTests.ReadDirectory(mirror));
+            Assert.That(_first.TryTakePagedBatch(out _, out bool failed), Is.True);
+            Assert.That(failed, Is.True, "The retired world must not publish a candidate into its replacement.");
+            GpuSurfaceMirrorCoordinator.PrepareFrame(replacement.Reads, replacement.Changes, Time.frameCount + 1, 1.0);
+        }
+
         [UnityTest]
         public IEnumerator SubmittedResourcesSurviveContextAndWorldDisposalUntilGpuCompletion() =>
             ValidateSubmittedDisposal(false);
@@ -126,8 +203,9 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             Assert.NotNull(keeper);
             foreach (var context in new[] { _first, _second })
             {
-                Assert.That(GpuSurfaceMirrorCoordinator.TryBeginExtraction(int3.zero, context.BrickCacheEdge), Is.True);
+                Assert.That(GpuSurfaceMirrorCoordinator.TryBeginExtraction(int3.zero, context.BrickCacheEdge, out ulong epoch), Is.True);
                 typeof(GpuSurfaceExtractionContext).GetField("_sharedExtractionActive", Fields).SetValue(context, true);
+                typeof(GpuSurfaceExtractionContext).GetField("_extractionWorldEpoch", Fields).SetValue(context, epoch);
             }
             // UnityTest may advance a frame after SetUp; establish the queue budget here.
             Coordinator.GetField("s_LastExtractionDispatchFrame", BindingFlags.Static | BindingFlags.NonPublic)
@@ -176,7 +254,7 @@ namespace VoxelEngine.Rendering.Tests.EditMode
                 "Logical teardown must leave submitted GPU allocations owned by completion.");
             // Reuse the same footprint in the new ownership epoch before the old callback.
             int edge = _first.BrickCacheEdge;
-            Assert.That(GpuSurfaceMirrorCoordinator.TryBeginExtraction(int3.zero, edge), Is.True);
+            Assert.That(GpuSurfaceMirrorCoordinator.TryBeginExtraction(int3.zero, edge, out ulong currentEpoch), Is.True);
             int currentReaders = GpuSurfaceMirrorCoordinator.ActiveRegionCount;
             try
             {
@@ -189,7 +267,7 @@ namespace VoxelEngine.Rendering.Tests.EditMode
                 Assert.That(GpuSurfaceMirrorCoordinator.ActiveRegionCount, Is.EqualTo(currentReaders),
                     "A retired batch callback must not decrement a new world's identical footprint.");
             }
-            finally { GpuSurfaceMirrorCoordinator.EndExtraction(int3.zero, edge); }
+            finally { GpuSurfaceMirrorCoordinator.EndExtraction(int3.zero, edge, currentEpoch); }
 
         }
 
