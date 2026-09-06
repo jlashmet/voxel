@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Unity.Mathematics;
 using Unity.Networking.Transport;
 using VoxelEngine.Edits.Api;
@@ -24,6 +25,9 @@ namespace VoxelEngine.Net.Runtime.Server
         private readonly ServerPlayerStateReplicator _playerStates;
         private readonly IAlterationApplier _defaultAlterationApplier;
         private readonly IAuthoritativeGameplayStateEmitter _gameplayStateEmitter;
+        private readonly IAuthoritativeSessionAdmissionConsumer _sessionAdmissionConsumer;
+        private readonly List<ServerCommandInbox.QueuedSessionAdmission> _admissionScratch =
+            new List<ServerCommandInbox.QueuedSessionAdmission>();
         private bool _disposed;
 
         public event Action<uint, NetworkEndpoint> ConnectionOpened;
@@ -41,9 +45,11 @@ namespace VoxelEngine.Net.Runtime.Server
             int initialEventCapacity = 64,
             uint hashIntervalTicks = ServerConvergenceManager.DefaultHashIntervalTicks,
             uint playerStateIntervalTicks = ServerPlayerStateReplicator.DefaultIntervalTicks,
-            IAuthoritativeGameplayStateEmitter gameplayStateEmitter = null)
+            IAuthoritativeGameplayStateEmitter gameplayStateEmitter = null,
+            IAuthoritativeSessionAdmissionConsumer sessionAdmissionConsumer = null)
         {
-            _inbox = new ServerCommandInbox();
+            _sessionAdmissionConsumer = sessionAdmissionConsumer;
+            _inbox = new ServerCommandInbox(acceptSessionAdmission: sessionAdmissionConsumer != null);
             _convergenceInbox = new ServerConvergenceInbox();
             _regionStateInbox = new ServerRegionStateRequestInbox();
             _players = new ServerPlayerRegistry();
@@ -84,6 +90,16 @@ namespace VoxelEngine.Net.Runtime.Server
 
         public int Listen(NetworkEndpoint endpoint) { ThrowIfDisposed(); return _network.Listen(endpoint); }
         public void PumpTransport() { ThrowIfDisposed(); _network.PumpTransport(); }
+
+        /// <summary>
+        /// Queue a Sessions-owned reply on the same connection/pipeline as the received admission.
+        /// The authoritative tick flushes delivery; Net does not manufacture an admission decision.
+        /// </summary>
+        public bool TrySendSessionAdmissionReply(uint connectionId, ReadOnlySpan<byte> payload)
+        {
+            ThrowIfDisposed();
+            return _network.TrySendSessionAdmissionReply(connectionId, payload);
+        }
 
         public bool AuthenticateConnection(
             uint connectionId,
@@ -185,6 +201,7 @@ namespace VoxelEngine.Net.Runtime.Server
             if (applier == null) throw new ArgumentNullException(nameof(applier));
 
             _network.BeginTick(serverTick);
+            ProcessSessionAdmissions();
 
             _convergence.ProcessMismatchReports(serverTick, _network.Replication.Subscriptions);
 
@@ -220,6 +237,27 @@ namespace VoxelEngine.Net.Runtime.Server
             _convergence.FlushRepairPackets(_network);
             _bulkRegionState.Flush(serverTick, _network);
             _network.FlushSends();
+        }
+
+        private void ProcessSessionAdmissions()
+        {
+            if (_sessionAdmissionConsumer == null) return;
+            _inbox.DrainSessionAdmissions(_admissionScratch);
+            try
+            {
+                for (int i = 0; i < _admissionScratch.Count; i++)
+                {
+                    ServerCommandInbox.QueuedSessionAdmission request = _admissionScratch[i];
+                    // A previous consumer invocation may have disconnected another queued sender.
+                    if (_network.ContainsConnection(request.ConnectionId))
+                        _sessionAdmissionConsumer.HandleSessionAdmission(request.ConnectionId, request.Payload);
+                }
+            }
+            finally
+            {
+                // Do not retain credentials or replay partially processed policy work after failure.
+                _admissionScratch.Clear();
+            }
         }
 
         public bool Disconnect(uint connectionId) { ThrowIfDisposed(); return _network.Disconnect(connectionId); }
@@ -270,6 +308,8 @@ namespace VoxelEngine.Net.Runtime.Server
             _convergence.VerifiedMismatch -= OnVerifiedMismatch;
             _convergence.ResyncRequired -= OnRegionResyncRequired;
             _network.Dispose();
+            _inbox.Clear();
+            _admissionScratch.Clear();
             _rateLimiter.Clear();
             _disposed = true;
         }

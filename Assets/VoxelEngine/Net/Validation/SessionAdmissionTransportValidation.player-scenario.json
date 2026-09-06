@@ -12,15 +12,17 @@
   "assertions": {
     "requiredLogPatterns": [
       "SESSION_ADMISSION_TRANSPORT connected: clients=2",
+      "SESSION_ADMISSION_TRANSPORT authority: tickDeferred=True consumed=2",
       "SESSION_ADMISSION_TRANSPORT roundtrip: distinctSenders=True isolatedReplies=True",
       "SESSION_ADMISSION_TRANSPORT existing-traffic: alteration=True",
+      "SESSION_ADMISSION_TRANSPORT disconnect: queuedRequestDiscarded=True",
       "SESSION_ADMISSION_TRANSPORT reconnect: newConnection=True",
       "SESSION_ADMISSION_TRANSPORT complete: productionRuntimes=True"
     ],
     "forbiddenLogPatterns": [
+      "SESSION_ADMISSION_TRANSPORT failure:",
       "NullReferenceException",
-      "MissingReferenceException",
-      "SESSION_ADMISSION_TRANSPORT failure:"
+      "MissingReferenceException"
     ]
   }
 }

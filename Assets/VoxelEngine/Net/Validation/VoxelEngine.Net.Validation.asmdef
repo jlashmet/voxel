@@ -5,6 +5,9 @@
     "VoxelEngine.Net.Runtime",
     "VoxelEngine.Edits.Api",
     "VoxelEngine.Edits.Runtime",
+    "VoxelEngine.Storage.Api",
+    "VoxelEngine.Storage.Runtime",
+    "Unity.Collections",
     "Unity.Mathematics",
     "Unity.Networking.Transport"
   ],

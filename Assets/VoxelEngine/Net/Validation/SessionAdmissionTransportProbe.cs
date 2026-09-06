@@ -1,4 +1,5 @@
 using System;
+using Unity.Collections;
 using Unity.Mathematics;
 using Unity.Networking.Transport;
 using VoxelEngine.Edits.Api;
@@ -6,32 +7,39 @@ using VoxelEngine.Edits.Runtime;
 using VoxelEngine.Net.Runtime.Client;
 using VoxelEngine.Net.Runtime.Protocol;
 using VoxelEngine.Net.Runtime.Server;
+using VoxelEngine.Storage.Runtime;
 
 namespace VoxelEngine.Net.Validation
 {
     /// <summary>
     /// Bounded transport-only orchestration shared by the Net player scene and its EditMode test.
-    /// Real production runtimes own connections, framing, dispatch and teardown. Synthetic packet
-    /// inputs and copied observations prove delivery only; this is not a Sessions provider, gameplay
-    /// authority, admission decision, or a substitute for System25's separate-process gameplay proof.
+    /// The canonical authority root owns transport, queued intake and fixed-tick processing. Copied
+    /// packet observations are not Sessions admission policy or separate-process gameplay evidence.
     /// </summary>
     public sealed class SessionAdmissionTransportProbe : IDisposable
     {
-        private readonly AdmissionInbox _requests = new AdmissionInbox();
+        private readonly AdmissionObservations _requests = new AdmissionObservations();
         private readonly ReplyInbox _repliesA = new ReplyInbox();
         private readonly ReplyInbox _repliesB = new ReplyInbox();
         private readonly byte[] _requestA = MakePayload(SessionAdmissionPacket.MaxPayloadBytes, 0xA1);
         private readonly byte[] _requestB = MakePayload(3, 0xB2);
         private readonly byte[] _reconnectRequest = MakePayload(7, 0xC3);
+        private readonly byte[] _staleRequest = MakePayload(5, 0xD4);
         private readonly C_AlterationRequest _alteration = new C_AlterationRequest(
             tick: 41, origin: new int3(510, 40, -12), eventKind: AlterationEvent.KindExplosion,
             material: 0, shapeKind: AlterationEvent.KindExplosion, shapeData: 3, seed: 0x12345678, sequence: 9);
-        private ServerNetworkRuntime _server;
+        private readonly NoInputSink _inputSink = new NoInputSink();
+        private AuthoritativeServerSession _server;
         private ClientNetworkRuntime _clientA;
         private ClientNetworkRuntime _clientB;
+        private RegionTable _table;
+        private BrickPool _pool;
+        private bool _tableCreated;
+        private bool _poolCreated;
         private int _phase;
         private int _protocolErrors;
         private uint _oldConnection;
+        private uint _tick;
         private bool _disposed;
 
         public event Action<string> Milestone;
@@ -40,13 +48,25 @@ namespace VoxelEngine.Net.Validation
         public bool DistinctSenders { get; private set; }
         public bool IsolatedReplies { get; private set; }
         public bool ReplacedConnection { get; private set; }
+        public bool TickDeferred { get; private set; }
+        public bool DisconnectedRequestDiscarded { get; private set; }
         public string PhaseDescription => Complete ? "Complete" : "Transport phase " + _phase;
 
         public SessionAdmissionTransportProbe()
         {
             try
             {
-                _server = new ServerNetworkRuntime(_requests, maxConnections: 2);
+                _table = new RegionTable(1, Allocator.Persistent);
+                _tableCreated = true;
+                _pool = new BrickPool(4, Allocator.Persistent);
+                _poolCreated = true;
+                _table.LoadRegion(int3.zero);
+                _server = new AuthoritativeServerSession(
+                    serverSeed: 0x12345678,
+                    densityCap: new VoxelEngine.Net.Runtime.Server.Validation.DensityCap(1f, 0),
+                    alterationApplier: new DeterministicAlterationApplier(),
+                    maxConnections: 2,
+                    sessionAdmissionConsumer: _requests);
                 _clientA = new ClientNetworkRuntime(new DeterministicAlterationApplier(), sessionAdmissionHandler: _repliesA);
                 _clientB = new ClientNetworkRuntime(new DeterministicAlterationApplier(), sessionAdmissionHandler: _repliesB);
                 _server.ProtocolError += _ => _protocolErrors++;
@@ -64,7 +84,7 @@ namespace VoxelEngine.Net.Validation
             }
         }
 
-        /// <summary>One bounded pump; callers enforce their own monotonic deadline, never a sleep.</summary>
+        /// <summary>One bounded pump; callers enforce their monotonic deadline, never a correctness sleep.</summary>
         public void Step()
         {
             if (_disposed) throw new ObjectDisposedException(nameof(SessionAdmissionTransportProbe));
@@ -86,7 +106,12 @@ namespace VoxelEngine.Net.Validation
                     _phase = 1;
                     return;
                 case 1:
-                    if (_requests.Count != 2) return;
+                    if (_server.CommandInbox.PendingSessionAdmissions != 2) return;
+                    TickDeferred = _requests.Count == 0;
+                    Require(TickDeferred, "transport callbacks cannot run admission policy");
+                    Tick();
+                    Require(_requests.Count == 2 && _server.CommandInbox.PendingTotal == 0, "fixed-tick admission handoff");
+                    Milestone?.Invoke("SESSION_ADMISSION_TRANSPORT authority: tickDeferred=True consumed=2");
                     _oldConnection = _requests.FindSender(_requestA);
                     uint senderB = _requests.FindSender(_requestB);
                     DistinctSenders = _oldConnection != 0 && senderB != 0 && _oldConnection != senderB;
@@ -94,7 +119,8 @@ namespace VoxelEngine.Net.Validation
                     // Echo opaque observations outside transport callbacks, not an admission grant.
                     Require(_server.TrySendSessionAdmissionReply(_oldConnection, _requestA), "reply A");
                     Require(_server.TrySendSessionAdmissionReply(senderB, _requestB), "reply B");
-                    _server.FlushSends();
+                    Tick();
+                    Require(_requests.Count == 2, "consumed requests cannot replay on later ticks");
                     _phase = 2;
                     return;
                 case 2:
@@ -110,36 +136,53 @@ namespace VoxelEngine.Net.Validation
                     _phase = 3;
                     return;
                 case 3:
-                    if (_requests.AlterationCount == 0) return;
-                    Require(_requests.AlterationCount == 1 && _requests.AlterationSender == _oldConnection &&
-                        _requests.LastAlteration.Equals(_alteration), "existing EVENT traffic stays intact");
+                    if (_server.CommandInbox.PendingAlterations != 1) return;
+                    Tick();
+                    Require(_server.CommandInbox.PendingTotal == 0 &&
+                        _server.Processor.UnauthenticatedCommands == 1 && _server.Processor.AcceptedAlterations == 0,
+                        "existing EVENT traffic retains authoritative authentication checks");
                     Milestone?.Invoke("SESSION_ADMISSION_TRANSPORT existing-traffic: alteration=True");
-                    _clientA.Disconnect();
-                    Require(!_clientA.TrySendSessionAdmission(_reconnectRequest), "cannot send while disconnected");
+                    Require(_clientA.TrySendSessionAdmission(_staleRequest), "queue request before interruption");
+                    _clientA.FlushSends();
                     _phase = 4;
                     return;
                 case 4:
-                    if (_server.ConnectionCount != 1) return;
-                    Require(!_server.TrySendSessionAdmissionReply(_oldConnection, _requestA), "old connection no longer routable");
-                    Require(_clientA.Connect(_server.LocalEndpoint), "reconnect A");
+                    if (_server.CommandInbox.PendingSessionAdmissions != 1) return;
+                    Require(_requests.Count == 2, "new request remains pending until tick");
+                    _clientA.Disconnect();
+                    Require(!_clientA.TrySendSessionAdmission(_reconnectRequest), "cannot send while disconnected");
                     _phase = 5;
                     return;
                 case 5:
-                    if (!_clientA.IsConnected || _server.ConnectionCount != 2) return;
-                    Require(_clientA.TrySendSessionAdmission(_reconnectRequest), "fresh admission on replacement transport");
-                    _clientA.FlushSends();
+                    if (_server.ConnectionCount != 1) return;
+                    Require(_server.CommandInbox.PendingTotal == 0, "disconnect releases admission reservations");
+                    Tick();
+                    DisconnectedRequestDiscarded = _requests.Count == 2;
+                    Require(DisconnectedRequestDiscarded, "dead sender cannot be admitted on a later tick");
+                    Milestone?.Invoke("SESSION_ADMISSION_TRANSPORT disconnect: queuedRequestDiscarded=True");
+                    Require(!_server.TrySendSessionAdmissionReply(_oldConnection, _requestA), "old connection no longer routable");
+                    Require(_clientA.Connect(_server.LocalEndpoint), "reconnect A");
                     _phase = 6;
                     return;
                 case 6:
-                    if (_requests.Count != 3) return;
+                    if (!_clientA.IsConnected || _server.ConnectionCount != 2) return;
+                    Require(_clientA.TrySendSessionAdmission(_reconnectRequest), "fresh admission on replacement transport");
+                    _clientA.FlushSends();
+                    _phase = 7;
+                    return;
+                case 7:
+                    if (_server.CommandInbox.PendingSessionAdmissions != 1) return;
+                    Require(_requests.Count == 2, "replacement also waits for tick");
+                    Tick();
+                    Require(_requests.Count == 3, "fresh request consumed once");
                     uint newConnection = _requests.FindSender(_reconnectRequest);
                     ReplacedConnection = newConnection != 0 && newConnection != _oldConnection;
                     Require(ReplacedConnection, "replacement has a fresh transient connection");
                     Require(_server.TrySendSessionAdmissionReply(newConnection, _reconnectRequest), "replacement reply");
-                    _server.FlushSends();
-                    _phase = 7;
+                    Tick();
+                    _phase = 8;
                     return;
-                case 7:
+                case 8:
                     if (_repliesA.Count < 2) return;
                     Require(_repliesA.Count == 2 && _repliesB.Count == 1 &&
                         _repliesA.Last.AsSpan().SequenceEqual(_reconnectRequest), "replacement reply isolation");
@@ -153,9 +196,18 @@ namespace VoxelEngine.Net.Validation
             }
         }
 
+        private void Tick()
+        {
+            ProtectedZones zones = default;
+            var read = new RegionReadSource(in _table, in _pool);
+            var mutations = new RegionMutationStore(in _table, in _pool);
+            _server.ProcessAuthoritativeTick(++_tick, read, mutations, read, in zones, _inputSink);
+        }
+
         private void RequireNoGameplayBinding()
         {
             Require(_clientA.LocalPlayerId == 0 && _clientB.LocalPlayerId == 0 &&
+                !_requests.HasAuthenticatedSender(_server.Players) &&
                 _clientA.PendingAuthoritativeEvents == 0 && _clientB.PendingAuthoritativeEvents == 0 &&
                 _clientA.PendingPlayerStateUpdates == 0 && _clientB.PendingPlayerStateUpdates == 0,
                 "admission delivery must not bind identity or produce gameplay state");
@@ -182,28 +234,38 @@ namespace VoxelEngine.Net.Validation
             finally
             {
                 try { _clientB?.Dispose(); }
-                finally { _server?.Dispose(); }
+                finally
+                {
+                    try { _server?.Dispose(); }
+                    finally
+                    {
+                        try { if (_poolCreated) _pool.Dispose(); }
+                        finally { if (_tableCreated) _table.Dispose(); }
+                    }
+                }
             }
             _clientA = null;
             _clientB = null;
             _server = null;
         }
 
-        // Copied, fixed-capacity packet observations only. No PartySession or admission policy here.
-        private sealed class AdmissionInbox : IClientEventCommandHandler, IClientSessionAdmissionHandler
+        private sealed class NoInputSink : IAuthoritativePlayerInputSink
+        {
+            public void ApplyInput(ushort playerId, in C_PlayerInput input, uint serverTick) =>
+                throw new InvalidOperationException("Unadmitted clients must not produce gameplay input.");
+        }
+
+        // Fixed-capacity copied observations, invoked by the authority tick rather than transport.
+        private sealed class AdmissionObservations : IAuthoritativeSessionAdmissionConsumer
         {
             private readonly byte[][] _payloads = new byte[3][];
             private readonly uint[] _senders = new uint[3];
             public int Count { get; private set; }
-            public int AlterationCount { get; private set; }
-            public uint AlterationSender { get; private set; }
-            public C_AlterationRequest LastAlteration { get; private set; }
-            public bool TryEnqueueSessionAdmission(uint connectionId, ReadOnlySpan<byte> payload)
+            public void HandleSessionAdmission(uint connectionId, ReadOnlySpan<byte> payload)
             {
-                if (Count == _payloads.Length) return false;
+                if (Count == _payloads.Length) throw new InvalidOperationException("Duplicate admission consumption.");
                 _payloads[Count] = payload.ToArray();
                 _senders[Count++] = connectionId;
-                return true;
             }
             public uint FindSender(ReadOnlySpan<byte> payload)
             {
@@ -211,11 +273,11 @@ namespace VoxelEngine.Net.Validation
                     if (_payloads[i].AsSpan().SequenceEqual(payload)) return _senders[i];
                 throw new InvalidOperationException("Expected admission observation was not delivered.");
             }
-            public void HandleAlterationRequest(uint connectionId, in C_AlterationRequest request)
+            public bool HasAuthenticatedSender(ServerPlayerRegistry players)
             {
-                AlterationCount++;
-                AlterationSender = connectionId;
-                LastAlteration = request;
+                for (int i = 0; i < Count; i++)
+                    if (players.TryGetByConnection(_senders[i], out _)) return true;
+                return false;
             }
         }
 

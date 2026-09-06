@@ -14,16 +14,19 @@ namespace VoxelEngine.Net.Runtime.Server
     /// This type assumes transport pump and simulation run on the same owning thread. If transport
     /// is moved to a worker thread later, replace this with an explicitly synchronized/SPSC queue.
     /// </summary>
-    public sealed class ServerCommandInbox : IClientEventCommandHandler, IClientInputCommandHandler
+    public sealed class ServerCommandInbox : IClientEventCommandHandler, IClientInputCommandHandler,
+        IClientSessionAdmissionHandler
     {
         public const int DefaultMaxPendingPerConnection = 256;
         public const int DefaultMaxPendingTotal = 4096;
 
         private readonly List<QueuedAlterationRequest> _alterations;
         private readonly List<QueuedPlayerInput> _inputs;
+        private readonly List<QueuedSessionAdmission> _admissions;
         private readonly Dictionary<uint, int> _pendingByConnection;
         private readonly int _maxPendingPerConnection;
         private readonly int _maxPendingTotal;
+        private readonly bool _acceptSessionAdmission;
 
         private int _pendingTotal;
         private long _arrivalOrdinal;
@@ -31,7 +34,8 @@ namespace VoxelEngine.Net.Runtime.Server
 
         public ServerCommandInbox(
             int maxPendingPerConnection = DefaultMaxPendingPerConnection,
-            int maxPendingTotal = DefaultMaxPendingTotal)
+            int maxPendingTotal = DefaultMaxPendingTotal,
+            bool acceptSessionAdmission = false)
         {
             if (maxPendingPerConnection <= 0)
                 throw new ArgumentOutOfRangeException(nameof(maxPendingPerConnection));
@@ -40,13 +44,16 @@ namespace VoxelEngine.Net.Runtime.Server
 
             _maxPendingPerConnection = maxPendingPerConnection;
             _maxPendingTotal = maxPendingTotal;
+            _acceptSessionAdmission = acceptSessionAdmission;
             _alterations = new List<QueuedAlterationRequest>(128);
             _inputs = new List<QueuedPlayerInput>(256);
+            _admissions = new List<QueuedSessionAdmission>();
             _pendingByConnection = new Dictionary<uint, int>(64);
         }
 
         public int PendingAlterations => _alterations.Count;
         public int PendingInputs => _inputs.Count;
+        public int PendingSessionAdmissions => _admissions.Count;
         public int PendingTotal => _pendingTotal;
         public long DroppedCommands => _droppedCommands;
 
@@ -64,6 +71,22 @@ namespace VoxelEngine.Net.Runtime.Server
                 return;
 
             _inputs.Add(new QueuedPlayerInput(connectionId, input, NextArrivalOrdinal()));
+        }
+
+        /// <summary>
+        /// Copy borrowed admission bytes without interpreting credentials or assigning membership.
+        /// Admission shares the same per-connection/global budget as input and alteration commands.
+        /// Without an installed authority consumer this capability fails closed.
+        /// </summary>
+        public bool TryEnqueueSessionAdmission(uint connectionId, ReadOnlySpan<byte> payload)
+        {
+            if (!_acceptSessionAdmission || payload.Length < 1 ||
+                payload.Length > SessionAdmissionPacket.MaxPayloadBytes)
+                return false;
+            if (!TryReserve(connectionId)) return false;
+
+            _admissions.Add(new QueuedSessionAdmission(connectionId, payload.ToArray(), NextArrivalOrdinal()));
+            return true;
         }
 
         /// <summary>
@@ -107,12 +130,32 @@ namespace VoxelEngine.Net.Runtime.Server
         }
 
         /// <summary>
+        /// Transfer admission requests to the authoritative tick before invoking any consumer.
+        /// Draining releases reservations exactly once, even if later policy processing fails.
+        /// </summary>
+        public int DrainSessionAdmissions(List<QueuedSessionAdmission> destination)
+        {
+            if (destination == null)
+                throw new ArgumentNullException(nameof(destination));
+
+            int count = _admissions.Count;
+            for (int i = 0; i < count; i++)
+            {
+                QueuedSessionAdmission queued = _admissions[i];
+                destination.Add(queued);
+                Release(queued.ConnectionId);
+            }
+            _admissions.Clear();
+            return count;
+        }
+
+        /// <summary>
         /// Drop unprocessed commands from a dead connection. Authentication/session state may be
         /// gone by the next tick, so preserving not-yet-validated intent would be unsafe.
         /// </summary>
         public int RemoveConnection(uint connectionId)
         {
-            int removed = RemoveAlterations(connectionId) + RemoveInputs(connectionId);
+            int removed = RemoveAlterations(connectionId) + RemoveInputs(connectionId) + RemoveAdmissions(connectionId);
             _pendingByConnection.Remove(connectionId);
             _pendingTotal -= removed;
             if (_pendingTotal < 0)
@@ -124,6 +167,7 @@ namespace VoxelEngine.Net.Runtime.Server
         {
             _alterations.Clear();
             _inputs.Clear();
+            _admissions.Clear();
             _pendingByConnection.Clear();
             _pendingTotal = 0;
         }
@@ -191,7 +235,34 @@ namespace VoxelEngine.Net.Runtime.Server
             return removed;
         }
 
+        private int RemoveAdmissions(uint connectionId)
+        {
+            int removed = 0;
+            for (int i = _admissions.Count - 1; i >= 0; i--)
+            {
+                if (_admissions[i].ConnectionId != connectionId) continue;
+                _admissions.RemoveAt(i);
+                removed++;
+            }
+            return removed;
+        }
+
         private long NextArrivalOrdinal() => ++_arrivalOrdinal;
+
+        public readonly struct QueuedSessionAdmission
+        {
+            private readonly byte[] _payload;
+            public uint ConnectionId { get; }
+            public long ArrivalOrdinal { get; }
+            public ReadOnlySpan<byte> Payload => _payload;
+
+            internal QueuedSessionAdmission(uint connectionId, byte[] payload, long arrivalOrdinal)
+            {
+                ConnectionId = connectionId;
+                _payload = payload;
+                ArrivalOrdinal = arrivalOrdinal;
+            }
+        }
 
         public readonly struct QueuedAlterationRequest
         {
