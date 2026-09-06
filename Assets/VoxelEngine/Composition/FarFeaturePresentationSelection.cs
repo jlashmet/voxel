@@ -354,6 +354,8 @@ namespace VoxelEngine.Composition
                 new float3(1f));
             var originOffset = new float3(0.5f, 0f, 0.5f);
 
+            var presentations = new List<FarFeaturePresentation>();
+            var slots = new Dictionary<string, int>(StringComparer.Ordinal);
             for (int i = 0; i < bake.PrimitiveCount; i++)
             {
                 Primitive primitive = bake.GetPrimitive(i);
@@ -395,6 +397,14 @@ namespace VoxelEngine.Composition
                         }
                     }
                 }
+                string styleKey = $"m{primitive.Material:X2}-s{primitive.SurfaceStyle:X4}-c{primitive.Coating:X2}";
+                if (!slots.TryGetValue(styleKey, out int slot))
+                {
+                    slot = presentations.Count;
+                    slots.Add(styleKey, slot);
+                    presentations.Add(MaterialPresentationComposition.ResolveFarFeaturePresentation(
+                        primitive.Material, primitive.SurfaceStyle, primitive.Coating));
+                }
                 primitives.Add(new FarFeatureGeometryPrimitive(
                     shape,
                     normalizedMin,
@@ -405,10 +415,10 @@ namespace VoxelEngine.Composition
                     rampRunCells,
                     (FarFeaturePrismProfile)(byte)primitive.Profile,
                     primitive.B[primitive.Axis == 0 ? 2 : 0] - primitive.A[primitive.Axis == 0 ? 2 : 0] + 1,
-                    primitive.B.y - primitive.A.y + 1));
+                    primitive.B.y - primitive.A.y + 1, slot));
             }
 
-            return primitives.Count == 0 ? null : new FarFeatureGeometry(primitives.ToArray());
+            return primitives.Count == 0 ? null : new FarFeatureGeometry(primitives.ToArray(), presentations.ToArray());
         }
 
         private static FarFeatureFrustum FrustumFor(

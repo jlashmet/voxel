@@ -24,6 +24,26 @@ Each completed item needs exact feature SHA, request/run IDs, relevant executed 
 
 ## Current local evidence (2026-09-06)
 
+Far material separation after `b07488645`: adapter retained all additive primitives but assigned
+only the first primitive’s presentation to the whole mesh. Wall/roof regression failed with one
+submesh versus two required (`far-material-slots-before.xml`, exit 2). Immutable geometry now carries
+resolved presentation slots; same material/style/coating primitives share a slot. Both far draw paths
+submit each slot; material objects are shared by resolved values across geometry identities.
+`far-material-slots-shared.xml`: 31 geometry/presentation/handoff tests passed (17s harness).
+`far-material-slots-colours.xml`: explicit grey-wall/red-roof values and cross-geometry material
+sharing passed with the presentation suite. `far-material-slots-module/`: 34s/nine captures/exit 0,
+required far-world/frusta/12km markers passed. Reviewed 32s: white primitive fixtures, **prototype/blockout
+quality**, insufficient for visual acceptance. `far-material-slots-composition/`: 28s/seven captures/exit 0,
+modifier readiness/success passed. Reviewed 24s: roof/wall colours separated on production-generated
+buildings, but blockout terrain/architecture remains **prototype/blockout quality**.
+`far-material-slots-showcase/`: 180s/11 captures/terminal exit 0. Reviewed exact 75.2s:
+brown roofs restored, confirming far presentation collapse caused the colour loss. Reviewed
+75.2s/150.2s remain **unacceptable**: simplified buildings/terrain and incomplete castle/frontier
+coverage. Final 62 step4/three step8 publications, 612 missing-visible, 4,659,051 directory
+refusals. No full-view black obstruction in these selected captures. No visual or performance
+acceptance; next isolate protected source-footprint capacity and bounded GPU-summary streaming.
+
+
 Coarse roof follow-up after `daa779e70`: mixed smooth-masonry/planar-roof fixture resolves roof
 material in GPU density but initially emits no upward faces (`gpu-step4-roof-mixed-before.xml`,
 one failed, exit 2). All-planar preliminary fixture falsified the broader sampling assumption;

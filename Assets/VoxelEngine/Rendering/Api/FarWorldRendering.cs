@@ -65,7 +65,8 @@ namespace VoxelEngine.Rendering.Api
             int rampRunCells = 2,
             FarFeaturePrismProfile prismProfile = FarFeaturePrismProfile.Gable,
             int prismWidthCells = 1,
-            int prismHeightCells = 1)
+            int prismHeightCells = 1,
+            int presentationSlot = 0)
         {
             if (math.any(max < min)) throw new ArgumentException("Far geometry primitive bounds must be ordered.");
             if (shape == FarFeatureGeometryShape.Frustum)
@@ -83,6 +84,8 @@ namespace VoxelEngine.Rendering.Api
                 throw new ArgumentException("Far ramp slopes must use X or Z; resolve vertical occupancy before submission.");
             if (shape == FarFeatureGeometryShape.Ramp && rampRunCells < 2)
                 throw new ArgumentException("Single-cell ramps must be resolved to their occupied box.");
+            if (presentationSlot < 0) throw new ArgumentOutOfRangeException(nameof(presentationSlot));
+            PresentationSlot = presentationSlot;
             Shape = shape;
             Min = min;
             Max = max;
@@ -95,6 +98,7 @@ namespace VoxelEngine.Rendering.Api
             PrismHeightCells = math.max(1, prismHeightCells);
         }
 
+        public int PresentationSlot { get; }
         public FarFeatureGeometryShape Shape { get; }
         public float3 Min { get; }
         public float3 Max { get; }
@@ -114,16 +118,24 @@ namespace VoxelEngine.Rendering.Api
     public sealed class FarFeatureGeometry
     {
         private readonly FarFeatureGeometryPrimitive[] _primitives;
+        private readonly FarFeaturePresentation[] _presentations;
 
-        public FarFeatureGeometry(FarFeatureGeometryPrimitive[] primitives)
+        public FarFeatureGeometry(FarFeatureGeometryPrimitive[] primitives, FarFeaturePresentation[] presentations = null)
         {
             if (primitives == null) throw new ArgumentNullException(nameof(primitives));
             if (primitives.Length == 0)
                 throw new ArgumentException("Far feature geometry requires at least one primitive.", nameof(primitives));
+            _presentations = presentations == null ? Array.Empty<FarFeaturePresentation>()
+                : (FarFeaturePresentation[])presentations.Clone();
+            foreach (var primitive in primitives)
+                if (primitive.PresentationSlot >= Math.Max(1, _presentations.Length))
+                    throw new ArgumentException("Primitive presentation slot is outside its geometry table.", nameof(primitives));
             _primitives = new FarFeatureGeometryPrimitive[primitives.Length];
             Array.Copy(primitives, _primitives, primitives.Length);
         }
 
+        public int PresentationCount => _presentations.Length;
+        public FarFeaturePresentation GetPresentation(int index) => _presentations[index];
         public int PrimitiveCount => _primitives.Length;
         public FarFeatureGeometryPrimitive GetPrimitive(int index) => _primitives[index];
     }
@@ -133,7 +145,7 @@ namespace VoxelEngine.Rendering.Api
     /// material/coating catalogue. Rendering receives values rather than game material IDs, keeping
     /// the far-feature API independent of palette indices and application material vocabulary.
     /// </summary>
-    public readonly struct FarFeaturePresentation
+    public readonly struct FarFeaturePresentation : IEquatable<FarFeaturePresentation>
     {
         public FarFeaturePresentation(float4 albedo, float roughness)
         {
@@ -143,6 +155,9 @@ namespace VoxelEngine.Rendering.Api
 
         public float4 Albedo { get; }
         public float Roughness { get; }
+        public bool Equals(FarFeaturePresentation other) => Albedo.Equals(other.Albedo) && Roughness.Equals(other.Roughness);
+        public override bool Equals(object obj) => obj is FarFeaturePresentation other && Equals(other);
+        public override int GetHashCode() => HashCode.Combine(Albedo, Roughness);
     }
 
     /// <summary>

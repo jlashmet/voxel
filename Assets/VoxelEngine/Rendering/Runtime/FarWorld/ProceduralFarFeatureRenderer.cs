@@ -23,6 +23,7 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
         private readonly Dictionary<string, FarFeaturePresentation> _styleSources = new(StringComparer.Ordinal);
         private readonly Dictionary<string, Mesh> _meshCache = new(StringComparer.Ordinal);
         private readonly Dictionary<string, Material> _materialCache = new(StringComparer.Ordinal);
+        private readonly Dictionary<FarFeaturePresentation, Material> _resolvedMaterials = new();
         private readonly Matrix4x4[] _drawMatrices = new Matrix4x4[MaxInstancesPerDraw];
         private int _instanceCount;
         private static readonly bool s_TraceHandoff =
@@ -72,12 +73,14 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
             {
                 if (batch.Value.Count == 0) continue;
                 Mesh mesh = GetMesh(batch.Key.GeometryKey);
-                Material material = GetMaterial(batch.Key.StyleKey);
+
                 for (int offset = 0; offset < batch.Value.Count; offset += MaxInstancesPerDraw)
                 {
                     int count = Mathf.Min(MaxInstancesPerDraw, batch.Value.Count - offset);
                     for (int i = 0; i < count; i++) _drawMatrices[i] = batch.Value[offset + i];
-                    command.DrawMeshInstanced(mesh, 0, material, 0, _drawMatrices, count);
+                    for (int submesh = 0; submesh < mesh.subMeshCount; submesh++)
+                        command.DrawMeshInstanced(mesh, submesh, GetSubmeshMaterial(batch.Key, submesh),
+                            0, _drawMatrices, count);
                 }
             }
         }
@@ -198,22 +201,25 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
             foreach (KeyValuePair<BatchKey, List<Matrix4x4>> batch in _batches)
             {
                 Mesh mesh = GetMesh(batch.Key.GeometryKey);
-                Material material = GetMaterial(batch.Key.StyleKey);
+
                 List<Matrix4x4> matrices = batch.Value;
                 for (int offset = 0; offset < matrices.Count; offset += MaxInstancesPerDraw)
                 {
                     int count = Mathf.Min(MaxInstancesPerDraw, matrices.Count - offset);
                     for (int i = 0; i < count; i++) _drawMatrices[i] = matrices[offset + i];
-                    Graphics.DrawMeshInstanced(
-                        mesh,
-                        0,
-                        material,
-                        _drawMatrices,
-                        count,
-                        null,
-                        ShadowCastingMode.Off,
-                        receiveShadows: false,
-                        layer: gameObject.layer);
+                    for (int submesh = 0; submesh < mesh.subMeshCount; submesh++)
+                    {
+                        Graphics.DrawMeshInstanced(
+                            mesh,
+                            submesh,
+                            GetSubmeshMaterial(batch.Key, submesh),
+                            _drawMatrices,
+                            count,
+                            null,
+                            ShadowCastingMode.Off,
+                            receiveShadows: false,
+                            layer: gameObject.layer);
+                    }
                 }
             }
         }
@@ -227,10 +233,11 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
             return GetMesh(instance.GeometryKey);
         }
 
-        internal Material ResolveMaterial(FarFeatureInstance instance)
+        internal Material ResolveMaterial(FarFeatureInstance instance, int submesh = 0)
         {
             RegisterStyle(instance);
-            return GetMaterial(instance.StyleKey);
+            RegisterGeometry(instance);
+            return GetSubmeshMaterial(new BatchKey(instance.GeometryKey, instance.StyleKey, instance.Tier), submesh);
         }
 
         private void LateUpdate()
@@ -263,7 +270,11 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
         private void RegisterStyle(FarFeatureInstance instance)
         {
             string key = instance.StyleKey ?? string.Empty;
-            FarFeaturePresentation presentation = instance.Presentation;
+            RegisterPresentation(key, instance.Presentation);
+        }
+
+        private void RegisterPresentation(string key, FarFeaturePresentation presentation)
+        {
             if (_styleSources.TryGetValue(key, out FarFeaturePresentation existing)
                 && existing.Albedo.Equals(presentation.Albedo)
                 && existing.Roughness.Equals(presentation.Roughness))
@@ -290,25 +301,32 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
             return mesh;
         }
 
+        private Material GetSubmeshMaterial(BatchKey key, int submesh)
+        {
+            if (!_geometrySources.TryGetValue(key.GeometryKey ?? string.Empty, out var geometry)
+                || geometry.PresentationCount == 0) return GetMaterial(key.StyleKey);
+            var presentation = geometry.GetPresentation(submesh);
+            if (_resolvedMaterials.TryGetValue(presentation, out Material cached)) return cached;
+            Material material = CreateMaterial("FarFeature-Resolved", presentation);
+            _resolvedMaterials.Add(presentation, material);
+            return material;
+        }
+
         private Material GetMaterial(string styleKey)
         {
             string key = styleKey ?? string.Empty;
             if (_materialCache.TryGetValue(key, out Material material)) return material;
-
-            Shader shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
-            material = new Material(shader)
-            {
-                name = string.IsNullOrEmpty(key) ? "FarFeature-Default" : $"FarFeature-{key}",
-                hideFlags = HideFlags.DontSave,
-            };
-            material.enableInstancing = true;
-
-            FarFeaturePresentation presentation = _styleSources.TryGetValue(key, out FarFeaturePresentation value)
-                ? value
-                : default;
-            ApplySharedPresentation(material, presentation);
-
+            FarFeaturePresentation presentation = _styleSources.TryGetValue(key, out var value) ? value : default;
+            material = CreateMaterial(string.IsNullOrEmpty(key) ? "FarFeature-Default" : $"FarFeature-{key}", presentation);
             _materialCache.Add(key, material);
+            return material;
+        }
+
+        private static Material CreateMaterial(string name, FarFeaturePresentation presentation)
+        {
+            Shader shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
+            var material = new Material(shader) { name = name, hideFlags = HideFlags.DontSave, enableInstancing = true };
+            ApplySharedPresentation(material, presentation);
             return material;
         }
 
@@ -336,10 +354,12 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
         private static Mesh BuildGeometryMesh(FarFeatureGeometry geometry)
         {
             var vertices = new List<Vector3>(geometry.PrimitiveCount * 16);
-            var triangles = new List<int>(geometry.PrimitiveCount * 36);
+            var submeshes = new List<int>[Math.Max(1, geometry.PresentationCount)];
+            for (int slot = 0; slot < submeshes.Length; slot++) submeshes[slot] = new List<int>();
             for (int i = 0; i < geometry.PrimitiveCount; i++)
             {
                 FarFeatureGeometryPrimitive primitive = geometry.GetPrimitive(i);
+                List<int> triangles = submeshes[primitive.PresentationSlot];
                 switch (primitive.Shape)
                 {
                     case FarFeatureGeometryShape.Frustum:
@@ -368,7 +388,8 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
             var mesh = new Mesh { hideFlags = HideFlags.DontSave };
             if (vertices.Count > ushort.MaxValue) mesh.indexFormat = IndexFormat.UInt32;
             mesh.SetVertices(vertices);
-            mesh.SetTriangles(triangles, 0);
+            mesh.subMeshCount = submeshes.Length;
+            for (int slot = 0; slot < submeshes.Length; slot++) mesh.SetTriangles(submeshes[slot], slot);
             mesh.RecalculateNormals();
             mesh.RecalculateBounds();
             return mesh;
@@ -635,6 +656,9 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
                 if (mesh != null) DestroyImmediate(mesh);
             foreach (Material material in _materialCache.Values)
                 if (material != null) DestroyImmediate(material);
+            foreach (Material material in _resolvedMaterials.Values)
+                if (material != null) DestroyImmediate(material);
+            _resolvedMaterials.Clear();
             _meshCache.Clear();
             _geometrySources.Clear();
             _styleSources.Clear();

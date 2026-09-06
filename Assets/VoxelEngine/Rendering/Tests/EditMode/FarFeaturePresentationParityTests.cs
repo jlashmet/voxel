@@ -89,6 +89,58 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
+        public void MultiMaterialBakeKeepsSeparateWallAndRoofDrawSurfaces()
+        {
+            var primitives = new[]
+            {
+                new Primitive { Shape = PrimitiveShape.Box, Mode = PrimitiveMode.Fill,
+                    Material = 1, A = int3.zero, B = new int3(9, 9, 9) },
+                new Primitive { Shape = PrimitiveShape.Prism, Mode = PrimitiveMode.Fill,
+                    Material = 8, A = new int3(0, 10, 0), B = new int3(9, 14, 9) }
+            };
+            var bake = new FeaturePresentationBake(42, 10, default, int3.zero, 0,
+                int3.zero, new int3(9, 14, 9), primitives);
+            var policy = new FarFeatureSelectionPolicy(
+                new FarFeatureSelectionPolicy.Thresholds(24, 18, 4, 3, 1.5f, 1),
+                new FarFeatureSelectionPolicy.DistanceCaps(1000, 1000, 1000), 60, 1080);
+            var adapter = new FarFeaturePresentationAdapter(new SinglePresentationSource(bake), policy, 1);
+            Vector4 wallColour = VoxelPresentationCatalogue.MaterialAlbedo[1];
+            Vector4 roofColour = VoxelPresentationCatalogue.MaterialAlbedo[8];
+            var root = new GameObject("far-multiple-materials-test");
+            try
+            {
+                VoxelPresentationCatalogue.MaterialAlbedo[1] = new Vector4(0.65f, 0.67f, 0.7f, 1);
+                VoxelPresentationCatalogue.MaterialAlbedo[8] = new Vector4(0.5f, 0.12f, 0.04f, 1);
+                var instances = adapter.Query(new float3(5, 5, -20), 100);
+                var renderer = root.AddComponent<ProceduralFarFeatureRenderer>();
+                Mesh mesh = renderer.ResolveMesh(instances[0]);
+                Assert.That(mesh.subMeshCount, Is.EqualTo(2),
+                    "Wall and roof materials must remain independently drawable after far-feature baking.");
+                Assert.That(mesh.GetIndexCount(0), Is.GreaterThan(0));
+                Assert.That(mesh.GetIndexCount(1), Is.GreaterThan(0));
+                var other = new FarFeatureInstance(99, float3.zero, quaternion.identity, new float3(1),
+                    float3.zero, new float3(1), "other-geometry", "other-style", FarFeatureTier.Mid,
+                    FarFeatureVisualFlags.None, instances[0].Geometry, instances[0].Presentation);
+                for (int slot = 0; slot < 2; slot++)
+                {
+                    Assert.That(renderer.ResolveMaterial(other, slot), Is.SameAs(renderer.ResolveMaterial(instances[0], slot)),
+                        "Identical resolved presentations must share materials across geometry identities.");
+                    byte materialId = (byte)(slot == 0 ? 1 : 8);
+                    var expected = MaterialPresentationComposition.ResolveFarFeaturePresentation(materialId, 0, 0);
+                    Color colour = renderer.ResolveMaterial(instances[0], slot).GetColor("_BaseColor");
+                    Assert.That((float4)new Vector4(colour.r, colour.g, colour.b, colour.a),
+                        Is.EqualTo(expected.Albedo), $"slot {slot} lost its resolved presentation");
+                }
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+                VoxelPresentationCatalogue.MaterialAlbedo[1] = wallColour;
+                VoxelPresentationCatalogue.MaterialAlbedo[8] = roofColour;
+            }
+        }
+
+        [Test]
         public void ProceduralRenderer_UsesResolvedPresentationInsteadOfShaderDefault()
         {
             var root = new GameObject("far-feature-presentation-test");
