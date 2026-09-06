@@ -240,7 +240,7 @@ namespace VoxelEngine.Showcase
             {
                 T candidate = candidates[i];
                 if (candidate == null) continue;
-                SceneManagement.Scene scene = candidate.gameObject.scene;
+                UnityEngine.SceneManagement.Scene scene = candidate.gameObject.scene;
                 if (scene.IsValid() && scene.isLoaded) return candidate;
             }
             return null;
