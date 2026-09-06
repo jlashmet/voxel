@@ -92,7 +92,7 @@
 - [x] Add the issue-owned one-shot Editor acceptance bridge that invokes the real baker and exports a matching payload/manifest for same-run standalone validation.
 - [ ] From the final visually accepted run, record exact payload size, SHA-256, content signature, and manifest.
 - [ ] Replace tracked `Assets/Resources/VoxelShowcase/ShowcaseWorld.bytes` with that exact accepted payload and matching manifest through the repository-sanctioned binary path.
-- [ ] Make the normal Showcase editor bake permanently emit the matching manifest after the one-shot acceptance path proves the restored contract.
+- [x] Make the normal Showcase editor bake permanently emit the matching manifest after the one-shot acceptance path proves the restored contract; exact run `34024289067` deleted any stale sidecar, invoked `ShowcaseWorldBaker.BakeShowcaseWorld`, validated the emitted manifest against the exact payload, and proved the imported Resources manifest matches it.
 - [ ] Validate a clean checkout consumes the exact checked-in accepted payload/manifest and passes required exact-source gates.
 
 ## Closure
