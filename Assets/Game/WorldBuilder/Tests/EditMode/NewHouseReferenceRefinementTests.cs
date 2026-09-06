@@ -27,10 +27,19 @@ namespace VoxelEngine.Tests.EditMode
 
             Assert.That(first.Operations.Count, Is.GreaterThan(180));
             Assert.That(second.Operations.Count, Is.EqualTo(first.Operations.Count));
-            Assert.That(first.Operations.Exists(op => op.Kind == OperationKind.Carve && op.Size.x > 20), Is.True,
-                "Refinement must remove the rejected full-width upper gable before rebuilding shoulders.");
             Assert.That(first.Operations.Exists(op => op.Material == palette.Ground), Is.False,
                 "Reusable refinement must not absorb reference-site ground policy.");
+
+            RecordedOperation roofReplacement = first.Operations.Find(op =>
+                op.Kind == OperationKind.Carve &&
+                op.Size.x >= config.Width + 40 &&
+                op.Size.z >= config.Depth + 40);
+            Assert.That(roofReplacement.Kind, Is.EqualTo(OperationKind.Carve),
+                "The refinement must remove the complete conflicting upper roof composition before rebuilding it.");
+            Assert.That(first.Operations.Exists(op =>
+                    op.Kind == OperationKind.Carve && op.Size.x == 20 && op.Size.y >= 20),
+                Is.True,
+                "The obsolete low side-wing roof geometry must be removed rather than left under the reference roof.");
 
             for (int i = 0; i < first.Operations.Count; i++)
             {
