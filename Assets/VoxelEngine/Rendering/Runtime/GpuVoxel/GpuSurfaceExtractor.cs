@@ -5,6 +5,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
 using VoxelEngine.Storage.Api;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 
 namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 {
@@ -178,6 +179,19 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             internal readonly uint[] CounterZeros;
             internal ComputeBuffer Profiles;
             internal GpuProfileBlock[] ProfileStaging = Array.Empty<GpuProfileBlock>();
+            internal bool UsesBlockHlod;
+            internal ComputeBuffer HlodSummaries;
+            internal ComputeShader HlodSummaryShader, HlodMeshShader;
+
+            internal void PrepareHlod()
+            {
+                if (HlodSummaries != null) return;
+                HlodSummaryShader = UnityEngine.Object.Instantiate(Resources.Load<ComputeShader>("GpuBlockHlodSummary"));
+                HlodMeshShader = UnityEngine.Object.Instantiate(Resources.Load<ComputeShader>("GpuBlockHlodMesher"));
+                HlodSummaries = new ComputeBuffer(Capacity * BrickCacheEdge * BrickCacheEdge * BrickCacheEdge
+                    * GpuBlockHlodSummary.WordsPerBlock, sizeof(uint), ComputeBufferType.Structured);
+            }
+
             internal int ProfileCount;
 
             internal CountBatchResources(int capacity, int sampleCount, int cellCount,
@@ -247,6 +261,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
             public void Dispose()
             {
+                HlodSummaries?.Release();
+                if (HlodSummaryShader != null) UnityEngine.Object.DestroyImmediate(HlodSummaryShader);
+                if (HlodMeshShader != null) UnityEngine.Object.DestroyImmediate(HlodMeshShader);
                 PreparedCache?.Dispose();
                 Chunks?.Release();
                 Density?.Release();
@@ -649,10 +666,14 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         /// Layout matches _BrickCache in VoxelBrickDensity.hlsl.
         /// </summary>
         public static uint PackBrickCacheEntry(VoxelBrickContent content, byte uniformMaterial,
-                                               int slot) =>
-            (uint)content
-            | ((uint)uniformMaterial << 8)
-            | (content == VoxelBrickContent.Mixed && slot >= 0 ? (uint)slot << 16 : 0u);
+                                               int slot)
+        {
+            if (content == VoxelBrickContent.Mixed
+                && (slot < 0 || slot >= GpuBrickBufferLayout.MaximumAddressableSlots))
+                throw new ArgumentOutOfRangeException(nameof(slot));
+            return (uint)content | ((uint)uniformMaterial << 8)
+                | (content == VoxelBrickContent.Mixed ? (uint)slot << 16 : 0u);
+        }
 
         public void SetBrickCacheEntry(int3 localBrick, uint entry)
         {
@@ -898,6 +919,12 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 || recordCount > requests.Length)
                 throw new ArgumentOutOfRangeException(nameof(recordCount));
 
+            resources.UsesBlockHlod = requests[0].SourceStep == 8;
+            for (int i = 1; i < recordCount; i++)
+                if ((requests[i].SourceStep == 8) != resources.UsesBlockHlod)
+                    throw new ArgumentException("Coarse and regular extraction require separate lanes.");
+            if (resources.UsesBlockHlod) resources.PrepareHlod();
+
             for (int i = 0; i < recordCount; i++)
             {
                 int3 origin = requests[i].ChunkOriginVoxel;
@@ -934,20 +961,35 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             BindTransitionTables(_batchCountTransitionsKernel, tables);
             _shader.SetInt(IdFaceSamplesPerAxis, FaceSamplesPerAxis);
 
-            int samples = GridSize * GridSize * GridSize;
-            int regularCellsPerAxis = CellsPerAxis + 1;
-            int cells = regularCellsPerAxis * regularCellsPerAxis * regularCellsPerAxis;
-            int semanticCells = CellsPerAxis * CellsPerAxis * CellsPerAxis;
-            _shader.Dispatch(_batchSampleKernel, Groups(samples), recordCount, 1);
-            _shader.Dispatch(_batchCountKernel, Groups(cells), recordCount, 1);
-            _shader.Dispatch(_batchCountFacetedKernel,
-                             Groups(semanticCells), recordCount, 1);
-            _shader.Dispatch(_batchCountDecorationsKernel,
-                             Groups(semanticCells), recordCount, 1);
-            int faceSamples = FaceSamplesPerAxis * FaceSamplesPerAxis;
-            _shader.Dispatch(_batchSampleFacesKernel, Groups(faceSamples), recordCount * 6, 1);
-            _shader.Dispatch(_batchCountTransitionsKernel,
-                             Groups(CellsPerAxis * CellsPerAxis), recordCount * 6, 1);
+            if (resources.UsesBlockHlod)
+            {
+                GpuBlockHlodSummary.DispatchDense(resources.HlodSummaryShader, mirror,
+                    resources.PreparedCache.DenseEntries, resources.HlodSummaries,
+                    resources.PreparedCache.BricksPerRequest, recordCount,
+                    SolidMaterialClassification.WaterMaterialMask);
+                int core = BrickCacheEdge - 2, total = core * core * core;
+                for (int start = 0; start < total; start += GpuBlockHlodMesher.MaximumBricksPerSlice)
+                    GpuBlockHlodMesher.Count(resources.HlodMeshShader, resources.HlodSummaries,
+                        resources.Chunks, batchCounters, core, recordCount, start,
+                        Math.Min(GpuBlockHlodMesher.MaximumBricksPerSlice, total - start));
+            }
+            else
+            {
+                int samples = GridSize * GridSize * GridSize;
+                int regularCellsPerAxis = CellsPerAxis + 1;
+                int cells = regularCellsPerAxis * regularCellsPerAxis * regularCellsPerAxis;
+                int semanticCells = CellsPerAxis * CellsPerAxis * CellsPerAxis;
+                _shader.Dispatch(_batchSampleKernel, Groups(samples), recordCount, 1);
+                _shader.Dispatch(_batchCountKernel, Groups(cells), recordCount, 1);
+                _shader.Dispatch(_batchCountFacetedKernel,
+                                 Groups(semanticCells), recordCount, 1);
+                _shader.Dispatch(_batchCountDecorationsKernel,
+                                 Groups(semanticCells), recordCount, 1);
+                int faceSamples = FaceSamplesPerAxis * FaceSamplesPerAxis;
+                _shader.Dispatch(_batchSampleFacesKernel, Groups(faceSamples), recordCount * 6, 1);
+                _shader.Dispatch(_batchCountTransitionsKernel,
+                                 Groups(CellsPerAxis * CellsPerAxis), recordCount * 6, 1);
+            }
             if (resources.ProfileCount > 0)
                 _shader.Dispatch(_batchCountProfilesKernel,
                                  Groups(resources.ProfileCount * 24), 1, 1);
@@ -1031,15 +1073,27 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 _shader.SetInt(IdBatchMaxIndexPages,
                                GpuSurfacePageArena.MaxIndexPagesPerChunk);
             }
-            int regularAxis = CellsPerAxis + 1;
-            _shader.Dispatch(_batchWriteKernel,
-                             Groups(regularAxis * regularAxis * regularAxis), recordCount, 1);
-            _shader.Dispatch(_batchWriteFacetedKernel,
-                             Groups(CellsPerAxis * CellsPerAxis * CellsPerAxis), recordCount, 1);
-            _shader.Dispatch(_batchWriteDecorationsKernel,
-                             Groups(CellsPerAxis * CellsPerAxis * CellsPerAxis), recordCount, 1);
-            _shader.Dispatch(_batchWriteTransitionsKernel,
-                             Groups(CellsPerAxis * CellsPerAxis), recordCount * 6, 1);
+            if (resources.UsesBlockHlod)
+            {
+                if (pageArena == null) throw new InvalidOperationException("Coarse GPU output requires the paged arena.");
+                int core = BrickCacheEdge - 2, total = core * core * core;
+                for (int start = 0; start < total; start += GpuBlockHlodMesher.MaximumBricksPerSlice)
+                    GpuBlockHlodMesher.Write(resources.HlodMeshShader, resources.HlodSummaries,
+                        resources.Chunks, batchCounters, pageArena, core, recordCount, start,
+                        Math.Min(GpuBlockHlodMesher.MaximumBricksPerSlice, total - start));
+            }
+            else
+            {
+                int regularAxis = CellsPerAxis + 1;
+                _shader.Dispatch(_batchWriteKernel,
+                                 Groups(regularAxis * regularAxis * regularAxis), recordCount, 1);
+                _shader.Dispatch(_batchWriteFacetedKernel,
+                                 Groups(CellsPerAxis * CellsPerAxis * CellsPerAxis), recordCount, 1);
+                _shader.Dispatch(_batchWriteDecorationsKernel,
+                                 Groups(CellsPerAxis * CellsPerAxis * CellsPerAxis), recordCount, 1);
+                _shader.Dispatch(_batchWriteTransitionsKernel,
+                                 Groups(CellsPerAxis * CellsPerAxis), recordCount * 6, 1);
+            }
             if (resources.ProfileCount > 0)
                 _shader.Dispatch(_batchWriteProfilesKernel,
                                  Groups(resources.ProfileCount * 24), 1, 1);

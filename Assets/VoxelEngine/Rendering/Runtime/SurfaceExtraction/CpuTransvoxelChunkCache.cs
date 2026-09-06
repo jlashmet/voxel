@@ -78,10 +78,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public const int BaseVoxelsPerAxis = CellsPerAxis * BaseSourceStep;
         public const int BaseBricksPerAxis = BaseVoxelsPerAxis / VoxelReadGrid.BlockEdge;
 
-        /// <summary>GPU extraction is limited to the two exact near rings. Step 4 keeps its
-        /// feature-preserving CPU fallback and step 8 remains block HLOD.</summary>
+        /// <summary>Near extraction and step-8 block HLOD have GPU implementations.
+        /// Step 4 still requires migration of its feature-preserving fallback.</summary>
         internal static bool SupportsGpuSurfaceStep(int sourceStep) =>
-            sourceStep == BaseSourceStep || sourceStep == BaseSourceStep * 2;
+            sourceStep == BaseSourceStep || sourceStep == BaseSourceStep * 2
+            || sourceStep == VoxelReadGrid.BlockEdge;
 
         private const int Padding = 1;
         private const int GridSize = CellsPerAxis + 3;
@@ -701,9 +702,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _transitionVertexStride = _lookupTables.TransitionVertexStride;
             _transitionIndexStride = _lookupTables.TransitionIndexStride;
 
-            // GPU cutover covers the two exact near rings. Sharing the scheduler's slot grid
-            // keeps standalone/headless CPU caches unchanged, including EditMode tests that
-            // intentionally run without graphics. Step 4 and block HLOD keep their current paths.
+            // GPU cutover covers the two near rings and block HLOD. Sharing the scheduler's
+            // slot grid keeps standalone/headless behavioral fixtures unchanged. Step 4
+            // still requires a GPU equivalent of its feature-preserving fallback.
             _gpuCutoverConfigured = !GpuCutoverDisabled
                 && SupportsGpuSurfaceStep(SourceStep) && !SamplesFromMips && slotGrid != null;
             _gpuMirrorBudgetBytes = (long)math.max(1, BrickCacheCount)
@@ -1404,7 +1405,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     // part of the immutable exact snapshot. It bypasses Transvoxel density,
                     // faceted and transition phases and rejoins the normal profile/publication path
                     // only after the HLOD job is ready and its Storage pins are released.
-                    if (UsesBlockHlod)
+                    if (UsesBlockHlod && !_gpuStagePending)
                     {
                         _build.Phase = 7;
                         continue;

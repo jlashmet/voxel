@@ -24,6 +24,38 @@ Each completed item needs exact feature SHA, request/run IDs, relevant executed 
 
 ## Current local evidence (2026-09-06)
 
+Latest local GPU-path checkpoint: step8 now uses GPU dense-cache summaries, bounded greedy
+count/write dispatches, the existing paged arena, and versioned asynchronous publication.
+Step4 and water remain CPU-backed; G07 is **not complete**. The user explicitly deferred
+additional optimization work until the full GPU path works.
+
+`Artifacts/LocalGpuShowcase/gpu-hlod-draw-contract.xml`: **48 passed**, terminal wrapper exit 0
+in 16s, including real GPU mesh bounds/area/winding, cross-brick face suppression, unknown
+halos, partial-write rejection, integrated extractor, mirror addressability and lifetime tests.
+Initial Metal compilation failures were fixed; initial admission and addressability regressions
+failed before their fixes. Coarse footprints exposed quadratic scans of pinned readiness records
+and an oversized mirror beyond the packed directory’s 65,536-slot address space. Incremental
+cleanup and the addressability bound repair those blockers without changing source truth.
+
+`gpu-hlod-coarse-module-draw/`: real Rendering-owned production WorldBuilder scene, 60s,
+terminal harness exit 0, six screenshots and required GPU-publication marker. Reviewed 10s
+screenshot shows the mountain landmark through step8 GPU geometry. Earlier addressability-only
+run passed publication but rendered blank: physical vertex indices violated the consumer's
+chunk-local index contract. Corrected indices and test-side page-table resolution repair it.
+Visual classification: **prototype/blockout quality**; visible coarse terracing and simple
+landmark forms do not meet production acceptance. Full `gpu-hlod-showcase/` integration finished: 180s, 12 captures, terminal exit 0;
+no exceptions/transaction rejections. Reviewed 75s/150s: **unacceptable**, with terrain gaps,
+flat coarse background and missing traversal coverage. Only one step8 publication completed;
+large pending coarse footprints delay near work. G07 source-frontier/admission liveness remains
+an integration failure despite successful harness completion. Distinguish unavailable source
+regions from recovery starvation before changing admission.
+`gpu-hlod-near-regression/`: 48s, eight captures, terminal exit 0; required publication,
+edit restoration and far-handoff markers pass. Reviewed 42s screenshot retains prototype fixture
+quality. Source copies, hashes and delta are retained with module and Showcase captures.
+No performance claim. Core-absent and upload-failure counters remain zero in the stalled
+Showcase; next inspect resident-view borrowing, active source protection and recovery fairness.
+
+
 User direction is now local harness/testing and screenshot review, with no further origin pushes.
 `Artifacts/LocalGpuShowcase/753a21241-local-harness/` retains the completed 180-second,
 1920x1080/scale-1, non-development Metal VoxelShowcase capture (11 PNGs), player/build logs,
@@ -263,7 +295,7 @@ Normal180s Showcase regression passed11 captures, exit0, no exceptions or transa
 terrain banding/seams/gaps and coarse side geometry remain **unacceptable**. This unchanged scene
 consumer is regression evidence only; it does not exercise the new summary kernel.
 
-- [ ] **G07 — Eliminate CPU-dependent LOD coverage.** Current `CpuTransvoxelChunkCache.SupportsGpuSurfaceStep` admits only steps 1/2; step 4 uses feature-preserving CPU fallback and step 8 block HLOD. Inventory every ring/representation actually used by VoxelShowcase and affected consumers, including coarser mip work. Implement the required GPU equivalents before deleting those paths. Test real mixed-LOD batches, logical extent versus physical stride, transition faces, negative-shell ownership and nonresident frontier halos. Do not disable coarse rings or reduce draw distance to claim GPU-only coverage.
+- [ ] **G07 — Eliminate CPU-dependent LOD coverage.** Current `CpuTransvoxelChunkCache.SupportsGpuSurfaceStep` admits steps 1/2/8; step 4 still uses feature-preserving CPU fallback. Step8 GPU module publication and rendering pass locally; mixed-LOD/frontier/edit/pressure proof remains. Inventory every ring/representation actually used by VoxelShowcase and affected consumers, including coarser mip work. Implement the required GPU equivalents before deleting those paths. Test real mixed-LOD batches, logical extent versus physical stride, transition faces, negative-shell ownership and nonresident frontier halos. Do not disable coarse rings or reduce draw distance to claim GPU-only coverage.
 Summit residency follow-up: production Storage regression reproduced missing upper region
 before the fix (2 passed/1 failed). Shared terrain-column residency now includes finite explicit
 CPU catalogue footprints; the production baker emits200 regions instead of199 (147s,

@@ -32,6 +32,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         /// cutover has actually claimed work on each one.</summary>
         public readonly int GpuResidentBackends;
         public readonly ulong GpuCompletedSolidBuilds;
+        public readonly ulong GpuBlockHlodCompletedBuilds;
         public readonly ulong GpuFallbackSolidBuilds;
         public readonly ulong GpuUnsupportedSolidBuilds;
         public readonly ulong GpuContextFailureSolidBuilds;
@@ -147,6 +148,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             GpuCutoverAvailable = solids.GpuCutoverAvailable;
             GpuResidentBackends = solids.GpuBackendResident ? 1 : 0;
             GpuCompletedSolidBuilds = solids.GpuCompletedBuildCount;
+            GpuBlockHlodCompletedBuilds = solids.UsesBlockHlod ? solids.GpuCompletedBuildCount : 0;
             GpuFallbackSolidBuilds = solids.GpuFallbackBuildCount;
             GpuUnsupportedSolidBuilds = solids.GpuUnsupportedBuildCount;
             GpuContextFailureSolidBuilds = solids.GpuContextFailureBuildCount;
@@ -298,7 +300,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             int gpuResidentBackends = 0;
             ulong gpuWaitSlices = 0;
             VoxelTimingSummary gpuBuildLatency = default;
-            ulong decorations = 0, pressure = 0;
+            ulong decorations = 0, pressure = 0, gpuBlockHlodCompleted = 0;
             ulong completionViolations = water.FramePathBlockingCompletionViolations;
             long geometryBytes = water.ResidentGpuBytes;
             double snapshotMs = 0, compactMs = 0, uploadMs = 0;
@@ -348,6 +350,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 gpuAvailable |= worker.GpuCutoverAvailable;
                 if (worker.GpuBackendResident) gpuResidentBackends++;
                 gpuCompleted += worker.GpuCompletedBuildCount;
+                if (worker.UsesBlockHlod) gpuBlockHlodCompleted += worker.GpuCompletedBuildCount;
                 gpuFallback += worker.GpuFallbackBuildCount;
                 gpuUnsupported += worker.GpuUnsupportedBuildCount;
                 gpuContextFailure += worker.GpuContextFailureBuildCount;
@@ -421,6 +424,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             GpuCutoverAvailable = gpuAvailable;
             GpuResidentBackends = gpuResidentBackends;
             GpuCompletedSolidBuilds = gpuCompleted;
+            GpuBlockHlodCompletedBuilds = gpuBlockHlodCompleted;
             GpuFallbackSolidBuilds = gpuFallback;
             GpuUnsupportedSolidBuilds = gpuUnsupported;
             GpuContextFailureSolidBuilds = gpuContextFailure;
@@ -1148,7 +1152,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         + $" changedReject={GpuSurfaceMirrorCoordinator.ChangedRegionCoverageRejects}"
                         + $" rounds={GpuSurfaceMirrorCoordinator.CoverageReadyRounds}/"
                         + $"{GpuSurfaceMirrorCoordinator.CoverageRounds}"
-                        + $" polls={GpuSurfaceMirrorCoordinator.CoveragePolls}]"
+                        + $" polls={GpuSurfaceMirrorCoordinator.CoveragePolls} {GpuSurfaceMirrorCoordinator.RecoveryState}]"
                         + $" dispatchMs[{GpuSurfaceMirrorCoordinator.ConsumeExtractionDispatchTimings()}]"
                         + $" flight={gpuInFlight}"
                         + $" phases=0x{gpuPhaseMask:X} oldestMs={gpuOldestMs:0.0}]");
@@ -1157,15 +1161,17 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 SurfaceRing ring = _rings[r];
                 int resident = 0;
                 int known = 0;
+                ulong gpuPublications = 0;
                 for (int w = 0; w < ring.Workers.Length; w++)
                 {
                     resident += ring.Workers[w].ResidentCount;
                     known += ring.Workers[w].KnownCount;
+                    gpuPublications += ring.Workers[w].GpuCompletedBuildCount;
                 }
 
                 CpuTransvoxelChunkCache first = ring.Workers[0];
                 text.Append($" step{ring.SourceStep}[{first.MinViewDistanceMetres:0.#}"
-                            + $"-{first.MaxViewDistanceMetres:0.#}m res={resident} known={known}]");
+                            + $"-{first.MaxViewDistanceMetres:0.#}m res={resident} known={known} gpuPub={gpuPublications}]");
             }
             return text.ToString();
         }

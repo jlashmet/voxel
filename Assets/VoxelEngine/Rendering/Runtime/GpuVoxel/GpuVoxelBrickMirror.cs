@@ -126,7 +126,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         public GpuVoxelBrickMirror(int slotCapacity)
         {
-            if (slotCapacity <= 0) throw new ArgumentOutOfRangeException(nameof(slotCapacity));
+            if (slotCapacity <= 0 || slotCapacity > GpuBrickBufferLayout.MaximumAddressableSlots)
+                throw new ArgumentOutOfRangeException(nameof(slotCapacity));
 
             SlotCapacity = slotCapacity;
             DirectoryCapacity = NextPowerOfTwo(Math.Max(1024, slotCapacity * 4));

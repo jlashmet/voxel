@@ -21,7 +21,7 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void SceneIssue20260823014011920GpuCutoverTargetsOnlyNearExactRings()
+        public void GpuCutoverTargetsNearExactRingsAndBlockHlod()
         {
             Assert.True(CpuTransvoxelChunkCache.SupportsGpuSurfaceStep(1),
                 "Full-resolution surface extraction must be GPU-capable.");
@@ -29,8 +29,8 @@ namespace VoxelEngine.Tests.EditMode
                 "LOD2 must remain GPU-capable, including its transition-face path.");
             Assert.False(CpuTransvoxelChunkCache.SupportsGpuSurfaceStep(4),
                 "The step-4 feature-preserving exact/fallback ring stays on CPU until GPU parity exists.");
-            Assert.False(CpuTransvoxelChunkCache.SupportsGpuSurfaceStep(8),
-                "Block HLOD remains the step-8 backend.");
+            Assert.True(CpuTransvoxelChunkCache.SupportsGpuSurfaceStep(8),
+                "Feature-preserving block HLOD now counts and writes in the GPU page arena.");
         }
 
         [Test]

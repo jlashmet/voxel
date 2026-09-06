@@ -2,26 +2,24 @@
 
 ## Objective and acceptance
 
-Deliver production-quality `Assets/Scenes/VoxelShowcase.unity` through the GPU backend, physically delete the retired CPU-only renderer, and pursue **1,000 FPS / 1.00ms whole frame**, or the closest repeatable result under [tasks.md](tasks.md). Preserve authoritative CPU storage/generation/collision/simulation and GPU host orchestration. No hidden content, weaker budgets, reduced distance or permanent CPU fallback.
+Deliver production-quality `Assets/Scenes/VoxelShowcase.unity` through GPU rendering, delete retired CPU-only rendering, and pursue **1,000 FPS / 1.00 ms whole frame**, or the closest repeatable measured result under [tasks.md](tasks.md). Preserve CPU authority and GPU host orchestration. No hidden content, weaker budgets, reduced distance or permanent CPU fallback. User explicitly wants the full GPU path before additional optimization work.
 
-## Execution and material results
+## Execution and retained results
 
-Local harness/tests/screenshots are authorized. User-requested push verified `origin/fixes/agent-1` at `690b61756`. Continue in `/private/tmp/voxel-gpu-restoration`, branch `gpu-rendering-agent-1-resume`; later work is local.
+Local harness/tests/screenshots are authorized. The last requested push reached `origin/fixes/agent-1` at `64b2921a3`; current work is local in `/private/tmp/voxel-gpu-restoration`, branch `gpu-rendering-agent-1-resume`.
 
-Prior repairs cover GPU layout, allocation, bucket prefix, asynchronous recovery, explicit candidate approval/write-finalization, submitted resource retention and deferred mirror clear. Geometry/counts never return to CPU authority. World replacement passes 24 focused checks; final-draw lifetime/permanent-error policy remain open.
+Earlier repairs cover GPU layout/allocation/prefix, asynchronous recovery, candidate approval/finalization, source retention/deferred clear, far handoff, omitted summit residency, paint-only proxy walls and prism roofs/normals. Terrain seams/gaps, coarse far geometry/materials/openings and water remain unacceptable. No visual or performance acceptance.
 
-Near publication plus regional discovery drive same-pass far handoff; unknown coverage retains proxies. Explicit footprint residency repairs omitted summit region(-2,1,0), with 5 tests and 200-region bake. Composed children/separated vertical spans and Showcase-owned streaming coverage still need audit.
+Step8 now uses GPU dense-cache summaries, bounded greedy count/write dispatches, the existing paged arena and versioned asynchronous publication. Profiles retain the existing production emission path. Step4 and water remain CPU-backed.
 
-Paint-only modifier bounds incorrectly became solid far boxes. The fix passes 5 checks and removes phantom traversal walls in the normal 180s player. Bounded ramp/prism profiles and planar box normals pass 27 checks, both 28s module players and 180s Showcase. Reviewed 75s/150s remain below acceptance: terrain aliasing/seams, near gaps, coarse far geometry, missing openings/material separation. Visual quality is **unacceptable**.
+Three proven step8 blockers were repaired: quadratic pinned-readiness eviction scans (incremental cleanup), a 4.6-million-slot mirror beyond the packed directory's 65,536-slot address space (addressability clamp), and physical indices where the draw shader requires chunk-local indices. Initial standalone attempts failed or rendered blank despite publication. The test oracle now resolves both page tables like the draw consumer. **48 targeted tests pass**, including geometry bounds/area/winding, internal-face suppression, unknown halos, partial writes, integrated extraction, addressability and lifetime.
 
-## Current hypotheses and experiment
+Rendering-owned production WorldBuilder landmark player: **60s, six captures, terminal exit 0**; reviewed 10s landmark is visible through step8 GPU geometry, but prototype/blockout quality. `gpu-hlod-coarse-module-draw/` retains source copies/hashes and logs. Full `gpu-hlod-showcase/`: **180s, 12 captures, terminal exit 0**, no exceptions/transaction rejections. Reviewed 75s/150s remains **unacceptable**: flat coarse background, terrain gaps and missing traversal coverage. Only one step8 publication; pending source footprints delay near work. Harness completion is not visual/coverage acceptance. Near module regression: 48s, eight captures, terminal exit 0; publication/edit/far-handoff assertions pass. Reviewed 42s remains a prototype fixture.
 
-H1: increasing GPU source step alone loses thin features. Existing CPU step 8 preserves 2×2×2 subcell occupancy and exposed-column voting; step 4 invokes the same preservation when sampled geometry vanishes. H2: port that predicate into bounded GPU brick batches before GPU mesh emission.
+## Current hypotheses and next experiment
 
-New summary kernel consumes the actual persistent mirror and writes 19 words per brick, with explicit unknown-source status. Initial tests exposed two defects: empty bricks intentionally have no directory entry, and dynamic packed-byte extraction returned incorrect values on Metal despite correct source bytes. Complete mirrored-region coverage must authorize absent-as-air; CPU readiness alone cannot. Simplifying voting did not fix byte extraction. Explicit byte selection passes all 13 tests, including all 512 isolated voxel positions, material voting/ties, configured water and reset/disposal rejection. Test-only readback observes results; production dispatch neither waits nor reads back.
-
-The kernel is not yet integrated into scene mesh generation. Current validation is headless GPU data preparation through Rendering-owned EditMode tests; it makes no rendered-quality claim. Normal 180s Showcase passed 11 captures without exceptions/rejections; reviewed 75s/150s remain **unacceptable** with no phantom-wall regression. Next: connect bounded summary batches to GPU meshing with versioned source leases and module-owned player coverage.
+H1: resident source views cannot be borrowed or updated while footprints overlap. H2: shared recovery service is starved by coarse demands. Core-absent and upload-failure counters remain zero; missing core residency alone is not supported. Next inspect pending region borrow/active-reader/queue progress for one oldest request, then test the relevant bounded admission/source invariant. Do not equate unknown regions with air or add CPU fallback. GPU mesh generation failure is falsified for the fully resident module fixture, not for all production inputs.
 
 ## Remaining gates
 
-Finish G11 last-consumer retirement and permanent-error policy; migrate steps 4/8 and water; replace CPU-dependent oracles and delete CPU-only rendering. Resolve all visual defects and validate module/integration players, edits, pressure and lifecycle. Run locked repeated frame/memory workloads. G01–G27 remain authoritative and incomplete.
+Resolve mixed-LOD/frontier liveness, migrate step4/water, remove CPU-only rendering/oracles, and finish G11 last-consumer retirement/permanent-error policy. Validate edits, pressure, lifecycle, module/integration players and locked repeated frame/memory workloads. G01–G27 remain incomplete.

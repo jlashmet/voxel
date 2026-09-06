@@ -1,8 +1,10 @@
 #pragma kernel CSSummarizeBlocks
+#pragma kernel CSSummarizeDenseBlocks VOXEL_HLOD_DENSE_ENTRY
 #define VOXEL_FORCE_PERSISTENT_LOOKUP 1
 #include "VoxelBrickDensity.hlsl"
 
 StructuredBuffer<int4> _HlodBlocks;
+StructuredBuffer<uint> _HlodDenseEntries;
 RWStructuredBuffer<uint> _HlodSummaries;
 uint _HlodBlockCount;
 uint _HlodDirectoryOffset;
@@ -40,12 +42,23 @@ uint VoteCount(uint material, uint4 columns)
         + (columns.z == material ? 1u : 0u) + (columns.w == material ? 1u : 0u);
 }
 
-[numthreads(64, 1, 1)]
-void CSSummarizeBlocks(uint3 group : SV_GroupID, uint lane : SV_GroupIndex)
+void Summarize(uint3 group, uint lane)
 {
-    if (group.x >= _HlodBlockCount) return;
+#ifdef VOXEL_HLOD_DENSE_ENTRY
+    uint local = group.x + group.y * 1024u;
+    if (local >= _HlodBlockCount) return;
+    uint brickIndex = local + group.z * _HlodBlockCount;
+#else
+    uint brickIndex = group.x;
+    if (brickIndex >= _HlodBlockCount) return;
+#endif
     if (lane == 0u)
     {
+#ifdef VOXEL_HLOD_DENSE_ENTRY
+        // Admission already holds complete mirror coverage and its immutable source lease.
+        s_Entry = _HlodDenseEntries[brickIndex];
+        s_Known = 1u;
+#else
         s_Entry = 0u;
         // w = 1 proves complete mirrored region coverage; absent bricks are air.
         s_Known = _HlodBlocks[group.x].w == 1 ? 1u : 0u;
@@ -64,6 +77,7 @@ void CSSummarizeBlocks(uint3 group : SV_GroupID, uint lane : SV_GroupIndex)
             s_Known = 1u;
             break;
         }
+#endif
     }
     GroupMemoryBarrierWithGroupSync();
     uint3 minimum = uint3(lane & 3u, (lane >> 2u) & 3u, lane >> 4u) * 2u;
@@ -80,7 +94,7 @@ void CSSummarizeBlocks(uint3 group : SV_GroupID, uint lane : SV_GroupIndex)
     if (votes.w > best) { representative = materials.w; }
     s_Material[lane] = representative;
     GroupMemoryBarrierWithGroupSync();
-    uint output = group.x * 19u;
+    uint output = brickIndex * 19u;
     if (lane < 16u)
     {
         uint first = lane * 4u;
@@ -96,3 +110,8 @@ void CSSummarizeBlocks(uint3 group : SV_GroupID, uint lane : SV_GroupIndex)
     }
     if (lane == 0u) _HlodSummaries[output + 18u] = s_Known == 0u ? 1u : 0u;
 }
+
+[numthreads(64, 1, 1)]
+void CSSummarizeBlocks(uint3 group : SV_GroupID, uint lane : SV_GroupIndex) { Summarize(group, lane); }
+[numthreads(64, 1, 1)]
+void CSSummarizeDenseBlocks(uint3 group : SV_GroupID, uint lane : SV_GroupIndex) { Summarize(group, lane); }

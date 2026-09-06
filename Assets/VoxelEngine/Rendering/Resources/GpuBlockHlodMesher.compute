@@ -1,0 +1,192 @@
+#pragma kernel CSCountHlodFaces
+#pragma kernel CSWriteHlodFaces VOXEL_HLOD_WRITE
+#include "VoxelBatchChunkDescriptor.hlsl"
+
+StructuredBuffer<uint> _HlodSummaries;
+StructuredBuffer<BatchChunkDescriptor> _BatchChunks;
+RWStructuredBuffer<uint> _BatchCounters;
+uint _HlodCoreBrickEdge;
+uint _HlodBatchCount;
+uint _HlodBrickStart;
+uint _HlodBrickCount;
+uint _VertexPageSize;
+uint _IndexPageSize;
+uint _MaxVertexPages;
+uint _MaxIndexPages;
+StructuredBuffer<uint> _VertexPageTable;
+StructuredBuffer<uint> _IndexPageTable;
+struct SurfaceVertex { float3 position; float3 normal; uint material; uint active; };
+RWStructuredBuffer<SurfaceVertex> _Vertices;
+RWStructuredBuffer<uint> _Indices;
+
+int3 AxisOffset(uint axis, int amount)
+{
+    if (axis == 0u) return int3(amount, 0, 0);
+    if (axis == 1u) return int3(0, amount, 0);
+    return int3(0, 0, amount);
+}
+
+uint Record(uint batch) { return 4u + batch * 17u; }
+
+uint Material(uint batch, int3 cell)
+{
+    // One whole brick of padding makes signed halo coordinates nonnegative before division.
+    uint edge = _HlodCoreBrickEdge + 2u;
+    uint3 padded = (uint3)(cell + 4);
+    uint3 brick = padded / 4u;
+    uint source = batch * edge * edge * edge + brick.x + edge * (brick.y + edge * brick.z);
+    uint word = source * 19u;
+    if (_HlodSummaries[word + 18u] != 0u)
+    {
+#ifndef VOXEL_HLOD_WRITE
+        InterlockedOr(_BatchCounters[Record(batch)], 1u);
+#endif
+        return 0u;
+    }
+    uint3 local = padded & 3u;
+    uint subcell = local.x + 4u * (local.y + 4u * local.z);
+    uint packed = _HlodSummaries[word + 2u + subcell / 4u];
+    uint byteIndex = subcell & 3u;
+    if (byteIndex == 0u) return packed & 255u;
+    if (byteIndex == 1u) return (packed >> 8u) & 255u;
+    if (byteIndex == 2u) return (packed >> 16u) & 255u;
+    return (packed >> 24u) & 255u;
+}
+
+uint VertexSlot(uint record, uint local)
+{
+    uint table = (_BatchCounters[record + 11u] * 2u + _BatchCounters[record + 14u])
+        * _MaxVertexPages + local / _VertexPageSize;
+    return _VertexPageTable[table] * _VertexPageSize + local % _VertexPageSize;
+}
+uint IndexSlot(uint record, uint local)
+{
+    uint table = (_BatchCounters[record + 11u] * 2u + _BatchCounters[record + 14u])
+        * _MaxIndexPages + local / _IndexPageSize;
+    return _IndexPageTable[table] * _IndexPageSize + local % _IndexPageSize;
+}
+
+void Quad(uint batch, int3 cell, uint axis, int sign, uint width, uint height, uint material)
+{
+    uint record = Record(batch);
+#ifdef VOXEL_HLOD_WRITE
+    uint vertexBase, indexBase;
+    InterlockedAdd(_BatchCounters[record + 8u], 4u, vertexBase);
+    InterlockedAdd(_BatchCounters[record + 9u], 6u, indexBase);
+    uint vertexCount = _BatchCounters[record + 2u], indexCount = _BatchCounters[record + 3u];
+    if (vertexCount < 4u || vertexBase > vertexCount - 4u
+        || indexCount < 6u || indexBase > indexCount - 6u) return;
+    uint axisA = (axis + 1u) % 3u, axisB = (axis + 2u) % 3u;
+    int3 p = cell;
+    if (sign > 0) p += AxisOffset(axis, 1);
+    float3 normal = (float3)AxisOffset(axis, sign);
+    uint4 slots = uint4(VertexSlot(record, vertexBase), VertexSlot(record, vertexBase + 1u),
+        VertexSlot(record, vertexBase + 2u), VertexSlot(record, vertexBase + 3u));
+    [loop] for (uint corner = 0u; corner < 4u; corner++)
+    {
+        int3 position = p;
+        if (corner == 1u || corner == 2u) position += AxisOffset(axisA, width);
+        if (corner >= 2u) position += AxisOffset(axisB, height);
+        SurfaceVertex vertex;
+        vertex.position = (float3)(_BatchChunks[batch].chunkOriginVoxel + position * 2)
+            * _BatchChunks[batch].voxelSize;
+        vertex.normal = normal;
+        vertex.material = material;
+        vertex.active = 0x0000FF00u;
+        _Vertices[corner == 0u ? slots.x : (corner == 1u ? slots.y : (corner == 2u ? slots.z : slots.w))] = vertex;
+    }
+    _Indices[IndexSlot(record, indexBase)] = vertexBase;
+    _Indices[IndexSlot(record, indexBase + 1u)] = sign > 0 ? vertexBase + 1u : vertexBase + 2u;
+    _Indices[IndexSlot(record, indexBase + 2u)] = sign > 0 ? vertexBase + 2u : vertexBase + 1u;
+    _Indices[IndexSlot(record, indexBase + 3u)] = vertexBase;
+    _Indices[IndexSlot(record, indexBase + 4u)] = sign > 0 ? vertexBase + 2u : vertexBase + 3u;
+    _Indices[IndexSlot(record, indexBase + 5u)] = sign > 0 ? vertexBase + 3u : vertexBase + 2u;
+#else
+    InterlockedAdd(_BatchCounters[record + 2u], 4u);
+    InterlockedAdd(_BatchCounters[record + 3u], 6u);
+#endif
+}
+
+uint MaskMaterial(uint4 rows, uint index)
+{
+    uint row = index / 4u;
+    uint packed = row == 0u ? rows.x : (row == 1u ? rows.y : (row == 2u ? rows.z : rows.w));
+    uint column = index & 3u;
+    if (column == 0u) return packed & 255u;
+    if (column == 1u) return (packed >> 8u) & 255u;
+    if (column == 2u) return (packed >> 16u) & 255u;
+    return (packed >> 24u) & 255u;
+}
+
+void Faces(uint3 id)
+{
+    uint batch = id.y;
+    if (batch >= _HlodBatchCount || id.x >= _HlodBrickCount * 24u) return;
+    uint record = Record(batch);
+#ifdef VOXEL_HLOD_WRITE
+    if (_BatchCounters[record + 10u] != 0u) return;
+#endif
+    uint brickIndex = _HlodBrickStart + id.x / 24u;
+    uint edge = _HlodCoreBrickEdge;
+    int3 origin = int3(brickIndex % edge, (brickIndex / edge) % edge, brickIndex / (edge * edge)) * 4;
+    uint slice = id.x % 24u;
+    uint axis = slice / 8u, layer = slice & 3u;
+    int sign = (slice & 4u) == 0u ? -1 : 1;
+    uint axisA = (axis + 1u) % 3u, axisB = (axis + 2u) % 3u;
+    uint4 rows = 0u;
+    uint remaining = 0u;
+    // Greedy rectangles are bounded to a 4x4 brick slice. Sampling its neighbours in the
+    // padded source grid removes internal faces, including at brick and chunk boundaries.
+    [loop] for (uint b = 0u; b < 4u; b++)
+    [loop] for (uint a = 0u; a < 4u; a++)
+    {
+        int3 cell = origin;
+        cell += AxisOffset(axis, layer) + AxisOffset(axisA, a) + AxisOffset(axisB, b);
+        int3 neighbour = cell + AxisOffset(axis, sign);
+        uint material = Material(batch, cell);
+        uint adjacent = Material(batch, neighbour);
+        uint exposed = adjacent == 0u ? material : 0u;
+        uint packed = exposed << (a * 8u);
+        if (b == 0u) rows.x |= packed;
+        else if (b == 1u) rows.y |= packed;
+        else if (b == 2u) rows.z |= packed;
+        else rows.w |= packed;
+        if (exposed != 0u) remaining |= 1u << (a + b * 4u);
+    }
+    [loop] for (uint b = 0u; b < 4u; b++)
+    [loop] for (uint a = 0u; a < 4u; a++)
+    {
+        uint index = a + b * 4u;
+        if ((remaining & (1u << index)) == 0u) continue;
+        uint material = MaskMaterial(rows, index);
+        uint width = 1u;
+        [loop] while (a + width < 4u)
+        {
+            uint next = a + width + b * 4u;
+            if ((remaining & (1u << next)) == 0u || MaskMaterial(rows, next) != material) break;
+            width++;
+        }
+        uint height = 1u;
+        [loop] while (b + height < 4u)
+        {
+            bool same = true;
+            [loop] for (uint k = 0u; k < width; k++)
+            {
+                uint next = a + k + (b + height) * 4u;
+                if ((remaining & (1u << next)) == 0u || MaskMaterial(rows, next) != material) same = false;
+            }
+            if (!same) break;
+            height++;
+        }
+        [loop] for (uint hb = 0u; hb < height; hb++)
+        [loop] for (uint ha = 0u; ha < width; ha++) remaining &= ~(1u << (a + ha + (b + hb) * 4u));
+        int3 cell = origin;
+        cell += AxisOffset(axis, layer) + AxisOffset(axisA, a) + AxisOffset(axisB, b);
+        Quad(batch, cell, axis, sign, width, height, material);
+    }
+}
+
+[numthreads(64, 1, 1)]
+void CSCountHlodFaces(uint3 id : SV_DispatchThreadID) { Faces(id); }
+[numthreads(64, 1, 1)]
+void CSWriteHlodFaces(uint3 id : SV_DispatchThreadID) { Faces(id); }

@@ -776,6 +776,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             ChangeActiveRegionReaders(brickCacheOrigin, brickCacheEdge, -1);
         }
 
+        internal static string RecoveryState => $"regions={s_RecoveryRegions.Count}/{s_QueuedRecoveryRegions.Count}"
+            + $" mixed={ResidentMixedBrickCount}/{MirrorSlotCapacity} noSlot={s_Mirror?.RefusedNoSlot ?? 0}"
+            + $" stale={s_Mirror?.RejectedStale ?? 0} lastFailure={s_LastRecoveryFailure}";
+        private static GpuBrickPublish s_LastRecoveryFailure;
         internal static int ReadyRegionCount => s_ReadyBlocksByRegion.Count;
         internal static int ReadyBlockCount => s_ReadyBlocks.Count;
         internal static int PendingBlockCount => s_PendingBlocks.Count;
@@ -998,6 +1002,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                     if (result is GpuBrickPublish.NoSlot or GpuBrickPublish.PayloadMissing
                         or GpuBrickPublish.Stale)
                     {
+                        s_LastRecoveryFailure = result;
                         QueueRecoveryBlock(worldBlock);
                         RequeueRegion(region);
                         return;
@@ -1142,11 +1147,18 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             blocks.Add(block);
         }
 
+        internal static ulong ReadyEvictionChecks { get; private set; }
+
         private static bool TryEvictInactiveReadyBlock()
         {
-            int attempts = s_ReadyResidencyOrder.Count;
+            // Coarse footprints legitimately pin more entries than the cleanup target. Walk
+            // the queue incrementally: a full scan for every added brick becomes quadratic
+            // and prevents those footprints from ever reaching dispatch. The queue retains
+            // its cursor, and demanded/active source records remain protected.
+            int attempts = Math.Min(64, s_ReadyResidencyOrder.Count);
             while (attempts-- > 0 && s_ReadyResidencyOrder.Count > 0)
             {
+                ReadyEvictionChecks++;
                 int3 block = s_ReadyResidencyOrder.Dequeue();
                 if (!s_ReadyBlocks.Contains(block)) continue;
                 if (IsBlockDemanded(block) || IsBlockActive(block))

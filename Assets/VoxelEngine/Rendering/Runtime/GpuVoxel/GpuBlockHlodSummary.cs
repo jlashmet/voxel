@@ -17,6 +17,31 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         internal const int WordsPerBlock = 19;
         internal const int MaximumBlocksPerDispatch = 1024;
 
+        /// <summary>Consumes the existing GPU-resolved cache only after complete mirror coverage
+        /// has been admitted and retained. Dispatch dimensions cover each bounded chunk layout.</summary>
+        internal static void DispatchDense(ComputeShader shader, GpuVoxelBrickMirror mirror,
+            ComputeBuffer entries, ComputeBuffer summaries, int bricksPerChunk, int batches, uint waterMask)
+        {
+            if (shader == null || mirror == null || entries == null || summaries == null)
+                throw new ArgumentNullException();
+            if (mirror.IsDisposed) throw new ObjectDisposedException(nameof(mirror));
+            if (mirror.IsClearPending) throw new InvalidOperationException("HLOD source is awaiting reset.");
+            const int maximumEdge = GpuBlockHlodMesher.MaximumCoreBrickEdge + 2;
+            if (bricksPerChunk < 1 || bricksPerChunk > maximumEdge * maximumEdge * maximumEdge
+                || batches < 1 || batches > GpuBlockHlodMesher.MaximumBatchCount
+                || entries.stride != 4 || summaries.stride != 4
+                || entries.count < bricksPerChunk * batches
+                || summaries.count < bricksPerChunk * batches * WordsPerBlock)
+                throw new ArgumentOutOfRangeException(nameof(bricksPerChunk));
+            int kernel = shader.FindKernel("CSSummarizeDenseBlocks");
+            shader.SetBuffer(kernel, "_BrickMaterials", mirror.Materials);
+            shader.SetBuffer(kernel, "_HlodDenseEntries", entries);
+            shader.SetBuffer(kernel, "_HlodSummaries", summaries);
+            shader.SetInt("_HlodBlockCount", bricksPerChunk);
+            shader.SetInt("_SolidWaterMaterialMask", unchecked((int)waterMask));
+            shader.Dispatch(kernel, Math.Min(1024, bricksPerChunk), (bricksPerChunk + 1023) / 1024, batches);
+        }
+
         internal static void Dispatch(ComputeShader shader, GpuVoxelBrickMirror mirror,
             ComputeBuffer blocks, ComputeBuffer summaries, int count, uint waterMaterialMask)
         {
