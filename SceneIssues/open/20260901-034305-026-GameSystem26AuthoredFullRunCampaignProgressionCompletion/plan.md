@@ -10,13 +10,13 @@ T26-057 is green at product source `e31528947add430f39588a7d3fda98db40589974`, d
 
 Nine tasks remain after the demonstrated production-player integration defect was split into T26-058: T26-021/022/043/044/045/046/053/054/058.
 
+Exact request `3d3d7de4b1a0ea954e23e80e6c6bd5e2be34ef7e`, run `34023048689`, source `d27b0faeedf98a3be2538372d517ae5523e302d7` compiled successfully but failed `Game.Composition.Kentridge.Tests.AuthoredFullRunPhysicalWorldPlanTests.FullRunGenerationResolvesAuthoredSitesAndNpcAssignmentsAgainstPhysicalHierarchy`: the site-facts adapter incorrectly required macro building blockouts for Kentridge. The physical intent explicitly marks Kentridge/Hightown as `ExistingRichGeneration` with zero macro blockouts, so this was an adapter defect, not missing geometry. Fix `68e7d4aeb14d86298c44a971325e523fb666b23d` uses the source-backed settlement centre only for `ExistingRichGeneration`; generic blockout settlements still fail closed when buildings are absent. Next discriminator is exact-SHA CI of that fix on the existing agent-8 transport.
+
 ## Selected physical-world recovery
 
 The prior macro-world SceneIssue was administratively deferred, but its preserved checkpoint `62533f5c0b1716c70414eb82d0e2b0def9e99f39` contains acceptance-required reusable production work that master intentionally omitted: semantic physical regions/route constraints, deterministic terrain-aware macro planning, generic settlement realization, water/ridge/pass catalogues, and Kentridge macro-selection integration. This System26 assignment will recover only those production pieces required by T26-021/022/044–046; the closed agent-6 SceneIssue and its bookkeeping remain untouched.
 
-Recovered core product source `808c93e8b06a999e37664a021af4eea2382799f7` restores the semantic physical intent/planner, reservation adapter, generic physical/water catalogues, Kentridge macro intent, and the existing Kentridge/generic catalogue integration points. Its direct-child exact request is `14970ac2095b50a35b8397ffec22d83034f86808`, run `34014321563`; preserve that request while queued/running.
-
-**H1:** the archived core compiles against current System26/master APIs and replaces the marker-only macro catalogue with real multi-region physical realization. **H2:** later API drift or the old strict publication-convergence defect still blocks readiness. **Next discriminator:** exact run `34014321563`, then inspect compile/runtime/player evidence before importing any archived diagnostics or validation extras.
+Recovered core product source `808c93e8b06a999e37664a021af4eea2382799f7` restores the semantic physical intent/planner, reservation adapter, generic physical/water catalogues, Kentridge macro intent, and the existing Kentridge/generic catalogue integration points. Its direct-child exact request is `14970ac2095b50a35b8397ffec22d83034f86808`, run `34014321563`.
 
 The recovered slice is limited to `TopDownWorldPhysicalIntent`, `TopDownWorldPhysicalPlanner`, reservation adapter, physical/water voxel catalogues, `KentridgeTopDownWorldPhysicalIntent`, and the two existing integration points (`KentridgeCombinedVoxelCatalogue`, `WorldBuilderVoxelCatalogue`). No renderer-owner files or old agent-6 SceneIssue files are imported.
 
