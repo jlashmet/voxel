@@ -1,0 +1,7 @@
+{
+  "request_id": "agent5-new-house-audit-shell-a679777d",
+  "platform": "EditMode",
+  "test": "VoxelEngine.Tests.EditMode.NewHouseReferenceRefinementTests.AuthorHouse_AuditShellInfillOccursAfterRoofClear_AndRearWindowsCarveAfterInfill",
+  "scene_issue": "SceneIssues/open/20260904-231343-000-NewHouseWorldBuilderReferenceReconstruction/issue.json",
+  "replay_seconds": 32
+}
