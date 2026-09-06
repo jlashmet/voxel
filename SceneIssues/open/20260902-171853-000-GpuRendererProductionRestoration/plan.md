@@ -2,31 +2,29 @@
 
 ## Objective and acceptance
 
-Deliver production-quality `Assets/Scenes/VoxelShowcase.unity` through the GPU backend, physically delete the retired CPU-only renderer, and pursue **1,000 FPS / 1.00 ms whole frame**, or the closest repeatable measured result under [tasks.md](tasks.md). Preserve authoritative CPU storage/generation/collision/simulation and GPU host orchestration. No hidden content, weaker budgets, reduced draw distance, or permanent CPU fallback. G01–G26 remain mandatory.
+Deliver production-quality `Assets/Scenes/VoxelShowcase.unity` through the GPU backend, physically delete the retired CPU-only renderer, and pursue **1,000 FPS / 1.00 ms whole frame**, or the closest repeatable measured result under [tasks.md](tasks.md). Preserve authoritative CPU storage/generation/collision/simulation and GPU host orchestration. No hidden content, weaker budgets, reduced distance or permanent CPU fallback. All task gates remain mandatory.
 
-## Current execution and evidence
+## Execution and prior results
 
-User directs **local harness/tests and screenshot review; no further origin pushes**. Worktree: `/private/tmp/voxel-gpu-restoration`. Local commits `968a06ced` (watchdog) and `dc0ced3e2` (allocator) are not pushed. Remote request `03694d19...` / run `34030901271` was preserved; local work does not wait on it.
+User directs local harness/tests and screenshot review; **no further origin pushes**. Worktree `/private/tmp/voxel-gpu-restoration`, branch `gpu-rendering-agent-1-resume`. Existing remote request/run preserved; local work does not wait on it.
 
-Three local 180-second visible, non-development Metal VoxelShowcase runs completed at 1920x1080, URP scale 1, walking at 90 seconds, with 11 screenshots each. Evidence under `Artifacts/LocalGpuShowcase/{753a21241-local-harness,stride-fixed,allocator-fixed}/` includes logs, XML, settings/source delta and diagnostic summaries.
+Local watchdog repair passes five behavioral tests. Shared 44-byte allocator descriptor fixes second-record identity corruption. Common-point capacity status write fixes Metal Exhausted/TooLarge results; descriptor aliases/default-store changes alone were falsified. Thirteen focused GPU tests passed previously. Three 180-second player runs remained unacceptable; their incomplete geometry invalidates performance acceptance.
 
-All remain **unacceptable**: missing near terrain/structure surfaces, floating castle/vegetation, flat cyan water and blockout grey far masses. `missingVisible=0` contradicted rendered views: fence completion increments host publication without confirming live GPU geometry. Latest diagnostic windows give ~194 FPS stationary (per-window p95 5.41–5.79ms), ~103 FPS traversal (8.49–21.29ms). Missing content and screenshot/log overhead preclude benchmark acceptance; repeated locked workloads remain required.
+## New discriminating evidence
 
-## Proven repairs and falsified hypotheses
+`Artifacts/LocalGpuShowcase/publication-trace/`: 80-second standalone Metal capture, 1920x1080, five PNGs. Temporary opt-in synchronous readbacks are archived as `diagnostic-source.diff` and removed from runtime. At 60s, visible=461, live-ready=295, empty=208, pending=0, indirect instances=253: all nonempty live records reach draw compaction. Vertex arena has one free page; 259 allocations report Exhausted by 65s. Host fence completion conceals rejected geometry. First rejection: handle408, origin(640,0,640), step2, 156812 vertices. Global publication-pump failure is falsified; capacity failure is proven.
 
-The local watchdog exhausted descriptors during repeated shell process-tree traversal. One bounded process-table snapshot replaces it, fails closed on accounting errors, and passes five behavioral tests. Subsequent guarded builds/tests completed normally.
+Separately, direct `SV_InstanceID` addressing ignored nonzero indirect bucket prefixes on local Metal. Explicit GPU bucket-prefix lookup with zero indirect start-instance restores most castle facade/towers in `explicit-bucket-offset/` standalone screenshots. A production-shader raster test renders three spatially separated buckets: previous shaders fail at handle1, fixed shaders pass. The 600-handle compaction test also passes. Final focused publication/draw regression results are recorded in tasks.md.
 
-Allocator descriptors were 36 bytes while host/mesher descriptors are 44. A two-record production-dispatch test failed on record 1's handle; sharing the full HLSL descriptor fixes it.
+Visual classification remains **unacceptable**: missing capacity-rejected chunks, fragmented structures, cyan water, blockout far terrain and seams. No performance claim; late replay GPU timing windows have zero samples.
 
-Counter-alias and desired-generation-alias changes did not fix capacity statuses. Local diagnostics proved correct desired/decoded identity. Removing the default Stale write merely changed erroneous output to zero. Classifying first and writing status at one common point before ownership mutation fixes both Exhausted/TooLarge cases. Nine focused Metal cases pass; four additional prepared-batch/publication tests pass. XML: `stride-fixed/allocator-classified-status.xml` and `allocator-fixed/production-pipeline.xml`. All guarded test invocations finished in 11–13 seconds; no skipped cases.
+## Hypotheses and next experiment
 
-## Hypotheses and next discriminator
+1. Unmerged faceted emission consumes the fixed arena excessively; exact semantic-preserving GPU face merging can reduce demand.
+2. Residency/reclamation retains unnecessary geometry or loses recoverable rejected requests; correct eviction/retry can restore coverage within budget.
 
-1. Remaining missing surfaces originate in full-scene density/count/write, despite bounded fixtures passing.
-2. Correct geometry is lost during GPU publication/draw selection while host readiness hides it.
-
-Next: correlate a known missing VoxelShowcase chunk with its real count/status, pending/live page record and draw arguments using bounded diagnostic evidence, then fix the earliest divergence and rerun the same local player capture. Do not infer coverage from host counters.
+Next correlate arena ownership/demand with per-chunk geometry counts, then implement the earliest proven capacity/recovery fix. Keep budgets and scene content unchanged. Validate exact boundary/material coverage independently and rerun the full player, including traversal.
 
 ## Remaining gates
 
-Correct full-scene GPU coverage/visuals -> GPU step-4/8/water migration -> physical CPU-backend deletion -> independent-consumer/edit/lifecycle proof -> locked repeated performance/memory workloads -> final local regression/artifact review. Remote promotion is outside current local execution.
+Full-scene coverage/visuals -> GPU step4/8/water migration -> physical CPU-backend deletion -> independent-consumer/edit/lifecycle proof -> locked repeated performance/memory workloads -> final local regression/artifact review.

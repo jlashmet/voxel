@@ -83,7 +83,9 @@ void CSPrefixDrawBuckets(uint3 id : SV_DispatchThreadID)
         _DrawIndirectArgs[args+0]=_DrawBucketState[state+1];
         _DrawIndirectArgs[args+1]=count;
         _DrawIndirectArgs[args+2]=0u;
-        _DrawIndirectArgs[args+3]=start;
+        // SV_InstanceID does not reliably include indirect startInstance on every backend.
+        // The vertex shader reads this bucket's GPU prefix explicitly.
+        _DrawIndirectArgs[args+3]=0u;
         start+=count;
     }
 }

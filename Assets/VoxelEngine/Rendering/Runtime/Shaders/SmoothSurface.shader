@@ -49,6 +49,8 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
                 uint padding;
             };
             StructuredBuffer<PagedDrawMetadata> _PagedDrawMetadata;
+            StructuredBuffer<uint> _PagedDrawBucketState;
+            uint _PagedDrawBucket;
             StructuredBuffer<SurfaceVertex> _PagedSurfaceVertices;
             StructuredBuffer<uint> _PagedSurfaceIndices;
             StructuredBuffer<uint> _PagedVertexPageTable;
@@ -113,7 +115,8 @@ Shader "Hidden/VoxelEngine/SmoothSurface"
                 uint indexCount = 0u;
                 if (_SurfacePagedDraw != 0u)
                 {
-                    pagedDraw = _PagedDrawMetadata[instanceID];
+                    uint metadataStart = _PagedDrawBucketState[_PagedDrawBucket * 4u + 2u];
+                    pagedDraw = _PagedDrawMetadata[metadataStart + instanceID];
                     indexCount = pagedDraw.indexCount;
                 }
                 else

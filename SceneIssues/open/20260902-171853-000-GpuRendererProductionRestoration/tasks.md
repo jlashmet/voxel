@@ -54,8 +54,24 @@ allocator-fixed 180-second replay also completed with 11 screenshots and remaine
 Its diagnostic stationary/traversal windows were ~194/~103 FPS (per-window p95 5.41–5.79ms /
 8.49–21.29ms). Four additional prepared-batch/publication regressions passed with no skips in
 `allocator-fixed/production-pipeline.xml`. Local code commits: `968a06ced`, `dc0ced3e2`; not pushed.
-Next correlate an actually missing full-scene chunk's count/status, pending/live page record and
-draw arguments. Neither host-ready metrics nor these bounded passing fixtures prove full coverage.
+The next bounded trace completed in `publication-trace/`: at 60s, 461 visible handles,
+295 live-ready records, 208 empty records and 253 indirect instances. All nonempty live visible
+records reached compaction, but the vertex arena had one free page; 259 allocations returned
+Exhausted by 65s. Example: handle408, origin(640,0,640), step2 requested156812 vertices.
+Temporary synchronous instrumentation is archived as `diagnostic-source.diff` and removed from
+runtime; this run is excluded from performance acceptance. G10/G11 must fix bounded capacity
+recovery and host readiness, without increasing budgets or hiding demand.
+
+A second failure was independent of allocation: direct SV_InstanceID metadata addressing did
+not include indirect bucket prefixes on local Metal. The explicit GPU bucket-prefix fix restores
+most castle facade/towers in the 80-second `explicit-bucket-offset/` standalone capture (five PNGs).
+The real SmoothSurface vertex-shader raster regression with three separated buckets fails on
+old shaders at handle1 (`draw-before.xml`) and passes with explicit prefixes (`draw-projection.xml`).
+The existing 600-handle compaction regression also passes. Final combined run: 11 passed, zero failed/skipped in 13 seconds
+(`draw-after.xml`), covering draw compaction/raster and publication transactions/pump.
+Visual classification remains **unacceptable**: capacity holes, fragmented structures, cyan water
+and blockout far terrain/seams remain. Late GPU frame timing windows report zero samples;
+no throughput or visual acceptance is claimed.
 
 
 ## 1. Get the actual GPU path running now

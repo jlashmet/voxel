@@ -36,6 +36,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         internal ComputeBuffer ActiveIndirectArgs { get; private set; }
         internal ComputeBuffer ActiveDrawMetadata { get; private set; }
+        internal ComputeBuffer ActiveBucketState { get; private set; }
 
         internal GpuSurfaceDrawDispatcher(ComputeShader shader, GpuSurfacePageArena arena)
         {
@@ -89,6 +90,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 _shader.Dispatch(_scatterKernel, Groups(visibleHandles.Count), 1, 1);
             ActiveIndirectArgs = args;
             ActiveDrawMetadata = metadata;
+            ActiveBucketState = state;
         }
 
         private void Bind(int kernel, ComputeBuffer handles, ComputeBuffer state,
@@ -116,6 +118,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             }
             ActiveIndirectArgs = null;
             ActiveDrawMetadata = null;
+            ActiveBucketState = null;
         }
     }
 }

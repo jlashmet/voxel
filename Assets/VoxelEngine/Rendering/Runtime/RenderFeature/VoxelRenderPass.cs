@@ -62,6 +62,8 @@ namespace VoxelEngine.Rendering.Runtime
             Shader.PropertyToID("_SurfaceDrawMetadata");
         private static readonly int s_SurfaceDrawBase = Shader.PropertyToID("_SurfaceDrawBase");
         private static readonly int s_SurfacePagedDraw = Shader.PropertyToID("_SurfacePagedDraw");
+        private static readonly int s_PagedDrawBucketState = Shader.PropertyToID("_PagedDrawBucketState");
+        private static readonly int s_PagedDrawBucket = Shader.PropertyToID("_PagedDrawBucket");
         private static readonly int s_PagedDrawMetadata = Shader.PropertyToID("_PagedDrawMetadata");
         private static readonly int s_PagedSurfaceVertices = Shader.PropertyToID("_PagedSurfaceVertices");
         private static readonly int s_PagedSurfaceIndices = Shader.PropertyToID("_PagedSurfaceIndices");
@@ -196,6 +198,7 @@ namespace VoxelEngine.Rendering.Runtime
             public ComputeBuffer PagedVertexPageTable;
             public ComputeBuffer PagedIndexPageTable;
             public ComputeBuffer PagedDrawMetadata;
+            public ComputeBuffer PagedDrawBucketState;
             public ComputeBuffer PagedIndirectArgs;
             public int VisiblePagedCount;
             public CpuWaterSurfaceChunkCache.Entry[] WaterEntries;
@@ -375,6 +378,7 @@ namespace VoxelEngine.Rendering.Runtime
             data.PagedVertexPageTable = gpuArena?.VertexPageTable;
             data.PagedIndexPageTable = gpuArena?.IndexPageTable;
             data.PagedDrawMetadata = gpuDraw?.ActiveDrawMetadata;
+            data.PagedDrawBucketState = gpuDraw?.ActiveBucketState;
             data.PagedIndirectArgs = gpuDraw?.ActiveIndirectArgs;
             data.VisiblePagedCount = _scheduler.VisibleGpuHandles.Count;
             data.WaterEntries = _waterDrawEntries;
@@ -463,6 +467,7 @@ namespace VoxelEngine.Rendering.Runtime
                     cmd.SetGlobalBuffer(s_PagedVertexPageTable, passData.PagedVertexPageTable);
                     cmd.SetGlobalBuffer(s_PagedIndexPageTable, passData.PagedIndexPageTable);
                     cmd.SetGlobalBuffer(s_PagedDrawMetadata, passData.PagedDrawMetadata);
+                    cmd.SetGlobalBuffer(s_PagedDrawBucketState, passData.PagedDrawBucketState);
                     cmd.SetGlobalInteger(s_PagedVertexPageSize, GpuSurfacePageArena.VertexPageSize);
                     cmd.SetGlobalInteger(s_PagedIndexPageSize, GpuSurfacePageArena.IndexPageSize);
                     cmd.SetGlobalInteger(s_PagedMaxVertexPages,
@@ -471,6 +476,7 @@ namespace VoxelEngine.Rendering.Runtime
                         GpuSurfacePageArena.MaxIndexPagesPerChunk);
                     for (int bucket = 0; bucket < GpuSurfaceDrawDispatcher.BucketCount; bucket++)
                     {
+                        cmd.SetGlobalInteger(s_PagedDrawBucket, bucket);
                         cmd.DrawProceduralIndirect(Matrix4x4.identity, passData.Material, 0,
                             MeshTopology.Triangles, passData.PagedIndirectArgs,
                             bucket * sizeof(uint) * 4);

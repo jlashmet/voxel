@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.Rendering;
 using VoxelEngine.Rendering.Runtime.GpuVoxel;
 
 namespace VoxelEngine.Rendering.Tests.EditMode
@@ -50,8 +51,8 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             Assert.That(_drawShader, Is.Not.Null);
             _arena = new GpuSurfacePageArena(
                 _arenaShader,
-                GpuSurfacePageArena.VertexPageSize * 2,
-                GpuSurfacePageArena.IndexPageSize * 2,
+                GpuSurfacePageArena.VertexPageSize * 4,
+                GpuSurfacePageArena.IndexPageSize * 4,
                 handleCapacity: 1024);
             _dispatcher = new GpuSurfaceDrawDispatcher(_drawShader, _arena);
         }
@@ -75,6 +76,100 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             _arenaShader = null;
         }
 
+        [StructLayout(LayoutKind.Sequential)]
+        private struct RasterVertex
+        {
+            public Vector3 Position, Normal;
+            public uint Material, Active;
+        }
+
+        // A narrow raster-addressing fixture, not art or visual acceptance. It uses the shipped
+        // vertex shader and real page lookup/compaction; debug coverage only bypasses lighting.
+        [Test]
+        public void SeparateBucketsRasterizeTheirOwnPagedGeometry()
+        {
+            var records = new GeometryRecord[_arena.HandleCapacity];
+            var vertices = new RasterVertex[3 * GpuSurfacePageArena.VertexPageSize];
+            var indices = new uint[3 * GpuSurfacePageArena.IndexPageSize];
+            var vertexPages = new uint[_arena.VertexPageTable.count];
+            var indexPages = new uint[_arena.IndexPageTable.count];
+            var visible = new List<int> { 0, 1, 2 };
+            for (int handle = 0; handle < 3; handle++)
+            {
+                float x = (handle - 1) * 0.65f;
+                int v = handle * GpuSurfacePageArena.VertexPageSize;
+                vertices[v] = new RasterVertex { Position = new Vector3(x - 0.2f, -0.3f, 0), Normal = Vector3.back };
+                vertices[v+1] = new RasterVertex { Position = new Vector3(x, 0.3f, 0), Normal = Vector3.back };
+                vertices[v+2] = new RasterVertex { Position = new Vector3(x + 0.2f, -0.3f, 0), Normal = Vector3.back };
+                uint count = 3u << handle;
+                for (int i = 0; i < count; i++)
+                    indices[handle * GpuSurfacePageArena.IndexPageSize + i] = (uint)(i % 3);
+                vertexPages[handle * 2 * GpuSurfacePageArena.MaxVertexPagesPerChunk] = (uint)handle;
+                indexPages[handle * 2 * GpuSurfacePageArena.MaxIndexPagesPerChunk] = (uint)handle;
+                records[handle] = new GeometryRecord { GenerationLow = 1, VertexCount = 3,
+                    IndexCount = count, VertexPageCount = 1, IndexPageCount = 1, Ready = 1 };
+            }
+            _arena.Vertices.SetData(vertices);
+            _arena.Indices.SetData(indices);
+            _arena.VertexPageTable.SetData(vertexPages);
+            _arena.IndexPageTable.SetData(indexPages);
+            _arena.LiveChunkGeometry.SetData(records);
+            _dispatcher.Prepare(visible, 1);
+            var material = new Material(Shader.Find("Hidden/VoxelEngine/SmoothSurface"));
+            var target = new RenderTexture(192, 64, 24, RenderTextureFormat.ARGB32);
+            var pixels = new Texture2D(192, 64, TextureFormat.RGBA32, false);
+            var commands = new CommandBuffer();
+            RenderTexture previous = RenderTexture.active;
+            try
+            {
+                target.Create();
+                material.SetInteger("_SurfacePagedDraw", 1);
+                material.SetFloat("_DebugCoverage", 1);
+                material.SetInteger("_CutawayEnabled", 0);
+                material.SetBuffer("_PagedSurfaceVertices", _arena.Vertices);
+                material.SetBuffer("_PagedSurfaceIndices", _arena.Indices);
+                material.SetBuffer("_PagedVertexPageTable", _arena.VertexPageTable);
+                material.SetBuffer("_PagedIndexPageTable", _arena.IndexPageTable);
+                material.SetBuffer("_PagedDrawMetadata", _dispatcher.ActiveDrawMetadata);
+                material.SetBuffer("_PagedDrawBucketState", _dispatcher.ActiveBucketState);
+                material.SetInteger("_PagedVertexPageSize", GpuSurfacePageArena.VertexPageSize);
+                material.SetInteger("_PagedIndexPageSize", GpuSurfacePageArena.IndexPageSize);
+                material.SetInteger("_PagedMaxVertexPagesPerChunk", GpuSurfacePageArena.MaxVertexPagesPerChunk);
+                material.SetInteger("_PagedMaxIndexPagesPerChunk", GpuSurfacePageArena.MaxIndexPagesPerChunk);
+                commands.SetRenderTarget(target);
+                commands.ClearRenderTarget(true, true, Color.clear);
+                var projection = GL.GetGPUProjectionMatrix(Matrix4x4.Ortho(-1, 1, -1, 1, -1, 1), true);
+                commands.SetViewProjectionMatrices(Matrix4x4.identity, projection);
+                commands.SetGlobalMatrix("unity_MatrixVP", projection);
+                for (int bucket = 0; bucket < GpuSurfaceDrawDispatcher.BucketCount; bucket++)
+                {
+                    commands.SetGlobalInteger("_PagedDrawBucket", bucket);
+                    commands.DrawProceduralIndirect(Matrix4x4.identity, material, 0,
+                        MeshTopology.Triangles, _dispatcher.ActiveIndirectArgs, bucket * 16);
+                }
+                Graphics.ExecuteCommandBuffer(commands);
+                RenderTexture.active = target;
+                pixels.ReadPixels(new Rect(0, 0, 192, 64), 0, 0);
+                pixels.Apply();
+                for (int handle = 0; handle < 3; handle++)
+                {
+                    int x = Mathf.RoundToInt(((handle - 1) * 0.65f + 1f) * 96f);
+                    Assert.That(pixels.GetPixel(x, 32).a, Is.GreaterThan(0.9f),
+                        $"Bucket for handle {handle} did not rasterize its own triangle.");
+                }
+                Assert.That(pixels.GetPixel(3, 3).a, Is.LessThan(0.1f));
+            }
+            finally
+            {
+                RenderTexture.active = previous;
+                commands.Release();
+                target.Release();
+                UnityEngine.Object.DestroyImmediate(target);
+                UnityEngine.Object.DestroyImmediate(pixels);
+                UnityEngine.Object.DestroyImmediate(material);
+            }
+        }
+
         [Test]
         public void SixHundredVisibleHandlesSurviveBucketPrefixAndScatterExactlyOnce()
         {
@@ -85,7 +180,7 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             {
                 // Spread the workload across many logarithmic buckets instead of validating a
                 // degenerate single-bucket fixture. Counts stay triangle-aligned but otherwise
-                // vary enough to exercise bucket prefixes and nonzero startInstance values.
+                // vary enough to exercise nonzero GPU metadata prefixes.
                 uint exponent = (uint)(4 + handle % 13);
                 uint lower = 1u << (int)exponent;
                 uint quarter = Math.Max(1u, lower / 4u);
@@ -111,6 +206,8 @@ namespace VoxelEngine.Rendering.Tests.EditMode
 
             var args = new uint[GpuSurfaceDrawDispatcher.BucketCount * 4];
             var metadata = new DrawMetadata[_arena.HandleCapacity];
+            var bucketState = new uint[GpuSurfaceDrawDispatcher.BucketCount * 4];
+            _dispatcher.ActiveBucketState.GetData(bucketState);
             _dispatcher.ActiveIndirectArgs.GetData(args);
             _dispatcher.ActiveDrawMetadata.GetData(metadata);
 
@@ -124,7 +221,8 @@ namespace VoxelEngine.Rendering.Tests.EditMode
                 uint maxIndexCount = args[word + 0];
                 int instanceCount = unchecked((int)args[word + 1]);
                 uint startVertex = args[word + 2];
-                int startInstance = unchecked((int)args[word + 3]);
+                int startInstance = unchecked((int)bucketState[word + 2]);
+                Assert.That(args[word + 3], Is.Zero, "Metadata offsets must not depend on API base-instance semantics.");
                 Assert.That(startVertex, Is.Zero);
                 Assert.That(startInstance, Is.EqualTo(expectedStart),
                     $"bucket {bucket} did not point at its scattered metadata prefix");
@@ -152,7 +250,7 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             }
 
             Assert.That(nonEmptyBuckets, Is.GreaterThan(8),
-                "Fixture must exercise many indirect bucket start-instance offsets.");
+                "Fixture must exercise many GPU bucket metadata offsets.");
             Assert.That(totalInstances, Is.EqualTo(VisibleCount));
             Assert.That(expectedStart, Is.EqualTo(VisibleCount));
             for (int handle = 0; handle < VisibleCount; handle++)
