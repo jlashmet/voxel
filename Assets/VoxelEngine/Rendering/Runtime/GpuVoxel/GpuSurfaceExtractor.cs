@@ -292,6 +292,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private static readonly int IdSampleMaterial = Shader.PropertyToID("_SampleMaterial");
         private static readonly int IdSampleSurface = Shader.PropertyToID("_SampleSurface");
         private static readonly int IdSampleBoundary = Shader.PropertyToID("_SampleBoundary");
+        private static readonly int IdDirectoryProbeCount = Shader.PropertyToID("_PersistentDirectoryProbeCount");
         private static readonly int IdBrickMaterials = Shader.PropertyToID("_BrickMaterials");
         private static readonly int IdBrickSurface = Shader.PropertyToID("_BrickSurfaceSemantics");
         private static readonly int IdBrickBoundary = Shader.PropertyToID("_BrickBoundarySamples");
@@ -1853,6 +1854,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _shader.SetBuffer(kernel, IdSampleSurface, _sampleSurface);
             _shader.SetBuffer(kernel, IdSampleBoundary, _sampleBoundary);
             _shader.SetBuffer(kernel, IdBrickMaterials, mirror.Materials);
+            _shader.SetInt(IdDirectoryProbeCount, mirror.MaximumDirectoryProbeCount);
             _shader.SetBuffer(kernel, IdBrickSurface, mirror.SurfaceSemantics);
             _shader.SetBuffer(kernel, IdBrickBoundary, mirror.BoundarySamples);
             _shader.SetBuffer(kernel, IdBrickCache, _brickCache);
@@ -1878,6 +1880,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                                      CountBatchResources resources)
         {
             _shader.SetBuffer(kernel, IdBrickMaterials, mirror.Materials);
+            _shader.SetInt(IdDirectoryProbeCount, mirror.MaximumDirectoryProbeCount);
             _shader.SetBuffer(kernel, IdBrickSurface, mirror.SurfaceSemantics);
             _shader.SetBuffer(kernel, IdBrickBoundary, mirror.BoundarySamples);
             _shader.SetBuffer(kernel, IdBrickCache, resources.PreparedCache.DenseEntries);
@@ -1974,6 +1977,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             commands.SetComputeBufferParam(_shader, kernel, IdSampleSurface, _sampleSurface);
             commands.SetComputeBufferParam(_shader, kernel, IdSampleBoundary, _sampleBoundary);
             commands.SetComputeBufferParam(_shader, kernel, IdBrickMaterials, mirror.Materials);
+            commands.SetComputeIntParam(_shader, IdDirectoryProbeCount, mirror.MaximumDirectoryProbeCount);
             commands.SetComputeBufferParam(_shader, kernel, IdBrickSurface,
                                            mirror.SurfaceSemantics);
             commands.SetComputeBufferParam(_shader, kernel, IdBrickBoundary,

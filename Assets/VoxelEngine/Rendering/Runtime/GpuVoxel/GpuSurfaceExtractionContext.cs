@@ -267,7 +267,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                     VoxelBrickDelta.MixedAt(coordinate, generation, brick.MixedOffset),
                     mixedVoxels, mixedSurfaceSemantics, mixedBoundarySamples,
                     brick.MixedOffset, hasPayload: true);
-                if (published is GpuBrickPublish.NoSlot or GpuBrickPublish.PayloadMissing
+                if (published is GpuBrickPublish.NoSlot or GpuBrickPublish.DirectoryFull or GpuBrickPublish.PayloadMissing
                     || !_mirror.TryGetSlot(coordinate, out int slot)
                     || !_mirror.Pin(coordinate))
                 {

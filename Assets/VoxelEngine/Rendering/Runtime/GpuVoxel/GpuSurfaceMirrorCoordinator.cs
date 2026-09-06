@@ -1026,7 +1026,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                     };
                     GpuBrickPublish result = PublishBlock(
                         in delta, in view, localBlock, block.Kind);
-                    if (result is GpuBrickPublish.NoSlot or GpuBrickPublish.PayloadMissing
+                    if (result is GpuBrickPublish.NoSlot or GpuBrickPublish.DirectoryFull or GpuBrickPublish.PayloadMissing
                         or GpuBrickPublish.Stale)
                     {
                         s_LastRecoveryFailure = result;
@@ -1090,8 +1090,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 : s_Mirror.Publish(delta, default(NativeArray<byte>),
                                    default(NativeArray<ushort>),
                                    default(NativeArray<byte>), 0, false);
-            if (result != GpuBrickPublish.NoSlot || !TryEvictInactiveMixedBlock())
-                return result;
+            bool reclaimed = result == GpuBrickPublish.DirectoryFull
+                ? TryEvictInactiveDirectoryBlock()
+                : result == GpuBrickPublish.NoSlot && TryEvictInactiveMixedBlock();
+            if (!reclaimed) return result;
             return kind == VoxelReadBlockKind.Mixed
                 ? s_Mirror.Publish(delta, in view, localBlock)
                 : s_Mirror.Publish(delta, default(NativeArray<byte>),
@@ -1107,6 +1109,28 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         /// the evicted block belongs to no pending scan, while restarting every unrelated scan on
         /// each capacity eviction creates a permanent liveness failure during camera motion.
         /// </summary>
+        private static int s_DirectoryEvictionCursor;
+
+        private static bool TryEvictInactiveDirectoryBlock()
+        {
+            // Directory capacity includes uniform keys, which never enter the mixed-slot LRU.
+            // Scan a bounded slice of the actual directory and retain its cursor across retries.
+            for (int checkedEntries = 0; checkedEntries < 64; checkedEntries++)
+            {
+                int index = s_DirectoryEvictionCursor & s_Mirror.DirectoryMask;
+                // An odd stride visits every bucket of the power-of-two table while spreading
+                // victims across its hash range; a linear sweep concentrates live-key clusters.
+                s_DirectoryEvictionCursor = unchecked(index + (int)0x9E3779B9u) & s_Mirror.DirectoryMask;
+                if (!s_Mirror.TryReadDirectoryCoordinate(index, out int3 block)
+                    || IsBlockDemanded(block) || IsBlockActive(block)) continue;
+                RemoveReadyBlock(block);
+                s_MixedReadyBlocks.Remove(block);
+                s_Mirror.Remove(block);
+                return true;
+            }
+            return false;
+        }
+
         private static bool TryEvictInactiveMixedBlock()
         {
             int attempts = s_MixedResidencyOrder.Count;
@@ -1333,6 +1357,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             s_RegionLastSolidChangeVersion.Clear();
             s_ActiveRegionReaders.Clear();
             s_ActiveFootprints.Clear();
+            s_DirectoryEvictionCursor = 0;
             s_DemandFootprints.Clear();
             s_DemandCoverageEpochs.Clear();
             s_Changes.Clear();

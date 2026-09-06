@@ -15,6 +15,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         NoSlot = 3,
         Stale = 4,
         PayloadMissing = 5,
+        DirectoryFull = 6,
     }
 
     /// <summary>
@@ -46,7 +47,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         // avoids probing a tombstone-filled GPU hash layout to prove a CPU lookup is absent.
         private readonly Dictionary<int3, int> _directoryIndexByCoordinate = new();
         private const uint DirectoryOccupied = 1u;
-        private const uint DirectoryTombstone = 2u;
         private const string DirectoryUpdaterResourcePath = "VoxelBrickDirectoryUpdater";
         private const int ThreadGroupSize = 64;
 
@@ -105,6 +105,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         public int SlotCapacity { get; }
         public int DirectoryCapacity { get; }
+        internal int DirectoryLiveCapacity => DirectoryCapacity * 3 / 4;
+        private int _maximumDirectoryProbeCount;
+        internal int MaximumDirectoryProbeCount => Math.Max(1, _maximumDirectoryProbeCount);
         public int DirectoryMask => DirectoryCapacity - 1;
         public int DirectoryWordOffset { get; }
         public int ResidentBricks => _slots.ResidentCount;
@@ -241,6 +244,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _clearPending = false;
             _slots.Clear();
             _directoryIndexByCoordinate.Clear();
+            _maximumDirectoryProbeCount = 0;
             Array.Clear(_dirtySlots, 0, _dirtySlots.Length);
             Array.Clear(_dirtyDirectoryEntries, 0, _dirtyDirectoryEntries.Length);
             _dirtyMin = int.MaxValue;
@@ -288,12 +292,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                         RemoveLookup(delta.Coordinate);
                         return GpuBrickPublish.MetadataOnly;
                     }
-                    if (!PublishLookup(delta, -1)) return GpuBrickPublish.NoSlot;
+                    if (!PublishLookup(delta, -1)) return GpuBrickPublish.DirectoryFull;
                     return GpuBrickPublish.MetadataOnly;
                 case GpuBrickAdmission.Resident:
-                    if (!_slots.TryGetSlot(delta.Coordinate, out slot)
-                        || !PublishLookup(delta, slot))
-                        return GpuBrickPublish.NoSlot;
+                    if (!_slots.TryGetSlot(delta.Coordinate, out slot)) return GpuBrickPublish.NoSlot;
+                    if (!PublishLookup(delta, slot)) return GpuBrickPublish.DirectoryFull;
                     SkippedAlreadyResident++;
                     return GpuBrickPublish.AlreadyResident;
             }
@@ -319,7 +322,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (!PublishLookup(delta, slot))
             {
                 _slots.Release(delta.Coordinate);
-                return GpuBrickPublish.NoSlot;
+                return GpuBrickPublish.DirectoryFull;
             }
 
             UploadedBricks++;
@@ -353,12 +356,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                         RemoveLookup(delta.Coordinate);
                         return GpuBrickPublish.MetadataOnly;
                     }
-                    if (!PublishLookup(delta, -1)) return GpuBrickPublish.NoSlot;
+                    if (!PublishLookup(delta, -1)) return GpuBrickPublish.DirectoryFull;
                     return GpuBrickPublish.MetadataOnly;
                 case GpuBrickAdmission.Resident:
-                    if (!_slots.TryGetSlot(delta.Coordinate, out slot)
-                        || !PublishLookup(delta, slot))
-                        return GpuBrickPublish.NoSlot;
+                    if (!_slots.TryGetSlot(delta.Coordinate, out slot)) return GpuBrickPublish.NoSlot;
+                    if (!PublishLookup(delta, slot)) return GpuBrickPublish.DirectoryFull;
                     SkippedAlreadyResident++;
                     return GpuBrickPublish.AlreadyResident;
             }
@@ -380,7 +382,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (!PublishLookup(delta, slot))
             {
                 _slots.Release(delta.Coordinate);
-                return GpuBrickPublish.NoSlot;
+                return GpuBrickPublish.DirectoryFull;
             }
 
             UploadedBricks++;
@@ -421,10 +423,31 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         private void RemoveLookup(int3 coordinate)
         {
-            if (!_directoryIndexByCoordinate.TryGetValue(coordinate, out int index)) return;
+            if (!_directoryIndexByCoordinate.TryGetValue(coordinate, out int hole)) return;
             _directoryIndexByCoordinate.Remove(coordinate);
-            _directoryStaging[index * DirectoryWordsPerEntry + 4] = DirectoryTombstone;
-            MarkDirectoryDirty(index);
+            _directoryStaging[hole * DirectoryWordsPerEntry + 4] = 0u;
+            MarkDirectoryDirty(hole);
+            // Backward-shift deletion preserves each remaining key's linear probe chain.
+            // Payload slots and logical source values do not move. Flush publishes the final
+            // directory through the same ordered graphics queue as its readers, never mid-query.
+            int scan = (hole + 1) & DirectoryMask;
+            for (int inspected = 0; inspected < DirectoryCapacity - 1; inspected++)
+            {
+                if (!TryReadDirectoryCoordinate(scan, out int3 key)) break;
+                int home = (int)(HashCoordinate(key) & (uint)DirectoryMask);
+                if (((hole - home) & DirectoryMask) < ((scan - home) & DirectoryMask))
+                {
+                    for (int word = 0; word < DirectoryWordsPerEntry; word++)
+                        _directoryStaging[hole * DirectoryWordsPerEntry + word] =
+                            _directoryStaging[scan * DirectoryWordsPerEntry + word];
+                    _directoryIndexByCoordinate[key] = hole;
+                    MarkDirectoryDirty(hole);
+                    _directoryStaging[scan * DirectoryWordsPerEntry + 4] = 0u;
+                    MarkDirectoryDirty(scan);
+                    hole = scan;
+                }
+                scan = (scan + 1) & DirectoryMask;
+            }
         }
 
         private void MarkDirectoryDirty(int index)
@@ -434,8 +457,19 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (index > _directoryDirtyMax) _directoryDirtyMax = index;
         }
 
+        internal bool TryReadDirectoryCoordinate(int index, out int3 coordinate)
+        {
+            int word = index * DirectoryWordsPerEntry;
+            coordinate = new int3(unchecked((int)_directoryStaging[word]),
+                unchecked((int)_directoryStaging[word + 1]), unchecked((int)_directoryStaging[word + 2]));
+            return _directoryStaging[word + 4] == DirectoryOccupied;
+        }
+
         private int FindFreeDirectoryIndex(int3 coordinate)
         {
+            // Keep insertion chains bounded under churn; pressure reclamation may remove cold
+            // uniform or mixed keys before retrying, without changing the allocated byte budget.
+            if (_directoryIndexByCoordinate.Count >= DirectoryLiveCapacity) return -1;
             // The host index already proves this key absent, so the first tombstone is safe
             // to reuse without scanning the rest of the table for a duplicate.
             int index = (int)(HashCoordinate(coordinate) & (uint)DirectoryMask);
@@ -444,7 +478,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 DirectoryProbeChecks++;
                 int candidate = (index + probe) & DirectoryMask;
                 uint state = _directoryStaging[candidate * DirectoryWordsPerEntry + 4];
-                if (state != DirectoryOccupied) return candidate;
+                if (state != DirectoryOccupied)
+                {
+                    _maximumDirectoryProbeCount = Math.Max(_maximumDirectoryProbeCount, probe + 1);
+                    return candidate;
+                }
             }
             return -1;
         }
@@ -701,6 +739,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (_payloadDeltaStaging.IsCreated) _payloadDeltaStaging.Dispose();
             _slots.Clear();
             _directoryIndexByCoordinate.Clear();
+            _maximumDirectoryProbeCount = 0;
         }
     }
 }

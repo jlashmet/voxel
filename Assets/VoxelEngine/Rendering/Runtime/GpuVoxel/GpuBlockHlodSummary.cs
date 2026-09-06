@@ -62,6 +62,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             shader.SetInt("_HlodBlockCount", count);
             shader.SetInt("_HlodDirectoryOffset", mirror.DirectoryWordOffset);
             shader.SetInt("_HlodDirectoryMask", mirror.DirectoryCapacity - 1);
+            shader.SetInt("_PersistentDirectoryProbeCount", mirror.MaximumDirectoryProbeCount);
             shader.SetInt("_SolidWaterMaterialMask", unchecked((int)waterMaterialMask));
             shader.Dispatch(kernel, count, 1, 1);
         }

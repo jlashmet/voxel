@@ -6,22 +6,25 @@ Deliver production-quality `Assets/Scenes/VoxelShowcase.unity` through GPU rende
 
 ## Execution and retained results
 
-Local harness/tests/screenshots are authorized. Last requested push reached `origin/fixes/agent-1` at `64b2921a3`; local HEAD is `84403618f` in `/private/tmp/voxel-gpu-restoration`, branch `gpu-rendering-agent-1-resume`. Current changes are uncommitted.
+Local harness/tests/screenshots are authorized. Last requested push reached `origin/fixes/agent-1` at `64b2921a3`; local HEAD is `bda8c4ef8` in `/private/tmp/voxel-gpu-restoration`, branch `gpu-rendering-agent-1-resume`. Current changes are uncommitted.
 
-Earlier work repaired allocation/layout/publication, source retention/clear, far handoff, summit residency, proxy walls and prism roofs. Step8 has GPU summaries, meshing and real-player module proof. Step4 and water remain CPU-backed. Coverage invalidation is footprint-scoped; world resets still cancel all. Previous Showcase remains **unacceptable**: terrain gaps, coarse far geometry/materials and missing traversal coverage. No visual or performance acceptance.
+Earlier allocation, lifetime, handoff and geometry repairs are retained. Step8 has GPU summaries/meshing and module proof. Step4 and water remain CPU-backed. Scoped invalidation protects unrelated work. Host directory indexing and rebalanced allocation preserve the prior GPU-byte ceiling while supporting two uniform coarse cores. Detailed evidence is in [tasks.md](tasks.md).
+
+The previous 180s Showcase completed but failed acceptance: four coarse publications followed by 11,981 directory refusals with mixed slots still available. Reviewed 75.1s/150.2s was **unacceptable**, including an obstructed black traversal view. Borrowing, active-reader stalls, scan starvation, replay deadlines and global restarts were falsified as sole backlog causes.
 
 ## Current findings and experiments
 
-`gpu-coarse-progress-trace/` completed 90s/six captures. Oldest coarse request made 6,732 polls with zero restarts; recovery ran 9,566 times with zero deadline skips. Borrow/block-read/active-reader counters remained zero. Scan starvation, edit replay and global resets are falsified as sole causes.
+Directory exhaustion now has an explicit `DirectoryFull` outcome. Recovery scans a bounded directory slice to reclaim cold uniform or mixed keys, retaining its cursor and protecting demanded/active footprints. Before regression returned `NoSlot` instead of reclaiming cold uniform keys; after tests preserve protected sources and refuse when everything is protected.
 
-Three bounded host/source repairs are under validation:
-- A failed cleanup slice now runs once per frame, resumes next frame and retains demanded sources. Regression: 1,024 checks before versus at most 64 after for 16 admissions. This alone did not unblock Showcase.
-- A CPU index of existing GPU directory keys avoids exhaustive absent-key searches through tombstones and permits immediate tombstone reuse. Regression: 16,384 probes for 16 missing keys before; bounded afterwards. GPU collision/reuse/clear tests pass. This exposed `NoSlot` with only 1,949/65,536 mixed slots used: the separate uniform directory was full.
-- Shared allocation now exchanges mixed payload slots for 1,048,576 directory entries within the previous actual GPU-byte ceiling. Byte accounting includes metadata. The old layout failed after 262,144 uniform keys; the new layout publishes and GPU-reads two 64³ coarse cores (524,288 keys), with no larger GPU allocation.
+The allocated directory retains 25% free capacity. CPU insertion records a conservative maximum probe distance; deletions cannot increase any live key's displacement. GPU resolver, summary and legacy persistent lookup consume that bound. This preserves all live keys while avoiding full-capacity negative searches through tombstones. The host rejects a full live-key set without scanning the whole table. No allocation-byte increase or authoritative-state change.
 
-All 49 targeted tests pass in 20s. `gpu-directory-capacity-showcase/` finished 180s with 11 captures and no exceptions/transaction rejection. Step8 publications rose to four; near publication advanced, then traversal reached 11,981 directory refusals despite only 39,070/58,144 mixed slots used. Reviewed 75.1s/150.2s remains **unacceptable**: terrain gaps/coarse artifacts and an obstructed black traversal view. Module passes: 48s, eight captures, terminal exit0. No coverage/performance acceptance.
+The first reclamation/probe-bound run completed 180s/11 captures but still developed long searches: a linear eviction sweep concentrated directory holes, and deletion tombstones retained long probe chains. That combination is falsified as sufficient.
 
-H1: directory pressure cannot reclaim cold uniform keys because `PublishBlock` only evicts mixed entries on `NoSlot`. H2: long-lived GPU tombstone tables also make absent-key lookups scan the full capacity; observed GPU windows reach about 750ms. Next distinguish directory exhaustion from mixed-slot exhaustion, test reclamation of cold uniform keys while protecting demanded/active footprints, then bound GPU lookup by a proven probe limit or compact safely. Do not just enlarge the directory again. Host index memory and mixed-slot pressure remain G22 validation gates.
+Deletion now shifts entries backward along valid probe chains without moving payload slots. Ordered GPU updates preserve queued readers; odd-stride victim selection spreads reclamation. All 48 targeted tests pass in 24s, including queued reads across table wrap and protected/all-protected sources.
+
+`gpu-directory-backshift-showcase/` completed 180s/11 captures/exit 0. Reviewed 75.1s and 150.1s: black obstruction absent, but overall **unacceptable** (unfinished terrain/presentation and incomplete coverage). Final diagnostics: 2,203 publications, only three step8; 1,041,989 directory refusals, 29,984,389 insertion probes, oldest step8 request 20.8s. Late diagnostic CPU p50 6–8ms/GPU p50 roughly 1ms is not accepted performance evidence. Near-module rerun passed 48s/eight captures/exit 0; publication/edit/far handoff passed with zero fallback. Reviewed 42s fixture is prototype quality.
+
+H1: source demand exceeds simultaneous protected directory capacity. H2: coarse readiness rescans delay publication despite recovered sources. Next isolate coarse source coverage in the production module, distinguishing protected live-key capacity from readiness rounds before changing admission. Full GPU migration remains the priority; defer broader optimization.
 
 ## Remaining gates
 

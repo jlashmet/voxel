@@ -93,6 +93,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _shader.SetBuffer(_kernel, IdPersistentLookupHeader, _buffers.DirectoryHeader);
             _shader.SetBuffer(_kernel, IdRequests, _buffers.RequestViews);
             _shader.SetBuffer(_kernel, IdWrite, _buffers.DenseEntries);
+            _shader.SetInt("_PersistentDirectoryProbeCount", mirror.MaximumDirectoryProbeCount);
             _shader.SetInt(IdEdge, _edge);
             _shader.SetInt(IdRequestCount, recordCount);
             _shader.Dispatch(_kernel,

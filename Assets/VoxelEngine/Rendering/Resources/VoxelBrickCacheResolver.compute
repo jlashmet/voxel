@@ -9,6 +9,7 @@ StructuredBuffer<uint> _PersistentLookupHeader;
 StructuredBuffer<int4> _ResolvedBrickCacheRequests;
 RWStructuredBuffer<uint> _ResolvedBrickCacheWrite;
 
+uint _PersistentDirectoryProbeCount;
 int _ResolvedBrickCacheEdge;
 int _ResolvedBrickCacheRequestCount;
 
@@ -32,8 +33,12 @@ uint PersistentBrickEntry(int3 coordinate)
     uint mask = _PersistentLookupHeader[1];
     uint start = HashBrickCoordinate(coordinate) & mask;
 
+    // No live key lies beyond the longest successful host insertion probe. Deletions leave
+    // tombstones but cannot increase that distance. Zero preserves explicit legacy/test headers.
+    uint limit = _PersistentDirectoryProbeCount == 0u ? mask + 1u
+        : min(_PersistentDirectoryProbeCount, mask + 1u);
     [loop]
-    for (uint probe = 0u; probe <= mask; probe++)
+    for (uint probe = 0u; probe < limit; probe++)
     {
         uint slot = (start + probe) & mask;
         uint word = wordOffset + slot * DIRECTORY_WORDS_PER_ENTRY;

@@ -64,7 +64,9 @@ void Summarize(uint3 group, uint lane)
         s_Known = _HlodBlocks[group.x].w == 1 ? 1u : 0u;
         int3 coordinate = _HlodBlocks[group.x].xyz;
         uint start = HashBrickCoordinate(coordinate) & _HlodDirectoryMask;
-        [loop] for (uint probe = 0u; probe <= _HlodDirectoryMask; probe++)
+        uint limit = _PersistentDirectoryProbeCount == 0u ? _HlodDirectoryMask + 1u
+            : min(_PersistentDirectoryProbeCount, _HlodDirectoryMask + 1u);
+        [loop] for (uint probe = 0u; probe < limit; probe++)
         {
             uint word = _HlodDirectoryOffset + ((start + probe) & _HlodDirectoryMask) * 5u;
             uint state = _BrickMaterials[word + 4u];

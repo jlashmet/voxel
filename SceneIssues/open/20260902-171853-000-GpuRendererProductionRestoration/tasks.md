@@ -24,6 +24,26 @@ Each completed item needs exact feature SHA, request/run IDs, relevant executed 
 
 ## Current local evidence (2026-09-06)
 
+`gpu-directory-backshift-module/`: 48s/eight captures/terminal exit 0; publication, edit and
+far-handoff markers passed, fallback 0, visible 8/missing 0. Reviewed exact 42s capture: prototype
+validation fixture, not full-scene visual acceptance. Exact source copies/hashes retained with both players.
+
+Directory-pressure repair checkpoint (local diff after `bda8c4ef8`): explicit `DirectoryFull`,
+bounded cold uniform/mixed reclamation with demanded/active protection, 75% directory live-key
+limit within unchanged allocated bytes, conservative GPU lookup bound, backward-shift deletion
+and distributed victim selection. Before cold-uniform regression failed; final
+`gpu-directory-backshift.xml`: 48 passed in 24s, terminal exit 0, including actual queued GPU reads
+across collision relocation/wrap. Intermediate `gpu-directory-reclamation-showcase/` completed
+180s/11 captures but failed coverage and retained long searches; not visual-reviewed.
+
+`gpu-directory-backshift-showcase/`: 180s/11 captures/terminal exit 0. Reviewed exact 75.1s and
+150.1s screenshots: black obstruction absent in these views; overall **unacceptable** due to
+unfinished terrain/presentation and incomplete coverage. Final 2,203 publications include only
+three step8, with 1,041,989 directory refusals and oldest step8 request 20.8s. Directory insertion
+probes 29,984,389 versus billions previously; late CPU p50 6–8ms/GPU p50 roughly 1ms remains
+instrumented diagnostic evidence, not benchmark acceptance. G07/G11/G12/G22 remain open.
+
+
 Latest coarse-source checkpoint (still incomplete): request-progress/recovery diagnostics falsify
 source borrowing, active-reader stalls, scan starvation and change-replay deadline starvation as
 sole causes. `gpu-coarse-progress-trace/`: 90s/six captures/terminal exit 0; oldest coarse request
