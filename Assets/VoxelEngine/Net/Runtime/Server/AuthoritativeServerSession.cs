@@ -4,6 +4,7 @@ using Unity.Mathematics;
 using Unity.Networking.Transport;
 using VoxelEngine.Edits.Api;
 using VoxelEngine.Storage.Api;
+using VoxelEngine.Net.Api;
 using VoxelEngine.Net.Runtime.Protocol;
 
 namespace VoxelEngine.Net.Runtime.Server
@@ -11,7 +12,7 @@ namespace VoxelEngine.Net.Runtime.Server
     /// <summary>
     /// Safe composition root for live authoritative networking.
     /// </summary>
-    public sealed class AuthoritativeServerSession : IDisposable
+    public sealed class AuthoritativeServerSession : IDisposable, IAuthoritativePlayerAdmission
     {
         private readonly ServerCommandInbox _inbox;
         private readonly ServerConvergenceInbox _convergenceInbox;
@@ -99,6 +100,25 @@ namespace VoxelEngine.Net.Runtime.Server
         {
             ThrowIfDisposed();
             return _network.TrySendSessionAdmissionReply(connectionId, payload);
+        }
+
+        /// <summary>
+        /// Sessions-facing admission port. A retry of the same live connection/player confirms the
+        /// existing binding; it never respawns, changes permissions, or accounts for another join.
+        /// Raw AuthenticateConnection retains its strict new-registration semantics for existing callers.
+        /// </summary>
+        public bool AuthenticateNetworkPlayer(uint connectionId, ushort networkPlayerId,
+            NetworkSpawnPosition authoritativePosition, int reachVoxels, bool canAlterWorld)
+        {
+            ThrowIfDisposed();
+            if (networkPlayerId == 0 || reachVoxels <= 0 || !_network.ContainsConnection(connectionId))
+                return false;
+            if (_players.TryGetByConnection(connectionId, out var current))
+                return current.PlayerId == networkPlayerId;
+
+            return AuthenticateConnection(connectionId, networkPlayerId,
+                new int3(authoritativePosition.X, authoritativePosition.Y, authoritativePosition.Z),
+                reachVoxels, canAlterWorld);
         }
 
         public bool AuthenticateConnection(

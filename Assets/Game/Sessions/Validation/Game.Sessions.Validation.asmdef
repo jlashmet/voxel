@@ -1,14 +1,14 @@
 {
-  "name": "VoxelEngine.Net.Validation",
-  "rootNamespace": "VoxelEngine.Net.Validation",
+  "name": "Game.Sessions.Validation",
+  "rootNamespace": "Game.Sessions.Validation",
   "references": [
+    "Game.Sessions.Api",
+    "Game.Sessions.Runtime",
+    "Game.Characters.Api",
     "VoxelEngine.Net.Api",
     "VoxelEngine.Net.Runtime",
     "VoxelEngine.Edits.Api",
     "VoxelEngine.Edits.Runtime",
-    "VoxelEngine.Storage.Api",
-    "VoxelEngine.Storage.Runtime",
-    "Unity.Collections",
     "Unity.Mathematics",
     "Unity.Networking.Transport"
   ],

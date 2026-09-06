@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "runSeconds": 10,
+  "capture": {
+    "width": 1280,
+    "height": 720,
+    "intervalSeconds": 2,
+    "minimumFrames": 4,
+    "evidenceAfterSeconds": 1
+  },
+  "timeline": {},
+  "assertions": {
+    "requiredLogPatterns": [
+      "SESSION_NETWORK_ADMISSION rejected: sessionsUnchanged=True productionRegistry=True",
+      "SESSION_NETWORK_ADMISSION retry: readinessPreserved=True permissionEscalation=False liveReplacementRejected=True",
+      "SESSION_NETWORK_ADMISSION reconnect: stableMember=True stableSlot=True stableCharacter=True freshConnection=True",
+      "SESSION_NETWORK_ADMISSION complete: productionSessions=True productionNet=True"
+    ],
+    "forbiddenLogPatterns": [
+      "SESSION_NETWORK_ADMISSION failure:",
+      "NullReferenceException",
+      "MissingReferenceException"
+    ]
+  }
+}

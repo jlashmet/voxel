@@ -17,6 +17,7 @@
       "SESSION_ADMISSION_TRANSPORT existing-traffic: alteration=True",
       "SESSION_ADMISSION_TRANSPORT disconnect: queuedRequestDiscarded=True",
       "SESSION_ADMISSION_TRANSPORT reconnect: newConnection=True",
+      "SESSION_ADMISSION_TRANSPORT network-binding: idempotent=True collisionRejected=True permissionsPreserved=True",
       "SESSION_ADMISSION_TRANSPORT complete: productionRuntimes=True"
     ],
     "forbiddenLogPatterns": [

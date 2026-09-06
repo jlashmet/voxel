@@ -1,7 +1,7 @@
 {
   "name": "Game.Sessions.Tests",
   "rootNamespace": "Game.Sessions.Tests",
-  "references": ["Game.Sessions.Api", "Game.Sessions.Runtime", "Game.Characters.Api", "VoxelEngine.Net.Api"],
+  "references": ["Game.Sessions.Api", "Game.Sessions.Runtime", "Game.Sessions.Validation", "Game.Characters.Api", "VoxelEngine.Net.Api"],
   "includePlatforms": ["Editor"],
   "excludePlatforms": [],
   "allowUnsafeCode": false,

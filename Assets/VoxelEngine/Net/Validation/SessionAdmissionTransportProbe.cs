@@ -4,6 +4,7 @@ using Unity.Mathematics;
 using Unity.Networking.Transport;
 using VoxelEngine.Edits.Api;
 using VoxelEngine.Edits.Runtime;
+using VoxelEngine.Net.Api;
 using VoxelEngine.Net.Runtime.Client;
 using VoxelEngine.Net.Runtime.Protocol;
 using VoxelEngine.Net.Runtime.Server;
@@ -12,9 +13,10 @@ using VoxelEngine.Storage.Runtime;
 namespace VoxelEngine.Net.Validation
 {
     /// <summary>
-    /// Bounded transport-only orchestration shared by the Net player scene and its EditMode test.
-    /// The canonical authority root owns transport, queued intake and fixed-tick processing. Copied
-    /// packet observations are not Sessions admission policy or separate-process gameplay evidence.
+    /// Bounded Net boundary orchestration shared by the player scene and its EditMode test.
+    /// The canonical authority owns transport, queued intake and fixed-tick processing. Admission
+    /// delivery alone grants no identity; the explicit Net API is tested separately afterward.
+    /// This does not implement Sessions policy or separate-process gameplay evidence.
     /// </summary>
     public sealed class SessionAdmissionTransportProbe : IDisposable
     {
@@ -50,6 +52,7 @@ namespace VoxelEngine.Net.Validation
         public bool ReplacedConnection { get; private set; }
         public bool TickDeferred { get; private set; }
         public bool DisconnectedRequestDiscarded { get; private set; }
+        public bool StableNetworkAdmission { get; private set; }
         public string PhaseDescription => Complete ? "Complete" : "Transport phase " + _phase;
 
         public SessionAdmissionTransportProbe()
@@ -116,7 +119,6 @@ namespace VoxelEngine.Net.Validation
                     uint senderB = _requests.FindSender(_requestB);
                     DistinctSenders = _oldConnection != 0 && senderB != 0 && _oldConnection != senderB;
                     Require(DistinctSenders, "distinct transport-owned senders");
-                    // Echo opaque observations outside transport callbacks, not an admission grant.
                     Require(_server.TrySendSessionAdmissionReply(_oldConnection, _requestA), "reply A");
                     Require(_server.TrySendSessionAdmissionReply(senderB, _requestB), "reply B");
                     Tick();
@@ -188,12 +190,47 @@ namespace VoxelEngine.Net.Validation
                         _repliesA.Last.AsSpan().SequenceEqual(_reconnectRequest), "replacement reply isolation");
                     RequireNoGameplayBinding();
                     Milestone?.Invoke("SESSION_ADMISSION_TRANSPORT reconnect: newConnection=True");
+                    ValidateNetworkAdmissionPort();
+                    _phase = 9;
+                    return;
+                case 9:
+                    if (_server.ConnectionCount != 0) return;
+                    Require(_server.Players.Count == 0, "normal disconnect removes authenticated actors");
                     Complete = true;
                     Milestone?.Invoke("SESSION_ADMISSION_TRANSPORT complete: productionRuntimes=True");
                     return;
                 default:
                     throw new InvalidOperationException("Unknown transport probe phase.");
             }
+        }
+
+        private void ValidateNetworkAdmissionPort()
+        {
+            uint a = _requests.FindSender(_reconnectRequest);
+            uint b = _requests.FindSender(_requestB);
+            IAuthoritativePlayerAdmission admission = _server;
+            var spawn = new NetworkSpawnPosition(1, 2, 3);
+            Require(!admission.AuthenticateNetworkPlayer(0, 11, spawn, 8, false), "reserved connection rejects");
+            Require(!admission.AuthenticateNetworkPlayer(a, 0, spawn, 8, false), "reserved player rejects");
+            Require(!admission.AuthenticateNetworkPlayer(a, 11, spawn, 0, false), "invalid reach rejects");
+            Require(!admission.AuthenticateNetworkPlayer(_oldConnection, 11, spawn, 8, false), "dead connection rejects");
+            Require(_server.Players.Count == 0, "invalid admission has no actor side effects");
+            Require(admission.AuthenticateNetworkPlayer(a, 11, spawn, 8, false), "new API admission");
+            Require(_server.UpdateAuthoritativePlayerPosition(a, new int3(17, 18, 19)), "authoritative position input");
+            Require(admission.AuthenticateNetworkPlayer(a, 11, new NetworkSpawnPosition(90, 91, 92), 99, true), "same-identity retry succeeds");
+            Require(_server.Players.TryGetByConnection(a, out var actor) && actor.PlayerId == 11 &&
+                actor.PositionVoxels.Equals(new int3(17, 18, 19)) && actor.ReachVoxels == 8 && !actor.CanAlterWorld,
+                "retry cannot respawn or escalate permissions");
+            Require(!_server.AuthenticateConnection(a, 11, int3.zero), "raw registration retains strict duplicate semantics");
+            Require(!admission.AuthenticateNetworkPlayer(a, 12, spawn, 8, false), "connection identity cannot change");
+            Require(!admission.AuthenticateNetworkPlayer(b, 11, spawn, 8, false), "player cannot occupy two connections");
+            Require(!admission.AuthenticateNetworkPlayer(a, 11, spawn, -1, false), "retry still validates inputs");
+            Require(_server.Players.Count == 1, "collisions retain exactly the existing actor");
+            Require(admission.AuthenticateNetworkPlayer(b, 12, spawn, 8, false), "independent client admission");
+            Require(_server.Players.Count == 2, "one actor per admitted connection");
+            StableNetworkAdmission = true;
+            Milestone?.Invoke("SESSION_ADMISSION_TRANSPORT network-binding: idempotent=True collisionRejected=True permissionsPreserved=True");
+            Require(_server.Disconnect(a) && _server.Disconnect(b), "authority-owned cleanup");
         }
 
         private void Tick()
@@ -230,17 +267,28 @@ namespace VoxelEngine.Net.Validation
         {
             if (_disposed) return;
             _disposed = true;
-            try { _clientA?.Dispose(); }
+            try
+            {
+                if (_server != null && _requests.Count == 3)
+                {
+                    _server.Disconnect(_requests.FindSender(_reconnectRequest));
+                    _server.Disconnect(_requests.FindSender(_requestB));
+                }
+            }
             finally
             {
-                try { _clientB?.Dispose(); }
+                try { _clientA?.Dispose(); }
                 finally
                 {
-                    try { _server?.Dispose(); }
+                    try { _clientB?.Dispose(); }
                     finally
                     {
-                        try { if (_poolCreated) _pool.Dispose(); }
-                        finally { if (_tableCreated) _table.Dispose(); }
+                        try { _server?.Dispose(); }
+                        finally
+                        {
+                            try { if (_poolCreated) _pool.Dispose(); }
+                            finally { if (_tableCreated) _table.Dispose(); }
+                        }
                     }
                 }
             }
@@ -255,7 +303,6 @@ namespace VoxelEngine.Net.Validation
                 throw new InvalidOperationException("Unadmitted clients must not produce gameplay input.");
         }
 
-        // Fixed-capacity copied observations, invoked by the authority tick rather than transport.
         private sealed class AdmissionObservations : IAuthoritativeSessionAdmissionConsumer
         {
             private readonly byte[][] _payloads = new byte[3][];
