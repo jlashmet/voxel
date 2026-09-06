@@ -1,27 +1,27 @@
 # 25 Multiplayer end-to-end gameplay validation — implementation plan
 
-**Acceptance:** one exact packaged build; separate authority/client processes; production formation, durable identity/baseline convergence, contested gameplay/conservation, combat/progression, interruption/reconnect/current-state recovery, explicit leave, capacity/JIP/repeated reconnect/persisted rehost, and durable exact-SHA evidence. Every required tasks.md item remains binding.
+**Acceptance:** one packaged build; separate authority/client processes; production formation, identity/baseline convergence, contention/conservation, combat/progression, interruption/reconnect/current-state recovery, explicit leave, capacity/JIP/repeated reconnect/persisted rehost, and durable exact-SHA evidence. Every tasks.md criterion remains binding.
 
-**Ownership:** shared validation infrastructure and Kentridge composition, with prerequisite fixes in existing owners. Dependencies 06/07/08/14 and authoritative gameplay modules; System24 is related, not a prerequisite. No fake networking, parallel authority or privileged scenario mutation.
+**Ownership:** shared validation and Kentridge composition, with prerequisite fixes in existing owners. Dependencies 06/07/08/14 and authoritative gameplay modules; System24 is related, not prerequisite. No fake networking, parallel authority or privileged scenario mutation.
 
-## Current discriminator / selected work
+## Implemented / discriminator
 
-Resume source `37ddc626a2cc4c7d31751a4f16d03f6aa74df657`; implementation parent `f678a5f7e44a6d6e9366316d006d25bd7ebe27b8`. Master fetched through connected GitHub: `ef475182b866eabfe8e1d1a39c82bf7810a03f49`. Local Git fetch cannot resolve github.com.
+Implementation: `9e45d7169dc6d97de54fc650975a5709ee6ec811`; planning: `66de64ff214b74ce6b8885d0ec394ac6cc00067d`; resume source: `37ddc626a2cc4c7d31751a4f16d03f6aa74df657`. Connected GitHub master: `ef475182b866eabfe8e1d1a39c82bf7810a03f49`; local Git fetch fails DNS.
 
-Canonical authority admission now drains copied, bounded bytes at its fixed tick; Net does not decide membership/readiness. Application's joined-party readiness correction and Net execution remain pending.
+**H1 supported:** synchronous formation requires admitted identity before UTP can reply. T25-010C now adds optional `IAsyncSessionFormationService` / request-local `ISessionFormationOperation`; synchronous providers remain supported. Application owns one nonblocking attempt, validates terminal session/member identity, blocks overlapping intent and detaches before cancellation. Leave/Quit/Dispose cannot adopt late replies. Provider exception credentials are not exposed. Host still requires Start; clients still require connected local GameplayReady and Orchestration readiness.
 
-**H1 supported by inspection:** `ISessionFormationService.Join` requires a terminal member immediately, while UTP admission is asynchronous. Reusing it alone would require blocking or manufacturing an unconfirmed client member.
+**H2 supported:** `ApplicationFrontendView` previously updated only StartingSession/InGame, leaving frontend admission/readiness stalled. It now updates FrontEnd, exposes pending Cancel/Quit, and routes error recovery through coordinator-owned cleanup.
 
-**H2 / next discriminator:** adding pending formation without request-local ownership would allow late completion after Leave/Quit to adopt the wrong party or start a graph. Exercise delayed authority result, cancellation followed by a fresh request, malformed/mismatched success, provider failure, and host versus join behavior through the real Application coordinator and Orchestrator.
+**Discriminator awaiting execution:** 37 new `ApplicationPendingFormationTests` cases cover delayed/adversarial results, cancellation/retry, host/join distinction, failures, reentrancy, navigation and synchronous compatibility using real Orchestration. The existing Application player scene includes `ApplicationPendingFormationValidation`: actual Unity view updates must produce pending, stale-result discard, single startup and normal Leave milestones. The probe never calls Application.Update. External semantic inputs are not provider/UTP or multiplayer-process proof.
 
-Selected T25-010C: optional nonblocking Sessions formation operation contract; one owned cancellable pending operation in Application; do not adopt identity until matching authority success; preserve the separate connected/GameplayReady gate and synchronous-provider compatibility. No networking or authority implementation belongs in Application. Provider deadlines and transport pumping remain provider-owned.
+Affected owners: Sessions API only (no scene behavior); Application runtime/tests/owned scene and paired scenario. Existing assembly references suffice. Structural audit verified original source hashes, scene GUID wiring and unchanged prior log/capture/run budgets. **No new C# compilation, NUnit execution or built-player execution has occurred.** T25-010A/B/C remain unchecked.
 
-Affected owners: `Assets/Game/Sessions/Api` (semantic contracts only; no scene behavior, domain boundary tests via consumers) and `Assets/Game/Application` (owned EditMode tests and existing `Validation/ApplicationFrontendValidation.unity` plus paired scenario). Extend the existing nonvisual lifecycle discriminator; it is not evidence of real provider/network/multiplayer topology. Real provider and separate-process integration remain required T25-010/011.
+## Evidence / next gates
 
-## Evidence / gates
+Request `920f0e4e4883d2c8abaf77877c1f8e55c8cd4df3` passed run `34002524305` for older source `8b95feaf7d849bc6a37b4d5a40a4e84b7e8c331a`; provenance in `ci-evidence-920f0e4.json`.
 
-Request `920f0e4e4883d2c8abaf77877c1f8e55c8cd4df3` passed run `34002524305` for source `8b95feaf7d849bc6a37b4d5a40a4e84b7e8c331a`; provenance/counts in `ci-evidence-920f0e4.json`. It does not prove later code.
+Preserved request `0078199d98f3cefe1508ae7331b23ad001b754f7`, source `f678a5f7e44a6d6e9366316d006d25bd7ebe27b8`, run `34005489004`, job `101411770518`: still queued at final continuation check. Transport unchanged; newer source needs later exact validation after completion.
 
-Preserve active request `0078199d98f3cefe1508ae7331b23ad001b754f7`, source `f678a5f7e44a6d6e9366316d006d25bd7ebe27b8`, run `34005489004`, job `101411770518`, queued at continuation check. New source needs later exact validation after this request completes. No acceptance checkboxes may be inferred from authored tests.
+Next: real Sessions/provider and host/client composition, then every gameplay/recovery/Release case. During integration, correct the inspected `SessionNetworkAdmissionAdapter` bind-before-network-success path so rejected/repeated admission cannot destroy a live binding/readiness; retain the canonical authority.
 
-**Cost:** one pending operation, no polling loop/blocking wait or extra authority; existing 1,200-byte EVENT and 256/4,096 admission limits unchanged. Finish all gameplay/recovery/Release gates, then close, merge current master and promote through PR + auto-merge only.
+**Cost:** one pending operation, no blocking/polling loop or new authority; ten-second player scenario/captures and 1,200-byte EVENT / 256-per-connection / 4,096-total limits unchanged. Close only after all criteria and exact gates pass; promotion remains PR + auto-merge.
