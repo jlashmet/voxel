@@ -25,7 +25,7 @@
 ## Production-faithful preview
 - [x] Instantiate/author the selected entry through the same production decoration/structure/world-object realization path used by shipped content; do not use `GameObject.CreatePrimitive`, bespoke preview meshes, ad-hoc materials/shaders, or fake substitute props where a production realization exists.
 - [ ] Preserve the selected content's production materials, coatings/presentation semantics, geometry backend, and applicable world-object presentation behavior. Reopened: exact run `34000107687` shows normal-coverage colours instead of voxel materials.
-- [ ] Fix the demonstrated material-mode defect by selecting production (`Color.white`) surface shading in the showcase environment, add a behavioural regression through the real enable/selection lifecycle, and verify fresh built-player material output without changing the production shader or catalogue.
+- [ ] Fix the demonstrated material-mode defect by selecting production (`Color.white`) surface shading in the showcase environment, add a behavioural regression through the real enable/selection lifecycle, and verify fresh built-player material output without changing the production shader or catalogue. Implementation exists at source `de0aa1fb`; exact validation is outstanding.
 - [x] Add a neutral but production-compatible preview environment with stable floor/contact reference and lighting that makes material and silhouette differences readable.
 - [x] Compute preview bounds from the realized content and automatically frame/position the camera so representative tiny, medium, and large entries are visible without hand-authored per-prop coordinates.
 - [ ] Keep presenter-owned geometry, floor/support references, and preview lighting on a world-space presentation root independent of the framing camera transform; prove the final framing/grounding relationship in built-player evidence.
@@ -36,11 +36,17 @@
 - [x] Add a repeated-selection stress regression that cycles through a representative set and proves stable active-object/resource counts and no exceptions.
 
 ## Module-local validation
-- [ ] For each affected player-visible/runtime module, create or update a focused scene under that module's own `<Module>/Validation/` directory; do not count top-level `PropShowcase` as the module-local validation surface. Reopened: `VoxelEngine.Showcase` owns `SceneRuntime`, so the parent Showcase validation scene does not prove its local ownership.
-- [ ] Add a focused PropShowcase production-consumer scene and scenario under `Assets/Game/Composition/Showcase/SceneRuntime/Validation/`, covering production material mode and representative selections; retain existing unrelated validation consumers.
+- [ ] For each affected player-visible/runtime module, create or update a focused scene under that module's own `<Module>/Validation/` directory; do not count top-level `PropShowcase` as the module-local validation surface. Verify every affected owner, including material composition.
+- [x] Add a focused PropShowcase production-consumer scene and scenario under `Assets/Game/Composition/Showcase/SceneRuntime/Validation/`, covering production material mode and representative selections; retain existing unrelated validation consumers. Added `PropShowcaseMaterialValidation.*` at `de0aa1fb`.
 - [x] Exercise the real production catalogue enumeration and realization path in those module-local validation scenes.
 - [x] Add module-local `*.player-scenario.json` only where runtime selection/capture/assertion behavior is needed; do not add manual registration metadata.
 - [x] Add focused EditMode/unit coverage for pure catalogue/enumeration invariants where appropriate.
+
+## Required-CI teardown blocker
+- [x] Inspect the failed artifact and isolate the failure ordering before another retry. Run `34000107687` starts the next phase before the preceding PlayMode `IPostBuildCleanup`/scene restoration; product case results had passed.
+- [ ] Isolate PlayMode module phases and explicitly requested PlayMode tests in fresh existing Unity-wrapper processes, retaining persistent EditMode batching and every required selected test/player gate.
+- [ ] Add and run subprocess behavioural regressions for two PlayMode phases followed by a focused request; reject zero-match, skipped, failed and missing test results without a hard-coded requested-test assembly.
+- [ ] Obtain successful exact-SHA execution after the orchestration repair; local Python regressions do not substitute for Unity or built-player evidence.
 
 ## Built-player acceptance
 - [ ] Build/run the exact feature SHA through the required targeted-CI transport and do not replace a queued/running request.
@@ -64,4 +70,4 @@
 - [ ] Current `origin/master` is merged into the feature branch before final promotion; PR auto-merge is enabled and the required `affected` gate passes until the SceneIssue is visible closed on master.
 
 ## Current blockers
-Run `34000107687` / request `c72cb89cea7d8a25e10dc8e716eecb300e5702ab` completed with failed automatic module validation: Unity Test Runner could not restore a deleted temporary `InitTestScene` (see `plan.md`). Standalone replay passed but its diagnostic-normal material output fails visual acceptance. No required gate is waived; perform independent material/validation work before requesting fresh exact-source CI.
+Request `e83a7fd822dab1c40d59f0f84ccd65937071fd28` / run `34003328146` remains queued for exact source `de0aa1fb4221b06f8f63e6f22fc26ffba77defc8`; leave it untouched. The preceding run's automatic module validation failed during Test Runner teardown, and its diagnostic-normal material output failed visual acceptance. No required gate is waived. Independent orchestration work is recorded above; any changed source needs a new exact request only after the existing request completes.
