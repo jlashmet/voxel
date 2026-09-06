@@ -19,6 +19,8 @@
     "Game.Input.Runtime",
     "Game.SessionOrchestration.Api",
     "Game.SessionOrchestration.Runtime",
+    "Game.Sessions.Api",
+    "Game.Sessions.Runtime",
     "Game.Vitality.Api",
     "Game.Vitality.Runtime",
     "Game.WorldBuilder.Api",
@@ -27,7 +29,10 @@
     "MountingForce.WorldGen.Core",
     "MountingForce.WorldGen.Runtime",
     "VoxelEngine.Characters.Runtime",
-    "VoxelEngine.Showcase"
+    "VoxelEngine.Net.Api",
+    "VoxelEngine.Net.Runtime",
+    "VoxelEngine.Showcase",
+    "Unity.Networking.Transport"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
