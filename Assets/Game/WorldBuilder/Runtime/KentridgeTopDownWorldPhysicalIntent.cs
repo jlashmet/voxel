@@ -1,0 +1,182 @@
+using Game.WorldBuilder.Api;
+
+namespace Game.WorldBuilder.Runtime
+{
+    /// <summary>
+    /// First physical macro-world geography/settlement pass for the source-backed Mounting Force
+    /// graph. The graph remains topology authority; these are semantic spatial constraints used by
+    /// the reusable physical planner.
+    /// </summary>
+    public static class KentridgeTopDownWorldPhysicalIntent
+    {
+        public const string RossdamLake = "rossdam-lake";
+        public const string SouthernRidge = "southern-ridge";
+        public const string SouthernPass = "southern-pass";
+        public const string KentridgeMeadow = "kentridge-meadow";
+        public const string NorthernWoodland = "northern-woodland";
+        public const string RossdamCountryside = "rossdam-countryside";
+
+        public static TopDownWorldPhysicalIntentSpec Build()
+        {
+            var regions = new[]
+            {
+                new TopDownWorldRegionSpec(
+                    KentridgeMeadow,
+                    "Kentridge Meadow Country",
+                    TopDownWorldRegionKind.PlainsMeadow,
+                    TopDownWorldRegionRelationKind.AnchoredAt,
+                    KentridgeTopDownWorldLayout.Overworld,
+                    string.Empty,
+                    halfExtentXDm: 520,
+                    halfExtentZDm: 520,
+                    elevationDeltaDm: 0,
+                    variationDm: 25,
+                    source: "first macro geography pass: open meadow country around Kentridge"),
+                new TopDownWorldRegionSpec(
+                    NorthernWoodland,
+                    "Northern Woodland",
+                    TopDownWorldRegionKind.ForestWoodland,
+                    TopDownWorldRegionRelationKind.AnchoredAt,
+                    KentridgeTopDownWorldLayout.Forest,
+                    string.Empty,
+                    halfExtentXDm: 470,
+                    halfExtentZDm: 520,
+                    elevationDeltaDm: 10,
+                    variationDm: 20,
+                    source: "first macro geography pass: forest region around recovered forest route"),
+                new TopDownWorldRegionSpec(
+                    RossdamCountryside,
+                    "Rossdam Rolling Country",
+                    TopDownWorldRegionKind.PlainsMeadow,
+                    TopDownWorldRegionRelationKind.AnchoredAt,
+                    KentridgeTopDownWorldLayout.RossdamRegion,
+                    string.Empty,
+                    halfExtentXDm: 440,
+                    halfExtentZDm: 460,
+                    elevationDeltaDm: 18,
+                    variationDm: 20,
+                    source: "first macro geography pass: rolling meadow country approaching Rossdam; use natural terrain surface rather than the generic masonry fallback"),
+                new TopDownWorldRegionSpec(
+                    RossdamLake,
+                    "Rossdam Lake",
+                    TopDownWorldRegionKind.WaterBody,
+                    TopDownWorldRegionRelationKind.Between,
+                    KentridgeTopDownWorldLayout.MoordellCorridor,
+                    KentridgeTopDownWorldLayout.RossdamApproach,
+                    // Stable seeded variation is part of the authoring contract. These nominal
+                    // margins resolve to exactly 450 x 225 dm half-extents and 24 dm depth for
+                    // Kentridge's fixed seed instead of letting negative variation shrink the
+                    // landmark below its 90 m x 45 m acceptance floor. The northwest offset keeps
+                    // the northern fighting-area junction dry while the outbound northern road and
+                    // direct Rossdam approach still require real dry-ground GoAround solutions.
+                    halfExtentXDm: 456,
+                    halfExtentZDm: 228,
+                    elevationDeltaDm: -23,
+                    variationDm: 12,
+                    offsetXDm: -400,
+                    offsetZDm: -155,
+                    source: "first macro geography pass: substantial bounded lake separating the Moordell corridor from Rossdam approach while remaining streamable at gameplay budgets"),
+                new TopDownWorldRegionSpec(
+                    SouthernRidge,
+                    "Southern Ridge",
+                    TopDownWorldRegionKind.MountainRidge,
+                    TopDownWorldRegionRelationKind.Separates,
+                    KentridgeTopDownWorldLayout.SouthFightingArea,
+                    KentridgeTopDownWorldLayout.LoganApproach,
+                    halfExtentXDm: 420,
+                    halfExtentZDm: 120,
+                    elevationDeltaDm: 110,
+                    variationDm: 8,
+                    // The generic Orc settlement's north arrival gate is intentionally on the
+                    // settlement side of the ridge. Keep the full ridge footprint, but bias the
+                    // barrier 3 m north so the road corridor can skirt it rather than relying on a
+                    // gate-to-centre segment that cuts back through blocking geography.
+                    offsetZDm: 30,
+                    source: "first macro geography pass: substantial ridge barrier across the Logan route, bounded to keep the adjacent Orc settlement envelope and arrival gate buildable"),
+                new TopDownWorldRegionSpec(
+                    SouthernPass,
+                    "Southern Ridge Pass",
+                    TopDownWorldRegionKind.ValleyPass,
+                    TopDownWorldRegionRelationKind.Between,
+                    KentridgeTopDownWorldLayout.SouthFightingArea,
+                    KentridgeTopDownWorldLayout.LoganApproach,
+                    halfExtentXDm: 80,
+                    halfExtentZDm: 300,
+                    elevationDeltaDm: 24,
+                    variationDm: 0,
+                    source: "explicit north-south pass through the authored southern ridge barrier")
+            };
+
+            var routeConstraints = new[]
+            {
+                new TopDownWorldRouteRegionConstraintSpec(
+                    KentridgeTopDownWorldLayout.FightingArea1,
+                    KentridgeTopDownWorldLayout.FightingArea2,
+                    RossdamLake,
+                    TopDownWorldRouteRegionSolutionKind.GoAround,
+                    clearanceDm: 75,
+                    source: "northern road stays on dry ground around the lake's eastern shore"),
+                new TopDownWorldRouteRegionConstraintSpec(
+                    KentridgeTopDownWorldLayout.FightingArea1,
+                    KentridgeTopDownWorldLayout.BanditHideout,
+                    RossdamLake,
+                    TopDownWorldRouteRegionSolutionKind.GoAround,
+                    clearanceDm: 75,
+                    source: "modern 3D blockout: the verified bandit spur follows dry western shoreline around the authored lake; this is a routing solution, not legacy geography evidence"),
+                new TopDownWorldRouteRegionConstraintSpec(
+                    KentridgeTopDownWorldLayout.MoordellCorridor,
+                    KentridgeTopDownWorldLayout.RossdamApproach,
+                    RossdamLake,
+                    TopDownWorldRouteRegionSolutionKind.GoAround,
+                    clearanceDm: 75,
+                    source: "Rossdam approach follows dry ground around the substantial lake"),
+                new TopDownWorldRouteRegionConstraintSpec(
+                    KentridgeTopDownWorldLayout.SouthFightingArea,
+                    KentridgeTopDownWorldLayout.OrcVillage,
+                    SouthernRidge,
+                    TopDownWorldRouteRegionSolutionKind.GoAround,
+                    clearanceDm: 45,
+                    source: "modern 3D blockout: the verified Orc Village branch starts at the ridge shoulder and may use only a contiguous endpoint escape before skirting west; this is a routing solution, not legacy geography evidence",
+                    relaxationMode: TopDownWorldConstraintRelaxationMode.EndpointEscape),
+                new TopDownWorldRouteRegionConstraintSpec(
+                    KentridgeTopDownWorldLayout.SouthFightingArea,
+                    KentridgeTopDownWorldLayout.LoganApproach,
+                    SouthernRidge,
+                    TopDownWorldRouteRegionSolutionKind.DesignatedCrossing,
+                    SouthernPass,
+                    clearanceDm: 35,
+                    source: "Logan approach uses the designated pass through the southern ridge")
+            };
+
+            var settlements = new[]
+            {
+                new TopDownWorldSettlementPhysicalSpec(
+                    KentridgeTopDownWorldLayout.Kentridge,
+                    TopDownWorldSettlementRealizationKind.ExistingRichGeneration,
+                    minimumBuildingCount: 0),
+                new TopDownWorldSettlementPhysicalSpec(
+                    KentridgeTopDownWorldLayout.Hightown,
+                    TopDownWorldSettlementRealizationKind.ExistingRichGeneration,
+                    minimumBuildingCount: 0),
+                new TopDownWorldSettlementPhysicalSpec(
+                    KentridgeTopDownWorldLayout.Moordell,
+                    TopDownWorldSettlementRealizationKind.GenericBlockout,
+                    minimumBuildingCount: 4),
+                new TopDownWorldSettlementPhysicalSpec(
+                    KentridgeTopDownWorldLayout.Rossdam,
+                    TopDownWorldSettlementRealizationKind.GenericBlockout,
+                    minimumBuildingCount: 4),
+                new TopDownWorldSettlementPhysicalSpec(
+                    KentridgeTopDownWorldLayout.FairyVillage,
+                    TopDownWorldSettlementRealizationKind.GenericBlockout,
+                    minimumBuildingCount: 4),
+                new TopDownWorldSettlementPhysicalSpec(
+                    KentridgeTopDownWorldLayout.OrcVillage,
+                    TopDownWorldSettlementRealizationKind.GenericBlockout,
+                    minimumBuildingCount: 4)
+            };
+
+            return new TopDownWorldPhysicalIntentSpec(regions, routeConstraints, settlements);
+        }
+    }
+}
