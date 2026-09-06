@@ -42,18 +42,23 @@ namespace Game.Composition.Kentridge.Playable
         private readonly IAuthoritativeSessionAdmissionConsumer _admission;
         private readonly PartySession _session;
         private readonly PartySessionApplication _application;
-        private readonly AuthoritativeServerSession _server;
+        private AuthoritativeServerSession _server;
 
         public KentridgeAuthoritativeSessionControl(
             IAuthoritativeSessionAdmissionConsumer admission,
             PartySession session,
-            PartySessionApplication application,
-            AuthoritativeServerSession server)
+            PartySessionApplication application)
         {
             _admission = admission ?? throw new ArgumentNullException(nameof(admission));
             _session = session ?? throw new ArgumentNullException(nameof(session));
             _application = application ?? throw new ArgumentNullException(nameof(application));
-            _server = server ?? throw new ArgumentNullException(nameof(server));
+        }
+
+        public void BindAuthority(AuthoritativeServerSession server)
+        {
+            if (server == null) throw new ArgumentNullException(nameof(server));
+            if (_server != null) throw new InvalidOperationException("Authority is already bound.");
+            _server = server;
         }
 
         public void HandleSessionAdmission(uint connectionId, ReadOnlySpan<byte> payload)
@@ -64,7 +69,7 @@ namespace Game.Composition.Kentridge.Playable
                 return;
             }
 
-            if (connectionId == 0 ||
+            if (_server == null || connectionId == 0 ||
                 !_session.TryResolveConnection(
                     SessionNetworkAdmissionAdapter.FromConnectionId(connectionId), out PartyMemberId memberId))
                 return;
