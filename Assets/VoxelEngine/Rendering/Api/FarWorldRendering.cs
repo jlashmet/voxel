@@ -58,7 +58,9 @@ namespace VoxelEngine.Rendering.Api
             float3 min,
             float3 max,
             byte axis = 1,
-            FarFeatureFrustum frustum = default)
+            FarFeatureFrustum frustum = default,
+            sbyte direction = 1,
+            int rampRunCells = 2)
         {
             if (math.any(max < min)) throw new ArgumentException("Far geometry primitive bounds must be ordered.");
             if (shape == FarFeatureGeometryShape.Frustum)
@@ -72,11 +74,17 @@ namespace VoxelEngine.Rendering.Api
                     || !(frustum.UpperRadii[radialA] > 0f) || !(frustum.UpperRadii[radialB] > 0f))
                     throw new ArgumentException("Far frustum cell-envelope caps must have positive depth and radial extents.");
             }
+            if (shape == FarFeatureGeometryShape.Ramp && axis != 0 && axis != 2)
+                throw new ArgumentException("Far ramp slopes must use X or Z; resolve vertical occupancy before submission.");
+            if (shape == FarFeatureGeometryShape.Ramp && rampRunCells < 2)
+                throw new ArgumentException("Single-cell ramps must be resolved to their occupied box.");
             Shape = shape;
             Min = min;
             Max = max;
             Axis = axis <= 2 ? axis : (byte)1;
             Frustum = frustum;
+            Direction = direction < 0 ? (sbyte)-1 : (sbyte)1;
+            RampRunCells = rampRunCells;
         }
 
         public FarFeatureGeometryShape Shape { get; }
@@ -84,6 +92,8 @@ namespace VoxelEngine.Rendering.Api
         public float3 Max { get; }
         public byte Axis { get; }
         public FarFeatureFrustum Frustum { get; }
+        public sbyte Direction { get; }
+        public int RampRunCells { get; }
     }
 
     /// <summary>

@@ -20,10 +20,10 @@ Normal180s Showcase completed12 captures/no transaction errors. Stationary mount
 
 ## Hypotheses and next experiments
 
-1. Remaining wall-like mountain forms come from proxy shape loss: `BuildGeometryMesh` maps Ramp and most shapes to boxes. Preserve canonical ramp direction/shape through composition and Rendering, with independent raster expectations and module/player evidence.
-2. The summit proxy also lacks a complete detailed replacement. Bake directory inspection proves region(-2,1,0) absent; its only upper regions are(0,1,0)/(0,1,1). Regression failed specifically on the absent summit region, then passed after CPU footprint residency and rebaking200 regions (147s/8.8GB). All5 focused tests pass. Normal95s player completed6 captures/no transaction errors:74.8s shows detailed summit and roofed side buildings, semantic proxies0/near1477. Quality remains unacceptable. Audit separated vertical layers/composed children and add a focused module streaming scene before accepting residency. Loading caps unchanged.
+1. Far ramps were boxed and their direction dropped. Adapter/renderer now preserve signed rise and run-cell count. Simple wedges passed shallow tests but failed both steep cases; a fixed10-vertex cell-centre profile fixes those. Vertical/one-cell cases resolve canonical occupied boxes. All21 final geometry/presentation tests pass. Production WorldBuilder far landmark module passed28s/7 captures. Reused Showcase environment/sun after the initial fixture was unreadably dark. Slopes now read; coarse silhouette/materials remain **unacceptable**. Normal180s Showcase completed12 captures/no transaction errors;149.9s still has flat traversal obstructions.
+2. Summit absence came from terrain-only residency. CPU feature footprint residency plus a200-region bake passes5 focused checks;95s player showed detailed summit/roofed side buildings, proxies0/near1477. Before acceptance, audit separated vertical layers/composed children against the unchanged cap and add a Showcase-owned streaming scene.
 
-Audit unnecessary discovery invalidation on clipmap rescans, global change-feed gating and query cost during traversal. Unresolved content/coverage must keep a valid far representation. Resume G11 cancellation/last-consumer lifetime afterward.
+Next: reproduce queued/in-flight cancellation releasing mirror resources before GPU completion; fix independent batch ownership. Then distinguish traversal draw ownership and oversized supports/ignored carves/material separation from replacement invalidation. Composition still needs its own physical validation scene. Resume G11 cancellation/last-consumer lifetime and CPU removal; do not treat shared far fixes as backend completion.
 
 ## Remaining gates
 

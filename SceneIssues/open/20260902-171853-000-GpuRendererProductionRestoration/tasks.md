@@ -255,6 +255,17 @@ checks and all3 production landmark checks pass. New source/player evidence is u
 Showcase-owned streaming player scene, audit composed-child bounds and vertically separated
 features against the existing per-column cap, then resolve remaining far shape/coverage defects.
 
+Far ramp shape correction: signed direction and canonical run-cell count now survive the
+adapter. Rendering emits a constant10-vertex closed profile instead of an AABB. Simple wedges
+failed2 steep occupancy comparisons; the cell-centre profile passes those plus shallow,
+negative-axis, vertical/one-cell, frustum and consumer tests (21/21). The new production
+WorldBuilder catalogue consumer `FarGeneratedLandmarkValidation` passed28s/7 captures;
+Showcase-authored environment/sun replaced the initial unreadable fixture lighting. Reviewed
+12s shows sloped switchbacks, but coarse massing, support forms and material separation remain
+unacceptable. Artifacts: `ramp-final-tests.xml`, `ramp-module-final/`, `ramp-showcase/`.
+Normal180s Showcase completed12 captures/no transaction errors; reviewed149.9s retains large
+flat traversal obstructions. Composition-owned scene coverage and the other G08 defects remain open.
+
 - [ ] **G08 — Resolve every missing/white/malformed GPU-visible region.** Use chunk/source revision and actual draw owner to separate voxel surfaces, far terrain and semantic far features. Preserve canonical shape parameters, materials/coatings and ordered carve semantics where required; resolve near/far overlap with correct coverage ownership, not distance-only hiding or global convergence. Reuse existing production systems. The existing bounded normal/disabled/restored probe is optional diagnosis, with restoration/opt-in regressions; disabled output never passes acceptance. Retain frustum topology/cache regressions and independent FarWorld artifacts.
 - [ ] **G09 — Accept complete GPU visuals during real use.** Inspect exact-source stationary, multiple-angle, traversal and edit captures for silhouettes, grounding, materials, seams, holes, stale chunks, near/far handoff and blockout appearance. Explain any startup incompleteness and measure convergence. All final views must meet the repository's production-quality bar without CPU fallback or removed scene content. VoxelShowcase is the visual target; do not take over another SceneIssue.
 

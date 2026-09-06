@@ -368,12 +368,34 @@ namespace VoxelEngine.Composition
                 FarFeatureFrustum frustum = primitive.Shape == PrimitiveShape.Frustum
                     ? FrustumFor(in primitive, bakeMin, bakeSize, originOffset, normalizedMin, normalizedMax)
                     : default;
+                FarFeatureGeometryShape shape = (FarFeatureGeometryShape)(byte)primitive.Shape;
+                byte axis = primitive.Axis;
+                int rampRunCells = 2;
+                if (primitive.Shape == PrimitiveShape.Ramp)
+                {
+                    axis &= ShapeOps.RampAxisMask;
+                    // BoxEmitter treats non-X/Z ramps as vertical occupancy. Positive vertical
+                    // ramps fill their box; negative ones fill its lower ceil(height / 2) cells.
+                    int alongAxis = axis == 0 || axis == 2 ? axis : 1;
+                    rampRunCells = primitive.B[alongAxis] - primitive.A[alongAxis] + 1;
+                    if (primitive.B[alongAxis] == primitive.A[alongAxis] || alongAxis == 1)
+                    {
+                        shape = FarFeatureGeometryShape.Box;
+                        if (alongAxis == 1 && primitive.Direction < 0)
+                        {
+                            int height = primitive.B.y - primitive.A.y + 1;
+                            normalizedMax.y = (primitive.A.y + (height + 1) / 2 - bakeMin.y) / bakeSize.y;
+                        }
+                    }
+                }
                 primitives.Add(new FarFeatureGeometryPrimitive(
-                    (FarFeatureGeometryShape)(byte)primitive.Shape,
+                    shape,
                     normalizedMin,
                     normalizedMax,
-                    primitive.Axis,
-                    frustum));
+                    axis,
+                    frustum,
+                    primitive.Direction,
+                    rampRunCells));
             }
 
             return primitives.Count == 0 ? null : new FarFeatureGeometry(primitives.ToArray());

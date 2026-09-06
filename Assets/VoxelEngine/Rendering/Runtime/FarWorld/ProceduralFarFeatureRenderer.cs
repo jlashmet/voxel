@@ -292,6 +292,9 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
                     case FarFeatureGeometryShape.Frustum:
                         AppendFrustum(vertices, triangles, primitive);
                         break;
+                    case FarFeatureGeometryShape.Ramp:
+                        AppendRamp(vertices, triangles, primitive);
+                        break;
                     case FarFeatureGeometryShape.Cylinder:
                     case FarFeatureGeometryShape.Annulus:
                     case FarFeatureGeometryShape.ArcWedge:
@@ -353,6 +356,47 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
                 triangles.Add(lower); triangles.Add(upperNext); triangles.Add(upper);
                 triangles.Add(lowerCenter); triangles.Add(lowerNext); triangles.Add(lower);
                 triangles.Add(upperCenter); triangles.Add(upper); triangles.Add(upperNext);
+            }
+        }
+
+        private static void AppendRamp(
+            List<Vector3> vertices, List<int> triangles, FarFeatureGeometryPrimitive primitive)
+        {
+            int start = vertices.Count;
+            // Interpolate canonical cell-centre heights, then cap the upper half-cell.
+            // A zero-to-one wedge undershoots steep ramps by half a column's rise.
+            // The profile stays constant-size regardless of the authored voxel dimensions.
+            float halfCell = 0.5f / primitive.RampRunCells;
+            float2[] profile =
+            {
+                new(0, 0), new(1, 0), new(1, 1),
+                new(1f - halfCell, 1), new(0, halfCell)
+            };
+            for (int side = 0; side < 2; side++)
+            foreach (float2 point in profile)
+            {
+                float3 p = new(point.x, point.y, side);
+                if (primitive.Direction < 0) p.x = 1f - p.x;
+                if (primitive.Axis == 2) p = p.zyx;
+                vertices.Add(ToVector3(primitive.Min + p * (primitive.Max - primitive.Min)));
+            }
+            bool reverse = (primitive.Axis == 2) != (primitive.Direction < 0);
+            void Triangle(int a, int b, int c)
+            {
+                triangles.Add(start + a);
+                triangles.Add(start + (reverse ? c : b));
+                triangles.Add(start + (reverse ? b : c));
+            }
+            for (int i = 1; i < 4; i++)
+            {
+                Triangle(0, i + 1, i);
+                Triangle(5, i + 5, i + 6);
+            }
+            for (int i = 0; i < 5; i++)
+            {
+                int next = (i + 1) % 5;
+                Triangle(i, next, next + 5);
+                Triangle(i, next + 5, i + 5);
             }
         }
 
