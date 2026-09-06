@@ -1,0 +1,82 @@
+using System.Collections.Generic;
+using System.Reflection;
+using NUnit.Framework;
+using Unity.Mathematics;
+using UnityEngine;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
+
+namespace VoxelEngine.Tests.EditMode
+{
+    public sealed class SurfaceVisibilityGeometryCacheTests
+    {
+        [TestCase(0)] [TestCase(1)] [TestCase(2)] [TestCase(3)]
+        [TestCase(4)] [TestCase(5)] [TestCase(6)]
+        public void ChangedQueryCannotReusePreviousClassification(int change)
+        {
+            var cache = new SurfaceVisibilityGeometryCache();
+            var planes = GeometryUtility.CalculateFrustumPlanes(Matrix4x4.identity);
+            var position = Vector3.zero;
+            float scale = 0.1f, inner = 0, outer = 96;
+            bool suspended = false;
+            void Prepare() => cache.Prepare(planes, position, scale, inner, outer, suspended);
+            Prepare(); Prepare(); cache.Store(new int3(-1, 0, 2), 2);
+            Assert.True(cache.TryGet(new int3(-1, 0, 2), out byte classification));
+            Assert.That(classification, Is.EqualTo(2));
+            switch (change)
+            {
+                case 0: position.x = 0.000001f; break; // Unity's approximate equality is insufficient.
+                case 1: planes[0] = new Plane(Vector3.up, 1); break;
+                case 2: planes[5] = new Plane(planes[5].normal, planes[5].distance + 0.01f); break;
+                case 3: scale = 0.2f; break;
+                case 4: inner = 1; break;
+                case 5: outer = 100; break;
+                case 6: suspended = true; break;
+            }
+            Prepare();
+            Assert.False(cache.TryGet(new int3(-1, 0, 2), out _));
+            cache.Store(int3.zero, 1);
+            Assert.False(cache.TryGet(int3.zero, out _), "Moving queries bypass insertion.");
+            Prepare(); cache.Store(int3.zero, 1);
+            Assert.True(cache.TryGet(int3.zero, out classification));
+            Assert.That(classification, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void StationaryGeometryDoesNotCachePublicationEditsOrNewCoordinates()
+        {
+            using var worker = new CpuTransvoxelChunkCache();
+            var planes = new[] {
+                new Plane(Vector3.right, 100), new Plane(Vector3.left, 100),
+                new Plane(Vector3.up, 100), new Plane(Vector3.down, 100),
+                new Plane(Vector3.forward, 100), new Plane(Vector3.back, 100) };
+            var known = Field<HashSet<int3>>(worker, "_known");
+            var desired = Field<Dictionary<int3, ulong>>(worker, "_desiredVersions");
+            var empty = Field<Dictionary<int3, ulong>>(worker, "_emptyVersions");
+            int frame = 0;
+            void Collect(int3 coordinate)
+            {
+                worker.BeginVisibilityCollection(planes, Vector3.zero, 0.1f);
+                worker.CollectVisibleCoordinate(coordinate, planes, Vector3.zero, 0.1f, ++frame);
+            }
+            known.Add(int3.zero);
+            Collect(int3.zero); Collect(int3.zero); Collect(int3.zero);
+            Assert.That(worker.MissingVisibleCount, Is.EqualTo(1));
+            empty[int3.zero] = desired[int3.zero]; // Observe a newly published empty generation.
+            Collect(int3.zero);
+            Assert.That(worker.MissingVisibleCount, Is.Zero);
+            Assert.That(worker.LastVisibilityEmptyCount, Is.EqualTo(1));
+            desired[int3.zero]++;
+            Collect(int3.zero);
+            Assert.That(worker.MissingVisibleCount, Is.EqualTo(1));
+            Assert.That(worker.LastVisibilityEmptyCount, Is.Zero);
+            var streamed = new int3(1, 0, 0);
+            known.Add(streamed);
+            Collect(streamed);
+            Assert.That(worker.MissingVisibleCount, Is.EqualTo(1));
+            Assert.True(desired.ContainsKey(streamed));
+        }
+
+        private static T Field<T>(object owner, string name) =>
+            (T)owner.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic).GetValue(owner);
+    }
+}

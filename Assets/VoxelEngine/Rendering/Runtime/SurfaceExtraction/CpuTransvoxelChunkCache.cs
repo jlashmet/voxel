@@ -1952,8 +1952,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             }
         }
 
+        private readonly SurfaceVisibilityGeometryCache _visibilityGeometry = new();
+
         public void BeginVisibilityCollection()
         {
+            _visibilityGeometry.Disable();
             _visible.Clear();
             MissingVisibleCount = 0;
             LastVisibilityKnownCount = 0;
@@ -1961,6 +1964,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             LastVisibilityFrustumCount = 0;
             LastVisibilityReadyCount = 0;
             LastVisibilityEmptyCount = 0;
+        }
+
+        internal void BeginVisibilityCollection(Plane[] planes, Vector3 position, float voxelSize)
+        {
+            BeginVisibilityCollection();
+            _visibilityGeometry.Prepare(planes, position, voxelSize,
+                MinViewDistanceMetres, MaxViewDistanceMetres, RingSuspended);
         }
 
         /// <summary>
@@ -1973,8 +1983,14 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (!_known.Contains(coordinate)) return;
             LastVisibilityKnownCount++;
 
-            Bounds bounds = ChunkWorldBounds(coordinate, voxelSize);
-            if (!WithinRingBand(bounds, cameraPosition))
+            if (!_visibilityGeometry.TryGet(coordinate, out byte geometry))
+            {
+                Bounds bounds = ChunkWorldBounds(coordinate, voxelSize);
+                geometry = !WithinRingBand(bounds, cameraPosition) ? (byte)0
+                    : GeometryUtility.TestPlanesAABB(frustumPlanes, bounds) ? (byte)2 : (byte)1;
+                _visibilityGeometry.Store(coordinate, geometry);
+            }
+            if (geometry == 0)
             {
                 // Authoritative discovery is shared across LODs. Keep the known/version state,
                 // but never let a chunk owned wholly by another ring remain active build demand.
@@ -1997,7 +2013,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (!currentReady && !currentEmpty && !currentGenerationInFlight)
                 MarkDirty(coordinate);
 
-            if (!GeometryUtility.TestPlanesAABB(frustumPlanes, bounds)) return;
+            if (geometry != 2) return;
             LastVisibilityFrustumCount++;
             if (currentReady) LastVisibilityReadyCount++;
             if (currentEmpty) LastVisibilityEmptyCount++;

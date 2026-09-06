@@ -1845,7 +1845,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     {
                         SurfaceRing ring = _rings[r];
                         for (int w = 0; w < ring.Workers.Length; w++)
-                            ring.Workers[w].BeginVisibilityCollection();
+                            ring.Workers[w].BeginVisibilityCollection(
+                                _visibilityFrustumPlanes, cameraPosition, voxelSize);
 
                         if (!ring.HasClipmapWindow)
                             ring.UpdateClipmapWindow(cameraPosition, voxelSize);
