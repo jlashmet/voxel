@@ -60,7 +60,7 @@ namespace Game.WorldBuilder.Validation.NewHouseReference
                     "NEW_HOUSE_VALIDATION ready: " +
                     $"origin={_origin} bounds={_result.Min}->{_result.MaxExclusive} " +
                     $"doorX={_result.DoorCentreX} frontZ={_result.FrontZ} ridgeY={_result.RidgeY} " +
-                    "materials=plaster,timber,roof,stone,glass,painted-blue,dirt-ground,foliage " +
+                    "materials=plaster,timber,roof,stone,glass,painted-blue,gold,sand-ground,moss-foliage " +
                     "referenceCamera=frontal portrait; audit=front-left,rear-right");
             }
             catch (Exception exception)
@@ -74,8 +74,6 @@ namespace Game.WorldBuilder.Validation.NewHouseReference
         {
             if (!_ready || _world == null) return;
 
-            // This focused proof preloads the deterministic footprint once. Advancing showcase
-            // landmark streaming here would admit unrelated content and mutate the evidence world.
             float elapsedSeconds = Time.timeSinceLevelLoad;
             UpdateEvidenceCamera(elapsedSeconds);
 
@@ -124,9 +122,9 @@ namespace Game.WorldBuilder.Validation.NewHouseReference
 
             IStructureAuthoringSession authoring = _world.CreateStructureAuthoringSession(8_000_000);
 
-            // The pinned reference uses warm plaster/timber, pale masonry, deep blue roof and blue
-            // painted detail. Site ground is deliberately muted dirt so the isolated architectural
-            // plate is not presented as a bright lawn showcase.
+            // All roles remain normal game materials. Sand removes the iteration-1 dark rectangular
+            // lawn/apron contrast, Moss gives connected ivy a readable mid-green value, and Gold is
+            // reserved for the door/banner/sign/crest accents visible in the pinned image.
             NewHouseReferencePalette palette = new(
                 GameMaterialIds.HousePlaster,
                 GameMaterialIds.HouseTimber,
@@ -135,9 +133,10 @@ namespace Game.WorldBuilder.Validation.NewHouseReference
                 GameMaterialIds.Glass,
                 GameMaterialIds.HouseTimber,
                 GameMaterialIds.HouseDoor,
-                GameMaterialIds.Dirt,
+                GameMaterialIds.Sand,
                 GameMaterialIds.FlowerWhite,
-                GameMaterialIds.Grass);
+                GameMaterialIds.Moss,
+                GameMaterialIds.Gold);
 
             _result = NewHouseReferenceAuthoring.AuthorHouse(
                 authoring, _origin, in config, in palette);
@@ -189,26 +188,22 @@ namespace Game.WorldBuilder.Validation.NewHouseReference
             cameraComponent.clearFlags = CameraClearFlags.Skybox;
             cameraComponent.nearClipPlane = 0.05f;
             cameraComponent.farClipPlane = 800f;
-            cameraComponent.fieldOfView = 42f;
+            cameraComponent.fieldOfView = 40f;
 
-            // The pinned portrait is tall and tightly framed. Aim near the vertical centre of the
-            // stone/middle/gable stack while leaving room for the crest finial and entry steps.
             _cameraTarget = new Vector3(
                 (_origin.x + config.Width * 0.5f) * VoxelMetres,
-                (surfaceY + 72f) * VoxelMetres,
-                (_origin.z + 12f) * VoxelMetres);
+                (surfaceY + 70f) * VoxelMetres,
+                (_origin.z + 10f) * VoxelMetres);
             _frontalPosition = new Vector3(
                 _cameraTarget.x,
                 _cameraTarget.y + 0.2f,
-                _cameraTarget.z - 24.5f);
+                _cameraTarget.z - 23.0f);
             ApplyCamera(_frontalPosition);
         }
 
         private void UpdateEvidenceCamera(float elapsedSeconds)
         {
-            // Standalone SceneIssue replay captures at ~10/20/30 seconds. Keep those times on the
-            // target, front-left audit and rear-right audit respectively so every required view is
-            // durable evidence rather than an uncaptured transient.
+            // SceneIssue replay captures near 10/20/30 seconds: target, front-left, rear-right.
             if (elapsedSeconds < 16f)
             {
                 ApplyCamera(_frontalPosition);
