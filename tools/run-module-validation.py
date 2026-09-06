@@ -14,14 +14,20 @@ def run_test(unity: str, item: dict, root: Path, test_filter: str | None = None)
     module = item["module"]
     platform = item["platform"]
     assembly = item["assembly"]
-    safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in module + "-" + platform + "-" + assembly)
+    if not assembly and not test_filter:
+        raise SystemExit("ERROR: isolated test requires an assembly or explicit test filter")
+    identity = assembly or test_filter
+    safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in module + "-" + platform + "-" + identity)
     out = root / "Tests" / safe
     out.mkdir(parents=True, exist_ok=True)
     xml = out / "results.xml"
     log = out / "unity.log"
+    # A successful process must produce fresh evidence, not reuse an earlier run.
+    xml.unlink(missing_ok=True)
     args = ["tools/unity-run.sh", "-batchmode", "-job-worker-count", "1",
-            "-projectPath", str(Path.cwd()), "-runTests", "-testPlatform", platform,
-            "-assemblyNames", assembly]
+            "-projectPath", str(Path.cwd()), "-runTests", "-testPlatform", platform]
+    if assembly:
+        args.extend(["-assemblyNames", assembly])
     if test_filter:
         args.extend(["-testFilter", test_filter])
     args.extend(["-testResults", str(xml), "-logFile", str(log)])
@@ -32,13 +38,13 @@ def run_test(unity: str, item: dict, root: Path, test_filter: str | None = None)
     started = time.monotonic()
     subprocess.run(args, check=True, env=env)
     if not xml.is_file():
-        raise SystemExit(f"ERROR: required module test assembly produced no results: {module} {assembly}")
+        raise SystemExit(f"ERROR: required module test assembly produced no results: {module} {identity}")
     cases = ET.parse(xml).getroot().findall(".//test-case")
     if not cases:
-        raise SystemExit(f"ERROR: required module test assembly executed zero tests: {module} {assembly}")
+        raise SystemExit(f"ERROR: required module test assembly executed zero tests: {module} {identity}")
     failed = [c for c in cases if c.get("result") not in ("Passed", "Success")]
     if failed:
-        raise SystemExit(f"ERROR: required module test assembly failed: {module} {assembly} ({len(failed)} failures)")
+        raise SystemExit(f"ERROR: required module test assembly failed: {module} {identity} ({len(failed)} failures)")
     return time.monotonic() - started
 
 
@@ -153,6 +159,14 @@ def _requested_is_process_isolated(test_name: str) -> bool:
     return any(test_name == assembly or test_name.startswith(assembly + ".") for assembly in PROCESS_ISOLATED_ASSEMBLIES)
 
 
+def _requires_process_isolation(item: dict) -> bool:
+    # RunFinished is emitted before PlayMode scene restoration/cleanup. Starting the
+    # next persistent phase on a delayCall can capture a soon-to-be-deleted InitTestScene
+    # (PropShowcase run 34000107687). A wrapper process per PlayMode phase guarantees
+    # teardown finishes before the next starts, without private Unity APIs or dropped tests.
+    return item["platform"] == "PlayMode" or item["assembly"] in PROCESS_ISOLATED_ASSEMBLIES
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--unity", required=True)
@@ -168,9 +182,10 @@ def main(argv=None) -> int:
     started_all = time.monotonic()
 
     tests = plan.get("tests", [])
-    persistent = [item for item in tests if item["assembly"] not in PROCESS_ISOLATED_ASSEMBLIES]
-    isolated = [item for item in tests if item["assembly"] in PROCESS_ISOLATED_ASSEMBLIES]
-    requested_isolated = bool(ns.requested_test and _requested_is_process_isolated(ns.requested_test))
+    persistent = [item for item in tests if not _requires_process_isolation(item)]
+    isolated = [item for item in tests if _requires_process_isolation(item)]
+    requested_isolated = bool(ns.requested_test and (
+        ns.requested_platform == "PlayMode" or _requested_is_process_isolated(ns.requested_test)))
     persistent_requested = "" if requested_isolated else ns.requested_test
     persistent_requested_platform = "" if requested_isolated else ns.requested_platform
 
@@ -205,7 +220,9 @@ def main(argv=None) -> int:
         summary["tests"].append({**item, "seconds": round(seconds, 2), "execution": "isolated-editor"})
 
     if requested_isolated:
-        item = {"module": "requested", "platform": ns.requested_platform, "assembly": "VoxelEngine.Tests.PlayMode"}
+        # A fully-qualified test name is not an assembly name. Let Unity resolve the
+        # explicit filter; zero-match and non-passing results remain hard failures.
+        item = {"module": "requested", "platform": ns.requested_platform, "assembly": ""}
         seconds = run_test(ns.unity, item, root, test_filter=ns.requested_test)
         summary["requestedTest"] = {
             "test": ns.requested_test,
