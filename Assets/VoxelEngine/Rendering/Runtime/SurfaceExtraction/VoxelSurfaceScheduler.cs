@@ -1112,6 +1112,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         + $" select={_lastVisibilitySelectionMs:0.000}"
                         + $" water={_lastVisibilityWaterMs:0.000}"
                         + $" dispatch={_lastVisibilityDispatchMs:0.000}]");
+            text.Append($" mirrorCpu[sync={GpuSurfaceMirrorCoordinator.LastChangeSyncMs:0.000}"
+                        + $" recovery={GpuSurfaceMirrorCoordinator.LastRecoveryMs:0.000}"
+                        + $" blocks={GpuSurfaceMirrorCoordinator.LastRecoveredBlocks}"
+                        + $" flush={GpuSurfaceMirrorCoordinator.LastUploadFlushMs:0.000}"
+                        + $" advance={GpuSurfaceMirrorCoordinator.LastBatchAdvanceMs:0.000}]"
+                        + $" gpuPressure[allocFail={GpuSurfaceMirrorCoordinator.AllocationFailures}"
+                        + $" evicted={_arenaPressureEvictions}]");
             int knownExits = 0, inBand = 0, inFrustum = 0;
             for (int i = 0; i < _allWorkers.Length; i++)
             {

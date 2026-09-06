@@ -446,6 +446,12 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         /// Replays edits and copies requested bricks once per rendered frame. SetData/scatter is
         /// performed here, never during a worker's chunk admission.
         /// </summary>
+        internal static double LastRecoveryMs { get; private set; }
+        internal static double LastChangeSyncMs { get; private set; }
+        internal static double LastUploadFlushMs { get; private set; }
+        internal static double LastBatchAdvanceMs { get; private set; }
+        internal static ulong LastRecoveredBlocks { get; private set; }
+
         internal static void PrepareFrame(IRegionReadSource storage, IVoxelChangeSource changes,
                                           int frame, double budgetMs,
                                           int uploadBudgetBytes = DefaultUploadBudgetBytes)
@@ -455,21 +461,33 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 AttachWorld(storage, changes);
             if (s_LastPrepareFrame == frame) return;
             s_LastPrepareFrame = frame;
+            LastRecoveryMs = LastChangeSyncMs = LastUploadFlushMs = LastBatchAdvanceMs = 0;
+            LastRecoveredBlocks = 0;
 
             if (s_Mirror.IsClearPending) return;
             double deadline = Time.realtimeSinceStartupAsDouble + budgetMs * 0.001;
+            double phaseStart = Time.realtimeSinceStartupAsDouble;
             if (s_MirroredVersion != storage.Version
                 && Time.realtimeSinceStartupAsDouble < deadline)
                 SynchronizeChanges(storage.Version);
+            LastChangeSyncMs = (Time.realtimeSinceStartupAsDouble - phaseStart) * 1000.0;
             if (s_Mirror.IsClearPending) return;
             if (Time.realtimeSinceStartupAsDouble < deadline)
             {
                 s_RecoveryCalls++;
+                phaseStart = Time.realtimeSinceStartupAsDouble;
+                ulong publishedBefore = s_RecoveryPublished;
                 ProcessRecovery(deadline, Math.Max(0, uploadBudgetBytes));
+                LastRecoveryMs = (Time.realtimeSinceStartupAsDouble - phaseStart) * 1000.0;
+                LastRecoveredBlocks = s_RecoveryPublished - publishedBefore;
             }
             else s_RecoveryDeadlineSkips++;
+            phaseStart = Time.realtimeSinceStartupAsDouble;
             s_Mirror.FlushPendingUploads();
+            LastUploadFlushMs = (Time.realtimeSinceStartupAsDouble - phaseStart) * 1000.0;
+            phaseStart = Time.realtimeSinceStartupAsDouble;
             AdvanceCountBatches(frame);
+            LastBatchAdvanceMs = (Time.realtimeSinceStartupAsDouble - phaseStart) * 1000.0;
         }
 
         /// <summary>

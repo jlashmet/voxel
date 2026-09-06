@@ -12,6 +12,27 @@ namespace VoxelEngine.Rendering.Tests.EditMode
     public sealed class GpuMirrorDirectoryChurnTests
     {
         [Test]
+        public void SparseDirtyDirectoryVisitsOnlyChangedEntriesAndPublishesFinalValues()
+        {
+            using var mirror = new GpuVoxelBrickMirror(16, 1 << 20);
+            var keys = new[] { new int3(-17, 3, 6), new int3(23, 8, -9), new int3(810, 19, 7) };
+            foreach (int3 key in keys) { Publish(mirror, key, 1); Publish(mirror, key, 2); }
+            ulong before = mirror.DirectoryFlushEntryChecks;
+            mirror.FlushPendingUploads();
+            Assert.That(mirror.DirectoryFlushEntryChecks - before, Is.EqualTo(3),
+                "Sparse updates must visit changed slots, not scan the hash-table span.");
+            foreach (int3 key in keys) AssertGpuMaterial(mirror, key, 2);
+            before = mirror.DirectoryFlushEntryChecks;
+            mirror.FlushPendingUploads();
+            Assert.That(mirror.DirectoryFlushEntryChecks, Is.EqualTo(before));
+            Publish(mirror, keys[0], 3);
+            mirror.Clear();
+            Publish(mirror, keys[1], 4);
+            AssertGpuMaterial(mirror, keys[0], 0);
+            AssertGpuMaterial(mirror, keys[1], 4);
+        }
+
+        [Test]
         public void QueuedGpuReadsSurviveCollisionChainRelocationAcrossDirectoryWrap()
         {
             using var mirror = new GpuVoxelBrickMirror(16);

@@ -94,10 +94,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private NativeArray<uint> _payloadDeltaStaging;
         private readonly bool[] _dirtySlots;
         private readonly bool[] _dirtyDirectoryEntries;
-        private int _dirtyMin = int.MaxValue;
-        private int _dirtyMax = -1;
-        private int _directoryDirtyMin = int.MaxValue;
-        private int _directoryDirtyMax = -1;
+        private readonly int[] _dirtySlotIndices;
+        private readonly int[] _dirtyDirectoryIndices;
+        private int _dirtySlotCount;
+        private int _dirtyDirectoryCount;
+        internal ulong DirectoryFlushEntryChecks { get; private set; }
         private bool _disposed;
         internal bool IsDisposed => _disposed;
         private bool _clearPending;
@@ -217,6 +218,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
             _dirtySlots = new bool[slotCapacity];
             _dirtyDirectoryEntries = new bool[DirectoryCapacity];
+            _dirtySlotIndices = new int[slotCapacity];
+            _dirtyDirectoryIndices = new int[DirectoryCapacity];
 
             // ComputeBuffer contents are not specified on allocation. Clear the hash states once on
             // the GPU so an uninitialised word can never masquerade as a live directory entry.
@@ -247,10 +250,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _maximumDirectoryProbeCount = 0;
             Array.Clear(_dirtySlots, 0, _dirtySlots.Length);
             Array.Clear(_dirtyDirectoryEntries, 0, _dirtyDirectoryEntries.Length);
-            _dirtyMin = int.MaxValue;
-            _dirtyMax = -1;
-            _directoryDirtyMin = int.MaxValue;
-            _directoryDirtyMax = -1;
+            _dirtySlotCount = 0;
+            _dirtyDirectoryCount = 0;
             for (int i = 0; i < _directoryStaging.Length; i++)
                 _directoryStaging[i] = 0u;
             ClearGpuDirectory();
@@ -452,9 +453,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         private void MarkDirectoryDirty(int index)
         {
+            if (_dirtyDirectoryEntries[index]) return;
             _dirtyDirectoryEntries[index] = true;
-            if (index < _directoryDirtyMin) _directoryDirtyMin = index;
-            if (index > _directoryDirtyMax) _directoryDirtyMax = index;
+            _dirtyDirectoryIndices[_dirtyDirectoryCount++] = index;
         }
 
         internal bool TryReadDirectoryCoordinate(int index, out int3 coordinate)
@@ -528,9 +529,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         private void MarkDirty(int slot)
         {
+            if (_dirtySlots[slot]) return;
             _dirtySlots[slot] = true;
-            if (slot < _dirtyMin) _dirtyMin = slot;
-            if (slot > _dirtyMax) _dirtyMax = slot;
+            _dirtySlotIndices[_dirtySlotCount++] = slot;
         }
 
         private ComputeBuffer FlushAndGet(ComputeBuffer buffer)
@@ -555,12 +556,12 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         /// </summary>
         private void FlushPayloadSlots()
         {
-            if (_dirtyMax < _dirtyMin) return;
+            if (_dirtySlotCount == 0) return;
 
             int batchCount = 0;
-            for (int slot = _dirtyMin; slot <= _dirtyMax; slot++)
+            for (int dirty = 0; dirty < _dirtySlotCount; dirty++)
             {
-                if (!_dirtySlots[slot]) continue;
+                int slot = _dirtySlotIndices[dirty];
                 _dirtySlots[slot] = false;
                 PackPayloadDelta(batchCount, slot);
                 batchCount++;
@@ -573,8 +574,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             }
 
             if (batchCount > 0) DispatchPayloadBatch(batchCount);
-            _dirtyMin = int.MaxValue;
-            _dirtyMax = -1;
+            _dirtySlotCount = 0;
         }
 
         private void PackPayloadDelta(int batchIndex, int slot)
@@ -629,12 +629,13 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         /// </summary>
         private void FlushDirectoryDeltas()
         {
-            if (_directoryDirtyMax < _directoryDirtyMin) return;
+            if (_dirtyDirectoryCount == 0) return;
 
             int batchCount = 0;
-            for (int entry = _directoryDirtyMin; entry <= _directoryDirtyMax; entry++)
+            for (int dirty = 0; dirty < _dirtyDirectoryCount; dirty++)
             {
-                if (!_dirtyDirectoryEntries[entry]) continue;
+                int entry = _dirtyDirectoryIndices[dirty];
+                DirectoryFlushEntryChecks++;
                 _dirtyDirectoryEntries[entry] = false;
 
                 int destination = batchCount * DirectoryDeltaWords;
@@ -655,8 +656,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             }
 
             if (batchCount > 0) DispatchDirectoryBatch(batchCount);
-            _directoryDirtyMin = int.MaxValue;
-            _directoryDirtyMax = -1;
+            _dirtyDirectoryCount = 0;
         }
 
         private void DispatchDirectoryBatch(int count)
