@@ -1,0 +1,7 @@
+{
+  "test": "VoxelEngine.Rendering.Tests.EditMode.GpuPagedPublicationTransactionTests.ExhaustedAllocationIsObservableAndDoesNotOverwriteAnotherPendingCandidate",
+  "platform": "EditMode",
+  "request_id": "gpu-batch-counter-alias-6e80dc96",
+  "scene_issue": "SceneIssues/open/20260902-171853-000-GpuRendererProductionRestoration/issue.json",
+  "replay_seconds": "65"
+}
