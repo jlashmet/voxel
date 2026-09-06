@@ -240,10 +240,10 @@ void CSAllocateBatchPages(uint3 id : SV_DispatchThreadID)
         uint2 desired = _DesiredGenerationsRead[chunk.handle];
         if (desired.x != chunk.generationLow || desired.y != chunk.generationHigh) continue;
 
-        // Word zero is the semantic-support result produced by the count pass. Do not allocate an
-        // apparently successful empty candidate for semantics the production GPU path deliberately
-        // rejected; the CPU result channel must see Unsupported instead of false publication.
-        if (_BatchCountersRead[word + 0] != 0u)
+        // Word zero is the semantic-support result produced by the count pass. Keep the allocator on
+        // one RW view of the counter resource: aliasing the same buffer as an SRV and UAV in this
+        // kernel is undefined on Metal and left later nonzero capacity statuses stuck at Stale.
+        if (_BatchCounters[word + 0] != 0u)
         {
             _BatchCounters[word + 10] = AllocationUnsupported;
             continue;
@@ -305,9 +305,9 @@ void CSAllocateBatchPages(uint3 id : SV_DispatchThreadID)
 }
 
 // Finalization is intentionally not publication. This kernel runs after geometry writes so the
-// subsequent tiny status readback is ordered after all candidate consumers. A superseded desired
-// generation is converted to Stale and its pending pages are reclaimed; a current candidate stays
-// pending until a later identity-checked commit.
+// subsequent GPU fence is ordered after all candidate consumers. A superseded desired generation
+// is converted to Stale and its pending pages are reclaimed; a current candidate stays pending
+// until a later identity-checked commit.
 [numthreads(1, 1, 1)]
 void CSPublishBatchPages(uint3 id : SV_DispatchThreadID)
 {
