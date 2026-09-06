@@ -79,9 +79,12 @@ namespace Game.Composition.WorldBuilderWorldGen.Runtime
     }
 
     /// <summary>
-    /// Candidate facts projected directly from the recovered top-down physical plan. Settlement sites
-    /// use real generated building blockouts. Region-owned encounter sites use the owning region's first
-    /// source-backed settlement as an outdoor anchor, so no continuation coordinate is authored here.
+    /// Candidate facts projected directly from the recovered top-down physical plan. Generic settlement
+    /// sites use generated building blockouts. Existing rich settlements intentionally expose no macro
+    /// blockouts, so they contribute their source-backed settlement centre as the semantic site anchor;
+    /// final interior placement remains owned by their production realization. Region-owned encounter
+    /// sites use the owning region's first source-backed settlement as an outdoor anchor, so no
+    /// continuation coordinate is authored here.
     /// </summary>
     internal sealed class AuthoredFullRunPhysicalSiteFacts : ISiteCandidateFacts, ICutsceneStageCandidateFacts
     {
@@ -122,9 +125,26 @@ namespace Game.Composition.WorldBuilderWorldGen.Runtime
                 WorldSettlementPlan semantic = hierarchy.Settlements[i];
                 if (!world.TryGetPhysicalSettlement(semantic.Settlement, out TopDownWorldSettlementPlan physical))
                     throw new InvalidOperationException("Missing physical settlement for '" + semantic.Settlement + "'.");
+
                 if (physical.Buildings.Count == 0)
-                    throw new InvalidOperationException(
-                        "Physical settlement '" + semantic.Settlement + "' exposes no generated site blockouts.");
+                {
+                    if (physical.RealizationKind != TopDownWorldSettlementRealizationKind.ExistingRichGeneration)
+                        throw new InvalidOperationException(
+                            "Physical settlement '" + semantic.Settlement + "' exposes no generated site blockouts.");
+
+                    int halfExtent = TopDownWorldPhysicalPlanner.GenericSettlementStreetHalfWidthDm;
+                    Add(
+                        candidates,
+                        new ResolvedSiteId(semantic.Settlement.Id + "/rich-generation"),
+                        semantic.Region,
+                        semantic.Settlement,
+                        true,
+                        semantic.Settlement.Id,
+                        physical.CentreDm,
+                        halfExtent,
+                        halfExtent);
+                    continue;
+                }
 
                 for (var buildingIndex = 0; buildingIndex < physical.Buildings.Count; buildingIndex++)
                 {
