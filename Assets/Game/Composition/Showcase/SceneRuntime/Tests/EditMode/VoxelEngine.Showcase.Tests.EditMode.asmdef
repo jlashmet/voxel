@@ -6,6 +6,7 @@
     "VoxelEngine.Showcase",
     "VoxelEngine.Composition",
     "VoxelEngine.Rendering.Api",
+    "VoxelEngine.Rendering.Runtime",
     "VoxelEngine.Structures.Api",
     "VoxelEngine.Vegetation.Api",
     "Game.WorldBuilder.Api",

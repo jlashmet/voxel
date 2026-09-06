@@ -13,5 +13,6 @@
   "sceneName": "VoxelShowcase",
   "scenePath": "Assets/Scenes/VoxelShowcase.unity",
   "sceneBuildIndex": 3,
-  "captures": []
+  "captures": [],
+  "renderProbe": "far-feature-visibility"
 }
