@@ -43,6 +43,42 @@ namespace VoxelEngine.Composition.Tests
             Assert.That(instances[0].BoundsExtents, Is.EqualTo(new float3(8.5f, 10.5f, 8.5f)));
         }
 
+        [Test]
+        public void MixedPositiveGeometryAndOperationUsesOnlyPositiveGeometryBounds()
+        {
+            Primitive solid = new()
+            {
+                Shape = PrimitiveShape.Box,
+                Mode = PrimitiveMode.Fill,
+                Material = 7,
+                A = new int3(-2, 4, -2),
+                B = new int3(2, 8, 2),
+            };
+            Primitive operation = new()
+            {
+                Shape = PrimitiveShape.TerrainCorridor,
+                Mode = PrimitiveMode.TerrainCorridor,
+                Material = 9,
+                A = new int3(-80, -20, -80),
+                B = new int3(80, 40, 80),
+            };
+
+            IReadOnlyList<FarFeatureInstance> instances = QueryWithBounds(
+                new int3(-80, -20, -80), new int3(80, 40, 80), operation, solid);
+
+            Assert.That(instances.Count, Is.EqualTo(1));
+            Assert.That(instances[0].BoundsCenter, Is.EqualTo(new float3(0.5f, 6.5f, 0.5f)),
+                "A carve/corridor operation may enlarge bake ownership bounds but must not move the visible proxy.");
+            Assert.That(instances[0].BoundsExtents, Is.EqualTo(new float3(2.5f)),
+                "The far-feature transform must size from positive geometry, not the operation-inflated bake AABB.");
+            Assert.That(instances[0].Scale, Is.EqualTo(new float3(5f)));
+            Assert.That(instances[0].Geometry.PrimitiveCount, Is.EqualTo(1));
+            Assert.That(instances[0].Geometry.Primitives[0].Min, Is.EqualTo(new float3(-0.5f, 0f, -0.5f)));
+            Assert.That(instances[0].Geometry.Primitives[0].Max, Is.EqualTo(new float3(0.5f, 1f, 0.5f)),
+                "Primitive normalization and instance bounds must share the same positive-geometry frame.");
+            Assert.That(instances[0].MaterialIndex, Is.EqualTo(7));
+        }
+
         [TestCase(PrimitiveMode.PaintSolid)]
         [TestCase(PrimitiveMode.PaintSurface)]
         [TestCase(PrimitiveMode.SurfaceDetail)]
@@ -74,12 +110,18 @@ namespace VoxelEngine.Composition.Tests
             B = new int3(8, 20, 8),
         };
 
-        private static IReadOnlyList<FarFeatureInstance> Query(params Primitive[] primitives)
+        private static IReadOnlyList<FarFeatureInstance> Query(params Primitive[] primitives) =>
+            QueryWithBounds(new int3(-8, 0, -8), new int3(8, 20, 8), primitives);
+
+        private static IReadOnlyList<FarFeatureInstance> QueryWithBounds(
+            int3 boundsMin,
+            int3 boundsMax,
+            params Primitive[] primitives)
         {
             var bake = new FeaturePresentationBake(
                 sourceId: 17ul, revision: 23ul, kind: FeatureKind.Landform,
                 position: int3.zero, orientation: 0,
-                boundsMin: new int3(-8, 0, -8), boundsMax: new int3(8, 20, 8),
+                boundsMin: boundsMin, boundsMax: boundsMax,
                 primitives: primitives);
             var selection = new FarFeatureSelectionPolicy(
                 new FarFeatureSelectionPolicy.Thresholds(100f, 80f, 40f, 30f, 10f, 5f),
