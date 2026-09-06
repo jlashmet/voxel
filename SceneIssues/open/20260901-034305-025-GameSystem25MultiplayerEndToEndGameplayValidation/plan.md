@@ -2,26 +2,26 @@
 
 **Acceptance:** one packaged build; separate authority/client processes; production formation, identity/baseline convergence, contention/conservation, combat/progression, interruption/reconnect/current-state recovery, explicit leave, capacity/JIP/repeated reconnect/persisted rehost, and durable exact-SHA evidence. Every tasks.md criterion remains binding.
 
-**Ownership:** shared validation and Kentridge composition, with prerequisite fixes in existing owners. Dependencies 06/07/08/14 and authoritative gameplay modules; System24 is related, not prerequisite. No fake networking, parallel authority or privileged scenario mutation.
+**Ownership:** shared validation and Kentridge composition plus required fixes in existing owners. Dependencies 06/07/08/14 and authoritative gameplay modules; System24 is related, not prerequisite. No fake networking, parallel authority or privileged scenario mutation.
 
-## Implemented / discriminator
+## Current work / discriminators
 
-Implementation: `9e45d7169dc6d97de54fc650975a5709ee6ec811`; planning: `66de64ff214b74ce6b8885d0ec394ac6cc00067d`; resume source: `37ddc626a2cc4c7d31751a4f16d03f6aa74df657`. Connected GitHub master: `ef475182b866eabfe8e1d1a39c82bf7810a03f49`; local Git fetch fails DNS.
+Resume source `9c146000d9ee28ac8a0c0a97704ce49c40f17ad1` includes Application async formation `9e45d7169dc6d97de54fc650975a5709ee6ec811`, joined-party correction and canonical admission inbox. These newer changes are not yet exact-SHA proven.
 
-**H1 supported:** synchronous formation requires admitted identity before UTP can reply. T25-010C now adds optional `IAsyncSessionFormationService` / request-local `ISessionFormationOperation`; synchronous providers remain supported. Application owns one nonblocking attempt, validates terminal session/member identity, blocks overlapping intent and detaches before cancellation. Leave/Quit/Dispose cannot adopt late replies. Provider exception credentials are not exposed. Host still requires Start; clients still require connected local GameplayReady and Orchestration readiness.
+**H1 supported by source:** `SessionNetworkAdmissionAdapter` binds before asking Net; rejected/repeated admission can disconnect the existing member and reset readiness while Net retains its original authenticated actor.
 
-**H2 supported:** `ApplicationFrontendView` previously updated only StartingSession/InGame, leaving frontend admission/readiness stalled. It now updates FrontEnd, exposes pending Cancel/Quit, and routes error recovery through coordinator-owned cleanup.
+**H2 supported by source:** moving connection handles alone cannot provide reconnect. `ServerPlayerRegistry` deliberately rejects duplicate connection/player registration; the old connection must be torn down through the production authority before replacement.
 
-**Discriminator awaiting execution:** 37 new `ApplicationPendingFormationTests` cases cover delayed/adversarial results, cancellation/retry, host/join distinction, failures, reentrancy, navigation and synchronous compatibility using real Orchestration. The existing Application player scene includes `ApplicationPendingFormationValidation`: actual Unity view updates must produce pending, stale-result discard, single startup and normal Leave milestones. The probe never calls Application.Update. External semantic inputs are not provider/UTP or multiplayer-process proof.
+Required T25-010D fix: preflight existing Sessions ownership, reject replacement of a live connection, ask the lower-level admission port before publishing a new Sessions binding, and preserve readiness on same-connection retries. Expose the existing Net authority through its own `IAuthoritativePlayerAdmission` API; same connection/player authentication is idempotent without position/permission reset or duplicate lifecycle accounting. Keep unrelated identity collisions rejected. Admission remains owning-thread work, not a network callback.
 
-Affected owners: Sessions API only (no scene behavior); Application runtime/tests/owned scene and paired scenario. Existing assembly references suffice. Structural audit verified original source hashes, scene GUID wiring and unchanged prior log/capture/run budgets. **No new C# compilation, NUnit execution or built-player execution has occurred.** T25-010A/B/C remain unchecked.
+Affected owners: `Assets/Game/Sessions` runtime and existing tests plus new owned `Validation/SessionNetworkAdmissionValidation.unity` and paired scenario; `Assets/VoxelEngine/Net` API/runtime/tests and existing `Validation/SessionAdmissionTransportValidation.unity` probe/scenario. Scenes use real UTP/authority/PartySession; no alternate networking or gameplay authority. Tests must observe rejection/exception, duplicate and conflicting admission, old-connection cleanup, stable member/slot/character identity and readiness. These focused boundary proofs are not separate-process gameplay acceptance.
 
 ## Evidence / next gates
 
 Request `920f0e4e4883d2c8abaf77877c1f8e55c8cd4df3` passed run `34002524305` for older source `8b95feaf7d849bc6a37b4d5a40a4e84b7e8c331a`; provenance in `ci-evidence-920f0e4.json`.
 
-Preserved request `0078199d98f3cefe1508ae7331b23ad001b754f7`, source `f678a5f7e44a6d6e9366316d006d25bd7ebe27b8`, run `34005489004`, job `101411770518`: still queued at final continuation check. Transport unchanged; newer source needs later exact validation after completion.
+Preserve request `0078199d98f3cefe1508ae7331b23ad001b754f7`, source `f678a5f7e44a6d6e9366316d006d25bd7ebe27b8`, run `34005489004`, job `101411770518`: queued at resume. No replacement while active. After completion, validate newer source before checking prerequisites.
 
-Next: real Sessions/provider and host/client composition, then every gameplay/recovery/Release case. During integration, correct the inspected `SessionNetworkAdmissionAdapter` bind-before-network-success path so rejected/repeated admission cannot destroy a live binding/readiness; retain the canonical authority.
+Next: real Sessions/provider and host/client composition, then all gameplay/recovery/Release cases. Latest connected master `356b2e0e4d2818901c73bbc6b1788f8d6850356d`; local git ls-remote still fails DNS. Reconcile current master before final promotion.
 
-**Cost:** one pending operation, no blocking/polling loop or new authority; ten-second player scenario/captures and 1,200-byte EVENT / 256-per-connection / 4,096-total limits unchanged. Close only after all criteria and exact gates pass; promotion remains PR + auto-merge.
+**Cost:** constant-time ownership checks; no new authority, packet, pool or tick budget. Existing 1,200-byte EVENT and queue limits unchanged. Close only after every criterion and exact gate passes; promotion remains PR + auto-merge.
