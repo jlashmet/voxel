@@ -85,8 +85,12 @@ namespace VoxelEngine.Rendering.Tests.EditMode
 
         // A narrow raster-addressing fixture, not art or visual acceptance. It uses the shipped
         // vertex shader and real page lookup/compaction; debug coverage only bypasses lighting.
-        [Test]
-        public void SeparateBucketsRasterizeTheirOwnPagedGeometry()
+        [TestCase(-1, false)]
+        [TestCase(0, false)]
+        [TestCase(1, true)]
+        [TestCase(0, true)]
+        [TestCase(1, false)]
+        public void SeparateBucketsRasterizeTheirOwnPagedGeometry(int waterPass, bool spray)
         {
             var records = new GeometryRecord[_arena.HandleCapacity];
             var vertices = new RasterVertex[3 * GpuSurfacePageArena.VertexPageSize];
@@ -101,12 +105,17 @@ namespace VoxelEngine.Rendering.Tests.EditMode
                 vertices[v] = new RasterVertex { Position = new Vector3(x - 0.2f, -0.3f, 0), Normal = Vector3.back };
                 vertices[v+1] = new RasterVertex { Position = new Vector3(x, 0.3f, 0), Normal = Vector3.back };
                 vertices[v+2] = new RasterVertex { Position = new Vector3(x + 0.2f, -0.3f, 0), Normal = Vector3.back };
+                for (int corner = 0; corner < 3; corner++)
+                {
+                    vertices[v + corner].Material = spray ? 0x08000010u : 11u;
+                    vertices[v + corner].Active = corner == 1 ? 2u : corner == 2 ? 1u : 0u;
+                }
                 uint count = 3u << handle;
                 for (int i = 0; i < count; i++)
                     indices[handle * GpuSurfacePageArena.IndexPageSize + i] = (uint)(i % 3);
-                vertexPages[handle * 2 * GpuSurfacePageArena.MaxVertexPagesPerChunk] = (uint)handle;
-                indexPages[handle * 2 * GpuSurfacePageArena.MaxIndexPagesPerChunk] = (uint)handle;
-                records[handle] = new GeometryRecord { GenerationLow = 1, VertexCount = 3,
+                vertexPages[(handle * 2 + (handle & 1)) * GpuSurfacePageArena.MaxVertexPagesPerChunk] = (uint)handle;
+                indexPages[(handle * 2 + (handle & 1)) * GpuSurfacePageArena.MaxIndexPagesPerChunk] = (uint)handle;
+                records[handle] = new GeometryRecord { GenerationLow = 1, Bank = (uint)(handle & 1), VertexCount = 3,
                     IndexCount = count, VertexPageCount = 1, IndexPageCount = 1, Ready = 1 };
             }
             _arena.Vertices.SetData(vertices);
@@ -115,7 +124,8 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             _arena.IndexPageTable.SetData(indexPages);
             _arena.LiveChunkGeometry.SetData(records);
             _dispatcher.Prepare(visible, 1);
-            var material = new Material(Shader.Find("Hidden/VoxelEngine/SmoothSurface"));
+            var material = new Material(Shader.Find(waterPass < 0
+                ? "Hidden/VoxelEngine/SmoothSurface" : "Hidden/VoxelEngine/WaterSurface"));
             var target = new RenderTexture(192, 64, 24, RenderTextureFormat.ARGB32);
             var pixels = new Texture2D(192, 64, TextureFormat.RGBA32, false);
             var commands = new CommandBuffer();
@@ -124,6 +134,25 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             {
                 target.Create();
                 material.SetInteger("_SurfacePagedDraw", 1);
+                material.SetInteger("_WaterPagedDraw", 1);
+                if (waterPass >= 0)
+                {
+                    var colours = new Vector4[32];
+                    var motion = new Vector4[32];
+                    var cascade = new Vector4[32];
+                    for (int i = 0; i < 32; i++)
+                    {
+                        colours[i] = new Vector4(0.2f, 0.6f, 0.8f, 1f);
+                        motion[i] = new Vector4(waterPass == 1 ? 3f : 1f, 1f, 0f, 1f);
+                        cascade[i] = Vector4.one;
+                    }
+                    material.SetVectorArray("_WaterShallow", colours);
+                    material.SetVectorArray("_WaterDeep", colours);
+                    material.SetVectorArray("_WaterMotion", motion);
+                    material.SetVectorArray("_WaterCascade", cascade);
+                    material.SetVector("_CameraPosition", new Vector4(0, 0, -2, 1));
+                    material.SetVector("_SunDirection", new Vector4(0, 1, -1, 0));
+                }
                 material.SetFloat("_DebugCoverage", 1);
                 material.SetInteger("_CutawayEnabled", 0);
                 material.SetBuffer("_PagedSurfaceVertices", _arena.Vertices);
@@ -144,7 +173,7 @@ namespace VoxelEngine.Rendering.Tests.EditMode
                 for (int bucket = 0; bucket < GpuSurfaceDrawDispatcher.BucketCount; bucket++)
                 {
                     commands.SetGlobalInteger("_PagedDrawBucket", bucket);
-                    commands.DrawProceduralIndirect(Matrix4x4.identity, material, 0,
+                    commands.DrawProceduralIndirect(Matrix4x4.identity, material, Math.Max(0, waterPass),
                         MeshTopology.Triangles, _dispatcher.ActiveIndirectArgs, bucket * 16);
                 }
                 Graphics.ExecuteCommandBuffer(commands);
@@ -154,10 +183,48 @@ namespace VoxelEngine.Rendering.Tests.EditMode
                 for (int handle = 0; handle < 3; handle++)
                 {
                     int x = Mathf.RoundToInt(((handle - 1) * 0.65f + 1f) * 96f);
-                    Assert.That(pixels.GetPixel(x, 32).a, Is.GreaterThan(0.9f),
-                        $"Bucket for handle {handle} did not rasterize its own triangle.");
+                    int covered = 0;
+                    for (int px = x - 12; px <= x + 12; px++)
+                    for (int py = 20; py < 44; py++)
+                        if (pixels.GetPixel(px, py).a > 0.001f) covered++;
+                    bool rejectedByPass = waterPass >= 0 && ((waterPass == 1) != spray);
+                    if (rejectedByPass)
+                        Assert.That(covered, Is.Zero, "Body and spray passes must reject each other's geometry.");
+                    else
+                        Assert.That(covered, Is.GreaterThan(10),
+                            $"Pass {waterPass}, bucket for handle {handle} did not rasterize its own triangle.");
+                    if (waterPass < 0)
+                        Assert.That(pixels.GetPixel(x, 32).a, Is.GreaterThan(0.9f),
+                            $"Solid bucket for handle {handle} did not rasterize its own triangle.");
                 }
                 Assert.That(pixels.GetPixel(3, 3).a, Is.LessThan(0.1f));
+                if (waterPass >= 0)
+                {
+                    // Until the cache cutover, the same shader must still draw the live
+                    // contiguous input. Compare raster output, not shader source strings.
+                    Color32[] pagedPixels = pixels.GetPixels32();
+                    commands.Clear();
+                    commands.SetRenderTarget(target);
+                    commands.ClearRenderTarget(true, true, Color.clear);
+                    commands.SetViewProjectionMatrices(Matrix4x4.identity, projection);
+                    commands.SetGlobalMatrix("unity_MatrixVP", projection);
+                    material.SetInteger("_WaterPagedDraw", 0);
+                    material.SetBuffer("_SurfaceVertices", _arena.Vertices);
+                    material.SetBuffer("_SurfaceIndices", _arena.Indices);
+                    for (int handle = 0; handle < 3; handle++)
+                    {
+                        var properties = new MaterialPropertyBlock();
+                        properties.SetInteger("_SurfaceVertexBase", handle * GpuSurfacePageArena.VertexPageSize);
+                        properties.SetInteger("_SurfaceIndexBase", handle * GpuSurfacePageArena.IndexPageSize);
+                        commands.DrawProcedural(Matrix4x4.identity, material, waterPass,
+                            MeshTopology.Triangles, 3 << handle, 1, properties);
+                    }
+                    Graphics.ExecuteCommandBuffer(commands);
+                    pixels.ReadPixels(new Rect(0, 0, 192, 64), 0, 0);
+                    pixels.Apply();
+                    CollectionAssert.AreEqual(pagedPixels, pixels.GetPixels32(),
+                        "Paged water addressing changed body/spray raster output.");
+                }
             }
             finally
             {

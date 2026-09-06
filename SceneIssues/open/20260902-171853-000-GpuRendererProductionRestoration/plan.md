@@ -6,7 +6,7 @@ Deliver production-quality `Assets/Scenes/VoxelShowcase.unity` through GPU rende
 
 ## Retained evidence
 
-Worktree `/private/tmp/voxel-gpu-restoration`, branch `gpu-rendering-agent-1-resume`, HEAD `71d70c388`. Local harness/tests/screenshots authorized; last requested push reached `origin/fixes/agent-1` at `64b2921a3`. Current work stays local.
+Worktree `/private/tmp/voxel-gpu-restoration`, branch `gpu-rendering-agent-1-resume`, water-kernel base `08236d15e`. Local harness/tests/screenshots authorized; last requested push reached `origin/fixes/agent-1` at `64b2921a3`. Current work stays local.
 
 All solid LOD steps have GPU implementations. Step8 source streaming is bounded; full-scene coverage remains incomplete. Water migration and legacy CPU renderer removal remain open.
 
@@ -18,9 +18,11 @@ H1: coarse preparation monopolizes all count lanes. H2: remaining whole-source p
 
 Water still extracts CPU geometry and uploads it through CpuWaterSurfaceChunkCache. Selected migration keeps authoritative material snapshots and host orchestration but moves greedy extraction, topology flags, spray geometry, counts and paged writes onto the GPU. Existing water snapshots contain 512 cells plus six 64-cell face halos. They can feed GPU extraction without changing Storage truth or relying on the solid mirror's water-excluding invalidation policy.
 
-First implementation: GPU count/write kernels consume packed snapshots in bounded eight-brick slices, preserving material-mask semantics, exposed-to-air faces, greedy merging, negative coordinates, lip/impact/edge flags, three spray sheets and spray UV bits. Uses the existing paged arena transaction; no geometry/count readback in production helpers. Five test fixtures compare actual GPU vertex multisets, material/active flags, counts and winding with the current CPU mesher. This oracle is temporary and must be removed with the CPU backend.
+GPU count/write kernels now consume eight-brick snapshot slices and emit greedy surfaces, topology and spray into the paged arena without CPU geometry/count readback. Five actual-GPU parity fixtures use a temporary CPU oracle, which must disappear with the CPU backend.
 
 Initial Metal compilation rejected a dynamic vector component assignment; explicit axis vectors fixed it. All five parity fixtures passed (16s harness). Next integrate snapshot ownership/count/allocation/write/publication into the water cache, then run the module's real WaterDemo plus full Showcase. Neither runtime GPU water nor CPU renderer deletion is complete.
+
+Water drawing now supports paged indirect geometry in both production shader passes through a shared fetch helper. Real Metal raster tests exercise bucket offsets, alternating banks, body/spray rejection and exact pixel parity with the temporary contiguous path. Final `gpu-water-paged-raster-parity.xml`: 11 passed, exit 0, 13s (five mesher fixtures plus six draw/compaction cases). These are narrow addressing regressions, not standalone visual acceptance. Runtime cache still uses CPU extraction; next wire GPU transaction ownership and publication, select paged water drawing, then delete contiguous support. Existing module-local WaterDemo owns subsequent standalone validation.
 
 ## Remaining gates
 

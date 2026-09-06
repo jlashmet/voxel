@@ -24,6 +24,19 @@ Each completed item needs exact feature SHA, request/run IDs, relevant executed 
 
 ## Current local evidence (2026-09-06)
 
+GPU water paged draw preparation after `08236d15e`: both production WaterSurface passes now share
+paged vertex/index lookup with GPU compacted bucket metadata, per-instance counts and bank selection.
+Padding instances avoid page reads. A dedicated water selector avoids inheriting the solid draw mode.
+The existing contiguous fetch remains temporary until runtime cache cutover; no material/fragment
+presentation changes. Metal raster regressions exercise three distinct buckets, alternating banks,
+body/spray exclusion and exact full-target pixel parity with contiguous input. Original solid coverage
+assertions remain intact. `gpu-water-paged-draw.xml`: 9 passed/exit 0/14s; expanded pass separation
+`gpu-water-paged-draw-passes.xml`: 11 passed/exit 0/13s; final raster parity
+`gpu-water-paged-raster-parity.xml`: 11 passed/exit 0/13s. These overlapping runs comprise five
+GPU-water mesher cases plus six draw/compaction cases, not 31 unique tests. Narrow synthetic triangles
+only test production shader addressing; they are not art or standalone visual proof. Runtime water
+cache/publication migration, WaterDemo/Showcase player evidence, CPU deletion and G01–G27 remain open.
+
 GPU water kernel preparation after `71d70c388`: scheduling inspection found only two step8 workers
 versus four count lanes; a complete lane monopoly is not supported. Latest run had no source slot/
 directory refusals, so no speculative scheduling change was made. GPU completion remains the priority.
