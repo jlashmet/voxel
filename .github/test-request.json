@@ -1,0 +1,7 @@
+{
+  "platform": "EditMode",
+  "test": "Game.Structures.Tests.ForgeHearthFacingAuthoringTests",
+  "request_id": "agent9-propshowcase-hearth-facing-b470db11",
+  "scene_issue": "SceneIssues/open/20260904-235701-000-PropShowcase/issue.json",
+  "replay_seconds": 66
+}
