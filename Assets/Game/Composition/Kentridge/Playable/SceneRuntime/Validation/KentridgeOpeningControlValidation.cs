@@ -164,6 +164,7 @@ namespace Game.Kentridge.PlayableSlice.Validation
                 " session=" + _root.SessionSnapshot.Lifecycle +
                 " control=" + _slice.GameplayControlEnabled +
                 " openingCamera=" + _slice.OpeningCutsceneCameraActive +
+                " openingFocus=" + Vector(_slice.OpeningCutsceneCameraFocus) +
                 " exited=" + _slice.HasExitedPub +
                 " input=" + Number(input.MoveX) + "," + Number(input.MoveY) +
                 " device=" + Number(device.x) + "," + Number(device.y) +
