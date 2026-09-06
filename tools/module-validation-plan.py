@@ -85,7 +85,13 @@ def _is_module_validation_path(path: str) -> bool:
 
 
 def _is_integration_only_path(path: str) -> bool:
-    return path.replace("\\", "/").startswith("Assets/Game/Composition/")
+    path = path.replace("\\", "/")
+    # Top-level application/showcase scenes are integration consumers, not module owners. Treating
+    # one as an unknown production path selects every discovered module and defeats targeted CI.
+    # Production changes still attach the canonical Kentridge gate once below.
+    if path.startswith("Assets/Scenes/") and path.endswith(".unity"):
+        return True
+    return path.startswith("Assets/Game/Composition/")
 
 
 def _is_dependency_contract_path(path: str) -> bool:
