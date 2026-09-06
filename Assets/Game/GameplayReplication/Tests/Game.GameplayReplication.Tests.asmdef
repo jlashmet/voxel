@@ -15,6 +15,7 @@
     "Game.Progression.Api",
     "Game.Continuity.Api",
     "Game.Outcomes.Api",
+    "VoxelEngine.Net.Api",
     "VoxelEngine.Net.Runtime",
     "VoxelEngine.Edits.Api",
     "VoxelEngine.Edits.Runtime",
