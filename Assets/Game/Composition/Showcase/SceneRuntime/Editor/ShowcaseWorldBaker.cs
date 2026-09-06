@@ -110,13 +110,21 @@ namespace VoxelEngine.Showcase.Editor
                         0.75f);
                 ShowcaseWorldBake bake = world.CaptureBake(startupRadius);
                 byte[] bytes = ShowcaseWorldBakeCodec.Serialize(bake);
+                // The ordinary editor command owns both startup assets. Tests must consume this
+                // sidecar, not repair a bake that normal editor users cannot load. If writing is
+                // interrupted between the two files, runtime provenance validation fails closed.
+                string manifest = ShowcaseStartupBakeContract.CreateManifest(bytes);
 
                 string directory = Path.GetDirectoryName(OutputAssetPath);
                 if (string.IsNullOrEmpty(directory))
                     throw new InvalidOperationException("Invalid showcase bake output path.");
                 Directory.CreateDirectory(directory);
                 File.WriteAllBytes(OutputAssetPath, bytes);
+                File.WriteAllText(ShowcaseStartupBakeContract.ManifestAssetPath, manifest,
+                    new System.Text.UTF8Encoding(false));
                 AssetDatabase.ImportAsset(OutputAssetPath, ImportAssetOptions.ForceUpdate);
+                AssetDatabase.ImportAsset(ShowcaseStartupBakeContract.ManifestAssetPath,
+                    ImportAssetOptions.ForceUpdate);
                 AssetDatabase.SaveAssets();
 
                 float mebibytes = bytes.Length / (1024f * 1024f);

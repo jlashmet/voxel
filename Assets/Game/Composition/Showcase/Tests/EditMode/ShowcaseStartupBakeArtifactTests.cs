@@ -1,14 +1,15 @@
 using System;
 using System.IO;
 using NUnit.Framework;
+using UnityEngine;
 using VoxelEngine.Showcase.Editor;
 
 namespace VoxelEngine.Showcase.Tests.EditMode
 {
     /// <summary>
-    /// One-shot acceptance bridge for producing the exact current-source VoxelShowcase startup
-    /// payload through the real editor baker. The shared CI runner remains scene-agnostic; this
-    /// issue-owned test exports the bytes and provenance sidecar under its normal artifact root.
+    /// Exports the exact current-source VoxelShowcase startup payload through the real editor
+    /// baker. The test consumes the baker's provenance sidecar instead of manufacturing one;
+    /// shared CI remains scene-agnostic. Exported candidates still require visual acceptance.
     /// </summary>
     public sealed class ShowcaseStartupBakeArtifactTests
     {
@@ -20,6 +21,8 @@ namespace VoxelEngine.Showcase.Tests.EditMode
         [Test]
         public void CurrentSourceBakeExportsPayloadAndMatchingManifest()
         {
+            // A sidecar left by an earlier test/build must not conceal a broken normal baker.
+            File.Delete(ShowcaseStartupBakeContract.ManifestAssetPath);
             ShowcaseWorldBaker.BakeShowcaseWorld();
 
             Assert.That(File.Exists(SourceBytes), Is.True,
@@ -30,11 +33,16 @@ namespace VoxelEngine.Showcase.Tests.EditMode
             Assert.That(bytes.Length, Is.LessThan(20 * 1024 * 1024),
                 "The startup payload exceeded the established compact-bake envelope.");
 
-            string manifest = ShowcaseStartupBakeContract.CreateManifest(bytes);
-            File.WriteAllText(
-                ShowcaseStartupBakeContract.ManifestAssetPath,
-                manifest,
-                new System.Text.UTF8Encoding(false));
+            Assert.That(File.Exists(ShowcaseStartupBakeContract.ManifestAssetPath), Is.True,
+                "The normal Showcase baker must write its matching startup manifest without test repair.");
+            string manifest = File.ReadAllText(ShowcaseStartupBakeContract.ManifestAssetPath);
+            ShowcaseStartupBakeContract.Validate(bytes, manifest);
+            TextAsset importedManifest = Resources.Load<TextAsset>(
+                ShowcaseStartupBakeContract.ManifestResourcePath);
+            Assert.That(importedManifest, Is.Not.Null,
+                "The normal baker must import the manifest as a runtime Resources asset.");
+            Assert.That(importedManifest.text, Is.EqualTo(manifest),
+                "The imported manifest must be the sidecar emitted for this exact payload.");
 
             Directory.CreateDirectory(ArtifactDirectory);
             File.WriteAllBytes(Path.Combine(ArtifactDirectory, "ShowcaseWorld.bytes"), bytes);
@@ -43,7 +51,6 @@ namespace VoxelEngine.Showcase.Tests.EditMode
                 manifest,
                 new System.Text.UTF8Encoding(false));
 
-            ShowcaseStartupBakeContract.Validate(bytes, manifest);
             TestContext.Progress.WriteLine(
                 "SHOWCASE_ACCEPTED_BAKE bytes=" + bytes.Length
                 + " sha256=" + ShowcaseStartupBakeContract.ComputePayloadSha256(bytes)
