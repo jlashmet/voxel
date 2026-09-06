@@ -9,7 +9,7 @@ namespace VoxelEngine.Tests.EditMode
 {
     public sealed class NewHouseReferenceAuthoringTests
     {
-        [Test]
+        [NUnit.Framework.Test]
         public void AuthorHouse_IsTranslationInvariant_AndDoesNotOwnReferenceSiteGround()
         {
             NewHouseReferenceConfig config = NewHouseReferenceConfig.Default;
@@ -48,7 +48,7 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(secondResult.RidgeY, Is.EqualTo(firstResult.RidgeY + delta.y));
         }
 
-        [Test]
+        [NUnit.Framework.Test]
         public void AuthorHouse_UsesEveryHighValueReferenceMaterialRole()
         {
             NewHouseReferenceConfig config = NewHouseReferenceConfig.Default;
@@ -69,7 +69,7 @@ namespace VoxelEngine.Tests.EditMode
             }
         }
 
-        [Test]
+        [NUnit.Framework.Test]
         public void AuthorReferenceSite_IsSeparateAndContainsApproachAndLandscapePrimitives()
         {
             NewHouseReferenceConfig config = NewHouseReferenceConfig.Default;

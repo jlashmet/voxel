@@ -1,28 +1,29 @@
 # New House WorldBuilder Implementation Plan
 
 ## Binding objective and authoritative reference
-Recreate **this particular house image as closely as possible** as real voxel-engine content, using the production WorldBuilder, structure authoring, voxel storage/meshing/rendering, and material/texture systems. Keep rendering, comparing, and correcting until the built-player result is **very close to the reference** and production-quality. A generally similar house or green CI is not completion.
+Recreate this particular house as closely as possible using the production WorldBuilder, Structures authoring, voxel storage/meshing/rendering, and material/texture systems. Keep rendering, comparing, and correcting until the built-player result is **very close to the reference and production-quality**. Similar style or green CI is not completion.
 
 - Reference: `Assets/Textures/Stylized/experiment1/house/10dddef5-de0a-4153-9c09-b1e8016830db.png`.
-- Verified Git blob: `6d87b08d4c7c9bddc1705c0f34343aa79bc18423`, present on reviewed master `ef475182b866eabfe8e1d1a39c82bf7810a03f49` and feature baseline `544215794036261c0bfa8f71517e26700d4995ec`.
-- Optional supplied textures: `Assets/Textures/Stylized/experiment1/`. Use, adapt, or replace them; creating original/generated textures is explicitly allowed. Register chosen assets through the normal material/texture pipeline with provenance and Unity metadata. Using every supplied texture is not required.
+- Pinned Git blob: `6d87b08d4c7c9bddc1705c0f34343aa79bc18423`.
+- Optional textures: `Assets/Textures/Stylized/experiment1/`. Use, adapt, replace, or create original/generated textures through the normal pipeline with provenance and Unity metadata. Not every supplied texture must be used.
 
 ![Authoritative user-specified reference](../../../Assets/Textures/Stylized/experiment1/house/10dddef5-de0a-4153-9c09-b1e8016830db.png)
 
-Never substitute a Library/search result, generated concept, or CI screenshot for this reference, or modify the reference to fit the implementation. Reconfirm any changed reference hash with the user.
+Never substitute Library/search results, generated concepts, or CI screenshots for this reference. Do not modify it to fit the implementation; reconfirm changed reference hashes with the user.
 
-## Current result and reset
-Previous iterations used the wrong Library image, `3aad3fb3-7a3c-41b4-b87b-f2f72eaa6cda.png`. Their visual-acceptance conclusions are invalid. Reassess geometry, proportions, openings, materials, camera, lighting, and prior N/A decisions against the correct image; reference-dependent tasks are reopened. Existing technical work and CI results are historical regression evidence only, not proof of resemblance. This update changes documentation only; direct inspection of the correct image remains required before further product changes.
+## Current result and next discriminating experiment
+Resumed feature `c97d535ab5a1af16155204b43fec80fdf47ba5d9`; reviewed remote master `356b2e0e4d2818901c73bbc6b1788f8d6850356d`. Earlier wrong-Library-image visual approvals remain invalid; reference-dependent tasks stay open.
+
+Direct Git transport has no network access here. The repository connector resolves the pinned PNG/hash but its binary reads return unsupported/empty content. No correct-image visual inspection is claimed. `NewHouseReferenceSourceTests` now verifies the checkout PNG's actual Git blob and preserves its unaltered bytes plus provenance under the existing targeted-CI artifact's `ReferenceInputs/NewHouse/`, explicitly separate from player screenshots. It is a provenance regression, not visual proof, and adds no workflow, renderer, or runtime texture dependency.
+
+Code inspection also found the WorldBuilder test namespace's inert `TestAttribute` shadows the three existing house authoring tests. Restore those tests with fully qualified NUnit attributes and verify actual test-case execution; do not modify the unrelated global quarantine.
+
+Hypothesis A: wrong-reference geometry/material decisions dominate the mismatch. Hypothesis B: camera/framing differences compound it. First retrieve the verified original from CI, inspect its landmarks/proportions, and compare the existing player render; only then choose house corrections.
 
 ## Ownership and constraints
-`Assets/Game/WorldBuilder` owns reusable/config-driven house assemblies over existing Structures APIs; reference-specific composition, site, camera, and lighting remain separate. `Assets/Game/Materials` owns material identity/presentation; Rendering receives semantic-free data. Use existing curvature/SDF authoring where appropriate, not a parallel mesh/art stack or a picture pasted over substitute geometry. Preserve authoritative voxel truth, engine scale, and repository budgets.
+`Assets/Game/WorldBuilder` owns reusable/config-driven house assemblies over Structures APIs; site/camera/light remain separate. `Assets/Game/Materials` owns presentation identity; Rendering consumes semantic-free data. Use existing curvature/SDF authoring as appropriate, not a parallel art stack or image billboard. Preserve voxel truth, engine scale, and repository budgets. Evidence export costs one 3.4 MB input copy, outside player/runtime memory.
 
-WorldBuilder's `Validation/NewHouseReferenceReconstruction` is the primary module-local proof; retain affected-module tests and Rendering's `TextureLayers` validation. Material data projections retain unit coverage and production-consumer proof. The supported production CPU fallback remains the current validation path, not evidence that GPU restoration is complete.
+WorldBuilder `Validation/NewHouseReferenceReconstruction` is primary proof; retain affected-module tests, Rendering `TextureLayers`, and canonical integration. Current validation uses the supported production CPU fallback; this proves nothing about GPU restoration.
 
-## Next experiment and iteration
-Hypothesis A: wrong-reference geometry/material decisions dominate the mismatch. Hypothesis B: camera/framing differences compound it. Inspect the pinned image, identify its landmarks/proportions, and compare the existing built-player render before choosing corrections.
-
-Iterate silhouette/proportions, roof/openings, structural detail, materials/textures, then lighting/framing. Each cycle records concrete discrepancies, fixes their production cause, reruns exact-SHA validation, and compares unaltered target-view captures side by side with the pinned reference. Preserve source/run/hash provenance and side/rear audit captures. Isolate the cause after two materially different unsuccessful fixes. Do not stop at recognizable, acceptable-but-improvable, or mechanically green.
-
-## Remaining gates
-Complete `tasks.md`, including very-close reference fidelity and production quality; record blockers without lowering acceptance. Then close only this assignment, merge current master into `fixes/agent-5`, open PR, enable auto-merge, and verify `affected` and final merge per `SceneIssues/README.md`. Never use `pending/` or push directly to master.
+## Iteration and remaining gates
+Correct silhouette/proportions, roof/openings, details, materials, then lighting/framing. Each cycle records discrepancies, fixes production causes, reruns exact-SHA validation, and compares unaltered target/audit captures with the pinned input. Correct the missed rear-right capture schedule. Isolate repeated failures after two different fixes. Complete every task and very-close visual acceptance before closure, master synchronization, PR + auto-merge, and the required `affected` gate per `SceneIssues/README.md`. No `pending/` or direct master push.
