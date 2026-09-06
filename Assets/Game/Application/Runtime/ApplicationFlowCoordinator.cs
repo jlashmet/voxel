@@ -45,6 +45,7 @@ namespace Game.Application.Runtime
         private bool _operationInProgress;
         private SessionFormationResult _activeFormation;
         private PartyMemberId _localMemberId;
+        private bool _joinedPartyAwaitingStart;
         private bool _disposed;
 
         public ApplicationFlowCoordinator(
@@ -133,7 +134,9 @@ namespace Game.Application.Runtime
         {
             ThrowIfDisposed();
             if (!CanStartFrontendOperation(out ApplicationOperationResult rejected)) return rejected;
-            return FormSession(_formation.Join(request));
+            ApplicationOperationResult result = FormSession(_formation.Join(request));
+            if (result.Succeeded) _joinedPartyAwaitingStart = true;
+            return result;
         }
 
         public ApplicationOperationResult RequestPartyStart()
@@ -167,6 +170,7 @@ namespace Game.Application.Runtime
             GameSessionOperationResult shutdown = ShutdownIfActive();
             _activeFormation = default;
             _localMemberId = default;
+            _joinedPartyAwaitingStart = false;
             _lifecycle = ApplicationLifecycle.FrontEnd;
             _screen = ApplicationScreen.MainMenu;
             _operationInProgress = false;
@@ -187,6 +191,7 @@ namespace Game.Application.Runtime
             UnwindUi();
             string warning = LeavePartyIfPresent();
             GameSessionOperationResult shutdown = ShutdownIfActive();
+            _joinedPartyAwaitingStart = false;
             _lifecycle = ApplicationLifecycle.Exiting;
             _screen = ApplicationScreen.MainMenu;
             _operationInProgress = false;
@@ -203,6 +208,9 @@ namespace Game.Application.Runtime
         {
             ThrowIfDisposed();
             if (elapsedMilliseconds < 0) throw new ArgumentOutOfRangeException(nameof(elapsedMilliseconds));
+
+            if (_lifecycle == ApplicationLifecycle.FrontEnd && _joinedPartyAwaitingStart)
+                return TryStartJoinedParty();
 
             if (_lifecycle == ApplicationLifecycle.StartingSession)
             {
@@ -304,10 +312,46 @@ namespace Game.Application.Runtime
         {
             if (!formation.Succeeded)
                 return Reject(ApplicationFailure.SessionFormationFailed, formation.Failure + ": " + formation.Detail);
+            _joinedPartyAwaitingStart = false;
             _activeFormation = formation;
             _localMemberId = formation.LocalMemberId;
             _screen = ApplicationScreen.Party;
             ClearFailure();
+            return ApplicationOperationResult.Success();
+        }
+
+        private ApplicationOperationResult TryStartJoinedParty()
+        {
+            if (_operationInProgress || !_activeFormation.Succeeded || !_localMemberId.IsValid)
+                return ApplicationOperationResult.Success();
+
+            PartyScreenPresentationSnapshot party = _partyPresentation.CapturePartyScreen(_localMemberId);
+            if (party == null || !party.SessionId.Equals(_activeFormation.SessionId) ||
+                party.Lifecycle != SessionPresentationLifecycle.Active)
+                return ApplicationOperationResult.Success();
+
+            for (int i = 0; i < party.Members.Count; i++)
+            {
+                PartyMemberPresentationSnapshot member = party.Members[i];
+                if (!member.IsLocal || member.MemberId != _localMemberId)
+                    continue;
+
+                // Sessions has already authorized the leader's start. A joined client only
+                // starts its local graph; it must not send Start or infer GameplayReady here.
+                // Consume before planning so a failed graph is not retried on every frame.
+                _joinedPartyAwaitingStart = false;
+                GameSessionStartRequest request;
+                try
+                {
+                    request = _plans.PlanMultiplayer(_activeFormation);
+                }
+                catch (Exception ex)
+                {
+                    return FailStartup(ApplicationFailure.SessionPrepareFailed, ex.Message);
+                }
+                return StartSession(request);
+            }
+
             return ApplicationOperationResult.Success();
         }
 
@@ -318,6 +362,7 @@ namespace Game.Application.Runtime
                 return Reject(ApplicationFailure.InvalidState, "A session can only start from the frontend.");
 
             _operationInProgress = true;
+            _joinedPartyAwaitingStart = false;
             UnwindUi();
             _lifecycle = ApplicationLifecycle.StartingSession;
             _screen = ApplicationScreen.Loading;

@@ -79,7 +79,22 @@ namespace Game.Application.Validation
             Require(_app.RequestJoin(joinRequest).Succeeded, "join");
             Require(_app.TryCapturePartyScreen(out PartyScreenPresentationSnapshot joinParty) && joinParty.SessionId.Value == "joined-party", "join presentation");
             Proof("APPLICATION_VALIDATION multiplayer: host=hosted-party join=joined-party partySemantic=True");
+            int preparesBeforeJoinStart = session.PrepareCalls;
+            session.ReadyOnEnter = false;
+            session.ReadyOnTick = false;
+            Require(_app.Update(16).Succeeded && session.PrepareCalls == preparesBeforeJoinStart, "join waits for leader start");
+            party.Lifecycle = SessionPresentationLifecycle.Active;
+            Require(_app.Update(16).Succeeded && _app.Snapshot.Lifecycle == ApplicationLifecycle.StartingSession, "joined client observes active party");
+            Require(!_app.Snapshot.GameplayReady && partyIntents.StartCalls == 0, "join does not authorize start or bypass graph readiness");
+            Require(_app.Update(16).Succeeded && !_app.Snapshot.GameplayReady, "join remains loading until graph ready");
+            session.ReadyOnTick = true;
+            Require(_app.Update(16).Succeeded && _app.Snapshot.GameplayReady, "joined graph readiness");
+            Require(_app.Update(16).Succeeded && session.PrepareCalls == preparesBeforeJoinStart + 1, "joined graph starts exactly once");
+            Proof("APPLICATION_VALIDATION joined-start: lifecycle=InGame ready=True startCommands=0 prepares=1");
             Require(_app.RequestLeaveGame().Succeeded, "join leave");
+            Require(_app.Update(16).Succeeded && session.PrepareCalls == preparesBeforeJoinStart + 1, "leave does not reenter stale active party");
+            Require(_app.Snapshot.Lifecycle == ApplicationLifecycle.FrontEnd, "joined leave returns frontend");
+            Proof("APPLICATION_VALIDATION joined-leave: lifecycle=FrontEnd noRestart=True");
 
             Require(_app.OpenScreen(ApplicationScreen.Settings).Succeeded, "settings open");
             Require(_app.OpenScreen(ApplicationScreen.Multiplayer).Succeeded, "nested open");
@@ -148,9 +163,10 @@ namespace Game.Application.Validation
             private GameSessionSnapshot _snapshot = new GameSessionSnapshot(GameSessionLifecycle.Uninitialized, false, null, GameSessionFailure.None, string.Empty);
             public bool ReadyOnEnter;
             public bool ReadyOnTick;
+            public int PrepareCalls;
             public GameSessionStartRequest LastRequest;
             public GameSessionSnapshot Snapshot => _snapshot;
-            public GameSessionOperationResult Prepare(GameSessionStartRequest request) { LastRequest = request; _snapshot = new GameSessionSnapshot(GameSessionLifecycle.Ready, false, null, GameSessionFailure.None, string.Empty); return GameSessionOperationResult.Success(); }
+            public GameSessionOperationResult Prepare(GameSessionStartRequest request) { PrepareCalls++; LastRequest = request; _snapshot = new GameSessionSnapshot(GameSessionLifecycle.Ready, false, null, GameSessionFailure.None, string.Empty); return GameSessionOperationResult.Success(); }
             public GameSessionOperationResult EnterRunning() { _snapshot = new GameSessionSnapshot(GameSessionLifecycle.Running, ReadyOnEnter, null, GameSessionFailure.None, string.Empty); return GameSessionOperationResult.Success(); }
             public GameSessionOperationResult Tick(int elapsedMilliseconds) { _snapshot = new GameSessionSnapshot(GameSessionLifecycle.Running, ReadyOnTick || _snapshot.GameplayReady, null, GameSessionFailure.None, string.Empty); return GameSessionOperationResult.Success(); }
             public GameSessionOperationResult Capture() => GameSessionOperationResult.Success();
@@ -174,14 +190,26 @@ namespace Game.Application.Validation
         private sealed class PartyPresentationStub : IPartyScreenPresentationQuery
         {
             public GameSessionId SessionId = new GameSessionId("hosted-party");
+            public SessionPresentationLifecycle Lifecycle = SessionPresentationLifecycle.WaitingForPlayers;
             public PartyScreenPresentationSnapshot CapturePartyScreen(PartyMemberId localMemberId) =>
-                new PartyScreenPresentationSnapshot(SessionId, 4, SessionPresentationLifecycle.WaitingForPlayers, false, Array.Empty<PartyMemberPresentationSnapshot>());
+                new PartyScreenPresentationSnapshot(SessionId, 4, Lifecycle, false, new[]
+                {
+                    new PartyMemberPresentationSnapshot(localMemberId, default, default, default, true,
+                        MemberConnectionPresentationState.Connected, MemberReadinessPresentationState.Synchronizing,
+                        false, false, default)
+                });
         }
 
         private sealed class PartyIntentStub : ISessionPresentationIntentRouter
         {
             public int LeaveCalls;
-            public PartySessionCommandResult Request(SessionPresentationIntent intent) { if (intent.Kind == SessionPresentationIntentKind.Leave) LeaveCalls++; return PartySessionCommandResult.Accept(); }
+            public int StartCalls;
+            public PartySessionCommandResult Request(SessionPresentationIntent intent)
+            {
+                if (intent.Kind == SessionPresentationIntentKind.Leave) LeaveCalls++;
+                if (intent.Kind == SessionPresentationIntentKind.Start) StartCalls++;
+                return PartySessionCommandResult.Accept();
+            }
         }
 
         private sealed class OutcomeStub : IGameOutcomeQuery

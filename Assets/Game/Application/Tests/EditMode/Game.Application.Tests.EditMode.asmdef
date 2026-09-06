@@ -4,6 +4,7 @@
   "references": [
     "Game.Application.Api",
     "Game.Application.Runtime",
+    "Game.Characters.Api",
     "Game.Input.Api",
     "Game.Sessions.Api",
     "Game.SessionOrchestration.Api",
