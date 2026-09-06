@@ -1,0 +1,7 @@
+{
+  "platform": "EditMode",
+  "test": "Game.Composition.Kentridge.Playable.Tests.KentridgeMultiplayerRuntimeTests",
+  "request_id": "agent7-gamesystem25-topology-cde588c",
+  "scene_issue": "",
+  "replay_seconds": ""
+}
