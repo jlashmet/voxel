@@ -1,29 +1,21 @@
 # New House WorldBuilder Implementation Plan
 
-## Binding objective and authoritative reference
-Recreate this particular house as closely as possible using the production WorldBuilder, Structures authoring, voxel storage/meshing/rendering, and material/texture systems. Keep rendering, comparing, and correcting until the built-player result is **very close to the reference and production-quality**. Similar style or green CI is not completion.
+## Binding objective / reference
+Recreate `Assets/Textures/Stylized/experiment1/house/10dddef5-de0a-4153-9c09-b1e8016830db.png` as closely as possible through the production WorldBuilder, Structures authoring, voxel storage/meshing/rendering, and normal material/texture systems. Pinned Git blob: `6d87b08d4c7c9bddc1705c0f34343aa79bc18423`. Supplied assets under `Assets/Textures/Stylized/experiment1/` are optional; normal-pipeline original/generated textures are allowed. Similar style or green CI is not completion.
 
-- Reference: `Assets/Textures/Stylized/experiment1/house/10dddef5-de0a-4153-9c09-b1e8016830db.png`.
-- Pinned Git blob: `6d87b08d4c7c9bddc1705c0f34343aa79bc18423`.
-- Optional textures: `Assets/Textures/Stylized/experiment1/`. Use, adapt, replace, or create original/generated textures through the normal pipeline with provenance and Unity metadata. Not every supplied texture must be used.
+## Correct-reference evidence and observed mismatch
+Exact run `34007464553` on source `36df249f1ecec8d9e21863ba340da7aafa0db1fd` passed the pinned-reference hash regression, restored all three `NewHouseReferenceAuthoringTests`, module validation, and standalone replay. Its artifact preserved the exact reference bytes for direct inspection.
 
-![Authoritative user-specified reference](../../../Assets/Textures/Stylized/experiment1/house/10dddef5-de0a-4153-9c09-b1e8016830db.png)
+The pinned image is a tall ornate three-register house: pale stone ground storey with a large central round-arched timber portal and two narrow arched windows; a timber/plaster middle storey with one large arched blue-shuttered window; a dominant very steep blue front gable with a second arched window; swept/flared eaves; large warm crest finial; tall left chimney; flower boxes and heavy ivy; a blue hanging banner at left and bracketed sign at right. It is near-frontal, tightly portrait-framed, and has only a compact grounded base/steps—no garage, driveway, dormer, porch roof, or visible gutter requirement.
 
-Never substitute Library/search results, generated concepts, or CI screenshots for this reference. Do not modify it to fit the implementation; reconfirm changed reference hashes with the user.
+The prior render is materially wrong: too squat/wide, simple rectangular entry/lower openings, oversized four-panel middle bank, broad blank gable, straight/simple roof edge, tiny ridge ornaments, bright lawn/long path, sparse vegetation, and missing banner/sign.
 
-## Current result and next discriminating experiment
-Resumed feature `c97d535ab5a1af16155204b43fec80fdf47ba5d9`; reviewed remote master `356b2e0e4d2818901c73bbc6b1788f8d6850356d`. Earlier wrong-Library-image visual approvals remain invalid; reference-dependent tasks stay open.
+## Selected iteration / hypotheses
+Hypothesis A: wrong-reference massing/opening/detail decisions dominate visual error. Hypothesis B: framing/background presentation compounds it.
 
-Direct Git transport has no network access here. The repository connector resolves the pinned PNG/hash but its binary reads return unsupported/empty content. No correct-image visual inspection is claimed. `NewHouseReferenceSourceTests` now verifies the checkout PNG's actual Git blob and preserves its unaltered bytes plus provenance under the existing targeted-CI artifact's `ReferenceInputs/NewHouse/`, explicitly separate from player screenshots. It is a provenance regression, not visual proof, and adds no workflow, renderer, or runtime texture dependency.
+Iteration 1 is now authored on feature head `83f53d24de23e3f58d5f1fc4212a92e382366f2`: 84x56 footprint; taller 8/34/36 storey stack; 48-voxel steep gable; arched portal and three arched window roles; blue middle shutters; swept eave tips; single tall crest; corrected chimney; banner/sign; denser ivy/flowers; compact dirt/stone site; tighter portrait camera; and target/front-left/rear-right timing aligned to standalone ~10/20/30s captures.
 
-Code inspection also found the WorldBuilder test namespace's inert `TestAttribute` shadows the three existing house authoring tests. Restore those tests with fully qualified NUnit attributes and verify actual test-case execution; do not modify the unrelated global quarantine.
+## Ownership / gates
+`Assets/Game/WorldBuilder` owns reusable/config-driven house authoring; site/camera/light remain validation composition. `Assets/Game/Materials` owns presentation; Rendering remains semantic-free. The supported production CPU A/B path is still used for this proof while GPU restoration is separate.
 
-Hypothesis A: wrong-reference geometry/material decisions dominate the mismatch. Hypothesis B: camera/framing differences compound it. First retrieve the verified original from CI, inspect its landmarks/proportions, and compare the existing player render; only then choose house corrections.
-
-## Ownership and constraints
-`Assets/Game/WorldBuilder` owns reusable/config-driven house assemblies over Structures APIs; site/camera/light remain separate. `Assets/Game/Materials` owns presentation identity; Rendering consumes semantic-free data. Use existing curvature/SDF authoring as appropriate, not a parallel art stack or image billboard. Preserve voxel truth, engine scale, and repository budgets. Evidence export costs one 3.4 MB input copy, outside player/runtime memory.
-
-WorldBuilder `Validation/NewHouseReferenceReconstruction` is primary proof; retain affected-module tests, Rendering `TextureLayers`, and canonical integration. Current validation uses the supported production CPU fallback; this proves nothing about GPU restoration.
-
-## Iteration and remaining gates
-Correct silhouette/proportions, roof/openings, details, materials, then lighting/framing. Each cycle records discrepancies, fixes production causes, reruns exact-SHA validation, and compares unaltered target/audit captures with the pinned input. Correct the missed rear-right capture schedule. Isolate repeated failures after two different fixes. Complete every task and very-close visual acceptance before closure, master synchronization, PR + auto-merge, and the required `affected` gate per `SceneIssues/README.md`. No `pending/` or direct master push.
+Next: exact-SHA module + standalone run, direct comparison to the pinned image, record remaining concrete defects, and iterate structural issues before cosmetics. Then finish every `tasks.md` item, production-quality/audit evidence, current-master compatibility, close `open/`→`closed/`, PR + auto-merge, and required `affected` gate. Never use `pending/` or push directly to master.
