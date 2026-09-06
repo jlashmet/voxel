@@ -10,6 +10,7 @@ using Game.SessionPresentation.Api;
 using Game.Sessions.Api;
 using Game.Sessions.Runtime;
 using VoxelEngine.Net.Api;
+using VoxelEngine.Net.Runtime.Server;
 
 namespace Game.Composition.Kentridge.Playable
 {
