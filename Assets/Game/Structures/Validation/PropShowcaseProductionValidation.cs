@@ -16,6 +16,7 @@ namespace Game.Structures.Validation
     {
         private DecorationProceduralMeshPresenter _procedural;
         private DecorationThinSurfacePresenter _thin;
+        private UnityWorldObjectPresentationSink _worldObjects;
 
         private void OnEnable()
         {
@@ -36,6 +37,7 @@ namespace Game.Structures.Validation
             int realized = 0;
             DecorationPlacement proceduralPlacement = default;
             DecorationPlacement thinPlacement = default;
+            WorldObjectPresentationPlan trapdoorPlan = default;
             for (int i = 0; i < entries.Length; i++)
             {
                 DecorationShowcaseEntry entry = entries[i];
@@ -53,10 +55,20 @@ namespace Game.Structures.Validation
                         realization.Decoration.Backend == DecorationRenderBackend.ThinSurface)
                         thinPlacement = realization.Decoration;
                 }
+                else if (realization.Kind == DecorationShowcaseRealizationKind.WorldObject &&
+                         realization.WorldObject.Descriptor.Kind == WorldObjectKind.Trapdoor)
+                {
+                    WorldObjectDescriptor descriptor = realization.WorldObject.Descriptor;
+                    if (descriptor.Facing.x != 0 || descriptor.Facing.y != 1 || descriptor.Facing.z != 0 ||
+                        descriptor.Bounds.Size.y >= descriptor.Bounds.Size.x ||
+                        descriptor.Bounds.Size.y >= descriptor.Bounds.Size.z)
+                        throw new InvalidOperationException("Structures PropShowcase trapdoor was not floor-mounted.");
+                    trapdoorPlan = WorldObjectPresentationPlanner.Plan(in realization.WorldObject);
+                }
             }
 
-            if (!proceduralPlacement.IsWellFormed || !thinPlacement.IsWellFormed)
-                throw new InvalidOperationException("Structures PropShowcase validation found no procedural/thin representatives.");
+            if (!proceduralPlacement.IsWellFormed || !thinPlacement.IsWellFormed || !trapdoorPlan.IsWellFormed)
+                throw new InvalidOperationException("Structures PropShowcase validation found no procedural/thin/trapdoor representatives.");
 
             _procedural = new GameObject("Procedural Presenter").AddComponent<DecorationProceduralMeshPresenter>();
             _procedural.transform.position = new Vector3(-1.4f, 0f, 0f);
@@ -69,6 +81,18 @@ namespace Game.Structures.Validation
             _thin.transform.position = new Vector3(1.4f, 0f, 0f);
             if (!_thin.TryPresent(new[] { thinPlacement }, in context, this))
                 throw new InvalidOperationException("Structures PropShowcase thin presenter failed.");
+
+            // Reuse the shipped dynamic-object presenter. The validation does not construct a
+            // replacement hatch; its primitive art remains an explicitly unaccepted product defect.
+            _worldObjects = new GameObject("World Object Presenter").AddComponent<UnityWorldObjectPresentationSink>();
+            _worldObjects.transform.position = new Vector3(-0.6f, 0f, -1.6f);
+            _worldObjects.CreateOrUpdate(in trapdoorPlan);
+            Renderer trapdoorRenderer = _worldObjects.GetComponentInChildren<Renderer>();
+            if (trapdoorRenderer == null || !trapdoorRenderer.enabled ||
+                trapdoorRenderer.bounds.size.y >= trapdoorRenderer.bounds.size.x ||
+                trapdoorRenderer.bounds.size.y >= trapdoorRenderer.bounds.size.z)
+                throw new InvalidOperationException("Structures PropShowcase presenter did not preserve horizontal trapdoor bounds.");
+            Debug.Log($"STRUCTURES_PROP_SHOWCASE_VALIDATION trapdoor floorMounted=True proxy={_worldObjects.ProxyCount}");
 
             var floor = GameObject.CreatePrimitive(PrimitiveType.Plane);
             floor.name = "Neutral Validation Floor";
@@ -98,6 +122,9 @@ namespace Game.Structures.Validation
             if (!Application.isPlaying) return;
             _procedural?.Clear();
             _thin?.Clear();
+            _worldObjects?.Clear();
+            if (_worldObjects != null) Destroy(_worldObjects.gameObject);
+            _worldObjects = null;
         }
 
         private static DecorationContext Context() => new DecorationContext

@@ -38,6 +38,9 @@
 ## Demonstrated visual defects: run 34003328146
 - [ ] Trace and fix Merchant Sign's featureless rectangle through production thin-surface/material semantics; do not fabricate preview-only sign art. Require fresh built evidence at the production-quality bar.
 - [ ] Trace and fix plain box-like Door/Trapdoor presentation, including Trapdoor's upright realization, through production kind/geometry/mount routing. Preserve shared APIs and add focused regressions for the proven cause.
+- [x] Isolate Trapdoor's upright mount: closed production plan rotation is zero; the neutral size query and realizer select door-style dimensions and wall normal. Correct the baseline to a horizontal hatch and `+Y` floor normal without changing existing open/close behavior or explicit authored world placements. Production proxy art is still unfinished.
+- [x] Add six behavioral mount cases through canonical query/authoring/realization/action/planner paths, and update Structures-owned PropShowcaseProductionValidation to render the real hatch and assert horizontal renderer bounds. Added, not yet executed.
+- [ ] Execute mount regressions and inspect fresh exact-source standalone hatch evidence; the queued source predates this correction.
 - [ ] Trace Forge Hearth's disconnected bars and missing finished emissive presentation through the real production realization; fix the demonstrated cause and verify fresh output.
 - [ ] Review initial publication/loading and obtain captures of tiny, large, ceiling and procedural representatives that the ten-second SceneIssue replay did not adequately capture.
 
@@ -82,4 +85,4 @@
 - [ ] Merge current master, enable final PR auto-merge, pass required `affected`, and verify the closed assignment on master.
 
 ## Current state
-Request `e83a7fd822dab1c40d59f0f84ccd65937071fd28` / run `34003328146` completed FAILURE at 2026-09-06T02:37:23Z without replacement. It tested `de0aa1fb`, not the later CI isolation/resource revisions. Artifact `9981244713` was downloaded and visually reviewed: material mode is corrected, overall finish is rejected. Fresh exact-source CI is now permitted for the repaired source; no closure or PR promotion is justified by the failed run. All implementation, visual, resource and final gates above remain required.
+Request `e83a7fd822dab1c40d59f0f84ccd65937071fd28` / run `34003328146` completed FAILURE at 2026-09-06T02:37:23Z without replacement. It tested `de0aa1fb`, not the later CI isolation/resource revisions. Artifact `9981244713` was downloaded and visually reviewed: material mode is corrected, overall finish is rejected. Request `57ab96ca508e70a4d768aa5ddefc6b7343bb531c` / run `34007356710` was already queued for source `9697d365` on rechecking the remote CI ref; it remains untouched. This revision's trapdoor correction is not in that request. An unreferenced candidate `e23d0cf4` was not submitted. No closure or PR promotion is justified before the mandatory remaining implementation, visual, resource and exact-source gates pass.

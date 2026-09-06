@@ -263,6 +263,7 @@ namespace Game.Structures.Runtime
         {
             switch (kind)
             {
+                case WorldObjectKind.Trapdoor:
                 case WorldObjectKind.PressurePlate:
                 case WorldObjectKind.Trap:
                 case WorldObjectKind.SpikeTrap:

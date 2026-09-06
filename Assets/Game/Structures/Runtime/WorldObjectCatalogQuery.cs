@@ -38,8 +38,11 @@ namespace Game.Structures.Runtime
                 case WorldObjectKind.SecretDoor:
                 case WorldObjectKind.BreakableWall:
                 case WorldObjectKind.RotatingWall:
-                case WorldObjectKind.Trapdoor:
                     return new int3(12, 24, 4);
+                case WorldObjectKind.Trapdoor:
+                    // A closed hatch lies in the floor; its thickness is the vertical extent.
+                    // Keep the same dimensions as the door baseline, but put its long axis on Z.
+                    return new int3(12, 4, 24);
                 case WorldObjectKind.Gate:
                 case WorldObjectKind.Portcullis:
                     return new int3(24, 28, 5);

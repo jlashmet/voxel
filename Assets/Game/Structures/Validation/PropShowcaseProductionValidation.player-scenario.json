@@ -12,7 +12,8 @@
   "assertions": {
     "requiredLogPatterns": [
       "STRUCTURES_PROP_SHOWCASE_VALIDATION start count=529 realized=529",
-      "STRUCTURES_PROP_SHOWCASE_VALIDATION complete procedural=1 thin=1"
+      "STRUCTURES_PROP_SHOWCASE_VALIDATION complete procedural=1 thin=1",
+      "STRUCTURES_PROP_SHOWCASE_VALIDATION trapdoor floorMounted=True proxy=1"
     ],
     "forbiddenLogPatterns": [
       "InvalidOperationException",
