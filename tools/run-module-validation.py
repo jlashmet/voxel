@@ -167,6 +167,16 @@ def _requires_process_isolation(item: dict) -> bool:
     return item["platform"] == "PlayMode" or item["assembly"] in PROCESS_ISOLATED_ASSEMBLIES
 
 
+def _safe_output_token(value: str) -> str:
+    return "".join(c if c.isalnum() or c in "-_" else "_" for c in value)
+
+
+def _player_output_root(root: Path, item: dict) -> Path:
+    # A module may own several standalone scenes. Key evidence by module + scene so later targets
+    # cannot overwrite an earlier scene's screenshots/logs inside the same exact-SHA artifact.
+    return root / "Players" / _safe_output_token(item["module"] + "-" + item["scene"])
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--unity", required=True)
@@ -232,9 +242,7 @@ def main(argv=None) -> int:
         }
 
     for item in plan.get("playerValidations", []):
-        module = item["module"]
-        safe_module = "".join(c if c.isalnum() or c in "-_" else "_" for c in module)
-        out = root / "Players" / safe_module
+        out = _player_output_root(root, item)
         player_env = os.environ.copy()
         player_env["VOXEL_DISABLE_GPU_CUTOVER"] = "1"
         started = time.monotonic()
