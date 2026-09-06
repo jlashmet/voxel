@@ -69,7 +69,7 @@ namespace Game.Structures.Tests
             SpaceId = 0x48454133u,
             StyleId = DecorationStyleIds.Compose(DecorationStyleFamily.Rustic, 23u),
             StructureKind = DecorationStructureKind.House,
-            SpaceKind = DecorationSpaceKind.Workshop,
+            SpaceKind = DecorationSpaceKind.Storage,
             Wealth = DecorationWealthTier.Comfortable,
             Condition = DecorationConditionTier.Maintained,
             Environment = DecorationEnvironmentTags.Interior,
