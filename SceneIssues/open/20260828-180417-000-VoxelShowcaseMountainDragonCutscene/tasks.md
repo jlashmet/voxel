@@ -1,5 +1,14 @@
 # Tasks
 
+## Current priority — rejected green-run visuals (experiment 038)
+- [x] Reject run `34001756898` as visual acceptance: actual approach/base/route screenshots still contain major magenta regions and flat gray masses despite green automation.
+- [x] Inspect that exact build log: `Voxel/ProceduralFarFeature` is packaged with both Metal stage variants; resource inclusion alone did not fix the observed output.
+- [x] Add bounded assignment-only identical-camera draw-path exclusion captures plus live material/shader inventory; restore every presentation/replay setting and never use exclusion frames as acceptance.
+- [ ] Run the render-owner discriminator through the exact feature SHA and existing CI transport; read all-before, no-semantic-far, no-component-renderers, no-voxel-surface and all-restored evidence before another product fix.
+- [ ] Identify and correct the demonstrated material/shader/draw owner, retaining a focused production-path regression; remove temporary draw-exclusion instrumentation after recording the result.
+- [ ] Ensure an unmodified production capture with substantial error-magenta pixels fails the visual gate rather than silently passing; this does not replace human visual review.
+- [ ] Preserve distinct per-scenario module-player output directories: the previous module-only paths overwrote FarWorld with Water and earlier Showcase validations with later ones. Retain behavioral regression coverage for path uniqueness.
+
 ## Proven acceptance infrastructure / retained regressions
 - [x] Compose cube dragon, reusable proximity trigger, reusable cutscene/dialogue, and exact `Hello, I'm Mr. Dragon.` through shared modules rather than scene-local polling/UI.
 - [x] Built-player replay uses normal player movement via the deterministic waypoint replay harness; retain grounded/Y-offset traversal and CharacterMotor capsule-footprint regressions.
