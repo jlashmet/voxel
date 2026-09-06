@@ -1,4 +1,3 @@
-using System;
 using Unity.Collections;
 
 namespace VoxelEngine.Rendering.Runtime.GpuVoxel
@@ -54,35 +53,40 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         internal static GpuPagedBatchOutcome Parse(
             NativeArray<uint> words, int record, in GpuChunkExtraction expected)
         {
-            if (!words.IsCreated)
+            if (!words.IsCreated || !TryRecordStart(words.Length, record, out int start))
                 return FailedFor(in expected);
-            return ParseCore(words.Length, index => words[index], record, in expected);
+            uint status = words[start + StatusWord];
+            int handle = unchecked((int)words[start + HandleWord]);
+            ulong generation = words[start + GenerationLowWord]
+                             | ((ulong)words[start + GenerationHighWord] << 32);
+            return FromValues(status, handle, generation, in expected);
         }
 
         internal static GpuPagedBatchOutcome Parse(
             uint[] words, int record, in GpuChunkExtraction expected)
         {
-            if (words == null)
+            if (words == null || !TryRecordStart(words.Length, record, out int start))
                 return FailedFor(in expected);
-            return ParseCore(words.Length, index => words[index], record, in expected);
+            uint status = words[start + StatusWord];
+            int handle = unchecked((int)words[start + HandleWord]);
+            ulong generation = words[start + GenerationLowWord]
+                             | ((ulong)words[start + GenerationHighWord] << 32);
+            return FromValues(status, handle, generation, in expected);
         }
 
-        private static GpuPagedBatchOutcome ParseCore(
-            int length, Func<int, uint> read, int record,
+        private static bool TryRecordStart(int length, int record, out int start)
+        {
+            start = 0;
+            if (record < 0) return false;
+            start = GpuSurfaceExtractor.BatchHeaderWords
+                  + record * GpuSurfaceExtractor.BatchRecordWords;
+            return start >= 0 && start + GenerationHighWord < length;
+        }
+
+        private static GpuPagedBatchOutcome FromValues(
+            uint status, int handle, ulong generation,
             in GpuChunkExtraction expected)
         {
-            if (record < 0)
-                return FailedFor(in expected);
-            int start = GpuSurfaceExtractor.BatchHeaderWords
-                      + record * GpuSurfaceExtractor.BatchRecordWords;
-            if (start < 0 || start + GenerationHighWord >= length)
-                return FailedFor(in expected);
-
-            uint status = read(start + StatusWord);
-            int handle = unchecked((int)read(start + HandleWord));
-            ulong generation = read(start + GenerationLowWord)
-                             | ((ulong)read(start + GenerationHighWord) << 32);
-
             if (handle != expected.Handle || generation != expected.Generation)
                 return new GpuPagedBatchOutcome(
                     GpuPagedBatchOutcomeKind.IdentityMismatch, handle, generation);
