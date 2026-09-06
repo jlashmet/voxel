@@ -23,6 +23,8 @@ namespace Game.Kentridge.PlayableSlice
     public sealed class KentridgeSystem24VerticalSliceDriver : MonoBehaviour
     {
         private const string ActivationArgument = "-voxel-system24-vertical-slice";
+        private const float DestinationNetworkStopMetres = 1.25f;
+        private const float DestinationEntranceStopMetres = 0.65f;
         private const float DestinationStopMetres = 1.75f;
         private const float PostRestoreMovementMetres = 0.75f;
 
@@ -46,6 +48,13 @@ namespace Game.Kentridge.PlayableSlice
             Failed
         }
 
+        private enum DestinationRoutePhase
+        {
+            NetworkApproach,
+            PublicEntrance,
+            Npc
+        }
+
         private KentridgeProductionCompositionRoot _root;
         private KentridgePlayableSlice _slice;
         private KentridgeForestBanditEncounter _forest;
@@ -53,6 +62,7 @@ namespace Game.Kentridge.PlayableSlice
         private Gamepad _gamepad;
         private Keyboard _keyboard;
         private Stage _stage;
+        private DestinationRoutePhase _destinationRoutePhase;
         private float _deadline;
         private float _stageStartedAt;
         private float _nextDiagnosticAt;
@@ -139,6 +149,7 @@ namespace Game.Kentridge.PlayableSlice
                     " session=" + _root.SessionSnapshot.Lifecycle +
                     " combat=" + _forest.CombatActive + "/" + _forest.CombatResolved +
                     " exitedPub=" + _slice.HasExitedPub +
+                    " destinationRoute=" + _destinationRoutePhase +
                     " position=" + Format(_slice.CharacterHost == null ? Vector3.zero : _slice.CharacterHost.Position) +
                     " destination=" + DestinationDiagnostic() +
                     " loot=" + _worldInteraction.ForestLootCount);
@@ -225,6 +236,7 @@ namespace Game.Kentridge.PlayableSlice
         {
             if (!_slice.GameplayControlEnabled) return;
             _movementOrigin = _slice.CharacterHost.Position;
+            ResetDestinationRoute();
             Milestone("gameplay-control", "position=" + Format(_movementOrigin));
             Enter(Stage.MoveToDestination, 90f);
         }
@@ -238,6 +250,31 @@ namespace Game.Kentridge.PlayableSlice
                 return;
             }
             if (!_slice.TryGetDestinationNpcWorldPosition(out Vector3 destination)) return;
+            if (!TryResolveDestinationPublicRoute(out Vector3 networkApproach, out Vector3 publicEntrance))
+            {
+                Fail("destination NPC has no resolved production public-circulation route");
+                return;
+            }
+
+            switch (_destinationRoutePhase)
+            {
+                case DestinationRoutePhase.NetworkApproach:
+                    if (!DriveToward(networkApproach, DestinationNetworkStopMetres)) return;
+                    QueueMove(Vector2.zero);
+                    Debug.Log(
+                        "SYSTEM24_VALIDATION route=destination-network-approach position=" +
+                        Format(_slice.CharacterHost.Position));
+                    _destinationRoutePhase = DestinationRoutePhase.PublicEntrance;
+                    return;
+                case DestinationRoutePhase.PublicEntrance:
+                    if (!DriveToward(publicEntrance, DestinationEntranceStopMetres)) return;
+                    QueueMove(Vector2.zero);
+                    Debug.Log(
+                        "SYSTEM24_VALIDATION route=destination-public-entrance position=" +
+                        Format(_slice.CharacterHost.Position));
+                    _destinationRoutePhase = DestinationRoutePhase.Npc;
+                    return;
+            }
 
             if (!DriveToward(destination, DestinationStopMetres)) return;
             QueueMove(Vector2.zero);
@@ -355,6 +392,7 @@ namespace Game.Kentridge.PlayableSlice
                 else
                 {
                     _movementOrigin = _slice.CharacterHost.Position;
+                    ResetDestinationRoute();
                     Enter(Stage.MoveToDestination, 120f);
                 }
                 return;
@@ -555,6 +593,49 @@ namespace Game.Kentridge.PlayableSlice
             _stage = Stage.Complete;
         }
 
+        private void ResetDestinationRoute()
+        {
+            _destinationRoutePhase = DestinationRoutePhase.NetworkApproach;
+        }
+
+        private bool TryResolveDestinationPublicRoute(
+            out Vector3 networkApproach,
+            out Vector3 publicEntrance)
+        {
+            networkApproach = default;
+            publicEntrance = default;
+            KentridgeSessionRuntimeGraphFactory factory = _slice.SessionFactory;
+            KentridgeCampaignSession session = _slice.CampaignSession;
+            KentridgeCharacterHost host = _slice.CharacterHost;
+            if (factory == null || factory.Generation == null || session == null || host == null ||
+                !_slice.TryGetDestinationNpcWorldPosition(out Vector3 destination))
+                return false;
+
+            for (int i = 0; i < session.World.Npcs.Count; i++)
+            {
+                var placement = session.World.Npcs[i];
+                if (!host.TryGetNpcPosition(placement.Npc, out Vector3 candidate)) continue;
+                Vector3 delta = candidate - destination;
+                delta.y = 0f;
+                if (delta.sqrMagnitude > 0.01f * 0.01f) continue;
+                if (!factory.Generation.TryResolveNpcPublicRoute(placement.Npc, out var route))
+                    return false;
+
+                float y = host.Position.y;
+                networkApproach = new Vector3(
+                    route.NetworkApproachDm.X * 0.1f,
+                    y,
+                    route.NetworkApproachDm.Y * 0.1f);
+                publicEntrance = new Vector3(
+                    route.PublicEntranceDm.X * 0.1f,
+                    y,
+                    route.PublicEntranceDm.Y * 0.1f);
+                return true;
+            }
+
+            return false;
+        }
+
         private bool DriveToward(Vector3 target, float stopDistance)
         {
             Vector3 player = _slice.CharacterHost.Position;
@@ -633,6 +714,7 @@ namespace Game.Kentridge.PlayableSlice
                 " session=" + _root.SessionSnapshot.Lifecycle +
                 " position=" + Format(_slice.CharacterHost == null ? Vector3.zero : _slice.CharacterHost.Position) +
                 " exitedPub=" + _slice.HasExitedPub +
+                " destinationRoute=" + _destinationRoutePhase +
                 " destination=" + DestinationDiagnostic() +
                 " combat=" + _forest.CombatActive + "/" + _forest.CombatResolved +
                 " loot=" + _worldInteraction.ForestLootCount);
