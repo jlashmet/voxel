@@ -138,7 +138,7 @@ namespace Game.WorldBuilder.Validation.NewHouseReference
                 GameMaterialIds.Moss,
                 GameMaterialIds.Gold);
 
-            _result = NewHouseReferenceAuthoring.AuthorHouse(
+            _result = NewHouseReferenceRefinement.AuthorHouse(
                 authoring, _origin, in config, in palette);
             NewHouseReferenceAuthoring.AuthorReferenceSite(
                 authoring, _origin, in config, in palette);
