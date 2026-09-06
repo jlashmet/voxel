@@ -9,6 +9,7 @@ using Game.Sessions.Api;
 using Game.Sessions.Runtime;
 using NUnit.Framework;
 using VoxelEngine.Net.Api;
+using VoxelEngine.Net.Runtime.Server;
 
 namespace Game.Composition.Kentridge.Playable.Tests
 {
