@@ -71,18 +71,23 @@ namespace Game.Materials.Tests
         }
 
         [Test]
-        public void PaintedHouseAccent_PreservesAuthoredBlueChroma()
+        public void PaintedHouseAccent_UsesBlueBaseWithSuppliedLuminanceDetail()
         {
             MaterialPresentationDefinition row =
                 GameMaterialRenderingDefinitions.Create()[GameMaterialIds.HouseDoor];
 
             Assert.That(row.Sampling.x, Is.EqualTo(12f),
-                "The painted architectural role must continue to sample the supplied blue-and-gold plate.");
+                "The painted architectural role must continue to sample the supplied ornamental plate.");
             Assert.That(row.Sampling.w, Is.EqualTo(1f));
-            Assert.That(row.Albedo.x, Is.EqualTo(1f));
-            Assert.That(row.Albedo.y, Is.EqualTo(1f));
-            Assert.That(row.Albedo.z, Is.EqualTo(1f),
-                "A coloured multiplier crushes the authored blue paint to charcoal; preserve the plate chroma.");
+            Assert.That(row.Albedo.x, Is.EqualTo(0.12f));
+            Assert.That(row.Albedo.y, Is.EqualTo(0.42f));
+            Assert.That(row.Albedo.z, Is.EqualTo(0.82f),
+                "The reference shutters require a saturated blue game-owned base colour.");
+            Assert.That(row.Surface.w, Is.EqualTo(1f),
+                "The dark/gold supplied plate must contribute luminance/detail rather than replace the blue paint chroma.");
+            Assert.That(row.Variation.y, Is.EqualTo(1f));
+            Assert.That(row.Variation.z, Is.EqualTo(0f),
+                "Texture chroma must not leak the supplied plate's gold/black colour back into the painted accent.");
         }
     }
 }
