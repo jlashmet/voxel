@@ -85,6 +85,22 @@ GPU failure recovery and truthful readiness remain required G10/G11 work. Tempor
 instrumentation was archived as `category-trace/diagnostic-source.diff` and removed from runtime.
 
 
+The high-count diagnostic found **invalid prepared layouts**, so the preceding category totals
+cannot establish legitimate demand or justify compression/budget changes. `chunk-trace-adaptive/`
+captured origin(-256,128,-128), step2, extractor cacheEdge18 with only1000 prepared entries
+(edge10), rather than5832. Lane reuse retained its initial layout and allowed incompatible
+extractors to share a batch. Fix groups compatible layouts, recreates incompatible idle resources
+after completion, and guards count/write against mismatches. Boundary regression alternates
+edges4/6 and failed before (expected256 vertices, got0); all13 focused tests pass after in17s,
+zero skipped (`layout-boundary-before.xml`, `layout-after.xml`). The earlier all-solid fixture
+passed before and did not expose this failure. Diagnostic binaries/patch retained; readbacks removed.
+`layout-fixed/` completed180 seconds, player exit0,11 screenshots. Castle upper walls no longer
+fragment into floating strips. Traversal still has missing ground, terrain bands, cyan water and
+grey blockout far structures: **unacceptable**. Its `diagnostic-summary.json` retains rounded
+per-window timings and caveats; no full-coverage or performance acceptance. Reassess GPU capacity
+and live publication with corrected layouts before implementing compression/recovery changes.
+
+
 
 ## 1. Get the actual GPU path running now
 

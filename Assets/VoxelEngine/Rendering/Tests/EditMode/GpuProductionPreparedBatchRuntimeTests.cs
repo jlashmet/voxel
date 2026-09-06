@@ -110,6 +110,48 @@ namespace VoxelEngine.Tests.EditMode
                 "Production write must consume the same prepared slice and emit exactly its counted indices.");
         }
 
+        [Test]
+        public void ReusedLaneChangesBrickLayoutWithoutChangingBoundaryGeometry()
+        {
+            Assert.IsTrue(SystemInfo.supportsComputeShaders);
+            var shader = AssetDatabase.LoadAssetAtPath<ComputeShader>(MesherShaderPath);
+            using var mirror = new GpuVoxelBrickMirror(8);
+            using var tables = GpuTransvoxelTables.CreateDefault();
+            using var fine = new GpuSurfaceExtractor(shader, CellsPerAxis, Padding, 4);
+            using var coarse = new GpuSurfaceExtractor(shader, CellsPerAxis, Padding, 6);
+            ConfigureCatalogues(fine);
+            ConfigureCatalogues(coarse);
+            var cacheOrigin = new int3(-2);
+            PublishUniformWindow(mirror, cacheOrigin, 6, 3);
+            using var counters = new ComputeBuffer(GpuSurfaceExtractor.BatchHeaderWords
+                + GpuSurfaceExtractor.BatchRecordWords, sizeof(uint), ComputeBufferType.Structured);
+            GpuSurfaceExtractor.CountBatchResources resources = null;
+            try
+            {
+                foreach (var extractor in new[] { fine, coarse, fine, coarse })
+                {
+                    extractor.PrepareCountBatchResources(ref resources, 1);
+                    var requests = new[] { new GpuChunkExtraction(int3.zero, cacheOrigin,
+                        extractor == fine ? 1 : 2, 0.1f) };
+                    using var fresh = extractor.CreateCountBatchResources(1);
+                    extractor.DispatchCountBatch(mirror, tables, requests, 1, counters, fresh);
+                    var expected = new uint[counters.count];
+                    counters.GetData(expected);
+                    Assert.Greater(expected[GpuSurfaceExtractor.BatchHeaderWords + 2], 0u,
+                        "The analytic half-space fixture must cross a surface.");
+                    extractor.DispatchCountBatch(mirror, tables, requests, 1, counters, resources);
+                    var words = new uint[counters.count];
+                    counters.GetData(words);
+                    Assert.AreEqual(expected[GpuSurfaceExtractor.BatchHeaderWords + 2],
+                        words[GpuSurfaceExtractor.BatchHeaderWords + 2],
+                        $"Reused cache edge {extractor.BrickCacheEdge} changed the occupied boundary.");
+                    Assert.AreEqual(expected[GpuSurfaceExtractor.BatchHeaderWords + 3],
+                        words[GpuSurfaceExtractor.BatchHeaderWords + 3]);
+                }
+            }
+            finally { resources?.Dispose(); }
+        }
+
         private static void PublishUniformWindow(GpuVoxelBrickMirror mirror, int3 origin, int edge,
                                                  int solidBrickYLimit)
         {

@@ -105,6 +105,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 new GpuChunkExtraction[CountBatchCapacity];
             internal ComputeBuffer Counters;
             internal GpuSurfaceExtractor PrefixExtractor;
+            internal GpuSurfaceExtractor LayoutExtractor;
             internal GpuTransvoxelTables Tables;
             internal GpuSurfaceExtractor.CountBatchResources Resources;
             internal GraphicsFence CompletionFence;
@@ -268,11 +269,17 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             for (int i = 0; i < s_CountBatchLanes.Length; i++)
             {
                 CountBatchLane candidate = s_CountBatchLanes[i];
-                if (!candidate.Submitted && candidate.Count < CountBatchCapacity)
+                if (candidate.Submitted || candidate.Count >= CountBatchCapacity) continue;
+                if (candidate.Count > 0 && !extractor.HasSameBatchLayout(candidate.PrefixExtractor))
+                    continue;
+                // Prefer an already configured lane. Retaining each active ring's layout avoids
+                // repeatedly reallocating buffers when fine/coarse requests are interleaved.
+                if (candidate.Resources != null && extractor.HasSameBatchLayout(candidate.LayoutExtractor))
                 {
                     lane = candidate;
                     break;
                 }
+                if (lane == null) lane = candidate;
             }
             if (lane == null) return false;
 
@@ -282,7 +289,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 lane.FirstDispatchFrame = frame;
                 lane.PrefixExtractor = extractor;
                 lane.Tables = tables;
-                lane.Resources ??= extractor.CreateCountBatchResources(CountBatchCapacity);
+                extractor.PrepareCountBatchResources(ref lane.Resources, CountBatchCapacity);
+                lane.LayoutExtractor = extractor;
             }
             lane.Contexts[record] = context;
             lane.Tokens[record] = token;
@@ -419,6 +427,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 lane.Counters = null;
                 lane.Resources?.Dispose();
                 lane.Resources = null;
+                lane.LayoutExtractor = null;
                 ResetCountBatchLane(lane);
             }
             s_CountBatchReadbacks = 0;

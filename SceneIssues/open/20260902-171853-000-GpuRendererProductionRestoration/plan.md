@@ -10,22 +10,26 @@ User directs local harness/tests and screenshot review; **no further origin push
 
 Local watchdog repair passes five behavioral tests. Shared 44-byte allocator descriptor fixes second-record identity corruption. Common-point capacity status write fixes Metal Exhausted/TooLarge results; descriptor aliases/default-store changes alone were falsified. Thirteen focused GPU tests passed previously. Three 180-second player runs remained unacceptable; their incomplete geometry invalidates performance acceptance.
 
-## New discriminating evidence
+## Prior GPU findings
 
-`Artifacts/LocalGpuShowcase/publication-trace/`: 80-second standalone Metal capture, 1920x1080, five PNGs. Temporary opt-in synchronous readbacks are archived as `diagnostic-source.diff` and removed from runtime. At 60s, visible=461, live-ready=295, empty=208, pending=0, indirect instances=253: all nonempty live records reach draw compaction. Vertex arena has one free page; 259 allocations report Exhausted by 65s. Host fence completion conceals rejected geometry. First rejection: handle408, origin(640,0,640), step2, 156812 vertices. Global publication-pump failure is falsified; capacity failure is proven.
+`publication-trace/`: vertex exhaustion rejected259 requests; host fences concealed missing live records. Nonempty live records reached draw compaction. `explicit-bucket-offset/`: explicit GPU metadata prefixes fixed Metal indirect-instance addressing and restored castle towers; production-shader raster regression fails before/passes after. These repairs leave visual acceptance unmet. See tasks.md for exact artifacts and limitations.
 
-Separately, direct `SV_InstanceID` addressing ignored nonzero indirect bucket prefixes on local Metal. Explicit GPU bucket-prefix lookup with zero indirect start-instance restores most castle facade/towers in `explicit-bucket-offset/` standalone screenshots. A production-shader raster test renders three spatially separated buckets: previous shaders fail at handle1, fixed shaders pass. The 600-handle compaction test also passes. Final focused publication/draw regression results are recorded in tasks.md.
+## Proven layout defect and current validation
 
-Visual classification remains **unacceptable**: missing capacity-rejected chunks, fragmented structures, cyan water, blockout far terrain and seams. No performance claim; late replay GPU timing windows have zero samples.
+Earlier category counts (`category-trace/`: regular36.2M/faceted26.3M requested vertices) are **not legitimate capacity demand**: malformed prepared layouts contaminate them. The exact selected chunk was not requested in the first85s replay; adaptive capture selected the first step2 chunk above120K regular vertices instead.
 
-## Capacity experiment and next discriminator
+`chunk-trace-adaptive/Prepared`: origin(-256,128,-128), extractor cacheEdge18 but only1000 dense entries (edge10), versus5832 required. Lanes retained first-use resources and admitted incompatible extractors. Wrong flattening strides caused missing/invented surfaces. Temporary readbacks and full inputs are archived; instrumentation removed.
 
-`category-trace/`: completed 85-second standalone capture, four PNGs; temporary category readbacks archived and removed. Across 849 requests before70s: regular36,184,979 vertices, faceted26,342,636, decoration6,220 (before transitions/profiles). Step2 alone contributes regular30,655,946 and faceted19,388,944 across315 requests. These are requested counts, not simultaneous residency. Decorations are falsified as the dominant pressure source. Faceted merging alone cannot resolve the measured demand. Scheduler relief watches only `_geometryArena` (CPU), so GPU rejection bypasses recovery.
+Fix: group requests by cells/padding/cache-edge compatibility, prefer matching idle resources, recreate incompatible idle resources only after completion, and reject mismatched count/write dispatches. A boundary fixture alternating cache edges4/6 fails before (expected256 vertices, got0) and passes after. Thirteen focused tests pass, zero skips, in17s (`layout-after.xml`). The initial all-solid fixture passed before and was insufficient; replaced with a discriminating solid/air boundary.
 
-1. Step2 regular geometry is legitimately large but duplicates shareable vertices; compact representation can fit the fixed budget.
-2. Step2 prepared density/reconstruction produces excess surfaces; compression would hide an extraction defect.
+The180-second `layout-fixed/` player replay completed at1920x1080 with11 screenshots. Upper castle walls are restored without floating strips, but traversal retains missing ground, terrain bands, cyan water and grey blockout far structures: **unacceptable**. Diagnostic timings and limitations are in its JSON; no benchmark acceptance.
 
-Next capture actual prepared inputs and pre-page geometry for one high-count step2 chunk: origin(0,256,512), observed216691 regular vertices. Compare occupancy/density boundary expectations and duplicate geometry before choosing vertex reuse or extraction repair. Independently require GPU-owned bounded rejection/retry and truthful host readiness. No budget/content changes.
+## Next hypotheses and discriminator
+
+1. Correct layout removes the false geometry and most arena pressure.
+2. Remaining capacity/recovery failures still leave real visible chunks absent.
+
+After traversal review, recapture bounded live/count/status diagnostics on corrected layouts. Do not infer GPU readiness from host fences. Fix genuine pressure/retry only from corrected demand, then migrate step4/8/water and address visual defects. No budget/content changes.
 
 ## Remaining gates
 

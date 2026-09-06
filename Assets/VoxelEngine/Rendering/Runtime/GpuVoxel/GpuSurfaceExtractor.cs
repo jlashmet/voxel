@@ -162,6 +162,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             internal readonly int Capacity;
             internal readonly GpuBrickCachePreparation PreparedCache;
+            internal readonly int BrickCacheEdge;
             internal readonly ComputeBuffer Chunks;
             internal readonly ComputeBuffer Density;
             internal readonly ComputeBuffer SampleMaterial;
@@ -183,6 +184,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                                          int faceSampleCount, int brickCacheEdge)
             {
                 Capacity = capacity;
+                BrickCacheEdge = brickCacheEdge;
                 PreparedCache = new GpuBrickCachePreparation(capacity, brickCacheEdge);
                 Chunks = new ComputeBuffer(capacity, BatchChunkDescriptor.Stride,
                                            ComputeBufferType.Structured);
@@ -839,6 +841,28 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         internal const int BatchHeaderWords = 4;
         internal const int BatchRecordWords = 17;
 
+        internal void PrepareCountBatchResources(ref CountBatchResources resources, int capacity)
+        {
+            // Call only for an idle lane, after its completion fence. Layout changes affect the
+            // resolver's flattening stride as well as buffer sizes; extra capacity is not enough.
+            if (resources != null && resources.Capacity == capacity
+                && MatchesCountBatchResources(resources)) return;
+            resources?.Dispose();
+            resources = CreateCountBatchResources(capacity);
+        }
+
+        internal bool HasSameBatchLayout(GpuSurfaceExtractor other) => other != null
+            && CellsPerAxis == other.CellsPerAxis && Padding == other.Padding
+            && BrickCacheEdge == other.BrickCacheEdge;
+
+        private bool MatchesCountBatchResources(CountBatchResources resources) =>
+            resources.BrickCacheEdge == BrickCacheEdge
+            && resources.Density.count == resources.Capacity * GridSize * GridSize * GridSize
+            && resources.CellVertexCounts.count == resources.Capacity
+                * (CellsPerAxis + 1) * (CellsPerAxis + 1) * (CellsPerAxis + 1)
+            && resources.FaceDensity.count == resources.Capacity * 6
+                * FaceSamplesPerAxis * FaceSamplesPerAxis;
+
         internal CountBatchResources CreateCountBatchResources(int capacity)
         {
             if (capacity <= 0) throw new ArgumentOutOfRangeException(nameof(capacity));
@@ -868,6 +892,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (requests == null) throw new ArgumentNullException(nameof(requests));
             if (batchCounters == null) throw new ArgumentNullException(nameof(batchCounters));
             if (resources == null) throw new ArgumentNullException(nameof(resources));
+            if (!MatchesCountBatchResources(resources))
+                throw new ArgumentException("Batch resources do not match the extractor layout.", nameof(resources));
             if (recordCount <= 0 || recordCount > resources.Capacity
                 || recordCount > requests.Length)
                 throw new ArgumentOutOfRangeException(nameof(recordCount));
@@ -949,6 +975,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (tables == null) throw new ArgumentNullException(nameof(tables));
             if (batchCounters == null) throw new ArgumentNullException(nameof(batchCounters));
             if (resources == null) throw new ArgumentNullException(nameof(resources));
+            if (!MatchesCountBatchResources(resources))
+                throw new ArgumentException("Batch resources do not match the extractor layout.", nameof(resources));
             if (vertices == null) throw new ArgumentNullException(nameof(vertices));
             if (indices == null) throw new ArgumentNullException(nameof(indices));
             if (recordCount <= 0 || recordCount > resources.Capacity)
