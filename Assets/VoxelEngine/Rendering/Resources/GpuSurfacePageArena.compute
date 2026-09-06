@@ -10,16 +10,7 @@
 // later identity-checked Commit can replace live geometry. CPU feedback is limited to the existing
 // small batch status/identity records, never generated vertices or indices.
 
-struct BatchChunkDescriptor
-{
-    int3 chunkOriginVoxel;
-    int sourceStep;
-    uint transitionFaceMask;
-    float voxelSize;
-    uint handle;
-    uint generationLow;
-    uint generationHigh;
-};
+#include "VoxelBatchChunkDescriptor.hlsl"
 
 struct ChunkGeometryRecord
 {
@@ -233,48 +224,43 @@ void CSAllocateBatchPages(uint3 id : SV_DispatchThreadID)
     {
         int word = RecordWord(record);
         BatchChunkDescriptor chunk = _BatchChunks[record];
-        _BatchCounters[word + 10] = AllocationStale;
         _BatchCounters[word + 11] = chunk.handle;
         _BatchCounters[word + 12] = chunk.generationLow;
         _BatchCounters[word + 13] = chunk.generationHigh;
         uint2 desired = _DesiredGenerationsRead[chunk.handle];
-        if (desired.x != chunk.generationLow || desired.y != chunk.generationHigh) continue;
-
-        // Word zero is the semantic-support result produced by the count pass. Keep the allocator on
-        // one RW view of the counter resource: aliasing the same buffer as an SRV and UAV in this
-        // kernel is undefined on Metal and left later nonzero capacity statuses stuck at Stale.
-        if (_BatchCounters[word + 0] != 0u)
-        {
-            _BatchCounters[word + 10] = AllocationUnsupported;
-            continue;
-        }
-
         uint vertexCount = _BatchCounters[word + 2];
         uint indexCount = _BatchCounters[word + 3];
         uint vertexPages = (vertexCount + (uint)_VertexPageSize - 1u) / (uint)_VertexPageSize;
         uint indexPages = (indexCount + (uint)_IndexPageSize - 1u) / (uint)_IndexPageSize;
-        if (vertexPages > (uint)_MaxVertexPagesPerChunk
-         || indexPages > (uint)_MaxIndexPagesPerChunk)
-        {
-            _BatchCounters[word + 10] = AllocationTooLarge;
-            _ArenaState[6]++;
-            continue;
-        }
-
-        // Only one pending allocation may own a handle. A later renderer generation may replace a
-        // completed-but-uncommitted candidate, but a failed replacement must leave that candidate
-        // intact. Count its pages as immediately reusable only after the replacement is known to fit.
         ChunkGeometryRecord oldPending = _PendingChunkGeometryRead[chunk.handle];
         uint availableVertexPages = _ArenaState[0]
             + (oldPending.ready != 0u ? oldPending.vertexPageCount : 0u);
         uint availableIndexPages = _ArenaState[1]
             + (oldPending.ready != 0u ? oldPending.indexPageCount : 0u);
-        if (vertexPages > availableVertexPages || indexPages > availableIndexPages)
+
+        // Classify before mutating ownership. Every record writes its result at one common point:
+        // Metal lost the capacity-status stores inside the early-continue branches, while their
+        // generation/identity words remained correct. Rejected requests preserve old candidates.
+        uint status;
+        if (desired.x != chunk.generationLow || desired.y != chunk.generationHigh)
+            status = AllocationStale;
+        else if (_BatchCounters[word] != 0u)
+            status = AllocationUnsupported;
+        else if (vertexPages > (uint)_MaxVertexPagesPerChunk
+              || indexPages > (uint)_MaxIndexPagesPerChunk)
+            status = AllocationTooLarge;
+        else if (vertexPages > availableVertexPages || indexPages > availableIndexPages)
+            status = AllocationExhausted;
+        else
+            status = AllocationReady;
+        _BatchCounters[word + 10] = status;
+        if (status != AllocationReady)
         {
-            _BatchCounters[word + 10] = AllocationExhausted;
-            _ArenaState[6]++;
+            if (status == AllocationExhausted || status == AllocationTooLarge)
+                _ArenaState[6]++;
             continue;
         }
+
         if (oldPending.ready != 0u)
             RecyclePending(chunk.handle, oldPending);
 
@@ -297,7 +283,6 @@ void CSAllocateBatchPages(uint3 id : SV_DispatchThreadID)
         pending.indexPageCount = indexPages;
         pending.ready = 1u;
         _PendingChunkGeometry[chunk.handle] = pending;
-        _BatchCounters[word + 10] = AllocationReady;
         _BatchCounters[word + 14] = bank;
         _BatchCounters[word + 15] = vertexPages;
         _BatchCounters[word + 16] = indexPages;

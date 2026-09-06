@@ -137,6 +137,16 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             return records[handle];
         }
 
+        private string DescribeAllocation(Batch batch, int handle)
+        {
+            var desired = new uint[_arena.HandleCapacity * 2];
+            _arena.DesiredGenerations.GetData(desired);
+            var arenaWords = new uint[_arena.ArenaState.count];
+            _arena.ArenaState.GetData(arenaWords);
+            return $"desired={desired[handle * 2]:X8}/{desired[handle * 2 + 1]:X8} "
+                 + $"batch=[{string.Join(",", batch.Words)}] arena=[{string.Join(",", arenaWords)}]";
+        }
+
         private static int AcquireAndSelectGeneration(
             GpuSurfacePageArena arena, ulong generation, int frame)
         {
@@ -157,6 +167,53 @@ namespace VoxelEngine.Rendering.Tests.EditMode
                 batch.Descriptors, batch.Counters, 1,
                 GpuSurfaceExtractor.BatchRecordWords, frame + 1);
             Assert.That(batch.ReadAllocationStatus(), Is.EqualTo(AllocationReady));
+        }
+
+        [Test]
+        public void MultiRecordAllocationPreservesDescriptorStrideAndIdentity()
+        {
+            var arena = Create(handles: 2);
+            var descriptors = new GpuSurfaceExtractor.BatchChunkDescriptor[2];
+            for (int record = 0; record < descriptors.Length; record++)
+            {
+                Assert.That(arena.TryAcquireHandle(out int handle), Is.True);
+                ulong generation = 0x0000000200000003UL + (uint)record;
+                arena.QueueGeneration(handle, generation);
+                descriptors[record] = new GpuSurfaceExtractor.BatchChunkDescriptor
+                {
+                    OriginX = record * -16, SourceStep = record + 1, VoxelSize = 0.1f,
+                    Handle = (uint)handle, GenerationLow = (uint)generation,
+                    GenerationHigh = (uint)(generation >> 32), ProfileStart = 0, ProfileCount = 0,
+                };
+            }
+            arena.FlushHandleCommands(1);
+            using var chunks = new ComputeBuffer(2, GpuSurfaceExtractor.BatchChunkDescriptor.Stride);
+            using var counters = new ComputeBuffer(
+                GpuSurfaceExtractor.BatchHeaderWords + 2 * GpuSurfaceExtractor.BatchRecordWords, sizeof(uint));
+            chunks.SetData(descriptors);
+            var words = new uint[counters.count];
+            for (int record = 0; record < 2; record++)
+            {
+                int word = GpuSurfaceExtractor.BatchHeaderWords + record * GpuSurfaceExtractor.BatchRecordWords;
+                words[word + 2] = 4;
+                words[word + 3] = 6;
+            }
+            counters.SetData(words);
+            arena.AllocateBatch(chunks, counters, 2, GpuSurfaceExtractor.BatchRecordWords, 2);
+            counters.GetData(words); // bounded test-only verification, after production dispatch
+            for (int record = 0; record < 2; record++)
+            {
+                int word = GpuSurfaceExtractor.BatchHeaderWords + record * GpuSurfaceExtractor.BatchRecordWords;
+                var descriptor = descriptors[record];
+                Assert.That(words[word + 11], Is.EqualTo(descriptor.Handle), $"Record {record} handle");
+                Assert.That(words[word + 12], Is.EqualTo(descriptor.GenerationLow), $"Record {record} generation low");
+                Assert.That(words[word + 13], Is.EqualTo(descriptor.GenerationHigh), $"Record {record} generation high");
+                Assert.That(words[word + 10], Is.EqualTo(AllocationReady), $"Record {record} status");
+                var pending = ReadRecord(arena.PendingChunkGeometry, (int)descriptor.Handle, arena.HandleCapacity);
+                Assert.That(pending.Ready, Is.EqualTo(1u));
+                Assert.That(pending.VertexCount, Is.EqualTo(4u));
+                Assert.That(pending.IndexCount, Is.EqualTo(6u));
+            }
         }
 
         [Test]
@@ -270,7 +327,8 @@ namespace VoxelEngine.Rendering.Tests.EditMode
                 GpuSurfaceExtractor.BatchRecordWords, 18);
 
             Assert.That(exhausted.ReadAllocationStatus(), Is.EqualTo(AllocationExhausted),
-                "Arena exhaustion is a retryable GPU result, not successful completion.");
+                "Arena exhaustion is a retryable GPU result, not successful completion. "
+                + DescribeAllocation(exhausted, second));
             Assert.That(ReadRecord(
                 arena.PendingChunkGeometry, second, arena.HandleCapacity).Ready, Is.Zero);
             Assert.That(ReadRecord(
@@ -295,7 +353,8 @@ namespace VoxelEngine.Rendering.Tests.EditMode
 
             Assert.That(oversized.ReadAllocationStatus(), Is.EqualTo(AllocationTooLarge),
                 "TooLarge must stay distinct from transient exhaustion so production can take an "
-              + "explicit supported action instead of retrying an impossible allocation forever.");
+              + "explicit supported action instead of retrying an impossible allocation forever. "
+                + DescribeAllocation(oversized, handle));
             Assert.That(ReadRecord(
                 arena.PendingChunkGeometry, handle, arena.HandleCapacity).Ready, Is.Zero);
         }

@@ -115,18 +115,7 @@ int _BatchIndexAlignment;
 int _VertexCapacity;
 int _IndexCapacity;
 
-struct BatchChunkDescriptor
-{
-    int3 chunkOriginVoxel;
-    int sourceStep;
-    uint transitionFaceMask;
-    float voxelSize;
-    uint handle;
-    uint generationLow;
-    uint generationHigh;
-    uint profileStart;
-    uint profileCount;
-};
+#include "VoxelBatchChunkDescriptor.hlsl"
 StructuredBuffer<BatchChunkDescriptor> _BatchChunks;
 struct GpuProfileBlock
 {
