@@ -58,6 +58,7 @@ RWStructuredBuffer<RetiredPage> _RetiredIndexPages;
 StructuredBuffer<RetiredPage> _RetiredVertexPagesRead;
 StructuredBuffer<RetiredPage> _RetiredIndexPagesRead;
 RWStructuredBuffer<uint2> _DesiredGenerations;
+StructuredBuffer<uint2> _DesiredGenerationsRead;
 StructuredBuffer<HandleCommand> _HandleCommands;
 RWStructuredBuffer<ChunkGeometryRecord> _LiveChunkGeometry;
 RWStructuredBuffer<ChunkGeometryRecord> _PendingChunkGeometry;
@@ -236,7 +237,7 @@ void CSAllocateBatchPages(uint3 id : SV_DispatchThreadID)
         _BatchCounters[word + 11] = chunk.handle;
         _BatchCounters[word + 12] = chunk.generationLow;
         _BatchCounters[word + 13] = chunk.generationHigh;
-        uint2 desired = _DesiredGenerations[chunk.handle];
+        uint2 desired = _DesiredGenerationsRead[chunk.handle];
         if (desired.x != chunk.generationLow || desired.y != chunk.generationHigh) continue;
 
         // Word zero is the semantic-support result produced by the count pass. Do not allocate an
@@ -304,9 +305,9 @@ void CSAllocateBatchPages(uint3 id : SV_DispatchThreadID)
 }
 
 // Finalization is intentionally not publication. This kernel runs after geometry writes so the
-// subsequent GPU fence is ordered after all candidate consumers. A superseded desired generation
-// is converted to Stale and its pending pages are reclaimed; a current candidate stays pending
-// until a later identity-checked commit.
+// subsequent tiny status readback is ordered after all candidate consumers. A superseded desired
+// generation is converted to Stale and its pending pages are reclaimed; a current candidate stays
+// pending until a later identity-checked commit.
 [numthreads(1, 1, 1)]
 void CSPublishBatchPages(uint3 id : SV_DispatchThreadID)
 {
@@ -316,7 +317,7 @@ void CSPublishBatchPages(uint3 id : SV_DispatchThreadID)
         if (_BatchCountersRead[word + 10] != AllocationReady) continue;
         uint handle = _BatchCountersRead[word + 11];
         ChunkGeometryRecord pending = _PendingChunkGeometryRead[handle];
-        uint2 desired = _DesiredGenerations[handle];
+        uint2 desired = _DesiredGenerationsRead[handle];
         bool samePending = pending.ready != 0u
             && pending.generationLow == _BatchCountersRead[word + 12]
             && pending.generationHigh == _BatchCountersRead[word + 13];
@@ -340,7 +341,7 @@ void CSCommitPendingPages(uint3 id : SV_DispatchThreadID)
         || pending.generationHigh != _PendingGenerationHigh)
         return;
 
-    uint2 desired = _DesiredGenerations[handle];
+    uint2 desired = _DesiredGenerationsRead[handle];
     if (desired.x != pending.generationLow || desired.y != pending.generationHigh)
     {
         RetirePending(handle, pending);
@@ -371,7 +372,7 @@ void CSCommitCurrentPendingPages(uint3 id : SV_DispatchThreadID)
     if (handle >= (uint)_HandleCapacity) return;
     ChunkGeometryRecord pending = _PendingChunkGeometryRead[handle];
     if (pending.ready == 0u) return;
-    uint2 desired = _DesiredGenerations[handle];
+    uint2 desired = _DesiredGenerationsRead[handle];
     if (desired.x != pending.generationLow || desired.y != pending.generationHigh) return;
 
     ChunkGeometryRecord live = _LiveChunkGeometryRead[handle];
