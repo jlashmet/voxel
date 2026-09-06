@@ -121,6 +121,7 @@ namespace Game.Kentridge.PlayableSlice
             && _sessionControl.Snapshot.Lifecycle == GameSessionLifecycle.Running
             && _session != null
             && _openingStarted
+            && _openingGameplayReleased
             && !_session.Runtime.HasActiveCutscene;
         public bool HasExitedPub => _hasExitedPub;
         public bool OpeningCutsceneStarted => _openingStarted;
