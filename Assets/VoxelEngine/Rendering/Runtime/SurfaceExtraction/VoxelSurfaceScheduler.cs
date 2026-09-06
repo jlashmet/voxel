@@ -1863,24 +1863,16 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                             int shard = CpuTransvoxelChunkCache.ShardForChunk(
                                 coordinate, ring.Workers.Length);
                             CpuTransvoxelChunkCache worker = ring.Workers[shard];
-                            int inBandBefore = worker.LastVisibilityInBandCount;
-                            int frustumBefore = worker.LastVisibilityFrustumCount;
-                            int readyBefore = worker.LastVisibilityReadyCount;
-                            int emptyBefore = worker.LastVisibilityEmptyCount;
-                            int visibleBefore = worker.Visible.Count;
-                            worker.CollectVisibleCoordinate(
-                                coordinate, _visibilityFrustumPlanes, cameraPosition,
-                                voxelSize, frame);
-                            var node = new SurfaceLodNodeKey(ring.SourceStep, coordinate);
-                            if (worker.Visible.Count > visibleBefore)
-                                _lodDrawableNodes.Add(node);
-                            bool inBand = worker.LastVisibilityInBandCount > inBandBefore;
-                            bool inFrustum = worker.LastVisibilityFrustumCount > frustumBefore;
-                            bool currentReady = worker.LastVisibilityReadyCount > readyBefore;
-                            bool currentEmpty = worker.LastVisibilityEmptyCount > emptyBefore;
-                            if (SurfaceLodVisibilitySelector.IsCurrentViewComplete(
-                                    inBand, inFrustum, currentReady, currentEmpty))
-                                _lodCurrentCompleteNodes.Add(node);
+                            CpuTransvoxelChunkCache.CoordinateVisibility visibility =
+                                worker.CollectVisibleCoordinate(
+                                    coordinate, _visibilityFrustumPlanes, cameraPosition,
+                                    voxelSize, frame);
+                            if (visibility.Drawable || visibility.CurrentViewComplete)
+                            {
+                                var node = new SurfaceLodNodeKey(ring.SourceStep, coordinate);
+                                if (visibility.Drawable) _lodDrawableNodes.Add(node);
+                                if (visibility.CurrentViewComplete) _lodCurrentCompleteNodes.Add(node);
+                            }
                             _lastVisibilityCandidateChecks++;
                         }
                     }

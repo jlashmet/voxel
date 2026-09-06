@@ -1973,14 +1973,26 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 MinViewDistanceMetres, MaxViewDistanceMetres, RingSuspended);
         }
 
+        public readonly struct CoordinateVisibility
+        {
+            public readonly bool Drawable;
+            public readonly bool CurrentViewComplete;
+
+            internal CoordinateVisibility(bool drawable, bool currentViewComplete)
+            {
+                Drawable = drawable;
+                CurrentViewComplete = currentViewComplete;
+            }
+        }
+
         /// <summary>
         /// Evaluates one clipmap coordinate already routed to this shard. Visibility traversal is
         /// driven by the bounded camera-centred ring grid, never by the lifetime size of _known.
         /// </summary>
-        public void CollectVisibleCoordinate(int3 coordinate, Plane[] frustumPlanes,
+        public CoordinateVisibility CollectVisibleCoordinate(int3 coordinate, Plane[] frustumPlanes,
                                              Vector3 cameraPosition, float voxelSize, int frame)
         {
-            if (!_known.Contains(coordinate)) return;
+            if (!_known.Contains(coordinate)) return default;
             LastVisibilityKnownCount++;
 
             if (!_visibilityGeometry.TryGet(coordinate, out byte geometry))
@@ -1995,7 +2007,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 // Authoritative discovery is shared across LODs. Keep the known/version state,
                 // but never let a chunk owned wholly by another ring remain active build demand.
                 if (_dirty.Contains(coordinate)) ParkDirty(coordinate);
-                return;
+                return default;
             }
             LastVisibilityInBandCount++;
 
@@ -2013,7 +2025,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (!currentReady && !currentEmpty && !currentGenerationInFlight)
                 MarkDirty(coordinate);
 
-            if (geometry != 2) return;
+            if (geometry != 2) return new CoordinateVisibility(false, true);
             LastVisibilityFrustumCount++;
             if (currentReady) LastVisibilityReadyCount++;
             if (currentEmpty) LastVisibilityEmptyCount++;
@@ -2029,17 +2041,19 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 // Keep the previous mesh drawable while a newer authoritative generation builds.
                 // CurrentBuildCoversDesiredGeneration above prevents visibility from recreating a
                 // duplicate dirty record for the exact generation already in flight.
-                if (!entry.IsGpuPaged && entry.IndexCount == 0) return;
+                if (!entry.IsGpuPaged && entry.IndexCount == 0)
+                    return new CoordinateVisibility(false, currentReady || currentEmpty);
                 entry.LastUsedFrame = frame;
                 _visible.Add(entry);
-                return;
+                return new CoordinateVisibility(true, currentReady || currentEmpty);
             }
 
             // A current known-empty result is complete, not a visual hole. Any other in-band
             // visible coordinate remains missing until its authoritative generation publishes.
-            if (currentEmpty) return;
+            if (currentEmpty) return new CoordinateVisibility(false, true);
 
             MissingVisibleCount++;
+            return default;
         }
 
         /// <summary>

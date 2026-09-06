@@ -76,6 +76,49 @@ namespace VoxelEngine.Tests.EditMode
             Assert.True(desired.ContainsKey(streamed));
         }
 
+        [TestCase(0)] [TestCase(1)] [TestCase(2)] [TestCase(3)]
+        [TestCase(4)] [TestCase(5)] [TestCase(6)]
+        public void DirectResultPreservesDrawableAndCoverageSemantics(int state)
+        {
+            using var worker = new CpuTransvoxelChunkCache();
+            using var arena = new SurfaceGeometryArena(64, 192, 2);
+            var planes = new[] {
+                new Plane(Vector3.right, 100), new Plane(Vector3.left, 100),
+                new Plane(Vector3.up, 100), new Plane(Vector3.down, 100),
+                new Plane(Vector3.forward, 100), new Plane(Vector3.back, 100) };
+            var entries = Field<Dictionary<int3, CpuTransvoxelChunkCache.Entry>>(worker, "_entries");
+            CpuTransvoxelChunkCache.Entry entry = null;
+            try
+            {
+                if (state != 0) Field<HashSet<int3>>(worker, "_known").Add(int3.zero);
+                if (state == 2) Field<Dictionary<int3, ulong>>(worker, "_emptyVersions")[int3.zero] = 1;
+                if (state == 3 || state == 4)
+                {
+                    // Presentation metadata fixture, no synthetic geometry/rendering.
+                    entry = new CpuTransvoxelChunkCache.Entry(int3.zero, 32, 1, arena);
+                    entry.PublishGpuPaged(4); entry.SourceVersion = 1;
+                    entries.Add(int3.zero, entry);
+                    if (state == 4) Field<Dictionary<int3, ulong>>(worker, "_desiredVersions")[int3.zero] = 2;
+                }
+                if (state == 5) worker.RingSuspended = true;
+                if (state == 6) planes[0] = new Plane(Vector3.right, -100);
+                worker.BeginVisibilityCollection();
+                var result = worker.CollectVisibleCoordinate(int3.zero, planes, Vector3.zero, 0.1f, 42);
+                Assert.That(result.Drawable, Is.EqualTo(state == 3 || state == 4));
+                Assert.That(result.CurrentViewComplete, Is.EqualTo(state == 2 || state == 3 || state == 6));
+                Assert.That(result.Drawable, Is.EqualTo(worker.Visible.Count == 1));
+                if (entry != null) Assert.That(entry.LastUsedFrame, Is.EqualTo(42));
+                if (state == 1) Assert.That(worker.MissingVisibleCount, Is.EqualTo(1));
+                if (state == 6) Assert.That(worker.DirtyCount, Is.GreaterThan(0),
+                    "Off-frustum completeness must still activate surrounding build demand.");
+            }
+            finally
+            {
+                entries.Clear();
+                entry?.Dispose();
+            }
+        }
+
         private static T Field<T>(object owner, string name) =>
             (T)owner.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic).GetValue(owner);
     }
