@@ -1,3 +1,4 @@
+using System.Text;
 using Game.Input.Api;
 using UnityEngine;
 
@@ -46,7 +47,40 @@ namespace Game.Kentridge.PlayableSlice
                 " distance=" + (hasDestination ? distance.ToString("0.000") : "unavailable") +
                 " range=" + _slice.InteractionRangeMetres.ToString("0.000") +
                 " objectiveActive=" + _slice.TravelObjectiveActive +
-                " destinationCutscene=" + _slice.DestinationCutsceneActive);
+                " destinationCutscene=" + _slice.DestinationCutsceneActive +
+                " candidates=" + DescribeConversationCandidates(player));
+        }
+
+        private string DescribeConversationCandidates(Vector3 player)
+        {
+            var session = _slice.CampaignSession;
+            var host = _slice.CharacterHost;
+            if (session == null || host == null) return "unavailable";
+
+            float range = Mathf.Max(0f, _slice.InteractionRangeMetres);
+            float rangeSquared = range * range;
+            float bestDistanceSquared = rangeSquared;
+            string best = "none";
+            var builder = new StringBuilder();
+
+            for (int i = 0; i < session.Blueprint.Npcs.Count; i++)
+            {
+                var candidate = session.Blueprint.Npcs[i];
+                if (!candidate.RequiresConversation) continue;
+                if (!host.TryGetNpcPosition(candidate.Ref, out Vector3 position)) continue;
+
+                float distanceSquared = (position - player).sqrMagnitude;
+                if (builder.Length > 0) builder.Append('|');
+                builder.Append(candidate.Ref)
+                    .Append('@')
+                    .Append(Mathf.Sqrt(distanceSquared).ToString("0.000"));
+
+                if (distanceSquared > bestDistanceSquared) continue;
+                bestDistanceSquared = distanceSquared;
+                best = candidate.Ref + "@" + Mathf.Sqrt(distanceSquared).ToString("0.000");
+            }
+
+            return "nearest=" + best + ";all=" + builder;
         }
 
         private static string Format(Vector3 value) =>
