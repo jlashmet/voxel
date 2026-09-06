@@ -73,8 +73,9 @@ namespace VoxelEngine.Composition.Tests
                 "The far-feature transform must size from positive geometry, not the operation-inflated bake AABB.");
             Assert.That(instances[0].Scale, Is.EqualTo(new float3(5f)));
             Assert.That(instances[0].Geometry.PrimitiveCount, Is.EqualTo(1));
-            Assert.That(instances[0].Geometry.Primitives[0].Min, Is.EqualTo(new float3(-0.5f, 0f, -0.5f)));
-            Assert.That(instances[0].Geometry.Primitives[0].Max, Is.EqualTo(new float3(0.5f, 1f, 0.5f)),
+            FarFeatureGeometryPrimitive projected = instances[0].Geometry.GetPrimitive(0);
+            Assert.That(projected.Min, Is.EqualTo(new float3(-0.5f, 0f, -0.5f)));
+            Assert.That(projected.Max, Is.EqualTo(new float3(0.5f, 1f, 0.5f)),
                 "Primitive normalization and instance bounds must share the same positive-geometry frame.");
             Assert.That(instances[0].MaterialIndex, Is.EqualTo(7));
         }
