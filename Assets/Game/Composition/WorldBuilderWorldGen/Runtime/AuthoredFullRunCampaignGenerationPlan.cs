@@ -81,10 +81,11 @@ namespace Game.Composition.WorldBuilderWorldGen.Runtime
     /// <summary>
     /// Candidate facts projected directly from the recovered top-down physical plan. Generic settlement
     /// sites use generated building blockouts. Existing rich settlements intentionally expose no macro
-    /// blockouts, so they contribute their source-backed settlement centre as the semantic site anchor;
-    /// final interior placement remains owned by their production realization. Region-owned encounter
-    /// sites use the owning region's first source-backed settlement as an outdoor anchor, so no
-    /// continuation coordinate is authored here.
+    /// blockouts, so each authored settlement-owned role contributes a source-backed settlement-centre
+    /// candidate with the role's compiled archetype and capability requirements; final interior placement
+    /// remains owned by the rich production realization. Region-owned encounter sites use the owning
+    /// region's first source-backed settlement as an outdoor anchor, so no continuation coordinate is
+    /// authored here.
     /// </summary>
     internal sealed class AuthoredFullRunPhysicalSiteFacts : ISiteCandidateFacts, ICutsceneStageCandidateFacts
     {
@@ -133,15 +134,11 @@ namespace Game.Composition.WorldBuilderWorldGen.Runtime
                             "Physical settlement '" + semantic.Settlement + "' exposes no generated site blockouts.");
 
                     int halfExtent = TopDownWorldPhysicalPlanner.GenericSettlementStreetHalfWidthDm;
-                    Add(
+                    AddRichGenerationRoles(
                         candidates,
-                        new ResolvedSiteId(semantic.Settlement.Id + "/rich-generation"),
-                        semantic.Region,
-                        semantic.Settlement,
-                        true,
-                        semantic.Settlement.Id,
+                        world.Graph,
+                        semantic,
                         physical.CentreDm,
-                        halfExtent,
                         halfExtent);
                     continue;
                 }
@@ -158,7 +155,9 @@ namespace Game.Composition.WorldBuilderWorldGen.Runtime
                         semantic.Settlement.Id,
                         building.CentreDm,
                         building.HalfExtentXDm,
-                        building.HalfExtentZDm);
+                        building.HalfExtentZDm,
+                        SiteArchetype.Unspecified,
+                        GameplayCapabilities);
                 }
             }
 
@@ -181,7 +180,9 @@ namespace Game.Composition.WorldBuilderWorldGen.Runtime
                     semantic.Settlement.Id,
                     physical.CentreDm,
                     halfWidth,
-                    halfDepth);
+                    halfDepth,
+                    SiteArchetype.Unspecified,
+                    GameplayCapabilities);
             }
 
             _candidates = candidates.ToArray();
@@ -260,6 +261,81 @@ namespace Game.Composition.WorldBuilderWorldGen.Runtime
             return true;
         }
 
+        private void AddRichGenerationRoles(
+            List<SiteCandidate> candidates,
+            PlanningGraph graph,
+            WorldSettlementPlan semantic,
+            Int2 centreDm,
+            int halfExtentDm)
+        {
+            for (var siteIndex = 0; siteIndex < semantic.Sites.Count; siteIndex++)
+            {
+                SiteRef site = semantic.Sites[siteIndex];
+                SiteRolePlan role = FindRole(graph, site);
+                Add(
+                    candidates,
+                    new ResolvedSiteId(
+                        semantic.Settlement.Id + "/rich-generation/" + role.Role.Id),
+                    semantic.Region,
+                    semantic.Settlement,
+                    true,
+                    semantic.Settlement.Id,
+                    centreDm,
+                    halfExtentDm,
+                    halfExtentDm,
+                    role.Archetype,
+                    MergeCapabilities(role.Capabilities));
+            }
+        }
+
+        private static SiteRolePlan FindRole(PlanningGraph graph, SiteRef site)
+        {
+            for (var i = 0; i < graph.SiteRoles.Count; i++)
+            {
+                SiteRolePlan role = graph.SiteRoles[i];
+                if (role.Role.Equals(site)) return role;
+            }
+
+            throw new InvalidOperationException(
+                "Settlement-owned site '" + site + "' has no compiled SiteRolePlan.");
+        }
+
+        private static SiteCapabilityOffer[] MergeCapabilities(
+            IReadOnlyList<SiteCapabilityRequirement> requirements)
+        {
+            var offers = new List<SiteCapabilityOffer>(GameplayCapabilities.Length + requirements.Count);
+            for (var i = 0; i < GameplayCapabilities.Length; i++)
+                offers.Add(GameplayCapabilities[i]);
+
+            for (var requirementIndex = 0; requirementIndex < requirements.Count; requirementIndex++)
+            {
+                SiteCapabilityRequirement requirement = requirements[requirementIndex];
+                bool merged = false;
+                for (var offerIndex = 0; offerIndex < offers.Count; offerIndex++)
+                {
+                    SiteCapabilityOffer offer = offers[offerIndex];
+                    if (offer.Kind != requirement.Kind) continue;
+                    if (offer.Capacity < requirement.MinimumCapacity)
+                    {
+                        offers[offerIndex] = new SiteCapabilityOffer(
+                            requirement.Kind,
+                            requirement.MinimumCapacity);
+                    }
+                    merged = true;
+                    break;
+                }
+
+                if (!merged)
+                {
+                    offers.Add(new SiteCapabilityOffer(
+                        requirement.Kind,
+                        requirement.MinimumCapacity));
+                }
+            }
+
+            return offers.ToArray();
+        }
+
         private int CentreDistanceMetres(ResolvedSiteId subject, ResolvedSiteId target)
         {
             if (!TryRecord(subject, out Record from) || !TryRecord(target, out Record to)) return int.MaxValue;
@@ -294,9 +370,11 @@ namespace Game.Composition.WorldBuilderWorldGen.Runtime
             string ownerNodeId,
             Int2 centreDm,
             int halfWidthDm,
-            int halfDepthDm)
+            int halfDepthDm,
+            SiteArchetype archetype,
+            SiteCapabilityOffer[] capabilities)
         {
-            var candidate = new SiteCandidate(id, SiteArchetype.Unspecified, GameplayCapabilities);
+            var candidate = new SiteCandidate(id, archetype, capabilities);
             var record = new Record
             {
                 Candidate = candidate,
