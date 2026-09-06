@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "runSeconds": 22,
+  "capture": {
+    "width": 1280,
+    "height": 720,
+    "intervalSeconds": 2,
+    "minimumFrames": 8,
+    "evidenceAfterSeconds": 2
+  },
+  "timeline": {},
+  "assertions": {
+    "requiredLogPatterns": [
+      "HOUSE_FURNISHING_VALIDATION applicability first=Wizards",
+      "HOUSE_FURNISHING_VALIDATION build phase=wizard-exterior house=wizards",
+      "HOUSE_FURNISHING_VALIDATION interior house=wizards",
+      "HOUSE_FURNISHING_VALIDATION build phase=knight-exterior house=knights",
+      "HOUSE_FURNISHING_VALIDATION build phase=knight-prop-change house=knights",
+      "HOUSE_FURNISHING_VALIDATION selection-changed house=knights",
+      "HOUSE_FURNISHING_VALIDATION build phase=knight-regenerated-1 house=knights",
+      "HOUSE_FURNISHING_VALIDATION regenerated house=knights iteration=1",
+      "HOUSE_FURNISHING_VALIDATION build phase=knight-regenerated-2 house=knights",
+      "HOUSE_FURNISHING_VALIDATION regenerated house=knights iteration=2",
+      "HOUSE_FURNISHING_VALIDATION complete rebuilds=5 activeWorlds=1 cleanup=true selectionChanges=1 regenerations=2"
+    ],
+    "forbiddenLogPatterns": [
+      "HOUSE_FURNISHING_VALIDATION failure:",
+      "NullReferenceException",
+      "MissingReferenceException"
+    ]
+  }
+}

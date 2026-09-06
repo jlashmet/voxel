@@ -1,0 +1,26 @@
+{
+  "name": "Game.Structures.Validation",
+  "rootNamespace": "Game.Structures.Validation",
+  "references": [
+    "Game.Structures.Api",
+    "Game.Structures.Runtime",
+    "Game.Materials.Api",
+    "Game.Composition.Materials",
+    "VoxelEngine.Storage.Api",
+    "VoxelEngine.Composition.Api",
+    "VoxelEngine.Composition",
+    "VoxelEngine.Rendering.Api",
+    "VoxelEngine.Rendering.Runtime",
+    "VoxelEngine.Structures.Api",
+    "Unity.Mathematics"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

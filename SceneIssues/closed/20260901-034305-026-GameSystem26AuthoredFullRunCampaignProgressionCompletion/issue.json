@@ -1,0 +1,20 @@
+{
+  "formatVersion": 3,
+  "id": "20260901-034305-026-GameSystem26AuthoredFullRunCampaignProgressionCompletion",
+  "capturedUtc": "2026-09-01T03:43:05.0260000Z",
+  "note": "FEATURE / GAME SYSTEM #26: Authored full-run campaign progression & completion\n\nSOURCE: Approved design/implementation breakdown from docs commit `a70d8d006906ba528216c187ddb333040b6eb3c0` is copied here as `plan.md` and `tasks.md`. Those files are binding acceptance for this SceneIssue.\n\nBASELINE: Created from master `c73ab9d123ad29a1f1f1215552519a303c16d5fe`; fetch current origin/master before implementation.\n\nACCEPTANCE: Complete every required task; preserve plan ownership/API-runtime boundaries/non-goals; add required behavioral regressions, reuse proof, migration/cleanup and boundary audits; pass repository-selected module tests, module-local player validation where applicable, and affected top-level exact-SHA gates; use durable built-player evidence for player-visible acceptance; check blast radius/cost without weakening unrelated budgets or acceptance; close only after every required item is complete and SceneIssue closure fields are populated.\n\nWORKFLOW: Follow `AGENTS.md`, `SceneIssues/feature-readme.md`, and `SceneIssues/README.md`. Work the next unchecked non-blocked task; record blockers and continue independent work; no opportunistic enhancements. After two materially different fixes fail the same acceptance symptom/assertion, isolate a minimal repro/root cause before another fix.\n\nUSER-DIRECTED CLOSURE EXCEPTION (2026-09-06 UTC): The user instructed, 'if you are waiting on the renderer just move this to closed'. Move this assignment to closed without claiming the unchecked full-run or multiplayer acceptance passed. Preserve the original checklist and evidence; see plan.md for the closure disposition.",
+  "status": "fixed",
+  "resolvedUtc": "2026-09-06T02:05:14Z",
+  "resolutionSummary": "User-directed administrative closure while waiting on renderer/macro-world realization. The authored semantic campaign, System15 terminal condition integration seams and fresh-graph persistence/restore have historical exact-SHA evidence. Physical full-run/frontend/milestone proof and shared multiplayer progression/outcome remain incomplete or unverified. Original unchecked T26-021/022/043/044/045/046/053/054 are preserved, not marked passed. This queue closure is not full production acceptance; promotion remains PR + auto-merge with required checks.",
+  "regressionTest": "Historical exact-source proof: 86911d9dec109c588310754f28c7a5644aed687a via request 57a0b1f00615d0901e2d25ee0d2216296b13f163, run 33944532957 (automatic module validation success); earlier campaign/fresh-graph restore and Story runs 33941421358 and 33942377377. No final physical full-run/shared multiplayer pass is claimed. Integration-head validation is subject to the PR gate.",
+  "fixCommit": "86911d9dec109c588310754f28c7a5644aed687a",
+  "closureDisposition": "user-directed-administrative-exception",
+  "acceptanceComplete": false,
+  "unverifiedTaskIds": ["T26-021", "T26-022", "T26-043", "T26-044", "T26-045", "T26-046", "T26-053", "T26-054"],
+  "unityVersion": "6000.5.6f1",
+  "platform": "Feature",
+  "sceneName": "KentridgePlayableSlice",
+  "scenePath": "Assets/Scenes/KentridgePlayableSlice.unity",
+  "sceneBuildIndex": 2,
+  "captures": []
+}
