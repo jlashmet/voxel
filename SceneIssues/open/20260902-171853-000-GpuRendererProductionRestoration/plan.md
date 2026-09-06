@@ -2,33 +2,29 @@
 
 ## Objective and acceptance
 
-Deliver production-quality `Assets/Scenes/VoxelShowcase.unity` through the GPU backend, physically delete the retired CPU-only renderer, and pursue **1,000 FPS / 1.00ms whole frame**, or the closest repeatable result under [tasks.md](tasks.md). Preserve authoritative CPU storage/generation/collision/simulation and necessary GPU host orchestration. No hidden content, weaker budgets, reduced distance or permanent CPU fallback. All task gates remain mandatory.
+Deliver production-quality `Assets/Scenes/VoxelShowcase.unity` through the GPU backend, physically delete the retired CPU-only renderer, and pursue **1,000 FPS / 1.00ms whole frame**, or the closest repeatable result under [tasks.md](tasks.md). Preserve authoritative CPU storage/generation/collision/simulation and GPU host orchestration. No hidden content, weaker budgets, reduced distance or permanent CPU fallback.
 
-## Execution and material results
+## Execution and results
 
-User directs local harness/tests and screenshot review; latest instruction authorizes pushing existing work to `origin/fixes/agent-1`, then continuing. Worktree `/private/tmp/voxel-gpu-restoration`, branch `gpu-rendering-agent-1-resume`.
+User authorizes local harness/tests/screenshots and pushed existing work through4a80ddb57 to `origin/fixes/agent-1`. Subsequent work is local in `/private/tmp/voxel-gpu-restoration`, branch `gpu-rendering-agent-1-resume`.
 
-Proven repairs: bounded watchdog,44-byte descriptor, allocator status, indirect bucket prefix, compatible batch layouts, async rejection/retry and bounded offscreen eviction.
+Prior repairs cover GPU descriptor/layout, allocation, indirect bucket prefix, asynchronous recovery, explicit approval and GPU write-finalization. Geometry/counts never return to CPU authority. Prior31 focused/4 arena tests passed. Retirement/lifetime and CPU-backend deletion remain incomplete.
 
-Render-control contract: only asynchronous16-byte status/handle/generation feedback per chunk; no generated geometry/count readback, blocking wait or authoritative-state derivation. Lane scratch remains owned through callback completion.
+Startup bake lacked the mountain interior. Existing baker regenerated199 regions; production Storage regression and mountain generation tests pass. Regeneration used the harness-standard12GB process guard, peak10.6GB/zero swap; production budgets unchanged.
 
-Automatic publication is deleted. Unique renderer generations and explicit source/configuration approval gate candidates. GPU finalization rejects mismatched write totals without transferring counts. Five regression cases failed before,31 focused tests plus4 arena PlayMode tests pass after. Production module48s and showcase180s completed with zero transaction rejections; reviewed showcase remains **unacceptable**. These checks do not prove payload correctness, complete coverage or performance.
+Per-object handoff now runs against the same camera's near selection in the voxel render pass. Current drawable/known-empty nodes and completed regional discovery masks prove replacement. Unknown/partial discovery and invalidation retain proxies. Discovery evidence is capped at1024 records,512 surface bits each; overflow remains unknown. Showcase opts into this path; ordinary far consumers retain their existing submission.
 
-## Hypotheses and discriminating experiments
+All14 final domain/presentation/lifecycle tests pass (`replacement-final-lifecycle-tests.xml`,16s). Final48s production module passed both-instance handoff, edit restoration and restart,8 captures/no GPU fallback/error counters. Reviewed42s shows the generated WorldBuilder landmark. Its voxel and far realizations consume the same production catalogue.
 
-Far-world is active:6 terrain rings/1481 semantic sources. Storage restoration proved the startup bake had air at the current mountain interior(-600,358,200). Existing baker regenerated199 regions in144s, peak10.6GB/zero swap; both mountain tests now pass. Harness-standard12GB guard retained free-memory/swap limits after initial6GB attempt failed before writing.
+Normal180s Showcase completed12 captures/no transaction errors. Stationary mountain replacement improves; side blocks and150s flat traversal obstructions remain **unacceptable**. CPU window p50 medians6.6/10.2ms are diagnostics, not acceptance. The65s owner probe completed11 captures, restoring visibility and exact issue metadata.
 
-Normal180s player completed12 captures/no transaction rejection. Reviewed15s/60s/150s remains **unacceptable**: coarse side blocks, terrain bands and flat traversal foreground. Stationary missing coverage reached0; traversal reclosed terrain hole. Diagnostic CPU window p50 medians6.35/8.59ms are not acceptance.
+## Hypotheses and next experiments
 
-Rebaked65s owner probe completed11 captures: suppressing semantic proxies reveals detailed dark mountain and roofed houses; restoration covers them again. Visibility/issue metadata restored. Diagnostic-only.
+1. Remaining wall-like mountain forms come from proxy shape loss: `BuildGeometryMesh` maps Ramp and most shapes to boxes. Preserve canonical ramp direction/shape through composition and Rendering, with independent raster expectations and module/player evidence.
+2. The summit proxy also lacks a complete detailed replacement. Bake directory inspection proves region(-2,1,0) absent; its only upper regions are(0,1,0)/(0,1,1). Add a production regression for summit upper occupancy, then fix generic vertical feature residency/baking rather than hiding the proxy.
 
-1. **Confirmed:** stale startup content prevented detailed mountain replacement; regeneration fixes occupancy.
-2. **Confirmed overlap:** semantic far proxies obscure existing near geometry. Terrain-cutout collapse remains a separate candidate for terrain defects.
-
-Current work: bounded `SurfaceReplacementCoverage` checks every intersected64-voxel cell against current selected/known-empty LOD proofs, refusing oversized bounds. All7 domain tests pass in12s; no player gate applies to this unconnected calculation. It is not connected to runtime yet.
-
-Integration requires same-camera-frame selection in the render pass, not last-frame `Update` metrics. Unknown chunks cannot imply empty: clipmap eviction removes `_known`. Preserve completed regional discovery masks to distinguish empty cells from missing publication, invalidate on edits/eviction, and bound retention by residency. Then route semantic far submission through the same render boundary. Prove replacement coverage and restoration after invalidation/eviction; never use distance alone or global convergence to hide proxies. Validate a module-local production consumer and normal showcase screenshots. Resume G11 cancellation/last-consumer lifetime afterward.
+Audit unnecessary discovery invalidation on clipmap rescans, global change-feed gating and query cost during traversal. Unresolved content/coverage must keep a valid far representation. Resume G11 cancellation/last-consumer lifetime afterward.
 
 ## Remaining gates
 
-Finish permanent-error policy, explicit publication and GPU-completion-based retirement/lifetime; migrate step4/8 and water to GPU; replace CPU-dependent test oracles and physically delete CPU-only rendering. Preserve module-local production scenes. Prove edits, pressure and lifecycle, then run locked repeated full-frame/memory workloads and final visual review. G01–G27 remain authoritative; no completion claim.
+Finish publication/permanent-error policy and GPU-completion retirement; migrate step4/8 and water; replace CPU-dependent oracles and delete CPU-only rendering. Validate all module/integration players, edits, pressure and lifecycle. Then run locked repeated full-frame/memory workloads and production-quality visual review. G01–G27 remain authoritative; no completion claim.

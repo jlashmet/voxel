@@ -212,15 +212,27 @@ coarse blocks cover them again after restoration. Original visibility and issue 
 Next G08 work: bounded per-object publication handoff, retaining proxies until their detailed
 replacement is ready and restoring on eviction/invalidation. Diagnostic suppression is not acceptance.
 
-G08 handoff implementation prerequisite: `SurfaceReplacementCoverage` now checks every fine
-cell in bounded feature bounds against caller-supplied current selected/known-empty LOD proof.
-No runtime visibility changes yet. All7 domain regressions pass (`replacement-coverage-tests-final.xml`,12s wrapper).
-Remaining integration: retain bounded completed regional discovery masks (absence from `_known`
-is not empty because clipmap eviction removes entries), invalidate proofs on edits/eviction,
-and evaluate against same-camera-frame selected draws. `LateUpdate` far submission currently
-precedes the voxel render pass; a previous-frame readiness query would permit stale handoff.
-Use the module-local SolidGpu production scene for near/far interaction; the existing FarWorld
-visibility tableau has custom terrain meshes and cannot alone prove production near replacement.
+G08 handoff is now connected locally: Showcase far features submit in the voxel render pass
+using the same camera's selected near draw set. `SurfaceDiscoveryCoverage` retains512-bit
+completed surface-discovery masks per resident region (hard cap1024; overflow remains unknown).
+Unknown/partial discovery, invalidation and eviction retain/restore proxies. Regional changes
+rescan through the existing bounded job pipeline; no GPU output affects authoritative state.
+All14 final domain/presentation/lifecycle tests pass (`replacement-final-lifecycle-tests.xml`,16s). The final48s module (`replacement-module-final/`) completed
+with8 captures and full two-instance replacement, edit restoration, restart and zero GPU error
+counters. Reviewed42s shows the real WorldBuilder landmark. Normal180s Showcase completed12
+captures/no transaction errors;60s mountain replacement improves, but side blocks/150s traversal
+obstructions remain **unacceptable**. Diagnostic CPU window p50 medians6.6/10.2ms are not acceptance.
+The65s owner probe completed11 captures; original visibility/issue metadata restored. At60s the
+remaining proxies are mountainCC9F50C170E9C507 and summit placeholderE1FB25FC632AB90C.
+Wider-view screenshot64.9s shows ramp-shaped source primitives rendered as large walls;
+`BuildGeometryMesh` defaults Ramp and most shapes to `AppendBox`. Canonical proxy ramp geometry
+is now a proven next G08 defect. `RampContains` uses `Primitive.Direction`, which the
+far geometry contract currently does not carry for ramps (only frusta resolve direction).
+Bake-directory inspection also proves summit upper region(-2,1,0) absent after regeneration;
+the only y!=0 records are(0,1,0)/(0,1,1). Add a production summit occupancy regression and
+repair generic feature vertical baking/residency; do not cull its proxy over absent content. Also audit traversal discovery rescan invalidation and global
+change-feed gating; they can restore unrelated proxies. Existing module/tableau fidelity notes
+remain: production near/far realization is tested through the SolidGpu module's real catalogue.
 
 ## 1. Get the actual GPU path running now
 

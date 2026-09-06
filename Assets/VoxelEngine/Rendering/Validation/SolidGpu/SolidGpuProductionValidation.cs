@@ -1,4 +1,9 @@
 using System;
+using Game.WorldBuilder.Voxel;
+using Unity.Collections;
+using VoxelEngine.Structures.Api;
+using VoxelEngine.Structures.Runtime;
+using VoxelEngine.Rendering.Runtime.FarWorld;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Profiling;
@@ -50,6 +55,13 @@ namespace VoxelEngine.Rendering.Validation
         private int _frameSampleCount;
         private ulong _beforeEditGpuBuilds;
         private bool _loggedFailure;
+        private ProceduralFarFeatureRenderer _farFeatures;
+        private FarFeaturePresentationAdapter _farPresentation;
+        private int _sourceFeatureCount;
+        private bool _sawFarProxy;
+        private bool _sawNearReplacement;
+        private bool _sawEditProxyRestore;
+        private bool _awaitingEditProxyRestore;
 
         private static readonly Vector3 Target =
             new(0f, BlockMetres * 2.0f, 0f);
@@ -77,6 +89,18 @@ namespace VoxelEngine.Rendering.Validation
             if (!Application.isPlaying || _stage == Stage.Complete || _stage == Stage.Failed)
                 return;
 
+            if (_farFeatures != null && _farPresentation != null)
+            {
+                _sawFarProxy |= _farFeatures.InstanceCount > 0;
+                _sawNearReplacement |= _sourceFeatureCount > 0
+                    && _farFeatures.NearReplacementCount == _sourceFeatureCount;
+                if (_awaitingEditProxyRestore && _farFeatures.InstanceCount > 0)
+                {
+                    _sawEditProxyRestore = true;
+                    _awaitingEditProxyRestore = false;
+                }
+                _farFeatures.SetInstances(_farPresentation.Query((float3)_camera.transform.position, 120f));
+            }
             if (HasHardGpuFailure(out string failure))
             {
                 Fail(failure);
@@ -181,6 +205,12 @@ namespace VoxelEngine.Rendering.Validation
                         Debug.Log(
                             "SOLIDGPU_VALIDATION restart-ready: "
                             + DescribeGpu(metrics));
+                        if (!_sawFarProxy || !_sawNearReplacement || !_sawEditProxyRestore)
+                        {
+                            Fail($"far handoff incomplete: proxy={_sawFarProxy} near={_sawNearReplacement} editRestore={_sawEditProxyRestore}");
+                            return;
+                        }
+                        Debug.Log("SOLIDGPU_VALIDATION far-handoff-ready: initial proxy, near replacement, edit restoration");
                         Debug.Log(
                             "SOLIDGPU_VALIDATION success: "
                             + DescribeGpu(metrics)
@@ -248,6 +278,7 @@ namespace VoxelEngine.Rendering.Validation
                 SurfaceStyles.Planar, uint.MaxValue);
 
             AuthorTableau(_storage.Mutations);
+            AuthorFarReplacementFeature();
             _storage.PublishAllResidentRegions();
 
             var world = new RenderingWorldBinding(
@@ -258,6 +289,32 @@ namespace VoxelEngine.Rendering.Validation
             RenderingComposition.ConfigureWorld(
                 in world, _storage.Changes, terrainSeed: 0x51D6A11Du,
                 farFieldEnabled: false);
+        }
+
+        private void AuthorFarReplacementFeature()
+        {
+            // The same production WorldBuilder catalogue feeds voxel realization and its far
+            // presentation bake. The fixture configures scale/placement only.
+            const uint seed = 0x51D6A11Du;
+            var spec = new MountainLandmarkSpec(new int3(-60, 0, 40),
+                120, 40, 24, 16, 8, 64, 4, 6, 8);
+            using FeatureCatalogue catalogue = WorldBuilderMountainLandmarkCatalogue.Build(
+                spec, SmoothMaterial, PlanarMaterial, PlanarMaterial, Allocator.TempJob);
+            for (int x = -1; x <= 0; x++)
+            {
+                using var build = new FeatureRegionBuild(new int3(x, 0, 0));
+                while (!build.Step(catalogue, seed, _storage.Reads, _storage.Mutations, int.MaxValue)) { }
+                if (build.Report.BudgetExceeded) throw new InvalidOperationException("Validation landmark refused its budget.");
+            }
+            var manifest = FeaturePresentationCatalogueBaker.Build(catalogue, seed);
+            _sourceFeatureCount = manifest.Count;
+            var selection = new FarFeatureSelectionPolicy(
+                new FarFeatureSelectionPolicy.Thresholds(24f, 18f, 4f, 3f, 1.5f, 1f),
+                new FarFeatureSelectionPolicy.DistanceCaps(120f, 120f, 120f), 55f, 900);
+            _farPresentation = new FarFeaturePresentationAdapter(manifest, selection, VoxelSize);
+            if (_farFeatures == null) _farFeatures = gameObject.AddComponent<ProceduralFarFeatureRenderer>();
+            _farFeatures.UseSurfaceReplacementHandoff = true;
+            _farFeatures.SetInstances(_farPresentation.Query((float3)_camera.transform.position, 120f));
         }
 
         private static void AuthorTableau(IRegionMutationStore mutations)
@@ -326,6 +383,10 @@ namespace VoxelEngine.Rendering.Validation
                 return;
             }
 
+            _awaitingEditProxyRestore = true;
+            // Mutate the same generated landmark so the far proxy must reappear until the
+            // current detailed publication is available again.
+            _storage.Mutations.SetWholeBlock(new int3(0, 1, 12), VoxelGrid.MaterialEmpty, false);
             bool changed = _storage.Mutations.SetWholeBlock(
                 EditedBlock, VoxelGrid.MaterialEmpty, markHardSurface: false);
             if (!changed)
@@ -352,7 +413,9 @@ namespace VoxelEngine.Rendering.Validation
             return metrics.GpuCutoverAvailable
                 && metrics.GpuResidentBackends > 0
                 && metrics.GpuCompletedSolidBuilds > 0
-                && state.IsConverged;
+                && state.IsConverged
+                && _farFeatures != null && _sourceFeatureCount > 0
+                && _farFeatures.NearReplacementCount == _sourceFeatureCount;
         }
 
         private static bool HasHardGpuFailure(out string failure)

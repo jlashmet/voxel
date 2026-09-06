@@ -66,6 +66,7 @@ namespace VoxelEngine.Showcase
             _root = new GameObject("Showcase Semantic Far Features");
             _root.transform.SetParent(parent, false);
             _renderer = _root.AddComponent<ProceduralFarFeatureRenderer>();
+            _renderer.UseSurfaceReplacementHandoff = true;
         }
 
         public int VisibleInstanceCount => _renderer != null ? _renderer.InstanceCount : 0;
@@ -81,7 +82,7 @@ namespace VoxelEngine.Showcase
         }
 
         public string Describe() =>
-            $"semantic={VisibleInstanceCount}/{SourceCount} radius={RadiusMetres:0}m";
+            $"semantic={VisibleInstanceCount}/{SourceCount} near={_renderer.NearReplacementCount} radius={RadiusMetres:0}m";
 
         public void Dispose()
         {

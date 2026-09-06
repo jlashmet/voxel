@@ -126,6 +126,43 @@ namespace VoxelEngine.Tests.EditMode
             }
         }
 
+        [Test]
+        public void SurfaceSubmissionRestoresInstancesWhenReplacementProofIsLost()
+        {
+            var root = new GameObject("far-replacement-submission-test");
+            try
+            {
+                var renderer = root.AddComponent<ProceduralFarFeatureRenderer>();
+                renderer.UseSurfaceReplacementHandoff = true;
+                renderer.SetInstances(new[] { new FarFeatureInstance(17UL, float3.zero,
+                    quaternion.identity, new float3(1), float3.zero, new float3(0.5f),
+                    "replacement-geometry", "replacement-style", FarFeatureTier.Mid) });
+                var consumers = new List<ProceduralFarFeatureRenderer>();
+                ProceduralFarFeatureRenderer.PrepareSurfaceConsumers(consumers, _ => false);
+                Assert.Contains(renderer, consumers);
+                Assert.AreEqual(1, renderer.InstanceCount);
+                ProceduralFarFeatureRenderer.PrepareSurfaceConsumers(consumers, _ => true);
+                Assert.AreEqual(0, renderer.InstanceCount);
+                Assert.AreEqual(1, renderer.NearReplacementCount);
+                ProceduralFarFeatureRenderer.PrepareSurfaceConsumers(consumers, _ => false);
+                Assert.AreEqual(1, renderer.InstanceCount);
+                Assert.AreEqual(0, renderer.NearReplacementCount);
+                ProceduralFarFeatureRenderer.PrepareSurfaceConsumers(consumers, _ => true);
+                renderer.UseSurfaceReplacementHandoff = false;
+                Assert.AreEqual(1, renderer.InstanceCount,
+                    "Returning to ordinary submission must restore source instances immediately.");
+                renderer.UseSurfaceReplacementHandoff = true;
+                renderer.enabled = false;
+                ProceduralFarFeatureRenderer.PrepareSurfaceConsumers(consumers, _ => false);
+                Assert.False(consumers.Contains(renderer));
+                renderer.enabled = true;
+                renderer.Clear();
+                ProceduralFarFeatureRenderer.PrepareSurfaceConsumers(consumers, _ => false);
+                Assert.AreEqual(0, renderer.InstanceCount);
+            }
+            finally { Object.DestroyImmediate(root); }
+        }
+
         private sealed class SinglePresentationSource : IFeaturePresentationSource
         {
             private readonly FeaturePresentationBake _bake;

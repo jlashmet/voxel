@@ -1125,6 +1125,18 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public bool OwnsRenderedChunk(int3 coordinate) =>
             _entries.TryGetValue(coordinate, out Entry entry) && entry.Ready;
 
+        internal bool OwnsReplacementNode(int3 coordinate, Vector3 cameraPosition, float voxelSize) =>
+            WithinClipmapWindow(coordinate) && WithinRingBand(ChunkWorldBounds(coordinate, voxelSize), cameraPosition);
+
+        internal bool HasCurrentReplacementNode(int3 coordinate, out bool knownEmpty)
+        {
+            bool hasDesired = _desiredVersions.TryGetValue(coordinate, out ulong desired);
+            knownEmpty = _emptyVersions.TryGetValue(coordinate, out ulong emptyVersion)
+                && (!hasDesired || emptyVersion >= desired);
+            return knownEmpty || (_entries.TryGetValue(coordinate, out Entry entry) && entry.Ready
+                && (!hasDesired || entry.SourceVersion >= desired));
+        }
+
         public int IndexedProfileBlockCount(int3 coordinate) =>
             _profileBlocksByChunk.TryGetValue(coordinate, out ProfileBlock[] blocks)
                 ? blocks.Length : 0;

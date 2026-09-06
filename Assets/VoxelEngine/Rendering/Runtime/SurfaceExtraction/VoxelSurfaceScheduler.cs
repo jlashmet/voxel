@@ -762,6 +762,61 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly List<int3> _changedBricks = new(ChangeBrickExpansionsPerFrame);
         private readonly HashSet<int3> _changedWaterBrickSet = new();
         private readonly List<int3> _changedWaterBricks = new(ChangeBrickExpansionsPerFrame);
+        private readonly SurfaceDiscoveryCoverage _replacementDiscovery = new();
+        private IRegionReadSource _replacementStorage;
+        private Camera _replacementCamera;
+        private float _replacementVoxelSize;
+        private Func<SurfaceLodNodeKey, bool> _replacementProof;
+
+        internal bool HasCurrentReplacement(UnityEngine.Bounds bounds)
+        {
+            if (_replacementStorage == null || _replacementCamera == null
+                || _recoveringChangeOverflow || _changeExpansionActive
+                || _changeRecordIndex < _changeScratch.Count || _changeFeedHasMore
+                || (_journal != null && _changeCursor != _journal.CurrentVersion)) return false;
+            float size = _replacementVoxelSize;
+            int3 min = (int3)math.floor((float3)bounds.min / size);
+            int3 max = (int3)math.ceil((float3)bounds.max / size);
+            if (math.any(max <= min)) return false;
+            // Reject distant/oversized requests before any region walk.
+            float3 distance = math.abs((float3)bounds.center - (float3)_replacementCamera.transform.position)
+                + (float3)bounds.extents;
+            if (math.cmax(distance) > MaxVoxelRingRadiusMetres) return false;
+            int3 regionMin = min >> 9;
+            int3 regionMax = (max - 1) >> 9;
+            for (int z = regionMin.z; z <= regionMax.z; z++)
+            for (int y = regionMin.y; y <= regionMax.y; y++)
+            for (int x = regionMin.x; x <= regionMax.x; x++)
+            {
+                int3 region = new(x, y, z);
+                if (!_replacementStorage.IsRegionResident(region)
+                    || !_replacementDiscovery.IsComplete(region)) return false;
+            }
+            _replacementProof ??= HasCurrentReplacementNode;
+            return SurfaceReplacementCoverage.Covers(min, max, _replacementProof, out _);
+        }
+
+        private bool HasCurrentReplacementNode(SurfaceLodNodeKey node)
+        {
+            for (int r = 0; r < _rings.Length; r++)
+            {
+                SurfaceRing ring = _rings[r];
+                if (ring.SourceStep != node.SourceStep) continue;
+                int shard = CpuTransvoxelChunkCache.ShardForChunk(node.Coordinate, ring.Workers.Length);
+                var worker = ring.Workers[shard];
+                if (!worker.OwnsReplacementNode(node.Coordinate,
+                    _replacementCamera.transform.position, _replacementVoxelSize)) return false;
+                float edge = 64 * node.SourceStep * _replacementVoxelSize;
+                var nodeBounds = new Bounds((Vector3)((float3)node.Coordinate * edge + edge * 0.5f),
+                    Vector3.one * edge);
+                if (!GeometryUtility.TestPlanesAABB(_visibilityFrustumPlanes, nodeBounds)) return true;
+                if (worker.HasCurrentReplacementNode(node.Coordinate, out bool empty)
+                    && (empty || _lodVisibilitySelector.IsActive(node))) return true;
+                return _replacementDiscovery.IsKnownEmpty(node);
+            }
+            return false;
+        }
+
         private readonly HashSet<int3> _surfaceDiscoveryRegions = new();
         private readonly List<int3> _discoveredSurfaceBricks = new(512);
         private readonly List<int3>[] _ownedDiscoveryShardBuckets =
@@ -1278,6 +1333,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                             IVoxelChangeSource journal, Camera camera, float voxelSize, int frame)
         {
             if (storage == null) throw new ArgumentNullException(nameof(storage));
+            _replacementStorage = storage;
+            _replacementCamera = camera;
+            _replacementVoxelSize = math.max(0.0001f, voxelSize);
 
             if (_lastAdvancedFrame == frame)
             {
@@ -2009,6 +2067,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     _changeRecordIndex = 0;
                     _changeExpansionActive = false;
                     _changeFeedHasMore = false;
+                    _replacementDiscovery.Clear();
                     _recoveringChangeOverflow = true;
                     _changeRecoveryCursor = 0;
                     StepChangeOverflowRecovery(storage);
@@ -2073,6 +2132,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         continue;
                     }
 
+                    if (affectsSolids) _surfaceDiscoveryRegions.Add(change.Region);
                     if (math.any(extent >= VoxelGrid.RegionVoxelEdge))
                     {
                         if (affectsSolids) _changedSolidRegions.Add(change.Region);
@@ -2125,6 +2185,9 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         {
             foreach (int3 region in regions)
             {
+                _replacementDiscovery.Invalidate(region);
+                if (_replacementStorage != null && !_replacementStorage.IsRegionResident(region))
+                    _replacementDiscovery.Forget(region);
                 if (_queuedSurfaceDiscoveryRegions.Add(region))
                 {
                     _surfaceDiscoveryQueue.Enqueue(region);
@@ -2175,7 +2238,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                                        _surfaceDiscoveryPublishIndex + SurfaceDiscoveryPublishBatch);
                     int3 origin = _activeSurfaceDiscoveryRegion * edge;
                     for (int i = _surfaceDiscoveryPublishIndex; i < end; i++)
-                        destination.Add(origin + _surfaceDiscoveryResults[i]);
+                    {
+                        int3 block = origin + _surfaceDiscoveryResults[i];
+                        destination.Add(block);
+                        _replacementDiscovery.AddSurfaceBlock(block);
+                    }
                     _surfaceDiscoveryPublishIndex = end;
 
                     if (_surfaceDiscoveryPublishIndex < _surfaceDiscoveryResults.Length)
@@ -2204,6 +2271,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     continue;
                 }
 
+                _replacementDiscovery.Begin(_activeSurfaceDiscoveryRegion);
                 JobHandle classify = new SurfaceBrickDiscoveryJob
                 {
                     OccupiedWords = _surfaceDiscoveryOccupiedWords,
@@ -2225,6 +2293,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private void FinishSurfaceDiscovery(bool requeue)
         {
             int3 region = _activeSurfaceDiscoveryRegion;
+            if (!requeue) _replacementDiscovery.Complete(region);
             _surfaceDiscoveryRescanRegions.Remove(region);
             _queuedSurfaceDiscoveryRegions.Remove(region);
             _hasActiveSurfaceDiscovery = false;

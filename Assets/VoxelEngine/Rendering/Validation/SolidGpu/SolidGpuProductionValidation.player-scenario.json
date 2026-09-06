@@ -17,7 +17,8 @@
       "SOLIDGPU_VALIDATION edit-ready:",
       "SOLIDGPU_VALIDATION settled:",
       "SOLIDGPU_VALIDATION restart-ready:",
-      "SOLIDGPU_VALIDATION success:"
+      "SOLIDGPU_VALIDATION success:",
+      "SOLIDGPU_VALIDATION far-handoff-ready:"
     ],
     "forbiddenLogPatterns": [
       "SOLIDGPU_VALIDATION failure:",

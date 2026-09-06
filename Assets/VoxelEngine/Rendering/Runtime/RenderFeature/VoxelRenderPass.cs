@@ -8,6 +8,7 @@ using UnityEngine.Rendering;
 using UnityEngine.Rendering.RenderGraphModule;
 using UnityEngine.Rendering.Universal;
 using VoxelEngine.Rendering.Runtime.GpuVoxel;
+using VoxelEngine.Rendering.Runtime.FarWorld;
 using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 
 namespace VoxelEngine.Rendering.Runtime
@@ -80,6 +81,8 @@ namespace VoxelEngine.Rendering.Runtime
         private const int SolidDrawMetadataBufferCount = 3;
 
         private VoxelSurfaceScheduler _scheduler;
+        private readonly List<ProceduralFarFeatureRenderer> _farSurfaceConsumers = new();
+        private Func<Bounds, bool> _hasFarReplacement;
         // Draw staging is bounded by the fixed arena args capacities. Allocate once with the
         // render pass; camera motion may change counts but can never resize managed arrays.
         private readonly CpuTransvoxelChunkCache.Entry[] _transvoxelDrawEntries =
@@ -155,6 +158,7 @@ namespace VoxelEngine.Rendering.Runtime
 
         private class SurfaceFrameData
         {
+            public List<ProceduralFarFeatureRenderer> FarSurfaceConsumers;
             public TextureHandle CameraColor;
             public TextureHandle CameraDepth;
             public float VoxelSize;
@@ -245,7 +249,11 @@ namespace VoxelEngine.Rendering.Runtime
             // World teardown deliberately leaves the large native/GPU scheduler fully released.
             // Recreate it only once a valid world is actually ready to render, so Metal never has
             // to retire one arena while teardown eagerly allocates the next world's replacement.
-            _scheduler ??= new VoxelSurfaceScheduler();
+            if (_scheduler == null)
+            {
+                _scheduler = new VoxelSurfaceScheduler();
+                _hasFarReplacement = _scheduler.HasCurrentReplacement;
+            }
 
             VoxelRenderBridge.LastSurfacePassState = VoxelRenderBridge.VerboseSurfaceDiagnostics
                 ? $"preparing-{camera.cameraType}" : "preparing";
@@ -381,6 +389,9 @@ namespace VoxelEngine.Rendering.Runtime
             data.PagedDrawBucketState = gpuDraw?.ActiveBucketState;
             data.PagedIndirectArgs = gpuDraw?.ActiveIndirectArgs;
             data.VisiblePagedCount = _scheduler.VisibleGpuHandles.Count;
+            _hasFarReplacement ??= _scheduler.HasCurrentReplacement;
+            ProceduralFarFeatureRenderer.PrepareSurfaceConsumers(_farSurfaceConsumers, _hasFarReplacement);
+            data.FarSurfaceConsumers = _farSurfaceConsumers;
             data.WaterEntries = _waterDrawEntries;
             data.WaterEntryCount = waterVisible.Count;
 
@@ -457,6 +468,11 @@ namespace VoxelEngine.Rendering.Runtime
                     cmd.SetGlobalBuffer(s_SurfaceDrawMetadata, passData.SolidDrawMetadata);
 
                 ctx.cmd.SetRenderTarget(passData.CameraColor, passData.CameraDepth);
+
+                // Far replacement is decided after this camera's near selection, and recorded
+                // into the same depth target. No previous-frame Update visibility is consulted.
+                foreach (var farRenderer in passData.FarSurfaceConsumers)
+                    farRenderer.RecordSurfaceDraws(cmd);
 
                 int solidSubmissionCalls = 0;
                 if (passData.PagedIndirectArgs != null && passData.VisiblePagedCount > 0)

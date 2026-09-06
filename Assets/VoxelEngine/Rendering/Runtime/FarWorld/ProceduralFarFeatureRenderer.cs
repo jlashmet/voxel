@@ -25,20 +25,97 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
         private readonly Dictionary<string, Material> _materialCache = new(StringComparer.Ordinal);
         private readonly Matrix4x4[] _drawMatrices = new Matrix4x4[MaxInstancesPerDraw];
         private int _instanceCount;
+        private static readonly bool s_TraceHandoff =
+            string.Equals(Environment.GetEnvironmentVariable("VOXEL_FAR_HANDOFF_TRACE"), "1", StringComparison.Ordinal);
+        private float _nextHandoffTrace = 30f;
+        private readonly List<FarFeatureInstance> _sourceInstances = new();
+        private static readonly HashSet<ProceduralFarFeatureRenderer> s_SurfaceConsumers = new();
+        private bool _useSurfaceReplacementHandoff;
+        public bool UseSurfaceReplacementHandoff
+        {
+            get => _useSurfaceReplacementHandoff;
+            set
+            {
+                _useSurfaceReplacementHandoff = value;
+                if (value && isActiveAndEnabled) s_SurfaceConsumers.Add(this);
+                else
+                {
+                    s_SurfaceConsumers.Remove(this);
+                    if (!value) RebuildBatches(_sourceInstances, null);
+                }
+            }
+        }
+        public int NearReplacementCount { get; private set; }
+
+        private void OnEnable()
+        {
+            if (_useSurfaceReplacementHandoff) s_SurfaceConsumers.Add(this);
+        }
+        private void OnDisable() => s_SurfaceConsumers.Remove(this);
+
+        internal static void PrepareSurfaceConsumers(List<ProceduralFarFeatureRenderer> destination,
+                                                      Func<Bounds, bool> hasReplacement)
+        {
+            destination.Clear();
+            foreach (var renderer in s_SurfaceConsumers)
+            {
+                if (renderer == null || !renderer.isActiveAndEnabled
+                    || !renderer.UseSurfaceReplacementHandoff) continue;
+                renderer.RebuildBatches(renderer._sourceInstances, hasReplacement);
+                destination.Add(renderer);
+            }
+        }
+
+        internal void RecordSurfaceDraws(CommandBuffer command)
+        {
+            foreach (var batch in _batches)
+            {
+                if (batch.Value.Count == 0) continue;
+                Mesh mesh = GetMesh(batch.Key.GeometryKey);
+                Material material = GetMaterial(batch.Key.StyleKey);
+                for (int offset = 0; offset < batch.Value.Count; offset += MaxInstancesPerDraw)
+                {
+                    int count = Mathf.Min(MaxInstancesPerDraw, batch.Value.Count - offset);
+                    for (int i = 0; i < count; i++) _drawMatrices[i] = batch.Value[offset + i];
+                    command.DrawMeshInstanced(mesh, 0, material, 0, _drawMatrices, count);
+                }
+            }
+        }
 
         public int InstanceCount => _instanceCount;
         public int PersistentInstanceObjectCount => 0;
 
         public void SetInstances(IReadOnlyList<FarFeatureInstance> instances)
         {
-            ClearBatches();
-            if (instances == null) return;
+            _sourceInstances.Clear();
+            if (instances != null)
+                for (int i = 0; i < instances.Count; i++) _sourceInstances.Add(instances[i]);
+            if (!UseSurfaceReplacementHandoff) RebuildBatches(_sourceInstances, null);
 
+        }
+
+        private void RebuildBatches(IReadOnlyList<FarFeatureInstance> instances,
+                                    Func<Bounds, bool> hasReplacement)
+        {
+            ClearBatches();
+            NearReplacementCount = 0;
+            bool trace = s_TraceHandoff && hasReplacement != null && Time.unscaledTime >= _nextHandoffTrace;
+            int traced = 0;
+            if (trace) _nextHandoffTrace = Time.unscaledTime + 10f;
             for (int i = 0; i < instances.Count; i++)
             {
                 FarFeatureInstance instance = instances[i];
                 if (instance.Tier == FarFeatureTier.Culled) continue;
+                if (hasReplacement != null && hasReplacement(new Bounds(
+                    ToVector3(instance.BoundsCenter), ToVector3(instance.BoundsExtents * 2f))))
+                {
+                    NearReplacementCount++;
+                    continue;
+                }
 
+                if (trace && traced++ < 4)
+                    Debug.Log($"FAR HANDOFF retained id={instance.StableId:X16} key={instance.GeometryKey} "
+                        + $"center={instance.BoundsCenter} extents={instance.BoundsExtents} t={Time.unscaledTime:0.0}");
                 RegisterGeometry(instance);
                 RegisterStyle(instance);
                 var key = new BatchKey(instance.GeometryKey, instance.StyleKey, instance.Tier);
@@ -58,6 +135,8 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
 
         public void Clear()
         {
+            _sourceInstances.Clear();
+            NearReplacementCount = 0;
             ClearBatches();
         }
 
@@ -103,7 +182,7 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
 
         private void LateUpdate()
         {
-            if (enabled) DrawNow();
+            if (enabled && !UseSurfaceReplacementHandoff) DrawNow();
         }
 
         private void ClearBatches()
@@ -380,6 +459,7 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
 
         private void OnDestroy()
         {
+            s_SurfaceConsumers.Remove(this);
             foreach (Mesh mesh in _meshCache.Values)
                 if (mesh != null) DestroyImmediate(mesh);
             foreach (Material material in _materialCache.Values)

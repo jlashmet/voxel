@@ -5,7 +5,12 @@
     "VoxelEngine.Composition",
     "VoxelEngine.Rendering.Runtime",
     "VoxelEngine.Storage.Api",
-    "Unity.Mathematics"
+    "Unity.Mathematics",
+    "VoxelEngine.Structures.Api",
+    "VoxelEngine.Structures.Runtime",
+    "VoxelEngine.Rendering.Api",
+    "Game.WorldBuilder.Voxel",
+    "Unity.Collections"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
