@@ -20,59 +20,66 @@
 - [x] Build a readable left-side panel that can handle hundreds of entries, supports scrolling, shows each friendly label, and clearly marks the current selection.
 - [x] Keep the main right-side area dedicated to the selected prop/decoration preview rather than rendering the whole catalogue simultaneously.
 - [x] Make clicking an entry replace the active preview immediately and deterministically.
-- [x] Provide an explicit empty/loading/error state that is diagnostic without substituting placeholder geometry for a production prop.
+- [ ] Provide an explicit empty/loading/error state without substitute geometry. Reopened: run `34003328146` initial capture reports READY before the anvil surface is visible; distinguish authored data from published presentation.
 
 ## Production-faithful preview
-- [x] Instantiate/author the selected entry through the same production decoration/structure/world-object realization path used by shipped content; do not use `GameObject.CreatePrimitive`, bespoke preview meshes, ad-hoc materials/shaders, or fake substitute props where a production realization exists.
-- [ ] Preserve the selected content's production materials, coatings/presentation semantics, geometry backend, and applicable world-object presentation behavior. Reopened: exact run `34000107687` shows normal-coverage colours instead of voxel materials.
-- [ ] Fix the demonstrated material-mode defect by selecting production (`Color.white`) surface shading in the showcase environment, add a behavioural regression through the real enable/selection lifecycle, and verify fresh built-player material output without changing the production shader or catalogue. Implementation exists at source `de0aa1fb`; exact validation is outstanding.
-- [x] Add a neutral but production-compatible preview environment with stable floor/contact reference and lighting that makes material and silhouette differences readable.
-- [x] Compute preview bounds from the realized content and automatically frame/position the camera so representative tiny, medium, and large entries are visible without hand-authored per-prop coordinates.
-- [ ] Keep presenter-owned geometry, floor/support references, and preview lighting on a world-space presentation root independent of the framing camera transform; prove the final framing/grounding relationship in built-player evidence.
-- [ ] Fix the demonstrated wall-mounted thin-surface visibility defect: `Merchant Sign` must be visibly rendered from its semantic front with the support surface behind it, and fresh exact-SHA built-player evidence must prove the relationship.
-- [ ] Fix the demonstrated vertical-mount camera defect: floor-mounted props must use a useful elevated three-quarter view instead of looking down the `+Y` mount normal, and ceiling-mounted props must use a useful underside three-quarter view instead of looking straight up the `-Y` mount normal; prove both with fresh exact-SHA built-player evidence.
-- [ ] Correctly handle representative floor-mounted, wall-mounted, ceiling/hanging, thin-surface, box-assembly, procedural-mesh, voxel-stamp, emissive/light-producing, container, movable, and other independently previewable production cases.
-- [ ] Ensure switching entries fully disposes/recycles the prior preview realization and leaves no stale geometry, colliders, lights, particle emitters, world-object state, subscriptions, or presentation resources.
-- [ ] Add a repeated-selection stress regression that cycles through a representative set and proves stable active-object/resource counts and no exceptions. Reopened: the old one-frame loop only checked presenter dictionaries. Frame-separated cycles and actual resource probes are now implemented; Unity execution is pending.
+- [x] Instantiate/author selected entries through the existing production decoration/structure/world-object realization path, not a showcase-only renderer. Rendered finish is separately unaccepted below.
+- [ ] Preserve production materials, coatings/presentation semantics, geometry backend and world-object behavior across representatives; the diagnostic mode is fixed, but non-voxel and emissive finish remains unaccepted.
+- [x] Fix the demonstrated diagnostic material-mode defect with `Color.white` and a real lifecycle regression. Run `34003328146` reports the four Showcase PlayMode cases passed and frame 010 shows material shading. This is not a green overall required run.
+- [x] Add a neutral production-compatible preview environment with a floor/contact reference and lighting. Its final presentation quality still requires acceptance.
+- [x] Compute bounds and automatically frame representative sizes without per-prop captured coordinates.
+- [ ] Prove presenter geometry, floor/support and lighting remain on an independent world-space root in final exact-source built evidence.
+- [ ] Prove Merchant Sign's semantic-front visibility and support-behind relationship in final accepted evidence; current visibility is correct but its featureless surface fails finish.
+- [ ] Prove elevated floor and underside ceiling three-quarter framing with final built evidence.
+- [ ] Correctly handle representative floor, wall, ceiling/hanging, thin-surface, box-assembly, procedural-mesh, voxel-stamp, emissive/light-producing, container, movable and other previewable cases.
+- [ ] Ensure selection retirement leaves no stale geometry, colliders, lights, particles, world-object state, subscriptions or presentation resources.
+- [ ] Execute the frame-separated repeated-selection regression and prove actual resource stability, not just cleared presenter dictionaries.
+
+## Demonstrated visual defects: run 34003328146
+- [ ] Trace and fix Merchant Sign's featureless rectangle through production thin-surface/material semantics; do not fabricate preview-only sign art. Require fresh built evidence at the production-quality bar.
+- [ ] Trace and fix plain box-like Door/Trapdoor presentation, including Trapdoor's upright realization, through production kind/geometry/mount routing. Preserve shared APIs and add focused regressions for the proven cause.
+- [ ] Trace Forge Hearth's disconnected bars and missing finished emissive presentation through the real production realization; fix the demonstrated cause and verify fresh output.
+- [ ] Review initial publication/loading and obtain captures of tiny, large, ceiling and procedural representatives that the ten-second SceneIssue replay did not adequately capture.
 
 ## Module-local validation
-- [ ] For each affected player-visible/runtime module, create or update a focused scene under that module's own `<Module>/Validation/` directory; do not count top-level `PropShowcase` as the module-local validation surface. Verify every affected owner, including material composition.
-- [x] Add a focused PropShowcase production-consumer scene and scenario under `Assets/Game/Composition/Showcase/SceneRuntime/Validation/`, covering production material mode and representative selections; retain existing unrelated validation consumers. Added `PropShowcaseMaterialValidation.*` at `de0aa1fb`.
-- [x] Exercise the real production catalogue enumeration and realization path in those module-local validation scenes.
-- [x] Add module-local `*.player-scenario.json` only where runtime selection/capture/assertion behavior is needed; do not add manual registration metadata.
-- [x] Add focused EditMode/unit coverage for pure catalogue/enumeration invariants where appropriate.
+- [ ] Verify all affected runtime owners' local scenes/scenarios execute successfully; top-level and parent-owned scenes do not substitute for ownership.
+- [x] Add SceneRuntime-owned `PropShowcaseMaterialValidation.*` using the real browser; retain unrelated consumers.
+- [x] Add Materials-owned `Tests/EditMode/PropMaterialCompositionTests.cs`, its test assembly, and `Validation/PropMaterialCompositionValidation.*`. The 43-second scene invokes the real production browser; tests check canonical scalar material response, cache reuse and rejection of unknown IDs. Execution is pending, not passed.
+- [x] Exercise real production enumeration/realization in local scene setup, not reconstructed content.
+- [x] Use local player-scenario files only for runtime behavior, captures and assertions; no manual target registration.
+- [x] Add focused catalogue/enumeration unit coverage.
 
 ## Required-CI teardown blocker
-- [x] Inspect the failed artifact and isolate the failure ordering before another retry. Run `34000107687` starts the next phase before the preceding PlayMode `IPostBuildCleanup`/scene restoration; product case results had passed.
-- [x] Isolate PlayMode module phases and explicitly requested PlayMode tests in fresh existing Unity-wrapper processes, retaining persistent EditMode batching and every required selected test/player gate. Implemented at `79b6a2f4261185680ecbeceff7797f71992d35ab`.
-- [x] Add and run subprocess behavioural regressions for two PlayMode phases followed by a focused request; reject zero-match, skipped, failed and missing test results without a hard-coded requested-test assembly. All 20 focused Python tests pass; baseline fails 14 assertions/subtests. See `ci-teardown-repro.md`.
-- [ ] Obtain successful exact-SHA execution after the orchestration repair; local Python regressions do not substitute for Unity or built-player evidence.
+- [x] Isolate failure ordering before retrying: run `34000107687` overlaps PlayMode cleanup; run `34003328146` independently starts its second PlayMode phase while still in play mode and fails SaveModifiedSceneTask. See exact review records.
+- [x] Isolate PlayMode module phases and explicit PlayMode filters using existing Unity-wrapper processes, retaining every selected test/player gate (`79b6a2f4`).
+- [x] Add/run Python subprocess regressions: prior 20 focused tests passed; original baseline failed 14 assertions/subtests. These are not Unity acceptance.
+- [ ] Obtain successful exact-SHA execution including the repaired orchestration and latest feature head.
 
 ## Resource-evidence repair
-- [x] Replace the one-frame stress burst with three repeated, frame-separated cycles through the real browser; wait for endpoint cleanup and record startup/selection cost, actual owned components, global native mesh/material counts and separate allocator totals. Do not manufacture a memory pass from presenter counts.
-- [x] Add focused nonvisual regressions for inactive/deferred-owned objects, unparented native mesh accounting, and a missing owner; require all three cycle records in the module-local scenario. These tests are added, not yet executed in Unity.
-- [ ] Execute the new resource regressions and exact built-player scenario; review same-endpoint measurements and any unavailable profiler counters before accepting lifecycle or cost. Short process-wide probes do not establish the device-matrix two-hour world-memory gate.
+- [x] Replace one-frame stress with three repeated frame-separated production-browser cycles; record startup/switch time, actual components, global native mesh/material counts and separate allocator domains.
+- [x] Add nonvisual resource-accounting regressions and require all three cycle records in the owned scenario. Tests are added, not yet run in Unity.
+- [ ] Execute resource regressions and review same-endpoint measurements, including unavailable counters. Three process-wide samples are not the device-matrix two-hour world-memory gate.
 
 ## Built-player acceptance
-- [ ] Build/run the exact feature SHA through the required targeted-CI transport and do not replace a queued/running request.
-- [ ] Capture durable built-player evidence of the initial `PropShowcase` view showing the left catalogue and right preview layout.
-- [ ] Capture representative selections spanning small/medium/large props and at least the major realization/mount categories used by the catalogue.
-- [ ] Visually inspect the built-player evidence for readable silhouettes, grounding/contact, material fidelity, framing, clipping, lighting, and absence of placeholder/blockout presentation; only production-quality evidence passes.
-- [ ] Exercise repeated navigation through many entries in the built player and verify there are no startup/runtime exceptions, stale previews, accumulating objects, or unusable UI states.
-- [ ] Measure relevant startup/switching/resource cost and confirm the showcase does not introduce an unreasonable runtime or memory-growth regression. Prior replay reports 44 switches and peakOwned=1, but presenter counts and the empty `fps.txt` do not establish memory or frame-time budgets.
+- [ ] Build/run the latest exact feature SHA through the assigned CI transport; never replace queued/running work.
+- [ ] Capture durable initial left-catalogue/right-preview evidence with a truthful presentation-ready/loading state.
+- [ ] Capture tiny/medium/large and every required mount/backend representative.
+- [ ] Inspect silhouettes, grounding/contact, material fidelity, framing, clipping, lighting and finish; only production-quality evidence passes. Latest review is prototype/blockout quality, rejected.
+- [ ] Exercise repeated navigation without startup/runtime exceptions, stale previews, accumulation or unusable UI states.
+- [ ] Measure startup/switching/resource cost against repository budgets; the old 44 switches and peakOwned=1 do not establish memory or frame-time budgets.
 
 ## Acceptance checklist
-- [ ] `PropShowcase` is a dedicated built scene with a left catalogue panel and right live preview.
-- [ ] Every in-scope production prop/decoration is represented by the catalogue browser without a drifting duplicate identity list.
-- [ ] Clicking any listed entry renders the corresponding production realization in the right panel.
-- [ ] Switching selection removes the previous preview cleanly.
-- [ ] Preview framing, grounding, materials, and lighting are useful across representative content shapes/sizes/backends.
-- [ ] Automated catalogue-parity and switching regressions pass.
-- [ ] Required module-local validation scenes and scenarios pass through production paths.
-- [ ] Durable exact built-player evidence has been visually reviewed at the repository's production-quality bar.
-- [ ] All required exact-SHA targeted CI gates pass.
-- [ ] `issue.json` has final `resolutionSummary`, `regressionTest`, and `fixCommit`; every required checkbox is complete before moving `open/` to `closed/`.
-- [ ] Current `origin/master` is merged into the feature branch before final promotion; PR auto-merge is enabled and the required `affected` gate passes until the SceneIssue is visible closed on master.
+- [ ] Dedicated built scene with left catalogue and right live preview.
+- [ ] Every in-scope prop/decoration represented without a drifting identity registry.
+- [ ] Clicking any entry renders its corresponding production realization.
+- [ ] Switching removes the prior realization cleanly.
+- [ ] Framing, grounding, materials and lighting are useful across shapes/sizes/backends.
+- [ ] Catalogue-parity and switching regressions pass.
+- [ ] Required module-local scenes/scenarios pass through production paths.
+- [ ] Durable exact built evidence is reviewed and passes production-quality acceptance.
+- [ ] Every required exact-SHA gate passes.
+- [ ] Complete `issue.json` resolutionSummary/regressionTest/fixCommit and all required work before open-to-closed bookkeeping.
+- [ ] Merge current master, enable final PR auto-merge, pass required `affected`, and verify the closed assignment on master.
 
-## Current blockers
-Request `e83a7fd822dab1c40d59f0f84ccd65937071fd28` / run `34003328146` remains queued for exact source `de0aa1fb4221b06f8f63e6f22fc26ffba77defc8`; leave it untouched. The preceding run's automatic module validation failed during Test Runner teardown, and its diagnostic-normal material output failed visual acceptance. The independent CI isolation repair and later resource-evidence work are not part of the queued source and need fresh exact-SHA CI only after the existing request completes. All Unity/player, visual, resource and final promotion gates remain mandatory.
+## Current state
+Request `e83a7fd822dab1c40d59f0f84ccd65937071fd28` / run `34003328146` completed FAILURE at 2026-09-06T02:37:23Z without replacement. It tested `de0aa1fb`, not the later CI isolation/resource revisions. Artifact `9981244713` was downloaded and visually reviewed: material mode is corrected, overall finish is rejected. Fresh exact-source CI is now permitted for the repaired source; no closure or PR promotion is justified by the failed run. All implementation, visual, resource and final gates above remain required.
