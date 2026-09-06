@@ -1,29 +1,25 @@
 # 26 Authored full-run campaign progression & completion — implementation plan
 
-## Acceptance and ownership
+## Acceptance / ownership
 
-Complete the authored Kentridge -> Rorik/Moordell/Rossdam/Logan route, exactly-once System15 terminal outcome/frontend aftermath, mid-run restore/continuation, shared multiplayer progression, and real built-player full-run proof. Every required task remains binding; optional content is non-gating.
+Complete the authored Kentridge -> Rorik/Moordell/Rossdam/Logan route, exactly-once System15 terminal/frontend aftermath, mid-run restore, shared multiplayer progression, and real milestone-driven built-player full-run evidence. Optional content is non-gating. Story consumes semantic facts; System11 owns objectives, System15 outcomes, and Systems16/14 persistence/restore. No parallel chapter authority, fake regions, alternate transport, or privileged progression shortcuts.
 
-Opening/continuation remain plain content helpers. Story consumes semantic facts; System11 owns objective truth; System15 owns terminal outcome; Systems16/14 own persistence/restore. No parallel GameLoop/Chapter authority, fake regions, alternate transport, or privileged validation mutation. Headless campaign/Story semantics use owned EditMode tests; production Kentridge integration also requires module-owned and full-run standalone-player evidence.
+## Current evidence / independent required correction
 
-## Verification audit and current disposition
+Resume source `dd81b895811a168b9fbfadb8a5c993acb988d2fa` already includes master `356b2e0e4d2818901c73bbc6b1788f8d6850356d`. Local Git fetch fails DNS; connected GitHub reads/writes work. Historical exact-source module proof remains `86911d9dec109c588310754f28c7a5644aed687a`, request `57a0b1f00615d0901e2d25ee0d2216296b13f163`, run `33944532957`; earlier restore/Story runs are retained in tasks.md.
 
-The latest instruction requires confirming every checkbox and keeping incomplete work open. Audit of all 36 entries finds 28 marked complete and eight unchecked: T26-021/022/043/044/045/046/053/054. These remain incomplete or unverified; no checkbox was changed to imply success.
+PR run `34007038175`, job `101416067096`, completed success on synthetic merge `2933925e86d83e324ec7f9ae42be78e35cb42440`. Artifact `9981558493` has 652 passed EditMode cases, no failures/skips, and a 30-second player run. Both captures show only **Loading Kentridge...**; final diagnostics retain `coverage=False`, `missingVisible=241`. Visual acceptance: **unacceptable**. Neither workflow success nor screenshot count proves playable readiness, full-run completion or performance. See `pr-evidence-34007038175.md`.
 
-Commit `2015adb07ed62db9d0f1c921192408ea2816fe4d` had administratively closed this issue under the earlier explicit user exception. Its metadata expressly said `acceptanceComplete: false`. That was not acceptance-complete verification. Restore only this assignment to `open/`, preserve `tasks.md` and `route-evidence.md` byte-for-byte, and keep PR #312 in draft rather than allowing premature promotion. Historical task narratives retain their evidence snapshots; the dependency status below supersedes their older queue-state descriptions.
+**H1 proven by logs/source:** PR selection omitted `Game.Story.Tests` and `Game.Composition.Kentridge.Tests`; neither asmdef declares a test marker recognized by unchanged `tools/select-tests.py`. Their test fixtures are absent from this run's execution log.
 
-## Evidence and missing prerequisites
+**H2 falsified for this run:** this was not merely missing log names after selected execution; both assemblies are absent from selection and the configured assembly list. Historical exact-module evidence is separate.
 
-Last green System26 production source: `86911d9dec109c588310754f28c7a5644aed687a`, direct-child request `57a0b1f00615d0901e2d25ee0d2216296b13f163`, run `33944532957`. Earlier campaign/restore and Story runs: `33941421358`, `33942377377`. These are historical exact-source evidence, not current-head physical/multiplayer acceptance.
+Selected T26-057: add standard `optionalUnityReferences: ["TestAssemblies"]` to the two existing editor-only asmdefs. Add a Python regression exercising the real selector with repository metadata for all-EditMode and each owning-runtime change. Require fail-before/pass-after selection and later exact Unity execution. Do not add registry arrays, alter selection policy, widen budgets, or claim unexecuted NUnit results.
 
-Master `356b2e0e4d2818901c73bbc6b1788f8d6850356d` landed PR #311's macro-world documentation-only deferral. Its closed record explicitly has `acceptanceComplete: false`; Moordell publication, traversal/visual and cost acceptance remain incomplete. Closure of that dependency did not supply the required implementation/proof. Do not reopen or modify its separate assignment.
+Ownership: Story and Kentridge composition test assemblies, plus `tools/tests` selector regression. This changes test discovery only, not runtime/scene behavior; existing headless tests remain the appropriate local surface. No additional player scene is justified for assembly metadata.
 
-System25's current plan still requires real Sessions/provider integration, authority/two-client topology and gameplay/recovery acceptance. Earlier joined-start run `34002524305` passed only source `8b95feaf...`; later Application/Net work does not yet prove T26-043. No System26 replacement transport or duplicated client authority is permitted.
+## Remaining gates / cost
 
-## Sync, validation and next action
+T26-021/022/044–046 remain blocked by macro-world's documentation-only deferral, not a validated implementation landing. System25 still needs production provider/topology/gameplay/recovery acceptance for T26-043; newer asynchronous formation code is not that proof. Preserve both owners' work.
 
-Merge master `356b2e0e...` into `fixes/agent-8` while retaining all existing System26 implementation. Compared master advancement changes only macro-world documentation; preserve feature Assets unchanged. Local Git fetch failed DNS; connected GitHub objects provide the merge inputs.
-
-PR #312 run `34005639454`, required job `101412178888` (`affected`), was still queued at the audit; it is not verified. Do not cancel or replace active targeted requests. No runtime code or budgets change here.
-
-Resume the next actionable required task when its real prerequisite is available. Only after all eight gates and exact-SHA evidence are satisfied: close to the assigned `closed/` path, ready/update PR #312, enable auto-merge, and verify required checks plus actual merge. No direct master push.
+Keep all original eight unchecked tasks open; add T26-057 for the demonstrated coverage defect. Submit corrected exact source only through `ci-test/fixes/agent-8`; preserve active requests. Increased test discovery has no gameplay cost and changes no runtime/capture budgets. PR #312 stays draft until full acceptance; only then close this assignment and promote by PR + auto-merge.
