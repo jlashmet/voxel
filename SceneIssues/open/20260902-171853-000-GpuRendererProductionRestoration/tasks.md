@@ -1,104 +1,102 @@
-# GPU renderer production restoration — tasks
+# GPU-only VoxelShowcase — execution checklist
 
-**Plan:** [plan.md](plan.md)  
-**Acceptance scene:** `Assets/Scenes/VoxelShowcase.unity` only. Kentridge and the mountain are acceptance content because they are rendered inside this scene; do not widen into separate scene assignments.  
-**Execution rule:** first establish a production-quality CPU-rendered VoxelShowcase baseline. CPU forcing is a temporary diagnostic gate, not final success. Do not resume GPU diagnosis while any white/blob/missing/material artifact remains in CPU VoxelShowcase. After CPU is clean, restore/re-enable the production GPU path and complete GPU parity without broad fallback or weakened acceptance.
+**User-authorized rewrite:** 2026-09-05 (America/Los_Angeles). **Plan:** [plan.md](plan.md).
 
-## Current execution priority — CPU VoxelShowcase first
+**Deliverables:** a correct production GPU voxel backend, physical removal of the CPU-only rendering backend, and the complete VoxelShowcase measured toward 1,000 FPS (1.00 ms per frame), or the closest verified result under the unchanged benchmark contract below.
 
-- [x] **TGPU-019CPU0A — Clear the imported VoxelShowcase Input System build prerequisite.** Current-master input fix `7e6c609c...` passed run `33988857330`; feature `fc767620...`, run `33996360570`, compiled and exercised the production Showcase and validation assemblies again. Package presence alone is not the evidence.
-- [x] **TGPU-019CPU0B — Restore the required module-owned player-validation pair.** The master-owned `ShowcaseInputRuntimeValidation.unity` / same-directory `.player-scenario.json` pair passed derived module validation and real-player execution in exact feature `fc767620...`, run `33996360570`.
-- [x] **TGPU-019CPU1 — Capture the current CPU-only VoxelShowcase defect on exact SHA.** Exact feature `fc767620...`, request `8e6aac9...`, run `33996360570`, artifact `9978457769`: `SceneIssue/verification-final.png` and `SceneIssue/Screenshots/showcase-000-t015.2s-stationary.png`, `showcase-001-t025.2s-stationary.png`, `showcase-002-t035.2s-stationary.png`. The actual player log reports zero GPU requests/publications. Visual classification: **prototype/blockout quality**; giant slab and malformed far masses remain. This completes reproduction, not visual acceptance.
-- [ ] **TGPU-019CPU2 — Identify the production draw owner of every white/blob region.** Correlate each bad region to CPU voxel surface, far terrain, semantic far-feature rendering, or another existing production VoxelShowcase presentation path. Add only bounded diagnostics needed to distinguish these owners; do not build a parallel renderer. Current trace also identifies a handoff concern: `ShowcaseFarFeatureRuntime.Update` submits near proxies without detailed publication readiness. Global convergence or a distance cutoff alone is not per-feature coverage proof.
-- [ ] **TGPU-019CPU2A — Run a bounded normal/disabled/restored far-feature owner discriminator.** Required by the still-rejected exact frustum replay: left taper remains white and right-hand masses remain malformed. Opt in only through this issue's replay metadata; toggle only existing far-feature presentation, retain the same camera, restore original enable states, and prove opt-in/restoration behavior. The disabled interval is not acceptance. Inspect all three phases and final restored image before selecting the next fix.
-- [x] **TGPU-019CPU3 — Find the first shared CPU-visible rendering divergence.** The canonical frustum's centre/direction/radii were lost in `FarFeaturePresentationAdapter` and Rendering substituted an AABB. Eight exact fail-before cases and eight pass-after cases prove that boundary; run `34003412217` shows the left AABB changing into a taper. This identifies one divergence, not all remaining regions.
-- [ ] **TGPU-019CPU4 — Fix the demonstrated shared/CPU presentation defect generically.** No Kentridge-name, mountain-name, captured-coordinate, or magic-material special case. Preserve canonical world truth and reuse the production rendering/material/far-world path.
-- [ ] **TGPU-019CPU4E — Preserve every required module-player artifact independently.** Run `34003412217` executed FarWorld then Water into the same Rendering output directory; the retained log/images belong to Water. Fix output identity per module/scene/scenario, add a filesystem regression proving two targets retain distinct evidence, and verify both FarWorld and Water evidence in the next exact artifact. Do not remove validation targets or weaken artifact assertions.
-- [ ] **TGPU-019CPU4F — Prove the bounded canonical far-frustum correction.** Source `da3f5be...`, fail-before request `6ddc727...`, run `33999899224`, artifact `9979637933`: eight intended silhouette failures, 649 other EditMode passes. Candidate `a164456...` preserves resolved cap geometry. Pass-after request `fc6c3320d9b986b8d2401fcae0a17de80d286691`, run `34003412217`, exact source `e4e2f997...`, artifact `9980566933`: 657 module EditMode passes, three PlayMode passes, and eight focused passes including topology/cache assertions. Inspected full-scene final image shows the corrected taper but remains prototype/blockout quality. Keep this task open until required FarWorld player evidence is retained independently (CPU4E). Other primitive mismatches and full CPU visual acceptance remain open.
-- [ ] **TGPU-019CPU5 — Prove CPU VoxelShowcase is production-quality.** Exact-SHA built-player captures must show clean castle/terrain plus Kentridge and mountain content with correct materials/silhouettes, no white blobs, no malformed far geometry, no large holes, and no near/far handoff artifact from representative stationary and traversal views.
-- [ ] **TGPU-019CPU6 — Restore the production GPU implementation only after CPU passes.** Reconcile the pre-CPU-gate agent-1 GPU implementation from merge parent `a0ac0f5e...` with the shared CPU fix, restore normal GPU cutover policy, then resume the GPU-specific tasks below. The proven CPU capture becomes the visual oracle.
+## Execution rules
 
-## GPU visual parity and first deterministic divergence
+The old requirement to make CPU VoxelShowcase production-quality before GPU diagnosis is **withdrawn**, not completed. GPU testing is the immediate priority. CPU comparisons may temporarily diagnose identical inputs; CPU polishing, a passing CPU image, or a CPU-only module run cannot stand in for GPU progress. Shared visual defects remain required final work, investigated while the GPU path is active.
 
-- [ ] **TGPU-019 — Restore stationary GPU VoxelShowcase to the proven CPU visual baseline.** The same scene content visible in the CPU proof—castle, terrain, Kentridge, mountain, nearby structures/far content—must render without large missing/white regions, absent surfaces, stale chunks, or fallback-hidden success.
-- [x] **TGPU-019C — Minimal production-faithful GPU solid validation scene exists and passed.** Exact feature `6451cf98...`, run `33929485980`.
-- [x] **TGPU-019D — Exact CPU expectations exist for the minimal fixture.** 41 authored solids -> 114 exposed faces, 456 vertices, 684 indices.
-- [x] **TGPU-019E — Minimal fixture passed the production GPU path.** Same exact run reported `pub=1`, `fallback=0`, `visible=1`, `missing=0`; this falsifies a universal one-chunk defect.
-- [ ] **TGPU-019G — Keep the reusable production-batch CPU/GPU oracle harness.** Compare prepared inputs, density, count/prefix, canonical pre-page geometry, allocation/pending state, CPU Commit/Abort outcome, and final live draw visibility. Readback remains test-only.
-- [ ] **TGPU-019H — Re-run deterministic static multi-chunk CPU/GPU parity after CPU acceptance.** Stop at the earliest GPU-only mismatch and require fail-before/pass-after exact evidence.
-- [ ] **TGPU-019A — Correlate the first broken full-scene GPU chunk only after deterministic parity is classified.** Use the same VoxelShowcase world locations proven clean on CPU; trace admission -> mirror -> extraction -> pending/live pages -> draw visibility without scene-specific renderer logic.
-- [ ] **TGPU-019F — Reject false paged-GPU completion.** `Ready/Exhausted/Stale/TooLarge` must be observed by the CPU state machine; only successful pending geometry may complete. Failure preserves old live geometry, reclaims pending state exactly once, and cannot create a permanent hole.
-- [ ] **TGPU-019B — Built-player VoxelShowcase replay is the immediate visual gate after each GPU correctness fix.** Compare directly with the exact CPU baseline.
+Work the next unchecked non-blocked item. Profiling starts with the first GPU replay and may proceed alongside correctness; the section order does not defer measurement until the end. Preserve queued/running requests. Existing request `560b0c08f022c42faa9c6877e63d109083eb2dc9` / run `34005604349` is a pre-rewrite CPU diagnostic and was queued at this revision. Its result may verify artifact isolation but cannot fulfill G03/G04. Do not submit another CPU-only replay ahead of GPU restoration. No manual enumeration of repository-derived module/player targets or alternate workflows/CI branches.
 
-## Proven work retained from the investigation
+Each completed item needs exact feature SHA, request/run IDs, relevant executed tests and retained artifact paths. A failing run is not green because it contains a screenshot. After two materially different fixes fail the same assertion/symptom, isolate the minimal production-faithful repro before another fix. Keep investigation and profiles bounded; no scene-name/material-ID hacks, hidden content, or weaker tolerances.
 
-- [x] **TGPU-001 — Reproduced the original GPU density failure on current production path.**
-- [x] **TGPU-002 — Inventoried production GPU selection, fallback, page-handle publication, and metrics.**
-- [x] **TGPU-003 — Inventoried supported semantic surface features and unsupported categories.**
-- [x] **TGPU-004 — Preserved the minimal CPU/GPU density repro.**
-- [x] **TGPU-005 — Proved the original defect was at/above centre occupancy rather than smooth taps alone.**
-- [x] **TGPU-006 — Isolated the historical Metal compiler/context introducing boundary instead of continuing speculative fixes.**
-- [x] **TGPU-010 — Moved persistent resolution into the dedicated resolver and restored dense production sampling.**
-- [x] **TGPU-011 — Proved source-step 1/2 density parity.**
-- [x] **TGPU-012 — Proved material classification parity.**
-- [x] **TGPU-013 — Proved Smooth/Rounded/Planar/Sharp/Cubic surface-style parity.**
-- [x] **TGPU-014 — Proved authored boundary/coating parity and unsupported decoration handling.**
-- [x] **TGPU-015 — Proved regular topology parity.**
-- [x] **TGPU-016 — Proved faceted topology parity.**
-- [x] **TGPU-017 — Proved negative-shell ownership parity.**
-- [x] **TGPU-018 — Proved transition-face parity.**
-- [x] **TGPU-020 — Proved persistent and dense semantic inputs agree.**
-- [x] **TGPU-021 — Proved mixed/uniform/empty publication semantics and eviction tombstoning.**
-- [x] **TGPU-022 — Proved negative-coordinate/boundary lookup and directory collision handling.**
-- [x] **TGPU-023 — Proved runtime edit propagation rejects stale generation and recovers current coverage.**
+## Retained evidence — not final GPU acceptance
 
-## GPU mirror, allocation, publication, and lifetime correctness
+| Proven historical result | Evidence / limitation |
+| --- | --- |
+| Shared frustum taper divergence and repair | `da3f5be...` / run `33999899224`: eight intended failures. `e4e2f997...` / run `34003412217`: 657 module EditMode, three PlayMode and eight repeated focused passes. See `frustum-geometry-evidence.md`. |
+| The repaired full scene still fails visual acceptance | The same run has zero GPU requests/publications. Left taper and right-hand masses remain blockout quality; zero-sample frame timings are not performance proof. |
+| GPU is not universally broken for a single chunk | Historical `6451cf98...` / run `33929485980`: 41 solids, 114 exposed faces, 456 vertices, 684 indices, publication 1, fallback 0, visible 1, missing 0. Reconcile and rerun on current source. |
+| Prior density, semantics, transition and mirror work | Preserve `gpu-density-oracle-history.md`; rerun the applicable invariants after restoration. Historical checkmarks do not certify the new final backend. |
+| Required artifact preservation defect | FarWorld/Water outputs collided in run `34003412217`. Current branch contains a repair/probe under request `560b0c08...`: filesystem checks recorded four before-fix failures and five after-fix passes; fourteen Unity probe cases await CI. Inspect terminal player evidence rather than implementing the same fix again. |
 
-- [ ] **TGPU-024 — Verify eviction/recovery/liveness under pressure.** No permanent holes, deadlock, or silent CPU takeover.
-- [ ] **TGPU-025 — Verify no production frame-path blocking.** Diagnostic readback is test-only.
-- [ ] **TGPU-025A — Stress visible-handle upload-ring reuse under actual GPU lag.** Change only if a stall is demonstrated.
-- [ ] **TGPU-026 — Make extraction completion lane-local and GPU-backed with bounded in-flight lanes.**
-- [ ] **TGPU-026A — Hold source mirror/residency leases until the GPU actually finishes consuming them.**
-- [ ] **TGPU-026B — Prove the exact Metal fence capability/`passed` contract; do not equate graphics-queue ordering with CPU reuse safety.**
-- [ ] **TGPU-026C — Make teardown safe with submitted GPU work still in flight.**
-- [ ] **TGPU-027 — Retire draw pages on draw-completion evidence, not CPU-frame delay.**
-- [ ] **TGPU-027A — Make paged publication two-phase and CPU-authoritative: pending Allocate/Write -> explicit Commit or Abort.**
-- [x] **TGPU-027B — Coalesce duplicate handle commands deterministically per handle.** Focused evidence run `33916627573`.
-- [ ] **TGPU-027C — Separate renderer build generation from Storage/mirror source generation.**
-- [ ] **TGPU-027D — Reclaim pending pages on release/cancel/reacquire exactly once.**
-- [ ] **TGPU-028 — Prove lifetime safety under rapid handle/page/mirror reuse pressure.**
-- [ ] **TGPU-028A — Prove rejected stale generations never become live and preserve prior live geometry.**
-- [ ] **TGPU-029 — Prove cross-LOD batch scratch compatibility for source steps 1 and 2.**
-- [ ] **TGPU-029A — Separate physical prepared-cache stride from logical per-request resolver extent.** Optimization remains parked until correctness proves need.
-- [ ] **TGPU-029B — Execute a real mixed-LOD production batch and enforce explicit lane compatibility.**
+## 1. Get the actual GPU path running now
 
-## Production GPU cutover and reuse
+- [ ] **G01 — Reconcile the retained production GPU implementation.** Inspect current code and historical merge parent `a0ac0f5e...`; retain compatible proven changes rather than blindly restoring old files. Trace the real scheduler -> mirror -> extraction -> page publication -> URP draw route. Record concrete compile/runtime blockers and fix only prerequisites to this route. Do not begin another CPU visual-polish cycle.
+- [ ] **G02 — Make GPU validation genuinely GPU-enabled.** Audit `GpuSurfaceProductionPolicy`, `VOXEL_DISABLE_GPU_CUTOVER`, player-capture scripts, persistent test runner, module validation and scene bootstrap. Remove contradictory CPU-forcing for GPU proof; fail the proof explicitly on unsupported capability or CPU takeover. The final migration removes the obsolete switch entirely (G18). Keep ordinary production scene composition, rendering and effects. Identify each affected `.asmdef` and its owned tests/validation scene before implementation.
+- [ ] **G03 — Prove the restored module path on an exact SHA.** Restore/update the existing Rendering-owned GPU validation scene under `Assets/VoxelEngine/Rendering/Validation/` and its executable scenario. Exercise canonical storage/materials and the production GPU renderer, first for the bounded fixture and then multiple chunks. Show GPU dispatches, successful publications and live visible GPU-owned geometry, not just nonzero requests. Require zero CPU extraction/fallback for the tested workload. Retain the real player log and images separately per scene/scenario.
+- [ ] **G04 — Capture and profile full GPU VoxelShowcase immediately.** On the same source as G03, replay the complete scene with fixed seed, camera/route, resolution and quality. Keep castle, mountain, town, water, vegetation, far world and normal updates enabled. Capture startup and settled views, label defects shared versus GPU-only, and report the first measured full-frame distribution, GPU coverage and fallback counts. An imperfect GPU image is useful diagnosis, not completion. Do not wait for all later correctness tasks before obtaining this evidence.
 
-- [ ] **TGPU-030 — Make GPU eligibility semantic and explicit.**
-- [ ] **TGPU-031 — Eliminate silent eligible CPU fallback once GPU acceptance resumes.**
-- [ ] **TGPU-032 — Preserve explicit CPU fallback only for declared unsupported work/devices with observable reason.**
-- [ ] **TGPU-033 — Prove VoxelShowcase production GPU cutover.** Representative streaming/traversal must show visible GPU builds, zero eligible fallback, and no blocking violation.
-- [ ] **TGPU-034 — Prove an independent production consumer uses the same GPU renderer without duplicate enabling/render logic.** This is renderer reuse proof, not additional visual-scene scope for CPU diagnosis.
-- [ ] **TGPU-035 — Verify renderer restart/lifecycle without leaks, stale statics, duplicate ownership, or disabled cutover.**
+## 2. Complete geometry and visual correctness with GPU active
 
-## Built-player visual, traversal, edit, and performance acceptance
+- [ ] **G05 — Preserve an independent semantic oracle without retaining a second renderer.** Before deleting the CPU backend, record bounded canonical input/output fixtures, semantic expectations and provenance for supported surfaces. During transition compare the same prepared inputs, density, count/prefix and pre-page geometry. Convert essential regressions to frozen reference data and independent canonical/property checks; final tests must not require the retired CPU mesher or embed a copy of it. Readback is test-only, never a production frame-path dependency.
+- [ ] **G06 — Restore all supported reconstruction/material semantics.** Validate smooth, rounded, planar, sharp and cubic/faceted surfaces; material classification, coatings, authored boundaries, decoration/profile handling and mixed/uniform/empty inputs. First identify the earliest divergence, then add fail-before/pass-after behavioral proof. GPU parity does not bless defects already present in shared authored data or presentation.
+- [ ] **G07 — Eliminate CPU-dependent LOD coverage.** Current `CpuTransvoxelChunkCache.SupportsGpuSurfaceStep` admits only steps 1/2; step 4 uses feature-preserving CPU fallback and step 8 block HLOD. Inventory every ring/representation actually used by VoxelShowcase and affected consumers, including coarser mip work. Implement the required GPU equivalents before deleting those paths. Test real mixed-LOD batches, logical extent versus physical stride, transition faces, negative-shell ownership and nonresident frontier halos. Do not disable coarse rings or reduce draw distance to claim GPU-only coverage.
+- [ ] **G08 — Resolve every missing/white/malformed GPU-visible region.** Use chunk/source revision and actual draw owner to separate voxel surfaces, far terrain and semantic far features. Preserve canonical shape parameters, materials/coatings and ordered carve semantics where required; resolve near/far overlap with correct coverage ownership, not distance-only hiding or global convergence. Reuse existing production systems. The existing bounded normal/disabled/restored probe is optional diagnosis, with restoration/opt-in regressions; disabled output never passes acceptance. Retain frustum topology/cache regressions and independent FarWorld artifacts.
+- [ ] **G09 — Accept complete GPU visuals during real use.** Inspect exact-source stationary, multiple-angle, traversal and edit captures for silhouettes, grounding, materials, seams, holes, stale chunks, near/far handoff and blockout appearance. Explain any startup incompleteness and measure convergence. All final views must meet the repository's production-quality bar without CPU fallback or removed scene content. VoxelShowcase is the visual target; do not take over another SceneIssue.
 
-- [ ] **TGPU-040 — Maintain Rendering-owned focused production validation scene/scenario using the real stack.**
-- [ ] **TGPU-041 — Capture exact-SHA VoxelShowcase traversal evidence against the CPU baseline.** Inspect holes, cracks, stale chunks, materials, faceted surfaces, far representation, and LOD seams.
-- [ ] **TGPU-041A — Validate optional nonresident halo behavior while traversing VoxelShowcase frontiers.** Preserve liveness; fix continuity only if artifacts are demonstrated.
-- [ ] **TGPU-042 — Capture representative VoxelShowcase edit evidence.** Old geometry must be replaced and converge without stale remnants.
-- [ ] **TGPU-043 — Prove final visual success is genuinely GPU-rendered rather than hidden by fallback.**
-- [ ] **TGPU-044 — Preserve moving-frame p95/p99 performance budgets; do not relax them.**
-- [ ] **TGPU-045 — Preserve settled/stationary performance and eliminate pathological continuing churn.**
-- [ ] **TGPU-046 — Measure mirror/scratch/page/upload memory and traffic against authoritative budgets.**
+## 3. Make publication, residency and lifetime reliable
 
-## Regression, cleanup, and close
+- [ ] **G10 — Make completion and publication explicit and two-phase.** Pending Allocate/Write may become live only through successful Commit; `Exhausted`, `Stale`, `TooLarge`, cancellation and failed writes Abort exactly once. Preserve prior live geometry until a valid replacement commits. Separate renderer build generation from storage/mirror source generation. Retest deterministic duplicate-command coalescing and cancel/release/reacquire behavior.
+- [ ] **G11 — Prove GPU-completion-based lifetime.** Keep source mirror/residency leases and lane-local scratch alive until actual consumption completes. Verify the target Metal fence/capability/`passed` behavior and safe handling when that capability is unavailable. Retire geometry only after draw completion, not a CPU-frame delay. Exercise upload-ring reuse under actual GPU lag, teardown with in-flight work, and repeated renderer/world restart without stale statics, leaks or double ownership.
+- [ ] **G12 — Prove bounded pressure and recovery.** Stress page/handle/mirror reuse, directory collisions, negative coordinates, eviction, mixed/uniform/empty publication and tombstones. Force stale generations, full arenas and oversized work; prove reclamation, retry and recovery without deadlock, corruption, permanent holes or CPU takeover. Splitting/backpressure must preserve coverage and budgets rather than silently discarding unsupported work.
+- [ ] **G13 — Prove edits and streaming end to end.** Use deterministic real VoxelShowcase traversal and repeated authoritative edits across region/LOD boundaries. Verify current versions converge, stale results never become live, old geometry disappears correctly, and new geometry replaces it without cracks/remnants. Preserve authoritative gameplay and tick behavior; no blocking GPU readback/wait introduced into the frame path.
 
-- [ ] **TGPU-050 — Run Rendering module EditMode regressions on the exact final feature SHA.**
-- [ ] **TGPU-051 — Run any specifically required Rendering PlayMode regressions on the exact final feature SHA.**
-- [ ] **TGPU-052 — Run repository-derived affected module validation including owned validation scene(s).**
-- [ ] **TGPU-053 — Pass the canonical standalone full-application integration gate required by the repository.** This is CI integration evidence; CPU visual diagnosis remains scoped to VoxelShowcase.
-- [ ] **TGPU-054 — Remove/bound investigation-only probes, readbacks, operand echoes, test controls, and verbose logging.**
-- [ ] **TGPU-055 — Audit fallback and duplicate renderers; no scene-local replacement or broad eligible fallback remains.**
-- [ ] **TGPU-056 — Review final diff/blast radius.** Keep only demonstrated Rendering/VoxelShowcase integration, validation, shared-fix, and required SceneIssue metadata changes.
-- [ ] **TGPU-057 — Close only with exact evidence for every required checkbox/acceptance criterion.** Move directly `open` -> `closed`, set fixed metadata, merge current master, then final PR + auto-merge and verify closed issue on `origin/master`.
+## 4. Physically remove the obsolete CPU rendering backend
+
+Deletion is a required deliverable, not an optional cleanup after closure. A file name is not a dependency analysis: `CpuTransvoxelChunkCache` currently imports GPU code and owns shared responsibilities too. Move only genuinely shared responsibilities to appropriate existing/common boundaries before removing the obsolete implementation.
+
+- [ ] **G14 — Inventory every CPU-only file and consumer.** Record path, responsibility, callers, assembly/assets references, replacement and delete/retain rationale in a compact removal ledger beside this issue. Start with solid/water CPU caches, CPU Transvoxel mesh jobs/workspaces, CPU topology/mesh upload paths, fallback selection, flags, tests, benchmark helpers and associated `.meta`/assets. Trace production, editor/baking, validation and independent consumers, not just the main scene. Include CPU-only coarse LOD and required water-surface extraction in the migration; do not quietly exclude them.
+- [ ] **G15 — Port remaining required behavior before deletion.** Move any still-required surface extraction onto the GPU path and migrate consumers. Preserve authoritative voxel bake/generation, collision and simulation. Preserve genuinely shared material/shape/lookup contracts and the CPU host orchestration needed to submit GPU work. Independent water/vegetation/far-presentation systems used by the GPU scene must stay functional; their legacy CPU-backend dependencies must be removed, not their visible content. No CPU triangle extraction hidden inside a renamed GPU wrapper.
+- [ ] **G16 — Delete all files used solely by the CPU rendering path.** Remove their implementations, CPU-only tests/fixtures/assets, `.meta` files, serialized and assembly references, obsolete scripts/configuration and dead branches. Remove CPU-specific sections of mixed files once their shared responsibilities are migrated. Do not keep a disabled backend, compatibility shim, source copy under Tests, archive or alternate scene. Source-control history is the recovery mechanism; independent golden data/canonical semantic checks are not a retained renderer.
+- [ ] **G17 — Prove supported coverage and unsupported-device behavior without fallback.** Default production VoxelShowcase and an independent production consumer must use the same GPU backend for all migrated voxel-surface work. Unsupported capabilities fail clearly; a supported material/LOD cannot be relabeled unsupported just to omit it. Preserve supported content/device obligations or record a genuine blocker. No automatic or emergency CPU renderer remains.
+- [ ] **G18 — Audit and test the CPU-backend-free build.** Remove CPU-force/experimental compatibility controls and migrate tests that relied on them. Check references/GUIDs/dead code, compile and run affected editor/bake workflows, all repository-derived module players and the real integration consumer. Inspect artifact content, not only counts. Finish the removal ledger with zero unexplained retained CPU-only files and behavioral proof that no render route invokes the deleted backend. A source-string test alone is insufficient.
+
+## 5. Drive actual whole-frame performance toward 1,000 FPS
+
+### Locked benchmark contract
+
+The reference GPU is the **Apple M4 Max / Metal** already identified in the VoxelShowcase player log. Record actual RAM, GPU configuration, macOS, Unity version, power/thermal state and player build settings rather than guessing them. Initial primary resolution is **1920 x 1080, render scale 1.0**, chosen here because the user did not specify resolution; also report the normal/native-resolution result separately. Lock these settings before comparisons, never change them retrospectively to meet the target.
+
+Use a visible standalone non-development player for the primary performance result, same source/content/quality as visual proof. Record the effective frame cap and presentation behavior; request uncapped rendering/VSync off where supported. No minimized window, empty camera, frozen simulation, disabled streaming/effects, lower geometry density, shorter distance or reduced resolution as an unlabelled speedup. Readback, screenshot I/O, verbose probes and deep profiling are excluded from timing windows, not from the required separate visual/correctness runs. Retain lightweight counters and matching before/after captures. Instrumented diagnostic builds are supplementary, with overhead disclosed.
+
+For **each** fixed workload — fully settled stationary full-scene view, deterministic warm traversal, cold/frontier streaming traversal, and repeated edits/recovery — obtain at least **three 60-second measured runs**. Warm the initial scene/shaders for at least 30 seconds and wait for real coverage readiness; report time-to-readiness separately. Frontier/new-work costs inside traversal/edit workloads remain included. Record startup/convergence separately, not as missing data.
+
+Target **>=1,000 rendered frames/second and whole-frame p95 <=1.00 ms** in the measured workloads; publish each workload separately, including p50/p95/p99/max and worst spikes. FPS is frames divided by measured wall-clock duration, not an average of instantaneous FPS and not reciprocal GPU-extraction time. Count real rendered frames and corroborate GPU execution/completion; CPU update ticks or queued empty frames are not rendering throughput. Record presentation/compositor limits explicitly. Uncapped/offscreen diagnostic throughput is not presented as visible-player FPS. Unavailable GPU timing is `unavailable`, never zero or a fabricated success.
+
+Existing device-matrix frame, main-thread streaming, memory, simulation and latency requirements remain hard constraints. The 1.00 ms goal adds an aggressive scene target; it does not authorize changing shared budgets or gameplay. Below-target completion must identify the target as missed and provide the closest repeatable result, bottleneck evidence, tested alternatives and remaining limits; it cannot assert a mathematically proven optimum or declare success after an arbitrary number of attempts.
+
+- [ ] **G19 — Establish trusted timing and GPU attribution starting at G04.** Fix zero-sample timing, identify CPU main/render thread, GPU frame/passes, present wait, extraction, upload/submission and synchronization costs. Verify measurement overhead/caps, all expected visible coverage, zero CPU fallback and no continuing idle rebuild churn. Store source/configuration identity, raw distributions and sample counts with the first GPU baseline.
+- [ ] **G20 — Optimize the largest measured whole-frame bottleneck.** Prioritize based on measured critical path, not on a predetermined list of rewrites. Candidates include CPU submission/GC/allocations, repeated preparation/uploads, batching/indirect draws, visibility reuse/culling, URP pass organization, GPU extraction, shader bandwidth/overdraw, shadows, water/vegetation/far presentation and present/driver stalls. Change render-pipeline integration only when measurement or correctness requires it; preserve the production stack and visuals. Re-measure after each material change.
+- [ ] **G21 — Measure settled and moving workloads without cheats.** Apply the locked benchmark to stationary, traversal, frontier streaming and edits; preserve p95/p99 budgets, visible detail and responsiveness. Confirm quiescent scenes stop redundant work while real updates remain active. Compare exact-source visual captures around every material optimization and reject speed obtained from missing geometry, stalls moved out of counters, stale output or hidden fallback.
+- [ ] **G22 — Bound memory, traffic and long-session behavior.** Report mirror, source pins, scratch lanes, pages, visible handles, upload bytes/calls, allocator peaks and reuse pressure versus the device matrix. Check steady-state growth and the required two-hour memory-flatness criterion (within +/-2%). Use the repository's supported long-run evidence path; do not enlarge a five-minute targeted test timeout or add an ad-hoc workflow. An unavailable long-run path is a recorded evidence blocker, not permission to claim a pass.
+- [ ] **G23 — Produce an honest closest-achieved performance result.** Report the complete repeated workload table and improvements versus G19. If below 1,000 FPS, identify the measured limiting stages and remaining gap, test justified in-scope alternatives, retain the best nonregressing implementation, and document why remaining proposals are blocked or trade away required quality/correctness/budgets. Do not invent a lower success target, call 60 FPS equivalent to this goal, or claim no further improvement is possible without evidence.
+
+## 6. Final verification and promotion
+
+- [ ] **G24 — Re-run final regressions and retain all required artifacts.** On the exact CPU-backend-free feature source, run Rendering-owned EditMode tests, only specifically required PlayMode tests, repository-derived affected-module validation and module-local production scenes. Verify unique retained output for FarWorld, Water, GPU validation and every other required scene; zero-match/skipped/missing evidence is failure. Preserve canonical regression coverage without the deleted CPU implementation.
+- [ ] **G25 — Prove full application and independent reuse.** Pass canonical standalone `KentridgePlayableSlice` and the independent production GPU consumer without duplicate enabling/render logic, while keeping VoxelShowcase as this issue's visual/performance target. Recheck lifecycle, shader availability and supported capability handling after deletion. No takeover or modification of other SceneIssue records.
+- [ ] **G26 — Review final diff, visuals, removal and performance together.** Remove investigation-only controls, bound retained diagnostics, and review actual standalone images, logs, raw timing and memory evidence. Confirm all obligations below are satisfied on compatible exact source revisions. No CPU-force gate, silent fallback, scene-local replacement renderer or unexplained CPU-only file remains. Produce a resolution with both achieved FPS and any shortfall explicit.
+- [ ] **G27 — Close and promote only after all pre-closure work passes.** Once G01–G26 and amended issue acceptance are satisfied, move only this issue directly `open/` -> `closed/`, set fixed/resolved metadata with verified evidence, and commit on `fixes/agent-1`. Merge current master as required, open/update the final PR and enable auto-merge immediately. Fix required `affected`-gate failures, preserve exact-source validation after material integration changes, and verify the PR merged and closed issue exists on `origin/master` before checking G27. Never push the feature head directly to master.
+
+## Superseded-task reconciliation
+
+This replaces the old checklist, not its unfulfilled correctness obligations. Historical evidence remains in the existing evidence files and Git history; old checked items are not silently treated as final passes.
+
+| Previous obligation | New destination |
+| --- | --- |
+| CPU0A/0B/CPU1/CPU3 and 001–018, 020–023, 027B historical proof | Retained evidence above; current reruns G03, G05–G07, G10–G13, G24 |
+| CPU2/2A/4/4F draw owner, shared geometry/material and taper | G08/G09; no CPU-first prerequisite |
+| CPU4E unique player evidence | G03/G18/G24; preserve queued repair result |
+| CPU5 perfect-CPU gate; CPU6 delayed GPU restoration | Gate explicitly withdrawn by user; final visual quality in G09, immediate restoration in G01–G04 |
+| 019 and 019A/B/C/D/E/G/H GPU diagnosis/fixtures/parity | G01–G09 |
+| 019F, 024–029B allocation, fences, pressure, mixed LOD | G07, G10–G13, G19, G22 |
+| 030/031/033/034/035 default cutover, reuse, restart | G02–G04, G11, G17/G18/G25 |
+| 032 permanent explicit CPU fallback | Superseded by user-authorized GPU-only capability handling and deletion, G14–G18 |
+| 040–043 including 041A scene/traversal/edit/GPU proof | G03/G04/G07–G09/G13/G24/G25 |
+| 044–046 performance and memory | G19–G23 and locked 1.00 ms benchmark |
+| 050–057 final tests, cleanup, audit, close/merge | G16/G18/G24–G27 |
+
+**This rewrite does not mark GPU restoration, CPU deletion, visual acceptance or 1,000 FPS complete.**
