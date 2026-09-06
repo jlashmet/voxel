@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "runSeconds": 48,
+  "gpuCutover": "required",
+  "capture": {
+    "width": 1600,
+    "height": 900,
+    "intervalSeconds": 6,
+    "minimumFrames": 7,
+    "evidenceAfterSeconds": 2
+  },
+  "timeline": {},
+  "assertions": {
+    "requiredLogPatterns": [
+      "SOLIDGPU_VALIDATION initial-ready:",
+      "SOLIDGPU_VALIDATION traversal-ready:",
+      "SOLIDGPU_VALIDATION edit-ready:",
+      "SOLIDGPU_VALIDATION settled:",
+      "SOLIDGPU_VALIDATION restart-ready:",
+      "SOLIDGPU_VALIDATION success:"
+    ],
+    "forbiddenLogPatterns": [
+      "SOLIDGPU_VALIDATION failure:",
+      "NullReferenceException",
+      "MissingReferenceException",
+      "Shader error"
+    ]
+  }
+}

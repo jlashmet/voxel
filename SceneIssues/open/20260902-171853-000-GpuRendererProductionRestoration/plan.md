@@ -1,31 +1,27 @@
 # GPU renderer production restoration — GPU-first plan
 
-## User-authorized objective — 2026-09-05 (America/Los_Angeles)
+## Objective and boundaries
 
-Make the GPU voxel path work in the complete `Assets/Scenes/VoxelShowcase.unity`, delete every file/code path used solely by the retired CPU rendering backend, and pursue **1,000 FPS / 1.00 ms whole-frame time**, or the closest reproducibly achieved result without hiding content or reducing quality. This supersedes the CPU-first sequence and permanent CPU-fallback requirement. **CPU visual polish is not a prerequisite for GPU testing.** Correct final GPU visuals remain mandatory.
+Deliver the complete production-quality `Assets/Scenes/VoxelShowcase.unity` through the GPU voxel backend, physically delete the retired CPU-only renderer, and pursue **1,000 FPS / 1.00 ms whole frame**, or the closest honestly measured result under the locked benchmark in [tasks.md](tasks.md). CPU visual perfection is not a prerequisite. Preserve authoritative integer CPU storage/generation/collision/simulation and necessary GPU host orchestration. No content hiding, weaker budgets or permanent CPU fallback.
 
-## Current source and evidence
+## Current reconciliation
 
-Starting feature: `1e1010383ec1eaccc444f57ad8fa509414fb077e` (production/tests `95d4d304...`); fetched remote master: `ef475182b866eabfe8e1d1a39c82bf7810a03f49`. Request `fc6c3320...`, run `34003412217`, passed taper regressions but captured CPU extraction (`gpu req/pub=0`) and rejected blockout visuals; its Rendering player artifacts collided. See `frustum-geometry-evidence.md` and `gpu-density-oracle-history.md` for historical proof, not final acceptance.
+Starting feature `a551c225d4797abd8b74aaf3889d5736d99e7fed`; remote master `ef475182b866eabfe8e1d1a39c82bf7810a03f49`. The feature's only cache divergence from current master is `GpuCutoverDisabled = true`. Restore the master's environment-controlled cache instead of overwriting other current systems with historical code. The extractor and draw dispatcher already match retained GPU source `a0ac0f5e...`; coordinator/page/mirror differences are not blindly restored.
 
-Existing request `560b0c08f022c42faa9c6877e63d109083eb2dc9`, run `34005604349`, job `101412081392`, was queued when replanning. Preserve it until terminal; inspect its artifact-isolation/probe results. It is an earlier CPU diagnostic, not the next milestone. Continue GPU implementation while it runs; do not schedule another CPU-only cleanup replay first.
+The Rendering-owned `SolidGpu` validation scenes were absent. Restore their existing storage -> scheduler -> GPU -> URP consumers: minimal canonical fixture and multi-chunk traversal/edit/restart. Restore declarative `gpuCutover: required` handling so the module launcher's inherited CPU override cannot defeat GPU-required scenarios. Existing non-GPU diagnostic launches remain unchanged temporarily; their controls are removed during G18. No new parallel renderer.
 
-## Next discriminator
+Five filesystem/subprocess policy tests now pass locally; four fail against the exact pre-repair runner blob. A runtime cache-policy regression is added but has not run in Unity. See [gpu-resumption-evidence.md](gpu-resumption-evidence.md).
 
-Reconcile the retained GPU implementation with current shared fixes, remove CPU-forcing from the GPU validation launch path, and run canonical multi-chunk extraction plus a real GPU VoxelShowcase replay on one exact source revision.
+Prior request `560b0c08...`, run `34005604349`, completed success without replacement. Downloaded artifact `9981080134` now preserves separate FarWorld/Water outputs. Its CPU/owner-toggle captures are diagnostic only, not GPU or performance acceptance.
 
-**H1:** GPU-only input, mixed-LOD, allocation/publication or lifetime failure loses otherwise valid surfaces. Compare prepared inputs through final live draw ownership, stopping at the first mismatch.
+## Next discriminating run
 
-**H2:** malformed geometry/materials already arise in shared authoring/far presentation. Compare identical inputs/cameras, label shared defects separately, and fix them with GPU enabled rather than waiting for a perfect CPU scene. Bounded owner toggles are diagnostic only; final output restores every production system.
+Submit the restored source on `ci-test/fixes/agent-1` with the cache-policy regression, repository-derived module players, and a complete VoxelShowcase replay. Inspect real GPU requests, candidate publications, fallback, visible output and startup/settled frames. Current publication counters alone cannot establish successful GPU output: the feedback's outcome/commit concerns remain open. Record unavailable GPU timings as unavailable; existing FPSLOG is an initial diagnostic, not the locked benchmark result.
 
-## Delivery order
+**H1:** GPU input/layout or pending/publication/lifetime contracts lose valid surfaces. Compare identical canonical inputs and stop at the first divergence; prioritize [external-agent-feedback.md](external-agent-feedback.md) transaction/lifetime findings.
 
-1. Prove actual GPU extraction, publication and drawing now; reject silent CPU fallback. Start whole-frame profiling immediately.
-2. Cover every required semantic and LOD, including CPU-dependent steps 4/8, then streaming, edits, fences, pressure and restart. Inspect GPU captures after fixes.
-3. Migrate genuinely shared responsibilities out of mixed CPU/GPU owners; physically delete CPU-only implementations, fallback switches, assets and obsolete tests. Preserve independent canonical expectations, not a hidden CPU renderer.
-4. Optimize measured bottlenecks toward 1.00 ms with the locked workload in `tasks.md`. Report attained FPS, tails and limiting stages honestly.
-5. Validate the CPU-backend-free final source, close only after all required gates, then current-master integration and PR + auto-merge.
+**H2:** shared far geometry/material ownership also causes malformed masses. Diagnose with GPU active; disabled-owner frames never pass acceptance.
 
-## Boundaries and cost
+## Ownership and remaining gates
 
-Authoritative integer CPU storage, generation, collision and simulation remain. Rendering owns GPU extraction/URP integration and local validation; Composition owns wiring; Showcase owns workload setup. Extend affected module-owned scenes, not parallel renderers. Headless value adapters use unit tests. Inventory every deletion dependency; keep memory/blocking/device budgets unchanged. No global render-pipeline rewrite without measured necessity. Separate plan/checklist, exact-SHA evidence and final merged closure remain required.
+Rendering owns restored `Rendering/Validation/SolidGpu/` and local EditMode tests; Python tooling owns launch-policy tests. Headless value adapters retain local tests. G01–G04 remain open until exact-source runtime evidence. Continue G05–G18 semantics, all LODs, two-phase publication, lifetime, edits and deletion, alongside G19–G23 profiling. G24–G27 require final CPU-backend-free tests, inspected visuals, full-application/independent reuse proof, current-master integration and PR + auto-merge. Only verified complete acceptance permits closure.

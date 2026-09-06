@@ -569,7 +569,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         /// build, with nothing else differing between the two runs. Read once, because a value that
         /// changed mid-session would split a single measurement across both back ends.
         /// </summary>
-        internal static readonly bool GpuCutoverDisabled = true;
+        internal static readonly bool GpuCutoverDisabled =
+            Environment.GetEnvironmentVariable("VOXEL_DISABLE_GPU_CUTOVER") == "1";
 
         private GpuSurfaceExtractionContext _gpuExtraction;
         private readonly bool _gpuCutoverConfigured;
