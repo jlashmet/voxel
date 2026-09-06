@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 1,
+  "mode": "multiProcess",
+  "runSeconds": 90,
+  "processes": [
+    {
+      "role": "authority",
+      "headless": true,
+      "arguments": ["-gamesystem25-port", "39125"]
+    },
+    {
+      "role": "client-a",
+      "headless": true,
+      "arguments": ["-gamesystem25-port", "39125"]
+    },
+    {
+      "role": "client-b",
+      "headless": true,
+      "arguments": ["-gamesystem25-port", "39125"]
+    }
+  ],
+  "operations": [
+    {"op": "launch", "role": "authority"},
+    {
+      "op": "wait",
+      "role": "authority",
+      "name": "authority-listening",
+      "timeoutSeconds": 30,
+      "fields": {"sessionId": "gamesystem25-topology", "port": 39125}
+    },
+    {"op": "launch", "role": "client-a"},
+    {
+      "op": "wait",
+      "role": "client-a",
+      "name": "party-joined",
+      "timeoutSeconds": 30,
+      "fields": {
+        "sessionId": "gamesystem25-topology",
+        "memberId": "gamesystem25-topology:member:2",
+        "characterId": "kentridge-player-2",
+        "slot": 1
+      }
+    },
+    {"op": "launch", "role": "client-b"},
+    {
+      "op": "wait",
+      "role": "client-b",
+      "name": "party-joined",
+      "timeoutSeconds": 30,
+      "fields": {
+        "sessionId": "gamesystem25-topology",
+        "memberId": "gamesystem25-topology:member:3",
+        "characterId": "kentridge-player-3",
+        "slot": 2
+      }
+    },
+    {
+      "op": "wait",
+      "role": "authority",
+      "name": "topology-ready",
+      "timeoutSeconds": 45,
+      "fields": {
+        "sessionId": "gamesystem25-topology",
+        "memberId": "gamesystem25-topology:member:1",
+        "characterId": "kentridge-player-1",
+        "slot": 0,
+        "rosterCount": 3,
+        "signature": "0=gamesystem25-topology:member:1/kentridge-player-1;1=gamesystem25-topology:member:2/kentridge-player-2;2=gamesystem25-topology:member:3/kentridge-player-3"
+      }
+    },
+    {
+      "op": "wait",
+      "role": "client-a",
+      "name": "topology-ready",
+      "timeoutSeconds": 45,
+      "fields": {
+        "memberId": "gamesystem25-topology:member:2",
+        "slot": 1,
+        "rosterCount": 3,
+        "signature": "0=gamesystem25-topology:member:1/kentridge-player-1;1=gamesystem25-topology:member:2/kentridge-player-2;2=gamesystem25-topology:member:3/kentridge-player-3"
+      }
+    },
+    {
+      "op": "wait",
+      "role": "client-b",
+      "name": "topology-ready",
+      "timeoutSeconds": 45,
+      "fields": {
+        "memberId": "gamesystem25-topology:member:3",
+        "slot": 2,
+        "rosterCount": 3,
+        "signature": "0=gamesystem25-topology:member:1/kentridge-player-1;1=gamesystem25-topology:member:2/kentridge-player-2;2=gamesystem25-topology:member:3/kentridge-player-3"
+      }
+    }
+  ],
+  "assertions": {
+    "requiredLogPatterns": ["VOXEL_VALIDATION_MILESTONE"],
+    "forbiddenLogPatterns": [
+      "GAMESYSTEM25_MULTIPLAYER_TOPOLOGY FAIL",
+      "NullReferenceException",
+      "MissingReferenceException",
+      "InvalidOperationException"
+    ]
+  }
+}
