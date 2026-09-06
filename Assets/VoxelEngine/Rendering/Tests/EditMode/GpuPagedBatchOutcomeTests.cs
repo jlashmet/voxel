@@ -41,6 +41,8 @@ namespace VoxelEngine.Rendering.Tests.EditMode
                   GpuPagedBatchOutcomeKind.Stale, true)]
         [TestCase(GpuPagedBatchOutcome.AllocationTooLarge,
                   GpuPagedBatchOutcomeKind.TooLarge, false)]
+        [TestCase(GpuPagedBatchOutcome.AllocationUnsupported,
+                  GpuPagedBatchOutcomeKind.Unsupported, false)]
         public void KnownAllocationStatusesRemainDistinct(
             uint status, GpuPagedBatchOutcomeKind expectedKind, bool retryable)
         {
