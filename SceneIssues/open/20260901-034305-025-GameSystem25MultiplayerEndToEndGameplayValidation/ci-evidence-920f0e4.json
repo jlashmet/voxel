@@ -1,0 +1,71 @@
+{
+  "formatVersion": 1,
+  "kind": "normalized-verified-ci-artifact-summary",
+  "sourceSha": "8b95feaf7d849bc6a37b4d5a40a4e84b7e8c331a",
+  "requestSha": "920f0e4e4883d2c8abaf77877c1f8e55c8cd4df3",
+  "runId": 34002524305,
+  "jobId": 101403824713,
+  "jobConclusion": "success",
+  "artifact": {
+    "id": 9980642336,
+    "name": "single-test-34002524305",
+    "sha256": "942cf619fa99d4ec66789679f41d74c7f6164ca5e0fb2dd67973c19a73f6315e",
+    "downloadDigestVerified": true
+  },
+  "testSummaryPath": "ModuleValidation/Results/Tests/Persistent/persistent-summary.txt",
+  "testSummary": {
+    "exit_code": 0,
+    "status": "passed",
+    "message": "Persistent test phases passed."
+  },
+  "focused": {
+    "artifactPath": "ModuleValidation/Results/Tests/Persistent/persistent-requested.txt",
+    "test": "Game.Application.Tests.ApplicationJoinedPartyStartupTests",
+    "result_state": "Passed",
+    "passed": 17,
+    "failed": 0,
+    "skipped": 0,
+    "inconclusive": 0
+  },
+  "ownedAssemblies": [
+    {
+      "artifactPath": "ModuleValidation/Results/Tests/Persistent/persistent-editmode-0.txt",
+      "assembly": "Game.Application.Tests.EditMode",
+      "result_state": "Passed",
+      "passed": 29,
+      "failed": 0,
+      "skipped": 0,
+      "inconclusive": 0
+    },
+    {
+      "artifactPath": "ModuleValidation/Results/Tests/Persistent/persistent-editmode-1.txt",
+      "assembly": "Game.Composition.Kentridge.Playable.Tests",
+      "result_state": "Passed",
+      "passed": 5,
+      "failed": 0,
+      "skipped": 0,
+      "inconclusive": 0
+    },
+    {
+      "artifactPath": "ModuleValidation/Results/Tests/Persistent/persistent-editmode-2.txt",
+      "assembly": "Game.Kentridge.PlayableSlice.Tests.EditMode",
+      "result_state": "Passed",
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "inconclusive": 0
+    }
+  ],
+  "playerSummaryPath": "ModuleValidation/Results/module-validation-summary.json",
+  "completedPlayerTargets": [
+    "Assets/Game/Application/Validation/ApplicationFrontendValidation.unity",
+    "Assets/Game/Composition/Kentridge/Playable/Validation/KentridgeEncounterRealizationValidation.unity",
+    "Assets/Scenes/KentridgePlayableSlice.unity"
+  ],
+  "scopeLimitations": [
+    "Focused tests overlap the owned Application assembly; counts are not additive unique tests.",
+    "These are three player-validation targets, not authority plus two client OS processes.",
+    "The encounter multi-process summary contains only one role named validation.",
+    "This earlier source does not validate the later readiness correction, Net admission work, full multiplayer gameplay acceptance or visual finish."
+  ]
+}
