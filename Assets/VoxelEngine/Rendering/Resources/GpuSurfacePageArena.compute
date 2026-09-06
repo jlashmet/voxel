@@ -1,9 +1,13 @@
 #pragma kernel CSAllocateBatchPages
 #pragma kernel CSPublishBatchPages
+#pragma kernel CSCommitPendingPages
+#pragma kernel CSAbortPendingPages
 #pragma kernel CSApplyHandleCommands
 
 // GPU-owned page allocation for voxel presentation geometry. The CPU assigns stable chunk handles
-// and authoritative generations, but never observes counts, page IDs, offsets, or completion.
+// and authoritative renderer generations. Allocation/write creates a pending candidate; only a
+// later identity-checked Commit can replace live geometry. CPU feedback is limited to the existing
+// small batch status/identity records, never generated vertices or indices.
 
 struct BatchChunkDescriptor
 {
@@ -75,6 +79,9 @@ int _IndexPageCount;
 uint _ArenaEpoch;
 uint _RetirementDelay;
 int _HandleCommandCount;
+int _PendingHandle;
+uint _PendingGenerationLow;
+uint _PendingGenerationHigh;
 
 static const uint AllocationReady = 0u;
 static const uint AllocationExhausted = 1u;
@@ -151,6 +158,17 @@ void RetireIndexPageAtomic(uint page)
     _RetiredIndexPages[tail % (uint)_IndexPageCount] = retired;
 }
 
+void RetirePending(uint handle, ChunkGeometryRecord pending)
+{
+    if (pending.ready == 0u) return;
+    for (uint page = 0u; page < pending.vertexPageCount; page++)
+        RetireVertexPage(_VertexPageTableRead[VertexTableWord(handle,pending.bank,page)]);
+    for (uint page = 0u; page < pending.indexPageCount; page++)
+        RetireIndexPage(_IndexPageTableRead[IndexTableWord(handle,pending.bank,page)]);
+    pending.ready = 0u;
+    _PendingChunkGeometry[handle] = pending;
+}
+
 [numthreads(64, 1, 1)]
 void CSApplyHandleCommands(uint3 id : SV_DispatchThreadID)
 {
@@ -159,6 +177,20 @@ void CSApplyHandleCommands(uint3 id : SV_DispatchThreadID)
     HandleCommand command = _HandleCommands[commandIndex];
     _DesiredGenerations[command.handle] = uint2(command.generationLow,command.generationHigh);
     if (command.release == 0u) return;
+
+    ChunkGeometryRecord pending = _PendingChunkGeometryRead[command.handle];
+    if (pending.ready != 0u)
+    {
+        for (uint page=0u;page<pending.vertexPageCount;page++)
+            RetireVertexPageAtomic(
+                _VertexPageTableRead[VertexTableWord(command.handle,pending.bank,page)]);
+        for (uint page=0u;page<pending.indexPageCount;page++)
+            RetireIndexPageAtomic(
+                _IndexPageTableRead[IndexTableWord(command.handle,pending.bank,page)]);
+        pending.ready=0u;
+        _PendingChunkGeometry[command.handle]=pending;
+    }
+
     ChunkGeometryRecord live = _LiveChunkGeometryRead[command.handle];
     if (live.ready != 0u)
     {
@@ -188,6 +220,14 @@ void CSAllocateBatchPages(uint3 id : SV_DispatchThreadID)
         _BatchCounters[word + 13] = chunk.generationHigh;
         uint2 desired = _DesiredGenerationsRead[chunk.handle];
         if (desired.x != chunk.generationLow || desired.y != chunk.generationHigh) continue;
+
+        // Only one pending allocation may own a handle. A later renderer generation is allowed to
+        // replace a completed-but-uncommitted candidate; queue ordering guarantees its writer has
+        // finished before this allocator executes. This prevents silent page loss from overwriting
+        // the sole record that identifies an older pending allocation.
+        ChunkGeometryRecord oldPending = _PendingChunkGeometryRead[chunk.handle];
+        if (oldPending.ready != 0u)
+            RetirePending(chunk.handle, oldPending);
 
         uint vertexCount = _BatchCounters[word + 2];
         uint indexCount = _BatchCounters[word + 3];
@@ -233,6 +273,10 @@ void CSAllocateBatchPages(uint3 id : SV_DispatchThreadID)
     }
 }
 
+// Finalization is intentionally not publication. This kernel runs after geometry writes so the
+// subsequent tiny status readback is ordered after all candidate consumers. A superseded desired
+// generation is converted to Stale and its pending pages are reclaimed; a current candidate stays
+// pending until CPU renderer-demand approval queues CSCommitPendingPages.
 [numthreads(1, 1, 1)]
 void CSPublishBatchPages(uint3 id : SV_DispatchThreadID)
 {
@@ -243,28 +287,57 @@ void CSPublishBatchPages(uint3 id : SV_DispatchThreadID)
         uint handle = _BatchCountersRead[word + 11];
         ChunkGeometryRecord pending = _PendingChunkGeometryRead[handle];
         uint2 desired = _DesiredGenerationsRead[handle];
-        bool current = desired.x == pending.generationLow && desired.y == pending.generationHigh;
-        ChunkGeometryRecord live = _LiveChunkGeometryRead[handle];
+        bool samePending = pending.ready != 0u
+            && pending.generationLow == _BatchCountersRead[word + 12]
+            && pending.generationHigh == _BatchCountersRead[word + 13];
+        bool current = samePending
+            && desired.x == pending.generationLow
+            && desired.y == pending.generationHigh;
+        if (current) continue;
 
-        if (current)
-        {
-            if (live.ready != 0u)
-            {
-                for (uint page = 0u; page < live.vertexPageCount; page++)
-                    RetireVertexPage(_VertexPageTableRead[VertexTableWord(handle,live.bank,page)]);
-                for (uint page = 0u; page < live.indexPageCount; page++)
-                    RetireIndexPage(_IndexPageTableRead[IndexTableWord(handle,live.bank,page)]);
-            }
-            _LiveChunkGeometry[handle] = pending;
-        }
-        else
-        {
-            for (uint page = 0u; page < pending.vertexPageCount; page++)
-                RetireVertexPage(_VertexPageTableRead[VertexTableWord(handle,pending.bank,page)]);
-            for (uint page = 0u; page < pending.indexPageCount; page++)
-                RetireIndexPage(_IndexPageTableRead[IndexTableWord(handle,pending.bank,page)]);
-        }
-        pending.ready = 0u;
-        _PendingChunkGeometry[handle] = pending;
+        if (samePending) RetirePending(handle, pending);
+        _BatchCounters[word + 10] = AllocationStale;
     }
+}
+
+[numthreads(1, 1, 1)]
+void CSCommitPendingPages(uint3 id : SV_DispatchThreadID)
+{
+    uint handle = (uint)_PendingHandle;
+    ChunkGeometryRecord pending = _PendingChunkGeometryRead[handle];
+    if (pending.ready == 0u
+        || pending.generationLow != _PendingGenerationLow
+        || pending.generationHigh != _PendingGenerationHigh)
+        return;
+
+    uint2 desired = _DesiredGenerationsRead[handle];
+    if (desired.x != pending.generationLow || desired.y != pending.generationHigh)
+    {
+        RetirePending(handle, pending);
+        return;
+    }
+
+    ChunkGeometryRecord live = _LiveChunkGeometryRead[handle];
+    if (live.ready != 0u)
+    {
+        for (uint page = 0u; page < live.vertexPageCount; page++)
+            RetireVertexPage(_VertexPageTableRead[VertexTableWord(handle,live.bank,page)]);
+        for (uint page = 0u; page < live.indexPageCount; page++)
+            RetireIndexPage(_IndexPageTableRead[IndexTableWord(handle,live.bank,page)]);
+    }
+    _LiveChunkGeometry[handle] = pending;
+    pending.ready = 0u;
+    _PendingChunkGeometry[handle] = pending;
+}
+
+[numthreads(1, 1, 1)]
+void CSAbortPendingPages(uint3 id : SV_DispatchThreadID)
+{
+    uint handle = (uint)_PendingHandle;
+    ChunkGeometryRecord pending = _PendingChunkGeometryRead[handle];
+    if (pending.ready == 0u
+        || pending.generationLow != _PendingGenerationLow
+        || pending.generationHigh != _PendingGenerationHigh)
+        return;
+    RetirePending(handle, pending);
 }
