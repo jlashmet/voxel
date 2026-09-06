@@ -5,18 +5,18 @@ Reconstruct the supplied compact medieval cottage through the production WorldBu
 
 ## Ownership / architecture
 - `Assets/Game/WorldBuilder` owns reusable `NewHouseReferenceAuthoring` over `IStructureAuthoringSession`; site/camera/light remain separate.
-- `Assets/Game/Materials` owns stable material identity and presentation; Rendering receives semantic-free texture layers through the existing additional-layer resource.
-- Module-local proof is WorldBuilder `NewHouseReferenceReconstruction` plus Rendering `TextureLayers`; bounded Structures writes are published before renderer binding.
-- Visual proof uses the repository-supported production CPU fallback (`VOXEL_DISABLE_GPU_CUTOVER=1`), not a test renderer and not the unrelated GPU-restoration assignment.
+- `Assets/Game/Materials` owns stable material identity/presentation; Rendering receives semantic-free texture layers through the existing additional-layer resource.
+- Module-local proof is WorldBuilder `NewHouseReferenceReconstruction` plus Rendering `TextureLayers`; bounded Structures writes publish before renderer binding.
+- Visual proof uses the supported production CPU fallback (`VOXEL_DISABLE_GPU_CUTOVER=1`), not a test renderer or the unrelated GPU-restoration assignment.
 
 ## Material results / discriminating evidence
-1. Earlier terrain-only captures were traced to showcase streaming, incomplete game-material palette binding, missing bounded-authoring publication, and then the default GPU cutover. Those causes are fixed/falsified; exact runs now show complete CPU-rendered house geometry.
-2. Direct comparison falsified the earlier oversized/arched interpretation. The current 88x60 footprint uses a compact rectangular entry/lower windows, a four-leaf upper blue bank, small high arched window, smaller chimney/finials, restrained flowers/ivy, and wider reference framing.
-3. Run `33994976147` exposed wrong supplied texture-role ordering; the additional layers were remapped by visual role and the unrelated TextureLayers water assertion was removed from that focused proof.
-4. Runs `33996415142` and `33998165969` passed all automatic/module/standalone gates. Direct inspection still found the blue-painted accent plate rendering charcoal. Hypothesis A (wrong texture slot) was falsified: `HouseDoor` samples the intended supplied blue/gold layer. Hypothesis B was confirmed: its brown Albedo multiplier crushed the authored blue chroma. The production `HouseDoor` presentation now uses neutral Albedo, with `PaintedHouseAccent_PreservesAuthoredBlueChroma` locking that invariant.
+1. Earlier terrain-only captures were traced to showcase streaming, incomplete game-material palette binding, missing bounded-authoring publication, and default GPU cutover. Exact runs now show complete CPU-rendered house geometry.
+2. Direct comparison falsified the oversized/arched interpretation; current massing/openings/details were rebuilt to the compact supplied reference.
+3. Run `33994976147` exposed wrong supplied texture-role ordering; layers were remapped and Rendering `TextureLayers` proof was scoped to its own readiness assertion.
+4. Runs `33996415142`, `33998165969`, and `33999873622` passed automation but direct inspection rejected the painted accents. The neutral-Albedo hypothesis was falsified by `33999873622`: the supplied `HouseDoor` plate itself is dark/gold. `SmoothSurface.shader` provides an existing luminance-only path that preserves texture value/detail over game-owned colour. `HouseDoor` now uses saturated blue Albedo with luminance detail and zero texture chroma; `PaintedHouseAccent_UsesBlueBaseWithSuppliedLuminanceDetail` locks the contract.
 
 ## Selected path
-Validate feature head `5bce84d3ed88c2eb08473463b243fecfe0b3b34f` exactly. Inspect frontal plus module-owned front-left/rear-right captures against the supplied reference; make no further changes unless a demonstrated acceptance defect remains.
+Validate exact feature head `a4ac20404aaeb68057b76c3eb0ab076b68ef8a59`. Inspect frontal, front-left, and rear-right built-player captures directly; make no further change unless a demonstrated acceptance defect remains.
 
 ## Remaining gates
 1. Final exact-SHA module + standalone validation and direct visual inspection.
