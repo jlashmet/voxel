@@ -44,8 +44,8 @@
 
 ## Required-CI teardown blocker
 - [x] Inspect the failed artifact and isolate the failure ordering before another retry. Run `34000107687` starts the next phase before the preceding PlayMode `IPostBuildCleanup`/scene restoration; product case results had passed.
-- [ ] Isolate PlayMode module phases and explicitly requested PlayMode tests in fresh existing Unity-wrapper processes, retaining persistent EditMode batching and every required selected test/player gate.
-- [ ] Add and run subprocess behavioural regressions for two PlayMode phases followed by a focused request; reject zero-match, skipped, failed and missing test results without a hard-coded requested-test assembly.
+- [x] Isolate PlayMode module phases and explicitly requested PlayMode tests in fresh existing Unity-wrapper processes, retaining persistent EditMode batching and every required selected test/player gate. Implemented at `79b6a2f4261185680ecbeceff7797f71992d35ab`.
+- [x] Add and run subprocess behavioural regressions for two PlayMode phases followed by a focused request; reject zero-match, skipped, failed and missing test results without a hard-coded requested-test assembly. All 20 focused Python tests pass; baseline fails 14 assertions/subtests. See `ci-teardown-repro.md`.
 - [ ] Obtain successful exact-SHA execution after the orchestration repair; local Python regressions do not substitute for Unity or built-player evidence.
 
 ## Built-player acceptance
@@ -54,7 +54,7 @@
 - [ ] Capture representative selections spanning small/medium/large props and at least the major realization/mount categories used by the catalogue.
 - [ ] Visually inspect the built-player evidence for readable silhouettes, grounding/contact, material fidelity, framing, clipping, lighting, and absence of placeholder/blockout presentation; only production-quality evidence passes.
 - [ ] Exercise repeated navigation through many entries in the built player and verify there are no startup/runtime exceptions, stale previews, accumulating objects, or unusable UI states.
-- [ ] Measure relevant startup/switching/resource cost and confirm the showcase does not introduce an unreasonable runtime or memory-growth regression.
+- [ ] Measure relevant startup/switching/resource cost and confirm the showcase does not introduce an unreasonable runtime or memory-growth regression. Prior replay reports 44 switches and peakOwned=1, but presenter counts and the empty `fps.txt` do not establish memory or frame-time budgets.
 
 ## Acceptance checklist
 - [ ] `PropShowcase` is a dedicated built scene with a left catalogue panel and right live preview.
@@ -70,4 +70,4 @@
 - [ ] Current `origin/master` is merged into the feature branch before final promotion; PR auto-merge is enabled and the required `affected` gate passes until the SceneIssue is visible closed on master.
 
 ## Current blockers
-Request `e83a7fd822dab1c40d59f0f84ccd65937071fd28` / run `34003328146` remains queued for exact source `de0aa1fb4221b06f8f63e6f22fc26ffba77defc8`; leave it untouched. The preceding run's automatic module validation failed during Test Runner teardown, and its diagnostic-normal material output failed visual acceptance. No required gate is waived. Independent orchestration work is recorded above; any changed source needs a new exact request only after the existing request completes.
+Request `e83a7fd822dab1c40d59f0f84ccd65937071fd28` / run `34003328146` remains queued for exact source `de0aa1fb4221b06f8f63e6f22fc26ffba77defc8`; leave it untouched. The preceding run's automatic module validation failed during Test Runner teardown, and its diagnostic-normal material output failed visual acceptance. The independent isolation repair is implemented and Python-tested at `79b6a2f4`; it is not part of the queued source and needs fresh exact-SHA CI only after the existing request completes. All Unity/player, visual, resource and final promotion gates remain mandatory.
