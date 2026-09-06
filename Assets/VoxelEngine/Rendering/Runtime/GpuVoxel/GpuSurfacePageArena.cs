@@ -83,7 +83,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private readonly int _outcomeKernel;
         private readonly int _publishKernel;
         private readonly int _commitKernel;
-        private readonly int _commitCurrentKernel;
         private readonly int _abortKernel;
         private readonly int _handleKernel;
         private readonly Stack<int> _freeHandles;
@@ -125,7 +124,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _outcomeKernel = shader.FindKernel("CSCopyBatchOutcomes");
             _publishKernel = shader.FindKernel("CSPublishBatchPages");
             _commitKernel = shader.FindKernel("CSCommitPendingPages");
-            _commitCurrentKernel = shader.FindKernel("CSCommitCurrentPendingPages");
             _abortKernel = shader.FindKernel("CSAbortPendingPages");
             _handleKernel = shader.FindKernel("CSApplyHandleCommands");
 
@@ -163,19 +161,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (s_activeArena != null && !s_activeArena._disposed)
                 throw new InvalidOperationException("Only one production GPU surface page arena may be active.");
             s_activeArena = this;
-        }
-
-        internal static void CommitCurrentPendingForActiveArena(int frame)
-        {
-            if (s_activeArena == null || s_activeArena._disposed) return;
-            s_activeArena.CommitCurrentPending(frame);
-        }
-
-        private void CommitCurrentPending(int frame)
-        {
-            SetEpoch(frame);
-            _shader.Dispatch(_commitCurrentKernel,
-                (HandleCapacity + ThreadGroupSize - 1) / ThreadGroupSize, 1, 1);
         }
 
         internal bool TryAcquireHandle(out int handle)
@@ -274,7 +259,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         private void BindAllKernels()
         {
-            int[] kernels = { _allocateKernel, _publishKernel, _commitKernel, _commitCurrentKernel, _abortKernel, _handleKernel };
+            int[] kernels = { _allocateKernel, _publishKernel, _commitKernel, _abortKernel, _handleKernel };
             foreach (int kernel in kernels)
             {
                 _shader.SetBuffer(kernel, IdArenaState, ArenaState);
@@ -301,7 +286,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             // to every kernel caused Metal aliasing; using the RW view in allocation consumed the
             // ninth UAV and made otherwise-current capacity requests report the default Stale state.
             _shader.SetBuffer(_handleKernel, IdDesiredGenerations, DesiredGenerations);
-            int[] generationReaders = { _allocateKernel, _publishKernel, _commitKernel, _commitCurrentKernel };
+            int[] generationReaders = { _allocateKernel, _publishKernel, _commitKernel };
             foreach (int kernel in generationReaders)
                 _shader.SetBuffer(kernel, IdDesiredGenerationsRead, DesiredGenerations);
 

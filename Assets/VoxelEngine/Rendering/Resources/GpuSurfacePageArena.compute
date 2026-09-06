@@ -2,7 +2,6 @@
 #pragma kernel CSAllocateBatchPages
 #pragma kernel CSPublishBatchPages
 #pragma kernel CSCommitPendingPages
-#pragma kernel CSCommitCurrentPendingPages
 #pragma kernel CSAbortPendingPages
 #pragma kernel CSApplyHandleCommands
 
@@ -82,6 +81,7 @@ static const uint AllocationExhausted = 1u;
 static const uint AllocationStale = 2u;
 static const uint AllocationTooLarge = 3u;
 static const uint AllocationUnsupported = 4u;
+static const uint AllocationWriteFailed = 5u;
 
 int RecordWord(int record) { return 4 + record * _BatchRecordWords; }
 int VertexTableWord(uint handle, uint bank, uint page)
@@ -310,10 +310,14 @@ void CSPublishBatchPages(uint3 id : SV_DispatchThreadID)
         bool current = samePending
             && desired.x == pending.generationLow
             && desired.y == pending.generationHigh;
-        if (current) continue;
-
-        if (samePending) RetirePending(handle, pending);
-        _BatchCounters[word + 10] = AllocationStale;
+        // Compare on-device: a skipped/short/overflowed write must never publish uninitialized
+        // page contents. Only the resulting status leaves the GPU, not these geometry counts.
+        bool complete = _BatchCountersRead[word + 8] == pending.vertexCount
+            && _BatchCountersRead[word + 9] == pending.indexCount;
+        uint status = !current ? AllocationStale
+            : (complete ? AllocationReady : AllocationWriteFailed);
+        _BatchCounters[word + 10] = status;
+        if (status != AllocationReady && samePending) RetirePending(handle, pending);
     }
 }
 
@@ -341,33 +345,6 @@ void CSCommitPendingPages(uint3 id : SV_DispatchThreadID)
             RetireVertexPage(_VertexPageTableRead[VertexTableWord(handle,live.bank,page)]);
         for (uint page = 0u; page < live.indexPageCount; page++)
             RetireIndexPage(_IndexPageTableRead[IndexTableWord(handle,live.bank,page)]);
-    }
-    _LiveChunkGeometry[handle] = pending;
-    pending.ready = 0u;
-    _PendingChunkGeometry[handle] = pending;
-}
-
-// Production bridge while the stronger cache/config identity gate is being split out of the mixed
-// legacy cache: commit only candidates whose handle's desired generation still matches. It runs at
-// end-of-frame after count/write/finalization commands, so a candidate becomes visible no earlier
-// than the next frame. Status failures never allocate pending geometry and therefore cannot pass.
-[numthreads(64, 1, 1)]
-void CSCommitCurrentPendingPages(uint3 id : SV_DispatchThreadID)
-{
-    uint handle = id.x;
-    if (handle >= (uint)_HandleCapacity) return;
-    ChunkGeometryRecord pending = _PendingChunkGeometryRead[handle];
-    if (pending.ready == 0u) return;
-    uint2 desired = _DesiredGenerationsRead[handle];
-    if (desired.x != pending.generationLow || desired.y != pending.generationHigh) return;
-
-    ChunkGeometryRecord live = _LiveChunkGeometryRead[handle];
-    if (live.ready != 0u)
-    {
-        for (uint page = 0u; page < live.vertexPageCount; page++)
-            RetireVertexPageAtomic(_VertexPageTableRead[VertexTableWord(handle,live.bank,page)]);
-        for (uint page = 0u; page < live.indexPageCount; page++)
-            RetireIndexPageAtomic(_IndexPageTableRead[IndexTableWord(handle,live.bank,page)]);
     }
     _LiveChunkGeometry[handle] = pending;
     pending.ready = 0u;

@@ -18,6 +18,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         Stale,
         TooLarge,
         IdentityMismatch,
+        WriteFailed,
         Failed,
     }
 
@@ -28,6 +29,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         internal const uint AllocationStale = 2u;
         internal const uint AllocationTooLarge = 3u;
         internal const uint AllocationUnsupported = 4u;
+        internal const uint AllocationWriteFailed = 5u;
 
         private const int UnsupportedWord = 0;
         private const int StatusWord = 10;
@@ -124,6 +126,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 AllocationExhausted => GpuPagedBatchOutcomeKind.Exhausted,
                 AllocationStale => GpuPagedBatchOutcomeKind.Stale,
                 AllocationTooLarge => GpuPagedBatchOutcomeKind.TooLarge,
+                AllocationWriteFailed => GpuPagedBatchOutcomeKind.WriteFailed,
                 _ => GpuPagedBatchOutcomeKind.Failed,
             };
             return new GpuPagedBatchOutcome(kind, handle, generation);

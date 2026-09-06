@@ -467,6 +467,8 @@ namespace VoxelEngine.Tests.PlayMode
             using var pageArena = new GpuSurfacePageArena(
                 arenaShader, vertexCapacity: 32768, indexCapacity: 65536,
                 handleCapacity: 16);
+            Assert.IsTrue(pageArena.TryAcquireHandle(out int firstHandle));
+            Assert.AreEqual(0, firstHandle);
             using GpuSurfaceExtractionContext context = CreateContext();
             using NativeArray<TransvoxelDensityBrick> bricks =
                 CreateHalfSolidSnapshot(context.BrickCacheEdge);
@@ -476,6 +478,21 @@ namespace VoxelEngine.Tests.PlayMode
                 handle: 0, generation: generation);
             Assert.AreEqual(GpuStageOutcome.Staged,
                 context.TryStage(bricks, default, default, default, request, generation));
+            // Batch extraction uses the production coordinate lookup. The legacy snapshot
+            // header above is only the independent count oracle, not batch input publication.
+            int edge = context.BrickCacheEdge;
+            for (int z = 0; z < edge; z++)
+            for (int y = 0; y < edge; y++)
+            for (int x = 0; x < edge; x++)
+            {
+                int3 coordinate = new int3(x, y, z);
+                VoxelBrickDelta delta = y < 2
+                    ? VoxelBrickDelta.UniformAt(coordinate, 1, 1)
+                    : VoxelBrickDelta.EmptyAt(coordinate, 1);
+                Assert.AreEqual(GpuBrickPublish.MetadataOnly,
+                    context.Mirror.Publish(delta, default(NativeArray<byte>),
+                        default(NativeArray<ushort>), default(NativeArray<byte>), 0, false));
+            }
             var requests = new[] { request };
             using GpuSurfaceExtractor.CountBatchResources resources =
                 context.Extractor.CreateCountBatchResources(1);
@@ -496,6 +513,7 @@ namespace VoxelEngine.Tests.PlayMode
                 context.Mirror, context.Tables, 1, counters, resources,
                 pageArena.Vertices, pageArena.Indices,
                 pageArena: pageArena, frame: 10);
+            pageArena.CommitPending(0, generation, frame: 10);
 
             var live = new uint[8];
             pageArena.LiveChunkGeometry.GetData(live, 0, 0, live.Length);
@@ -525,6 +543,8 @@ namespace VoxelEngine.Tests.PlayMode
             using var arena = new GpuSurfacePageArena(
                 arenaShader, GpuSurfacePageArena.VertexPageSize * 2,
                 GpuSurfacePageArena.IndexPageSize * 2, handleCapacity: 2);
+            Assert.IsTrue(arena.TryAcquireHandle(out int firstHandle));
+            Assert.AreEqual(0, firstHandle);
             using var descriptors = new ComputeBuffer(
                 1, GpuSurfaceExtractor.BatchChunkDescriptor.Stride,
                 ComputeBufferType.Structured);
@@ -540,6 +560,7 @@ namespace VoxelEngine.Tests.PlayMode
                 GpuSurfaceExtractor.BatchRecordWords, frame: 1);
             arena.PublishBatch(descriptors, counters, 1,
                 GpuSurfaceExtractor.BatchRecordWords, frame: 1);
+            arena.CommitPending(0, 2, frame: 1);
 
             arena.QueueGeneration(0, 3);
             arena.FlushHandleCommands(frame: 2);
@@ -566,6 +587,8 @@ namespace VoxelEngine.Tests.PlayMode
             using var arena = new GpuSurfacePageArena(
                 arenaShader, GpuSurfacePageArena.VertexPageSize,
                 GpuSurfacePageArena.IndexPageSize, handleCapacity: 1);
+            Assert.IsTrue(arena.TryAcquireHandle(out int firstHandle));
+            Assert.AreEqual(0, firstHandle);
             using var descriptors = new ComputeBuffer(
                 1, GpuSurfaceExtractor.BatchChunkDescriptor.Stride,
                 ComputeBufferType.Structured);
@@ -598,6 +621,10 @@ namespace VoxelEngine.Tests.PlayMode
             using var arena = new GpuSurfacePageArena(
                 arenaShader, GpuSurfacePageArena.VertexPageSize,
                 GpuSurfacePageArena.IndexPageSize, handleCapacity: 2);
+            Assert.IsTrue(arena.TryAcquireHandle(out int firstHandle));
+            Assert.AreEqual(0, firstHandle);
+            Assert.IsTrue(arena.TryAcquireHandle(out int secondHandle));
+            Assert.AreEqual(1, secondHandle);
             using var descriptors = new ComputeBuffer(
                 1, GpuSurfaceExtractor.BatchChunkDescriptor.Stride,
                 ComputeBufferType.Structured);
@@ -624,6 +651,7 @@ namespace VoxelEngine.Tests.PlayMode
                 GpuSurfaceExtractor.BatchRecordWords, frame: 14);
             arena.PublishBatch(descriptors, counters, 1,
                 GpuSurfaceExtractor.BatchRecordWords, frame: 14);
+            arena.CommitPending(1, 1, frame: 14);
             arena.LiveChunkGeometry.GetData(live);
             Assert.AreEqual(1u, live[8 + 7], "The page was not reclaimed at its safe epoch.");
         }
@@ -761,6 +789,7 @@ namespace VoxelEngine.Tests.PlayMode
                 GpuSurfaceExtractor.BatchRecordWords, frame);
             arena.PublishBatch(descriptors, counters, 1,
                 GpuSurfaceExtractor.BatchRecordWords, frame);
+            arena.CommitPending(handle, generation, frame);
         }
 
         private static void SetAllocationRequest(
@@ -783,6 +812,9 @@ namespace VoxelEngine.Tests.PlayMode
             int record = GpuSurfaceExtractor.BatchHeaderWords;
             words[record + 2] = vertexCount;
             words[record + 3] = indexCount;
+            // Bookkeeping-only fixtures model a successful write before finalization.
+            words[record + 8] = vertexCount;
+            words[record + 9] = indexCount;
             counters.SetData(words);
         }
 

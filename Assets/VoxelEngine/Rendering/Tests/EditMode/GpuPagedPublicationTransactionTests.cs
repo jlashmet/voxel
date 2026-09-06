@@ -72,6 +72,9 @@ namespace VoxelEngine.Rendering.Tests.EditMode
                 int word = GpuSurfaceExtractor.BatchHeaderWords;
                 Words[word + 2] = vertices;
                 Words[word + 3] = indices;
+                // This bookkeeping fixture models a completed write; real-kernel coverage is separate.
+                Words[word + 8] = vertices;
+                Words[word + 9] = indices;
                 Counters.SetData(Words);
             }
 
@@ -257,6 +260,39 @@ namespace VoxelEngine.Rendering.Tests.EditMode
                 Assert.AreEqual(attempt == 0 ? GpuPagedBatchOutcomeKind.Exhausted
                     : GpuPagedBatchOutcomeKind.ReadyCandidate, outcome.Kind);
             }
+        }
+
+        [TestCase(0u, 0u)]
+        [TestCase(11u, 18u)]
+        [TestCase(12u, 17u)]
+        [TestCase(13u, 18u)]
+        [TestCase(12u, 19u)]
+        public void IncompleteOrOverflowingWriteCannotReplaceLiveGeometry(uint writtenVertices, uint writtenIndices)
+        {
+            var arena = Create(handles: 1, vertexPages: 4, indexPages: 4);
+            int handle = AcquireAndSelectGeneration(arena, 40UL, 1);
+            using var live = new Batch(handle, 40UL, 4, 6);
+            AllocateAndFinalize(arena, live, 2);
+            arena.CommitPending(handle, 40UL, 4);
+            arena.QueueGeneration(handle, 41UL);
+            arena.FlushHandleCommands(5);
+            using var replacement = new Batch(handle, 41UL, 12, 18);
+            int word = GpuSurfaceExtractor.BatchHeaderWords;
+            replacement.Words[word + 8] = writtenVertices;
+            replacement.Words[word + 9] = writtenIndices;
+            replacement.Counters.SetData(replacement.Words);
+            arena.AllocateBatch(replacement.Descriptors, replacement.Counters, 1,
+                GpuSurfaceExtractor.BatchRecordWords, 6);
+            Assert.AreEqual(AllocationReady, replacement.ReadAllocationStatus());
+            arena.PublishBatch(replacement.Descriptors, replacement.Counters, 1,
+                GpuSurfaceExtractor.BatchRecordWords, 7);
+            Assert.AreEqual(5u, replacement.ReadAllocationStatus(),
+                "A count/write mismatch must be reported as a failed write.");
+            arena.CommitPending(handle, 41UL, 8);
+            arena.AbortPending(handle, 41UL, 9); // repeated cleanup must be harmless
+            Assert.AreEqual(0u, ReadRecord(arena.PendingChunkGeometry, handle, 1).Ready);
+            Assert.AreEqual(40UL, ReadRecord(arena.LiveChunkGeometry, handle, 1).Generation);
+            Assert.AreEqual(1u, ReadRecord(arena.LiveChunkGeometry, handle, 1).Ready);
         }
 
         [Test]

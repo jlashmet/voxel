@@ -172,8 +172,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             s_PageArena = null;
         }
 
-        internal static int PrepareChunkHandle(int3 origin, int sourceStep, ulong generation)
+        private static ulong s_RenderGeneration;
+
+        internal static int PrepareChunkHandle(int3 origin, int sourceStep, out ulong generation)
         {
+            generation = checked(++s_RenderGeneration);
             if (s_PageArena == null) return 0;
             var key = new ChunkHandleKey(origin, sourceStep);
             if (!s_ChunkHandles.TryGetValue(key, out int handle))
@@ -183,6 +186,15 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             }
             s_PageArena.QueueGeneration(handle, generation);
             return handle;
+        }
+
+        internal static void ResolveCandidate(int handle, ulong generation, bool approve, int frame)
+        {
+            if (s_PageArena == null) return;
+            // Apply any queued supersession/release before the GPU revalidates this identity.
+            s_PageArena.FlushHandleCommands(frame);
+            if (approve) s_PageArena.CommitPending(handle, generation, frame);
+            else s_PageArena.AbortPending(handle, generation, frame);
         }
 
         internal static void ReleaseChunkHandle(int3 origin, int sourceStep, ulong generation)
@@ -448,7 +460,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 GpuPagedBatchOutcome outcome = GpuPagedBatchOutcome.ParseCompact(
                     lane.OutcomeWords, record, lane.Requests[record]);
                 if (outcome.IsReadyCandidate)
-                    context.CompletePagedBatch(lane.Tokens[record], outcome.Handle);
+                {
+                    if (!context.CompletePagedBatch(lane.Tokens[record], outcome.Handle))
+                        ResolveCandidate(outcome.Handle, outcome.Generation, false, Time.frameCount);
+                }
                 else
                 {
                     if (outcome.Kind == GpuPagedBatchOutcomeKind.Exhausted) AllocationFailures++;

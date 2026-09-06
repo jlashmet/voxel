@@ -6,7 +6,7 @@ using VoxelEngine.Rendering.Runtime.GpuVoxel;
 
 namespace VoxelEngine.Rendering.Tests.EditMode
 {
-    public sealed class GpuPendingPublicationPumpTests
+    public sealed class GpuPendingPublicationApprovalTests
     {
         [StructLayout(LayoutKind.Sequential)]
         private struct GeometryRecord
@@ -56,6 +56,8 @@ namespace VoxelEngine.Rendering.Tests.EditMode
                 _words[word + 0] = unsupported;
                 _words[word + 2] = 12u;
                 _words[word + 3] = 18u;
+                _words[word + 8] = 12u;
+                _words[word + 9] = 18u;
                 Counters.SetData(_words);
             }
 
@@ -133,7 +135,38 @@ namespace VoxelEngine.Rendering.Tests.EditMode
         }
 
         [Test]
-        public void FrameBoundaryPumpCommitsOnlyAfterFinalization()
+        public void RepeatedBuildIdentityPreventsOldCancellationFromAbortingReplacement()
+        {
+            GpuSurfaceMirrorCoordinator.ConfigurePageArena(_arena);
+            try
+            {
+                int handle = GpuSurfaceMirrorCoordinator.PrepareChunkHandle(
+                    default, 1, out ulong firstGeneration);
+                _arena.FlushHandleCommands(1);
+                using var first = new Batch(handle, firstGeneration);
+                AllocateAndFinalize(first, 2);
+                int replacementHandle = GpuSurfaceMirrorCoordinator.PrepareChunkHandle(
+                    default, 1, out ulong replacementGeneration);
+                Assert.AreEqual(handle, replacementHandle);
+                Assert.Greater(replacementGeneration, firstGeneration,
+                    "A repeated renderer attempt must not reuse its source/storage identity.");
+                _arena.FlushHandleCommands(4);
+                using var replacement = new Batch(handle, replacementGeneration);
+                AllocateAndFinalize(replacement, 5);
+                GpuSurfaceMirrorCoordinator.ResolveCandidate(handle, firstGeneration, false, 7);
+                Assert.AreEqual(replacementGeneration,
+                    Read(_arena.PendingChunkGeometry, handle).Generation);
+                Assert.AreEqual(1u, Read(_arena.PendingChunkGeometry, handle).Ready);
+                Assert.AreEqual(0u, Read(_arena.LiveChunkGeometry, handle).Ready);
+                GpuSurfaceMirrorCoordinator.ResolveCandidate(handle, replacementGeneration, true, 8);
+                Assert.AreEqual(replacementGeneration, Read(_arena.LiveChunkGeometry, handle).Generation);
+                Assert.AreEqual(1u, Read(_arena.LiveChunkGeometry, handle).Ready);
+            }
+            finally { GpuSurfaceMirrorCoordinator.DetachPageArena(_arena, 9); }
+        }
+
+        [Test]
+        public void ExplicitApprovalCommitsOnlyAfterFinalization()
         {
             const ulong generation = 0x100000002UL;
             int handle = Acquire(generation, frame: 1);
@@ -145,7 +178,7 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             Assert.That(Read(_arena.LiveChunkGeometry, handle).Ready, Is.Zero,
                 "Finalization itself must not publish the candidate.");
 
-            GpuSurfacePageArena.CommitCurrentPendingForActiveArena(frame: 4);
+            _arena.CommitPending(handle, generation, frame: 4);
 
             GeometryRecord live = Read(_arena.LiveChunkGeometry, handle);
             Assert.That(live.Ready, Is.EqualTo(1u));
@@ -154,7 +187,7 @@ namespace VoxelEngine.Rendering.Tests.EditMode
         }
 
         [Test]
-        public void SupersededDesiredGenerationCannotBePublishedByPump()
+        public void SupersededDesiredGenerationCannotBeApproved()
         {
             const ulong generationA = 10UL;
             const ulong generationB = 11UL;
@@ -165,12 +198,12 @@ namespace VoxelEngine.Rendering.Tests.EditMode
 
             _arena.QueueGeneration(handle, generationB);
             _arena.FlushHandleCommands(frame: 8);
-            GpuSurfacePageArena.CommitCurrentPendingForActiveArena(frame: 9);
+            _arena.CommitPending(handle, generationA, frame: 9);
 
             Assert.That(Read(_arena.LiveChunkGeometry, handle).Ready, Is.Zero,
                 "A pending candidate may not become live after the handle's desired generation changes.");
-            Assert.That(Read(_arena.PendingChunkGeometry, handle).Ready, Is.EqualTo(1u),
-                "Superseded candidate remains owned until the next allocation or explicit abort releases it.");
+            Assert.That(Read(_arena.PendingChunkGeometry, handle).Ready, Is.Zero,
+                "Rejected approval must retire the superseded candidate.");
         }
 
         [Test]
@@ -183,7 +216,7 @@ namespace VoxelEngine.Rendering.Tests.EditMode
 
             Assert.That(batch.Status, Is.EqualTo(GpuPagedBatchOutcome.AllocationUnsupported));
             Assert.That(Read(_arena.PendingChunkGeometry, handle).Ready, Is.Zero);
-            GpuSurfacePageArena.CommitCurrentPendingForActiveArena(frame: 13);
+            _arena.CommitPending(handle, generation, frame: 13);
             Assert.That(Read(_arena.LiveChunkGeometry, handle).Ready, Is.Zero);
         }
     }

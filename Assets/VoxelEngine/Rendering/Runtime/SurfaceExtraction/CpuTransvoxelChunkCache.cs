@@ -3792,6 +3792,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private void FinishPagedGpuBuild(int handle, int frame)
         {
             if (!BuildOwnsCurrentSlot()
+                || _build.MaterialPaletteVersion != _materialPaletteVersion
+                || _build.SurfaceCatalogueVersion != _surfaceCatalogue.Version
+                || _build.SurfaceCatalogueHash != _surfaceCatalogue.CatalogueHash
+                || _build.CoatingCatalogueVersion != _coatingCatalogue.Version
+                || _build.CoatingCatalogueHash != _coatingCatalogue.CatalogueHash
                 || _desiredVersions.TryGetValue(_build.Coordinate, out ulong desired)
                    && desired > _build.SourceVersion)
             {
@@ -3799,6 +3804,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 return;
             }
 
+            _gpuExtraction.ApprovePagedCandidate(handle, frame);
             _gpuExtraction.Release();
             _gpuStagePending = false;
             _emptyVersions.Remove(_build.Coordinate);

@@ -130,6 +130,43 @@ Diagnostic window timings/source delta are archived; no benchmark or full covera
 
 
 
+Current local publication replacement deletes the automatic pump/kernel, assigns a unique renderer
+attempt generation, and requires host source/configuration approval before commit. Cancellation
+aborts exact identities, including results arriving after their context was released.
+`approval-identity-tests.xml`:25 passed. `approval-module/`:48s,exit0,8 captures, production
+initial/traversal/edit/settled/restart passed with zero fallback/rejections. `approval-showcase/`:
+180s,exit0,11 captures; reviewed60s/165s. **Unacceptable**: terrain banding/seams, coarse grey
+far geometry, cyan water and poor terrain integration. These remain G07–G09 defects.
+
+Finalization previously ignored actual write totals. `write-finalization-before.xml`:all5 real-GPU
+missing/short/overflow transaction cases failed. GPU-side count comparison now rejects incomplete
+candidates, retires their pending pages and preserves prior live geometry; only failure status
+crosses to the CPU. `write-finalization-after.xml`:30 passed,zero skipped/failed,18s guarded run.
+`write-finalization-module/`:48s,exit0,8 captures, all module stages passed; final42s screenshot
+reviewed. `write-finalization-showcase/`:180s,exit0,11 captures;165s reviewed, still unacceptable.
+This first strict run mapped write mismatches to generic retryable Failed, so quiet logs do not
+prove zero write-count failures. Dedicated `WriteFailed` status now remains distinct/nonretryable
+and logs rejection. `write-finalization-distinct-tests.xml`:31 passed in18s.
+`write-status-module/`:48s,exit0,8 captures; initial/traversal/edit/settled/restart passed with
+zero fallback/missing/transaction rejections,42s screenshot reviewed. `write-status-showcase/`:
+180s,exit0,11 captures,zero transaction rejections/exceptions;60s/150s/165s reviewed.
+**Unacceptable**: terrain banding/seams, coarse grey masses, cyan water, and a large featureless
+foreground surface during traversal. No observed write-count failure in this run; payload/coverage
+correctness remains unproven. Diagnostic CPU window p50 median:4.885ms stationary,8.65ms walking;
+window p95 ranges5.12–5.41ms /8.30–20.91ms, worst15.22ms /30.52ms respectively. Not performance
+acceptance: mixed backend, incomplete coverage and viewpoint differences remain. Exact local
+source patches/hashes and diagnostic JSON are beside each run.
+`write-finalization-bridge-final.xml`:4 PlayMode arena tests passed in15s. Earlier4 failed before
+explicit handle acquisition; then1 failed because its legacy snapshot was absent from production
+coordinate lookup. Fixtures now acquire handles, model successful bookkeeping writes, explicitly
+commit, and publish canonical voxel input through the real mirror. Assertions were preserved.
+Source audit for G11: `GpuSurfacePageArena.RetirementDelayFrames` is still4;
+`GpuSurfaceExtractionContext.Release` releases persistent coverage and calls `EndExtraction`
+without waiting for an in-flight lane's consumption. Next regression must cancel submitted work
+and prove mirror leases remain owned until real GPU completion, then cover last-draw retirement.
+G10 remains open for remaining transaction work;
+this is no proof of payload correctness, final draw lifetime, complete coverage or performance.
+
 ## 1. Get the actual GPU path running now
 
 - [ ] **G01 — Reconcile the retained production GPU implementation.** Inspect current code and historical merge parent `a0ac0f5e...`; retain compatible proven changes rather than blindly restoring old files. Trace the real scheduler -> mirror -> extraction -> page publication -> URP draw route. Record concrete compile/runtime blockers and fix only prerequisites to this route. Do not begin another CPU visual-polish cycle.

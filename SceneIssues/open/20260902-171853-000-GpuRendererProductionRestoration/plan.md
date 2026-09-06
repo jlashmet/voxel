@@ -1,28 +1,28 @@
-# GPU renderer production restoration — GPU-first plan
+# GPU renderer production restoration
 
 ## Objective and acceptance
 
-Deliver production-quality `Assets/Scenes/VoxelShowcase.unity` through the GPU backend, physically delete the retired CPU-only renderer, and pursue **1,000 FPS /1.00ms whole frame**, or the closest repeatable result under [tasks.md](tasks.md). Preserve authoritative CPU storage/generation/collision/simulation and necessary GPU host orchestration. No hidden content, weaker budgets, reduced distance or permanent CPU fallback. All task gates remain mandatory.
+Deliver production-quality `Assets/Scenes/VoxelShowcase.unity` through the GPU backend, physically delete the retired CPU-only renderer, and pursue **1,000 FPS / 1.00ms whole frame**, or the closest repeatable result under [tasks.md](tasks.md). Preserve authoritative CPU storage/generation/collision/simulation and necessary GPU host orchestration. No hidden content, weaker budgets, reduced distance or permanent CPU fallback. All task gates remain mandatory.
 
-## Execution and proven repairs
+## Execution and material results
 
-User directs local harness/tests and screenshot review; **no further origin pushes**. Worktree `/private/tmp/voxel-gpu-restoration`, branch `gpu-rendering-agent-1-resume`. Existing remote request preserved.
+User directs local harness/tests and screenshot review; **no further origin pushes**. Worktree `/private/tmp/voxel-gpu-restoration`, branch `gpu-rendering-agent-1-resume`.
 
-Local repairs: bounded watchdog process accounting; shared44-byte GPU descriptor; common-point allocator status write; explicit indirect bucket metadata prefix; compatible batch resource layouts. Boundary regression alternating cache edges4/6 fails before (expected256 vertices, got0), passes after. Earlier huge step2 geometry counts came from malformed cache layouts and cannot justify compression or budget changes. Exact evidence is in tasks.md.
+Proven repairs: bounded watchdog accounting, shared44-byte GPU descriptor, common allocator status store, explicit indirect bucket prefix, compatible batch layouts. Malformed step2 caches invalidated earlier geometry-demand estimates. Corrected tracing proved full stationary coverage but real traversal exhaustion (290/1635 requests through175s). Async status recovery now reports rejection and triggers bounded offscreen GPU eviction.
 
-`layout-coverage-trace/` on d125cbe32 completed180s/11 PNGs. At60s all538 visible handles were live-ready,491 nonempty draws,7454 free vertex pages,zero failures. At120s only45/69 visible handles were ready and138 allocation failures had accumulated. Through175s,290 of1635 completed requests were Exhausted. Thus traversal pressure is real and fence-only completion hid rejected work. Visual acceptance remains unmet.
+Render-control contract: only asynchronous16-byte status/handle/generation feedback per chunk; no generated geometry/count readback, blocking wait or authoritative-state derivation. Lane scratch remains owned through callback completion.
 
-## Selected render-control contract and current implementation
+Automatic publication pump and its compute kernel are deleted locally. Renderer attempts now have unique generations independent of storage versions. Host approval checks slot ownership, source/material/surface/coating versions; cancelled candidates abort by exact identity. Approval-focused tests passed25/25. The48s production module passed initial/traversal/edit/settled/restart with zero fallback or rejection. The180s approval showcase exited0 with11 captures; reviewed60s/165s show terrain bands, grey far geometry and cyan water: **unacceptable**, no performance acceptance.
 
-G05 prohibits generated-geometry/extraction-count readback. G10–G13 permit a bounded asynchronous render-control record:16 bytes per chunk (status,handle,generation),32 bytes per lane. No blocking wait, authoritative-state derivation, geometry/count transfer, budget increase or hidden visible demand.
+Next discovered invariant: finalization ignored write counters. Five real-GPU bookkeeping cases (missing/short/overflow writes) all failed before the repair. Finalization now compares written vertex/index totals against the allocated candidate entirely on-device, retires mismatches and returns failed status, preserving old live geometry. All31 focused tests pass, plus4 PlayMode arena regressions (fixtures now acquire handles, explicitly commit, and publish production lookup input). A48s module and180s showcase completed; showcase remains unacceptable. The first strict run shared a generic retry status, so quiet logs did not prove zero write mismatches. The distinct `WriteFailed` diagnostic then passed48s module and180s showcase: zero transaction rejections/exceptions,8/11 captures. Reviewed60s/150s/165s showcase remains unacceptable, including a large featureless foreground surface during traversal. This verifies completion totals, not arbitrary payload correctness.
 
-GPU finalization is followed by compact status export. Cached callbacks copy only those words; lane scratch stays owned until feedback completes, with deferred disposal for retired lanes. Only Ready reaches host completion; failures enter retry, and Exhausted triggers bounded offscreen GPU eviction. Geometry/page allocation remains GPU-owned. Existing automatic pending-publication bridge remains: explicit CPU-approved commit, permanent-error policy and full last-consumer retirement are still G10/G11 work.
+## Hypotheses and discriminating experiments
 
-Twenty-two focused tests pass, zero skips, in15s (`outcome-recovery/final-tests.xml`): real GPU exhaustion -> asynchronous16-byte result -> reclamation -> retry, independent record identity, and no blocking/count-transfer architecture. The180-second `outcome-recovery/` player completed with11 screenshots and no rejection errors. Terrain gaps/bands and blockout far/water presentation remain **unacceptable**. Diagnostic timings are archived; no visual/performance acceptance.
+1. Incomplete writes explained missing geometry: not observed in the strict180s run (zero reported rejections); count equality cannot prove payload correctness.
+2. Writes complete correctly, while traversal admission/eviction churn and coarse presentation cause remaining defects.
 
-## Hypotheses and next discriminator
+Next prove cancellation retains submitted mirror leases until GPU consumption; Release currently drops coverage/readers immediately. Replace four-CPU-frame page retirement with last-consumer completion, then correlate live coverage with pressure. Do not infer visual acceptance from host counters.
 
-1. Offscreen eviction/retry restores coverage but needs admission prioritization to avoid churn.
-2. Actual visible demand still exceeds capacity and needs semantic-preserving compaction.
+## Remaining gates
 
-Next correlate current successful publications, retries, page reclamation and exact live visible records through traversal, then fix the earliest remaining divergence. Finish explicit approval/lifetime and GPU step4/8/water migration; delete CPU-only rendering; prove independent-consumer/edit/lifecycle behavior; run locked repeated performance/memory workloads and final local review.
+Finish permanent-error policy, explicit publication and GPU-completion-based retirement/lifetime; migrate step4/8 and water to GPU; replace CPU-dependent test oracles and physically delete CPU-only rendering. Preserve module-local production scenes. Prove edits, pressure and lifecycle, then run locked repeated full-frame/memory workloads and final visual review. G01–G27 remain authoritative; no completion claim.

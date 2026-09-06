@@ -80,6 +80,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private SurfaceGeometryLease _countBatchLease;
         private bool _countBatchGeometryPublished;
         private bool _pagedBatchReady;
+        private bool _candidatePending;
         private bool _pagedBatchFailed;
         private int _pagedHandle = -1;
         private double _stageRequestStartedSeconds;
@@ -402,8 +403,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 return false;
             ConfigurePersistentLookupHeader();
             int handle = GpuSurfaceMirrorCoordinator.PrepareChunkHandle(
-                request.ChunkOriginVoxel, request.SourceStep,
-                request.Generation != 0 ? request.Generation : generation);
+                request.ChunkOriginVoxel, request.SourceStep, out ulong renderGeneration);
             if (handle < 0)
             {
                 GpuSurfaceMirrorCoordinator.EndExtraction(
@@ -413,7 +413,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _staged = new GpuChunkExtraction(
                 request.ChunkOriginVoxel, request.BrickCacheOrigin,
                 request.SourceStep, request.VoxelSize, request.TransitionFaceMask,
-                handle, request.Generation != 0 ? request.Generation : generation,
+                handle, renderGeneration,
                 request.ProfileBlocks);
             _hasStaged = true;
             ChunksMirrorReady++;
@@ -555,8 +555,17 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             if (_disposed || !_hasStaged || token != _countBatchToken || handle < 0) return false;
             _pagedHandle = handle;
+            _candidatePending = true;
             _pagedBatchReady = true;
             return true;
+        }
+
+        internal void ApprovePagedCandidate(int handle, int frame)
+        {
+            if (!_hasStaged || !_candidatePending || handle != _staged.Handle)
+                throw new InvalidOperationException("No current GPU candidate is available for approval.");
+            GpuSurfaceMirrorCoordinator.ResolveCandidate(handle, _staged.Generation, true, frame);
+            _candidatePending = false;
         }
 
         internal bool FailPagedBatch(uint token)
@@ -784,6 +793,12 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 && !_countBatchLease.IsValid
                 && _legacyPinnedBricks.Count == 0)
                 return;
+            if (_candidatePending)
+            {
+                GpuSurfaceMirrorCoordinator.ResolveCandidate(
+                    _staged.Handle, _staged.Generation, false, Time.frameCount);
+                _candidatePending = false;
+            }
             if (_coverageRequested)
                 ReleasePersistentCoverage(_staged);
             _stageAdmissionPending = false;
