@@ -7,7 +7,6 @@ using VoxelEngine.Rendering.Runtime.GpuVoxel;
 
 namespace VoxelEngine.Rendering.Tests.EditMode
 {
-    [NonParallelizable]
     public sealed class GpuSurfaceDrawDispatcherScaleTests
     {
         private const int VisibleCount = 600;
