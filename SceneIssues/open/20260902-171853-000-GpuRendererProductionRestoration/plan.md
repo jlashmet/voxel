@@ -2,24 +2,24 @@
 
 ## Objective and boundaries
 
-Deliver the complete production-quality `Assets/Scenes/VoxelShowcase.unity` through the GPU backend, physically delete the retired CPU-only renderer, and pursue **1,000 FPS / 1.00 ms whole frame**, or the closest repeatable measured result under [tasks.md](tasks.md). CPU visual perfection is not a prerequisite. Preserve authoritative CPU storage/generation/collision/simulation and necessary GPU host orchestration. No hidden content, weaker budgets or permanent CPU fallback.
+Deliver production-quality `Assets/Scenes/VoxelShowcase.unity` through the GPU backend, physically delete the retired CPU-only renderer, and pursue **1,000 FPS / 1.00 ms whole frame**, or the closest repeatable measured result under [tasks.md](tasks.md). CPU visual perfection is not a prerequisite. Preserve authoritative CPU storage/generation/collision/simulation and necessary GPU host orchestration. No hidden content, weaker budgets, reduced draw distance, or permanent CPU renderer fallback.
 
-## Exact source and active request
+## Exact state
 
-Starting feature **`568a8b8f1251760eb92b6cfd1ef547e2cee4c569`**; fetched master **`356b2e0e4d2818901c73bbc6b1788f8d6850356d`** through the GitHub connector; direct git transport is unavailable. GPU launch restoration is source **`9684ff509d65ab7a1caca6245d0f0093f28e249d`**. Request **`fb4a7a92de3420c0affa2a5463287d0252f67797`**, run **`34007154618`**, job **`101416373122`**, remains **queued** at inspection. Preserve it unchanged. It includes the cache-policy regression, restored GPU module consumers and 65-second full VoxelShowcase replay. It excludes the later frame-timing repair and handle-command work.
+Current feature lineage includes GPU launch restoration `9684ff509d65...`, frame-timing repair `568a8b8f125...`, bounded same-handle ownership repair `6532462cfe0...`, CPU-removal ledger `24ac26bc937...`, and current fail-before transaction source **`51a9f344ec62f583f66a6c1acb3a801efdbf0bae`**. See [gpu-resumption-evidence.md](gpu-resumption-evidence.md), [cpu-render-backend-removal-ledger.md](cpu-render-backend-removal-ledger.md), and [external-agent-feedback.md](external-agent-feedback.md).
 
-Earlier run `34005604349` retained separate FarWorld/Water evidence; CPU images remain diagnostic only. Launch/timing tooling has ten recorded local passes; no new Unity/GPU pass is inferred. See [gpu-resumption-evidence.md](gpu-resumption-evidence.md).
+Preserved request **`fb4a7a92de3420c0affa2a5463287d0252f67797`**, run **`34007154618`**, job **`101416373122`**, validates exact source `9684ff509d65...` and is **in progress** in repository-derived module validation. It includes restored SolidGpu consumers and a 65-second VoxelShowcase replay; never replace it while running. It excludes later timing/transaction work.
 
-## Hypotheses and next discriminators
+## Hypotheses and discriminators
 
-**H1:** GPU completion/publication/ownership failures lose valid geometry. The coordinator signals completion at submission; actual outcomes and live geometry require separate proof. The arena also returns duplicate-released handles twice and submits unordered same-handle generation writers.
+**H1 — confirmed contract gap:** current `SealCountBatch` dispatches work, inserts a fence, immediately reports every context complete, and resets the lane; current page publication can make pending geometry live before `FinishPagedGpuBuild` performs the renderer slot/version approval. Allocation already emits `Ready/Exhausted/Stale/TooLarge` status, but production does not consume it.
 
-**H2:** input/layout or shared far geometry/material defects explain additional malformed regions. Inspect the exact GPU captures and canonical inputs instead of CPU-only polish or blindly importing historical GPU files.
+Fail-before `GpuPagedPublicationTransactionTests` at `51a9f344...` uses the real page-arena compute shader. Its primary case requires a successful allocation to remain pending after write/finalization; current immediate publication should fail. Companion cases require stale/exhausted/oversized status to remain distinguishable without geometry readback.
 
-The bounded G10/G12 repair reconciles historical command coalescing and adds host `Free/Acquired/ReleaseQueued` ownership: one command per handle per flush, idempotent release until reacquisition, and no generation update erasing release cleanup. Before-fix tests are source **`03498b9bf7bf2bf0bdeee341ee8d08a0ef347dce`**; the repair is its direct descendant. Seven real-arena GPU regressions await exact Unity validation. Do not mark full publication/lifetime work complete. See [gpu-handle-command-evidence.md](gpu-handle-command-evidence.md) and [external-agent-feedback.md](external-agent-feedback.md).
+**Selected fix:** keep submitted lanes/resources alive through a bounded asynchronous readback of the existing small counters/status buffer; validate status + handle + immutable generation; never read generated vertices/indices. Successful output remains pending. Existing `FinishPagedGpuBuild` slot/desired-version check is the CPU approval point: queue generation-tagged **Commit** only after it passes, otherwise **Abort** and preserve prior live geometry. Lane reuse/teardown must wait for final GPU consumer completion. This is one transaction state machine, not six unrelated patches.
 
-## Ownership, cost and remaining gates
+**H2:** after the P0 transaction is trustworthy, remaining malformed regions may be shared far-presentation/material/LOD defects. Diagnose them with GPU active. Migrate steps 4/8 and water before deleting their CPU renderers.
 
-Rendering owns the arena, module EditMode regressions and existing `Rendering/Validation/SolidGpu/` scenes. Tooling owns launch/timing tests. New host bookkeeping is bounded by handle/transport capacity; no production readback, GPU allocation or wait is added.
+## Remaining gates
 
-After the active request terminates, inspect tests, output status, actual GPU draws, fallback, images and timings; collect fail-before/pass-after for the staged handle repair. No local Unity compilation is claimed. G01–G04/G19, semantic/LOD, transaction/lifetime, edits/streaming, CPU deletion and profiling gates remain open. Final CPU-backend-free proof precedes closure, current-master integration and PR + auto-merge.
+Finish exact fail-before/pass-after P0 evidence; inspect the preserved GPU run’s counters/images; complete semantic/LOD, lifetime/pressure, streaming/edit/restart and independent-consumer proof; migrate/delete CPU-only rendering files per ledger; then run the locked whole-frame benchmark and optimize measured bottlenecks. Final CPU-backend-free exact-SHA validation precedes `open` -> `closed`, current-master integration, PR + auto-merge, and verification on `origin/master`.
