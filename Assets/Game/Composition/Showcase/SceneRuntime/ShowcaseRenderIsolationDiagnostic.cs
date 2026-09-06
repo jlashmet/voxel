@@ -45,14 +45,23 @@ namespace VoxelEngine.Showcase
             string approach = Path.Combine(_directory, "01-mountain-approach.png");
             while (!File.Exists(approach) && Time.realtimeSinceStartup < deadline)
                 yield return null;
-            _replay = UnityEngine.Object.FindFirstObjectByType<ShowcaseWaypointReplayHarness>();
-            _showcase = UnityEngine.Object.FindFirstObjectByType<VoxelShowcase>();
-            if (!File.Exists(approach) || _replay == null || _showcase == null)
+
+            // FindFirstObjectByType does not reliably rediscover DontDestroyOnLoad / DontSave
+            // evidence harnesses in a standalone player. Resources.FindObjectsOfTypeAll does;
+            // require a live loaded scene so prefab/assets cannot satisfy the prerequisite.
+            _replay = FindRuntimeObject<ShowcaseWaypointReplayHarness>();
+            _showcase = FindRuntimeObject<VoxelShowcase>();
+            bool approachExists = File.Exists(approach);
+            if (!approachExists || _replay == null || _showcase == null)
             {
-                Debug.LogError("RENDER_ISOLATION missing production approach/replay; no attribution is possible.");
+                Debug.LogError(
+                    "RENDER_ISOLATION prerequisite missing "
+                    + $"approach={approachExists} replay={(_replay != null)} showcase={(_showcase != null)}; "
+                    + "no attribution is possible.");
                 Application.Quit(26);
                 yield break;
             }
+
             // Flatten the iterator so exceptions are reported and all state is restored.
             IEnumerator experiment = RunExperiment();
             try
@@ -223,6 +232,19 @@ namespace VoxelEngine.Showcase
         }
 
         private void OnDestroy() => Restore();
+
+        private static T FindRuntimeObject<T>() where T : Component
+        {
+            T[] candidates = Resources.FindObjectsOfTypeAll<T>();
+            for (int i = 0; i < candidates.Length; i++)
+            {
+                T candidate = candidates[i];
+                if (candidate == null) continue;
+                SceneManagement.Scene scene = candidate.gameObject.scene;
+                if (scene.IsValid() && scene.isLoaded) return candidate;
+            }
+            return null;
+        }
 
         private static string Argument(string name)
         {
