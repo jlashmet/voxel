@@ -167,6 +167,9 @@ namespace VoxelEngine.Showcase
                 case "farterrain":
                     DisableBehavioursNamed("VoxelFarTerrain");
                     break;
+                case "farfeatures":
+                    DisableBehavioursNamed("ProceduralFarFeatureRenderer");
+                    break;
                 case "visibility-reuse":
                     VoxelEngine.Composition.RenderingComposition
                         .SetVisibilityReuseEnabled(false);

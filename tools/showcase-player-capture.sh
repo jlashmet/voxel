@@ -28,6 +28,7 @@ Options:
   --survey-height N
   --survey-spin N
   --stationary-sample N
+  --player-arg TEXT          append one literal runtime argument (repeatable)
   --require-log-pattern TEXT
   --forbid-log-pattern TEXT
 EOF
@@ -44,6 +45,7 @@ SURVEY_AFTER=""
 SURVEY_HEIGHT=""
 SURVEY_SPIN=""
 STATIONARY_SAMPLE=""
+EXTRA_PLAYER_ARGS=()
 SCENE_ISSUE=""
 ISSUE_CAPTURE_COUNT=0
 PLAYER_WIDTH=1600
@@ -87,6 +89,7 @@ while (( $# > 0 )); do
     --survey-height) SURVEY_HEIGHT="$2"; shift 2 ;;
     --survey-spin) SURVEY_SPIN="$2"; shift 2 ;;
     --stationary-sample) STATIONARY_SAMPLE="$2"; shift 2 ;;
+    --player-arg) EXTRA_PLAYER_ARGS+=("$2"); shift 2 ;;
     --require-log-pattern) append_pattern required "$2"; shift 2 ;;
     --forbid-log-pattern) append_pattern forbidden "$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
@@ -218,6 +221,10 @@ BIN="$(find "$APP/Contents/MacOS" -maxdepth 1 -type f -perm -111 -print -quit)"
 [[ -n "$BIN" && -x "$BIN" ]] || { echo "ERROR: player build produced no executable." >&2; exit 1; }
 
 PLAYER_ARGS=(-logFile "$PLAYER_LOG" -screen-width "$PLAYER_WIDTH" -screen-height "$PLAYER_HEIGHT" -screen-fullscreen 0 -voxel-uncapped)
+if (( ${#EXTRA_PLAYER_ARGS[@]} > 0 )); then
+  PLAYER_ARGS+=("${EXTRA_PLAYER_ARGS[@]}")
+  printf 'Additional player argument: %q\n' "${EXTRA_PLAYER_ARGS[@]}"
+fi
 if [[ -n "$SCENE_ISSUE" ]]; then PLAYER_ARGS+=( -voxel-scene-issue "$SCENE_ISSUE" ); fi
 if [[ -n "$STATIONARY_SAMPLE" ]]; then
   PLAYER_ARGS+=( -voxel-stationary-sample-seconds "$STATIONARY_SAMPLE" -voxel-stationary-timeout-seconds "$RUN_SECONDS" -voxel-stationary-screenshot-dir "$SHOTS_DIR" )

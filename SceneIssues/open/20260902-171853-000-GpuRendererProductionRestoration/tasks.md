@@ -269,6 +269,21 @@ flat traversal obstructions. Composition-owned scene coverage and the other G08 
 - [ ] **G08 — Resolve every missing/white/malformed GPU-visible region.** Use chunk/source revision and actual draw owner to separate voxel surfaces, far terrain and semantic far features. Preserve canonical shape parameters, materials/coatings and ordered carve semantics where required; resolve near/far overlap with correct coverage ownership, not distance-only hiding or global convergence. Reuse existing production systems. The existing bounded normal/disabled/restored probe is optional diagnosis, with restoration/opt-in regressions; disabled output never passes acceptance. Retain frustum topology/cache regressions and independent FarWorld artifacts.
 - [ ] **G09 — Accept complete GPU visuals during real use.** Inspect exact-source stationary, multiple-angle, traversal and edit captures for silhouettes, grounding, materials, seams, holes, stale chunks, near/far handoff and blockout appearance. Explain any startup incompleteness and measure convergence. All final views must meet the repository's production-quality bar without CPU fallback or removed scene content. VoxelShowcase is the visual target; do not take over another SceneIssue.
 
+Traversal obstruction attribution: added repeatable literal runtime arguments to the existing
+standalone harness and a diagnostic-only `farfeatures` subsystem switch. Normal content settings
+are unchanged. `obstruction-no-farterrain-diagnostic/` completed180s/12 captures, exit0 with the
+required disable log and no exceptions. Reviewed75s confirms distant clipmap hills disappear;
+reviewed150s retains the near-identical dark/green obstruction. This falsifies far terrain as its
+direct source. `obstruction-no-farfeatures-diagnostic/` also completed180s/12 captures, exit0.
+Reviewed120s/150s no longer show the flat obstruction with terrain active, attributing it to semantic
+far rendering. Terrain aliasing and near gaps remain. `obstruction-full-handoff-trace/` restores all
+content, completed180s/12 captures/exit0, and reviewed150s reproduces the obstruction. Existing
+trace identifies mountain CC9F50C170E9C507 at90–110s but truncates the larger150s retained set
+to four entries. Exact obstructing primitive remains unproven. Next diagnostic must report nearest
+camera-ray/proxy intersections, distinguishing geometry, transform/submission and handoff causes.
+These subsystem-isolation runs are excluded from visual/performance acceptance. Harness changes
+provide orchestration only; no production geometry or replacement validation scene is introduced.
+
 ## 3. Make publication, residency and lifetime reliable
 
 - [ ] **G10 — Make completion and publication explicit and two-phase.** Pending Allocate/Write may become live only through successful Commit; `Exhausted`, `Stale`, `TooLarge`, cancellation and failed writes Abort exactly once. Preserve prior live geometry until a valid replacement commits. Separate renderer build generation from storage/mirror source generation. Retest deterministic duplicate-command coalescing and cancel/release/reacquire behavior.
