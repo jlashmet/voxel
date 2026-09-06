@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "runSeconds": 66,
+  "capture": {
+    "width": 1600,
+    "height": 900,
+    "intervalSeconds": 3,
+    "minimumFrames": 20,
+    "evidenceAfterSeconds": 1
+  },
+  "timeline": {},
+  "assertions": {
+    "requiredLogPatterns": [
+      "PROP_SHOWCASE_VALIDATION start count=529",
+      "PROP_SHOWCASE_VALIDATION tiny selected=",
+      "PROP_SHOWCASE_VALIDATION medium selected=",
+      "PROP_SHOWCASE_VALIDATION large selected=",
+      "PROP_SHOWCASE_VALIDATION thin-wall selected=",
+      "PROP_SHOWCASE_VALIDATION ceiling selected=",
+      "PROP_SHOWCASE_VALIDATION voxel-stamp selected=",
+      "PROP_SHOWCASE_VALIDATION procedural selected=",
+      "PROP_SHOWCASE_VALIDATION emissive selected=",
+      "PROP_SHOWCASE_VALIDATION container-movable selected=",
+      "PROP_SHOWCASE_VALIDATION interactive-world-object selected=",
+      "PROP_SHOWCASE_VALIDATION stress switches=",
+      "PROP_SHOWCASE_VALIDATION complete selected="
+    ],
+    "forbiddenLogPatterns": [
+      "PROP_SHOWCASE_VALIDATION failure:",
+      "InvalidOperationException",
+      "NullReferenceException",
+      "MissingReferenceException",
+      "ArgumentException"
+    ]
+  }
+}

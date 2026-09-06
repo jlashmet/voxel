@@ -1,7 +1,10 @@
+using System.Collections.Generic;
 using Game.Materials.Runtime;
 using Unity.Mathematics;
+using UnityEngine;
 using VoxelEngine.Composition;
 using VoxelEngine.Composition.Api;
+using VoxelEngine.Rendering.Api;
 using VoxelEngine.Storage.Api;
 
 namespace Game.Composition.Materials
@@ -13,6 +16,9 @@ namespace Game.Composition.Materials
     /// </summary>
     public static class GameMaterialComposition
     {
+        private static readonly Dictionary<byte, Material> s_ProceduralMaterials =
+            new Dictionary<byte, Material>();
+
         public static void Install()
         {
             MaterialPresentationComposition.Apply(GameMaterialRenderingDefinitions.Create());
@@ -37,5 +43,55 @@ namespace Game.Composition.Materials
         /// <summary>Debris tint for a material at the given alpha.</summary>
         public static float4 DebrisColour(byte materialId, float alpha) =>
             GameMaterialDebrisPresentation.Colour(materialId, alpha);
+
+        /// <summary>
+        /// Resolves a game material id into the shared Unity material used by non-voxel procedural
+        /// geometry. The adapter is driven from the same authoritative rendering definition installed
+        /// into the voxel renderer, so procedural consumers preserve game material identity/albedo/
+        /// roughness rather than inventing preview-only colors or shaders.
+        /// </summary>
+        public static bool TryGetProceduralMaterial(byte materialId, out Material material)
+        {
+            if (s_ProceduralMaterials.TryGetValue(materialId, out material) && material != null)
+                return true;
+
+            MaterialPresentationDefinition[] definitions = GameMaterialRenderingDefinitions.Create();
+            MaterialPresentationDefinition definition = default;
+            bool found = false;
+            for (int i = 0; i < definitions.Length; i++)
+            {
+                if (definitions[i].MaterialIndex != materialId) continue;
+                definition = definitions[i];
+                found = true;
+                break;
+            }
+            if (!found)
+            {
+                material = null;
+                return false;
+            }
+
+            Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+            if (shader == null)
+            {
+                material = null;
+                return false;
+            }
+
+            material = new Material(shader)
+            {
+                name = $"Game Material {materialId} (Procedural)",
+                hideFlags = HideFlags.HideAndDontSave,
+                color = new Color(
+                    definition.Albedo.x,
+                    definition.Albedo.y,
+                    definition.Albedo.z,
+                    definition.Albedo.w),
+            };
+            if (material.HasProperty("_Smoothness"))
+                material.SetFloat("_Smoothness", Mathf.Clamp01(1f - definition.Surface.z));
+            s_ProceduralMaterials[materialId] = material;
+            return true;
+        }
     }
 }
