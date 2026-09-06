@@ -11,7 +11,6 @@ namespace VoxelEngine.Rendering.Tests.EditMode
     /// intentionally limited to the arena's tiny bookkeeping buffers; generated geometry is never
     /// copied back here.
     /// </summary>
-    [NonParallelizable]
     public sealed class GpuPagedPublicationTransactionTests
     {
         private const uint AllocationReady = 0u;
