@@ -1,3 +1,4 @@
+#pragma kernel CSSelectHlodFallback
 #pragma kernel CSCountHlodFaces
 #pragma kernel CSWriteHlodFaces VOXEL_HLOD_WRITE
 #include "VoxelBatchChunkDescriptor.hlsl"
@@ -5,6 +6,8 @@
 StructuredBuffer<uint> _HlodSummaries;
 StructuredBuffer<BatchChunkDescriptor> _BatchChunks;
 RWStructuredBuffer<uint> _BatchCounters;
+RWStructuredBuffer<uint> _HlodSelection;
+uint _HlodConditional;
 uint _HlodCoreBrickEdge;
 uint _HlodBatchCount;
 uint _HlodBrickStart;
@@ -27,6 +30,20 @@ int3 AxisOffset(uint axis, int amount)
 }
 
 uint Record(uint batch) { return 4u + batch * 17u; }
+
+// Capture the decision before HLOD counting mutates the regular totals. Each descriptor keeps
+// its own decision through allocation and write; no CPU count readback participates.
+[numthreads(64, 1, 1)]
+void CSSelectHlodFallback(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _HlodBatchCount) return;
+    uint record = Record(id.x);
+    _HlodSelection[id.x] = _BatchChunks[id.x].sourceStep == 4
+        && _BatchChunks[id.x].profileCount == 0u
+        && _BatchCounters[record] == 0u
+        && _BatchCounters[record + 2u] == 0u && _BatchCounters[record + 3u] == 0u ? 1u : 0u;
+}
+
 
 uint Material(uint batch, int3 cell)
 {
@@ -123,6 +140,7 @@ void Faces(uint3 id)
     uint batch = id.y;
     if (batch >= _HlodBatchCount || id.x >= _HlodBrickCount * 24u) return;
     uint record = Record(batch);
+    if (_HlodConditional != 0u && _HlodSelection[batch] == 0u) return;
 #ifdef VOXEL_HLOD_WRITE
     if (_BatchCounters[record + 10u] != 0u) return;
 #endif

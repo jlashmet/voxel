@@ -12,7 +12,8 @@
   "timeline": {},
   "assertions": {
     "requiredLogPatterns": [
-      "COARSE_GPU success:"
+      "COARSE_GPU success:",
+      "COARSE_GPU step4-ready:"
     ],
     "forbiddenLogPatterns": [
       "COARSE_GPU failure:",

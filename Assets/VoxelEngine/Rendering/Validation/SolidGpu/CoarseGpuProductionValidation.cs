@@ -11,13 +11,14 @@ using VoxelEngine.Structures.Runtime;
 
 namespace VoxelEngine.Rendering.Validation
 {
-    /// <summary>Real WorldBuilder realization viewed in the production step-8 distance band.</summary>
+    /// <summary>Real WorldBuilder realization viewed across the production step-4 and step-8 distance bands.</summary>
     public sealed class CoarseGpuProductionValidation : MonoBehaviour
     {
         private IVoxelStorageRuntime _storage;
         private Vector3 _target;
         private float _started;
         private bool _reported;
+        private bool _step4Reported;
         private float _nextDiagnostic;
 
         private void Start()
@@ -82,22 +83,33 @@ namespace VoxelEngine.Rendering.Validation
             }
             if (_reported) return;
             var metrics = VoxelRenderBridge.SurfaceMetrics;
-            if (metrics.GpuBlockHlodCompletedBuilds > 0 && metrics.VisibleSolidChunks > 0)
+            if (!_step4Reported && Time.unscaledTime - _started < 15f
+                && metrics.GpuStep4CompletedBuilds > 0 && metrics.VisibleSolidChunks > 0)
+            {
+                _step4Reported = true;
+                Debug.Log($"COARSE_GPU step4-ready: publications={metrics.GpuStep4CompletedBuilds} visible={metrics.VisibleSolidChunks}");
+            }
+            if (_step4Reported && metrics.GpuBlockHlodCompletedBuilds > 0 && metrics.VisibleSolidChunks > 0
+                && Time.unscaledTime - _started >= 15f)
             {
                 _reported = true;
-                Debug.Log($"COARSE_GPU success: step8Publications={metrics.GpuBlockHlodCompletedBuilds} visible={metrics.VisibleSolidChunks}");
+                Debug.Log($"COARSE_GPU success: step4Publications={metrics.GpuStep4CompletedBuilds} step8Publications={metrics.GpuBlockHlodCompletedBuilds} visible={metrics.VisibleSolidChunks}");
             }
             else if (Time.unscaledTime - _started > 50f)
             {
                 _reported = true;
-                Debug.LogError($"COARSE_GPU failure: step8Publications={metrics.GpuBlockHlodCompletedBuilds} visible={metrics.VisibleSolidChunks} missing={metrics.MissingVisibleSolidChunks}");
+                Debug.LogError($"COARSE_GPU failure: step4Publications={metrics.GpuStep4CompletedBuilds} step8Publications={metrics.GpuBlockHlodCompletedBuilds} visible={metrics.VisibleSolidChunks} missing={metrics.MissingVisibleSolidChunks}");
             }
         }
 
         private void PositionCamera()
         {
             float angle = Mathf.Sin((Time.unscaledTime - _started) * 0.08f) * 0.08f;
-            transform.position = _target + new Vector3(Mathf.Sin(angle) * 350f, 85f, -Mathf.Cos(angle) * 350f);
+            bool intermediate = Time.unscaledTime - _started < 15f;
+            float distance = intermediate ? 240f : 350f;
+            GetComponent<Camera>().fieldOfView = intermediate ? 12f : 8f;
+            transform.position = _target + new Vector3(Mathf.Sin(angle) * distance,
+                intermediate ? 55f : 85f, -Mathf.Cos(angle) * distance);
             transform.LookAt(_target);
         }
 

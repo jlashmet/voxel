@@ -78,11 +78,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public const int BaseVoxelsPerAxis = CellsPerAxis * BaseSourceStep;
         public const int BaseBricksPerAxis = BaseVoxelsPerAxis / VoxelReadGrid.BlockEdge;
 
-        /// <summary>Near extraction and step-8 block HLOD have GPU implementations.
-        /// Step 4 still requires migration of its feature-preserving fallback.</summary>
+        /// <summary>All solid LOD steps use GPU extraction, including conditional step-4 HLOD.</summary>
         internal static bool SupportsGpuSurfaceStep(int sourceStep) =>
             sourceStep == BaseSourceStep || sourceStep == BaseSourceStep * 2
-            || sourceStep == VoxelReadGrid.BlockEdge;
+            || sourceStep == FeaturePreservingFallbackStep || sourceStep == VoxelReadGrid.BlockEdge;
 
         private const int Padding = 1;
         private const int GridSize = CellsPerAxis + 3;

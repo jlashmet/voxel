@@ -143,6 +143,101 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             finally { Object.DestroyImmediate(shader); }
         }
 
+        [TestCase(4, 0u, 0u, 0u, 0u, true)]
+        [TestCase(4, 1u, 0u, 0u, 0u, false)]
+        [TestCase(4, 0u, 4u, 6u, 0u, false)]
+        [TestCase(4, 0u, 0u, 0u, 1u, false)]
+        [TestCase(2, 0u, 0u, 0u, 0u, false)]
+        public void FallbackDecisionPreservesExistingGeometryProfilesAndErrors(
+            int step, uint profiles, uint vertices, uint indices, uint unsupported, bool selected)
+        {
+            Setup(); Uniform(int3.zero);
+            var descriptors = new GpuSurfaceExtractor.BatchChunkDescriptor[1];
+            _descriptors.GetData(descriptors);
+            descriptors[0].SourceStep = step; descriptors[0].ProfileCount = profiles;
+            _descriptors.SetData(descriptors);
+            var words = new uint[21]; words[4] = unsupported; words[6] = vertices; words[7] = indices;
+            _counters.SetData(words);
+            using var selection = new ComputeBuffer(1, 4);
+            GpuBlockHlodMesher.SelectFallback(_meshShader, _descriptors, _counters, selection, 1);
+            GpuBlockHlodSummary.Dispatch(_summaryShader, _mirror, _requests, _summaries, _requests.count, 0);
+            GpuBlockHlodMesher.Count(_meshShader, _summaries, _descriptors, _counters, 1, 1, 0, 1, selection);
+            _counters.GetData(words);
+            Assert.That(words[4], Is.EqualTo(unsupported));
+            Assert.That(words[6], Is.EqualTo(selected ? 24u : vertices));
+            Assert.That(words[7], Is.EqualTo(selected ? 36u : indices));
+        }
+
+        [Test]
+        public void ReusedStepFourLaneReplacesThinFeatureWithOrdinaryGeometryThenAir()
+        {
+            Setup();
+            ComputeShader shader = Object.Instantiate(Resources.Load<ComputeShader>("VoxelBrickMesher"));
+            try
+            {
+                using var extractor = new GpuSurfaceExtractor(shader, 2, 1, 3);
+                using var tables = GpuTransvoxelTables.CreateDefault();
+                using var resources = extractor.CreateCountBatchResources(1);
+                using var owned = new NativeArray<byte>(512, Allocator.Temp);
+                using var semantics = new NativeArray<ushort>(512, Allocator.Temp);
+                using var boundaries = new NativeArray<byte>(512, Allocator.Temp);
+                var voxels = owned; voxels[1 + 8 * (1 + 8)] = 7;
+                var requests = new[] { new GpuChunkExtraction(OriginBrick * 8, OriginBrick - 1, 4, 0.1f) };
+                for (int phase = 0; phase < 3; phase++)
+                {
+                    if (phase == 0)
+                        _mirror.Publish(VoxelBrickDelta.MixedAt(OriginBrick, 1, 0), voxels, semantics, boundaries, 0, true);
+                    else
+                        _mirror.Publish(phase == 1 ? VoxelBrickDelta.UniformAt(OriginBrick, 2, 7)
+                            : VoxelBrickDelta.EmptyAt(OriginBrick, 3), default, default, default, 0, false);
+                    extractor.DispatchCountBatch(_mirror, tables, requests, 1, _counters, resources);
+                    var selected = new uint[1]; resources.HlodSelection.GetData(selected);
+                    var words = new uint[21]; _counters.GetData(words);
+                    Assert.That(words[4], Is.Zero);
+                    Assert.That(selected[0], Is.EqualTo(phase == 1 ? 0u : 1u), $"phase {phase}");
+                    if (phase == 2)
+                        Assert.That(words[6] | words[7], Is.Zero, "Empty sources must not retain the previous fallback.");
+                    else
+                    {
+                        Assert.That(words[6], Is.GreaterThan(0));
+                        Assert.That(words[7], Is.GreaterThan(0));
+                    }
+                }
+            }
+            finally { Object.DestroyImmediate(shader); }
+        }
+
+        [Test]
+        public void StepFourThinVoxelSurvivesProductionGpuCountAndPagedWrite()
+        {
+            Setup();
+            using var voxels = new NativeArray<byte>(512, Allocator.Temp);
+            using var semantics = new NativeArray<ushort>(512, Allocator.Temp);
+            using var boundaries = new NativeArray<byte>(512, Allocator.Temp);
+            var writable = voxels;
+            writable[1 + 8 * (1 + 8)] = 7;
+            _mirror.Publish(VoxelBrickDelta.MixedAt(OriginBrick, 1, 0), voxels, semantics, boundaries, 0, true);
+            ComputeShader shader = Object.Instantiate(Resources.Load<ComputeShader>("VoxelBrickMesher"));
+            try
+            {
+                using var extractor = new GpuSurfaceExtractor(shader, 2, 1, 3);
+                using var tables = GpuTransvoxelTables.CreateDefault();
+                using var resources = extractor.CreateCountBatchResources(1);
+                var requests = new[] { new GpuChunkExtraction(OriginBrick * 8,
+                    OriginBrick - 1, 4, 0.1f, handle: _handle, generation: Generation) };
+                extractor.DispatchCountBatch(_mirror, tables, requests, 1, _counters, resources);
+                var selected = new uint[1]; resources.HlodSelection.GetData(selected);
+                Assert.That(selected[0], Is.EqualTo(1), "Fixture must exercise the GPU false-empty branch.");
+                extractor.PrefixCountBatch(_counters, 1, 1, 1);
+                _arena.AllocateBatch(resources.Chunks, _counters, 1, 17, 1);
+                extractor.DispatchBaseWriteBatch(_mirror, tables, 1, _counters, resources,
+                    _arena.Vertices, _arena.Indices, pageArena: _arena, frame: 1);
+                var words = new uint[21]; _counters.GetData(words);
+                VerifyBox(words, int3.zero, new int3(2), 6, 7);
+            }
+            finally { Object.DestroyImmediate(shader); }
+        }
+
         [Test]
         public void UnknownHaloRejectsCandidateWithoutAllocatingDrawableGeometry()
         {

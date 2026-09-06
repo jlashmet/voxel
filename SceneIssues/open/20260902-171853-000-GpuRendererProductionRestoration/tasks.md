@@ -24,6 +24,29 @@ Each completed item needs exact feature SHA, request/run IDs, relevant executed 
 
 ## Current local evidence (2026-09-06)
 
+Step4 migration in progress after `8e5c4ba95`: the existing GPU pipeline now captures a per-descriptor
+false-empty decision after ordinary counts and conditionally counts/writes feature-preserving HLOD
+into the same paged arena. No CPU count/geometry readback. Real prepared-cache regression verifies a
+single voxel missed by the step4 lattice becomes a closed two-voxel box; suppression cases retain
+existing geometry, profiles, errors and finer-ring behavior. `gpu-step4-enabled.xml`: 46 passed,
+terminal exit 0 (24s harness, 4.7s tests). Step4 production gate enabled for player validation.
+Coarse module now views the same production-generated landmark from step4 then step8 distance bands.
+`gpu-step4-coarse-module/` build exited 138 in native Burst compiler stack; no player ran. Retry finished exit 1: initial camera was in step2 rather than step4, so required marker correctly
+failed. Corrected distance using logged module bands. `gpu-step4-coarse-bands/`: 60s/six captures/exit 0;
+three step4 and two step8 publications, both required markers passed. Reviewed exact 10s and 50s:
+**prototype/blockout quality**, with lumpy step4 terrain and visibly stepped step8 contouring.
+These remain visual defects under G09; module behavior passes, production visual finish does not.
+`gpu-step4-showcase/`: 180s/11 captures/exit 0; 79 step4 GPU publications, three step8,
+598 missing-visible and 4,376,579 directory refusals at termination. Reviewed exact 75.2s/150.2s:
+**unacceptable**. Distant right-side houses have lost brown roof/material separation compared with
+`gpu-directory-backshift-showcase/` 75.1s; investigate reconstruction versus far-feature replacement
+before accepting step4 fidelity. Frontier remains incomplete; no black full-view obstruction in
+these selected captures. This is GPU migration progress, not visual/performance acceptance.
+`gpu-step4-reuse.xml`: all 47 targeted tests passed, terminal exit 0 (20s harness, 4.4s tests).
+The additional real GPU lane-reuse case proves thin→ordinary→air clears the previous selection/output.
+No production code changed after the successful player builds.
+
+
 `gpu-directory-backshift-module/`: 48s/eight captures/terminal exit 0; publication, edit and
 far-handoff markers passed, fallback 0, visible 8/missing 0. Reviewed exact 42s capture: prototype
 validation fixture, not full-scene visual acceptance. Exact source copies/hashes retained with both players.

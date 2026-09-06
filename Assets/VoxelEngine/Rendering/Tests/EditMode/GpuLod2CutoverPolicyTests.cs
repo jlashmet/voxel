@@ -27,8 +27,8 @@ namespace VoxelEngine.Tests.EditMode
                 "Full-resolution surface extraction must be GPU-capable.");
             Assert.True(CpuTransvoxelChunkCache.SupportsGpuSurfaceStep(2),
                 "LOD2 must remain GPU-capable, including its transition-face path.");
-            Assert.False(CpuTransvoxelChunkCache.SupportsGpuSurfaceStep(4),
-                "The step-4 feature-preserving exact/fallback ring stays on CPU until GPU parity exists.");
+            Assert.True(CpuTransvoxelChunkCache.SupportsGpuSurfaceStep(4),
+                "Step-4 ordinary extraction and conditional feature preservation must stay on GPU.");
             Assert.True(CpuTransvoxelChunkCache.SupportsGpuSurfaceStep(8),
                 "Feature-preserving block HLOD now counts and writes in the GPU page arena.");
         }

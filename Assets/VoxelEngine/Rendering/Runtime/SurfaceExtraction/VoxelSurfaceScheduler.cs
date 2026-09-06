@@ -33,6 +33,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public readonly int GpuResidentBackends;
         public readonly ulong GpuCompletedSolidBuilds;
         public readonly ulong GpuBlockHlodCompletedBuilds;
+        public readonly ulong GpuStep4CompletedBuilds;
         public readonly ulong GpuFallbackSolidBuilds;
         public readonly ulong GpuUnsupportedSolidBuilds;
         public readonly ulong GpuContextFailureSolidBuilds;
@@ -149,6 +150,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             GpuResidentBackends = solids.GpuBackendResident ? 1 : 0;
             GpuCompletedSolidBuilds = solids.GpuCompletedBuildCount;
             GpuBlockHlodCompletedBuilds = solids.UsesBlockHlod ? solids.GpuCompletedBuildCount : 0;
+            GpuStep4CompletedBuilds = solids.SourceStep == 4 ? solids.GpuCompletedBuildCount : 0;
             GpuFallbackSolidBuilds = solids.GpuFallbackBuildCount;
             GpuUnsupportedSolidBuilds = solids.GpuUnsupportedBuildCount;
             GpuContextFailureSolidBuilds = solids.GpuContextFailureBuildCount;
@@ -300,7 +302,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             int gpuResidentBackends = 0;
             ulong gpuWaitSlices = 0;
             VoxelTimingSummary gpuBuildLatency = default;
-            ulong decorations = 0, pressure = 0, gpuBlockHlodCompleted = 0;
+            ulong decorations = 0, pressure = 0, gpuBlockHlodCompleted = 0, gpuStep4Completed = 0;
             ulong completionViolations = water.FramePathBlockingCompletionViolations;
             long geometryBytes = water.ResidentGpuBytes;
             double snapshotMs = 0, compactMs = 0, uploadMs = 0;
@@ -351,6 +353,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 if (worker.GpuBackendResident) gpuResidentBackends++;
                 gpuCompleted += worker.GpuCompletedBuildCount;
                 if (worker.UsesBlockHlod) gpuBlockHlodCompleted += worker.GpuCompletedBuildCount;
+                if (worker.SourceStep == 4) gpuStep4Completed += worker.GpuCompletedBuildCount;
                 gpuFallback += worker.GpuFallbackBuildCount;
                 gpuUnsupported += worker.GpuUnsupportedBuildCount;
                 gpuContextFailure += worker.GpuContextFailureBuildCount;
@@ -425,6 +428,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             GpuResidentBackends = gpuResidentBackends;
             GpuCompletedSolidBuilds = gpuCompleted;
             GpuBlockHlodCompletedBuilds = gpuBlockHlodCompleted;
+            GpuStep4CompletedBuilds = gpuStep4Completed;
             GpuFallbackSolidBuilds = gpuFallback;
             GpuUnsupportedSolidBuilds = gpuUnsupported;
             GpuContextFailureSolidBuilds = gpuContextFailure;

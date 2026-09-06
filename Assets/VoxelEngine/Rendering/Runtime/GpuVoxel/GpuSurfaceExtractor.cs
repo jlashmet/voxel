@@ -180,6 +180,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             internal ComputeBuffer Profiles;
             internal GpuProfileBlock[] ProfileStaging = Array.Empty<GpuProfileBlock>();
             internal bool UsesBlockHlod;
+            internal bool UsesHlodFallback;
+            internal ComputeBuffer HlodSelection;
             internal ComputeBuffer HlodSummaries;
             internal ComputeShader HlodSummaryShader, HlodMeshShader;
 
@@ -261,6 +263,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
             public void Dispose()
             {
+                HlodSelection?.Release();
                 HlodSummaries?.Release();
                 if (HlodSummaryShader != null) UnityEngine.Object.DestroyImmediate(HlodSummaryShader);
                 if (HlodMeshShader != null) UnityEngine.Object.DestroyImmediate(HlodMeshShader);
@@ -924,7 +927,12 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             for (int i = 1; i < recordCount; i++)
                 if ((requests[i].SourceStep == 8) != resources.UsesBlockHlod)
                     throw new ArgumentException("Coarse and regular extraction require separate lanes.");
-            if (resources.UsesBlockHlod) resources.PrepareHlod();
+            resources.UsesHlodFallback = false;
+            for (int i = 0; i < recordCount; i++)
+                resources.UsesHlodFallback |= requests[i].SourceStep == 4;
+            if (resources.UsesBlockHlod || resources.UsesHlodFallback) resources.PrepareHlod();
+            if (resources.UsesHlodFallback && resources.HlodSelection == null)
+                resources.HlodSelection = new ComputeBuffer(resources.Capacity, sizeof(uint));
 
             for (int i = 0; i < recordCount; i++)
             {
@@ -994,6 +1002,21 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (resources.ProfileCount > 0)
                 _shader.Dispatch(_batchCountProfilesKernel,
                                  Groups(resources.ProfileCount * 24), 1, 1);
+            if (resources.UsesHlodFallback)
+            {
+                GpuBlockHlodMesher.SelectFallback(resources.HlodMeshShader, resources.Chunks,
+                    batchCounters, resources.HlodSelection, recordCount);
+                GpuBlockHlodSummary.DispatchDense(resources.HlodSummaryShader, mirror,
+                    resources.PreparedCache.DenseEntries, resources.HlodSummaries,
+                    resources.PreparedCache.BricksPerRequest, recordCount,
+                    SolidMaterialClassification.WaterMaterialMask);
+                int core = BrickCacheEdge - 2, total = core * core * core;
+                for (int start = 0; start < total; start += GpuBlockHlodMesher.MaximumBricksPerSlice)
+                    GpuBlockHlodMesher.Count(resources.HlodMeshShader, resources.HlodSummaries,
+                        resources.Chunks, batchCounters, core, recordCount, start,
+                        Math.Min(GpuBlockHlodMesher.MaximumBricksPerSlice, total - start),
+                        resources.HlodSelection);
+            }
         }
 
         /// <summary>
@@ -1098,6 +1121,16 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (resources.ProfileCount > 0)
                 _shader.Dispatch(_batchWriteProfilesKernel,
                                  Groups(resources.ProfileCount * 24), 1, 1);
+            if (resources.UsesHlodFallback)
+            {
+                if (pageArena == null) throw new InvalidOperationException("GPU fallback requires the paged arena.");
+                int core = BrickCacheEdge - 2, total = core * core * core;
+                for (int start = 0; start < total; start += GpuBlockHlodMesher.MaximumBricksPerSlice)
+                    GpuBlockHlodMesher.Write(resources.HlodMeshShader, resources.HlodSummaries,
+                        resources.Chunks, batchCounters, pageArena, core, recordCount, start,
+                        Math.Min(GpuBlockHlodMesher.MaximumBricksPerSlice, total - start),
+                        resources.HlodSelection);
+            }
             if (args != null)
             {
                 _shader.SetBuffer(_batchPublishArgsKernel, IdBatchCounters, batchCounters);
