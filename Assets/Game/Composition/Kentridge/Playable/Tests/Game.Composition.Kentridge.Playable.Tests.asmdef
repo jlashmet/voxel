@@ -9,8 +9,14 @@
     "Game.Continuity.Api",
     "Game.Encounters.Api",
     "Game.GameplayReplication.Api",
+    "Game.SessionOrchestration.Api",
+    "Game.SessionOrchestration.Runtime",
+    "Game.SessionPresentation.Api",
     "Game.Sessions.Api",
-    "Game.WorldBuilder.Api"
+    "Game.Sessions.Runtime",
+    "Game.WorldBuilder.Api",
+    "VoxelEngine.Net.Api",
+    "VoxelEngine.Net.Runtime"
   ],
   "includePlatforms": [
     "Editor"
