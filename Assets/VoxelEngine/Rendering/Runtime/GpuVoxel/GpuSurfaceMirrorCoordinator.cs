@@ -296,7 +296,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                                                    in GpuChunkExtraction request,
                                                    int frame)
         {
-            if (context == null || extractor == null || tables == null || s_Mirror == null)
+            if (context == null || extractor == null || tables == null || s_Mirror == null
+                || !context.IsCurrentBatchRequest(token))
                 return false;
             EnsureCountBatchLanes();
 
@@ -337,6 +338,42 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             s_CountBatchRecords++;
             if (lane.Count == CountBatchCapacity) SealCountBatch(lane);
             return true;
+        }
+
+        internal static void CancelQueuedCountBatches(GpuSurfaceExtractionContext context)
+        {
+            // Called before context-owned resources are released. Submitted lanes cannot be
+            // compacted: their immutable descriptors and GPU offsets are already in flight.
+            foreach (CountBatchLane lane in s_CountBatchLanes)
+            {
+                if (lane == null || lane.Submitted) continue;
+                for (int record = lane.Count - 1; record >= 0; record--)
+                    if (ReferenceEquals(lane.Contexts[record], context))
+                        RemoveQueuedRecord(lane, record);
+            }
+        }
+
+        private static void RemoveQueuedRecord(CountBatchLane lane, int record)
+        {
+            for (int next = record + 1; next < lane.Count; next++)
+            {
+                lane.Contexts[next - 1] = lane.Contexts[next];
+                lane.Tokens[next - 1] = lane.Tokens[next];
+                lane.Requests[next - 1] = lane.Requests[next];
+            }
+            int last = --lane.Count;
+            lane.Contexts[last] = null;
+            lane.Tokens[last] = 0;
+            lane.Requests[last] = default;
+            if (lane.Count == 0)
+                ResetCountBatchLane(lane);
+            else
+            {
+                // The old prefix may be the context being disposed. Every surviving record
+                // was admitted with this same batch layout, so its owner can submit the lane.
+                lane.PrefixExtractor = lane.Contexts[0].Extractor;
+                lane.Tables = lane.Contexts[0].Tables;
+            }
         }
 
         private static void EnsureCountBatchLanes()
@@ -392,6 +429,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private static void SealCountBatch(CountBatchLane lane)
         {
             if (lane == null || lane.Count == 0 || lane.Submitted) return;
+            for (int record = lane.Count - 1; record >= 0; record--)
+                if (lane.Contexts[record] == null
+                    || !lane.Contexts[record].IsCurrentBatchRequest(lane.Tokens[record]))
+                    RemoveQueuedRecord(lane, record);
+            if (lane.Count == 0) return;
             if (s_PageArena == null)
                 throw new InvalidOperationException(
                     "Production GPU extraction requires the GPU-owned page arena.");

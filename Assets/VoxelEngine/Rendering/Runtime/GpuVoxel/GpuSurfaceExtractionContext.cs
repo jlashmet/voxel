@@ -514,6 +514,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             ThrowIfDisposed();
             if (!_hasStaged) throw new InvalidOperationException("No GPU chunk is staged.");
+            GpuSurfaceMirrorCoordinator.CancelQueuedCountBatches(this);
             unchecked { _countBatchToken++; }
             _countBatchResultReady = false;
             _countBatchFailed = false;
@@ -530,6 +531,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _countDispatchPending = false;
             return true;
         }
+
+        internal bool IsCurrentBatchRequest(uint token) =>
+            !_disposed && _hasStaged && token == _countBatchToken;
 
         internal bool CompleteBatchedCount(uint token, in GpuExtractionCounts counts, bool failed,
                                            in SurfaceGeometryLease lease = default,
@@ -787,6 +791,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         public void Release()
         {
+            GpuSurfaceMirrorCoordinator.CancelQueuedCountBatches(this);
             if (!_hasStaged && !_sharedExtractionActive && !_stageAdmissionPending
                 && !_countDispatchPending && !_writeDispatchPending && !_copyDispatchPending
                 && !_copyQueuedForPublication
