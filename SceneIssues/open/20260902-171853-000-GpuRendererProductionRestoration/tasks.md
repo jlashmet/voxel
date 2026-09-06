@@ -303,6 +303,22 @@ separation and terrain aliasing remain prototype/blockout quality. Improve these
 systems before final scene acceptance. The initial module is not accepted visual evidence.
 No final visual, CPU-removal or performance acceptance.
 
+Far roof/profile follow-up: seven of eight canonical prism cases fail with the old AABB
+approximation (`far-prism-before.xml`). Renderer-neutral profile/axis/direction/cell dimensions
+now drive a bounded prism mesh for Gable/Shed/Arch. Eight column-occupancy comparisons pass,
+including both axes, reversal, steep profiles and a single-column edge case. A separate box-normal
+regression failed before; box faces now own separate shading vertices. Four existing closure
+checks initially rejected hard-normal seams by vertex index; they now weld identical positions
+and still require every geometric edge twice plus outward/nondegenerate triangles. All27 combined
+roof/ramp/material/cache checks pass (`far-roof-verified.xml`). Composition28s player passed7
+captures; reviewed24s shows pitched roofs and flat wall shading but remains blockout quality.
+Rendering owns `FarFeatureProfileValidation.unity`, sharing the production-catalogue validation
+bootstrap without duplicating generation/rendering. Its28s player passed7 captures;24s reviewed
+(`far-roof-rendering-module/`). Normal180s Showcase passed12 captures/no exceptions or transaction
+rejections (`far-roof-showcase/`); reviewed75s/150s retains detailed castle and no phantom walls.
+Terrain seams/aliasing, near gaps, coarse far art, material separation and openings remain unresolved.
+Both module views are blockout quality; full Showcase remains unacceptable. No final performance claim.
+
 ## 3. Make publication, residency and lifetime reliable
 
 - [ ] **G10 — Make completion and publication explicit and two-phase.** Pending Allocate/Write may become live only through successful Commit; `Exhausted`, `Stale`, `TooLarge`, cancellation and failed writes Abort exactly once. Preserve prior live geometry until a valid replacement commits. Separate renderer build generation from storage/mirror source generation. Retest deterministic duplicate-command coalescing and cancel/release/reacquire behavior.

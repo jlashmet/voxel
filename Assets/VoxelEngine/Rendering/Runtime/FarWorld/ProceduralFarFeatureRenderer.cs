@@ -348,6 +348,9 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
                     case FarFeatureGeometryShape.Ramp:
                         AppendRamp(vertices, triangles, primitive);
                         break;
+                    case FarFeatureGeometryShape.Prism:
+                        AppendPrism(vertices, triangles, primitive);
+                        break;
                     case FarFeatureGeometryShape.Cylinder:
                     case FarFeatureGeometryShape.Annulus:
                     case FarFeatureGeometryShape.ArcWedge:
@@ -369,6 +372,79 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
             mesh.RecalculateNormals();
             mesh.RecalculateBounds();
             return mesh;
+        }
+
+        private static void AppendPrism(List<Vector3> vertices, List<int> triangles,
+            FarFeatureGeometryPrimitive primitive)
+        {
+            int width = primitive.PrismWidthCells;
+            int height = primitive.PrismHeightCells;
+            // These profiles are piecewise linear under the canonical integer predicates.
+            // Sample cell centres at the ends and either side of the ridge; interpolation
+            // differs by at most one voxel from integer rounding, independent of roof size.
+            var columns = new List<int> { 0, (width - 1) / 2, width / 2, width - 1 };
+            columns.Sort();
+            var top = new List<Vector2>(6);
+            int previous = -1;
+            foreach (int column in columns)
+            {
+                if (column == previous) continue;
+                previous = column;
+                int x = primitive.Direction < 0 ? width - 1 - column : column;
+                int occupied;
+                switch (primitive.PrismProfile)
+                {
+                    case FarFeaturePrismProfile.Gable:
+                        occupied = height - (int)((long)math.abs(2 * x - (width - 1)) * height / width);
+                        break;
+                    case FarFeaturePrismProfile.Shed:
+                        occupied = (int)((long)(x + 1) * height / width);
+                        break;
+                    case FarFeaturePrismProfile.Arch:
+                        int half = width / 2;
+                        occupied = half == 0 ? height : math.clamp(
+                            height - (int)(((long)math.abs(x - half) * height + half - 1) / half) + 1,
+                            0, height);
+                        break;
+                    default: occupied = height; break;
+                }
+                top.Add(new Vector2((column + 0.5f) / width, (float)occupied / height));
+            }
+            top.Insert(0, new Vector2(0, top[0].y));
+            top.Add(new Vector2(1, top[top.Count - 1].y));
+            var profile = new List<Vector2>(top.Count + 2) { Vector2.zero, Vector2.right };
+            for (int i = top.Count - 1; i >= 0; i--) profile.Add(top[i]);
+            int extrusion = primitive.Axis == 0 ? 0 : 2;
+            int horizontal = extrusion == 0 ? 2 : 0;
+            Vector3 Point(Vector2 uv, int end)
+            {
+                float3 result = primitive.Min;
+                result[horizontal] = math.lerp(primitive.Min[horizontal], primitive.Max[horizontal], uv.x);
+                result.y = math.lerp(primitive.Min.y, primitive.Max.y, uv.y);
+                result[extrusion] = end == 0 ? primitive.Min[extrusion] : primitive.Max[extrusion];
+                return ToVector3(result);
+            }
+            void Triangle(int a, int b, int c, bool reverse)
+            {
+                triangles.Add(a); triangles.Add(reverse ? c : b); triangles.Add(reverse ? b : c);
+            }
+            // Caps and side strips have separate vertices so walls cannot smooth roof normals.
+            for (int end = 0; end < 2; end++)
+            {
+                int start = vertices.Count;
+                foreach (Vector2 uv in profile) vertices.Add(Point(uv, end));
+                for (int i = 1; i + 1 < profile.Count; i++)
+                    Triangle(start, start + i, start + i + 1, (end == 0) != (extrusion == 0));
+            }
+            for (int i = 0; i < profile.Count; i++)
+            {
+                int next = (i + 1) % profile.Count;
+                int start = vertices.Count;
+                vertices.Add(Point(profile[i], 0)); vertices.Add(Point(profile[next], 0));
+                vertices.Add(Point(profile[next], 1)); vertices.Add(Point(profile[i], 1));
+                Triangle(start, start + 1, start + 2, extrusion == 0);
+                Triangle(start, start + 2, start + 3, extrusion == 0);
+            }
         }
 
         private static void AppendFrustum(
@@ -457,26 +533,24 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
         {
             Vector3 min = ToVector3(minValue);
             Vector3 max = ToVector3(maxValue);
-            int start = vertices.Count;
-            vertices.Add(new Vector3(min.x, min.y, min.z));
-            vertices.Add(new Vector3(max.x, min.y, min.z));
-            vertices.Add(new Vector3(max.x, max.y, min.z));
-            vertices.Add(new Vector3(min.x, max.y, min.z));
-            vertices.Add(new Vector3(min.x, min.y, max.z));
-            vertices.Add(new Vector3(max.x, min.y, max.z));
-            vertices.Add(new Vector3(max.x, max.y, max.z));
-            vertices.Add(new Vector3(min.x, max.y, max.z));
-
-            int[] local =
+            Vector3[] corners =
             {
-                0, 2, 1, 0, 3, 2,
-                4, 5, 6, 4, 6, 7,
-                0, 1, 5, 0, 5, 4,
-                3, 7, 6, 3, 6, 2,
-                1, 2, 6, 1, 6, 5,
-                0, 4, 7, 0, 7, 3,
+                new(min.x, min.y, min.z), new(max.x, min.y, min.z),
+                new(max.x, max.y, min.z), new(min.x, max.y, min.z),
+                new(min.x, min.y, max.z), new(max.x, min.y, max.z),
+                new(max.x, max.y, max.z), new(min.x, max.y, max.z)
             };
-            for (int i = 0; i < local.Length; i++) triangles.Add(start + local[i]);
+            int[] faces = { 0, 3, 2, 1, 4, 5, 6, 7, 0, 1, 5, 4,
+                            3, 7, 6, 2, 1, 2, 6, 5, 0, 4, 7, 3 };
+            // A box has six planar faces. Sharing its eight corner vertices causes
+            // RecalculateNormals to round masonry edges and introduce diagonal gradients.
+            for (int face = 0; face < faces.Length; face += 4)
+            {
+                int start = vertices.Count;
+                for (int corner = 0; corner < 4; corner++) vertices.Add(corners[faces[face + corner]]);
+                triangles.Add(start); triangles.Add(start + 1); triangles.Add(start + 2);
+                triangles.Add(start); triangles.Add(start + 2); triangles.Add(start + 3);
+            }
         }
 
         private static void AppendCylinder(

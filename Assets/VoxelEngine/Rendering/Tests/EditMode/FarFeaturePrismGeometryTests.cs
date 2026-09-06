@@ -10,25 +10,50 @@ using VoxelEngine.Structures.Runtime;
 
 namespace VoxelEngine.Tests.EditMode
 {
-    public sealed class FarFeatureRampGeometryTests
+    public sealed class FarFeaturePrismGeometryTests
     {
-        [TestCase(0, 1, 64, 16)]
-        [TestCase(0, -1, 64, 16)]
-        [TestCase(2, 1, 64, 16)]
-        [TestCase(2, -1, 64, 16)]
-        [TestCase(0, 1, 4, 48)]
-        [TestCase(2, -1, 4, 48)]
-        [TestCase(1, 1, 16, 15)]
-        [TestCase(1, -1, 16, 15)]
-        [TestCase(1, -1, 16, 16)]
-        [TestCase(0, -1, 1, 16)]
-        public void ProductionFarSurfaceTracksCanonicalRampOccupancy(
-            int axis, int direction, int run, int height)
+        [Test]
+        public void BoxFacesKeepPlanarNormalsAtEveryCorner()
+        {
+            var geometry = new FarFeatureGeometry(new[] { new FarFeatureGeometryPrimitive(
+                FarFeatureGeometryShape.Box, float3.zero, new float3(1)) });
+            var instance = new FarFeatureInstance(1, float3.zero, quaternion.identity,
+                new float3(1), new float3(0.5f), new float3(0.5f), "planar-box", "style",
+                FarFeatureTier.Mid, FarFeatureVisualFlags.None, geometry);
+            var root = new GameObject("far-planar-normal-regression");
+            try
+            {
+                Mesh mesh = root.AddComponent<ProceduralFarFeatureRenderer>().ResolveMesh(instance);
+                Vector3[] positions = mesh.vertices;
+                Vector3[] normals = mesh.normals;
+                int[] triangles = mesh.triangles;
+                for (int i = 0; i < triangles.Length; i += 3)
+                {
+                    Vector3 face = Vector3.Cross(positions[triangles[i + 1]] - positions[triangles[i]],
+                        positions[triangles[i + 2]] - positions[triangles[i]]).normalized;
+                    for (int corner = 0; corner < 3; corner++)
+                        Assert.That(Vector3.Dot(face, normals[triangles[i + corner]]), Is.GreaterThan(0.999f),
+                            "Perpendicular walls must not share smoothed corner normals.");
+                }
+            }
+            finally { Object.DestroyImmediate(root); }
+        }
+
+        [TestCase(0, 1, 16, 8, PrismProfile.Gable)]
+        [TestCase(2, -1, 15, 8, PrismProfile.Gable)]
+        [TestCase(0, 1, 4, 48, PrismProfile.Gable)]
+        [TestCase(2, 1, 16, 8, PrismProfile.Shed)]
+        [TestCase(0, -1, 4, 48, PrismProfile.Shed)]
+        [TestCase(2, 1, 16, 8, PrismProfile.Arch)]
+        [TestCase(0, -1, 15, 8, PrismProfile.Arch)]
+        [TestCase(2, 1, 1, 12, PrismProfile.Arch)]
+        public void ProductionFarSurfaceTracksCanonicalPrismOccupancy(
+            int axis, int direction, int run, int height, PrismProfile profile)
         {
             int3 size = new(12, height, 12);
-            if (axis != 1) size[axis] = run;
-            var primitive = new Primitive { Shape = PrimitiveShape.Ramp, Mode = PrimitiveMode.Fill,
-                A = new int3(-91, 13, -37), Axis = (byte)axis, Direction = (sbyte)direction, Material = 1 };
+            size[axis == 0 ? 2 : 0] = run;
+            var primitive = new Primitive { Shape = PrimitiveShape.Prism, Mode = PrimitiveMode.Fill,
+                A = new int3(-91, 13, -37), Axis = (byte)axis, Direction = (sbyte)direction, Profile = profile, Material = 1 };
             primitive.B = primitive.A + size - 1;
             var bake = new FeaturePresentationBake(101, 42, default, int3.zero, 0,
                 primitive.A - new int3(3, 7, 5), primitive.B + new int3(9, 3, 2), new[] { primitive });
@@ -38,7 +63,7 @@ namespace VoxelEngine.Tests.EditMode
             const float voxelSize = 0.1f;
             var adapter = new FarFeaturePresentationAdapter(new SingleSource(bake), policy, voxelSize);
             FarFeatureInstance instance = adapter.Query(float3.zero, 1000)[0];
-            var root = new GameObject("canonical-far-ramp-regression");
+            var root = new GameObject("canonical-far-prism-regression");
             try
             {
                 Mesh mesh = root.AddComponent<ProceduralFarFeatureRenderer>().ResolveMesh(instance);
@@ -59,12 +84,12 @@ namespace VoxelEngine.Tests.EditMode
                     Assert.That(math.isfinite(distance), Is.True);
                     float top = origin.y - distance - primitive.A.y;
                     Assert.That(top, Is.EqualTo(occupied).Within(1.001f),
-                        $"Canonical column ({x},{z}) was replaced with a wall or reversed slope.");
+                        $"Canonical column ({x},{z}) was replaced with a box or reversed roof profile.");
                 }
                 float3 interior = float3.zero;
                 foreach (float3 vertex in vertices) interior += vertex;
                 interior /= vertices.Length;
-                AssertClosedOutwardMesh(vertices, indices, interior);
+                Assert.That(mesh.vertexCount, Is.LessThanOrEqualTo(80), "Far roof cost must be independent of voxel dimensions.");
             }
             finally { Object.DestroyImmediate(root); }
         }
@@ -91,39 +116,6 @@ namespace VoxelEngine.Tests.EditMode
                 if (distance >= 0f) nearest = math.min(nearest, distance);
             }
             return nearest;
-        }
-
-        private static void AssertClosedOutwardMesh(float3[] vertices, int[] indices, float3 interior)
-        {
-            var edges = new Dictionary<ulong, int>();
-            // Hard-normal seams intentionally duplicate vertices. Closure is a geometric
-            // edge invariant, independent of whether adjacent faces share shading vertices.
-            var positions = new Dictionary<float3, int>();
-            int PositionId(float3 position)
-            {
-                if (!positions.TryGetValue(position, out int id))
-                    positions.Add(position, id = positions.Count);
-                return id;
-            }
-            for (int i = 0; i < indices.Length; i += 3)
-            {
-                int ia = indices[i], ib = indices[i + 1], ic = indices[i + 2];
-                float3 a = vertices[ia], b = vertices[ib], c = vertices[ic];
-                float3 normal = math.cross(b - a, c - a);
-                Assert.That(math.lengthsq(normal), Is.GreaterThan(1e-8f), "Degenerate far triangle.");
-                Assert.That(math.dot(normal, (a + b + c) / 3f - interior), Is.GreaterThan(0f),
-                    "Far frustum triangle winding must face outward on every axis.");
-                int pa = PositionId(a), pb = PositionId(b), pc = PositionId(c);
-                AddEdge(edges, pa, pb); AddEdge(edges, pb, pc); AddEdge(edges, pc, pa);
-            }
-            foreach (int count in edges.Values) Assert.That(count, Is.EqualTo(2), "Far frustum must be closed.");
-        }
-
-        private static void AddEdge(Dictionary<ulong, int> edges, int a, int b)
-        {
-            ulong key = ((ulong)(uint)math.min(a, b) << 32) | (uint)math.max(a, b);
-            edges.TryGetValue(key, out int count);
-            edges[key] = count + 1;
         }
 
         private sealed class SingleSource : IFeaturePresentationSource

@@ -46,6 +46,8 @@ namespace VoxelEngine.Rendering.Api
         TerrainCorridor = 10,
     }
 
+    public enum FarFeaturePrismProfile : byte { Gable = 0, Shed = 1, Arch = 2 }
+
     /// <summary>
     /// One normalized mass in a far-feature geometry resource. X/Z are centered around the
     /// instance origin while Y is measured upward from it, matching the renderer transform.
@@ -60,7 +62,10 @@ namespace VoxelEngine.Rendering.Api
             byte axis = 1,
             FarFeatureFrustum frustum = default,
             sbyte direction = 1,
-            int rampRunCells = 2)
+            int rampRunCells = 2,
+            FarFeaturePrismProfile prismProfile = FarFeaturePrismProfile.Gable,
+            int prismWidthCells = 1,
+            int prismHeightCells = 1)
         {
             if (math.any(max < min)) throw new ArgumentException("Far geometry primitive bounds must be ordered.");
             if (shape == FarFeatureGeometryShape.Frustum)
@@ -85,6 +90,9 @@ namespace VoxelEngine.Rendering.Api
             Frustum = frustum;
             Direction = direction < 0 ? (sbyte)-1 : (sbyte)1;
             RampRunCells = rampRunCells;
+            PrismProfile = prismProfile;
+            PrismWidthCells = math.max(1, prismWidthCells);
+            PrismHeightCells = math.max(1, prismHeightCells);
         }
 
         public FarFeatureGeometryShape Shape { get; }
@@ -94,6 +102,9 @@ namespace VoxelEngine.Rendering.Api
         public FarFeatureFrustum Frustum { get; }
         public sbyte Direction { get; }
         public int RampRunCells { get; }
+        public FarFeaturePrismProfile PrismProfile { get; }
+        public int PrismWidthCells { get; }
+        public int PrismHeightCells { get; }
     }
 
     /// <summary>

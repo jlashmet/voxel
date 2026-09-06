@@ -402,7 +402,10 @@ namespace VoxelEngine.Composition
                     axis,
                     frustum,
                     primitive.Direction,
-                    rampRunCells));
+                    rampRunCells,
+                    (FarFeaturePrismProfile)(byte)primitive.Profile,
+                    primitive.B[primitive.Axis == 0 ? 2 : 0] - primitive.A[primitive.Axis == 0 ? 2 : 0] + 1,
+                    primitive.B.y - primitive.A.y + 1));
             }
 
             return primitives.Count == 0 ? null : new FarFeatureGeometry(primitives.ToArray());
