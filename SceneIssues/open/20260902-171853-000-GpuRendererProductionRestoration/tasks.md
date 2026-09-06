@@ -167,6 +167,17 @@ and prove mirror leases remain owned until real GPU completion, then cover last-
 G10 remains open for remaining transaction work;
 this is no proof of payload correctness, final draw lifetime, complete coverage or performance.
 
+User asks whether the recent far-object/terrain system is active: **yes**. `VoxelShowcase.cs`
+creates `VoxelFarTerrain` at12km and `ShowcaseFarFeatureRuntime`; the latter uses the canonical
+`FeaturePresentationCatalogueBaker` manifest, selection/state adapters and
+`ProceduralFarFeatureRenderer`. Final player log confirms6 terrain rings and1480/1481 selected
+semantic instances at12km. During traversal `hole=0m coverage=False` recurs, despite completed outer
+terrain rings. `HoleRadiusMetres` explicitly closes its cutout while near publication is incomplete.
+This is a near/far integration candidate, not proof that every coarse artifact is GPU meshing.
+Also audit semantic near handoff: Showcase submits all selected tiers (including Mid) without a
+visible near-residency filter; distinguish intended fallback from duplicate nearby presentation.
+Investigate this existing system before replacing far presentation; preserve its content/range.
+
 ## 1. Get the actual GPU path running now
 
 - [ ] **G01 — Reconcile the retained production GPU implementation.** Inspect current code and historical merge parent `a0ac0f5e...`; retain compatible proven changes rather than blindly restoring old files. Trace the real scheduler -> mirror -> extraction -> page publication -> URP draw route. Record concrete compile/runtime blockers and fix only prerequisites to this route. Do not begin another CPU visual-polish cycle.
