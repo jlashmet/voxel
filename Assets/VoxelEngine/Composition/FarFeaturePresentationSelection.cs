@@ -237,6 +237,18 @@ namespace VoxelEngine.Composition
             for (int i = 0; i < bakes.Count; i++)
             {
                 FeaturePresentationBake bake = bakes[i];
+                FarFeatureGeometry geometry = GeometryFor(bake);
+                if (geometry == null)
+                {
+                    // Bounds on carve/paint/corridor operations describe where an operation acts;
+                    // they are not positive geometry. Publishing them with null geometry asks the
+                    // renderer for its generic fallback box, which turns operation volumes into
+                    // giant solid slabs. Do not create a render instance unless this bake projects
+                    // actual Fill/FillIfEmpty geometry.
+                    _selection.Forget(bake.SourceId);
+                    continue;
+                }
+
                 BoundsFor(bake, out float3 position, out float3 center, out float3 extents, out float3 scale);
                 FarFeatureImportance importance = _importance?.Invoke(bake) ?? FarFeatureImportance.Default;
                 FarFeatureTier tier = _selection.Select(
@@ -258,7 +270,7 @@ namespace VoxelEngine.Composition
                     StyleKeyFor(bake),
                     tier,
                     FlagsFor(importance),
-                    GeometryFor(bake),
+                    geometry,
                     MaterialFor(bake)));
             }
 
@@ -310,7 +322,7 @@ namespace VoxelEngine.Composition
             for (int i = 0; i < bake.PrimitiveCount; i++)
             {
                 Primitive primitive = bake.GetPrimitive(i);
-                if (primitive.Mode != PrimitiveMode.Fill && primitive.Mode != PrimitiveMode.FillIfEmpty)
+                if (!ProjectsPositiveGeometry(primitive.Mode))
                     continue;
 
                 primitive.Bounds(out int3 primitiveMinVoxel, out int3 primitiveMaxVoxel);
@@ -364,7 +376,7 @@ namespace VoxelEngine.Composition
             for (int i = 0; i < bake.PrimitiveCount; i++)
             {
                 Primitive primitive = bake.GetPrimitive(i);
-                if (primitive.Mode == PrimitiveMode.Carve) continue;
+                if (!ProjectsPositiveGeometry(primitive.Mode)) continue;
                 return $"m{primitive.Material:X2}-s{primitive.SurfaceStyle:X4}-c{primitive.Coating:X2}";
             }
             return "empty";
@@ -375,11 +387,14 @@ namespace VoxelEngine.Composition
             for (int i = 0; i < bake.PrimitiveCount; i++)
             {
                 Primitive primitive = bake.GetPrimitive(i);
-                if (primitive.Mode == PrimitiveMode.Fill || primitive.Mode == PrimitiveMode.FillIfEmpty)
+                if (ProjectsPositiveGeometry(primitive.Mode))
                     return primitive.Material;
             }
             return 0;
         }
+
+        private static bool ProjectsPositiveGeometry(PrimitiveMode mode) =>
+            mode == PrimitiveMode.Fill || mode == PrimitiveMode.FillIfEmpty;
 
         private static FarFeatureVisualFlags FlagsFor(FarFeatureImportance importance)
         {
