@@ -6,23 +6,25 @@ Deliver production-quality `Assets/Scenes/VoxelShowcase.unity` through GPU rende
 
 ## Retained evidence
 
-Worktree `/private/tmp/voxel-gpu-restoration`, branch `gpu-rendering-agent-1-resume`, HEAD `512a5f746`. Local harness/tests/screenshots authorized; last requested push reached `origin/fixes/agent-1` at `64b2921a3`. Current work stays local.
+Worktree `/private/tmp/voxel-gpu-restoration`, branch `gpu-rendering-agent-1-resume`, HEAD `4df95a68d`. Local harness/tests/screenshots authorized; last requested push reached `origin/fixes/agent-1` at `64b2921a3`. Current work stays local.
 
 All solid LOD steps have GPU implementations. Large coarse requests still lack bounded source streaming. Water migration and legacy CPU renderer removal remain open.
 
 ## Current coverage repair
 
-Far material collapse is repaired in `7bf5b0f09`: per-primitive resolved slots restore brown roofs. Thirty-one focused tests, both module players and 180s/11-capture Showcase passed behavior gates. Reviewed Showcase 75.2s/150.2s remains unacceptable: simplified buildings/terrain and incomplete castle/frontier. Final 62 step4/three step8 publications, 612 missing-visible and 4,659,051 directory refusals. Detailed evidence is in tasks.md.
+Far material separation is repaired in `7bf5b0f09`. Previous Showcase remained unacceptable with incomplete castle/frontier coverage and 4,659,051 directory refusals. See tasks.md for exact evidence.
 
 H1: whole-footprint source retention prevents coverage from converging under capacity pressure. H2: recovery merely needs more polls. Admission inspection confirms a 66³ padded request protects 287,496 bricks until complete coverage; the mirror has 58,144 mixed slots. Thus H2 cannot explain all configurations: an all-mixed footprint cannot fit, regardless of polling. This does not prove every stalled Showcase footprint is all mixed.
 
 Selected direction: accumulate GPU summaries from bounded source portions, retain summary/generation validity, and release each source lease only after ordered GPU completion. No CPU-derived geometry or production blocking readback, larger budgets, shorter distance or hidden sources.
 
-Summary accumulation landed in `512a5f746`: 35 GPU tests preserve summaries through slot reuse and mesh released adjacent sources. Coarse module passed 60s/six captures; 10s/50s remains prototype quality.
+Summary accumulation landed in `512a5f746`: 35 GPU tests and the coarse module passed; visual quality remains prototype.
 
-Current change separates whole-request edit-watch readers/epochs from source-demand readers. Existing full-coverage callers acquire/release both. New rectangular source portions are limited to one 1,024-brick summary dispatch and use the existing recovery scan. Tests cover edits after portion release, unrelated edits, shared watches, retired-world releases, negative-coordinate range boundaries and overlap. Existing queued cancellation/lifetime tests remain required. All 25 focused tests passed, including actual ready-record eviction after source release. Coarse player passed 60s/six captures; reviewed 10s/50s remains prototype/blockout quality.
+Edit-watch/source-range separation landed in `4df95a68d`; 25 focused tests and the coarse module passed.
 
-Next integrate step8 accumulation into existing count lanes, reusing their HlodSummaries allocation. Admit whole-request watches before preparation; fill bounded source ranges under ordered GPU leases before count/write. Preserve cancellation/world teardown and unknown-halo rejection. Prove a production request larger than mirror capacity converges, including edits between portions. Step4 ordinary density still needs a separate bounded preparation solution. Do not claim the scheduler capacity defect fixed by the offset primitive alone.
+Current integration admits step8 with a whole-request edit watch and no full source retention. Existing count lanes accumulate contiguous bounded rows into their existing HlodSummaries buffer. Each portion holds demand, active region/brick readers and the mirror allocation until an asynchronous callback on CPU-written request metadata. No summary payload readback. Lanes stay immutable during preparation; stale/cancelled lanes are discarded after completion, and retired worlds defer buffer disposal to the callback. Prepared step8 count/write skips dense source lookup/re-summarization. Other LOD steps retain their existing paths.
+
+Verification: 42 existing regressions passed. Two new actual asynchronous lane tests initially stalled because EditMode did not advance player frame-budget guards; explicit test slices corrected the fixture. All 16 queue/lifetime tests now pass, including portion-to-publication, retired in-flight disposal, rejection after editing a completed portion, and real geometry from 4,096 mixed bricks through a 1,024-slot mirror. Coarse player passed 60s/six captures; reviewed 10s/50s remains prototype/blockout quality. Showcase completed 180s/11 captures/exit 0: reviewed 75.3s/150.3s remains unacceptable, though upper castle gaps are filled. Final directory refusals zero, 567 missing-visible, 84 step4/three step8 publications. Step4 still retains whole footprints. Next discriminate count-lane contention from remaining source-demand pressure before further coverage changes. Water/CPU-only removal remain required; no performance acceptance.
 
 ## Remaining gates
 

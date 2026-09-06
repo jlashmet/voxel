@@ -291,6 +291,117 @@ namespace VoxelEngine.Rendering.Tests.EditMode
 
         }
 
+        [UnityTest]
+        public IEnumerator StepEightLaneAccumulatesPortionsBeforePublishing() => ValidateSummaryLane(false);
+
+        [UnityTest]
+        public IEnumerator RetiredSummaryLaneRetainsBuffersUntilItsGpuCallback() => ValidateSummaryLane(true);
+
+        [UnityTest]
+        public IEnumerator StepEightSourceFootprintCanExceedMirrorCapacity() => ValidateSummaryLane(false, true);
+
+        [UnityTest]
+        public IEnumerator EditToCompletedSummaryPortionRejectsTheWholeCandidate() => ValidateSummaryLane(false, false, true);
+
+        private IEnumerator ValidateSummaryLane(bool retire, bool pressure = false, bool edit = false)
+        {
+            _first.Dispose();
+            if (pressure)
+            {
+                _second.Dispose(); _second = null;
+                // Configure a smaller instance of the production mirror before any consumer acquires
+                // it. The renderer must stream 4,096 authoritative mixed bricks through 1,024 slots.
+                Coordinator.GetField("s_Mirror", BindingFlags.Static | BindingFlags.NonPublic)
+                    .SetValue(null, new GpuVoxelBrickMirror(1024));
+            }
+            int core = pressure ? 16 : 8, edge = core + 2;
+            _first = GpuSurfaceExtractionContext.TryCreate(core, 2, 1024, edge);
+            Assert.NotNull(_first);
+            using var storage = VoxelEngineBootstrap.CreateStorage(edit ? 2 : 1, pressure ? 4096 : 1);
+            storage.Residency.EnsureRegionResident(int3.zero);
+            if (pressure)
+            {
+                for (int z = 0; z < core; z++)
+                for (int y = 0; y < core; y++)
+                for (int x = 0; x < core; x++)
+                {
+                    int3 block = new(x, y, z);
+                    storage.Mutations.SetWholeBlock(block, 1, false);
+                    Assert.That(storage.Mutations.TryBeginPartialBlock(block, 2, false, out var mutation), Is.True);
+                    Assert.That(mutation.SetMaterial(0, 2), Is.True);
+                    storage.Mutations.CompletePartialBlock(ref mutation, true);
+                }
+                Assert.That(core * core * core, Is.GreaterThan(_first.Mirror.SlotCapacity));
+            }
+            storage.PublishAllResidentRegions();
+            GpuSurfaceMirrorCoordinator.PrepareFrame(storage.Reads, storage.Changes, Time.frameCount, 1.0);
+            int handle = GpuSurfaceMirrorCoordinator.PrepareChunkHandle(int3.zero, 8, out ulong generation);
+            var request = new GpuChunkExtraction(int3.zero, new int3(-1), 8, 0.1f,
+                handle: handle, generation: generation);
+            ulong world = GpuSurfaceMirrorCoordinator.RequestEditWatch(new int3(-1), edge);
+            foreach (var pair in new[] { ("_hasStaged", (object)true), ("_coverageRequested", (object)true),
+                ("_staged", (object)request), ("_coverageWorldEpoch", (object)world),
+                ("_coverageEpoch", (object)GpuSurfaceMirrorCoordinator.CoverageEpochFor(new int3(-1), edge)) })
+                typeof(GpuSurfaceExtractionContext).GetField(pair.Item1, Fields).SetValue(_first, pair.Item2);
+            Assert.That(GpuSurfaceMirrorCoordinator.TryDispatchCountBatch(_first, 0, _first.Extractor,
+                _first.Tables, request, Time.frameCount), Is.True);
+            object lane = FirstLane();
+            bool sawSubmission = false, completed = false, edited = false;
+            int frame = Time.frameCount;
+            double deadline = Time.realtimeSinceStartupAsDouble + 5.0;
+            while (Time.realtimeSinceStartupAsDouble < deadline)
+            {
+                yield return null;
+                if (edit && !edited && (int)Get(lane, "_summaryCursor") > 0)
+                {
+                    // Edit the first completed Z plane, including its previously absent halo.
+                    storage.Residency.EnsureRegionResident(new int3(-1));
+                    storage.PublishAllResidentRegions();
+                    edited = true;
+                }
+                // EditMode does not advance Time.frameCount like a player. Advance one bounded
+                // scheduler slice explicitly, as existing queue tests do for dispatch admission.
+                Coordinator.GetField("s_LastExtractionDispatchFrame", BindingFlags.Static | BindingFlags.NonPublic)
+                    .SetValue(null, -1);
+                lane.GetType().GetField("_lastSummaryFrame", Fields).SetValue(lane, -1);
+                GpuSurfaceMirrorCoordinator.PrepareFrame(storage.Reads, storage.Changes, ++frame, 1.0);
+                if ((bool)Get(lane, "SummarySubmitted"))
+                {
+                    sawSubmission = true;
+                    Assert.That(GpuSurfaceMirrorCoordinator.DemandFootprintCount, Is.EqualTo(1),
+                        "Only the active source portion is demanded, not the entire watched footprint.");
+                    if (retire)
+                    {
+                        ComputeBuffer requests = (ComputeBuffer)Get(lane, "SummaryRequests");
+                        _first.Dispose();
+                        using var replacement = VoxelEngineBootstrap.CreateStorage(1, 1);
+                        GpuSurfaceMirrorCoordinator.PrepareFrame(replacement.Reads, replacement.Changes, Time.frameCount + 1, 1.0);
+                        Assert.That(requests.IsValid(), Is.True, "Retirement must not free an in-flight request buffer.");
+                        while (requests.IsValid() && Time.realtimeSinceStartupAsDouble < deadline) yield return null;
+                        Assert.That(requests.IsValid(), Is.False);
+                        Assert.That(GpuSurfaceMirrorCoordinator.ActiveRegionCount, Is.Zero);
+                        yield break;
+                    }
+                }
+                if (_first.TryTakePagedBatch(out _, out bool failed))
+                {
+                    Assert.That(failed, Is.EqualTo(edit));
+                    if (pressure)
+                    {
+                        var counters = new uint[GpuSurfaceExtractor.BatchHeaderWords + GpuSurfaceExtractor.BatchRecordWords];
+                        ((ComputeBuffer)Get(lane, "Counters")).GetData(counters, 0, 0, counters.Length);
+                        Assert.That(counters[6], Is.GreaterThan(0), "Capacity-pressure case must produce real geometry.");
+                    }
+                    if (edit) Assert.That(edited, Is.True);
+                    completed = true;
+                    break;
+                }
+            }
+            Assert.That(sawSubmission, Is.True, "Test must execute real asynchronous summary work.");
+            Assert.That(completed, Is.True, "The bounded lane must reach publication within the test deadline.");
+            Assert.That(GpuSurfaceMirrorCoordinator.DemandFootprintCount, Is.Zero);
+        }
+
         private static void Queue(GpuSurfaceExtractionContext context, int x)
         {
             Assert.That(GpuSurfaceMirrorCoordinator.TryDispatchCountBatch(context, 0,

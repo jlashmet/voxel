@@ -909,7 +909,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                                          GpuChunkExtraction[] requests,
                                          int recordCount,
                                          ComputeBuffer batchCounters,
-                                         CountBatchResources resources)
+                                         CountBatchResources resources,
+                                         bool summariesPrepared = false)
         {
             ThrowIfDisposed();
             if (mirror == null) throw new ArgumentNullException(nameof(mirror));
@@ -924,6 +925,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 throw new ArgumentOutOfRangeException(nameof(recordCount));
 
             resources.UsesBlockHlod = requests[0].SourceStep == 8;
+            if (summariesPrepared && !resources.UsesBlockHlod)
+                throw new ArgumentException("Prepared summaries require step-eight extraction.", nameof(summariesPrepared));
             for (int i = 1; i < recordCount; i++)
                 if ((requests[i].SourceStep == 8) != resources.UsesBlockHlod)
                     throw new ArgumentException("Coarse and regular extraction require separate lanes.");
@@ -952,7 +955,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             }
             resources.StageProfiles(requests, recordCount);
             resources.Chunks.SetData(resources.Descriptors, 0, 0, recordCount);
-            resources.PreparedCache.Dispatch(mirror, requests, recordCount);
+            if (!summariesPrepared) resources.PreparedCache.Dispatch(mirror, requests, recordCount);
             batchCounters.SetData(resources.CounterZeros, 0, 0,
                                   BatchHeaderWords + recordCount * BatchRecordWords);
 
@@ -972,10 +975,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
             if (resources.UsesBlockHlod)
             {
-                GpuBlockHlodSummary.DispatchDense(resources.HlodSummaryShader, mirror,
-                    resources.PreparedCache.DenseEntries, resources.HlodSummaries,
-                    resources.PreparedCache.BricksPerRequest, recordCount,
-                    SolidMaterialClassification.WaterMaterialMask);
+                if (!summariesPrepared)
+                    GpuBlockHlodSummary.DispatchDense(resources.HlodSummaryShader, mirror,
+                        resources.PreparedCache.DenseEntries, resources.HlodSummaries,
+                        resources.PreparedCache.BricksPerRequest, recordCount,
+                        SolidMaterialClassification.WaterMaterialMask);
                 int core = BrickCacheEdge - 2, total = core * core * core;
                 for (int start = 0; start < total; start += GpuBlockHlodMesher.MaximumBricksPerSlice)
                     GpuBlockHlodMesher.Count(resources.HlodMeshShader, resources.HlodSummaries,

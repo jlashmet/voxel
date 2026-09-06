@@ -24,6 +24,32 @@ Each completed item needs exact feature SHA, request/run IDs, relevant executed 
 
 ## Current local evidence (2026-09-06)
 
+Asynchronous step8 integration after `4df95a68d`: whole-request edit watch replaces full-footprint
+source admission. Existing count lanes prepare contiguous bounded row portions directly into their
+existing summary buffers. Each portion owns source demand, active brick/region protection and mirror
+allocation until completion-only asynchronous feedback on CPU-written request metadata. No summary
+payload/geometry readback. Cancellation/stale requests drain submitted portions before lane reset;
+world retirement defers buffer disposal to the callback. Prepared step8 count/write skips dense
+source lookup and re-summarization; other LOD paths are unchanged.
+`gpu-summary-lanes.xml`: 42 existing tests passed/exit 0/21s. New asynchronous fixtures initially
+stalled on EditMode's non-advancing frame guards; explicit bounded test slices corrected orchestration.
+`gpu-summary-lane-lifetime-fixed.xml`: 14 queue/lifetime tests passed/exit 0/17s.
+`gpu-summary-lane-pressure.xml`: 16 passed/exit 0/17s, including real geometry from 4,096 mixed
+source bricks through a 1,024-slot production mirror, rejection after editing a completed portion,
+and deferred in-flight world disposal. These suites overlap; do not add their totals.
+`gpu-summary-lanes-module/`: 60s/six captures/terminal exit 0; both distance-band markers passed.
+Reviewed exact 10s/50s: geometry present, lumpy/stepped terrain remains **prototype/blockout quality**.
+`gpu-summary-lanes-showcase/`: 180s/11 captures/terminal exit 0. Reviewed exact 75.3s against
+`far-material-slots-showcase/` 75.2s: upper castle gaps filled, roof separation preserved. Reviewed
+75.3s/150.3s remains **unacceptable**: simplified houses/terrain, sparse frontier and incomplete
+coverage. Final 567 missing-visible; 462 step1/564 step2/84 step4/three step8 publications.
+Directory refusals zero (prior 4,659,051); mixed 16,250/58,144, ready records 721,677, pending 312,
+demand 12, directory probes 15,343,105. No slot refusals. This confirms bounded step8 source reuse,
+not full-scene convergence: step8 publication remains low and fine-layer throughput needs checking.
+Next discriminate count-lane contention from remaining whole-footprint demand pressure. Exact source
+copies/hashes retained with players. Instrumented timings are diagnostic only; no performance acceptance.
+
+
 Source lifetime preparation after `512a5f746`: separated whole-request edit-watch reference counts
 and epochs from source-demand reference counts. Existing full-coverage callers retain both;
 summary streaming can watch released source portions without protecting them from eviction.

@@ -172,6 +172,110 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             {
                 OutcomeCallback = ReceiveOutcome;
                 FailedSubmissionCallback = ReceiveFailedSubmission;
+                SummaryCallback = ReceiveSummary;
+            }
+
+            internal bool PreparingSummaries, SummarySubmitted, SummaryFailed;
+            private int _summaryRecord, _summaryCursor, _summaryScan, _summaryCount;
+            private bool _summaryIncomplete, _summaryDemand;
+            private int3 _summaryOrigin, _summaryExtent;
+            private ulong _summaryWorld;
+            private GpuVoxelBrickMirror _summaryMirror;
+            private int _lastSummaryFrame = -1;
+            internal ComputeBuffer SummaryRequests;
+            private readonly int4[] _summaryRequests = new int4[GpuBlockHlodSummary.MaximumBlocksPerDispatch];
+            private readonly Action<AsyncGPUReadbackRequest> SummaryCallback;
+
+            internal bool AdvanceSummaryPreparation(int frame)
+            {
+                if (!SystemInfo.supportsAsyncGPUReadback)
+                    throw new InvalidOperationException("GPU summary preparation requires asynchronous completion.");
+                PreparingSummaries = true;
+                if (SummarySubmitted || SummaryFailed) return false;
+                if (_summaryRecord >= Count) return true;
+                if (_lastSummaryFrame == frame) return false;
+                _lastSummaryFrame = frame;
+                if (s_Storage == null) return false;
+                Resources.PrepareHlod();
+                int edge = PrefixExtractor.BrickCacheEdge;
+                int blocks = edge * edge * edge;
+                GpuChunkExtraction request = Requests[_summaryRecord];
+                if (!_summaryDemand)
+                {
+                    // Whole X rows within one Z plane are contiguous in the final summary buffer.
+                    int y = (_summaryCursor / edge) % edge, z = _summaryCursor / (edge * edge);
+                    int rows = Math.Min(edge - y, GpuBlockHlodSummary.MaximumBlocksPerDispatch / edge);
+                    _summaryOrigin = request.BrickCacheOrigin + new int3(0, y, z);
+                    _summaryExtent = new int3(edge, rows, 1);
+                    _summaryCount = edge * rows;
+                    _summaryWorld = RequestSourceRange(_summaryOrigin, _summaryExtent);
+                    _summaryDemand = true;
+                }
+                int3 coreMax = request.ChunkOriginVoxel + new int3(PrefixExtractor.CellsPerAxis * request.SourceStep);
+                if (!CoversSourceRange(_summaryOrigin, _summaryExtent, request.ChunkOriginVoxel,
+                        coreMax, s_Storage.Version, ref _summaryScan, ref _summaryIncomplete)) return false;
+                if (!TryReserveExtractionDispatch(frame)) return false;
+                SummaryRequests ??= new ComputeBuffer(GpuBlockHlodSummary.MaximumBlocksPerDispatch, 16);
+                for (int i = 0; i < _summaryCount; i++)
+                    _summaryRequests[i] = new int4(_summaryOrigin + new int3(i % edge, i / edge, 0), 1);
+                SummaryRequests.SetData(_summaryRequests, 0, 0, _summaryCount);
+                _summaryMirror = s_Mirror;
+                _summaryMirror.RetainSubmission();
+                ChangeActiveFootprint(_summaryOrigin, _summaryExtent, 1);
+                ChangeActiveRegionReaders(_summaryOrigin, _summaryExtent, 1);
+                SummarySubmitted = true;
+                bool issued = false;
+                try
+                {
+                    GpuBlockHlodSummary.Dispatch(Resources.HlodSummaryShader, _summaryMirror,
+                        SummaryRequests, Resources.HlodSummaries, _summaryCount,
+                        SolidMaterialClassification.WaterMaterialMask, _summaryRecord * blocks + _summaryCursor);
+                    issued = true;
+                }
+                finally
+                {
+                    SummaryFailed = !issued;
+                    // Completion-only observation of CPU-written request metadata. No occupancy,
+                    // material, geometry or summary payload is transferred to the host.
+                    AsyncGPUReadback.Request(SummaryRequests, sizeof(uint), 12, SummaryCallback);
+                }
+                return false;
+            }
+
+            private void ReceiveSummary(AsyncGPUReadbackRequest request)
+            {
+                SummaryFailed |= request.hasError;
+                if (_summaryWorld == s_ResourceWorldEpoch)
+                {
+                    ChangeActiveFootprint(_summaryOrigin, _summaryExtent, -1);
+                    ChangeActiveRegionReaders(_summaryOrigin, _summaryExtent, -1);
+                }
+                _summaryMirror.ReleaseSubmission();
+                _summaryMirror = null;
+                SummarySubmitted = false;
+                ReleaseSummaryDemand();
+                if (Retired) { ReleaseBuffers(); return; }
+                _summaryCursor += _summaryCount;
+                int edge = Resources.BrickCacheEdge;
+                if (_summaryCursor == edge * edge * edge) { _summaryCursor = 0; _summaryRecord++; }
+            }
+
+            private void ReleaseSummaryDemand()
+            {
+                if (_summaryDemand) ReleaseSourceRange(_summaryOrigin, _summaryExtent, _summaryWorld);
+                _summaryDemand = false;
+                _summaryScan = 0;
+                _summaryIncomplete = false;
+            }
+
+            internal void ResetSummaryPreparation()
+            {
+                if (SummarySubmitted) throw new InvalidOperationException("Cannot reset an in-flight summary portion.");
+                ReleaseSummaryDemand();
+                PreparingSummaries = false;
+                SummaryFailed = false;
+                _summaryRecord = _summaryCursor = _summaryCount = 0;
+                _lastSummaryFrame = -1;
             }
 
             private void ReceiveFailedSubmission(AsyncGPUReadbackRequest request)
@@ -198,6 +302,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 ReleaseSubmissionResources();
                 Outcomes?.Release(); Outcomes = null;
                 Counters?.Release(); Counters = null;
+                ResetSummaryPreparation();
+                SummaryRequests?.Dispose(); SummaryRequests = null;
                 Resources?.Dispose(); Resources = null;
                 LayoutExtractor = null;
             }
@@ -387,7 +493,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             for (int i = 0; i < s_CountBatchLanes.Length; i++)
             {
                 CountBatchLane candidate = s_CountBatchLanes[i];
-                if (candidate.Submitted || candidate.Count >= CountBatchCapacity) continue;
+                if (candidate.Submitted || candidate.PreparingSummaries || candidate.Count >= CountBatchCapacity) continue;
                 if (candidate.Count > 0 && !extractor.HasSameBatchLayout(candidate.PrefixExtractor))
                     continue;
                 // Prefer an already configured lane. Retaining each active ring's layout avoids
@@ -428,7 +534,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             // compacted: their immutable descriptors and GPU offsets are already in flight.
             foreach (CountBatchLane lane in s_CountBatchLanes)
             {
-                if (lane == null || lane.Submitted) continue;
+                if (lane == null || lane.Submitted || lane.PreparingSummaries) continue;
                 for (int record = lane.Count - 1; record >= 0; record--)
                     if (ReferenceEquals(lane.Contexts[record], context))
                         RemoveQueuedRecord(lane, record);
@@ -497,6 +603,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 lane.Tokens[record] = 0;
                 lane.Requests[record] = default;
             }
+            lane.ResetSummaryPreparation();
             lane.OutcomeReady = false;
             lane.OutcomeFailed = false;
             lane.Submitted = false;
@@ -511,6 +618,21 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private static void SealCountBatch(CountBatchLane lane)
         {
             if (lane == null || lane.Count == 0 || lane.Submitted) return;
+            if (lane.PreparingSummaries)
+            {
+                if (lane.SummarySubmitted) return;
+                bool stale = lane.SummaryFailed;
+                for (int record = 0; record < lane.Count; record++)
+                    stale |= lane.Contexts[record] == null
+                        || !lane.Contexts[record].IsCurrentBatchRequest(lane.Tokens[record]);
+                if (stale)
+                {
+                    for (int record = 0; record < lane.Count; record++)
+                        lane.Contexts[record]?.FailPagedBatch(lane.Tokens[record]);
+                    ResetCountBatchLane(lane);
+                    return;
+                }
+            }
             for (int record = lane.Count - 1; record >= 0; record--)
                 if (lane.Contexts[record] == null
                     || !lane.Contexts[record].IsCurrentBatchRequest(lane.Tokens[record]))
@@ -523,6 +645,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 throw new InvalidOperationException(
                     "Production GPU extraction requires the GPU-owned page arena.");
             int frame = Time.frameCount;
+            if (lane.Requests[0].SourceStep == 8 && !lane.AdvanceSummaryPreparation(frame)) return;
 
             // Submission is not completion. Without an in-flight bound, GPU-only publication can
             // enqueue several expensive count/write chains ahead of rendering; the main and render
@@ -546,7 +669,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 s_PageArena.FlushHandleCommands(frame);
                 lane.PrefixExtractor.DispatchCountBatch(
                     s_Mirror, lane.Tables, lane.Requests, lane.Count,
-                    lane.Counters, lane.Resources);
+                    lane.Counters, lane.Resources, summariesPrepared: lane.PreparingSummaries);
                 lane.PrefixExtractor.PrefixCountBatch(
                     lane.Counters, lane.Count,
                     SurfaceGeometryArena.VertexAlignment,
@@ -632,7 +755,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                     lane.Contexts[record]?.FailPagedBatch(lane.Tokens[record]);
                 // A world may retire while feedback is in flight. Its cached callback owns
                 // buffer disposal until the copy completes; no teardown wait enters the frame.
-                if (lane.Submitted && !lane.OutcomeReady)
+                if ((lane.Submitted && !lane.OutcomeReady) || lane.SummarySubmitted)
                     lane.Retired = true;
                 else
                     lane.ReleaseBuffers();
@@ -1318,13 +1441,15 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             }
         }
 
-        private static void ChangeActiveRegionReaders(int3 brickCacheOrigin, int brickCacheEdge,
-                                                      int delta)
+        private static void ChangeActiveRegionReaders(int3 brickCacheOrigin, int brickCacheEdge, int delta) =>
+            ChangeActiveRegionReaders(brickCacheOrigin, new int3(brickCacheEdge), delta);
+
+        private static void ChangeActiveRegionReaders(int3 brickCacheOrigin, int3 extent, int delta)
         {
-            if (brickCacheEdge <= 0 || delta == 0) return;
+            if (math.any(extent <= 0) || delta == 0) return;
             int shift = VoxelReadGrid.BlocksPerRegionEdgeLog2;
             int3 first = brickCacheOrigin >> shift;
-            int3 last = (brickCacheOrigin + new int3(brickCacheEdge - 1)) >> shift;
+            int3 last = (brickCacheOrigin + extent - 1) >> shift;
             for (int z = first.z; z <= last.z; z++)
             for (int y = first.y; y <= last.y; y++)
             for (int x = first.x; x <= last.x; x++)
@@ -1337,11 +1462,13 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             }
         }
 
-        private static void ChangeActiveFootprint(int3 brickCacheOrigin, int brickCacheEdge,
-                                                  int delta)
+        private static void ChangeActiveFootprint(int3 brickCacheOrigin, int brickCacheEdge, int delta) =>
+            ChangeActiveFootprint(brickCacheOrigin, new int3(brickCacheEdge), delta);
+
+        private static void ChangeActiveFootprint(int3 brickCacheOrigin, int3 extent, int delta)
         {
-            if (brickCacheEdge <= 0 || delta == 0) return;
-            var footprint = new ActiveFootprint(brickCacheOrigin, brickCacheEdge);
+            if (math.any(extent <= 0) || delta == 0) return;
+            var footprint = new ActiveFootprint(brickCacheOrigin, extent);
             s_ActiveFootprints.TryGetValue(footprint, out int readers);
             readers += delta;
             if (readers > 0) s_ActiveFootprints[footprint] = readers;
