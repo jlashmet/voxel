@@ -21,7 +21,7 @@ namespace Game.Application.Runtime
     /// Local application coordinator. It serializes frontend intent and delegates all gameplay/session
     /// authority to owning systems. It never loads scenes, opens sockets, pauses simulation time or resolves outcomes.
     /// </summary>
-    public sealed class ApplicationFlowCoordinator : IDisposable
+    public sealed partial class ApplicationFlowCoordinator : IDisposable
     {
         private readonly IGameSessionControl _session;
         private readonly ISessionSaveCatalog _saves;
@@ -127,6 +127,8 @@ namespace Game.Application.Runtime
         {
             ThrowIfDisposed();
             if (!CanStartFrontendOperation(out ApplicationOperationResult rejected)) return rejected;
+            if (_formation is IAsyncSessionFormationService asynchronous)
+                return BeginFormation(() => asynchronous.BeginHost(request), request.SessionId, isJoin: false);
             return FormSession(_formation.Host(request));
         }
 
@@ -134,6 +136,8 @@ namespace Game.Application.Runtime
         {
             ThrowIfDisposed();
             if (!CanStartFrontendOperation(out ApplicationOperationResult rejected)) return rejected;
+            if (_formation is IAsyncSessionFormationService asynchronous)
+                return BeginFormation(() => asynchronous.BeginJoin(request), request.Admission.SessionId, isJoin: true);
             ApplicationOperationResult result = FormSession(_formation.Join(request));
             if (result.Succeeded) _joinedPartyAwaitingStart = true;
             return result;
@@ -142,6 +146,8 @@ namespace Game.Application.Runtime
         public ApplicationOperationResult RequestPartyStart()
         {
             ThrowIfDisposed();
+            if (_pendingFormation != null)
+                return Reject(ApplicationFailure.Busy, "Session admission is still pending.");
             if (_lifecycle != ApplicationLifecycle.FrontEnd || !_activeFormation.Succeeded || !_localMemberId.IsValid)
                 return Reject(ApplicationFailure.InvalidState, "No formed party is available to start.");
             if (_operationInProgress) return Reject(ApplicationFailure.Busy, "Another application operation is in progress.");
@@ -156,9 +162,11 @@ namespace Game.Application.Runtime
         {
             ThrowIfDisposed();
             if (_operationInProgress) return Reject(ApplicationFailure.Busy, "Another application operation is in progress.");
+            if (_pendingFormation != null) return LeavePendingFormation();
             if (_lifecycle != ApplicationLifecycle.InGame &&
                 _lifecycle != ApplicationLifecycle.StartingSession &&
-                !(_lifecycle == ApplicationLifecycle.FrontEnd && _activeFormation.Succeeded))
+                !(_lifecycle == ApplicationLifecycle.FrontEnd &&
+                  (_localMemberId.IsValid || _screen == ApplicationScreen.Error)))
             {
                 return Reject(ApplicationFailure.InvalidState, "There is no active game or party to leave.");
             }
@@ -188,6 +196,7 @@ namespace Game.Application.Runtime
             if (_operationInProgress) return Reject(ApplicationFailure.Busy, "Another application operation is in progress.");
 
             _operationInProgress = true;
+            string formationWarning = CancelPendingFormation();
             UnwindUi();
             string warning = LeavePartyIfPresent();
             GameSessionOperationResult shutdown = ShutdownIfActive();
@@ -199,6 +208,8 @@ namespace Game.Application.Runtime
 
             if (!shutdown.Succeeded)
                 return Reject(ApplicationFailure.TeardownFailed, shutdown.Diagnostic);
+            if (!string.IsNullOrEmpty(formationWarning))
+                return Reject(ApplicationFailure.TeardownFailed, formationWarning);
             ClearFailure();
             if (!string.IsNullOrEmpty(warning)) _detail = warning;
             return ApplicationOperationResult.Success();
@@ -208,6 +219,8 @@ namespace Game.Application.Runtime
         {
             ThrowIfDisposed();
             if (elapsedMilliseconds < 0) throw new ArgumentOutOfRangeException(nameof(elapsedMilliseconds));
+
+            if (_pendingFormation != null) return PollPendingFormation();
 
             if (_lifecycle == ApplicationLifecycle.FrontEnd && _joinedPartyAwaitingStart)
                 return TryStartJoinedParty();
@@ -243,6 +256,8 @@ namespace Game.Application.Runtime
         public ApplicationOperationResult OpenScreen(ApplicationScreen screen)
         {
             ThrowIfDisposed();
+            if (_operationInProgress || _pendingFormation != null)
+                return Reject(ApplicationFailure.Busy, "Another application operation is in progress.");
             if (_lifecycle != ApplicationLifecycle.FrontEnd && _lifecycle != ApplicationLifecycle.InGame)
                 return Reject(ApplicationFailure.InvalidState, "Navigation is unavailable in the current lifecycle.");
             if (screen == ApplicationScreen.Boot || screen == ApplicationScreen.Loading || screen == ApplicationScreen.Gameplay)
@@ -257,6 +272,8 @@ namespace Game.Application.Runtime
         public ApplicationOperationResult CloseScreen()
         {
             ThrowIfDisposed();
+            if (_operationInProgress || _pendingFormation != null)
+                return Reject(ApplicationFailure.Busy, "Another application operation is in progress.");
             if (_screenStack.Count == 0 || _uiLeases.Count == 0)
                 return Reject(ApplicationFailure.InvalidState, "No nested screen is open.");
 
@@ -312,6 +329,8 @@ namespace Game.Application.Runtime
         {
             if (!formation.Succeeded)
                 return Reject(ApplicationFailure.SessionFormationFailed, formation.Failure + ": " + formation.Detail);
+            if (!formation.SessionId.IsValid || !formation.LocalMemberId.IsValid)
+                return Reject(ApplicationFailure.SessionFormationFailed, "Provider returned an invalid admitted identity.");
             _joinedPartyAwaitingStart = false;
             _activeFormation = formation;
             _localMemberId = formation.LocalMemberId;
@@ -424,7 +443,7 @@ namespace Game.Application.Runtime
 
         private bool CanStartFrontendOperation(out ApplicationOperationResult rejected)
         {
-            if (_operationInProgress)
+            if (_operationInProgress || _pendingFormation != null)
             {
                 rejected = Reject(ApplicationFailure.Busy, "Another application operation is in progress.");
                 return false;
@@ -462,6 +481,7 @@ namespace Game.Application.Runtime
         {
             if (_disposed) return;
             _disposed = true;
+            CancelPendingFormation();
             UnwindUi();
         }
 

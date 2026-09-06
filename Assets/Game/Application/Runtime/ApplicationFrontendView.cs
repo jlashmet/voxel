@@ -49,7 +49,10 @@ namespace Game.Application.Runtime
         {
             if (_flow == null) return;
             ApplicationLifecycle lifecycle = _flow.Snapshot.Lifecycle;
-            if (lifecycle == ApplicationLifecycle.StartingSession || lifecycle == ApplicationLifecycle.InGame)
+            // Pending admission and joined-party readiness are frontend work too. The view
+            // advances local Application state; it never pumps transport or grants membership.
+            if (lifecycle == ApplicationLifecycle.FrontEnd ||
+                lifecycle == ApplicationLifecycle.StartingSession || lifecycle == ApplicationLifecycle.InGame)
                 _flow.Update(Mathf.Max(0, Mathf.RoundToInt(Time.unscaledDeltaTime * 1000f)));
         }
 
@@ -101,6 +104,11 @@ namespace Game.Application.Runtime
                     if (GUILayout.Button("Start")) Report(_flow.RequestPartyStart());
                     if (GUILayout.Button("Leave")) Report(_flow.RequestLeaveGame());
                     break;
+                case ApplicationScreen.Loading:
+                    GUILayout.Label("Waiting for session admission…");
+                    if (GUILayout.Button("Cancel")) Report(_flow.RequestLeaveGame());
+                    if (GUILayout.Button("Quit")) Report(_flow.RequestQuitApplication());
+                    break;
                 case ApplicationScreen.Settings:
                     _masterVolume = GUILayout.HorizontalSlider(_masterVolume, 0f, 1f);
                     GUILayout.Label("Master volume " + _masterVolume.ToString("0.00"));
@@ -110,7 +118,13 @@ namespace Game.Application.Runtime
                     if (GUILayout.Button("Back")) Report(_flow.CloseScreen());
                     break;
                 case ApplicationScreen.Error:
-                    GUILayout.Label("Startup failed. Return to the main menu using the owning composition flow.");
+                    GUILayout.Label("Startup failed. No gameplay input is enabled.");
+                    if (GUILayout.Button("Return to Main Menu"))
+                    {
+                        // The coordinator distinguishes an adopted party's Leave from local
+                        // error recovery when admission failed before any member was adopted.
+                        Report(_flow.RequestLeaveGame());
+                    }
                     break;
             }
         }

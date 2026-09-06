@@ -21,7 +21,11 @@
       "APPLICATION_VALIDATION joined-rejoin: lifecycle=InGame composes=2 startCommands=0",
       "APPLICATION_VALIDATION menus-settings: context=Exploration persisted=True binding=Confirm",
       "APPLICATION_VALIDATION outcome-return: disposition=Success lifecycle=FrontEnd",
-      "APPLICATION_FRONTEND_VIEW ready: bound=True lifecycle=FrontEnd"
+      "APPLICATION_FRONTEND_VIEW ready: bound=True lifecycle=FrontEnd",
+      "APPLICATION_VALIDATION pending-admission: viewPumped=True memberAdopted=False composes=0",
+      "APPLICATION_VALIDATION pending-cancel: staleIgnored=True leaves=0",
+      "APPLICATION_VALIDATION pending-start: lifecycle=InGame composes=1 startCommands=0 viewPumped=True",
+      "APPLICATION_VALIDATION pending-leave: lifecycle=FrontEnd leaves=1 disposedGraphs=1"
     ],
     "forbiddenLogPatterns": [
       "NullReferenceException",
