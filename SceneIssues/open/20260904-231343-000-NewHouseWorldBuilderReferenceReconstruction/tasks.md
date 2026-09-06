@@ -1,22 +1,27 @@
 # New House WorldBuilder Tasks
 
-## 0. Required ownership and validation path (discovered)
-- [x] Runtime/player-visible ownership is `Assets/Game/WorldBuilder`; reuse the existing Structures/Voxel APIs without modifying those runtime modules unless a demonstrated acceptance blocker requires it.
-- [x] Module-local validation path is `Assets/Game/WorldBuilder/Validation/NewHouseReferenceReconstruction/NewHouseReferenceReconstruction.unity`, exercising the real production WorldBuilder composition/catalogue path and producing built-player/reference-render evidence.
-- [x] Preserve every imported generic checklist item while reconciling it to the supplied reference: garage/driveway-specific items that are absent from the supplied house reference are completed explicitly as `N/A — absent from supplied reference`, rather than by adding non-reference geometry.
-- [x] Discovered regression: adding stable house material IDs requires extending `GameMaterialOwnershipTests` frozen-ID/count assertions; exact-SHA run `33944812062` exposed this and the feature branch now covers IDs 23-28 / count 29.
-- [x] Discovered validation blocker from exact-SHA run `33945621865` was the unrelated URP `DebugManager` legacy-Input PlayMode path in `TypedStructuralSocketCompositionSceneTests`; later exact-SHA run `33951274739` passed the repository-derived automatic module validation, so this is not an outstanding feature-product failure.
-- [x] Discovered visual defect from exact-SHA run `33951274739`: the focused house validation called `ShowcaseWorld.StepStreaming` every frame, admitting unrelated showcase castle construction and evicting/rebuilding the fixed evidence footprint as audit camera positions changed. The validation now retains its deterministically preloaded production storage snapshot and the player scenario forbids `Castle authoring exceeded`.
-- [x] Re-run exact-SHA targeted CI after validation-residency isolation: run `33952976056` passed automatic module validation and standalone replay and no longer logged the castle failure, but direct inspection still showed terrain only rather than the authored house.
-- [x] Discovered material-surface blocker from run `33952976056`: the validation used the legacy four-argument `ShowcaseWorld` constructor, whose private world palette registers only historical showcase materials and omits stable house IDs 23-28. Raw house voxels therefore passed authoring/readback while the renderer-bound world palette could not classify their surfaces. The validation now uses the production game-material constructor with `GameMaterialComposition.SimulationDefinitions()` / `ShowcaseMaterials`; unrelated settlement catalogue content is suppressed for this focused proof.
-- [x] Re-run exact-SHA targeted CI after complete game-material world binding: the automated gates passed, but built-player evidence still showed terrain rather than the authored cottage; the application composition root was then corrected to publish the completed bounded Structures authoring phase before renderer binding.
-- [x] Re-run exact-SHA targeted CI after the publication-boundary correction: run `33954740928` passed automatic module validation and standalone replay, but direct hero/audit inspection still showed fractured terrain and no recognizable reference house.
-- [x] Repeated-symptom root-cause gate: exact-SHA diagnostic run `33960811414` isolated the missing house to the default GPU surface path even though the focused world reported complete published coverage.
-- [x] GPU-prerequisite hypothesis resolved: repository inspection proved `VOXEL_DISABLE_GPU_CUTOVER=1` is the production CPU emergency/A-B path already used by module-player validation, not a test-only substitute. The focused scene sets it before rendering and exact runs now produce stable house geometry; this feature does not depend on the separate GPU-restoration SceneIssue.
-- [x] Direct built-player comparison after geometry recovery falsified the earlier oversized/arched interpretation; the house was reduced to the compact reference proportions with rectangular entry/lower windows, four-leaf upper bank, smaller high gable window, chimney/finials, flowers/ivy, and wider portrait framing.
-- [x] Exact run `33994976147` exposed wrong supplied texture-role ordering; the additional layers were remapped by visual role, and Rendering `TextureLayers` proof was scoped to its own readiness assertion rather than unrelated water readiness.
-- [x] Exact runs `33996415142` and `33998165969` passed all automated gates but direct inspection showed the painted shutter/window accent as charcoal. The brown-multiplier hypothesis led to a neutral-Albedo experiment.
-- [x] Exact run `33999873622` falsified the neutral-Albedo hypothesis: the supplied `HouseDoor` plate itself is dark/gold. `SmoothSurface.shader` already supports luminance-only texture detail over game-owned colour, so the production row now uses saturated blue Albedo with luminance/detail and zero texture chroma; `PaintedHouseAccent_UsesBlueBaseWithSuppliedLuminanceDetail` locks that invariant.
+## Binding objective and authoritative reference
+The goal is to recreate **the particular house in `Assets/Textures/Stylized/experiment1/house/10dddef5-de0a-4153-9c09-b1e8016830db.png` as closely as possible**, leveraging the production voxel engine's WorldBuilder, structures, materials, textures, authoring, meshing, rendering, and scene systems. **Keep iterating with actual built-player renders until the result is very close to this exact image and production-quality.** A plausible house in the same style, a completed object list, or passing CI is insufficient.
+
+Reference Git blob: `6d87b08d4c7c9bddc1705c0f34343aa79bc18423`, verified on master `ef475182b866eabfe8e1d1a39c82bf7810a03f49` and feature baseline `544215794036261c0bfa8f71517e26700d4995ec`.
+
+![Authoritative user-specified reference](../../../Assets/Textures/Stylized/experiment1/house/10dddef5-de0a-4153-9c09-b1e8016830db.png)
+
+Optional texture source: `Assets/Textures/Stylized/experiment1/` (the directory above `house/`). Supplied textures may be used, adapted, combined, or replaced; creating original/generated textures is allowed. Choose assets for fidelity to the reference, not to satisfy an arbitrary requirement to use every supplied image. New assets must use the existing material/texture pipeline, with committed files, Unity metadata, and recorded provenance. Generated textures are assets, not substitute Unity render evidence.
+
+## 0. Reference correction, ownership, and next required work
+- [x] Pin the user-specified repository reference path and verified Git blob in both plan and tasks; distinguish it from optional texture inputs.
+- [x] Invalidate the previous reference selection: Library image `3aad3fb3-7a3c-41b4-b87b-f2f72eaa6cda.png` is NOT this assignment's reference. Previous visual approvals and claims of close resemblance do not count.
+- [ ] Open and inspect the actual pinned image before further geometry/material changes. Verify the checkout's image hash; do not substitute another image if retrieval fails. Obtain user confirmation before changing the authoritative reference.
+- [ ] Record the correct reference's silhouette, major massing, visible elevations, roof forms, opening shapes/counts/positions, important details, material regions, and camera/framing relationships. Separate visible observations from assumptions about hidden sides.
+- [ ] Compare the existing house render against that image and record the largest concrete mismatches; reassess the earlier compact dimensions, rectangular entry/lower windows, four-leaf upper bank, small high window, blue accent treatment, and framing rather than preserving them as requirements.
+- [ ] Reconcile all previously reference-derived geometry/material/camera decisions and N/A claims. Garage, driveway, porch, dormer, gutter, and other generic checklist roles are conditional on the actual reference; document N/A with a reason only after inspecting it, not by assuming presence or absence.
+- [x] Identify existing WorldBuilder ownership and focused scene: `Assets/Game/WorldBuilder/Validation/NewHouseReferenceReconstruction/NewHouseReferenceReconstruction.unity`.
+- [x] Identify existing material ownership in `Assets/Game/Materials` and semantic-free Rendering texture-layer consumption; retain material unit tests and Rendering `TextureLayers` module-local proof.
+- [ ] Update affected module-local validation scenes/scenarios and focused behavioral tests as the corrected implementation requires; scenes must exercise real production realization, not duplicate geometry/material/rendering behavior.
+- [ ] Correct evidence timing so the standard standalone capture cadence actually records the target view plus front/side/rear audits, including the previously missed rear-right view.
+
+Historical technical baseline only: prior work addressed complete game-material palette binding, bounded-authoring publication, fixed validation residency, and the supported production CPU fallback. CI run `34001554204` on feature `544215794036261c0bfa8f71517e26700d4995ec` passed mechanically, but it does not prove fidelity to the newly confirmed reference. Earlier texture-ordering and tint experiments are not final material choices. Remaining checked implementation items below record existing infrastructure only; all final visual and regression acceptance must be re-established after corrections. No product code was changed by this documentation reset.
 
 ## 1. Engine / repository alignment
 - [x] Locate the existing WorldBuilder composition entry point.
@@ -24,164 +29,177 @@
 - [x] Identify the current material registry and material-ID conventions.
 - [x] Identify the existing texture registration/loading path.
 - [x] Confirm UV/repeat behavior and material projection support.
-- [x] Confirm world units, axes, origin conventions, and camera orientation.
+- [x] Confirm world units, axes, origin conventions, and camera orientation controls.
 - [x] Identify reusable geometry/material helpers already in the repository.
-- [x] Record which existing APIs/helpers will be reused before adding new infrastructure.
+- [x] Record existing APIs/helpers in the plan before adding infrastructure.
+- [ ] Assess the corrected house's authoring, geometry, material/texture memory, and runtime cost against repository budgets; do not relax budgets or unrelated assertions to make proof pass.
 
 ## 2. Supplied material and texture setup
-- [x] Inventory all supplied house texture assets.
-- [x] Map supplied textures to plaster, timber, roof, stone, painted accent, and foliage/site roles visible in the reference.
-- [x] Reuse existing material IDs where appropriate (`Glass`, `Grass`, `FlowerWhite`); use the supplied `HouseDoor` layer for the blue-painted architectural accent while the plain central entry uses `HouseTimber`.
-- [x] Register missing siding/stucco material (`HousePlaster`).
-- [x] Register missing trim/fascia/soffit material (`HouseTimber`).
-- [x] Register missing roofing material (`HouseRoof`).
-- [x] Register missing glass/window material(s), if required — reused canonical `Glass`; no extra glass identity required.
-- [x] Register missing supplied painted-detail material (`HouseDoor`); garage-door role is N/A because no garage exists in the supplied reference.
-- [x] Register missing masonry/concrete/site material(s), if required — `HouseStone` plus canonical grass/path roles.
-- [x] Set explicit texture repeat scales and default face/triplanar projection by game-owned material row.
-- [ ] Verify every required material renders successfully in the final built-player minimal/module validation view.
+- [ ] Inspect candidate textures under `Assets/Textures/Stylized/experiment1/` and map useful assets to surfaces actually visible in the pinned reference; do not infer roles from filenames alone.
+- [ ] Record which supplied textures are retained, adapted, or unused and where original/generated textures are needed to get closer to the reference.
+- [ ] Reuse existing material IDs where appropriate; reassess earlier house-role assignments rather than treating them as final.
+- [ ] Register or correct missing siding/stucco/exterior-wall materials through the existing registry, as required by the reference.
+- [ ] Register or correct missing trim/fascia/soffit/timber materials, as required.
+- [ ] Register or correct missing roofing materials, as required.
+- [ ] Register or correct missing glass/window materials, as required.
+- [ ] Register or correct door/garage-door/painted-detail materials, as required; do not require blue paint or a garage based on the discarded image.
+- [ ] Register or correct masonry/concrete/site materials, as required.
+- [ ] Create or adapt any needed texture assets and commit their source/provenance and Unity metadata; use normal material registration, not a one-off texture bootstrap. Record N/A if existing assets suffice.
+- [ ] Set explicit, believable texture repeat scales and face/triplanar projection from the correct reference and engine scale.
+- [ ] Verify every material/texture actually chosen for the reconstruction resolves and renders correctly in module-local built-player evidence. Unused supplied textures are not a failure.
 
 ## 3. House composition scaffold
 - [x] Add a dedicated reusable WorldBuilder house authoring composition.
-- [x] Define a shared house origin.
-- [x] Define foundation/slab elevation and dimensions.
-- [x] Define first-floor elevation and wall height.
-- [x] Define second-floor elevation and wall height.
-- [x] Define wall thickness.
-- [x] Define garage elevation and major dimensions — N/A, absent from supplied reference.
-- [x] Define roof/eave datums used by the roof helpers.
-- [x] Keep major architectural dimensions centralized and easy to tune in `NewHouseReferenceConfig`.
+- [ ] Reassess the shared house origin and reference-relative layout.
+- [ ] Reassess foundation/slab elevation and dimensions.
+- [ ] Reassess first-floor elevation and wall height.
+- [ ] Reassess second-floor elevation and wall height, or document its absence from the correct reference.
+- [ ] Reassess wall thickness.
+- [ ] Define garage elevation and major dimensions if present; otherwise document reference-grounded N/A.
+- [ ] Reassess roof/eave datums used by roof helpers.
+- [x] Keep major architectural dimensions centralized in configuration rather than scattered through scene code.
 
 ## 4. Primary massing
-- [x] Build the foundation/slab.
-- [x] Build the first-floor primary mass.
-- [x] Build the second-floor primary mass.
-- [x] Build the garage mass — N/A, absent from supplied reference.
-- [x] Add major projections and recesses visible in the reference.
-- [x] Add porch/entry mass where it affects silhouette.
-- [ ] Produce a final target-camera built-player render through the owned validation scene.
-- [ ] Correct/accept overall width/depth from direct built-player/reference comparison.
-- [ ] Correct/accept story heights and setbacks from direct built-player/reference comparison.
-- [ ] Confirm the primary silhouette matches the reference closely enough to accept.
+- [ ] Build/correct the foundation/slab to match the pinned reference.
+- [ ] Build/correct the first-floor primary mass.
+- [ ] Build/correct the second-floor primary mass as applicable.
+- [ ] Build/correct the garage mass if present; otherwise document N/A.
+- [ ] Match major projections and recesses visible in the reference.
+- [ ] Match porch/entry mass where it affects silhouette; document N/A if absent.
+- [ ] Produce an early target-camera built-player render through the owned validation scene before further detail work.
+- [ ] Correct overall width/depth from direct comparison with the pinned reference.
+- [ ] Correct story heights, setbacks, and roof-to-body proportions before cosmetic detail.
+- [ ] Confirm the primary silhouette is very close to the reference before accepting massing.
 
 ## 5. Roof system
-- [x] Build the primary roof volume(s).
-- [x] Add secondary front/cross-roof forms visible in the reference.
-- [x] Add garage roof volume(s) — N/A, absent from supplied reference.
-- [x] Add porch/entry roof volume(s) visible in the reference.
-- [x] Author ridge directions from the reference composition.
-- [x] Author steep roof pitches/rises from centralized datums.
-- [x] Author eave heights and overhangs.
-- [x] Resolve authored intersections between primary/front/cross-roof volumes without a parallel mesh path.
-- [x] Add visible fascia/edge timber.
-- [x] Add visible soffit/eave depth.
+- [ ] Build/correct primary roof volumes to the reference.
+- [ ] Match secondary gables/hips/dormers/cross-roofs that are actually present; document absent roles as N/A.
+- [ ] Match garage roof volumes if present; otherwise document N/A.
+- [ ] Match porch/entry roof volumes if visible; otherwise document N/A.
+- [ ] Match ridge directions.
+- [ ] Match roof pitches/rises.
+- [ ] Match eave heights and overhangs.
+- [ ] Resolve valleys/intersections between roof volumes through production authoring.
+- [ ] Match visible fascia/edge trim.
+- [ ] Match visible soffit/eave depth.
 - [ ] Check roof/wall intersections for visible gaps in built-player evidence.
-- [ ] Check for coplanar roof overlap/z-fighting in built-player evidence.
-- [ ] Render and compare the roofline against the supplied reference.
+- [ ] Remove coplanar roof overlap/z-fighting.
+- [ ] Render and compare the roofline against the pinned reference before accepting it.
 
 ## 6. Doors and windows
-- [x] Add garage-door opening(s) — N/A, absent from supplied reference.
-- [x] Add the compact central entry opening and plain timber door shown by the reference.
-- [x] Add the largest/front-facing windows.
-- [x] Add the upper blue shutter/window bank and small high gable window visible from the target camera.
-- [x] Author window sill heights from shared floor datums.
-- [x] Author window head heights from shared floor datums.
-- [x] Author horizontal spacing/alignment from shared house dimensions.
-- [x] Add visible recess depth for openings using production carve + inset geometry.
-- [x] Add window frames/sills/headers where visible.
-- [x] Add door and window trim where visible.
-- [x] Use parameterized rectangular window/door helpers for repeated front opening roles.
-- [x] Use a parameterized small arched-window helper for the high gable opening.
-- [ ] Render and compare opening placement against the reference.
+- [ ] Add/correct garage-door openings if present; otherwise document N/A.
+- [ ] Match the main entry opening and door shape, size, position, and material to the actual reference.
+- [ ] Match the largest/front-facing windows.
+- [ ] Match remaining visible windows, shutters, and dormer/gable openings without inheriting the discarded image's arrangement.
+- [ ] Match window sill heights.
+- [ ] Match window head heights.
+- [ ] Match horizontal spacing/alignment.
+- [ ] Add visible recess depth using production carve/inset geometry, not flat visual stand-ins.
+- [ ] Match frames, sills, and headers where visible.
+- [ ] Match door/window trim.
+- [ ] Create or reuse parameterized helpers for the required repeated window assemblies and curved openings where appropriate.
+- [ ] Create or reuse parameterized helpers for the required door assemblies.
+- [ ] Render and compare opening placement/proportions against the pinned reference.
 
 ## 7. Architectural detail
-- [x] Add exterior timber trim/corner boards.
-- [x] Add porch/entry posts and heavy timber supports where they contribute to the composition.
-- [x] Add entry steps.
-- [x] Add railings/fence-like site accents where visible in the reference composition.
-- [x] Add prominent window/door surrounds.
-- [x] Add masonry/stone foundation and chimney accents.
-- [x] Add gutters/downspouts if they materially affect the target render — intentionally deferred; they do not define the supplied voxel reference at target scale.
-- [x] Add vents or other high-contrast façade/roof details visible in the reference — no additional vent is required at target scale; chimney/timber breaks carry the high-contrast roof detail.
-- [x] Add other silhouette/depth-critical details: chimney, ridge ornaments, flower boxes, shutters, ivy/foliage.
-- [x] Defer detail that does not survive the intended render scale.
+- [ ] Match exterior trim, timber, and corner boards where present.
+- [ ] Match porch columns/posts/supports where present; document N/A otherwise.
+- [ ] Match entry steps.
+- [ ] Match railings/fence-like accents where visible; document N/A otherwise.
+- [ ] Match prominent window/door surrounds.
+- [ ] Match visible masonry/foundation/chimney accents.
+- [ ] Add gutters/downspouts if materially visible at target scale; otherwise record a reference-grounded N/A, not an unmet requirement deferred to later.
+- [ ] Add visible vents and other high-contrast facade/roof details as required by the actual reference.
+- [ ] Match other silhouette/depth-critical details from the actual image, including ornaments, planting, flower boxes, and ivy only where applicable.
+- [ ] Defer only details that do not survive target render scale; do not defer a visible mismatch needed for very-close fidelity.
 
 ## 8. Immediate site composition
-- [x] Keep site construction separate from the reusable house builder (`AuthorReferenceSite`).
-- [x] Add driveway geometry — N/A, absent from supplied reference.
-- [x] Add curved/stepped entry walkway.
-- [x] Add porch/entry step/pad geometry.
-- [x] Add lawn/ground surface through the normal generated world/site material.
-- [x] Add grading/step transitions needed to meet the house.
-- [x] Add simple landscaping/planting masses needed for the reference composition.
-- [ ] Check the house/site boundary for gaps or floating geometry in built-player evidence.
+- [x] Keep site construction separate from reusable house geometry.
+- [ ] Match driveway geometry if present; otherwise document N/A.
+- [ ] Match the entry walkway's route, width, height, and material.
+- [ ] Match porch/entry step/pad geometry.
+- [ ] Match visible ground/lawn appearance through the normal production world/material path.
+- [ ] Match grading/step transitions needed to meet the house.
+- [ ] Match landscaping/planting masses where they contribute to the reference composition through applicable production systems.
+- [ ] Check house/site boundaries for gaps, floating geometry, and unsupported contact in built-player evidence.
 
 ## 9. Final material assignment
-- [x] Assign plaster/exterior wall material to the intended house elements.
-- [x] Assign roofing material to authored roof volumes.
-- [x] Assign timber material to trim/fascia/soffit/support elements and the plain central entry.
-- [x] Assign `HouseDoor` supplied layer to the blue-painted shutter/window accent; garage-door material is N/A because the reference has no garage.
-- [x] Assign canonical glass material to windows.
-- [x] Assign `HouseStone` to foundation/chimney/masonry elements.
-- [x] Assign canonical path/ground/foliage roles to the immediate site.
-- [x] Configure plaster/stone/foliage as triplanar and directional timber/roof/painted detail as face projection.
-- [ ] Verify roof texture orientation reads correctly along visible slopes in built-player evidence.
-- [ ] Verify wood/masonry direction reads correctly in built-player evidence.
-- [ ] Tune/accept texture repeat and texel density from built-player evidence.
-- [ ] Check material seams at corners and transitions.
-- [ ] Check for duplicate/coplanar material surfaces that can flicker.
+- [ ] Assign exterior-wall materials to the correct elements/faces from the pinned image.
+- [ ] Assign correct roofing materials to visible roof volumes.
+- [ ] Assign trim/fascia/soffit/support materials.
+- [ ] Assign entry, garage-door, shutter, and painted-detail materials only to the roles actually present; document absent roles as N/A.
+- [ ] Assign window/glass materials.
+- [ ] Assign masonry/concrete/foundation/chimney materials.
+- [ ] Assign driveway/walkway/ground/foliage roles as applicable.
+- [ ] Correct siding/stucco projection and orientation.
+- [ ] Verify roof texture orientation along visible slopes in built-player evidence.
+- [ ] Verify wood/masonry direction.
+- [ ] Tune repeat, motif size, and texel density against the reference, not merely for consistency with the discarded reconstruction.
+- [ ] Check material seams at corners, openings, and transitions.
+- [ ] Remove duplicate/coplanar material surfaces that can flicker.
 
 ## 10. Reference camera and lighting
-- [x] Add a reference-comparison camera/view separate from reusable house geometry.
-- [x] Author a frontal portrait primary camera consistent with the supplied reference, plus fixed front-left and rear-right audit views.
-- [x] Author camera height independently of house geometry.
-- [x] Author downward/upward viewing angle independently of house geometry.
-- [x] Author perspective/FOV (`36` degrees) independently of reusable house geometry.
-- [x] Author framing/crop target independently of reusable house geometry.
+- [x] Keep the reference-comparison camera/view separate from reusable house geometry.
+- [ ] Match camera azimuth/visible side to the pinned image; do not assume a frontal view.
+- [ ] Match camera height.
+- [ ] Match vertical viewing angle.
+- [ ] Match perspective/projection/FOV; the previous 36-degree setting is not an acceptance requirement.
+- [ ] Match framing, crop, and output aspect ratio to the reference.
 - [x] Use the project's normal sky/environment/rendering path.
-- [x] Author a warm directional sun/key-light direction consistent with the reference.
-- [x] Author trilight ambient/fill so façade depth remains readable.
-- [x] Keep camera and light configuration outside the reusable house builder.
-- [ ] Accept/tune camera and lighting only after final direct built-player/reference comparison.
+- [ ] Match the dominant sun/key direction and overall lighting character through production controls.
+- [ ] Tune ambient/fill and contrast so facade depth remains readable and close to the reference.
+- [x] Keep camera/light configuration outside the reusable house builder.
+- [ ] Accept camera and lighting only after direct comparison; do not use angle, darkness, crop, or occlusion to hide geometric mismatches.
 
-## 11. Visual validation and iteration
-- [ ] Compare overall silhouette to the supplied reference.
-- [ ] Compare total width/depth/story proportions.
-- [ ] Compare roofline, pitches, ridges, eaves, and intersections.
-- [x] Compare garage requirement to supplied reference — N/A, supplied reference contains no garage.
-- [ ] Compare door and window placement.
-- [ ] Compare major trim/details and their depth.
-- [ ] Compare material identity and contrast.
-- [ ] Compare texture scale and orientation.
-- [ ] Compare final lighting/readability.
-- [ ] Inspect side/rear/debug angles for holes.
-- [ ] Inspect for overlapping geometry.
+## 11. Mandatory render / compare / correct loop
+For each meaningful iteration, capture an actual standalone-player render of the current exact feature SHA, view it side by side with the pinned repository image, record the concrete mismatches below or in linked durable evidence, fix their production causes, and repeat. No arbitrary iteration count, elapsed effort, or mechanically green run makes the result acceptable. Continue until it is very close to the specific reference and production-quality; genuine blockers keep the issue open. After two materially different unsuccessful fixes of the same symptom, isolate the cause before trying again.
+
+- [ ] Compare and correct overall silhouette.
+- [ ] Compare and correct total width/depth/story proportions and major massing.
+- [ ] Compare and correct roofline, pitches, ridges, eaves, and intersections.
+- [ ] Compare garage applicability against the pinned image; match it if present or document N/A.
+- [ ] Compare and correct door/window shapes, counts, placement, and spacing.
+- [ ] Compare and correct major trim/details and their depth.
+- [ ] Compare and correct material identity, colour, roughness, and contrast.
+- [ ] Compare and correct texture scale, motif, and orientation; replace or create textures when existing assets prevent fidelity.
+- [ ] Compare and correct lighting, framing, and overall readability.
+- [ ] Inspect durable side/rear audit captures for holes; the actual capture cadence must include each required view.
+- [ ] Inspect for unintended overlapping geometry.
 - [ ] Inspect for reversed/missing faces.
-- [ ] Inspect for floating elements.
-- [ ] Inspect for z-fighting/coplanar surfaces.
+- [ ] Inspect for floating elements and unsupported contact.
+- [ ] Inspect for z-fighting/coplanar surfaces across more than one frame.
 - [ ] Inspect for incorrect material assignments.
-- [ ] Fix structural/proportion issues before cosmetic issues.
+- [ ] Fix structural/proportion mismatches before cosmetic mismatches.
+- [ ] Preserve unaltered reference/render originals and record reference path/blob, feature SHA, exact CI request/run, artifact and frame paths, camera settings, discrepancies, and resulting decisions with each reviewed iteration. Label any comparison overlays as diagnostics, not replacement render evidence.
+- [ ] Rebuild and inspect after the last product change; evidence from an earlier implementation is not final proof.
+- [ ] Document a final side-by-side review showing very-close fidelity across all major visual relationships AND classify the actual render as production-quality. Any material visible mismatch remains required work, not a follow-up deferred past closure.
 
 ## 12. Integration and cleanup
-- [x] Expose the house through the normal WorldBuilder production authoring + validation scene invocation path.
-- [x] Ensure all new textures/materials use the existing asset/material pipeline.
-- [x] Remove temporary/debug geometry from the reusable authoring path.
-- [x] Remove temporary/debug materials; only stable game material rows remain.
-- [x] Refactor repeated architectural elements into reusable helpers.
+- [x] Expose reusable house authoring through the existing WorldBuilder production composition path.
+- [ ] Verify the corrected house and all chosen textures/materials use the normal asset/material/scene path; no image billboard, parallel renderer, or scene-local art implementation may substitute for real voxel-engine content.
+- [ ] Remove temporary/debug geometry from the final authored result.
+- [ ] Remove temporary/debug materials while retaining required production assets.
+- [ ] Refactor repeated architectural components into reusable/config-driven helpers where needed by the corrected house.
 - [x] Keep site composition separable from house geometry.
 - [x] Keep reference camera/lighting separable from house geometry.
-- [x] Add concise comments/documentation for non-obvious composition/renderer-layer ownership.
-- [ ] Run and reconcile normal exact-SHA build/test/module validation gates for the final feature SHA.
-- [ ] Produce and inspect the final built-player reference-comparison render.
+- [ ] Update comments/documentation and material/geometry regressions that encode assumptions from the wrong image; test correct production behavior instead of freezing the mistaken result.
+- [ ] Prove translation/configuration reuse with an independent consumer/fixture and retain site/camera separation coverage after changes.
+- [ ] Run and reconcile final exact-SHA build/test/module-local built-player gates on `ci-test/fixes/agent-5`; never replace queued/running requests.
+- [ ] Produce and inspect the final reference-comparison render and required audit evidence.
 
-## Acceptance checklist
-- [ ] The new house composition loads through the normal project path without errors in the final built-player proof.
-- [ ] Every required supplied texture/material resolves through the existing material system in built-player evidence.
-- [ ] The target render matches the supplied reference's major proportions and silhouette.
-- [ ] Roof pitches, ridges, eaves, and visible roof intersections are represented correctly.
-- [ ] Major doors and windows are correctly placed and proportioned.
-- [ ] High-value architectural details have appropriate geometry/depth.
-- [ ] Texture orientation and repeat scale are believable and consistent.
-- [ ] No major gaps, floating elements, z-fighting, or obvious geometry overlaps remain.
-- [x] Repeated architectural components use reusable helpers instead of unnecessary duplication.
-- [x] House geometry is reusable independently of the reference-specific camera, lighting, and immediate site; translation-invariance/site-separation regressions prove the boundary.
+## Acceptance checklist — all required before closure
+- [ ] The corrected house loads through the normal project path without errors in final built-player proof.
+- [ ] Every texture/material actually selected for the reconstruction resolves through the existing material system; supplied assets are optional and original/generated textures are permitted.
+- [ ] The final target render is very close to `Assets/Textures/Stylized/experiment1/house/10dddef5-de0a-4153-9c09-b1e8016830db.png`, not the discarded Library image: silhouette, massing, proportions, and distinctive composition match closely.
+- [ ] Roof pitches, ridges, eaves, and visible intersections match closely.
+- [ ] Major doors/windows/openings are correctly shaped, placed, and proportioned.
+- [ ] High-value architectural details have matching geometry/depth and believable support.
+- [ ] Material identity, colour relationships, texture orientation, and repeat scale match closely and remain believable.
+- [ ] Camera, framing, and lighting support a faithful comparison without disguising errors.
+- [ ] No major gaps, floating elements, z-fighting, missing faces, or obvious unintended overlaps remain in target and audit views.
+- [ ] Repeated architectural components use reusable helpers rather than unnecessary duplication or evidence-only geometry.
+- [ ] House geometry remains reusable independently of reference-specific camera, lighting, and immediate site, with regression proof.
+- [ ] Durable final reference-comparison evidence identifies the exact reference blob, feature SHA, CI run, and frames; direct inspection establishes both very-close resemblance and production quality, separately from green automation.
+
+## Closure and promotion — subsequent workflow, not pre-closure checkboxes
+Only after every required checkbox and acceptance criterion above passes, complete fixed metadata and move only this assignment from `open/` to `closed/`; never use `pending/`. Fetch and merge current `origin/master` into `fixes/agent-5`, resolve only in-scope conflicts, and complete required revalidation. Open/update the final PR to `master`, enable auto-merge, and monitor the required `affected` gate and canonical built-player integration until merged. Never push the feature head directly to master. Verify the closed SceneIssue on `origin/master` before reporting the assignment complete. Follow `SceneIssues/README.md` for the exact workflow.
