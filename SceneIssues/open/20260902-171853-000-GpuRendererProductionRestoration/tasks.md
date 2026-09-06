@@ -212,6 +212,16 @@ coarse blocks cover them again after restoration. Original visibility and issue 
 Next G08 work: bounded per-object publication handoff, retaining proxies until their detailed
 replacement is ready and restoring on eviction/invalidation. Diagnostic suppression is not acceptance.
 
+G08 handoff implementation prerequisite: `SurfaceReplacementCoverage` now checks every fine
+cell in bounded feature bounds against caller-supplied current selected/known-empty LOD proof.
+No runtime visibility changes yet. All7 domain regressions pass (`replacement-coverage-tests-final.xml`,12s wrapper).
+Remaining integration: retain bounded completed regional discovery masks (absence from `_known`
+is not empty because clipmap eviction removes entries), invalidate proofs on edits/eviction,
+and evaluate against same-camera-frame selected draws. `LateUpdate` far submission currently
+precedes the voxel render pass; a previous-frame readiness query would permit stale handoff.
+Use the module-local SolidGpu production scene for near/far interaction; the existing FarWorld
+visibility tableau has custom terrain meshes and cannot alone prove production near replacement.
+
 ## 1. Get the actual GPU path running now
 
 - [ ] **G01 — Reconcile the retained production GPU implementation.** Inspect current code and historical merge parent `a0ac0f5e...`; retain compatible proven changes rather than blindly restoring old files. Trace the real scheduler -> mirror -> extraction -> page publication -> URP draw route. Record concrete compile/runtime blockers and fix only prerequisites to this route. Do not begin another CPU visual-polish cycle.

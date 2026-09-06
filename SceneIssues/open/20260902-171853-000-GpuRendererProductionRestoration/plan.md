@@ -16,18 +16,18 @@ Automatic publication is deleted. Unique renderer generations and explicit sourc
 
 ## Hypotheses and discriminating experiments
 
-Far-world is active:6 terrain rings and1481 semantic source instances. Reversible owner probes locate the grey mountain and coarse side structures in semantic far presentation, inside the streaming radius. Initial startup-bake decoding found air in the current mountain interior. Production Storage restoration verified the region semantic hash and reproduced missing occupancy at(-600,358,200).
+Far-world is active:6 terrain rings/1481 semantic sources. Storage restoration proved the startup bake had air at the current mountain interior(-600,358,200). Existing baker regenerated199 regions in144s, peak10.6GB/zero swap; both mountain tests now pass. Harness-standard12GB guard retained free-memory/swap limits after initial6GB attempt failed before writing.
 
-The baker regenerated199 regions in144s, peak10.6GB and zero swap growth with harness-standard12GB guard. Initial6GB attempt was killed before writing; free-memory/swap guards and production budgets are unchanged. Both mountain production tests now pass, including the previously failing occupancy assertion.
+Normal180s player completed12 captures/no transaction rejection. Reviewed15s/60s/150s remains **unacceptable**: coarse side blocks, terrain bands and flat traversal foreground. Stationary missing coverage reached0; traversal reclosed terrain hole. Diagnostic CPU window p50 medians6.35/8.59ms are not acceptance.
 
-Normal180s player completed with12 captures and no transaction rejection/exception. Reviewed15s/60s/150s remains **unacceptable**: coarse side blocks, terrain bands and huge flat foreground surfaces during traversal. Stationary coverage reached zero missing visible chunks; traversal reclosed the global terrain hole. Diagnostic CPU window p50 medians6.35ms stationary/8.59ms walking are not benchmark acceptance.
-
-The rebaked65s owner probe completed with11 captures. At35s, suppressing only semantic proxies reveals a dark detailed mountain and roofed houses; restoring40s covers them again with the grey mountain and coarse blocks. Original visibility and exact issue metadata restored. Diagnostic-only, no visual acceptance.
+Rebaked65s owner probe completed11 captures: suppressing semantic proxies reveals detailed dark mountain and roofed houses; restoration covers them again. Visibility/issue metadata restored. Diagnostic-only.
 
 1. **Confirmed:** stale startup content prevented detailed mountain replacement; regeneration fixes occupancy.
 2. **Confirmed overlap:** semantic far proxies obscure existing near geometry. Terrain-cutout collapse remains a separate candidate for terrain defects.
 
-Next implement a bounded, per-object publication-based near/far handoff through existing renderer/composition contracts. Prove replacement coverage and restoration after invalidation/eviction; never use distance alone or global convergence to hide proxies. Validate a module-local production consumer and normal showcase screenshots. Resume G11 cancellation/last-consumer lifetime afterward.
+Current work: bounded `SurfaceReplacementCoverage` checks every intersected64-voxel cell against current selected/known-empty LOD proofs, refusing oversized bounds. All7 domain tests pass in12s; no player gate applies to this unconnected calculation. It is not connected to runtime yet.
+
+Integration requires same-camera-frame selection in the render pass, not last-frame `Update` metrics. Unknown chunks cannot imply empty: clipmap eviction removes `_known`. Preserve completed regional discovery masks to distinguish empty cells from missing publication, invalidate on edits/eviction, and bound retention by residency. Then route semantic far submission through the same render boundary. Prove replacement coverage and restoration after invalidation/eviction; never use distance alone or global convergence to hide proxies. Validate a module-local production consumer and normal showcase screenshots. Resume G11 cancellation/last-consumer lifetime afterward.
 
 ## Remaining gates
 
