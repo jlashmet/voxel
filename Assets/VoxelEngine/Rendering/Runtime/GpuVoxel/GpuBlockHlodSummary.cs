@@ -38,20 +38,27 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             shader.SetBuffer(kernel, "_HlodDenseEntries", entries);
             shader.SetBuffer(kernel, "_HlodSummaries", summaries);
             shader.SetInt("_HlodBlockCount", bricksPerChunk);
+            shader.SetInt("_HlodOutputBlockOffset", 0);
             shader.SetInt("_SolidWaterMaterialMask", unchecked((int)waterMask));
             shader.Dispatch(kernel, Math.Min(1024, bricksPerChunk), (bricksPerChunk + 1023) / 1024, batches);
         }
 
+        /// <summary>Writes a bounded source portion into its final summary range without touching
+        /// earlier portions. Sources may be released after ordered GPU completion; the caller must
+        /// retain generation validity across all portions before admitting the completed summary.</summary>
         internal static void Dispatch(ComputeShader shader, GpuVoxelBrickMirror mirror,
-            ComputeBuffer blocks, ComputeBuffer summaries, int count, uint waterMaterialMask)
+            ComputeBuffer blocks, ComputeBuffer summaries, int count, uint waterMaterialMask,
+            int outputBlockOffset = 0)
         {
             if (shader == null) throw new ArgumentNullException(nameof(shader));
             if (mirror == null) throw new ArgumentNullException(nameof(mirror));
             if (blocks == null) throw new ArgumentNullException(nameof(blocks));
             if (summaries == null) throw new ArgumentNullException(nameof(summaries));
             if (count < 1 || count > MaximumBlocksPerDispatch || count > blocks.count
-                || count * WordsPerBlock > summaries.count || blocks.stride != 16 || summaries.stride != 4)
+                || blocks.stride != 16 || summaries.stride != 4)
                 throw new ArgumentOutOfRangeException(nameof(count));
+            if (outputBlockOffset < 0 || (long)outputBlockOffset + count > summaries.count / WordsPerBlock)
+                throw new ArgumentOutOfRangeException(nameof(outputBlockOffset));
             if (mirror.IsDisposed) throw new ObjectDisposedException(nameof(mirror));
             if (mirror.IsClearPending) throw new InvalidOperationException("HLOD source is awaiting reset.");
             mirror.FlushPendingUploads();
@@ -60,6 +67,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             shader.SetBuffer(kernel, "_HlodBlocks", blocks);
             shader.SetBuffer(kernel, "_HlodSummaries", summaries);
             shader.SetInt("_HlodBlockCount", count);
+            shader.SetInt("_HlodOutputBlockOffset", outputBlockOffset);
             shader.SetInt("_HlodDirectoryOffset", mirror.DirectoryWordOffset);
             shader.SetInt("_HlodDirectoryMask", mirror.DirectoryCapacity - 1);
             shader.SetInt("_PersistentDirectoryProbeCount", mirror.MaximumDirectoryProbeCount);

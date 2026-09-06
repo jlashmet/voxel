@@ -67,10 +67,11 @@ namespace VoxelEngine.Rendering.Tests.EditMode
         private void Uniform(int3 local, byte material = 200) => _mirror.Publish(
             VoxelBrickDelta.UniformAt(OriginBrick + local, 1, material), default, default, default, 0, false);
 
-        private uint[] Build(bool write = true, bool split = false)
+        private uint[] Build(bool write = true, bool split = false, bool summariesPrepared = false)
         {
-            GpuBlockHlodSummary.Dispatch(_summaryShader, _mirror, _requests, _summaries,
-                _requests.count, (1u << 11) | (1u << 16));
+            if (!summariesPrepared)
+                GpuBlockHlodSummary.Dispatch(_summaryShader, _mirror, _requests, _summaries,
+                    _requests.count, (1u << 11) | (1u << 16));
             int bricks = _edge * _edge * _edge;
             int slice = split ? 1 : bricks;
             for (int start = 0; start < bricks; start += slice)
@@ -105,6 +106,38 @@ namespace VoxelEngine.Rendering.Tests.EditMode
         {
             Setup(2); Uniform(int3.zero); Uniform(new int3(1, 0, 0));
             VerifyBox(Build(split: split), int3.zero, new int3(16, 8, 8), 10, 200);
+        }
+
+        [Test]
+        public void StreamedAdjacentSourcesMeshAfterTheirSingleMirrorSlotIsReleased()
+        {
+            Setup(2);
+            _mirror.Dispose();
+            _mirror = new GpuVoxelBrickMirror(1);
+            // Fixture owns a complete known-air halo. Two core bricks replace their ranges below.
+            GpuBlockHlodSummary.Dispatch(_summaryShader, _mirror, _requests, _summaries, _requests.count, 0);
+            using var request = new ComputeBuffer(1, 16);
+            using var owned = new NativeArray<byte>(512, Allocator.Temp);
+            var voxels = owned;
+            for (int i = 0; i < voxels.Length; i++) voxels[i] = 200;
+            using var semantics = new NativeArray<ushort>(512, Allocator.Temp);
+            using var boundaries = new NativeArray<byte>(512, Allocator.Temp);
+            var observed = new uint[_summaries.count];
+            for (int x = 0; x < 2; x++)
+            {
+                int3 coordinate = OriginBrick + new int3(x, 0, 0);
+                _mirror.Publish(VoxelBrickDelta.MixedAt(coordinate, 1, 0),
+                    voxels, semantics, boundaries, 0, true);
+                Assert.That(_mirror.TryGetSlot(coordinate, out int slot), Is.True);
+                Assert.That(slot, Is.Zero);
+                request.SetData(new[] { new int4(coordinate, 0) });
+                int destination = x + 1 + 4 * (1 + 4);
+                GpuBlockHlodSummary.Dispatch(_summaryShader, _mirror, request, _summaries, 1, 0, destination);
+                _summaries.GetData(observed); // Test-only source completion observation.
+                _mirror.Remove(coordinate);
+            }
+            _mirror.Clear();
+            VerifyBox(Build(split: true, summariesPrepared: true), int3.zero, new int3(16, 8, 8), 10, 200);
         }
 
         [Test]

@@ -7,6 +7,7 @@ StructuredBuffer<int4> _HlodBlocks;
 StructuredBuffer<uint> _HlodDenseEntries;
 RWStructuredBuffer<uint> _HlodSummaries;
 uint _HlodBlockCount;
+uint _HlodOutputBlockOffset;
 uint _HlodDirectoryOffset;
 uint _HlodDirectoryMask;
 groupshared uint s_Entry;
@@ -96,7 +97,7 @@ void Summarize(uint3 group, uint lane)
     if (votes.w > best) { representative = materials.w; }
     s_Material[lane] = representative;
     GroupMemoryBarrierWithGroupSync();
-    uint output = brickIndex * 19u;
+    uint output = (brickIndex + _HlodOutputBlockOffset) * 19u;
     if (lane < 16u)
     {
         uint first = lane * 4u;

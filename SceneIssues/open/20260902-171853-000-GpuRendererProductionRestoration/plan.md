@@ -6,19 +6,21 @@ Deliver production-quality `Assets/Scenes/VoxelShowcase.unity` through GPU rende
 
 ## Retained evidence
 
-Worktree `/private/tmp/voxel-gpu-restoration`, branch `gpu-rendering-agent-1-resume`, HEAD `b07488645`. Local harness/tests/screenshots authorized; last requested push reached `origin/fixes/agent-1` at `64b2921a3`. Current work stays local.
+Worktree `/private/tmp/voxel-gpu-restoration`, branch `gpu-rendering-agent-1-resume`, HEAD `7bf5b0f09`. Local harness/tests/screenshots authorized; last requested push reached `origin/fixes/agent-1` at `64b2921a3`. Current work stays local.
 
 All solid LOD steps have GPU implementations, including conditional step4 thin-feature preservation. A separate coarse classification mismatch is repaired and verified by 35 tests. Directory reclamation/collision fixes preserve the previous GPU-byte ceiling, but large coarse requests still lack bounded source streaming. Latest Showcase completed 180s/11 captures: reviewed 75.2s/150.2s **unacceptable**, grey distant houses and incomplete frontier. Full results in [tasks.md](tasks.md). Water and legacy CPU renderer removal remain open.
 
-## Current far-material repair
+## Current coverage repair
 
-H1: grey houses are retained far proxies whose material identity was collapsed. H2: missing GPU coverage alone explains the appearance. Inspection finds `GeometryFor` retains all additive primitives while `PresentationFor` selects only the first primitive’s material. A wall/roof bake regression confirms one drawable surface instead of two (`far-material-slots-before.xml`, one failed, exit 2). Coverage pressure can retain these proxies, but cannot restore their discarded material separation.
+Far material collapse is repaired in `7bf5b0f09`: per-primitive resolved slots restore brown roofs. Thirty-one focused tests, both module players and 180s/11-capture Showcase passed behavior gates. Reviewed Showcase 75.2s/150.2s remains unacceptable: simplified buildings/terrain and incomplete castle/frontier. Final 62 step4/three step8 publications, 612 missing-visible and 4,659,051 directory refusals. Detailed evidence is in tasks.md.
 
-Selected repair: immutable render-ready geometry carries resolved presentation slots; each primitive selects a slot. Composition groups matching material/style/coating identities. Rendering builds submeshes and both ordinary/command-buffer instanced draw paths submit each slot with its resolved material. No game material vocabulary enters Rendering.Api, no authoritative state changes, no extra world residency, no CPU voxel extraction.
+H1: whole-footprint source retention prevents coverage from converging under capacity pressure. H2: recovery merely needs more polls. Admission inspection confirms a 66³ padded request protects 287,496 bricks until complete coverage; the mirror has 58,144 mixed slots. Thus H2 cannot explain all configurations: an all-mixed footprint cannot fit, regardless of polling. This does not prove every stalled Showcase footprint is all mixed.
 
-Verification: 31 far geometry/presentation/handoff tests passed; strengthened four-test presentation suite proves grey-wall/red-roof values and material sharing across geometry identities. Rendering module completed 34s/nine captures; composition module 28s/seven captures. Reviewed 32s far fixtures and 24s generated composition remain prototype/blockout quality. Showcase completed 180s/11 captures/exit 0; reviewed exact 75.2s restores brown roofs versus prior grey houses, confirming H1 for that material loss. Reviewed 75.2s/150.2s remain unacceptable: simplified architecture, terrain and incomplete castle/frontier coverage. Final 62 step4/three step8 publications, 612 missing-visible and 4,659,051 directory refusals.
+Selected direction: accumulate GPU summaries from bounded source portions, retain summary/generation validity, and release each source lease only after ordered GPU completion. No CPU-derived geometry or production blocking readback, larger budgets, shorter distance or hidden sources.
 
-Next isolate a source footprint that exceeds the mirror’s protected capacity and implement bounded GPU-summary streaming. Material separation does not solve source/summary pressure or world lifetime. Keep distance/selection policy unchanged.
+Implemented prerequisite: bounded summary dispatch accepts a destination block offset, preserving other portions and unknown-source flags. Dense dispatch explicitly resets the offset. Actual GPU tests preserve seven portions using one repeatedly reused mixed slot; adjacent portions still mesh into the correct closed paged geometry after source release. Thirty-five summary/mesher tests passed. Module player completed 60s/six captures/exit 0 with both distance-band markers. Reviewed 10s/50s remains prototype/blockout quality. It exercises the existing dense path, not scheduler streaming.
+
+Next discriminating experiment: integrate portion-level demand/admission and asynchronous completion into step8 extraction, then run a production-faithful request larger than mirror capacity. Separate whole-request edit watches (currently keyed by demand footprints) from portion source protection; test edits between portions, cancellation/world teardown and unknown halo rejection. Step4 ordinary density still needs a separate bounded preparation solution. Do not claim the scheduler capacity defect fixed by the offset primitive alone.
 
 ## Remaining gates
 

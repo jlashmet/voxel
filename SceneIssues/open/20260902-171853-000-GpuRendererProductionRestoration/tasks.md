@@ -24,6 +24,23 @@ Each completed item needs exact feature SHA, request/run IDs, relevant executed 
 
 ## Current local evidence (2026-09-06)
 
+Bounded HLOD preparation after `7bf5b0f09`: whole-request admission protects 66³ = 287,496
+source bricks, exceeding 58,144 mixed mirror slots for sufficiently dense requests. More polling
+cannot solve that configuration. Added destination-offset summary dispatch without changing existing
+dense production scheduling. Real GPU tests retain seven portions across reuse of a single source
+slot, preserve unknown flags/neighbour ranges, reject invalid offsets, and mesh adjacent portions
+after releasing their sources. Initial harness stopped on a test-only C# using-variable mutation
+compile error; corrected without product changes. `gpu-hlod-portions-fixed.xml`: 34 passed, exit 0,
+14s. `gpu-hlod-portions-meshed.xml`: 35 passed, exit 0, 13s, including paged geometry verification.
+`gpu-hlod-portions-module/`: 60s/six captures/terminal exit 0; step4-ready and step8 success
+markers passed. Reviewed exact 10s/50s: geometry present, lumpy/stepped terrain remains
+**prototype/blockout quality**. Exact source copies/hashes retained. This is the summary streaming
+prerequisite, not complete source
+streaming: pending work includes portion demand leases, ordered asynchronous completion, edit epochs,
+cancellation and production count-lane integration. Existing CoarseGpuProductionValidation owns
+module visual regression; no new visual path is claimed by these kernel tests.
+
+
 Far material separation after `b07488645`: adapter retained all additive primitives but assigned
 only the first primitive’s presentation to the whole mesh. Wall/roof regression failed with one
 submesh versus two required (`far-material-slots-before.xml`, exit 2). Immutable geometry now carries

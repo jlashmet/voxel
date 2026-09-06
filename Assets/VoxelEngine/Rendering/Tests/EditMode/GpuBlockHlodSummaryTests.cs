@@ -148,6 +148,77 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             for (int word = 0; word < 19; word++) Assert.That(result[word], Is.Zero);
         }
 
+        [Test]
+        public void SummaryPortionsSurviveSourceSlotReuseBeyondMirrorCapacity()
+        {
+            const int portions = 7;
+            _mirror.Dispose();
+            _mirror = new GpuVoxelBrickMirror(1);
+            _summaries.Dispose();
+            _summaries = new ComputeBuffer(portions * GpuBlockHlodSummary.WordsPerBlock, 4);
+            using var ownedVoxels = new NativeArray<byte>(512, Allocator.Temp);
+            var voxels = ownedVoxels;
+            using var semantics = new NativeArray<ushort>(512, Allocator.Temp);
+            using var boundaries = new NativeArray<byte>(512, Allocator.Temp);
+            var result = new uint[_summaries.count];
+            for (int portion = 0; portion < portions; portion++)
+            {
+                int3 coordinate = Coordinate + new int3(portion, 0, 0);
+                for (int voxel = 0; voxel < 512; voxel++) voxels[voxel] = (byte)(portion + 1);
+                _mirror.Publish(VoxelBrickDelta.MixedAt(coordinate, 1, 0),
+                    voxels, semantics, boundaries, 0, true);
+                Assert.That(_mirror.TryGetSlot(coordinate, out int slot), Is.True);
+                Assert.That(slot, Is.Zero, "Every portion must reuse the single source slot.");
+                _requests.SetData(new[] { new int4(coordinate, 0) });
+                GpuBlockHlodSummary.Dispatch(_shader, _mirror, _requests, _summaries,
+                    1, 0, outputBlockOffset: portion);
+                // Test-only completion observation before releasing the source lease. Production
+                // orchestration must use ordered completion, never a blocking GetData.
+                _summaries.GetData(result);
+                _mirror.Remove(coordinate);
+            }
+            _summaries.GetData(result);
+            for (int portion = 0; portion < portions; portion++)
+            {
+                int start = portion * GpuBlockHlodSummary.WordsPerBlock;
+                Assert.That(result[start], Is.EqualTo(uint.MaxValue));
+                Assert.That(result[start + 1], Is.EqualTo(uint.MaxValue));
+                for (int cell = 0; cell < 64; cell++)
+                    Assert.That((result[start + 2 + cell / 4] >> ((cell % 4) * 8)) & 255u,
+                        Is.EqualTo(portion + 1), $"portion {portion}, subcell {cell}");
+                Assert.That(result[start + 18], Is.Zero);
+            }
+        }
+
+        [Test]
+        public void OffsetPortionPreservesNeighboursAndUnknownSourceFlag()
+        {
+            var sentinel = new uint[_summaries.count];
+            for (int i = 0; i < sentinel.Length; i++) sentinel[i] = 0x12345678u;
+            _summaries.SetData(sentinel);
+            GpuBlockHlodSummary.Dispatch(_shader, _mirror, _requests, _summaries, 1, 0, 1);
+            var result = new uint[_summaries.count];
+            _summaries.GetData(result);
+            for (int i = 0; i < 19; i++) Assert.That(result[i], Is.EqualTo(sentinel[i]));
+            for (int i = 19; i < 37; i++) Assert.That(result[i], Is.Zero);
+            Assert.That(result[37], Is.EqualTo(1), "Unknown must survive at the destination offset.");
+            // Reusing the shader for the default offset must reset its previous range.
+            _requests.SetData(new[] { new int4(Coordinate, 1) });
+            GpuBlockHlodSummary.Dispatch(_shader, _mirror, _requests, _summaries, 1, 0);
+            _summaries.GetData(result);
+            for (int i = 0; i < 19; i++) Assert.That(result[i], Is.Zero);
+            Assert.That(result[37], Is.EqualTo(1));
+        }
+
+        [TestCase(-1)]
+        [TestCase(2)]
+        [TestCase(int.MaxValue)]
+        public void InvalidSummaryDestinationIsRejectedBeforeDispatch(int offset)
+        {
+            Assert.Throws<System.ArgumentOutOfRangeException>(() =>
+                GpuBlockHlodSummary.Dispatch(_shader, _mirror, _requests, _summaries, 1, 0, offset));
+        }
+
         private void Publish(NativeArray<byte> voxels, uint version = 1)
         {
             using var semantics = new NativeArray<ushort>(512, Allocator.Temp);
