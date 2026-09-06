@@ -30,6 +30,8 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             public uint VertexPageCount;
             public uint IndexPageCount;
             public uint Ready;
+
+            public ulong Generation => GenerationLow | ((ulong)GenerationHigh << 32);
         }
 
         private sealed class Batch : IDisposable
@@ -145,6 +147,19 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             return handle;
         }
 
+        private static void AllocateAndFinalize(
+            GpuSurfacePageArena arena, Batch batch, int frame)
+        {
+            arena.AllocateBatch(
+                batch.Descriptors, batch.Counters, 1,
+                GpuSurfaceExtractor.BatchRecordWords, frame);
+            Assert.That(batch.ReadAllocationStatus(), Is.EqualTo(AllocationReady));
+            arena.PublishBatch(
+                batch.Descriptors, batch.Counters, 1,
+                GpuSurfaceExtractor.BatchRecordWords, frame + 1);
+            Assert.That(batch.ReadAllocationStatus(), Is.EqualTo(AllocationReady));
+        }
+
         [Test]
         public void SuccessfulCandidateDoesNotBecomeLiveWithoutCpuCommit()
         {
@@ -153,46 +168,76 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             int handle = AcquireAndSelectGeneration(arena, generation, 1);
             using var batch = new Batch(handle, generation, vertices: 12, indices: 18);
 
-            arena.AllocateBatch(
-                batch.Descriptors, batch.Counters, 1,
-                GpuSurfaceExtractor.BatchRecordWords, 2);
-            Assert.That(batch.ReadAllocationStatus(), Is.EqualTo(AllocationReady));
+            AllocateAndFinalize(arena, batch, 2);
 
             GeometryRecord pending = ReadRecord(
                 arena.PendingChunkGeometry, handle, arena.HandleCapacity);
             GeometryRecord before = ReadRecord(
                 arena.LiveChunkGeometry, handle, arena.HandleCapacity);
             Assert.That(pending.Ready, Is.EqualTo(1u),
-                "A successful allocation must exist as pending candidate geometry.");
+                "A successful write must remain a pending candidate.");
             Assert.That(before.Ready, Is.Zero,
-                "Allocation alone must not manufacture live geometry.");
+                "GPU write completion is not renderer-demand approval.");
 
-            // This is deliberately the current production arena call. The final contract requires
-            // it to leave the candidate pending until the CPU validates the immutable render
-            // request and sends an explicit identity-checked Commit (or Abort). On the reviewed
-            // implementation this call swaps pending into live immediately, so this is the exact
-            // fail-before discriminator for the publication defect.
-            arena.PublishBatch(
-                batch.Descriptors, batch.Counters, 1,
-                GpuSurfaceExtractor.BatchRecordWords, 3);
+            arena.CommitPending(handle, generation, 4);
 
             GeometryRecord after = ReadRecord(
                 arena.LiveChunkGeometry, handle, arena.HandleCapacity);
-            Assert.That(after.Ready, Is.Zero,
-                "GPU write completion is only a candidate; pending geometry must never become live "
-              + "until current CPU render demand explicitly commits that exact request identity.");
+            GeometryRecord pendingAfter = ReadRecord(
+                arena.PendingChunkGeometry, handle, arena.HandleCapacity);
+            Assert.That(after.Ready, Is.EqualTo(1u));
+            Assert.That(after.Generation, Is.EqualTo(generation));
+            Assert.That(pendingAfter.Ready, Is.Zero,
+                "Commit must consume exactly the approved pending candidate.");
+        }
+
+        [Test]
+        public void AbortPreservesPreviousLiveGeometryAndConsumesOnlyPendingCandidate()
+        {
+            var arena = Create(handles: 1, vertexPages: 4, indexPages: 4);
+            const ulong liveGeneration = 30UL;
+            const ulong rejectedGeneration = 31UL;
+            int handle = AcquireAndSelectGeneration(arena, liveGeneration, 5);
+            using (var initial = new Batch(handle, liveGeneration, vertices: 12, indices: 18))
+            {
+                AllocateAndFinalize(arena, initial, 6);
+                arena.CommitPending(handle, liveGeneration, 8);
+            }
+            Assert.That(ReadRecord(
+                arena.LiveChunkGeometry, handle, arena.HandleCapacity).Generation,
+                Is.EqualTo(liveGeneration));
+
+            arena.QueueGeneration(handle, rejectedGeneration);
+            arena.FlushHandleCommands(9);
+            using var replacement = new Batch(
+                handle, rejectedGeneration, vertices: 20, indices: 30);
+            AllocateAndFinalize(arena, replacement, 10);
+            Assert.That(ReadRecord(
+                arena.PendingChunkGeometry, handle, arena.HandleCapacity).Generation,
+                Is.EqualTo(rejectedGeneration));
+
+            arena.AbortPending(handle, rejectedGeneration, 12);
+
+            GeometryRecord live = ReadRecord(
+                arena.LiveChunkGeometry, handle, arena.HandleCapacity);
+            GeometryRecord pending = ReadRecord(
+                arena.PendingChunkGeometry, handle, arena.HandleCapacity);
+            Assert.That(live.Ready, Is.EqualTo(1u));
+            Assert.That(live.Generation, Is.EqualTo(liveGeneration),
+                "Rejected replacement must not disturb the previous live representation.");
+            Assert.That(pending.Ready, Is.Zero);
         }
 
         [Test]
         public void StaleAllocationReportsStatusAndOwnsNoPages()
         {
             var arena = Create(handles: 1);
-            int handle = AcquireAndSelectGeneration(arena, generation: 9UL, frame: 4);
+            int handle = AcquireAndSelectGeneration(arena, generation: 9UL, frame: 13);
             using var stale = new Batch(handle, generation: 8UL, vertices: 8, indices: 12);
 
             arena.AllocateBatch(
                 stale.Descriptors, stale.Counters, 1,
-                GpuSurfaceExtractor.BatchRecordWords, 5);
+                GpuSurfaceExtractor.BatchRecordWords, 14);
 
             Assert.That(stale.ReadAllocationStatus(), Is.EqualTo(AllocationStale));
             Assert.That(ReadRecord(
@@ -206,8 +251,8 @@ namespace VoxelEngine.Rendering.Tests.EditMode
         public void ExhaustedAllocationIsObservableAndDoesNotOverwriteAnotherPendingCandidate()
         {
             var arena = Create(handles: 2, vertexPages: 1, indexPages: 1);
-            int first = AcquireAndSelectGeneration(arena, generation: 11UL, frame: 6);
-            int second = AcquireAndSelectGeneration(arena, generation: 12UL, frame: 7);
+            int first = AcquireAndSelectGeneration(arena, generation: 11UL, frame: 15);
+            int second = AcquireAndSelectGeneration(arena, generation: 12UL, frame: 16);
 
             using var occupying = new Batch(
                 first, 11UL,
@@ -215,7 +260,7 @@ namespace VoxelEngine.Rendering.Tests.EditMode
                 indices: GpuSurfacePageArena.IndexPageSize);
             arena.AllocateBatch(
                 occupying.Descriptors, occupying.Counters, 1,
-                GpuSurfaceExtractor.BatchRecordWords, 8);
+                GpuSurfaceExtractor.BatchRecordWords, 17);
             Assert.That(occupying.ReadAllocationStatus(), Is.EqualTo(AllocationReady));
             Assert.That(ReadRecord(
                 arena.PendingChunkGeometry, first, arena.HandleCapacity).Ready, Is.EqualTo(1u));
@@ -223,7 +268,7 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             using var exhausted = new Batch(second, 12UL, vertices: 1, indices: 3);
             arena.AllocateBatch(
                 exhausted.Descriptors, exhausted.Counters, 1,
-                GpuSurfaceExtractor.BatchRecordWords, 9);
+                GpuSurfaceExtractor.BatchRecordWords, 18);
 
             Assert.That(exhausted.ReadAllocationStatus(), Is.EqualTo(AllocationExhausted),
                 "Arena exhaustion is a retryable GPU result, not successful completion.");
@@ -238,7 +283,7 @@ namespace VoxelEngine.Rendering.Tests.EditMode
         public void OversizedAllocationHasDistinctPermanentCapacityStatus()
         {
             var arena = Create(handles: 1, vertexPages: 1, indexPages: 1);
-            int handle = AcquireAndSelectGeneration(arena, generation: 21UL, frame: 10);
+            int handle = AcquireAndSelectGeneration(arena, generation: 21UL, frame: 19);
             uint tooManyVertices = unchecked((uint)(
                 GpuSurfacePageArena.VertexPageSize
                 * (GpuSurfacePageArena.MaxVertexPagesPerChunk + 1)));
@@ -247,7 +292,7 @@ namespace VoxelEngine.Rendering.Tests.EditMode
 
             arena.AllocateBatch(
                 oversized.Descriptors, oversized.Counters, 1,
-                GpuSurfaceExtractor.BatchRecordWords, 11);
+                GpuSurfaceExtractor.BatchRecordWords, 20);
 
             Assert.That(oversized.ReadAllocationStatus(), Is.EqualTo(AllocationTooLarge),
                 "TooLarge must stay distinct from transient exhaustion so production can take an "
