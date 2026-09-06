@@ -6,7 +6,7 @@ Deliver production-quality `Assets/Scenes/VoxelShowcase.unity` through the GPU b
 
 ## Execution and results
 
-User authorizes local harness/tests/screenshots and pushed existing work through4a80ddb57 to `origin/fixes/agent-1`. Subsequent work is local in `/private/tmp/voxel-gpu-restoration`, branch `gpu-rendering-agent-1-resume`.
+User authorizes local harness/tests/screenshots and pushed existing work through2421192e6 to `origin/fixes/agent-1`. Subsequent summit residency work is local in `/private/tmp/voxel-gpu-restoration`, branch `gpu-rendering-agent-1-resume`.
 
 Prior repairs cover GPU descriptor/layout, allocation, indirect bucket prefix, asynchronous recovery, explicit approval and GPU write-finalization. Geometry/counts never return to CPU authority. Prior31 focused/4 arena tests passed. Retirement/lifetime and CPU-backend deletion remain incomplete.
 
@@ -21,7 +21,7 @@ Normal180s Showcase completed12 captures/no transaction errors. Stationary mount
 ## Hypotheses and next experiments
 
 1. Remaining wall-like mountain forms come from proxy shape loss: `BuildGeometryMesh` maps Ramp and most shapes to boxes. Preserve canonical ramp direction/shape through composition and Rendering, with independent raster expectations and module/player evidence.
-2. The summit proxy also lacks a complete detailed replacement. Bake directory inspection proves region(-2,1,0) absent; its only upper regions are(0,1,0)/(0,1,1). Add a production regression for summit upper occupancy, then fix generic vertical feature residency/baking rather than hiding the proxy.
+2. The summit proxy also lacks a complete detailed replacement. Bake directory inspection proves region(-2,1,0) absent; its only upper regions are(0,1,0)/(0,1,1). Regression failed specifically on the absent summit region, then passed after CPU footprint residency and rebaking200 regions (147s/8.8GB). All5 focused tests pass. Normal95s player completed6 captures/no transaction errors:74.8s shows detailed summit and roofed side buildings, semantic proxies0/near1477. Quality remains unacceptable. Audit separated vertical layers/composed children and add a focused module streaming scene before accepting residency. Loading caps unchanged.
 
 Audit unnecessary discovery invalidation on clipmap rescans, global change-feed gating and query cost during traversal. Unresolved content/coverage must keep a valid far representation. Resume G11 cancellation/last-consumer lifetime afterward.
 

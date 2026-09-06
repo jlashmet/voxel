@@ -589,7 +589,7 @@ namespace VoxelEngine.Showcase
         /// </summary>
         private void SurfaceLayerSpan(int regionX, int regionZ, out int minLayer, out int maxLayer)
         {
-            // Cached per column. The height field is static, so a column's span is fixed for the
+            // Cached per column. The height field and catalogue are static, so the span is fixed for the
             // life of the world, but residency refreshes every time the viewer crosses a region
             // and each miss costs 81 height samples. Recomputing it was adding roughly 200 ms
             // across showcase startup — enough to push the castle build past its budget.
@@ -631,6 +631,30 @@ namespace VoxelEngine.Showcase
             maxLayer = highest >> VoxelDimensions.RegionVoxelEdgeLog2;
             if (minLayer < 0) minLayer = 0;
             if (maxLayer < minLayer) maxLayer = minLayer;
+
+            // Finite authored features can cross a region ceiling even where the underlying
+            // terrain does not. Use the CPU catalogue's physical footprints, shared with region
+            // generation, so runtime residency and offline baking request those layers too.
+            // Do not infer residency from a rendered proxy or GPU coverage.
+            if (!_catalogue.IsCreated) return;
+            for (int i = 0; i < _catalogue.Rules.Length; i++)
+            {
+                PlacementRule rule = _catalogue.Rules[i];
+                if ((uint)rule.DefinitionId >= (uint)_catalogue.DefinitionCount) continue;
+                int3 footprint = _catalogue.Definitions[rule.DefinitionId].Footprint;
+                if (math.any(footprint <= 0)) continue;
+                for (int j = 0; j < rule.ExplicitCount; j++)
+                {
+                    int index = rule.ExplicitOffset + j;
+                    if ((uint)index >= (uint)_catalogue.ExplicitPlacements.Length) continue;
+                    int3 min = _catalogue.ExplicitPlacements[index].Position;
+                    int3 max = min + footprint; // exclusive, as in FeatureGeneration
+                    if (min.x >= originX + RegionVoxelEdge || max.x <= originX ||
+                        min.z >= originZ + RegionVoxelEdge || max.z <= originZ) continue;
+                    minLayer = math.min(minLayer, min.y >> VoxelDimensions.RegionVoxelEdgeLog2);
+                    maxLayer = math.max(maxLayer, (max.y - 1) >> VoxelDimensions.RegionVoxelEdgeLog2);
+                }
+            }
         }
 
         /// <summary>

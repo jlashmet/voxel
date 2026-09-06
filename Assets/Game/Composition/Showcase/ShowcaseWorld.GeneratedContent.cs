@@ -137,6 +137,7 @@ namespace VoxelEngine.Showcase
                 _catalogue.Dispose();
             ResetFarFeaturePresentation();
             _catalogue = catalogue;
+            _surfaceSpanCache.Clear();
 
             _castleBuild = null;
             _castleRegions.Clear();

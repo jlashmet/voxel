@@ -19,19 +19,22 @@ namespace VoxelEngine.Tests.PlayMode
         private const byte PathMaterial = 13;
         private const byte DragonMaterial = 9;
 
-        [Test]
-        public void StartupBakeContainsCurrentMountainInterior()
+        [TestCase(false)]
+        [TestCase(true)]
+        public void StartupBakeContainsCurrentLandmarkSamples(bool summit)
         {
             TextAsset asset = Resources.Load<TextAsset>(ShowcaseWorldBakeCodec.ResourcePath);
             Assert.NotNull(asset);
             ShowcaseWorldBake bake = ShowcaseWorldBakeCodec.Deserialize(asset.bytes);
             MountainLandmarkSpec spec = ShowcaseMountainDragonLayout.CreateLandmark(bake.Seed);
             int3 sample = spec.Origin + new int3(spec.CentreLocal, spec.MountainHeight / 2, spec.CentreLocal);
+            if (summit)
+                sample.y = spec.Origin.y + spec.MountainHeight + spec.PlaceholderSize;
             int3 regionCoordinate = sample >> 9;
             ShowcaseWorldBakedRegion? record = null;
             foreach (ShowcaseWorldBakedRegion region in bake.Regions)
                 if (region.Coord.Equals(regionCoordinate)) { record = region; break; }
-            Assert.IsTrue(record.HasValue, "The landmark center must be inside the baked startup region set.");
+            Assert.IsTrue(record.HasValue, $"Landmark sample {sample} must be inside the baked startup region set.");
             byte[] payload = ShowcaseWorldBakeCodec.DecodeRegionPayload(record.Value);
             Assert.IsTrue(SemanticRegionSnapshotCodec.TryGetMixedBrickCount(payload, out int mixed));
             using var storage = VoxelEngineBootstrap.CreateStorage(1, System.Math.Max(1, mixed));
@@ -41,7 +44,7 @@ namespace VoxelEngine.Tests.PlayMode
             Assert.IsTrue(storage.Reads.TryAcquireRegion(regionCoordinate, out var view));
             Assert.IsTrue(view.TryReadCell(sample & 511, out var cell));
             Assert.IsTrue(cell.IsSolid,
-                $"Current mountain center {sample} is air in the startup bake. Far catalogue and detailed world disagree.");
+                $"Current landmark sample {sample} is air in the startup bake. Far catalogue and detailed world disagree.");
         }
 
         [Test]
