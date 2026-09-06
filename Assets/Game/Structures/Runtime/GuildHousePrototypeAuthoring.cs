@@ -17,17 +17,20 @@ namespace Game.Structures.Runtime
             byte primary = region.IsWellFormed ? region.PrimaryMaterial : GameMaterialIds.Wood;
             byte secondary = region.IsWellFormed ? region.SecondaryMaterial : GameMaterialIds.MasonrySmall;
             byte accent = region.IsWellFormed ? region.AccentMaterial : GameMaterialIds.Cloth;
+            byte magic = region.IsWellFormed && region.MagicMaterial != GameMaterialIds.Empty
+                ? region.MagicMaterial
+                : GameMaterialIds.LitWindow;
 
             switch (prototype.SpatialPlan.ShellStyle)
             {
                 case GuildHouseShellStyle.Tower:
-                    AuthorTower(authoring, in prototype.SpatialPlan, primary, secondary, accent);
+                    AuthorTower(authoring, in prototype.SpatialPlan, primary, secondary, accent, magic);
                     break;
                 case GuildHouseShellStyle.Lodge:
-                    AuthorLodge(authoring, in prototype.SpatialPlan, primary, secondary, accent);
+                    AuthorLodge(authoring, in prototype.SpatialPlan, primary, secondary, accent, magic);
                     break;
                 default:
-                    AuthorHall(authoring, in prototype.SpatialPlan, primary, secondary, accent);
+                    AuthorHall(authoring, in prototype.SpatialPlan, primary, secondary, accent, magic);
                     break;
             }
 
@@ -36,7 +39,7 @@ namespace Game.Structures.Runtime
         }
 
         private static void AuthorHall(IStructureAuthoringSession authoring, in GuildHouseSpatialPlan plan,
-            byte primary, byte secondary, byte accent)
+            byte primary, byte secondary, byte accent, byte magic)
         {
             for (int floor = 0; floor < plan.FloorCount; floor++)
             {
@@ -47,13 +50,22 @@ namespace Game.Structures.Runtime
             }
             int roofY = plan.Origin.y + plan.FloorCount * plan.FloorHeight;
             authoring.Box(new int3(plan.Origin.x, roofY, plan.Origin.z), new int3(plan.Width, 3, plan.Depth), secondary);
+
+            // Public hall/church-like guild houses need a readable roof silhouette in every consumer,
+            // not a showcase-only cap. Hidden dens stay intentionally plain and towers own crenels.
+            if (plan.ShellStyle == GuildHouseShellStyle.Hall ||
+                plan.ShellStyle == GuildHouseShellStyle.ChapelHouse)
+                AuthorSteppedGable(authoring, in plan, roofY + 3, primary, accent);
+
+            if (plan.ShellStyle != GuildHouseShellStyle.HiddenDen)
+                AuthorFacadeArticulation(authoring, in plan, secondary, accent, magic);
             AuthorEntranceSign(authoring, in plan, accent);
         }
 
         private static void AuthorTower(IStructureAuthoringSession authoring, in GuildHouseSpatialPlan plan,
-            byte primary, byte secondary, byte accent)
+            byte primary, byte secondary, byte accent, byte magic)
         {
-            AuthorHall(authoring, in plan, primary, secondary, accent);
+            AuthorHall(authoring, in plan, primary, secondary, accent, magic);
             int top = plan.Origin.y + plan.FloorCount * plan.FloorHeight + 3;
             const int crenel = 5;
             for (int x = plan.Origin.x; x < plan.Origin.x + plan.Width; x += 12)
@@ -69,7 +81,7 @@ namespace Game.Structures.Runtime
         }
 
         private static void AuthorLodge(IStructureAuthoringSession authoring, in GuildHouseSpatialPlan plan,
-            byte primary, byte secondary, byte accent)
+            byte primary, byte secondary, byte accent, byte magic)
         {
             int y = plan.Origin.y;
             AuthorFloor(authoring, plan.Origin.x, y, plan.Origin.z, plan.Width, plan.Depth, secondary);
@@ -88,7 +100,69 @@ namespace Game.Structures.Runtime
                 authoring.Box(new int3(plan.Origin.x + 5, y + 1, z), new int3(6, plan.FloorHeight - 2, 6), accent);
                 authoring.Box(new int3(plan.Origin.x + plan.Width - 11, y + 1, z), new int3(6, plan.FloorHeight - 2, 6), accent);
             }
+            AuthorFacadeArticulation(authoring, in plan, secondary, accent, magic);
             AuthorEntranceSign(authoring, in plan, accent);
+        }
+
+        private static void AuthorSteppedGable(IStructureAuthoringSession authoring,
+            in GuildHouseSpatialPlan plan, int baseY, byte roofMaterial, byte ridgeMaterial)
+        {
+            int depth = math.max(12, plan.Depth - 4);
+            int inset = 2;
+            int tier = 0;
+            while (tier < 14)
+            {
+                int width = plan.Width - inset * 2;
+                if (width < 12) break;
+                authoring.Box(
+                    new int3(plan.Origin.x + inset, baseY + tier * 2, plan.Origin.z + 2),
+                    new int3(width, 2, depth),
+                    roofMaterial);
+                inset += 4;
+                tier++;
+            }
+
+            int ridgeY = baseY + math.max(0, tier - 1) * 2;
+            authoring.Box(
+                new int3(plan.Origin.x + plan.Width / 2 - 2, ridgeY + 2, plan.Origin.z + 2),
+                new int3(4, 3, depth),
+                ridgeMaterial);
+        }
+
+        private static void AuthorFacadeArticulation(IStructureAuthoringSession authoring,
+            in GuildHouseSpatialPlan plan, byte frameMaterial, byte accentMaterial, byte windowMaterial)
+        {
+            const int doorWidth = 12;
+            const int doorHeight = 24;
+            int wallY = plan.Origin.y + 2;
+            int frontZ = plan.Origin.z - 2;
+            int doorLeft = plan.Origin.x + (plan.Width - doorWidth) / 2;
+
+            // Door surround and shallow canopy sit outside the perimeter, preserving the production
+            // walk-through opening while giving the front elevation a clear visual anchor.
+            authoring.Box(new int3(doorLeft - 4, wallY, frontZ),
+                new int3(4, doorHeight, 2), frameMaterial);
+            authoring.Box(new int3(doorLeft + doorWidth, wallY, frontZ),
+                new int3(4, doorHeight, 2), frameMaterial);
+            authoring.Box(new int3(doorLeft - 4, wallY + doorHeight, frontZ),
+                new int3(doorWidth + 8, 4, 2), frameMaterial);
+            authoring.Box(new int3(doorLeft - 7, wallY + doorHeight + 3, plan.Origin.z - 7),
+                new int3(doorWidth + 14, 2, 9), accentMaterial);
+
+            // Region-driven lit/magic panels make floor count and facade scale legible from the
+            // exterior without carving new openings or inventing showcase-only materials.
+            int windowWidth = math.max(6, math.min(10, plan.Width / 10));
+            int leftX = plan.Origin.x + plan.Width / 4 - windowWidth / 2;
+            int rightX = plan.Origin.x + (plan.Width * 3) / 4 - windowWidth / 2;
+            for (int floor = 0; floor < plan.FloorCount; floor++)
+            {
+                int windowY = plan.Origin.y + floor * plan.FloorHeight + 10;
+                int windowHeight = math.max(6, math.min(10, plan.FloorHeight - 14));
+                authoring.Box(new int3(leftX, windowY, plan.Origin.z - 1),
+                    new int3(windowWidth, windowHeight, 1), windowMaterial);
+                authoring.Box(new int3(rightX, windowY, plan.Origin.z - 1),
+                    new int3(windowWidth, windowHeight, 1), windowMaterial);
+            }
         }
 
         private static void AuthorFloor(IStructureAuthoringSession authoring,
