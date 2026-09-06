@@ -21,6 +21,7 @@ namespace Game.WorldBuilder.Voxel
 
             NewHouseReferenceResult result = NewHouseReferenceAuthoring.AuthorHouse(a, o, in c, in p);
             ReplaceConflictingRoofComposition(a, o, in c, in p);
+            RestoreReferenceFrontOpenings(a, o, in c, in p);
             RefineFacadeDepth(a, o, in c, in p);
             RebuildReferenceOrnaments(a, o, in c, in p);
             FinishAuditElevations(a, o, in c, in p);
@@ -96,6 +97,87 @@ namespace Game.WorldBuilder.Voxel
                 new int3(12, 3, 12), p.Stone);
             a.Box(new int3(chimneyX + 2, chimneyTop, chimneyZ + 2),
                 new int3(6, 4, 6), p.Stone);
+        }
+
+        private static void RestoreReferenceFrontOpenings(IStructureAuthoringSession a, int3 o,
+            in NewHouseReferenceConfig c, in NewHouseReferencePalette p)
+        {
+            int centre = o.x + c.Width / 2;
+            int upper = o.y + c.UpperFloorY;
+            int eave = o.y + c.MainEaveY;
+            int front = o.z - 2;
+
+            // Iteration 4 proved the roof-clear pass removes the previously authored upper facade.
+            // Re-author only the two reference-visible upper openings after that destructive pass so
+            // the ordering is explicit and future roof changes cannot silently erase them.
+            ArchedPanel(a, centre, upper + 7, front, 17, 24,
+                p.Glass, p.Timber, p.Timber, true);
+            AddShutters(a, centre, upper + 8, front, 17, 22, p.Accent, p.Timber);
+            ArchedPanel(a, centre, eave + 10, front, 15, 21,
+                p.Glass, p.Timber, p.Timber, true);
+        }
+
+        private static void ArchedPanel(IStructureAuthoringSession a,
+            int centreX, int y, int frontZ, int width, int height,
+            byte panel, byte frame, byte surround, bool muntins)
+        {
+            int radius = math.max(2, width / 2);
+            int spring = math.max(2, height - radius - 1);
+            for (int row = 0; row < height; row++)
+            {
+                int half = ArchHalfWidth(radius, spring, row);
+                a.Carve(new int3(centreX - half, y + row, frontZ - 1),
+                    new int3(half * 2 + 1, 1, 8));
+                a.Box(new int3(centreX - half, y + row, frontZ + 1),
+                    new int3(half * 2 + 1, 1, 2), panel);
+                if (row >= spring)
+                {
+                    a.Box(new int3(centreX - half - 1, y + row, frontZ - 3),
+                        new int3(1, 1, 2), surround);
+                    a.Box(new int3(centreX + half + 1, y + row, frontZ - 3),
+                        new int3(1, 1, 2), surround);
+                }
+            }
+
+            a.Box(new int3(centreX - radius - 1, y - 1, frontZ - 3),
+                new int3(1, spring + 2, 2), surround);
+            a.Box(new int3(centreX + radius + 1, y - 1, frontZ - 3),
+                new int3(1, spring + 2, 2), surround);
+            a.Box(new int3(centreX - radius - 2, y - 2, frontZ - 3),
+                new int3(radius * 2 + 5, 2, 3), surround);
+
+            if (!muntins) return;
+            a.Box(new int3(centreX, y + 1, frontZ - 4),
+                new int3(1, height - 3, 2), frame);
+            a.Box(new int3(centreX - radius + 1, y + spring / 2, frontZ - 4),
+                new int3(math.max(1, radius * 2 - 1), 1, 2), frame);
+        }
+
+        private static int ArchHalfWidth(int radius, int spring, int row)
+        {
+            if (row < spring) return radius;
+            int dy = math.min(radius, row - spring);
+            return math.max(0, (int)math.floor(math.sqrt(
+                math.max(0, radius * radius - dy * dy))));
+        }
+
+        private static void AddShutters(IStructureAuthoringSession a,
+            int centreX, int y, int frontZ, int windowWidth, int height,
+            byte accent, byte timber)
+        {
+            int half = windowWidth / 2;
+            const int shutterWidth = 5;
+            int leftX = centreX - half - shutterWidth - 3;
+            int rightX = centreX + half + 4;
+            a.Box(new int3(leftX, y, frontZ - 5), new int3(shutterWidth, height, 2), accent);
+            a.Box(new int3(rightX, y, frontZ - 5), new int3(shutterWidth, height, 2), accent);
+            for (int yOffset = 5; yOffset < height - 2; yOffset += 6)
+            {
+                a.Box(new int3(leftX, y + yOffset, frontZ - 6),
+                    new int3(shutterWidth, 1, 2), timber);
+                a.Box(new int3(rightX, y + yOffset, frontZ - 6),
+                    new int3(shutterWidth, 1, 2), timber);
+            }
         }
 
         private static void RefineFacadeDepth(IStructureAuthoringSession a, int3 o,
