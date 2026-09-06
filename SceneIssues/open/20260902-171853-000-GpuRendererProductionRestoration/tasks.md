@@ -178,6 +178,24 @@ Also audit semantic near handoff: Showcase submits all selected tiers (including
 visible near-residency filter; distinguish intended fallback from duplicate nearby presentation.
 Investigate this existing system before replacing far presentation; preserve its content/range.
 
+Far ownership experiments on d107d8e31: `far-owner-probe/`55s exited1 (8 captures, minimum9),
+then `far-owner-probe-complete/`65s exited0 with10 captures. Reviewed25s/35s/45s: grey mountain
+and crude side structures disappear with only semantic far features suppressed, then return.
+The terrain remains. Existing probe restores visibility; no content removal is an accepted fix.
+`far-owner-distance/`65s exited0/10 captures with temporary bounded bounds-ray logging. Candidate
+CC9F50C170E9C507, bake-4DF345372F3D7230, Mid, center(-59.95,35.85,18.05)m,
+extents(50.05,14.05,52.05)m, bounds-ray distance60.79m matches the mountain landmark.
+Right candidate EDDA2E49B0BB89BE, Mid, bounds-ray distance102.10m. These are bounds candidates,
+not exact triangle intersections. Runtime source and issue metadata restored after experiments.
+
+Offline bake decode following `ShowcaseWorldBakeCodec` and `SemanticRegionSnapshotCodec`:
+v3,seed1592594996,radius8,199 regions; mountain center region(-2,0,0) is present. At x=-600,z=200,
+y220 contains material13, but y250/300/350/400/450/480 are uniform air. Current mountain frustum
+spans these central heights. This supports stale baked content as a prerequisite to near/far handoff;
+next verify with production Storage and catalogue evaluation before rebuilding. Do not simply
+suppress the proxy and thereby hide a missing mountain. Diagnostic JSON, snapshots and patches
+are under `Artifacts/LocalGpuShowcase/`; all these runs remain excluded from visual/performance acceptance.
+
 ## 1. Get the actual GPU path running now
 
 - [ ] **G01 — Reconcile the retained production GPU implementation.** Inspect current code and historical merge parent `a0ac0f5e...`; retain compatible proven changes rather than blindly restoring old files. Trace the real scheduler -> mirror -> extraction -> page publication -> URP draw route. Record concrete compile/runtime blockers and fix only prerequisites to this route. Do not begin another CPU visual-polish cycle.

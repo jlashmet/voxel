@@ -6,7 +6,7 @@ Deliver production-quality `Assets/Scenes/VoxelShowcase.unity` through the GPU b
 
 ## Execution and material results
 
-User directs local harness/tests and screenshot review; **no further origin pushes**. Worktree `/private/tmp/voxel-gpu-restoration`, branch `gpu-rendering-agent-1-resume`.
+User directs local harness/tests and screenshot review; latest instruction authorizes pushing existing work to `origin/fixes/agent-1`, then continuing. Worktree `/private/tmp/voxel-gpu-restoration`, branch `gpu-rendering-agent-1-resume`.
 
 Proven repairs: bounded watchdog accounting, shared44-byte GPU descriptor, common allocator status store, explicit indirect bucket prefix, compatible batch layouts. Malformed step2 caches invalidated earlier geometry-demand estimates. Corrected tracing proved full stationary coverage but real traversal exhaustion (290/1635 requests through175s). Async status recovery now reports rejection and triggers bounded offscreen GPU eviction.
 
@@ -18,10 +18,14 @@ Next discovered invariant: finalization ignored write counters. Five real-GPU bo
 
 ## Hypotheses and discriminating experiments
 
-1. Incomplete writes explained missing geometry: not observed in the strict180s run (zero reported rejections); count equality cannot prove payload correctness.
-2. Writes complete correctly, while traversal admission/eviction churn and coarse presentation cause remaining defects.
+The recent far-world system is active:6 terrain rings and1480/1481 semantic instances. Existing reversible owner probe completed65s/10 captures (earlier55s run failed minimum9 captures). Grey mountain and coarse side structures disappear only while semantic far features are suppressed, then return. Terrain persists. Production visibility and issue metadata restored; diagnostic-only, no acceptance.
 
-Next prove cancellation retains submitted mirror leases until GPU consumption; Release currently drops coverage/readers immediately. Replace four-CPU-frame page retirement with last-consumer completion, then correlate live coverage with pressure. Do not infer visual acceptance from host counters.
+A second65s probe places candidate bounds about60.79m and102.10m down sampled screen rays, inside409.6m streaming radius. The left bounds match the current mountain landmark. Crucially, offline decoding of the startup bake finds air at mountain-center heights250–480 voxels, although the current generator emits a solid frustum there. Region(-2,0,0) is baked, so missing residency is not sufficient explanation. Samples and source deltas are archived in `far-owner-distance/`.
+
+1. Startup bake predates current catalogue content, leaving far proxies without detailed replacements.
+2. Near geometry exists but presentation/publication fails; runtime occupancy must distinguish this from stale bake data.
+
+Next verify through production Storage/catalogue tests, then regenerate the startup bake and add a durable content-compatibility gate if mismatch is confirmed. Do not hide proxies over missing near content. Global terrain-cutout collapse and missing semantic near-handoff remain separate candidates. Resume G11 cancellation/last-consumer lifetime afterward.
 
 ## Remaining gates
 
