@@ -37,6 +37,7 @@ namespace VoxelEngine.Showcase
         private GameObject _presentationRoot;
         private DecorationProceduralMeshPresenter _procedural;
         private DecorationThinSurfacePresenter _thin;
+        private DecorationEffectPresenter _effects;
         private UnityWorldObjectPresentationSink _worldObjects;
         private GameObject _floor;
         private GameObject _support;
@@ -44,6 +45,8 @@ namespace VoxelEngine.Showcase
         private Vector2 _scroll;
         private int _selectedIndex = -1;
         private string _status = "INITIALIZING";
+        private string _readyStatus = string.Empty;
+        private bool _awaitingSurfacePublication;
         private bool _captureAutomation;
         private float _captureStartedAt;
         private int _capturePhase;
@@ -61,6 +64,8 @@ namespace VoxelEngine.Showcase
             (_procedural?.ActiveCount ?? 0) +
             ((_thin != null && _thin.HasActiveSurface) ? 1 : 0) +
             (_worldObjects?.ProxyCount ?? 0);
+        public int ActiveEffectCount => _effects?.ActiveCount ?? 0;
+        public bool IsPresentationReady => !_awaitingSurfacePublication || IsSurfaceReady();
         public string SelectedStableId =>
             _selectedIndex >= 0 && _selectedIndex < _entries.Length ? _entries[_selectedIndex].StableId : string.Empty;
 
@@ -118,6 +123,7 @@ namespace VoxelEngine.Showcase
             _presentationRoot = null;
             _procedural = null;
             _thin = null;
+            _effects = null;
             _worldObjects = null;
             _floor = null;
             _support = null;
@@ -139,6 +145,7 @@ namespace VoxelEngine.Showcase
                 if (keyboard.endKey.wasPressedThisFrame)
                     Select(_entries.Length - 1);
             }
+            UpdatePresentationReadiness();
             UpdateCaptureAutomation();
         }
 
@@ -187,9 +194,17 @@ namespace VoxelEngine.Showcase
             UpdateSupportSurface(in realization);
             Frame(in realization);
             _lastSwitchMs = (Time.realtimeSinceStartup - started) * 1000f;
-            _status = ok
-                ? $"READY · {entry.Source} · {realization.DecorationBackend} · {_lastSwitchMs:0.0} ms"
-                : "ERROR · production presentation failed";
+            _readyStatus = $"READY · {entry.Source} · {realization.DecorationBackend} · {_lastSwitchMs:0.0} ms";
+            if (ok && _storage != null && !IsSurfaceReady())
+            {
+                _awaitingSurfacePublication = true;
+                _status = $"LOADING · {entry.Source} · {realization.DecorationBackend}";
+            }
+            else
+            {
+                _awaitingSurfacePublication = false;
+                _status = ok ? _readyStatus : "ERROR · production presentation failed";
+            }
             if (!ok)
                 Debug.LogError($"PROP_SHOWCASE_VALIDATION failure: presentation {entry.StableId}");
             return ok;
@@ -199,19 +214,22 @@ namespace VoxelEngine.Showcase
         {
             DecorationPlacement placement = realization.Decoration;
             bool isPreset = realization.Entry.Source == DecorationShowcaseEntrySource.Preset;
+            bool presented;
             switch (placement.Backend)
             {
                 case DecorationRenderBackend.ProceduralMesh:
                 {
                     DecorationProceduralMeshRequest[] requests =
                         DecorationProceduralMeshHookPlanner.Collect(new[] { placement });
-                    return requests.Length == 1 && _procedural.TryPresent(in requests[0], this);
+                    presented = requests.Length == 1 && _procedural.TryPresent(in requests[0], this);
+                    break;
                 }
                 case DecorationRenderBackend.ThinSurface:
-                    return _thin.TryPresent(new[] { placement }, in _context, this, VoxelSize);
+                    presented = _thin.TryPresent(new[] { placement }, in _context, this, VoxelSize);
+                    break;
                 case DecorationRenderBackend.BoxAssembly:
                 case DecorationRenderBackend.VoxelStamp:
-                    return PresentVoxel(authoring =>
+                    presented = PresentVoxel(authoring =>
                     {
                         if (isPreset)
                             return DecorationReusablePresetAuthoringEmitter.TryAuthor(
@@ -222,9 +240,12 @@ namespace VoxelEngine.Showcase
                             in _context,
                             DecorationRegionTheme.Kentridge);
                     });
+                    break;
                 default:
                     return false;
             }
+
+            return presented && _effects.TryPresent(new[] { placement }, in _context, VoxelSize);
         }
 
         private bool PresentMineCave(in DecorationShowcaseRealization realization)
@@ -307,13 +328,35 @@ namespace VoxelEngine.Showcase
 
         private void ClearSelectionPresentation()
         {
+            _awaitingSurfacePublication = false;
+            _readyStatus = string.Empty;
             RenderingComposition.ClearWorld();
             _storage?.Dispose();
             _storage = null;
             _lastVoxelCount = 0;
             _procedural?.Clear();
             _thin?.Clear();
+            _effects?.Clear();
             _worldObjects?.Clear();
+        }
+
+        private void UpdatePresentationReadiness()
+        {
+            if (!_awaitingSurfacePublication || !IsSurfaceReady())
+                return;
+            _awaitingSurfacePublication = false;
+            _status = string.IsNullOrEmpty(_readyStatus) ? "READY" : _readyStatus;
+            if (_captureAutomation)
+                Debug.Log($"PROP_SHOWCASE_VALIDATION presentation-ready selected={SelectedStableId}");
+        }
+
+        private static bool IsSurfaceReady()
+        {
+            if (!RenderingComposition.TryGetWorld(out _, out _))
+                return true;
+            RenderingComposition.GetVoxelSurfaceCounts(out int visible, out int missing);
+            return RenderingComposition.TryGetSurfaceBuildStatus(out _, out int dirty, out int resident, out _)
+                && dirty == 0 && resident > 0 && visible > 0 && missing == 0;
         }
 
         private void ConfigurePresentation()
@@ -326,7 +369,6 @@ namespace VoxelEngine.Showcase
                 new Color(0.56f, 0.64f, 0.71f, 1f),
                 new Color(0.20f, 0.27f, 0.34f, 1f));
             RenderingComposition.ConfigureEnvironment(
-                // Non-white selects diagnostic normal coverage, bypassing production materials.
                 Color.white,
                 new Vector3(-0.45f, 0.82f, -0.35f).normalized,
                 new Color(1.0f, 0.93f, 0.82f, 1f),
@@ -347,6 +389,7 @@ namespace VoxelEngine.Showcase
             _presentationRoot.transform.localScale = Vector3.one;
             _procedural = _presentationRoot.AddComponent<DecorationProceduralMeshPresenter>();
             _thin = _presentationRoot.AddComponent<DecorationThinSurfacePresenter>();
+            _effects = _presentationRoot.AddComponent<DecorationEffectPresenter>();
             _worldObjects = _presentationRoot.AddComponent<UnityWorldObjectPresentationSink>();
         }
 
@@ -449,16 +492,11 @@ namespace VoxelEngine.Showcase
             Vector3 viewDirection;
             if (Mathf.Abs(front.y) > 0.5f)
             {
-                // Vertical facing is a mount normal, not an authored visual front. Preserve whether the
-                // prop is floor- or ceiling-mounted, but frame it from a three-quarter angle so its
-                // silhouette and construction remain readable instead of looking straight down/up.
                 float vertical = front.y > 0f ? 0.55f : -0.55f;
                 viewDirection = new Vector3(0.72f, vertical, -0.72f).normalized;
             }
             else
             {
-                // Wall-mounted/thin surfaces do have a meaningful semantic front; stay close to it
-                // while adding a small side/elevation bias so depth and support context remain visible.
                 Vector3 tangent = Vector3.Cross(Vector3.up, front);
                 if (tangent.sqrMagnitude < 0.5f)
                     tangent = Vector3.right;
@@ -577,7 +615,8 @@ namespace VoxelEngine.Showcase
                 int target = FindFirstRealization(r =>
                     (InteractionOf(in r) & DecorationInteractionFlags.EmitsLight) != 0);
                 Select(target >= 0 ? target : 0);
-                Debug.Log($"PROP_SHOWCASE_VALIDATION emissive selected={SelectedStableId} owned={OwnedPresentationCount}");
+                Debug.Log($"PROP_SHOWCASE_VALIDATION emissive selected={SelectedStableId} owned={OwnedPresentationCount} " +
+                    $"effects={ActiveEffectCount} lights={_effects.ActiveLightCount} particles={_effects.ActiveParticleCount}");
                 _capturePhase = 8;
             }
             else if (_capturePhase == 8 && elapsed >= 44f)
@@ -595,13 +634,12 @@ namespace VoxelEngine.Showcase
             else if (_capturePhase == 9 && elapsed >= 49f)
             {
                 int target = FindFirstRealization(r =>
-                {
-                    if (r.Kind != DecorationShowcaseRealizationKind.WorldObject) return false;
-                    WorldObjectPresentationPlan plan = WorldObjectPresentationPlanner.Plan(in r.WorldObject);
-                    return plan.InteractionEnabled;
-                });
+                    r.Kind == DecorationShowcaseRealizationKind.WorldObject &&
+                    r.WorldObject.Descriptor.Kind == WorldObjectKind.Trapdoor &&
+                    WorldObjectPresentationPlanner.Plan(in r.WorldObject).InteractionEnabled);
                 Select(target >= 0 ? target : _entries.Length - 1);
-                Debug.Log($"PROP_SHOWCASE_VALIDATION interactive-world-object selected={SelectedStableId} owned={OwnedPresentationCount}");
+                Debug.Log($"PROP_SHOWCASE_VALIDATION interactive-world-object selected={SelectedStableId} owned={OwnedPresentationCount} " +
+                    $"detailed={_worldObjects.DetailedProxyCount}");
                 _capturePhase = 10;
             }
             else if (_capturePhase == 10 && elapsed >= 54f)

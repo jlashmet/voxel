@@ -12,6 +12,7 @@
   "assertions": {
     "requiredLogPatterns": [
       "PROP_SHOWCASE_VALIDATION start count=529",
+      "PROP_SHOWCASE_VALIDATION presentation-ready selected=",
       "PROP_SHOWCASE_VALIDATION tiny selected=",
       "PROP_SHOWCASE_VALIDATION medium selected=",
       "PROP_SHOWCASE_VALIDATION large selected=",
