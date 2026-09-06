@@ -75,6 +75,23 @@ namespace VoxelEngine.Rendering.Tests.EditMode
         }
 
         [Test]
+        public void CompactRecordsKeepIndependentIdentityAndRejectOldGeneration()
+        {
+            var first = Request(handle: 3, generation: 0x100000002UL);
+            var second = Request(handle: 9, generation: 0x300000004UL);
+            uint[] words = { 0, 3, 2, 1, 1, 9, 4, 3 };
+            Assert.AreEqual(GpuPagedBatchOutcomeKind.ReadyCandidate,
+                GpuPagedBatchOutcome.ParseCompact(words, 0, first).Kind);
+            Assert.AreEqual(GpuPagedBatchOutcomeKind.Exhausted,
+                GpuPagedBatchOutcome.ParseCompact(words, 1, second).Kind);
+            var replaced = Request(handle: second.Handle, generation: second.Generation + 1);
+            Assert.AreEqual(GpuPagedBatchOutcomeKind.IdentityMismatch,
+                GpuPagedBatchOutcome.ParseCompact(words, 1, replaced).Kind);
+            Assert.AreEqual(GpuPagedBatchOutcomeKind.Failed,
+                GpuPagedBatchOutcome.ParseCompact(words, 2, second).Kind);
+        }
+
+        [Test]
         public void IdentityMismatchCannotBecomeReadyCandidate()
         {
             GpuChunkExtraction request = Request();

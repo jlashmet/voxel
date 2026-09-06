@@ -806,6 +806,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private int _arenaPressureCursor;
         private ulong _observedArenaAllocationFailures;
         private ulong _arenaPressureEvictions;
+        private ulong _observedGpuAllocationFailures;
         private int _lastAdvancedFrame = -1;
         private readonly VoxelTimingWindow _prepareTiming = new();
         private readonly VoxelTimingWindow _journalTiming = new();
@@ -1512,6 +1513,23 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             // can see, to admit a chunk behind them. Once nothing visible is missing, a prefetch
             // chunk that cannot get a lease simply waits.
             double arenaReliefStart = Time.realtimeSinceStartupAsDouble;
+            ulong gpuFailures = GpuSurfaceMirrorCoordinator.AllocationFailures;
+            if (gpuFailures > _observedGpuAllocationFailures)
+            {
+                int remaining = Math.Min(MaxArenaEvictionsPerFrame,
+                    (int)Math.Min((ulong)MaxArenaEvictionsPerFrame,
+                        gpuFailures - _observedGpuAllocationFailures));
+                for (int offset = 0; offset < workerCount && remaining > 0; offset++)
+                {
+                    int index = (_arenaPressureCursor + offset) % workerCount;
+                    int freed = _allWorkers[index].EvictFarthest(camera, voxelSize,
+                        offscreenOnly: true, 0f, remaining, gpuOnly: true);
+                    remaining -= freed;
+                    _arenaPressureEvictions += (ulong)freed;
+                }
+                _arenaPressureCursor = (_arenaPressureCursor + 1) % Math.Max(1, workerCount);
+            }
+            _observedGpuAllocationFailures = gpuFailures;
             ulong arenaFailures = _geometryArena.AllocationFailureCount;
             int workersAwaitingPublication = 0;
             for (int i = 0; i < workerCount; i++)

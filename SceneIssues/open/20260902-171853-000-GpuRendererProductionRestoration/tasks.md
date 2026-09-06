@@ -114,6 +114,21 @@ Temporary readbacks archived/removed; `diagnostic-summary.json` retains exact sn
 classification remains **unacceptable**, including missing ground and far/water defects.
 
 
+Render-control contract is now explicit: G05 prohibits geometry/count readback; G10–G13 permit
+only16 bytes per chunk of asynchronous status/handle/generation feedback. Production exports a
+compact record after finalization, retains lane buffers through callback completion (including
+retired-lane deferred disposal), and only marks Ready as successful. Exhausted enters retry and
+triggers bounded offscreen GPU-only eviction; budgets, visible demand and authoritative state
+are unchanged. The automatic pending-publication bridge remains: explicit host approval,
+permanent-error handling and final last-consumer retirement still require G10/G11 completion.
+`outcome-recovery/final-tests.xml`:22 passed,zero skipped/failed,in15 seconds. Includes real GPU
+exhaustion -> async16-byte feedback -> page reclamation -> successful retry, compact independent
+record identity and the updated no-blocking/no-count-transfer architecture assertion.
+`outcome-recovery/` completed180 seconds,exit0,11 screenshots,no transaction rejection errors.
+Visual classification remains **unacceptable**: terrain gaps/bands, grey far masses, cyan water.
+Diagnostic window timings/source delta are archived; no benchmark or full coverage acceptance.
+
+
 
 ## 1. Get the actual GPU path running now
 
@@ -124,7 +139,7 @@ classification remains **unacceptable**, including missing ground and far/water 
 
 ## 2. Complete geometry and visual correctness with GPU active
 
-- [ ] **G05 — Preserve an independent semantic oracle without retaining a second renderer.** Before deleting the CPU backend, record bounded canonical input/output fixtures, semantic expectations and provenance for supported surfaces. During transition compare the same prepared inputs, density, count/prefix and pre-page geometry. Convert essential regressions to frozen reference data and independent canonical/property checks; final tests must not require the retired CPU mesher or embed a copy of it. Readback is test-only, never a production frame-path dependency. **In progress:** the existing real-kernel Planar/Sharp/Cubic half-brick regression now checks analytic boundary positions, indexed winding, complementary unit-face coverage and duplicate triangles without invoking CPU meshing. Local Metal execution passed all three styles in `Artifacts/LocalGpuShowcase/753a21241-local-harness/gpu-regressions.xml` on 2026-09-06; this does not complete the remaining smooth/coating/transition oracle migration.
+- [ ] **G05 — Preserve an independent semantic oracle without retaining a second renderer.** Before deleting the CPU backend, record bounded canonical input/output fixtures, semantic expectations and provenance for supported surfaces. During transition compare the same prepared inputs, density, count/prefix and pre-page geometry. Convert essential regressions to frozen reference data and independent canonical/property checks; final tests must not require the retired CPU mesher or embed a copy of it. Generated geometry and extraction-count readback are test-only. G10–G13 permit only a bounded asynchronous status/handle/generation channel for render control; never block or derive authoritative state from it. **In progress:** the existing real-kernel Planar/Sharp/Cubic half-brick regression now checks analytic boundary positions, indexed winding, complementary unit-face coverage and duplicate triangles without invoking CPU meshing. Local Metal execution passed all three styles in `Artifacts/LocalGpuShowcase/753a21241-local-harness/gpu-regressions.xml` on 2026-09-06; this does not complete the remaining smooth/coating/transition oracle migration.
 - [ ] **G06 — Restore all supported reconstruction/material semantics.** Validate smooth, rounded, planar, sharp and cubic/faceted surfaces; material classification, coatings, authored boundaries, decoration/profile handling and mixed/uniform/empty inputs. First identify the earliest divergence, then add fail-before/pass-after behavioral proof. GPU parity does not bless defects already present in shared authored data or presentation.
 - [ ] **G07 — Eliminate CPU-dependent LOD coverage.** Current `CpuTransvoxelChunkCache.SupportsGpuSurfaceStep` admits only steps 1/2; step 4 uses feature-preserving CPU fallback and step 8 block HLOD. Inventory every ring/representation actually used by VoxelShowcase and affected consumers, including coarser mip work. Implement the required GPU equivalents before deleting those paths. Test real mixed-LOD batches, logical extent versus physical stride, transition faces, negative-shell ownership and nonresident frontier halos. Do not disable coarse rings or reduce draw distance to claim GPU-only coverage.
 - [ ] **G08 — Resolve every missing/white/malformed GPU-visible region.** Use chunk/source revision and actual draw owner to separate voxel surfaces, far terrain and semantic far features. Preserve canonical shape parameters, materials/coatings and ordered carve semantics where required; resolve near/far overlap with correct coverage ownership, not distance-only hiding or global convergence. Reuse existing production systems. The existing bounded normal/disabled/restored probe is optional diagnosis, with restoration/opt-in regressions; disabled output never passes acceptance. Retain frustum topology/cache regressions and independent FarWorld artifacts.

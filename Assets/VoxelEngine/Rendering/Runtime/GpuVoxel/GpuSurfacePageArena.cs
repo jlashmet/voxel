@@ -80,6 +80,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         private readonly ComputeShader _shader;
         private readonly int _allocateKernel;
+        private readonly int _outcomeKernel;
         private readonly int _publishKernel;
         private readonly int _commitKernel;
         private readonly int _commitCurrentKernel;
@@ -121,6 +122,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             VertexPageCount = Math.Max(1, vertexCapacity / VertexPageSize);
             IndexPageCount = Math.Max(1, indexCapacity / IndexPageSize);
             _allocateKernel = shader.FindKernel("CSAllocateBatchPages");
+            _outcomeKernel = shader.FindKernel("CSCopyBatchOutcomes");
             _publishKernel = shader.FindKernel("CSPublishBatchPages");
             _commitKernel = shader.FindKernel("CSCommitPendingPages");
             _commitCurrentKernel = shader.FindKernel("CSCommitCurrentPendingPages");
@@ -245,6 +247,16 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _shader.SetInt(IdBatchRecordCount, recordCount);
             _shader.SetInt(IdBatchRecordWords, recordWords);
             _shader.Dispatch(_publishKernel, 1, 1, 1);
+        }
+
+        internal void CopyBatchOutcomes(ComputeBuffer counters, ComputeBuffer outcomes,
+            int recordCount, int recordWords)
+        {
+            _shader.SetBuffer(_outcomeKernel, IdBatchCountersRead, counters);
+            _shader.SetBuffer(_outcomeKernel, "_BatchOutcomes", outcomes);
+            _shader.SetInt(IdBatchRecordCount, recordCount);
+            _shader.SetInt(IdBatchRecordWords, recordWords);
+            _shader.Dispatch(_outcomeKernel, (recordCount + 63) / 64, 1, 1);
         }
 
         internal void CommitPending(int handle, ulong generation, int frame) => ResolvePending(_commitKernel, handle, generation, frame);

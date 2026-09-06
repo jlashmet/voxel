@@ -365,7 +365,7 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void ProductionGpuSurfacePathHasNoCounterReadbackOrCpuRangePublication()
+        public void ProductionGpuSurfacePathHasOnlyRenderControlFeedbackAndNoCpuRangePublication()
         {
             string coordinator = ReadRenderingSource(
                 Path.Combine("GpuVoxel", "GpuSurfaceMirrorCoordinator.cs"));
@@ -380,7 +380,9 @@ namespace VoxelEngine.Tests.EditMode
             string renderPass = ReadRenderingSource(
                 Path.Combine("RenderFeature", "VoxelRenderPass.cs"));
 
-            StringAssert.DoesNotContain("AsyncGPUReadback", coordinator);
+            StringAssert.DoesNotContain("AsyncGPUReadback.Request(lane.Counters", coordinator);
+            StringAssert.DoesNotContain("WaitForCompletion", coordinator);
+            StringAssert.DoesNotContain("WaitAllRequests", coordinator);
             StringAssert.DoesNotContain("TryPublishCountBatch", coordinator);
             StringAssert.Contains("CompletePagedBatch", coordinator);
             StringAssert.DoesNotContain("TryCompleteStage(out", cache);

@@ -1,3 +1,4 @@
+#pragma kernel CSCopyBatchOutcomes
 #pragma kernel CSAllocateBatchPages
 #pragma kernel CSPublishBatchPages
 #pragma kernel CSCommitPendingPages
@@ -383,4 +384,16 @@ void CSAbortPendingPages(uint3 id : SV_DispatchThreadID)
         || pending.generationHigh != _PendingGenerationHigh)
         return;
     RetirePending(handle, pending);
+}
+
+// Render-control feedback only. Geometry counts and payloads remain GPU-owned.
+RWStructuredBuffer<uint4> _BatchOutcomes;
+[numthreads(64, 1, 1)]
+void CSCopyBatchOutcomes(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)_BatchRecordCount) return;
+    int word = RecordWord((int)id.x);
+    _BatchOutcomes[id.x] = uint4(_BatchCountersRead[word + 10],
+        _BatchCountersRead[word + 11], _BatchCountersRead[word + 12],
+        _BatchCountersRead[word + 13]);
 }

@@ -82,6 +82,16 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             return FromValues(unsupported, status, handle, generation, in expected);
         }
 
+        internal static GpuPagedBatchOutcome ParseCompact(uint[] words, int record,
+            in GpuChunkExtraction expected)
+        {
+            int start = record * 4;
+            if (words == null || record < 0 || start < 0 || start + 3 >= words.Length)
+                return FailedFor(in expected);
+            return FromValues(0u, words[start], unchecked((int)words[start + 1]),
+                words[start + 2] | ((ulong)words[start + 3] << 32), in expected);
+        }
+
         private static bool TryRecordStart(int length, int record, out int start)
         {
             start = 0;

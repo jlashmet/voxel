@@ -1,4 +1,7 @@
 using System;
+using System.Collections;
+using UnityEngine.Rendering;
+using UnityEngine.TestTools;
 using System.Runtime.InteropServices;
 using NUnit.Framework;
 using UnityEngine;
@@ -213,6 +216,46 @@ namespace VoxelEngine.Rendering.Tests.EditMode
                 Assert.That(pending.Ready, Is.EqualTo(1u));
                 Assert.That(pending.VertexCount, Is.EqualTo(4u));
                 Assert.That(pending.IndexCount, Is.EqualTo(6u));
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator CompactOutcomeReportsExhaustionThenSuccessfulRetry()
+        {
+            Assert.IsTrue(SystemInfo.supportsAsyncGPUReadback);
+            var arena = Create(handles: 2, vertexPages: 1, indexPages: 1);
+            const ulong generation = 0x0000000200000003UL;
+            int occupied = AcquireAndSelectGeneration(arena, generation, 1);
+            int retry = AcquireAndSelectGeneration(arena, generation + 1, 1);
+            using var first = new Batch(occupied, generation, 4, 6);
+            using var second = new Batch(retry, generation + 1, 4, 6);
+            using var feedback = new ComputeBuffer(1, sizeof(uint) * 4, ComputeBufferType.Structured);
+            AllocateAndFinalize(arena, first, 2);
+            var expected = new GpuChunkExtraction(default, default, 1, 0.1f,
+                handle: retry, generation: generation + 1);
+            for (int attempt = 0; attempt < 2; attempt++)
+            {
+                if (attempt == 1)
+                {
+                    arena.QueueRelease(occupied, generation);
+                    arena.FlushHandleCommands(20);
+                }
+                arena.AllocateBatch(second.Descriptors, second.Counters, 1,
+                    GpuSurfaceExtractor.BatchRecordWords, attempt == 0 ? 4 : 25);
+                arena.PublishBatch(second.Descriptors, second.Counters, 1,
+                    GpuSurfaceExtractor.BatchRecordWords, attempt == 0 ? 5 : 26);
+                arena.CopyBatchOutcomes(second.Counters, feedback, 1,
+                    GpuSurfaceExtractor.BatchRecordWords);
+                var request = AsyncGPUReadback.Request(feedback);
+                float deadline = Time.realtimeSinceStartup + 5f;
+                while (!request.done && Time.realtimeSinceStartup < deadline) yield return null;
+                Assert.IsTrue(request.done, "Bounded asynchronous status transfer did not complete.");
+                Assert.IsFalse(request.hasError);
+                var words = request.GetData<uint>().ToArray();
+                Assert.AreEqual(4, words.Length, "Only status and identity may leave the GPU.");
+                var outcome = GpuPagedBatchOutcome.ParseCompact(words, 0, expected);
+                Assert.AreEqual(attempt == 0 ? GpuPagedBatchOutcomeKind.Exhausted
+                    : GpuPagedBatchOutcomeKind.ReadyCandidate, outcome.Kind);
             }
         }
 

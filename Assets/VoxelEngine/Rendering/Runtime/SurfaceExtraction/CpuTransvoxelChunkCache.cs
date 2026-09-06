@@ -4248,7 +4248,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         /// on-screen resident set still makes room for the chunk nearest the camera.
         /// </summary>
         internal int EvictFarthest(Camera camera, float voxelSize, bool offscreenOnly,
-                                   float minDistanceSq, int maxEvictions)
+                                   float minDistanceSq, int maxEvictions, bool gpuOnly = false)
         {
             if (_entries.Count == 0 || maxEvictions <= 0) return 0;
 
@@ -4265,6 +4265,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
             foreach (var pair in _entries)
             {
+                if (gpuOnly && !pair.Value.IsGpuPaged) continue;
                 // Keep current replacement geometry alive. Relief may only retire a different,
                 // already-published lease.
                 if (_build.Active && pair.Key.Equals(_build.Coordinate)) continue;

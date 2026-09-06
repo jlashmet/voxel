@@ -2,32 +2,27 @@
 
 ## Objective and acceptance
 
-Deliver production-quality `Assets/Scenes/VoxelShowcase.unity` through the GPU backend, physically delete the retired CPU-only renderer, and pursue **1,000 FPS / 1.00 ms whole frame**, or the closest repeatable measured result under [tasks.md](tasks.md). Preserve authoritative CPU storage/generation/collision/simulation and GPU host orchestration. No hidden content, weaker budgets, reduced distance or permanent CPU fallback. All task gates remain mandatory.
+Deliver production-quality `Assets/Scenes/VoxelShowcase.unity` through the GPU backend, physically delete the retired CPU-only renderer, and pursue **1,000 FPS /1.00ms whole frame**, or the closest repeatable result under [tasks.md](tasks.md). Preserve authoritative CPU storage/generation/collision/simulation and necessary GPU host orchestration. No hidden content, weaker budgets, reduced distance or permanent CPU fallback. All task gates remain mandatory.
 
-## Execution and prior results
+## Execution and proven repairs
 
-User directs local harness/tests and screenshot review; **no further origin pushes**. Worktree `/private/tmp/voxel-gpu-restoration`, branch `gpu-rendering-agent-1-resume`. Existing remote request/run preserved; local work does not wait on it.
+User directs local harness/tests and screenshot review; **no further origin pushes**. Worktree `/private/tmp/voxel-gpu-restoration`, branch `gpu-rendering-agent-1-resume`. Existing remote request preserved.
 
-Local watchdog repair passes five behavioral tests. Shared 44-byte allocator descriptor fixes second-record identity corruption. Common-point capacity status write fixes Metal Exhausted/TooLarge results; descriptor aliases/default-store changes alone were falsified. Thirteen focused GPU tests passed previously. Three 180-second player runs remained unacceptable; their incomplete geometry invalidates performance acceptance.
+Local repairs: bounded watchdog process accounting; shared44-byte GPU descriptor; common-point allocator status write; explicit indirect bucket metadata prefix; compatible batch resource layouts. Boundary regression alternating cache edges4/6 fails before (expected256 vertices, got0), passes after. Earlier huge step2 geometry counts came from malformed cache layouts and cannot justify compression or budget changes. Exact evidence is in tasks.md.
 
-## Proven layout defect and current validation
+`layout-coverage-trace/` on d125cbe32 completed180s/11 PNGs. At60s all538 visible handles were live-ready,491 nonempty draws,7454 free vertex pages,zero failures. At120s only45/69 visible handles were ready and138 allocation failures had accumulated. Through175s,290 of1635 completed requests were Exhausted. Thus traversal pressure is real and fence-only completion hid rejected work. Visual acceptance remains unmet.
 
-Earlier category counts (`category-trace/`: regular36.2M/faceted26.3M requested vertices) are **not legitimate capacity demand**: malformed prepared layouts contaminate them. Adaptive capture selected a high-count step2 chunk after the exact-coordinate replay missed it.
+## Selected render-control contract and current implementation
 
-`chunk-trace-adaptive/Prepared`: origin(-256,128,-128), extractor cacheEdge18 but only1000 dense entries (edge10), versus5832 required. Lanes retained first-use resources and admitted incompatible extractors. Wrong flattening strides caused missing/invented surfaces. Temporary readbacks and full inputs are archived; instrumentation removed.
+G05 prohibits generated-geometry/extraction-count readback. G10–G13 permit a bounded asynchronous render-control record:16 bytes per chunk (status,handle,generation),32 bytes per lane. No blocking wait, authoritative-state derivation, geometry/count transfer, budget increase or hidden visible demand.
 
-Fix: group requests by cells/padding/cache-edge compatibility, prefer matching idle resources, recreate incompatible idle resources only after completion, and reject mismatched count/write dispatches. A boundary fixture alternating cache edges4/6 fails before (expected256 vertices, got0) and passes after. Thirteen focused tests pass, zero skips, in17s (`layout-after.xml`).
+GPU finalization is followed by compact status export. Cached callbacks copy only those words; lane scratch stays owned until feedback completes, with deferred disposal for retired lanes. Only Ready reaches host completion; failures enter retry, and Exhausted triggers bounded offscreen GPU eviction. Geometry/page allocation remains GPU-owned. Existing automatic pending-publication bridge remains: explicit CPU-approved commit, permanent-error policy and full last-consumer retirement are still G10/G11 work.
 
-The180-second `layout-fixed/` player replay completed at1920x1080 with11 screenshots. Upper castle walls are restored without floating strips, but traversal retains missing ground, terrain bands, cyan water and grey blockout far structures: **unacceptable**. Diagnostic timings and limitations are in its JSON; no benchmark acceptance.
+Twenty-two focused tests pass, zero skips, in15s (`outcome-recovery/final-tests.xml`): real GPU exhaustion -> asynchronous16-byte result -> reclamation -> retry, independent record identity, and no blocking/count-transfer architecture. The180-second `outcome-recovery/` player completed with11 screenshots and no rejection errors. Terrain gaps/bands and blockout far/water presentation remain **unacceptable**. Diagnostic timings are archived; no visual/performance acceptance.
 
-## Corrected coverage evidence and next fix
+## Hypotheses and next discriminator
 
-`layout-coverage-trace/` completed180s/11 PNGs on d125cbe32. At60s: all538 visible handles live-ready,491 nonempty draws,7454 free vertex pages,zero failures. At120s:69 visible/45 ready,2 free pages,138 failures. At165s:172 visible/171 ready,1 free page,273 failures. By175s,290 of1635 completed requests report Exhausted. Thus stationary corruption is fixed, but traversal genuinely exhausts capacity and fence-only completion hides rejected chunks. Temporary readbacks archived/removed. Screenshots remain unacceptable.
+1. Offscreen eviction/retry restores coverage but needs admission prioritization to avoid churn.
+2. Actual visible demand still exceeds capacity and needs semantic-preserving compaction.
 
-Next implement explicit render-control outcomes and pressure/retry, preserving prior geometry until valid commit. Existing outcome parser and retry branch are disconnected; relief monitors only CPU-arena failures. Resolve the small asynchronous status/identity-channel contract explicitly against G05/G10–G13 before implementation; never transfer geometry or authoritative state, block, increase budgets or hide visible demand.
-
-Hypotheses: (1) bounded offscreen eviction plus retry restores traversal; (2) true visible demand still exceeds capacity and requires semantic-preserving compaction. Discriminator: force exhaustion, prove a rejected current request retries after retired pages become safe, then repeat exact traversal/live-record capture. Do not optimize from corrupted historical counts.
-
-## Remaining gates
-
-Full-scene coverage/visuals -> GPU step4/8/water migration -> physical CPU-backend deletion -> independent-consumer/edit/lifecycle proof -> locked repeated performance/memory workloads -> final local regression/artifact review.
+Next correlate current successful publications, retries, page reclamation and exact live visible records through traversal, then fix the earliest remaining divergence. Finish explicit approval/lifetime and GPU step4/8/water migration; delete CPU-only rendering; prove independent-consumer/edit/lifecycle behavior; run locked repeated performance/memory workloads and final local review.

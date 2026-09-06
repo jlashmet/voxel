@@ -89,6 +89,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private static readonly CountBatchLane[] s_CountBatchLanes =
             new CountBatchLane[CountBatchLaneCount];
         private static ulong s_CountBatchReadbacks;
+        internal static ulong AllocationFailures { get; private set; }
         private static ulong s_CountBatchRecords;
         private static ulong s_CountBatchArenaWaits;
         private static double s_MaxCountDispatchMsSinceReport;
@@ -104,6 +105,28 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             internal readonly GpuChunkExtraction[] Requests =
                 new GpuChunkExtraction[CountBatchCapacity];
             internal ComputeBuffer Counters;
+            internal ComputeBuffer Outcomes;
+            internal readonly uint[] OutcomeWords = new uint[CountBatchCapacity * 4];
+            internal bool OutcomeReady, OutcomeFailed, Retired;
+            internal readonly Action<AsyncGPUReadbackRequest> OutcomeCallback;
+
+            internal CountBatchLane() { OutcomeCallback = ReceiveOutcome; }
+
+            private void ReceiveOutcome(AsyncGPUReadbackRequest request)
+            {
+                if (Retired) { ReleaseBuffers(); return; }
+                OutcomeFailed = request.hasError;
+                if (!OutcomeFailed) request.GetData<uint>().CopyTo(OutcomeWords);
+                OutcomeReady = true;
+            }
+
+            internal void ReleaseBuffers()
+            {
+                Outcomes?.Release(); Outcomes = null;
+                Counters?.Release(); Counters = null;
+                Resources?.Dispose(); Resources = null;
+                LayoutExtractor = null;
+            }
             internal GpuSurfaceExtractor PrefixExtractor;
             internal GpuSurfaceExtractor LayoutExtractor;
             internal GpuTransvoxelTables Tables;
@@ -310,6 +333,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             {
                 if (s_CountBatchLanes[i] == null) s_CountBatchLanes[i] = new CountBatchLane();
                 CountBatchLane lane = s_CountBatchLanes[i];
+                lane.Outcomes ??= new ComputeBuffer(CountBatchCapacity, sizeof(uint) * 4,
+                    ComputeBufferType.Structured);
                 lane.Counters ??= new ComputeBuffer(
                     GpuSurfaceExtractor.BatchHeaderWords
                     + CountBatchCapacity * GpuSurfaceExtractor.BatchRecordWords,
@@ -341,6 +366,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 lane.Tokens[record] = 0;
                 lane.Requests[record] = default;
             }
+            lane.OutcomeReady = false;
+            lane.OutcomeFailed = false;
             lane.Submitted = false;
             lane.CompletionFence = default;
             lane.CompletionFenceValid = false;
@@ -392,25 +419,43 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             lane.CompletionFence = s_ExtractionFence;
             lane.CompletionFenceValid = true;
 
-            // The CPU needs only queue-completion readiness. Allocation status, page ownership,
-            // generation identity, and commit rejection remain GPU-owned in the page arena.
-            // A per-lane fence avoids transferring counters back and prevents a later lane from
-            // replacing the global backpressure fence before this lane observes its own completion.
+            if (!SystemInfo.supportsAsyncGPUReadback)
+                throw new InvalidOperationException("GPU surface publication requires asynchronous render-control feedback.");
+            s_PageArena.CopyBatchOutcomes(lane.Counters, lane.Outcomes, lane.Count,
+                GpuSurfaceExtractor.BatchRecordWords);
+            lane.OutcomeReady = false;
+            lane.OutcomeFailed = false;
             lane.Submitted = true;
+            AsyncGPUReadback.Request(lane.Outcomes, lane.OutcomeCallback);
+            s_CountBatchReadbacks++;
         }
 
         private static void CompleteSubmittedCountBatch(CountBatchLane lane)
         {
             if (lane == null || !lane.Submitted || !lane.CompletionFenceValid
-                || !lane.CompletionFence.passed)
+                || !lane.CompletionFence.passed || !lane.OutcomeReady)
                 return;
 
             for (int record = 0; record < lane.Count; record++)
             {
                 GpuSurfaceExtractionContext context = lane.Contexts[record];
                 if (context == null) continue;
-                context.CompletePagedBatch(
-                    lane.Tokens[record], lane.Requests[record].Handle);
+                if (lane.OutcomeFailed)
+                {
+                    context.FailPagedBatch(lane.Tokens[record]);
+                    continue;
+                }
+                GpuPagedBatchOutcome outcome = GpuPagedBatchOutcome.ParseCompact(
+                    lane.OutcomeWords, record, lane.Requests[record]);
+                if (outcome.IsReadyCandidate)
+                    context.CompletePagedBatch(lane.Tokens[record], outcome.Handle);
+                else
+                {
+                    if (outcome.Kind == GpuPagedBatchOutcomeKind.Exhausted) AllocationFailures++;
+                    context.FailPagedBatch(lane.Tokens[record]);
+                    if (!outcome.IsRetryable)
+                        Debug.LogError($"GPU surface transaction rejected: {outcome}");
+                }
             }
             ResetCountBatchLane(lane);
         }
@@ -423,13 +468,15 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 if (lane == null) continue;
                 for (int record = 0; record < lane.Count; record++)
                     lane.Contexts[record]?.FailPagedBatch(lane.Tokens[record]);
-                lane.Counters?.Release();
-                lane.Counters = null;
-                lane.Resources?.Dispose();
-                lane.Resources = null;
-                lane.LayoutExtractor = null;
-                ResetCountBatchLane(lane);
+                // A world may retire while feedback is in flight. Its cached callback owns
+                // buffer disposal until the copy completes; no teardown wait enters the frame.
+                if (lane.Submitted && !lane.OutcomeReady)
+                    lane.Retired = true;
+                else
+                    lane.ReleaseBuffers();
+                s_CountBatchLanes[i] = null;
             }
+            AllocationFailures = 0;
             s_CountBatchReadbacks = 0;
             s_CountBatchRecords = 0;
             s_CountBatchArenaWaits = 0;
