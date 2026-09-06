@@ -2,7 +2,12 @@
   "name": "VoxelEngine.Composition.Tests.EditMode",
   "rootNamespace": "VoxelEngine.Composition.Tests",
   "references": [
-    "VoxelEngine.Composition.Api"
+    "VoxelEngine.Composition.Api",
+    "VoxelEngine.Composition",
+    "VoxelEngine.Rendering.Api",
+    "VoxelEngine.Structures.Api",
+    "VoxelEngine.Storage.Api",
+    "Unity.Mathematics"
   ],
   "includePlatforms": ["Editor"],
   "excludePlatforms": [],
