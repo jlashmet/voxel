@@ -61,12 +61,32 @@ namespace VoxelEngine.Tests.EditMode
                      {
                          palette.Plaster, palette.Timber, palette.Roof, palette.Stone,
                          palette.Glass, palette.Door, palette.Accent, palette.Flowers,
-                         palette.Foliage,
+                         palette.Foliage, palette.Ornament,
                      })
             {
                 Assert.That(session.Operations.Exists(op => op.Material == required), Is.True,
                     $"Reference material role {required} was not authored by the production house path.");
             }
+        }
+
+        [NUnit.Framework.Test]
+        public void AuthorHouse_SteepFrontRoofIsShallow_AndCrestIsCompact()
+        {
+            NewHouseReferenceConfig config = NewHouseReferenceConfig.Default;
+            NewHouseReferencePalette palette = Palette();
+            var session = new RecordingSession();
+
+            NewHouseReferenceAuthoring.AuthorHouse(session, int3.zero, in config, in palette);
+
+            List<RecordedOperation> roofBoxes = session.Operations.FindAll(op =>
+                op.Kind == OperationKind.Box && op.Material == palette.Roof && op.Size.z > 1);
+            Assert.That(roofBoxes.Count, Is.GreaterThan(0));
+            Assert.That(roofBoxes.Exists(op => op.Size.z >= config.Depth), Is.False,
+                "The steep portrait gable must stay shallow; a full-depth wedge recreates the rejected roof monolith.");
+
+            Assert.That(session.Operations.Exists(op =>
+                    op.Kind == OperationKind.Cone && op.Material == palette.Ornament && op.Size.y <= 6),
+                Is.True, "The crest should be a compact ornament, not the rejected multi-metre timber pole.");
         }
 
         [NUnit.Framework.Test]
@@ -83,14 +103,14 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(session.Operations.Exists(op => op.Material == palette.Stone), Is.True);
             Assert.That(session.Operations.Exists(op => op.Material == palette.Foliage), Is.True);
             Assert.That(session.Operations.Exists(op => op.Kind == OperationKind.Disc), Is.True,
-                "Reference approach should contain the curved stepping-stone rhythm.");
+                "Reference site should contain the paired round planter bases.");
             Assert.That(session.Operations.Exists(op => op.Kind == OperationKind.Cone), Is.True,
-                "Reference landscape should contain production structure primitives for shrubs.");
+                "Reference site should contain production foliage in the paired planters.");
         }
 
         private static NewHouseReferencePalette Palette() =>
             new(plaster: 41, timber: 42, roof: 43, stone: 44, glass: 45,
-                door: 46, accent: 47, ground: 48, flowers: 49, foliage: 50);
+                door: 46, accent: 47, ground: 48, flowers: 49, foliage: 50, ornament: 51);
 
         private enum OperationKind : byte
         {
