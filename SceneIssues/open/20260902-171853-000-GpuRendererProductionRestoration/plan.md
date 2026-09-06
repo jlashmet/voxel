@@ -1,26 +1,28 @@
 # GPU renderer production restoration — implementation plan
 
-**Acceptance:** `Assets/Scenes/VoxelShowcase.unity` only. Production-quality CPU stationary/traversal presentation precedes restoring GPU cutover. CPU captures never count as GPU acceptance. Current production/test source: `e4e2f9975dc2d3f3d437b5bfe3f853b6f2cf468b`; latest fetched master: `ef475182b866eabfe8e1d1a39c82bf7810a03f49`.
+**Acceptance:** `Assets/Scenes/VoxelShowcase.unity` only. Production-quality CPU stationary/traversal presentation precedes GPU cutover; CPU images never count as GPU proof. Tested source `e4e2f9975dc2d3f3d437b5bfe3f853b6f2cf468b`; fetched master `ef475182b866eabfe8e1d1a39c82bf7810a03f49`.
 
-## Observed result and hypotheses
+## Exact result
 
-Material baseline feature `fc767620...`, request `8e6aac9...`, run `33996360570` passed automation but its CPU-only VoxelShowcase captures remain **prototype/blockout quality**: castle visible, giant left slab and right-hand masses unresolved. GPU request/publication counters are zero.
+Before source `da3f5be...`, request `6ddc727...`, run `33999899224` failed exactly eight canonical taper cases; 649 other EditMode tests passed. See [frustum-geometry-evidence.md](frustum-geometry-evidence.md).
 
-1. **Lost frustum taper:** confirmed at the canonical-to-far boundary. The production mountain emits a frustum, but the old adapter discarded centre/direction/radii and the renderer substituted an AABB. The exact before-fix regression now fails for the intended reason, not compilation or infrastructure.
-2. **Additional owners/near-far overlap:** the image may also contain canonical boxes or overlapping presentation. `ShowcaseFarFeatureRuntime.Update` submits all selected proxies without consulting detailed publication readiness. Terrain already uses `RenderingComposition.HasCompletePublishedNearSurfaceCoverage`; it is an aggregate view signal, not proof of an individual feature's coverage. Do not introduce distance-only hiding or claim every slab is fixed.
+Pass-after request `fc6c3320d9b986b8d2401fcae0a17de80d286691`, run `34003412217`, completed **success** without replacement. Artifact `9980566933`, ZIP SHA-256 `b902646131564cfb16367d0e05e329951a3232c583aa56691b1a998f8e0f03fa`: 657 module EditMode tests, three PlayMode tests, and eight repeated focused taper cases pass with no skips/failures. The canonical emitter -> adapter -> renderer repair is proven, including topology and cache assertions.
 
-## Exact fail-before evidence
+Inspected `SceneIssue/verification-final.png`: the left AABB is now tapered, but its white flat surface and the right-hand malformed masses still fail CPU acceptance (**prototype/blockout quality**). GPU requests/publications remain zero. Default-view replay logs no replayable camera snapshot; zero-sample frame timings are not performance proof.
 
-Source `da3f5be338c57f5fe99ad4324405422e78c3918e`, request `6ddc72724c6653538be5c5a9818ebee059726264`, run `33999899224`, job `101396766672`: **completed/failure**, as expected. Artifact `9979637933` (`single-test-33999899224`), `ModuleValidation/Results/Tests/Persistent/persistent-failures.txt` and `persistent-editmode-12.txt`: 289 Rendering tests passed, exactly eight `FarFeatureFrustumGeometryTests.FrustumSilhouetteMatchesCanonicalTaper` cases failed at line 81. Representative expected radius 11.5 +/- 1.25 voxels, actual 24.5. The other twelve completed EditMode assemblies passed. The separate 45-second player replay succeeded but remains before-fix defect evidence; required module/player gates did not all run.
+The module summary reports nine player runs, but FarWorld and Water share `Players/Assets_VoxelEngine_Rendering`; the retained log/captures belong to Water. Required FarWorld evidence was overwritten. Preserve separate per-scene/scenario outputs before accepting module-player proof. This is a demonstrated validation defect, not permission to remove a target or weaken assertions.
 
-## Repair, ownership and current request
+## Hypotheses / next discriminator
 
-Candidate `a164456a9eac5091ec3e5d6c2e03a9de7b675199` preserves signed cap centres/radii as renderer-neutral normalized values. The existing renderer tessellates 50 vertices / 96 triangles per frustum with revision-based caching. No scene-specific recipe, new renderer or authoritative-state change. Eight regressions cover axes/directions, negative coordinates, unequal normalization, voxel scales, zero-radius endpoints, winding, closure and caching.
+1. **Semantic far-feature overlap/approximation:** `ShowcaseFarFeatureRuntime.Update` submits all selected proxies without per-feature detailed publication readiness. Other shapes still use AABBs and carves are omitted.
+2. **Another presentation owner/source:** remaining masses could instead be CPU voxel geometry or far terrain; source shapes may already be boxes.
 
-Rendering owns `Assets/VoxelEngine/Rendering/Validation/FarWorld/`; its existing player now includes forward/reverse frusta. Composition's selection/value projection is headless and uses module-local EditMode coverage; no separate Composition scene applies. Showcase SceneRuntime retains its master-owned input validation pair. The render-ready module tableau is not a substitute for canonical VoxelShowcase visual proof.
+Next exact VoxelShowcase replay will use an explicitly opted-in, bounded normal/disabled/restored comparison of the existing far-feature renderer, at the same scene-authored camera. The disabled interval is diagnostic only, never visual success or a production fallback policy. Do not hide proxies by distance or global convergence. The comparison must restore original enable states and retain normal final output.
 
-Pass-after request **`fc6c3320d9b986b8d2401fcae0a17de80d286691`**, run **`34003412217`**, job `101406207152`, is **queued** at the latest observation, directly parented by exact feature `e4e2f997...`. Do not replace queued/running work. After termination inspect tests, required module/player proof, VoxelShowcase PNGs and GPU counters before marking TGPU-019CPU4F complete.
+## Ownership and scope
+
+Rendering owns canonical regressions and `Rendering/Validation/FarWorld/`. Headless Composition uses module-local EditMode tests. Showcase SceneRuntime owns replay orchestration and its existing validation scene; bounded instrumentation may toggle the existing renderer but must not create geometry/materials or mutate world state. Add behavioral restoration/opt-in regressions. `tools/run-module-validation.py` owns artifact isolation; prove the collision and preservation with filesystem-based tests.
 
 ## Remaining gates
 
-Production-quality CPU stationary/traversal evidence; remaining geometry/material/handoff corrections; then retained GPU reconciliation, deterministic parity, paging/lifetime, streaming/edit, no-fallback, performance and independent-consumer proof. All required gates/checklists precede `open` -> `closed`, current-master integration and PR + auto-merge.
+Resolve required artifact isolation and CPU draw ownership, then correct proven geometry/material/handoff defects. Obtain clean CPU stationary/traversal proof before GPU reconciliation, parity, publication/lifetime, edits/streaming, no-fallback, performance and independent-consumer validation. Keep all unmet checkboxes open. Only full acceptance permits `open` -> `closed`, current-master integration and PR + auto-merge.
