@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Execute a convention-derived module validation plan."""
 from __future__ import annotations
-import argparse, json, os, subprocess, time, xml.etree.ElementTree as ET
+import argparse, hashlib, json, os, subprocess, time, xml.etree.ElementTree as ET
 from pathlib import Path
 
 # This suite intentionally remains process-isolated. The full master workflow
@@ -153,6 +153,17 @@ def _requested_is_process_isolated(test_name: str) -> bool:
     return any(test_name == assembly or test_name.startswith(assembly + ".") for assembly in PROCESS_ISOLATED_ASSEMBLIES)
 
 
+def _player_output_path(root: Path, item: dict) -> Path:
+    # A module can own several scenes and a scene can have several scenarios. Keying only
+    # by module silently replaced earlier logs/captures when the next player ran.
+    module = item["module"]
+    safe_module = "".join(c if c.isalnum() or c in "-_" else "_" for c in module)
+    safe_scene = "".join(c if c.isalnum() or c in "-_" else "_" for c in Path(item["scene"]).stem)
+    identity = json.dumps([module, item["scene"], item["scenario"]], separators=(",", ":"))
+    digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]
+    return root / "Players" / safe_module / f"{safe_scene}-{digest}"
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--unity", required=True)
@@ -215,16 +226,14 @@ def main(argv=None) -> int:
         }
 
     for item in plan.get("playerValidations", []):
-        module = item["module"]
-        safe_module = "".join(c if c.isalnum() or c in "-_" else "_" for c in module)
-        out = root / "Players" / safe_module
+        out = _player_output_path(root, item)
         player_env = os.environ.copy()
         player_env["VOXEL_DISABLE_GPU_CUTOVER"] = "1"
         started = time.monotonic()
         subprocess.run(["python3", "tools/player-validation.py", "--unity", ns.unity,
                         "--scene", item["scene"], "--scenario", item["scenario"],
                         "--output", str(out)], check=True, env=player_env)
-        summary["players"].append({**item, "seconds": round(time.monotonic() - started, 2)})
+        summary["players"].append({**item, "output": str(out), "seconds": round(time.monotonic() - started, 2)})
     summary["totalSeconds"] = round(time.monotonic() - started_all, 2)
     (root / "module-validation-summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(summary, sort_keys=True))
