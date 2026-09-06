@@ -679,9 +679,7 @@ namespace Game.Kentridge.PlayableSlice
 
         private void QueueInteract()
         {
-            if (_keyboard == null || !_keyboard.added) return;
-            InputSystem.QueueStateEvent(_keyboard, new KeyboardState(Key.E));
-            InputSystem.QueueStateEvent(_keyboard, new KeyboardState());
+            QueuePrimary();
         }
 
         private void QueueKeyboard()
