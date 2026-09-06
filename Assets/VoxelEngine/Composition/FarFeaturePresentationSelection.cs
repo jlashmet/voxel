@@ -365,14 +365,44 @@ namespace VoxelEngine.Composition
                     primitiveMaxExclusiveVoxel.z);
                 float3 normalizedMin = (primitiveMin - bakeMin) / bakeSize - originOffset;
                 float3 normalizedMax = (primitiveMaxExclusive - bakeMin) / bakeSize - originOffset;
+                FarFeatureFrustum frustum = primitive.Shape == PrimitiveShape.Frustum
+                    ? FrustumFor(in primitive, bakeMin, bakeSize, originOffset, normalizedMin, normalizedMax)
+                    : default;
                 primitives.Add(new FarFeatureGeometryPrimitive(
                     (FarFeatureGeometryShape)(byte)primitive.Shape,
                     normalizedMin,
                     normalizedMax,
-                    primitive.Axis));
+                    primitive.Axis,
+                    frustum));
             }
 
             return primitives.Count == 0 ? null : new FarFeatureGeometry(primitives.ToArray());
+        }
+
+        private static FarFeatureFrustum FrustumFor(
+            in Primitive primitive, float3 bakeMin, float3 bakeSize, float3 originOffset,
+            float3 normalizedMin, float3 normalizedMax)
+        {
+            int axis = primitive.Axis;
+            if (axis > 2) throw new ArgumentException("Canonical frustum axis must be X, Y or Z.");
+            int length = math.max(1, primitive.B[axis] - primitive.A[axis]);
+            int direction = primitive.Direction < 0 ? -1 : 1;
+            int alongLower = direction * (primitive.A[axis] - primitive.C[axis]);
+            int alongUpper = direction * (primitive.B[axis] - primitive.C[axis]);
+            long deltaRadius = (long)primitive.InnerRadius - primitive.Radius;
+            // Match the canonical membership's signed taper at the included end-cell centres.
+            // The half-cell envelope also gives a zero-radius endpoint its one occupied cell.
+            float lowerRadius = primitive.Radius + deltaRadius * alongLower / length + 0.5f;
+            float upperRadius = primitive.Radius + deltaRadius * alongUpper / length + 0.5f;
+            float3 lowerCenter = ((float3)primitive.C + new float3(0.5f) - bakeMin) / bakeSize - originOffset;
+            float3 upperCenter = lowerCenter;
+            lowerCenter[axis] = normalizedMin[axis];
+            upperCenter[axis] = normalizedMax[axis];
+            float3 lowerRadii = new float3(lowerRadius) / bakeSize;
+            float3 upperRadii = new float3(upperRadius) / bakeSize;
+            lowerRadii[axis] = 0f;
+            upperRadii[axis] = 0f;
+            return new FarFeatureFrustum(lowerCenter, upperCenter, lowerRadii, upperRadii);
         }
 
         private static string GeometryKeyFor(FeaturePresentationBake bake) =>

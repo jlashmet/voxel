@@ -16,6 +16,7 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
     {
         private const int MaxInstancesPerDraw = 1023;
         private const int CylinderSegments = 12;
+        private const int FrustumSegments = 24;
 
         private readonly Dictionary<BatchKey, List<Matrix4x4>> _batches = new();
         private readonly Dictionary<string, FarFeatureGeometry> _geometrySources = new(StringComparer.Ordinal);
@@ -209,14 +210,17 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
                 FarFeatureGeometryPrimitive primitive = geometry.GetPrimitive(i);
                 switch (primitive.Shape)
                 {
+                    case FarFeatureGeometryShape.Frustum:
+                        AppendFrustum(vertices, triangles, primitive);
+                        break;
                     case FarFeatureGeometryShape.Cylinder:
                     case FarFeatureGeometryShape.Annulus:
                     case FarFeatureGeometryShape.ArcWedge:
                         AppendCylinder(vertices, triangles, primitive.Min, primitive.Max, primitive.Axis);
                         break;
                     default:
-                        // Conservative generic massing for the remaining vocabulary. This deliberately
-                        // preserves each primitive's authored extent without any producer/type recipe.
+                        // Other primitive approximations remain separate visual acceptance work;
+                        // preserving their AABB is not evidence of canonical silhouette parity.
                         AppendBox(vertices, triangles, primitive.Min, primitive.Max);
                         break;
                 }
@@ -230,6 +234,47 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
             mesh.RecalculateNormals();
             mesh.RecalculateBounds();
             return mesh;
+        }
+
+        private static void AppendFrustum(
+            List<Vector3> vertices, List<int> triangles, FarFeatureGeometryPrimitive primitive)
+        {
+            FarFeatureFrustum caps = primitive.Frustum;
+            int radialA = (primitive.Axis + 1) % 3;
+            int radialB = (primitive.Axis + 2) % 3;
+            int start = vertices.Count;
+            for (int end = 0; end < 2; end++)
+            {
+                float3 center = end == 0 ? caps.LowerCenter : caps.UpperCenter;
+                float3 radii = end == 0 ? caps.LowerRadii : caps.UpperRadii;
+                for (int segment = 0; segment < FrustumSegments; segment++)
+                {
+                    float angle = (2f * math.PI * segment) / FrustumSegments;
+                    float3 point = center;
+                    point[radialA] += math.cos(angle) * radii[radialA];
+                    point[radialB] += math.sin(angle) * radii[radialB];
+                    vertices.Add(ToVector3(point));
+                }
+            }
+
+            int lowerCenter = vertices.Count;
+            vertices.Add(ToVector3(caps.LowerCenter));
+            int upperCenter = vertices.Count;
+            vertices.Add(ToVector3(caps.UpperCenter));
+            for (int segment = 0; segment < FrustumSegments; segment++)
+            {
+                int next = (segment + 1) % FrustumSegments;
+                int lower = start + segment;
+                int lowerNext = start + next;
+                int upper = start + FrustumSegments + segment;
+                int upperNext = start + FrustumSegments + next;
+                // The cyclic radial basis has radialA x radialB == positive extrusion axis.
+                // This winding therefore faces outward for X, Y and Z without per-axis recipes.
+                triangles.Add(lower); triangles.Add(lowerNext); triangles.Add(upperNext);
+                triangles.Add(lower); triangles.Add(upperNext); triangles.Add(upper);
+                triangles.Add(lowerCenter); triangles.Add(lowerNext); triangles.Add(lower);
+                triangles.Add(upperCenter); triangles.Add(upper); triangles.Add(upperNext);
+            }
         }
 
         private static void AppendBox(List<Vector3> vertices, List<int> triangles, float3 minValue, float3 maxValue)

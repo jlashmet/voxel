@@ -122,7 +122,12 @@ namespace VoxelEngine.Rendering.Validation
 
             PopulateRenderReadyFeatures();
             _featureRenderer.SetInstances(_instances);
-            return _featureRenderer.InstanceCount == _instances.Count;
+            int frusta = 0;
+            foreach (FarFeatureInstance instance in _instances)
+                for (int i = 0; i < instance.Geometry.PrimitiveCount; i++)
+                    if (instance.Geometry.GetPrimitive(i).Shape == FarFeatureGeometryShape.Frustum) frusta++;
+            Debug.Log($"FARWORLD_VALIDATION frusta={frusta}");
+            return _featureRenderer.InstanceCount == _instances.Count && frusta == 2;
         }
 
         private Camera EnsureCamera()
@@ -298,6 +303,15 @@ namespace VoxelEngine.Rendering.Validation
             FarFeatureGeometry forest = ForestClusterGeometry();
             FarFeatureGeometry rock = RockGeometry();
 
+            // Contract-level geometry coverage in the existing production renderer. These fixtures
+            // are not VoxelShowcase art acceptance; the real scene replay remains the visual gate.
+            AddFeature(600, new Vector3(-75f, TerrainHeight(-75f, 850f), 850f),
+                new Vector3(70f, 65f, 70f), "frustum-taper", "validation-rock",
+                FarFeatureTier.Mid, FarFeatureVisualFlags.None, FrustumGeometry(false));
+            AddFeature(601, new Vector3(75f, TerrainHeight(75f, 850f), 850f),
+                new Vector3(70f, 65f, 70f), "frustum-reverse-taper", "validation-rock",
+                FarFeatureTier.Mid, FarFeatureVisualFlags.None, FrustumGeometry(true));
+
             AddFeature(1, new Vector3(-120f, TerrainHeight(-120f, 280f), 280f),
                 new Vector3(22f, 18f, 18f), "house", "validation-house",
                 FarFeatureTier.Mid, FarFeatureVisualFlags.None, house);
@@ -368,6 +382,20 @@ namespace VoxelEngine.Rendering.Validation
                 FarFeatureTier.Horizon,
                 FarFeatureVisualFlags.HorizonLandmark,
                 tree);
+        }
+
+        private static FarFeatureGeometry FrustumGeometry(bool reverse)
+        {
+            float3 broad = new(0.5f, 0f, 0.5f);
+            float3 narrow = new(0.125f, 0f, 0.125f);
+            var caps = new FarFeatureFrustum(
+                float3.zero, new float3(0f, 1f, 0f),
+                reverse ? narrow : broad, reverse ? broad : narrow);
+            return new FarFeatureGeometry(new[]
+            {
+                new FarFeatureGeometryPrimitive(FarFeatureGeometryShape.Frustum,
+                    new float3(-0.5f, 0f, -0.5f), new float3(0.5f, 1f, 0.5f), 1, caps)
+            });
         }
 
         private void AddFeature(

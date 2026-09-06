@@ -47,8 +47,9 @@ namespace VoxelEngine.Rendering.Api
     }
 
     /// <summary>
-    /// One normalized conservative mass in a far-feature geometry resource. X/Z are centered around
-    /// the instance origin while Y is measured upward from it, matching the renderer transform.
+    /// One normalized mass in a far-feature geometry resource. X/Z are centered around the
+    /// instance origin while Y is measured upward from it, matching the renderer transform.
+    /// Frusta require their resolved cap geometry; a bounding box cannot describe their taper.
     /// </summary>
     public readonly struct FarFeatureGeometryPrimitive
     {
@@ -56,19 +57,33 @@ namespace VoxelEngine.Rendering.Api
             FarFeatureGeometryShape shape,
             float3 min,
             float3 max,
-            byte axis = 1)
+            byte axis = 1,
+            FarFeatureFrustum frustum = default)
         {
             if (math.any(max < min)) throw new ArgumentException("Far geometry primitive bounds must be ordered.");
+            if (shape == FarFeatureGeometryShape.Frustum)
+            {
+                if (axis > 2 || !frustum.IsDefined)
+                    throw new ArgumentException("Far frusta require a valid axis and explicit resolved cap geometry.");
+                int radialA = (axis + 1) % 3;
+                int radialB = (axis + 2) % 3;
+                if (!(frustum.UpperCenter[axis] > frustum.LowerCenter[axis])
+                    || !(frustum.LowerRadii[radialA] > 0f) || !(frustum.LowerRadii[radialB] > 0f)
+                    || !(frustum.UpperRadii[radialA] > 0f) || !(frustum.UpperRadii[radialB] > 0f))
+                    throw new ArgumentException("Far frustum cell-envelope caps must have positive depth and radial extents.");
+            }
             Shape = shape;
             Min = min;
             Max = max;
             Axis = axis <= 2 ? axis : (byte)1;
+            Frustum = frustum;
         }
 
         public FarFeatureGeometryShape Shape { get; }
         public float3 Min { get; }
         public float3 Max { get; }
         public byte Axis { get; }
+        public FarFeatureFrustum Frustum { get; }
     }
 
     /// <summary>
