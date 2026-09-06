@@ -22,6 +22,9 @@
       "PROP_SHOWCASE_VALIDATION emissive selected=",
       "PROP_SHOWCASE_VALIDATION container-movable selected=",
       "PROP_SHOWCASE_VALIDATION interactive-world-object selected=",
+      "PROP_SHOWCASE_VALIDATION resources cycle=0 selected=",
+      "PROP_SHOWCASE_VALIDATION resources cycle=1 selected=",
+      "PROP_SHOWCASE_VALIDATION resources cycle=2 selected=",
       "PROP_SHOWCASE_VALIDATION stress switches=",
       "PROP_SHOWCASE_VALIDATION complete selected="
     ],

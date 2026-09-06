@@ -33,7 +33,7 @@
 - [ ] Fix the demonstrated vertical-mount camera defect: floor-mounted props must use a useful elevated three-quarter view instead of looking down the `+Y` mount normal, and ceiling-mounted props must use a useful underside three-quarter view instead of looking straight up the `-Y` mount normal; prove both with fresh exact-SHA built-player evidence.
 - [ ] Correctly handle representative floor-mounted, wall-mounted, ceiling/hanging, thin-surface, box-assembly, procedural-mesh, voxel-stamp, emissive/light-producing, container, movable, and other independently previewable production cases.
 - [ ] Ensure switching entries fully disposes/recycles the prior preview realization and leaves no stale geometry, colliders, lights, particle emitters, world-object state, subscriptions, or presentation resources.
-- [x] Add a repeated-selection stress regression that cycles through a representative set and proves stable active-object/resource counts and no exceptions.
+- [ ] Add a repeated-selection stress regression that cycles through a representative set and proves stable active-object/resource counts and no exceptions. Reopened: the old one-frame loop only checked presenter dictionaries. Frame-separated cycles and actual resource probes are now implemented; Unity execution is pending.
 
 ## Module-local validation
 - [ ] For each affected player-visible/runtime module, create or update a focused scene under that module's own `<Module>/Validation/` directory; do not count top-level `PropShowcase` as the module-local validation surface. Verify every affected owner, including material composition.
@@ -47,6 +47,11 @@
 - [x] Isolate PlayMode module phases and explicitly requested PlayMode tests in fresh existing Unity-wrapper processes, retaining persistent EditMode batching and every required selected test/player gate. Implemented at `79b6a2f4261185680ecbeceff7797f71992d35ab`.
 - [x] Add and run subprocess behavioural regressions for two PlayMode phases followed by a focused request; reject zero-match, skipped, failed and missing test results without a hard-coded requested-test assembly. All 20 focused Python tests pass; baseline fails 14 assertions/subtests. See `ci-teardown-repro.md`.
 - [ ] Obtain successful exact-SHA execution after the orchestration repair; local Python regressions do not substitute for Unity or built-player evidence.
+
+## Resource-evidence repair
+- [x] Replace the one-frame stress burst with three repeated, frame-separated cycles through the real browser; wait for endpoint cleanup and record startup/selection cost, actual owned components, global native mesh/material counts and separate allocator totals. Do not manufacture a memory pass from presenter counts.
+- [x] Add focused nonvisual regressions for inactive/deferred-owned objects, unparented native mesh accounting, and a missing owner; require all three cycle records in the module-local scenario. These tests are added, not yet executed in Unity.
+- [ ] Execute the new resource regressions and exact built-player scenario; review same-endpoint measurements and any unavailable profiler counters before accepting lifecycle or cost. Short process-wide probes do not establish the device-matrix two-hour world-memory gate.
 
 ## Built-player acceptance
 - [ ] Build/run the exact feature SHA through the required targeted-CI transport and do not replace a queued/running request.
@@ -70,4 +75,4 @@
 - [ ] Current `origin/master` is merged into the feature branch before final promotion; PR auto-merge is enabled and the required `affected` gate passes until the SceneIssue is visible closed on master.
 
 ## Current blockers
-Request `e83a7fd822dab1c40d59f0f84ccd65937071fd28` / run `34003328146` remains queued for exact source `de0aa1fb4221b06f8f63e6f22fc26ffba77defc8`; leave it untouched. The preceding run's automatic module validation failed during Test Runner teardown, and its diagnostic-normal material output failed visual acceptance. The independent isolation repair is implemented and Python-tested at `79b6a2f4`; it is not part of the queued source and needs fresh exact-SHA CI only after the existing request completes. All Unity/player, visual, resource and final promotion gates remain mandatory.
+Request `e83a7fd822dab1c40d59f0f84ccd65937071fd28` / run `34003328146` remains queued for exact source `de0aa1fb4221b06f8f63e6f22fc26ffba77defc8`; leave it untouched. The preceding run's automatic module validation failed during Test Runner teardown, and its diagnostic-normal material output failed visual acceptance. The independent CI isolation repair and later resource-evidence work are not part of the queued source and need fresh exact-SHA CI only after the existing request completes. All Unity/player, visual, resource and final promotion gates remain mandatory.

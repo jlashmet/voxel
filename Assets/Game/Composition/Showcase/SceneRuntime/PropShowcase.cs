@@ -47,6 +47,8 @@ namespace VoxelEngine.Showcase
         private bool _captureAutomation;
         private float _captureStartedAt;
         private int _capturePhase;
+        private Coroutine _captureStress;
+        private bool _captureStressComplete;
         private int _switchCount;
         private int _peakOwnedPresenters;
         private long _lastVoxelCount;
@@ -65,6 +67,7 @@ namespace VoxelEngine.Showcase
         private void OnEnable()
         {
             if (!Application.isPlaying) return;
+            double startupStarted = Time.realtimeSinceStartupAsDouble;
             _camera = GetComponent<Camera>();
             _context = new DecorationContext
             {
@@ -90,6 +93,7 @@ namespace VoxelEngine.Showcase
             CreateOwnedPresenters();
             CreateNeutralEnvironment();
             _captureAutomation = IsPlayerCaptureHarness();
+            _captureStressComplete = false;
             Select(0);
             if (_captureAutomation)
             {
@@ -97,13 +101,16 @@ namespace VoxelEngine.Showcase
                 _capturePhase = 0;
                 Debug.Log(
                     $"PROP_SHOWCASE_VALIDATION start count={_entries.Length} selected={SelectedStableId} " +
-                    $"owned={OwnedPresentationCount}");
+                    $"owned={OwnedPresentationCount} startupMs={(Time.realtimeSinceStartupAsDouble - startupStarted) * 1000.0:0.000}");
             }
         }
 
         private void OnDisable()
         {
             if (!Application.isPlaying) return;
+            if (_captureStress != null)
+                StopCoroutine(_captureStress);
+            _captureStress = null;
             ClearSelectionPresentation();
             RenderingComposition.ClearWorld();
             if (_presentationRoot != null)
@@ -176,10 +183,10 @@ namespace VoxelEngine.Showcase
 
             _selectedIndex = index;
             _switchCount++;
-            _lastSwitchMs = (Time.realtimeSinceStartup - started) * 1000f;
             _peakOwnedPresenters = Mathf.Max(_peakOwnedPresenters, OwnedPresentationCount);
             UpdateSupportSurface(in realization);
             Frame(in realization);
+            _lastSwitchMs = (Time.realtimeSinceStartup - started) * 1000f;
             _status = ok
                 ? $"READY · {entry.Source} · {realization.DecorationBackend} · {_lastSwitchMs:0.0} ms"
                 : "ERROR · production presentation failed";
@@ -599,20 +606,11 @@ namespace VoxelEngine.Showcase
             }
             else if (_capturePhase == 10 && elapsed >= 54f)
             {
-                // Deterministic lifecycle stress: many replacements in one frame sequence, then leave
-                // one valid representative selected for capture/evidence.
-                int stride = Mathf.Max(1, _entries.Length / 31);
-                for (int i = 0; i < _entries.Length; i += stride)
-                    Select(i);
-                Select(_entries.Length - 1);
-                if (OwnedPresentationCount > 1)
-                    Debug.LogError($"PROP_SHOWCASE_VALIDATION failure: stale-owned-presenters count={OwnedPresentationCount}");
-                Debug.Log(
-                    $"PROP_SHOWCASE_VALIDATION stress switches={_switchCount} owned={OwnedPresentationCount} " +
-                    $"peakOwned={_peakOwnedPresenters} lastSwitchMs={_lastSwitchMs:0.0}");
+                _captureStress = StartCoroutine(PropShowcaseCaptureStress.Run(
+                    this, _presentationRoot, () => _captureStressComplete = true));
                 _capturePhase = 11;
             }
-            else if (_capturePhase == 11 && elapsed >= 61f)
+            else if (_capturePhase == 11 && elapsed >= 61f && _captureStressComplete)
             {
                 Debug.Log(
                     $"PROP_SHOWCASE_VALIDATION complete selected={SelectedStableId} switches={_switchCount} " +
