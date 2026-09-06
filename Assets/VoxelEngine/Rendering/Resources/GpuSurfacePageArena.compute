@@ -1,6 +1,7 @@
 #pragma kernel CSAllocateBatchPages
 #pragma kernel CSPublishBatchPages
 #pragma kernel CSCommitPendingPages
+#pragma kernel CSCommitCurrentPendingPages
 #pragma kernel CSAbortPendingPages
 #pragma kernel CSApplyHandleCommands
 
@@ -76,6 +77,7 @@ int _MaxVertexPagesPerChunk;
 int _MaxIndexPagesPerChunk;
 int _VertexPageCount;
 int _IndexPageCount;
+int _HandleCapacity;
 uint _ArenaEpoch;
 uint _RetirementDelay;
 int _HandleCommandCount;
@@ -87,6 +89,7 @@ static const uint AllocationReady = 0u;
 static const uint AllocationExhausted = 1u;
 static const uint AllocationStale = 2u;
 static const uint AllocationTooLarge = 3u;
+static const uint AllocationUnsupported = 4u;
 
 int RecordWord(int record) { return 4 + record * _BatchRecordWords; }
 int VertexTableWord(uint handle, uint bank, uint page)
@@ -221,6 +224,15 @@ void CSAllocateBatchPages(uint3 id : SV_DispatchThreadID)
         uint2 desired = _DesiredGenerationsRead[chunk.handle];
         if (desired.x != chunk.generationLow || desired.y != chunk.generationHigh) continue;
 
+        // Word zero is the semantic-support result produced by the count pass. Do not allocate an
+        // apparently successful empty candidate for semantics the production GPU path deliberately
+        // rejected; the CPU result channel must see Unsupported instead of false publication.
+        if (_BatchCountersRead[word + 0] != 0u)
+        {
+            _BatchCounters[word + 10] = AllocationUnsupported;
+            continue;
+        }
+
         // Only one pending allocation may own a handle. A later renderer generation is allowed to
         // replace a completed-but-uncommitted candidate; queue ordering guarantees its writer has
         // finished before this allocator executes. This prevents silent page loss from overwriting
@@ -276,7 +288,7 @@ void CSAllocateBatchPages(uint3 id : SV_DispatchThreadID)
 // Finalization is intentionally not publication. This kernel runs after geometry writes so the
 // subsequent tiny status readback is ordered after all candidate consumers. A superseded desired
 // generation is converted to Stale and its pending pages are reclaimed; a current candidate stays
-// pending until CPU renderer-demand approval queues CSCommitPendingPages.
+// pending until a later identity-checked commit.
 [numthreads(1, 1, 1)]
 void CSPublishBatchPages(uint3 id : SV_DispatchThreadID)
 {
@@ -324,6 +336,33 @@ void CSCommitPendingPages(uint3 id : SV_DispatchThreadID)
             RetireVertexPage(_VertexPageTableRead[VertexTableWord(handle,live.bank,page)]);
         for (uint page = 0u; page < live.indexPageCount; page++)
             RetireIndexPage(_IndexPageTableRead[IndexTableWord(handle,live.bank,page)]);
+    }
+    _LiveChunkGeometry[handle] = pending;
+    pending.ready = 0u;
+    _PendingChunkGeometry[handle] = pending;
+}
+
+// Production bridge while the stronger cache/config identity gate is being split out of the mixed
+// legacy cache: commit only candidates whose handle's desired generation still matches. It runs at
+// end-of-frame after count/write/finalization commands, so a candidate becomes visible no earlier
+// than the next frame. Status failures never allocate pending geometry and therefore cannot pass.
+[numthreads(64, 1, 1)]
+void CSCommitCurrentPendingPages(uint3 id : SV_DispatchThreadID)
+{
+    uint handle = id.x;
+    if (handle >= (uint)_HandleCapacity) return;
+    ChunkGeometryRecord pending = _PendingChunkGeometryRead[handle];
+    if (pending.ready == 0u) return;
+    uint2 desired = _DesiredGenerationsRead[handle];
+    if (desired.x != pending.generationLow || desired.y != pending.generationHigh) return;
+
+    ChunkGeometryRecord live = _LiveChunkGeometryRead[handle];
+    if (live.ready != 0u)
+    {
+        for (uint page = 0u; page < live.vertexPageCount; page++)
+            RetireVertexPageAtomic(_VertexPageTableRead[VertexTableWord(handle,live.bank,page)]);
+        for (uint page = 0u; page < live.indexPageCount; page++)
+            RetireIndexPageAtomic(_IndexPageTableRead[IndexTableWord(handle,live.bank,page)]);
     }
     _LiveChunkGeometry[handle] = pending;
     pending.ready = 0u;
