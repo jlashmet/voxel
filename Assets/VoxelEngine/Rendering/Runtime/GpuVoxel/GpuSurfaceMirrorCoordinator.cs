@@ -107,6 +107,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             internal GpuSurfaceExtractor PrefixExtractor;
             internal GpuTransvoxelTables Tables;
             internal GpuSurfaceExtractor.CountBatchResources Resources;
+            internal AsyncGPUReadbackRequest OutcomeReadback;
+            internal bool Submitted;
             internal int Count;
             internal int FirstDispatchFrame = -1;
         }
@@ -246,10 +248,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         }
 
         /// <summary>
-        /// Appends one immutable chunk descriptor to a cross-chunk lane. On seal, batch-wide GPU
-        /// count/prefix, page allocation, all-category generation, and publication execute without
-        /// transferring bookkeeping to the CPU. A lane seals at eight descriptors or after a
-        /// bounded delay, so sparse demand cannot wait forever.
+        /// Appends one immutable chunk descriptor to a cross-chunk lane. A sealed lane remains
+        /// submitted until the GPU completes the existing tiny counters/status transfer. Generated
+        /// vertices and indices stay GPU-owned; only status and immutable request identity cross
+        /// back to the CPU before the worker is allowed to call the result complete.
         /// </summary>
         internal static bool TryDispatchCountBatch(GpuSurfaceExtractionContext context,
                                                    uint token,
@@ -266,7 +268,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             for (int i = 0; i < s_CountBatchLanes.Length; i++)
             {
                 CountBatchLane candidate = s_CountBatchLanes[i];
-                if (candidate.Count < CountBatchCapacity)
+                if (!candidate.Submitted && candidate.Count < CountBatchCapacity)
                 {
                     lane = candidate;
                     break;
@@ -313,6 +315,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             {
                 CountBatchLane lane = s_CountBatchLanes[laneIndex];
                 if (lane == null) continue;
+                if (lane.Submitted)
+                {
+                    CompleteSubmittedCountBatch(lane);
+                    continue;
+                }
                 if (lane.Count > 0 && frame - lane.FirstDispatchFrame >= CountBatchMaxFillFrames)
                     SealCountBatch(lane);
             }
@@ -326,6 +333,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 lane.Tokens[record] = 0;
                 lane.Requests[record] = default;
             }
+            lane.Submitted = false;
+            lane.OutcomeReadback = default;
             lane.Count = 0;
             lane.FirstDispatchFrame = -1;
             lane.PrefixExtractor = null;
@@ -334,7 +343,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         private static void SealCountBatch(CountBatchLane lane)
         {
-            if (lane == null || lane.Count == 0) return;
+            if (lane == null || lane.Count == 0 || lane.Submitted) return;
             if (s_PageArena == null)
                 throw new InvalidOperationException(
                     "Production GPU extraction requires the GPU-owned page arena.");
@@ -371,9 +380,39 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 GraphicsFenceType.CPUSynchronisation,
                 SynchronisationStageFlags.ComputeProcessing);
             s_ExtractionFenceValid = true;
+
+            // The counters buffer is already the page allocator's bounded status/identity channel.
+            // Queue this after the write chain so completion proves the GPU has finished consuming
+            // the lane resources. Never read generated geometry back to the CPU.
+            lane.OutcomeReadback = AsyncGPUReadback.Request(lane.Counters);
+            lane.Submitted = true;
+            s_CountBatchReadbacks++;
+        }
+
+        private static void CompleteSubmittedCountBatch(CountBatchLane lane)
+        {
+            if (lane == null || !lane.Submitted || !lane.OutcomeReadback.done) return;
+
+            if (lane.OutcomeReadback.hasError)
+            {
+                for (int record = 0; record < lane.Count; record++)
+                    lane.Contexts[record]?.FailPagedBatch(lane.Tokens[record]);
+                ResetCountBatchLane(lane);
+                return;
+            }
+
+            NativeArray<uint> words = lane.OutcomeReadback.GetData<uint>();
             for (int record = 0; record < lane.Count; record++)
-                lane.Contexts[record]?.CompletePagedBatch(
-                    lane.Tokens[record], lane.Requests[record].Handle);
+            {
+                GpuSurfaceExtractionContext context = lane.Contexts[record];
+                if (context == null) continue;
+                GpuPagedBatchOutcome outcome =
+                    GpuPagedBatchOutcome.Parse(words, record, in lane.Requests[record]);
+                if (outcome.IsReadyCandidate)
+                    context.CompletePagedBatch(lane.Tokens[record], outcome.Handle);
+                else
+                    context.FailPagedBatch(lane.Tokens[record]);
+            }
             ResetCountBatchLane(lane);
         }
 
