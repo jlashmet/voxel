@@ -30,7 +30,9 @@
 ## Demonstrated visual defects
 - [ ] Merchant Sign: shared production thin-surface presenter now adds raised painting-family frame/emblem detail at `2b7e30e1`; require fresh exact built evidence showing finished semantic-front presentation rather than a flat rectangle.
 - [ ] Door/Trapdoor: Trapdoor mount is horizontal (`849875e3`) and shared `UnityWorldObjectPresentationSink` now uses detailed generated Door/SecretDoor/Trapdoor panel geometry (`2b7e30e1`); require fresh built evidence and preserve open/close semantics.
-- [ ] Forge Hearth: shared `DecorationEffectPresenter` now consumes existing semantic light/particle hooks (`2b7e30e1`); inspect fresh output. If canonical voxel hearth geometry remains disconnected/blockout quality, fix that demonstrated production-authoring cause before acceptance.
+- [ ] Forge Hearth: run `34015677843` is mechanically green but exact standalone evidence still shows a solid/blockout masonry face with the fire effect behind/above it; do not accept or close.
+- [ ] Isolate the repeated Forge Hearth visual failure with a minimal production-path repro before another fix; discriminate fixed world-axis authoring versus later voxel publication/meshing.
+- [ ] If the discriminator proves orientation loss, make canonical Hearth authoring follow `DecorationPlacement.Facing` for all cardinal horizontal facings and add a focused production-authoring regression; otherwise fix only the proven publication cause.
 - [ ] Initial publication: exact evidence must show truthful `LOADING` before voxel surface publication and a later `READY` transition with visible geometry.
 - [ ] Capture/review tiny, medium, large, wall, floor, ceiling/hanging, thin, box, procedural, voxel-stamp, emissive, container/movable and interactive representatives at production-quality bar.
 
@@ -39,7 +41,7 @@
 - [x] SceneRuntime owns `Validation/PropShowcaseMaterialValidation.*`; scenario requires readiness, representative selections and all three resource cycles.
 - [x] Materials owns `Tests/EditMode/PropMaterialCompositionTests.cs` plus `Validation/PropMaterialCompositionValidation.*` through the real browser/material adapter.
 - [x] Add focused catalogue, mount, presentation-quality, readiness, material and resource regressions without manual CI registration.
-- [ ] Execute every affected module's tests/scenes successfully through exact-SHA CI.
+- [x] Execute every affected module's tests/scenes successfully through exact-SHA CI at `8319b86cdaa74ca82f4b0f4dc90fe5c90c8d3e6f`; visual acceptance remains independently failed.
 
 ## CI failures and repairs
 - [x] Run `34000107687`: isolate persistent PlayMode temporary-scene teardown overlap.
@@ -49,7 +51,8 @@
 - [x] Run `34011392051`: inspect timeout artifact. `Assets/Scenes/PropShowcase.unity` incorrectly triggered broad unknown-path fallback, selecting 48 modules / 52 tests / 23 players; persistent tests passed before the 20-minute limit.
 - [x] Treat top-level `Assets/Scenes/*.unity` as integration-only for module ownership while retaining one canonical Kentridge gate for production diffs; preserve broad fallback for genuinely unknown production paths. Add focused planner regressions.
 - [x] Prevent same-module validation scenes from overwriting one another's exact artifact logs/screenshots by keying player output to module plus scene; add focused runner regressions.
-- [ ] Obtain successful exact-SHA targeted CI for the current implementation and inspect its artifact rather than inferring success from individual phases.
+- [x] Obtain successful exact-SHA targeted CI for `c52db27801214a00e6284a9b8ed01fd27118a4bc` via request `8319b86cdaa74ca82f4b0f4dc90fe5c90c8d3e6f` / run `34015677843`; direct artifact review rejects Hearth visual acceptance.
+- [ ] Obtain successful exact-SHA targeted CI for the final corrected implementation and inspect its artifact rather than inferring success from individual phases.
 
 ## Resource/cost evidence
 - [x] Repeat the same sampled selection set across three frame-separated cycles and record startup/switch timing, actual owned components, global meshes/materials, allocator totals and resident geometry.
@@ -58,7 +61,8 @@
 - [ ] Confirm showcase startup/switch/resource cost is reasonable and no selection accumulation is demonstrated.
 
 ## Built-player acceptance
-- [ ] Run the latest exact feature SHA through `ci-test/fixes/agent-9`; never replace queued/running work.
+- [x] Run feature SHA `c52db27801214a00e6284a9b8ed01fd27118a4bc` through exact request `8319b86cdaa74ca82f4b0f4dc90fe5c90c8d3e6f`; automation passed, Hearth visual failed.
+- [ ] Run the final corrected feature SHA through `ci-test/fixes/agent-9`; never replace queued/running work.
 - [ ] Capture durable initial left-catalogue/right-preview evidence plus all required representatives.
 - [ ] Directly inspect silhouettes, construction detail, grounding/contact, materials, clipping, lighting, repetition and placeholder/blockout appearance; only `production-quality` passes.
 - [ ] Exercise repeated navigation without startup/runtime exceptions, stale previews or unusable UI.
@@ -77,4 +81,4 @@
 - [ ] Merge current `origin/master` into `fixes/agent-9`, open/update final PR, enable auto-merge, pass required `affected`, and verify closed assignment on master.
 
 ## Current state
-Run `34011392051` is a failed timeout, not a product pass. Its artifact proved persistent tests passed but broad planner fallback exhausted the job on unrelated players. The planner and artifact-isolation repairs plus focused Python regressions are committed. Fresh exact-source CI is required before any visual/resource acceptance, closure or PR promotion.
+Run `34015677843` passed all automated phases but exact standalone-player review still rejects Forge Hearth. Because the same Hearth symptom survived two materially different fixes, root-cause isolation is now mandatory before another product change. Current discriminator: `AuthorShape` receives placement `Facing`, while `AuthorHearth` ignores it and hard-codes the open side toward world `-Z`; prove this through the production authoring boundary before correcting it.
