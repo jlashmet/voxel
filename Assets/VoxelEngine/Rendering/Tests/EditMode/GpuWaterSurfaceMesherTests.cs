@@ -20,34 +20,38 @@ namespace VoxelEngine.Tests.EditMode
             const uint waterMask = (1u << 11) | (1u << 16);
             const float voxelSize = 0.1f;
             const int bricks = 2;
-            var snapshots = new byte[bricks * WaterBrickMeshBatchJob.SnapshotStride];
+            var snapshots = new byte[bricks * (GpuWaterSurfaceMesher.SnapshotWords * 4)];
             for (int brick = 0; brick < bricks; brick++)
             {
-                int start = brick * WaterBrickMeshBatchJob.SnapshotStride;
+                int start = brick * (GpuWaterSurfaceMesher.SnapshotWords * 4);
                 if (fixture == 0) snapshots[start + 7 + 8 * (7 + 8 * 7)] = 11;
                 if (fixture == 1)
                     for (int y = 0; y < 8; y++) snapshots[start + 8 * y] = 16;
                 if (fixture == 2 || fixture == 3)
                     for (int i = 0; i < 512; i++) snapshots[start + i] = 11;
                 if (fixture == 3)
-                    for (int i = 512; i < WaterBrickMeshBatchJob.SnapshotStride; i++)
+                    for (int i = 512; i < (GpuWaterSurfaceMesher.SnapshotWords * 4); i++)
                         snapshots[start + i] = (byte)(i % 3 == 0 ? 1 : 16);
                 if (fixture == 4)
-                    for (int i = 0; i < WaterBrickMeshBatchJob.SnapshotStride; i++)
+                    for (int i = 0; i < (GpuWaterSurfaceMesher.SnapshotWords * 4); i++)
                         snapshots[start + i] = (byte)((i * 17 + brick) % 5 == 0 ? 11
                             : (i % 7 == 0 ? 16 : (i % 11 == 0 ? 1 : 0)));
             }
             using var origins = new NativeArray<int3>(new[] { new int3(-8), new int3(8, -8, 0) }, Allocator.Temp);
-            using var input = new NativeArray<byte>(snapshots, Allocator.Temp);
-            using var scratch = new NativeArray<byte>(64, Allocator.Temp);
-            using var expectedVertices = new NativeList<SmoothSurfaceVertex>(65536, Allocator.Temp);
-            using var expectedIndices = new NativeList<uint>(131072, Allocator.Temp);
-            using var overflow = new NativeArray<int>(1, Allocator.Temp);
-            new WaterBrickMeshBatchJob { BrickBaseVoxels = origins, SnapshotMaterials = input,
-                WaterMaterialMask = waterMask, BatchCount = bricks, VoxelSize = voxelSize,
-                MaskScratch = scratch, Vertices = expectedVertices, Indices = expectedIndices,
-                Overflow = overflow }.Execute();
-            Assert.That(overflow[0], Is.Zero);
+            // Captured from the retired CPU oracle before deletion, after actual GPU parity
+            // passed for every fixture (gpu-water-retirement-oracles.xml). Canonical semantic
+            // tests independently assert faces, identity, seams and spray; this digest preserves
+            // every quantized vertex/normal/material/active value without retaining CPU meshing.
+            int[] expectedVertexCounts = { 144, 144, 144, 0, 15172 };
+            int[] expectedIndexCounts = { 216, 216, 216, 0, 22758 };
+            string[] expectedDigests =
+            {
+                "4cd279f67c0eedb8fec1d38efdc5132a0b54bda025d3d67baf89f636335af715",
+                "d3957e4ef3dd1e54e322f3b3acb75353c4d8b1e39a54d465b82390801f75edae",
+                "8bc15ca8b6091891349778c20e713f001dfe7323bcd9660207b38b1afcd7ce3d",
+                "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "fdd1e638422357b0fdd87379751fe435693061a7f3c72865725877f4703b60f7",
+            };
 
             var shader = Object.Instantiate(Resources.Load<ComputeShader>("GpuWaterSurfaceMesher"));
             var arenaShader = Object.Instantiate(Resources.Load<ComputeShader>("GpuSurfacePageArena"));
@@ -77,8 +81,8 @@ namespace VoxelEngine.Tests.EditMode
                 arena.PublishBatch(descriptors, counters, 1, 17, 1);
                 var words = new uint[21]; counters.GetData(words); // Test-only GPU observation.
                 Assert.That(words[14], Is.Zero);
-                Assert.That(words[6], Is.EqualTo(expectedVertices.Length));
-                Assert.That(words[7], Is.EqualTo(expectedIndices.Length));
+                Assert.That(words[6], Is.EqualTo(expectedVertexCounts[fixture]));
+                Assert.That(words[7], Is.EqualTo(expectedIndexCounts[fixture]));
                 Assert.That(words[12], Is.EqualTo(words[6]));
                 Assert.That(words[13], Is.EqualTo(words[7]));
                 var vertices = new SmoothSurfaceVertex[arena.Vertices.count]; arena.Vertices.GetData(vertices);
@@ -90,10 +94,15 @@ namespace VoxelEngine.Tests.EditMode
                     + i / GpuSurfacePageArena.VertexPageSize] * GpuSurfacePageArena.VertexPageSize + i % GpuSurfacePageArena.VertexPageSize];
                 uint Index(uint i) => indices[indexPages[bank * GpuSurfacePageArena.MaxIndexPagesPerChunk
                     + i / GpuSurfacePageArena.IndexPageSize] * GpuSurfacePageArena.IndexPageSize + i % GpuSurfacePageArena.IndexPageSize];
-                var expected = new List<string>(); var actual = new List<string>();
-                for (int i = 0; i < expectedVertices.Length; i++) expected.Add(Key(expectedVertices[i]));
+                var actual = new List<string>();
                 for (uint i = 0; i < words[6]; i++) actual.Add(Key(Vertex(i)));
-                expected.Sort(); actual.Sort(); CollectionAssert.AreEqual(expected, actual);
+                actual.Sort(System.StringComparer.Ordinal);
+                using (var digest = System.Security.Cryptography.SHA256.Create())
+                {
+                    string actualDigest = System.BitConverter.ToString(digest.ComputeHash(
+                        System.Text.Encoding.UTF8.GetBytes(string.Join("\n", actual)))).Replace("-", "").ToLowerInvariant();
+                    Assert.That(actualDigest, Is.EqualTo(expectedDigests[fixture]));
+                }
                 for (uint i = 0; i < words[7]; i += 3)
                 {
                     uint ia = Index(i), ib = Index(i + 1), ic = Index(i + 2);

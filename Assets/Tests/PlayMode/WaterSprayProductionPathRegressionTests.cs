@@ -20,7 +20,7 @@ namespace VoxelEngine.Tests.PlayMode
         private const BindingFlags InstanceNonPublic = BindingFlags.Instance | BindingFlags.NonPublic;
 
         [UnityTest]
-        public IEnumerator CascadeSprayFlagSurvivesCanonicalStorageCacheAndGpuUpload()
+        public IEnumerator CascadeSprayFlagSurvivesCanonicalStorageGpuExtractionAndPublication()
         {
             var world = new ShowcaseWorld(
                 0xA913u,
@@ -31,7 +31,7 @@ namespace VoxelEngine.Tests.PlayMode
                 maxMixedBrickAllocationBytes: 64L * 1024L * 1024L,
                 features: ShowcaseFeatureContent.HouseOnly,
                 startup: ShowcaseStartupSource.Generate);
-            var cache = new CpuWaterSurfaceChunkCache();
+            var cache = new GpuWaterSurfaceChunkCache();
             var cameraObject = new GameObject("Cascade spray production-path discriminator camera");
             Camera camera = cameraObject.AddComponent<Camera>();
 
@@ -42,7 +42,7 @@ namespace VoxelEngine.Tests.PlayMode
 
                 // Same ordinary Cascade material and representative ribbon dimensions used by the
                 // showcase. The discriminator intentionally exercises Storage -> production cache ->
-                // shared GPU arena rather than calling WaterBrickMeshBatchJob directly.
+                // shared GPU arena rather than invoking an isolated mesher.
                 int3 ribbonMin = new int3(333, 400, 199);
                 int3 ribbonSize = new int3(8, 47, 2);
                 Assert.That(
@@ -69,7 +69,6 @@ namespace VoxelEngine.Tests.PlayMode
                 while (cache.CompletedBuildCount == 0)
                 {
                     cache.Prepare(world.ReadStorage, camera, ShowcaseWorld.VoxelSize, budgetMs: 5.0);
-                    JobHandle.ScheduleBatchedJobs();
                     cache.TryPublishPending(int.MaxValue, out _);
                     if (cache.CompletedBuildCount > 0)
                         break;
@@ -90,27 +89,15 @@ namespace VoxelEngine.Tests.PlayMode
                     $"blockingCompletionViolations={cache.FramePathBlockingCompletionViolations} " +
                     $"staleBuilds={cache.StaleBuildCount} residents={cache.ResidentCount} " +
                     $"uploadedBytes={cache.UploadedGeometryBytes} residentGpuBytes={cache.ResidentGpuBytes}.");
-                IReadOnlyList<CpuWaterSurfaceChunkCache.Entry> visible =
+                IReadOnlyList<GpuWaterSurfaceChunkCache.Entry> visible =
                     cache.CollectVisible(camera, ShowcaseWorld.VoxelSize);
                 Assert.That(visible.Count, Is.GreaterThan(0));
 
                 bool sawCascade = false;
                 bool sawSpray = false;
-                foreach (CpuWaterSurfaceChunkCache.Entry entry in visible)
+                foreach (GpuWaterSurfaceChunkCache.Entry entry in visible)
                 {
-                    SurfaceGeometryLease lease = ReadLiveLease(entry);
-                    Assert.That(lease.IsValid, Is.True);
-                    Assert.That(entry.IndexCount, Is.GreaterThan(0));
-
-                    var referencedIndices = new uint[entry.IndexCount];
-                    entry.Indices.GetData(
-                        referencedIndices, 0, lease.IndexStart, referencedIndices.Length);
-                    uint maxVertex = 0;
-                    for (int i = 0; i < referencedIndices.Length; i++)
-                        maxVertex = math.max(maxVertex, referencedIndices[i]);
-
-                    var vertices = new SmoothSurfaceVertex[(int)maxVertex + 1];
-                    entry.Vertices.GetData(vertices, 0, lease.VertexStart, vertices.Length);
+                    SmoothSurfaceVertex[] vertices = GpuWaterRasterFixture.ReadPublishedVertices(cache, entry);
                     for (int i = 0; i < vertices.Length; i++)
                     {
                         uint packed = vertices[i].Material;
@@ -125,23 +112,17 @@ namespace VoxelEngine.Tests.PlayMode
                 Assert.That(sawCascade, Is.True,
                     "The published production water-cache lease must retain Cascade material identity.");
                 Assert.That(sawSpray, Is.True,
-                    "A true Cascade lower boundary must retain WaterSprayFlag through canonical storage, production extraction, arena upload, and publication.");
+                    "A true Cascade lower boundary must retain WaterSprayFlag through canonical storage, production extraction, GPU extraction, and publication.");
             }
             finally
             {
                 cache.Dispose();
+                UnityEngine.Rendering.AsyncGPUReadback.WaitAllRequests();
                 Object.DestroyImmediate(cameraObject);
                 world.StopBackgroundWork();
                 world.Dispose();
                 VoxelMaterialPresentationInstaller.Apply(GameMaterialRenderingDefinitions.Create());
             }
-        }
-
-        private static SurfaceGeometryLease ReadLiveLease(CpuWaterSurfaceChunkCache.Entry entry)
-        {
-            FieldInfo field = typeof(CpuWaterSurfaceChunkCache.Entry).GetField("_liveLease", InstanceNonPublic);
-            Assert.That(field, Is.Not.Null);
-            return (SurfaceGeometryLease)field.GetValue(entry);
         }
 
         private static List<int3> BricksCovering(int3 min, int3 size)

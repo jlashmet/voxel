@@ -24,6 +24,47 @@ Each completed item needs exact feature SHA, request/run IDs, relevant executed 
 
 ## Current local evidence (2026-09-06)
 
+Latest user steering: imperfect water appearance is acceptable for now; prioritize performance.
+Do not spend the next work phase polishing water. Preserve full content/distance and the remaining
+CPU solid-renderer deletion requirement. Rendering architecture checks after water retirement:
+`gpu-water-retired-boundaries.xml`, three passed/exit 0/13s. The requested WorldBuilder boundary test
+was not discovered in that run; it is not claimed as executed or passed.
+
+CPU water retirement after `73989d7ac`: physically deleted `CpuWaterSurfaceChunkCache.cs` (934 lines),
+`WaterBrickMeshBatchJob.cs` (368 lines), their metadata, obsolete CPU-only configuration/lifetime tests,
+and the shader's contiguous CPU-buffer fetch. Source reference audit finds neither retired class in
+Assets or active non-SceneIssue repository sources. Required CPU voxel reads and GPU host orchestration
+remain in `GpuWaterSurfaceChunkCache`. Solid CPU renderer removal is still open.
+
+Preserved test responsibilities: four former Burst semantic cases now execute the production GPU
+mesher through module-local test support; the arbitrary-material vertical-ribbon topology/spray test
+also executes GPU extraction. Five broad two-slice fixtures retain vertex/index counts and SHA256
+hashes of every sorted quantized vertex/normal/material/active record, captured from the old CPU
+oracle only after another full GPU parity pass (`gpu-water-retirement-oracles.xml`: five passed,
+exit 0/12s). The CPU extraction algorithm is not retained in fixtures. GPU page/winding checks remain.
+Draw regressions now compare bucketed and direct-handle GPU indirect layouts, including both banks,
+nonzero handles and body/spray rejection. Narrow synthetic shader fixtures use the production GPU
+cache entry/argument kernel/shader and are not visual acceptance or replacement scene content.
+Canonical Showcase storage/cascade tests now inspect real GPU-published geometry.
+
+Initial `gpu-water-cpu-cache-removal.xml`: 12/14 passed, exit 2/24s. Failures were an obsolete assertion
+requiring positive CPU geometry uploads and `GetInt` observing a `SetInteger` property. The migrated
+checks require zero CPU geometry upload plus actual nonempty GPU geometry, and the matching typed
+property accessor. `gpu-water-retired-playmode.xml`: all 14 passed, exit 0/14s. Initial retirement
+EditMode invocation failed compilation because the new test helper lacked a CoreUtils assembly
+reference; replacing that test-only cleanup with immediate Unity object destruction fixed it.
+`gpu-water-retired-editmode-fixed.xml`: 21 passed, exit 0/15s (five cache, four semantic, five fixed
+mesher-output, six draw/compaction and one nonblocking architecture case). Overlapping preliminary
+runs are not additional unique tests.
+
+`gpu-water-retired-module` built without the retired production files and completed 42s/seven captures,
+exit 0; required water readiness markers present, no forbidden patterns. Exact source copies/hashes,
+diff and deletion manifest are retained. Reviewed 26.3s and 32.3s: river/feeder/receiver water remains,
+with comparable cascade sheets after deletion. Quality remains unacceptable: harsh horizontal
+waterfall bands, planar layering, missing surroundings and floating vegetation. No visual gate is
+closed. This retirement run is not a new Showcase benchmark; the preceding 180s integration and
+138/136 FPS diagnostics remain the latest full-scene measurement.
+
 Runtime GPU water migration after `54902c4b8`: scheduler/discovery/render pass now use
 `GpuWaterSurfaceChunkCache`; the retired CPU cache remains for unmigrated tests but is not selected
 by production orchestration. Snapshots remain authoritative CPU inputs; eight-brick GPU count/write

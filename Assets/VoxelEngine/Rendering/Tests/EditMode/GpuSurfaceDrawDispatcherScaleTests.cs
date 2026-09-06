@@ -200,30 +200,39 @@ namespace VoxelEngine.Rendering.Tests.EditMode
                 Assert.That(pixels.GetPixel(3, 3).a, Is.LessThan(0.1f));
                 if (waterPass >= 0)
                 {
-                    // Until the cache cutover, the same shader must still draw the live
-                    // contiguous input. Compare raster output, not shader source strings.
+                    // Compare GPU bucket compaction with the production water cache's
+                    // direct-handle indirect layout. Neither path uploads CPU draw counts.
                     Color32[] pagedPixels = pixels.GetPixels32();
-                    commands.Clear();
-                    commands.SetRenderTarget(target);
-                    commands.ClearRenderTarget(true, true, Color.clear);
-                    commands.SetViewProjectionMatrices(Matrix4x4.identity, projection);
-                    commands.SetGlobalMatrix("unity_MatrixVP", projection);
-                    material.SetInteger("_WaterPagedDraw", 0);
-                    material.SetBuffer("_SurfaceVertices", _arena.Vertices);
-                    material.SetBuffer("_SurfaceIndices", _arena.Indices);
-                    for (int handle = 0; handle < 3; handle++)
+                    var directShader = UnityEngine.Object.Instantiate(Resources.Load<ComputeShader>("GpuWaterDrawArguments"));
+                    using var directArgs = new ComputeBuffer(_arena.HandleCapacity * 4, 4, ComputeBufferType.IndirectArguments);
+                    try
                     {
-                        var properties = new MaterialPropertyBlock();
-                        properties.SetInteger("_SurfaceVertexBase", handle * GpuSurfacePageArena.VertexPageSize);
-                        properties.SetInteger("_SurfaceIndexBase", handle * GpuSurfacePageArena.IndexPageSize);
-                        commands.DrawProcedural(Matrix4x4.identity, material, waterPass,
-                            MeshTopology.Triangles, 3 << handle, 1, properties);
+                        int kernel = directShader.FindKernel("CSWaterDrawArguments");
+                        directShader.SetBuffer(kernel, "_LiveChunkGeometry", _arena.LiveChunkGeometry);
+                        directShader.SetBuffer(kernel, "_WaterDrawArguments", directArgs);
+                        directShader.SetInt("_WaterHandleCapacity", _arena.HandleCapacity);
+                        directShader.Dispatch(kernel, (_arena.HandleCapacity + 63) / 64, 1, 1);
+                        commands.Clear();
+                        commands.SetRenderTarget(target);
+                        commands.ClearRenderTarget(true, true, Color.clear);
+                        commands.SetViewProjectionMatrices(Matrix4x4.identity, projection);
+                        commands.SetGlobalMatrix("unity_MatrixVP", projection);
+                        material.SetInteger("_WaterPagedDraw", 2);
+                        material.SetBuffer("_WaterLiveGeometry", _arena.LiveChunkGeometry);
+                        for (int handle = 0; handle < 3; handle++)
+                        {
+                            var properties = new MaterialPropertyBlock();
+                            properties.SetInteger("_WaterDrawHandle", handle);
+                            commands.DrawProceduralIndirect(Matrix4x4.identity, material, waterPass,
+                                MeshTopology.Triangles, directArgs, handle * 16, properties);
+                        }
+                        Graphics.ExecuteCommandBuffer(commands);
+                        pixels.ReadPixels(new Rect(0, 0, 192, 64), 0, 0);
+                        pixels.Apply();
+                        CollectionAssert.AreEqual(pagedPixels, pixels.GetPixels32(),
+                            "Direct-handle water addressing changed body/spray raster output.");
                     }
-                    Graphics.ExecuteCommandBuffer(commands);
-                    pixels.ReadPixels(new Rect(0, 0, 192, 64), 0, 0);
-                    pixels.Apply();
-                    CollectionAssert.AreEqual(pagedPixels, pixels.GetPixels32(),
-                        "Paged water addressing changed body/spray raster output.");
+                    finally { UnityEngine.Object.DestroyImmediate(directShader); }
                 }
             }
             finally

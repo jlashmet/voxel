@@ -434,7 +434,7 @@ namespace VoxelEngine.Tests.EditMode
             string solid = ReadRenderingSource(
                 Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
             string water = ReadRenderingSource(
-                Path.Combine("SurfaceExtraction", "CpuWaterSurfaceChunkCache.cs"));
+                Path.Combine("SurfaceExtraction", "GpuWaterSurfaceChunkCache.cs"));
             string scheduler = ReadRenderingSource(
                 Path.Combine("SurfaceExtraction", "VoxelSurfaceScheduler.cs"));
             string guard = ReadRenderingSource(
@@ -449,7 +449,8 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("FramePathBlockingCompletionViolations", scheduler);
             StringAssert.Contains("RunningGeometryJobs", scheduler);
             StringAssert.Contains("GeometryFrameJobCompletionGuard.TryCompleteReady", solid);
-            StringAssert.Contains("GeometryFrameJobCompletionGuard.TryCompleteReady", water);
+            StringAssert.DoesNotContain(".Complete()", water);
+            StringAssert.DoesNotContain("WaitAllRequests", water);
             StringAssert.Contains("GeometryFrameJobCompletionGuard.TryCompleteReady", scheduler);
 
             int solidTeardown = solid.IndexOf("private void CompleteJobs()", StringComparison.Ordinal);
@@ -633,15 +634,17 @@ namespace VoxelEngine.Tests.EditMode
         public void WaterPublicationUsesFixedArenaAndBoundedSlices()
         {
             string water = ReadRenderingSource(
-                Path.Combine("SurfaceExtraction", "CpuWaterSurfaceChunkCache.cs"));
+                Path.Combine("SurfaceExtraction", "GpuWaterSurfaceChunkCache.cs"));
             string scheduler = ReadRenderingSource(
                 Path.Combine("SurfaceExtraction", "VoxelSurfaceScheduler.cs"));
-            StringAssert.Contains("SurfaceGeometryArena _geometryArena", water);
-            StringAssert.Contains("NativeList<SmoothSurfaceVertex> _vertices", water);
-            StringAssert.Contains("NativeList<uint> _indices", water);
+            StringAssert.Contains("GpuSurfacePageArena _geometryArena", water);
+            StringAssert.DoesNotContain("NativeList<SmoothSurfaceVertex>", water);
+            StringAssert.DoesNotContain("NativeList<uint>", water);
+            StringAssert.Contains("GpuWaterSurfaceMesher.MaximumBricksPerSlice", water);
             StringAssert.Contains("TryPublishPending", water);
             StringAssert.Contains("Time.realtimeSinceStartupAsDouble >= deadline", water);
-            StringAssert.DoesNotContain("new ComputeBuffer", water);
+            string afterConstruction = water.Substring(water.IndexOf("public int ResidentCount", StringComparison.Ordinal));
+            StringAssert.DoesNotContain("new ComputeBuffer", afterConstruction);
             StringAssert.DoesNotContain("new uint[]", water);
             StringAssert.Contains("WaterUploadBudgetBytes", scheduler);
             StringAssert.Contains("_water.TryPublishPending", scheduler);
@@ -652,7 +655,7 @@ namespace VoxelEngine.Tests.EditMode
         public void WaterMaintenanceAndBuildAdmissionAreIncremental()
         {
             string water = ReadRenderingSource(
-                Path.Combine("SurfaceExtraction", "CpuWaterSurfaceChunkCache.cs"));
+                Path.Combine("SurfaceExtraction", "GpuWaterSurfaceChunkCache.cs"));
             StringAssert.Contains("BuildSelectionCandidatesPerPrepare", water);
             StringAssert.Contains("RegionInvalidationCandidatesPerPrepare", water);
             StringAssert.Contains("ResidencyChecksPerPrepare", water);
@@ -939,23 +942,6 @@ namespace VoxelEngine.Tests.EditMode
         }
 
 
-        [Test]
-        public void WaterGreedyMeshEmissionRunsInBurst()
-        {
-            string water = ReadRenderingSource(
-                Path.Combine("SurfaceExtraction", "CpuWaterSurfaceChunkCache.cs"));
-            string job = ReadRenderingSource(
-                Path.Combine("SurfaceExtraction", "WaterBrickMeshBatchJob.cs"));
-            StringAssert.Contains("new WaterBrickMeshBatchJob", water);
-            StringAssert.Contains("_waterMeshJobHandle.IsCompleted", water);
-            StringAssert.Contains("SnapshotWaterBrick", water);
-            StringAssert.DoesNotContain("private void EmitBrick", water);
-            StringAssert.DoesNotContain("private void MergeMask", water);
-            StringAssert.DoesNotContain("private void EmitQuad", water);
-            StringAssert.Contains("[BurstCompile]", job);
-            StringAssert.Contains("AddNoResize", job);
-            StringAssert.Contains("SnapshotStride", job);
-        }
 
     }
 }

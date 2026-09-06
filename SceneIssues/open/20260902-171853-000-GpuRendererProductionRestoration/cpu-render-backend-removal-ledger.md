@@ -19,7 +19,7 @@ This is a removal ledger, not permission to delete everything whose name contain
 
 | Path / family | Why it is a deletion target | Migration prerequisite |
 | --- | --- | --- |
-| `Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuWaterSurfaceChunkCache.cs` (+ `.meta`) | Retired CPU-authored water geometry/cache; production scheduler/discovery/render pass now use `GpuWaterSurfaceChunkCache`. | GPU runtime/cache tests and WaterDemo player are available. Migrate remaining CPU-specific test fixtures/oracles and physically delete; rendered water quality still needs work. |
+| `Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuWaterSurfaceChunkCache.cs` and `WaterBrickMeshBatchJob.cs` (+ `.meta`) | **Deleted.** Production water uses `GpuWaterSurfaceChunkCache`; contiguous water-shader input is also removed. | GPU cache/semantic/draw tests replace CPU fixtures. Five fixed vertex digests preserve verified oracle output without CPU extraction code. Water visual acceptance still needs work. |
 | `Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/SurfaceBlockHlodMeshJob.cs` (+ `.meta`) | CPU coarse step-8 block HLOD mesh generation. | G07 GPU coarse-LOD equivalent with real mixed-LOD/frontier proof. |
 | `Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Transvoxel/TransvoxelDensityJob.cs` | CPU density reconstruction for surface meshing. | GPU semantic/density coverage plus independent canonical expectations. |
 | `.../Transvoxel/TransvoxelTopologyJob.cs` | CPU regular topology emission. | GPU regular/faceted topology proof and independent expected geometry. |
@@ -59,7 +59,7 @@ not captured GPU output or the CPU mesher. The strengthened assertions passed al
 (`Artifacts/LocalGpuShowcase/stride-fixed/allocator-classified-status.xml`);
 they cover faceted geometry only and do not authorize deleting the other semantic oracles yet.
 
-Likewise, CPU-specific tests such as `CpuWaterSurfaceChunkCacheConfigurationTests.cs` and `CpuWaterSurfaceChunkCacheLifetimeTests.cs` are deletion/migration candidates once the replacement GPU behavior has equivalent module-local coverage. Tests whose value is renderer-independent (semantic expectations, LOD ownership, table validity) should be rewritten, not discarded.
+The CPU water configuration/lifetime tests were deleted after the GPU cache gained actual material-publication and deferred-disposal tests; the old source-only Burst-emission check was retired with the job. Water semantic and raster assertions were migrated and retained. Tests whose value is renderer-independent (semantic expectations, LOD ownership, table validity) should be rewritten, not discarded.
 
 ## E. Explicitly retained GPU/shared files
 

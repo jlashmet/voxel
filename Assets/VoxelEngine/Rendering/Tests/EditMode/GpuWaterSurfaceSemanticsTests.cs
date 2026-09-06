@@ -1,4 +1,5 @@
 using Game.Materials.Api;
+using VoxelEngine.Rendering.Tests.RuntimeSupport;
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
@@ -6,24 +7,21 @@ using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 
 namespace VoxelEngine.Tests.EditMode
 {
-    public sealed class WaterBrickMeshBatchJobTests
+    public sealed class GpuWaterSurfaceSemanticsTests
     {
         [Test]
         public void Execute_PreservesWaterMaterialIdentityAtNegativeCoordinates()
         {
             using var brickBases = new NativeArray<int3>(new[] { new int3(-8, -8, -8) }, Allocator.Temp);
-            var snapshotData = new byte[WaterBrickMeshBatchJob.SnapshotStride];
+            var snapshotData = new byte[GpuWaterExtractionFixture.SnapshotStride];
             snapshotData[0] = GameMaterialIds.Water;
             using var snapshots = new NativeArray<byte>(snapshotData, Allocator.Temp);
-            using var scratch = new NativeArray<byte>(WaterBrickMeshBatchJob.FaceArea, Allocator.Temp);
             using var vertices = new NativeList<SmoothSurfaceVertex>(256, Allocator.Temp);
             using var indices = new NativeList<uint>(384, Allocator.Temp);
-            using var overflow = new NativeArray<int>(1, Allocator.Temp);
 
-            Execute(brickBases, snapshots, scratch, vertices, indices, overflow,
+            Execute(brickBases, snapshots, vertices, indices,
                 1u << GameMaterialIds.Water);
 
-            Assert.That(overflow[0], Is.Zero);
             int canonicalVertices = 0;
             for (int i = 0; i < vertices.Length; i++)
             {
@@ -47,19 +45,16 @@ namespace VoxelEngine.Tests.EditMode
         public void Execute_VerticalCascadeColumnEmitsReusableFallingSheetFaces()
         {
             using var brickBases = new NativeArray<int3>(new[] { int3.zero }, Allocator.Temp);
-            var snapshotData = new byte[WaterBrickMeshBatchJob.SnapshotStride];
+            var snapshotData = new byte[GpuWaterExtractionFixture.SnapshotStride];
             for (int y = 0; y < 4; y++)
-                snapshotData[y * WaterBrickMeshBatchJob.Edge] = GameMaterialIds.Cascade;
+                snapshotData[y * GpuWaterExtractionFixture.Edge] = GameMaterialIds.Cascade;
             using var snapshots = new NativeArray<byte>(snapshotData, Allocator.Temp);
-            using var scratch = new NativeArray<byte>(WaterBrickMeshBatchJob.FaceArea, Allocator.Temp);
             using var vertices = new NativeList<SmoothSurfaceVertex>(256, Allocator.Temp);
             using var indices = new NativeList<uint>(384, Allocator.Temp);
-            using var overflow = new NativeArray<int>(1, Allocator.Temp);
 
-            Execute(brickBases, snapshots, scratch, vertices, indices, overflow,
+            Execute(brickBases, snapshots, vertices, indices,
                 1u << GameMaterialIds.Cascade);
 
-            Assert.That(overflow[0], Is.Zero);
 
             int canonicalVertices = 0;
             int verticalVertices = 0;
@@ -90,30 +85,27 @@ namespace VoxelEngine.Tests.EditMode
                 new int3(-8, 0, 0),
                 new int3(0, 0, 0),
             }, Allocator.Temp);
-            var snapshotData = new byte[2 * WaterBrickMeshBatchJob.SnapshotStride];
+            var snapshotData = new byte[2 * GpuWaterExtractionFixture.SnapshotStride];
 
             int leftLocal = 7; // x=7,y=0,z=0 -> world x=-1
-            int rightBase = WaterBrickMeshBatchJob.SnapshotStride;
+            int rightBase = GpuWaterExtractionFixture.SnapshotStride;
             snapshotData[leftLocal] = GameMaterialIds.RiverWater;
             snapshotData[rightBase] = GameMaterialIds.Cascade;
 
-            int leftPositiveXFace = WaterBrickMeshBatchJob.VoxelsPerBrick + WaterBrickMeshBatchJob.FaceArea;
-            int rightNegativeXFace = rightBase + WaterBrickMeshBatchJob.VoxelsPerBrick;
+            int leftPositiveXFace = GpuWaterExtractionFixture.VoxelsPerBrick + GpuWaterExtractionFixture.FaceArea;
+            int rightNegativeXFace = rightBase + GpuWaterExtractionFixture.VoxelsPerBrick;
             snapshotData[leftPositiveXFace] = GameMaterialIds.Cascade;
             snapshotData[rightNegativeXFace] = GameMaterialIds.RiverWater;
 
             using var snapshots = new NativeArray<byte>(snapshotData, Allocator.Temp);
-            using var scratch = new NativeArray<byte>(WaterBrickMeshBatchJob.FaceArea, Allocator.Temp);
             using var vertices = new NativeList<SmoothSurfaceVertex>(512, Allocator.Temp);
             using var indices = new NativeList<uint>(768, Allocator.Temp);
-            using var overflow = new NativeArray<int>(1, Allocator.Temp);
 
             uint waterMask = (1u << GameMaterialIds.Water)
                            | (1u << GameMaterialIds.RiverWater)
                            | (1u << GameMaterialIds.Cascade);
-            Execute(brickBases, snapshots, scratch, vertices, indices, overflow, waterMask);
+            Execute(brickBases, snapshots, vertices, indices, waterMask);
 
-            Assert.That(overflow[0], Is.Zero);
 
             int canonicalVertices = 0;
             int riverVertices = 0;
@@ -140,43 +132,21 @@ namespace VoxelEngine.Tests.EditMode
         public void Execute_MaterialOutsideInstalledWaterMaskDoesNotRenderAsWater()
         {
             using var brickBases = new NativeArray<int3>(1, Allocator.Temp);
-            var snapshotData = new byte[WaterBrickMeshBatchJob.SnapshotStride];
+            var snapshotData = new byte[GpuWaterExtractionFixture.SnapshotStride];
             snapshotData[0] = GameMaterialIds.Stone;
             using var snapshots = new NativeArray<byte>(snapshotData, Allocator.Temp);
-            using var scratch = new NativeArray<byte>(WaterBrickMeshBatchJob.FaceArea, Allocator.Temp);
             using var vertices = new NativeList<SmoothSurfaceVertex>(32, Allocator.Temp);
             using var indices = new NativeList<uint>(48, Allocator.Temp);
-            using var overflow = new NativeArray<int>(1, Allocator.Temp);
 
-            Execute(brickBases, snapshots, scratch, vertices, indices, overflow,
+            Execute(brickBases, snapshots, vertices, indices,
                 1u << GameMaterialIds.Water);
 
             Assert.That(vertices.Length, Is.Zero);
             Assert.That(indices.Length, Is.Zero);
         }
 
-        private static void Execute(
-            NativeArray<int3> brickBases,
-            NativeArray<byte> snapshots,
-            NativeArray<byte> scratch,
-            NativeList<SmoothSurfaceVertex> vertices,
-            NativeList<uint> indices,
-            NativeArray<int> overflow,
-            uint waterMask)
-        {
-            var job = new WaterBrickMeshBatchJob
-            {
-                BrickBaseVoxels = brickBases,
-                SnapshotMaterials = snapshots,
-                WaterMaterialMask = waterMask,
-                BatchCount = brickBases.Length,
-                VoxelSize = 1f,
-                MaskScratch = scratch,
-                Vertices = vertices,
-                Indices = indices,
-                Overflow = overflow,
-            };
-            job.Execute();
-        }
+        private static void Execute(NativeArray<int3> brickBases, NativeArray<byte> snapshots,
+            NativeList<SmoothSurfaceVertex> vertices, NativeList<uint> indices, uint waterMask) =>
+            GpuWaterExtractionFixture.Extract(brickBases, snapshots, waterMask, 1f, vertices, indices);
     }
 }

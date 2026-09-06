@@ -190,7 +190,7 @@ namespace VoxelEngine.Tests.PlayMode
                 maxMixedBrickAllocationBytes: 64L * 1024L * 1024L,
                 features: ShowcaseFeatureContent.HouseOnly,
                 startup: ShowcaseStartupSource.Generate);
-            var cache = new CpuWaterSurfaceChunkCache();
+            var cache = new GpuWaterSurfaceChunkCache();
             var cameraObject = new GameObject("Cascade storage-cache discriminator camera");
             Camera camera = cameraObject.AddComponent<Camera>();
 
@@ -243,7 +243,6 @@ namespace VoxelEngine.Tests.PlayMode
                 while (cache.CompletedBuildCount == 0)
                 {
                     cache.Prepare(world.ReadStorage, camera, ShowcaseWorld.VoxelSize, budgetMs: 5.0);
-                    JobHandle.ScheduleBatchedJobs();
                     cache.TryPublishPending(int.MaxValue, out _);
                     if (cache.CompletedBuildCount > 0)
                         break;
@@ -266,19 +265,20 @@ namespace VoxelEngine.Tests.PlayMode
                     $"uploadedBytes={cache.UploadedGeometryBytes} residentGpuBytes={cache.ResidentGpuBytes}.");
                 Assert.That(cache.ResidentCount, Is.GreaterThan(0),
                     "The exact authored Cascade curtain must publish a resident production water-cache entry.");
-                Assert.That(cache.UploadedGeometryBytes, Is.GreaterThan(0),
-                    "The production water cache must encode and upload non-empty Cascade geometry from canonical storage.");
+                Assert.That(cache.UploadedGeometryBytes, Is.Zero,
+                    "GPU extraction must not upload CPU-generated geometry; actual published vertices are checked below.");
 
-                IReadOnlyList<CpuWaterSurfaceChunkCache.Entry> visible =
+                IReadOnlyList<GpuWaterSurfaceChunkCache.Entry> visible =
                     cache.CollectVisible(camera, ShowcaseWorld.VoxelSize);
                 Assert.That(visible.Count, Is.GreaterThan(0),
                     "The published Cascade geometry must survive through the cache visibility boundary.");
-                Assert.That(visible[0].IndexCount, Is.GreaterThan(0),
+                Assert.That(GpuWaterRasterFixture.ReadPublishedVertices(cache, visible[0]).Length, Is.GreaterThan(0),
                     "The visible production entry must contain real indexed water geometry, not only admission metadata.");
             }
             finally
             {
                 cache.Dispose();
+                UnityEngine.Rendering.AsyncGPUReadback.WaitAllRequests();
                 Object.DestroyImmediate(cameraObject);
                 world.StopBackgroundWork();
                 world.Dispose();

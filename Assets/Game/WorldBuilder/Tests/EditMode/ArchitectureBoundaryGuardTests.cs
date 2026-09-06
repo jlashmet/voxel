@@ -149,7 +149,7 @@ namespace VoxelEngine.Tests.EditMode
                 Path.Combine("RenderFeature", "VoxelRenderPass.cs"),
                 Path.Combine("SurfaceExtraction", "VoxelSurfaceScheduler.cs"),
                 Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"),
-                Path.Combine("SurfaceExtraction", "CpuWaterSurfaceChunkCache.cs"),
+                Path.Combine("SurfaceExtraction", "GpuWaterSurfaceChunkCache.cs"),
                 Path.Combine("SurfaceExtraction", "SurfaceBrickDiscoveryJob.cs"),
             };
             string[] physicalStorageTokens = { "RegionTable", "BrickPool", "BrickRef", "VoxelAccess" };

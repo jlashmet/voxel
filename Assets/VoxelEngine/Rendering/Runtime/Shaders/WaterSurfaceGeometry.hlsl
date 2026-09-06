@@ -9,11 +9,6 @@ struct SurfaceVertex
     uint active;
 };
 
-// Contiguous input remains only while the runtime water cache is being migrated.
-StructuredBuffer<SurfaceVertex> _SurfaceVertices;
-StructuredBuffer<uint> _SurfaceIndices;
-uint _SurfaceIndexBase;
-uint _SurfaceVertexBase;
 uint _WaterPagedDraw;
 
 struct WaterPagedDrawMetadata
@@ -44,12 +39,6 @@ uint _PagedMaxIndexPagesPerChunk;
 
 bool LoadWaterSurfaceVertex(uint vertexID, uint instanceID, out SurfaceVertex vertex)
 {
-    if (_WaterPagedDraw == 0u)
-    {
-        vertex = _SurfaceVertices[
-            _SurfaceVertexBase + _SurfaceIndices[_SurfaceIndexBase + vertexID]];
-        return true;
-    }
     WaterPagedDrawMetadata draw;
     if (_WaterPagedDraw == 2u)
     {
