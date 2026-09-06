@@ -13,6 +13,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
     internal enum GpuPagedBatchOutcomeKind : byte
     {
         ReadyCandidate,
+        Unsupported,
         Exhausted,
         Stale,
         TooLarge,
@@ -27,6 +28,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         internal const uint AllocationStale = 2u;
         internal const uint AllocationTooLarge = 3u;
 
+        private const int UnsupportedWord = 0;
         private const int StatusWord = 10;
         private const int HandleWord = 11;
         private const int GenerationLowWord = 12;
@@ -35,13 +37,16 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         internal readonly GpuPagedBatchOutcomeKind Kind;
         internal readonly int Handle;
         internal readonly ulong Generation;
+        internal readonly uint UnsupportedMask;
 
         private GpuPagedBatchOutcome(
-            GpuPagedBatchOutcomeKind kind, int handle, ulong generation)
+            GpuPagedBatchOutcomeKind kind, int handle, ulong generation,
+            uint unsupportedMask = 0u)
         {
             Kind = kind;
             Handle = handle;
             Generation = generation;
+            UnsupportedMask = unsupportedMask;
         }
 
         internal bool IsReadyCandidate => Kind == GpuPagedBatchOutcomeKind.ReadyCandidate;
@@ -55,11 +60,12 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             if (!words.IsCreated || !TryRecordStart(words.Length, record, out int start))
                 return FailedFor(in expected);
+            uint unsupported = words[start + UnsupportedWord];
             uint status = words[start + StatusWord];
             int handle = unchecked((int)words[start + HandleWord]);
             ulong generation = words[start + GenerationLowWord]
                              | ((ulong)words[start + GenerationHighWord] << 32);
-            return FromValues(status, handle, generation, in expected);
+            return FromValues(unsupported, status, handle, generation, in expected);
         }
 
         internal static GpuPagedBatchOutcome Parse(
@@ -67,11 +73,12 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             if (words == null || !TryRecordStart(words.Length, record, out int start))
                 return FailedFor(in expected);
+            uint unsupported = words[start + UnsupportedWord];
             uint status = words[start + StatusWord];
             int handle = unchecked((int)words[start + HandleWord]);
             ulong generation = words[start + GenerationLowWord]
                              | ((ulong)words[start + GenerationHighWord] << 32);
-            return FromValues(status, handle, generation, in expected);
+            return FromValues(unsupported, status, handle, generation, in expected);
         }
 
         private static bool TryRecordStart(int length, int record, out int start)
@@ -84,12 +91,23 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         }
 
         private static GpuPagedBatchOutcome FromValues(
-            uint status, int handle, ulong generation,
+            uint unsupportedMask, uint status, int handle, ulong generation,
             in GpuChunkExtraction expected)
         {
             if (handle != expected.Handle || generation != expected.Generation)
                 return new GpuPagedBatchOutcome(
-                    GpuPagedBatchOutcomeKind.IdentityMismatch, handle, generation);
+                    GpuPagedBatchOutcomeKind.IdentityMismatch, handle, generation,
+                    unsupportedMask);
+
+            // Word zero is the semantic support contract. It is independent of page-allocation
+            // status: prefix/allocation may still report Ready for a record whose count pass
+            // deliberately rejected one or more semantics. Treating such a record as a ready
+            // candidate is a false-success hole, because the worker can retire its old geometry
+            // while the GPU intentionally emitted no complete replacement.
+            if (unsupportedMask != 0u)
+                return new GpuPagedBatchOutcome(
+                    GpuPagedBatchOutcomeKind.Unsupported, handle, generation,
+                    unsupportedMask);
 
             GpuPagedBatchOutcomeKind kind = status switch
             {
@@ -106,6 +124,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             new(GpuPagedBatchOutcomeKind.Failed, expected.Handle, expected.Generation);
 
         public override string ToString() =>
-            $"{Kind} handle={Handle} generation={Generation}";
+            $"{Kind} handle={Handle} generation={Generation} unsupported=0x{UnsupportedMask:X}";
     }
 }
