@@ -8,7 +8,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
     /// <summary>
     /// GPU-owned presentation arena for near-ring chunks. CPU handles identify authoritative
     /// chunks, but all size-dependent state remains on the GPU: page allocation, active/staging
-    /// bank selection, publication, stale rejection, and delayed page reclamation.
+    /// bank selection, pending candidates, explicit publication, stale rejection, and reclamation.
     /// </summary>
     internal sealed class GpuSurfacePageArena : IDisposable
     {
@@ -79,10 +79,15 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private static readonly int IdArenaEpoch = Shader.PropertyToID("_ArenaEpoch");
         private static readonly int IdRetirementDelay = Shader.PropertyToID("_RetirementDelay");
         private static readonly int IdHandleCommandCount = Shader.PropertyToID("_HandleCommandCount");
+        private static readonly int IdPendingHandle = Shader.PropertyToID("_PendingHandle");
+        private static readonly int IdPendingGenerationLow = Shader.PropertyToID("_PendingGenerationLow");
+        private static readonly int IdPendingGenerationHigh = Shader.PropertyToID("_PendingGenerationHigh");
 
         private readonly ComputeShader _shader;
         private readonly int _allocateKernel;
         private readonly int _publishKernel;
+        private readonly int _commitKernel;
+        private readonly int _abortKernel;
         private readonly int _handleKernel;
         private readonly Stack<int> _freeHandles;
         private readonly HandleState[] _handleStates;
@@ -121,6 +126,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             IndexPageCount = Math.Max(1, indexCapacity / IndexPageSize);
             _allocateKernel = shader.FindKernel("CSAllocateBatchPages");
             _publishKernel = shader.FindKernel("CSPublishBatchPages");
+            _commitKernel = shader.FindKernel("CSCommitPendingPages");
+            _abortKernel = shader.FindKernel("CSAbortPendingPages");
             _handleKernel = shader.FindKernel("CSApplyHandleCommands");
 
             Vertices = new ComputeBuffer(VertexPageCount * VertexPageSize,
@@ -226,6 +233,11 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _shader.Dispatch(_allocateKernel, 1, 1, 1);
         }
 
+        /// <summary>
+        /// Finalizes a written batch without making it live. The compute kernel leaves a current
+        /// candidate in PendingChunkGeometry and converts a superseded candidate to Stale. The CPU
+        /// must later call CommitPending or AbortPending for the exact renderer generation.
+        /// </summary>
         internal void PublishBatch(ComputeBuffer descriptors, ComputeBuffer counters,
                                    int recordCount, int recordWords, int frame)
         {
@@ -239,9 +251,28 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _shader.Dispatch(_publishKernel, 1, 1, 1);
         }
 
+        internal void CommitPending(int handle, ulong generation, int frame) =>
+            ResolvePending(_commitKernel, handle, generation, frame);
+
+        internal void AbortPending(int handle, ulong generation, int frame) =>
+            ResolvePending(_abortKernel, handle, generation, frame);
+
+        private void ResolvePending(int kernel, int handle, ulong generation, int frame)
+        {
+            ValidateHandle(handle);
+            SetEpoch(frame);
+            _shader.SetInt(IdPendingHandle, handle);
+            _shader.SetInt(IdPendingGenerationLow, unchecked((int)(uint)generation));
+            _shader.SetInt(IdPendingGenerationHigh, unchecked((int)(uint)(generation >> 32)));
+            _shader.Dispatch(kernel, 1, 1, 1);
+        }
+
         private void BindAllKernels()
         {
-            int[] kernels = { _allocateKernel, _publishKernel, _handleKernel };
+            int[] kernels =
+            {
+                _allocateKernel, _publishKernel, _commitKernel, _abortKernel, _handleKernel
+            };
             foreach (int kernel in kernels)
             {
                 _shader.SetBuffer(kernel, IdArenaState, ArenaState);
