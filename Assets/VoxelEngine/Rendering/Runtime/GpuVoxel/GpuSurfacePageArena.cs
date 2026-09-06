@@ -52,7 +52,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private static readonly int IdRetiredVertexPagesRead = Shader.PropertyToID("_RetiredVertexPagesRead");
         private static readonly int IdRetiredIndexPagesRead = Shader.PropertyToID("_RetiredIndexPagesRead");
         private static readonly int IdDesiredGenerations = Shader.PropertyToID("_DesiredGenerations");
-        private static readonly int IdDesiredGenerationsRead = Shader.PropertyToID("_DesiredGenerationsRead");
         private static readonly int IdLiveChunkGeometry = Shader.PropertyToID("_LiveChunkGeometry");
         private static readonly int IdPendingChunkGeometry = Shader.PropertyToID("_PendingChunkGeometry");
         private static readonly int IdVertexPageTable = Shader.PropertyToID("_VertexPageTable");
@@ -273,7 +272,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 _shader.SetBuffer(kernel, IdRetiredVertexPagesRead, RetiredVertexPages);
                 _shader.SetBuffer(kernel, IdRetiredIndexPagesRead, RetiredIndexPages);
                 _shader.SetBuffer(kernel, IdDesiredGenerations, DesiredGenerations);
-                _shader.SetBuffer(kernel, IdDesiredGenerationsRead, DesiredGenerations);
                 _shader.SetBuffer(kernel, IdLiveChunkGeometry, LiveChunkGeometry);
                 _shader.SetBuffer(kernel, IdPendingChunkGeometry, PendingChunkGeometry);
                 _shader.SetBuffer(kernel, IdLiveChunkGeometryRead, LiveChunkGeometry);
