@@ -40,6 +40,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             internal const int Stride = sizeof(uint) * 4;
         }
 
+        private static GpuSurfacePageArena s_activeArena;
         private static readonly int IdBatchChunks = Shader.PropertyToID("_BatchChunks");
         private static readonly int IdBatchCounters = Shader.PropertyToID("_BatchCounters");
         private static readonly int IdBatchCountersRead = Shader.PropertyToID("_BatchCountersRead");
@@ -48,25 +49,18 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private static readonly int IdFreeIndexPages = Shader.PropertyToID("_FreeIndexPages");
         private static readonly int IdRetiredVertexPages = Shader.PropertyToID("_RetiredVertexPages");
         private static readonly int IdRetiredIndexPages = Shader.PropertyToID("_RetiredIndexPages");
-        private static readonly int IdRetiredVertexPagesRead =
-            Shader.PropertyToID("_RetiredVertexPagesRead");
-        private static readonly int IdRetiredIndexPagesRead =
-            Shader.PropertyToID("_RetiredIndexPagesRead");
+        private static readonly int IdRetiredVertexPagesRead = Shader.PropertyToID("_RetiredVertexPagesRead");
+        private static readonly int IdRetiredIndexPagesRead = Shader.PropertyToID("_RetiredIndexPagesRead");
         private static readonly int IdDesiredGenerations = Shader.PropertyToID("_DesiredGenerations");
-        private static readonly int IdDesiredGenerationsRead =
-            Shader.PropertyToID("_DesiredGenerationsRead");
+        private static readonly int IdDesiredGenerationsRead = Shader.PropertyToID("_DesiredGenerationsRead");
         private static readonly int IdLiveChunkGeometry = Shader.PropertyToID("_LiveChunkGeometry");
         private static readonly int IdPendingChunkGeometry = Shader.PropertyToID("_PendingChunkGeometry");
         private static readonly int IdVertexPageTable = Shader.PropertyToID("_VertexPageTable");
         private static readonly int IdIndexPageTable = Shader.PropertyToID("_IndexPageTable");
-        private static readonly int IdLiveChunkGeometryRead =
-            Shader.PropertyToID("_LiveChunkGeometryRead");
-        private static readonly int IdPendingChunkGeometryRead =
-            Shader.PropertyToID("_PendingChunkGeometryRead");
-        private static readonly int IdVertexPageTableRead =
-            Shader.PropertyToID("_VertexPageTableRead");
-        private static readonly int IdIndexPageTableRead =
-            Shader.PropertyToID("_IndexPageTableRead");
+        private static readonly int IdLiveChunkGeometryRead = Shader.PropertyToID("_LiveChunkGeometryRead");
+        private static readonly int IdPendingChunkGeometryRead = Shader.PropertyToID("_PendingChunkGeometryRead");
+        private static readonly int IdVertexPageTableRead = Shader.PropertyToID("_VertexPageTableRead");
+        private static readonly int IdIndexPageTableRead = Shader.PropertyToID("_IndexPageTableRead");
         private static readonly int IdHandleCommands = Shader.PropertyToID("_HandleCommands");
         private static readonly int IdBatchRecordCount = Shader.PropertyToID("_BatchRecordCount");
         private static readonly int IdBatchRecordWords = Shader.PropertyToID("_BatchRecordWords");
@@ -76,6 +70,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private static readonly int IdMaxIndexPages = Shader.PropertyToID("_MaxIndexPagesPerChunk");
         private static readonly int IdVertexPageCount = Shader.PropertyToID("_VertexPageCount");
         private static readonly int IdIndexPageCount = Shader.PropertyToID("_IndexPageCount");
+        private static readonly int IdHandleCapacity = Shader.PropertyToID("_HandleCapacity");
         private static readonly int IdArenaEpoch = Shader.PropertyToID("_ArenaEpoch");
         private static readonly int IdRetirementDelay = Shader.PropertyToID("_RetirementDelay");
         private static readonly int IdHandleCommandCount = Shader.PropertyToID("_HandleCommandCount");
@@ -87,6 +82,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private readonly int _allocateKernel;
         private readonly int _publishKernel;
         private readonly int _commitKernel;
+        private readonly int _commitCurrentKernel;
         private readonly int _abortKernel;
         private readonly int _handleKernel;
         private readonly Stack<int> _freeHandles;
@@ -127,13 +123,13 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _allocateKernel = shader.FindKernel("CSAllocateBatchPages");
             _publishKernel = shader.FindKernel("CSPublishBatchPages");
             _commitKernel = shader.FindKernel("CSCommitPendingPages");
+            _commitCurrentKernel = shader.FindKernel("CSCommitCurrentPendingPages");
             _abortKernel = shader.FindKernel("CSAbortPendingPages");
             _handleKernel = shader.FindKernel("CSApplyHandleCommands");
 
             Vertices = new ComputeBuffer(VertexPageCount * VertexPageSize,
                 GpuSurfaceExtractor.ReadbackVertex.Stride, ComputeBufferType.Structured);
-            Indices = new ComputeBuffer(IndexPageCount * IndexPageSize,
-                sizeof(uint), ComputeBufferType.Structured);
+            Indices = new ComputeBuffer(IndexPageCount * IndexPageSize, sizeof(uint), ComputeBufferType.Structured);
             ArenaState = new ComputeBuffer(ArenaStateWords, sizeof(uint), ComputeBufferType.Structured);
             FreeVertexPages = new ComputeBuffer(VertexPageCount, sizeof(uint), ComputeBufferType.Structured);
             FreeIndexPages = new ComputeBuffer(IndexPageCount, sizeof(uint), ComputeBufferType.Structured);
@@ -142,12 +138,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             DesiredGenerations = new ComputeBuffer(handleCapacity, sizeof(uint) * 2, ComputeBufferType.Structured);
             LiveChunkGeometry = new ComputeBuffer(handleCapacity, ChunkRecordWords * sizeof(uint), ComputeBufferType.Structured);
             PendingChunkGeometry = new ComputeBuffer(handleCapacity, ChunkRecordWords * sizeof(uint), ComputeBufferType.Structured);
-            VertexPageTable = new ComputeBuffer(handleCapacity * 2 * MaxVertexPagesPerChunk,
-                sizeof(uint), ComputeBufferType.Structured);
-            IndexPageTable = new ComputeBuffer(handleCapacity * 2 * MaxIndexPagesPerChunk,
-                sizeof(uint), ComputeBufferType.Structured);
-            HandleCommands = new ComputeBuffer(HandleCommandCapacity, HandleCommand.Stride,
-                ComputeBufferType.Structured);
+            VertexPageTable = new ComputeBuffer(handleCapacity * 2 * MaxVertexPagesPerChunk, sizeof(uint), ComputeBufferType.Structured);
+            IndexPageTable = new ComputeBuffer(handleCapacity * 2 * MaxIndexPagesPerChunk, sizeof(uint), ComputeBufferType.Structured);
+            HandleCommands = new ComputeBuffer(HandleCommandCapacity, HandleCommand.Stride, ComputeBufferType.Structured);
 
             var vertexPages = new uint[VertexPageCount];
             var indexPages = new uint[IndexPageCount];
@@ -155,10 +148,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             for (int i = 0; i < indexPages.Length; i++) indexPages[i] = (uint)i;
             FreeVertexPages.SetData(vertexPages);
             FreeIndexPages.SetData(indexPages);
-            ArenaState.SetData(new uint[]
-            {
-                (uint)VertexPageCount, (uint)IndexPageCount, 0, 0, 0, 0, 0
-            });
+            ArenaState.SetData(new uint[] { (uint)VertexPageCount, (uint)IndexPageCount, 0, 0, 0, 0, 0 });
             var zeroRecords = new uint[handleCapacity * ChunkRecordWords];
             LiveChunkGeometry.SetData(zeroRecords);
             PendingChunkGeometry.SetData(zeroRecords);
@@ -168,6 +158,22 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _handleStates = new HandleState[handleCapacity];
             for (int handle = handleCapacity - 1; handle >= 0; handle--) _freeHandles.Push(handle);
             BindAllKernels();
+            if (s_activeArena != null && !s_activeArena._disposed)
+                throw new InvalidOperationException("Only one production GPU surface page arena may be active.");
+            s_activeArena = this;
+        }
+
+        internal static void CommitCurrentPendingForActiveArena(int frame)
+        {
+            if (s_activeArena == null || s_activeArena._disposed) return;
+            s_activeArena.CommitCurrentPending(frame);
+        }
+
+        private void CommitCurrentPending(int frame)
+        {
+            SetEpoch(frame);
+            _shader.Dispatch(_commitCurrentKernel,
+                (HandleCapacity + ThreadGroupSize - 1) / ThreadGroupSize, 1, 1);
         }
 
         internal bool TryAcquireHandle(out int handle)
@@ -183,18 +189,13 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             ValidateHandle(handle);
             if (_handleStates[handle] != HandleState.Acquired)
-                throw new InvalidOperationException(
-                    "A GPU generation command requires an acquired handle without a queued release.");
+                throw new InvalidOperationException("A GPU generation command requires an acquired handle without a queued release.");
             QueueCommand(handle, generation, release: false);
         }
 
         internal void QueueRelease(int handle, ulong generation)
         {
             ValidateHandle(handle);
-            // Release is terminal for this host acquisition. Duplicate calls before or after
-            // its flush must not enqueue duplicate GPU writers or return the handle twice.
-            // Reincarnation/late-GPU-command safety still requires the request identity contract;
-            // this state tracks host ownership, not completion of submitted GPU work.
             if (_handleStates[handle] != HandleState.Acquired) return;
             QueueCommand(handle, generation, release: true);
             _handleStates[handle] = HandleState.ReleaseQueued;
@@ -233,11 +234,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _shader.Dispatch(_allocateKernel, 1, 1, 1);
         }
 
-        /// <summary>
-        /// Finalizes a written batch without making it live. The compute kernel leaves a current
-        /// candidate in PendingChunkGeometry and converts a superseded candidate to Stale. The CPU
-        /// must later call CommitPending or AbortPending for the exact renderer generation.
-        /// </summary>
         internal void PublishBatch(ComputeBuffer descriptors, ComputeBuffer counters,
                                    int recordCount, int recordWords, int frame)
         {
@@ -251,11 +247,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _shader.Dispatch(_publishKernel, 1, 1, 1);
         }
 
-        internal void CommitPending(int handle, ulong generation, int frame) =>
-            ResolvePending(_commitKernel, handle, generation, frame);
-
-        internal void AbortPending(int handle, ulong generation, int frame) =>
-            ResolvePending(_abortKernel, handle, generation, frame);
+        internal void CommitPending(int handle, ulong generation, int frame) => ResolvePending(_commitKernel, handle, generation, frame);
+        internal void AbortPending(int handle, ulong generation, int frame) => ResolvePending(_abortKernel, handle, generation, frame);
 
         private void ResolvePending(int kernel, int handle, ulong generation, int frame)
         {
@@ -269,10 +262,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         private void BindAllKernels()
         {
-            int[] kernels =
-            {
-                _allocateKernel, _publishKernel, _commitKernel, _abortKernel, _handleKernel
-            };
+            int[] kernels = { _allocateKernel, _publishKernel, _commitKernel, _commitCurrentKernel, _abortKernel, _handleKernel };
             foreach (int kernel in kernels)
             {
                 _shader.SetBuffer(kernel, IdArenaState, ArenaState);
@@ -300,6 +290,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _shader.SetInt(IdMaxIndexPages, MaxIndexPagesPerChunk);
             _shader.SetInt(IdVertexPageCount, VertexPageCount);
             _shader.SetInt(IdIndexPageCount, IndexPageCount);
+            _shader.SetInt(IdHandleCapacity, HandleCapacity);
             _shader.SetInt(IdRetirementDelay, RetirementDelayFrames);
         }
 
@@ -314,24 +305,17 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             };
             if (_commandIndexByHandle.TryGetValue(handle, out int existingIndex))
             {
-                // One GPU thread owns each handle per flush. A newer generation may replace
-                // an earlier generation; a release may replace those updates. QueueGeneration
-                // rejects further writes once release is queued, so cleanup cannot be erased.
                 _commandStaging[existingIndex] = command;
                 return;
             }
-
-            if (_commandCount == HandleCommandCapacity)
-                FlushHandleCommands(Time.frameCount);
+            if (_commandCount == HandleCommandCapacity) FlushHandleCommands(Time.frameCount);
             _commandIndexByHandle.Add(handle, _commandCount);
             _commandStaging[_commandCount++] = command;
         }
 
-        private void SetEpoch(int frame) =>
-            _shader.SetInt(IdArenaEpoch, unchecked((int)(uint)Math.Max(0, frame)));
+        private void SetEpoch(int frame) => _shader.SetInt(IdArenaEpoch, unchecked((int)(uint)Math.Max(0, frame)));
 
-        private void ValidateBatch(ComputeBuffer descriptors, ComputeBuffer counters,
-                                   int recordCount, int recordWords)
+        private void ValidateBatch(ComputeBuffer descriptors, ComputeBuffer counters, int recordCount, int recordWords)
         {
             ThrowIfDisposed();
             if (descriptors == null) throw new ArgumentNullException(nameof(descriptors));
@@ -343,8 +327,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private void ValidateHandle(int handle)
         {
             ThrowIfDisposed();
-            if ((uint)handle >= (uint)HandleCapacity)
-                throw new ArgumentOutOfRangeException(nameof(handle));
+            if ((uint)handle >= (uint)HandleCapacity) throw new ArgumentOutOfRangeException(nameof(handle));
         }
 
         private void ThrowIfDisposed()
@@ -356,6 +339,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             if (_disposed) return;
             _disposed = true;
+            if (ReferenceEquals(s_activeArena, this)) s_activeArena = null;
             _commandIndexByHandle.Clear();
             _releasedHandles.Clear();
             _freeHandles.Clear();
