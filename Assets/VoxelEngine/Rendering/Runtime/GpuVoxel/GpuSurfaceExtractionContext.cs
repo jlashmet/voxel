@@ -58,7 +58,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private bool _copyQueuedForPublication;
         private int _copyIndexCount;
         private ulong _stageStorageGeneration;
-        private ulong _stageRendererGeneration;
         private bool _coverageRequested;
         private uint _coverageEpoch;
         private int _coverageScanCursor;
@@ -83,7 +82,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private bool _pagedBatchReady;
         private bool _pagedBatchFailed;
         private int _pagedHandle = -1;
-        private bool _pagedCandidatePendingResolution;
         private double _stageRequestStartedSeconds;
 
         public GpuVoxelBrickMirror Mirror => _mirror;
@@ -304,12 +302,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             Release();
             ChunksRequested++;
             _stageRequestStartedSeconds = Time.realtimeSinceStartupAsDouble;
-            _stageRendererGeneration = generation;
             if (!TryCaptureStorageGeneration(out _stageStorageGeneration))
             {
                 ChunksRefusedNoSlot++;
                 _stageRequestStartedSeconds = 0.0;
-                _stageRendererGeneration = 0;
                 return GpuStageOutcome.NoSlot;
             }
 
@@ -406,7 +402,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 return false;
             ConfigurePersistentLookupHeader();
             int handle = GpuSurfaceMirrorCoordinator.PrepareChunkHandle(
-                request.ChunkOriginVoxel, request.SourceStep, _stageRendererGeneration);
+                request.ChunkOriginVoxel, request.SourceStep,
+                request.Generation != 0 ? request.Generation : generation);
             if (handle < 0)
             {
                 GpuSurfaceMirrorCoordinator.EndExtraction(
@@ -416,7 +413,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _staged = new GpuChunkExtraction(
                 request.ChunkOriginVoxel, request.BrickCacheOrigin,
                 request.SourceStep, request.VoxelSize, request.TransitionFaceMask,
-                handle, _stageRendererGeneration, request.ProfileBlocks);
+                handle, request.Generation != 0 ? request.Generation : generation,
+                request.ProfileBlocks);
             _hasStaged = true;
             ChunksMirrorReady++;
             _sharedExtractionActive = true;
@@ -557,7 +555,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             if (_disposed || !_hasStaged || token != _countBatchToken || handle < 0) return false;
             _pagedHandle = handle;
-            _pagedCandidatePendingResolution = true;
             _pagedBatchReady = true;
             return true;
         }
@@ -566,7 +563,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             if (_disposed || !_hasStaged || token != _countBatchToken) return false;
             _pagedHandle = -1;
-            _pagedCandidatePendingResolution = false;
             _pagedBatchFailed = true;
             _pagedBatchReady = true;
             return true;
@@ -612,31 +608,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _pagedBatchReady = false;
             _pagedBatchFailed = false;
             return true;
-        }
-
-        /// <summary>
-        /// Authorizes the one completed paged candidate owned by this context. The cache calls
-        /// this only after its slot/generation acceptance checks pass; every other Release path
-        /// resolves the same candidate through AbortPendingPagedBatch instead.
-        /// </summary>
-        internal void CommitPagedBatch(int handle, int frame)
-        {
-            ThrowIfDisposed();
-            if (!_hasStaged || !_pagedCandidatePendingResolution || handle < 0
-                || handle != _pagedHandle || handle != _staged.Handle)
-                throw new InvalidOperationException(
-                    "GPU paged commit requires the unresolved candidate for the active staged build.");
-            GpuSurfacePageArena.CommitPendingForActiveArena(
-                handle, _staged.Generation, frame);
-            _pagedCandidatePendingResolution = false;
-        }
-
-        private void AbortPendingPagedBatch()
-        {
-            if (!_pagedCandidatePendingResolution || _pagedHandle < 0) return;
-            GpuSurfacePageArena.AbortPendingForActiveArena(
-                _pagedHandle, _staged.Generation, Time.frameCount);
-            _pagedCandidatePendingResolution = false;
         }
 
         public void BeginWriteRange(ComputeBuffer vertices, ComputeBuffer indices,
@@ -809,11 +780,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             if (!_hasStaged && !_sharedExtractionActive && !_stageAdmissionPending
                 && !_countDispatchPending && !_writeDispatchPending && !_copyDispatchPending
-                && !_copyQueuedForPublication && !_pagedCandidatePendingResolution
+                && !_copyQueuedForPublication
                 && !_countBatchLease.IsValid
                 && _legacyPinnedBricks.Count == 0)
                 return;
-            AbortPendingPagedBatch();
             if (_coverageRequested)
                 ReleasePersistentCoverage(_staged);
             _stageAdmissionPending = false;
@@ -823,7 +793,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _copyQueuedForPublication = false;
             _copyIndexCount = 0;
             _stageStorageGeneration = 0;
-            _stageRendererGeneration = 0;
             _coverageRequested = false;
             _lastCoveragePollFrame = -1;
             _hasStaged = false;
@@ -836,7 +805,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _pagedBatchReady = false;
             _pagedBatchFailed = false;
             _pagedHandle = -1;
-            _pagedCandidatePendingResolution = false;
             _surfaceArena?.Release(in _countBatchLease);
             _countBatchLease = default;
             _writeVertices = null;
