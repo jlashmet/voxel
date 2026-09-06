@@ -6,7 +6,6 @@ using VoxelEngine.Rendering.Runtime.GpuVoxel;
 
 namespace VoxelEngine.Rendering.Tests.EditMode
 {
-    [NonParallelizable]
     public sealed class GpuPendingPublicationPumpTests
     {
         [StructLayout(LayoutKind.Sequential)]
