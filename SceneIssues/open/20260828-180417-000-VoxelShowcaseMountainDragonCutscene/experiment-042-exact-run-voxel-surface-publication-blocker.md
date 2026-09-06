@@ -1,0 +1,9 @@
+# Experiment 042 — exact run voxel-surface publication blocker
+
+Exact request `981f9f36683aad2b3e0d5e73cd100ec21da7fa9c` (workflow run `34024289067`) validated source `f10ce63f128931173947d44b5a7d925a8cec1f15` and completed successfully. Repository-derived module validation passed, including Mountain Dragon, CharacterMotor, ShowcaseInput, Cutscenes, FarWorld, Water, and the Kentridge integration player. The standalone SceneIssue replay reached all 92/92 waypoints grounded, reached summit proximity, emitted the summit/dialogue captures, and completed normally.
+
+Human visual review still rejects the production captures. The earlier gray/magenta semantic-far slab failure is gone, but lower/mid/upper route frames retain torn/floating black near-surface strips and holes. Identical-camera isolation frames show no material difference when semantic-far or component renderers are disabled; disabling the voxel surface removes the corruption, and restoring it restores the corruption. The production baseline contains zero error-magenta pixels, so this is not the previous shader/material failure.
+
+Runtime diagnostics support the same owner: while the near surface reports the full 409.6 m streamed ring, `missingVisible` remains in the hundreds during route traversal and GPU surface work remains in flight. This is a shared near-surface renderer publication/convergence defect, not Mountain Dragon composition, route authority, collision, input, cutscene, or semantic-far presentation.
+
+Per assignment scope, do not modify the shared renderer from agent-4. Keep the SceneIssue open until the shared renderer prerequisite lands on master, then merge current master into `fixes/agent-4` and rerun the exact built-player acceptance. Temporary draw-exclusion instrumentation may now be removed; this experiment is the durable attribution record.
