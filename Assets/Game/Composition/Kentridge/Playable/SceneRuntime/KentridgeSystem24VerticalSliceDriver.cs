@@ -227,6 +227,11 @@ namespace Game.Kentridge.PlayableSlice
         private void TickMoveToDestination()
         {
             if (TryHandleUnexpectedCombat()) return;
+            if (!_slice.HasExitedPub)
+            {
+                QueueMove(new Vector2(0f, 1f));
+                return;
+            }
             if (!_slice.TryGetDestinationNpcWorldPosition(out Vector3 destination)) return;
 
             if (!DriveToward(destination, DestinationStopMetres)) return;
