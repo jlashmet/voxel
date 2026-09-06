@@ -7,6 +7,7 @@ namespace VoxelEngine.Rendering.Tests.EditMode
     public sealed class GpuPagedBatchOutcomeTests
     {
         private const int Record = 1;
+        private const int UnsupportedWord = 0;
         private const int StatusWord = 10;
         private const int HandleWord = 11;
         private const int GenerationLowWord = 12;
@@ -16,13 +17,15 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             new(int3.zero, int3.zero, sourceStep: 1, voxelSize: 0.1f,
                 handle: handle, generation: generation);
 
-        private static uint[] Words(uint status, in GpuChunkExtraction request)
+        private static uint[] Words(
+            uint status, in GpuChunkExtraction request, uint unsupported = 0u)
         {
             var words = new uint[
                 GpuSurfaceExtractor.BatchHeaderWords
                 + (Record + 1) * GpuSurfaceExtractor.BatchRecordWords];
             int start = GpuSurfaceExtractor.BatchHeaderWords
                       + Record * GpuSurfaceExtractor.BatchRecordWords;
+            words[start + UnsupportedWord] = unsupported;
             words[start + StatusWord] = status;
             words[start + HandleWord] = unchecked((uint)request.Handle);
             words[start + GenerationLowWord] = (uint)request.Generation;
@@ -49,6 +52,24 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             Assert.That(outcome.Handle, Is.EqualTo(request.Handle));
             Assert.That(outcome.Generation, Is.EqualTo(request.Generation));
             Assert.That(outcome.IsRetryable, Is.EqualTo(retryable));
+        }
+
+        [TestCase(1u)]
+        [TestCase(2u)]
+        [TestCase(3u)]
+        public void UnsupportedSemanticMaskOverridesReadyAllocation(uint unsupportedMask)
+        {
+            GpuChunkExtraction request = Request();
+            GpuPagedBatchOutcome outcome = GpuPagedBatchOutcome.Parse(
+                Words(GpuPagedBatchOutcome.AllocationReady, in request, unsupportedMask),
+                Record, in request);
+
+            Assert.That(outcome.Kind, Is.EqualTo(GpuPagedBatchOutcomeKind.Unsupported));
+            Assert.That(outcome.UnsupportedMask, Is.EqualTo(unsupportedMask));
+            Assert.That(outcome.IsReadyCandidate, Is.False,
+                "Unsupported semantics must never be published merely because page allocation succeeded.");
+            Assert.That(outcome.IsRetryable, Is.False,
+                "Unsupported is a capability result, not transient arena/backpressure failure.");
         }
 
         [Test]
