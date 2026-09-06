@@ -8,6 +8,7 @@
     "Game.Input.Api",
     "Game.Sessions.Api",
     "Game.SessionOrchestration.Api",
+    "Game.SessionOrchestration.Runtime",
     "Game.Persistence.Api",
     "Game.SessionPresentation.Api",
     "Game.Outcomes.Api"

@@ -336,8 +336,14 @@ namespace Game.Application.Runtime
                 if (!member.IsLocal || member.MemberId != _localMemberId)
                     continue;
 
+                // Active describes the party, not this joining/reconnecting client's bindings.
+                // Prepare rejects unready bindings; do not consume the one startup attempt while
+                // local synchronization or connection recovery is still in progress.
+                if (member.Connection != MemberConnectionPresentationState.Connected || !member.GameplayReady)
+                    return ApplicationOperationResult.Success();
+
                 // Sessions has already authorized the leader's start. A joined client only
-                // starts its local graph; it must not send Start or infer GameplayReady here.
+                // starts its local graph; it must not send Start or grant graph GameplayReady here.
                 // Consume before planning so a failed graph is not retried on every frame.
                 _joinedPartyAwaitingStart = false;
                 GameSessionStartRequest request;
