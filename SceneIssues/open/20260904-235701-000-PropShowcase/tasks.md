@@ -24,7 +24,8 @@
 
 ## Production-faithful preview
 - [x] Instantiate/author the selected entry through the same production decoration/structure/world-object realization path used by shipped content; do not use `GameObject.CreatePrimitive`, bespoke preview meshes, ad-hoc materials/shaders, or fake substitute props where a production realization exists.
-- [x] Preserve the selected content's production materials, coatings/presentation semantics, geometry backend, and applicable world-object presentation behavior.
+- [ ] Preserve the selected content's production materials, coatings/presentation semantics, geometry backend, and applicable world-object presentation behavior. Reopened: exact run `34000107687` shows normal-coverage colours instead of voxel materials.
+- [ ] Fix the demonstrated material-mode defect by selecting production (`Color.white`) surface shading in the showcase environment, add a behavioural regression through the real enable/selection lifecycle, and verify fresh built-player material output without changing the production shader or catalogue.
 - [x] Add a neutral but production-compatible preview environment with stable floor/contact reference and lighting that makes material and silhouette differences readable.
 - [x] Compute preview bounds from the realized content and automatically frame/position the camera so representative tiny, medium, and large entries are visible without hand-authored per-prop coordinates.
 - [ ] Keep presenter-owned geometry, floor/support references, and preview lighting on a world-space presentation root independent of the framing camera transform; prove the final framing/grounding relationship in built-player evidence.
@@ -35,7 +36,8 @@
 - [x] Add a repeated-selection stress regression that cycles through a representative set and proves stable active-object/resource counts and no exceptions.
 
 ## Module-local validation
-- [x] For each affected player-visible/runtime module, create or update a focused scene under that module's own `<Module>/Validation/` directory; do not count top-level `PropShowcase` as the module-local validation surface.
+- [ ] For each affected player-visible/runtime module, create or update a focused scene under that module's own `<Module>/Validation/` directory; do not count top-level `PropShowcase` as the module-local validation surface. Reopened: `VoxelEngine.Showcase` owns `SceneRuntime`, so the parent Showcase validation scene does not prove its local ownership.
+- [ ] Add a focused PropShowcase production-consumer scene and scenario under `Assets/Game/Composition/Showcase/SceneRuntime/Validation/`, covering production material mode and representative selections; retain existing unrelated validation consumers.
 - [x] Exercise the real production catalogue enumeration and realization path in those module-local validation scenes.
 - [x] Add module-local `*.player-scenario.json` only where runtime selection/capture/assertion behavior is needed; do not add manual registration metadata.
 - [x] Add focused EditMode/unit coverage for pure catalogue/enumeration invariants where appropriate.
@@ -60,3 +62,6 @@
 - [ ] All required exact-SHA targeted CI gates pass.
 - [ ] `issue.json` has final `resolutionSummary`, `regressionTest`, and `fixCommit`; every required checkbox is complete before moving `open/` to `closed/`.
 - [ ] Current `origin/master` is merged into the feature branch before final promotion; PR auto-merge is enabled and the required `affected` gate passes until the SceneIssue is visible closed on master.
+
+## Current blockers
+Run `34000107687` / request `c72cb89cea7d8a25e10dc8e716eecb300e5702ab` completed with failed automatic module validation: Unity Test Runner could not restore a deleted temporary `InitTestScene` (see `plan.md`). Standalone replay passed but its diagnostic-normal material output fails visual acceptance. No required gate is waived; perform independent material/validation work before requesting fresh exact-source CI.
