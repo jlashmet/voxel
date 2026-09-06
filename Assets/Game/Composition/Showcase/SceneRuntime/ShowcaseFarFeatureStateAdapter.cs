@@ -41,8 +41,10 @@ namespace VoxelEngine.Showcase
         /// Applies authoritative semantic state to already-selected render instances. Keeping this
         /// operation independent of voxel residency makes removal/ruin survive detailed-region unload.
         /// The optional near-surface radius comes from the same published-coverage handoff used by
-        /// far terrain; a proxy is retired only once its entire horizontal bounds fit inside that
-        /// authoritative near representation.
+        /// far terrain. Semantic proxies are whole-feature conservative masses and cannot clip against
+        /// the detailed surface, so they retire as soon as their horizontal bounds overlap published
+        /// near coverage; otherwise a landmark spanning the handoff boundary is drawn on top of its
+        /// detailed representation as one large duplicate mass.
         /// </summary>
         public IReadOnlyList<FarFeatureInstance> Apply(
             IReadOnlyList<FarFeatureInstance> selected,
@@ -60,7 +62,7 @@ namespace VoxelEngine.Showcase
                 StructureVisualState state = _states.Get(instance.StableId);
                 if (state == StructureVisualState.Removed)
                     continue;
-                if (IsFullyCoveredByNearSurface(instance, nearSurfaceCentre, nearSurfaceRadiusMetres))
+                if (OverlapsPublishedNearSurface(instance, nearSurfaceCentre, nearSurfaceRadiusMetres))
                     continue;
 
                 FarFeatureVisualFlags flags = instance.Flags;
@@ -85,7 +87,7 @@ namespace VoxelEngine.Showcase
             return _instances;
         }
 
-        private static bool IsFullyCoveredByNearSurface(
+        private static bool OverlapsPublishedNearSurface(
             FarFeatureInstance instance,
             float3 nearSurfaceCentre,
             float nearSurfaceRadiusMetres)
@@ -93,14 +95,14 @@ namespace VoxelEngine.Showcase
             if (!(nearSurfaceRadiusMetres > 0f) || !math.isfinite(nearSurfaceRadiusMetres))
                 return false;
 
-            float2 offset = new float2(
+            float2 offset = math.abs(new float2(
                 instance.BoundsCenter.x - nearSurfaceCentre.x,
-                instance.BoundsCenter.z - nearSurfaceCentre.z);
+                instance.BoundsCenter.z - nearSurfaceCentre.z));
             float2 extents = math.max(
                 new float2(instance.BoundsExtents.x, instance.BoundsExtents.z),
                 float2.zero);
-            float farthestHorizontalDistance = math.length(offset) + math.length(extents);
-            return farthestHorizontalDistance <= nearSurfaceRadiusMetres;
+            float2 distanceToBounds = math.max(offset - extents, float2.zero);
+            return math.lengthsq(distanceToBounds) <= nearSurfaceRadiusMetres * nearSurfaceRadiusMetres;
         }
     }
 }
