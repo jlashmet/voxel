@@ -58,6 +58,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private bool _copyQueuedForPublication;
         private int _copyIndexCount;
         private ulong _stageStorageGeneration;
+        private ulong _stageRendererGeneration;
         private bool _coverageRequested;
         private uint _coverageEpoch;
         private int _coverageScanCursor;
@@ -303,10 +304,12 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             Release();
             ChunksRequested++;
             _stageRequestStartedSeconds = Time.realtimeSinceStartupAsDouble;
+            _stageRendererGeneration = generation;
             if (!TryCaptureStorageGeneration(out _stageStorageGeneration))
             {
                 ChunksRefusedNoSlot++;
                 _stageRequestStartedSeconds = 0.0;
+                _stageRendererGeneration = 0;
                 return GpuStageOutcome.NoSlot;
             }
 
@@ -403,8 +406,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 return false;
             ConfigurePersistentLookupHeader();
             int handle = GpuSurfaceMirrorCoordinator.PrepareChunkHandle(
-                request.ChunkOriginVoxel, request.SourceStep,
-                request.Generation != 0 ? request.Generation : generation);
+                request.ChunkOriginVoxel, request.SourceStep, _stageRendererGeneration);
             if (handle < 0)
             {
                 GpuSurfaceMirrorCoordinator.EndExtraction(
@@ -414,8 +416,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _staged = new GpuChunkExtraction(
                 request.ChunkOriginVoxel, request.BrickCacheOrigin,
                 request.SourceStep, request.VoxelSize, request.TransitionFaceMask,
-                handle, request.Generation != 0 ? request.Generation : generation,
-                request.ProfileBlocks);
+                handle, _stageRendererGeneration, request.ProfileBlocks);
             _hasStaged = true;
             ChunksMirrorReady++;
             _sharedExtractionActive = true;
@@ -822,6 +823,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _copyQueuedForPublication = false;
             _copyIndexCount = 0;
             _stageStorageGeneration = 0;
+            _stageRendererGeneration = 0;
             _coverageRequested = false;
             _lastCoveragePollFrame = -1;
             _hasStaged = false;
