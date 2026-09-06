@@ -73,6 +73,18 @@ Visual classification remains **unacceptable**: capacity holes, fragmented struc
 and blockout far terrain/seams remain. Late GPU frame timing windows report zero samples;
 no throughput or visual acceptance is claimed.
 
+The `category-trace/` 85-second player run completed with four reviewed screenshots; still
+**unacceptable**. Before70s, 849 requests emitted requested counts of36,184,979 regular vertices,
+26,342,636 faceted vertices and6,220 decoration vertices, excluding later transitions/profiles.
+315 step2 requests account for30,655,946 regular and19,388,944 faceted vertices. This is demand,
+not simultaneous live occupancy. Decoration pressure is falsified; faceted merging alone cannot
+resolve the demand. Before choosing compaction, compare a captured high-count step2 chunk's
+prepared density and pre-page output against its actual occupied boundary (origin0,256,512:
+216691 regular vertices). Scheduler arena relief currently monitors CPU geometry failures only;
+GPU failure recovery and truthful readiness remain required G10/G11 work. Temporary synchronous
+instrumentation was archived as `category-trace/diagnostic-source.diff` and removed from runtime.
+
+
 
 ## 1. Get the actual GPU path running now
 

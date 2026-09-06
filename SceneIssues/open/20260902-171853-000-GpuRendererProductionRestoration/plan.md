@@ -18,12 +18,14 @@ Separately, direct `SV_InstanceID` addressing ignored nonzero indirect bucket pr
 
 Visual classification remains **unacceptable**: missing capacity-rejected chunks, fragmented structures, cyan water, blockout far terrain and seams. No performance claim; late replay GPU timing windows have zero samples.
 
-## Hypotheses and next experiment
+## Capacity experiment and next discriminator
 
-1. Unmerged faceted emission consumes the fixed arena excessively; exact semantic-preserving GPU face merging can reduce demand.
-2. Residency/reclamation retains unnecessary geometry or loses recoverable rejected requests; correct eviction/retry can restore coverage within budget.
+`category-trace/`: completed 85-second standalone capture, four PNGs; temporary category readbacks archived and removed. Across 849 requests before70s: regular36,184,979 vertices, faceted26,342,636, decoration6,220 (before transitions/profiles). Step2 alone contributes regular30,655,946 and faceted19,388,944 across315 requests. These are requested counts, not simultaneous residency. Decorations are falsified as the dominant pressure source. Faceted merging alone cannot resolve the measured demand. Scheduler relief watches only `_geometryArena` (CPU), so GPU rejection bypasses recovery.
 
-Next correlate arena ownership/demand with per-chunk geometry counts, then implement the earliest proven capacity/recovery fix. Keep budgets and scene content unchanged. Validate exact boundary/material coverage independently and rerun the full player, including traversal.
+1. Step2 regular geometry is legitimately large but duplicates shareable vertices; compact representation can fit the fixed budget.
+2. Step2 prepared density/reconstruction produces excess surfaces; compression would hide an extraction defect.
+
+Next capture actual prepared inputs and pre-page geometry for one high-count step2 chunk: origin(0,256,512), observed216691 regular vertices. Compare occupancy/density boundary expectations and duplicate geometry before choosing vertex reuse or extraction repair. Independently require GPU-owned bounded rejection/retry and truthful host readiness. No budget/content changes.
 
 ## Remaining gates
 
