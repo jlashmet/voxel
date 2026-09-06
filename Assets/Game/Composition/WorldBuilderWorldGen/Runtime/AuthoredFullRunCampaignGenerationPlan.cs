@@ -99,8 +99,8 @@ namespace Game.Composition.WorldBuilderWorldGen.Runtime
 
         private static readonly SiteCapabilityOffer[] GameplayCapabilities =
         {
-            new SiteCapabilityOffer(SiteCapabilityKind.ConversationAnchor, 16),
-            new SiteCapabilityOffer(SiteCapabilityKind.CutsceneStaging, 16)
+            new SiteCapabilityOffer(SiteCapabilityKind.ConversationSpace, 16),
+            new SiteCapabilityOffer(SiteCapabilityKind.CutsceneStage, 16)
         };
 
         private readonly SiteCandidate[] _candidates;
