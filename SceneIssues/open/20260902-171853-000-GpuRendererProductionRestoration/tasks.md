@@ -22,6 +22,42 @@ Each completed item needs exact feature SHA, request/run IDs, relevant executed 
 | Prior density, semantics, transition and mirror work | Preserve `gpu-density-oracle-history.md`; rerun the applicable invariants after restoration. Historical checkmarks do not certify the new final backend. |
 | Required artifact preservation defect | FarWorld/Water outputs collided in run `34003412217`. Current branch contains a repair/probe under request `560b0c08...`: filesystem checks recorded four before-fix failures and five after-fix passes; fourteen Unity probe cases await CI. Inspect terminal player evidence rather than implementing the same fix again. |
 
+## Current local evidence (2026-09-06)
+
+User direction is now local harness/testing and screenshot review, with no further origin pushes.
+`Artifacts/LocalGpuShowcase/753a21241-local-harness/` retains the completed 180-second,
+1920x1080/scale-1, non-development Metal VoxelShowcase capture (11 PNGs), player/build logs,
+source/settings delta and diagnostic timing summary. Visual classification: **unacceptable**.
+G08/G09 defects: near terrain/structure surfaces missing despite `missingVisible=0`, floating
+castle tower rings and vegetation, flat cyan water regions, blockout-like grey far masses and
+terrain cracks. Traversal retains severe omissions. Fence completion is currently counted as
+host publication without proving successful allocation/live GPU geometry; these metrics cannot
+certify coverage. Do not hide content or accept the throughput as a finished-scene benchmark.
+
+Diagnostic 60–89s windows reconstruct ~246.5 FPS, per-window p95 4.30–4.50 ms; 100–180s traversal
+windows reconstruct ~101.4 FPS, per-window p95 8.49–20.99 ms. These are rounded window-log
+summaries with screenshot/log overhead, **not** aggregate percentiles or the repeated benchmark.
+Local targeted Metal tests completed in 11 seconds: six passed (three publication transactions
+and all three analytic faceted cases), two failed (Exhausted/TooLarge both still return Stale).
+The batch-counter alias hypothesis is therefore falsified as the sole cause.
+
+The production allocator also used a 36-byte descriptor against the host/mesher's 44-byte
+buffer. A two-record identity regression failed on the second handle before a shared HLSL
+layout fixed it. The stride-only replay completed (11 captures) but remained unacceptable.
+Capacity diagnostics then proved correct desired/decoded generations; moving only the default
+Stale write did not fix the branch-local writes. Computing the classification first and writing
+status once before ownership mutation passes all nine focused Metal cases, including both
+capacity failures, stale rejection, prior-live preservation, explicit commit, multi-record identity
+and the three analytic faceted styles. Evidence: `stride-fixed/allocator-classified-status.xml`.
+G10 remains incomplete until full publication/recovery/scene behavior is proven. The exact
+allocator-fixed 180-second replay also completed with 11 screenshots and remained **unacceptable**.
+Its diagnostic stationary/traversal windows were ~194/~103 FPS (per-window p95 5.41–5.79ms /
+8.49–21.29ms). Four additional prepared-batch/publication regressions passed with no skips in
+`allocator-fixed/production-pipeline.xml`. Local code commits: `968a06ced`, `dc0ced3e2`; not pushed.
+Next correlate an actually missing full-scene chunk's count/status, pending/live page record and
+draw arguments. Neither host-ready metrics nor these bounded passing fixtures prove full coverage.
+
+
 ## 1. Get the actual GPU path running now
 
 - [ ] **G01 — Reconcile the retained production GPU implementation.** Inspect current code and historical merge parent `a0ac0f5e...`; retain compatible proven changes rather than blindly restoring old files. Trace the real scheduler -> mirror -> extraction -> page publication -> URP draw route. Record concrete compile/runtime blockers and fix only prerequisites to this route. Do not begin another CPU visual-polish cycle.
@@ -31,7 +67,7 @@ Each completed item needs exact feature SHA, request/run IDs, relevant executed 
 
 ## 2. Complete geometry and visual correctness with GPU active
 
-- [ ] **G05 — Preserve an independent semantic oracle without retaining a second renderer.** Before deleting the CPU backend, record bounded canonical input/output fixtures, semantic expectations and provenance for supported surfaces. During transition compare the same prepared inputs, density, count/prefix and pre-page geometry. Convert essential regressions to frozen reference data and independent canonical/property checks; final tests must not require the retired CPU mesher or embed a copy of it. Readback is test-only, never a production frame-path dependency. **In progress:** the existing real-kernel Planar/Sharp/Cubic half-brick regression now checks analytic boundary positions, indexed winding, complementary unit-face coverage and duplicate triangles without invoking CPU meshing. Unity/Metal execution is pending; this does not complete the remaining smooth/coating/transition oracle migration.
+- [ ] **G05 — Preserve an independent semantic oracle without retaining a second renderer.** Before deleting the CPU backend, record bounded canonical input/output fixtures, semantic expectations and provenance for supported surfaces. During transition compare the same prepared inputs, density, count/prefix and pre-page geometry. Convert essential regressions to frozen reference data and independent canonical/property checks; final tests must not require the retired CPU mesher or embed a copy of it. Readback is test-only, never a production frame-path dependency. **In progress:** the existing real-kernel Planar/Sharp/Cubic half-brick regression now checks analytic boundary positions, indexed winding, complementary unit-face coverage and duplicate triangles without invoking CPU meshing. Local Metal execution passed all three styles in `Artifacts/LocalGpuShowcase/753a21241-local-harness/gpu-regressions.xml` on 2026-09-06; this does not complete the remaining smooth/coating/transition oracle migration.
 - [ ] **G06 — Restore all supported reconstruction/material semantics.** Validate smooth, rounded, planar, sharp and cubic/faceted surfaces; material classification, coatings, authored boundaries, decoration/profile handling and mixed/uniform/empty inputs. First identify the earliest divergence, then add fail-before/pass-after behavioral proof. GPU parity does not bless defects already present in shared authored data or presentation.
 - [ ] **G07 — Eliminate CPU-dependent LOD coverage.** Current `CpuTransvoxelChunkCache.SupportsGpuSurfaceStep` admits only steps 1/2; step 4 uses feature-preserving CPU fallback and step 8 block HLOD. Inventory every ring/representation actually used by VoxelShowcase and affected consumers, including coarser mip work. Implement the required GPU equivalents before deleting those paths. Test real mixed-LOD batches, logical extent versus physical stride, transition faces, negative-shell ownership and nonresident frontier halos. Do not disable coarse rings or reduce draw distance to claim GPU-only coverage.
 - [ ] **G08 — Resolve every missing/white/malformed GPU-visible region.** Use chunk/source revision and actual draw owner to separate voxel surfaces, far terrain and semantic far features. Preserve canonical shape parameters, materials/coatings and ordered carve semantics where required; resolve near/far overlap with correct coverage ownership, not distance-only hiding or global convergence. Reuse existing production systems. The existing bounded normal/disabled/restored probe is optional diagnosis, with restoration/opt-in regressions; disabled output never passes acceptance. Retain frustum topology/cache regressions and independent FarWorld artifacts.

@@ -55,7 +55,8 @@ uses the existing repeated half-brick input (8-cell extent, source step 1, occup
 Planar/Sharp/Cubic). Its independent analytic expectation is exactly the y=0/down and y=4/up
 8x8 planes, with two complementary outward triangles per unit face, correct material/style,
 no duplicate triangles and no off-lattice positions. This expectation comes from discrete occupancy,
-not captured GPU output or the CPU mesher. The strengthened assertions await Unity/Metal execution;
+not captured GPU output or the CPU mesher. The strengthened assertions passed all three styles in local Metal execution
+(`Artifacts/LocalGpuShowcase/stride-fixed/allocator-classified-status.xml`);
 they cover faceted geometry only and do not authorize deleting the other semantic oracles yet.
 
 Likewise, CPU-specific tests such as `CpuWaterSurfaceChunkCacheConfigurationTests.cs` and `CpuWaterSurfaceChunkCacheLifetimeTests.cs` are deletion/migration candidates once the replacement GPU behavior has equivalent module-local coverage. Tests whose value is renderer-independent (semantic expectations, LOD ownership, table validity) should be rewritten, not discarded.
