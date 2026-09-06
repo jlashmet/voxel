@@ -51,6 +51,15 @@ namespace Game.Composition.Kentridge.Tests
             Assert.That(generation.NpcAssignments.Count, Is.EqualTo(physical.Graph.NpcPlacements.Count),
                 "Every authored NPC placement must bind through NpcPlacementResolver rather than a player-scene lookup table.");
 
+            Assert.That(
+                generation.TryGetResolvedSite(content.OpeningRoles.StartingPub.Ref, out var startingPub),
+                Is.True,
+                "The authored pub archetype and PlayerSpawn requirement must resolve through the rich-generation physical adapter.");
+            Assert.That(startingPub.Value, Does.Contain("/rich-generation/starting-pub"),
+                "Rich production settlements must keep semantic site identity instead of collapsing authored roles into one unspecified candidate.");
+            Assert.That(generation.TryGetPhysicalAnchor(content.OpeningRoles.StartingPub.Ref, out _), Is.True,
+                "The resolved opening pub must retain a source-backed Kentridge macro anchor.");
+
             Assert.That(generation.TryGetPhysicalAnchor(content.RorikConflictSite, out _), Is.True,
                 "The region-owned Rorik conflict must resolve to a source-backed physical anchor.");
             Assert.That(generation.TryGetPhysicalAnchor(content.MoordellDistributionSite, out _), Is.True,
