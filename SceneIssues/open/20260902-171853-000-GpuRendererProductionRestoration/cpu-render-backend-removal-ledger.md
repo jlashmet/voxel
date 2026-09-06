@@ -77,3 +77,12 @@ Before checking G16/G18 complete:
 - all deleted `.cs` assets have their `.meta` and serialized/asmdef references cleaned up;
 - module-local GPU players, VoxelShowcase, independent production consumer, edits/streaming/restart, and affected editor/bake workflows pass on the CPU-backend-free exact SHA;
 - canonical correctness expectations remain independently testable without executing the deleted CPU renderer.
+
+## Current cutover delta
+
+Final solid frustum/LOD selection and selected-handle compaction now execute on GPU. CPU
+publication/readiness inputs are persistent and refreshed by versioned changes. CPU ring/source
+demand, missing/stale-build priority, far-feature publication proof, water visibility and API
+submission remain. Retired solid meshing code/workspaces/arena are still present; do not claim
+G16/G18 complete. Regular GPU faceted faces are currently unmerged, unlike CPU `FacetedMergeJob`;
+port this geometry-reduction behavior before claiming the planned meshing migration is complete.

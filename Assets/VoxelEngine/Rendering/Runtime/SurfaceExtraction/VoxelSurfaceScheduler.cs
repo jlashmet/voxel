@@ -20,6 +20,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public readonly int SolidDirtyChunks;
         public readonly int WaterResidentChunks;
         public readonly int WaterDirtyChunks;
+        // Legacy metric name: GPU mode reports in-band drawable candidates, before GPU
+        // frustum/LOD selection. Never use this CPU count as actual drawn geometry evidence.
         public readonly int VisibleSolidChunks;
         public readonly int MissingVisibleSolidChunks;
         public readonly int VisibleDetailSolidChunks;
@@ -575,6 +577,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             public int3 ClipmapRegionMin { get; private set; }
             public int3 ClipmapRegionMaxExclusive { get; private set; }
             public int ActiveSlotCount => _slotGrid.ActiveCount;
+            public ulong SlotMembershipVersion => _slotGrid.MembershipVersion;
             public int3 ActiveSlotCoordinate(int index) => _slotGrid.ActiveCoordinateAt(index);
 
             public SurfaceRing(int sourceStep, float innerRadiusMetres, float outerRadiusMetres,
@@ -737,7 +740,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly SurfaceRing[] _rings;
         private readonly CpuTransvoxelChunkCache[] _allWorkers;
         private readonly List<CpuTransvoxelChunkCache.Entry> _visibleSolids = new(256);
-        private readonly List<int> _visibleGpuHandles = new(256);
+        private readonly List<int> _visibleGpuHandles = new(256); // candidates; final LOD selection is GPU-owned
+        private readonly List<SurfaceLodNodeKey> _gpuDrawableNodes = new(256);
+        private readonly List<SurfaceLodNodeKey> _gpuOwnedNodes = new(256);
+        private bool _gpuLodSelectionActive;
         private readonly SurfaceLodVisibilitySelector _lodVisibilitySelector = new();
         private readonly List<SurfaceLodNodeKey> _lodDrawableNodes = new(256);
         private readonly List<SurfaceLodNodeKey> _lodCurrentCompleteNodes = new(256);
@@ -819,10 +825,34 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     Vector3.one * edge);
                 if (!GeometryUtility.TestPlanesAABB(_visibilityFrustumPlanes, nodeBounds)) return true;
                 if (worker.HasCurrentReplacementNode(node.Coordinate, out bool empty)
-                    && (empty || _lodVisibilitySelector.IsActive(node))) return true;
+                    && (empty || (_gpuLodSelectionActive
+                        ? HasNoStaleDrawableAncestor(node) : _lodVisibilitySelector.IsActive(node)))) return true;
                 return _replacementDiscovery.IsKnownEmpty(node);
             }
             return false;
+        }
+
+        // GPU ownership can choose this current node, its current descendants, or a
+        // drawable ancestor. A far feature may hand off only if every possible covering
+        // ancestor is also current. This is conservative publication proof, not CPU draw
+        // selection, and requires no GPU visibility readback.
+        private bool HasNoStaleDrawableAncestor(SurfaceLodNodeKey node)
+        {
+            while (SurfaceLodHierarchy.TryGetParentSourceStep(node.SourceStep, out int step))
+            {
+                node = new SurfaceLodNodeKey(step, SurfaceLodHierarchy.ParentCoordinate(node.Coordinate));
+                for (int r = 0; r < _rings.Length; r++)
+                {
+                    var ring = _rings[r];
+                    if (ring.SourceStep != step) continue;
+                    var worker = ring.Workers[CpuTransvoxelChunkCache.ShardForChunk(node.Coordinate, ring.Workers.Length)];
+                    if (worker.OwnsReplacementNode(node.Coordinate,
+                            _replacementCamera.transform.position, _replacementVoxelSize)
+                        && worker.OwnsRenderedChunk(node.Coordinate)
+                        && !worker.HasCurrentReplacementNode(node.Coordinate, out _)) return false;
+                }
+            }
+            return true;
         }
 
         private readonly HashSet<int3> _surfaceDiscoveryRegions = new();
@@ -1112,6 +1142,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         + $" select={_lastVisibilitySelectionMs:0.000}"
                         + $" water={_lastVisibilityWaterMs:0.000}"
                         + $" dispatch={_lastVisibilityDispatchMs:0.000}]");
+            text.Append($" gpuSelection[candidates={_visibleGpuHandles.Count}"
+                        + $" nodes={_gpuDrawDispatcher?.LodNodeCount ?? 0}"
+                        + $" inputCpu={_gpuDrawDispatcher?.LastLodInputMs ?? 0:0.000}"
+                        + $" uploadedNodes={_gpuDrawDispatcher?.LastLodUploadedNodes ?? 0}"
+                        + $" refresh={_gpuCandidateRefreshes} reuse={_gpuCandidateReuses}]");
             text.Append($" mirrorCpu[sync={GpuSurfaceMirrorCoordinator.LastChangeSyncMs:0.000}"
                         + $" recovery={GpuSurfaceMirrorCoordinator.LastRecoveryMs:0.000}"
                         + $" blocks={GpuSurfaceMirrorCoordinator.LastRecoveredBlocks}"
@@ -1231,7 +1266,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private ulong _observedWaterArenaAllocationFailures;
 
         public IReadOnlyList<CpuTransvoxelChunkCache.Entry> VisibleSolids => _visibleSolids;
-        internal IReadOnlyList<int> VisibleGpuHandles => _visibleGpuHandles;
+        internal IReadOnlyList<int> GpuDrawCandidates => _visibleGpuHandles;
         internal GpuSurfacePageArena GpuPageArena => _gpuPageArena;
         internal GpuSurfaceDrawDispatcher GpuDrawDispatcher => _gpuDrawDispatcher;
 
@@ -1781,7 +1816,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         private bool TryReuseVisibility(Camera camera, float voxelSize, int frame)
         {
-            if (camera == null || !VisibilityReuseEnabled) return false;
+            if (camera == null || !VisibilityReuseEnabled || _gpuDrawDispatcher != null) return false;
 
             ulong demand = 0;
             for (int i = 0; i < _allWorkers.Length; i++)
@@ -1822,7 +1857,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _water.CollectVisible(camera, voxelSize);
             _lastVisibilityWaterMs = ElapsedMs(reuseStart);
             double dispatchStart = Time.realtimeSinceStartupAsDouble;
-            _gpuDrawDispatcher?.Prepare(_visibleGpuHandles, frame);
+            PrepareGpuDraws(frame);
             _lastVisibilityDispatchMs = ElapsedMs(dispatchStart);
             TrackReappearances(frame);
             LastVisibilityMainThreadMs = ElapsedMs(reuseStart);
@@ -1830,14 +1865,88 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             return true;
         }
 
+        private readonly Plane[] _gpuCandidatePlanes = new Plane[6];
+        private Vector3 _gpuCandidatePosition;
+        private float _gpuCandidateVoxelSize;
+        private bool _hasGpuCandidateSnapshot;
+        private ulong[] _gpuCandidateDemand, _gpuCandidateReady, _gpuCandidateSlots;
+        private Vector4[] _gpuCandidateBands;
+        private int[] _gpuCandidateKnown;
+        private ulong _gpuCandidateRefreshes, _gpuCandidateReuses;
+
+        private bool GpuCandidateInputsUnchanged(Camera camera, float voxelSize)
+        {
+            if (!_hasGpuCandidateSnapshot || camera == null
+                || !_gpuCandidatePosition.Equals(camera.transform.position)
+                || !_gpuCandidateVoxelSize.Equals(voxelSize)) return false;
+            for (int p = 0; p < 6; p++)
+                if (!_gpuCandidatePlanes[p].normal.Equals(_visibilityFrustumPlanes[p].normal)
+                    || !_gpuCandidatePlanes[p].distance.Equals(_visibilityFrustumPlanes[p].distance)) return false;
+            for (int r = 0; r < _rings.Length; r++)
+                if (_gpuCandidateSlots[r] != _rings[r].SlotMembershipVersion) return false;
+            for (int i = 0; i < _allWorkers.Length; i++)
+            {
+                var w = _allWorkers[i];
+                if (_gpuCandidateDemand[i] != w.DemandVersion || _gpuCandidateReady[i] != w.ReadySetVersion
+                    || _gpuCandidateKnown[i] != w.KnownCount
+                    || !_gpuCandidateBands[i].Equals(new Vector4(w.MinViewDistanceMetres, w.MaxViewDistanceMetres,
+                        w.RingSuspended ? 1f : 0f, 0f))) return false;
+            }
+            return true;
+        }
+
+        private void CaptureGpuCandidateInputs(Camera camera, float voxelSize)
+        {
+            if (_gpuDrawDispatcher == null || camera == null || !_gpuLodSelectionActive)
+            { _hasGpuCandidateSnapshot = false; return; }
+            _gpuCandidateDemand ??= new ulong[_allWorkers.Length];
+            _gpuCandidateReady ??= new ulong[_allWorkers.Length];
+            _gpuCandidateKnown ??= new int[_allWorkers.Length];
+            _gpuCandidateBands ??= new Vector4[_allWorkers.Length];
+            _gpuCandidateSlots ??= new ulong[_rings.Length];
+            _gpuCandidatePosition = camera.transform.position;
+            _gpuCandidateVoxelSize = voxelSize;
+            for (int p = 0; p < 6; p++) _gpuCandidatePlanes[p] = _visibilityFrustumPlanes[p];
+            for (int r = 0; r < _rings.Length; r++) _gpuCandidateSlots[r] = _rings[r].SlotMembershipVersion;
+            for (int i = 0; i < _allWorkers.Length; i++)
+            {
+                var w = _allWorkers[i];
+                _gpuCandidateDemand[i] = w.DemandVersion; _gpuCandidateReady[i] = w.ReadySetVersion;
+                _gpuCandidateKnown[i] = w.KnownCount;
+                _gpuCandidateBands[i] = new Vector4(w.MinViewDistanceMetres, w.MaxViewDistanceMetres,
+                    w.RingSuspended ? 1f : 0f, 0f);
+            }
+            _hasGpuCandidateSnapshot = true;
+            _gpuCandidateRefreshes++;
+        }
+
         private void CollectVisibility(Camera camera, float voxelSize, int frame)
         {
             _lastVisibilityTraversalMs = 0;
             _lastVisibilitySelectionMs = 0;
             if (TryReuseVisibility(camera, voxelSize, frame)) return;
+            if (_gpuDrawDispatcher != null && camera != null)
+            {
+                GeometryUtility.CalculateFrustumPlanes(camera, _visibilityFrustumPlanes);
+                if (GpuCandidateInputsUnchanged(camera, voxelSize))
+                {
+                    double reusedStart = Time.realtimeSinceStartupAsDouble;
+                    _water.CollectVisible(camera, voxelSize);
+                    _lastVisibilityWaterMs = ElapsedMs(reusedStart);
+                    double dispatchStart = Time.realtimeSinceStartupAsDouble;
+                    PrepareGpuDraws(frame);
+                    _lastVisibilityDispatchMs = ElapsedMs(dispatchStart);
+                    LastVisibilityMainThreadMs = ElapsedMs(reusedStart);
+                    _visibilityTiming.Add(LastVisibilityMainThreadMs);
+                    _gpuCandidateReuses++;
+                    return;
+                }
+            }
 
             _visibleSolids.Clear();
             _visibleGpuHandles.Clear();
+            _gpuDrawableNodes.Clear();
+            _gpuOwnedNodes.Clear();
             _lodDrawableNodes.Clear();
             _lodCurrentCompleteNodes.Clear();
             _lastVisibilityCandidateChecks = 0;
@@ -1853,7 +1962,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         SurfaceRing ring = _rings[r];
                         for (int w = 0; w < ring.Workers.Length; w++)
                             ring.Workers[w].BeginVisibilityCollection(
-                                _visibilityFrustumPlanes, cameraPosition, voxelSize);
+                                _visibilityFrustumPlanes, cameraPosition, voxelSize, _gpuDrawDispatcher != null);
 
                         if (!ring.HasClipmapWindow)
                             ring.UpdateClipmapWindow(cameraPosition, voxelSize);
@@ -1874,6 +1983,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                                 worker.CollectVisibleCoordinate(
                                     coordinate, _visibilityFrustumPlanes, cameraPosition,
                                     voxelSize, frame);
+                            if (visibility.GpuCandidate)
+                                _gpuOwnedNodes.Add(new SurfaceLodNodeKey(ring.SourceStep, coordinate));
                             if (visibility.Drawable || visibility.CurrentViewComplete)
                             {
                                 var node = new SurfaceLodNodeKey(ring.SourceStep, coordinate);
@@ -1886,29 +1997,37 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
                     _lastVisibilityTraversalMs = ElapsedMs(visibilityStart);
                     double selectionStart = Time.realtimeSinceStartupAsDouble;
-                    _lodVisibilitySelector.Rebuild(
-                        _lodDrawableNodes, _lodCurrentCompleteNodes);
+                    _gpuDrawableNodes.Clear();
                     for (int r = 0; r < _rings.Length; r++)
+                    for (int w = 0; w < _rings[r].Workers.Length; w++)
                     {
-                        SurfaceRing ring = _rings[r];
-                        for (int w = 0; w < ring.Workers.Length; w++)
+                        IReadOnlyList<CpuTransvoxelChunkCache.Entry> visible = _rings[r].Workers[w].Visible;
+                        for (int i = 0; i < visible.Count; i++)
                         {
-                            IReadOnlyList<CpuTransvoxelChunkCache.Entry> visible =
-                                ring.Workers[w].Visible;
-                            for (int i = 0; i < visible.Count; i++)
+                            CpuTransvoxelChunkCache.Entry entry = visible[i];
+                            if (entry.IsGpuPaged)
                             {
-                                CpuTransvoxelChunkCache.Entry entry = visible[i];
-                                var node = new SurfaceLodNodeKey(
-                                    entry.SourceStep, entry.Coordinate);
-                                if (_lodVisibilitySelector.IsActive(node))
-                                {
-                                    if (entry.IsGpuPaged)
-                                        _visibleGpuHandles.Add(entry.GpuHandle);
-                                    else
-                                        _visibleSolids.Add(entry);
-                                }
+                                _gpuDrawableNodes.Add(new SurfaceLodNodeKey(entry.SourceStep, entry.Coordinate));
+                                _visibleGpuHandles.Add(entry.GpuHandle);
                             }
+                            else _visibleSolids.Add(entry);
                         }
+                    }
+                    _gpuLodSelectionActive = _gpuDrawDispatcher != null && _visibleSolids.Count == 0;
+                    // Transitional CPU-only consumers retain their old ownership rules. The
+                    // production GPU route never builds or queries the CPU selected draw set.
+                    if (!_gpuLodSelectionActive)
+                    {
+                        _lodVisibilitySelector.Rebuild(_lodDrawableNodes, _lodCurrentCompleteNodes);
+                        for (int i = _visibleSolids.Count - 1; i >= 0; i--)
+                        {
+                            var entry = _visibleSolids[i];
+                            if (!_lodVisibilitySelector.IsActive(new SurfaceLodNodeKey(entry.SourceStep, entry.Coordinate)))
+                                _visibleSolids.RemoveAt(i);
+                        }
+                        for (int i = _visibleGpuHandles.Count - 1; i >= 0; i--)
+                            if (!_lodVisibilitySelector.IsActive(_gpuDrawableNodes[i]))
+                                _visibleGpuHandles.RemoveAt(i);
                     }
                     _lastVisibilitySelectionMs = ElapsedMs(selectionStart);
                 }
@@ -1922,7 +2041,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 _water.CollectVisible(camera, voxelSize);
                 _lastVisibilityWaterMs = ElapsedMs(waterStart);
                 double dispatchStart = Time.realtimeSinceStartupAsDouble;
-                _gpuDrawDispatcher?.Prepare(_visibleGpuHandles, frame);
+                PrepareGpuDraws(frame);
                 _lastVisibilityDispatchMs = ElapsedMs(dispatchStart);
             }
 
@@ -1930,10 +2049,19 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             for (int i = 0; i < _allWorkers.Length; i++)
                 missingVisible += _allWorkers[i].MissingVisibleCount;
             _lastMissingVisibleCount = missingVisible;
+            CaptureGpuCandidateInputs(camera, voxelSize);
 
             TrackReappearances(frame);
             LastVisibilityMainThreadMs = ElapsedMs(visibilityStart);
             _visibilityTiming.Add(LastVisibilityMainThreadMs);
+        }
+
+        private void PrepareGpuDraws(int frame)
+        {
+            if (_gpuLodSelectionActive)
+                _gpuDrawDispatcher.PrepareLod(_gpuDrawableNodes, _visibleGpuHandles,
+                    _lodCurrentCompleteNodes, frame, _gpuOwnedNodes, _visibilityFrustumPlanes, _replacementVoxelSize);
+            else _gpuDrawDispatcher?.Prepare(_visibleGpuHandles, frame);
         }
 
         private static int FloorDiv(int value, int divisor)

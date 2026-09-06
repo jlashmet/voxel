@@ -1,5 +1,56 @@
 # GPU-only VoxelShowcase — execution checklist
 
+### 2026-09-06 — GPU frustum/LOD ownership and persistent candidates
+
+User explicitly resumed the planned CPU-to-GPU migration; alternate renderer research is deferred.
+`GpuSurfaceDrawCompact` now classifies padded candidate bounds against the camera frustum,
+reduces all-eight-child completion bottom-up, preserves drawable coarse fallback when descendants
+are proof-only, selects a non-overlapping physical LOD set, then compacts its own selected-handle
+mask into indirect draw buckets. Final solid selection requires no CPU result/count readback and
+no per-frame CPU handle upload. CPU source demand, missing/stale urgency, ring ownership and
+far-feature publication proof remain. GPU candidate inputs reuse exact camera/planes/scale,
+slot membership, demand/readiness and ring settings; publications/empty completion advance
+readiness revision, and same-count toroidal replacement advances membership revision.
+
+Focused tests: initial Metal compilation failed on ternary vector indexing; corrected bounded
+indices passed9 tests. The first module player failed initial convergence because far handoff
+queried the retired CPU selected set. Conservative current-publication proof repaired this;
+`gpu-lod-handoff-module` passed48s/seven captures including edits/restart/far restoration.
+Camera/projection/frustum tests passed27; final `gpu-persistent-candidates.xml` passed29 in23s,
+including real GPU four-level randomized ownership, negative coordinates, partial/completed/edited
+children, proof-only fallback, camera and projection changes, indirect raster/prefix/scatter and
+same-count slot replacement. No skipped tests or zero-test success claimed.
+
+Final source evidence under `Artifacts/LocalGpuShowcase/` (working diff atop `29703c338`, exact
+production hashes, source copies and diffs retained per run):
+- `gpu-frustum-lod-showcase`:180s/12 captures/exit0; approximately166/141 FPS stationary/walking,
+  CPU6.00/7.005ms, visibility traversal1.334/1.859ms.
+- `gpu-persistent-candidates-module`: build32s,48s/seven captures/exit0; all initial/traversal/edit/
+  settled/restart/far-handoff/success markers, zero missing/fallback/errors. Settled frame p95/p99
+  6.459/7.222ms; preparation p95/p99 .032/.035ms. Reviewed42s; production-rendered diagnostic fort
+  remains intact, prototype composition rather than production-art acceptance.
+- `gpu-persistent-candidates-showcase`: build18s,180s/12 captures/exit0;60–90s stationary and120–180s
+  walking windows contain30/60 one-second samples. Approximate198.49/141.77 FPS; CPU p50-window
+  medians4.65/6.855ms. Stationary traversal median0ms, walking1.791ms. Input transport .041/.030ms
+  medians, with rebuild spikes still present. GPU reported6.31/1.58ms is diagnostic and not yet
+  trustworthy frame-critical attribution. Final631 missing-visible,880 allocation failures and880
+  evictions. Source hashes verified against the final working production files.
+
+Reviewed final74.9s stationary and149.9s walking, compared with prior stationary74.9s: castle is
+retained; procedural terrain, holes/sparse vegetation and far-proxy/blank-house finish remain
+**unacceptable**. The conservative far publication proof can retain proxies longer; this is an
+explicit outstanding handoff/overlap risk, not visual acceptance. Candidate counts now describe
+pre-GPU in-band inputs, never actual selected draw counts. No full-migration or performance
+acceptance, G01–G27 remain open.
+
+Next missing port: CPU `FacetedMergeJob` greedily merges compatible planar faces; regular GPU
+`VoxelBrickMesher` explicitly emits one quad per exposed cell. A uniform64×64 face illustrates
+1 versus4,096 quads, not a measured whole-scene ratio. Port that behavior onto GPU with bounded
+scratch and independent surface-area/material/winding/boundary proof; measure page pressure and
+raster cost. Step8 already has a bounded4×4 greedy path. Do not weaken semantic assertions merely
+to accept different triangulation. Retired solid CPU code/workspaces/arena still await removal.
+
+
 **User-authorized rewrite:** 2026-09-05 (America/Los_Angeles). **Plan:** [plan.md](plan.md).
 
 **Deliverables:** a correct production GPU voxel backend, physical removal of the CPU-only rendering backend, and the complete VoxelShowcase measured toward 1,000 FPS (1.00 ms per frame), or the closest verified result under the unchanged benchmark contract below.

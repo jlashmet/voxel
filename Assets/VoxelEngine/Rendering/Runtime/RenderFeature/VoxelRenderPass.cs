@@ -204,7 +204,7 @@ namespace VoxelEngine.Rendering.Runtime
             public ComputeBuffer PagedDrawMetadata;
             public ComputeBuffer PagedDrawBucketState;
             public ComputeBuffer PagedIndirectArgs;
-            public int VisiblePagedCount;
+            public int PagedCandidateCount;
             public GpuWaterSurfaceChunkCache.Entry[] WaterEntries;
             public int WaterEntryCount;
             public GpuWaterSurfaceChunkCache WaterCache;
@@ -389,7 +389,7 @@ namespace VoxelEngine.Rendering.Runtime
             data.PagedDrawMetadata = gpuDraw?.ActiveDrawMetadata;
             data.PagedDrawBucketState = gpuDraw?.ActiveBucketState;
             data.PagedIndirectArgs = gpuDraw?.ActiveIndirectArgs;
-            data.VisiblePagedCount = _scheduler.VisibleGpuHandles.Count;
+            data.PagedCandidateCount = _scheduler.GpuDrawCandidates.Count;
             _hasFarReplacement ??= _scheduler.HasCurrentReplacement;
             ProceduralFarFeatureRenderer.PrepareSurfaceConsumers(_farSurfaceConsumers, _hasFarReplacement, camera);
             data.FarSurfaceConsumers = _farSurfaceConsumers;
@@ -477,7 +477,7 @@ namespace VoxelEngine.Rendering.Runtime
                     farRenderer.RecordSurfaceDraws(cmd);
 
                 int solidSubmissionCalls = 0;
-                if (passData.PagedIndirectArgs != null && passData.VisiblePagedCount > 0)
+                if (passData.PagedIndirectArgs != null && passData.PagedCandidateCount > 0)
                 {
                     cmd.SetGlobalInteger(s_SurfacePagedDraw, 1);
                     cmd.SetGlobalBuffer(s_PagedSurfaceVertices, passData.PagedVertices);
@@ -516,7 +516,7 @@ namespace VoxelEngine.Rendering.Runtime
                 VoxelSolidRenderTelemetry.Record(
                     passData.SolidStagingMs,
                     VoxelSolidRenderTelemetry.ElapsedMilliseconds(solidSubmissionStart),
-                    passData.VisibleSolidCount + passData.VisiblePagedCount,
+                    passData.VisibleSolidCount + passData.PagedCandidateCount,
                     solidSubmissionCalls);
 
                 if (VoxelRenderBridge.WaterRenderEnabled

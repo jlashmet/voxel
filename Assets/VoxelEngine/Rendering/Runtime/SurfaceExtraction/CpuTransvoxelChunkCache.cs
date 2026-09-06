@@ -968,8 +968,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public ulong DemandVersion => _versionCounter;
 
         /// <summary>
-        /// Counts every time drawable geometry has been taken away from this shard — an eviction
-        /// under arena pressure, a cancelled build, a retired entry.
+        /// Counts GPU publication, known-empty completion and drawable retirement.
+        /// Every change to GPU candidate readiness advances this revision.
         ///
         /// Demand alone cannot see any of that: a chunk evicted to free arena space stops being
         /// ready without anything being admitted or invalidated, so a caller trusting
@@ -1954,9 +1954,14 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         private readonly SurfaceVisibilityGeometryCache _visibilityGeometry = new();
 
+        private readonly SurfaceVisibilityGeometryCache _gpuBandGeometry = new();
+        private bool _collectGpuCandidates;
+
         public void BeginVisibilityCollection()
         {
             _visibilityGeometry.Disable();
+            _gpuBandGeometry.Disable();
+            _collectGpuCandidates = false;
             _visible.Clear();
             MissingVisibleCount = 0;
             LastVisibilityKnownCount = 0;
@@ -1966,10 +1971,11 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             LastVisibilityEmptyCount = 0;
         }
 
-        internal void BeginVisibilityCollection(Plane[] planes, Vector3 position, float voxelSize)
+        internal void BeginVisibilityCollection(Plane[] planes, Vector3 position, float voxelSize, bool gpuCandidates = false)
         {
             BeginVisibilityCollection();
-            _visibilityGeometry.Prepare(planes, position, voxelSize,
+            _collectGpuCandidates = gpuCandidates;
+            (_collectGpuCandidates ? _gpuBandGeometry : _visibilityGeometry).Prepare(planes, position, voxelSize,
                 MinViewDistanceMetres, MaxViewDistanceMetres, RingSuspended);
         }
 
@@ -1977,11 +1983,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         {
             public readonly bool Drawable;
             public readonly bool CurrentViewComplete;
+            public readonly bool GpuCandidate;
 
-            internal CoordinateVisibility(bool drawable, bool currentViewComplete)
+            internal CoordinateVisibility(bool drawable, bool currentViewComplete, bool gpuCandidate = false)
             {
                 Drawable = drawable;
                 CurrentViewComplete = currentViewComplete;
+                GpuCandidate = gpuCandidate;
             }
         }
 
@@ -1995,12 +2003,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             if (!_known.Contains(coordinate)) return default;
             LastVisibilityKnownCount++;
 
-            if (!_visibilityGeometry.TryGet(coordinate, out byte geometry))
+            var geometryCache = _collectGpuCandidates ? _gpuBandGeometry : _visibilityGeometry;
+            if (!geometryCache.TryGet(coordinate, out byte geometry))
             {
                 Bounds bounds = ChunkWorldBounds(coordinate, voxelSize);
                 geometry = !WithinRingBand(bounds, cameraPosition) ? (byte)0
-                    : GeometryUtility.TestPlanesAABB(frustumPlanes, bounds) ? (byte)2 : (byte)1;
-                _visibilityGeometry.Store(coordinate, geometry);
+                    : _collectGpuCandidates || GeometryUtility.TestPlanesAABB(frustumPlanes, bounds) ? (byte)2 : (byte)1;
+                geometryCache.Store(coordinate, geometry);
             }
             if (geometry == 0)
             {
@@ -2024,6 +2033,28 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             // viewer, while still excluding the thousands of known chunks owned by other LODs.
             if (!currentReady && !currentEmpty && !currentGenerationInFlight)
                 MarkDirty(coordinate);
+
+            if (_collectGpuCandidates && (!ready || entry.IsGpuPaged))
+            {
+                // The GPU classifies settled candidates. CPU frustum work remains only for
+                // missing/stale source demand, where it controls bounded build urgency.
+                if (!currentReady && !currentEmpty
+                    && GeometryUtility.TestPlanesAABB(frustumPlanes, ChunkWorldBounds(coordinate, voxelSize)))
+                {
+                    LastVisibilityFrustumCount++;
+                    if (!currentGenerationInFlight) PromoteVisibleDirty(coordinate);
+                    if (!ready) MissingVisibleCount++;
+                }
+                if (ready)
+                {
+                    entry.LastUsedFrame = frame;
+                    _visible.Add(entry);
+                }
+                return new CoordinateVisibility(ready, currentReady || currentEmpty, true);
+            }
+            // A remaining legacy CPU entry still uses its original per-camera contract.
+            if (_collectGpuCandidates)
+                geometry = GeometryUtility.TestPlanesAABB(frustumPlanes, ChunkWorldBounds(coordinate, voxelSize)) ? (byte)2 : (byte)1;
 
             if (geometry != 2) return new CoordinateVisibility(false, true);
             LastVisibilityFrustumCount++;
@@ -3857,6 +3888,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 _entries.Add(_build.Coordinate, entry);
             }
             entry.PublishGpuPaged(handle);
+            _readySetVersion++;
             entry.LastUsedFrame = frame;
             entry.SourceVersion = _build.SourceVersion;
             entry.MaterialPaletteVersion = _build.MaterialPaletteVersion;
@@ -3897,6 +3929,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     RemoveEntry(_build.Coordinate);
                 }
                 _emptyVersions[_build.Coordinate] = _build.SourceVersion;
+                _readySetVersion++;
                 if (SourceStep == FeaturePreservingFallbackStep)
                     Step4FalseEmptyDiagnostics.RecordReadyEmptyPublication(
                         _build.Coordinate, _build.HasOwnedSolid,
