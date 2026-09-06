@@ -101,6 +101,19 @@ per-window timings and caveats; no full-coverage or performance acceptance. Reas
 and live publication with corrected layouts before implementing compression/recovery changes.
 
 
+Corrected-layout replay `layout-coverage-trace/` completed180s, exit0,11 screenshots. At60s,
+538/538 visible handles were live-ready (491 nonempty draws),7454 vertex pages remained and
+zero failures occurred. At120s, only45/69 visible handles were live-ready,2 pages remained,
+and138 failures had accumulated. At165s,171/172 were ready,1 page remained,273 failures.
+Batch logs through175s contain1345 Ready and290 Exhausted results. Thus traversal pressure
+and lost retry are real even after layout repair. G10/G12 next require explicit outcomes,
+safe reclamation and retry. Existing parser/retry branch are disconnected; CPU-arena relief does
+not observe GPU failures. Resolve any asynchronous render-control status-channel contract in the
+active plan before implementation, preserving the no-blocking/no-geometry-readback constraints.
+Temporary readbacks archived/removed; `diagnostic-summary.json` retains exact snapshots. Visual
+classification remains **unacceptable**, including missing ground and far/water defects.
+
+
 
 ## 1. Get the actual GPU path running now
 
