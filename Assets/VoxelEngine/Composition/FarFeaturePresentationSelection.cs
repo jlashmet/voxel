@@ -281,6 +281,13 @@ namespace VoxelEngine.Composition
                     _cache[bake.SourceId] = cached;
                 }
 
+                // Modifiers describe where existing cells are repainted/carved, not a solid
+                // object. Passing null geometry to the renderer invokes its legacy box fixture
+                // fallback and turns those non-occupying volumes into visible walls.
+                // Keep the canonical bake and its application to the real terrain/structures;
+                // only additive geometry can own a standalone semantic surface instance.
+                if (cached.Geometry == null) continue;
+
                 _instances.Add(new FarFeatureInstance(
                     bake.SourceId,
                     position,

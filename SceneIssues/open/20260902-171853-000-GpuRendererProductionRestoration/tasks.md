@@ -284,6 +284,25 @@ camera-ray/proxy intersections, distinguishing geometry, transform/submission an
 These subsystem-isolation runs are excluded from visual/performance acceptance. Harness changes
 provide orchestration only; no production geometry or replacement validation scene is introduced.
 
+Phantom modifier-volume fix: `obstruction-ray-trace/` completed180s/12 captures. Exact submitted
+mesh ray hits E6C05222E216258F at0.489m at150s, and C3A4E584B0B74831 at0.682m at140s.
+Canonical source inspection (`obstruction-canonical.xml`,2 checks; diagnostic source retained)
+shows both are single PaintSurface boxes, with no additive occupancy. GeometryFor returned null,
+but the adapter still emitted instances that invoked the renderer's fallback box. The adapter now
+excludes standalone instances without additive geometry, preserving canonical modifier sources
+and their application to real cells. Three generic PaintSurface/PaintSolid/Carve regressions fail
+before and pass after; all5 cache/selection checks pass (`modifier-proxy-before/after.xml`).
+Normal full-content `modifier-proxy-showcase/` completed180s/12 captures, exit0/no exceptions or
+transaction rejections. Reviewed149.8s confirms phantom walls are gone. Terrain seams/aliasing,
+near gaps and coarse scenery remain **unacceptable**. A new Composition-owned far-only production
+consumer uses the real Showcase catalogue, clipmap, adapter and renderer. First module run lacked
+MainCamera tagging, leaving clipmap invisible; that fixture defect was corrected. Final28s run
+(`modifier-proxy-module-camera/`) passed7 captures,110 solids and1371 canonical modifier sources.
+Reviewed24s confirms production terrain and no modifier boxes; coarse far buildings, weak material
+separation and terrain aliasing remain prototype/blockout quality. Improve these shared production
+systems before final scene acceptance. The initial module is not accepted visual evidence.
+No final visual, CPU-removal or performance acceptance.
+
 ## 3. Make publication, residency and lifetime reliable
 
 - [ ] **G10 — Make completion and publication explicit and two-phase.** Pending Allocate/Write may become live only through successful Commit; `Exhausted`, `Stale`, `TooLarge`, cancellation and failed writes Abort exactly once. Preserve prior live geometry until a valid replacement commits. Separate renderer build generation from storage/mirror source generation. Retest deterministic duplicate-command coalescing and cancel/release/reacquire behavior.

@@ -7,6 +7,27 @@ namespace VoxelEngine.Composition.Tests
 {
     public sealed class FarFeaturePresentationCacheTests
     {
+        [TestCase(PrimitiveMode.PaintSurface)]
+        [TestCase(PrimitiveMode.PaintSolid)]
+        [TestCase(PrimitiveMode.Carve)]
+        public void ModifierOnlyFeaturesNeverBecomeFallbackSolidVolumes(PrimitiveMode mode)
+        {
+            var modifier = new FeaturePresentationBake(1, 10, default, int3.zero, 0,
+                int3.zero, new int3(100), new[] { new Primitive {
+                    Shape = PrimitiveShape.Box, Mode = mode, A = int3.zero,
+                    B = new int3(100), Material = 1 } });
+            var source = new Source { Bakes = new[] { modifier, Bake(2, 20) } };
+            var adapter = Adapter(source);
+            var instances = adapter.Query(float3.zero, 1000f);
+            Assert.That(instances.Count, Is.EqualTo(1),
+                "A paint/carve volume has no additive surface for a standalone far mesh.");
+            Assert.That(instances[0].StableId, Is.EqualTo(2));
+            Assert.That(instances[0].Geometry, Is.Not.Null);
+            Assert.That(source.TryGet(1, out var retained), Is.True,
+                "Presentation filtering must preserve the canonical modifier source.");
+            Assert.That(retained, Is.SameAs(modifier));
+        }
+
         [Test]
         public void CameraQueriesReuseGeometryUntilItsSourceRevisionChanges()
         {

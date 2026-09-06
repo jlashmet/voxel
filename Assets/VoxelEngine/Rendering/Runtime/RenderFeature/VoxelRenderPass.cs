@@ -390,7 +390,7 @@ namespace VoxelEngine.Rendering.Runtime
             data.PagedIndirectArgs = gpuDraw?.ActiveIndirectArgs;
             data.VisiblePagedCount = _scheduler.VisibleGpuHandles.Count;
             _hasFarReplacement ??= _scheduler.HasCurrentReplacement;
-            ProceduralFarFeatureRenderer.PrepareSurfaceConsumers(_farSurfaceConsumers, _hasFarReplacement);
+            ProceduralFarFeatureRenderer.PrepareSurfaceConsumers(_farSurfaceConsumers, _hasFarReplacement, camera);
             data.FarSurfaceConsumers = _farSurfaceConsumers;
             data.WaterEntries = _waterDrawEntries;
             data.WaterEntryCount = waterVisible.Count;

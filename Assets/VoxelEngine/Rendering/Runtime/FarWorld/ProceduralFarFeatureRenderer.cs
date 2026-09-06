@@ -54,14 +54,14 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
         private void OnDisable() => s_SurfaceConsumers.Remove(this);
 
         internal static void PrepareSurfaceConsumers(List<ProceduralFarFeatureRenderer> destination,
-                                                      Func<Bounds, bool> hasReplacement)
+                                                      Func<Bounds, bool> hasReplacement, Camera camera = null)
         {
             destination.Clear();
             foreach (var renderer in s_SurfaceConsumers)
             {
                 if (renderer == null || !renderer.isActiveAndEnabled
                     || !renderer.UseSurfaceReplacementHandoff) continue;
-                renderer.RebuildBatches(renderer._sourceInstances, hasReplacement);
+                renderer.RebuildBatches(renderer._sourceInstances, hasReplacement, camera);
                 destination.Add(renderer);
             }
         }
@@ -95,12 +95,17 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
         }
 
         private void RebuildBatches(IReadOnlyList<FarFeatureInstance> instances,
-                                    Func<Bounds, bool> hasReplacement)
+                                    Func<Bounds, bool> hasReplacement, Camera camera = null)
         {
             ClearBatches();
             NearReplacementCount = 0;
             bool trace = s_TraceHandoff && hasReplacement != null && Time.unscaledTime >= _nextHandoffTrace;
             int traced = 0;
+            Ray viewRay = trace && camera != null
+                ? camera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f)) : default;
+            float closest = float.PositiveInfinity;
+            ulong closestId = 0;
+            string closestKey = null;
             if (trace) _nextHandoffTrace = Time.unscaledTime + 10f;
             for (int i = 0; i < instances.Count; i++)
             {
@@ -125,12 +130,60 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
                     _batches.Add(key, matrices);
                 }
 
-                matrices.Add(Matrix4x4.TRS(
+                Matrix4x4 transform = Matrix4x4.TRS(
                     ToVector3(instance.Position),
                     ToQuaternion(instance.Rotation),
-                    ToVector3(instance.Scale)));
+                    ToVector3(instance.Scale));
+                matrices.Add(transform);
+                if (trace && camera != null)
+                {
+                    Mesh mesh = GetMesh(instance.GeometryKey);
+                    float distance = TraceMeshDistance(mesh, transform, viewRay);
+                    if (distance < closest)
+                    {
+                        closest = distance;
+                        closestId = instance.StableId;
+                        closestKey = instance.GeometryKey;
+                    }
+                }
                 _instanceCount++;
             }
+            if (trace && camera != null)
+                Debug.Log($"FAR HANDOFF ray id={closestId:X16} key={closestKey} distance={closest} "
+                    + $"origin={viewRay.origin:F3} direction={viewRay.direction:F3} retained={_instanceCount} t={Time.unscaledTime:0.0}");
+        }
+
+        // Opt-in diagnostic over the exact submitted CPU mesh/transform. It never drives
+        // visibility, collision, generation or authoritative state.
+        private static float TraceMeshDistance(Mesh mesh, Matrix4x4 transform, Ray worldRay)
+        {
+            Matrix4x4 inverse = transform.inverse;
+            Vector3 origin = inverse.MultiplyPoint3x4(worldRay.origin);
+            Vector3 direction = inverse.MultiplyVector(worldRay.direction);
+            var ray = new Ray(origin, direction);
+            if (!mesh.bounds.IntersectRay(ray)) return float.PositiveInfinity;
+            Vector3[] vertices = mesh.vertices;
+            int[] indices = mesh.triangles;
+            float nearest = float.PositiveInfinity;
+            for (int i = 0; i < indices.Length; i += 3)
+            {
+                Vector3 a = vertices[indices[i]];
+                Vector3 edge1 = vertices[indices[i + 1]] - a;
+                Vector3 edge2 = vertices[indices[i + 2]] - a;
+                Vector3 p = Vector3.Cross(direction, edge2);
+                float determinant = Vector3.Dot(edge1, p);
+                if (determinant <= 1e-10f) continue;
+                float reciprocal = 1f / determinant;
+                Vector3 offset = origin - a;
+                float u = Vector3.Dot(offset, p) * reciprocal;
+                if (u < 0f || u > 1f) continue;
+                Vector3 q = Vector3.Cross(offset, edge1);
+                float v = Vector3.Dot(direction, q) * reciprocal;
+                if (v < 0f || u + v > 1f) continue;
+                float distance = Vector3.Dot(edge2, q) * reciprocal;
+                if (distance >= 0f && distance < nearest) nearest = distance;
+            }
+            return nearest;
         }
 
         public void Clear()
