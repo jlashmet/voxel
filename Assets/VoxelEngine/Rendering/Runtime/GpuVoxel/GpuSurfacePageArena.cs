@@ -169,6 +169,18 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             s_activeArena.CommitCurrentPending(frame);
         }
 
+        internal static void CommitPendingForActiveArena(int handle, ulong generation, int frame)
+        {
+            if (s_activeArena == null || s_activeArena._disposed) return;
+            s_activeArena.CommitPending(handle, generation, frame);
+        }
+
+        internal static void AbortPendingForActiveArena(int handle, ulong generation, int frame)
+        {
+            if (s_activeArena == null || s_activeArena._disposed) return;
+            s_activeArena.AbortPending(handle, generation, frame);
+        }
+
         private void CommitCurrentPending(int frame)
         {
             SetEpoch(frame);
