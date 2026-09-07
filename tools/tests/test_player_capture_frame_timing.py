@@ -21,7 +21,8 @@ class PlayerCaptureFrameTimingTests(unittest.TestCase):
             (root / scene).write_text("%YAML 1.1\n", encoding="utf-8")
             wrapper = root / "tools/unity-run.sh"
             wrapper.write_text(
-                '#!/usr/bin/env bash\nprintf "%s\\0" "$@" > "$BUILD_ARG_CAPTURE"\nexit 71\n',
+                '#!/usr/bin/env bash\nprintf "%s\\0" "$@" > "$BUILD_ARG_CAPTURE"\n'
+                'printf "%s\\n" "${UNITY_MAX_RSS_MB:-}" > "$BUILD_RSS_CAPTURE"\nexit 71\n',
                 encoding="utf-8")
             wrapper.chmod(0o755)
             # Do not inspect or wait for the developer's real editor in a tooling unit test.
@@ -29,9 +30,11 @@ class PlayerCaptureFrameTimingTests(unittest.TestCase):
             pgrep.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
             pgrep.chmod(0o755)
             captured = root / "build-arguments.bin"
+            captured_rss = root / "build-rss.txt"
             environment = dict(os.environ)
             environment["PATH"] = str(root / "bin") + os.pathsep + environment.get("PATH", "")
             environment["BUILD_ARG_CAPTURE"] = str(captured)
+            environment["BUILD_RSS_CAPTURE"] = str(captured_rss)
             command = ["bash", str(SCRIPT), "--unity", shutil.which("true"),
                        "--output", str(root / "evidence"), "--run-seconds", "30"]
             if scene_issue:
@@ -49,6 +52,8 @@ class PlayerCaptureFrameTimingTests(unittest.TestCase):
                 self.assertFalse(captured.exists(), "Invalid inputs must not invoke the build")
                 return []
             self.assertTrue(captured.is_file(), "The existing Unity wrapper must receive the build")
+            self.assertTrue(captured_rss.is_file(), "The capture harness must bound Unity RSS")
+            self.assertEqual(captured_rss.read_text(encoding="utf-8").strip(), "14336")
             args = captured.read_bytes().decode("utf-8").rstrip("\0").split("\0")
             self.assertEqual(args[args.index("-executeMethod") + 1],
                              "VoxelEngine.Showcase.Editor.ShowcasePlayerBuild.Build")
