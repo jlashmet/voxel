@@ -1,10 +1,11 @@
-using System;
 using System.Collections.Generic;
-using Game.WorldBuilder.Api;
 using Game.WorldBuilder.Voxel;
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
+using UnityEngine;
+using VoxelEngine.Composition;
+using VoxelEngine.Storage.Runtime;
 using VoxelEngine.Showcase;
 using VoxelEngine.Structures.Api;
 using VoxelEngine.Structures.Runtime;
@@ -18,139 +19,119 @@ namespace VoxelEngine.Tests.PlayMode
         private const byte PathMaterial = 13;
         private const byte DragonMaterial = 9;
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void StartupBakeContainsCurrentLandmarkSamples(bool summit)
+        {
+            TextAsset asset = Resources.Load<TextAsset>(ShowcaseWorldBakeCodec.ResourcePath);
+            Assert.NotNull(asset);
+            ShowcaseWorldBake bake = ShowcaseWorldBakeCodec.Deserialize(asset.bytes);
+            MountainLandmarkSpec spec = ShowcaseMountainDragonLayout.CreateLandmark(bake.Seed);
+            int3 sample = spec.Origin + new int3(spec.CentreLocal, spec.MountainHeight / 2, spec.CentreLocal);
+            if (summit)
+                sample.y = spec.Origin.y + spec.MountainHeight + spec.PlaceholderSize;
+            int3 regionCoordinate = sample >> 9;
+            ShowcaseWorldBakedRegion? record = null;
+            foreach (ShowcaseWorldBakedRegion region in bake.Regions)
+                if (region.Coord.Equals(regionCoordinate)) { record = region; break; }
+            Assert.IsTrue(record.HasValue, $"Landmark sample {sample} must be inside the baked startup region set.");
+            byte[] payload = ShowcaseWorldBakeCodec.DecodeRegionPayload(record.Value);
+            Assert.IsTrue(SemanticRegionSnapshotCodec.TryGetMixedBrickCount(payload, out int mixed));
+            using var storage = VoxelEngineBootstrap.CreateStorage(1, System.Math.Max(1, mixed));
+            Assert.IsTrue(storage.SnapshotMutations.TryApplySemanticSnapshot(
+                regionCoordinate, payload, record.Value.SemanticHash, createIfMissing: true));
+            storage.PublishAllResidentRegions();
+            Assert.IsTrue(storage.Reads.TryAcquireRegion(regionCoordinate, out var view));
+            Assert.IsTrue(view.TryReadCell(sample & 511, out var cell));
+            Assert.IsTrue(cell.IsSolid,
+                $"Current landmark sample {sample} is air in the startup bake. Far catalogue and detailed world disagree.");
+        }
+
         [Test]
         public void MountainPathDragonAndProximityFlowUseProductionWorldBuilder()
         {
-            MountainLandformSurface surface = ShowcaseMountainDragonLayout.CreateSurface(Seed);
-            MountainLandformSpec spec = surface.Spec;
-            MountainLandformMass summit = surface.GetMass(0);
-
-            FeatureCatalogue mountainCatalogue = WorldBuilderMountainLandformCatalogue.Build(
-                surface,
+            MountainLandmarkSpec spec = ShowcaseMountainDragonLayout.CreateLandmark(Seed);
+            FeatureCatalogue mountainCatalogue = WorldBuilderMountainLandmarkCatalogue.Build(
+                in spec,
                 MountainMaterial,
+                PathMaterial,
+                DragonMaterial,
                 Allocator.Temp);
             try
             {
                 int mountainId = FindDefinition(
                     mountainCatalogue,
-                    WorldBuilderMountainLandformCatalogue.LandformDefinitionName);
+                    WorldBuilderMountainLandmarkCatalogue.LandformDefinitionName);
+                int dragonId = FindDefinition(
+                    mountainCatalogue,
+                    WorldBuilderMountainLandmarkCatalogue.PlaceholderDefinitionName);
                 Assert.That(mountainId, Is.GreaterThanOrEqualTo(0));
+                Assert.That(dragonId, Is.GreaterThanOrEqualTo(0));
 
                 FeatureDefinition mountain = mountainCatalogue.Definitions[mountainId];
                 Assert.That(mountain.Kind, Is.EqualTo(FeatureKind.Landform));
-                int authoredDiameter = 2 * Math.Max(spec.RadiusXdm, spec.RadiusZdm);
-                int realizedDiameter = Math.Max(mountain.Footprint.x, mountain.Footprint.z);
-                Assert.That(authoredDiameter, Is.GreaterThanOrEqualTo(1000),
+                Assert.That(mountain.Footprint.x, Is.GreaterThanOrEqualTo(1000),
                     "The authored landmark must remain substantial, not collapse into a hill-sized prop.");
-                Assert.That(realizedDiameter * 5, Is.GreaterThanOrEqualTo(authoredDiameter * 4),
-                    "The realized mountain must occupy at least 80% of its authored major-axis diameter.");
                 Assert.That(mountain.Footprint.x, Is.LessThanOrEqualTo(FeatureBudget.MaxFootprintVoxels));
-                Assert.That(mountain.Footprint.z, Is.LessThanOrEqualTo(FeatureBudget.MaxFootprintVoxels));
 
                 List<Primitive> mountainPrimitives = Evaluate(mountainCatalogue, mountainId, Seed);
-                int frustumCount = mountainPrimitives.FindAll(p => p.Shape == PrimitiveShape.Frustum).Count;
-                Assert.That(frustumCount, Is.EqualTo(surface.MassCount),
-                    "The production landform catalogue must realize the authoritative mountain masses.");
-                Assert.That(surface.HeightAtDm(summit.CentreXdm, summit.CentreZdm), Is.EqualTo(summit.TopYdm));
+                Primitive frustum = mountainPrimitives.Find(p => p.Shape == PrimitiveShape.Frustum);
+                Assert.That(frustum.Shape, Is.EqualTo(PrimitiveShape.Frustum));
+                Assert.That(frustum.B.y, Is.EqualTo(spec.Origin.y + spec.MountainHeight));
+
+                List<Primitive> ramps = mountainPrimitives.FindAll(p => p.Shape == PrimitiveShape.Ramp);
+                ramps.Sort((a, b) => a.A.y.CompareTo(b.A.y));
+                Assert.That(ramps.Count, Is.GreaterThanOrEqualTo(spec.SwitchbackCount + 1));
+                Assert.That(ramps[0].A.y, Is.EqualTo(spec.Origin.y));
+                Assert.That(ramps[ramps.Count - 1].B.y, Is.EqualTo(spec.Origin.y + spec.MountainHeight));
+
+                for (int i = 0; i < ramps.Count; i++)
+                {
+                    Primitive ramp = ramps[i];
+                    int run = ramp.Axis == 0 ? ramp.B.x - ramp.A.x + 1
+                            : ramp.Axis == 2 ? ramp.B.z - ramp.A.z + 1
+                            : ramp.B.y - ramp.A.y + 1;
+                    int rise = ramp.B.y - ramp.A.y + 1;
+                    Assert.That(rise * 4, Is.LessThanOrEqualTo(run),
+                        "Every ascent segment must remain shallow enough for normal movement.");
+
+                    if (i == 0) continue;
+                    Primitive previous = ramps[i - 1];
+                    Assert.That(ramp.A.y, Is.LessThanOrEqualTo(previous.B.y + 1),
+                        "Switchbacks may not introduce a vertical jump between ascent segments.");
+                    Assert.That(HasPathLanding(mountainPrimitives, previous, ramp), Is.True,
+                        "Each change of direction must be joined by a path-surface landing.");
+                }
+
+                Assert.That(HasSummitConnection(mountainPrimitives, in spec), Is.True,
+                    "The final ascent must join the usable summit rather than stop below it.");
+
+                List<Primitive> dragonPrimitives = Evaluate(mountainCatalogue, dragonId, Seed);
+                Assert.That(dragonPrimitives.Count, Is.EqualTo(1));
+                Primitive cube = dragonPrimitives[0];
+                Assert.That(cube.Shape, Is.EqualTo(PrimitiveShape.Box));
+                Assert.That(cube.Material, Is.EqualTo(DragonMaterial),
+                    "The placeholder dragon must use the authored red showcase material.");
+                int3 cubeSize = cube.B - cube.A + 1;
+                Assert.That(math.all(cubeSize == new int3(
+                    spec.PlaceholderSize, spec.PlaceholderSize, spec.PlaceholderSize)), Is.True);
+                Assert.That(cube.A.y, Is.EqualTo(spec.Origin.y + spec.MountainHeight + 1),
+                    "The placeholder must sit directly on top of the authored summit.");
             }
             finally
             {
                 mountainCatalogue.Dispose();
             }
 
-            WorldRoadNetwork ascent = ShowcaseMountainDragonLayout.CreateAscentNetwork(Seed, surface);
-            Assert.That(ascent.TryGetRoute(
-                ShowcaseMountainDragonLayout.AscentRouteId,
-                out WorldRoadNetworkRoute route), Is.True);
-            Assert.That(route.Road.IsResolved, Is.True, route.Road.FailureReason);
-            Assert.That(route.Road.Points.Count, Is.GreaterThan(20));
-            Assert.That(route.Road.Points[0].Xdm, Is.EqualTo(ShowcaseMountainDragonLayout.EntryXdm).Within(40));
-            Assert.That(route.Road.Points[0].Zdm, Is.EqualTo(ShowcaseMountainDragonLayout.EntryZdm).Within(40));
-
-            for (int i = 1; i < route.Road.Points.Count; i++)
-            {
-                ResolvedWorldRoadPoint a = route.Road.Points[i - 1];
-                ResolvedWorldRoadPoint b = route.Road.Points[i];
-                int horizontal = ResolverPlanarDistance(a, b);
-                int rise = Math.Abs(b.Ydm - a.Ydm);
-                Assert.That((long)rise * 1000L,
-                    Is.LessThanOrEqualTo((long)horizontal * route.Road.Intent.Profile.MaximumGradePermille),
-                    $"Resolved production ascent segment {i - 1} exceeds the configured grade contract.");
-            }
-
-            ResolvedWorldRoadPoint summitApproach = ShowcaseMountainDragonLayout.SummitApproach(ascent);
-            Assert.That(summitApproach.Xdm, Is.EqualTo(summit.CentreXdm).Within(40));
-            Assert.That(summitApproach.Zdm, Is.EqualTo(summit.CentreZdm).Within(40));
-            Assert.That(summitApproach.Ydm, Is.GreaterThan(spec.OriginYdm));
-
-            FeatureCatalogue roadCatalogue = WorldBuilderRoadVoxelCatalogue.Build(
-                ascent,
-                PathMaterial,
-                Allocator.Temp);
-            try
-            {
-                int terrainCorridorCount = 0;
-                for (int definitionIndex = 0; definitionIndex < roadCatalogue.Definitions.Length; definitionIndex++)
-                {
-                    FeatureDefinition definition = roadCatalogue.Definitions[definitionIndex];
-                    int end = definition.ProgramOffset + definition.ProgramLength;
-                    for (int pc = definition.ProgramOffset; pc < end;)
-                    {
-                        ShapeOp op = (ShapeOp)roadCatalogue.Program[pc];
-                        if (op == ShapeOp.EmitTerrainCorridor) terrainCorridorCount++;
-                        Assert.That(op, Is.Not.EqualTo(ShapeOp.EmitRamp),
-                            "Production ascent must lower through the shared terrain-corridor path, not legacy ramps.");
-                        int length = ShapeOps.InstructionLength(op);
-                        Assert.That(length, Is.GreaterThan(0));
-                        pc += length;
-                        if (op == ShapeOp.End) break;
-                    }
-                }
-                Assert.That(terrainCorridorCount, Is.GreaterThan(0));
-            }
-            finally
-            {
-                roadCatalogue.Dispose();
-            }
-
-            FeatureCatalogue placeholderCatalogue = WorldBuilderMountainSummitPlaceholderCatalogue.Build(
-                surface,
-                ShowcaseMountainDragonLayout.PlaceholderSize,
-                DragonMaterial,
-                Allocator.Temp);
-            try
-            {
-                int dragonId = FindDefinition(
-                    placeholderCatalogue,
-                    WorldBuilderMountainSummitPlaceholderCatalogue.DefinitionName);
-                Assert.That(dragonId, Is.GreaterThanOrEqualTo(0));
-                List<Primitive> dragonPrimitives = Evaluate(placeholderCatalogue, dragonId, Seed);
-                Assert.That(dragonPrimitives.Count, Is.EqualTo(1));
-                Primitive cube = dragonPrimitives[0];
-                Assert.That(cube.Shape, Is.EqualTo(PrimitiveShape.Box));
-                Assert.That(cube.Material, Is.EqualTo(DragonMaterial));
-                int3 cubeSize = cube.B - cube.A + 1;
-                Assert.That(math.all(cubeSize == new int3(
-                    ShowcaseMountainDragonLayout.PlaceholderSize,
-                    ShowcaseMountainDragonLayout.PlaceholderSize,
-                    ShowcaseMountainDragonLayout.PlaceholderSize)), Is.True);
-                Assert.That(cube.A.y, Is.EqualTo(summit.TopYdm + 1),
-                    "The placeholder must sit directly on the authoritative summit crest.");
-            }
-            finally
-            {
-                placeholderCatalogue.Dispose();
-            }
-
             FeatureCatalogue productionCatalogue = ShowcaseCatalogue.Build(Seed, Allocator.Temp);
             try
             {
                 Assert.That(
-                    FindDefinition(productionCatalogue, WorldBuilderMountainLandformCatalogue.LandformDefinitionName),
+                    FindDefinition(productionCatalogue, WorldBuilderMountainLandmarkCatalogue.LandformDefinitionName),
                     Is.GreaterThanOrEqualTo(0));
                 int productionDragonId = FindDefinition(
                     productionCatalogue,
-                    WorldBuilderMountainSummitPlaceholderCatalogue.DefinitionName);
+                    WorldBuilderMountainLandmarkCatalogue.PlaceholderDefinitionName);
                 Assert.That(productionDragonId, Is.GreaterThanOrEqualTo(0));
                 List<Primitive> productionDragon = Evaluate(productionCatalogue, productionDragonId, Seed);
                 Assert.That(productionDragon.Count, Is.EqualTo(1));
@@ -163,52 +144,21 @@ namespace VoxelEngine.Tests.PlayMode
             }
 
             var encounter = new MountainDragonEncounterRuntime(Seed);
-            MountainLandformSpec landmark = encounter.Landmark;
-            ResolvedWorldRoadPoint encounterSummit = ShowcaseMountainDragonLayout.SummitApproach(encounter.Ascent);
-            Assert.That(encounter.Update(landmark.OriginXdm - 200, landmark.OriginZdm - 200, 16), Is.EqualTo(0));
+            MountainLandmarkSpec landmark = encounter.Landmark;
+            Assert.That(encounter.Update(landmark.Origin.x - 200, landmark.Origin.z - 200, 16), Is.EqualTo(0));
             Assert.That(encounter.ActiveDialogue, Is.Null);
             Assert.That(
-                encounter.Update(encounterSummit.Xdm, encounterSummit.Zdm, 16),
+                encounter.Update(landmark.SummitApproachWorldX, landmark.SummitApproachWorldZ, 16),
                 Is.EqualTo(1));
             Assert.That(encounter.HasTriggered, Is.True);
             Assert.That(encounter.ActiveDialogue, Is.EqualTo("Hello, I'm Mr. Dragon."));
 
-            encounter.Update(landmark.OriginXdm - 200, landmark.OriginZdm - 200, 6000);
+            encounter.Update(landmark.Origin.x - 200, landmark.Origin.z - 200, 6000);
             Assert.That(encounter.ActiveDialogue, Is.Null);
             Assert.That(
-                encounter.Update(encounterSummit.Xdm, encounterSummit.Zdm, 16),
+                encounter.Update(landmark.SummitApproachWorldX, landmark.SummitApproachWorldZ, 16),
                 Is.EqualTo(0),
                 "The one-shot proximity source must not restart the completed cutscene.");
-        }
-
-        private static int ResolverPlanarDistance(ResolvedWorldRoadPoint a, ResolvedWorldRoadPoint b)
-        {
-            long dx = (long)b.Xdm - a.Xdm;
-            long dz = (long)b.Zdm - a.Zdm;
-            return Math.Max(1, IntegerSqrtRounded(dx * dx + dz * dz));
-        }
-
-        private static int IntegerSqrtRounded(long value)
-        {
-            if (value <= 0) return 0;
-            long low = 1;
-            long high = Math.Min(value, 3037000499L);
-            while (low <= high)
-            {
-                long middle = low + ((high - low) >> 1);
-                if (middle <= value / middle) low = middle + 1;
-                else high = middle - 1;
-            }
-
-            long root = high;
-            long lowerError = value - root * root;
-            long next = root + 1;
-            if (next <= 3037000499L)
-            {
-                long upperError = next * next - value;
-                if (upperError <= lowerError) root = next;
-            }
-            return root > int.MaxValue ? int.MaxValue : (int)root;
         }
 
         private static List<Primitive> Evaluate(FeatureCatalogue catalogue, int definitionId, uint seed)
@@ -236,6 +186,35 @@ namespace VoxelEngine.Tests.PlayMode
             var copy = new List<Primitive>(primitives.Length);
             for (int i = 0; i < primitives.Length; i++) copy.Add(primitives[i]);
             return copy;
+        }
+
+        private static bool HasPathLanding(List<Primitive> primitives, Primitive from, Primitive to)
+        {
+            int x = from.Direction < 0 ? from.A.x : from.B.x;
+            int y = from.B.y;
+            for (int i = 0; i < primitives.Count; i++)
+            {
+                Primitive p = primitives[i];
+                if (p.Shape != PrimitiveShape.Box || p.Material != PathMaterial || p.A.y != y) continue;
+                if (x < p.A.x || x > p.B.x) continue;
+                bool touchesFrom = p.A.z <= from.B.z + 1 && p.B.z + 1 >= from.A.z;
+                bool touchesTo = p.A.z <= to.B.z + 1 && p.B.z + 1 >= to.A.z;
+                if (touchesFrom && touchesTo) return true;
+            }
+            return false;
+        }
+
+        private static bool HasSummitConnection(List<Primitive> primitives, in MountainLandmarkSpec spec)
+        {
+            int summitSouth = spec.Origin.z + spec.CentreLocal - spec.SummitRadius;
+            int summitY = spec.Origin.y + spec.MountainHeight;
+            for (int i = 0; i < primitives.Count; i++)
+            {
+                Primitive p = primitives[i];
+                if (p.Shape != PrimitiveShape.Box || p.Material != PathMaterial || p.A.y != summitY) continue;
+                if (p.B.z + 1 >= summitSouth) return true;
+            }
+            return false;
         }
 
         private static int FindDefinition(FeatureCatalogue catalogue, string name)
