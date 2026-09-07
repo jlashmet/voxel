@@ -4,7 +4,7 @@ on:
   push:
     branches: ['chatgpt-image-test-20260907']
     paths:
-      - 'test-assets/texture-2k.transport.b64'
+      - 'test-assets/texture-2k.parts/COMPLETE'
 
 permissions:
   contents: write
@@ -19,21 +19,25 @@ jobs:
           clean: true
           fetch-depth: 0
 
-      - name: Decode transport seed
+      - name: Decode chunked transport seed
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
           import base64, hashlib
-          src = Path('test-assets/texture-2k.transport.b64')
-          raw = base64.b64decode(src.read_text(encoding='utf-8').strip(), validate=True)
+          root = Path('test-assets/texture-2k.parts')
+          parts = sorted(root.glob('part-*.b64'))
+          if len(parts) != 4:
+              raise SystemExit(f'expected 4 chunks, found {len(parts)}')
+          text = ''.join(p.read_text(encoding='utf-8').strip() for p in parts)
+          raw = base64.b64decode(text, validate=True)
           expected = '3ed3385177d2ecd8532969b283fe9add9a5b4757de79e1fbc2c3d43027942af2'
           got = hashlib.sha256(raw).hexdigest()
           if got != expected:
               raise SystemExit(f'transport SHA mismatch: {got}')
           Path('/tmp/chatgpt-texture-seed.jpg').write_bytes(raw)
-          print(f'decoded {len(raw)} bytes, sha256={got}')
+          print(f'decoded {len(raw)} bytes from {len(parts)} chunks, sha256={got}')
           PY
 
       - name: Build 2048 texture
