@@ -22,6 +22,7 @@ using Game.SessionPresentation.Api;
 using Game.Sessions.Api;
 using Game.Vitality.Api;
 using Game.WorldBuilder.Api;
+using Game.WorldBuilder.Runtime;
 using Game.WorldObjects.Api;
 using Game.WorldObjects.Runtime;
 using MountingForce.WorldGen;
@@ -97,7 +98,7 @@ namespace Game.Composition.Kentridge.Playable.Validation
 
         private void OnEnable()
         {
-            if (!Application.isPlaying) return;
+            if (!UnityEngine.Application.isPlaying) return;
             try
             {
                 _role = Environment.GetEnvironmentVariable("VOXEL_VALIDATION_ROLE") ?? string.Empty;
@@ -224,56 +225,50 @@ namespace Game.Composition.Kentridge.Playable.Validation
         private void TickMilestones(Game.Application.Runtime.ApplicationFlowCoordinator application)
         {
             if (!application.TryCapturePartyScreen(out PartyScreenPresentationSnapshot party)) return;
-            if (!_joinedReported)
+            if (!_joinedReported && TryFindLocal(party, out PartyMemberPresentationSnapshot local))
             {
-                PartyMemberPresentationSnapshot local = FindLocal(party);
-                if (local != null)
+                _joinedReported = true;
+                Emit(new Milestone
                 {
-                    _joinedReported = true;
-                    Emit(new Milestone
-                    {
-                        name = "party-joined",
-                        role = _role,
-                        sessionId = party.SessionId.Value,
-                        memberId = local.MemberId.Value,
-                        characterId = local.CharacterId.Value,
-                        slot = local.Slot.Value,
-                        rosterCount = party.Members.Count
-                    });
-                }
+                    name = "party-joined",
+                    role = _role,
+                    sessionId = party.SessionId.Value,
+                    memberId = local.MemberId.Value,
+                    characterId = local.CharacterId.Value,
+                    slot = local.Slot.Value,
+                    rosterCount = party.Members.Count
+                });
             }
 
             ApplicationFlowSnapshot flow = application.Snapshot;
             bool readyForTopology = flow.Lifecycle == ApplicationLifecycle.InGame &&
                                     flow.GameplayReady &&
                                     party.Members.Count == 3;
-            if (!_topologyReported && readyForTopology)
+            if (!_topologyReported && readyForTopology &&
+                TryFindLocal(party, out PartyMemberPresentationSnapshot localReady) &&
+                localReady.GameplayReady &&
+                localReady.Connection == MemberConnectionPresentationState.Connected)
             {
-                PartyMemberPresentationSnapshot localReady = FindLocal(party);
-                if (localReady != null && localReady.GameplayReady &&
-                    localReady.Connection == MemberConnectionPresentationState.Connected)
-                {
-                    string signature = TopologySignature(party);
-                    const string expected =
-                        "0=gamesystem25-topology:member:1/kentridge-player-1;" +
-                        "1=gamesystem25-topology:member:2/kentridge-player-2;" +
-                        "2=gamesystem25-topology:member:3/kentridge-player-3";
-                    if (!string.Equals(signature, expected, StringComparison.Ordinal))
-                        throw new InvalidOperationException("Unexpected durable topology: " + signature);
+                string signature = TopologySignature(party);
+                const string expected =
+                    "0=gamesystem25-topology:member:1/kentridge-player-1;" +
+                    "1=gamesystem25-topology:member:2/kentridge-player-2;" +
+                    "2=gamesystem25-topology:member:3/kentridge-player-3";
+                if (!string.Equals(signature, expected, StringComparison.Ordinal))
+                    throw new InvalidOperationException("Unexpected durable topology: " + signature);
 
-                    _topologyReported = true;
-                    Emit(new Milestone
-                    {
-                        name = "topology-ready",
-                        role = _role,
-                        sessionId = party.SessionId.Value,
-                        memberId = localReady.MemberId.Value,
-                        characterId = localReady.CharacterId.Value,
-                        slot = localReady.Slot.Value,
-                        rosterCount = party.Members.Count,
-                        signature = signature
-                    });
-                }
+                _topologyReported = true;
+                Emit(new Milestone
+                {
+                    name = "topology-ready",
+                    role = _role,
+                    sessionId = party.SessionId.Value,
+                    memberId = localReady.MemberId.Value,
+                    characterId = localReady.CharacterId.Value,
+                    slot = localReady.Slot.Value,
+                    rosterCount = party.Members.Count,
+                    signature = signature
+                });
             }
 
             if (!_topologyReported) return;
@@ -541,8 +536,8 @@ namespace Game.Composition.Kentridge.Playable.Validation
             IGameplayReplicationReadState readState)
         {
             if (_recoveryCurrentStateReported || _role != "client-a" || _attempt <= 1) return;
-            PartyMemberPresentationSnapshot local = FindLocal(party);
-            if (local == null || local.MemberId.Value != ClientAMemberValue ||
+            if (!TryFindLocal(party, out PartyMemberPresentationSnapshot local) ||
+                local.MemberId.Value != ClientAMemberValue ||
                 local.Slot.Value != 1 ||
                 local.CharacterId != KentridgeMultiplayerCharacterRoster.CharacterIdForSlot(1))
                 throw new InvalidOperationException("Recovered client A did not preserve durable member/slot/character identity.");
@@ -646,14 +641,14 @@ namespace Game.Composition.Kentridge.Playable.Validation
                     CutsceneStageSetupDefinition.Empty,
                     new[] { CutsceneStep.Dialogue(destinationSpeaker, new CutsceneCueId("destination-conversation.dialogue")) }),
                 (scene, roles) => scene.Bind(destinationSpeaker, roles.DestinationNpc));
-            SettlementPlan settlement = KentridgeDefinition.Build(Seed);
-            KentridgeCampaignGenerationPlan generation = KentridgeCampaignSessionBootstrap.Plan(content.Blueprint, settlement);
+            AuthoredTownPlan town = WorldBuilderTownAuthoring.Author(WorldBuilderTownIds.Kentridge, Seed);
+            KentridgeCampaignGenerationPlan generation = KentridgeCampaignSessionBootstrap.Plan(content.Blueprint, town);
             _actors = new KentridgeCharacterHost(5.5f);
             PrepareForestEncounter();
             return new KentridgeSessionRuntimeGraphFactory(
                 content.Blueprint,
                 generation,
-                new KentridgeCampaignRealizationFacts(new KentridgeVoxelSiteRealizationFacts(settlement, 1)),
+                KentridgeCampaignRealizationFacts.FromVoxelGeneration(generation, 1),
                 _actors,
                 ImmediatePresentation.Instance,
                 null,
@@ -696,13 +691,16 @@ namespace Game.Composition.Kentridge.Playable.Validation
             ProtectedZones zones = default;
             var read = new RegionReadSource(in _table, in _pool);
             var mutations = new RegionMutationStore(in _table, in _pool);
+            IAuthoritativePlayerInputSink inputSink = _inputRouter != null
+                ? (IAuthoritativePlayerInputSink)_inputRouter
+                : NoInputSink.Instance;
             server.ProcessAuthoritativeTick(
                 ++_serverTick,
                 read,
                 mutations,
                 read,
                 in zones,
-                _inputRouter ?? NoInputSink.Instance);
+                inputSink);
         }
 
         private static KentridgeMultiplayerApplicationDependencies BuildApplicationDependencies() =>
@@ -715,11 +713,18 @@ namespace Game.Composition.Kentridge.Playable.Validation
                 NoAudio.Instance,
                 NoExit.Instance);
 
-        private static PartyMemberPresentationSnapshot FindLocal(PartyScreenPresentationSnapshot party)
+        private static bool TryFindLocal(
+            PartyScreenPresentationSnapshot party,
+            out PartyMemberPresentationSnapshot local)
         {
             for (int i = 0; i < party.Members.Count; i++)
-                if (party.Members[i].IsLocal) return party.Members[i];
-            return null;
+            {
+                if (!party.Members[i].IsLocal) continue;
+                local = party.Members[i];
+                return true;
+            }
+            local = default;
+            return false;
         }
 
         private static string TopologySignature(PartyScreenPresentationSnapshot party)
