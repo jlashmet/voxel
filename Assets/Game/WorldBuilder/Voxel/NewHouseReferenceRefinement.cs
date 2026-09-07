@@ -25,6 +25,7 @@ namespace Game.WorldBuilder.Voxel
             RefineFacadeDepth(a, o, in c, in p);
             RebuildReferenceOrnaments(a, o, in c, in p);
             FinishAuditElevations(a, o, in c, in p);
+            NewHouseReferenceFinishPass.Apply(a, o, in c, in p);
             return result;
         }
 
