@@ -36,23 +36,36 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 || xCount * yCount * zCount > MaximumFineCells)
                 return false;
 
-            for (int z = min.z; z <= max.z; z++)
-            for (int y = min.y; y <= max.y; y++)
-            for (int x = min.x; x <= max.x; x++)
-            {
-                var node = new SurfaceLodNodeKey(1, new int3(x, y, z));
-                bool covered = false;
-                while (true)
-                {
-                    proofQueries++;
-                    if (hasCurrentProof(node)) { covered = true; break; }
-                    if (!SurfaceLodHierarchy.TryGetParentSourceStep(node.SourceStep, out int parentStep))
-                        break;
-                    node = new SurfaceLodNodeKey(parentStep,
-                        SurfaceLodHierarchy.ParentCoordinate(node.Coordinate));
-                }
-                if (!covered) return false;
-            }
+            // Prove each coarse subtree once, descending only where its publication is
+            // insufficient. Repeating the ancestor chain for every fine cell makes a fully
+            // covered step-8 chunk pay for the same proof 512 times.
+            int3 rootMin = min >> 3;
+            int3 rootMax = max >> 3;
+            for (int z = rootMin.z; z <= rootMax.z; z++)
+            for (int y = rootMin.y; y <= rootMax.y; y++)
+            for (int x = rootMin.x; x <= rootMax.x; x++)
+                if (!CoversNode(new SurfaceLodNodeKey(8, new int3(x, y, z)), min, max,
+                    hasCurrentProof, ref proofQueries)) return false;
+            return true;
+        }
+
+        private static bool CoversNode(SurfaceLodNodeKey node, int3 min, int3 max,
+                                       Func<SurfaceLodNodeKey, bool> hasCurrentProof,
+                                       ref int proofQueries)
+        {
+            proofQueries++;
+            if (hasCurrentProof(node)) return true;
+            if (node.SourceStep == 1) return false;
+            int childStep = node.SourceStep >> 1;
+            // Division must floor for negative coordinates, as in the original fine-cell walk.
+            int shift = childStep == 4 ? 2 : childStep == 2 ? 1 : 0;
+            int3 childMin = math.max(node.Coordinate * 2, min >> shift);
+            int3 childMax = math.min(node.Coordinate * 2 + 1, max >> shift);
+            for (int z = childMin.z; z <= childMax.z; z++)
+            for (int y = childMin.y; y <= childMax.y; y++)
+            for (int x = childMin.x; x <= childMax.x; x++)
+                if (!CoversNode(new SurfaceLodNodeKey(childStep, new int3(x, y, z)), min, max,
+                    hasCurrentProof, ref proofQueries)) return false;
             return true;
         }
     }

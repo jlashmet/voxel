@@ -1,3 +1,9 @@
+Far replacement checkpoint: native/standalone timing found1.642ms of CPU far consumer preparation
+outside scheduler timing. Replaced repeated fine-cell ancestor walks with bounded coarse-first
+proof, retaining the same coverage rule.503 tests/module pass; Showcase350/219FPS,CPU2.71/4.10ms,
+363 missing/12 arena failures. This optimization does not retire GPU demand or far handoff host
+work; those and400FPS remain incomplete. Temporary profiling removed. Evidence is in tasks.md.
+
 GPU band checkpoint: production render-band and frustum classification now execute together on
 GPU. CPU candidate lists persist across camera/projection movement; hierarchy edges persist across
 readiness/handle changes. CPU still refreshes cached missing-build urgency and resident ages, and

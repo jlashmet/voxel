@@ -37,7 +37,7 @@ namespace VoxelEngine.Tests.EditMode
         {
             Assert.True(SurfaceReplacementCoverage.Covers(int3.zero, new int3(1024),
                 node => node.SourceStep == 8, out int queries));
-            Assert.AreEqual(SurfaceReplacementCoverage.MaximumFineCells * 4, queries);
+            Assert.AreEqual(8, queries, "Each complete step-8 subtree needs exactly one proof.");
             Assert.False(SurfaceReplacementCoverage.Covers(int3.zero, new int3(1025),
                 _ => AssertUnexpectedQuery(), out queries));
             Assert.AreEqual(0, queries);
@@ -64,7 +64,7 @@ namespace VoxelEngine.Tests.EditMode
             var published = new HashSet<SurfaceLodNodeKey> { new(1, new int3(-1)) };
             Assert.True(SurfaceReplacementCoverage.Covers(
                 new int3(-64), int3.zero, published.Contains, out int queries));
-            Assert.AreEqual(1, queries);
+            Assert.AreEqual(4, queries);
             Assert.False(SurfaceReplacementCoverage.Covers(
                 new int3(-65), int3.zero, published.Contains, out _));
         }
@@ -97,6 +97,48 @@ namespace VoxelEngine.Tests.EditMode
             Assert.False(SurfaceReplacementCoverage.Covers(int3.zero, int3.zero,
                 _ => AssertUnexpectedQuery(), out queries));
             Assert.AreEqual(0, queries);
+        }
+
+        [Test]
+        public void HierarchicalProofMatchesFineCellOracleAcrossMixedLevelsAndNegativeSeams()
+        {
+            var random = new System.Random(4137);
+            for (int trial = 0; trial < 256; trial++)
+            {
+                int3 min = new(random.Next(-700, 700), random.Next(-700, 700), random.Next(-700, 700));
+                int3 max = min + new int3(random.Next(1, 500), random.Next(1, 500), random.Next(1, 500));
+                var proof = new HashSet<SurfaceLodNodeKey>();
+                int3 first = min >> 6, last = (max - 1) >> 6;
+                for (int z = first.z; z <= last.z; z++)
+                for (int y = first.y; y <= last.y; y++)
+                for (int x = first.x; x <= last.x; x++)
+                {
+                    var node = new SurfaceLodNodeKey(1, new int3(x, y, z));
+                    while (true)
+                    {
+                        if (random.Next(2 + trial % 31) == 0) proof.Add(node);
+                        if (!SurfaceLodHierarchy.TryGetParentSourceStep(node.SourceStep, out int step)) break;
+                        node = new SurfaceLodNodeKey(step, SurfaceLodHierarchy.ParentCoordinate(node.Coordinate));
+                    }
+                }
+                bool expected = true;
+                for (int z = first.z; z <= last.z; z++)
+                for (int y = first.y; y <= last.y; y++)
+                for (int x = first.x; x <= last.x; x++)
+                {
+                    bool covered = false;
+                    var node = new SurfaceLodNodeKey(1, new int3(x, y, z));
+                    while (true)
+                    {
+                        if (proof.Contains(node)) { covered = true; break; }
+                        if (!SurfaceLodHierarchy.TryGetParentSourceStep(node.SourceStep, out int step)) break;
+                        node = new SurfaceLodNodeKey(step, SurfaceLodHierarchy.ParentCoordinate(node.Coordinate));
+                    }
+                    expected &= covered;
+                }
+                Assert.AreEqual(expected, SurfaceReplacementCoverage.Covers(min, max, proof.Contains, out _),
+                    $"Mixed-level coverage differs on trial {trial}: {min} to {max}");
+            }
         }
 
         private static bool AssertUnexpectedQuery()
