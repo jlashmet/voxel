@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import astra_manager as core
+import astra_manager_visuals as visuals
 
 DEFAULTS = {
     "binary": "codex",
@@ -71,9 +72,10 @@ def build_command(
     executable: str,
     output_schema: Path,
     decision_output: Path,
+    images: list[Path] | None = None,
 ) -> list[str]:
     opts = settings(cfg)
-    return [
+    command = [
         executable,
         "exec",
         "--strict-config",
@@ -95,16 +97,34 @@ def build_command(
         f"approval_policy={json.dumps(str(opts['approvalPolicy']))}",
         "--config",
         f"web_search={json.dumps(str(opts['webSearch']))}",
-        "-",
     ]
+    for image in images or []:
+        command.extend(["--image", str(image)])
+    command.append("-")
+    return command
 
 
-def invocation_prompt(root: Path, review_window: Path) -> str:
+def invocation_prompt(
+    root: Path,
+    review_window: Path,
+    visual_manifest: Path | None = None,
+    image_count: int = 0,
+) -> str:
     relative = review_window.relative_to(root)
+    visual_text = ""
+    if visual_manifest is not None:
+        visual_relative = visual_manifest.relative_to(root)
+        visual_text = (
+            f"Read `{visual_relative}` during bootstrap. "
+            f"The Codex harness attached {image_count} bounded screenshot(s) from that manifest. "
+            "For any attached screenshot, inspect the actual image before judging player-visible "
+            "or visual acceptance; test success and filenames are not substitutes for visual review.\n"
+        )
     return (
         "Run exactly one fresh Astra repository-manager pass for this checkout.\n"
         "Read and follow `SceneIssues/manager/WAKEUP_PROMPT.md`.\n"
-        f"The only initial review payload is `{relative}`.\n"
+        f"The mechanically bounded text review payload is `{relative}`.\n"
+        f"{visual_text}"
         "Do not resume or inspect prior Codex sessions or conversation history.\n"
         "Do not implement, edit, create, or publish repository files.\n"
         "Return only the manager decision JSON as your final response. The Codex harness will "
@@ -123,13 +143,18 @@ def launch(root: Path, runtime: Path, cfg: dict[str, Any], review_window: Path) 
     if not schema.exists():
         raise core.ManagerError(f"missing Astra manager decision schema: {schema.relative_to(root)}")
 
+    try:
+        visual_manifest, images = visuals.prepare(root, runtime, cfg, review_window)
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
+        raise core.ManagerError(f"could not prepare Astra visual evidence: {exc}") from exc
+
     before = core.git(root, "status", "--porcelain", "--untracked-files=all", check=False)
     executable = require_codex(cfg)
-    command = build_command(cfg, executable, schema, decision)
+    command = build_command(cfg, executable, schema, decision, images)
     result = subprocess.run(
         command,
         cwd=root,
-        input=invocation_prompt(root, review_window),
+        input=invocation_prompt(root, review_window, visual_manifest, len(images)),
         text=True,
     )
     if result.returncode:
