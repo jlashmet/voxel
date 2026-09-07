@@ -29,6 +29,7 @@ namespace Game.Structures.Runtime
             ArchitecturePresentationCapabilities.ProductionVoxelOccupancy |
             ArchitecturePresentationCapabilities.ProductionMaterials |
             ArchitecturePresentationCapabilities.ProductionMaterialTextures |
+            ArchitecturePresentationCapabilities.SignedDistancePresentation |
             ArchitecturePresentationCapabilities.CollisionFromOccupancy |
             ArchitecturePresentationCapabilities.InteriorShell |
             ArchitecturePresentationCapabilities.TraversableOpenings;
@@ -84,6 +85,11 @@ namespace Game.Structures.Runtime
             if (authoring == null)
             {
                 error = "A production structure-authoring session is required.";
+                return false;
+            }
+            if (!(authoring is ICurvedStructureAuthoringSession))
+            {
+                error = "Guild-house architecture requires the production curved-authoring capability so SDF boundary presentation cannot silently degrade.";
                 return false;
             }
 
