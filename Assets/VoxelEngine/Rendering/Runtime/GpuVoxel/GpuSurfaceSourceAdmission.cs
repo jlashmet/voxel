@@ -13,20 +13,21 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
     /// footprint because mixed entries contain live mirror-slot indices until count/write finishes.
     /// Step 8 copies HLOD summaries instead, so it needs only the whole-request edit watch while its
     /// bounded source slices are prepared. Different source steps do not overlap: a worst-case
-    /// step-4 exact footprint is 34^3 blocks, leaving too little of the 40k shared mirror for an
-    /// unrelated coarse recovery slice. Fine steps 1/2 may batch two requests safely.
+    /// step-4 exact footprint is 34^3 blocks, leaving too little of the shared mixed mirror for an
+    /// unrelated exact/coarse recovery footprint. Fine steps 1/2 may batch two requests safely.
     /// </summary>
     internal static class GpuSurfaceSourceAdmission
     {
         private static readonly HashSet<GpuSurfaceExtractionContext> s_Owners = new();
+        private static readonly Dictionary<GpuSurfaceExtractionContext, int> s_Waiters = new();
         private static int s_ActiveStep;
         private static ulong s_WorldEpoch;
-        private static int s_WaitingSteps;
         private static int s_PreferredStep;
         private static int s_PreferredUntilFrame;
 
         internal static int ActiveCount => s_Owners.Count;
         internal static int ActiveStep => s_ActiveStep;
+        internal static int WaitingCount => s_Waiters.Count;
 
         internal static bool TryAcquire(GpuSurfaceExtractionContext owner,
                                         in GpuChunkExtraction request,
@@ -45,29 +46,33 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 throw new InvalidOperationException("GPU source admission owner was acquired twice.");
 
             int step = request.SourceStep;
-            int bit = StepBit(step);
             int capacity = MaximumOwners(step);
-            if (s_Owners.Count != 0
-                && (s_ActiveStep != step || s_Owners.Count >= capacity))
+            if (s_Owners.Count != 0)
             {
-                s_WaitingSteps |= bit;
-                return false;
-            }
-
-            if (s_Owners.Count == 0 && s_PreferredStep != 0 && s_PreferredStep != step)
-            {
-                if (Time.frameCount <= s_PreferredUntilFrame)
+                bool otherStepWaiting = HasWaitingStepOtherThan(s_ActiveStep);
+                if (s_ActiveStep != step || s_Owners.Count >= capacity || otherStepWaiting)
                 {
-                    s_WaitingSteps |= bit;
+                    s_Waiters[owner] = step;
+                    return false;
+                }
+            }
+            else if (s_PreferredStep != 0 && s_PreferredStep != step)
+            {
+                // Reserve a few frames for the mode that was already waiting. If that waiter was
+                // cancelled, clear the preference immediately instead of manufacturing a stall.
+                if (HasWaitingStep(s_PreferredStep) && Time.frameCount <= s_PreferredUntilFrame)
+                {
+                    s_Waiters[owner] = step;
                     return false;
                 }
                 s_PreferredStep = 0;
             }
 
             s_ActiveStep = step;
-            s_WaitingSteps &= ~bit;
+            s_Waiters.Remove(owner);
             if (s_PreferredStep == step) s_PreferredStep = 0;
-            if (!s_Owners.Add(owner)) throw new InvalidOperationException("GPU source admission owner collision.");
+            if (!s_Owners.Add(owner))
+                throw new InvalidOperationException("GPU source admission owner collision.");
 
             int coreExtentVoxels = GpuSolidChunkCache.CellsPerAxis * step;
             int3 coreMaxVoxelExclusive = request.ChunkOriginVoxel + new int3(coreExtentVoxels);
@@ -78,12 +83,19 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             return true;
         }
 
+        internal static void CancelWaiting(GpuSurfaceExtractionContext owner)
+        {
+            if (owner != null) s_Waiters.Remove(owner);
+        }
+
         internal static void Release(GpuSurfaceExtractionContext owner,
                                      in GpuChunkExtraction request,
                                      int brickCacheEdge,
                                      ulong coverageWorldEpoch)
         {
-            if (owner == null || !s_Owners.Remove(owner)) return;
+            if (owner == null) return;
+            s_Waiters.Remove(owner);
+            if (!s_Owners.Remove(owner)) return;
 
             int step = request.SourceStep;
             int coreExtentVoxels = GpuSolidChunkCache.CellsPerAxis * step;
@@ -113,14 +125,29 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _ => throw new ArgumentOutOfRangeException(nameof(step)),
         };
 
+        private static int WaitingStepMask()
+        {
+            int mask = 0;
+            foreach (int step in s_Waiters.Values) mask |= StepBit(step);
+            return mask;
+        }
+
+        private static bool HasWaitingStep(int step) =>
+            (WaitingStepMask() & StepBit(step)) != 0;
+
+        private static bool HasWaitingStepOtherThan(int step) =>
+            (WaitingStepMask() & ~StepBit(step)) != 0;
+
         private static int NextWaitingStep(int afterStep)
         {
+            int mask = WaitingStepMask();
+            if (mask == 0) return 0;
             int[] steps = { 1, 2, 4, 8 };
             int start = Array.IndexOf(steps, afterStep);
             for (int offset = 1; offset <= steps.Length; offset++)
             {
                 int step = steps[(Math.Max(0, start) + offset) % steps.Length];
-                if ((s_WaitingSteps & StepBit(step)) != 0) return step;
+                if ((mask & StepBit(step)) != 0) return step;
             }
             return 0;
         }
@@ -130,8 +157,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             // The coordinator already discarded the prior world's demand/edit maps. Old contexts
             // may still call Release later; their ownership is intentionally forgotten here.
             s_Owners.Clear();
+            s_Waiters.Clear();
             s_ActiveStep = 0;
-            s_WaitingSteps = 0;
             s_PreferredStep = 0;
             s_PreferredUntilFrame = 0;
             s_WorldEpoch = world;
