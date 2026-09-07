@@ -3,353 +3,51 @@
   "mode": "multiProcess",
   "runSeconds": 210,
   "processes": [
-    {
-      "role": "authority",
-      "headless": true,
-      "arguments": ["-gamesystem25-port", "39125"]
-    },
-    {
-      "role": "client-a",
-      "headless": true,
-      "arguments": ["-gamesystem25-port", "39125"]
-    },
-    {
-      "role": "client-b",
-      "headless": true,
-      "arguments": ["-gamesystem25-port", "39125"]
-    }
+    {"role": "authority", "headless": true, "arguments": ["-gamesystem25-port", "39125"]},
+    {"role": "client-a", "headless": true, "arguments": ["-gamesystem25-port", "39125"]},
+    {"role": "client-b", "headless": true, "arguments": ["-gamesystem25-port", "39125"]}
   ],
   "operations": [
     {"op": "launch", "role": "authority"},
-    {
-      "op": "wait",
-      "role": "authority",
-      "name": "authority-listening",
-      "timeoutSeconds": 30,
-      "fields": {"sessionId": "gamesystem25-topology", "port": 39125}
-    },
+    {"op": "wait", "role": "authority", "name": "authority-listening", "timeoutSeconds": 30, "fields": {"sessionId": "gamesystem25-topology", "port": 39125}},
     {"op": "launch", "role": "client-a"},
-    {
-      "op": "wait",
-      "role": "client-a",
-      "name": "party-joined",
-      "timeoutSeconds": 30,
-      "fields": {
-        "sessionId": "gamesystem25-topology",
-        "memberId": "gamesystem25-topology:member:2",
-        "characterId": "kentridge-player-2",
-        "slot": 1
-      }
-    },
     {"op": "launch", "role": "client-b"},
-    {
-      "op": "wait",
-      "role": "client-b",
-      "name": "party-joined",
-      "timeoutSeconds": 30,
-      "fields": {
-        "sessionId": "gamesystem25-topology",
-        "memberId": "gamesystem25-topology:member:3",
-        "characterId": "kentridge-player-3",
-        "slot": 2
-      }
-    },
-    {
-      "op": "wait",
-      "role": "authority",
-      "name": "topology-ready",
-      "timeoutSeconds": 45,
-      "fields": {
-        "sessionId": "gamesystem25-topology",
-        "memberId": "gamesystem25-topology:member:1",
-        "characterId": "kentridge-player-1",
-        "slot": 0,
-        "rosterCount": 3,
-        "signature": "0=gamesystem25-topology:member:1/kentridge-player-1;1=gamesystem25-topology:member:2/kentridge-player-2;2=gamesystem25-topology:member:3/kentridge-player-3"
-      }
-    },
-    {
-      "op": "wait",
-      "role": "client-a",
-      "name": "topology-ready",
-      "timeoutSeconds": 45,
-      "fields": {
-        "memberId": "gamesystem25-topology:member:2",
-        "slot": 1,
-        "rosterCount": 3,
-        "signature": "0=gamesystem25-topology:member:1/kentridge-player-1;1=gamesystem25-topology:member:2/kentridge-player-2;2=gamesystem25-topology:member:3/kentridge-player-3"
-      }
-    },
-    {
-      "op": "wait",
-      "role": "client-b",
-      "name": "topology-ready",
-      "timeoutSeconds": 45,
-      "fields": {
-        "memberId": "gamesystem25-topology:member:3",
-        "slot": 2,
-        "rosterCount": 3,
-        "signature": "0=gamesystem25-topology:member:1/kentridge-player-1;1=gamesystem25-topology:member:2/kentridge-player-2;2=gamesystem25-topology:member:3/kentridge-player-3"
-      }
-    },
-    {
-      "op": "wait",
-      "role": "authority",
-      "name": "baseline-ready",
-      "timeoutSeconds": 45,
-      "fields": {"sessionId": "gamesystem25-topology", "rosterCount": 3}
-    },
-    {
-      "op": "wait",
-      "role": "client-a",
-      "name": "baseline-ready",
-      "timeoutSeconds": 45,
-      "fields": {"sessionId": "gamesystem25-topology", "rosterCount": 3}
-    },
-    {
-      "op": "wait",
-      "role": "client-b",
-      "name": "baseline-ready",
-      "timeoutSeconds": 45,
-      "fields": {"sessionId": "gamesystem25-topology", "rosterCount": 3}
-    },
-    {
-      "op": "wait",
-      "role": "client-a",
-      "name": "contention-input-sent",
-      "timeoutSeconds": 20,
-      "fields": {"sessionId": "gamesystem25-topology"}
-    },
-    {
-      "op": "wait",
-      "role": "client-b",
-      "name": "contention-input-sent",
-      "timeoutSeconds": 20,
-      "fields": {"sessionId": "gamesystem25-topology"}
-    },
-    {
-      "op": "wait",
-      "role": "authority",
-      "name": "contention-converged",
-      "timeoutSeconds": 30,
-      "fields": {
-        "sessionId": "gamesystem25-topology",
-        "quantity": 1,
-        "pickupEnabled": "false",
-        "appliedInputs": 2
-      }
-    },
-    {
-      "op": "wait",
-      "role": "client-a",
-      "name": "contention-converged",
-      "timeoutSeconds": 30,
-      "fields": {
-        "sessionId": "gamesystem25-topology",
-        "quantity": 1,
-        "pickupEnabled": "false"
-      }
-    },
-    {
-      "op": "wait",
-      "role": "client-b",
-      "name": "contention-converged",
-      "timeoutSeconds": 30,
-      "fields": {
-        "sessionId": "gamesystem25-topology",
-        "quantity": 1,
-        "pickupEnabled": "false"
-      }
-    },
-    {
-      "op": "wait",
-      "role": "authority",
-      "name": "progression-converged",
-      "timeoutSeconds": 30,
-      "fields": {
-        "sessionId": "gamesystem25-topology",
-        "progressionState": "Completed"
-      }
-    },
-    {
-      "op": "wait",
-      "role": "client-a",
-      "name": "progression-converged",
-      "timeoutSeconds": 30,
-      "fields": {
-        "sessionId": "gamesystem25-topology",
-        "progressionState": "Completed"
-      }
-    },
-    {
-      "op": "wait",
-      "role": "client-b",
-      "name": "progression-converged",
-      "timeoutSeconds": 30,
-      "fields": {
-        "sessionId": "gamesystem25-topology",
-        "progressionState": "Completed"
-      }
-    },
+    {"op": "wait", "role": "client-a", "name": "party-joined", "timeoutSeconds": 30, "fields": {"sessionId": "gamesystem25-topology", "memberId": "gamesystem25-topology:member:2", "characterId": "kentridge-player-2", "slot": 1}},
+    {"op": "wait", "role": "client-b", "name": "party-joined", "timeoutSeconds": 30, "fields": {"sessionId": "gamesystem25-topology", "memberId": "gamesystem25-topology:member:3", "characterId": "kentridge-player-3", "slot": 2}},
+    {"op": "wait", "role": "authority", "name": "topology-ready", "timeoutSeconds": 45, "fields": {"sessionId": "gamesystem25-topology", "memberId": "gamesystem25-topology:member:1", "characterId": "kentridge-player-1", "slot": 0, "rosterCount": 3, "signature": "0=gamesystem25-topology:member:1/kentridge-player-1;1=gamesystem25-topology:member:2/kentridge-player-2;2=gamesystem25-topology:member:3/kentridge-player-3"}},
+    {"op": "wait", "role": "client-a", "name": "topology-ready", "timeoutSeconds": 45, "fields": {"memberId": "gamesystem25-topology:member:2", "slot": 1, "rosterCount": 3, "signature": "0=gamesystem25-topology:member:1/kentridge-player-1;1=gamesystem25-topology:member:2/kentridge-player-2;2=gamesystem25-topology:member:3/kentridge-player-3"}},
+    {"op": "wait", "role": "client-b", "name": "topology-ready", "timeoutSeconds": 45, "fields": {"memberId": "gamesystem25-topology:member:3", "slot": 2, "rosterCount": 3, "signature": "0=gamesystem25-topology:member:1/kentridge-player-1;1=gamesystem25-topology:member:2/kentridge-player-2;2=gamesystem25-topology:member:3/kentridge-player-3"}},
+    {"op": "wait", "role": "authority", "name": "baseline-ready", "timeoutSeconds": 45, "fields": {"sessionId": "gamesystem25-topology", "rosterCount": 3}},
+    {"op": "wait", "role": "client-a", "name": "baseline-ready", "timeoutSeconds": 45, "fields": {"sessionId": "gamesystem25-topology", "rosterCount": 3}},
+    {"op": "wait", "role": "client-b", "name": "baseline-ready", "timeoutSeconds": 45, "fields": {"sessionId": "gamesystem25-topology", "rosterCount": 3}},
+    {"op": "wait", "role": "client-a", "name": "contention-input-sent", "timeoutSeconds": 20, "fields": {"sessionId": "gamesystem25-topology"}},
+    {"op": "wait", "role": "client-b", "name": "contention-input-sent", "timeoutSeconds": 20, "fields": {"sessionId": "gamesystem25-topology"}},
+    {"op": "wait", "role": "authority", "name": "contention-converged", "timeoutSeconds": 30, "fields": {"sessionId": "gamesystem25-topology", "quantity": 1, "pickupEnabled": "false", "appliedInputs": 2}},
+    {"op": "wait", "role": "client-a", "name": "contention-converged", "timeoutSeconds": 30, "fields": {"sessionId": "gamesystem25-topology", "quantity": 1, "pickupEnabled": "false"}},
+    {"op": "wait", "role": "client-b", "name": "contention-converged", "timeoutSeconds": 30, "fields": {"sessionId": "gamesystem25-topology", "quantity": 1, "pickupEnabled": "false"}},
+    {"op": "wait", "role": "authority", "name": "progression-converged", "timeoutSeconds": 30, "fields": {"sessionId": "gamesystem25-topology", "progressionState": "Completed"}},
+    {"op": "wait", "role": "client-a", "name": "progression-converged", "timeoutSeconds": 30, "fields": {"sessionId": "gamesystem25-topology", "progressionState": "Completed"}},
+    {"op": "wait", "role": "client-b", "name": "progression-converged", "timeoutSeconds": 30, "fields": {"sessionId": "gamesystem25-topology", "progressionState": "Completed"}},
     {"op": "kill", "role": "client-a"},
-    {
-      "op": "wait",
-      "role": "authority",
-      "name": "continuity-interrupted",
-      "timeoutSeconds": 30,
-      "fields": {
-        "sessionId": "gamesystem25-topology",
-        "memberId": "gamesystem25-topology:member:2",
-        "characterId": "kentridge-player-2",
-        "slot": 1,
-        "recoveryState": "ConnectionInterrupted"
-      }
-    },
-    {
-      "op": "wait",
-      "role": "authority",
-      "name": "combat-vitality-converged",
-      "timeoutSeconds": 30,
-      "fields": {
-        "sessionId": "gamesystem25-topology",
-        "currentVitality": 4,
-        "maximumVitality": 6,
-        "appliedCombatActions": 1
-      }
-    },
-    {
-      "op": "wait",
-      "role": "client-b",
-      "name": "combat-vitality-converged",
-      "timeoutSeconds": 30,
-      "fields": {
-        "sessionId": "gamesystem25-topology",
-        "currentVitality": 4,
-        "maximumVitality": 6
-      }
-    },
+    {"op": "wait", "role": "authority", "name": "continuity-interrupted", "timeoutSeconds": 30, "fields": {"sessionId": "gamesystem25-topology", "memberId": "gamesystem25-topology:member:2", "characterId": "kentridge-player-2", "slot": 1, "recoveryState": "ConnectionInterrupted"}},
+    {"op": "wait", "role": "authority", "name": "combat-vitality-converged", "timeoutSeconds": 30, "fields": {"sessionId": "gamesystem25-topology", "currentVitality": 4, "maximumVitality": 6, "appliedCombatActions": 1}},
+    {"op": "wait", "role": "client-b", "name": "combat-vitality-converged", "timeoutSeconds": 30, "fields": {"sessionId": "gamesystem25-topology", "currentVitality": 4, "maximumVitality": 6}},
     {"op": "relaunch", "role": "client-a"},
-    {
-      "op": "wait",
-      "role": "client-a",
-      "name": "party-joined",
-      "timeoutSeconds": 30,
-      "fields": {
-        "sessionId": "gamesystem25-topology",
-        "memberId": "gamesystem25-topology:member:2",
-        "characterId": "kentridge-player-2",
-        "slot": 1,
-        "rosterCount": 3
-      }
-    },
-    {
-      "op": "wait",
-      "role": "client-a",
-      "name": "topology-ready",
-      "timeoutSeconds": 45,
-      "fields": {
-        "memberId": "gamesystem25-topology:member:2",
-        "characterId": "kentridge-player-2",
-        "slot": 1,
-        "rosterCount": 3,
-        "signature": "0=gamesystem25-topology:member:1/kentridge-player-1;1=gamesystem25-topology:member:2/kentridge-player-2;2=gamesystem25-topology:member:3/kentridge-player-3"
-      }
-    },
-    {
-      "op": "wait",
-      "role": "client-a",
-      "name": "recovery-baseline-ready",
-      "timeoutSeconds": 45,
-      "fields": {"sessionId": "gamesystem25-topology", "rosterCount": 3}
-    },
-    {
-      "op": "wait",
-      "role": "authority",
-      "name": "continuity-recovered",
-      "timeoutSeconds": 30,
-      "fields": {
-        "sessionId": "gamesystem25-topology",
-        "memberId": "gamesystem25-topology:member:2",
-        "characterId": "kentridge-player-2",
-        "slot": 1,
-        "recoveryState": "Recovered"
-      }
-    },
-    {
-      "op": "wait",
-      "role": "client-a",
-      "name": "combat-vitality-converged",
-      "timeoutSeconds": 30,
-      "fields": {
-        "sessionId": "gamesystem25-topology",
-        "currentVitality": 4,
-        "maximumVitality": 6
-      }
-    },
-    {
-      "op": "wait",
-      "role": "client-a",
-      "name": "recovery-current-state",
-      "timeoutSeconds": 30,
-      "fields": {
-        "sessionId": "gamesystem25-topology",
-        "memberId": "gamesystem25-topology:member:2",
-        "characterId": "kentridge-player-2",
-        "slot": 1,
-        "quantity": 1,
-        "pickupEnabled": "false",
-        "progressionState": "Completed",
-        "currentVitality": 4,
-        "maximumVitality": 6,
-        "recoveryMode": "current-projections-only"
-      }
-    },
-    {
-      "op": "wait",
-      "role": "client-a",
-      "name": "explicit-leave-requested",
-      "timeoutSeconds": 15,
-      "fields": {
-        "sessionId": "gamesystem25-topology",
-        "memberId": "gamesystem25-topology:member:2",
-        "characterId": "kentridge-player-2",
-        "slot": 1
-      }
-    },
-    {
-      "op": "wait",
-      "role": "authority",
-      "name": "explicit-leave-observed",
-      "timeoutSeconds": 30,
-      "fields": {
-        "sessionId": "gamesystem25-topology",
-        "memberId": "gamesystem25-topology:member:2",
-        "characterId": "kentridge-player-2",
-        "slot": 1,
-        "rosterCount": 2,
-        "recoveryState": "Left"
-      }
-    }
+    {"op": "wait", "role": "client-a", "name": "party-joined", "timeoutSeconds": 30, "fields": {"sessionId": "gamesystem25-topology", "memberId": "gamesystem25-topology:member:2", "characterId": "kentridge-player-2", "slot": 1, "rosterCount": 3}},
+    {"op": "wait", "role": "client-a", "name": "topology-ready", "timeoutSeconds": 45, "fields": {"memberId": "gamesystem25-topology:member:2", "characterId": "kentridge-player-2", "slot": 1, "rosterCount": 3, "signature": "0=gamesystem25-topology:member:1/kentridge-player-1;1=gamesystem25-topology:member:2/kentridge-player-2;2=gamesystem25-topology:member:3/kentridge-player-3"}},
+    {"op": "wait", "role": "client-a", "name": "recovery-baseline-ready", "timeoutSeconds": 45, "fields": {"sessionId": "gamesystem25-topology", "rosterCount": 3}},
+    {"op": "wait", "role": "authority", "name": "continuity-recovered", "timeoutSeconds": 30, "fields": {"sessionId": "gamesystem25-topology", "memberId": "gamesystem25-topology:member:2", "characterId": "kentridge-player-2", "slot": 1, "recoveryState": "Recovered"}},
+    {"op": "wait", "role": "client-a", "name": "combat-vitality-converged", "timeoutSeconds": 30, "fields": {"sessionId": "gamesystem25-topology", "currentVitality": 4, "maximumVitality": 6}},
+    {"op": "wait", "role": "client-a", "name": "recovery-current-state", "timeoutSeconds": 30, "fields": {"sessionId": "gamesystem25-topology", "memberId": "gamesystem25-topology:member:2", "characterId": "kentridge-player-2", "slot": 1, "quantity": 1, "pickupEnabled": "false", "progressionState": "Completed", "currentVitality": 4, "maximumVitality": 6, "recoveryMode": "current-projections-only"}},
+    {"op": "wait", "role": "client-a", "name": "explicit-leave-requested", "timeoutSeconds": 15, "fields": {"sessionId": "gamesystem25-topology", "memberId": "gamesystem25-topology:member:2", "characterId": "kentridge-player-2", "slot": 1}},
+    {"op": "wait", "role": "authority", "name": "explicit-leave-observed", "timeoutSeconds": 30, "fields": {"sessionId": "gamesystem25-topology", "memberId": "gamesystem25-topology:member:2", "characterId": "kentridge-player-2", "slot": 1, "rosterCount": 2, "recoveryState": "Left"}}
   ],
   "assertions": {
     "equalMilestoneFields": [
-      {
-        "name": "baseline-ready",
-        "roles": ["authority", "client-a", "client-b"],
-        "fields": ["revision", "stateDigest"]
-      },
-      {
-        "name": "combat-vitality-converged",
-        "roles": ["authority", "client-a", "client-b"],
-        "fields": ["damagedCharacter", "currentVitality", "maximumVitality"]
-      }
+      {"name": "baseline-ready", "roles": ["authority", "client-a", "client-b"], "fields": ["revision", "stateDigest"]},
+      {"name": "combat-vitality-converged", "roles": ["authority", "client-a", "client-b"], "fields": ["damagedCharacter", "currentVitality", "maximumVitality"]}
     ],
     "requiredLogPatterns": ["VOXEL_VALIDATION_MILESTONE"],
-    "forbiddenLogPatterns": [
-      "GAMESYSTEM25_MULTIPLAYER_TOPOLOGY FAIL",
-      "NullReferenceException",
-      "MissingReferenceException",
-      "InvalidOperationException"
-    ]
+    "forbiddenLogPatterns": ["GAMESYSTEM25_MULTIPLAYER_TOPOLOGY FAIL", "NullReferenceException", "MissingReferenceException", "InvalidOperationException"]
   }
 }
