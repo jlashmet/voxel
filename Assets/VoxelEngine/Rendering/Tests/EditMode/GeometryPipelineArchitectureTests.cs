@@ -92,22 +92,6 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void StepEightHlodWorkspaceDoesNotAllocateUnusedTransvoxelScratch()
-        {
-            string workspace = ReadRenderingSource(
-                Path.Combine("SurfaceExtraction", "TransvoxelBuildWorkspace.cs"));
-            StringAssert.Contains("if (usesBlockHlod)", workspace);
-            StringAssert.Contains("Density = default;", workspace);
-            StringAssert.Contains("CompactedTopologyVertices = default;", workspace);
-            StringAssert.Contains("FacetedMasks = default;", workspace);
-            StringAssert.Contains("FaceDensity = default;", workspace);
-            StringAssert.Contains("TransitionVertices = default;", workspace);
-            StringAssert.Contains("int legacyMixedCapacity = usesBlockHlod ? 1 : 64 * 1024", workspace);
-            StringAssert.Contains("SnapshotClassificationFlags = usesBlockHlod", workspace);
-        }
-
-
-        [Test]
         public void CoarseExactSamplingUsesFewerBuildWorkspaces()
         {
             Assert.AreEqual(8, VoxelSurfaceScheduler.WorkerCountForSourceStep(1));
@@ -273,7 +257,9 @@ namespace VoxelEngine.Tests.EditMode
             StringAssert.Contains("RunningGeometryJobs", scheduler);
             StringAssert.DoesNotContain(".Complete()", solid);
             StringAssert.DoesNotContain(".Complete()", water);
-            StringAssert.DoesNotContain("WaitAllRequests", water);
+            int waterQuit = water.IndexOf("internal void DisposeForApplicationQuit()", StringComparison.Ordinal);
+            Assert.Greater(waterQuit, 0);
+            StringAssert.DoesNotContain("WaitAllRequests", water.Substring(0, waterQuit));
             StringAssert.Contains("GeometryFrameJobCompletionGuard.TryCompleteReady", scheduler);
 
             int solidTeardown = solid.IndexOf("public void Dispose()", StringComparison.Ordinal);

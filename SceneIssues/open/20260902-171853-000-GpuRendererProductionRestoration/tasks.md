@@ -1,5 +1,46 @@
 # GPU-only VoxelShowcase — execution checklist
 
+### 2026-09-06 — Delete CPU workspace and fix deferred water release at exit
+
+Deleted TransvoxelBuildWorkspace and its metadata after confirming zero production callers;
+removed its two container lifetime checks, stale sizing reflection and source-string allocation
+check. CPU summary/geometry regressions remain until their GPU migration; no coverage/budget
+assertion was weakened. This deletion removes dead code, not additional live frame work.
+
+The19 shutdown ComputeBuffer warnings match water's six buffers plus its13-buffer page arena.
+Normal disposal queues a completion callback, but final player teardown cannot depend on another
+player-loop iteration. Keep Application.quitting subscribed through physical release and drain
+readbacks only in that exit handler. Regular disposal, scene restart and all frame methods remain
+asynchronous. The suspected missing batch HLOD releases were falsified by reading full Dispose;
+no speculative batch-lifetime change was made.
+
+Validation (`Artifacts/LocalGpuShowcase/`):
+- `gpu-workspace-retirement.xml`:466/466 rendering EditMode passed,27s wrapper, no skips.
+  Two new real-buffer tests repeat idle/build-started and already-retired water disposal three
+  times, checking all19 handles invalid before returning without another player-loop update.
+- `gpu-water-exit-before.xml`: both new cases fail with the exit drain removed (buffers still
+  valid),14s wrapper/exit2. Restored exact tested production source before player build.
+- `gpu-water-exit-module`:36s build,48s/seven captures, exit0; initial/traversal/edit/restart/
+  far-handoff/success markers pass, zero missing/fallback/blocking/context errors. **Zero**
+  ComputeBuffer finalizer warnings versus19 previously. Frame p95/p99 5.680/6.821ms;
+  preparation .034/.039ms; allocated261.6MB. Reviewed42s built-player screenshot: fort,
+  materials and terrain retained; diagnostic composition remains prototype/blockout quality.
+- `gpu-water-exit-showcase`:18s build,180s/12 captures, exit0 and zero buffer-finalizer
+  warnings. Stationary60–90s30 samples:228.57 FPS, CPU4.290ms, GPU diagnostic3.535ms;
+  walking120–180s60 samples:141.75 FPS, CPU6.995ms, GPU1.555ms. Prior238/142; no
+  performance improvement claimed. Final315 missing-visible, zero allocation failures/evictions.
+  Reviewed74.9s and150s: castle/materials retained; terrain holes and far-content finish remain
+  unacceptable. Source cleanup and shutdown fix do not resolve appearance latency.
+
+Latest user steering: startup castle/house fill-in is much slower than the CPU renderer; prioritize
+actual time-to-visible and FPS now. Existing log shows first GPU request around15s, first solid
+publications around19s, near publications462 by26s while step8 still waits. These coarse log
+samples are not an exact per-chunk latency measurement. Next experiment must distinguish source
+availability/discovery, admission/coverage and GPU submission/publication waits.
+
+G11 long-session/pressure and other solid retirement/visual gates remain open. Exact production
+sources, hashes and diff accompany both new player directories. No push.
+
 ### 2026-09-06 — Remove CPU upload arena and contiguous draw route
 
 `GpuSolidChunkCache` replaces the old cache name while preserving its asset GUID. Entries now

@@ -2,7 +2,7 @@
 
 ## Objective and acceptance
 
-Deliver production-quality `Assets/Scenes/VoxelShowcase.unity` through GPU rendering, physically delete retired CPU-only rendering, and pursue **1,000 FPS / 1.00 ms whole frame**, or the closest repeatable result under [tasks.md](tasks.md). Preserve authoritative CPU storage/generation/collision/simulation and GPU host orchestration. No hidden content, weaker budgets or reduced distance. Latest user steering: accept imperfect water appearance for now and prioritize performance.
+Deliver production-quality `Assets/Scenes/VoxelShowcase.unity` through GPU rendering, physically delete retired CPU-only rendering, and pursue **1,000 FPS / 1.00 ms whole frame**, or the closest repeatable result under [tasks.md](tasks.md). Preserve authoritative CPU storage/generation/collision/simulation and GPU host orchestration. No hidden content, weaker budgets or reduced distance. Latest steering: prioritize startup castle/house time-to-visible alongside FPS; imperfect water appearance is acceptable for now.
 
 Worktree `/private/tmp/voxel-gpu-restoration`, branch `gpu-rendering-agent-1-resume`, base `73989d7ac`. Local harness/tests/screenshots authorized. Last requested push: `origin/fixes/agent-1` at `64b2921a3`; current work stays local.
 
@@ -10,40 +10,38 @@ Worktree `/private/tmp/voxel-gpu-restoration`, branch `gpu-rendering-agent-1-res
 
 All solid source steps1/2/4/8 have GPU implementations. GPU water is active and its CPU cache/job/shader path is deleted. Full solid retirement, production coverage and visual acceptance remain open.
 
-## Current CPU arena/draw retirement
+## Current retirement and lifetime work
 
-`86733d373` removed CPU worker phases/workspace allocation:469 rendering tests and the module
-passed; module allocated memory687→262MB. Earlier GPU face merging measured236/140 FPS
-stationary/walking, zero allocation failures/evictions and340 missing-visible chunks. Terrain
-holes/far content remain unacceptable. No repeated performance acceptance.
+`f3dd24bea` removed the CPU arena/draw path;468 rendering tests, material regression and both
+players passed. Showcase238/142 FPS stationary/walking, CPU4.06/7.065ms,330 missing-visible,
+zero allocation failures/evictions. No meaningful speed gain from arena retirement; terrain/far
+finish remains unacceptable. Module memory262MB;19 finalizer warnings persisted.
 
-H1: the unused contiguous CPU arena and draw staging still reserve memory/host work. H2: source
-recovery and moving-camera traversal dominate steady performance despite that removal.
+The standalone CPU workspace now has no production callers. Remove it and its obsolete sizing/
+container-lifetime tests; preserve meshing/summary behavioral coverage until migrated to GPU.
 
-Selected change: GPU-paged-only SmoothSurface shader and render pass; remove contiguous CPU
-Entry upload/draw state, scheduler arena and upload/lease-pressure loops. Preserve GPU capacity
-at the existing three-quarter share; leave the freed allocation uncommitted. Rename the host to
-`GpuSolidChunkCache`, preserving its asset GUID and admission/version/publication logic. Retire
-old editor Kentridge capture utilities that rebuilt CPU meshes; executable player gates use the
-existing ShowcasePlayerBuild harness. Canonical CPU storage/generation/collision untouched.
+H1: shutdown stops callbacks before deferred water disposal releases its six buffers and13-buffer
+arena. H2: batch resource replacement omits disposal. Reading complete batch Dispose falsified
+the suspected missing HLOD buffer releases; no replacement leak established.
 
-Validation:468 rendering EditMode tests passed(26s), plus the migrated material-distance
-PlayMode test(13s). Fixed a leftover staging-array clear and stale architecture expectations.
-Two retired CPU lease/upload pressure fixtures were removed; GPU transaction tests cover
-exhaustion/retry and preservation, but full GPU pressure-player coverage remains a G11 gate.
-Module48s/seven captures passed all lifecycle/edit/far markers; CPU arena committed/used0,
-fort intact, prototype composition.19 finalizer warnings persist.
+Selected fix: water stays subscribed to Application.quitting until physical resource release;
+only that exit handler drains readbacks after logical disposal. Frame/scene-change disposal
+remains asynchronous.466/466 rendering tests pass(27s). Both new exit tests fail without the
+drain. Module48s/seven captures and Showcase180s/12 captures pass, buffer warnings19→0.
+Module frame p95/p99 5.680/6.821ms. Showcase229/142 FPS, CPU4.29/6.995ms,315 missing,
+zero allocation failures/evictions. Screenshots retained castle/fort; terrain/far finish still
+unacceptable. No speed gain claimed; exact sources/hashes accompany both players.
 
-Showcase180s/11 captures passed:238/142 FPS stationary/walking, CPU4.06/7.065ms;330 missing,
-zero allocation failures/evictions. Previous236/140: no significant speed improvement established.
-Reviewed75s/150s: castle retained; terrain holes/far/vegetation finish remains unacceptable.
-Exact sources/hashes/windows in `gpu-draw-retirement-showcase`. Source recovery/traversal and
-20.9s coarse publication latency remain unresolved; the removal chiefly saves memory.
+## Startup performance next
 
-Next: remove remaining standalone CPU workspace,
-jobs/oracles and transitional GPU-to-CPU arena bridge. Direct GPU retained-profile suppression/
-backing regression is needed before removing its last CPU predicate oracle. Both prior module
-runs had19 ComputeBuffer finalizer warnings; fix lifetime ownership under G11.
+User reports castle/house fill-in much slower than CPU; prioritize actual time-to-visible, without
+hiding content or adding a loading screen. Logs show first request around15s, first publication
+around19s, near publication462 by26s; coarse requests still pending. H1: source discovery/recovery
+and admission serialize readiness. H2: one global extraction stage per frame plus coarse summary
+work limits publication throughput. Add bounded stage/queue timing and early player captures to
+discriminate; preserve existing frame budgets and GPU queue safety. Dead-helper removal continues
+only where it supports this work. Direct GPU profile coverage is still required before deleting
+the retained CPU predicate; other CPU oracles and bridge remain.
 
 ## Remaining gates
 

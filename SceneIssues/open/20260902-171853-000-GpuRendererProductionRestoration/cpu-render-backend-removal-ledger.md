@@ -44,7 +44,7 @@ last retained-profile CPU predicate is test-only and still needs a direct GPU re
 | `.../Transvoxel/TransitionMeshJob.cs` | CPU transition-face meshing. | G07 GPU transition-face/negative-shell ownership proof across real LOD boundaries. |
 | `.../Transvoxel/MipDensityJob.cs` | CPU coarse mip density generation for rendering. | Confirm Storage mip data remains authoritative input; move only rendering reconstruction to GPU. |
 | `.../Transvoxel/SurfaceBlockHlodSummaryJob.cs` | CPU step-8 rendering summary/HLOD preparation. | Replace the rendering-only summary path on GPU; preserve any canonical world/storage data contract separately. |
-| `Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/TransvoxelBuildWorkspace.cs` (+ `.meta`) | Large persistent NativeArray/List workspace dedicated to CPU meshing phases. | Delete after all CPU geometry jobs and transitional CPU-oracle consumers are removed. |
+| `Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/TransvoxelBuildWorkspace.cs` (+ `.meta`) | **Deleted.** No production callers remained after worker retirement. | Removed obsolete workspace sizing/container tests; retained CPU summary/meshing behavioral tests pending their GPU migration. |
 | `Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/Step4FalseEmptyDiagnostics.cs` (+ `.meta`) | Diagnostics tied to the CPU step-4 fallback investigation. | Remove after G07 GPU step-4 coverage and any useful invariant is moved into GPU-facing tests/metrics. |
 
 `ExactSnapshotMetadataJobs.cs` and `ExactSnapshotRegionCoverage.cs` are **not yet classified as delete**: they may be CPU host-side source/version/coverage machinery rather than triangle generation. Re-evaluate after splitting the mixed cache.

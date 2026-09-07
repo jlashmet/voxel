@@ -163,6 +163,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _outcomes = new ComputeBuffer(1, 16);
             _drawArgs = new ComputeBuffer(ArenaDrawCapacity * 4, 4, ComputeBufferType.IndirectArguments);
             _lifetime = new GpuSubmissionLifetime(ReleaseGpuResources);
+            Application.quitting += DisposeForApplicationQuit;
         }
 
         public int ResidentCount => _entries.Count;
@@ -824,8 +825,18 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _build = default;
         }
 
+        // The player loop will no longer deliver deferred disposal callbacks after exit.
+        // Keep this subscription until physical release, including caches retired by a scene
+        // change immediately before quitting. Normal Dispose and frame work never wait.
+        internal void DisposeForApplicationQuit()
+        {
+            Dispose();
+            AsyncGPUReadback.WaitAllRequests();
+        }
+
         private void ReleaseGpuResources()
         {
+            Application.quitting -= DisposeForApplicationQuit;
             _geometryArena.Dispose();
             _origins.Release(); _materials.Release(); _counters.Release();
             _descriptors.Release(); _outcomes.Release(); _drawArgs.Release();

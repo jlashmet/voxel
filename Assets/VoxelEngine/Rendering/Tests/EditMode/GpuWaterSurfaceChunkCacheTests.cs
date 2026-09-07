@@ -50,6 +50,35 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             Object.DestroyImmediate(_cameraObject);
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void ApplicationExitReleasesEveryWaterBufferWithoutAnotherPlayerLoop(bool startBuild)
+        {
+            for (int cycle = 0; cycle < 3; cycle++)
+            {
+                if (cycle != 0) _cache = new GpuWaterSurfaceChunkCache();
+                if (startBuild)
+                {
+                    _cache.InvalidateSurfaceBricks(_storage.Reads, _bricks);
+                    _cache.Prepare(_storage.Reads, _camera, 0.1f, 5);
+                }
+                var buffers = new System.Collections.Generic.List<ComputeBuffer>();
+                foreach (object owner in new object[] { _cache, Arena })
+                    foreach (var field in owner.GetType().GetFields(
+                                 BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+                        if (field.GetValue(owner) is ComputeBuffer buffer) buffers.Add(buffer);
+                Assert.That(buffers.Count, Is.EqualTo(19), "Cover the water buffers and its paged arena.");
+                foreach (var buffer in buffers) Assert.That(buffer.IsValid(), Is.True);
+                // Include an already logically retired cache: it must remain registered for exit
+                // until the asynchronous physical release has actually happened.
+                if (cycle == 1) _cache.Dispose();
+                _cache.DisposeForApplicationQuit();
+                foreach (var buffer in buffers) Assert.That(buffer.IsValid(), Is.False,
+                    "Application exit cannot depend on a later player-loop callback.");
+                Assert.DoesNotThrow(_cache.DisposeForApplicationQuit);
+            }
+        }
+
         private IEnumerator Pending()
         {
             double deadline = Time.realtimeSinceStartupAsDouble + 5;
