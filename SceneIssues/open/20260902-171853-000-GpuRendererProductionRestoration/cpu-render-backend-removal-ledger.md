@@ -6,6 +6,12 @@
 
 This is a removal ledger, not permission to delete everything whose name contains `Cpu`. Authoritative voxel storage, deterministic generation, collision, simulation, canonical semantic data, and CPU host orchestration required to submit/validate GPU work remain. A file is deleted only after every required rendering responsibility has a GPU/shared replacement and repository references/tests are migrated.
 
+2026-09-06 fine-source checkpoint: production steps1/2/4 now resolve canonical source readiness
+and dense-cache entries on GPU; CPU Covers has no production callers. Fine mixed-slot demand and
+per-submission readers remain host lifetime responsibilities.488 Rendering tests, module and
+Showcase validated;224/184 FPS,zero CPU coverage polls/directory/geometry allocation failures,
+but mixed-slot pressure, missing geometry and slower coarse completion remain. See tasks.md.
+
 2026-09-06 GPU source-readiness migration: the production step8 lane no longer calls CPU
 CoversSourceRange or expands per-brick request coordinates. The summary shader resolves explicit
 canonical block-reference slices and pending/ready GPU keys, generates coordinates, and reports

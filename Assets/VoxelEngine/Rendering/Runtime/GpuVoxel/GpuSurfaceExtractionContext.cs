@@ -62,10 +62,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private uint _coverageEpoch;
         private ulong _coverageWorldEpoch;
         private ulong _extractionWorldEpoch;
-        private int _coverageScanCursor;
-        private bool _coverageRoundIncomplete;
-        private bool _coverageReady;
-        private uint _requestCoveragePolls, _requestCoverageRestarts;
+        private uint _requestCoverageRestarts;
         private int _lastCoveragePollFrame = -1;
         private ComputeBuffer _writeVertices;
         private ComputeBuffer _writeIndices;
@@ -109,7 +106,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         public ulong ChunksOverflowed { get; private set; }
         public ulong CountReadbackRetryCount { get; private set; }
         public long MirrorCommittedBytes => _mirror.CommittedBytes;
-        internal string CoverageProgress => $"step={_staged.SourceStep} origin={_staged.BrickCacheOrigin} edge={_brickCacheEdge} cursor={_coverageScanCursor} polls={_requestCoveragePolls} restarts={_requestCoverageRestarts} ready={_coverageReady}";
+        internal string CoverageProgress => $"step={_staged.SourceStep} origin={_staged.BrickCacheOrigin} edge={_brickCacheEdge} source=GPU restarts={_requestCoverageRestarts}";
         public bool HasActiveRequest => _stageRequestStartedSeconds > 0.0;
         public double ActiveRequestAgeMs => !HasActiveRequest ? 0.0
             : Math.Max(0.0, (Time.realtimeSinceStartupAsDouble
@@ -306,7 +303,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             ThrowIfDisposed();
             Release();
             ChunksRequested++;
-            _requestCoveragePolls = _requestCoverageRestarts = 0;
+            _requestCoverageRestarts = 0;
             _stageRequestStartedSeconds = Time.realtimeSinceStartupAsDouble;
             if (!TryCaptureStorageGeneration(out _stageStorageGeneration))
             {
@@ -348,12 +345,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             if (!_stageAdmissionPending) return _hasStaged;
 
-            // Covers() must gate against the generation the live persistent mirror is currently
-            // trying to represent. Holding the handoff generation forever creates a liveness trap:
-            // one relevant Storage edit makes Covers(oldGeneration) permanently false even after
-            // the demanded blocks have been recovered. Refresh only this mirror generation; the
-            // caller's immutable renderer generation is deliberately unchanged and remains the
-            // authority that can discard this build before publication.
+            // Refresh the host's Storage generation while admission waits. GPU source preparation
+            // owns readiness; the caller's immutable renderer generation and footprint edit epoch
+            // remain the authority that rejects stale output before publication.
             if (!TryCaptureStorageGeneration(out _stageStorageGeneration)) return false;
             if (!BeginPersistentStage(_staged, _stageStorageGeneration)) return false;
 
@@ -392,24 +386,13 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                         request.ChunkOriginVoxel, coreMaxVoxelExclusive);
                 _coverageRequested = true;
                 _coverageEpoch = epoch;
-                _coverageScanCursor = 0;
-                _coverageRoundIncomplete = false;
-                _coverageReady = request.SourceStep == 8;
             }
             if (_lastCoveragePollFrame == Time.frameCount) return false;
             _lastCoveragePollFrame = Time.frameCount;
-            if (!_coverageReady)
-            {
-                _requestCoveragePolls++;
-                if (!GpuSurfaceMirrorCoordinator.Covers(
-                        request.BrickCacheOrigin, _brickCacheEdge,
-                        request.ChunkOriginVoxel, coreMaxVoxelExclusive, generation,
-                        ref _coverageScanCursor, ref _coverageRoundIncomplete))
-                    return false;
-                _coverageReady = true;
-            }
+            // GPU source preparation resolves readiness and canonical uniform entries. Fine
+            // demand retains mixed slots; per-submission readers protect only GPU consumers.
             if (!GpuSurfaceMirrorCoordinator.TryBeginExtraction(
-                    request.BrickCacheOrigin, request.SourceStep == 8 ? 0 : _brickCacheEdge, out _extractionWorldEpoch))
+                    request.BrickCacheOrigin, 0, out _extractionWorldEpoch))
                 return false;
             ConfigurePersistentLookupHeader();
             int handle = GpuSurfaceMirrorCoordinator.PrepareChunkHandle(
@@ -417,7 +400,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (handle < 0)
             {
                 GpuSurfaceMirrorCoordinator.EndExtraction(
-                    request.BrickCacheOrigin, request.SourceStep == 8 ? 0 : _brickCacheEdge, _extractionWorldEpoch);
+                    request.BrickCacheOrigin, 0, _extractionWorldEpoch);
                 return false;
             }
             _staged = new GpuChunkExtraction(
@@ -860,7 +843,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             {
                 _sharedExtractionActive = false;
                 GpuSurfaceMirrorCoordinator.EndExtraction(
-                    _staged.BrickCacheOrigin, _staged.SourceStep == 8 ? 0 : _brickCacheEdge, _extractionWorldEpoch);
+                    _staged.BrickCacheOrigin, 0, _extractionWorldEpoch);
             }
         }
 
@@ -875,9 +858,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 GpuSurfaceMirrorCoordinator.ReleaseCoverage(request.BrickCacheOrigin, _brickCacheEdge,
                     request.ChunkOriginVoxel, coreMaxVoxelExclusive, _coverageWorldEpoch);
             _coverageRequested = false;
-            _coverageScanCursor = 0;
-            _coverageRoundIncomplete = false;
-            _coverageReady = false;
         }
 
         private void ThrowIfDisposed()

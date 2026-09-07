@@ -32,6 +32,47 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             if (_shader != null) Object.DestroyImmediate(_shader);
         }
 
+        [Test]
+        public void DenseSourceEntriesPreservePackingOffsetsAndPendingRejection()
+        {
+            int3 origin = new(-2, -1, -1), second = origin + new int3(1, 0, 0);
+            _requests.SetData(new[] { new int4(origin >> 6, 1) });
+            using var references = new ComputeBuffer(4096, 4);
+            using var missing = new ComputeBuffer(3, 4);
+            var metadata = new int[4096];
+            int offset = 62;
+            metadata[offset] = -201; metadata[offset + 1] = -1;
+            var entries = new uint[_summaries.count];
+            for (int i = 0; i < entries.Length; i++) entries[i] = 0xdeadbeefu;
+            _summaries.SetData(entries);
+            var feedback = new uint[3];
+            void Dispatch()
+            {
+                references.SetData(metadata); missing.SetData(new uint[3]);
+                GpuBlockHlodSummary.DispatchSourceRange(_shader, _mirror, _requests, 1,
+                    origin, new int3(2, 1, 1), _summaries, 5, missing, 0,
+                    blockReferences: references, resolveEntries: true);
+                missing.GetData(feedback); _summaries.GetData(entries);
+                Assert.That(entries[4], Is.EqualTo(0xdeadbeefu));
+                Assert.That(entries[7], Is.EqualTo(0xdeadbeefu));
+            }
+            Dispatch(); Assert.That(feedback[0], Is.Zero);
+            Assert.That(entries[5], Is.EqualTo(1u | (200u << 8))); Assert.That(entries[6], Is.Zero);
+            metadata[offset + 1] = 123456;
+            Dispatch(); Assert.That(feedback[0], Is.EqualTo(1)); Assert.That(feedback[1], Is.EqualTo(1));
+            Assert.That(entries[6], Is.Zero);
+            using var owned = new NativeArray<byte>(512, Allocator.Temp);
+            var voxels = owned; voxels[0] = 3;
+            using var surface = new NativeArray<ushort>(512, Allocator.Temp);
+            using var boundary = new NativeArray<byte>(512, Allocator.Temp);
+            _mirror.Publish(VoxelBrickDelta.MixedAt(second, 1, 0), voxels, surface, boundary, 0, true);
+            Assert.That(_mirror.TryGetSlot(second, out int slot), Is.True);
+            Dispatch(); Assert.That(feedback[0], Is.Zero);
+            Assert.That(entries[6], Is.EqualTo(2u | ((uint)slot << 16)));
+            _mirror.InvalidateReadiness(second);
+            Dispatch(); Assert.That(feedback[0], Is.EqualTo(1)); Assert.That(entries[6], Is.Zero);
+        }
+
         [TestCase(-1)]
         [TestCase(63)]
         public void CanonicalReferencesDecodeUniformAirAndWaterWithoutDirectoryKeys(int x)
@@ -49,7 +90,7 @@ namespace VoxelEngine.Rendering.Tests.EditMode
                     int3 region = (r == 0 ? origin : second) >> 6;
                     if (!math.all(region == (coordinate >> 6))) continue;
                     int3 local = coordinate - region * 64;
-                    encoded[r * 4096 + local.x + 64 * local.y] = value;
+                    encoded[r * 4096 + local.x + 64 * (coordinate.y - origin.y)] = value;
                 }
             }
             void Dispatch()

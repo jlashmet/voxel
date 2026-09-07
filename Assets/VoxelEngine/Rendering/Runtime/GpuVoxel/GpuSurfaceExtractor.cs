@@ -185,10 +185,16 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             internal ComputeBuffer HlodSummaries;
             internal ComputeShader HlodSummaryShader, HlodMeshShader;
 
+            internal void PrepareSourceResolution()
+            {
+                if (HlodSummaryShader == null)
+                    HlodSummaryShader = UnityEngine.Object.Instantiate(Resources.Load<ComputeShader>("GpuBlockHlodSummary"));
+            }
+
             internal void PrepareHlod()
             {
                 if (HlodSummaries != null) return;
-                HlodSummaryShader = UnityEngine.Object.Instantiate(Resources.Load<ComputeShader>("GpuBlockHlodSummary"));
+                PrepareSourceResolution();
                 HlodMeshShader = UnityEngine.Object.Instantiate(Resources.Load<ComputeShader>("GpuBlockHlodMesher"));
                 HlodSummaries = new ComputeBuffer(Capacity * BrickCacheEdge * BrickCacheEdge * BrickCacheEdge
                     * GpuBlockHlodSummary.WordsPerBlock, sizeof(uint), ComputeBufferType.Structured);
@@ -928,8 +934,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 throw new ArgumentOutOfRangeException(nameof(recordCount));
 
             resources.UsesBlockHlod = requests[0].SourceStep == 8;
-            if (summariesPrepared && !resources.UsesBlockHlod)
-                throw new ArgumentException("Prepared summaries require step-eight extraction.", nameof(summariesPrepared));
             for (int i = 1; i < recordCount; i++)
                 if ((requests[i].SourceStep == 8) != resources.UsesBlockHlod)
                     throw new ArgumentException("Coarse and regular extraction require separate lanes.");
@@ -959,6 +963,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             resources.StageProfiles(requests, recordCount);
             resources.Chunks.SetData(resources.Descriptors, 0, 0, recordCount);
             if (!summariesPrepared) resources.PreparedCache.Dispatch(mirror, requests, recordCount);
+            else if (!resources.UsesBlockHlod) resources.PreparedCache.PrepareRequests(requests, recordCount);
             batchCounters.SetData(resources.CounterZeros, 0, 0,
                                   BatchHeaderWords + recordCount * BatchRecordWords);
 

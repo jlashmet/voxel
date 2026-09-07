@@ -1,5 +1,59 @@
 # GPU-only VoxelShowcase — execution checklist
 
+### 2026-09-06 — Fine GPU source readiness and packed source portions (validation ongoing)
+
+Production fine steps1/2/4 no longer call CPU Covers. GPU source resolution fills the existing dense
+cache directly from canonical block-reference metadata and current mixed directory payloads;
+only missing mixed indices return for uploads. Count submission prepares bounded descriptor views
+without overwriting those entries. Coarse keeps material summaries; both use the same source proof.
+Fine whole-footprint demand protects accumulated mixed slots; active readers are held only during
+GPU source/count submissions so recovery can upload missing data. Context admission retains the
+extraction concurrency count without prematurely locking its missing footprint. Epoch/version
+checks still reject edits and retired worlds. Obsolete CPU scan fields and misleading readiness
+telemetry were removed. Legacy Covers exists only for its remaining direct behavioral tests.
+
+Pre-submission cancellation resets preparation only for the matching lane, then preserves/rebinds
+surviving owners. Submitted source portions remain immutable through callback. Existing count-stage
+lifetime tests now complete real GPU source preparation before testing count disposal/errors.
+
+`gpu-fine-readiness.xml`:476/482 pass; six failures exposed immediate-count assumptions and
+preparation marking queued work immutable before Storage was available.
+`gpu-fine-readiness-lifetime.xml`:482/482 pass19s after lifecycle correction.
+`gpu-fine-readiness-production.xml`:487/487 pass20s, adding realStorage mixed-geometry publication
+at steps1/2/4 plus fine source edit rejection and in-flight retirement.
+`gpu-fine-readiness-final.xml`:488/488 pass20s including direct packed dense-entry/offset/pending
+regression. `gpu-fine-readiness-module`:28s build,48s/seven captures,exit0; all markers,zero missing/
+errors/finalizers,frame p95/p99 .819/.914ms,262.4MB. This is the pre-packing checkpoint.
+
+Inspection found one-Z-plane portions underfilled fine GPU submissions. Pack multiple complete XY
+planes while retaining1024 source and64 metadata-row limits. Existing128KiB GPU/16KiB CPU buffers
+remain unchanged; relative Y/Z indexing spans up to eight regions. Typical nearest edge10 cube
+uses two portions instead of ten. `gpu-fine-readiness-packed.xml`:488/488 pass20s, including real
+negative halo/region crossings, fine geometry and coarse4096-mixed-source pressure. Packed-source
+`gpu-fine-readiness-packed-module`:28s build,48s/seven captures,exit0; all lifecycle/edit/far
+markers,zero missing/errors/finalizers. Frame p95/p99 .817/.918ms;prepare .027/.028ms;262.4MB.
+Reviewed42s: fort intact, prototype/blockout composition.
+`gpu-fine-readiness-packed-showcase`:18s build,180s/12 captures,exit0; source hashes match.
+Stationary60–90s30 samples223.72 FPS,CPU3.89ms,GPU diagnostic5.085ms. Walking120–180s60
+samples183.78 FPS,CPU5.245ms,GPU2.17ms (previous222/134 FPS,CPU3.905/7.32ms).
+Final CPU coverage polls/rounds0;directory insertion failures0;geometry allocation failures and
+evictions0 (was259). Recovery publications8.63M→347,749;host-ready entries894,513→40,270.
+Mixed slots still40,270/40,270,307,479 no-slot attempts;oldest coarse21.17s and GPU step8
+publications37→13. Missing-visible442→456. This is a source/CPU improvement with remaining
+throughput/coverage failures, not400FPS or complete-scene acceptance. Reviewed74.9s castle and
+149.9s terrain: castle retained, terrain seams/flat far/vegetation finish remain unacceptable.
+
+Next evidence-backed audit: BeginPersistentStage registers full fine demand BEFORE TryBeginExtraction
+can reject admission. Waiting contexts can therefore protect slots despite not being admitted.
+Move demand ownership behind successful admission and verify rejected admissions retain nothing;
+then determine whether admitted fine footprints need bounded mixed-slot arbitration. Do not solve
+pressure by enlarging memory or hiding content. Walking visibility still~1.73ms CPU traversal,
+plus occasional hierarchy reconstruction; migrate camera-dependent selection next. Static frame
+rate barely changed despite source recovery often0ms, so profile GPU draw cost too: current path
+issues128 procedural indirect buckets and fetches paged indices/vertices in the shader. True indexed
+draw/vertex reuse is a hypothesis to measure, not a verified cause or selected rewrite yet.
+
+
 ### 2026-09-06 — GPU canonical uniform-block decoding (validation ongoing)
 
 Storage RegionReadView now exposes bounded copy of canonical encoded block references without

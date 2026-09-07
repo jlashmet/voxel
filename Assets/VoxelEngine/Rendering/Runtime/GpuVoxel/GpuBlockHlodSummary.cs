@@ -76,24 +76,25 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         internal static void DispatchSourceRange(ComputeShader shader, GpuVoxelBrickMirror mirror,
             ComputeBuffer regions, int regionCount, int3 origin, int3 extent,
             ComputeBuffer summaries, int outputBlockOffset, ComputeBuffer missing, uint waterMaterialMask,
-            ComputeBuffer occupancy = null, ComputeBuffer blockReferences = null)
+            ComputeBuffer occupancy = null, ComputeBuffer blockReferences = null,
+            bool resolveEntries = false)
         {
             int count = checked(extent.x * extent.y * extent.z);
             if (count < 1 || count > MaximumBlocksPerDispatch || regionCount < 1
                 || regionCount > regions.count || missing.count < count + 1)
                 throw new ArgumentOutOfRangeException(nameof(extent));
-            if (outputBlockOffset < 0 || (long)(outputBlockOffset + count) * WordsPerBlock > summaries.count)
+            if (outputBlockOffset < 0 || ((long)outputBlockOffset + count) * (resolveEntries ? 1 : WordsPerBlock) > summaries.count)
                 throw new ArgumentOutOfRangeException(nameof(outputBlockOffset));
             if (occupancy != null && (extent.z != 1 || occupancy.stride != 4
                 || occupancy.count < regionCount * 128))
                 throw new ArgumentException("Occupancy must contain one 64x64-bit Z slice per region.", nameof(occupancy));
-            if (blockReferences != null && (extent.z != 1 || blockReferences.stride != 4
+            if (blockReferences != null && (extent.y * extent.z > 64 || blockReferences.stride != 4
                 || blockReferences.count < regionCount * 4096 || occupancy != null))
-                throw new ArgumentException("Block references must contain one 64x64 Z slice per region.", nameof(blockReferences));
+                throw new ArgumentException("Block references must contain at most 64 canonical X rows per region.", nameof(blockReferences));
             if (mirror.IsDisposed || mirror.IsClearPending)
                 throw new InvalidOperationException("HLOD source mirror is unavailable.");
             mirror.FlushPendingUploads();
-            int kernel = shader.FindKernel("CSSummarizeSourceRange");
+            int kernel = shader.FindKernel(resolveEntries ? "CSResolveSourceRange" : "CSSummarizeSourceRange");
             shader.SetBuffer(kernel, "_BrickMaterials", mirror.Materials);
             shader.SetBuffer(kernel, "_HlodRegions", regions);
             shader.SetBuffer(kernel, "_HlodOccupancy", occupancy ?? missing);

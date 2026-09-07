@@ -48,6 +48,19 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             if (_arenaShader != null) UnityEngine.Object.DestroyImmediate(_arenaShader);
         }
 
+        private static IEnumerator PrepareSources(object lane)
+        {
+            var advance = lane.GetType().GetMethod("AdvanceSummaryPreparation", Fields);
+            double deadline = Time.realtimeSinceStartupAsDouble + 5;
+            while (Time.realtimeSinceStartupAsDouble < deadline)
+            {
+                if ((bool)advance.Invoke(lane, new object[] { Time.frameCount })) yield break;
+                Assert.That(Get(lane, "SummaryFailed"), Is.False);
+                yield return null;
+            }
+            Assert.Fail("Real GPU source preparation did not complete within five seconds.");
+        }
+
         [UnityTest]
         public IEnumerator ReadyNearGeometrySubmitsBeforeAnEarlierCoarsePreparationLane() => ValidateSubmissionPriority(false);
 
@@ -74,6 +87,7 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             Queue(_second, 2);
             object near = Lanes().GetValue(1);
             Assert.That(Get(near, "Count"), Is.EqualTo(1));
+            yield return PrepareSources(near);
             if (coarseDue)
                 for (int i = 1; i <= 8; i++)
                     Assert.That(GpuSurfaceMirrorCoordinator.TryReserveExtractionDispatch(Time.frameCount + i), Is.True);
@@ -232,6 +246,9 @@ namespace VoxelEngine.Rendering.Tests.EditMode
         [UnityTest]
         public IEnumerator WorldReplacementDuringARealSubmissionWaitsForTheCompletionCallback()
         {
+            using var initial = VoxelEngineBootstrap.CreateStorage(1, 1);
+            initial.Residency.EnsureRegionResident(int3.zero);
+            GpuSurfaceMirrorCoordinator.PrepareFrame(initial.Reads, initial.Changes, Time.frameCount, 1.0);
             var mirror = _first.Mirror;
             uint[] empty = GpuMirrorClearLifetimeTests.ReadDirectory(mirror);
             Assert.That(mirror.Publish(VoxelBrickDelta.UniformAt(int3.zero, 1, 1),
@@ -241,6 +258,7 @@ namespace VoxelEngine.Rendering.Tests.EditMode
                 .SetValue(null, Time.frameCount);
             Queue(_first, 1); Queue(_second, 2);
             object lane = FirstLane();
+            yield return PrepareSources(lane);
             Coordinator.GetField("s_LastExtractionDispatchFrame", BindingFlags.Static | BindingFlags.NonPublic)
                 .SetValue(null, -1);
             Coordinator.GetMethod("SealCountBatch", BindingFlags.Static | BindingFlags.NonPublic).Invoke(null, new[] { lane });
@@ -269,13 +287,16 @@ namespace VoxelEngine.Rendering.Tests.EditMode
 
         private IEnumerator ValidateSubmittedDisposal(bool failSubmission)
         {
+            using var initial = VoxelEngineBootstrap.CreateStorage(1, 1);
+            initial.Residency.EnsureRegionResident(int3.zero);
+            GpuSurfaceMirrorCoordinator.PrepareFrame(initial.Reads, initial.Changes, Time.frameCount, 1.0);
             // Keep the world attached until both submitting contexts have released their own
             // readers, so the remaining protection must belong to the submitted batch itself.
             using var keeper = GpuSurfaceExtractionContext.TryCreate(8, 2, 1024);
             Assert.NotNull(keeper);
             foreach (var context in new[] { _first, _second })
             {
-                Assert.That(GpuSurfaceMirrorCoordinator.TryBeginExtraction(int3.zero, context.BrickCacheEdge, out ulong epoch), Is.True);
+                Assert.That(GpuSurfaceMirrorCoordinator.TryBeginExtraction(int3.zero, 0, out ulong epoch), Is.True);
                 typeof(GpuSurfaceExtractionContext).GetField("_sharedExtractionActive", Fields).SetValue(context, true);
                 typeof(GpuSurfaceExtractionContext).GetField("_extractionWorldEpoch", Fields).SetValue(context, epoch);
             }
@@ -285,6 +306,7 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             Queue(_first, 1);
             Queue(_second, 2);
             object lane = FirstLane();
+            yield return PrepareSources(lane);
             ComputeBuffer mirror = _first.Mirror.Materials;
             ComputeBuffer tables = _first.Tables.CellClass;
             ComputeBuffer extractor = (ComputeBuffer)typeof(GpuSurfaceExtractor)
@@ -355,7 +377,22 @@ namespace VoxelEngine.Rendering.Tests.EditMode
         [UnityTest]
         public IEnumerator EditToCompletedSummaryPortionRejectsTheWholeCandidate() => ValidateSummaryLane(false, false, true);
 
-        private IEnumerator ValidateSummaryLane(bool retire, bool pressure = false, bool edit = false)
+        [UnityTest]
+        public IEnumerator FineStepOnePublishesRealMixedStorageThroughGpuReadiness() => ValidateSummaryLane(false, step: 1);
+
+        [UnityTest]
+        public IEnumerator FineStepTwoPublishesRealMixedStorageThroughGpuReadiness() => ValidateSummaryLane(false, step: 2);
+
+        [UnityTest]
+        public IEnumerator FineStepFourPublishesRealMixedStorageThroughGpuReadiness() => ValidateSummaryLane(false, step: 4);
+
+        [UnityTest]
+        public IEnumerator FineCompletedSourceEditRejectsTheCandidate() => ValidateSummaryLane(false, edit: true, step: 4);
+
+        [UnityTest]
+        public IEnumerator FineSourceRetirementKeepsBuffersThroughCompletion() => ValidateSummaryLane(true, step: 4);
+
+        private IEnumerator ValidateSummaryLane(bool retire, bool pressure = false, bool edit = false, int step = 8)
         {
             _first.Dispose();
             if (pressure)
@@ -366,7 +403,7 @@ namespace VoxelEngine.Rendering.Tests.EditMode
                 Coordinator.GetField("s_Mirror", BindingFlags.Static | BindingFlags.NonPublic)
                     .SetValue(null, new GpuVoxelBrickMirror(1024, retainKnownEmpty: false));
             }
-            int core = pressure ? 16 : 8, edge = core + 2;
+            int core = pressure ? 16 : 8, edge = core * step / 8 + 2;
             _first = GpuSurfaceExtractionContext.TryCreate(core, 2, 1024, edge);
             Assert.NotNull(_first);
             using var storage = VoxelEngineBootstrap.CreateStorage(edit ? 2 : 1, pressure ? 4096 : 1);
@@ -385,12 +422,21 @@ namespace VoxelEngine.Rendering.Tests.EditMode
                 }
                 Assert.That(core * core * core, Is.GreaterThan(_first.Mirror.SlotCapacity));
             }
+            if (step != 8)
+            {
+                storage.Mutations.SetWholeBlock(int3.zero, 1, false);
+                Assert.That(storage.Mutations.TryBeginPartialBlock(int3.zero, 2, false, out var mixed), Is.True);
+                Assert.That(mixed.SetMaterial(0, 2), Is.True);
+                storage.Mutations.CompletePartialBlock(ref mixed, true);
+            }
             storage.PublishAllResidentRegions();
             GpuSurfaceMirrorCoordinator.PrepareFrame(storage.Reads, storage.Changes, Time.frameCount, 1.0);
-            int handle = GpuSurfaceMirrorCoordinator.PrepareChunkHandle(int3.zero, 8, out ulong generation);
-            var request = new GpuChunkExtraction(int3.zero, new int3(-1), 8, 0.1f,
+            int handle = GpuSurfaceMirrorCoordinator.PrepareChunkHandle(int3.zero, step, out ulong generation);
+            var request = new GpuChunkExtraction(int3.zero, new int3(-1), step, 0.1f,
                 handle: handle, generation: generation);
-            ulong world = GpuSurfaceMirrorCoordinator.RequestEditWatch(new int3(-1), edge);
+            ulong world = step == 8
+                ? GpuSurfaceMirrorCoordinator.RequestEditWatch(new int3(-1), edge)
+                : GpuSurfaceMirrorCoordinator.RequestCoverage(new int3(-1), edge, int3.zero, new int3(core * step));
             foreach (var pair in new[] { ("_hasStaged", (object)true), ("_coverageRequested", (object)true),
                 ("_staged", (object)request), ("_coverageWorldEpoch", (object)world),
                 ("_coverageEpoch", (object)GpuSurfaceMirrorCoordinator.CoverageEpochFor(new int3(-1), edge)) })
@@ -404,7 +450,7 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             while (Time.realtimeSinceStartupAsDouble < deadline)
             {
                 yield return null;
-                if (edit && !edited && (int)Get(lane, "_summaryCursor") > 0)
+                if (edit && !edited && ((int)Get(lane, "_summaryCursor") > 0 || (int)Get(lane, "_summaryRecord") > 0))
                 {
                     // Edit the first completed Z plane, including its previously absent halo.
                     storage.Residency.EnsureRegionResident(new int3(-1));
@@ -420,8 +466,9 @@ namespace VoxelEngine.Rendering.Tests.EditMode
                 if ((bool)Get(lane, "SummarySubmitted"))
                 {
                     sawSubmission = true;
-                    Assert.That(GpuSurfaceMirrorCoordinator.DemandFootprintCount, Is.EqualTo(1),
-                        "Only the active source portion is demanded, not the entire watched footprint.");
+                    Assert.That(GpuSurfaceMirrorCoordinator.DemandFootprintCount,
+                        Is.EqualTo(step == 8 || math.all((int3)Get(lane, "_summaryExtent") == edge) ? 1 : 2),
+                        "Fine mixed slots need whole-footprint demand in addition to the active portion.");
                     if (retire)
                     {
                         ComputeBuffer requests = (ComputeBuffer)Get(lane, "SummaryRequests");
@@ -443,7 +490,7 @@ namespace VoxelEngine.Rendering.Tests.EditMode
                 if (_first.TryTakePagedBatch(out _, out bool failed))
                 {
                     Assert.That(failed, Is.EqualTo(edit));
-                    if (pressure)
+                    if ((pressure || step != 8) && !edit)
                     {
                         var counters = new uint[GpuSurfaceExtractor.BatchHeaderWords + GpuSurfaceExtractor.BatchRecordWords];
                         ((ComputeBuffer)Get(lane, "Counters")).GetData(counters, 0, 0, counters.Length);
@@ -456,6 +503,7 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             }
             Assert.That(sawSubmission, Is.True, "Test must execute real asynchronous summary work.");
             Assert.That(completed, Is.True, "The bounded lane must reach publication within the test deadline.");
+            _first.Release();
             Assert.That(GpuSurfaceMirrorCoordinator.DemandFootprintCount, Is.Zero);
         }
 

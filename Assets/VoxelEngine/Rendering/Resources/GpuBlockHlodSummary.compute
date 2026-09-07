@@ -1,3 +1,4 @@
+#pragma kernel CSResolveSourceRange VOXEL_HLOD_SOURCE_RANGE VOXEL_SOURCE_ENTRIES
 #pragma kernel CSSummarizeSourceRange VOXEL_HLOD_SOURCE_RANGE
 #pragma kernel CSSummarizeBlocks
 #pragma kernel CSSummarizeDenseBlocks VOXEL_HLOD_DENSE_ENTRY
@@ -89,7 +90,10 @@ void Summarize(uint3 group, uint lane)
                 if (_HlodHasBlockReferences != 0u && resident)
                 {
                     uint3 local = (uint3)(coordinate - region * 64);
-                    int encoded = _HlodBlockReferences[r * 4096u + local.x + local.y * 64u];
+                    uint relativeY = (uint)(coordinate.y - _HlodRangeOrigin.y);
+                    uint relativeZ = (uint)(coordinate.z - _HlodRangeOrigin.z);
+                    int encoded = _HlodBlockReferences[r * 4096u + local.x
+                        + (relativeY + relativeZ * (uint)_HlodRangeExtent.y) * 64u];
                     sourceUniform = encoded < 0;
                     if (sourceUniform)
                     {
@@ -147,6 +151,9 @@ void Summarize(uint3 group, uint lane)
 #endif
     }
     GroupMemoryBarrierWithGroupSync();
+#ifdef VOXEL_SOURCE_ENTRIES
+    if (lane == 0u) _HlodSummaries[brickIndex + _HlodOutputBlockOffset] = s_Known != 0u ? s_Entry : 0u;
+#else
     uint3 minimum = uint3(lane & 3u, (lane >> 2u) & 3u, lane >> 4u) * 2u;
     // Four independent columns each vote once.
     // Each column contributes only its topmost solid, in Z-then-X tie order.
@@ -176,6 +183,7 @@ void Summarize(uint3 group, uint lane)
         _HlodSummaries[output + lane] = mask;
     }
     if (lane == 0u) _HlodSummaries[output + 18u] = s_Known == 0u ? 1u : 0u;
+#endif
 }
 
 [numthreads(64, 1, 1)]
@@ -185,3 +193,6 @@ void CSSummarizeDenseBlocks(uint3 group : SV_GroupID, uint lane : SV_GroupIndex)
 
 [numthreads(64, 1, 1)]
 void CSSummarizeSourceRange(uint3 group : SV_GroupID, uint lane : SV_GroupIndex) { Summarize(group, lane); }
+
+[numthreads(64, 1, 1)]
+void CSResolveSourceRange(uint3 group : SV_GroupID, uint lane : SV_GroupIndex) { Summarize(group, lane); }

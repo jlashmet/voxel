@@ -66,6 +66,29 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (recordCount <= 0 || recordCount > _buffers.Capacity || recordCount > requests.Length)
                 throw new ArgumentOutOfRangeException(nameof(recordCount));
 
+            PrepareRequests(requests, recordCount);
+
+            _buffers.HeaderStaging[0] = unchecked((uint)mirror.DirectoryWordOffset);
+            _buffers.HeaderStaging[1] = unchecked((uint)mirror.DirectoryMask);
+            _buffers.DirectoryHeader.SetData(_buffers.HeaderStaging);
+
+            _shader.SetBuffer(_kernel, IdBrickMaterials, mirror.Materials);
+            _shader.SetBuffer(_kernel, IdPersistentLookupHeader, _buffers.DirectoryHeader);
+            _shader.SetBuffer(_kernel, IdRequests, _buffers.RequestViews);
+            _shader.SetBuffer(_kernel, IdWrite, _buffers.DenseEntries);
+            _shader.SetInt("_PersistentDirectoryProbeCount", mirror.MaximumDirectoryProbeCount);
+            _shader.SetInt(IdEdge, _edge);
+            _shader.SetInt(IdRequestCount, recordCount);
+            _shader.Dispatch(_kernel,
+                             (_buffers.BricksPerRequest + ThreadGroupSize - 1) / ThreadGroupSize,
+                             recordCount, 1);
+        }
+
+        internal void PrepareRequests(GpuChunkExtraction[] requests, int recordCount)
+        {
+            ThrowIfDisposed();
+            if (requests == null || recordCount <= 0 || recordCount > _buffers.Capacity
+                || recordCount > requests.Length) throw new ArgumentOutOfRangeException(nameof(recordCount));
             for (int i = 0; i < recordCount; i++)
             {
                 int3 origin = requests[i].BrickCacheOrigin;
@@ -85,20 +108,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _buffers.RequestViews.SetData(
                 _buffers.RequestStaging, 0, 0, _buffers.RequestStaging.Length);
 
-            _buffers.HeaderStaging[0] = unchecked((uint)mirror.DirectoryWordOffset);
-            _buffers.HeaderStaging[1] = unchecked((uint)mirror.DirectoryMask);
-            _buffers.DirectoryHeader.SetData(_buffers.HeaderStaging);
-
-            _shader.SetBuffer(_kernel, IdBrickMaterials, mirror.Materials);
-            _shader.SetBuffer(_kernel, IdPersistentLookupHeader, _buffers.DirectoryHeader);
-            _shader.SetBuffer(_kernel, IdRequests, _buffers.RequestViews);
-            _shader.SetBuffer(_kernel, IdWrite, _buffers.DenseEntries);
-            _shader.SetInt("_PersistentDirectoryProbeCount", mirror.MaximumDirectoryProbeCount);
-            _shader.SetInt(IdEdge, _edge);
-            _shader.SetInt(IdRequestCount, recordCount);
-            _shader.Dispatch(_kernel,
-                             (_buffers.BricksPerRequest + ThreadGroupSize - 1) / ThreadGroupSize,
-                             recordCount, 1);
         }
 
         public void Dispose()

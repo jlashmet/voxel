@@ -194,30 +194,36 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             {
                 if (!SystemInfo.supportsAsyncGPUReadback)
                     throw new InvalidOperationException("GPU summary preparation requires asynchronous completion.");
-                PreparingSummaries = true;
                 if (SummarySubmitted || SummaryFailed) return false;
                 if (_summaryRecord >= Count) return true;
                 if (_lastSummaryFrame == frame) return false;
                 _lastSummaryFrame = frame;
                 if (s_Storage == null) return false;
-                Resources.PrepareHlod();
+                PreparingSummaries = true;
+                bool coarse = Requests[0].SourceStep == 8;
+                if (coarse) Resources.PrepareHlod();
+                else Resources.PrepareSourceResolution();
                 int edge = PrefixExtractor.BrickCacheEdge;
                 int blocks = edge * edge * edge;
                 GpuChunkExtraction request = Requests[_summaryRecord];
                 if (!_summaryDemand)
                 {
-                    // Whole X rows within one Z plane are contiguous in the final summary buffer.
+                    // Whole X rows, or multiple complete XY planes, stay contiguous in the
+                    // output. Bound both source count and the existing 64-row metadata slice.
                     int y = (_summaryCursor / edge) % edge, z = _summaryCursor / (edge * edge);
                     int rows = Math.Min(edge - y, GpuBlockHlodSummary.MaximumBlocksPerDispatch / edge);
+                    int depth = rows == edge && y == 0
+                        ? Math.Min(edge - z, Math.Min(64 / rows,
+                            GpuBlockHlodSummary.MaximumBlocksPerDispatch / (edge * rows))) : 1;
                     _summaryOrigin = request.BrickCacheOrigin + new int3(0, y, z);
-                    _summaryExtent = new int3(edge, rows, 1);
-                    _summaryCount = edge * rows;
+                    _summaryExtent = new int3(edge, rows, depth);
+                    _summaryCount = edge * rows * depth;
                     _summaryWorld = RequestSourceRange(_summaryOrigin, _summaryExtent);
                     _summaryDemand = true;
                 }
                 int3 coreMax = request.ChunkOriginVoxel + new int3(PrefixExtractor.CellsPerAxis * request.SourceStep);
                 int regionCount = PrepareSummaryRegions(request.ChunkOriginVoxel, coreMax);
-                if (regionCount == 0 || !TryReserveExtractionDispatch(frame, coarse: true)) return false;
+                if (regionCount == 0 || !TryReserveExtractionDispatch(frame, coarse: coarse)) return false;
                 if (!PrepareSummaryBlockReferences(regionCount)) return false;
                 SummaryRequests ??= new ComputeBuffer(_summaryRegions.Length, 16);
                 SummaryMissing ??= new ComputeBuffer(GpuBlockHlodSummary.MaximumBlocksPerDispatch + 1, 4);
@@ -233,8 +239,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 {
                     GpuBlockHlodSummary.DispatchSourceRange(Resources.HlodSummaryShader, _summaryMirror,
                         SummaryRequests, regionCount, _summaryOrigin, _summaryExtent,
-                        Resources.HlodSummaries, _summaryRecord * blocks + _summaryCursor,
-                        SummaryMissing, SolidMaterialClassification.WaterMaterialMask, blockReferences: SummaryBlockReferences);
+                        coarse ? Resources.HlodSummaries : Resources.PreparedCache.DenseEntries,
+                        _summaryRecord * blocks + _summaryCursor,
+                        SummaryMissing, SolidMaterialClassification.WaterMaterialMask,
+                        blockReferences: SummaryBlockReferences, resolveEntries: !coarse);
                     issued = true;
                 }
                 finally
@@ -283,15 +291,21 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                     if (_summaryRegions[r].w == 0) continue;
                     int3 region = _summaryRegions[r].xyz;
                     if (!s_Storage.TryAcquireRegion(region, out RegionReadView view)) return false;
-                    int localZ = _summaryOrigin.z - region.z * 64;
                     int minY = math.max(0, _summaryOrigin.y - region.y * 64);
                     int maxY = math.min(64, _summaryOrigin.y + _summaryExtent.y - region.y * 64);
+                    int minZ = math.max(0, _summaryOrigin.z - region.z * 64);
+                    int maxZ = math.min(64, _summaryOrigin.z + _summaryExtent.z - region.z * 64);
                     int start = minY * 64, count = (maxY - minY) * 64;
-                    // Copy canonical rows; GPU decodes air/uniform and resolves only mixed
-                    // payloads through its directory. Never translate Storage pool addresses.
-                    if (!view.TryCopyBlockReferences(localZ * 4096 + start, _blockReferences, 0, count)
-                        || s_Storage.Version != view.Version) return false;
-                    SummaryBlockReferences.SetData(_blockReferences, 0, r * 4096 + start, count);
+                    for (int localZ = minZ; localZ < maxZ; localZ++)
+                    {
+                        // Copy canonical rows without interpreting block kinds or pool addresses.
+                        if (!view.TryCopyBlockReferences(localZ * 4096 + start, _blockReferences, 0, count)
+                            || s_Storage.Version != view.Version) return false;
+                        int relativeZ = localZ + region.z * 64 - _summaryOrigin.z;
+                        int relativeY = minY + region.y * 64 - _summaryOrigin.y;
+                        int destination = r * 4096 + (relativeZ * _summaryExtent.y + relativeY) * 64;
+                        SummaryBlockReferences.SetData(_blockReferences, 0, destination, count);
+                    }
                 }
                 return true;
             }
@@ -623,10 +637,13 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             // compacted: their immutable descriptors and GPU offsets are already in flight.
             foreach (CountBatchLane lane in s_CountBatchLanes)
             {
-                if (lane == null || lane.Submitted || lane.PreparingSummaries) continue;
+                if (lane == null || lane.Submitted || lane.SummarySubmitted) continue;
                 for (int record = lane.Count - 1; record >= 0; record--)
                     if (ReferenceEquals(lane.Contexts[record], context))
+                    {
+                        if (lane.PreparingSummaries) lane.ResetSummaryPreparation();
                         RemoveQueuedRecord(lane, record);
+                    }
             }
         }
 
@@ -745,7 +762,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 throw new InvalidOperationException(
                     "Production GPU extraction requires the GPU-owned page arena.");
             int frame = Time.frameCount;
-            if (lane.Requests[0].SourceStep == 8 && !lane.AdvanceSummaryPreparation(frame)) return;
+            if (!lane.AdvanceSummaryPreparation(frame)) return;
 
             // Submission is not completion. Without an in-flight bound, GPU-only publication can
             // enqueue several expensive count/write chains ahead of rendering; the main and render
