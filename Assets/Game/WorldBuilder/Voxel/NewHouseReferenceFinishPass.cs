@@ -30,11 +30,15 @@ namespace Game.WorldBuilder.Voxel
             int front = o.z - 2;
             int portraitEave = upper + 31;
 
-            // Iteration 7 exposed a real depth-ordering defect: FillArch repaired the old oversized
-            // opening all the way forward to front-4, but the replacement ArchedPanel only carved
-            // from front-1. The glass therefore existed behind three opaque plaster layers while only
-            // its front-mounted muntins were visible. Refill the old opening, then carve through that
-            // complete repair depth so the smaller reference window is actually visible in player output.
+            // Iteration 8 proved the final opening/crest ordering but also exposed the dominant
+            // remaining structural mismatch: the outer portrait roof still read as the original
+            // straight oversized triangle. Replace that shallow front-only mass before adding any
+            // final openings or ornaments so the target and front-left views exercise the authored
+            // swept profile rather than a camera/material workaround.
+            RebuildSweptPortraitShell(a, o, in c, in p);
+
+            // Refill the old high opening, then carve through the complete repair depth so the
+            // smaller reference window remains visibly open after the destructive silhouette pass.
             FillArch(a, centre, eave + 10, front, 15, 21, p.Plaster);
             ArchedPanel(a, centre, eave + 12, front, 11, 17,
                 p.Glass, p.Timber, p.Timber);
@@ -56,22 +60,75 @@ namespace Game.WorldBuilder.Voxel
                 front - 4, p.Timber);
             Line(a, centre + 13, portraitEave + 28, centre + 4, portraitEave + 38,
                 front - 4, p.Timber);
+        }
 
-            // Iteration 7's ten-voxel extension only softened the straight A-frame termination.
-            // The reference has a materially longer hook that continues outward while dropping.
-            // Extend that same production roof skin sixteen voxels and increase the quadratic drop.
-            const int halfGable = 27;
+        private static void RebuildSweptPortraitShell(IStructureAuthoringSession a, int3 o,
+            in NewHouseReferenceConfig c, in NewHouseReferencePalette p)
+        {
+            int centre = o.x + c.Width / 2;
+            int upper = o.y + c.UpperFloorY;
+            int ridge = o.y + c.MainRidgeY;
+            int portraitEave = upper + 31;
+            int rise = math.max(38, ridge - portraitEave);
+            int front = o.z - 2;
             int roofZ = o.z - c.RoofOverhang - 2;
-            for (int i = 1; i <= 16; i++)
+
+            // Remove only the shallow portrait mass authored by the earlier broad roof replacement.
+            // The clear ends near the front of the house, far ahead of the rear audit shell, and it
+            // starts at the portrait eave so the lower transverse shoulder roof remains the separate
+            // supporting roof form visible in the reference.
+            const int clearHalf = 34;
+            int clearDepth = c.RoofOverhang + 20;
+            a.Carve(new int3(centre - clearHalf, portraitEave, roofZ - 1),
+                new int3(clearHalf * 2 + 1, rise + 8, clearDepth));
+
+            const int baseHalf = 24;
+            const int apexHalf = 2;
+            const int roofDepth = 20;
+            for (int row = 0; row <= rise; row++)
             {
-                int drop = (i * i + 24) / 32;
+                float t = row / (float)math.max(1, rise);
+                float remaining = 1f - math.saturate(t);
+                int half = apexHalf + (int)math.round(
+                    (baseHalf - apexHalf) * math.pow(remaining, 1.45f));
+
+                // A short outward flare at the first rows creates the reference's swept eave root;
+                // the nonlinear power curve above then narrows faster through the mid-gable than a
+                // straight A-frame, producing a visibly concave portrait silhouette.
+                if (row < 6)
+                    half += (6 - row + 1) / 2;
+
+                int y = portraitEave + row;
+                int shellHalf = math.max(1, half - 3);
+                a.Box(new int3(centre - shellHalf, y, front - 1),
+                    new int3(shellHalf * 2 + 1, 1, 6), p.Plaster);
+
+                a.Box(new int3(centre - half - 2, y, roofZ),
+                    new int3(4, 2, roofDepth), p.Roof);
+                a.Box(new int3(centre + half - 1, y, roofZ),
+                    new int3(4, 2, roofDepth), p.Roof);
+                a.Box(new int3(centre - half - 1, y, front - 5),
+                    new int3(2, 2, TimberDepth), p.Timber);
+                a.Box(new int3(centre + half, y, front - 5),
+                    new int3(2, 2, TimberDepth), p.Timber);
+            }
+
+            // Continue the lower roof skin outward and downward, but stop well short of iteration 8's
+            // blockout-width sixteen-voxel extension. This keeps the characteristic hook while the
+            // portrait gable itself remains narrow enough to match the binding reference.
+            int sweptRoot = baseHalf + 3;
+            for (int i = 1; i <= 9; i++)
+            {
+                int drop = (i * i + 10) / 20;
                 int y = portraitEave - 1 - drop;
-                int left = centre - halfGable - i;
-                int right = centre + halfGable + i;
+                int left = centre - sweptRoot - i;
+                int right = centre + sweptRoot + i;
                 a.Box(new int3(left, y, roofZ), new int3(1, 2, 18), p.Roof);
                 a.Box(new int3(right, y, roofZ), new int3(1, 2, 18), p.Roof);
-                a.Box(new int3(left, y - 1, front - 5), new int3(1, 2, TimberDepth), p.Timber);
-                a.Box(new int3(right, y - 1, front - 5), new int3(1, 2, TimberDepth), p.Timber);
+                a.Box(new int3(left, y - 1, front - 5),
+                    new int3(1, 2, TimberDepth), p.Timber);
+                a.Box(new int3(right, y - 1, front - 5),
+                    new int3(1, 2, TimberDepth), p.Timber);
             }
         }
 
@@ -148,8 +205,6 @@ namespace Game.WorldBuilder.Voxel
             for (int row = 0; row < height; row++)
             {
                 int half = ArchHalfWidth(radius, spring, row);
-                // Clear through the complete front repair layer created by FillArch. Starting at
-                // frontZ-1 left opaque plaster in front of the replacement glass in iteration 7.
                 a.Carve(new int3(centreX - half, y + row, frontZ - 4),
                     new int3(half * 2 + 1, 1, 9));
                 a.Box(new int3(centreX - half, y + row, frontZ + 1),
