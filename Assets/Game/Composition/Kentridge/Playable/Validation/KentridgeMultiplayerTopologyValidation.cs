@@ -18,6 +18,8 @@ using Game.Outcomes.Api;
 using Game.Persistence.Api;
 using Game.SessionPresentation.Api;
 using Game.Sessions.Api;
+using Game.Vitality.Api;
+using Game.WorldBuilder.Api;
 using Game.WorldObjects.Api;
 using Game.WorldObjects.Runtime;
 using MountingForce.WorldGen;
@@ -38,7 +40,7 @@ namespace Game.Composition.Kentridge.Playable.Validation
     /// <summary>
     /// Build-once, separate-process smoke for the production Kentridge multiplayer composition.
     /// The harness supplies only deterministic process role/port/player setup and public player input.
-    /// Application, Sessions, UTP admission, authoritative world interaction, inventory/progression mutation,
+    /// Application, Sessions, UTP admission, authoritative world interaction, inventory/progression/combat mutation,
     /// gameplay replication, and the authority campaign graph are production types.
     /// </summary>
     public sealed class KentridgeMultiplayerTopologyValidation : MonoBehaviour
@@ -48,6 +50,7 @@ namespace Game.Composition.Kentridge.Playable.Validation
         private const string Content = "kentridge-generated-world";
         private const string ContentionObjectValue = KentridgeWellQuestDefinition.WellTargetId;
         private const string WellObjectiveValue = "rescue-boy-at-well.completion";
+        private const string ForestNodeValue = "forest";
         private const uint Seed = 0x4B454E54u;
         private const string MilestonePrefix = "VOXEL_VALIDATION_MILESTONE ";
         private static readonly CharacterVector3 ContentionPosition = new CharacterVector3(12f, 0f, -4f);
@@ -61,11 +64,16 @@ namespace Game.Composition.Kentridge.Playable.Validation
         private WorldObjectRegistry _worldObjects;
         private ItemPickupObject _contentionPickup;
         private KentridgeAuthoritativePlayerInputRouter _inputRouter;
+        private KentridgeAuthoritativeGameplayCommandSink _gameplayCommands;
+        private KentridgeAuthoritativeCombatActionSink _combatActions;
+        private GameObject _forestRoot;
+        private KentridgeForestBanditEncounter _forestEncounter;
         private RegionTable _table;
         private BrickPool _pool;
         private bool _tableCreated;
         private bool _poolCreated;
         private uint _serverTick;
+        private ushort _combatInputSequence;
         private bool _joinedReported;
         private bool _topologyReported;
         private bool _baselineReported;
@@ -73,6 +81,8 @@ namespace Game.Composition.Kentridge.Playable.Validation
         private bool _contentionInputSent;
         private bool _contentionReported;
         private bool _progressionReported;
+        private bool _combatTriggered;
+        private bool _combatReported;
         private bool _startRequested;
         private string _failure;
 
@@ -137,9 +147,9 @@ namespace Game.Composition.Kentridge.Playable.Validation
                 _actors.Characters,
                 () => _campaignGraph.Current?.Session.Inventory,
                 () => _campaignGraph.Current?.Session.Runtime.Progression,
-                () => null,
-                () => null,
-                () => null,
+                () => _forestEncounter?.EncounterQuery,
+                () => _forestEncounter?.VitalityQuery,
+                () => _forestEncounter?.CombatService,
                 () => _worldObjects);
 
             _authority = new KentridgeAuthoritativeMultiplayerApplication(
@@ -279,6 +289,7 @@ namespace Game.Composition.Kentridge.Playable.Validation
             if (_client != null) TrySendContentionInput();
             TickContentionMilestone(readState);
             if (_contentionReported) TickProgressionMilestone(readState);
+            if (_progressionReported) TickCombatMilestone(readState);
         }
 
         private void EnsureContentionFixture()
@@ -314,10 +325,14 @@ namespace Game.Composition.Kentridge.Playable.Validation
                 _actors.Characters,
                 _worldObjects,
                 questObservations);
-            var commands = new KentridgeAuthoritativeGameplayCommandSink(interactions);
+            _combatActions = new KentridgeAuthoritativeCombatActionSink(
+                () => _forestEncounter?.CombatService);
+            _gameplayCommands = new KentridgeAuthoritativeGameplayCommandSink(
+                interactions,
+                _combatActions);
             _inputRouter = new KentridgeAuthoritativePlayerInputRouter(
                 () => _authority?.PartySession,
-                commands);
+                _gameplayCommands);
             _contentionInitialized = true;
         }
 
@@ -403,6 +418,90 @@ namespace Game.Composition.Kentridge.Playable.Validation
             });
         }
 
+        private void TickCombatMilestone(IGameplayReplicationReadState readState)
+        {
+            if (_combatReported || readState == null) return;
+
+            if (_authority != null)
+            {
+                if (_forestEncounter == null || _forestRoot == null || _gameplayCommands == null || _combatActions == null)
+                    return;
+
+                if (!_combatTriggered)
+                {
+                    _forestRoot.transform.position = _forestEncounter.AmbushCenterWorld;
+                    _combatTriggered = true;
+                    return;
+                }
+
+                if (!_forestEncounter.CombatActive) return;
+                if (_gameplayCommands.AppliedCombatActions == 0)
+                {
+                    TrySendAuthorityCombatInput();
+                    return;
+                }
+
+                CharacterId target = _combatActions.LastTargetCharacterId;
+                if (!target.IsValid)
+                    throw new InvalidOperationException("Authenticated combat action accepted without a durable target identity.");
+                if (!_forestEncounter.VitalityQuery.TryGet(target, out VitalitySnapshot vitality))
+                    return;
+                if (vitality.Current >= vitality.Maximum)
+                    throw new InvalidOperationException("Authenticated combat action produced no Vitality delta for " + target + ".");
+
+                // Bound the proof after the real production attack. This is the extension's public lifecycle
+                // boundary, not a gameplay-state mutation seam; it prevents autonomous follow-up turns from
+                // racing the exact replicated 4/6 evidence while clients converge.
+                _forestEncounter.StopCommands();
+                _combatReported = true;
+                Emit(new Milestone
+                {
+                    name = "combat-vitality-converged",
+                    role = _role,
+                    sessionId = SessionValue,
+                    damagedCharacter = target.Value,
+                    currentVitality = vitality.Current,
+                    maximumVitality = vitality.Maximum,
+                    appliedCombatActions = (int)_gameplayCommands.AppliedCombatActions,
+                    revision = readState.Revision.Value.ToString(CultureInfo.InvariantCulture)
+                });
+                return;
+            }
+
+            if (!TryReadDamagedEnemyVitality(readState, out string damagedCharacter, out int current, out int maximum))
+                return;
+            _combatReported = true;
+            Emit(new Milestone
+            {
+                name = "combat-vitality-converged",
+                role = _role,
+                sessionId = SessionValue,
+                damagedCharacter = damagedCharacter,
+                currentVitality = current,
+                maximumVitality = maximum,
+                revision = readState.Revision.Value.ToString(CultureInfo.InvariantCulture)
+            });
+        }
+
+        private void TrySendAuthorityCombatInput()
+        {
+            ClientNetworkRuntime network = _authority?.UtpFormation.ActiveClient;
+            if (network == null || !network.IsConnected) return;
+
+            _combatInputSequence++;
+            if (_combatInputSequence == 0) _combatInputSequence = 1;
+            var input = new C_PlayerInput(
+                _serverTick == 0 ? 1u : _serverTick,
+                _combatInputSequence,
+                float2.zero,
+                new float3(0f, 0f, 1f),
+                C_PlayerInput.ActionBits.UseAlt,
+                0);
+            if (!network.TrySendPlayerInput(in input))
+                throw new InvalidOperationException("Authority host failed to send production combat input.");
+            network.FlushSends();
+        }
+
         private KentridgeSessionRuntimeGraphFactory BuildProductionCampaignGraph()
         {
             var destinationSpeaker = new CutsceneActorId("destination-npc");
@@ -415,12 +514,38 @@ namespace Game.Composition.Kentridge.Playable.Validation
             SettlementPlan settlement = KentridgeDefinition.Build(Seed);
             KentridgeCampaignGenerationPlan generation = KentridgeCampaignSessionBootstrap.Plan(content.Blueprint, settlement);
             _actors = new KentridgeCharacterHost(5.5f);
+            PrepareForestEncounter();
             return new KentridgeSessionRuntimeGraphFactory(
                 content.Blueprint,
                 generation,
                 new KentridgeCampaignRealizationFacts(new KentridgeVoxelSiteRealizationFacts(settlement, 1)),
                 _actors,
-                ImmediatePresentation.Instance);
+                ImmediatePresentation.Instance,
+                null,
+                _forestEncounter);
+        }
+
+        private void PrepareForestEncounter()
+        {
+            var node = new TopDownWorldNodeSpec(ForestNodeValue, ForestNodeValue, TopDownWorldNodeKind.Region);
+            var layout = new TopDownWorldLayout(
+                "gamesystem25-forest-layout",
+                Seed,
+                new[] { new TopDownWorldNodePlacement(node, new TopDownWorldGridPoint(0, 0)) },
+                Array.Empty<TopDownWorldRouteSpec>());
+            KentridgeForestEncounterRealization.RememberMacroLayout(
+                layout,
+                ForestNodeValue,
+                1000,
+                1000,
+                100);
+
+            _forestRoot = new GameObject("GameSystem25 Forest Encounter");
+            _forestRoot.transform.position = new Vector3(
+                ContentionPosition.X,
+                ContentionPosition.Y,
+                ContentionPosition.Z);
+            _forestEncounter = _forestRoot.AddComponent<KentridgeForestBanditEncounter>();
         }
 
         private ClientNetworkRuntime CreateClient(
@@ -497,6 +622,9 @@ namespace Game.Composition.Kentridge.Playable.Validation
                 if ((descriptor.Id == KentridgeMultiplayerGameplayReplication.CharactersDescriptor.Id ||
                      descriptor.Id == KentridgeMultiplayerGameplayReplication.InventoryDescriptor.Id ||
                      descriptor.Id == KentridgeMultiplayerGameplayReplication.ProgressionDescriptor.Id ||
+                     descriptor.Id == KentridgeMultiplayerGameplayReplication.EncountersDescriptor.Id ||
+                     descriptor.Id == KentridgeMultiplayerGameplayReplication.VitalityDescriptor.Id ||
+                     descriptor.Id == KentridgeMultiplayerGameplayReplication.CombatDescriptor.Id ||
                      descriptor.Id == KentridgeMultiplayerGameplayReplication.WorldObjectsDescriptor.Id) &&
                     state.Entries.Count == 0)
                     return false;
@@ -579,6 +707,59 @@ namespace Game.Composition.Kentridge.Playable.Validation
             return false;
         }
 
+        private static bool TryReadDamagedEnemyVitality(
+            IGameplayReplicationReadState readState,
+            out string characterId,
+            out int current,
+            out int maximum)
+        {
+            characterId = string.Empty;
+            current = 0;
+            maximum = 0;
+            if (!readState.TryGetProjection(
+                    KentridgeMultiplayerGameplayReplication.VitalityDescriptor.Id,
+                    out GameplayProjectionState vitality))
+                return false;
+
+            var currentByCharacter = new Dictionary<string, int>(StringComparer.Ordinal);
+            var maximumByCharacter = new Dictionary<string, int>(StringComparer.Ordinal);
+            for (int i = 0; i < vitality.Entries.Count; i++)
+            {
+                GameplayProjectionEntry entry = vitality.Entries[i];
+                const string currentSuffix = "/current";
+                const string maximumSuffix = "/maximum";
+                if (entry.Key.EndsWith(currentSuffix, StringComparison.Ordinal))
+                {
+                    string id = entry.Key.Substring(0, entry.Key.Length - currentSuffix.Length);
+                    if (!int.TryParse(entry.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int value))
+                        throw new InvalidOperationException("Invalid replicated current Vitality: " + entry.Value);
+                    currentByCharacter[id] = value;
+                }
+                else if (entry.Key.EndsWith(maximumSuffix, StringComparison.Ordinal))
+                {
+                    string id = entry.Key.Substring(0, entry.Key.Length - maximumSuffix.Length);
+                    if (!int.TryParse(entry.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int value))
+                        throw new InvalidOperationException("Invalid replicated maximum Vitality: " + entry.Value);
+                    maximumByCharacter[id] = value;
+                }
+            }
+
+            var candidates = new List<string>();
+            foreach (KeyValuePair<string, int> pair in currentByCharacter)
+            {
+                if (string.Equals(pair.Key, KentridgeMultiplayerCharacterRoster.CharacterIdForSlot(0).Value, StringComparison.Ordinal))
+                    continue;
+                if (!maximumByCharacter.TryGetValue(pair.Key, out int max) || pair.Value >= max) continue;
+                candidates.Add(pair.Key);
+            }
+            if (candidates.Count == 0) return false;
+            candidates.Sort(StringComparer.Ordinal);
+            characterId = candidates[0];
+            current = currentByCharacter[characterId];
+            maximum = maximumByCharacter[characterId];
+            return true;
+        }
+
         private static ulong HashText(ulong hash, string value)
         {
             const ulong prime = 1099511628211UL;
@@ -634,16 +815,25 @@ namespace Game.Composition.Kentridge.Playable.Validation
                 finally
                 {
                     _authority = null;
-                    try { _actors?.Dispose(); }
+                    try
+                    {
+                        if (_forestRoot != null) Destroy(_forestRoot);
+                        _forestRoot = null;
+                        _forestEncounter = null;
+                    }
                     finally
                     {
-                        _actors = null;
-                        try { if (_poolCreated) _pool.Dispose(); }
+                        try { _actors?.Dispose(); }
                         finally
                         {
-                            _poolCreated = false;
-                            if (_tableCreated) _table.Dispose();
-                            _tableCreated = false;
+                            _actors = null;
+                            try { if (_poolCreated) _pool.Dispose(); }
+                            finally
+                            {
+                                _poolCreated = false;
+                                if (_tableCreated) _table.Dispose();
+                                _tableCreated = false;
+                            }
                         }
                     }
                 }
@@ -668,6 +858,10 @@ namespace Game.Composition.Kentridge.Playable.Validation
             public string pickupEnabled;
             public int appliedInputs;
             public string progressionState;
+            public string damagedCharacter;
+            public int currentVitality;
+            public int maximumVitality;
+            public int appliedCombatActions;
         }
 
         private sealed class EmptySaveCatalog : ISessionSaveCatalog
@@ -699,9 +893,7 @@ namespace Game.Composition.Kentridge.Playable.Validation
                 public InputContextId Context { get; }
                 public ContextLease(InputContexts owner, InputContextId previous, InputContextId context)
                 {
-                    _owner = owner;
-                    _previous = previous;
-                    Context = context;
+                    _owner = owner; _previous = previous; Context = context;
                 }
                 public void Dispose()
                 {
