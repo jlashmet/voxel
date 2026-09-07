@@ -38,7 +38,7 @@ namespace Game.Composition.Kentridge.Playable.Validation
     /// <summary>
     /// Build-once, separate-process smoke for the production Kentridge multiplayer composition.
     /// The harness supplies only deterministic process role/port/player setup and public player input.
-    /// Application, Sessions, UTP admission, authoritative world interaction, inventory mutation,
+    /// Application, Sessions, UTP admission, authoritative world interaction, inventory/progression mutation,
     /// gameplay replication, and the authority campaign graph are production types.
     /// </summary>
     public sealed class KentridgeMultiplayerTopologyValidation : MonoBehaviour
@@ -46,7 +46,8 @@ namespace Game.Composition.Kentridge.Playable.Validation
         private const string SessionValue = "gamesystem25-topology";
         private const string Protocol = "gamesystem25-v1";
         private const string Content = "kentridge-generated-world";
-        private const string ContentionObjectValue = "gamesystem25-contention-pickup";
+        private const string ContentionObjectValue = KentridgeWellQuestDefinition.WellTargetId;
+        private const string WellObjectiveValue = "rescue-boy-at-well.completion";
         private const uint Seed = 0x4B454E54u;
         private const string MilestonePrefix = "VOXEL_VALIDATION_MILESTONE ";
         private static readonly CharacterVector3 ContentionPosition = new CharacterVector3(12f, 0f, -4f);
@@ -71,6 +72,7 @@ namespace Game.Composition.Kentridge.Playable.Validation
         private bool _contentionInitialized;
         private bool _contentionInputSent;
         private bool _contentionReported;
+        private bool _progressionReported;
         private bool _startRequested;
         private string _failure;
 
@@ -197,6 +199,7 @@ namespace Game.Composition.Kentridge.Playable.Validation
             Require(_authority.Application.RequestPartyStart(), "authority party start");
             _startRequested = true;
         }
+
         private void TickMilestones(Game.Application.Runtime.ApplicationFlowCoordinator application)
         {
             if (!application.TryCapturePartyScreen(out PartyScreenPresentationSnapshot party)) return;
@@ -275,6 +278,7 @@ namespace Game.Composition.Kentridge.Playable.Validation
             if (!_baselineReported) return;
             if (_client != null) TrySendContentionInput();
             TickContentionMilestone(readState);
+            if (_contentionReported) TickProgressionMilestone(readState);
         }
 
         private void EnsureContentionFixture()
@@ -304,7 +308,12 @@ namespace Game.Composition.Kentridge.Playable.Validation
             if (!_worldObjects.TryRegister(_contentionPickup))
                 throw new InvalidOperationException("Failed to register GameSystem25 contention pickup.");
 
-            var interactions = new InteractionClickedProcessor(_actors.Characters, _worldObjects);
+            var questObservations = new KentridgeWorldInteractionQuestObservationAdapter(
+                observation => _campaignGraph.Current.ObserveQuest(observation));
+            var interactions = new InteractionClickedProcessor(
+                _actors.Characters,
+                _worldObjects,
+                questObservations);
             var commands = new KentridgeAuthoritativeGameplayCommandSink(interactions);
             _inputRouter = new KentridgeAuthoritativePlayerInputRouter(
                 () => _authority?.PartySession,
@@ -371,6 +380,25 @@ namespace Game.Composition.Kentridge.Playable.Validation
                 quantity = quantity,
                 pickupEnabled = pickupEnabled ? "true" : "false",
                 appliedInputs = _inputRouter == null ? 0 : (int)_inputRouter.AppliedInputs,
+                revision = readState.Revision.Value.ToString(CultureInfo.InvariantCulture)
+            });
+        }
+
+        private void TickProgressionMilestone(IGameplayReplicationReadState readState)
+        {
+            if (_progressionReported || readState == null) return;
+            if (!TryReadProgressionProjection(readState, out string state)) return;
+            if (!string.Equals(state, "Completed", StringComparison.Ordinal))
+                throw new InvalidOperationException(
+                    _role + " well interaction did not complete the authoritative progression objective: " + state + ".");
+
+            _progressionReported = true;
+            Emit(new Milestone
+            {
+                name = "progression-converged",
+                role = _role,
+                sessionId = SessionValue,
+                progressionState = state,
                 revision = readState.Revision.Value.ToString(CultureInfo.InvariantCulture)
             });
         }
@@ -529,6 +557,28 @@ namespace Game.Composition.Kentridge.Playable.Validation
             return foundItem;
         }
 
+        private static bool TryReadProgressionProjection(
+            IGameplayReplicationReadState readState,
+            out string state)
+        {
+            state = string.Empty;
+            if (!readState.TryGetProjection(
+                    KentridgeMultiplayerGameplayReplication.ProgressionDescriptor.Id,
+                    out GameplayProjectionState progression))
+                return false;
+
+            string key = "quest/" + KentridgeWellQuestDefinition.QuestId +
+                         "/objective/" + WellObjectiveValue + "/state";
+            for (int i = 0; i < progression.Entries.Count; i++)
+            {
+                GameplayProjectionEntry entry = progression.Entries[i];
+                if (!string.Equals(entry.Key, key, StringComparison.Ordinal)) continue;
+                state = entry.Value;
+                return true;
+            }
+            return false;
+        }
+
         private static ulong HashText(ulong hash, string value)
         {
             const ulong prime = 1099511628211UL;
@@ -617,6 +667,7 @@ namespace Game.Composition.Kentridge.Playable.Validation
             public int quantity;
             public string pickupEnabled;
             public int appliedInputs;
+            public string progressionState;
         }
 
         private sealed class EmptySaveCatalog : ISessionSaveCatalog
@@ -648,7 +699,9 @@ namespace Game.Composition.Kentridge.Playable.Validation
                 public InputContextId Context { get; }
                 public ContextLease(InputContexts owner, InputContextId previous, InputContextId context)
                 {
-                    _owner = owner; _previous = previous; Context = context;
+                    _owner = owner;
+                    _previous = previous;
+                    Context = context;
                 }
                 public void Dispose()
                 {
@@ -674,7 +727,11 @@ namespace Game.Composition.Kentridge.Playable.Validation
         private sealed class DefaultPreferences : IUserPreferencesStore
         {
             public static readonly DefaultPreferences Instance = new DefaultPreferences();
-            public bool TryLoad(out UserPreferences preferences) { preferences = UserPreferences.Default; return true; }
+            public bool TryLoad(out UserPreferences preferences)
+            {
+                preferences = UserPreferences.Default;
+                return true;
+            }
             public void Save(UserPreferences preferences) { }
         }
 
