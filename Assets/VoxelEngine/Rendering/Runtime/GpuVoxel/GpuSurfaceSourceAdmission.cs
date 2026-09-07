@@ -37,10 +37,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             coverageWorldEpoch = 0;
 
             ulong world = GpuSurfaceMirrorCoordinator.ResourceWorldEpoch;
-            if (s_Owners.Count != 0 && s_WorldEpoch != world)
+            if (s_WorldEpoch != world)
                 ResetForWorld(world);
-            else if (s_Owners.Count == 0)
-                s_WorldEpoch = world;
 
             if (s_Owners.Contains(owner))
                 throw new InvalidOperationException("GPU source admission owner was acquired twice.");
