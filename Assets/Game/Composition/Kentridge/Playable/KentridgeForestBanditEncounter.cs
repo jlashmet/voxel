@@ -39,7 +39,6 @@ namespace Game.Composition.Kentridge.Playable
         private const int InitialCombatVitality = 6;
         private const float BattleActionIntervalSeconds = 0.10f;
         private static readonly LocalPlayerId LocalPlayer = new LocalPlayerId(0);
-        private static readonly CombatParticipantId PlayerParticipant = new CombatParticipantId("kentridge-player");
         private static readonly EncounterId ForestBanditEncounterId = new EncounterId("kentridge-forest-bandits");
 
         [SerializeField] private float _triggerRadiusMetres = 9f;
@@ -49,6 +48,7 @@ namespace Game.Composition.Kentridge.Playable
         private readonly bool[] _grounded = new bool[3];
         private readonly CharacterId[] _banditCharacterIds = new CharacterId[3];
         private ICharacterRegistry _characters;
+        private CharacterId _playerCharacterId;
         private EncounterRegistry _encounters;
         private InputContextService _inputContexts;
         private UnityPlayerInputReader _inputReader;
@@ -68,6 +68,7 @@ namespace Game.Composition.Kentridge.Playable
 
         public int BanditCount => _bandits.Count;
         public IReadOnlyList<GameObject> Bandits => _bandits;
+        public CharacterId PlayerCharacterId => _playerCharacterId;
         public float TriggerRadiusMetres => _triggerRadiusMetres;
         public Vector3 AmbushCenterWorld => _ambushCenterWorld;
         public RegionThemeKind AmbushTheme => _ambushTheme;
@@ -102,6 +103,7 @@ namespace Game.Composition.Kentridge.Playable
             _composed
             && !_disposed
             && _characters != null
+            && _playerCharacterId.IsValid
             && _encounters != null
             && _inputContexts != null
             && _inputReader != null
@@ -156,12 +158,15 @@ namespace Game.Composition.Kentridge.Playable
             _commandsEnabled = false;
             _characters = characterHost.Characters
                 ?? throw new InvalidOperationException("Kentridge character authority is unavailable.");
+            _playerCharacterId = KentridgeCombatPlayerResolver.Resolve(
+                _characters,
+                characterHost.PlayerCharacterId);
             _inputContexts = new InputContextService();
             _inputReader = new UnityPlayerInputReader(_inputContexts);
             _vitality = new VitalityRegistry();
             _combat = new CombatService(_vitality);
             _encounters = new EncounterRegistry(_characters);
-            EnsureVitalityRegistered(characterHost.PlayerCharacterId);
+            EnsureVitalityRegistered(_playerCharacterId);
 
             for (int i = 0; i < _banditCharacterIds.Length; i++)
             {
@@ -261,6 +266,7 @@ namespace Game.Composition.Kentridge.Playable
             _inputReader = null;
             _inputContexts = null;
             _encounters = null;
+            _playerCharacterId = default;
             _characters = null;
             _realization = null;
             _steps = null;
@@ -407,15 +413,16 @@ namespace Game.Composition.Kentridge.Playable
         private void ReportProximityActivation()
         {
             if (_combat.IsActive || CombatResolved) return;
-            if (!_characters.TryResolve(
-                    new CharacterBinding("combat-participant", PlayerParticipant.Value),
-                    out CharacterId player))
+            if (!_playerCharacterId.IsValid || !_characters.TryGet(_playerCharacterId, out _))
                 throw new InvalidOperationException(
                     "Kentridge combat player is not bound to gameplay character authority.");
             RequireEncounterSuccess(
                 _encounters.Join(
                     ForestBanditEncounterId,
-                    new EncounterParticipant(player, EncounterParticipantOwnership.Persistent, "player"),
+                    new EncounterParticipant(
+                        _playerCharacterId,
+                        EncounterParticipantOwnership.Persistent,
+                        "player"),
                     out _),
                 "join Kentridge player encounter membership");
             RequireEncounterSuccess(
@@ -495,12 +502,10 @@ namespace Game.Composition.Kentridge.Playable
             }
             else
             {
-                if (!_characters.TryResolve(
-                        new CharacterBinding("combat-participant", PlayerParticipant.Value),
-                        out CharacterId player))
+                if (!_playerCharacterId.IsValid || !_characters.TryGet(_playerCharacterId, out _))
                     throw new InvalidOperationException(
                         "Kentridge combat player is not bound to gameplay character authority.");
-                MarkDefeated(player, "mark defeated Kentridge player");
+                MarkDefeated(_playerCharacterId, "mark defeated Kentridge player");
                 encounterResolution = new EncounterResolution(
                     EncounterResolutionResult.Failed,
                     "combat-defeat");
