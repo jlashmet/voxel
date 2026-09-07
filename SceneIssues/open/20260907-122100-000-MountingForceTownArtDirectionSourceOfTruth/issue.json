@@ -1,0 +1,32 @@
+{
+  "id": "20260907-122100-000-MountingForceTownArtDirectionSourceOfTruth",
+  "status": "open",
+  "type": "Feature",
+  "createdUtc": "2026-09-07T19:21:00Z",
+  "updatedUtc": "2026-09-07T19:35:00Z",
+  "sceneName": "WorldbuildingGalleryShowcase",
+  "scenePath": "Assets/Scenes/WorldbuildingGalleryShowcase.unity",
+  "buildIndex": 1,
+  "unityVersion": "6000.5.6f1",
+  "platform": "Feature",
+  "title": "Mounting Force town art direction source of truth",
+  "details": "Establish the definitive stylized art direction for every town in Mounting Force. Existing repo imagery, scenes, and prior town art are not the artistic source of truth for this work; this feature creates that source of truth. First inventory the authoritative original-game/reference material available in the repo and connected reference sources, then lock the complete Mounting Force town list plus the exact named/specific buildings and landmarks required for each town before generating that town's concept set. Preserve each original town's theme and identity rather than its rudimentary 2D rendering or exact layout. For example, Cambridge must still read immediately as a water town through docks, waterfront architecture, bridges or water crossings, and water-oriented public infrastructure. Define one coherent stylized/storybook Project North Star visual language, then make each town clearly distinct in architecture, materials and palette, mood/culture, economic identity, terrain/environment integration, and signature motifs or landmarks. Cover relevant infrastructure including roads and paths, bridges, walls and gates, fountains and plazas, markets, docks, farms or edge structures, and town-specific civic, religious, commercial, and residential buildings identified by the source references. Character concepting and gameplay UI are out of scope; the supplied character imagery is only a stylization reference. Generated concept images are repository deliverables and should be committed with the documented binary-transport workflow when connector payload size requires it.",
+  "reproSteps": [],
+  "expected": "A repository-organized Mounting Force town art-direction reference pack that downstream agents can treat as the visual source of truth. The complete authoritative Mounting Force town list is identified and recorded from source references. For every town: (1) a written brief records town identity/theme, architecture language, materials, palette, culture/economy, environmental integration, signature motifs and landmarks, and reference provenance; (2) an inventory locks the exact named/specific buildings and landmarks required by original reference material before concept generation begins; (3) at least six production-quality concept images are committed: one overall/elevated town view, two exterior building concepts, two interior building concepts, and one street-level/plaza/public-space concept; and (4) the concept set covers infrastructure appropriate to the town, such as roads/paths, bridges, walls/gates, fountains/plazas, markets, docks, farms/edge structures, and relevant civic/religious/commercial/residential buildings. Each town must be visibly distinct from the others while the complete set shares one coherent stylized, readable, non-realistic Project North Star art direction. The images must be strong enough to guide later worldbuilding implementation, not placeholder/blockout art. The package includes a game-wide overview/index comparing the towns, their palettes/materials/motifs, and explicit anti-drift guidance so future work does not collapse them into one generic town style.",
+  "actual": "",
+  "notes": "Coordinator intent: this issue exists specifically because current repo town art is not sufficiently consistent to be authoritative. Original Mounting Force game/map references define thematic identity and required town-specific places/buildings, but this feature defines the new visual language. Do not treat existing repo visuals as acceptance evidence merely because they already exist. Do not begin a town's concept set until its reference inventory is recorded. No character concepting, gameplay UI design, final in-engine town implementation, or one-to-one reproduction of the original 2D graphics/layout is required. The feature worker should create and maintain plan.md and tasks.md according to SceneIssues/feature-readme.md and organize final briefs/images so another agent can consume them directly.",
+  "tags": [
+    "feature",
+    "worldbuilding",
+    "art-direction",
+    "concept-art",
+    "mounting-force",
+    "towns",
+    "architecture",
+    "interiors",
+    "environment",
+    "stylized",
+    "source-of-truth"
+  ],
+  "migration": {}
+}
