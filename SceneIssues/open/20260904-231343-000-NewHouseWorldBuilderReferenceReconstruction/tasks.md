@@ -49,7 +49,8 @@ Pinned reference Git blob: `6d87b08d4c7c9bddc1705c0f34343aa79bc18423`.
 - [x] Validate iteration-7 finish pass in exact-SHA run `34145422534` and inspect target/front-left/rear-right frames; mechanical proof passed but direct visual inspection rejected the result.
 - [x] Isolate iteration-7 high-window depth-ordering defect: opaque `FillArch` repair extended to `frontZ-4` while replacement carve began at `frontZ-1`, hiding the glass behind plaster.
 - [x] Implement iteration-8 correction to carve through the full repair depth, clear duplicate crest layers from `ridge+1`, and extend/increase the swept-eave hook.
-- [ ] Validate the iteration-8 correction in a new exact-SHA run and directly inspect target/front-left/rear-right frames.
+- [x] Validate iteration-8 correction with feature `ef132fadc51c93ec520e611254d65949a4691b48`, exact request `6d825d7de506287a253fd229687f29d6eb6f53d9`, run `34148998318`, and direct target/front-left/rear-right inspection. The corrected openings/crest and closed rear shell are mechanically proven, but visual quality remains prototype/blockout quality.
+- [ ] Iteration 9: replace the demonstrated straight oversized portrait-gable profile with a narrow concave swept production profile while holding camera/light/material/site fixed; validate target/front-left silhouette and preserve the closed side/rear shell in audit evidence.
 - [ ] Match final roof pitch/rise, ridge direction, transverse shoulder height, swept-eave silhouette, fascia/edge depth, intersections, and chimney relationship closely.
 - [ ] Remove/verify absence of roof overlap, z-fighting, holes, and unsupported roof pieces across multiple frames.
 - [x] Dormer roof: N/A from the pinned reference.
@@ -102,14 +103,21 @@ Pinned reference Git blob: `6d87b08d4c7c9bddc1705c0f34343aa79bc18423`.
 - [x] Inspect exact iteration-7 reference plus target/front-left/rear-right frames from artifact `single-test-34145422534` and classify visual quality.
 - [x] Reject iteration 7 as **prototype/blockout quality**. Largest demonstrated defect: the intended smaller high window is occluded by three opaque plaster layers left in front of its glass; crest still accumulates duplicate ridge layers and eave hook remains too short.
 
-### Iteration 8 — selected correction
+### Iteration 8 — exact result
 - [x] Fix the high-window production depth ordering by carving from `frontZ-4` through the repair layer before drawing glass/frame.
 - [x] Clear duplicate crest mass from `ridge+1` and rebuild one compact tapered finial.
 - [x] Extend the portrait eave hook to sixteen voxels with a stronger quadratic drop.
 - [x] Update the focused refinement regression to prove all three corrected invariants.
-- [ ] Run exact-SHA targeted CI for the final iteration-8 feature head; never replace it while queued/running.
-- [ ] Inspect exact iteration-8 target/front-left/rear-right frames and classify visual quality.
-- [ ] If below production-quality, record the largest failed visual relationship here and fix the production cause before another broad pass.
+- [x] Run feature `ef132fadc51c93ec520e611254d65949a4691b48` with exact request `6d825d7de506287a253fd229687f29d6eb6f53d9` / run `34148998318`; module validation, standalone replay, previews, artifact upload, and final status passed.
+- [x] Inspect the exact pinned reference and iteration-8 target/front-left/rear-right captures from artifact `single-test-34148998318`.
+- [x] Reject iteration 8 as **prototype/blockout quality** despite corrected openings/crest/shell. Largest demonstrated structural mismatch: the outer portrait-gable roof remains a very large straight triangular plane rather than the reference's narrow concave/swept silhouette; front-left evidence confirms authored geometry rather than camera perspective.
+
+### Iteration 9 — selected discriminating correction
+- [ ] Replace only the shallow straight portrait-gable outer profile with a row-by-row concave swept production profile; hold camera, light, material, site, shoulder roof, side/rear shell, and opening layout fixed.
+- [ ] Keep the attic/front shell opaque and supported while narrowing the profile nonlinearly and flaring the first eave rows outward/downward.
+- [ ] Add a focused regression proving the destructive clear is shallow/front-only, the profile narrows nonlinearly, and final embedded upper-opening carving happens after the rebuild.
+- [ ] Run the final iteration-9 feature head through exact-SHA targeted CI without replacing a queued/running request.
+- [ ] Inspect exact iteration-9 target/front-left/rear-right frames. If the target/front-left silhouette is still straight under unchanged camera/materials, reject the geometry hypothesis before any broad presentation change.
 
 ### Final visual checks — required before closure
 - [ ] Overall silhouette very close to reference.
