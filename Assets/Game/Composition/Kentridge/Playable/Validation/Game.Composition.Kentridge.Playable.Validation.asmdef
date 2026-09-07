@@ -6,6 +6,7 @@
     "Game.Application.Runtime",
     "Game.Characters.Api",
     "Game.Composition.Campaign",
+    "Game.Composition.Campaign.Content",
     "Game.Composition.EncounterRealization",
     "Game.Composition.Kentridge.Api",
     "Game.Composition.Kentridge.Playable",
