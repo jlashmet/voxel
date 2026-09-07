@@ -96,26 +96,34 @@ int IndexTableWord(uint handle, uint bank, uint page)
 void ReclaimVertexPages()
 {
     uint head = _ArenaState[2], tail = _ArenaState[3];
+    uint freeVertexCount = _ArenaState[0];
     while (head < tail)
     {
         RetiredPage retired = _RetiredVertexPagesRead[head % (uint)_VertexPageCount];
         if (retired.readyEpoch > _ArenaEpoch) break;
-        _FreeVertexPages[_ArenaState[0]++] = retired.page;
+        _FreeVertexPages[freeVertexCount] = retired.page;
+        freeVertexCount++;
         head++;
     }
+    // Publish the accumulated count once. A post-increment inside the UAV subscript
+    // advanced the retired head for every page but restored only one free vertex page.
+    _ArenaState[0] = freeVertexCount;
     _ArenaState[2] = head;
 }
 
 void ReclaimIndexPages()
 {
     uint head = _ArenaState[4], tail = _ArenaState[5];
+    uint freeIndexCount = _ArenaState[1];
     while (head < tail)
     {
         RetiredPage retired = _RetiredIndexPagesRead[head % (uint)_IndexPageCount];
         if (retired.readyEpoch > _ArenaEpoch) break;
-        _FreeIndexPages[_ArenaState[1]++] = retired.page;
+        _FreeIndexPages[freeIndexCount] = retired.page;
+        freeIndexCount++;
         head++;
     }
+    _ArenaState[1] = freeIndexCount;
     _ArenaState[4] = head;
 }
 

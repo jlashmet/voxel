@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using NUnit.Framework;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Rendering;
 using VoxelEngine.Rendering.Runtime.GpuVoxel;
 using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 
@@ -55,6 +56,107 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             for (int i = 0; i < count; i++)
                 Assert.That(selected.Add((int)draws[i * 4]), Is.True, "Duplicate GPU-selected handle.");
             return selected;
+        }
+
+        [TestCase(1)] [TestCase(2)] [TestCase(4)] [TestCase(8)]
+        public void GpuDemandFeedbackPreservesBandAndFrustumForOwnedMissingNodes(int step)
+        {
+            var key = new SurfaceLodNodeKey(step, new int3(-2, 0, 1));
+            var owned = new List<SurfaceLodNodeKey> { key };
+            var none = new List<SurfaceLodNodeKey>();
+            var bands = new Vector4[4];
+            for (int i = 0; i < 4; i++) bands[i] = new Vector4(0, 10000, 0, 0);
+            var planes = new[] { new Plane(Vector3.right, -100000), new Plane(Vector3.left, 100000),
+                new Plane(Vector3.up, 100000), new Plane(Vector3.down, 100000),
+                new Plane(Vector3.forward, 100000), new Plane(Vector3.back, 100000) };
+            Assert.That(Select(none, none, 0, owned, planes, bands: bands), Is.Empty);
+            _dispatcher.RequestDemandFeedback();
+            AsyncGPUReadback.WaitAllRequests();
+            var results = new Dictionary<SurfaceLodNodeKey, uint>();
+            Assert.True(_dispatcher.TryConsumeDemand(results.Clear, (node, geometry) => results.Add(node, geometry)));
+            Assert.That(results.Count, Is.EqualTo(1), "Synthetic ancestors must not become host demand.");
+            Assert.That(results[key] & 3, Is.EqualTo(1), "Off-frustum in-band demand must retain background prefetch.");
+            planes[0] = new Plane(Vector3.right, 100000);
+            Select(none, none, 1, owned, planes, bands: bands);
+            _dispatcher.RequestDemandFeedback(); AsyncGPUReadback.WaitAllRequests();
+            Assert.True(_dispatcher.TryConsumeDemand(results.Clear, (node, geometry) => results.Add(node, geometry)));
+            Assert.That(results[key] & 3, Is.EqualTo(3));
+            bands[step == 1 ? 0 : step == 2 ? 1 : step == 4 ? 2 : 3].z = 1;
+            Select(none, none, 2, owned, planes, bands: bands);
+            _dispatcher.RequestDemandFeedback(); AsyncGPUReadback.WaitAllRequests();
+            Assert.True(_dispatcher.TryConsumeDemand(results.Clear, (node, geometry) => results.Add(node, geometry)));
+            Assert.That(results[key] & 1, Is.Zero);
+        }
+
+        [Test]
+        public void GpuDemandRejectsReplacedMembershipAndSettingsButSurvivesReadinessChanges()
+        {
+            var first = new List<SurfaceLodNodeKey> { new(1, int3.zero) };
+            var second = new List<SurfaceLodNodeKey> { new(1, new int3(10)) };
+            var none = new List<SurfaceLodNodeKey>();
+            Select(none, none, 0, first);
+            _dispatcher.RequestDemandFeedback(); AsyncGPUReadback.WaitAllRequests();
+            Select(none, none, 1, second);
+            Assert.False(_dispatcher.TryConsumeDemand(() => Assert.Fail("Old membership accepted"), (_, _) => { }));
+            _dispatcher.RequestDemandFeedback(); AsyncGPUReadback.WaitAllRequests();
+            Select(second, second, 2, second);
+            var received = new List<SurfaceLodNodeKey>();
+            Assert.True(_dispatcher.TryConsumeDemand(received.Clear, (key, _) => received.Add(key)));
+            CollectionAssert.AreEqual(second, received);
+            _dispatcher.RequestDemandFeedback(); AsyncGPUReadback.WaitAllRequests();
+            Select(second, second, 3, second, voxelSize: 0.1f);
+            Assert.False(_dispatcher.TryConsumeDemand(() => Assert.Fail("Old scale accepted"), (_, _) => { }));
+            Assert.That(_dispatcher.DemandFeedbackDiscarded, Is.EqualTo(2));
+            Assert.That(_dispatcher.DemandFeedbackErrors, Is.Zero);
+        }
+
+        [Test]
+        public void GpuDemandDistanceRanksPreserveNearFirstPrefetch()
+        {
+            var near = new SurfaceLodNodeKey(1, int3.zero);
+            var far = new SurfaceLodNodeKey(1, new int3(10, 0, 0));
+            var distant = new SurfaceLodNodeKey(1, new int3(100000, 0, 0));
+            var owned = new List<SurfaceLodNodeKey> { far, near, distant };
+            var none = new List<SurfaceLodNodeKey>();
+            Select(none, none, 0, owned);
+            _dispatcher.RequestDemandFeedback(); AsyncGPUReadback.WaitAllRequests();
+            var results = new Dictionary<SurfaceLodNodeKey, uint>();
+            Assert.True(_dispatcher.TryConsumeDemand(results.Clear, (key, rank) => results.Add(key, rank)));
+            Assert.That(results.Count, Is.EqualTo(3));
+            Assert.That(results[distant] >> 3, Is.EqualTo(33554430u), "Distance saturation must not wrap to nearest priority.");
+            Assert.That(results[far] >> 3, Is.GreaterThan(results[near] >> 3));
+            Assert.That(results[near] >> 3, Is.EqualTo(3 * 32 * 32 * 16));
+        }
+
+        [Test]
+        public void StationaryDemandReusesClassificationUntilReadinessOrCameraChanges()
+        {
+            var owned = new List<SurfaceLodNodeKey> { new(1, int3.zero) };
+            var none = new List<SurfaceLodNodeKey>();
+            Select(none, none, 0, owned);
+            _dispatcher.RequestDemandFeedback(); AsyncGPUReadback.WaitAllRequests();
+            Assert.True(_dispatcher.TryConsumeDemand(() => { }, (_, _) => { }));
+            Select(none, none, 1, owned);
+            _dispatcher.RequestDemandFeedback(); AsyncGPUReadback.WaitAllRequests();
+            Assert.False(_dispatcher.TryConsumeDemand(() => { }, (_, _) => { }));
+            Select(owned, owned, 2, owned);
+            _dispatcher.RequestDemandFeedback(); AsyncGPUReadback.WaitAllRequests();
+            Assert.True(_dispatcher.TryConsumeDemand(() => { }, (_, _) => { }));
+            Select(owned, owned, 3, owned, position: new Vector3(1, 0, 0));
+            _dispatcher.RequestDemandFeedback(); AsyncGPUReadback.WaitAllRequests();
+            Assert.True(_dispatcher.TryConsumeDemand(() => { }, (_, _) => { }));
+        }
+
+        [Test]
+        public void DisposingPendingDemandDrainsReadbackBeforeReleasingBuffers()
+        {
+            var owned = new List<SurfaceLodNodeKey> { new(1, int3.zero) };
+            Select(new List<SurfaceLodNodeKey>(), new List<SurfaceLodNodeKey>(), 0, owned);
+            _dispatcher.RequestDemandFeedback();
+            _dispatcher.Dispose();
+            AsyncGPUReadback.WaitAllRequests();
+            Assert.False(_dispatcher.TryConsumeDemand(() => Assert.Fail("Disposed feedback accepted"), (_, _) => { }));
+            _dispatcher.Dispose();
         }
 
         [TestCase(1)] [TestCase(2)] [TestCase(4)] [TestCase(8)]

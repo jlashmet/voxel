@@ -26,6 +26,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private readonly List<SurfaceLodNodeKey> _previousOwned = new();
         internal readonly Node[] Nodes;
         internal int Count => _keys.Count;
+        internal SurfaceLodNodeKey KeyAt(int index) => _keys[index];
         internal uint Version { get; private set; }
         internal uint TopologyBuildCount { get; private set; }
 

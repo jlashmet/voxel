@@ -22,29 +22,38 @@ still~14.9s. Mirror/lane fixes removed full pinned scans and source-reader starv
 near chunks improved40.4→23.3s.
 
 GPU handles render bands/frustum and LOD selection. Candidate lists persist across camera motion;
-hierarchy edges persist across readiness changes. CPU still handles missing-build urgency,
-resident ages and membership updates. Previous checkpoint502 tests/module pass,Showcase231/201FPS,
+hierarchy edges persist across readiness changes. GPU now supplies missing-build urgency and distance rank; CPU applies feedback,
+stamps resident ages and updates membership. Previous checkpoint502 tests/module pass,Showcase231/201FPS,
 CPU4.01/4.585ms,414 missing/55 arena failures; walking traversal1.664→.977ms.
 
 ## Hypotheses, selected fix and experiments
 
-H1: pending-build classification and host cache aging still limit moving frames. Next migrate
-these to bounded GPU demand feedback with membership/version/epoch guards, without full CPU
-camera-band scans or synchronous readback. CPU world truth stays unchanged.
+H1 migration implemented: existing GPU LOD state carries band/frustum/owned bits and bounded
+25-bit distance rank. One async readback; staging bounded by candidate capacity, no extra GPU
+buffers. Host validates topology/settings and live source generations; admission uses GPU urgency
+and distance rank. CPU candidate transport no longer tests bounds. Stationary queries reuse
+feedback; unchanged inactive candidates skip application. Host age stamps reuse GPU tags.
+Rejected builds explicitly requeue. Far replacement hierarchy optimization previously gave350/219FPS.
 
-H2 confirmed: far replacement checks outside scheduler timing dominated stationary CPU rendering.
-Native sample found2549/3498 main-thread samples in scripted rendering (managed symbols unresolved).
-Scheduler~.34ms versus main~3.8ms falsified scheduler-only attribution. Temporary standalone
-instrumentation measured far preparation1.642ms at60–90s; diagnostic removed after capture.
+Initial full feedback application cost~1ms. Query reuse/ranking reduced it, but revised Showcase
+330/265FPS still had523missing/1532evictions; near-first order alone did not explain the churn.
 
-Selected fix: bounded coarse-first coverage proof, descending only where current coarse proof is
-absent. Same fine-cell union semantics; no allocation, four recursion levels. Largest fully coarse
-coverage needs8 proofs versus16,384.256 seeded mixed-level/negative-bound differential cases
-compare original oracle.503/503 Rendering tests pass (22s). Module48s/seven captures/exit0 passes
-all markers including edit/restart/far restoration,262.5MB,framep95/p99 .821/.910ms.
-Full Showcase180s/12captures/exit0:350/219FPS,CPU2.71/4.10ms,363missing,12arena failures,
-coarse20,oldest30.3s. Exact source hashes match;74.8s/149.9s screenshots reviewed. GPU demand and
-far handoff migration remain.128 draw buckets are an unproven GPU-cost hypothesis.
+H2 confirmed: pre-existing GPU vertex reclamation leaks capacity. Temporary standalone accounting
+(gpu-demand-arena-diagnostic,180s/12captures/exit0) found17,315 of25,197 vertex pages unaccounted
+for, while index pages balanced exactly and GPU live handles equaled CPU residents. Diagnostic
+blocking snapshots removed; this run is not FPS evidence.
+
+Three focused GPU tests failed: reclaiming52 retired vertex pages restored only one. Replaced
+buffer-subscript post-increment with explicit local free counts and final stores in reclamation.
+All three pass16 multi-handle cycles with full counts/unique IDs. Pending multi-page supersession
+also conserves capacity.518 Rendering tests pass (19s). Module48s/seven captures/exit0 passes all
+markers,262.5MB,framep95/p99 .820/.910ms. Clean Showcase180s/12captures/exit0:332/256FPS,
+CPU2.885/3.51ms,331missing,zero allocation failures/evictions,3913publications/coarse21,oldest4.03s.
+Exact source hashes match;74.9s/149.9s screenshots reviewed. Stationary regresses350→332; walking
+improves219→256 with more retained geometry. No budget/retirement changes;400FPS remains unmet.
+Next profile remaining far handoff/submission costs and reduce host feedback application (~.6ms
+when applied), preserving coverage. GPU far handoff, pressure eviction and helper cleanup remain;
+128 draw buckets are unprofiled.
 
 ## Remaining gates
 

@@ -175,7 +175,13 @@ void CSClassifyLodCandidates(uint3 id : SV_DispatchThreadID)
         flags&=~1u;
         if((node.flags&4u)!=0u)flags|=2u; // owned off-camera children cannot block handoff
     }
-    _LodState[id.x]=flags;
+    // Preserve camera classification for asynchronous host admission/aging feedback.
+    // These bits never participate in world state or LOD completeness reduction.
+    float3 cameraDelta=node.boundsVoxel.xyz*_LodVoxelSize-_LodCameraPosition;
+    // Positive squared-distance ordering at 1/16 m^2 resolution, bounded to 25 bits.
+    // This is presentation admission priority, never authoritative simulation state.
+    uint priority=(uint)min(33554430.0, dot(cameraDelta,cameraDelta)*16.0);
+    _LodState[id.x]=flags|(inBand?16u:0u)|(inFrustum?32u:0u)|((node.flags&4u)!=0u?64u:0u)|(priority<<7);
 }
 
 [numthreads(64,1,1)]
@@ -209,7 +215,7 @@ void CSReduceLodCoverage(uint3 id : SV_DispatchThreadID)
     }
     bool expand=completeChildren && physicalChildren;
     bool physical=expand || drawable;
-    _LodState[id.x]=(drawable?1u:0u)|(classified&2u)|(expand?4u:0u)|(physical?8u:0u);
+    _LodState[id.x]=(drawable?1u:0u)|(classified&2u)|(expand?4u:0u)|(physical?8u:0u)|(classified&~15u);
 }
 
 [numthreads(64,1,1)]

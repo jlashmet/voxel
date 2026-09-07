@@ -119,7 +119,7 @@ namespace VoxelEngine.Tests.EditMode
         }
 
         [Test]
-        public void CachedGpuCandidatesRefreshMissingDemandAndResidentAgeAcrossBandMotion()
+        public void GpuDemandFeedbackControlsUrgencyAndResidentAgeWithoutCpuBandTests()
         {
             using var worker = new GpuSolidChunkCache();
             worker.MaxViewDistanceMetres = 10;
@@ -139,19 +139,34 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.That(worker.CollectVisibleCoordinate(pending, planes, Vector3.zero, 0.1f, 1).GpuCandidate, Is.True,
                     "Out-of-band metadata remains available for GPU camera reclassification.");
                 Assert.That(worker.DirtyCount, Is.Zero);
-                worker.RefreshGpuBuildDemand(planes, new Vector3(worker.VoxelsPerAxis, 0, 0), 0.1f, 2);
+                Assert.That(entry.LastUsedFrame, Is.Zero, "Candidate transport must not make a CPU camera decision.");
+                worker.BeginGpuDemandFeedback(); worker.ApplyGpuDemand(int3.zero, 3, 1); worker.ApplyGpuDemand(pending, 0, 1);
+                worker.BeginGpuDemandFeedback(); worker.ApplyGpuDemand(int3.zero, 0, 2); worker.ApplyGpuDemand(pending, 3, 2);
                 Assert.That(worker.MissingVisibleCount, Is.EqualTo(1));
                 Assert.That(worker.DirtyCount, Is.EqualTo(1));
                 Assert.That(entry.LastUsedFrame, Is.EqualTo(1), "Out-of-band cache entries must not become artificially hot.");
-                worker.RefreshGpuBuildDemand(planes, Vector3.zero, 0.1f, 3);
+                worker.BeginVisibilityCollection(planes, Vector3.zero, 0.1f, true);
+                worker.CollectVisibleCoordinate(int3.zero, planes, Vector3.zero, 0.1f, 2);
+                worker.CollectVisibleCoordinate(pending, planes, Vector3.zero, 0.1f, 2);
+                Assert.That(worker.MissingVisibleCount, Is.EqualTo(1), "Metadata refresh must retain the latest GPU observation.");
+                worker.BeginGpuDemandFeedback(); worker.ApplyGpuDemand(int3.zero, 1, 3); worker.ApplyGpuDemand(pending, 0, 3);
                 Assert.That(worker.MissingVisibleCount, Is.Zero);
                 Assert.That(worker.DirtyCount, Is.Zero);
                 Assert.That(desired[pending], Is.EqualTo(1));
                 Assert.That(entry.LastUsedFrame, Is.EqualTo(3));
-                worker.RefreshGpuResidentAges(3, 5);
+                desired[int3.zero] = 2;
+                worker.BeginGpuDemandFeedback(); worker.ApplyGpuDemand(int3.zero, 3, 5);
                 Assert.That(entry.LastUsedFrame, Is.EqualTo(5));
-                worker.RefreshGpuResidentAges(4, 6);
-                Assert.That(entry.LastUsedFrame, Is.EqualTo(5), "Only the previous in-band set may retain its age.");
+                Assert.That(worker.DirtyCount, Is.EqualTo(1), "Delayed classification must queue the current edit generation.");
+                Assert.That(worker.MissingVisibleCount, Is.Zero, "A stale drawable remains available during an edit.");
+                worker.RingSuspended = true;
+                worker.BeginGpuDemandFeedback(); worker.ApplyGpuDemand(int3.zero, 3, 6);
+                Assert.That(entry.LastUsedFrame, Is.EqualTo(5), "Suspension must reject older in-band demand.");
+                Assert.That(worker.DirtyCount, Is.Zero);
+                worker.RingSuspended = false;
+                known.Remove(pending);
+                worker.ApplyGpuDemand(pending, 3, 7);
+                Assert.That(worker.DirtyCount, Is.Zero, "Delayed feedback must not resurrect removed world coordinates.");
                 Assert.That(worker.Visible.Count, Is.EqualTo(1), "Demand refresh must not duplicate cached candidates.");
             }
             finally { entries.Clear(); entry.Dispose(); }

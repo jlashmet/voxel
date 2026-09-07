@@ -11,6 +11,51 @@ namespace VoxelEngine.Tests.EditMode
     public sealed class SurfaceRingBuildAdmissionTests
     {
         [Test]
+        public void GpuBackgroundAdmissionUsesGpuDistanceRankAndRetainsUnselectedDemand()
+        {
+            using var cache = new GpuSolidChunkCache { GpuBuildDemandEnabled = true, AllowBackgroundBuilds = true };
+            cache.SetClipmapWindow(int3.zero, 8);
+            var known = (HashSet<int3>)typeof(GpuSolidChunkCache).GetField("_known", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(cache);
+            var select = typeof(GpuSolidChunkCache).GetMethod("BeginNearestBuild", BindingFlags.Instance | BindingFlags.NonPublic);
+            int3 first = int3.zero, second = new(1, 0, 0);
+            known.Add(first); known.Add(second);
+            cache.BeginGpuDemandFeedback();
+            cache.ApplyGpuDemand(first, 1u | (1000u << 3), 1);
+            cache.ApplyGpuDemand(second, 1u | (10u << 3), 1);
+            Assert.True((bool)select.Invoke(cache, new object[] { null, 0.1f, double.MaxValue }));
+            object build = typeof(GpuSolidChunkCache).GetField("_build", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(cache);
+            Assert.That((int3)build.GetType().GetField("Coordinate").GetValue(build), Is.EqualTo(second));
+            var dirty = (HashSet<int3>)typeof(GpuSolidChunkCache).GetField("_dirty", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(cache);
+            Assert.True(dirty.Contains(first));
+        }
+
+        [Test]
+        public void GpuAdmissionPrioritizesVisibleDemandAndDoesNotRequeueCurrentBuild()
+        {
+            using var cache = new GpuSolidChunkCache { GpuBuildDemandEnabled = true };
+            cache.SetClipmapWindow(int3.zero, 8);
+            var known = (HashSet<int3>)typeof(GpuSolidChunkCache).GetField("_known", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(cache);
+            var select = typeof(GpuSolidChunkCache).GetMethod("BeginNearestBuild", BindingFlags.Instance | BindingFlags.NonPublic);
+            int3 background = new(1, 0, 0), target = int3.zero;
+            known.Add(background); known.Add(target);
+            cache.BeginGpuDemandFeedback();
+            cache.ApplyGpuDemand(background, 1, 1);
+            cache.ApplyGpuDemand(target, 3, 1);
+            // A null camera proves this production admission route consumes GPU decisions.
+            Assert.True((bool)select.Invoke(cache, new object[] { null, 0.1f, double.MaxValue }));
+            object build = typeof(GpuSolidChunkCache).GetField("_build", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(cache);
+            Assert.That((int3)build.GetType().GetField("Coordinate").GetValue(build), Is.EqualTo(target));
+            var dirty = (HashSet<int3>)typeof(GpuSolidChunkCache).GetField("_dirty", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(cache);
+            Assert.False(dirty.Contains(target));
+            cache.BeginGpuDemandFeedback(); cache.ApplyGpuDemand(target, 3, 2);
+            Assert.False(dirty.Contains(target), "The active current generation must not acquire duplicate dirty demand.");
+            typeof(GpuSolidChunkCache).GetMethod("RejectPendingOrCompletedBuild", BindingFlags.Instance | BindingFlags.NonPublic)
+                .Invoke(cache, new object[] { true });
+            Assert.True(dirty.Contains(target), "Rejection must retry without waiting for a changed camera query.");
+            Assert.True((bool)select.Invoke(cache, new object[] { null, 0.1f, double.MaxValue }));
+        }
+
+        [Test]
         public void VisibleCurrentGenerationBuildDoesNotQueueDuplicateAdmission()
         {
             using var cache = new GpuSolidChunkCache(1)

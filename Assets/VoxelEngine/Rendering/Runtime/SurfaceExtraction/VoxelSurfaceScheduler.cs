@@ -1136,6 +1136,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                         + $" inputCpu={_gpuDrawDispatcher?.LastLodInputMs ?? 0:0.000}"
                         + $" uploadedNodes={_gpuDrawDispatcher?.LastLodUploadedNodes ?? 0}"
                         + $" refresh={_gpuCandidateRefreshes} reuse={_gpuCandidateReuses}]");
+            text.Append($" gpuDemand[accepted={_gpuDrawDispatcher?.DemandFeedbackAccepted ?? 0}"
+                        + $" discarded={_gpuDrawDispatcher?.DemandFeedbackDiscarded ?? 0}"
+                        + $" errors={_gpuDrawDispatcher?.DemandFeedbackErrors ?? 0}"
+                        + $" applyMs={_gpuDemandApplyMs:0.000}]");
             text.Append($" mirrorCpu[sync={GpuSurfaceMirrorCoordinator.LastChangeSyncMs:0.000}"
                         + $" recovery={GpuSurfaceMirrorCoordinator.LastRecoveryMs:0.000}"
                         + $" blocks={GpuSurfaceMirrorCoordinator.LastRecoveredBlocks}"
@@ -1375,6 +1379,8 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                             IVoxelChangeSource journal, Camera camera, float voxelSize, int frame)
         {
             if (storage == null) throw new ArgumentNullException(nameof(storage));
+            for (int i = 0; i < _allWorkers.Length; i++)
+                _allWorkers[i].GpuBuildDemandEnabled = _gpuDrawDispatcher != null;
             _replacementStorage = storage;
             _replacementCamera = camera;
             _replacementVoxelSize = math.max(0.0001f, voxelSize);
@@ -1737,24 +1743,26 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             return true;
         }
 
-        private readonly Plane[] _gpuDemandPlanes = new Plane[6];
-        private Vector3 _gpuDemandPosition;
+        private Action _beginGpuDemand;
+        private Action<SurfaceLodNodeKey, uint> _applyGpuDemand;
         private int _gpuDemandFrame;
+        private double _gpuDemandApplyMs;
 
-        private bool GpuDemandQueryUnchanged(Camera camera)
+        private void BeginGpuDemandFeedback()
         {
-            if (!_gpuDemandPosition.Equals(camera.transform.position)) return false;
-            for (int p = 0; p < 6; p++)
-                if (!_gpuDemandPlanes[p].normal.Equals(_visibilityFrustumPlanes[p].normal)
-                    || !_gpuDemandPlanes[p].distance.Equals(_visibilityFrustumPlanes[p].distance)) return false;
-            return true;
+            for (int i = 0; i < _allWorkers.Length; i++) _allWorkers[i].BeginGpuDemandFeedback();
         }
 
-        private void CaptureGpuDemandQuery(Camera camera, int frame)
+        private void ApplyGpuDemandFeedback(SurfaceLodNodeKey key, uint geometry)
         {
-            _gpuDemandPosition = camera.transform.position;
-            _gpuDemandFrame = frame;
-            for (int p = 0; p < 6; p++) _gpuDemandPlanes[p] = _visibilityFrustumPlanes[p];
+            for (int r = 0; r < _rings.Length; r++)
+            {
+                var ring = _rings[r];
+                if (ring.SourceStep != key.SourceStep) continue;
+                int shard = GpuSolidChunkCache.ShardForChunk(key.Coordinate, ring.Workers.Length);
+                ring.Workers[shard].ApplyGpuDemand(key.Coordinate, geometry, _gpuDemandFrame);
+                return;
+            }
         }
 
         private float _gpuCandidateVoxelSize;
@@ -1801,7 +1809,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     w.RingSuspended ? 1f : 0f, 0f);
             }
             _hasGpuCandidateSnapshot = true;
-            CaptureGpuDemandQuery(camera, frame);
             _gpuCandidateRefreshes++;
         }
 
@@ -1816,24 +1823,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 if (GpuCandidateInputsUnchanged(camera, voxelSize))
                 {
                     double reusedStart = Time.realtimeSinceStartupAsDouble;
-                    if (GpuDemandQueryUnchanged(camera))
-                    {
-                        for (int i = 0; i < _allWorkers.Length; i++)
-                            _allWorkers[i].RefreshGpuResidentAges(_gpuDemandFrame, frame);
-                        _gpuDemandFrame = frame;
-                    }
-                    else
-                    {
-                        int missing = 0;
-                        Vector3 position = camera.transform.position;
-                        for (int i = 0; i < _allWorkers.Length; i++)
-                        {
-                            _allWorkers[i].RefreshGpuBuildDemand(_visibilityFrustumPlanes, position, voxelSize, frame);
-                            missing += _allWorkers[i].MissingVisibleCount;
-                        }
-                        _lastMissingVisibleCount = missing;
-                        CaptureGpuDemandQuery(camera, frame);
-                    }
                     _lastVisibilityTraversalMs = ElapsedMs(reusedStart);
                     double waterStart = Time.realtimeSinceStartupAsDouble;
                     _water.CollectVisible(camera, voxelSize);
@@ -1979,6 +1968,19 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                     _lodCurrentCompleteNodes, frame, _gpuOwnedNodes, _visibilityFrustumPlanes,
                     _replacementVoxelSize, _gpuDrawBands,
                     _replacementCamera != null ? _replacementCamera.transform.position : Vector3.zero);
+                _gpuDemandFrame = frame;
+                _beginGpuDemand ??= BeginGpuDemandFeedback;
+                _applyGpuDemand ??= ApplyGpuDemandFeedback;
+                double demandStart = Time.realtimeSinceStartupAsDouble;
+                if (_gpuDrawDispatcher.TryConsumeDemand(_beginGpuDemand, _applyGpuDemand))
+                {
+                    int missing = 0;
+                    for (int i = 0; i < _allWorkers.Length; i++) missing += _allWorkers[i].MissingVisibleCount;
+                    _lastMissingVisibleCount = missing;
+                }
+                _gpuDemandApplyMs = ElapsedMs(demandStart);
+                _gpuDrawDispatcher.RequestDemandFeedback();
+                for (int i = 0; i < _allWorkers.Length; i++) _allWorkers[i].RefreshGpuResidentAges(frame);
             }
             else _gpuDrawDispatcher?.Prepare(_visibleGpuHandles, frame);
         }

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 {
@@ -42,6 +43,100 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         private readonly Vector4[] _lodPlanes = new Vector4[6];
         private bool _useLodSelection;
 
+        // One bounded readback in flight. GPU buffers are reused; the staging arrays is
+        // limited by the existing candidate capacity, not world lifetime. Callback copies data
+        // before Unity expires the native readback view. Only the main-thread consumer acts on it.
+        private AsyncGPUReadbackRequest _demandRequest;
+        private readonly Action<AsyncGPUReadbackRequest> _receiveDemand;
+        private uint[] _demandGeometry;
+        private byte[] _previousDemandGeometry;
+        private uint _previousDemandTopology;
+        private bool _requestQueryValid, _currentDemandFrustum, _requestDemandFrustum;
+        private uint _requestInputVersion, _requestSettingsVersion;
+        private Vector3 _currentDemandPosition, _requestDemandPosition;
+        private readonly Vector4[] _requestPlanes = new Vector4[6];
+        private bool _demandPending, _demandReady;
+        private int _activeLodSlot = -1, _demandCount;
+        private uint _demandTopology, _demandSettings, _settingsVersion;
+        private float _settingsVoxelSize;
+        private bool _settingsBandsEnabled;
+        private readonly Vector4[] _settingsBands = new Vector4[4];
+        internal ulong DemandFeedbackAccepted { get; private set; }
+        internal ulong DemandFeedbackDiscarded { get; private set; }
+        internal ulong DemandFeedbackErrors { get; private set; }
+
+        internal bool TryConsumeDemand(Action begin, Action<SurfaceLodNodeKey, uint> consume)
+        {
+            if (!_demandReady || _disposed) return false;
+            _demandReady = false;
+            if (_activeLodSlot < 0 || _demandTopology != _lodInputs.TopologyBuildCount
+                || _demandSettings != _settingsVersion || _demandCount != _lodInputs.Count)
+            { DemandFeedbackDiscarded++; _requestQueryValid = false; return false; }
+            begin();
+            bool newTopology = _previousDemandTopology != _demandTopology;
+            for (int i = 0; i < _demandCount; i++)
+            {
+                uint geometry = _demandGeometry[i];
+                byte classification = (byte)(geometry & 3u);
+                if ((geometry & 4u) != 0 && (newTopology || (geometry & 1u) != 0
+                    || classification != _previousDemandGeometry[i]))
+                    consume(_lodInputs.KeyAt(i), geometry & ~4u);
+                _previousDemandGeometry[i] = classification;
+            }
+            _previousDemandTopology = _demandTopology;
+            DemandFeedbackAccepted++;
+            return true;
+        }
+
+        internal void RequestDemandFeedback()
+        {
+            if (_disposed || _activeLodSlot < 0 || _demandPending || _demandReady) return;
+            bool sameQuery = _requestQueryValid && _requestInputVersion == _lodInputs.Version
+                && _requestSettingsVersion == _settingsVersion
+                && _requestDemandPosition.Equals(_currentDemandPosition)
+                && _requestDemandFrustum == _currentDemandFrustum;
+            for (int p = 0; sameQuery && _currentDemandFrustum && p < 6; p++)
+                sameQuery &= _requestPlanes[p].Equals(_lodPlanes[p]);
+            if (sameQuery) return;
+            _requestQueryValid = true;
+            _requestInputVersion = _lodInputs.Version;
+            _requestSettingsVersion = _settingsVersion;
+            _requestDemandPosition = _currentDemandPosition;
+            _requestDemandFrustum = _currentDemandFrustum;
+            for (int p = 0; p < 6; p++) _requestPlanes[p] = _lodPlanes[p];
+            _demandTopology = _lodInputs.TopologyBuildCount;
+            _demandSettings = _settingsVersion;
+            _demandCount = _lodInputs.Count;
+            if (_demandCount == 0) { _demandReady = true; return; }
+            _demandPending = true;
+            _demandRequest = AsyncGPUReadback.Request(_lodState[_activeLodSlot],
+                _demandCount * sizeof(uint), 0, _receiveDemand);
+        }
+
+        private void ReceiveDemand(AsyncGPUReadbackRequest request)
+        {
+            _demandPending = false;
+            if (_disposed) return;
+            if (request.hasError) { DemandFeedbackErrors++; _requestQueryValid = false; return; }
+            var data = request.GetData<uint>();
+            for (int i = 0; i < _demandCount; i++)
+                _demandGeometry[i] = data[i] >> 4;
+            _demandReady = true;
+        }
+
+        private void UpdateDemandSettings(float voxelSize, Vector4[] bands)
+        {
+            bool changed = !_settingsVoxelSize.Equals(voxelSize) || _settingsBandsEnabled != (bands != null);
+            for (int i = 0; bands != null && i < 4; i++)
+            {
+                changed |= !_settingsBands[i].Equals(bands[i]);
+                _settingsBands[i] = bands[i];
+            }
+            if (changed) _settingsVersion++;
+            _settingsVoxelSize = voxelSize;
+            _settingsBandsEnabled = bands != null;
+        }
+
         internal double LastLodInputMs { get; private set; }
         internal int LastLodUploadedNodes { get; private set; }
         internal int LodNodeCount => _lodInputs?.Count ?? 0;
@@ -51,6 +146,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         internal GpuSurfaceDrawDispatcher(ComputeShader shader, GpuSurfacePageArena arena)
         {
+            _receiveDemand = ReceiveDemand;
             _shader = shader != null ? shader : throw new ArgumentNullException(nameof(shader));
             _arena = arena ?? throw new ArgumentNullException(nameof(arena));
             _clearKernel = shader.FindKernel("CSClearDrawBuckets");
@@ -89,6 +185,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             {
                 // Four levels plus proof-only siblings, bounded independently of world lifetime.
                 _lodInputs = new GpuSurfaceLodInputs(_arena.HandleCapacity * 8);
+                _demandGeometry = new uint[_lodInputs.Nodes.Length];
+                _previousDemandGeometry = new byte[_lodInputs.Nodes.Length];
                 for (int i = 0; i < BufferedFrames; i++)
                 {
                     _lodNodes[i] = new ComputeBuffer(_lodInputs.Nodes.Length, 64);
@@ -116,6 +214,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 _shader.SetBuffer(kernel, IdLiveGeometry, _arena.LiveChunkGeometry);
             }
             if (bands != null && bands.Length != 4) throw new ArgumentException("Four LOD bands are required.", nameof(bands));
+            UpdateDemandSettings(voxelSize, bands);
+            _activeLodSlot = slot;
+            _currentDemandPosition = cameraPosition;
+            _currentDemandFrustum = planes != null;
             _shader.SetInt("_LodBandsEnabled", bands != null ? 1 : 0);
             if (bands != null) _shader.SetVectorArray("_LodBands", bands);
             _shader.SetVector("_LodCameraPosition", cameraPosition);
@@ -145,7 +247,12 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             finally { _useLodSelection = false; }
         }
 
-        internal void Prepare(IReadOnlyList<int> visibleHandles, int frame) => PrepareCore(visibleHandles, frame);
+        internal void Prepare(IReadOnlyList<int> visibleHandles, int frame)
+        {
+            _activeLodSlot = -1;
+            _requestQueryValid = false;
+            PrepareCore(visibleHandles, frame);
+        }
 
         private void PrepareCore(IReadOnlyList<int> visibleHandles, int frame)
         {
@@ -202,6 +309,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         {
             if (_disposed) return;
             _disposed = true;
+            // Teardown is the only blocking boundary; a live callback must not outlive its buffers.
+            if (_demandPending) _demandRequest.WaitForCompletion();
             for (int i = 0; i < BufferedFrames; i++)
             {
                 _lodNodes[i]?.Release();

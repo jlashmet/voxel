@@ -175,6 +175,70 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             Assert.That(batch.ReadAllocationStatus(), Is.EqualTo(AllocationReady));
         }
 
+        [TestCase(13, 9)] [TestCase(9, 13)]
+        public void MultiPagePendingSupersessionPreservesCapacity(int vertexPages, int indexPages)
+        {
+            var arena = Create(handles: 1, vertexPages: vertexPages, indexPages: indexPages);
+            int handle = AcquireAndSelectGeneration(arena, 1, 1);
+            var state = new uint[7];
+            for (int cycle = 0; cycle < 16; cycle++)
+            {
+                ulong generation = (ulong)cycle + 1;
+                arena.QueueGeneration(handle, generation); arena.FlushHandleCommands(cycle + 1);
+                using var batch = new Batch(handle, generation,
+                    (uint)(vertexPages * GpuSurfacePageArena.VertexPageSize),
+                    (uint)(indexPages * GpuSurfacePageArena.IndexPageSize));
+                AllocateAndFinalize(arena, batch, cycle + 1);
+                arena.ArenaState.GetData(state);
+                Assert.That(state[0], Is.Zero, $"Supersession corrupted vertex capacity at cycle {cycle}");
+                Assert.That(state[1], Is.Zero, $"Supersession corrupted index capacity at cycle {cycle}");
+                var record = ReadRecord(arena.PendingChunkGeometry, handle, 1);
+                Assert.That(record.Generation, Is.EqualTo(generation));
+                Assert.That(state[3] - state[2], Is.Zero, "Unpublished pages can be reused directly.");
+            }
+        }
+
+        [TestCase(13, 9)] [TestCase(9, 13)] [TestCase(1, 1)]
+        public void RepeatedMultiHandleReleaseConservesEveryVertexAndIndexPage(int vertexPages, int indexPages)
+        {
+            const int capacity = 64, count = 4;
+            var arena = Create(handles: count, vertexPages: capacity, indexPages: capacity);
+            var handles = new int[count];
+            var state = new uint[7];
+            for (int cycle = 0; cycle < 16; cycle++)
+            {
+                int frame = cycle * 20 + 1;
+                ulong generation = (ulong)(cycle * 2 + 1);
+                for (int i = 0; i < count; i++)
+                {
+                    handles[i] = AcquireAndSelectGeneration(arena, generation, frame);
+                    using var batch = new Batch(handles[i], generation,
+                        (uint)(vertexPages * GpuSurfacePageArena.VertexPageSize),
+                        (uint)(indexPages * GpuSurfacePageArena.IndexPageSize));
+                    AllocateAndFinalize(arena, batch, frame + 1);
+                    arena.CommitPending(handles[i], generation, frame + 3);
+                }
+                for (int i = 0; i < count; i++) arena.QueueRelease(handles[i], generation);
+                arena.FlushHandleCommands(frame + 4);
+                arena.ArenaState.GetData(state);
+                Assert.That(state[0] + state[3] - state[2], Is.EqualTo(capacity), $"Vertex retirement lost pages at cycle {cycle}");
+                Assert.That(state[1] + state[5] - state[4], Is.EqualTo(capacity), $"Index retirement lost pages at cycle {cycle}");
+
+                int reclaim = AcquireAndSelectGeneration(arena, generation + 1, frame + 10);
+                using var empty = new Batch(reclaim, generation + 1, 0, 0);
+                AllocateAndFinalize(arena, empty, frame + 11);
+                arena.ArenaState.GetData(state);
+                Assert.That(state[0], Is.EqualTo(capacity), $"Vertex reclamation lost pages at cycle {cycle}");
+                Assert.That(state[1], Is.EqualTo(capacity), $"Index reclamation lost pages at cycle {cycle}");
+                var pages = new uint[capacity];
+                arena.FreeVertexPages.GetData(pages); CollectionAssert.AllItemsAreUnique(pages);
+                foreach (uint page in pages) Assert.That(page, Is.LessThan(capacity));
+                arena.FreeIndexPages.GetData(pages); CollectionAssert.AllItemsAreUnique(pages);
+                foreach (uint page in pages) Assert.That(page, Is.LessThan(capacity));
+                arena.QueueRelease(reclaim, generation + 1); arena.FlushHandleCommands(frame + 14);
+            }
+        }
+
         [Test]
         public void MultiRecordAllocationPreservesDescriptorStrideAndIdentity()
         {

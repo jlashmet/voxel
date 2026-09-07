@@ -1,3 +1,13 @@
+GPU demand/reclamation checkpoint: production band/frustum build demand and background distance
+ranking now come from bounded asynchronous GPU classification. CPU keeps live source-generation
+checks, queue admission and age stamps from GPU tags; cached camera queries avoid repeated feedback.
+Removed production CPU candidate bounds classification and per-camera demand scans. Far handoff and
+pressure eviction still have CPU presentation decisions; helper/oracle retirement remains.
+The migration exposed a pre-existing vertex-page reclamation leak (52 retired pages restored only
+one). Explicit free-counter accumulation fixes it.518 tests/module pass; Showcase332/256FPS,
+331missing,zero allocation failures/evictions,3913publications. Stationary is slower than350FPS
+at the prior checkpoint; walking improves from219FPS. No400FPS/full-visual-acceptance claim.
+
 Far replacement checkpoint: native/standalone timing found1.642ms of CPU far consumer preparation
 outside scheduler timing. Replaced repeated fine-cell ancestor walks with bounded coarse-first
 proof, retaining the same coverage rule.503 tests/module pass; Showcase350/219FPS,CPU2.71/4.10ms,
