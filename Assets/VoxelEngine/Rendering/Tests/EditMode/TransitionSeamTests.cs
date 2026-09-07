@@ -23,7 +23,7 @@ namespace VoxelEngine.Tests.EditMode
     /// </summary>
     public sealed class TransitionSeamTests
     {
-        private const int CellsPerAxis = CpuTransvoxelChunkCache.CellsPerAxis;
+        private const int CellsPerAxis = GpuSolidChunkCache.CellsPerAxis;
         private const int FaceSamplesPerAxis = CellsPerAxis * 2 + 1;
         private const float VoxelSize = 0.1f;
 

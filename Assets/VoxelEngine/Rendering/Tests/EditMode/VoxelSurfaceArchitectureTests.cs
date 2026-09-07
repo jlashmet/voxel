@@ -802,7 +802,7 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void SolidInvalidationIsBoundedToChangedChunkAndRequiredHalo()
         {
-            using var cache = new CpuTransvoxelChunkCache();
+            using var cache = new GpuSolidChunkCache();
 
             // Render residency is admitted only inside the camera clipmap window: surface
             // discovery can cover a far larger resident Storage window than a ring draws, and
@@ -826,11 +826,11 @@ namespace VoxelEngine.Tests.EditMode
         public void SolidWorkersPartitionEveryChunkExactlyOnce()
         {
             var owners = new int[5, 5, 5];
-            var workers = new CpuTransvoxelChunkCache[VoxelSurfaceScheduler.SolidWorkerCount];
+            var workers = new GpuSolidChunkCache[VoxelSurfaceScheduler.SolidWorkerCount];
             try
             {
                 for (int worker = 0; worker < workers.Length; worker++)
-                    workers[worker] = new CpuTransvoxelChunkCache
+                    workers[worker] = new GpuSolidChunkCache
                     {
                         ShardIndex = worker, ShardCount = workers.Length
                     };
@@ -846,7 +846,7 @@ namespace VoxelEngine.Tests.EditMode
                 int total = 0;
                 for (int worker = 0; worker < workers.Length; worker++)
                     total += workers[worker].KnownCount;
-                using var reference = new CpuTransvoxelChunkCache();
+                using var reference = new GpuSolidChunkCache();
                 for (int b = 0; b < bricks.Length; b++)
                     reference.InvalidateSurfaceBricks(new[] { bricks[b] });
                 Assert.AreEqual(reference.KnownCount, total,
@@ -890,22 +890,22 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void RegionInvalidationOnlyTouchesOwnerAndSamplingHalo()
         {
-            Assert.True(CpuTransvoxelChunkCache.ChunkOverlapsRegion(
+            Assert.True(GpuSolidChunkCache.ChunkOverlapsRegion(
                 new int3(0, 0, 0), int3.zero));
-            Assert.True(CpuTransvoxelChunkCache.ChunkOverlapsRegion(
+            Assert.True(GpuSolidChunkCache.ChunkOverlapsRegion(
                 new int3(7, 0, 0), new int3(1, 0, 0)),
                 "the last chunk before a region boundary samples its neighbour");
-            Assert.False(CpuTransvoxelChunkCache.ChunkOverlapsRegion(
+            Assert.False(GpuSolidChunkCache.ChunkOverlapsRegion(
                 new int3(0, 0, 0), new int3(0, 0, 1)),
                 "an entire neighbouring region must not be invalidated for one-sample padding");
-            Assert.False(CpuTransvoxelChunkCache.ChunkOverlapsRegion(
+            Assert.False(GpuSolidChunkCache.ChunkOverlapsRegion(
                 new int3(32, 0, 0), int3.zero));
         }
 
         [Test]
         public void ProfileBlocksAreIndexedOnlyIntoIntersectingChunks()
         {
-            using var cache = new CpuTransvoxelChunkCache();
+            using var cache = new GpuSolidChunkCache();
             var table = new RegionTable(1, Allocator.Temp);
             var pool = new BrickPool(1, Allocator.Temp);
             var cameraObject = new UnityEngine.GameObject("profile-index-test-camera");
@@ -943,7 +943,7 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void ProductionSolidExtractorAcceptsWorldOwnedSurfaceRules()
         {
-            using var cache = new CpuTransvoxelChunkCache();
+            using var cache = new GpuSolidChunkCache();
             var table = new RegionTable(1, Allocator.Temp);
             var pool = new BrickPool(1, Allocator.Temp);
             var cameraObject = new UnityEngine.GameObject("catalogue-input-test-camera");

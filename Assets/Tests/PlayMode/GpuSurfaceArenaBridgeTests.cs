@@ -69,7 +69,7 @@ namespace VoxelEngine.Tests.PlayMode
         [Test]
         public void BaseRingProductionDimensionsStageDirectlyIntoTheArena()
         {
-            const int baseCellsPerAxis = CpuTransvoxelChunkCache.CellsPerAxis;
+            const int baseCellsPerAxis = GpuSolidChunkCache.CellsPerAxis;
             const int basePadding = 1;
             const int baseBrickCacheEdge = 10; // 64 / 8 core bricks + one snapshot brick per side.
 

@@ -44,7 +44,7 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void StationaryGeometryDoesNotCachePublicationEditsOrNewCoordinates()
         {
-            using var worker = new CpuTransvoxelChunkCache();
+            using var worker = new GpuSolidChunkCache();
             var planes = new[] {
                 new Plane(Vector3.right, 100), new Plane(Vector3.left, 100),
                 new Plane(Vector3.up, 100), new Plane(Vector3.down, 100),
@@ -80,14 +80,13 @@ namespace VoxelEngine.Tests.EditMode
         [TestCase(4)] [TestCase(5)] [TestCase(6)]
         public void DirectResultPreservesDrawableAndCoverageSemantics(int state)
         {
-            using var worker = new CpuTransvoxelChunkCache();
-            using var arena = new SurfaceGeometryArena(64, 192, 2);
+            using var worker = new GpuSolidChunkCache();
             var planes = new[] {
                 new Plane(Vector3.right, 100), new Plane(Vector3.left, 100),
                 new Plane(Vector3.up, 100), new Plane(Vector3.down, 100),
                 new Plane(Vector3.forward, 100), new Plane(Vector3.back, 100) };
-            var entries = Field<Dictionary<int3, CpuTransvoxelChunkCache.Entry>>(worker, "_entries");
-            CpuTransvoxelChunkCache.Entry entry = null;
+            var entries = Field<Dictionary<int3, GpuSolidChunkCache.Entry>>(worker, "_entries");
+            GpuSolidChunkCache.Entry entry = null;
             try
             {
                 if (state != 0) Field<HashSet<int3>>(worker, "_known").Add(int3.zero);
@@ -95,7 +94,7 @@ namespace VoxelEngine.Tests.EditMode
                 if (state == 3 || state == 4)
                 {
                     // Presentation metadata fixture, no synthetic geometry/rendering.
-                    entry = new CpuTransvoxelChunkCache.Entry(int3.zero, 32, 1, arena);
+                    entry = new GpuSolidChunkCache.Entry(int3.zero, 32, 1);
                     entry.PublishGpuPaged(4); entry.SourceVersion = 1;
                     entries.Add(int3.zero, entry);
                     if (state == 4) Field<Dictionary<int3, ulong>>(worker, "_desiredVersions")[int3.zero] = 2;

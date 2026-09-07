@@ -1,25 +1,13 @@
 using System;
 using System.Collections.Generic;
-using Unity.Collections;
-using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Profiling;
 using UnityEngine;
-using UnityEngine.Rendering;
 using VoxelEngine.Storage.Api;
 using VoxelEngine.Rendering.Runtime.GpuVoxel;
-using VoxelEngine.Rendering.Runtime.SurfaceExtraction.Transvoxel;
 
 namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 {
-    internal struct SurfaceDrawMetadata
-    {
-        public uint IndexStart;
-        public uint VertexStart;
-        public uint IndexCount;
-        public uint Padding;
-    }
-
     /// <summary>
     /// Host admission, invalidation and publication for GPU-extracted solid voxel geometry.
     ///
@@ -29,20 +17,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
     /// Every non-liquid solid participates in this field. Surface semantics, rather than a
     /// brick-wide renderer classifier, control local reconstruction.
     /// </summary>
-    public sealed class CpuTransvoxelChunkCache : IDisposable
+    public sealed class GpuSolidChunkCache : IDisposable
     {
         private static readonly ProfilerMarker s_PrepareMarker =
             new("Voxel.Surface.WorkerPrepare");
-        private static readonly ProfilerMarker s_SnapshotMarker =
-            new("Voxel.Surface.Snapshot");
-        private static readonly ProfilerMarker s_CompactMarker =
-            new("Voxel.Surface.TopologyCompact");
-        private static readonly ProfilerMarker s_FacetedMergeMarker =
-            new("Voxel.Surface.FacetedMerge");
-        private static readonly ProfilerMarker s_ProfileMarker =
-            new("Voxel.Surface.ProfileEmit");
-        private static readonly ProfilerMarker s_UploadMarker =
-            new("Voxel.Surface.Upload");
         public const int CellsPerAxis = 64;
 
         // A chunk is always CellsPerAxis cells regardless of ring, so extraction work per
@@ -94,33 +72,17 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly int BrickCacheCount;
         private const uint FullyLitOcclusion = 0x0000FF00u;
 
-        private static readonly int s_SurfaceVertices = Shader.PropertyToID("_SurfaceVertices");
-        private static readonly int s_SurfaceIndexBase = Shader.PropertyToID("_SurfaceIndexBase");
-        private static readonly int s_SurfaceVertexBase = Shader.PropertyToID("_SurfaceVertexBase");
-        private static readonly int s_SurfaceIndices = Shader.PropertyToID("_SurfaceIndices");
-
         public sealed class Entry : IDisposable
         {
             public int3 Coordinate { get; private set; }
-            /// <summary>Voxels this chunk spans per axis — ring-dependent, so bounds and
-            /// any consumer's world-space reasoning must use it rather than a constant.</summary>
             public readonly int VoxelsPerAxis;
-            /// <summary>Voxels between adjacent samples in the ring that produced this entry.</summary>
             public readonly int SourceStep;
-            private readonly SurfaceGeometryArena _arena;
-            private SurfaceGeometryLease _liveLease;
-            private SurfaceGeometryLease _stagingLease;
-            public ComputeBuffer Vertices => _arena.Vertices;
-            public ComputeBuffer Indices => _arena.Indices;
-            public ComputeBuffer Args => _arena.Args;
             public bool Ready;
-            public bool IsGpuPaged { get; private set; }
+            public bool IsGpuPaged => GpuHandle >= 0;
             public int GpuHandle { get; private set; } = -1;
-            public int IndexCount;
+            public int IndexCount => IsGpuPaged ? -1 : 0;
             public int LastUsedFrame;
-            public long GpuBytes { get; private set; }
-            public int VertexCapacity { get; private set; }
-            public int IndexCapacity { get; private set; }
+            public long GpuBytes => 0; // Geometry size is GPU-owned, never read back per entry.
             public ulong SourceVersion { get; internal set; }
             public uint MaterialPaletteVersion { get; internal set; }
             public uint SurfaceCatalogueVersion { get; internal set; }
@@ -128,178 +90,29 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             public uint CoatingCatalogueVersion { get; internal set; }
             public ulong CoatingCatalogueHash { get; internal set; }
 
-            internal Entry(int3 coordinate, int voxelsPerAxis, int sourceStep,
-                           SurfaceGeometryArena arena)
+            internal Entry(int3 coordinate, int voxelsPerAxis, int sourceStep)
             {
                 Coordinate = coordinate;
                 VoxelsPerAxis = voxelsPerAxis;
                 SourceStep = sourceStep;
-                _arena = arena ?? throw new ArgumentNullException(nameof(arena));
             }
 
             internal void Reinitialize(int3 coordinate)
             {
-                if (Ready || _liveLease.IsValid || _stagingLease.IsValid)
-                    throw new InvalidOperationException(
-                        "A surface entry must release its arena leases before reuse.");
+                if (Ready || IsGpuPaged)
+                    throw new InvalidOperationException("Release a GPU entry before reusing it.");
                 Coordinate = coordinate;
-                IndexCount = 0;
-                IsGpuPaged = false;
-                GpuHandle = -1;
                 LastUsedFrame = 0;
-                GpuBytes = 0;
-                VertexCapacity = 0;
-                IndexCapacity = 0;
                 SourceVersion = 0;
-                MaterialPaletteVersion = 0;
-                SurfaceCatalogueVersion = 0;
-                SurfaceCatalogueHash = 0;
-                CoatingCatalogueVersion = 0;
-                CoatingCatalogueHash = 0;
-                WaitingForArena = false;
-                _stagingVertexCursor = 0;
-                _stagingIndexCursor = 0;
-            }
-
-            private int _stagingVertexCursor;
-            private int _stagingIndexCursor;
-            internal bool WaitingForArena { get; private set; }
-
-            internal int RemainingUploadBytes(int vertexCount, int indexCount)
-            {
-                int verticesRemaining = math.max(0, vertexCount - _stagingVertexCursor);
-                int indicesRemaining = math.max(0, indexCount - _stagingIndexCursor);
-                return verticesRemaining * SmoothSurfaceVertex.Stride
-                     + indicesRemaining * sizeof(uint)
-                     + SurfaceGeometryArena.ArgsWordsPerDraw * sizeof(uint);
-            }
-
-            internal bool AdvanceUpload(NativeList<SmoothSurfaceVertex> vertices,
-                                        NativeList<uint> indices,
-                                        int byteBudget,
-                                        out int uploadedBytes)
-            {
-                uploadedBytes = 0;
-                if (byteBudget <= 0 || !EnsureUploadStaging(vertices.Length, indices.Length))
-                    return false;
-
-                int remainingBudget = byteBudget;
-                int vertexRemaining = vertices.Length - _stagingVertexCursor;
-                if (vertexRemaining > 0 && remainingBudget >= SmoothSurfaceVertex.Stride)
-                {
-                    int count = math.min(vertexRemaining,
-                        remainingBudget / SmoothSurfaceVertex.Stride);
-                    _arena.UploadVertices(vertices.AsArray(), _stagingVertexCursor,
-                                          in _stagingLease, count);
-                    int bytes = count * SmoothSurfaceVertex.Stride;
-                    _stagingVertexCursor += count;
-                    remainingBudget -= bytes;
-                    uploadedBytes += bytes;
-                }
-
-                int indexRemaining = indices.Length - _stagingIndexCursor;
-                if (_stagingVertexCursor == vertices.Length && indexRemaining > 0
-                    && remainingBudget >= sizeof(uint))
-                {
-                    int count = math.min(indexRemaining, remainingBudget / sizeof(uint));
-                    _arena.UploadIndices(indices.AsArray(), _stagingIndexCursor,
-                                         in _stagingLease, count);
-                    int bytes = count * sizeof(uint);
-                    _stagingIndexCursor += count;
-                    remainingBudget -= bytes;
-                    uploadedBytes += bytes;
-                }
-
-                const int argsBytes = SurfaceGeometryArena.ArgsWordsPerDraw * sizeof(uint);
-                if (_stagingVertexCursor != vertices.Length
-                    || _stagingIndexCursor != indices.Length
-                    || remainingBudget < argsBytes)
-                    return false;
-
-                _arena.UploadArgs((uint)indices.Length, in _stagingLease);
-                uploadedBytes += argsBytes;
-
-                ReleaseGpuPresentation();
-                SurfaceGeometryLease previous = _liveLease;
-                _liveLease = _stagingLease;
-                _stagingLease = default;
-                _stagingVertexCursor = 0;
-                _stagingIndexCursor = 0;
-                IndexCount = indices.Length;
-                VertexCapacity = _liveLease.VertexCapacity;
-                IndexCapacity = _liveLease.IndexCapacity;
-                GpuBytes = _arena.ReservedBytes(in _liveLease);
-                Ready = true;
-                _arena.Release(in previous);
-                return true;
-            }
-
-            internal void PublishCompletedGpuLease(in SurfaceGeometryLease lease, int indexCount)
-            {
-                if (!lease.IsValid)
-                    throw new ArgumentException("GPU publication requires a valid arena lease.",
-                                                nameof(lease));
-
-                // The compute bridge already wrote the payload and indirect args. Entry remains
-                // the single publication authority: swap the completed lease atomically, then
-                // retire the previous visible representation.
-                CancelUpload();
-                ReleaseGpuPresentation();
-                SurfaceGeometryLease previous = _liveLease;
-                _liveLease = lease;
-                IndexCount = indexCount;
-                VertexCapacity = _liveLease.VertexCapacity;
-                IndexCapacity = _liveLease.IndexCapacity;
-                GpuBytes = _arena.ReservedBytes(in _liveLease);
-                Ready = true;
-                _arena.Release(in previous);
+                MaterialPaletteVersion = SurfaceCatalogueVersion = CoatingCatalogueVersion = 0;
+                SurfaceCatalogueHash = CoatingCatalogueHash = 0;
             }
 
             internal void PublishGpuPaged(int handle)
             {
                 if (handle < 0) throw new ArgumentOutOfRangeException(nameof(handle));
-                CancelUpload();
-                _arena.Release(in _liveLease);
-                _liveLease = default;
-                IsGpuPaged = true;
                 GpuHandle = handle;
                 Ready = true;
-                IndexCount = -1;
-                GpuBytes = 0;
-                VertexCapacity = 0;
-                IndexCapacity = 0;
-            }
-
-            private void ReleaseGpuPresentation()
-            {
-                if (!IsGpuPaged) return;
-                GpuSurfaceMirrorCoordinator.ReleaseChunkHandle(
-                    Coordinate * VoxelsPerAxis, SourceStep, SourceVersion);
-                IsGpuPaged = false;
-                GpuHandle = -1;
-            }
-
-            private bool EnsureUploadStaging(int vertexCount, int indexCount)
-            {
-                if (_stagingLease.IsValid) return true;
-                if (!_arena.TryAcquire(vertexCount, indexCount, out _stagingLease))
-                {
-                    WaitingForArena = true;
-                    return false;
-                }
-                WaitingForArena = false;
-                _stagingVertexCursor = 0;
-                _stagingIndexCursor = 0;
-                return true;
-            }
-
-            internal void CancelUpload()
-            {
-                _arena.Release(in _stagingLease);
-                _stagingLease = default;
-                WaitingForArena = false;
-                _stagingVertexCursor = 0;
-                _stagingIndexCursor = 0;
             }
 
             public Bounds WorldBounds(float voxelSize)
@@ -307,59 +120,13 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 float size = VoxelsPerAxis * voxelSize;
                 Vector3 min = new Vector3(Coordinate.x, Coordinate.y, Coordinate.z) * size;
                 return new Bounds(min + Vector3.one * (size * 0.5f),
-                                  Vector3.one * (size + SourceStep * voxelSize * 2f));
-            }
-
-            internal bool TryGetDrawMetadata(out SurfaceDrawMetadata metadata)
-            {
-                metadata = default;
-                if (IsGpuPaged || !Ready || IndexCount == 0 || Vertices == null || Indices == null)
-                    return false;
-
-                metadata.IndexStart = (uint)_liveLease.IndexStart;
-                metadata.VertexStart = (uint)_liveLease.VertexStart;
-                metadata.IndexCount = (uint)IndexCount;
-                return true;
-            }
-
-            /// <summary>
-            /// Binds this chunk's arena offsets and issues its indirect draw.
-            ///
-            /// <paramref name="properties"/> must contain nothing but the two offsets below: the
-            /// block is copied into the command buffer once per draw, so anything constant across
-            /// the pass belongs in global state instead. The vertex and index buffers are the same
-            /// shared arena for every chunk, so they are bound once by the caller rather than here.
-            /// </summary>
-            public void Draw(CommandBuffer commandBuffer, Material material)
-            {
-                if (!Ready || IndexCount == 0 || Vertices == null || Indices == null || Args == null)
-                    return;
-
-                // Two globals rather than a MaterialPropertyBlock. The block is serialized into
-                // the command buffer once per draw, and at over a thousand chunks a frame that
-                // copy was the single largest remaining cost in the frame. The shader declares
-                // both as plain uniforms rather than inside a per-material CBUFFER, so a global
-                // reaches them, and command-buffer state applies in record order — each draw sees
-                // the values written immediately before it.
-                commandBuffer.SetGlobalInt(s_SurfaceVertexBase, _liveLease.VertexStart);
-                commandBuffer.SetGlobalInt(s_SurfaceIndexBase, _liveLease.IndexStart);
-                commandBuffer.DrawProceduralIndirect(Matrix4x4.identity, material, 0,
-                    MeshTopology.Triangles, _arena.Args,
-                    _liveLease.ArgsWordStart * sizeof(uint));
+                    Vector3.one * (size + SourceStep * voxelSize * 2f));
             }
 
             public void Dispose()
             {
-                CancelUpload();
-                _arena.Release(in _liveLease);
-                _liveLease = default;
                 Ready = false;
-                IsGpuPaged = false;
                 GpuHandle = -1;
-                IndexCount = 0;
-                GpuBytes = 0;
-                VertexCapacity = 0;
-                IndexCapacity = 0;
             }
         }
 
@@ -442,7 +209,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly Plane[] _frustumPlanes = new Plane[6];
 
         private BuildState _build;
-        private bool _pendingUpload;
         private GpuSurfaceExtractionContext _gpuExtraction;
         private readonly bool _gpuCutoverConfigured;
         private readonly long _gpuMirrorBudgetBytes;
@@ -450,10 +216,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         // A GPU build spans admission and one batched GPU publication. The CPU retains only the
         // stable handle and immutable source generation; it never owns output counts or ranges.
         private bool _gpuStagePending;
-        private SurfaceGeometryArena _geometryArena;
-        private readonly bool _ownsGeometryArena;
-        private TransvoxelLookupTables _lookupTables;
-        private readonly bool _ownsLookupTables;
         private SurfaceCatalogueView _surfaceCatalogue;
         private CoatingCatalogueView _coatingCatalogue;
         private uint _materialPaletteVersion;
@@ -479,35 +241,12 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         private readonly VoxelTimingWindow _capacityTiming = new();
         private readonly VoxelTimingWindow _buildSelectionTiming = new();
 
-        public CpuTransvoxelChunkCache(int sourceStep = 1)
-            : this(sourceStep, null, true, null, true, null)
-        {
-        }
+        public GpuSolidChunkCache(int sourceStep = 1)
+            : this(sourceStep, null) { }
 
-        internal CpuTransvoxelChunkCache(int sourceStep, SurfaceGeometryArena geometryArena,
-                                         TransvoxelLookupTables lookupTables)
-            : this(sourceStep, geometryArena, false, lookupTables, false, null)
+        internal GpuSolidChunkCache(int sourceStep, SurfaceChunkSlotGrid slotGrid)
         {
-        }
-
-        internal CpuTransvoxelChunkCache(int sourceStep, SurfaceGeometryArena geometryArena,
-                                         TransvoxelLookupTables lookupTables,
-                                         SurfaceChunkSlotGrid slotGrid)
-            : this(sourceStep, geometryArena, false, lookupTables, false, slotGrid)
-        {
-        }
-
-        private CpuTransvoxelChunkCache(int sourceStep, SurfaceGeometryArena geometryArena,
-                                         bool ownsGeometryArena,
-                                         TransvoxelLookupTables lookupTables,
-                                         bool ownsLookupTables,
-                                         SurfaceChunkSlotGrid slotGrid)
-        {
-            _geometryArena = geometryArena;
-            _ownsGeometryArena = ownsGeometryArena;
-            _lookupTables = lookupTables;
             _slotGrid = slotGrid ?? new SurfaceChunkSlotGrid();
-            _ownsLookupTables = ownsLookupTables || lookupTables == null;
             if (sourceStep < 1 || (sourceStep & (sourceStep - 1)) != 0)
                 throw new ArgumentOutOfRangeException(
                     nameof(sourceStep), sourceStep,
@@ -714,12 +453,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         public uint ActiveJobMask => 0;
         public int PendingUploadCount => 0;
         public int PendingUploadBytes => 0;
-        public bool TryPublishPending(int frame, int byteBudget, out int uploadedBytes)
-        {
-            uploadedBytes = 0;
-            return false;
-        }
-
         public double LastSnapshotMs { get; private set; }
         public double LastTopologyCompactMs { get; private set; }
         public double LastUploadMs { get; private set; }
@@ -1509,19 +1242,10 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             return angle >= start && angle <= finish;
         }
 
-        private SurfaceGeometryArena GetGeometryArena()
-        {
-            // Scheduler workers receive an eagerly allocated shared arena. Standalone caches
-            // remain cheap until they actually publish their first piece of geometry.
-            if (_geometryArena == null)
-                _geometryArena = new SurfaceGeometryArena(256 * 1024, 768 * 1024, 512);
-            return _geometryArena;
-        }
-
         private Entry AcquireEntry(int3 coordinate)
         {
             if (_entryPool.Count == 0)
-                return new Entry(coordinate, VoxelsPerAxis, SourceStep, GetGeometryArena());
+                return new Entry(coordinate, VoxelsPerAxis, SourceStep);
 
             Entry entry = _entryPool.Pop();
             entry.Reinitialize(coordinate);
@@ -1589,7 +1313,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             bool rejectedGpu = _gpuStagePending || _build.GpuEligible;
             if (_entries.TryGetValue(_build.Coordinate, out Entry entry))
             {
-                entry.CancelUpload();
                 if (!entry.Ready)
                 {
                     RecycleEntry(entry);
@@ -1856,15 +1579,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
         /// scheduler uses the nearest such chunk to decide which resident leases may be retired
         /// when the arena has no offscreen geometry left to give up.
         /// </summary>
-        internal bool TryGetPendingPublishDistanceSq(Camera camera, float voxelSize,
-                                                     out float distanceSq)
-        {
-            distanceSq = 0f;
-            if (!_pendingUpload || !_build.Active) return false;
-            distanceSq = ChunkDistanceSq(_build.Coordinate, camera, voxelSize);
-            return true;
-        }
-
         /// <summary>
         /// Retires up to <paramref name="maxEvictions"/> of the farthest eligible leases in a single
         /// pass over the entry table.
@@ -2092,7 +1806,6 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 // Every handle was observed complete above, so these Complete calls only
                 // release job safety dependencies; none can stall the frame.
                 ReleasePendingGpuBuild();
-                _pendingUpload = false;
                 _build = default;
             }
             return true;
@@ -2147,17 +1860,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
             _desiredVersions.Clear();
             _queuedAtSeconds.Clear();
             _visible.Clear();
-            if (_ownsLookupTables)
-            {
-                _lookupTables?.Dispose();
-                _lookupTables = null;
-            }
             _build = default;
-            if (_ownsGeometryArena)
-            {
-                _geometryArena?.Dispose();
-                _geometryArena = null;
-            }
         }
 
         private static double ElapsedMs(double startSeconds) => startSeconds <= 0.0

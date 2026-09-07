@@ -1,5 +1,51 @@
 # GPU-only VoxelShowcase — execution checklist
 
+### 2026-09-06 — Remove CPU upload arena and contiguous draw route
+
+`GpuSolidChunkCache` replaces the old cache name while preserving its asset GUID. Entries now
+retain only GPU publication identity/readiness; CPU staging leases, uploads, buffers and draw
+methods are removed. Scheduler no longer allocates the335,544,284-byte CPU geometry arena or
+scans CPU upload/lease-pressure queues. GPU geometry capacity remains at its previous three-quarter
+share of the configured budget; the released share stays unallocated. No distance/content change.
+SmoothSurface and VoxelRenderPass now consume only GPU page tables/indirect buckets; removed
+CPU draw metadata buffers, staging arrays, shader branch and per-bucket CPU submission route.
+Legacy CPU arena metrics remain zero for capture-schema compatibility, explicitly labelled retired.
+
+Removed seven obsolete editor Kentridge capture utilities (including the wrapper and V2 partials)
+that rebuilt CPU renderer output into ad-hoc meshes. Repository executable player gates use
+`VoxelEngine.Showcase.Editor.ShowcasePlayerBuild.Build`; the canonical standalone scene/harness
+is the integration consumer. CI/editor utility deletion adds no separate runtime module scene.
+
+Validation under `Artifacts/LocalGpuShowcase/`:
+- `gpu-draw-retirement-final.xml`:468/468 owned rendering EditMode tests passed in26s, no skips.
+  Initial compile caught one stale array-clear reference. Intermediate464/469 failures were stale
+  architecture expectations; preserved GPU/shared checks and removed the CPU lease-cap source
+  test. Real paged draw scale/raster, lifecycle, coverage, allocation and semantic tests all pass.
+- `gpu-draw-retirement-tint.xml`: one PlayMode material-distance test passed in13s. Its diagnostic
+  triangle now uses paged vertex/index lookup. No colour-drift tolerance change; not visual proof.
+- Two retired CPU-specific pressure fixtures were removed from AsyncGeometryStressTests: Entry
+  upload/lease replacement and the CPU soft-lease-cap/byte-upload Showcase workload. GPU
+  `GpuPagedPublicationTransactionTests` independently exercises exhaustion→retry, failed writes
+  preserving live geometry, abort and pending-candidate pressure. Full GPU pressure-player/long
+  workload coverage is still required under G11; these unit tests do not stand in for it.
+- `gpu-draw-retirement-module`: build34s,48s/seven captures, exit0; all lifecycle/edit/far markers,
+  zero missing/fallback/context errors. CPU arena committed/used/uploaded bytes all0. Settled
+  frame p95/p99 6.031/6.574ms; preparation .031/.039ms; allocated memory261.6MB. Reviewed42s:
+  fort/materials intact, prototype diagnostic composition.19 pre-existing finalizer warnings remain.
+- `gpu-draw-retirement-showcase`: build18s,180s/11 captures, exit0.60–90s stationary30 samples:
+  238.11 FPS, CPU p50-window median4.060ms.120–180s walking60 samples:141.71 FPS, CPU7.065ms.
+  Previous236/140 FPS/4.095/7.00ms; no significant whole-frame improvement established. GPU
+  diagnostic medians2.97/1.48ms, not trusted critical-path attribution. Final330 missing-visible,
+  zero allocation failures/evictions;2413 publications,1311 in-band candidates (not GPU draw count).
+  Final host traversal1.925ms/recovery1.208ms and step8 request20.9s old remain diagnostic leads.
+  Exact production sources/hashes/parent/diff and frame-window summary retained for both players.
+
+Reviewed75s castle and150s traversal against preceding screenshots: castle/roof/materials retained;
+procedural hills, sparse vegetation, terrain holes and far finish remain **unacceptable**.
+No repeated benchmark, full renderer retirement, production-quality or issue closure claim.
+Next delete standalone CPU workspace/jobs/oracles and the transitional GPU-to-CPU arena bridge;
+add direct retained-profile GPU suppression/backing proof before retiring that CPU predicate.
+
 ### 2026-09-06 — Retire solid worker CPU meshing phases
 
 Removed approximately2,600 lines from the mixed solid cache: CPU snapshot/pin assembly,

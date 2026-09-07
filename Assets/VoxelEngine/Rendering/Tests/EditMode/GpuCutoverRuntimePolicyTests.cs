@@ -15,7 +15,7 @@ namespace VoxelEngine.Tests.EditMode
                 Environment.SetEnvironmentVariable("VOXEL_DISABLE_GPU_CUTOVER", "1");
                 foreach (int step in new[] { 1, 2, 4, 8 })
                 {
-                    using var cache = new CpuTransvoxelChunkCache(step);
+                    using var cache = new GpuSolidChunkCache(step);
                     Assert.True(cache.GpuCutoverAvailable);
                     Assert.False(cache.GpuBackendResident, "Compute scratch remains lazy.");
                 }

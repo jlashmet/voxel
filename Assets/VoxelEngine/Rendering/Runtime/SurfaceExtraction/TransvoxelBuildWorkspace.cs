@@ -11,7 +11,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
     /// Render residency (chunk identities, slot generations and published arena leases) lives
     /// outside this object. This workspace owns only temporary snapshot/extraction/output memory
     /// reused from build to build, so residency can scale independently from the expensive native
-    /// working set. CpuTransvoxelChunkCache may keep borrowed copies of these NativeContainer
+    /// working set. GpuSolidChunkCache may keep borrowed copies of these NativeContainer
     /// handles for compact job setup, but this object is the sole lifecycle/disposal owner.
     /// </summary>
     internal sealed class TransvoxelBuildWorkspace : IDisposable

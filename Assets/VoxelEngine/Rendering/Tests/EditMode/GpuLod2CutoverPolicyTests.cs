@@ -12,13 +12,13 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void GpuCutoverTargetsNearExactRingsAndBlockHlod()
         {
-            Assert.True(CpuTransvoxelChunkCache.SupportsGpuSurfaceStep(1),
+            Assert.True(GpuSolidChunkCache.SupportsGpuSurfaceStep(1),
                 "Full-resolution surface extraction must be GPU-capable.");
-            Assert.True(CpuTransvoxelChunkCache.SupportsGpuSurfaceStep(2),
+            Assert.True(GpuSolidChunkCache.SupportsGpuSurfaceStep(2),
                 "LOD2 must remain GPU-capable, including its transition-face path.");
-            Assert.True(CpuTransvoxelChunkCache.SupportsGpuSurfaceStep(4),
+            Assert.True(GpuSolidChunkCache.SupportsGpuSurfaceStep(4),
                 "Step-4 ordinary extraction and conditional feature preservation must stay on GPU.");
-            Assert.True(CpuTransvoxelChunkCache.SupportsGpuSurfaceStep(8),
+            Assert.True(GpuSolidChunkCache.SupportsGpuSurfaceStep(8),
                 "Feature-preserving block HLOD now counts and writes in the GPU page arena.");
         }
 
@@ -54,7 +54,7 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void SceneIssue20260823014011920GpuLod2CarriesInnerTransitionFaceMask()
         {
-            using var cache = new CpuTransvoxelChunkCache(sourceStep: 2)
+            using var cache = new GpuSolidChunkCache(sourceStep: 2)
             {
                 MinViewDistanceMetres = 130f
             };

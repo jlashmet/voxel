@@ -24,38 +24,10 @@ namespace VoxelEngine.Tests.EditMode
             Path.Combine(RepoRoot, "Assets", "VoxelEngine", "Rendering", "Runtime", relativePath));
 
         [Test]
-        public void SolidArenaPressureIsBackpressureNotBufferGrowth()
-        {
-            string arena = ReadRenderingSource(
-                Path.Combine("SurfaceExtraction", "SurfaceGeometryArena.cs"));
-            string scheduler = ReadRenderingSource(
-                Path.Combine("SurfaceExtraction", "VoxelSurfaceScheduler.cs"));
-            string renderPass = ReadRenderingSource(
-                Path.Combine("RenderFeature", "VoxelRenderPass.cs"));
-            string bridge = ReadRenderingSource(
-                Path.Combine("RenderFeature", "VoxelRenderBridge.cs"));
-
-            StringAssert.Contains("public int MaxActiveLeases", arena);
-            StringAssert.Contains("if (UsedArgsRecords >= _maxActiveLeases)", arena);
-            StringAssert.Contains("AllocationFailureCount++", arena);
-            StringAssert.Contains("SolidArenaMaxActiveLeases", scheduler);
-            StringAssert.Contains("SolidArenaActiveLeases", scheduler);
-            StringAssert.Contains("SolidArenaMaxActiveLeases", bridge);
-            StringAssert.Contains("_scheduler.SolidArenaMaxActiveLeases", renderPass);
-
-            int acquire = arena.IndexOf("public bool TryAcquire", StringComparison.Ordinal);
-            int release = arena.IndexOf("public void Release", acquire, StringComparison.Ordinal);
-            Assert.GreaterOrEqual(acquire, 0);
-            Assert.Greater(release, acquire);
-            string streamingAcquire = arena.Substring(acquire, release - acquire);
-            StringAssert.DoesNotContain("new ComputeBuffer", streamingAcquire);
-        }
-
-        [Test]
         public void KnownFramePathJobCompletionsAreReadinessGated()
         {
             string cache = ReadRenderingSource(
-                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+                Path.Combine("SurfaceExtraction", "GpuSolidChunkCache.cs"));
             string scheduler = ReadRenderingSource(
                 Path.Combine("SurfaceExtraction", "VoxelSurfaceScheduler.cs"));
             int discovery = scheduler.IndexOf(
@@ -152,7 +124,7 @@ namespace VoxelEngine.Tests.EditMode
         public void DirtyBuildSelectionIsIncremental()
         {
             string cache = ReadRenderingSource(
-                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+                Path.Combine("SurfaceExtraction", "GpuSolidChunkCache.cs"));
             StringAssert.Contains("BuildSelectionCandidatesPerSlice", cache);
             StringAssert.Contains("private readonly Queue<int3> _dirtyQueue", cache);
             StringAssert.Contains("BeginNearestBuild(camera, voxelSize, deadline)", cache);
@@ -165,7 +137,7 @@ namespace VoxelEngine.Tests.EditMode
         public void GeometryMaintenanceDoesNotScanAllKnownChunksEachFrame()
         {
             string cache = ReadRenderingSource(
-                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+                Path.Combine("SurfaceExtraction", "GpuSolidChunkCache.cs"));
             StringAssert.Contains("ResidencyChecksPerPrepare", cache);
             StringAssert.Contains("RegionInvalidationCandidatesPerPrepare", cache);
             StringAssert.Contains("private readonly Queue<int3> _residencyQueue", cache);
@@ -190,7 +162,6 @@ namespace VoxelEngine.Tests.EditMode
             string water = ReadRenderingSource(
                 Path.Combine("SurfaceExtraction", "GpuWaterSurfaceChunkCache.cs"));
 
-            StringAssert.Contains("VoxelSurfaceScheduler.SurfaceArenaDrawCapacity", renderPass);
             StringAssert.Contains("GpuWaterSurfaceChunkCache.ArenaDrawCapacity", renderPass);
             StringAssert.Contains("public const int SurfaceArenaDrawCapacity", scheduler);
             StringAssert.Contains("public const int ArenaDrawCapacity", water);
@@ -207,10 +178,10 @@ namespace VoxelEngine.Tests.EditMode
             string shader = File.ReadAllText(
                 "Assets/VoxelEngine/Rendering/Runtime/Shaders/SmoothSurface.shader");
 
-            StringAssert.Contains("PrepareSolidDrawBatches(transvoxelVisible)", renderPass);
-            StringAssert.Contains("SolidDrawBucketCount", renderPass);
+            StringAssert.Contains("GpuSurfaceDrawDispatcher.BucketCount", renderPass);
+            StringAssert.Contains("DrawProceduralIndirect", renderPass);
             StringAssert.Contains("SV_InstanceID", shader);
-            StringAssert.Contains("_SurfaceDrawMetadata", shader);
+            StringAssert.Contains("_PagedDrawMetadata", shader);
             StringAssert.DoesNotContain(
                 "passData.TransvoxelEntries[i].Draw(cmd, passData.Material)", renderPass);
         }
@@ -227,7 +198,7 @@ namespace VoxelEngine.Tests.EditMode
             string context = ReadRenderingSource(
                 Path.Combine("GpuVoxel", "GpuSurfaceExtractionContext.cs"));
             string cache = ReadRenderingSource(
-                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+                Path.Combine("SurfaceExtraction", "GpuSolidChunkCache.cs"));
             string renderPass = ReadRenderingSource(
                 Path.Combine("RenderFeature", "VoxelRenderPass.cs"));
 
@@ -268,7 +239,7 @@ namespace VoxelEngine.Tests.EditMode
         public void GameplaySurfaceDiagnosticsAndIndirectArgsAvoidManagedFrameGarbage()
         {
             string cache = ReadRenderingSource(
-                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+                Path.Combine("SurfaceExtraction", "GpuSolidChunkCache.cs"));
             string arena = ReadRenderingSource(
                 Path.Combine("SurfaceExtraction", "SurfaceGeometryArena.cs"));
             string renderPass = ReadRenderingSource(
@@ -284,7 +255,7 @@ namespace VoxelEngine.Tests.EditMode
         public void FramePathJobCompletionIsNonBlockingAndObservable()
         {
             string solid = ReadRenderingSource(
-                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+                Path.Combine("SurfaceExtraction", "GpuSolidChunkCache.cs"));
             string water = ReadRenderingSource(
                 Path.Combine("SurfaceExtraction", "GpuWaterSurfaceChunkCache.cs"));
             string scheduler = ReadRenderingSource(
@@ -341,7 +312,7 @@ namespace VoxelEngine.Tests.EditMode
         public void SolidVisibilityTraversesOnlyActiveToroidalSlotsOncePerRing()
         {
             string cache = ReadRenderingSource(
-                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+                Path.Combine("SurfaceExtraction", "GpuSolidChunkCache.cs"));
             string scheduler = ReadRenderingSource(
                 Path.Combine("SurfaceExtraction", "VoxelSurfaceScheduler.cs"));
             int collect = scheduler.IndexOf("private void CollectVisibility", StringComparison.Ordinal);
@@ -405,7 +376,7 @@ namespace VoxelEngine.Tests.EditMode
         public void GeometryResidencyRequiresOwnedCoreRegions()
         {
             string cache = ReadRenderingSource(
-                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+                Path.Combine("SurfaceExtraction", "GpuSolidChunkCache.cs"));
             int start = cache.IndexOf("private bool AllOwnedCoreRegionsResident",
                                       StringComparison.Ordinal);
             int end = cache.IndexOf("internal bool TryEvictOneForArenaPressure", start,
@@ -425,7 +396,7 @@ namespace VoxelEngine.Tests.EditMode
         public void SurfaceEntriesAreReusedAfterResidencyChurn()
         {
             string cache = ReadRenderingSource(
-                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+                Path.Combine("SurfaceExtraction", "GpuSolidChunkCache.cs"));
             StringAssert.Contains("private readonly Stack<Entry> _entryPool", cache);
             StringAssert.Contains("private Entry AcquireEntry", cache);
             StringAssert.Contains("private void RecycleEntry", cache);
@@ -439,7 +410,7 @@ namespace VoxelEngine.Tests.EditMode
         public void SurfaceSlotGenerationGuardsRecycledResidency()
         {
             string cache = ReadRenderingSource(
-                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+                Path.Combine("SurfaceExtraction", "GpuSolidChunkCache.cs"));
             string slot = ReadRenderingSource(
                 Path.Combine("SurfaceExtraction", "SurfaceChunkSlot.cs"));
             StringAssert.Contains("uint Generation", slot);
@@ -455,7 +426,7 @@ namespace VoxelEngine.Tests.EditMode
         public void ClipmapWindowOwnsRenderResidencyAdmission()
         {
             string cache = ReadRenderingSource(
-                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+                Path.Combine("SurfaceExtraction", "GpuSolidChunkCache.cs"));
             string scheduler = ReadRenderingSource(
                 Path.Combine("SurfaceExtraction", "VoxelSurfaceScheduler.cs"));
             StringAssert.Contains("public void SetClipmapWindow", cache);
@@ -520,7 +491,7 @@ namespace VoxelEngine.Tests.EditMode
         public void FixedToroidalSurfaceSlotsAreSharedPerLodRing()
         {
             string cache = ReadRenderingSource(
-                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+                Path.Combine("SurfaceExtraction", "GpuSolidChunkCache.cs"));
             string scheduler = ReadRenderingSource(
                 Path.Combine("SurfaceExtraction", "VoxelSurfaceScheduler.cs"));
             string grid = ReadRenderingSource(
@@ -529,7 +500,7 @@ namespace VoxelEngine.Tests.EditMode
                 Path.Combine("SurfaceExtraction", "SurfaceChunkSlot.cs"));
 
             StringAssert.Contains("private readonly SurfaceChunkSlotGrid _slotGrid = new();", scheduler);
-            StringAssert.Contains("lookupTables, _slotGrid", scheduler);
+            StringAssert.Contains("sourceStep, _slotGrid", scheduler);
             StringAssert.Contains("private readonly SurfaceChunkSlotGrid _slotGrid;", cache);
             StringAssert.DoesNotContain("Dictionary<int3, SurfaceChunkSlot>", cache);
             StringAssert.DoesNotContain("Stack<SurfaceChunkSlot>", cache);
@@ -546,7 +517,7 @@ namespace VoxelEngine.Tests.EditMode
         public void ClipmapMovementRetiresOnlyOutgoingEdgesIncrementally()
         {
             string cache = ReadRenderingSource(
-                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+                Path.Combine("SurfaceExtraction", "GpuSolidChunkCache.cs"));
             StringAssert.Contains("ClipmapEdgeCandidatesPerPrepare", cache);
             StringAssert.Contains("ScheduleClipmapEdgeRetirement", cache);
             StringAssert.Contains("StepClipmapEdgeRetirement();", cache);
@@ -618,7 +589,7 @@ namespace VoxelEngine.Tests.EditMode
             string store = File.ReadAllText(Path.Combine(
                 Application.dataPath, "VoxelEngine", "Storage", "Runtime", "RegionMutationStore.cs"));
             string cache = ReadRenderingSource(
-                Path.Combine("SurfaceExtraction", "CpuTransvoxelChunkCache.cs"));
+                Path.Combine("SurfaceExtraction", "GpuSolidChunkCache.cs"));
             StringAssert.Contains("_writeBorrowedSlots", pool);
             StringAssert.Contains("public bool TryPin", pool);
             StringAssert.Contains("_pool.BeginWrite(poolIndex)", store);

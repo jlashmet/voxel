@@ -14,11 +14,19 @@ and the old class name still require removal. The retained-profile predicate cur
 only for a legacy test; migrate direct GPU profile coverage before deleting it. See tasks.md for
 exact artifacts and the19 pre-existing buffer-finalizer warnings remaining under G11.
 
+2026-09-06 subsequent checkpoint: host renamed to `GpuSolidChunkCache` with GUID preserved;
+Entry CPU uploads/draws and scheduler CPU arena allocation/queues are removed. Production shader
+and render pass are paged-only. Old CPU mesh reconstruction editor capture utilities are deleted.
+468 rendering EditMode tests, one shader diagnostic and both standalone module/Showcase pass.
+CPU arena allocation is now0; no significant FPS gain. Standalone CPU workspace/jobs/oracles and
+GpuSurfaceArenaBridge still exist for legacy regressions and are next to retire. The GPU host's
+last retained-profile CPU predicate is test-only and still needs a direct GPU replacement test.
+
 ## A. Mixed owner: split first, then delete the retired CPU rendering portions
 
 | Path | Current responsibility | Required disposition |
 | --- | --- | --- |
-| `Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/CpuTransvoxelChunkCache.cs` | Owns legacy CPU Transvoxel extraction **and** current chunk admission, dirty/version tracking, visibility, GPU-stage orchestration, publication handoff and metrics. GPU eligibility now covers source steps 1/2/4/8; conditional step4 HLOD and step8 have local real-player module proof. | **Do not delete as-is.** Move scheduler/admission/version/visibility/GPU-publication responsibilities into renderer-neutral/GPU-owned components; finish all-ring integration/pressure proof; then delete the CPU meshing/workspace/upload portions and finally the file if no shared responsibility remains. |
+| `Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/GpuSolidChunkCache.cs` (renamed) | GPU admission, dirty/version tracking, candidate visibility and publication host. CPU meshing/workspace/upload/draw phases are removed. A retained-profile predicate remains for one legacy test. | Preserve required GPU host orchestration. Replace the last profile predicate oracle with direct GPU regression coverage; remove remaining obsolete telemetry/helpers as callers migrate. |
 | `Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/SurfaceGeometryArena.cs` | Legacy contiguous CPU-upload arena and some transitional GPU/range tests. | Keep only while a production or independent regression consumer needs it. Final GPU-paged path should not retain it solely to support the retired CPU uploader. |
 | `Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/GeometryFrameJobCompletionGuard.cs` | Guards completion of CPU geometry jobs. | Delete if reference audit proves it serves only retired CPU surface/water jobs; retain if another non-retired rendering job still uses it. |
 | `Assets/VoxelEngine/Rendering/Runtime/SurfaceExtraction/NearRingExactSnapshotScheduling.cs` | CPU-side exact snapshot scheduling policy. | Determine whether GPU mirror/admission still consumes the policy. Delete if it exists only to feed CPU extraction; otherwise move the minimal shared scheduling contract out of the retired cache. |

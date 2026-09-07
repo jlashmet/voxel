@@ -319,7 +319,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             // Storage/change-journal versions. The persistent mirror represents live Storage, not a
             // historical snapshot, so a bounded recovery can legitimately span later Storage
             // generations. TryAdmitPendingStage refreshes this mirror-only gate on every retry.
-            // CpuTransvoxelChunkCache keeps the renderer generation on the immutable build and
+            // GpuSolidChunkCache keeps the renderer generation on the immutable build and
             // rejects that build before publication when a relevant edit made it stale. This lets
             // recovery converge without ever publishing newer mirror data as an older render build.
             _staged = request;
@@ -508,7 +508,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             if (counts.IsEmpty)
             {
                 // The count itself completed successfully, so this is not a GPU failure. Return
-                // the authoritative empty result unchanged. CpuTransvoxelChunkCache publishes air
+                // the authoritative empty result unchanged. GpuSolidChunkCache publishes air
                 // atomically without an arena lease and removes any older drawable representation.
                 ChunksEmpty++;
             }

@@ -28,37 +28,37 @@ namespace VoxelEngine.Tests.EditMode
                 JointHalfWidthQ4 = 4,
             };
 
-            Assert.True(CpuTransvoxelChunkCache.RetainedProfileOwnsTriangle(
+            Assert.True(GpuSolidChunkCache.RetainedProfileOwnsTriangle(
                 in block,
                 new float3(13.9f, 5.0f, 6f),
                 new float3(14.1f, 5.1f, 6f),
                 new float3(14.0f, 4.9f, 6.2f), 9),
                 "the retained intrados must replace matching duplicate topology");
-            Assert.False(CpuTransvoxelChunkCache.RetainedProfileOwnsTriangle(
+            Assert.False(GpuSolidChunkCache.RetainedProfileOwnsTriangle(
                 in block,
                 new float3(13.9f, 5.0f, 6f),
                 new float3(14.1f, 5.1f, 6f),
                 new float3(14.0f, 4.9f, 6.2f), 8),
                 "a profile may not suppress another material");
-            Assert.False(CpuTransvoxelChunkCache.RetainedProfileOwnsTriangle(
+            Assert.False(GpuSolidChunkCache.RetainedProfileOwnsTriangle(
                 in block,
                 new float3(8f, 1f, 6f),
                 new float3(8f, 2f, 6f),
                 new float3(8f, 1.5f, 6.2f), 9),
                 "geometry outside the annular profile volume must remain");
-            Assert.False(CpuTransvoxelChunkCache.RetainedProfileOwnsTriangle(
+            Assert.False(GpuSolidChunkCache.RetainedProfileOwnsTriangle(
                 in block,
                 new float3(14f, 5f, 14f),
                 new float3(14.2f, 5.1f, 14f),
                 new float3(14.1f, 4.9f, 14.2f), 9),
                 "geometry outside the retained profile depth must remain");
-            Assert.True(CpuTransvoxelChunkCache.RetainedProfileOwnsTriangle(
+            Assert.True(GpuSolidChunkCache.RetainedProfileOwnsTriangle(
                 in block,
                 new float3(14f, 0.01f, 6f),
                 new float3(14.2f, 0.02f, 6f),
                 new float3(14.1f, 0.03f, 6.2f), 9),
                 "the profile primitive owns duplicate topology through its full wedge; its inset side faces present the intentional joint");
-            Assert.False(CpuTransvoxelChunkCache.RetainedProfileOwnsTriangle(
+            Assert.False(GpuSolidChunkCache.RetainedProfileOwnsTriangle(
                 in block,
                 new float3(14f, -1.0f, 6f),
                 new float3(14.2f, -0.9f, 6f),

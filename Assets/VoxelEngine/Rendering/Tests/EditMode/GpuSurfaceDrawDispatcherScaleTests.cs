@@ -133,7 +133,6 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             try
             {
                 target.Create();
-                material.SetInteger("_SurfacePagedDraw", 1);
                 material.SetInteger("_WaterPagedDraw", 1);
                 if (waterPass >= 0)
                 {

@@ -10,35 +10,40 @@ Worktree `/private/tmp/voxel-gpu-restoration`, branch `gpu-rendering-agent-1-res
 
 All solid source steps1/2/4/8 have GPU implementations. GPU water is active and its CPU cache/job/shader path is deleted. Full solid retirement, production coverage and visual acceptance remain open.
 
-## Current solid CPU retirement
+## Current CPU arena/draw retirement
 
-`8930403d0` ports GPU faceted merging.57 focused tests and both module/Showcase players passed.
-Showcase measured236/140 FPS stationary/walking, CPU4.095/7.00ms; allocation failures/evictions
-fell880/880→0/0 and missing-visible631→340. Castle retained, terrain holes/far/vegetation finish
-unacceptable. Single-run diagnostics, not benchmark acceptance.
+`86733d373` removed CPU worker phases/workspace allocation:469 rendering tests and the module
+passed; module allocated memory687→262MB. Earlier GPU face merging measured236/140 FPS
+stationary/walking, zero allocation failures/evictions and340 missing-visible chunks. Terrain
+holes/far content remain unacceptable. No repeated performance acceptance.
 
-H1: legacy CPU workspace/upload ownership still reserves resources and performs host work despite
-GPU publication. H2: source recovery and GPU submission latency dominate moving-camera stalls;
-last step8 publication waited19.5s even without geometry allocation failures.
+H1: the unused contiguous CPU arena and draw staging still reserve memory/host work. H2: source
+recovery and moving-camera traversal dominate steady performance despite that removal.
 
-Selected retirement: remove CPU meshing phases, snapshot/pin jobs, managed polygon/profile/coating
-emitters and worker workspace allocation from the mixed cache. Preserve bounded demand queues,
-clipmap ownership, source/catalogue version rejection and GPU handle publication. No source-data
-changes. Backend creation failure cannot launch CPU geometry; temporary source admission failure
-keeps demand pending. Remove the obsolete environment fallback switch and startup policy.
+Selected change: GPU-paged-only SmoothSurface shader and render pass; remove contiguous CPU
+Entry upload/draw state, scheduler arena and upload/lease-pressure loops. Preserve GPU capacity
+at the existing three-quarter share; leave the freed allocation uncommitted. Rename the host to
+`GpuSolidChunkCache`, preserving its asset GUID and admission/version/publication logic. Retire
+old editor Kentridge capture utilities that rebuilt CPU meshes; executable player gates use the
+existing ShowcasePlayerBuild harness. Canonical CPU storage/generation/collision untouched.
 
-Current result: about2,600 lines removed;53 host tests passed. Full rendering assembly audit
-initially463/484; retired14 CPU-source wiring cases plus one CPU step4 oracle in favor of real
-GPU coverage, preserved shared Storage assertions and corrected stale architecture expectations.
-All469 remaining owned tests passed (22s, no skips). Module48s/seven captures passed lifecycle,
-edits and far handoff, zero missing/fallback. Allocated memory261.6 versus687.3MB; fort intact,
-prototype composition. Both prior/current logs contain19 ComputeBuffer finalizer warnings:
-G11 remains open. Exact source evidence is in `gpu-solid-host-module`.
+Validation:468 rendering EditMode tests passed(26s), plus the migrated material-distance
+PlayMode test(13s). Fixed a leftover staging-array clear and stale architecture expectations.
+Two retired CPU lease/upload pressure fixtures were removed; GPU transaction tests cover
+exhaustion/retry and preservation, but full GPU pressure-player coverage remains a G11 gate.
+Module48s/seven captures passed all lifecycle/edit/far markers; CPU arena committed/used0,
+fort intact, prototype composition.19 finalizer warnings persist.
 
-Next: remove Entry upload helpers, scheduler335MB CPU arena/contiguous draw route and rename host
-ownership. Delete standalone CPU workspace/jobs/oracles with independent GPU regression coverage.
-Add direct GPU retained-profile suppression/backing regression before removing its last CPU
-predicate oracle. Then run Showcase and measure full frames again; latest FPS remains236/140.
+Showcase180s/11 captures passed:238/142 FPS stationary/walking, CPU4.06/7.065ms;330 missing,
+zero allocation failures/evictions. Previous236/140: no significant speed improvement established.
+Reviewed75s/150s: castle retained; terrain holes/far/vegetation finish remains unacceptable.
+Exact sources/hashes/windows in `gpu-draw-retirement-showcase`. Source recovery/traversal and
+20.9s coarse publication latency remain unresolved; the removal chiefly saves memory.
+
+Next: remove remaining standalone CPU workspace,
+jobs/oracles and transitional GPU-to-CPU arena bridge. Direct GPU retained-profile suppression/
+backing regression is needed before removing its last CPU predicate oracle. Both prior module
+runs had19 ComputeBuffer finalizer warnings; fix lifetime ownership under G11.
 
 ## Remaining gates
 

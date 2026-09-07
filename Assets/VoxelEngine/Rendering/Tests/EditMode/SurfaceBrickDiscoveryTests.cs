@@ -275,7 +275,7 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void RepeatedSurfaceDiscoveryDoesNotReinvalidateKnownChunk()
         {
-            using var cache = new CpuTransvoxelChunkCache(sourceStep: 4);
+            using var cache = new GpuSolidChunkCache(sourceStep: 4);
             cache.SetClipmapWindow(int3.zero, radius: 1);
 
             // Interior block: maps to exactly one chunk and does not exercise halo neighbours.
@@ -304,7 +304,7 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void SurfaceDiscoveryOutsideClipmapDoesNotCreateDirtyBuildWork()
         {
-            using var cache = new CpuTransvoxelChunkCache(sourceStep: 4);
+            using var cache = new GpuSolidChunkCache(sourceStep: 4);
             cache.SetClipmapWindow(int3.zero, radius: 1);
 
             // A step-4 chunk spans 32 Storage blocks per axis. This block maps to chunk +10,

@@ -13,7 +13,7 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void VisibleCurrentGenerationBuildDoesNotQueueDuplicateAdmission()
         {
-            using var cache = new CpuTransvoxelChunkCache(1)
+            using var cache = new GpuSolidChunkCache(1)
             {
                 MinViewDistanceMetres = 0f,
                 MaxViewDistanceMetres = 96f,
@@ -22,9 +22,9 @@ namespace VoxelEngine.Tests.EditMode
             };
             cache.SetClipmapWindow(int3.zero, 8);
 
-            MethodInfo discover = typeof(CpuTransvoxelChunkCache).GetMethod(
+            MethodInfo discover = typeof(GpuSolidChunkCache).GetMethod(
                 "DiscoverSurfaceBricks", BindingFlags.Instance | BindingFlags.NonPublic);
-            MethodInfo select = typeof(CpuTransvoxelChunkCache).GetMethod(
+            MethodInfo select = typeof(GpuSolidChunkCache).GetMethod(
                 "BeginNearestBuild", BindingFlags.Instance | BindingFlags.NonPublic);
             Assert.NotNull(discover);
             Assert.NotNull(select);
@@ -82,7 +82,7 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void FrustumVisibleDemandBypassesBackgroundPrefetchBacklog()
         {
-            using var cache = new CpuTransvoxelChunkCache(1)
+            using var cache = new GpuSolidChunkCache(1)
             {
                 MinViewDistanceMetres = 0f,
                 MaxViewDistanceMetres = 96f,
@@ -91,13 +91,13 @@ namespace VoxelEngine.Tests.EditMode
             };
             cache.SetClipmapWindow(new int3(0, 0, -3), 20);
 
-            MethodInfo track = typeof(CpuTransvoxelChunkCache).GetMethod(
+            MethodInfo track = typeof(GpuSolidChunkCache).GetMethod(
                 "TrackKnown", BindingFlags.Instance | BindingFlags.NonPublic);
-            MethodInfo invalidate = typeof(CpuTransvoxelChunkCache).GetMethod(
+            MethodInfo invalidate = typeof(GpuSolidChunkCache).GetMethod(
                 "Invalidate", BindingFlags.Instance | BindingFlags.NonPublic);
-            MethodInfo select = typeof(CpuTransvoxelChunkCache).GetMethod(
+            MethodInfo select = typeof(GpuSolidChunkCache).GetMethod(
                 "BeginNearestBuild", BindingFlags.Instance | BindingFlags.NonPublic);
-            FieldInfo buildField = typeof(CpuTransvoxelChunkCache).GetField(
+            FieldInfo buildField = typeof(GpuSolidChunkCache).GetField(
                 "_build", BindingFlags.Instance | BindingFlags.NonPublic);
             Assert.NotNull(track);
             Assert.NotNull(invalidate);
@@ -172,7 +172,7 @@ namespace VoxelEngine.Tests.EditMode
         [Test]
         public void OutOfBandDiscoveryParksUntilChunkBecomesVisibleInRing()
         {
-            using var cache = new CpuTransvoxelChunkCache(4)
+            using var cache = new GpuSolidChunkCache(4)
             {
                 MinViewDistanceMetres = 192f,
                 MaxViewDistanceMetres = 288f,
@@ -181,9 +181,9 @@ namespace VoxelEngine.Tests.EditMode
             };
             cache.SetClipmapWindow(int3.zero, 16);
 
-            MethodInfo discover = typeof(CpuTransvoxelChunkCache).GetMethod(
+            MethodInfo discover = typeof(GpuSolidChunkCache).GetMethod(
                 "DiscoverSurfaceBricks", BindingFlags.Instance | BindingFlags.NonPublic);
-            MethodInfo select = typeof(CpuTransvoxelChunkCache).GetMethod(
+            MethodInfo select = typeof(GpuSolidChunkCache).GetMethod(
                 "BeginNearestBuild", BindingFlags.Instance | BindingFlags.NonPublic);
             Assert.NotNull(discover);
             Assert.NotNull(select);
