@@ -14,21 +14,18 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
     [DisallowMultipleComponent]
     public sealed class ProceduralFarFeatureRenderer : MonoBehaviour, IFarFeatureRenderer
     {
-        private const int MaxInstancesPerDraw = 1023;
+        [SerializeField, Min(1)] private int maximumInstances = 65536;
         private const int CylinderSegments = 12;
         private const int FrustumSegments = 24;
 
-        private readonly Dictionary<BatchKey, List<Matrix4x4>> _batches = new();
+        private readonly List<GpuFarInstanceBatch> _gpuBatches = new();
+        internal int BatchBuildCount { get; private set; }
         private readonly Dictionary<string, FarFeatureGeometry> _geometrySources = new(StringComparer.Ordinal);
         private readonly Dictionary<string, FarFeaturePresentation> _styleSources = new(StringComparer.Ordinal);
         private readonly Dictionary<string, Mesh> _meshCache = new(StringComparer.Ordinal);
         private readonly Dictionary<string, Material> _materialCache = new(StringComparer.Ordinal);
         private readonly Dictionary<FarFeaturePresentation, Material> _resolvedMaterials = new();
-        private readonly Matrix4x4[] _drawMatrices = new Matrix4x4[MaxInstancesPerDraw];
         private int _instanceCount;
-        private static readonly bool s_TraceHandoff =
-            string.Equals(Environment.GetEnvironmentVariable("VOXEL_FAR_HANDOFF_TRACE"), "1", StringComparison.Ordinal);
-        private float _nextHandoffTrace = 30f;
         private readonly List<FarFeatureInstance> _sourceInstances = new();
         private static readonly HashSet<ProceduralFarFeatureRenderer> s_SurfaceConsumers = new();
         private bool _useSurfaceReplacementHandoff;
@@ -42,7 +39,7 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
                 else
                 {
                     s_SurfaceConsumers.Remove(this);
-                    if (!value) RebuildBatches(_sourceInstances, null);
+                    if (!value) UpdateReplacement(null);
                 }
             }
         }
@@ -62,27 +59,14 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
             {
                 if (renderer == null || !renderer.isActiveAndEnabled
                     || !renderer.UseSurfaceReplacementHandoff) continue;
-                renderer.RebuildBatches(renderer._sourceInstances, hasReplacement, camera);
+                renderer.UpdateReplacement(hasReplacement);
                 destination.Add(renderer);
             }
         }
 
         internal void RecordSurfaceDraws(CommandBuffer command)
         {
-            foreach (var batch in _batches)
-            {
-                if (batch.Value.Count == 0) continue;
-                Mesh mesh = GetMesh(batch.Key.GeometryKey);
-
-                for (int offset = 0; offset < batch.Value.Count; offset += MaxInstancesPerDraw)
-                {
-                    int count = Mathf.Min(MaxInstancesPerDraw, batch.Value.Count - offset);
-                    for (int i = 0; i < count; i++) _drawMatrices[i] = batch.Value[offset + i];
-                    for (int submesh = 0; submesh < mesh.subMeshCount; submesh++)
-                        command.DrawMeshInstanced(mesh, submesh, GetSubmeshMaterial(batch.Key, submesh),
-                            0, _drawMatrices, count);
-                }
-            }
+            foreach (var batch in _gpuBatches) batch.RecordDraws(command);
         }
 
         public int InstanceCount => _instanceCount;
@@ -90,103 +74,67 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
 
         public void SetInstances(IReadOnlyList<FarFeatureInstance> instances)
         {
+            if (instances != null && instances.Count > maximumInstances)
+                throw new InvalidOperationException($"Far instance capacity {maximumInstances} exceeded by {instances.Count}.");
+            if (MatchesSource(instances)) return;
+            ClearBatches();
             _sourceInstances.Clear();
             if (instances != null)
                 for (int i = 0; i < instances.Count; i++) _sourceInstances.Add(instances[i]);
-            if (!UseSurfaceReplacementHandoff) RebuildBatches(_sourceInstances, null);
-
-        }
-
-        private void RebuildBatches(IReadOnlyList<FarFeatureInstance> instances,
-                                    Func<Bounds, bool> hasReplacement, Camera camera = null)
-        {
-            ClearBatches();
-            NearReplacementCount = 0;
-            bool trace = s_TraceHandoff && hasReplacement != null && Time.unscaledTime >= _nextHandoffTrace;
-            int traced = 0;
-            Ray viewRay = trace && camera != null
-                ? camera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f)) : default;
-            float closest = float.PositiveInfinity;
-            ulong closestId = 0;
-            string closestKey = null;
-            if (trace) _nextHandoffTrace = Time.unscaledTime + 10f;
-            for (int i = 0; i < instances.Count; i++)
+            var groups = new Dictionary<BatchKey, List<FarFeatureInstance>>();
+            foreach (var instance in _sourceInstances)
             {
-                FarFeatureInstance instance = instances[i];
                 if (instance.Tier == FarFeatureTier.Culled) continue;
-                if (hasReplacement != null && hasReplacement(new Bounds(
-                    ToVector3(instance.BoundsCenter), ToVector3(instance.BoundsExtents * 2f))))
-                {
-                    NearReplacementCount++;
-                    continue;
-                }
-
-                if (trace && traced++ < 4)
-                    Debug.Log($"FAR HANDOFF retained id={instance.StableId:X16} key={instance.GeometryKey} "
-                        + $"center={instance.BoundsCenter} extents={instance.BoundsExtents} t={Time.unscaledTime:0.0}");
                 RegisterGeometry(instance);
                 RegisterStyle(instance);
                 var key = new BatchKey(instance.GeometryKey, instance.StyleKey, instance.Tier);
-                if (!_batches.TryGetValue(key, out List<Matrix4x4> matrices))
-                {
-                    matrices = new List<Matrix4x4>();
-                    _batches.Add(key, matrices);
-                }
-
-                Matrix4x4 transform = Matrix4x4.TRS(
-                    ToVector3(instance.Position),
-                    ToQuaternion(instance.Rotation),
-                    ToVector3(instance.Scale));
-                matrices.Add(transform);
-                if (trace && camera != null)
-                {
-                    Mesh mesh = GetMesh(instance.GeometryKey);
-                    float distance = TraceMeshDistance(mesh, transform, viewRay);
-                    if (distance < closest)
-                    {
-                        closest = distance;
-                        closestId = instance.StableId;
-                        closestKey = instance.GeometryKey;
-                    }
-                }
-                _instanceCount++;
+                if (!groups.TryGetValue(key, out var group)) groups.Add(key, group = new List<FarFeatureInstance>());
+                group.Add(instance);
             }
-            if (trace && camera != null)
-                Debug.Log($"FAR HANDOFF ray id={closestId:X16} key={closestKey} distance={closest} "
-                    + $"origin={viewRay.origin:F3} direction={viewRay.direction:F3} retained={_instanceCount} t={Time.unscaledTime:0.0}");
+            var shader = Resources.Load<ComputeShader>("GpuFarInstanceCompact");
+            try
+            {
+                foreach (var group in groups)
+                {
+                    Mesh mesh = GetMesh(group.Key.GeometryKey);
+                    var materials = new Material[mesh.subMeshCount];
+                    for (int submesh = 0; submesh < materials.Length; submesh++)
+                        materials[submesh] = GetSubmeshMaterial(group.Key, submesh);
+                    _gpuBatches.Add(new GpuFarInstanceBatch(shader, mesh, materials, group.Value));
+                }
+                BatchBuildCount++;
+                UpdateReplacement(null);
+            }
+            catch { ClearBatches(); throw; }
         }
 
-        // Opt-in diagnostic over the exact submitted CPU mesh/transform. It never drives
-        // visibility, collision, generation or authoritative state.
-        private static float TraceMeshDistance(Mesh mesh, Matrix4x4 transform, Ray worldRay)
+        private bool MatchesSource(IReadOnlyList<FarFeatureInstance> instances)
         {
-            Matrix4x4 inverse = transform.inverse;
-            Vector3 origin = inverse.MultiplyPoint3x4(worldRay.origin);
-            Vector3 direction = inverse.MultiplyVector(worldRay.direction);
-            var ray = new Ray(origin, direction);
-            if (!mesh.bounds.IntersectRay(ray)) return float.PositiveInfinity;
-            Vector3[] vertices = mesh.vertices;
-            int[] indices = mesh.triangles;
-            float nearest = float.PositiveInfinity;
-            for (int i = 0; i < indices.Length; i += 3)
+            int count = instances?.Count ?? 0;
+            if (_sourceInstances.Count != count) return false;
+            for (int i = 0; i < count; i++)
             {
-                Vector3 a = vertices[indices[i]];
-                Vector3 edge1 = vertices[indices[i + 1]] - a;
-                Vector3 edge2 = vertices[indices[i + 2]] - a;
-                Vector3 p = Vector3.Cross(direction, edge2);
-                float determinant = Vector3.Dot(edge1, p);
-                if (determinant <= 1e-10f) continue;
-                float reciprocal = 1f / determinant;
-                Vector3 offset = origin - a;
-                float u = Vector3.Dot(offset, p) * reciprocal;
-                if (u < 0f || u > 1f) continue;
-                Vector3 q = Vector3.Cross(offset, edge1);
-                float v = Vector3.Dot(direction, q) * reciprocal;
-                if (v < 0f || u + v > 1f) continue;
-                float distance = Vector3.Dot(edge2, q) * reciprocal;
-                if (distance >= 0f && distance < nearest) nearest = distance;
+                var a = _sourceInstances[i]; var b = instances[i];
+                if (a.StableId != b.StableId || a.Tier != b.Tier || a.Flags != b.Flags
+                    || !a.Position.Equals(b.Position) || !a.Rotation.Equals(b.Rotation)
+                    || !a.Scale.Equals(b.Scale) || !a.BoundsCenter.Equals(b.BoundsCenter)
+                    || !a.BoundsExtents.Equals(b.BoundsExtents) || a.GeometryKey != b.GeometryKey
+                    || a.StyleKey != b.StyleKey || !ReferenceEquals(a.Geometry, b.Geometry)
+                    || !a.Presentation.Equals(b.Presentation)) return false;
             }
-            return nearest;
+            return true;
+        }
+
+        private void UpdateReplacement(Func<Bounds, bool> hasReplacement)
+        {
+            _instanceCount = NearReplacementCount = 0;
+            foreach (var batch in _gpuBatches)
+            {
+                batch.UpdateReplacement(hasReplacement);
+                batch.Prepare();
+                _instanceCount += batch.VisibleCount;
+                NearReplacementCount += batch.Count - batch.VisibleCount;
+            }
         }
 
         public void Clear()
@@ -198,30 +146,7 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
 
         public void DrawNow()
         {
-            foreach (KeyValuePair<BatchKey, List<Matrix4x4>> batch in _batches)
-            {
-                Mesh mesh = GetMesh(batch.Key.GeometryKey);
-
-                List<Matrix4x4> matrices = batch.Value;
-                for (int offset = 0; offset < matrices.Count; offset += MaxInstancesPerDraw)
-                {
-                    int count = Mathf.Min(MaxInstancesPerDraw, matrices.Count - offset);
-                    for (int i = 0; i < count; i++) _drawMatrices[i] = matrices[offset + i];
-                    for (int submesh = 0; submesh < mesh.subMeshCount; submesh++)
-                    {
-                        Graphics.DrawMeshInstanced(
-                            mesh,
-                            submesh,
-                            GetSubmeshMaterial(batch.Key, submesh),
-                            _drawMatrices,
-                            count,
-                            null,
-                            ShadowCastingMode.Off,
-                            receiveShadows: false,
-                            layer: gameObject.layer);
-                    }
-                }
-            }
+            foreach (var batch in _gpuBatches) batch.DrawNow(gameObject.layer);
         }
 
         public string BatchKeyFor(FarFeatureInstance instance) =>
@@ -247,7 +172,8 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
 
         private void ClearBatches()
         {
-            foreach (List<Matrix4x4> matrices in _batches.Values) matrices.Clear();
+            foreach (var batch in _gpuBatches) batch.Dispose();
+            _gpuBatches.Clear();
             _instanceCount = 0;
         }
 
@@ -324,7 +250,8 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
 
         private static Material CreateMaterial(string name, FarFeaturePresentation presentation)
         {
-            Shader shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
+            Shader shader = Resources.Load<Shader>("GpuFarFeatureLit");
+            if (shader == null) throw new InvalidOperationException("GPU far feature shader is missing.");
             var material = new Material(shader) { name = name, hideFlags = HideFlags.DontSave, enableInstancing = true };
             ApplySharedPresentation(material, presentation);
             return material;
@@ -651,6 +578,7 @@ namespace VoxelEngine.Rendering.Runtime.FarWorld
 
         private void OnDestroy()
         {
+            ClearBatches();
             s_SurfaceConsumers.Remove(this);
             foreach (Mesh mesh in _meshCache.Values)
                 if (mesh != null) DestroyImmediate(mesh);

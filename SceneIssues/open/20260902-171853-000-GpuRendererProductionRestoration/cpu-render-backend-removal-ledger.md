@@ -1,3 +1,12 @@
+Resident far-instance checkpoint: removed per-frame CPU matrix rebuilding and instanced matrix
+submission. Transforms/inverses persist on GPU; compute compacts source indices and writes
+indirect per-submesh counts. Source updates rebuild batches; unchanged producer queries reuse.
+CPU conservative replacement still provides flags and avoids known-empty submissions; this is
+an intermediate boundary, not completed GPU handoff.523tests and production module pass;
+Showcase322/271FPS,272missing,zero allocation failures/evictions. Stationary did not improve
+versus332FPS; walking improved versus256FPS in one run.400FPS remains unmet. Exact evidence and
+remaining visual/loading defects are recorded in tasks.md.
+
 GPU demand/reclamation checkpoint: production band/frustum build demand and background distance
 ranking now come from bounded asynchronous GPU classification. CPU keeps live source-generation
 checks, queue admission and age stamps from GPU tags; cached camera queries avoid repeated feedback.

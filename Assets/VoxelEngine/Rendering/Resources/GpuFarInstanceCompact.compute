@@ -1,0 +1,24 @@
+#pragma kernel CSClear
+#pragma kernel CSCompact
+#pragma kernel CSWriteArguments
+StructuredBuffer<uint> _FarVisibility;
+RWStructuredBuffer<uint> _FarVisibleIndices;
+RWStructuredBuffer<uint> _FarCount;
+RWStructuredBuffer<uint> _FarArguments;
+int _FarInstanceCount;
+int _FarSubmeshCount;
+[numthreads(1,1,1)]
+void CSClear(uint3 id : SV_DispatchThreadID) { _FarCount[0] = 0u; }
+[numthreads(64,1,1)]
+void CSCompact(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)_FarInstanceCount || _FarVisibility[id.x] == 0u) return;
+    uint destination;
+    InterlockedAdd(_FarCount[0], 1u, destination);
+    _FarVisibleIndices[destination] = id.x;
+}
+[numthreads(64,1,1)]
+void CSWriteArguments(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x < (uint)_FarSubmeshCount) _FarArguments[id.x * 5u + 1u] = _FarCount[0];
+}

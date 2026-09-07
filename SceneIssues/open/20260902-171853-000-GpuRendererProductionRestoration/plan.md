@@ -2,62 +2,59 @@
 
 ## Objective and acceptance
 
-Finish GPU-only rendering and reach400 FPS on VoxelShowcase. Preserve canonical integer CPU world
-truth, generation/collision/simulation and required host orchestration. No hidden content, weaker
-budgets or shorter distance. Startup fill-in and FPS are priorities; imperfect water is acceptable.
-Delete retired CPU renderer helpers without losing coverage.
+Finish GPU-only presentation and reach400 FPS on VoxelShowcase. Preserve canonical integer CPU
+world truth, generation/collision/simulation and required host orchestration. No hidden content,
+weaker budgets or shorter distance. Startup fill-in and FPS are priorities; imperfect water is
+acceptable. Delete retired CPU renderer helpers without losing coverage.
 
 Worktree `/private/tmp/voxel-gpu-restoration`, branch `gpu-rendering-agent-1-resume`. Local harness,
 tests/screenshots authorized. Last requested push fulfilled at `origin/fixes/agent-1` `64b2921a3`;
-newer work stays local. Detailed results are in tasks.md.
+newer work stays local. Detailed evidence is in tasks.md.
 
 ## Verified state
 
-All solid steps1/2/4/8 and water use GPU geometry. CPU workers/workspace/contiguous arena/draw
-route are deleted; helper/oracle cleanup remains. GPU resolves canonical air/uniform/water metadata
-and mixed source readiness; only missing indices return for upload. Fine dense entries and coarse
-summaries stay GPU-resident. CPU coverage polling is gone; world/version/epoch guards remain.
-Cross-brick64x64 face merging and packed source portions reduced extraction cost. CPU generation
-still~14.9s. Mirror/lane fixes removed full pinned scans and source-reader starvation; first400
-near chunks improved40.4→23.3s.
+Solid steps1/2/4/8 and water use GPU geometry. CPU workers/workspace/contiguous arena/draw route
+are deleted; helper/oracle cleanup remains. GPU resolves canonical metadata/source readiness;
+only missing source indices return for upload. Fine dense entries/coarse summaries remain
+GPU-resident. CPU generation~14.9s; first400near chunks40.4→23.3s after mirror/lane fixes.
 
-GPU handles render bands/frustum and LOD selection. Candidate lists persist across camera motion;
-hierarchy edges persist across readiness changes. GPU now supplies missing-build urgency and distance rank; CPU applies feedback,
-stamps resident ages and updates membership. Previous checkpoint502 tests/module pass,Showcase231/201FPS,
-CPU4.01/4.585ms,414 missing/55 arena failures; walking traversal1.664→.977ms.
+GPU handles bands/frustum, LOD and build urgency/distance rank. Candidate lists persist across
+camera motion; topology persists across readiness changes. Host applies feedback, stamps ages
+and updates membership. Far hierarchy optimization gave350/219FPS. GPU demand migration exposed
+vertex reclamation losing51 of52 released pages; explicit counters restored capacity. Checkpoint
+`c7d3d5db0`:518tests/module pass,Showcase332/256FPS,331missing,zero allocation failures/evictions.
+No budget or retirement-delay changes.
 
-## Hypotheses, selected fix and experiments
+## Hypotheses and current experiment
 
-H1 migration implemented: existing GPU LOD state carries band/frustum/owned bits and bounded
-25-bit distance rank. One async readback; staging bounded by candidate capacity, no extra GPU
-buffers. Host validates topology/settings and live source generations; admission uses GPU urgency
-and distance rank. CPU candidate transport no longer tests bounds. Stationary queries reuse
-feedback; unchanged inactive candidates skip application. Host age stamps reuse GPU tags.
-Rejected builds explicitly requeue. Far replacement hierarchy optimization previously gave350/219FPS.
+H1: repeated far transform construction, registration and matrix copying adds CPU overhead.
+H2: conservative coverage proof dominates instead. Migrate resident submission, then compare
+identical stationary60–90s/walking120–180s windows before moving coverage proof.
 
-Initial full feedback application cost~1ms. Query reuse/ranking reduced it, but revised Showcase
-330/265FPS still had523missing/1532evictions; near-first order alone did not explain the churn.
+Implemented persistent GPU object/inverse transforms, visibility compaction and indirect submesh
+counts. Unchanged source queries reuse batches. Configured65536-instance ceiling rejects overflow
+without hiding content. Shader retains production URP forward lighting. CPU replacement proof
+still supplies visibility flags; GPU owns compaction. Removed the old matrix submission route.
 
-H2 confirmed: pre-existing GPU vertex reclamation leaks capacity. Temporary standalone accounting
-(gpu-demand-arena-diagnostic,180s/12captures/exit0) found17,315 of25,197 vertex pages unaccounted
-for, while index pages balanced exactly and GPU live handles equaled CPU residents. Diagnostic
-blocking snapshots removed; this run is not FPS evidence.
+Initial522tests and standalone landmark28s/seven captures pass. Initial Showcase275/245FPS
+regressed:106fully replaced batches still submitted empty indirect draws. Suppressed empty
+submissions;523tests now pass (22s), including compaction1/65/1025instances, submesh arguments,
+nonuniform transforms, repeated lifecycle/source updates, empty submission and capacity rejection.
+Production module48s/seven captures/exit0 passes all seven markers,262.6MB,framep95/p99 .829/.974ms.
+Corrected Showcase180s/12captures/exit0:322.26/271.36FPS,CPU2.89/3.305ms,272missing,
+zero allocation failures/evictions,3933publications/2454resident candidates. Source hashes match;
+74.9s/149.9s reviewed. Stationary did not improve versus332FPS; walking improved versus256FPS
+in this run. Transform work alone does not close the gap; coverage proof/feedback remain.
+Oldest active coarse build20.6s; startup/source-service latency still needs work.
 
-Three focused GPU tests failed: reclaiming52 retired vertex pages restored only one. Replaced
-buffer-subscript post-increment with explicit local free counts and final stores in reclamation.
-All three pass16 multi-handle cycles with full counts/unique IDs. Pending multi-page supersession
-also conserves capacity.518 Rendering tests pass (19s). Module48s/seven captures/exit0 passes all
-markers,262.5MB,framep95/p99 .820/.910ms. Clean Showcase180s/12captures/exit0:332/256FPS,
-CPU2.885/3.51ms,331missing,zero allocation failures/evictions,3913publications/coarse21,oldest4.03s.
-Exact source hashes match;74.9s/149.9s screenshots reviewed. Stationary regresses350→332; walking
-improves219→256 with more retained geometry. No budget/retirement changes;400FPS remains unmet.
-Next profile remaining far handoff/submission costs and reduce host feedback application (~.6ms
-when applied), preserving coverage. GPU far handoff, pressure eviction and helper cleanup remain;
-128 draw buckets are unprofiled.
+## Next steps and remaining gates
 
-## Remaining gates
+Move conservative far replacement proof to GPU using current publication, discovery and region
+residency evidence; preserve unknown/stale/edit guards. Avoid replacing CPU proof with per-batch
+compute/empty-draw overhead. Reduce host feedback application (~.6ms on feedback frames).
+128solid draw buckets remain unprofiled; pressure eviction and helper cleanup remain.
 
-400FPS, startup pop-in, CPU helper retirement, GPU coverage/visual fidelity, lifetime/pressure,
-canonical Kentridge integration and repeated frame/memory workloads. Castle silhouette persists;
-terrain gaps/seams/far scenery/vegetation remain unacceptable. Module fort is prototype quality,
+400FPS, startup pop-in, coverage/visual fidelity, long-session memory/pressure, canonical Kentridge
+integration and repeated workloads remain unproven. Castle silhouette persists; terrain gaps/seams,
+far scenery and sparse vegetation remain unacceptable. Module fort/landmark are prototype quality,
 behavioral evidence only. G01–G27 remain incomplete.
