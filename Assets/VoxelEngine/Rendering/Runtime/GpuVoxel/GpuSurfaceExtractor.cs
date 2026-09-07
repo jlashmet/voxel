@@ -531,6 +531,9 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         /// </summary>
         public int FaceSamplesPerAxis { get; }
 
+        private int FacetedPlaneGroups => 6 * CellsPerAxis
+            * ((CellsPerAxis + 63) / 64) * ((CellsPerAxis + 63) / 64);
+
         /// <param name="brickCacheEdge">
         /// Bricks per axis in the neighbourhood the caller will describe. Zero derives a value that
         /// covers the padded grid, which is right for a standalone caller; production passes the
@@ -747,10 +750,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _shader.Dispatch(_sampleKernel, Groups(samples), 1, 1);
             _shader.Dispatch(_countKernel, Groups(cells), 1, 1);
             int semanticCells = CellsPerAxis * CellsPerAxis * CellsPerAxis;
-            _shader.Dispatch(_countFacetedKernel, Groups(semanticCells), 1, 1);
+            _shader.Dispatch(_countFacetedKernel, FacetedPlaneGroups, 1, 1);
             _shader.Dispatch(_countDecorationsKernel, Groups(semanticCells), 1, 1);
             _shader.Dispatch(_writeKernel, Groups(cells), 1, 1);
-            _shader.Dispatch(_writeFacetedKernel, Groups(semanticCells), 1, 1);
+            _shader.Dispatch(_writeFacetedKernel, FacetedPlaneGroups, 1, 1);
             _shader.Dispatch(_writeDecorationsKernel, Groups(semanticCells), 1, 1);
 
             return ReadCounters(vertexCapacity, indexCapacity);
@@ -995,7 +998,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 _shader.Dispatch(_batchSampleKernel, Groups(samples), recordCount, 1);
                 _shader.Dispatch(_batchCountKernel, Groups(cells), recordCount, 1);
                 _shader.Dispatch(_batchCountFacetedKernel,
-                                 Groups(semanticCells), recordCount, 1);
+                                 FacetedPlaneGroups, recordCount, 1);
                 _shader.Dispatch(_batchCountDecorationsKernel,
                                  Groups(semanticCells), recordCount, 1);
                 int faceSamples = FaceSamplesPerAxis * FaceSamplesPerAxis;
@@ -1116,7 +1119,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 _shader.Dispatch(_batchWriteKernel,
                                  Groups(regularAxis * regularAxis * regularAxis), recordCount, 1);
                 _shader.Dispatch(_batchWriteFacetedKernel,
-                                 Groups(CellsPerAxis * CellsPerAxis * CellsPerAxis), recordCount, 1);
+                                 FacetedPlaneGroups, recordCount, 1);
                 _shader.Dispatch(_batchWriteDecorationsKernel,
                                  Groups(CellsPerAxis * CellsPerAxis * CellsPerAxis), recordCount, 1);
                 _shader.Dispatch(_batchWriteTransitionsKernel,
@@ -1230,7 +1233,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             int semanticCells = CellsPerAxis * CellsPerAxis * CellsPerAxis;
             commands.DispatchCompute(_shader, _sampleKernel, Groups(samples), 1, 1);
             commands.DispatchCompute(_shader, _countKernel, Groups(cells), 1, 1);
-            commands.DispatchCompute(_shader, _countFacetedKernel, Groups(semanticCells), 1, 1);
+            commands.DispatchCompute(_shader, _countFacetedKernel, FacetedPlaneGroups, 1, 1);
             commands.DispatchCompute(_shader, _countDecorationsKernel, Groups(semanticCells), 1, 1);
             RecordTransitionFaces(commands, mirror, tables, request, countOnly: true);
 
@@ -1295,7 +1298,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             _shader.Dispatch(_sampleKernel, Groups(samples), 1, 1);
             _shader.Dispatch(_countKernel, Groups(cells), 1, 1);
             int semanticCells = CellsPerAxis * CellsPerAxis * CellsPerAxis;
-            _shader.Dispatch(_countFacetedKernel, Groups(semanticCells), 1, 1);
+            _shader.Dispatch(_countFacetedKernel, FacetedPlaneGroups, 1, 1);
             _shader.Dispatch(_countDecorationsKernel, Groups(semanticCells), 1, 1);
 
             DispatchTransitionFaces(mirror, tables, request, countOnly: true);
@@ -1359,7 +1362,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             int cells = regularCellsPerAxis * regularCellsPerAxis * regularCellsPerAxis;
             _shader.Dispatch(_writeKernel, Groups(cells), 1, 1);
             int semanticCells = CellsPerAxis * CellsPerAxis * CellsPerAxis;
-            _shader.Dispatch(_writeFacetedKernel, Groups(semanticCells), 1, 1);
+            _shader.Dispatch(_writeFacetedKernel, FacetedPlaneGroups, 1, 1);
             _shader.Dispatch(_writeDecorationsKernel, Groups(semanticCells), 1, 1);
 
             DispatchTransitionFaces(mirror, tables, request, countOnly: false,
@@ -1562,7 +1565,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             int cells = regularCellsPerAxis * regularCellsPerAxis * regularCellsPerAxis;
             int semanticCells = CellsPerAxis * CellsPerAxis * CellsPerAxis;
             commands.DispatchCompute(_shader, _writeKernel, Groups(cells), 1, 1);
-            commands.DispatchCompute(_shader, _writeFacetedKernel, Groups(semanticCells), 1, 1);
+            commands.DispatchCompute(_shader, _writeFacetedKernel, FacetedPlaneGroups, 1, 1);
             commands.DispatchCompute(_shader, _writeDecorationsKernel, Groups(semanticCells), 1, 1);
             RecordTransitionFaces(commands, mirror, tables, request, countOnly: false,
                                   vertices, indices);
@@ -1648,7 +1651,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             int cells = regularCellsPerAxis * regularCellsPerAxis * regularCellsPerAxis;
             _shader.Dispatch(_writeKernel, Groups(cells), 1, 1);
             int semanticCells = CellsPerAxis * CellsPerAxis * CellsPerAxis;
-            _shader.Dispatch(_writeFacetedKernel, Groups(semanticCells), 1, 1);
+            _shader.Dispatch(_writeFacetedKernel, FacetedPlaneGroups, 1, 1);
             _shader.Dispatch(_writeDecorationsKernel, Groups(semanticCells), 1, 1);
 
             DispatchTransitionFaces(mirror, tables, request, countOnly: false, vertices, indices);

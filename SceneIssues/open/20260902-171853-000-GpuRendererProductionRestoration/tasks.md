@@ -1,5 +1,46 @@
 # GPU-only VoxelShowcase — execution checklist
 
+### 2026-09-06 — GPU faceted face merging
+
+Regular Planar/Sharp/Cubic extraction now merges equal packed face attributes entirely on GPU.
+Each workgroup classifies one 64×64 plane tile with 16 KiB shared scratch; its leader uses the
+same greedy rectangle walk for count and write. All immediate, recorded and batch dispatch sites
+use plane-group dimensions. Larger grids tile within the same scratch bound. Source occupancy,
+material/style/coating identity, normals, winding and existing displacement exclusions remain.
+
+Validation: `gpu-faceted-merge-verified.xml` passed all57 focused tests in20s wrapper time,
+no skips. Includes exact flat coverage for all three styles, stripes/checkerboard/through-hole
+unit-face coverage, negative coordinates, production prepared batch count/write, coatings,
+HLOD, queue lifecycle and geometry arena regressions. Initial Metal indexing/barrier compile
+failures were repaired. One terminal native crash was in Burst startup compilation; retry
+reached tests. New fixtures required payload-offset and NUnit parameter-type corrections;
+failed runs are retained and are not counted as successful validation.
+
+Exact working production sources, hashes, parent SHA and diff retained in each player artifact:
+- `gpu-faceted-merge-module`: build31s,48s/seven captures, exit0; all initial/traversal/edit/
+  settled/restart/far-handoff/success markers, zero missing/fallback/errors. Settled frame
+  p95/p99 6.305/7.020ms. Reviewed42s: fort/coating surfaces intact, prototype diagnostic composition.
+- `gpu-faceted-merge-showcase`: build18s,180s/12 captures, exit0. FPSLOG60–90s stationary:
+  30 samples,235.90 FPS, CPU p50-window median4.095ms (previous198.49 FPS/4.65ms).
+  120–180s walking:59 samples,140.24 FPS, CPU7.00ms (previous141.77/6.855ms).
+  GPU diagnostic medians3.12/1.61ms; not trusted whole-frame critical-path attribution.
+  Final allocation failures/evictions0/0 versus880/880; missing-visible340 versus631.
+  GPU publications2446 versus1174; in-band candidates1267 versus97, not actual GPU draw counts.
+  Geometry budgets and draw distances unchanged. This supports excess geometry as a real
+  pressure cause; it does not establish improved walking performance or complete coverage.
+
+Compared exact74.9s stationary and149.9s walking screenshots against the preceding checkpoint:
+castle silhouette/materials retained, adjacent house roof now resolved. Terrain remains overly
+procedural with sparse vegetation, unfinished far content and visible holes; the walking right-side
+hole is larger in this capture. Visual quality remains **unacceptable**. No production acceptance
+or repeated benchmark claim. G01–G27 remain open.
+
+Next: split the GPU host from retired solid CPU meshing/workspace/upload ownership, preserve
+source/version/publication invariants, then delete retired implementation and its unused arena.
+Moving-camera candidate/source preparation and coarse publication latency still require work.
+The final run retains12 in-flight requests and a step8 request about19.5s old; removing geometry
+pressure alone has not solved streaming coverage. Keep canonical CPU storage/generation/collision.
+
 ### 2026-09-06 — GPU frustum/LOD ownership and persistent candidates
 
 User explicitly resumed the planned CPU-to-GPU migration; alternate renderer research is deferred.
@@ -43,7 +84,7 @@ explicit outstanding handoff/overlap risk, not visual acceptance. Candidate coun
 pre-GPU in-band inputs, never actual selected draw counts. No full-migration or performance
 acceptance, G01–G27 remain open.
 
-Next missing port: CPU `FacetedMergeJob` greedily merges compatible planar faces; regular GPU
+At that checkpoint, the next missing port was CPU `FacetedMergeJob` greedily merges compatible planar faces; regular GPU
 `VoxelBrickMesher` explicitly emits one quad per exposed cell. A uniform64×64 face illustrates
 1 versus4,096 quads, not a measured whole-scene ratio. Port that behavior onto GPU with bounded
 scratch and independent surface-area/material/winding/boundary proof; measure page pressure and

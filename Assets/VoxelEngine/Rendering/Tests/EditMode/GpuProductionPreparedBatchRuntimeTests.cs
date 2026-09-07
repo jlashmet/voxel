@@ -22,8 +22,11 @@ namespace VoxelEngine.Tests.EditMode
         private const int Padding = 2;
         private const int RecordCount = 2;
 
-        [Test]
-        public void TwoSeparatedRequestsUseTheirOwnPreparedDenseSlicesForCountAndWrite()
+        [TestCase(SurfaceStyles.Smooth)]
+        [TestCase(SurfaceStyles.Planar)]
+        [TestCase(SurfaceStyles.Sharp)]
+        [TestCase(SurfaceStyles.Cubic)]
+        public void TwoSeparatedRequestsUseTheirOwnPreparedDenseSlicesForCountAndWrite(ushort style)
         {
             if (!SystemInfo.supportsComputeShaders)
                 Assert.Ignore("No compute support on this device; production GPU batching cannot run.");
@@ -40,7 +43,7 @@ namespace VoxelEngine.Tests.EditMode
                 + RecordCount * GpuSurfaceExtractor.BatchRecordWords,
                 sizeof(uint), ComputeBufferType.Structured);
 
-            ConfigureCatalogues(extractor);
+            ConfigureCatalogues(extractor, style);
 
             int edge = extractor.BrickCacheEdge;
             int3 solidCacheOrigin = new(-1, -1, -1);
@@ -82,6 +85,12 @@ namespace VoxelEngine.Tests.EditMode
               + "mesher did not select its own GPU-prepared dense slice.");
             Assert.Greater(words[second + 3], 0u,
                 "The far-away second request must emit triangles through the production prepared path.");
+
+            if (style != SurfaceStyles.Smooth)
+            {
+                Assert.AreEqual(4u, words[second + 2], "The flat boundary must merge into one quad.");
+                Assert.AreEqual(6u, words[second + 3]);
+            }
 
             uint expectedVertices = words[second + 2];
             uint expectedIndices = words[second + 3];
@@ -175,12 +184,12 @@ namespace VoxelEngine.Tests.EditMode
             }
         }
 
-        private static void ConfigureCatalogues(GpuSurfaceExtractor extractor)
+        private static void ConfigureCatalogues(GpuSurfaceExtractor extractor, ushort? style = null)
         {
             MaterialPaletteView palette = default;
             var defaultStyles = new uint[256];
             for (int i = 0; i < defaultStyles.Length; i++)
-                defaultStyles[i] = palette.GetDefaultSurfaceStyle((byte)i);
+                defaultStyles[i] = style ?? palette.GetDefaultSurfaceStyle((byte)i);
             extractor.SetCatalogues(
                 SurfaceCatalogueView.CreateBuiltIns(), default, defaultStyles);
         }
