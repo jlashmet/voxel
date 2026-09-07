@@ -8,15 +8,15 @@
 
 Harness isolation/build identity/semantic waits and Application + UTP admission are already exact-SHA proven by runs `33937957149`, `33986100313`, `33995470352`, `34005489004`, and `34011275001`.
 
-Topology request `9edea36020facb991be0f94457b3265f31796c2e` / run `34032515299` attempt 2 acquired `Jasons-MacBook-Pro` and failed automatic module validation. Artifact `single-test-34032515299` (`sha256:bf4460c47854ac7acbc366a988006cdac1680440303cda165ae53d21e44d2218`) identified missing validation assembly/import resolution. Current source through `0bf47fa7a5e51b18d63ff3769021254db2b4fa35` fixes every demonstrated compile error.
+Topology run `34032515299` attempt 2 exposed validation assembly/import compilation defects; those are fixed. Later requests `34124227235` and `34144191751` were infrastructure cancellations before product execution.
 
-Request `e0863932506d9b6ba71207e114f3a7af838212d8` / run `34124227235` was cancelled by concurrency before product work. Request `d943a8394bdf771c8c2bacf33de76dd091a6a83c` / run `34144191751`, directly parented by corrected feature `0bf47fa7...`, also completed cancelled with zero steps, runner id `0`, and no runner name: infrastructure non-admission, not product evidence.
+Current multiplayer composition routes authenticated Net input -> durable Party `CharacterId` -> production WorldObjects/Loot/Inventory, replicates WorldObjects state, and requires authority/client A/client B to converge on exactly one pickup transfer. Generic harness equality now requires identical `baseline-ready.revision` and `stateDigest` across all three roles.
 
-Current implementation anchor `e429e4361c4ba2fb2e0a3c16691027e5a58aa6ac` composes authenticated Net input -> durable Party `CharacterId` -> production WorldObjects -> Loot -> authoritative Inventory, replicates WorldObjects semantic state, and requires both clients plus authority to converge on exactly one pickup transfer. The generic multi-process harness now compares already-consumed milestone fields across harness-attributed roles; GameSystem25 requires identical `baseline-ready.revision` and `stateDigest` for authority/client A/client B.
+Source `9046341431a33d67cfcea7109ac2fed8a3c76b3f` adds production Continuity admission/terminal membership policy. Exact request `c14829cb558237ab31b11550e960d14fda3e0130`, run `34150973599`, acquired `Jasons-MacBook-Pro` and failed before tests because `KentridgeContinuitySessionAdmission.cs` had two compiler errors: an untyped fallback lambda for `Func<double>` and a missing `SessionAdmissionPacket` namespace. Commit `2f978a02c8e27ec484182ce6f7df471cfebf2b55` fixes only those demonstrated errors.
 
 ## Current discriminator
 
-Hypothesis A: after the demonstrated compile fixes, the exact built-player topology reaches baseline and contention convergence. Hypothesis B: the next admitted exact run exposes a runtime composition/replication defect rather than a compile defect. **Next experiment:** exact-SHA targeted CI from the latest feature head; check T25-010–013/T25-020–021 only from green built-player artifacts.
+Hypothesis A: the continuity compile correction allows owned tests/player validations to execute and reach topology/contention milestones. Hypothesis B: the next admitted exact run exposes a runtime composition/replication defect. **Next experiment:** exact-SHA targeted CI from the latest feature head; check T25-010–013/T25-020–021 only from green built-player artifacts.
 
 ## Remaining gates
 
