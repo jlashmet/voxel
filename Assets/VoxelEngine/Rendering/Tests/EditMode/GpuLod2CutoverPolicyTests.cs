@@ -10,17 +10,6 @@ namespace VoxelEngine.Tests.EditMode
     public sealed class GpuLod2CutoverPolicyTests
     {
         [Test]
-        public void ProductionGpuCutoverDefaultsOnWithExplicitDisableFallback()
-        {
-            Assert.False(GpuSurfaceProductionPolicy.ShouldDisableLegacyGpuCutover(null, null),
-                "Supported near-ring GPU extraction must be enabled in production by default.");
-            Assert.True(GpuSurfaceProductionPolicy.ShouldDisableLegacyGpuCutover("1", null),
-                "VOXEL_DISABLE_GPU_CUTOVER=1 must retain an emergency/A-B CPU fallback.");
-            Assert.False(GpuSurfaceProductionPolicy.ShouldDisableLegacyGpuCutover(null, "1"),
-                "The retired experimental opt-in must not be required for production GPU cutover.");
-        }
-
-        [Test]
         public void GpuCutoverTargetsNearExactRingsAndBlockHlod()
         {
             Assert.True(CpuTransvoxelChunkCache.SupportsGpuSurfaceStep(1),
@@ -58,7 +47,7 @@ namespace VoxelEngine.Tests.EditMode
 
             Assert.True(counts.Unsupported);
             Assert.False(counts.IsEmpty,
-                "An unsupported decorated/faceted chunk must take the CPU fidelity path; "
+                "Unsupported GPU extraction must remain an explicit failure; "
               + "publishing it as empty would create a visible hole.");
         }
 

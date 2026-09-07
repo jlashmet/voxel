@@ -1334,8 +1334,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
                 ? Resources.Load<ComputeShader>("GpuSurfacePageArena") : null;
             ComputeShader drawShader = SystemInfo.supportsComputeShaders
                 ? Resources.Load<ComputeShader>("GpuSurfaceDrawCompact") : null;
-            bool gpuPresentationAvailable = !CpuTransvoxelChunkCache.GpuCutoverDisabled
-                && pageShader != null && drawShader != null;
+            bool gpuPresentationAvailable = pageShader != null && drawShader != null;
             long gpuBudget = gpuPresentationAvailable
                 ? surfaceGeometryBudgetBytes * 3L / 4L : 0L;
             long cpuBudget = Math.Max(1L, surfaceGeometryBudgetBytes - gpuBudget);

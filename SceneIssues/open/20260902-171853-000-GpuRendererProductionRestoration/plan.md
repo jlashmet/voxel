@@ -10,19 +10,35 @@ Worktree `/private/tmp/voxel-gpu-restoration`, branch `gpu-rendering-agent-1-res
 
 All solid source steps1/2/4/8 have GPU implementations. GPU water is active and its CPU cache/job/shader path is deleted. Full solid retirement, production coverage and visual acceptance remain open.
 
-## Current GPU faceted merge port
+## Current solid CPU retirement
 
-`c161ac401` moved final solid frustum/LOD selection and draw compaction onto GPU with persistent candidate inputs.29 focused tests and the48s module passed.180s Showcase measured198/142 FPS stationary/walking, CPU4.65/6.855ms;631 missing-visible chunks and880 allocation failures/evictions remain. Screenshots retain castle but terrain/proxy/vegetation finish remains unacceptable. These are single-run diagnostics, not benchmark acceptance. Far handoff is conservative and may retain proxies longer. CPU source demand, moving-camera readiness scans, water visibility, API submission and retired solid backend removal remain.
+`8930403d0` ports GPU faceted merging.57 focused tests and both module/Showcase players passed.
+Showcase measured236/140 FPS stationary/walking, CPU4.095/7.00ms; allocation failures/evictions
+fell880/880→0/0 and missing-visible631→340. Castle retained, terrain holes/far/vegetation finish
+unacceptable. Single-run diagnostics, not benchmark acceptance.
 
-H1: excess unmerged regular faceted geometry drives page pressure and raster cost. H2: source-mirror recovery and streaming, rather than geometry volume, dominate. CPU `FacetedMergeJob` merges equal packed face attributes; regular GPU `VoxelBrickMesher` deliberately emitted one quad per exposed cell. Uniform64×64 face:1 versus4,096 quads, not a whole-scene measurement. Step8 already has bounded4×4 merging.
+H1: legacy CPU workspace/upload ownership still reserves resources and performs host work despite
+GPU publication. H2: source recovery and GPU submission latency dominate moving-camera stalls;
+last step8 publication waited19.5s even without geometry allocation failures.
 
-Selected port: one GPU workgroup classifies each64×64 plane tile into16KiB group scratch, then the group leader greedily merges equal packed attributes. Count and write use identical rectangle traversal, retaining occupied boundary, material/style/coating identity, normals and winding. Larger extraction grids tile without increasing scratch or rejecting supported inputs. All immediate/recorded/batched dispatch sites use plane-group counts. CPU authoritative data and geometry budgets remain unchanged.
+Selected retirement: remove CPU meshing phases, snapshot/pin jobs, managed polygon/profile/coating
+emitters and worker workspace allocation from the mixed cache. Preserve bounded demand queues,
+clipmap ownership, source/catalogue version rejection and GPU handle publication. No source-data
+changes. Backend creation failure cannot launch CPU geometry; temporary source admission failure
+keeps demand pending. Remove the obsolete environment fallback switch and startup policy.
 
-Validation:57 focused tests passed (20s, no skips), covering flat/material/hole/negative-coordinate geometry, prepared batches, coating/HLOD/arena behavior. Module48s/seven captures passed all lifecycle/edit/far markers, zero missing/fallback; fort intact, prototype diagnostic composition. Fixed Metal indexing/barrier issues and two fixture mistakes; one Burst startup native crash was infrastructure.
+Current result: about2,600 lines removed;53 host tests passed. Full rendering assembly audit
+initially463/484; retired14 CPU-source wiring cases plus one CPU step4 oracle in favor of real
+GPU coverage, preserved shared Storage assertions and corrected stale architecture expectations.
+All469 remaining owned tests passed (22s, no skips). Module48s/seven captures passed lifecycle,
+edits and far handoff, zero missing/fallback. Allocated memory261.6 versus687.3MB; fort intact,
+prototype composition. Both prior/current logs contain19 ComputeBuffer finalizer warnings:
+G11 remains open. Exact source evidence is in `gpu-solid-host-module`.
 
-Showcase180s/12 captures passed:236/140 FPS stationary/walking versus198/142; CPU4.095/7.00ms. Allocation failures/evictions fell880/880→0/0; missing-visible631→340; publications1174→2446. H1 supported for geometry pressure; walking speed did not improve, so pressure alone was insufficient. Exact sources/hashes/screenshots retained in `gpu-faceted-merge-showcase`. Castle retained; walking terrain holes, sparse vegetation and far finish remain unacceptable. Single-run diagnostics, not repeatable acceptance.
-
-Next discriminating work: audit/split GPU host ownership from CPU meshing/workspace/upload, delete the retired solid renderer and unused arena, and validate the same source/version/publication invariants. Source recovery and moving-camera traversal remain CPU costs; final step8 publication waits19.5s despite no geometry allocation failures. Test whether CPU source orchestration or GPU submission latency is limiting that progress before changing scheduling.
+Next: remove Entry upload helpers, scheduler335MB CPU arena/contiguous draw route and rename host
+ownership. Delete standalone CPU workspace/jobs/oracles with independent GPU regression coverage.
+Add direct GPU retained-profile suppression/backing regression before removing its last CPU
+predicate oracle. Then run Showcase and measure full frames again; latest FPS remains236/140.
 
 ## Remaining gates
 

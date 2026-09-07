@@ -114,10 +114,8 @@ namespace VoxelEngine.Tests.PlayMode
                   + $"known={finalMetrics.SolidKnownChunks}, "
                   + $"resident={finalMetrics.SolidResidentChunks}, "
                   + $"visible={finalMetrics.VisibleSolidChunks}.");
-                Assert.Greater(finalMetrics.UploadedGeometryBytes, 0ul,
+                Assert.Greater(finalMetrics.GpuCompletedSolidBuilds, 0ul,
                     "The authoritative extractor did not publish any complete geometry.");
-                // Skipped when the run is deliberately measuring the CPU mesher it replaces.
-                if (!CpuTransvoxelChunkCache.GpuCutoverDisabled)
                 {
                     Assert.IsTrue(finalMetrics.GpuCutoverAvailable,
                         "The showcase base ring could not create the production GPU extraction backend.");
@@ -156,7 +154,7 @@ namespace VoxelEngine.Tests.PlayMode
                 }
 
                 frameMs.Sort();
-                Debug.Log($"PERF backend={(CpuTransvoxelChunkCache.GpuCutoverDisabled ? "cpu" : "gpu")} "
+                Debug.Log($"PERF backend=gpu "
                         + $"settleSeconds={settle.Elapsed.TotalSeconds:0.0} frames={frameMs.Count} "
                         + $"resident={settled.SolidResidentChunks} "
                         + $"visible={settled.VisibleSolidChunks} "

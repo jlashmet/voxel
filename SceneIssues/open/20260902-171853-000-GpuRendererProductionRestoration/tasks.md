@@ -1,5 +1,46 @@
 # GPU-only VoxelShowcase — execution checklist
 
+### 2026-09-06 — Retire solid worker CPU meshing phases
+
+Removed approximately2,600 lines from the mixed solid cache: CPU snapshot/pin assembly,
+density/topology/faceted/HLOD jobs, managed polygon/profile/coating emission, result append and
+CPU publication phases. Workers no longer allocate `TransvoxelBuildWorkspace` or their own CPU
+lookup tables. Admission, residency, dirty queues, slot/catalogue/source checks and GPU handle
+publication remain. Source admission backpressure retains GPU demand; context failure cannot
+route into CPU meshing. Deleted the environment fallback startup policy. Existing cache class
+name, Entry upload helpers, scheduler CPU arena/draw route and standalone CPU job/oracle files
+still remain; this is a retirement checkpoint, not full physical removal.
+
+Evidence in `Artifacts/LocalGpuShowcase/`:
+- `gpu-solid-retirement/host-tests-fixed.xml`:53 tests passed in17s, no skips. Initial compile
+  caught three host visibility fields removed with an adjacent CPU block; restored before tests.
+- Full owned assembly audit `module-tests.xml`:463/484 passed,21 failed. Fourteen failures required
+  removed CPU methods/workspace/job wiring; removed those obsolete source-string cases, retaining
+  independent runtime GPU coverage below. Removed the old step4 CPU-summary/reflection oracle;
+  real `GpuBlockHlodMesherTests.StepFourThinVoxelSurvivesProductionGpuCountAndPagedWrite`, reused
+  lane thin→ordinary→air, and fallback decision/profile/error cases already cover that policy.
+  Preserved shared Storage writer/pin and scheduler completion assertions. Updated the slot guard
+  assertion for its existing compound condition. Two pre-existing stale architecture expectations
+  were corrected: completion-only readback is one control word at header+10, and lazy scheduler
+  creation uses an explicit null guard. No GPU range/count readback was added.
+- `module-tests-migrated.xml`: all469 owned tests passed in22s, no skips. Relevant behavior includes
+  GPU coverage invalidation, mirror/submission lifetime, pending publication generation approval,
+  paged extraction/transactions, semantic face/coating tests, HLOD and host admission/residency.
+  Exact retired source-test names saved in `gpu-solid-retirement/retired-source-tests.txt`.
+- `gpu-solid-host-module`: build34s,48s/seven captures, exit0; all initial/traversal/edit/settled/
+  restart/far-handoff/success markers. Zero missing/fallback/unsupported/context errors.
+  Settled frame p95/p99 5.806/6.411ms, preparation .031/.037ms. Reported totalAllocatedMB at
+  success261.6 versus687.3 in prior module, a425.7MB reduction; not a repeated memory benchmark.
+  Exact production sources/hashes/diff retained. Reviewed42s: fort/materials intact, prototype
+  diagnostic composition. Both this and the previous module log contain19 teardown ComputeBuffer
+  finalizer warnings. This pre-existing lifetime defect remains an explicit G11 cleanup gate.
+
+Remaining migration: remove legacy Entry upload/contiguous draw and335MB scheduler arena; rename
+host ownership; delete standalone CPU workspace/jobs/oracles after required GPU regression
+migration. Add direct GPU retained-profile suppression/backing coverage before retiring its last
+CPU predicate oracle. Preserve canonical Storage and shared tables. No fresh Showcase/FPS claim
+for this checkpoint; previous236/140 FPS remains the last integration measurement.
+
 ### 2026-09-06 — GPU faceted face merging
 
 Regular Planar/Sharp/Cubic extraction now merges equal packed face attributes entirely on GPU.

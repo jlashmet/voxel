@@ -6,6 +6,14 @@
 
 This is a removal ledger, not permission to delete everything whose name contains `Cpu`. Authoritative voxel storage, deterministic generation, collision, simulation, canonical semantic data, and CPU host orchestration required to submit/validate GPU work remain. A file is deleted only after every required rendering responsibility has a GPU/shared replacement and repository references/tests are migrated.
 
+2026-09-06 checkpoint: the mixed cache no longer schedules or executes CPU geometry phases or
+allocates `TransvoxelBuildWorkspace`; roughly2,600 implementation lines and the startup CPU
+fallback policy are removed. All469 rendering EditMode tests and the48s GPU module pass. Entry
+upload helpers, scheduler contiguous arena/draw route, standalone CPU job/workspace/oracle files
+and the old class name still require removal. The retained-profile predicate currently remains
+only for a legacy test; migrate direct GPU profile coverage before deleting it. See tasks.md for
+exact artifacts and the19 pre-existing buffer-finalizer warnings remaining under G11.
+
 ## A. Mixed owner: split first, then delete the retired CPU rendering portions
 
 | Path | Current responsibility | Required disposition |
