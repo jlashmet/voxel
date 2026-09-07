@@ -51,6 +51,13 @@ namespace Game.Application.Runtime
         {
             if (!IsBound) return;
             ApplicationFlowSnapshot snapshot = _flow.Snapshot;
+            if (snapshot.Lifecycle == ApplicationLifecycle.InGame &&
+                snapshot.Screen == ApplicationScreen.Gameplay)
+            {
+                DrawGameplayAffordance();
+                return;
+            }
+
             GUILayout.BeginArea(new Rect(28f, 28f, 420f, 650f), GUI.skin.box);
             GUILayout.Label("APPLICATION FRONTEND");
             GUILayout.Label("Lifecycle: " + snapshot.Lifecycle);
@@ -70,6 +77,16 @@ namespace Game.Application.Runtime
                 GUILayout.Label("Exiting…");
 
             GUILayout.EndArea();
+        }
+
+        private void DrawGameplayAffordance()
+        {
+            const float width = 92f;
+            const float height = 34f;
+            const float margin = 24f;
+            var button = new Rect(margin, Screen.height - height - margin, width, height);
+            if (GUI.Button(button, "Menu"))
+                Report(_flow.OpenScreen(ApplicationScreen.InGameMenu));
         }
 
         private void DrawFrontEnd(ApplicationFlowSnapshot snapshot)
