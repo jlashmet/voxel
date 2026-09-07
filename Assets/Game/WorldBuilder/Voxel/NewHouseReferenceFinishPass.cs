@@ -43,6 +43,13 @@ namespace Game.WorldBuilder.Voxel
             ArchedPanel(a, centre, eave + 12, front, 11, 17,
                 p.Glass, p.Timber, p.Timber);
 
+            // The broad refinement authored this flower box before the destructive portrait-shell
+            // rebuild, so iteration 9b's final render lost it even though the earlier operations were
+            // still present in the command stream. Restore it after the final arch carve so the
+            // reference's dense upper-gable planting survives the finish pass instead of leaving a
+            // blank white panel beneath the portrait window.
+            AddDenseFlowerBox(a, centre - 12, portraitEave + 7, front - 2, 24, in p);
+
             a.Box(new int3(centre - 20, portraitEave + 4, front - 4),
                 new int3(41, 2, TimberDepth), p.Timber);
             a.Box(new int3(centre - 14, portraitEave + 27, front - 4),
@@ -186,6 +193,19 @@ namespace Game.WorldBuilder.Voxel
             a.Box(new int3(cx - 3, cy, front), new int3(7, 1, 1), p.Ornament);
             Diagonal(a, cx - 2, cy - 2, cx + 2, cy + 2, front, p.Ornament);
             Diagonal(a, cx - 2, cy + 2, cx + 2, cy - 2, front, p.Ornament);
+        }
+
+        private static void AddDenseFlowerBox(IStructureAuthoringSession a,
+            int x, int y, int z, int width, in NewHouseReferencePalette p)
+        {
+            a.Box(new int3(x, y, z), new int3(width, 3, 4), p.Timber);
+            a.Box(new int3(x + 1, y + 3, z), new int3(width - 2, 4, 4), p.Foliage);
+            for (int i = 2; i < width - 2; i += 2)
+            {
+                byte blossom = ((i / 2) % 3 == 0) ? p.Accent : p.Flowers;
+                a.Box(new int3(x + i, y + 6 + ((i / 2) & 1), z - 1),
+                    new int3(2, 2, 2), blossom);
+            }
         }
 
         private static void FillArch(IStructureAuthoringSession a,
