@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Game.Application.Runtime;
+using Game.Continuity.Api;
 using Game.GameplayReplication.Adapters;
 using Game.GameplayReplication.Api;
 using Game.GameplayReplication.Runtime;
@@ -28,7 +29,8 @@ namespace Game.Composition.Kentridge.Playable
         private readonly KentridgeMultiplayerGameplayReplication _gameplayReplication;
         private PartySession _party;
         private PartySessionApplication _partyApplication;
-        private KentridgeAuthoritativeSessionAdmission _admission;
+        private KentridgeAuthoritativeSessionAdmission _baseAdmission;
+        private KentridgeContinuitySessionAdmission _admission;
         private KentridgeAuthoritativeSessionControl _sessionControl;
         private AuthoritativeServerSession _server;
         private readonly GameplayStateClientPacketHandler _clientPacketHandler;
@@ -97,6 +99,7 @@ namespace Game.Composition.Kentridge.Playable
         public PartySessionApplication PartyApplication => _partyApplication;
         public AuthoritativeServerSession Server => _server;
         public KentridgeMultiplayerCharacterRoster CharacterRoster => _characterRoster;
+        public IContinuityQuery Continuity => _admission?.Continuity;
 
         public void TickNetworkAndAuthority()
         {
@@ -120,9 +123,6 @@ namespace Game.Composition.Kentridge.Playable
             _characterRoster?.EnsureCapacity(request.Configuration.Capacity);
             _party = new PartySession(request.SessionId, request.Configuration, _characterRoster?.Characters);
             _partyApplication = new PartySessionApplication(_party, request.Configuration.Capacity);
-            _admission = new KentridgeAuthoritativeSessionAdmission(_party);
-            var ready = new KentridgeReadySessionAdmissionConsumer(_admission, _party, _partyApplication);
-            _sessionControl = new KentridgeAuthoritativeSessionControl(ready, _party, _partyApplication);
 
             var sources = new List<IGameplayProjectionSource>
             {
@@ -137,6 +137,14 @@ namespace Game.Composition.Kentridge.Playable
             }
 
             var emitter = new GameplayStateServerEmitter(sources);
+            _baseAdmission = new KentridgeAuthoritativeSessionAdmission(_party);
+            _admission = new KentridgeContinuitySessionAdmission(
+                _party,
+                _baseAdmission,
+                () => emitter.CurrentRevision);
+            var ready = new KentridgeReadySessionAdmissionConsumer(_admission, _party, _partyApplication);
+            _sessionControl = new KentridgeAuthoritativeSessionControl(ready, _party, _partyApplication);
+
             _server = _serverFactory(emitter, _sessionControl)
                 ?? throw new InvalidOperationException("Server factory returned no canonical authority.");
             _admission.BindAuthority(_server);
@@ -151,6 +159,7 @@ namespace Game.Composition.Kentridge.Playable
             if (_server == null) return;
             _server.PumpTransport();
             _advanceFixedTick(_server);
+            _admission?.TickContinuity();
         }
 
         public void Dispose()
@@ -167,6 +176,7 @@ namespace Game.Composition.Kentridge.Playable
                 _server = null;
                 _sessionControl = null;
                 _admission = null;
+                _baseAdmission = null;
                 _partyApplication = null;
                 _party = null;
             }
