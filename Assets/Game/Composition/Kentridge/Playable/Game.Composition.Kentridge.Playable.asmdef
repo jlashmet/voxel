@@ -37,6 +37,7 @@
     "Game.Vitality.Api",
     "Game.Vitality.Runtime",
     "Game.WorldBuilder.Api",
+    "Game.WorldObjects.Runtime",
     "MountingForce.WorldGen.Core",
     "MountingForce.WorldGen.Runtime",
     "Unity.Networking.Transport",
