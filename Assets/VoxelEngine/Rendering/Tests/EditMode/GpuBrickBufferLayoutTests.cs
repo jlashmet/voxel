@@ -63,16 +63,20 @@ namespace VoxelEngine.Tests.EditMode
             Assert.AreEqual(0L, GpuBrickBufferLayout.CommittedBytes(0));
         }
 
-        [Test]
-        public void SlotsForBudgetInvertsCommittedBytes()
+        [TestCase(64L * 1024 * 1024)]
+        [TestCase(256L * 1024 * 1024)]
+        public void SlotsForBudgetUsesAvailableBytesWithinDirectoryAddressSpace(long budget)
         {
-            const long budget = 256L * 1024 * 1024;
             int slots = GpuBrickBufferLayout.SlotsForBudget(budget);
 
             Assert.LessOrEqual(GpuBrickBufferLayout.CommittedBytes(slots), budget,
                 "A budget must never be exceeded by the slot count derived from it.");
-            Assert.Greater(GpuBrickBufferLayout.CommittedBytes(slots + 1), budget,
-                "and it should use what it is given rather than rounding far below.");
+            if (slots < GpuBrickBufferLayout.MaximumAddressableSlots)
+                Assert.Greater(GpuBrickBufferLayout.CommittedBytes(slots + 1), budget,
+                    "Below the address limit, an additional slot must exceed the budget.");
+            else
+                Assert.AreEqual(GpuBrickBufferLayout.MaximumAddressableSlots, slots,
+                    "Additional budget cannot create unaddressable directory slots.");
         }
 
         [Test]

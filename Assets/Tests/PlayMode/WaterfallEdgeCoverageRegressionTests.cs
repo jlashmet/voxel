@@ -15,8 +15,7 @@ namespace VoxelEngine.Tests.PlayMode
         [Test]
         public void SemanticSideEdgeErodesCascadeSilhouetteWithoutChangingStillWater()
         {
-            var arena = new SurfaceGeometryArena(1024, 2048, 8);
-            var entry = new CpuWaterSurfaceChunkCache.Entry(int3.zero, arena);
+            var entry = new GpuWaterRasterFixture();
             var vertices = new NativeList<SmoothSurfaceVertex>(4, Allocator.Temp);
             var indices = new NativeList<uint>(6, Allocator.Temp);
             Material material = null;
@@ -40,17 +39,14 @@ namespace VoxelEngine.Tests.PlayMode
                 readback = new Texture2D(96, 96, TextureFormat.RGBA32, false);
 
                 AddBodyQuad(vertices, GameMaterialIds.Cascade, false);
-                int byteBudget = vertices.Length * SmoothSurfaceVertex.Stride
-                               + indices.Length * sizeof(uint)
-                               + SurfaceGeometryArena.ArgsWordsPerDraw * sizeof(uint);
-                Assert.That(entry.AdvanceUpload(vertices, indices, byteBudget, out _), Is.True);
+                entry.SetGeometry(vertices, indices);
                 int cascadeBodyPixels = RenderAndCountVisiblePixels(
                     entry, material, commandBuffer, target, readback);
                 Assert.That(cascadeBodyPixels, Is.GreaterThan(0));
 
                 vertices.Clear();
                 AddBodyQuad(vertices, GameMaterialIds.Cascade, true);
-                Assert.That(entry.AdvanceUpload(vertices, indices, byteBudget, out _), Is.True);
+                entry.SetGeometry(vertices, indices);
                 int cascadeEdgePixels = RenderAndCountVisiblePixels(
                     entry, material, commandBuffer, target, readback);
                 Assert.That(cascadeEdgePixels, Is.GreaterThan(0));
@@ -59,13 +55,13 @@ namespace VoxelEngine.Tests.PlayMode
 
                 vertices.Clear();
                 AddBodyQuad(vertices, GameMaterialIds.Water, false);
-                Assert.That(entry.AdvanceUpload(vertices, indices, byteBudget, out _), Is.True);
+                entry.SetGeometry(vertices, indices);
                 int stillBodyPixels = RenderAndCountVisiblePixels(
                     entry, material, commandBuffer, target, readback);
 
                 vertices.Clear();
                 AddBodyQuad(vertices, GameMaterialIds.Water, true);
-                Assert.That(entry.AdvanceUpload(vertices, indices, byteBudget, out _), Is.True);
+                entry.SetGeometry(vertices, indices);
                 int stillEdgePixels = RenderAndCountVisiblePixels(
                     entry, material, commandBuffer, target, readback);
                 Assert.That(stillEdgePixels, Is.EqualTo(stillBodyPixels),
@@ -85,7 +81,6 @@ namespace VoxelEngine.Tests.PlayMode
                 if (material != null) Object.DestroyImmediate(material);
                 vertices.Dispose();
                 indices.Dispose();
-                arena.Dispose();
                 VoxelMaterialPresentationInstaller.Apply(GameMaterialRenderingDefinitions.Create());
             }
         }
@@ -137,7 +132,7 @@ namespace VoxelEngine.Tests.PlayMode
         }
 
         private static int RenderAndCountVisiblePixels(
-            CpuWaterSurfaceChunkCache.Entry entry, Material material,
+            GpuWaterRasterFixture entry, Material material,
             CommandBuffer commandBuffer, RenderTexture target, Texture2D readback)
         {
             commandBuffer.Clear();

@@ -8,6 +8,47 @@ namespace VoxelEngine.Tests.EditMode
     public sealed class SurfaceLodVisibilitySelectorTests
     {
         [Test]
+        public void ReusedInputListsStillObservePublicationAndSameCountReplacement()
+        {
+            var selector = new SurfaceLodVisibilitySelector();
+            var parent = new SurfaceLodNodeKey(2, new int3(-2, 0, 1));
+            var drawable = new List<SurfaceLodNodeKey> { parent };
+            var complete = new List<SurfaceLodNodeKey>();
+            for (int i = 0; i < 8; i++)
+            {
+                var child = new SurfaceLodNodeKey(1,
+                    SurfaceLodHierarchy.ChildCoordinate(parent.Coordinate, i));
+                drawable.Add(child);
+                complete.Add(child);
+            }
+            for (int frame = 0; frame < 5; frame++) selector.Rebuild(drawable, complete);
+            Assert.False(selector.IsActive(parent));
+            Assert.That(selector.DrawCount, Is.EqualTo(8));
+
+            // Same count and same mutable list object, but a child loses current coverage.
+            SurfaceLodNodeKey first = complete[0];
+            complete[0] = new SurfaceLodNodeKey(1, new int3(100));
+            selector.Rebuild(drawable, complete);
+            Assert.True(selector.IsActive(parent));
+            Assert.That(selector.DrawCount, Is.EqualTo(1));
+
+            complete[0] = first;
+            selector.Rebuild(drawable, complete);
+            Assert.False(selector.IsActive(parent));
+            Assert.That(selector.DrawCount, Is.EqualTo(8));
+
+            // Logical completeness alone must retain a physical parent after children retire.
+            drawable.Clear(); drawable.Add(parent);
+            for (int frame = 0; frame < 5; frame++) selector.Rebuild(drawable, complete);
+            Assert.True(selector.IsActive(parent));
+            Assert.That(selector.DrawCount, Is.EqualTo(1));
+            drawable.Clear(); complete.Clear();
+            selector.Rebuild(drawable, complete);
+            Assert.That(selector.DrawCount, Is.Zero);
+            Assert.That(selector.Count, Is.Zero);
+        }
+
+        [Test]
         public void PartialChildrenKeepDrawableParentUntilAllEightAreCurrentComplete()
         {
             var selector = new SurfaceLodVisibilitySelector();

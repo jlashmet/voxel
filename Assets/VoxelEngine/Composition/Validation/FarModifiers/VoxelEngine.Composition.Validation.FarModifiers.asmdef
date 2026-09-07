@@ -1,0 +1,14 @@
+{
+  "name": "VoxelEngine.Composition.Validation.FarModifiers",
+  "references": [
+    "VoxelEngine.Composition",
+    "VoxelEngine.Rendering.Runtime",
+    "VoxelEngine.Rendering.Api",
+    "VoxelEngine.Structures.Api",
+    "Game.Composition.Showcase",
+    "VoxelEngine.Showcase",
+    "VoxelEngine.Storage.Api",
+    "Unity.Mathematics"
+  ],
+  "autoReferenced": false
+}

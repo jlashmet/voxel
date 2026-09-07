@@ -103,10 +103,26 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             return buffer;
         }
 
+        private GpuSubmissionLifetime _submissionLifetime;
+
+        internal void RetainSubmission()
+        {
+            if (_disposed) throw new ObjectDisposedException(nameof(GpuTransvoxelTables));
+            (_submissionLifetime ??= new GpuSubmissionLifetime(ReleaseResources)).Retain();
+        }
+
+        internal void ReleaseSubmission() => _submissionLifetime.Release();
+
         public void Dispose()
         {
             if (_disposed) return;
             _disposed = true;
+            if (_submissionLifetime == null) ReleaseResources();
+            else _submissionLifetime.Dispose();
+        }
+
+        private void ReleaseResources()
+        {
             _cellClass?.Release();
             _geometryCounts?.Release();
             _cellIndices?.Release();

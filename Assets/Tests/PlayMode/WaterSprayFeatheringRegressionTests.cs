@@ -15,8 +15,7 @@ namespace VoxelEngine.Tests.PlayMode
         [Test]
         public void SprayPassKeepsImpactHingeTransparentWhileFreeMistRemainsVisible()
         {
-            var arena = new SurfaceGeometryArena(1024, 2048, 8);
-            var entry = new CpuWaterSurfaceChunkCache.Entry(int3.zero, arena);
+            var entry = new GpuWaterRasterFixture();
             var vertices = new NativeList<SmoothSurfaceVertex>(4, Allocator.Temp);
             var indices = new NativeList<uint>(6, Allocator.Temp);
             Material material = null;
@@ -45,11 +44,7 @@ namespace VoxelEngine.Tests.PlayMode
                 indices.Add(2u);
                 indices.Add(3u);
 
-                int byteBudget = vertices.Length * SmoothSurfaceVertex.Stride
-                               + indices.Length * sizeof(uint)
-                               + SurfaceGeometryArena.ArgsWordsPerDraw * sizeof(uint);
-                Assert.That(entry.AdvanceUpload(vertices, indices, byteBudget, out _), Is.True);
-                Assert.That(entry.HasSpray, Is.True);
+                entry.SetGeometry(vertices, indices);
 
                 Shader shader = Shader.Find("Hidden/VoxelEngine/WaterSurface");
                 Assert.That(shader, Is.Not.Null);
@@ -100,7 +95,6 @@ namespace VoxelEngine.Tests.PlayMode
                 if (material != null) Object.DestroyImmediate(material);
                 vertices.Dispose();
                 indices.Dispose();
-                arena.Dispose();
                 VoxelMaterialPresentationInstaller.Apply(GameMaterialRenderingDefinitions.Create());
             }
         }
@@ -108,8 +102,7 @@ namespace VoxelEngine.Tests.PlayMode
         [Test]
         public void SprayPassDoesNotAdvertiseBroadCarrierAsHigherBandWedge()
         {
-            var arena = new SurfaceGeometryArena(1024, 2048, 8);
-            var entry = new CpuWaterSurfaceChunkCache.Entry(int3.zero, arena);
+            var entry = new GpuWaterRasterFixture();
             var vertices = new NativeList<SmoothSurfaceVertex>(4, Allocator.Temp);
             var indices = new NativeList<uint>(6, Allocator.Temp);
             Material material = null;
@@ -143,11 +136,7 @@ namespace VoxelEngine.Tests.PlayMode
                 indices.Add(2u);
                 indices.Add(3u);
 
-                int byteBudget = vertices.Length * SmoothSurfaceVertex.Stride
-                               + indices.Length * sizeof(uint)
-                               + SurfaceGeometryArena.ArgsWordsPerDraw * sizeof(uint);
-                Assert.That(entry.AdvanceUpload(vertices, indices, byteBudget, out _), Is.True);
-                Assert.That(entry.HasSpray, Is.True);
+                entry.SetGeometry(vertices, indices);
 
                 Shader shader = Shader.Find("Hidden/VoxelEngine/WaterSurface");
                 Assert.That(shader, Is.Not.Null);
@@ -197,7 +186,6 @@ namespace VoxelEngine.Tests.PlayMode
                 if (material != null) Object.DestroyImmediate(material);
                 vertices.Dispose();
                 indices.Dispose();
-                arena.Dispose();
                 VoxelMaterialPresentationInstaller.Apply(GameMaterialRenderingDefinitions.Create());
             }
         }

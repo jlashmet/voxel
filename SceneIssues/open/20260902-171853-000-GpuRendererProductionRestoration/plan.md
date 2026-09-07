@@ -1,50 +1,56 @@
-# GPU renderer production restoration — implementation plan
+# GPU renderer restoration — PR checkpoint
 
-**Target:** `Assets/VoxelEngine/Rendering` GPU surface extraction, persistent mirror, production cutover, and production consumers.  
-**Starting SHA:** `b18d470f66221c7cb6091249f4683c2d994bffec`.
+## Objective and state
 
-## Observed behavior
+Finish planned CPU-to-GPU presentation migration and reach400FPS in VoxelShowcase. Keep deterministic
+integer CPU world truth, generation, collision and simulation. Preserve geometry, distances and device
+budgets. Imperfect water is allowed for this performance task.
+**Unfinished.** User requested committing current work, documenting what remains and opening a PR
+against origin/master. Keep the issue open; no auto-merge or production acceptance claim.
 
-Exact-SHA run `33665456593` reproduced the production density divergence: 1300/2197 samples disagree for source step 1, worst CPU `+0.50000` vs GPU `-0.14000`. Diagnostics localized the first divergence to world voxel `(-2,-2,-2)`, where material and boundary match but the GPU loses the transient authoritative-solid bit.
+## Implemented
 
-Historical run `33677903232` passed both production density-oracle source steps on commit `5716e56a0f72fadedda54c8a5727f5dd61ca60ee`; immediate child `b4de1b576dfb06821ada42b6094bf9cbe7c9c31f` failed both after adding persistent GPU directory resolution to `VoxelBrickDensity.hlsl`. Later discriminators falsified direct UAV assignment, nested `out`, branch flattening, loop attributes, SRV/UAV aliasing, water-mask binding, coordinate/cache addressing, and giant-mesher compilation-unit size as sole causes.
+Solid steps1/2/4/8 and water extract/publish geometry on GPU; production CPU geometry workers,
+workspace, contiguous arena and draw route were removed. GPU owns solid LOD/frustum/build ranking,
+source readiness, far replacement/tier selection, resident transforms and material-grouped far draws.
+Solid draws use a hardware-indexed compact stream. Shader avoids unused texture samples.
+GPU selects/retires solid allocation, water allocation and worker-capacity victims. Generation-safe
+acknowledgments preserve replacements; LOD checks live readiness. Capacity filters exact step/shard,
+ranks only requested K, and reuses publication dispatch for bounds.
 
-Run `33682727099` proved the exact standalone `CSSampleDensity` + full `SampleField` path is correct when `VOXEL_FORCE_DENSE_LOOKUP` compiles persistent lookup out. Run `33684089590` proved `VOXEL_FORCE_PERSISTENT_LOOKUP` returns the same Planar density/material/surface/boundary as dense lookup for the same synthetic 4x4x4 world. The earlier minimal helper-reachability probe also passed. Therefore persistent directory semantics themselves are correct; the Metal defect requires the full density program and persistent-directory code to coexist in the same compilation unit.
+## Local evidence
 
-Run `33692310999` falsified a second combined-lookup design before production activation. Merely adding a bounded prepared-table alternate path plus two extra SRVs to the shared density include made both production density oracles fail `2197/2197` with GPU density `0.0`, collapsed downstream topology/transition output, and even perturbed the forced-persistent standalone control. The failed include experiment was reverted exactly. Because two materially different alternate-lookup designs reproduced the same class of compiler corruption, the repair keeps persistent hash/probe resolution in a separate compute compilation unit.
+checkpoint-evidence.json records132 tested source/meta hashes and diagnostics. New meta files
+had trailing whitespace normalized for commit; executable source matches the tested image. Rendering EditMode566/566 passed,0skips. Latest SolidGpu module:
+25s build/48s player,seven captures/all seven markers; fort intact but prototype quality.
+Earlier WaterDemo and GPU water eviction/rebuild/disposal tests passed; detailed scope in tasks.md.
 
-Subsequent exact-SHA compiler probes separated that boundary: declaring the prepared SRVs but never using them passes, and a reachable runtime-disabled prepared branch also passes. Corruption therefore requires active alternate lookup semantics in the shared density path, not merely extra resources or branch reachability.
+Latest180sShowcase: **172.17FPS stationary (60–90s),429.57walking (120–180s)**,11captures.
+Final293missing chunks,48allocation failures/evictions,4190publications,0unqueued demand.
+Capacity dispatches0 throughout; allocation dispatches38, all after stationary. Stationary camera
+faces castle; walking views simpler terrain. These are different workloads. Earlier source reached
+423/437 and452/513; latest stationary regression remains unresolved. Reviewed76.6s/151.6s images:
+castle intact; terrain gaps/seams, sparse vegetation, incomplete houses. Local logs/images remain
+under Artifacts/LocalGpuShowcase. This is not remote CI or merge evidence.
 
-## Repair direction
+## Remaining work and next experiment
 
-Do not attempt more syntax reshaping. Preserve the world-scoped persistent GPU mirror, but isolate its coordinate hash/probe logic in a dedicated GPU resolver. That resolver produces the same packed empty/uniform/mixed brick entries as the legacy dense cache. All density, faceted, decoration, profile, and transition sampling then consumes only the resolved dense window, so `VoxelBrickDensity.hlsl` compiles without persistent-directory resolution. Do not reintroduce CPU per-chunk brick staging or readback.
+H1, stationary eviction overhead, is falsified for the latest run: both dispatch counters were0.
+H2: external GPU/presentation contention or another GPU submission cost explains the regression.
+Next: separate Metal System Trace of the stationary castle view; attribute GPU intervals/process
+contention before changing an idle path. CPU process activity alone does not prove GPU contention.
+Repeat identical FPS windows after each justified change.
 
-Production integration is implemented in feature commit `4609079f1109cb43b5dc747926020e0e28b08222`. `GpuSurfaceExtractor.CountBatchResources` owns one reusable `GpuBrickCachePreparation`; `DispatchCountBatch` resolves all lane requests in one resolver dispatch, removes the production `_brickCache.SetData(_brickCacheStaging)` CPU upload, and binds the resulting dense entries plus request views through both count and write batch kernels. Batch kernels compile with `VOXEL_BATCH_DENSE_LOOKUP`, while standalone/editor kernels retain the legacy one-window dense path. Unused reusable request slots are invalidated so smaller later batches cannot observe stale views. `GpuProductionBrickCacheArchitectureTests` guards the no-readback/no-CPU-reconstruction/reuse/binding contract.
+- Move water CPU frustum culling (CollectVisible) and bounded nearest-build ranking to GPU.
+- Retire CPU helpers/oracles using the removal ledger and independent GPU regressions.
+- Resolve coarse source-service starvation, startup fill-in and missing coverage without hiding content.
+- Fix console/mobile index-stream memory overruns with bounded scratch/metadata; preserve capacity.
+  Audit far atlas caches and prove long-session resource retirement/flatness.
+- Fix Composition far-validation framing and remaining visual defects; rough water is permitted.
+- Integrate current master and run affected modules plus canonical standalone Kentridge validation.
+  Merged master 18845c608; resolved the runner conflict by retaining PlayMode isolation and
+  readable artifact names with scenario/path identity hashes. All 27 runner/isolation/artifact
+  tests passed. Unity/module/Kentridge gates have not been rerun for this merge.
+  Draft PR: https://github.com/jlashmet/voxel/pull/316.
 
-Exact-SHA Metal evidence now validates the production repair itself. Run `33699482967` passed `GpuSurfaceExtractorOracleTests.GpuDensityMatchesTheCpuJobSampleForSample(1)`. Run `33699824226` passed the corresponding source-step-2 oracle. Run `33700484569`, sourced from feature SHA `d9c371c78453f160fe7914c9cbfc842e132f8d93`, passed `GpuProductionPreparedBatchRuntimeTests.TwoSeparatedRequestsUseTheirOwnPreparedDenseSlicesForCountAndWrite`: two far-separated persistent-mirror requests use independent GPU-resolved dense slices through both count and write. Its persistent module summary contained only the recurring architecture failures `GeometryPipelineArchitectureTests.SolidArenaPressureIsBackpressureNotBufferGrowth` and `GpuLod2CutoverPolicyTests.ProductionGpuCutoverDefaultsOnWithExplicitDisableFallback`. TGPU-010 and TGPU-011 are therefore validated.
-
-Feature SHA `2430e224a3dce40b0596f3d82c7ee77ef6b11ae3` added semantic regression coverage for configured water, opaque material IDs above the 32-bit water-mask range, material-default style resolution, generic material-blend presentation, and explicit rejection of unsupported reconstruction before extraction. Run `33701207515` exercised that rendering module set on Metal and failed only the same two architecture assertions; the semantic, topology, negative-shell, transition, and eligibility tests under that source passed. Current feature work additionally contains a real built-in Snow coating-displacement parity regression because the older boundary/coating oracle used a default no-op coating catalogue and therefore did not actually exercise displacement.
-
-Run `33706289961` exposed a distinct validation blocker in the prepared-batch path: `GpuProductionPreparedBatchRuntimeTests.TwoSeparatedRequestsUseTheirOwnPreparedDenseSlicesForCountAndWrite` spent about 600.5 seconds in Unity shader compilation and then observed zero output. The artifact log identified the actual cause: Metal rejects `_BatchBrickCacheViews.GetDimensions(...)` because Metal shading language does not support runtime buffer-size queries. This was a compiler failure, not evidence of incorrect dense-slice semantics. The repair removes the unsupported query and makes prepared request views self-terminating: `GpuBrickCachePreparationBuffers` reserves one extra view, `GpuBrickCachePreparation` writes `OutputBase = -1` from the first inactive view through that reserved terminator, and `VoxelBrickDensity.hlsl` walks only until the terminator. The contract remains GPU-prepared/reused with no CPU voxel reconstruction or readback, and it is safe even when a batch uses its full logical capacity. Exact-SHA rerun is required before resuming semantic acceptance gates.
-
-## Required build-green rule
-
-Repository-selected required validation must be green before this assignment can close. A failure in an automatically required gate is a blocking defect for this assignment while it prevents TGPU-052/closure, even when the failing assertion predates the GPU density repair. Do not waive, relabel as baseline, or route around such failures. Fix the demonstrated production contract or merge an authoritative upstream fix, then rerun the same required gate. The recurring solid-arena backpressure and GPU-cutover-default architecture failures are therefore active blocking work now.
-
-## Acceptance
-
-1. GPU density/sample semantics match the real CPU jobs for every supported reconstruction path and supported source step exercised by production.
-2. Regular topology, attributed geometry, negative-shell ownership, transition faces, faceted surfaces, coatings/decorations, and material semantics match CPU expectations where GPU support is claimed.
-3. Persistent mirror publication, edits, eviction/recovery, generation handling, and world-coordinate lookup remain correct with no stale/wrong-brick rendering.
-4. VoxelShowcase and at least one independent production consumer render GPU-eligible solid chunks through GPU extraction with zero silent eligible CPU fallbacks.
-5. Built-player traversal/edit evidence is visually production-correct: no holes, cracks, stale geometry, missing surfaces, wrong materials, or fallback-hidden success.
-6. Frame-path blocking, frame latency, upload/memory, and committed GPU resource cost remain within repository budgets.
-7. All repository-selected required build/CI gates for the exact feature SHA are green; recurring automatic failures are fixed rather than waived.
-
-## Architecture / blast radius
-
-Keep CPU voxel/storage truth authoritative. GPU code is a derived presentation backend. Fix shared GPU rendering semantics rather than VoxelShowcase policy. Unsupported inputs must be explicit eligibility results, not wrong geometry or incidental fallback. Preserve the existing world-scoped mirror and production composition unless evidence proves a boundary defect.
-
-## Remaining gates
-
-Prepared-batch Metal rerun -> required automatic architecture failures -> coating/topology semantic completion -> persistent mirror correctness -> explicit no-silent-fallback/recovery contract -> automatic module validation -> exact-SHA built-player VoxelShowcase plus independent-consumer evidence -> performance/memory review -> close.
+Detailed evidence: tasks.md. Retirement scope: cpu-render-backend-removal-ledger.md.

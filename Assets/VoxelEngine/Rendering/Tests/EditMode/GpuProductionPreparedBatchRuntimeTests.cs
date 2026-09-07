@@ -22,8 +22,11 @@ namespace VoxelEngine.Tests.EditMode
         private const int Padding = 2;
         private const int RecordCount = 2;
 
-        [Test]
-        public void TwoSeparatedRequestsUseTheirOwnPreparedDenseSlicesForCountAndWrite()
+        [TestCase(SurfaceStyles.Smooth)]
+        [TestCase(SurfaceStyles.Planar)]
+        [TestCase(SurfaceStyles.Sharp)]
+        [TestCase(SurfaceStyles.Cubic)]
+        public void TwoSeparatedRequestsUseTheirOwnPreparedDenseSlicesForCountAndWrite(ushort style)
         {
             if (!SystemInfo.supportsComputeShaders)
                 Assert.Ignore("No compute support on this device; production GPU batching cannot run.");
@@ -40,7 +43,7 @@ namespace VoxelEngine.Tests.EditMode
                 + RecordCount * GpuSurfaceExtractor.BatchRecordWords,
                 sizeof(uint), ComputeBufferType.Structured);
 
-            ConfigureCatalogues(extractor);
+            ConfigureCatalogues(extractor, style);
 
             int edge = extractor.BrickCacheEdge;
             int3 solidCacheOrigin = new(-1, -1, -1);
@@ -83,6 +86,12 @@ namespace VoxelEngine.Tests.EditMode
             Assert.Greater(words[second + 3], 0u,
                 "The far-away second request must emit triangles through the production prepared path.");
 
+            if (style != SurfaceStyles.Smooth)
+            {
+                Assert.AreEqual(4u, words[second + 2], "The flat boundary must merge into one quad.");
+                Assert.AreEqual(6u, words[second + 3]);
+            }
+
             uint expectedVertices = words[second + 2];
             uint expectedIndices = words[second + 3];
             // This fixture writes into standalone contiguous buffers, so unit alignment is the
@@ -110,6 +119,48 @@ namespace VoxelEngine.Tests.EditMode
                 "Production write must consume the same prepared slice and emit exactly its counted indices.");
         }
 
+        [Test]
+        public void ReusedLaneChangesBrickLayoutWithoutChangingBoundaryGeometry()
+        {
+            Assert.IsTrue(SystemInfo.supportsComputeShaders);
+            var shader = AssetDatabase.LoadAssetAtPath<ComputeShader>(MesherShaderPath);
+            using var mirror = new GpuVoxelBrickMirror(8);
+            using var tables = GpuTransvoxelTables.CreateDefault();
+            using var fine = new GpuSurfaceExtractor(shader, CellsPerAxis, Padding, 4);
+            using var coarse = new GpuSurfaceExtractor(shader, CellsPerAxis, Padding, 6);
+            ConfigureCatalogues(fine);
+            ConfigureCatalogues(coarse);
+            var cacheOrigin = new int3(-2);
+            PublishUniformWindow(mirror, cacheOrigin, 6, 3);
+            using var counters = new ComputeBuffer(GpuSurfaceExtractor.BatchHeaderWords
+                + GpuSurfaceExtractor.BatchRecordWords, sizeof(uint), ComputeBufferType.Structured);
+            GpuSurfaceExtractor.CountBatchResources resources = null;
+            try
+            {
+                foreach (var extractor in new[] { fine, coarse, fine, coarse })
+                {
+                    extractor.PrepareCountBatchResources(ref resources, 1);
+                    var requests = new[] { new GpuChunkExtraction(int3.zero, cacheOrigin,
+                        extractor == fine ? 1 : 2, 0.1f) };
+                    using var fresh = extractor.CreateCountBatchResources(1);
+                    extractor.DispatchCountBatch(mirror, tables, requests, 1, counters, fresh);
+                    var expected = new uint[counters.count];
+                    counters.GetData(expected);
+                    Assert.Greater(expected[GpuSurfaceExtractor.BatchHeaderWords + 2], 0u,
+                        "The analytic half-space fixture must cross a surface.");
+                    extractor.DispatchCountBatch(mirror, tables, requests, 1, counters, resources);
+                    var words = new uint[counters.count];
+                    counters.GetData(words);
+                    Assert.AreEqual(expected[GpuSurfaceExtractor.BatchHeaderWords + 2],
+                        words[GpuSurfaceExtractor.BatchHeaderWords + 2],
+                        $"Reused cache edge {extractor.BrickCacheEdge} changed the occupied boundary.");
+                    Assert.AreEqual(expected[GpuSurfaceExtractor.BatchHeaderWords + 3],
+                        words[GpuSurfaceExtractor.BatchHeaderWords + 3]);
+                }
+            }
+            finally { resources?.Dispose(); }
+        }
+
         private static void PublishUniformWindow(GpuVoxelBrickMirror mirror, int3 origin, int edge,
                                                  int solidBrickYLimit)
         {
@@ -133,12 +184,12 @@ namespace VoxelEngine.Tests.EditMode
             }
         }
 
-        private static void ConfigureCatalogues(GpuSurfaceExtractor extractor)
+        private static void ConfigureCatalogues(GpuSurfaceExtractor extractor, ushort? style = null)
         {
             MaterialPaletteView palette = default;
             var defaultStyles = new uint[256];
             for (int i = 0; i < defaultStyles.Length; i++)
-                defaultStyles[i] = palette.GetDefaultSurfaceStyle((byte)i);
+                defaultStyles[i] = style ?? palette.GetDefaultSurfaceStyle((byte)i);
             extractor.SetCatalogues(
                 SurfaceCatalogueView.CreateBuiltIns(), default, defaultStyles);
         }

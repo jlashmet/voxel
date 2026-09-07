@@ -1,0 +1,23 @@
+{
+  "formatVersion": 3, 
+  "id": "20260907-145211-000-VoxelShowcaseGpuCorrectnessAndPerformance", 
+  "capturedUtc": "2026-09-07T14:52:11Z", 
+  "note": "FEATURE: Correctness-first continuation of GPU renderer restoration after PR #316. Establish a clean compiling source baseline, diagnose and fix full VoxelShowcase missing geometry through production paths, then diagnose the stationary performance regression, complete remaining GPU presentation migration, and prove bounded resource lifetime. Follow plan.md and tasks.md in this issue for this handoff and SceneIssues/README.md for workflow. The earlier open restoration issue is historical evidence and broader context; coordinator must assign this continuation without concurrent overlapping renderer work. No new standalone capture has been produced for this handoff; captures must be established before diagnosis or acceptance. Historical small-scene passes and checkpoint FPS are not current full-scene acceptance.", 
+  "status": "open", 
+  "resolvedUtc": "", 
+  "resolutionSummary": "", 
+  "regressionTest": "", 
+  "fixCommit": "", 
+  "unityVersion": "6000.5.6f1", 
+  "platform": "Feature", 
+  "sceneName": "VoxelShowcase", 
+  "scenePath": "Assets/Scenes/VoxelShowcase.unity", 
+  "captures": [], 
+  "assignment": {
+    "owner": "agent-3", 
+    "branch": "fixes/agent-3", 
+    "ci_branch": "ci-test/fixes/agent-3", 
+    "claimed_at": 1788793504.209, 
+    "lease_history": []
+  }
+}

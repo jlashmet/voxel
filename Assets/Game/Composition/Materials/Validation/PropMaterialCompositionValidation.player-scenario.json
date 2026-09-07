@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "runSeconds": 43,
+  "capture": {
+    "width": 1600,
+    "height": 900,
+    "intervalSeconds": 3,
+    "minimumFrames": 13,
+    "evidenceAfterSeconds": 1
+  },
+  "timeline": {},
+  "assertions": {
+    "requiredLogPatterns": [
+      "PROP_SHOWCASE_VALIDATION start count=",
+      "PROP_SHOWCASE_VALIDATION medium selected=",
+      "PROP_SHOWCASE_VALIDATION thin-wall selected=",
+      "PROP_SHOWCASE_VALIDATION ceiling selected=",
+      "PROP_SHOWCASE_VALIDATION procedural selected=",
+      "PROP_SHOWCASE_VALIDATION emissive selected="
+    ],
+    "forbiddenLogPatterns": [
+      "PROP_SHOWCASE_VALIDATION failure:",
+      "InvalidOperationException",
+      "NullReferenceException",
+      "MissingReferenceException",
+      "ArgumentException"
+    ]
+  }
+}

@@ -34,7 +34,7 @@ namespace VoxelEngine.Tests.EditMode
                     new int3(-1, 0, 0), out PinnedRegionBlockRefs missingCorePin));
                 Assert.False(missingCorePin.IsCreated);
 
-                using var cache = new CpuTransvoxelChunkCache(sourceStep: 4);
+                using var cache = new GpuSolidChunkCache(sourceStep: 4);
                 cache.SetClipmapWindow(int3.zero, radius: 2);
 
                 // Mutation invalidation is intentionally border-aware. Brick x=0 admits both the
@@ -44,7 +44,7 @@ namespace VoxelEngine.Tests.EditMode
                 Assert.AreEqual(2, cache.KnownCount,
                     "Fixture must admit the resident owner and its halo-only neighbour.");
 
-                MethodInfo prune = typeof(CpuTransvoxelChunkCache).GetMethod(
+                MethodInfo prune = typeof(GpuSolidChunkCache).GetMethod(
                     "StepResidencyPrune", BindingFlags.Instance | BindingFlags.NonPublic);
                 Assert.NotNull(prune);
 

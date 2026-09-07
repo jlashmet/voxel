@@ -8,6 +8,7 @@ using UnityEngine.Rendering;
 using UnityEngine.Rendering.RenderGraphModule;
 using UnityEngine.Rendering.Universal;
 using VoxelEngine.Rendering.Runtime.GpuVoxel;
+using VoxelEngine.Rendering.Runtime.FarWorld;
 using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
 
 namespace VoxelEngine.Rendering.Runtime
@@ -56,12 +57,8 @@ namespace VoxelEngine.Rendering.Runtime
         private static readonly int s_DebugCoverage = Shader.PropertyToID("_DebugCoverage");
         private static readonly int s_CameraPosition = Shader.PropertyToID("_CameraPosition");
         private static readonly int s_WaterTime = Shader.PropertyToID("_WaterTime");
-        private static readonly int s_SurfaceVertices = Shader.PropertyToID("_SurfaceVertices");
-        private static readonly int s_SurfaceIndices = Shader.PropertyToID("_SurfaceIndices");
-        private static readonly int s_SurfaceDrawMetadata =
-            Shader.PropertyToID("_SurfaceDrawMetadata");
-        private static readonly int s_SurfaceDrawBase = Shader.PropertyToID("_SurfaceDrawBase");
-        private static readonly int s_SurfacePagedDraw = Shader.PropertyToID("_SurfacePagedDraw");
+        private static readonly int s_PagedDrawBucketState = Shader.PropertyToID("_PagedDrawBucketState");
+        private static readonly int s_PagedDrawBucket = Shader.PropertyToID("_PagedDrawBucket");
         private static readonly int s_PagedDrawMetadata = Shader.PropertyToID("_PagedDrawMetadata");
         private static readonly int s_PagedSurfaceVertices = Shader.PropertyToID("_PagedSurfaceVertices");
         private static readonly int s_PagedSurfaceIndices = Shader.PropertyToID("_PagedSurfaceIndices");
@@ -72,26 +69,13 @@ namespace VoxelEngine.Rendering.Runtime
         private static readonly int s_PagedMaxVertexPages = Shader.PropertyToID("_PagedMaxVertexPagesPerChunk");
         private static readonly int s_PagedMaxIndexPages = Shader.PropertyToID("_PagedMaxIndexPagesPerChunk");
 
-        // Four buckets per power of two keep padded vertex work below 25% while collapsing
-        // hundreds of chunk submissions into at most a few dozen instanced draws.
-        private const int SolidDrawBucketCount = 128;
-        private const int SolidDrawMetadataBufferCount = 3;
-
         private VoxelSurfaceScheduler _scheduler;
+        private readonly List<ProceduralFarFeatureRenderer> _farSurfaceConsumers = new();
+        private Func<Bounds, bool> _hasFarReplacement;
         // Draw staging is bounded by the fixed arena args capacities. Allocate once with the
         // render pass; camera motion may change counts but can never resize managed arrays.
-        private readonly CpuTransvoxelChunkCache.Entry[] _transvoxelDrawEntries =
-            new CpuTransvoxelChunkCache.Entry[VoxelSurfaceScheduler.SurfaceArenaDrawCapacity];
-        private readonly CpuWaterSurfaceChunkCache.Entry[] _waterDrawEntries =
-            new CpuWaterSurfaceChunkCache.Entry[CpuWaterSurfaceChunkCache.ArenaDrawCapacity];
-        private readonly int[] _solidDrawBucketCounts = new int[SolidDrawBucketCount];
-        private readonly int[] _solidDrawBucketStarts = new int[SolidDrawBucketCount];
-        private readonly int[] _solidDrawBucketCursors = new int[SolidDrawBucketCount];
-        private readonly int[] _solidDrawBucketVertexCounts = new int[SolidDrawBucketCount];
-        private readonly ComputeBuffer[] _solidDrawMetadata =
-            new ComputeBuffer[SolidDrawMetadataBufferCount];
-        private ComputeBuffer _activeSolidDrawMetadata;
-
+        private readonly GpuWaterSurfaceChunkCache.Entry[] _waterDrawEntries =
+            new GpuWaterSurfaceChunkCache.Entry[GpuWaterSurfaceChunkCache.ArenaDrawCapacity];
         private Material _surfaceMaterial;
         private Material _waterMaterial;
         private readonly MaterialPropertyBlock _surfaceProperties = new();
@@ -153,6 +137,7 @@ namespace VoxelEngine.Rendering.Runtime
 
         private class SurfaceFrameData
         {
+            public List<ProceduralFarFeatureRenderer> FarSurfaceConsumers;
             public TextureHandle CameraColor;
             public TextureHandle CameraDepth;
             public float VoxelSize;
@@ -181,25 +166,21 @@ namespace VoxelEngine.Rendering.Runtime
             public float FlashlightRange;
             public float FlashlightInnerCos;
             public float FlashlightOuterCos;
-            public CpuTransvoxelChunkCache.Entry[] TransvoxelEntries;
-            public ComputeBuffer SurfaceVertices;
-            public ComputeBuffer SurfaceIndices;
-            public ComputeBuffer SolidDrawMetadata;
-            public int[] SolidDrawBucketCounts;
-            public int[] SolidDrawBucketStarts;
-            public int[] SolidDrawBucketVertexCounts;
-            public int TransvoxelEntryCount;
             public double SolidStagingMs;
             public int VisibleSolidCount;
+            public GpuSurfaceIndexDispatcher IndexedDraw;
+            public ComputeBuffer PagedLodSelection;
             public ComputeBuffer PagedVertices;
             public ComputeBuffer PagedIndices;
             public ComputeBuffer PagedVertexPageTable;
             public ComputeBuffer PagedIndexPageTable;
             public ComputeBuffer PagedDrawMetadata;
+            public ComputeBuffer PagedDrawBucketState;
             public ComputeBuffer PagedIndirectArgs;
-            public int VisiblePagedCount;
-            public CpuWaterSurfaceChunkCache.Entry[] WaterEntries;
+            public int PagedCandidateCount;
+            public GpuWaterSurfaceChunkCache.Entry[] WaterEntries;
             public int WaterEntryCount;
+            public GpuWaterSurfaceChunkCache WaterCache;
         }
 
         public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
@@ -242,14 +223,18 @@ namespace VoxelEngine.Rendering.Runtime
             // World teardown deliberately leaves the large native/GPU scheduler fully released.
             // Recreate it only once a valid world is actually ready to render, so Metal never has
             // to retire one arena while teardown eagerly allocates the next world's replacement.
-            _scheduler ??= new VoxelSurfaceScheduler();
+            if (_scheduler == null)
+            {
+                _scheduler = new VoxelSurfaceScheduler();
+                _hasFarReplacement = _scheduler.HasCurrentReplacement;
+            }
 
             VoxelRenderBridge.LastSurfacePassState = VoxelRenderBridge.VerboseSurfaceDiagnostics
                 ? $"preparing-{camera.cameraType}" : "preparing";
-            IReadOnlyList<CpuTransvoxelChunkCache.Entry> transvoxelVisible =
-                Array.Empty<CpuTransvoxelChunkCache.Entry>();
-            IReadOnlyList<CpuWaterSurfaceChunkCache.Entry> waterVisible =
-                Array.Empty<CpuWaterSurfaceChunkCache.Entry>();
+            IReadOnlyList<GpuSolidChunkCache.Entry> transvoxelVisible =
+                Array.Empty<GpuSolidChunkCache.Entry>();
+            IReadOnlyList<GpuWaterSurfaceChunkCache.Entry> waterVisible =
+                Array.Empty<GpuWaterSurfaceChunkCache.Entry>();
             _scheduler.SolidBuildBudgetMs = Math.Max(0.0, VoxelRenderBridge.SolidBuildBudgetMs);
             _scheduler.SolidUploadBudgetBytes = Math.Max(0, VoxelRenderBridge.SolidUploadBudgetBytes);
             _scheduler.SolidUploadSliceBytes = Math.Max(0, VoxelRenderBridge.SolidUploadSliceBytes);
@@ -268,8 +253,7 @@ namespace VoxelEngine.Rendering.Runtime
                 1, VoxelRenderBridge.SurfaceMaxConcurrentBuildsConverging);
             _scheduler.MaxConcurrentBuildsConverged = Math.Max(
                 0, VoxelRenderBridge.SurfaceMaxConcurrentBuildsConverged);
-            _scheduler.SolidArenaMaxActiveLeases = Math.Max(
-                1, VoxelRenderBridge.SolidArenaMaxActiveLeases);
+
             _scheduler.WaterBuildBudgetMs = Math.Max(0.0, VoxelRenderBridge.WaterBuildBudgetMs);
             _scheduler.Prepare(world.Storage, in world.Palette,
                                in world.SurfaceCatalogueView, in world.CoatingCatalogueView,
@@ -304,16 +288,6 @@ namespace VoxelEngine.Rendering.Runtime
             {
                 VoxelRenderBridge.LastSurfacePassState = "feature-aware";
             }
-
-            if (transvoxelVisible.Count > _transvoxelDrawEntries.Length)
-                throw new InvalidOperationException(
-                    "Visible solid draw count exceeded the fixed arena draw capacity.");
-            long solidStagingStart = VoxelSolidRenderTelemetry.Timestamp();
-            for (int i = 0; i < transvoxelVisible.Count; i++)
-                _transvoxelDrawEntries[i] = transvoxelVisible[i];
-            int solidDrawCount = PrepareSolidDrawBatches(transvoxelVisible);
-            double solidStagingMs =
-                VoxelSolidRenderTelemetry.ElapsedMilliseconds(solidStagingStart);
 
             if (waterVisible.Count > _waterDrawEntries.Length)
                 throw new InvalidOperationException(
@@ -358,27 +332,26 @@ namespace VoxelEngine.Rendering.Runtime
             data.FlashlightOuterCos = VoxelRenderBridge.FlashlightOuterCos;
             data.BaseColor = VoxelRenderBridge.SurfaceDebugTint;
             data.VoxelSize = VoxelSize;
-            data.TransvoxelEntries = _transvoxelDrawEntries;
-            data.SurfaceVertices = _scheduler.SolidGeometryVertices;
-            data.SurfaceIndices = _scheduler.SolidGeometryIndices;
-            data.SolidDrawMetadata = _activeSolidDrawMetadata;
-            data.SolidDrawBucketCounts = _solidDrawBucketCounts;
-            data.SolidDrawBucketStarts = _solidDrawBucketStarts;
-            data.SolidDrawBucketVertexCounts = _solidDrawBucketVertexCounts;
-            data.TransvoxelEntryCount = solidDrawCount;
-            data.SolidStagingMs = solidStagingMs;
+            data.SolidStagingMs = 0;
             data.VisibleSolidCount = transvoxelVisible.Count;
             GpuSurfacePageArena gpuArena = _scheduler.GpuPageArena;
             GpuSurfaceDrawDispatcher gpuDraw = _scheduler.GpuDrawDispatcher;
+            data.IndexedDraw = gpuDraw?.GetIndexedDraw();
+            data.PagedLodSelection = gpuDraw?.ActiveLodSelection;
             data.PagedVertices = gpuArena?.Vertices;
             data.PagedIndices = gpuArena?.Indices;
             data.PagedVertexPageTable = gpuArena?.VertexPageTable;
             data.PagedIndexPageTable = gpuArena?.IndexPageTable;
             data.PagedDrawMetadata = gpuDraw?.ActiveDrawMetadata;
+            data.PagedDrawBucketState = gpuDraw?.ActiveBucketState;
             data.PagedIndirectArgs = gpuDraw?.ActiveIndirectArgs;
-            data.VisiblePagedCount = _scheduler.VisibleGpuHandles.Count;
+            data.PagedCandidateCount = _scheduler.GpuDrawCandidates.Count;
+            ProceduralFarFeatureRenderer.PrepareSurfaceConsumers(_farSurfaceConsumers, null, camera,
+                _scheduler.PrepareGpuFarCoverage());
+            data.FarSurfaceConsumers = _farSurfaceConsumers;
             data.WaterEntries = _waterDrawEntries;
             data.WaterEntryCount = waterVisible.Count;
+            data.WaterCache = _scheduler.WaterCache;
 
             builder.UseTexture(data.CameraColor, AccessFlags.ReadWrite);
             builder.UseTexture(data.CameraDepth, AccessFlags.ReadWrite);
@@ -444,55 +417,43 @@ namespace VoxelEngine.Rendering.Runtime
 
                 long solidSubmissionStart = VoxelSolidRenderTelemetry.Timestamp();
 
-                // Same arena for every solid chunk, so bind it once rather than in each draw.
-                if (passData.SurfaceVertices != null)
-                    cmd.SetGlobalBuffer(s_SurfaceVertices, passData.SurfaceVertices);
-                if (passData.SurfaceIndices != null)
-                    cmd.SetGlobalBuffer(s_SurfaceIndices, passData.SurfaceIndices);
-                if (passData.SolidDrawMetadata != null)
-                    cmd.SetGlobalBuffer(s_SurfaceDrawMetadata, passData.SolidDrawMetadata);
-
                 ctx.cmd.SetRenderTarget(passData.CameraColor, passData.CameraDepth);
 
+                // Far replacement is decided after this camera's near selection, and recorded
+                // into the same depth target. No previous-frame Update visibility is consulted.
+                foreach (var farRenderer in passData.FarSurfaceConsumers)
+                    farRenderer.RecordSurfaceDraws(cmd);
+
                 int solidSubmissionCalls = 0;
-                if (passData.PagedIndirectArgs != null && passData.VisiblePagedCount > 0)
+                if (passData.PagedIndirectArgs != null && passData.PagedCandidateCount > 0)
                 {
-                    cmd.SetGlobalInteger(s_SurfacePagedDraw, 1);
                     cmd.SetGlobalBuffer(s_PagedSurfaceVertices, passData.PagedVertices);
                     cmd.SetGlobalBuffer(s_PagedSurfaceIndices, passData.PagedIndices);
                     cmd.SetGlobalBuffer(s_PagedVertexPageTable, passData.PagedVertexPageTable);
                     cmd.SetGlobalBuffer(s_PagedIndexPageTable, passData.PagedIndexPageTable);
                     cmd.SetGlobalBuffer(s_PagedDrawMetadata, passData.PagedDrawMetadata);
+                    cmd.SetGlobalBuffer(s_PagedDrawBucketState, passData.PagedDrawBucketState);
                     cmd.SetGlobalInteger(s_PagedVertexPageSize, GpuSurfacePageArena.VertexPageSize);
                     cmd.SetGlobalInteger(s_PagedIndexPageSize, GpuSurfacePageArena.IndexPageSize);
                     cmd.SetGlobalInteger(s_PagedMaxVertexPages,
                         GpuSurfacePageArena.MaxVertexPagesPerChunk);
                     cmd.SetGlobalInteger(s_PagedMaxIndexPages,
                         GpuSurfacePageArena.MaxIndexPagesPerChunk);
-                    for (int bucket = 0; bucket < GpuSurfaceDrawDispatcher.BucketCount; bucket++)
-                    {
-                        cmd.DrawProceduralIndirect(Matrix4x4.identity, passData.Material, 0,
-                            MeshTopology.Triangles, passData.PagedIndirectArgs,
-                            bucket * sizeof(uint) * 4);
-                    }
-                    solidSubmissionCalls += GpuSurfaceDrawDispatcher.BucketCount;
-                }
-                cmd.SetGlobalInteger(s_SurfacePagedDraw, 0);
-                for (int bucket = 0; bucket < SolidDrawBucketCount; bucket++)
-                {
-                    int instanceCount = passData.SolidDrawBucketCounts[bucket];
-                    if (instanceCount == 0) continue;
-                    cmd.SetGlobalInt(s_SurfaceDrawBase,
-                        passData.SolidDrawBucketStarts[bucket]);
-                    cmd.DrawProcedural(Matrix4x4.identity, passData.Material, 0,
-                        MeshTopology.Triangles,
-                        passData.SolidDrawBucketVertexCounts[bucket], instanceCount);
+                    passData.IndexedDraw.Record(cmd, passData.PagedDrawMetadata,
+                        passData.PagedDrawBucketState, passData.PagedLodSelection);
+                    cmd.SetKeyword(passData.Material,
+                        new LocalKeyword(passData.Material.shader, "VOXEL_HARDWARE_INDEXED"), true);
+                    cmd.DrawProceduralIndirect(passData.IndexedDraw.Indices, Matrix4x4.identity,
+                        passData.Material, 0, MeshTopology.Triangles, passData.IndexedDraw.Arguments);
+                    cmd.SetKeyword(passData.Material,
+                        new LocalKeyword(passData.Material.shader, "VOXEL_HARDWARE_INDEXED"), false);
                     solidSubmissionCalls++;
+
                 }
                 VoxelSolidRenderTelemetry.Record(
                     passData.SolidStagingMs,
                     VoxelSolidRenderTelemetry.ElapsedMilliseconds(solidSubmissionStart),
-                    passData.VisibleSolidCount + passData.VisiblePagedCount,
+                    passData.VisibleSolidCount + passData.PagedCandidateCount,
                     solidSubmissionCalls);
 
                 if (VoxelRenderBridge.WaterRenderEnabled
@@ -507,83 +468,9 @@ namespace VoxelEngine.Rendering.Runtime
                     for (int i = 0; i < passData.WaterEntryCount; i++)
                         passData.WaterEntries[i].Draw(cmd, passData.WaterMaterial,
                                                       passData.WaterProperties);
+                    passData.WaterCache.RecordDrawCompletion(cmd);
                 }
             });
-        }
-
-        private int PrepareSolidDrawBatches(
-            IReadOnlyList<CpuTransvoxelChunkCache.Entry> visible)
-        {
-            EnsureSolidDrawMetadata();
-            _activeSolidDrawMetadata =
-                _solidDrawMetadata[Time.frameCount % SolidDrawMetadataBufferCount];
-            Array.Clear(_solidDrawBucketCounts, 0, _solidDrawBucketCounts.Length);
-            Array.Clear(_solidDrawBucketVertexCounts, 0,
-                _solidDrawBucketVertexCounts.Length);
-
-            int drawCount = 0;
-            for (int i = 0; i < visible.Count; i++)
-            {
-                if (!visible[i].TryGetDrawMetadata(out SurfaceDrawMetadata metadata))
-                    continue;
-                int bucket = SolidDrawBucket((int)metadata.IndexCount);
-                _solidDrawBucketCounts[bucket]++;
-                _solidDrawBucketVertexCounts[bucket] = Math.Max(
-                    _solidDrawBucketVertexCounts[bucket], (int)metadata.IndexCount);
-                drawCount++;
-            }
-
-            int start = 0;
-            for (int bucket = 0; bucket < SolidDrawBucketCount; bucket++)
-            {
-                _solidDrawBucketStarts[bucket] = start;
-                _solidDrawBucketCursors[bucket] = start;
-                start += _solidDrawBucketCounts[bucket];
-            }
-
-            if (drawCount == 0) return 0;
-            NativeArray<SurfaceDrawMetadata> destination =
-                _activeSolidDrawMetadata.BeginWrite<SurfaceDrawMetadata>(0, drawCount);
-            for (int i = 0; i < visible.Count; i++)
-            {
-                if (!visible[i].TryGetDrawMetadata(out SurfaceDrawMetadata metadata))
-                    continue;
-                int bucket = SolidDrawBucket((int)metadata.IndexCount);
-                destination[_solidDrawBucketCursors[bucket]++] = metadata;
-            }
-            _activeSolidDrawMetadata.EndWrite<SurfaceDrawMetadata>(drawCount);
-            return drawCount;
-        }
-
-        internal static int SolidDrawBucket(int indexCount)
-        {
-            uint count = (uint)Math.Max(1, indexCount);
-            int exponent = 31 - math.lzcnt(count);
-            uint lower = 1u << exponent;
-            int subdivision = (int)Math.Min(3u, ((count - lower) * 4u) / lower);
-            return Math.Min(SolidDrawBucketCount - 1, exponent * 4 + subdivision);
-        }
-
-        private void EnsureSolidDrawMetadata()
-        {
-            if (_solidDrawMetadata[0] != null) return;
-            for (int i = 0; i < SolidDrawMetadataBufferCount; i++)
-            {
-                _solidDrawMetadata[i] = new ComputeBuffer(
-                    VoxelSurfaceScheduler.SurfaceArenaDrawCapacity,
-                    sizeof(uint) * 4, ComputeBufferType.Structured,
-                    ComputeBufferMode.SubUpdates);
-            }
-        }
-
-        private void ReleaseSolidDrawMetadata()
-        {
-            for (int i = 0; i < SolidDrawMetadataBufferCount; i++)
-            {
-                _solidDrawMetadata[i]?.Release();
-                _solidDrawMetadata[i] = null;
-            }
-            _activeSolidDrawMetadata = null;
         }
 
         private void ReleaseWorldResources()
@@ -599,8 +486,6 @@ namespace VoxelEngine.Rendering.Runtime
             // with the next arena and turns repeated scene loads into process-wide memory growth.
             _scheduler.Dispose();
             _scheduler = null;
-            ReleaseSolidDrawMetadata();
-            Array.Clear(_transvoxelDrawEntries, 0, _transvoxelDrawEntries.Length);
             Array.Clear(_waterDrawEntries, 0, _waterDrawEntries.Length);
         }
 
@@ -610,7 +495,6 @@ namespace VoxelEngine.Rendering.Runtime
             VoxelRenderBridge.UnregisterWorldReleaseHandler(ReleaseWorldResources);
             _scheduler?.Dispose();
             _scheduler = null;
-            ReleaseSolidDrawMetadata();
             CoreUtils.Destroy(_surfaceMaterial);
             CoreUtils.Destroy(_waterMaterial);
             CoreUtils.Destroy(_albedoTextures);

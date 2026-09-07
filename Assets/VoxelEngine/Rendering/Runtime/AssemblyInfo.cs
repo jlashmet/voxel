@@ -5,3 +5,5 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("VoxelEngine.CI.PlayMode")]
 [assembly: InternalsVisibleTo("VoxelEngine.Rendering.Tests.EditMode")]
 [assembly: InternalsVisibleTo("VoxelEngine.Storage.Tests.EditMode")]
+
+[assembly: InternalsVisibleTo("VoxelEngine.Rendering.Tests.RuntimeSupport")]

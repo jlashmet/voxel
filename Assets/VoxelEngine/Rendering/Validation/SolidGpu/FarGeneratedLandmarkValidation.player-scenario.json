@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "runSeconds": 28,
+  "capture": {
+    "width": 1600,
+    "height": 900,
+    "intervalSeconds": 4,
+    "minimumFrames": 6
+  },
+  "assertions": {
+    "requiredLogPatterns": [
+      "FAR_LANDMARK ready:",
+      "FAR_LANDMARK success:"
+    ],
+    "forbiddenLogPatterns": [
+      "FAR_LANDMARK failure:",
+      "Exception"
+    ]
+  }
+}
