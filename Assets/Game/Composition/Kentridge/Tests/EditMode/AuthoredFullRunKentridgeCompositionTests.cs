@@ -64,7 +64,7 @@ namespace Game.Composition.Kentridge.Tests
             AuthoredTownPlan town = WorldBuilderTownAuthoring.Author(
                 WorldBuilderTownIds.Kentridge,
                 seed);
-            var settlement = (SettlementPlan)town.BackendPlan;
+            SettlementPlan settlement = KentridgeDefinition.Build(seed);
             KentridgeCampaignGenerationPlan openingGeneration =
                 KentridgeCampaignSessionBootstrap.Plan(opening.Blueprint, town);
             KentridgeCampaignWorldRealization openingWorld =
