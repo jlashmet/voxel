@@ -24,11 +24,11 @@ namespace VoxelEngine.Tests.PlayMode
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        private struct SurfaceDrawMetadata
+        private struct PagedDrawMetadata
         {
-            public uint IndexStart;
-            public uint VertexStart;
+            public uint Handle;
             public uint IndexCount;
+            public uint Bank;
             public uint Padding;
         }
 
@@ -72,6 +72,8 @@ namespace VoxelEngine.Tests.PlayMode
             private readonly ComputeBuffer _vertices;
             private readonly ComputeBuffer _indices;
             private readonly ComputeBuffer _metadata;
+            private readonly ComputeBuffer _pageTable;
+            private readonly ComputeBuffer _bucketState;
             private readonly RenderTexture _target;
 
             public SmoothSurfaceGpuFixture(Shader shader)
@@ -81,22 +83,34 @@ namespace VoxelEngine.Tests.PlayMode
 
                 _vertices = new ComputeBuffer(3, Marshal.SizeOf<SurfaceVertex>());
                 _indices = new ComputeBuffer(6, sizeof(uint));
-                _metadata = new ComputeBuffer(1, Marshal.SizeOf<SurfaceDrawMetadata>());
+                _metadata = new ComputeBuffer(1, Marshal.SizeOf<PagedDrawMetadata>());
                 _indices.SetData(new uint[] { 0, 1, 2, 2, 1, 0 });
                 _metadata.SetData(new[]
                 {
-                    new SurfaceDrawMetadata
+                    new PagedDrawMetadata
                     {
-                        IndexStart = 0,
-                        VertexStart = 0,
+                        Handle = 0,
+                        Bank = 0,
                         IndexCount = 6,
                         Padding = 0
                     }
                 });
-                _material.SetBuffer("_SurfaceVertices", _vertices);
-                _material.SetBuffer("_SurfaceIndices", _indices);
-                _material.SetBuffer("_SurfaceDrawMetadata", _metadata);
-                _material.SetInt("_SurfaceDrawBase", 0);
+                // Diagnostic triangle uses one page through the production paged vertex shader.
+                _pageTable = new ComputeBuffer(1, sizeof(uint));
+                _pageTable.SetData(new uint[] { 0 });
+                _bucketState = new ComputeBuffer(4, sizeof(uint));
+                _bucketState.SetData(new uint[] { 1, 6, 0, 0 });
+                _material.SetBuffer("_PagedSurfaceVertices", _vertices);
+                _material.SetBuffer("_PagedSurfaceIndices", _indices);
+                _material.SetBuffer("_PagedDrawMetadata", _metadata);
+                _material.SetBuffer("_PagedVertexPageTable", _pageTable);
+                _material.SetBuffer("_PagedIndexPageTable", _pageTable);
+                _material.SetBuffer("_PagedDrawBucketState", _bucketState);
+                _material.SetInt("_PagedDrawBucket", 0);
+                _material.SetInt("_PagedVertexPageSize", 3);
+                _material.SetInt("_PagedIndexPageSize", 6);
+                _material.SetInt("_PagedMaxVertexPagesPerChunk", 1);
+                _material.SetInt("_PagedMaxIndexPagesPerChunk", 1);
 
                 _mesh = new Mesh { name = "DetailedTerrainTintRuntimeTriangle" };
                 _mesh.vertices = new[]
@@ -175,6 +189,8 @@ namespace VoxelEngine.Tests.PlayMode
                 _vertices?.Release();
                 _indices?.Release();
                 _metadata?.Release();
+                _pageTable?.Release();
+                _bucketState?.Release();
                 if (_target != null)
                 {
                     _target.Release();

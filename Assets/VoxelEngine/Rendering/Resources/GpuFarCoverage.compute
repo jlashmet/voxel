@@ -1,0 +1,131 @@
+#pragma kernel CSClearCoverage
+#pragma kernel CSIndexCoverage
+#pragma kernel CSQueryCoverage
+#include "GpuSurfaceDiscovery.hlsl"
+
+struct CoverageNode
+{
+    int parent; int step; int handle; uint flags;
+    int4 childrenLo; int4 childrenHi; float4 boundsVoxel;
+};
+struct CoverageBounds { float4 min; float4 max; };
+StructuredBuffer<CoverageNode> _CoverageNodes;
+StructuredBuffer<uint> _CoverageSelected;
+StructuredBuffer<uint> _CoverageNodeStates;
+RWStructuredBuffer<uint> _CoverageMap;
+StructuredBuffer<CoverageBounds> _CoverageQueries;
+RWStructuredBuffer<uint> _CoverageResults;
+uint _CoverageNodeCount, _CoverageMapCapacity, _CoverageQueryCount, _CoverageAllowed;
+float _CoverageVoxelSize, _CoverageRadius;
+float4 _CoverageCamera;
+uint _CoverageFrustumEnabled;
+float4 _CoveragePlanes[6];
+bool FineCellVisible(int3 fine)
+{
+    if(_CoverageFrustumEnabled==0u)return true;
+    float3 centre=(float3(fine)+0.5)*64.0*_CoverageVoxelSize;
+    float halfEdge=32.0*_CoverageVoxelSize;
+    for(uint p=0u;p<6u;p++)
+        if(dot(_CoveragePlanes[p].xyz,centre)+_CoveragePlanes[p].w
+            +dot(abs(_CoveragePlanes[p].xyz),float3(halfEdge,halfEdge,halfEdge))<0.0)return false;
+    return true;
+}
+
+int3 NodeCoordinate(CoverageNode node) { return (int3)floor(node.boundsVoxel.xyz/(64.0*node.step)); }
+uint CoverageHash(int3 key,uint step)
+{
+    uint3 u=asuint(key);
+    return (u.x*73856093u ^ u.y*19349663u ^ u.z*83492791u ^ step*2654435761u)&(_CoverageMapCapacity-1u);
+}
+[numthreads(64,1,1)]
+void CSClearCoverage(uint3 id:SV_DispatchThreadID)
+{
+    if(id.x<_CoverageMapCapacity)_CoverageMap[id.x]=0u;
+}
+[numthreads(64,1,1)]
+void CSIndexCoverage(uint3 id:SV_DispatchThreadID)
+{
+    if(id.x>=_CoverageNodeCount)return;
+    CoverageNode node=_CoverageNodes[id.x];
+    if((node.flags&2u)==0u)return;
+    // Completed empty extraction can supersede conservative discovery surface bits.
+    // It still needs current ring ownership; a virtual or out-of-band node proves nothing.
+    bool currentEmpty=node.handle<0 && (node.flags&1u)==0u
+        && (node.flags&4u)!=0u && (_CoverageNodeStates[id.x]&16u)!=0u;
+    bool currentSelected=false;
+    if(node.handle>=0)currentSelected=_CoverageSelected[node.handle]!=0u;
+    if(!currentEmpty && !currentSelected)return;
+    uint slot=CoverageHash(NodeCoordinate(node),(uint)node.step);
+    for(uint probe=0u;probe<_CoverageMapCapacity;probe++)
+    {
+        uint prior;
+        InterlockedCompareExchange(_CoverageMap[slot],0u,id.x+1u,prior);
+        if(prior==0u)return;
+        slot=(slot+1u)&(_CoverageMapCapacity-1u);
+    }
+}
+bool HasCurrentCoverage(int3 fine)
+{
+    for(uint shift=0u;shift<4u;shift++)
+    {
+        uint step=1u<<shift;
+        int3 coordinate=fine>>shift;
+        uint slot=CoverageHash(coordinate,step);
+        for(uint probe=0u;probe<_CoverageMapCapacity;probe++)
+        {
+            uint entry=_CoverageMap[slot];
+            if(entry==0u)break;
+            CoverageNode node=_CoverageNodes[entry-1u];
+            if(node.step==(int)step && all(NodeCoordinate(node)==coordinate))return true;
+            slot=(slot+1u)&(_CoverageMapCapacity-1u);
+        }
+    }
+    return false;
+}
+bool QueryCells(CoverageBounds bounds,out int3 min,out int3 extent)
+{
+    min=0;extent=0;
+    if(_CoverageAllowed==0u || _CoverageVoxelSize<=0.0 || any(bounds.max.xyz<=bounds.min.xyz))return false;
+    float3 distance=max(abs(bounds.min.xyz-_CoverageCamera.xyz),abs(bounds.max.xyz-_CoverageCamera.xyz));
+    if(any(distance>_CoverageRadius))return false;
+    int3 minVoxel=(int3)floor(bounds.min.xyz/_CoverageVoxelSize);
+    int3 maxVoxel=(int3)ceil(bounds.max.xyz/_CoverageVoxelSize);
+    if(any(maxVoxel<=minVoxel))return false;
+    min=minVoxel>>6;
+    extent=((maxVoxel-1)>>6)-min+1;
+    if(any(extent<=0) || any(extent>4096))return false;
+    if(extent.x*extent.y>4096)return false;
+    if(extent.x*extent.y*extent.z>4096)return false;
+    return true;
+}
+groupshared int3 s_QueryMin, s_QueryExtent;
+groupshared uint s_CellCount, s_Rejected;
+[numthreads(64,1,1)]
+void CSQueryCoverage(uint3 group:SV_GroupID,uint lane:SV_GroupIndex)
+{
+    uint query=group.x+group.y*1024u;
+    if(query>=_CoverageQueryCount)return;
+    if(lane==0u)
+    {
+        int3 min,extent;
+        bool valid=QueryCells(_CoverageQueries[query],min,extent);
+        s_QueryMin=min;s_QueryExtent=extent;s_Rejected=valid?0u:1u;
+        s_CellCount=valid?(uint)(extent.x*extent.y*extent.z):0u;
+    }
+    GroupMemoryBarrierWithGroupSync();
+    // Cooperate on each bounded AABB instead of serializing up to4096 cell lookups
+    // in one lane. Rejection is a reduction; no CPU result readback controls visibility.
+    for(uint ordinal=lane;ordinal<s_CellCount;ordinal+=64u)
+    {
+        uint xy=(uint)(s_QueryExtent.x*s_QueryExtent.y);
+        int3 fine=s_QueryMin+int3(ordinal%(uint)s_QueryExtent.x,
+            (ordinal/(uint)s_QueryExtent.x)%(uint)s_QueryExtent.y,ordinal/xy);
+        uint state=DiscoveryCellState(fine);
+        if(state==0u || (state==2u && FineCellVisible(fine) && !HasCurrentCoverage(fine)))
+        {
+            uint ignored;InterlockedOr(s_Rejected,1u,ignored);break;
+        }
+    }
+    GroupMemoryBarrierWithGroupSync();
+    if(lane==0u)_CoverageResults[query]=s_Rejected==0u?1u:0u;
+}

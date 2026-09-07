@@ -30,4 +30,10 @@ namespace Game.WorldBuilder.Api
         bool Remove(ulong structureId);
         void Clear();
     }
+    /// <summary>Monotonic change token for authoritative semantic visual-state updates.</summary>
+    public interface IVersionedStructureVisualStateSource : IStructureVisualStateSource
+    {
+        ulong Revision { get; }
+    }
+
 }

@@ -11,6 +11,40 @@ namespace VoxelEngine.Tests.EditMode
     public sealed class StorageRegionReadViewTests
     {
         [Test]
+        public void BlockReferenceCopyPreservesCanonicalEncodingAndRangeIsolation()
+        {
+            var table = new RegionTable(1, Allocator.Persistent);
+            var pool = new BrickPool(1, Allocator.Persistent);
+            try
+            {
+                int3 coordinate = new(-2, 3, -4);
+                Region region = table.LoadRegion(coordinate);
+                region.SetBrick(62, 63, 63, BrickRef.Uniform(200));
+                int mixed = pool.Allocate(); pool.FillBrick(mixed, 3);
+                region.SetBrick(63, 63, 63, BrickRef.FromPoolIndex(mixed));
+                table.CommitRegion(in region);
+                var source = new RegionReadSource(in table, in pool);
+                Assert.That(source.TryAcquireRegion(coordinate, out RegionReadView view), Is.True);
+                using var ownedCopy = new NativeArray<int>(5, Allocator.Temp);
+                var copy = ownedCopy;
+                for (int i = 0; i < copy.Length; i++) copy[i] = 999;
+                int start = 64 * 64 * 64 - 3;
+                Assert.That(view.TryCopyBlockReferences(start, copy, 1, 3), Is.True);
+                Assert.That(copy.ToArray(), Is.EqualTo(new[] { 999, -1, -201, mixed, 999 }));
+                Assert.That(view.TryCopyBlockReferences(start, copy, 0, 4), Is.False);
+                Assert.That(view.TryCopyBlockReferences(start, copy, 3, 3), Is.False);
+                Assert.That(view.TryCopyBlockReferences(-1, copy, 0, 1), Is.False);
+                Assert.That(view.TryCopyBlockReferences(0, copy, 0, -1), Is.False);
+                Assert.That(default(RegionReadView).TryCopyBlockReferences(0, copy, 0, 1), Is.False);
+                Assert.That(copy.ToArray(), Is.EqualTo(new[] { 999, -1, -201, mixed, 999 }));
+                copy[2] = -4;
+                Assert.That(view.TryGetBlock(new int3(62, 63, 63), out VoxelReadBlock block), Is.True);
+                Assert.That(block.UniformMaterial, Is.EqualTo(200), "The destination must not alias world truth.");
+            }
+            finally { table.Dispose(); pool.Dispose(); }
+        }
+
+        [Test]
         public void ReadViewPreservesUniformMixedSurfaceAndMipSemantics()
         {
             var table = new RegionTable(1, Allocator.Persistent);

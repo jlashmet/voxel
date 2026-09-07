@@ -27,7 +27,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         /// <summary>
         /// Samples one face at the finer neighbour's spacing, given a world occupancy function.
         ///
-        /// Mirrors <c>CpuTransvoxelChunkCache.StepTransitionFaceSnapshot</c>. The addressing is
+        /// Mirrors <c>GpuSolidChunkCache.StepTransitionFaceSnapshot</c>. The addressing is
         /// restated because that method reads through a region source the oracle has no way to
         /// supply; what is under test is the mesher below, not this.
         ///

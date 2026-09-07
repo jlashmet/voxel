@@ -1,0 +1,198 @@
+#pragma kernel CSResolveSourceRange VOXEL_HLOD_SOURCE_RANGE VOXEL_SOURCE_ENTRIES
+#pragma kernel CSSummarizeSourceRange VOXEL_HLOD_SOURCE_RANGE
+#pragma kernel CSSummarizeBlocks
+#pragma kernel CSSummarizeDenseBlocks VOXEL_HLOD_DENSE_ENTRY
+#define VOXEL_FORCE_PERSISTENT_LOOKUP 1
+#include "VoxelBrickDensity.hlsl"
+
+StructuredBuffer<int4> _HlodBlocks;
+StructuredBuffer<uint> _HlodDenseEntries;
+RWStructuredBuffer<uint> _HlodSummaries;
+uint _HlodBlockCount;
+uint _HlodOutputBlockOffset;
+uint _HlodDirectoryOffset;
+uint _HlodDirectoryMask;
+#ifdef VOXEL_HLOD_SOURCE_RANGE
+StructuredBuffer<int4> _HlodRegions;
+StructuredBuffer<uint> _HlodOccupancy;
+uint _HlodHasOccupancy;
+StructuredBuffer<int> _HlodBlockReferences;
+uint _HlodHasBlockReferences;
+RWStructuredBuffer<uint> _HlodMissingBlocks;
+int3 _HlodRangeOrigin;
+int3 _HlodRangeExtent;
+uint _HlodRegionCount;
+#endif
+groupshared uint s_Entry;
+groupshared uint s_Known;
+groupshared uint s_Material[64];
+
+uint MaterialAt(uint voxel)
+{
+    uint kind = s_Entry & 3u;
+    if (kind == 0u) return 0u;
+    if (kind == 1u) return (s_Entry >> 8u) & 255u;
+    uint word = _BrickMaterials[(s_Entry >> 16u) * 128u + (voxel >> 2u)];
+    // Explicit byte selection keeps all four packed positions correct on Metal.
+    uint byteIndex = voxel & 3u;
+    if (byteIndex == 0u) return word & 255u;
+    if (byteIndex == 1u) return (word >> 8u) & 255u;
+    if (byteIndex == 2u) return (word >> 16u) & 255u;
+    return (word >> 24u) & 255u;
+}
+
+uint ExposedColumn(uint bottomVoxel)
+{
+    uint upper = MaterialAt(bottomVoxel + 8u);
+    if (IsSolidSample(upper)) return upper;
+    uint lower = MaterialAt(bottomVoxel);
+    return IsSolidSample(lower) ? lower : 0u;
+}
+
+uint VoteCount(uint material, uint4 columns)
+{
+    if (material == 0u) return 0u;
+    return (columns.x == material ? 1u : 0u) + (columns.y == material ? 1u : 0u)
+        + (columns.z == material ? 1u : 0u) + (columns.w == material ? 1u : 0u);
+}
+
+void Summarize(uint3 group, uint lane)
+{
+#ifdef VOXEL_HLOD_DENSE_ENTRY
+    uint local = group.x + group.y * 1024u;
+    if (local >= _HlodBlockCount) return;
+    uint brickIndex = local + group.z * _HlodBlockCount;
+#else
+    uint brickIndex = group.x;
+    if (brickIndex >= _HlodBlockCount) return;
+#endif
+    if (lane == 0u)
+    {
+#ifdef VOXEL_HLOD_DENSE_ENTRY
+        // Admission already holds complete mirror coverage and its immutable source lease.
+        s_Entry = _HlodDenseEntries[brickIndex];
+        s_Known = 1u;
+#else
+        s_Entry = 0u;
+#ifdef VOXEL_HLOD_SOURCE_RANGE
+        uint yz = brickIndex / (uint)_HlodRangeExtent.x;
+        int3 coordinate = _HlodRangeOrigin + int3(brickIndex % (uint)_HlodRangeExtent.x,
+            yz % (uint)_HlodRangeExtent.y, yz / (uint)_HlodRangeExtent.y);
+        int3 region = coordinate / 64;
+        int3 remainder = coordinate % 64;
+        region -= int3(remainder.x < 0 ? 1 : 0, remainder.y < 0 ? 1 : 0, remainder.z < 0 ? 1 : 0);
+        bool resident = false, regionKnown = false, occupied = true, sourceUniform = false;
+        for (uint r = 0u; r < _HlodRegionCount; r++)
+            if (all(_HlodRegions[r].xyz == region))
+            {
+                resident = _HlodRegions[r].w != 0;
+                regionKnown = true;
+                if (_HlodHasBlockReferences != 0u && resident)
+                {
+                    uint3 local = (uint3)(coordinate - region * 64);
+                    uint relativeY = (uint)(coordinate.y - _HlodRangeOrigin.y);
+                    uint relativeZ = (uint)(coordinate.z - _HlodRangeOrigin.z);
+                    int encoded = _HlodBlockReferences[r * 4096u + local.x
+                        + (relativeY + relativeZ * (uint)_HlodRangeExtent.y) * 64u];
+                    sourceUniform = encoded < 0;
+                    if (sourceUniform)
+                    {
+                        uint material = (uint)(-encoded - 1);
+                        s_Entry = material == 0u ? 0u : 1u | (material << 8u);
+                    }
+                }
+                if (_HlodHasOccupancy != 0u)
+                {
+                    uint3 local = (uint3)(coordinate - region * 64);
+                    uint bit = local.x + local.y * 64u;
+                    occupied = (_HlodOccupancy[r * 128u + bit / 32u] & (1u << (bit & 31u))) != 0u;
+                }
+            }
+        // Canonical occupancy proves air without a directory record. Occupied sources still
+        // require an uploaded, non-pending payload; optional nonresident halo remains air.
+        s_Known = regionKnown && (!resident || !occupied || sourceUniform) ? 1u : 0u;
+#else
+        // Legacy callers provide independent coverage proof for absent air.
+        s_Known = _HlodBlocks[group.x].w == 1 ? 1u : 0u;
+        int3 coordinate = _HlodBlocks[group.x].xyz;
+#endif
+        uint start = HashBrickCoordinate(coordinate) & _HlodDirectoryMask;
+        uint limit = _PersistentDirectoryProbeCount == 0u ? _HlodDirectoryMask + 1u
+            : min(_PersistentDirectoryProbeCount, _HlodDirectoryMask + 1u);
+#ifdef VOXEL_HLOD_SOURCE_RANGE
+        if (resident && occupied && !sourceUniform)
+#endif
+        [loop] for (uint probe = 0u; probe < limit; probe++)
+        {
+            uint word = _HlodDirectoryOffset + ((start + probe) & _HlodDirectoryMask) * 5u;
+            uint state = _BrickMaterials[word + 4u];
+            if (state == 0u) break;
+            if (state != DIRECTORY_OCCUPIED) continue;
+            if (asint(_BrickMaterials[word]) != coordinate.x
+                || asint(_BrickMaterials[word + 1u]) != coordinate.y
+                || asint(_BrickMaterials[word + 2u]) != coordinate.z) continue;
+            s_Entry = _BrickMaterials[word + 3u];
+#ifdef VOXEL_HLOD_SOURCE_RANGE
+            // Bit2 marks a queued replacement without overwriting the immutable old payload.
+            s_Known = (s_Entry & 4u) == 0u ? 1u : 0u;
+#else
+            s_Known = 1u;
+#endif
+            break;
+        }
+#ifdef VOXEL_HLOD_SOURCE_RANGE
+        if (s_Known == 0u)
+        {
+            uint missingIndex;
+            InterlockedAdd(_HlodMissingBlocks[0], 1u, missingIndex);
+            _HlodMissingBlocks[1u + missingIndex] = brickIndex;
+        }
+#endif
+#endif
+    }
+    GroupMemoryBarrierWithGroupSync();
+#ifdef VOXEL_SOURCE_ENTRIES
+    if (lane == 0u) _HlodSummaries[brickIndex + _HlodOutputBlockOffset] = s_Known != 0u ? s_Entry : 0u;
+#else
+    uint3 minimum = uint3(lane & 3u, (lane >> 2u) & 3u, lane >> 4u) * 2u;
+    // Four independent columns each vote once.
+    // Each column contributes only its topmost solid, in Z-then-X tie order.
+    uint baseVoxel = minimum.x + 8u * (minimum.y + 8u * minimum.z);
+    uint4 materials = uint4(ExposedColumn(baseVoxel), ExposedColumn(baseVoxel + 1u),
+        ExposedColumn(baseVoxel + 64u), ExposedColumn(baseVoxel + 65u));
+    uint4 votes = uint4(VoteCount(materials.x, materials), VoteCount(materials.y, materials),
+        VoteCount(materials.z, materials), VoteCount(materials.w, materials));
+    uint representative = materials.x, best = votes.x;
+    if (votes.y > best) { representative = materials.y; best = votes.y; }
+    if (votes.z > best) { representative = materials.z; best = votes.z; }
+    if (votes.w > best) { representative = materials.w; }
+    s_Material[lane] = representative;
+    GroupMemoryBarrierWithGroupSync();
+    uint output = (brickIndex + _HlodOutputBlockOffset) * 19u;
+    if (lane < 16u)
+    {
+        uint first = lane * 4u;
+        _HlodSummaries[output + 2u + lane] = s_Material[first] | (s_Material[first + 1u] << 8u)
+            | (s_Material[first + 2u] << 16u) | (s_Material[first + 3u] << 24u);
+    }
+    if (lane < 2u)
+    {
+        uint mask = 0u;
+        [unroll] for (uint bit = 0u; bit < 32u; bit++)
+            if (s_Material[lane * 32u + bit] != 0u) mask |= 1u << bit;
+        _HlodSummaries[output + lane] = mask;
+    }
+    if (lane == 0u) _HlodSummaries[output + 18u] = s_Known == 0u ? 1u : 0u;
+#endif
+}
+
+[numthreads(64, 1, 1)]
+void CSSummarizeBlocks(uint3 group : SV_GroupID, uint lane : SV_GroupIndex) { Summarize(group, lane); }
+[numthreads(64, 1, 1)]
+void CSSummarizeDenseBlocks(uint3 group : SV_GroupID, uint lane : SV_GroupIndex) { Summarize(group, lane); }
+
+[numthreads(64, 1, 1)]
+void CSSummarizeSourceRange(uint3 group : SV_GroupID, uint lane : SV_GroupIndex) { Summarize(group, lane); }
+
+[numthreads(64, 1, 1)]
+void CSResolveSourceRange(uint3 group : SV_GroupID, uint lane : SV_GroupIndex) { Summarize(group, lane); }

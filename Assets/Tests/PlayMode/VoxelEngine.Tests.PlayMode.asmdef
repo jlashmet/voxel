@@ -64,7 +64,8 @@
         "Game.Structures.Runtime",
         "Game.Materials.Api",
         "Game.Materials.Runtime",
-        "Game.Composition.Showcase"
+        "Game.Composition.Showcase",
+        "VoxelEngine.Rendering.Tests.RuntimeSupport"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

@@ -1,0 +1,136 @@
+#pragma kernel CSRank
+#pragma kernel CSRetire
+
+// Presentation-only pressure decisions. Bounds belong to the published generation;
+// readback reports retired identities, never geometry or world state.
+struct GeometryRecord
+{
+    uint generationLow, generationHigh, bank, vertexCount;
+    uint indexCount, vertexPageCount, indexPageCount, ready;
+};
+struct ResidentBounds { float4 center; float4 extent; };
+StructuredBuffer<ResidentBounds> _Bounds;
+StructuredBuffer<uint2> _Desired;
+StructuredBuffer<uint2> _Owners;
+uint _FilterStep, _FilterShard, _FilterShardCount;
+StructuredBuffer<GeometryRecord> _Pending;
+RWStructuredBuffer<GeometryRecord> _Live;
+StructuredBuffer<uint> _VertexTable;
+StructuredBuffer<uint> _IndexTable;
+RWStructuredBuffer<uint> _ArenaState;
+RWStructuredBuffer<uint2> _RetiredVertices;
+RWStructuredBuffer<uint2> _RetiredIndices;
+RWStructuredBuffer<uint2> _Candidates;
+RWStructuredBuffer<uint4> _Outcomes;
+float4 _Planes[6];
+float4 _Camera;
+uint _HandleCount, _GroupCount, _Wanted, _Epoch;
+uint _VertexPageCount, _IndexPageCount, _RetirementDelay;
+groupshared float distances[64];
+groupshared uint handles[64];
+groupshared uint winner;
+
+[numthreads(64,1,1)]
+void CSRank(uint3 id : SV_DispatchThreadID, uint lane : SV_GroupIndex,
+            uint3 group : SV_GroupID)
+{
+    float distance = -1.0;
+    if (id.x < _HandleCount)
+    {
+        GeometryRecord live = _Live[id.x];
+        uint2 desired = _Desired[id.x];
+        uint2 owner = _Owners[id.x];
+        bool owned = _FilterStep == 0 || (owner.x == _FilterStep &&
+            owner.y % max(1u, _FilterShardCount) == _FilterShard);
+        if (owned && live.ready != 0 && live.vertexPageCount + live.indexPageCount > 0 &&
+            live.generationLow == desired.x && live.generationHigh == desired.y &&
+            _Pending[id.x].ready == 0)
+        {
+            ResidentBounds bounds = _Bounds[id.x];
+            bool outside = false;
+            for (uint plane = 0; plane < 6; plane++)
+                outside = outside || dot(_Planes[plane].xyz, bounds.center.xyz) +
+                    _Planes[plane].w + dot(abs(_Planes[plane].xyz), bounds.extent.xyz) < 0;
+            if (outside)
+            {
+                float3 delta = bounds.center.xyz - _Camera.xyz;
+                distance = dot(delta, delta);
+            }
+        }
+    }
+    // Each group emits the requested top K. The global top K must be in that union.
+    for (uint selection = 0; selection < _Wanted; selection++)
+    {
+        distances[lane] = distance;
+        handles[lane] = id.x;
+        GroupMemoryBarrierWithGroupSync();
+        for (uint stride = 32; stride > 0; stride >>= 1)
+        {
+            if (lane < stride)
+            {
+                float other = distances[lane + stride];
+                uint otherHandle = handles[lane + stride];
+                if (other > distances[lane] ||
+                    (other == distances[lane] && otherHandle < handles[lane]))
+                {
+                    distances[lane] = other;
+                    handles[lane] = otherHandle;
+                }
+            }
+            GroupMemoryBarrierWithGroupSync();
+        }
+        if (lane == 0)
+        {
+            winner = handles[0];
+            _Candidates[group.x * 16 + selection] =
+                uint2(winner, asuint(distances[0]));
+        }
+        GroupMemoryBarrierWithGroupSync();
+        if (id.x == winner) distance = -1.0;
+        GroupMemoryBarrierWithGroupSync();
+    }
+}
+
+[numthreads(1,1,1)]
+void CSRetire(uint3 id : SV_DispatchThreadID)
+{
+    for (uint slot = 0; slot < 16; slot++)
+    {
+        _Outcomes[slot] = uint4(0,0,0,0);
+        if (slot >= _Wanted) continue;
+        float best = -1.0;
+        uint candidateIndex = 0, handle = 0xffffffff;
+        for (uint ordinal = 0; ordinal < _GroupCount * _Wanted; ordinal++)
+        {
+            uint i = (ordinal / _Wanted) * 16 + ordinal % _Wanted;
+            uint2 candidate = _Candidates[i];
+            float distance = asfloat(candidate.y);
+            if (distance > best || (distance == best && distance >= 0 && candidate.x < handle))
+            {
+                best = distance;
+                candidateIndex = i;
+                handle = candidate.x;
+            }
+        }
+        if (best < 0) continue;
+        _Candidates[candidateIndex] = uint2(handle, asuint(-1.0));
+        GeometryRecord live = _Live[handle];
+        // Dispatches are ordered on one graphics queue. Retiring only live pages preserves
+        // handle ownership until the host acknowledges this exact generation.
+        for (uint v = 0; v < live.vertexPageCount; v++)
+        {
+            uint tail = _ArenaState[3]++;
+            _RetiredVertices[tail % _VertexPageCount] = uint2(
+                _VertexTable[(handle * 2 + live.bank) * 512 + v], _Epoch + _RetirementDelay);
+        }
+        for (uint j = 0; j < live.indexPageCount; j++)
+        {
+            uint tail = _ArenaState[5]++;
+            _RetiredIndices[tail % _IndexPageCount] = uint2(
+                _IndexTable[(handle * 2 + live.bank) * 512 + j], _Epoch + _RetirementDelay);
+        }
+        live.ready = 0;
+        _Live[handle] = live;
+        _Outcomes[slot] = uint4(1, handle, live.generationLow, live.generationHigh);
+    }
+}

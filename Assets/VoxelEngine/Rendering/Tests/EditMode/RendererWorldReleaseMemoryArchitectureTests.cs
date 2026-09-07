@@ -16,8 +16,10 @@ namespace VoxelEngine.Tests.EditMode
                 "private VoxelSurfaceScheduler _scheduler = new();", source,
                 "the persistent render feature must not allocate an arena before a world renders");
             StringAssert.Contains(
-                "_scheduler ??= new VoxelSurfaceScheduler();", source,
+                "if (_scheduler == null)", source,
                 "renderer state should be created only when a valid world actually renders");
+
+            StringAssert.Contains("_scheduler = new VoxelSurfaceScheduler();", source);
 
             int release = source.IndexOf(
                 "private void ReleaseWorldResources()", StringComparison.Ordinal);

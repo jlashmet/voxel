@@ -21,7 +21,7 @@ namespace VoxelEngine.Rendering.Runtime.SurfaceExtraction
 
         public int PendingCount => _pending.Count;
 
-        public void EnqueueAndStep(CpuWaterSurfaceChunkCache water,
+        public void EnqueueAndStep(GpuWaterSurfaceChunkCache water,
                                    IRegionReadSource storage,
                                    IReadOnlyList<int3> discoveredSurfaceBricks,
                                    double deadlineSeconds)

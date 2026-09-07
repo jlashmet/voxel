@@ -26,7 +26,8 @@ namespace Game.Structures.Runtime
                    DecorationExpansion340AuthoringEmitter.TryAuthorGeometry(authoring, placements, in context) &&
                    DecorationExpansion360AuthoringEmitter.TryAuthorGeometry(authoring, placements, in context, region) &&
                    DecorationExpansion380AuthoringEmitter.TryAuthorGeometry(authoring, placements, in context, region) &&
-                   DecorationExpansion400AuthoringEmitter.TryAuthorGeometry(authoring, placements, in context);
+                   DecorationExpansion400AuthoringEmitter.TryAuthorGeometry(authoring, placements, in context) &&
+                   GuildSignatureDecorationEmitter.TryAuthorGeometry(authoring, placements, in context, region);
         }
     }
 }

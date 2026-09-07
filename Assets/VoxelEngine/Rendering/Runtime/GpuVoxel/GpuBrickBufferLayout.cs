@@ -18,6 +18,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
     /// </summary>
     public static class GpuBrickBufferLayout
     {
+        // Directory entries reserve their upper sixteen bits for the physical mixed slot.
+        public const int MaximumAddressableSlots = 1 << 16;
         public const int VoxelsPerBrick = VoxelReadGrid.VoxelsPerBlock;
         public const int OccupancyWordsPerBrick = VoxelReadGrid.OccupancyWordsPerBlock;
 
@@ -62,6 +64,6 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         public static int SlotsForBudget(long budgetBytes) =>
             budgetBytes <= BytesPerMixedBrick
                 ? 1
-                : (int)System.Math.Min(int.MaxValue, budgetBytes / BytesPerMixedBrick);
+                : (int)System.Math.Min(MaximumAddressableSlots, budgetBytes / BytesPerMixedBrick);
     }
 }

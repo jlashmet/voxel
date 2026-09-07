@@ -1,0 +1,426 @@
+using System;
+using System.Collections.Generic;
+using NUnit.Framework;
+using Unity.Mathematics;
+using UnityEngine;
+using UnityEngine.Rendering;
+using VoxelEngine.Rendering.Runtime.GpuVoxel;
+using VoxelEngine.Rendering.Runtime.SurfaceExtraction;
+
+namespace VoxelEngine.Rendering.Tests.EditMode
+{
+    public sealed class GpuSurfaceLodSelectionTests
+    {
+        private ComputeShader _page, _draw;
+        private GpuSurfacePageArena _arena;
+        private GpuSurfaceDrawDispatcher _dispatcher;
+
+        [SetUp] public void SetUp()
+        {
+            Assert.That(SystemInfo.supportsComputeShaders, Is.True);
+            _page = UnityEngine.Object.Instantiate(Resources.Load<ComputeShader>("GpuSurfacePageArena"));
+            _draw = UnityEngine.Object.Instantiate(Resources.Load<ComputeShader>("GpuSurfaceDrawCompact"));
+            _arena = new GpuSurfacePageArena(_page, GpuSurfacePageArena.VertexPageSize * 4,
+                GpuSurfacePageArena.IndexPageSize * 4, 1024);
+            _dispatcher = new GpuSurfaceDrawDispatcher(_draw, _arena);
+        }
+        [TearDown] public void TearDown()
+        {
+            if (_dispatcher.ActiveIndirectArgs != null)
+                _dispatcher.ActiveIndirectArgs.GetData(new uint[GpuSurfaceDrawDispatcher.BucketCount * 4]);
+            _dispatcher.Dispose(); _arena.Dispose();
+            UnityEngine.Object.DestroyImmediate(_page); UnityEngine.Object.DestroyImmediate(_draw);
+        }
+
+        private HashSet<int> Select(List<SurfaceLodNodeKey> drawable, List<SurfaceLodNodeKey> complete, int frame,
+            List<SurfaceLodNodeKey> owned = null, Plane[] planes = null, float voxelSize = 1f,
+            Vector4[] bands = null, Vector3 position = default)
+        {
+            var handles = new List<int>();
+            var records = new uint[_arena.HandleCapacity * 8];
+            for (int i = 0; i < drawable.Count; i++)
+            {
+                handles.Add(i);
+                records[i * 8] = 1; records[i * 8 + 3] = 3;
+                records[i * 8 + 4] = 3; records[i * 8 + 7] = 1;
+            }
+            _arena.LiveChunkGeometry.SetData(records);
+            _dispatcher.PrepareLod(drawable, handles, complete, frame, owned, planes, voxelSize, bands, position);
+            var args = new uint[GpuSurfaceDrawDispatcher.BucketCount * 4];
+            _dispatcher.ActiveIndirectArgs.GetData(args);
+            int count = 0;
+            for (int i = 0; i < GpuSurfaceDrawDispatcher.BucketCount; i++) count += (int)args[i * 4 + 1];
+            var draws = new uint[_arena.HandleCapacity * 4];
+            _dispatcher.ActiveDrawMetadata.GetData(draws);
+            var selected = new HashSet<int>();
+            for (int i = 0; i < count; i++)
+                Assert.That(selected.Add((int)draws[i * 4]), Is.True, "Duplicate GPU-selected handle.");
+            return selected;
+        }
+
+        private sealed class CountOnlyList<T> : IReadOnlyList<T>
+        {
+            public int Count { get; }
+            internal CountOnlyList(int count) { Count = count; }
+            public T this[int index] => throw new InvalidOperationException("Reused input image must not rescan source lists.");
+            public IEnumerator<T> GetEnumerator() => throw new InvalidOperationException();
+            System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+        }
+
+        [Test]
+        public void RetiredGeometryCannotRemainSelectedThroughReusedCpuMembership()
+        {
+            var nodes = new List<SurfaceLodNodeKey> { new(1, int3.zero) };
+            CollectionAssert.AreEquivalent(new[] { 0 }, Select(nodes, nodes, 0, nodes));
+            _arena.LiveChunkGeometry.SetData(new uint[_arena.HandleCapacity * 8]);
+            _dispatcher.PrepareLod(nodes, new[] { 0 }, nodes, 1, nodes, reuseInputImage: true);
+            var selected = new uint[_arena.HandleCapacity];
+            _dispatcher.ActiveLodSelection.GetData(selected);
+            Assert.That(selected[0], Is.Zero, "A delayed host acknowledgment cannot preserve retired coverage.");
+        }
+
+        [Test]
+        public void ReusedInputImageStillClassifiesCurrentCameraAndBandsAcrossBufferedSlots()
+        {
+            var nodes = new List<SurfaceLodNodeKey> { new(1, int3.zero) };
+            var bands = new Vector4[4];
+            for (int i = 0; i < 4; i++) bands[i] = new Vector4(0, 10000, 0, 0);
+            var planes = new[] { new Plane(Vector3.right, 100), new Plane(Vector3.left, 100),
+                new Plane(Vector3.up, 100), new Plane(Vector3.down, 100),
+                new Plane(Vector3.forward, 100), new Plane(Vector3.back, 100) };
+            CollectionAssert.AreEquivalent(new[] { 0 }, Select(nodes, nodes, 0, nodes, planes, bands: bands));
+            var nodeCounts = new CountOnlyList<SurfaceLodNodeKey>(1);
+            var handleCounts = new CountOnlyList<int>(1);
+            for (int frame = 1; frame <= 9; frame++)
+            {
+                int mode = frame % 3;
+                planes[0] = new Plane(Vector3.right, mode == 1 ? -100000 : 100);
+                bands[0].z = mode == 2 ? 1 : 0;
+                _dispatcher.PrepareLod(nodeCounts, handleCounts, nodeCounts, frame, nodeCounts,
+                    planes, 1, bands, Vector3.zero, reuseInputImage: true);
+                var selected = new uint[_arena.HandleCapacity];
+                _dispatcher.ActiveLodSelection.GetData(selected);
+                Assert.AreEqual(mode == 0 ? 1u : 0u, selected[0]);
+                if (frame >= 3) Assert.AreEqual(0, _dispatcher.LastLodUploadedNodes);
+            }
+            // A changed scheduler image must still replace the reused membership.
+            var changed = new List<SurfaceLodNodeKey> { new(1, new int3(5000, 0, 0)) };
+            Assert.IsEmpty(Select(changed, changed, 10, changed, planes, bands: bands));
+            Assert.Greater(_dispatcher.LastLodUploadedNodes, 0);
+        }
+
+        [TestCase(1)] [TestCase(2)] [TestCase(4)] [TestCase(8)]
+        public void GpuDemandFeedbackPreservesBandAndFrustumForOwnedMissingNodes(int step)
+        {
+            var key = new SurfaceLodNodeKey(step, new int3(-2, 0, 1));
+            var owned = new List<SurfaceLodNodeKey> { key };
+            var none = new List<SurfaceLodNodeKey>();
+            var bands = new Vector4[4];
+            for (int i = 0; i < 4; i++) bands[i] = new Vector4(0, 10000, 0, 0);
+            var planes = new[] { new Plane(Vector3.right, -100000), new Plane(Vector3.left, 100000),
+                new Plane(Vector3.up, 100000), new Plane(Vector3.down, 100000),
+                new Plane(Vector3.forward, 100000), new Plane(Vector3.back, 100000) };
+            Assert.That(Select(none, none, 0, owned, planes, bands: bands), Is.Empty);
+            _dispatcher.RequestDemandFeedback();
+            AsyncGPUReadback.WaitAllRequests();
+            var results = new Dictionary<SurfaceLodNodeKey, uint>();
+            Assert.True(_dispatcher.TryConsumeDemand(reset => { if (reset) results.Clear(); }, (node, geometry, _) => results[node] = geometry));
+            Assert.That(results.Count, Is.EqualTo(1), "Synthetic ancestors must not become host demand.");
+            Assert.That(results[key] & 3, Is.EqualTo(1), "Off-frustum in-band demand must retain background prefetch.");
+            planes[0] = new Plane(Vector3.right, 100000);
+            Select(none, none, 1, owned, planes, bands: bands);
+            _dispatcher.RequestDemandFeedback(); AsyncGPUReadback.WaitAllRequests();
+            Assert.True(_dispatcher.TryConsumeDemand(reset => { if (reset) results.Clear(); }, (node, geometry, _) => results[node] = geometry));
+            Assert.That(results[key] & 3, Is.EqualTo(3));
+            bands[step == 1 ? 0 : step == 2 ? 1 : step == 4 ? 2 : 3].z = 1;
+            Select(none, none, 2, owned, planes, bands: bands);
+            _dispatcher.RequestDemandFeedback(); AsyncGPUReadback.WaitAllRequests();
+            Assert.True(_dispatcher.TryConsumeDemand(reset => { if (reset) results.Clear(); }, (node, geometry, _) => results[node] = geometry));
+            Assert.That(results[key] & 1, Is.Zero);
+        }
+
+        [Test]
+        public void GpuDemandRejectsReplacedMembershipAndSettingsButSurvivesReadinessChanges()
+        {
+            var first = new List<SurfaceLodNodeKey> { new(1, int3.zero) };
+            var second = new List<SurfaceLodNodeKey> { new(1, new int3(10)) };
+            var none = new List<SurfaceLodNodeKey>();
+            Select(none, none, 0, first);
+            _dispatcher.RequestDemandFeedback(); AsyncGPUReadback.WaitAllRequests();
+            Select(none, none, 1, second);
+            Assert.False(_dispatcher.TryConsumeDemand(_ => Assert.Fail("Old membership accepted"), (_, _, _) => { }));
+            _dispatcher.RequestDemandFeedback(); AsyncGPUReadback.WaitAllRequests();
+            Select(second, second, 2, second);
+            var received = new List<SurfaceLodNodeKey>();
+            Assert.True(_dispatcher.TryConsumeDemand(reset => { if (reset) received.Clear(); }, (key, _, _) => received.Add(key)));
+            CollectionAssert.AreEqual(second, received);
+            _dispatcher.RequestDemandFeedback(); AsyncGPUReadback.WaitAllRequests();
+            Select(second, second, 3, second, voxelSize: 0.1f);
+            Assert.False(_dispatcher.TryConsumeDemand(_ => Assert.Fail("Old scale accepted"), (_, _, _) => { }));
+            Assert.That(_dispatcher.DemandFeedbackDiscarded, Is.EqualTo(2));
+            Assert.That(_dispatcher.DemandFeedbackErrors, Is.Zero);
+        }
+
+        [Test]
+        public void GpuDemandDistanceRanksPreserveNearFirstPrefetch()
+        {
+            var near = new SurfaceLodNodeKey(1, int3.zero);
+            var far = new SurfaceLodNodeKey(1, new int3(10, 0, 0));
+            var distant = new SurfaceLodNodeKey(1, new int3(100000, 0, 0));
+            var owned = new List<SurfaceLodNodeKey> { far, near, distant };
+            var none = new List<SurfaceLodNodeKey>();
+            Select(none, none, 0, owned);
+            _dispatcher.RequestDemandFeedback(); AsyncGPUReadback.WaitAllRequests();
+            var results = new Dictionary<SurfaceLodNodeKey, uint>();
+            Assert.True(_dispatcher.TryConsumeDemand(reset => { if (reset) results.Clear(); }, (key, rank, _) => results[key] = rank));
+            Assert.That(results.Count, Is.EqualTo(3));
+            Assert.That(results[distant] >> 3, Is.EqualTo(33554430u), "Distance saturation must not wrap to nearest priority.");
+            Assert.That(results[far] >> 3, Is.GreaterThan(results[near] >> 3));
+            Assert.That(results[near] >> 3, Is.EqualTo(3 * 32 * 32 * 16));
+        }
+
+        [Test]
+        public void StationaryDemandReusesClassificationUntilReadinessOrCameraChanges()
+        {
+            var owned = new List<SurfaceLodNodeKey> { new(1, int3.zero) };
+            var none = new List<SurfaceLodNodeKey>();
+            Select(none, none, 0, owned);
+            _dispatcher.RequestDemandFeedback(); AsyncGPUReadback.WaitAllRequests();
+            Assert.True(_dispatcher.TryConsumeDemand(_ => { }, (_, _, _) => { }));
+            Select(none, none, 1, owned);
+            _dispatcher.RequestDemandFeedback(); AsyncGPUReadback.WaitAllRequests();
+            Assert.False(_dispatcher.TryConsumeDemand(_ => { }, (_, _, _) => { }));
+            Select(owned, owned, 2, owned);
+            _dispatcher.RequestDemandFeedback(); AsyncGPUReadback.WaitAllRequests();
+            Assert.True(_dispatcher.TryConsumeDemand(_ => { }, (_, _, _) => { }));
+            Select(owned, owned, 3, owned, position: new Vector3(1, 0, 0));
+            _dispatcher.RequestDemandFeedback(); AsyncGPUReadback.WaitAllRequests();
+            Assert.True(_dispatcher.TryConsumeDemand(_ => { }, (_, _, _) => { }));
+        }
+
+        [Test]
+        public void MovingFeedbackUpdatesOnlyChangedClassificationAndPendingRanks()
+        {
+            var ready = new SurfaceLodNodeKey(1, int3.zero);
+            var pending = new SurfaceLodNodeKey(1, new int3(2, 0, 0));
+            var owned = new List<SurfaceLodNodeKey> { ready, pending };
+            var complete = new List<SurfaceLodNodeKey> { ready };
+            var calls = new Dictionary<SurfaceLodNodeKey, bool>();
+            bool reset = false;
+            void Consume()
+            {
+                calls.Clear();
+                _dispatcher.RequestDemandFeedback(); AsyncGPUReadback.WaitAllRequests();
+                Assert.True(_dispatcher.TryConsumeDemand(value => reset = value,
+                    (key, _, refresh) => calls.Add(key, refresh)));
+            }
+            Select(complete, complete, 0, owned);
+            Consume(); Assert.True(reset); Assert.That(calls.Count, Is.EqualTo(2));
+            Select(complete, complete, 1, owned, position: new Vector3(1, 0, 0));
+            Consume(); Assert.False(reset);
+            Assert.That(calls.Count, Is.EqualTo(1));
+            Assert.False(calls[pending], "Camera distance changes require only pending admission ranks.");
+            var planes = new[] { new Plane(Vector3.right, -100000), new Plane(Vector3.left, 100000),
+                new Plane(Vector3.up, 100000), new Plane(Vector3.down, 100000),
+                new Plane(Vector3.forward, 100000), new Plane(Vector3.back, 100000) };
+            Select(complete, complete, 2, owned, planes, position: new Vector3(1, 0, 0));
+            Consume(); Assert.False(reset); Assert.That(calls.Count, Is.EqualTo(2));
+            Assert.True(calls[ready]); Assert.True(calls[pending]);
+            // A newer host readiness image must recheck actual generations, even when an
+            // older camera query has already completed. Metadata changes cannot take the rank path.
+            Select(complete, complete, 3, owned, planes, position: new Vector3(2, 0, 0));
+            _dispatcher.RequestDemandFeedback(); AsyncGPUReadback.WaitAllRequests();
+            Select(owned, owned, 4, owned, planes, position: new Vector3(2, 0, 0));
+            calls.Clear();
+            Assert.True(_dispatcher.TryConsumeDemand(value => reset = value,
+                (key, _, refresh) => calls.Add(key, refresh)));
+            Assert.True(reset); Assert.That(calls.Count, Is.EqualTo(2));
+            Assert.True(calls[ready]); Assert.True(calls[pending]);
+        }
+
+        [Test]
+        public void DisposingPendingDemandDrainsReadbackBeforeReleasingBuffers()
+        {
+            var owned = new List<SurfaceLodNodeKey> { new(1, int3.zero) };
+            Select(new List<SurfaceLodNodeKey>(), new List<SurfaceLodNodeKey>(), 0, owned);
+            _dispatcher.RequestDemandFeedback();
+            _dispatcher.Dispose();
+            AsyncGPUReadback.WaitAllRequests();
+            Assert.False(_dispatcher.TryConsumeDemand(_ => Assert.Fail("Disposed feedback accepted"), (_, _, _) => { }));
+            _dispatcher.Dispose();
+        }
+
+        [TestCase(1)] [TestCase(2)] [TestCase(4)] [TestCase(8)]
+        public void GpuBandsPreservePaddedBoundaryEqualityAndSuspension(int step)
+        {
+            int bandIndex = step == 1 ? 0 : step == 2 ? 1 : step == 4 ? 2 : 3;
+            var bands = new Vector4[4];
+            for (int i = 0; i < 4; i++) bands[i] = new Vector4(0, 10000, 0, 0);
+            var key = new SurfaceLodNodeKey(step, new int3(-2, 0, 1));
+            var nodes = new List<SurfaceLodNodeKey> { key };
+            var complete = new List<SurfaceLodNodeKey>();
+            Vector3 centre = new Vector3(-96, 32, 96) * step;
+            float extent = 33 * step;
+            Vector3 position = centre + Vector3.right * (extent + 20);
+            bands[bandIndex] = new Vector4(0, 20, 0, 0);
+            CollectionAssert.AreEquivalent(new[] { 0 }, Select(nodes, complete, 0, nodes, bands: bands, position: position));
+            bands[bandIndex].y = 19;
+            Assert.That(Select(nodes, complete, 1, nodes, bands: bands, position: position), Is.Empty);
+            bands[bandIndex] = new Vector4(2 * extent + 20, 10000, 0, 0);
+            Assert.That(Select(nodes, complete, 2, nodes, bands: bands, position: position), Is.Empty);
+            bands[bandIndex].x -= 1;
+            CollectionAssert.AreEquivalent(new[] { 0 }, Select(nodes, complete, 3, nodes, bands: bands, position: position));
+            bands[bandIndex].z = 1;
+            Assert.That(Select(nodes, complete, 4, nodes, bands: bands, position: position), Is.Empty);
+            Assert.That(_dispatcher.LastLodUploadedNodes, Is.Zero,
+                "Changing camera or bands must not rebuild unchanged candidate metadata.");
+        }
+
+        [Test]
+        public void OutOfBandOwnedChildrenCannotFalselyCompleteParentHandoff()
+        {
+            var parent = new SurfaceLodNodeKey(2, int3.zero);
+            var nodes = new List<SurfaceLodNodeKey> { parent };
+            var complete = new List<SurfaceLodNodeKey>();
+            var owned = new List<SurfaceLodNodeKey>();
+            for (int i = 0; i < 8; i++)
+            {
+                var child = new SurfaceLodNodeKey(1, SurfaceLodHierarchy.ChildCoordinate(parent.Coordinate, i));
+                nodes.Add(child); complete.Add(child); owned.Add(child);
+            }
+            var bands = new[] { new Vector4(0, 1000, 1, 0), new Vector4(0, 1000, 0, 0),
+                new Vector4(0, 1000, 0, 0), new Vector4(0, 1000, 0, 0) };
+            CollectionAssert.AreEquivalent(new[] { 0 }, Select(nodes, complete, 0, owned, bands: bands));
+            bands[0].z = 0;
+            CollectionAssert.AreEquivalent(new[] { 1,2,3,4,5,6,7,8 }, Select(nodes, complete, 1, owned, bands: bands));
+        }
+
+        [Test]
+        public void ReadinessChangesPreserveGpuHandoffWithoutRebuildingStableTopology()
+        {
+            var parent = new SurfaceLodNodeKey(2, int3.zero);
+            var nodes = new List<SurfaceLodNodeKey> { parent };
+            var complete = new List<SurfaceLodNodeKey>();
+            for (int i = 0; i < 8; i++)
+                nodes.Add(new SurfaceLodNodeKey(1, SurfaceLodHierarchy.ChildCoordinate(parent.Coordinate, i)));
+            for (int i = 1; i < 8; i++) complete.Add(nodes[i]);
+            CollectionAssert.AreEquivalent(new[] { 0 }, Select(nodes, complete, 0, nodes));
+            complete.Add(nodes[8]);
+            CollectionAssert.AreEquivalent(new[] { 1,2,3,4,5,6,7,8 }, Select(nodes, complete, 1, nodes));
+            complete.RemoveAt(0);
+            CollectionAssert.AreEquivalent(new[] { 0 }, Select(nodes, complete, 2, nodes));
+            var inputs = (GpuSurfaceLodInputs)typeof(GpuSurfaceDrawDispatcher)
+                .GetField("_lodInputs", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                .GetValue(_dispatcher);
+            Assert.That(inputs.TopologyBuildCount, Is.EqualTo(1));
+            nodes.Add(new SurfaceLodNodeKey(1, new int3(10, 0, 0)));
+            CollectionAssert.AreEquivalent(new[] { 0, 9 }, Select(nodes, complete, 3, nodes));
+            Assert.That(inputs.TopologyBuildCount, Is.EqualTo(2), "Membership changes must still rebuild valid topology.");
+        }
+
+        [Test] public void PartialThenCompleteThenEditedChildrenPreserveAtomicHandoff()
+        {
+            var parent = new SurfaceLodNodeKey(4, new int3(-2, 1, -3));
+            var drawable = new List<SurfaceLodNodeKey> { parent };
+            var complete = new List<SurfaceLodNodeKey>();
+            for (int i = 0; i < 7; i++)
+            {
+                var child = new SurfaceLodNodeKey(2, SurfaceLodHierarchy.ChildCoordinate(parent.Coordinate, i));
+                drawable.Add(child); complete.Add(child);
+            }
+            CollectionAssert.AreEquivalent(new[] { 0 }, Select(drawable, complete, 0));
+            complete.Add(new SurfaceLodNodeKey(2, SurfaceLodHierarchy.ChildCoordinate(parent.Coordinate, 7)));
+            CollectionAssert.AreEquivalent(new[] { 1, 2, 3, 4, 5, 6, 7 }, Select(drawable, complete, 1));
+            complete.RemoveAt(0); // editing a child revokes current completion, retaining its old draw
+            CollectionAssert.AreEquivalent(new[] { 0 }, Select(drawable, complete, 2));
+            drawable.Clear(); complete.Clear();
+            Assert.That(Select(drawable, complete, 3), Is.Empty, "Reused frame buffers must clear old selection.");
+        }
+
+        [Test] public void ProofOnlyChildrenKeepPhysicalParent()
+        {
+            var parent = new SurfaceLodNodeKey(8, new int3(-1, -1, -1));
+            var complete = new List<SurfaceLodNodeKey>();
+            for (int i = 0; i < 8; i++)
+                complete.Add(new SurfaceLodNodeKey(4, SurfaceLodHierarchy.ChildCoordinate(parent.Coordinate, i)));
+            CollectionAssert.AreEquivalent(new[] { 0 }, Select(new List<SurfaceLodNodeKey> { parent }, complete, 0));
+        }
+
+        [Test] public void GpuFrustumMatchesPaddedBoundsAcrossCameraAndProjectionChanges()
+        {
+            var go = new GameObject("GPU visibility camera fixture");
+            try
+            {
+                var camera = go.AddComponent<Camera>();
+                camera.nearClipPlane = 0.1f; camera.farClipPlane = 300f; camera.aspect = 1.7f;
+                var owned = new List<SurfaceLodNodeKey> { new(8, new int3(-1, 0, -1)) };
+                for (int i = 0; i < owned.Count; i++)
+                    if (owned[i].SourceStep > 1)
+                        for (int c = 0; c < 8; c++)
+                            owned.Add(new SurfaceLodNodeKey(owned[i].SourceStep / 2,
+                                SurfaceLodHierarchy.ChildCoordinate(owned[i].Coordinate, c)));
+                var complete = new List<SurfaceLodNodeKey>();
+                for (int i = 0; i < owned.Count; i++) if (i % 11 != 0) complete.Add(owned[i]);
+                const float voxelSize = 0.1f;
+                int offCamera = 0, selectedTotal = 0;
+                for (int frame = 0; frame < 8; frame++)
+                {
+                    camera.transform.position = new Vector3(35 - frame * 8, 18, -65);
+                    camera.transform.LookAt(new Vector3(-20 + frame * 4, 18, -20));
+                    camera.orthographic = frame % 2 == 0;
+                    camera.orthographicSize = 12;
+                    camera.fieldOfView = 35 + frame * 3;
+                    Plane[] planes = GeometryUtility.CalculateFrustumPlanes(camera);
+                    var visible = new List<SurfaceLodNodeKey>();
+                    var current = new List<SurfaceLodNodeKey>(complete);
+                    foreach (var key in owned)
+                    {
+                        float edge = 64 * key.SourceStep * voxelSize;
+                        var bounds = new Bounds((Vector3)((float3)key.Coordinate * edge + edge * 0.5f),
+                            Vector3.one * (edge + 2 * key.SourceStep * voxelSize));
+                        if (GeometryUtility.TestPlanesAABB(planes, bounds)) visible.Add(key);
+                        else { current.Add(key); offCamera++; }
+                    }
+                    var reference = new SurfaceLodVisibilitySelector();
+                    reference.Rebuild(visible, current);
+                    var expected = new HashSet<int>();
+                    for (int i = 0; i < owned.Count; i++) if (reference.IsActive(owned[i])) expected.Add(i);
+                    var selected = Select(owned, complete, frame, owned, planes, voxelSize);
+                    selectedTotal += selected.Count;
+                    CollectionAssert.AreEquivalent(expected, selected, $"camera frame {frame}");
+                }
+                Assert.That(offCamera, Is.GreaterThan(0));
+                Assert.That(selectedTotal, Is.GreaterThan(0));
+            }
+            finally { UnityEngine.Object.DestroyImmediate(go); }
+        }
+
+        [Test] public void FourLevelRandomCompletionMatchesIndependentCpuOwnershipModel()
+        {
+            var random = new System.Random(917);
+            var all = new List<SurfaceLodNodeKey>();
+            var root = new SurfaceLodNodeKey(8, new int3(-1, 0, -2));
+            all.Add(root);
+            for (int i = 0; i < all.Count; i++)
+                if (all[i].SourceStep > 1)
+                    for (int c = 0; c < 8; c++)
+                        all.Add(new SurfaceLodNodeKey(all[i].SourceStep / 2,
+                            SurfaceLodHierarchy.ChildCoordinate(all[i].Coordinate, c)));
+            var reference = new SurfaceLodVisibilitySelector();
+            for (int frame = 0; frame < 20; frame++)
+            {
+                var drawable = new List<SurfaceLodNodeKey>();
+                var complete = new List<SurfaceLodNodeKey>();
+                foreach (var key in all)
+                {
+                    if (random.Next(5) != 0) drawable.Add(key);
+                    if (random.Next(12) != 0) complete.Add(key);
+                }
+                reference.Rebuild(drawable, complete);
+                var expected = new HashSet<int>();
+                for (int i = 0; i < drawable.Count; i++) if (reference.IsActive(drawable[i])) expected.Add(i);
+                CollectionAssert.AreEquivalent(expected, Select(drawable, complete, frame), $"frame {frame}");
+            }
+        }
+    }
+}
