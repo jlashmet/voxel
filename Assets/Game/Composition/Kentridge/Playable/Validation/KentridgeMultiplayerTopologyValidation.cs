@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Text;
 using Game.Application.Api;
 using Game.Composition.Campaign.Content;
@@ -7,6 +8,7 @@ using Game.Composition.Kentridge.Playable;
 using Game.Composition.Kentridge.Runtime;
 using Game.Composition.WorldBuilderWorldGen.Runtime;
 using Game.Cutscenes.Api;
+using Game.GameplayReplication.Api;
 using Game.Input.Api;
 using Game.Outcomes.Api;
 using Game.Persistence.Api;
@@ -50,6 +52,7 @@ namespace Game.Composition.Kentridge.Playable.Validation
         private uint _serverTick;
         private bool _joinedReported;
         private bool _topologyReported;
+        private bool _baselineReported;
         private bool _startRequested;
         private string _failure;
 
@@ -109,6 +112,13 @@ namespace Game.Composition.Kentridge.Playable.Validation
             KentridgeMultiplayerApplicationDependencies dependencies = BuildApplicationDependencies();
             var plans = new KentridgeMultiplayerSessionPlanProvider(
                 "kentridge-opening-campaign", KentridgeDefinition.Id, "kentridge-generated-world");
+            KentridgeMultiplayerGameplayReplication gameplay = KentridgeMultiplayerGameplayReplication.Create(
+                _actors.Characters,
+                () => graph.Current?.Session.Inventory,
+                () => graph.Current?.Session.Runtime.Progression,
+                () => null,
+                () => null,
+                () => null);
 
             _authority = new KentridgeAuthoritativeMultiplayerApplication(
                 graph,
@@ -125,7 +135,8 @@ namespace Game.Composition.Kentridge.Playable.Validation
                 () => NetworkEndpoint.LoopbackIpv4.WithPort(_port),
                 server => server.LocalEndpoint,
                 TickAuthority,
-                new KentridgeMultiplayerCharacterRoster(_actors.Characters));
+                new KentridgeMultiplayerCharacterRoster(_actors.Characters),
+                gameplay);
 
             Require(_authority.Application.CompleteBoot(), "authority boot");
             var configuration = new SessionStartupConfiguration(3, Protocol, Content, true);
@@ -151,7 +162,8 @@ namespace Game.Composition.Kentridge.Playable.Validation
                 dependencies,
                 plans,
                 () => NetworkEndpoint.LoopbackIpv4.WithPort(_port),
-                CreateClient);
+                CreateClient,
+                KentridgeMultiplayerGameplayReplication.Descriptors);
             Require(_client.Application.CompleteBoot(), _role + " boot");
             Require(_client.Application.RequestJoin(new JoinSessionRequest(
                 new JoinRequest(new GameSessionId(SessionValue), _role, Protocol, Content))), _role + " join request");
@@ -189,34 +201,53 @@ namespace Game.Composition.Kentridge.Playable.Validation
             }
 
             ApplicationFlowSnapshot flow = application.Snapshot;
-            if (_topologyReported || flow.Lifecycle != ApplicationLifecycle.InGame || !flow.GameplayReady ||
-                party.Members.Count != 3)
-                return;
+            bool readyForTopology = flow.Lifecycle == ApplicationLifecycle.InGame &&
+                                    flow.GameplayReady &&
+                                    party.Members.Count == 3;
+            if (!_topologyReported && readyForTopology)
+            {
+                PartyMemberPresentationSnapshot localReady = FindLocal(party);
+                if (localReady != null && localReady.GameplayReady &&
+                    localReady.Connection == MemberConnectionPresentationState.Connected)
+                {
+                    string signature = TopologySignature(party);
+                    const string expected =
+                        "0=gamesystem25-topology:member:1/kentridge-player-1;" +
+                        "1=gamesystem25-topology:member:2/kentridge-player-2;" +
+                        "2=gamesystem25-topology:member:3/kentridge-player-3";
+                    if (!string.Equals(signature, expected, StringComparison.Ordinal))
+                        throw new InvalidOperationException("Unexpected durable topology: " + signature);
 
-            PartyMemberPresentationSnapshot localReady = FindLocal(party);
-            if (localReady == null || !localReady.GameplayReady ||
-                localReady.Connection != MemberConnectionPresentationState.Connected)
-                return;
+                    _topologyReported = true;
+                    Emit(new Milestone
+                    {
+                        name = "topology-ready",
+                        role = _role,
+                        sessionId = party.SessionId.Value,
+                        memberId = localReady.MemberId.Value,
+                        characterId = localReady.CharacterId.Value,
+                        slot = localReady.Slot.Value,
+                        rosterCount = party.Members.Count,
+                        signature = signature
+                    });
+                }
+            }
 
-            string signature = TopologySignature(party);
-            const string expected =
-                "0=gamesystem25-topology:member:1/kentridge-player-1;" +
-                "1=gamesystem25-topology:member:2/kentridge-player-2;" +
-                "2=gamesystem25-topology:member:3/kentridge-player-3";
-            if (!string.Equals(signature, expected, StringComparison.Ordinal))
-                throw new InvalidOperationException("Unexpected durable topology: " + signature);
+            if (_baselineReported || !_topologyReported) return;
+            IGameplayReplicationReadState readState = _authority != null
+                ? _authority.ReadState
+                : _client?.ReadState;
+            if (!TryCaptureBaseline(readState, out string revision, out string stateDigest)) return;
 
-            _topologyReported = true;
+            _baselineReported = true;
             Emit(new Milestone
             {
-                name = "topology-ready",
+                name = "baseline-ready",
                 role = _role,
                 sessionId = party.SessionId.Value,
-                memberId = localReady.MemberId.Value,
-                characterId = localReady.CharacterId.Value,
-                slot = localReady.Slot.Value,
                 rosterCount = party.Members.Count,
-                signature = signature
+                revision = revision,
+                stateDigest = stateDigest
             });
         }
 
@@ -288,6 +319,60 @@ namespace Game.Composition.Kentridge.Playable.Validation
             return text.ToString();
         }
 
+        private static bool TryCaptureBaseline(
+            IGameplayReplicationReadState readState,
+            out string revision,
+            out string stateDigest)
+        {
+            revision = string.Empty;
+            stateDigest = string.Empty;
+            if (readState == null || !readState.GameplayReady || readState.Revision.IsInitial)
+                return false;
+
+            ulong hash = 14695981039346656037UL;
+            IReadOnlyList<GameplayProjectionDescriptor> descriptors = KentridgeMultiplayerGameplayReplication.Descriptors;
+            for (int i = 0; i < descriptors.Count; i++)
+            {
+                GameplayProjectionDescriptor descriptor = descriptors[i];
+                if (!readState.TryGetProjection(descriptor.Id, out GameplayProjectionState state))
+                    return false;
+                if ((descriptor.Id == KentridgeMultiplayerGameplayReplication.CharactersDescriptor.Id ||
+                     descriptor.Id == KentridgeMultiplayerGameplayReplication.InventoryDescriptor.Id ||
+                     descriptor.Id == KentridgeMultiplayerGameplayReplication.ProgressionDescriptor.Id) &&
+                    state.Entries.Count == 0)
+                    return false;
+
+                hash = HashText(hash, descriptor.Id.Value);
+                hash = HashText(hash, descriptor.SchemaVersion.ToString(CultureInfo.InvariantCulture));
+                for (int entryIndex = 0; entryIndex < state.Entries.Count; entryIndex++)
+                {
+                    hash = HashText(hash, state.Entries[entryIndex].Key);
+                    hash = HashText(hash, state.Entries[entryIndex].Value);
+                }
+            }
+
+            revision = readState.Revision.Value.ToString(CultureInfo.InvariantCulture);
+            stateDigest = hash.ToString("x16", CultureInfo.InvariantCulture);
+            return true;
+        }
+
+        private static ulong HashText(ulong hash, string value)
+        {
+            const ulong prime = 1099511628211UL;
+            string text = value ?? string.Empty;
+            for (int i = 0; i < text.Length; i++)
+            {
+                char c = text[i];
+                hash ^= (byte)c;
+                hash *= prime;
+                hash ^= (byte)(c >> 8);
+                hash *= prime;
+            }
+            hash ^= 0xff;
+            hash *= prime;
+            return hash;
+        }
+
         private static ushort ParsePort(string[] args)
         {
             const string flag = "-gamesystem25-port";
@@ -354,6 +439,8 @@ namespace Game.Composition.Kentridge.Playable.Validation
             public int rosterCount;
             public int port;
             public string signature;
+            public string revision;
+            public string stateDigest;
         }
 
         private sealed class EmptySaveCatalog : ISessionSaveCatalog
