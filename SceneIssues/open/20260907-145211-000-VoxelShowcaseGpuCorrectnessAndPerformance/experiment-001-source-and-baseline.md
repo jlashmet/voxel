@@ -29,18 +29,20 @@ Read the required workflow and architecture sources before implementation:
 
 Tracked-tree audit confirms the retired `CpuWaterSurfaceChunkCache.cs` and `WaterBrickMeshBatchJobTests.cs` sources are absent on the assigned source. The GitHub repository API cannot prove absence of developer-machine *untracked* files; that portion of the checkout audit remains open and must not be claimed complete from remote tree state alone.
 
-## Baseline request
+## Baseline request result
 
-Exact-SHA CI request was created by resetting only the CI transport to source `1bf4c5aea7e5da218f37a51dce79defb3eca4059` and committing only `.github/test-request.json` as transport commit `51e29e1bc8a24f9708f444bba68a5524880cd8a4`. The request asks the existing SceneIssue standalone path to replay `20260907-145211-000-VoxelShowcaseGpuCorrectnessAndPerformance` for 180 seconds. The workflow derives the tested source from the request commit parent, so the candidate under test is the feature SHA above.
+The first exact-SHA transport commit was `51e29e1bc8a24f9708f444bba68a5524880cd8a4`, with source parent `1bf4c5aea7e5da218f37a51dce79defb3eca4059`. GitHub Actions run `34137307109`, job `101791149168`, started after queue admission and completed `failure` on 2026-09-07.
 
-- GitHub Actions run: `34137307109`
-- Job: `101791149168`
-- Requested source: `1bf4c5aea7e5da218f37a51dce79defb3eca4059`
-- State at last check: `queued`
+The run did **not** exercise Unity compilation or VoxelShowcase. It failed immediately in `Replay SceneIssue through standalone player` because `.github/test-request.json` supplied only the SceneIssue id, while `tools/showcase-player-capture.sh` requires `--scene-issue` to be a repository path matching `SceneIssues/open/*/issue.json` (or closed/legacy pending/absolute forms). The exact error was `ERROR: invalid --scene-issue path.` This is a proven CI transport-request defect, not a renderer/product result.
 
-Repository Actions currently reports 15 queued workflow runs and zero in-progress runs. Per `SceneIssues/README.md`, this queued request is not cancelled, replaced, or superseded.
+Artifact `single-test-34137307109` contained only:
 
-## Static discriminator work while blocked
+- `ModuleValidation/changed-files.txt` — empty, because the tested source equaled the assignment master baseline.
+- `ModuleValidation/plan.json` — `hasProductionChanges=false`, `hasValidationWork=false`, no modules/tests/player validations.
+
+No screenshots, player log, build log, compile result, or VoxelShowcase evidence were produced. Per the CI rules, this completed infrastructure/request failure may be retried only on the same `ci-test/fixes/agent-3` transport, with the request commit built directly on the current exact feature SHA and `scene_issue` corrected to `SceneIssues/open/20260907-145211-000-VoxelShowcaseGpuCorrectnessAndPerformance/issue.json`.
+
+## Static discriminator work while waiting for a valid baseline
 
 `GpuSolidChunkCache.MissingVisibleCount` is GPU-demand accounting for an in-band, frustum-classified coordinate that is pending and has no old ready entry. A stale-but-still-ready entry is not counted missing because the old mesh remains drawable during replacement. `TryRemoveChunk` removes stored GPU-demand accounting before slot retirement, so simple accumulation of retired/off-window accounting is not a supported root cause.
 
@@ -48,4 +50,4 @@ The cache also already provides visible-dirty priority and the scheduler can sup
 
 ## Verdict
 
-Source identity and required-document review are complete. Fresh compile, untracked-local-file audit, standalone reproduction, visual annotation, and all implementation/performance gates remain open. The exact baseline is blocked on the repository's unavailable/idle self-hosted runner queue; independent static audit continues, but correctness implementation is deliberately not started before the production-path discriminator exists.
+Source identity and required-document review are complete. The first CI request failed before Unity because its SceneIssue argument was malformed; it provides no product evidence. Fresh compile, untracked-local-file audit, standalone reproduction, visual annotation, and all implementation/performance gates remain open. No correctness implementation is selected until a valid production-path standalone baseline exists.
