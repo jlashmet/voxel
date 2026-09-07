@@ -28,5 +28,34 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(source, Does.Contain("new int3(width - 2, 4, 4), p.Foliage"));
             Assert.That(source, Does.Contain("? p.Accent : p.Flowers"));
         }
+
+        [NUnit.Framework.Test]
+        public void FinishPass_ExtendsReferenceChimneyAfterGableUsingRidgeRelativeStoneStack()
+        {
+            string projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
+            string sourcePath = Path.Combine(projectRoot,
+                "Assets/Game/WorldBuilder/Voxel/NewHouseReferenceFinishPass.cs");
+            string source = File.ReadAllText(sourcePath);
+
+            int gable = source.IndexOf("RefinePortraitGable(a, o, in c, in p);");
+            int chimney = source.IndexOf("ExtendReferenceChimney(a, o, in c, in p);", gable);
+            int method = source.IndexOf("private static void ExtendReferenceChimney", chimney);
+            int ridgeTop = source.IndexOf("int top = math.max(baseY + 12, ridge - 10);", method);
+            int shaft = source.IndexOf(
+                "new int3(10, top - baseY, 10), p.Stone", ridgeTop);
+            int cap = source.IndexOf(
+                "new int3(14, 3, 14), p.Stone", shaft);
+
+            Assert.That(gable, Is.GreaterThanOrEqualTo(0));
+            Assert.That(chimney, Is.GreaterThan(gable),
+                "The reference chimney must be extended in the late finish pass after the final portrait-gable geometry is established.");
+            Assert.That(method, Is.GreaterThan(chimney));
+            Assert.That(ridgeTop, Is.GreaterThan(method),
+                "The chimney top must remain tied to the house ridge rather than a fixed world-space height.");
+            Assert.That(shaft, Is.GreaterThan(ridgeTop),
+                "The late chimney correction must author a tall stone shaft, not only another cap primitive.");
+            Assert.That(cap, Is.GreaterThan(shaft),
+                "The tall shaft must finish with a restrained stepped masonry cap.");
+        }
     }
 }
