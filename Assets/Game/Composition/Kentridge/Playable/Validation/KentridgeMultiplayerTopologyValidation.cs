@@ -197,7 +197,6 @@ namespace Game.Composition.Kentridge.Playable.Validation
             Require(_authority.Application.RequestPartyStart(), "authority party start");
             _startRequested = true;
         }
-
         private void TickMilestones(Game.Application.Runtime.ApplicationFlowCoordinator application)
         {
             if (!application.TryCapturePartyScreen(out PartyScreenPresentationSnapshot party)) return;
@@ -397,7 +396,7 @@ namespace Game.Composition.Kentridge.Playable.Validation
         }
 
         private ClientNetworkRuntime CreateClient(
-            Game.GameplayReplication.Runtime.GameplayStateClientPacketHandler gameplay,
+            Game.GameplayReplication.Transport.GameplayStateClientPacketHandler gameplay,
             IServerSessionAdmissionHandler admission) =>
             new ClientNetworkRuntime(
                 new DeterministicAlterationApplier(),
