@@ -1,0 +1,25 @@
+{
+  "name": "Game.WorldBuilder.TopDownPhysicalWorld.Validation",
+  "rootNamespace": "Game.WorldBuilder.Validation",
+  "references": [
+    "Game.Composition.Showcase",
+    "Game.WorldBuilder.Api",
+    "Game.WorldBuilder.Runtime",
+    "MountingForce.WorldGen.Core",
+    "MountingForce.WorldGen.Voxel",
+    "VoxelEngine.Composition.Api",
+    "VoxelEngine.Composition",
+    "VoxelEngine.Structures.Api",
+    "VoxelEngine.Terrain.Api",
+    "Unity.Collections"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
