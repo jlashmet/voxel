@@ -133,7 +133,7 @@ namespace VoxelEngine.Tests.EditMode
                 op.Size.Equals(new int3(2, 6, 2)));
             int sweptLeftTip = session.Operations.FindIndex(op =>
                 op.Kind == OperationKind.Box && op.Material == palette.Roof &&
-                op.Position.x == centre - 43 && op.Position.z == origin.z - config.RoofOverhang - 2);
+                op.Position.x == centre - 36 && op.Position.z == origin.z - config.RoofOverhang - 2);
 
             Assert.That(rearShell, Is.GreaterThanOrEqualTo(0));
             Assert.That(smallerHighWindow, Is.GreaterThan(rearShell),
@@ -143,7 +143,67 @@ namespace VoxelEngine.Tests.EditMode
             Assert.That(compactFinial, Is.GreaterThan(crestClear),
                 "One compact tapered finial must replace the accumulated crest mass.");
             Assert.That(sweptLeftTip, Is.GreaterThan(rearShell),
-                "The portrait roof must gain the full outward/downward swept eave tip in the final pass.");
+                "The portrait roof must retain a controlled outward/downward swept eave tip in the final pass.");
+        }
+
+        [NUnit.Framework.Test]
+        public void AuthorHouse_SweptPortraitProfileIsConcave_AndRestoresOpeningsAfterRebuild()
+        {
+            NewHouseReferenceConfig config = NewHouseReferenceConfig.Default;
+            NewHouseReferencePalette palette = Palette();
+            int3 origin = new(-13, 12, 27);
+            var session = new RecordingSession();
+
+            NewHouseReferenceRefinement.AuthorHouse(session, origin, in config, in palette);
+
+            int centre = origin.x + config.Width / 2;
+            int upper = origin.y + config.UpperFloorY;
+            int eave = origin.y + config.MainEaveY;
+            int ridge = origin.y + config.MainRidgeY;
+            int portraitEave = upper + 31;
+            int rise = math.max(38, ridge - portraitEave);
+            int roofZ = origin.z - config.RoofOverhang - 2;
+            int rear = origin.z + config.Depth + 1;
+
+            int rearShell = session.Operations.FindIndex(op =>
+                op.Kind == OperationKind.Box && op.Material == palette.Plaster &&
+                op.Position.Equals(new int3(origin.x + 1, upper, rear - 2)) &&
+                op.Size.Equals(new int3(config.Width - 2, 25, 3)));
+            int profileClear = session.Operations.FindIndex(op =>
+                op.Kind == OperationKind.Carve &&
+                op.Position.Equals(new int3(centre - 34, portraitEave, roofZ - 1)) &&
+                op.Size.Equals(new int3(69, rise + 8, config.RoofOverhang + 20)));
+            int baseLeftEdge = session.Operations.FindIndex(op =>
+                op.Kind == OperationKind.Box && op.Material == palette.Roof &&
+                op.Position.y == portraitEave && op.Position.z == roofZ &&
+                op.Size.Equals(new int3(4, 2, 20)) && op.Position.x < centre);
+            int midY = portraitEave + rise / 2;
+            int midLeftEdge = session.Operations.FindIndex(op =>
+                op.Kind == OperationKind.Box && op.Material == palette.Roof &&
+                op.Position.y == midY && op.Position.z == roofZ &&
+                op.Size.Equals(new int3(4, 2, 20)) && op.Position.x < centre);
+            int smallerHighWindow = session.Operations.FindIndex(op =>
+                op.Kind == OperationKind.Carve &&
+                op.Position.Equals(new int3(centre - 5, eave + 12, origin.z - 6)) &&
+                op.Size.Equals(new int3(11, 1, 9)));
+
+            Assert.That(rearShell, Is.GreaterThanOrEqualTo(0));
+            Assert.That(profileClear, Is.GreaterThan(rearShell),
+                "The swept silhouette replacement must run after the structural audit shell is restored.");
+            RecordedOperation clear = session.Operations[profileClear];
+            Assert.That(clear.Position.z + clear.Size.z, Is.LessThan(rear - 2),
+                "The destructive silhouette clear must remain shallow/front-only and never reach the rear audit shell.");
+            Assert.That(baseLeftEdge, Is.GreaterThan(profileClear));
+            Assert.That(midLeftEdge, Is.GreaterThan(baseLeftEdge));
+
+            RecordedOperation baseEdge = session.Operations[baseLeftEdge];
+            RecordedOperation midEdge = session.Operations[midLeftEdge];
+            int baseReach = centre - baseEdge.Position.x;
+            int midReach = centre - midEdge.Position.x;
+            Assert.That(baseReach, Is.GreaterThan(midReach * 2),
+                "The portrait roof must narrow nonlinearly through the mid-gable; a straight A-frame profile is not acceptable.");
+            Assert.That(smallerHighWindow, Is.GreaterThan(midLeftEdge),
+                "Final upper openings must be carved after the swept shell rebuild so the silhouette correction cannot erase them.");
         }
 
         private static NewHouseReferencePalette Palette() =>
