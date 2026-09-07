@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using Game.Continuity.Api;
 using Game.Continuity.Runtime;
 using Game.GameplayReplication.Api;
@@ -171,7 +172,8 @@ namespace Game.Composition.Kentridge.Playable
                 _server.TrySendSessionAdmissionReply(connectionId, reply.Slice(0, written));
         }
 
-        private static double DefaultNowSeconds() => Environment.TickCount64 * 0.001d;
+        private static double DefaultNowSeconds() =>
+            Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency;
 
         public void Dispose()
         {
