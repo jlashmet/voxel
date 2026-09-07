@@ -15,6 +15,7 @@ namespace VoxelEngine.Structures.Runtime
         private VoxelBrush _brush;
         private readonly IRegionReadSource _reads;
         private readonly IRegionMutationStore _mutations;
+        private bool _curvedBudgetExceeded;
 
         public StructureAuthoringSession(
             IRegionReadSource reads,
@@ -25,9 +26,10 @@ namespace VoxelEngine.Structures.Runtime
             _reads = reads;
             _mutations = mutations;
             _brush = new VoxelBrush(reads, mutations, materials, writeBudget);
+            _curvedBudgetExceeded = false;
         }
 
-        public bool BudgetExceeded => _brush.BudgetExceeded;
+        public bool BudgetExceeded => _curvedBudgetExceeded || _brush.BudgetExceeded;
         public int WriteBudget => _brush.WriteBudget;
         public long TotalVoxelsWritten => _brush.TotalVoxelsWritten;
 
@@ -73,7 +75,7 @@ namespace VoxelEngine.Structures.Runtime
             byte coating = Coatings.None,
             VoxelSurfaceFlags flags = VoxelSurfaceFlags.PreserveFeature)
         {
-            if (math.any(size <= 0) || radius < 0 || _reads == null || _mutations == null)
+            if (math.any(size <= 0) || radius < 0 || _reads == null || _mutations == null || BudgetExceeded)
                 return;
 
             // Curved rasterisation writes both occupancy and the two-voxel signed-boundary halo.
@@ -84,13 +86,7 @@ namespace VoxelEngine.Structures.Runtime
             long remaining = (long)_brush.WriteBudget - _brush.VoxelsWritten;
             if (worstCaseWrites > remaining)
             {
-                // Latch the brush budget through its ordinary slow path without mutating geometry.
-                // One over-budget Set is sufficient and remains the single source of budget state.
-                for (long i = remaining; i >= 0; i--)
-                {
-                    if (_brush.BudgetExceeded) break;
-                    _brush.Set(int.MinValue, int.MinValue, int.MinValue, VoxelGrid.MaterialEmpty);
-                }
+                _curvedBudgetExceeded = true;
                 return;
             }
 
