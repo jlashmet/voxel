@@ -15,7 +15,10 @@ namespace Game.Composition.Kentridge.Playable
     /// the existing admission consumer unchanged. A known applicant whose durable member is interrupted
     /// must reconnect through Continuity before a new transport can bind that member.
     /// </summary>
-    public sealed class KentridgeContinuitySessionAdmission : IAuthoritativeSessionAdmissionConsumer, IDisposable
+    public sealed class KentridgeContinuitySessionAdmission :
+        IAuthoritativeSessionAdmissionConsumer,
+        IContinuityTerminalPolicySink,
+        IDisposable
     {
         private static readonly ContinuityPolicy DefaultPolicy = new ContinuityPolicy(60d, 10d);
 
@@ -66,7 +69,8 @@ namespace Game.Composition.Kentridge.Playable
                 _session,
                 DefaultPolicy,
                 new KentridgeContinuityTransportAdmission(_network),
-                _replication);
+                _replication,
+                this);
             _server.ConnectionClosed += OnConnectionClosed;
             _session.Changed += OnSessionChanged;
         }
@@ -117,6 +121,16 @@ namespace Game.Composition.Kentridge.Playable
             var members = new List<PartyMemberId>(_applicantByMember.Keys);
             for (int i = 0; i < members.Count; i++)
                 _continuity.MarkGameplayReady(members[i]);
+        }
+
+        public void OnExplicitLeave(PartyMemberId memberId)
+        {
+            _session.Remove(memberId);
+        }
+
+        public void OnRecoveryExpired(PartyMemberId memberId)
+        {
+            _session.Remove(memberId);
         }
 
         private void TrackInitialAdmission(string applicant, PartyMemberId memberId, uint connectionId)
