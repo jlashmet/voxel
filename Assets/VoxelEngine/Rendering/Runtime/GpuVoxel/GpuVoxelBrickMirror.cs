@@ -118,6 +118,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         public ulong UploadedBytes { get; private set; }
         public ulong SkippedAlreadyResident { get; private set; }
         public ulong RefusedNoSlot => _slots.RefusedCount;
+        internal ulong EvictionCandidateChecks => _slots.EvictionCandidateChecks;
         public ulong RejectedStale => _slots.StaleCount;
         public ulong Evictions => _slots.EvictionCount;
         public ulong DirectoryRefusals { get; private set; }

@@ -1084,7 +1084,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         }
 
         internal static string RecoveryState => $"regions={s_RecoveryRegions.Count}/{s_QueuedRecoveryRegions.Count}"
-            + $" mixed={ResidentMixedBrickCount}/{MirrorSlotCapacity} noSlot={s_Mirror?.RefusedNoSlot ?? 0} directory={s_Mirror?.DirectoryCapacity ?? 0} dirRefused={s_Mirror?.DirectoryRefusals ?? 0} dirProbes={s_Mirror?.DirectoryProbeChecks ?? 0}"
+            + $" mixed={ResidentMixedBrickCount}/{MirrorSlotCapacity} noSlot={s_Mirror?.RefusedNoSlot ?? 0} slotChecks={s_Mirror?.EvictionCandidateChecks ?? 0} directory={s_Mirror?.DirectoryCapacity ?? 0} dirRefused={s_Mirror?.DirectoryRefusals ?? 0} dirProbes={s_Mirror?.DirectoryProbeChecks ?? 0}"
             + $" stale={s_Mirror?.RejectedStale ?? 0} lastFailure={s_LastRecoveryFailure}"
             + $" recovery[active={s_RecoveryActiveSkips} borrow={s_RecoveryBorrowMisses} block={s_RecoveryBlockMisses} published={s_RecoveryPublished} lastRegion={s_LastRecoveryBlockedRegion} calls={s_RecoveryCalls} deadlineSkips={s_RecoveryDeadlineSkips}]";
         private static GpuBrickPublish s_LastRecoveryFailure;
