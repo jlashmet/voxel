@@ -177,7 +177,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
             internal bool PreparingSummaries, SummarySubmitted, SummaryFailed;
             private int _summaryRecord, _summaryCursor, _summaryCount;
-            private bool _summaryDemand;
+            private bool _summaryDemand, _summaryWaitingForRecovery;
+            private ulong _summaryRecoveryRevision;
             private int3 _summaryOrigin, _summaryExtent;
             private ulong _summaryWorld;
             private GpuVoxelBrickMirror _summaryMirror;
@@ -196,6 +197,12 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                     throw new InvalidOperationException("GPU summary preparation requires asynchronous completion.");
                 if (SummarySubmitted || SummaryFailed) return false;
                 if (_summaryRecord >= Count) return true;
+                // GPU feedback already proved these sources missing. Re-reading unchanged
+                // inputs would reacquire overlapping readers and starve their host uploads.
+                // This is upload progress, not a CPU scan or readiness decision.
+                if (_summaryWaitingForRecovery && _summaryRecoveryRevision == s_RecoveryPublished)
+                    return false;
+                _summaryWaitingForRecovery = false;
                 if (_lastSummaryFrame == frame) return false;
                 _lastSummaryFrame = frame;
                 if (s_Storage == null) return false;
@@ -337,7 +344,12 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 }
                 // Retain demand while recovery services GPU-discovered misses. Releasing it
                 // here would let PrepareFrame discard those requests before the retry.
-                if (count != 0) return;
+                if (count != 0)
+                {
+                    _summaryRecoveryRevision = s_RecoveryPublished;
+                    _summaryWaitingForRecovery = true;
+                    return;
+                }
                 ReleaseSummaryDemand();
                 _summaryCursor += _summaryCount;
                 int edge = Resources.BrickCacheEdge;
@@ -355,6 +367,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 if (SummarySubmitted) throw new InvalidOperationException("Cannot reset an in-flight summary portion.");
                 ReleaseSummaryDemand();
                 PreparingSummaries = false;
+                _summaryWaitingForRecovery = false;
+                _summaryRecoveryRevision = 0;
                 SummaryFailed = false;
                 _summaryRecord = _summaryCursor = _summaryCount = 0;
                 _lastSummaryFrame = -1;
@@ -627,7 +641,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 s_MaxCountDispatchMsSinceReport,
                 (Time.realtimeSinceStartupAsDouble - dispatchStarted) * 1000.0);
             s_CountBatchRecords++;
-            if (lane.Count == CountBatchCapacity) SealCountBatch(lane);
+            // PrepareFrame owns dispatch and completion; enqueueing must not advance peers.
             return true;
         }
 
@@ -686,6 +700,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
         }
 
         private static int s_ConsecutiveNearDispatches;
+        private static int s_NextCountBatchLane;
         private const int MaximumNearDispatchStreak = 8;
 
         private static void AdvanceCountBatches(int frame)
@@ -694,9 +709,13 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             // still gives coarse work service under continuous traversal, without another
             // submission slot or a deeper GPU queue.
             bool coarseFirst = s_ConsecutiveNearDispatches >= MaximumNearDispatchStreak;
+            // Rotate only after an actual dispatch, including source preparation. Full new
+            // batches enter this same arbitration so continuous refill cannot bypass peers.
+            int startLane = s_NextCountBatchLane;
             for (int pass = 0; pass < 2; pass++)
-            for (int laneIndex = 0; laneIndex < s_CountBatchLanes.Length; laneIndex++)
+            for (int offset = 0; offset < s_CountBatchLanes.Length; offset++)
             {
+                int laneIndex = (startLane + offset) % s_CountBatchLanes.Length;
                 CountBatchLane lane = s_CountBatchLanes[laneIndex];
                 if (lane == null) continue;
                 if (lane.Submitted)
@@ -707,8 +726,13 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
                 if (lane.Count == 0) continue;
                 bool coarse = lane.Requests[0].SourceStep == 8;
                 if (coarse != (pass == 0 ? coarseFirst : !coarseFirst)) continue;
-                if (frame - lane.FirstDispatchFrame >= CountBatchMaxFillFrames)
+                if (lane.Count == CountBatchCapacity || frame - lane.FirstDispatchFrame >= CountBatchMaxFillFrames)
+                {
+                    int previousDispatch = s_LastExtractionDispatchFrame;
                     SealCountBatch(lane);
+                    if (s_LastExtractionDispatchFrame != previousDispatch)
+                        s_NextCountBatchLane = (laneIndex + 1) % s_CountBatchLanes.Length;
+                }
             }
         }
 
@@ -1646,6 +1670,7 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             s_LastPrepareFrame = -1;
             s_LastExtractionDispatchFrame = -1;
             s_ConsecutiveNearDispatches = 0;
+            s_NextCountBatchLane = 0;
             s_ExtractionFenceValid = false;
             s_OptionalNonResidentHaloBlocksAccepted = 0;
             s_ConcurrentDemandRecoverySlices = 0;

@@ -107,6 +107,79 @@ namespace VoxelEngine.Rendering.Tests.EditMode
         }
 
         [UnityTest]
+        public IEnumerator MissingGpuSourcesDoNotReacquireReadersUntilUploadsProgress()
+        {
+            using var storage = VoxelEngineBootstrap.CreateStorage(1, 1);
+            storage.Residency.EnsureRegionResident(int3.zero);
+            storage.Mutations.SetWholeBlock(int3.zero, 1, false);
+            Assert.That(storage.Mutations.TryBeginPartialBlock(int3.zero, 2, false, out var mixed), Is.True);
+            Assert.That(mixed.SetMaterial(0, 2), Is.True);
+            storage.Mutations.CompletePartialBlock(ref mixed, true);
+            storage.PublishAllResidentRegions();
+            GpuSurfaceMirrorCoordinator.PrepareFrame(storage.Reads, storage.Changes, Time.frameCount, 1.0);
+            Queue(_first, 1);
+            object lane = FirstLane();
+            var advance = lane.GetType().GetMethod("AdvanceSummaryPreparation", Fields);
+            var dispatchFrame = Coordinator.GetField("s_LastExtractionDispatchFrame", BindingFlags.Static | BindingFlags.NonPublic);
+            dispatchFrame.SetValue(null, -1);
+            advance.Invoke(lane, new object[] { Time.frameCount });
+            double deadline = Time.realtimeSinceStartupAsDouble + 5;
+            while ((bool)Get(lane, "SummarySubmitted") && Time.realtimeSinceStartupAsDouble < deadline) yield return null;
+            Assert.That(Get(lane, "SummarySubmitted"), Is.False);
+            Assert.That(GpuSurfaceMirrorCoordinator.PendingBlockCount, Is.EqualTo(1));
+            yield return null;
+            dispatchFrame.SetValue(null, -1);
+            advance.Invoke(lane, new object[] { Time.frameCount });
+            bool retriedWithoutUpload = (bool)Get(lane, "SummarySubmitted");
+            while ((bool)Get(lane, "SummarySubmitted") && Time.realtimeSinceStartupAsDouble < deadline) yield return null;
+            Assert.That(retriedWithoutUpload, Is.False,
+                "Repeating GPU reads of unchanged missing sources blocks the uploads they are waiting for.");
+            yield return null;
+            GpuSurfaceMirrorCoordinator.PrepareFrame(storage.Reads, storage.Changes, Time.frameCount, 1.0);
+            Assert.That(GpuSurfaceMirrorCoordinator.LastRecoveredBlocks, Is.GreaterThan(0));
+            yield return PrepareSources(lane);
+            Assert.That(Get(lane, "SummaryFailed"), Is.False);
+        }
+
+        [UnityTest]
+        public IEnumerator EligibleNearSourceLanesAlternateDispatchService()
+        {
+            _first.Dispose(); _second.Dispose();
+            _first = GpuSurfaceExtractionContext.TryCreate(8, 2, 1024, 10);
+            _second = GpuSurfaceExtractionContext.TryCreate(8, 2, 1024, 18);
+            Assert.NotNull(_first); Assert.NotNull(_second);
+            using var storage = VoxelEngineBootstrap.CreateStorage(1, 1);
+            storage.Residency.EnsureRegionResident(int3.zero);
+            storage.PublishAllResidentRegions();
+            GpuSurfaceMirrorCoordinator.PrepareFrame(storage.Reads, storage.Changes, Time.frameCount, 1.0);
+            foreach (var context in new[] { _first, _second })
+                typeof(GpuSurfaceExtractionContext).GetField("_hasStaged", Fields).SetValue(context, true);
+            Coordinator.GetField("s_LastExtractionDispatchFrame", BindingFlags.Static | BindingFlags.NonPublic)
+                .SetValue(null, Time.frameCount);
+            Queue(_first, 1); Queue(_second, 2);
+            object first = Lanes().GetValue(0), second = Lanes().GetValue(1);
+            var advance = Coordinator.GetMethod("AdvanceCountBatches", BindingFlags.Static | BindingFlags.NonPublic);
+            bool secondServed = false;
+            for (int turn = 0; turn < 2; turn++)
+            {
+                Coordinator.GetField("s_LastExtractionDispatchFrame", BindingFlags.Static | BindingFlags.NonPublic)
+                    .SetValue(null, -1);
+                advance.Invoke(null, new object[] { Time.frameCount + 3 });
+                bool a = (bool)Get(first, "SummarySubmitted"), b = (bool)Get(second, "SummarySubmitted");
+                Assert.That(a ^ b, Is.True, "Exactly one eligible lane may consume the frame dispatch slot.");
+                secondServed |= b;
+                double deadline = Time.realtimeSinceStartupAsDouble + 5;
+                while (((bool)Get(first, "SummarySubmitted") || (bool)Get(second, "SummarySubmitted"))
+                    && Time.realtimeSinceStartupAsDouble < deadline) yield return null;
+                Assert.That(Get(first, "SummarySubmitted"), Is.False);
+                Assert.That(Get(second, "SummarySubmitted"), Is.False);
+                yield return null;
+            }
+            Assert.That(secondServed, Is.True,
+                "A still-eligible earlier lane must not consume consecutive service turns while its peer waits.");
+        }
+
+        [UnityTest]
         public IEnumerator ReadyNearGeometrySubmitsBeforeAnEarlierCoarsePreparationLane() => ValidateSubmissionPriority(false);
 
         [UnityTest]

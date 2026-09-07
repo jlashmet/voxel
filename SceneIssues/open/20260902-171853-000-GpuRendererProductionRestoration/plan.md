@@ -2,10 +2,10 @@
 
 ## Objective and acceptance
 
-Finish GPU-only rendering and reach400 FPS on VoxelShowcase. Preserve canonical CPU world truth,
-generation/collision/simulation and required host orchestration. Delete retired CPU renderer
-helpers without losing coverage. No hidden content, weaker budgets or shorter distance. Startup
-fill-in and FPS are priorities; imperfect water is acceptable for now.
+Finish GPU-only rendering and reach400 FPS on VoxelShowcase. Preserve canonical integer CPU world
+truth, generation/collision/simulation and required host orchestration. No hidden content, weaker
+budgets or shorter distance. Startup fill-in and FPS are priorities; imperfect water is acceptable.
+Delete retired CPU renderer helpers without losing coverage.
 
 Worktree `/private/tmp/voxel-gpu-restoration`, branch `gpu-rendering-agent-1-resume`. Local harness,
 tests/screenshots authorized. Last requested push fulfilled at `origin/fixes/agent-1` `64b2921a3`;
@@ -13,47 +13,43 @@ newer work stays local. Detailed results are in tasks.md.
 
 ## Verified state
 
-All solid steps1/2/4/8 and water use GPU geometry. CPU worker phases, workspace, contiguous arena
-and draw route are deleted; legacy helper/oracle cleanup remains. Water quit drain removed19
-finalizer warnings. Initial nearby discovery improved first publication5.1→2.1s after generation;
-CPU generation still14.9s.
+All solid steps1/2/4/8 and water use GPU geometry. CPU workers/workspace/contiguous arena/draw
+route are deleted; helper/oracle cleanup remains. GPU resolves canonical air/uniform/water metadata
+and mixed source readiness; only missing indices return for upload. Fine dense entries and coarse
+summaries stay GPU-resident. CPU coverage polling is gone; world/version/epoch guards remain.
+Cross-brick64x64 face merging and packed source portions reduced extraction cost. CPU generation
+still~14.9s. Geometry allocation/directory failures and quit finalizer warnings reached zero.
 
-`2c4a5aedc` added coarse GPU source readiness from canonical block metadata and64x64 cross-brick
-face merging.562 Rendering+Storage tests/module pass; Showcase222/134 FPS,259 allocation failures.
+`e24a749fa` removed redundant40,270-slot scans on full pinned mirrors.493 tests/module pass;
+Showcase271/186FPS,430 missing,1763 publications,coarse3,oldest49s. Slot checks0.
 
-Current fine migration removes production CPU Covers calls. GPU builds dense entries from canonical
-air/uniform/water metadata and current mixed payloads; only missing mixed indices return for upload.
-Fine demand protects accumulated slots; readers protect GPU submissions only. Context admission
-uses an extraction slot without prematurely blocking missing uploads. Count descriptors preserve
-prepared dense entries; cancellation/world/version/epoch rejection remain. Source portions pack
-complete XY planes up to1024 sources and64 metadata rows, reusing128KiB GPU/16KiB CPU scratch.
-Typical nearest cube requires two rather than ten preparation submissions. Legacy Covers is test-only.
+Current GPU regression confirms fixed-order lane starvation. Rotate after actual submission and
+queue new requests for PrepareFrame arbitration. Initial variant passes494 tests and improves
+Showcase loading(first400 near chunks40.4→22.3s,coarse3→14),but standalone module fails with
+zero publications. Removing admission-time advancement alone does not fix it.
 
-488/488 Rendering tests pass20s, including realStorage fine geometry at steps1/2/4,dense packing,
-edits and lifecycle. Packed module48s/seven captures passes all markers,zero missing/errors;
-frame p95/p99 .817/.918ms,262.4MB. Full180s/12 captures:224/184 FPS,CPU3.89/5.245ms. CPU
-coverage polls0,directory failures0,geometry allocation failures/evictions0. Recovery publications
-8.63M→347,749;host-ready entries894,513→40,270. Source hashes match. Castle retained; terrain
-seams/far/vegetation unacceptable. Missing-visible456,coarse publications37→13,oldest coarse21.17s.
-Not400FPS or complete readiness; mixed-slot pressure remains307,479 no-slot attempts.
+Diagnostic module proves overlapping retries block uploads:216 ready,7 pending,126,520 active
+skips,7 GPU requests andzero publications after14s. GPU kernels repeatedly reacquire readers
+without changed source inputs. New regression reproduces this. Missing-feedback retries now
+wait for existing host upload-publication counter progress, then GPU decides readiness again.
+No CPU coverage scan or additional buffers.495 Rendering tests pass19s. Combined module48s/seven captures passes all markers,zero missing/errors,262.5MB.
+Showcase248/188FPS,2947 publications,413 missing,coarse15,oldest24.6s. First400 near
+chunks40.4→23.3s. Active skips95830→9198; renewed arena pressure386 failures/evictions.
+Source hashes match; throughput improves but coverage/performance gates remain incomplete. Validation failure logs now include production ring diagnostics.
 
-## Next experiment and fix
+## Hypotheses and next experiments
 
-H1 result: removed redundant CPU scans of all40,270 pinned slots on every rejected upload.
-Regression32 retries:1,288,640→0 slot checks; unpin/release/LRU invariants pass493 Rendering tests.
-Showcase180s/12 captures:271/186FPS,CPU3.6/5.26ms,430 missing versus519; publications1763
-versus1474. slotChecks0,allocation failures0. Module48s/seven captures passes,262.5MB.
-Coarse still3 publications,oldest49s: not complete.
-Next discriminating experiment: two eligible GPU source lanes must both receive bounded service
-under continuous refill. AdvanceCountBatches visits fixed lane order; full new batches also call
-SealCountBatch directly, bypassing arbitration. Test starvation before changing ordering.
-Competing retained fine footprints remain another liveness hypothesis; no capacity increase.
-H2: camera-driven visibility/hierarchy CPU work limits walking (~1.73ms traversal plus periodic
-rebuild). Migrate that next. Static FPS barely changed despite recovery often0ms: profile draw
-cost separately;128 procedural buckets/manual indexed fetch may matter, but indexed-draw savings
-are unproven. No memory increases, hidden geometry or weaker budgets.
+H1 confirmed in module: service fairness plus upload-progress backpressure eliminates the reader
+convoy. Full Showcase improves loading but exposes arena pressure; preserve the fix and resolve
+pressure without memory increases or a deeper dispatch queue.
+H2: camera-driven CPU band classification/hierarchy updates limit walking (~1.85ms traversal).
+Migrate bands to GPU; retain candidate inputs until readiness/demand/clipmap membership changes.
+Separate bounded missing-source urgency from full ready-geometry traversal. Preserve current-empty
+parent handoff, stale fallback and eviction age. Coarse330 source portions per66³ footprint and
+128 procedural draw buckets are further latency/cost hypotheses, not proven rewrite choices.
 
 ## Remaining gates
 
-Startup pop-in, CPU helper retirement,GPU coverage/visual fidelity,G11 lifetime/pressure,canonical
-Kentridge integration and repeated frame/memory workloads. G01–G27 incomplete.
+Startup pop-in, CPU helper retirement, GPU coverage/visual fidelity, lifetime/pressure, canonical
+Kentridge integration and repeated frame/memory workloads. Castle silhouette persists; terrain
+seams/far scenery/vegetation remain unacceptable. G01–G27 and400FPS are incomplete.

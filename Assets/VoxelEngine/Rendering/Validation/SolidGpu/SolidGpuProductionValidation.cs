@@ -558,7 +558,7 @@ namespace VoxelEngine.Rendering.Validation
                 return;
             _loggedFailure = true;
             _stage = Stage.Failed;
-            Debug.LogError($"SOLIDGPU_VALIDATION failure: {reason}");
+            Debug.LogError($"SOLIDGPU_VALIDATION failure: {reason}; {DescribeGpu(VoxelRenderBridge.SurfaceMetrics)}; {VoxelRenderBridge.DescribeRings?.Invoke()}");
         }
 
         private void OnDisable()
