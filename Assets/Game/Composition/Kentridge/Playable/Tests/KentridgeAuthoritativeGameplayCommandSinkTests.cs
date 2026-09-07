@@ -32,7 +32,30 @@ namespace Game.Composition.Kentridge.Playable.Tests
         }
 
         [Test]
-        public void UnrelatedInputDoesNotInvokeWorldInteraction()
+        public void UseAltDelegatesDurableCharacterToComposedCombatActionOnly()
+        {
+            var registry = new CharacterRegistry();
+            var actor = new CharacterId("multiplayer-combat-actor");
+            var position = new CharacterVector3(1f, 0f, 1f);
+            Assert.That(registry.Create(
+                new CharacterDefinition(actor, CharacterTraits.PlayerControlled | CharacterTraits.Combatant),
+                new CharacterKinematicState(position, default, new CharacterVector3(0f, 0f, 1f)),
+                out _), Is.EqualTo(CharacterRegistryFailure.None));
+            var combat = new RecordingCombatSink(actor);
+            var sink = new KentridgeAuthoritativeGameplayCommandSink(
+                new InteractionClickedProcessor(registry, new WorldObjectRegistry()),
+                combat);
+            var input = new C_PlayerInput { actions = (ushort)C_PlayerInput.ActionBits.UseAlt };
+
+            sink.Apply(actor, in input, 23);
+
+            Assert.That(combat.Calls, Is.EqualTo(1));
+            Assert.That(combat.LastCharacter, Is.EqualTo(actor));
+            Assert.That(sink.AppliedCombatActions, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void UnrelatedInputDoesNotInvokeWorldOrCombatInteraction()
         {
             var registry = new CharacterRegistry();
             var actor = new CharacterId("multiplayer-command-idle");
@@ -44,13 +67,37 @@ namespace Game.Composition.Kentridge.Playable.Tests
             var objects = new WorldObjectRegistry();
             var door = new DoorToggleObject(new WorldObjectId("idle-door"), position);
             Assert.That(objects.TryRegister(door), Is.True);
+            var combat = new RecordingCombatSink(actor);
             var sink = new KentridgeAuthoritativeGameplayCommandSink(
-                new InteractionClickedProcessor(registry, objects));
+                new InteractionClickedProcessor(registry, objects),
+                combat);
             var input = new C_PlayerInput { actions = (ushort)C_PlayerInput.ActionBits.Aim };
 
             sink.Apply(actor, in input, 18);
 
             Assert.That(door.IsOpen, Is.False);
+            Assert.That(combat.Calls, Is.Zero);
+            Assert.That(sink.AppliedCombatActions, Is.Zero);
+        }
+
+        private sealed class RecordingCombatSink : IKentridgeAuthoritativeCombatActionSink
+        {
+            private readonly CharacterId _accepted;
+
+            public RecordingCombatSink(CharacterId accepted)
+            {
+                _accepted = accepted;
+            }
+
+            public int Calls { get; private set; }
+            public CharacterId LastCharacter { get; private set; }
+
+            public bool TryAttack(CharacterId characterId)
+            {
+                Calls++;
+                LastCharacter = characterId;
+                return characterId == _accepted;
+            }
         }
     }
 }
