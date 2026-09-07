@@ -371,12 +371,36 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             }
             if (_lastCoveragePollFrame == Time.frameCount) return false;
             _lastCoveragePollFrame = Time.frameCount;
-            // GPU source preparation owns source residency in bounded ranges. The whole request
-            // retains only an edit/version watch; submitted portions add active readers until GPU
-            // completion, so overlapping waiting requests cannot pin the shared mirror.
+
+            uint epoch = GpuSurfaceMirrorCoordinator.CoverageEpochFor(
+                request.BrickCacheOrigin, _brickCacheEdge);
+            if (_coverageRequested && _coverageEpoch != epoch)
+            {
+                _requestCoverageRestarts++;
+                ReleasePersistentCoverage(_staged);
+            }
+
+            bool acquiredCoverageNow = false;
+            if (!_coverageRequested)
+            {
+                if (!GpuSurfaceSourceAdmission.TryAcquire(
+                        this, request, _brickCacheEdge, out _coverageWorldEpoch))
+                    return false;
+                _coverageRequested = true;
+                _coverageEpoch = GpuSurfaceMirrorCoordinator.CoverageEpochFor(
+                    request.BrickCacheOrigin, _brickCacheEdge);
+                acquiredCoverageNow = true;
+            }
+
+            // Source admission is separate from GPU-chain admission. A request denied here must
+            // release a lease acquired by this poll so it cannot block the request that owns the
+            // render/compute lane.
             if (!GpuSurfaceMirrorCoordinator.TryBeginExtraction(
                     request.BrickCacheOrigin, 0, out _extractionWorldEpoch))
+            {
+                if (acquiredCoverageNow) ReleasePersistentCoverage(request);
                 return false;
+            }
             ConfigurePersistentLookupHeader();
             int handle = GpuSurfaceMirrorCoordinator.PrepareChunkHandle(
                 request.ChunkOriginVoxel, request.SourceStep, out ulong renderGeneration);
@@ -384,23 +408,10 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
             {
                 GpuSurfaceMirrorCoordinator.EndExtraction(
                     request.BrickCacheOrigin, 0, _extractionWorldEpoch);
+                if (acquiredCoverageNow) ReleasePersistentCoverage(request);
                 return false;
             }
-            // Waiting requests must not pin source slots needed by admitted GPU work. Count-batch
-            // source preparation owns temporary RequestSourceRange leases for only the active slice.
-            uint epoch = GpuSurfaceMirrorCoordinator.CoverageEpochFor(request.BrickCacheOrigin, _brickCacheEdge);
-            if (!_coverageRequested || _coverageEpoch != epoch)
-            {
-                if (_coverageRequested)
-                {
-                    _requestCoverageRestarts++;
-                    ReleasePersistentCoverage(_staged);
-                }
-                _coverageWorldEpoch = GpuSurfaceMirrorCoordinator.RequestEditWatch(
-                    request.BrickCacheOrigin, _brickCacheEdge);
-                _coverageRequested = true;
-                _coverageEpoch = epoch;
-            }
+
             _staged = new GpuChunkExtraction(
                 request.ChunkOriginVoxel, request.BrickCacheOrigin,
                 request.SourceStep, request.VoxelSize, request.TransitionFaceMask,
@@ -848,8 +859,8 @@ namespace VoxelEngine.Rendering.Runtime.GpuVoxel
 
         private void ReleasePersistentCoverage(in GpuChunkExtraction request)
         {
-            GpuSurfaceMirrorCoordinator.ReleaseEditWatch(
-                request.BrickCacheOrigin, _brickCacheEdge, _coverageWorldEpoch);
+            GpuSurfaceSourceAdmission.Release(
+                this, request, _brickCacheEdge, _coverageWorldEpoch);
             _coverageRequested = false;
         }
 
