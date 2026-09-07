@@ -39,6 +39,7 @@ _RESERVED_ENVIRONMENT_KEYS = {
     "VOXEL_VALIDATION_SOURCE_SHA",
     "VOXEL_VALIDATION_EXECUTABLE_SHA256",
 }
+_RESERVED_EQUALITY_FIELDS = {"name", "role", "attempt"}
 
 
 class OrchestrationError(RuntimeError):
@@ -66,6 +67,13 @@ class LifecycleOperation:
     op: str
     role: str
     milestone: MilestoneExpectation | None = None
+
+
+@dataclass(frozen=True)
+class MilestoneFieldEquality:
+    name: str
+    roles: tuple[str, ...]
+    fields: tuple[str, ...]
 
 
 @dataclass
@@ -105,6 +113,40 @@ def _milestone(raw: Mapping[str, object], names: set[str], label: str) -> Milest
     if not isinstance(fields, dict):
         raise OrchestrationError(f"{label}.fields must be an object")
     return MilestoneExpectation(str(role), name, timeout, dict(fields))
+
+
+def _field_equality(
+    raw: Mapping[str, object], names: set[str], label: str
+) -> MilestoneFieldEquality:
+    name = raw.get("name")
+    roles = raw.get("roles")
+    fields = raw.get("fields")
+    if not isinstance(name, str) or not name:
+        raise OrchestrationError(f"{label}.name must be non-empty")
+    if (
+        not isinstance(roles, list)
+        or len(roles) < 2
+        or any(not isinstance(role, str) or role not in names for role in roles)
+    ):
+        raise OrchestrationError(
+            f"{label}.roles must contain at least two configured process names"
+        )
+    if len(set(roles)) != len(roles):
+        raise OrchestrationError(f"{label}.roles must not contain duplicates")
+    if (
+        not isinstance(fields, list)
+        or not fields
+        or any(not isinstance(field, str) or not field for field in fields)
+    ):
+        raise OrchestrationError(f"{label}.fields must be a non-empty array of field names")
+    if len(set(fields)) != len(fields):
+        raise OrchestrationError(f"{label}.fields must not contain duplicates")
+    reserved = sorted(set(fields).intersection(_RESERVED_EQUALITY_FIELDS))
+    if reserved:
+        raise OrchestrationError(
+            f"{label}.fields may not compare harness-owned field(s): " + ", ".join(reserved)
+        )
+    return MilestoneFieldEquality(name, tuple(roles), tuple(fields))
 
 
 def _has_gameplay_semantic_wait(
@@ -210,6 +252,19 @@ def normalize_config(data: Mapping[str, object]) -> dict:
         if not isinstance(values, list) or any(not isinstance(v, str) or not v for v in values):
             raise OrchestrationError(f"assertions.{label} must be an array of non-empty strings")
 
+    raw_equalities = assertions.get("equalMilestoneFields", [])
+    if not isinstance(raw_equalities, list):
+        raise OrchestrationError("assertions.equalMilestoneFields must be an array")
+    equalities: list[MilestoneFieldEquality] = []
+    for index, raw in enumerate(raw_equalities):
+        if not isinstance(raw, dict):
+            raise OrchestrationError(
+                f"assertions.equalMilestoneFields[{index}] must be an object"
+            )
+        equalities.append(
+            _field_equality(raw, names, f"assertions.equalMilestoneFields[{index}]")
+        )
+
     return {
         "mode": "multiProcess",
         "runSeconds": run_seconds,
@@ -218,6 +273,7 @@ def normalize_config(data: Mapping[str, object]) -> dict:
         "operations": operations,
         "required": list(required),
         "forbidden": list(forbidden),
+        "equalities": equalities,
     }
 
 
@@ -425,6 +481,57 @@ def wait_for_milestone(
         sleep(poll_interval)
 
 
+def _assert_equal_milestone_fields(
+    history: Sequence[Mapping[str, object]],
+    assertions: Sequence[MilestoneFieldEquality],
+) -> list[dict]:
+    proofs: list[dict] = []
+    for assertion in assertions:
+        latest: dict[str, Mapping[str, object]] = {}
+        for event in history:
+            role = event.get("role")
+            if event.get("name") == assertion.name and role in assertion.roles:
+                latest[str(role)] = event
+
+        missing = [role for role in assertion.roles if role not in latest]
+        if missing:
+            raise OrchestrationError(
+                f"milestone equality {assertion.name} missing consumed role(s): "
+                + ", ".join(missing)
+            )
+
+        reference_role = assertion.roles[0]
+        reference = latest[reference_role]
+        values: dict[str, object] = {}
+        for field in assertion.fields:
+            if field not in reference:
+                raise OrchestrationError(
+                    f"milestone equality {assertion.name} missing field {field!r} "
+                    f"for role {reference_role}"
+                )
+            expected = reference[field]
+            values[field] = expected
+            for role in assertion.roles[1:]:
+                event = latest[role]
+                if field not in event:
+                    raise OrchestrationError(
+                        f"milestone equality {assertion.name} missing field {field!r} "
+                        f"for role {role}"
+                    )
+                if event[field] != expected:
+                    raise OrchestrationError(
+                        f"milestone equality {assertion.name}.{field} mismatch: "
+                        f"{reference_role}={expected!r}, {role}={event[field]!r}"
+                    )
+
+        proofs.append({
+            "name": assertion.name,
+            "roles": list(assertion.roles),
+            "fields": values,
+        })
+    return proofs
+
+
 def _assert_logs(records: Iterable[RoleProcess], required: Sequence[str], forbidden: Sequence[str]) -> None:
     combined: list[str] = []
     for record in records:
@@ -510,6 +617,7 @@ def run(unity: str, scene: Path, output_root: Path, config: Mapping[str, object]
         "roles": {},
         "milestones": history,
         "operations": [],
+        "equalMilestoneFields": [],
         "result": "running",
     }
     summary_path = output_root / "multi-process-summary.json"
@@ -582,6 +690,9 @@ def run(unity: str, scene: Path, output_root: Path, config: Mapping[str, object]
                 if expected.name == BUILD_IDENTITY_MILESTONE:
                     _validate_build_identity(event, expected.role, identity)
 
+        summary["equalMilestoneFields"] = _assert_equal_milestone_fields(
+            history, config.get("equalities", [])
+        )
         _assert_logs(all_records, config["required"], config["forbidden"])
         summary["result"] = "passed"
         return summary
