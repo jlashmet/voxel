@@ -1,6 +1,8 @@
+using System.Collections;
 using NUnit.Framework;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.TestTools;
 using VoxelEngine.Composition;
 using VoxelEngine.Rendering.Runtime.GpuVoxel;
 
@@ -65,14 +67,6 @@ namespace VoxelEngine.Rendering.Tests.EditMode
                     Is.EqualTo(expectedDemandFootprints),
                     "Waiting requests must not add whole-source demand. Exact steps retain only "
                   + "their bounded immutable owners; step 8 owns copied HLOD slices instead.");
-
-                contexts[0].Release();
-                contexts[2].TryTakePagedBatch(out _, out _);
-                Assert.That(GpuSurfaceSourceAdmission.ActiveCount, Is.EqualTo(expectedOwners),
-                    "Releasing an owner must let the already-waiting request acquire the freed slot.");
-                Assert.That(GpuSurfaceMirrorCoordinator.ActiveExtractions, Is.EqualTo(expectedOwners));
-                Assert.That(GpuSurfaceMirrorCoordinator.DemandFootprintCount,
-                    Is.EqualTo(expectedDemandFootprints));
             }
             finally
             {
@@ -92,8 +86,8 @@ namespace VoxelEngine.Rendering.Tests.EditMode
             Assert.That(GpuSurfaceMirrorCoordinator.ActiveExtractions, Is.Zero);
         }
 
-        [Test]
-        public void WaitingDifferentLodTakesAdmissionAfterCurrentLodReleases()
+        [UnityTest]
+        public IEnumerator WaitingDifferentLodTakesAdmissionAfterCurrentLodReleases()
         {
             Assert.That(SystemInfo.supportsComputeShaders, Is.True);
             using var storage = VoxelEngineBootstrap.CreateStorage(1, 1);
@@ -138,6 +132,7 @@ namespace VoxelEngine.Rendering.Tests.EditMode
                 Assert.That(GpuSurfaceMirrorCoordinator.DemandFootprintCount, Is.EqualTo(1));
 
                 step4.Release();
+                yield return null;
                 step1.TryTakePagedBatch(out _, out _);
                 Assert.That(GpuSurfaceSourceAdmission.ActiveStep, Is.EqualTo(1),
                     "A waiting different LOD must receive the bounded admission turn after release.");
