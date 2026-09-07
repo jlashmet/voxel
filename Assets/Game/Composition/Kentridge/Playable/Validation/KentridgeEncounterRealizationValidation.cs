@@ -139,7 +139,7 @@ namespace Game.Composition.Kentridge.Playable.Validation
 
             try
             {
-                string executablePath = ResolveMacPlayerExecutable(Application.dataPath);
+                string executablePath = ResolveMacPlayerExecutable(UnityEngine.Application.dataPath);
                 string executableSha256 = ComputeSha256(executablePath);
                 var milestone = new BuildIdentityMilestone
                 {
