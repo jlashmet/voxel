@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "mode": "multiProcess",
-  "runSeconds": 90,
+  "runSeconds": 120,
   "processes": [
     {
       "role": "authority",
@@ -112,6 +112,54 @@
       "name": "baseline-ready",
       "timeoutSeconds": 45,
       "fields": {"sessionId": "gamesystem25-topology", "rosterCount": 3}
+    },
+    {
+      "op": "wait",
+      "role": "client-a",
+      "name": "contention-input-sent",
+      "timeoutSeconds": 20,
+      "fields": {"sessionId": "gamesystem25-topology"}
+    },
+    {
+      "op": "wait",
+      "role": "client-b",
+      "name": "contention-input-sent",
+      "timeoutSeconds": 20,
+      "fields": {"sessionId": "gamesystem25-topology"}
+    },
+    {
+      "op": "wait",
+      "role": "authority",
+      "name": "contention-converged",
+      "timeoutSeconds": 30,
+      "fields": {
+        "sessionId": "gamesystem25-topology",
+        "quantity": 1,
+        "pickupEnabled": "false",
+        "appliedInputs": 2
+      }
+    },
+    {
+      "op": "wait",
+      "role": "client-a",
+      "name": "contention-converged",
+      "timeoutSeconds": 30,
+      "fields": {
+        "sessionId": "gamesystem25-topology",
+        "quantity": 1,
+        "pickupEnabled": "false"
+      }
+    },
+    {
+      "op": "wait",
+      "role": "client-b",
+      "name": "contention-converged",
+      "timeoutSeconds": 30,
+      "fields": {
+        "sessionId": "gamesystem25-topology",
+        "quantity": 1,
+        "pickupEnabled": "false"
+      }
     }
   ],
   "assertions": {
