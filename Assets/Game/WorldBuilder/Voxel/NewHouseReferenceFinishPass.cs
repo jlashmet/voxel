@@ -16,6 +16,7 @@ namespace Game.WorldBuilder.Voxel
             in NewHouseReferenceConfig c, in NewHouseReferencePalette p)
         {
             RefinePortraitGable(a, o, in c, in p);
+            ExtendReferenceChimney(a, o, in c, in p);
             ReplaceOversizedCrest(a, o, in c, in p);
             RebuildHangingDetails(a, o, in c, in p);
         }
@@ -146,6 +147,27 @@ namespace Game.WorldBuilder.Voxel
                 a.Box(new int3(right, y - 1, front - 5),
                     new int3(1, 2, TimberDepth), p.Timber);
             }
+        }
+
+        private static void ExtendReferenceChimney(IStructureAuthoringSession a, int3 o,
+            in NewHouseReferenceConfig c, in NewHouseReferencePalette p)
+        {
+            int upper = o.y + c.UpperFloorY;
+            int ridge = o.y + c.MainRidgeY;
+            int x = o.x + 3;
+            int z = o.z + 22;
+            int baseY = upper + 14;
+            int top = math.max(baseY + 12, ridge - 10);
+
+            // Iteration 11 brought the portrait-gable width into a credible range, exposing the
+            // left chimney as the next dominant silhouette defect. Preserve the existing embedded
+            // chimney/root and shoulder roof; extend the same masonry footprint upward late in the
+            // production pass so the shaft reads as one tall stack rather than an isolated cap.
+            a.Box(new int3(x, baseY, z), new int3(10, top - baseY, 10), p.Stone);
+            a.Box(new int3(x - 1, top - 15, z - 1), new int3(12, 2, 12), p.Stone);
+            a.Box(new int3(x - 2, top - 6, z - 2), new int3(14, 3, 14), p.Stone);
+            a.Box(new int3(x - 1, top - 2, z - 1), new int3(12, 2, 12), p.Stone);
+            a.Box(new int3(x + 2, top, z + 2), new int3(6, 4, 6), p.Stone);
         }
 
         private static void ReplaceOversizedCrest(IStructureAuthoringSession a, int3 o,
